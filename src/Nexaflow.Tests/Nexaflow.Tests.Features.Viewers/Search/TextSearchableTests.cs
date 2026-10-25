@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -32,7 +33,7 @@ public sealed class TextSearchableTests : SearchableContentConformanceTests
         _path = Path.Combine(TestTemp.Root, "nexasearch_" + Guid.NewGuid().ToString("N") + ".txt");
         File.WriteAllText(_path, Content);
 
-        var vm = new TextViewModel(_path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+        var vm = new TextViewModel(_path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
         await vm.LoadAsync(CancellationToken.None);
         return vm;
     }
@@ -114,7 +115,7 @@ public sealed class TextSearchableTests : SearchableContentConformanceTests
         var p = Path.Combine(TestTemp.Root, "nexaneedle_" + Guid.NewGuid().ToString("N") + ".txt");
         File.WriteAllText(p, content);
         _extra.Add(p);
-        var vm = new TextViewModel(p, Substitute.For<IShellServices>()) { IsMonitoring = false };
+        var vm = new TextViewModel(p, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
         await vm.LoadAsync(CancellationToken.None);
         _extraVms.Add(vm);
         return vm;

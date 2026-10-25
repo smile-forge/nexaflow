@@ -930,7 +930,7 @@ public partial class ImageEditorViewModel : ObservableObject
         if (!await _shell.ConfirmAsync(Str.Get("Images.Edit.Save.ConfirmTitle"), Str.Format("Images.Edit.Save.ConfirmMessageFormat", name)))
             return;
 
-        Queue(new ImageSaveTask(_services, session.Path, session.Recipe, SourceContainer, session.Path, replace: true, session.Made), success =>
+        Queue(new ImageSaveTask(_services, session.Path, session.Recipe, SourceContainer, session.Path, session.Made), success =>
         {
             if (!success) return;
             session.Baked();
@@ -963,7 +963,7 @@ public partial class ImageEditorViewModel : ObservableObject
         }
 
         var recipe = session.Recipe;
-        Queue(new ImageSaveTask(_services, session.Path, recipe, target, destination, replace: File.Exists(destination), session.Made), success =>
+        Queue(new ImageSaveTask(_services, session.Path, recipe, target, destination, session.Made), success =>
         {
             if (success) _shell.ShowNotification(Str.Format("Images.Edit.Save.CopyDoneFormat", Path.GetFileName(destination)));
         });

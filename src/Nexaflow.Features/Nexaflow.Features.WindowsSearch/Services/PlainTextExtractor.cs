@@ -38,6 +38,7 @@ public sealed class PlainTextExtractor
     /// reason to distrust what a scan of it turns up.</summary>
     private const int BinarySniffBytes = 8192;
 
+    [LocalDiskOnly("a file Windows Search or its folder walk found, on a drive of this computer")]
     public async Task<ExtractedText?> ExtractAsync(string path, long maxBytes, CancellationToken ct)
     {
         try

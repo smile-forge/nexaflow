@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Features.Rtf.Reading;
 
@@ -20,19 +21,20 @@ internal static class RtfDocumentFile
     private const int Chunk = 81920;
 
     /// <summary>
-    /// The document at <paramref name="path"/>, read no further than <paramref name="maxBytes"/> — through the VFS, so one
-    /// inside an archive opens like one on disk, and with the file shared, so one open in a word processor still reads.
+    /// The document at <paramref name="path"/>, read no further than <paramref name="maxBytes"/> — through the runtime's file
+    /// system, so one inside an archive or on a location opens like one on disk, and with the file shared, so one open in a
+    /// word processor still reads.
     /// </summary>
-    public static string Read(string path, long maxBytes = long.MaxValue)
+    public static async Task<string> ReadAsync(IVirtualFileSystem vfs, string path, long maxBytes = long.MaxValue, CancellationToken ct = default)
     {
-        using var stream = VirtualFileSystem.Instance.OpenRead(path);
+        await using var stream = await vfs.OpenReadAsync(path, ReadIntent.Sequential, ct);
         using var bytes = new MemoryStream();
 
         var buffer = new byte[Chunk];
         var left = maxBytes;
         int read;
 
-        while (left > 0 && (read = stream.Read(buffer, 0, (int)Math.Min(buffer.Length, left))) > 0)
+        while (left > 0 && (read = await stream.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, left)), ct)) > 0)
         {
             bytes.Write(buffer, 0, read);
             left -= read;

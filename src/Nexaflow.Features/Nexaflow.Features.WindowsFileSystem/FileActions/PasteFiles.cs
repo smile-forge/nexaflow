@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.Threading;
@@ -17,7 +18,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
     /// the same way a drag-drop does because both go through the same planner.
     /// </para>
     /// </summary>
-    public class PasteFiles(IShellServices shell) : IFolderAction, ICacheable
+    public class PasteFiles(IShellServices shell, IVirtualFileSystem vfs) : IFolderAction, ICacheable
     {
         public bool   IsDestructive         => false;
         public bool   SupportsMultipleFiles => true;
@@ -40,7 +41,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
             // The clipboard is only consumed once the cut has actually landed — a failed one is left in
             // place so the cause can be fixed and the paste repeated.
-            var op = Operations.FileOperationQueue.For(shell)
+            var op = Operations.FileOperationQueue.For(shell, vfs)
                 .EnqueuePaste(paths, destinationFolder, isCut, onCutSucceeded: NativeMethods.ClipboardClear);
 
             return Task.FromResult(op is not null);

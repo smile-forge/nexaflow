@@ -61,6 +61,7 @@ public partial class HtmlView : UserControl, IPageView, IAirspaceContent, IDispo
         if (!await Surface.EnsureReadyAsync()) return;   // Unavailable already fired the fallback
 
         UpdateNavButtons();
+        await ViewModel.Loaded;
         Surface.NavigateTo(ViewModel.NavigationUri.ToString());
     }
 

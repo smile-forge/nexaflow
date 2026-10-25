@@ -31,12 +31,12 @@ The groundwork is real but synchronous and Windows-path shaped, so the first job
 
 | Piece | Where | What it gives | What stops it carrying remote |
 | --- | --- | --- | --- |
-| `IVirtualFileSystem` | `IO.Common/IVirtualFileSystem.cs` | Transparent over archives, `::{id}` mounts and connected locations; async, cancellable members beside the sync ones; breadcrumbs, parent paths, display names and display forms | Most callers still use the sync members, which serve local paths only; `NXIO001` reports each |
+| `IVirtualFileSystem` | `IO.Common/IVirtualFileSystem.cs` | Transparent over archives, `::{id}` mounts and connected locations; async, cancellable members beside the sync ones; breadcrumbs, parent paths, display names and display forms | Features and the shared visuals open, save, list and probe through the async members, and what reads this disk directly is marked `[LocalDiskOnly]`; This PC's own probe of its rows is the one place still reported (`NXIO002`) |
 | `VirtualBacking` | `IO.Common/VirtualMount.cs` | Actions ask how a path's bytes are obtained before handing it to a process; `Remote` marks a path on a location | A remote path has no materialised copy until the content cache lands, so an action needing a native path is suppressed |
 | `LocationEntry` | `IO.Common/Locations/LocationEntry.cs` | Name, size, modified, hidden and read-only, symlink target, POSIX mode, owner, group, content hash, archive extras | — |
-| WindowsFileSystem feature | `Features.WindowsFileSystem` | The browser, This PC, file actions, transfers. Browsing, the tree, the address bar, create, rename and the assistant's file tools go through the runtime's async VFS; file actions are awaitable | Transfers and the operation queue still call `File.*` / `Directory.*`; `NXIO002` reports each |
-| `FileTransferEngine` | `IO.Common` | Progress, throughput, ETA, cancel | Assumes both ends are Windows paths |
-| `IThisPcItemProvider` | `Features.Common/ThisPc` | How OneDrive puts a row on This PC; connections use the same | — |
+| WindowsFileSystem feature | `Features.WindowsFileSystem` | The browser, This PC, file actions, transfers. Browsing, the tree, the address bar, create, rename and the assistant's file tools go through the runtime's async VFS; file actions are awaitable; copy, move and delete go through the engine, and what the Recycle Bin cannot hold is offered as a permanent delete | Dragging out of a location hands Windows a path it cannot open until the content cache lands |
+| `FileTransferEngine` | `IO.Common` | Progress, throughput, ETA, cancel. An item whose ends are both real paths on this disk takes the disk's own path; one with an end only the file system reaches (an archive, a location) goes through `FileTransferRequest.FileSystem` with the same promises | Free-space parking only where the destination is on this disk. Within one location that declares `ServerSideCopy` an unverified copy asks the server (`CopyWithinAsync`) and moves no bytes |
+| `IThisPcItemProvider` | `Features.Common/ThisPc` | Every row of This PC is a provider's: the volumes (the file browser's own provider), OneDrive's sync folders; each provider describes its own rows, and connections use the same seam | — |
 | `PathScope` | `IO.Common/PathScope.cs` | Assistant reach equals what the user has open | Normalises Windows paths only |
 | `PseudoConsoleHostService` + `TerminalScreen` | `IO.Terminal` | ConPTY host for cmd/pwsh and a VT100 screen buffer | The view is a scrolling list of finished lines, so full-screen programs (vim, htop, tmux) are not drawn |
 | `ProtectedData` | `Core/ConfigManager.cs` | DPAPI protects stored secrets | Per-file, not a credential store with per-host entries |
@@ -85,6 +85,8 @@ public interface ILocationSession : IAsyncDisposable          // paths are the p
     ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode,
         LocationEntry? expected, CancellationToken ct);       // expected: the version read, checked at commit
     ValueTask MoveAsync(string from, string to, bool replace, CancellationToken ct);
+    ValueTask CopyWithinAsync(string from, string to, bool replace,
+        CancellationToken ct);                                // ServerSideCopy only; the default says it cannot
     ValueTask DeleteAsync(string path, bool recursive, CancellationToken ct);
     ValueTask CreateDirectoryAsync(string path, CancellationToken ct);
     ILocationWatch? Watch(string path, bool recursive);          // null when Capabilities lacks Watch
@@ -111,9 +113,15 @@ public interface ILocationSessionSource                          // the pool, pe
   `[BlocksOnIo(nameof(…Async))]`, and `Nexaflow.Analyzers.Io` reports a call to one from a feature or the shared
   visuals (`NXIO001`, naming the member to await) and any `System.IO` that reaches the disk itself (`NXIO002`). Code
   that only ever touches this machine's own disk — settings, caches and stores under the app's data folders — is
-  marked `[LocalDiskOnly("where its files are")]`, and a mark with no reason is an error (`NXIO003`). The existing
-  call sites move to the async members, or take the mark, in phase 0. [testing.md](testing.md#how-a-feature-reaches-a-file-nxio001nxio003)
-  has the detail.
+    marked `[LocalDiskOnly("where its files are")]`, and a mark with no reason is an error (`NXIO003`). Every feature
+    call site is on the async members or carries the mark. [testing.md](testing.md#how-a-feature-reaches-a-file-nxio001nxio003)
+    has the detail.
+  - **A reader that needs a path of its own asks for one.** `MaterializeFileAsync` hands a reader that can only open a file
+    by path — video and audio playback, 3D models, fonts, the Executable inspector, Open with — a path on this disk holding
+    the file's bytes: a real or mounted path as it is, an archive entry extracted to a temp copy. A file on a location has
+    no copy on this disk until the content cache lands, and is refused with `NotSupportedException`. `ResolveOnDisk`
+    answers without IO where on this disk a file wholly is, or null — what a sidecar, a content probe or a Windows API is
+    given.
 - **What is offered on a location is decided by name.** The action strip, a context menu and the folder viewlets are
   built synchronously, so the rules that read content — a magic-number file type, a folder's contents globs, a
   companion beside a file — read only what the file system resolves to this disk (`FileSubject.LocalFile`). On a

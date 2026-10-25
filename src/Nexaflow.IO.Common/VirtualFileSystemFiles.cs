@@ -3,9 +3,9 @@ using Nexaflow.IO.Common.Locations;
 namespace Nexaflow.IO.Common;
 
 /// <summary>
-/// Whole-file work every caller of the file system needs, built on its members: a new file with given bytes, and a copy.
-/// Both go through <see cref="IVirtualFileSystem.BeginWriteAsync"/>, so nobody sees half of either, and either end may
-/// be a real path, a mount, an archive entry or a connected location.
+/// Work every caller of the file system needs, built on its members: a new file with given bytes, a copy, and whether a
+/// folder holds a folder. The writes go through <see cref="IVirtualFileSystem.BeginWriteAsync"/>, so nobody sees half of
+/// either, and every path may be a real path, a mount, an archive entry or a connected location.
 /// </summary>
 public static class VirtualFileSystemFiles
 {
@@ -29,5 +29,21 @@ public static class VirtualFileSystemFiles
                                           .ConfigureAwait(false);
         await source.CopyToAsync(write.Content, ct).ConfigureAwait(false);
         await write.CommitAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Whether the folder at <paramref name="path"/> holds a folder — what gives a tree row its expander. Reads the
+    /// listing only until the first folder; a folder that cannot be read, or an archive entry that is only a temp copy,
+    /// holds none.</summary>
+    public static async Task<bool> HasChildFoldersAsync(this IVirtualFileSystem vfs, string path, CancellationToken ct = default)
+    {
+        if (vfs.GetBacking(path) is VirtualBacking.Materialized) return false;
+        try
+        {
+            await foreach (var entry in vfs.EnumerateAsync(path, ct).ConfigureAwait(false))
+                if (entry.IsDirectory) return true;
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+        return false;
     }
 }

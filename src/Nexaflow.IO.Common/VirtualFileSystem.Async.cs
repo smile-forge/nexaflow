@@ -186,6 +186,10 @@ public sealed partial class VirtualFileSystem
             else throw LocationFailures.NotFound(from);
         }, from, ct);
 
+    /// <summary>Never on this disk: a copy here is the transfer engine's, which streams it with progress and verification.</summary>
+    public ValueTask CopyWithinAsync(string from, string to, bool replace, CancellationToken ct = default)
+        => ValueTask.FromException(new NotSupportedException($"'{from}' is not on a location that copies on its server."));
+
     public ValueTask DeleteAsync(string path, bool recursive, CancellationToken ct = default)
         => OffThread(() =>
         {
@@ -226,6 +230,9 @@ public sealed partial class VirtualFileSystem
 
     public ValueTask<ArchiveSummary?> DescribeArchiveAsync(string containerPath, CancellationToken ct = default)
         => OffThread(() => DescribeArchive(containerPath), containerPath, ct);
+
+    public ValueTask<string> MaterializeFileAsync(string path, CancellationToken ct = default)
+        => OffThread(() => MaterializeFile(path), path, ct);
 
     public ValueTask ExtractAllAsync(string containerPath, string destinationDir,
                                      System.IProgress<TransferProgress>? progress = null, CancellationToken ct = default)

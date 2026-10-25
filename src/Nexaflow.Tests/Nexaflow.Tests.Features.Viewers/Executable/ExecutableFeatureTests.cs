@@ -54,7 +54,7 @@ public sealed class ExecutableFeatureTests
     [TestMethod, TestCategory("Unit")]
     public void Av_scan_is_universal_and_opens_no_viewer()
     {
-        var action = new AvScanAction(Shell());
+        var action = new AvScanAction(Shell(), VirtualFileSystem.Instance);
 
         // AMSI is content-agnostic, so the action is offered on any file; and because it shows a
         // result rather than a tab it must not claim to be a viewer.
@@ -69,7 +69,7 @@ public sealed class ExecutableFeatureTests
     public async Task Av_scan_queues_background_work_rather_than_blocking()
     {
         var shell  = Shell();
-        var action = new AvScanAction(shell);
+        var action = new AvScanAction(shell, VirtualFileSystem.Instance);
 
         Assert.IsTrue(await action.PerformActionAsync(PeFixtures.Notepad));
 
@@ -81,7 +81,7 @@ public sealed class ExecutableFeatureTests
     public async Task Av_scan_with_no_files_does_nothing()
     {
         var shell = Shell();
-        Assert.IsFalse(await new AvScanAction(shell).PerformActionAsync([]));
+        Assert.IsFalse(await new AvScanAction(shell, VirtualFileSystem.Instance).PerformActionAsync([]));
         shell.DidNotReceive().QueueBackgroundTask(
             Arg.Any<IBackgroundTask>(), Arg.Any<Action<bool>>(), Arg.Any<CancellationToken>());
     }
@@ -98,17 +98,17 @@ public sealed class ExecutableFeatureTests
     }
 
     [TestMethod, TestCategory("Unit")]
-    public void An_unscannable_file_is_never_reported_as_clean()
+    public async Task An_unscannable_file_is_never_reported_as_clean()
     {
         // Saying "clean" because nothing looked at it would be worse than saying nothing.
-        var result = AmsiScanner.ScanFile(@"C:\definitely\not\here.bin");
+        var result = await AmsiScanner.ScanFileAsync(VirtualFileSystem.Instance, @"C:\definitely\not\here.bin");
 
         Assert.AreEqual(AmsiVerdict.Unavailable, result.Verdict);
         Assert.IsFalse(result.IsThreat);
     }
 
     [TestMethod, TestCategory("Unit")]
-    public void A_file_under_a_mount_is_scanned_as_the_real_file_it_maps_to()
+    public async Task A_file_under_a_mount_is_scanned_as_the_real_file_it_maps_to()
     {
         // A OneDrive folder is browsed as a mount (::{id}\…), and that virtual path is what the action is handed.
         var dir = TestTemp.CreateSubdirectory("amsi-mount").FullName;
@@ -119,8 +119,8 @@ public sealed class ExecutableFeatureTests
         VirtualFileSystem.Instance.RegisterMount(new VirtualMount(id, "AMSI Mount", dir));
         try
         {
-            var viaMount = AmsiScanner.ScanFile($@"{VirtualMount.RootFor(id)}\notes.txt");
-            var direct   = AmsiScanner.ScanFile(real);
+            var viaMount = await AmsiScanner.ScanFileAsync(VirtualFileSystem.Instance, $@"{VirtualMount.RootFor(id)}\notes.txt");
+            var direct   = await AmsiScanner.ScanFileAsync(VirtualFileSystem.Instance, real);
 
             Assert.AreEqual(direct.Verdict, viaMount.Verdict);
             Assert.AreEqual(direct.Message, viaMount.Message, "the mount must not read as a file that has disappeared");

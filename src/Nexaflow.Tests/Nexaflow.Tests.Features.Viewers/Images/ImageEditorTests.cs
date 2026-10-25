@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using System.Text.Json.Nodes;
 using Nexaflow.Features.Common;
@@ -67,7 +68,7 @@ public class ImageEditorTests
     /// <summary>The viewer in edit mode over the copied photo, once a frame of it is on screen.</summary>
     private ImageViewModel Editing(IShellServices? shell = null)
     {
-        var vm = new ImageViewModel([_photo], shell ?? Shell(), ImageViewMode.Edit, new ImageEditingServices(new ImageRecipeStore(TimeSpan.FromHours(1))));
+        var vm = new ImageViewModel([_photo], shell ?? Shell(), ImageViewMode.Edit, new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1))));
         Settle(vm);
         Assert.IsNotNull(vm.Canvas, "the photo was never decoded and presented");
         return vm;
@@ -403,7 +404,7 @@ public class ImageEditorTests
         await vm.Editor.SaveCommand.ExecuteAsync(null);
         Settle(vm, () => !vm.IsEdited);
 
-        using var saved = new ImageEditingServices().Decode(_photo, null);
+        using var saved = await new ImageEditingServices(VirtualFileSystem.Instance).DecodeAsync(_photo, null);
         Assert.AreEqual(SKEncodedOrigin.TopLeft, saved.Origin);
         Assert.AreEqual(new SKSizeI(64, 32), saved.StoredFullSize, "upright, then turned a quarter: 64 wide");
         Assert.IsFalse(File.Exists(ImageRecipeStore.SidecarPath(_photo)), "the edits are in the file now");
@@ -474,7 +475,7 @@ public class ImageEditorTests
     [CoversNode("images-render-preview")]
     public void ThePreview_IsTheEditedPicture_SizedForTheScreen()
     {
-        var vm = new ImageViewModel([_photo], Shell(), ImageViewMode.Carousel, new ImageEditingServices());
+        var vm = new ImageViewModel([_photo], Shell(), ImageViewMode.Carousel, new ImageEditingServices(VirtualFileSystem.Instance));
         vm.SetViewport(16, 16, 1);
         vm.RotateRightCommand.Execute(null);
         Settle(vm, () => vm.CurrentImage is not null);

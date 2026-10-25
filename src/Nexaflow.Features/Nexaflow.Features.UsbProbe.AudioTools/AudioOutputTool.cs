@@ -10,6 +10,7 @@ using Nexaflow.IO.Common.Audio;
 using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Tools;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.UsbProbe.AudioTools;
 
@@ -149,6 +150,7 @@ public sealed partial class AudioOutputTool : ObservableObject, IUsbTool, IUsbTo
         };
     }
 
+    [LocalDiskOnly("a sound file on this computer, picked to play through a device plugged into it")]
     static ClipSignal Clip(string path, double amplitude)
     {
         var clip = WavAudio.ReadClip(System.IO.File.ReadAllBytes(path));

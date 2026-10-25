@@ -22,7 +22,7 @@ public static class FolderViewletRegistry
         // the right answer for an action operating ON the archive — but browsing it means looking at its entries,
         // and those are no more a folder than the ones a level deeper. A folder on a location has none on this disk.
         var vfs = registry.Vfs;
-        string? realFolder = vfs.GetBacking(folderPath).IsFullyOnDisk() ? vfs.TryResolveReal(folderPath) : null;
+        string? realFolder = vfs.ResolveOnDisk(folderPath);
         bool fullyBacked = realFolder is not null && IsFolderHere(realFolder);
 
         var result = new List<IFolderViewlet>();

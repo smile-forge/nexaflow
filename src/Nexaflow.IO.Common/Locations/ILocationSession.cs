@@ -40,6 +40,14 @@ public interface ILocationSession : IAsyncDisposable
     /// <see cref="LocationError.NotFound"/> when the source is missing.</summary>
     ValueTask MoveAsync(string from, string to, bool replace, CancellationToken ct);
 
+    /// <summary>
+    /// Copies a file on the server, without its bytes crossing the connection. Asked only of a session whose provider
+    /// declares <see cref="LocationCapabilities.ServerSideCopy"/>; one that does not keeps this default, which says it
+    /// cannot. <see cref="LocationError.Conflict"/> when <paramref name="to"/> exists and <paramref name="replace"/> is false.
+    /// </summary>
+    ValueTask CopyWithinAsync(string from, string to, bool replace, CancellationToken ct)
+        => ValueTask.FromException(new NotSupportedException("This location cannot copy on its server."));
+
     /// <summary>Deletes a file, or a folder — only an empty one unless <paramref name="recursive"/>. Permanent: a
     /// location has no recycle bin. <see cref="LocationError.NotFound"/> when nothing is there;
     /// <see cref="LocationError.Conflict"/> when a folder still holds something and <paramref name="recursive"/> is false.</summary>

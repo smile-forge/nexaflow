@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Linq;
 using System.Text.Json.Nodes;
@@ -33,7 +34,7 @@ public class VideoAiTests
         return shell;
     }
 
-    private static VideoViewModel Make() => new("clip.mp4", RunningShell());
+    private static VideoViewModel Make() => new("clip.mp4", RunningShell(), VirtualFileSystem.Instance);
 
     [TestMethod]
     [CoversNode("video-ai-act")]

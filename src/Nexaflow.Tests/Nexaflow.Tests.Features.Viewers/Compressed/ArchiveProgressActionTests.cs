@@ -68,7 +68,7 @@ public class ArchiveProgressActionTests
     {
         var archive = Archive("photos", "a.txt", "b.txt");
         var host    = new RecordingHost();
-        var action  = new UnzipHereAction(Substitute.For<IShellServices>(), host);
+        var action  = new UnzipHereAction(Substitute.For<IShellServices>(), VirtualFileSystem.Instance, host);
 
         Assert.IsTrue(await action.PerformActionAsync(archive), "the action reports that it started, not that it finished");
         Assert.AreEqual(1, host.Requests.Count);
@@ -95,7 +95,7 @@ public class ArchiveProgressActionTests
         var archive = Archive("docs", "a.txt");
         var host    = new RecordingHost();
 
-        await new UnzipHereAction(Substitute.For<IShellServices>(), host).PerformActionAsync(archive);
+        await new UnzipHereAction(Substitute.For<IShellServices>(), VirtualFileSystem.Instance, host).PerformActionAsync(archive);
 
         Assert.AreEqual(Path.Combine(_root, "docs"), host.Requests[0].DestinationPath);
     }
@@ -107,7 +107,7 @@ public class ArchiveProgressActionTests
         var archive = Archive("plain", "a.txt");
 
         // With no host the work is done by the time the action answers.
-        Assert.IsTrue(await new UnzipHereAction(Substitute.For<IShellServices>()).PerformActionAsync(archive));
+        Assert.IsTrue(await new UnzipHereAction(Substitute.For<IShellServices>(), VirtualFileSystem.Instance).PerformActionAsync(archive));
         Assert.IsTrue(File.Exists(Path.Combine(_root, "plain", "a.txt")));
     }
 
@@ -121,7 +121,7 @@ public class ArchiveProgressActionTests
         var second = Archive("two", "b.txt");
         var host   = new RecordingHost();
 
-        await new UnzipHereAction(Substitute.For<IShellServices>(), host)
+        await new UnzipHereAction(Substitute.For<IShellServices>(), VirtualFileSystem.Instance, host)
             .PerformActionAsync(new[] { first, second });
 
         Assert.AreEqual(2, host.Requests.Count);
@@ -142,7 +142,7 @@ public class ArchiveProgressActionTests
         var host   = new RecordingHost();
         var dest   = Path.Combine(_root, "reports.zip");
 
-        Assert.IsTrue(await new ZipItAction(Substitute.For<IShellServices>(), new CompressedConfig(), host)
+        Assert.IsTrue(await new ZipItAction(Substitute.For<IShellServices>(), new CompressedConfig(), VirtualFileSystem.Instance, host)
             .PerformActionAsync(folder));
 
         Assert.IsTrue(File.Exists(dest), "the name is taken the moment the action returns");
@@ -165,7 +165,7 @@ public class ArchiveProgressActionTests
         var host   = new RecordingHost();
         host.Cts.Cancel();
 
-        Assert.IsTrue(await new ZipItAction(Substitute.For<IShellServices>(), new CompressedConfig(), host)
+        Assert.IsTrue(await new ZipItAction(Substitute.For<IShellServices>(), new CompressedConfig(), VirtualFileSystem.Instance, host)
             .PerformActionAsync(folder));
 
         await host.Completion;
@@ -182,7 +182,7 @@ public class ArchiveProgressActionTests
     {
         var folder = Folder("sync", "one.txt");
 
-        Assert.IsTrue(await new ZipItAction(Substitute.For<IShellServices>(), new CompressedConfig())
+        Assert.IsTrue(await new ZipItAction(Substitute.For<IShellServices>(), new CompressedConfig(), VirtualFileSystem.Instance)
             .PerformActionAsync(folder));
 
         Assert.IsTrue(File.Exists(Path.Combine(_root, "sync.zip")));
@@ -199,8 +199,8 @@ public class ArchiveProgressActionTests
     public async Task NeitherActionAsksForARefreshItCannotHaveEarned()
     {
         var shell = Substitute.For<IShellServices>();
-        Assert.IsFalse(new ZipItAction(shell, new CompressedConfig()).RequiresRefresh);
-        Assert.IsFalse(new UnzipHereAction(shell).RequiresRefresh);
+        Assert.IsFalse(new ZipItAction(shell, new CompressedConfig(), VirtualFileSystem.Instance).RequiresRefresh);
+        Assert.IsFalse(new UnzipHereAction(shell, VirtualFileSystem.Instance).RequiresRefresh);
     }
 
     /// <summary>Runs the work as soon as it is handed over and keeps what it said, so a test can await

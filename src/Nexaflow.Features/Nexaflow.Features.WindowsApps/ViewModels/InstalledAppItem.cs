@@ -1,6 +1,7 @@
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Features.WindowsApps.Models;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
 
 namespace Nexaflow.Features.WindowsApps.ViewModels;
@@ -11,6 +12,7 @@ namespace Nexaflow.Features.WindowsApps.ViewModels;
 /// <c>ICollectionView</c> sort, plus formatted text for the grid cells. <see cref="SizeBytes"/> is
 /// observable so the background size pass can fill it in after the list is already shown.
 /// </summary>
+[LocalDiskOnly("an installed app's folder and uninstaller, on this computer")]
 public sealed partial class InstalledAppItem(InstalledApp app) : ObservableObject
 {
     public InstalledApp App { get; } = app;

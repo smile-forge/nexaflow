@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -56,7 +57,7 @@ public class LogAiTests
             "2024-01-01 00:00:03 INFO retry scheduled\n");
         try
         {
-            using var vm = new LogViewModel(path, RunningShell()) { IsMonitoring = false };
+            using var vm = new LogViewModel(path, RunningShell(), VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             // ── Scope: file-path security boundary keeps two log tabs distinguishable when pinned ──
@@ -147,7 +148,7 @@ public class LogAiTests
         var path = WriteTemp(string.Concat(Enumerable.Range(1, 30).Select(i => $"line {i}\n")));
         try
         {
-            using var vm = new LogViewModel(path, RunningShell()) { IsMonitoring = false };
+            using var vm = new LogViewModel(path, RunningShell(), VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             var tail = ContextPreviewProbe.VisibleTexts(vm.CreateContextPreview());

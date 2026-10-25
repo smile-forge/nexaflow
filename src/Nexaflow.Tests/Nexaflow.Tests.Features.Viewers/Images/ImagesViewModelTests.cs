@@ -4,6 +4,8 @@ using NSubstitute;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Features.Images.Editing.Recipe;
+using Nexaflow.Features.Images.Editing;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Tests.Features.Images;
 
@@ -17,8 +19,11 @@ namespace Nexaflow.Tests.Features.Images;
 [TestClass]
 public class ImagesViewModelTests
 {
+    /// <summary>The editing engine every viewer here shares, as a registration's tabs do.</summary>
+    private static readonly ImageEditingServices Editing = new(VirtualFileSystem.Instance);
+
     private static ImageViewModel Make(params string[] paths)
-        => new(paths, Substitute.For<IShellServices>());
+        => new(paths, Substitute.For<IShellServices>(), ImageViewMode.Carousel, Editing);
 
     // ── Rotation (90° steps, wrapping both ways) ──────────────────────────
 

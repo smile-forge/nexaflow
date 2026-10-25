@@ -49,6 +49,7 @@ public class ThisPcProviderRulesTests
            || typeof(IShellServices).IsAssignableFrom(p.ParameterType)
            || typeof(IAIService).IsAssignableFrom(p.ParameterType)
            || p.ParameterType == typeof(IReadOnlyDictionary<Type, IFeatureConfig>)
+           || p.ParameterType == typeof(Nexaflow.IO.Common.IVirtualFileSystem)
            || p.ParameterType.Name == "WorkspaceRuntime";
 
     [TestMethod]
@@ -70,13 +71,16 @@ public class ThisPcProviderRulesTests
         foreach (var type in ProviderTypes())
         {
             var ctor = type.GetConstructors()
-                           .Where(c => c.GetParameters().All(p => p.IsOptional || typeof(IFeatureConfig).IsAssignableFrom(p.ParameterType)))
+                           .Where(c => c.GetParameters().All(p => p.IsOptional || typeof(IFeatureConfig).IsAssignableFrom(p.ParameterType)
+                                                                  || p.ParameterType == typeof(Nexaflow.IO.Common.IVirtualFileSystem)))
                            .OrderBy(c => c.GetParameters().Length)
                            .FirstOrDefault();
             if (ctor is null) continue;   // needs a shell; covered by the constructor rule above
 
             object?[] args = [.. ctor.GetParameters().Select(p =>
-                p.IsOptional ? Type.Missing : Activator.CreateInstance(p.ParameterType))];
+                p.IsOptional ? Type.Missing
+                : p.ParameterType == typeof(Nexaflow.IO.Common.IVirtualFileSystem) ? Nexaflow.IO.Common.VirtualFileSystem.Instance
+                : Activator.CreateInstance(p.ParameterType))];
 
             object instance;
             try { instance = ctor.Invoke(args); }

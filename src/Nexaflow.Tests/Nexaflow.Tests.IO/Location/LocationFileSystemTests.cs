@@ -139,6 +139,12 @@ public sealed class LocationFileSystemTests
     }
 
     [TestMethod]
+    public async Task ARemoteFileHasNoCopyOnThisDiskToHandOver()
+    {
+        await Assert.ThrowsExactlyAsync<NotSupportedException>(async () => await _vfs.MaterializeFileAsync($@"{Root}\x.txt"));
+    }
+
+    [TestMethod]
     public async Task ARemoteFileIsNeverAnArchiveToBrowse()
     {
         await _vfs.WriteAllBytesAsync($@"{Root}\bundle.zip", [0x50, 0x4B, 0x05, 0x06, .. new byte[18]]);

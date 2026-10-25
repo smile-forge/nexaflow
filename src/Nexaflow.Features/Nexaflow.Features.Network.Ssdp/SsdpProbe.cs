@@ -1,5 +1,6 @@
 using System.Net;
 using System.Runtime.CompilerServices;
+
 using Nexaflow.IO.Network.Adapters;
 using Nexaflow.IO.Network.Guard;
 using Nexaflow.IO.Network.Model;
@@ -488,15 +489,13 @@ public sealed class SsdpProbe : INetworkProbe
     {
         if (_ssdp is not null) return _ssdp;
 
-        var path = Path.Combine(AppContext.BaseDirectory, "Protocols", "ssdp.json");
-
         try
         {
-            return _ssdp = ProtocolFile.Read(File.ReadAllText(path));
+            return _ssdp = ProtocolFile.Read(System.Text.Encoding.UTF8.GetString(ProtocolFile.ReadShipped("ssdp.json")));
         }
         catch (Exception ex) when (ex is IOException or ProtoTypeException)
         {
-            _host?.Log.Error($"{ProbeId}: could not load {path}", ex);
+            _host?.Log.Error($"{ProbeId}: could not load {ProtocolFile.ShippedPath("ssdp.json")}", ex);
             return null;
         }
     }

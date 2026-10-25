@@ -41,7 +41,7 @@ public class CutFilesConformance : FileActionConformanceTests
 [CoversNode("winfs-action-strip")]
 public class DeleteFileConformance : FileActionConformanceTests
 {
-    protected override IFileAction CreateAction() => new DeleteFile(Substitute.For<IShellServices>());
+    protected override IFileAction CreateAction() => new DeleteFile(Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
 }
 
 [TestClass]
@@ -55,21 +55,21 @@ public class RenameFileConformance : FileActionConformanceTests
 [CoversNode("winfs-action-strip")]
 public class ExecuteFileConformance : FileActionConformanceTests
 {
-    protected override IFileAction CreateAction() => new ExecuteFile();
+    protected override IFileAction CreateAction() => new ExecuteFile(VirtualFileSystem.Instance);
 }
 
 [TestClass]
 [CoversNode("winfs-action-strip")]
 public class InstallPackageConformance : FileActionConformanceTests
 {
-    protected override IFileAction CreateAction() => new InstallPackage();
+    protected override IFileAction CreateAction() => new InstallPackage(VirtualFileSystem.Instance);
 }
 
 [TestClass]
 [CoversNode("winfs-action-strip")]
 public class OpenWithActionConformance : FileActionConformanceTests
 {
-    protected override IFileAction CreateAction() => new OpenWithAction();
+    protected override IFileAction CreateAction() => new OpenWithAction(VirtualFileSystem.Instance);
 }
 
 [TestClass]
@@ -86,7 +86,7 @@ public class ShellVerbActionConformance : FileActionConformanceTests
 public class FilePropertiesConformance : FileActionConformanceTests
 {
     // Internal, and reachable here through the feature's InternalsVisibleTo. This is the one that threw.
-    protected override IFileAction CreateAction() => new FileProperties();
+    protected override IFileAction CreateAction() => new FileProperties(VirtualFileSystem.Instance);
 }
 
 [TestClass]

@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Threading.Tasks;
 using Nexaflow.Features.Audio;             // AudioConfig
@@ -19,7 +20,7 @@ namespace Nexaflow.Tests.Features.Audio;
 public class AudioBackgroundPlayTests
 {
     private static AudioViewModel Make(IShellServices shell, AudioConfig config, params string[] paths)
-        => new(paths, 0, shell, config);
+        => new(paths, 0, shell, VirtualFileSystem.Instance, config);
 
     private static IShellServices ShellReturningHandle(out IDisposable handle)
     {

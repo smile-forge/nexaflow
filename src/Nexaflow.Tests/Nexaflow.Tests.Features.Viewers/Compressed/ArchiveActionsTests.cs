@@ -91,7 +91,7 @@ public class ArchiveActionsTests
         foreach (var n in new[] { "one.txt", "two.txt", "three.txt" })
             File.WriteAllText(Path.Combine(folder, n), n);
 
-        var action = new ZipItAction(Substitute.For<IShellServices>(), new CompressedConfig());
+        var action = new ZipItAction(Substitute.For<IShellServices>(), new CompressedConfig(), VirtualFileSystem.Instance);
         Assert.IsTrue(await action.PerformActionAsync(new[] { Path.Combine(folder, "one.txt"), Path.Combine(folder, "two.txt") }));
 
         var zip = Path.Combine(folder, "reports.zip");
@@ -115,7 +115,7 @@ public class ArchiveActionsTests
         var doc = Path.Combine(fix.Root, "report.docx");
         File.WriteAllText(doc, "body");
 
-        var action = new ZipItAction(Substitute.For<IShellServices>(), new CompressedConfig());
+        var action = new ZipItAction(Substitute.For<IShellServices>(), new CompressedConfig(), VirtualFileSystem.Instance);
         Assert.IsTrue(await action.PerformActionAsync(doc));
 
         var zip = Path.Combine(fix.Root, "report.zip");

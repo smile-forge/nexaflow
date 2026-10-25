@@ -98,7 +98,7 @@ public sealed class FileActionManager
         // an action is withheld rather than offered and left to fail confusingly; on a remote location
         // not even that file is on disk. A mount is fine: the whole subtree is on disk behind it.
         bool fullyBacked = selected.All(e =>
-            VirtualFileSystem.Instance.GetBacking(e.FullPath).IsFullyOnDisk());
+            Vfs.GetBacking(e.FullPath).IsFullyOnDisk());
 
         var filtered = new List<IFileAction>();
         for (int i = 0; i < file.Count; i++)
@@ -261,7 +261,7 @@ public sealed class FileActionManager
         var backing = vfs.GetBacking(folderPath);
         if (backing is VirtualBacking.Remote) return ([], []);
 
-        if (backing.IsFullyOnDisk() && vfs.TryResolveReal(folderPath) is { } real && Directory.Exists(real))
+        if (vfs.ResolveOnDisk(folderPath) is { } real && Directory.Exists(real))
         {
             var files = Directory.GetFiles(real, "*", SearchOption.TopDirectoryOnly)
                                  .Select(Path.GetFileName).OfType<string>().ToList();

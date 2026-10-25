@@ -83,14 +83,16 @@ public class CompressedSearchableTests : SearchableContentConformanceTests
         return shell;
     }
 
-    private CompressedViewModel Build()
+    private async Task<CompressedViewModel> BuildAsync()
     {
         var vfs = new VirtualFileSystem();
         vfs.RegisterHandler(new ZipArchiveHandler());
-        return new CompressedViewModel(_zip, RunningShell(), vfs);
+        var vm = new CompressedViewModel(_zip, RunningShell(), vfs);
+        await vm.Loaded;
+        return vm;
     }
 
-    protected override Task<ISearchable> CreateAsync() => Task.FromResult<ISearchable>(Build());
+    protected override async Task<ISearchable> CreateAsync() => await BuildAsync();
 
     protected override string Snapshot(ISearchable page)
     {

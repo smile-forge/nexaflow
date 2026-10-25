@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Features.Tabular.Detection;
 
@@ -22,9 +23,9 @@ public sealed record FileSample(
 /// </summary>
 public static class LineSamplingReader
 {
-    public static FileSample Read(string filePath, int linesEachEnd = 4)
+    public static async Task<FileSample> ReadAsync(IVirtualFileSystem vfs, string filePath, int linesEachEnd = 4, CancellationToken ct = default)
     {
-        using var fs = VirtualFileSystem.Instance.OpenRead(filePath);
+        await using var fs = await vfs.OpenReadAsync(filePath, ReadIntent.Random, ct);
         var probe = EncodingDetector.Detect(fs);
         var enc   = probe.Encoding;
 

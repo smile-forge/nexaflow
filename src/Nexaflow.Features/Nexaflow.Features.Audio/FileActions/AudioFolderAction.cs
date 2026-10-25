@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Audio.FileActions;
@@ -14,8 +15,13 @@ namespace Nexaflow.Features.Audio.FileActions;
 public sealed class AudioFolderAction : IFolderAction, ICacheable
 {
     private readonly IShellServices _shell;
+    private readonly IVirtualFileSystem _vfs;
 
-    public AudioFolderAction(IShellServices shell) => _shell = shell;
+    public AudioFolderAction(IShellServices shell, IVirtualFileSystem vfs)
+    {
+        _shell = shell;
+        _vfs   = vfs;
+    }
 
     public bool   IsDestructive         => false;
     public bool   SupportsMultipleFiles => false;
@@ -30,10 +36,10 @@ public sealed class AudioFolderAction : IFolderAction, ICacheable
     public string Icon        => "🎵";
     public string DisplayName => Str.Get("Audio.Action.PlayFolder");
 
-    public Task<bool> PerformActionAsync(string folderPath, CancellationToken ct = default)
+    public async Task<bool> PerformActionAsync(string folderPath, CancellationToken ct = default)
     {
-        var queue = AudioFileTypes.EnumerateAudio(folderPath);
-        if (queue.Count == 0) return Task.FromResult(false);
+        var queue = await AudioFileTypes.EnumerateAudioAsync(_vfs, folderPath, ct);
+        if (queue.Count == 0) return false;
 
         _shell.OpenTab("Audio", new Dictionary<string, string>
         {
@@ -42,7 +48,7 @@ public sealed class AudioFolderAction : IFolderAction, ICacheable
             ["autoplay"] = "true",   // "Play folder" starts immediately
             ["scope"] = "folder",    // whole-folder queue → breadcrumb reads "all audio files"
         });
-        return Task.FromResult(true);
+        return true;
     }
 
     public Task<bool> PerformActionAsync(IEnumerable<string> folderPaths, CancellationToken ct = default)

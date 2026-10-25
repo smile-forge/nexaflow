@@ -7,6 +7,7 @@ using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
 using Nexaflow.Features.Images.Editing.Wpf;
 using Nexaflow.Features.Images.ViewModels;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.IO;
@@ -68,7 +69,7 @@ public sealed class ThumbnailLoadTask : IBackgroundTask
             ct.ThrowIfCancellationRequested();
             if (loaded >= MaxThumbnails) break;
 
-            var bmp = EditedThumbnail(item.FilePath) ?? ShellThumbnail.TryGet(item.FilePath, _size);
+            var bmp = await EditedThumbnailAsync(item.FilePath) ?? ShellThumbnail.TryGet(item.FilePath, _size);
             if (bmp is null) continue;
 
             loaded++;
@@ -80,7 +81,8 @@ public sealed class ThumbnailLoadTask : IBackgroundTask
     }
 
     /// <summary>The photo drawn with its edits, or null when it has none (or they cannot be applied).</summary>
-    private BitmapSource? EditedThumbnail(string path)
+    [LocalDiskOnly("an edited thumbnail is drawn only for a photo with a recipe sidecar beside it, which is a file on this disk")]
+    private async Task<BitmapSource?> EditedThumbnailAsync(string path)
     {
         if (!File.Exists(ImageRecipeStore.SidecarPath(path))) return null;
         var load = _editing.Recipes.Load(path);
@@ -88,7 +90,7 @@ public sealed class ThumbnailLoadTask : IBackgroundTask
 
         try
         {
-            using var decoded = _editing.Decode(path, _size * EditedDecodeFactor);
+            using var decoded = await _editing.DecodeAsync(path, _size * EditedDecodeFactor);
             var output = CropGeometry.OutputSize(recipe, decoded.SourceSize);
             double scale = Math.Min(1, (double)_size / Math.Max(output.Width, output.Height));
             var made = _made?.Invoke(path, recipe) ?? MadeByTools.None;

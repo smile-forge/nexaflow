@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -122,7 +123,7 @@ public class Model3DTests
     [CoversNode("model3d-ai-act")]
     public async Task ViewModel_LoadsModel_ExposesContextAndTools()
     {
-        var vm = new Model3DViewModel(Sample("tetra.stl"), new ModelLoaderRegistry());
+        var vm = new Model3DViewModel(Sample("tetra.stl"), VirtualFileSystem.Instance, new ModelLoaderRegistry());
         Assert.IsFalse(vm.IsContextReady, "context is gated until the model has loaded");
 
         await vm.LoadAsync();

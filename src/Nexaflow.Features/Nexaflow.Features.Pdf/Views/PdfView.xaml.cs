@@ -287,7 +287,7 @@ public partial class PdfView : UserControl, IPageView, IDisposable
 
         try
         {
-            Process.Start(new ProcessStartInfo(ViewModel.FileUri.LocalPath) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(await ViewModel.ExternalPathAsync()) { UseShellExecute = true });
         }
         catch (Exception ex)
         {

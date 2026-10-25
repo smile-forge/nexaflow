@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing;
@@ -58,7 +59,7 @@ public class ImageReadPageTests
 
     private ImageViewModel Viewing(IPageReading reading)
         => _ui.Invoke(() => new ImageViewModel([_picture], Shell(), ImageViewMode.Carousel,
-                                               new ImageEditingServices(new ImageRecipeStore(TimeSpan.FromHours(1)),
+                                               new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1)),
                                                                         new RestoredPictures(Path.Combine(_dir, "restored"), RestoredPictures.DefaultBudget)),
                                                reading: reading));
 

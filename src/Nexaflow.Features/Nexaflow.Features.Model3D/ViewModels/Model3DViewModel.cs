@@ -28,11 +28,15 @@ public sealed partial class Model3DViewModel : ObservableObject, IPageViewModel,
 {
     private readonly ModelLoaderRegistry _registry;
 
-    public Model3DViewModel(string filePath, ModelLoaderRegistry registry)
+    public Model3DViewModel(string filePath, IVirtualFileSystem vfs, ModelLoaderRegistry registry)
     {
         FilePath = filePath;
+        _vfs = vfs;
         _registry = registry;
     }
+
+    /// <summary>The runtime's file system the model is reached through — on disk, in an archive or on a location.</summary>
+    private readonly IVirtualFileSystem _vfs;
 
     public string FilePath { get; }
     public string FileName => Path.GetFileName(FilePath);
@@ -95,12 +99,6 @@ public sealed partial class Model3DViewModel : ObservableObject, IPageViewModel,
 
     /// <summary>Reads + parses the model off the UI thread, then populates geometry, stats and inspector.
     /// Safe to call from the view's Loaded handler — the continuation runs on the UI thread.</summary>
-    private static string RealPath(string path)
-    {
-        try { return VirtualFileSystem.Instance.MaterializeFile(path); }
-        catch { return path; }
-    }
-
     public async Task LoadAsync()
     {
         if (IsLoaded) return;
@@ -115,12 +113,13 @@ public sealed partial class Model3DViewModel : ObservableObject, IPageViewModel,
             }
 
             long size = 0;
-            try { size = new FileInfo(FilePath).Length; } catch { /* size is cosmetic */ }
+            try { size = (await _vfs.GetEntryAsync(FilePath))?.Size ?? 0; } catch (IOException) { /* size is cosmetic */ }
 
             var palette = CategoricalPalette;
-            // Materialise a model that lives inside a disk image / archive to a real path off the UI thread —
-            // Assimp/Helix/glTF read from a real file path (a real file passes through unchanged).
-            var loaded = await Task.Run(() => loader.Load(RealPath(FilePath), palette)).ConfigureAwait(true);
+            // Assimp/Helix/glTF read from a file by its path: a model inside a disk image / archive is extracted to a
+            // copy on this disk first (a real file passes through unchanged).
+            var real   = await _vfs.MaterializeFileAsync(FilePath).ConfigureAwait(true);
+            var loaded = await Task.Run(() => loader.Load(real, palette)).ConfigureAwait(true);
 
             Geometry = loaded.Geometry;
             InitialView = loaded.InitialView;

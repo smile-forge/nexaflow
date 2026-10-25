@@ -20,6 +20,7 @@ using System.Windows.Controls;
 using System.Windows.Threading;
 using Nexaflow.Core.Localization;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Core.Services;
 
@@ -536,22 +537,52 @@ public sealed class ShellServices : IShellServices
 
     public IFileWatch WatchFile(string path, Action onChanged)
     {
-        var key = SafeFullPath(path);
+        // A file on a location is watched by the location, where it can watch; everything else where it is on disk.
+        bool remote = _workspace.Vfs.GetBacking(path) is VirtualBacking.Remote;
+        var key = remote ? path : SafeFullPath(path);
         if (!_watchGroups.TryGetValue(key, out var group))
         {
             group = new WatchGroup();
-            try
+            if (remote)
             {
-                group.Watcher = new FileChangeWatcher(key);
-                group.Watcher.Changed += () => OnWatchChanged(key);
+                _ = WatchOnLocationAsync(path, key, group);
             }
-            catch { /* missing directory etc. — the handle is inert but still disposable */ }
+            else
+            {
+                try
+                {
+                    group.Watcher = new FileChangeWatcher(key);
+                    group.Watcher.Changed += () => OnWatchChanged(key);
+                }
+                catch { /* missing directory etc. — the handle is inert but still disposable */ }
+            }
             _watchGroups[key] = group;
         }
 
         var handle = new FileWatch(this, key, onChanged);
         group.Subscribers.Add(handle);
         return handle;
+    }
+
+    /// <summary>
+    /// Sets up the location's own watch for a file on it. A location without <c>Watch</c> answers null, and the handle stays
+    /// inert — the viewer reloads when asked. The group may have gone (every subscriber disposed) while the watch was
+    /// being set up, and then the watch goes too.
+    /// </summary>
+    private async Task WatchOnLocationAsync(string path, string key, WatchGroup group)
+    {
+        ILocationWatch? watch;
+        try { watch = await _workspace.Vfs.WatchChangesAsync(path, recursive: false); }
+        catch (IOException) { return; }
+        if (watch is null) return;
+
+        if (!_watchGroups.TryGetValue(key, out var current) || !ReferenceEquals(current, group))
+        {
+            watch.Dispose();
+            return;
+        }
+        watch.Changed += _ => OnWatchChanged(key);
+        group.Location = watch;
     }
 
     public IDisposable WatchFolder(string path, Action<FolderChange> onChanged) =>
@@ -581,6 +612,7 @@ public sealed class ShellServices : IShellServices
         if (group.Subscribers.Count == 0)
         {
             group.Watcher?.Dispose();
+            group.Location?.Dispose();
             _watchGroups.Remove(key);
         }
     }
@@ -588,13 +620,16 @@ public sealed class ShellServices : IShellServices
     private void DisposeAllWatches()
     {
         foreach (var group in _watchGroups.Values)
+        {
             group.Watcher?.Dispose();
+            group.Location?.Dispose();
+        }
         _watchGroups.Clear();
         _folderWatcher?.Dispose();
         _folderWatcher = null;
     }
 
-    private static string SafeFullPath(string path)
+    private string SafeFullPath(string path)
     {
         try
         {
@@ -605,8 +640,8 @@ public sealed class ShellServices : IShellServices
             // SplitOutermostContainer runs FIRST because it is the mount-aware one: Path.GetFullPath
             // cannot parse a "::mount\…" path and would throw straight into the catch, leaving the
             // watcher pointed at a virtual path that no FileSystemWatcher can observe.
-            var real = VirtualFileSystem.Instance.SplitOutermostContainer(path).RealContainer;
-            return Path.GetFullPath(real);
+            var outer = _workspace.Vfs.SplitOutermostContainer(path).RealContainer;
+            return Path.GetFullPath(_workspace.Vfs.TryResolveReal(outer) ?? outer);
         }
         catch { return path; }
     }
@@ -614,6 +649,8 @@ public sealed class ShellServices : IShellServices
     private sealed class WatchGroup
     {
         public FileChangeWatcher? Watcher;
+        /// <summary>The location's own watch, for a file on one; set once the location answers.</summary>
+        public ILocationWatch? Location;
         public readonly List<FileWatch> Subscribers = [];
     }
 

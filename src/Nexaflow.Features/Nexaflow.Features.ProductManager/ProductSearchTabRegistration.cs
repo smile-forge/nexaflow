@@ -38,7 +38,7 @@ public sealed class ProductSearchTabRegistration(IShellServices shell) : IPageRe
         string query = string.Empty;
         if (pageParams is not null && pageParams.Remove("query", out var requested)) query = requested;
 
-        var name  = root.Length == 0 ? Str.Get("ProductManager.Page.Title") : new DirectoryInfo(root).Name;
+        var name  = root.Length == 0 ? Str.Get("ProductManager.Page.Title") : ProductStore.NameOfRoot(root);
         var title = Str.Format("ProductManager.Search.Page.TitleFormat", name);
 
         return new Page

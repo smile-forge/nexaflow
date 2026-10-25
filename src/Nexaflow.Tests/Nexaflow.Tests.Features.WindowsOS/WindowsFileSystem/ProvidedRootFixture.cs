@@ -8,6 +8,8 @@ using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -91,5 +93,10 @@ internal sealed class ProvidedRootFixture : IDisposable
                     Icon       = ThisPcItemIcon.Cloud,
                 })];
         }
+
+        public async Task<ThisPcItemDetail> GetDetailAsync(ThisPcItem item, CancellationToken ct = default)
+            => await VirtualFileSystem.Instance.IsDirectoryAsync(item.TargetPath, ct)
+                ? new ThisPcItemDetail { Available = true, HasChildren = await VirtualFileSystem.Instance.HasChildFoldersAsync(item.TargetPath, ct) }
+                : new ThisPcItemDetail { Available = false };
     }
 }

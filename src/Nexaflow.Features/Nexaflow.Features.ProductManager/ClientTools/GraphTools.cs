@@ -328,6 +328,7 @@ public static class GraphTools
         return ToolResult.Ok($"{g.Nodes.Count} node(s)", GraphReport.Stats(g));
     }
 
+    [LocalDiskOnly("the product's repository, a checkout on this disk, which the product graph edits")]
     private static ToolResult Edit(string root, JsonObject a)
     {
         if (!TryLoad(root, out var g, out var error)) return error;
@@ -484,6 +485,7 @@ public static class GraphTools
 
     /// <summary>Source is read from the product root. The CLI additionally prefers the caller's working tree
     /// (so a worktree shows the branch being edited); in-app there is only ever the one checkout open.</summary>
+    [LocalDiskOnly("the product's repository, a checkout on this disk, which the product graph reads")]
     private static GraphQuery.ReadLines Reader(string root) => rel =>
     {
         try

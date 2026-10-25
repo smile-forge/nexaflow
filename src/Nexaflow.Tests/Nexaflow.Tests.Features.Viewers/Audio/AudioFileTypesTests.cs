@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using Nexaflow.Features.Audio;
 using Nexaflow.Tests.Fixtures;
@@ -19,7 +20,7 @@ public class AudioFileTypesTests
     }
 
     [TestMethod]
-    public void EnumerateAudio_ReturnsOnlyAudio_OrderedByName()
+    public async Task EnumerateAudio_ReturnsOnlyAudio_OrderedByName()
     {
         var dir = Path.Combine(TestTemp.Root, "audiofiletypes_" + System.Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
@@ -29,7 +30,7 @@ public class AudioFileTypesTests
             File.WriteAllText(Path.Combine(dir, "a.flac"), "");
             File.WriteAllText(Path.Combine(dir, "readme.txt"), "");
 
-            var files = AudioFileTypes.EnumerateAudio(dir);
+            var files = await AudioFileTypes.EnumerateAudioAsync(VirtualFileSystem.Instance, dir);
 
             Assert.AreEqual(2, files.Count);
             Assert.AreEqual("a.flac", Path.GetFileName(files[0]));

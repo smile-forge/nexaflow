@@ -5,6 +5,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing.Codecs;
 using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Images.Editing.Recipe;
+using Nexaflow.IO.Common;
 using SkiaSharp;
 
 namespace Nexaflow.Features.Images.Editing.Restoring;
@@ -19,6 +20,7 @@ namespace Nexaflow.Features.Images.Editing.Restoring;
 /// It goes to the tools as raw RGBA and comes back the same way (<see cref="PictureRestoreRequest"/>), and is kept as PNG
 /// with that colour space embedded, so it decodes as the same pixels.
 /// </remarks>
+[LocalDiskOnly("restorations, kept in the app's cache and handed to the picture tools through the temp folder; the photo itself is read through the runtime's file system")]
 public sealed class RestoredPictures(string folder, long budgetBytes)
 {
     /// <summary>How much disk the restorations may take together before the oldest are let go.</summary>
@@ -65,7 +67,7 @@ public sealed class RestoredPictures(string folder, long budgetBytes)
         try
         {
             string pixels = Path.Combine(work, "photo.rgba"), into = Path.Combine(work, "restored.rgba");
-            var (width, height, space) = await Task.Run(() => WriteUpright(services, photo, pixels), ct);
+            var (width, height, space) = await Task.Run(() => WriteUprightAsync(services, photo, pixels, ct), ct);
             var restored = await tools.RestoreAsync(new PictureRestoreRequest(pixels, width, height, restore.Scale, restore.Faces, into), progress, ct);
             var kept = path + ".tmp";
             await Task.Run(() => Encode(into, restored.Width, restored.Height, space, kept), ct);
@@ -79,10 +81,11 @@ public sealed class RestoredPictures(string folder, long budgetBytes)
     }
 
     /// <summary>The photo at full size, upright, as raw unpremultiplied RGBA in its own colour space — what the tools read.</summary>
-    private static (int Width, int Height, SKColorSpace Space) WriteUpright(ImageEditingServices services, string photo, string into)
+    private static async Task<(int Width, int Height, SKColorSpace Space)> WriteUprightAsync(ImageEditingServices services, string photo, string into,
+                                                                                             CancellationToken ct)
     {
-        var upright = services.ReadUpright(photo);
-        File.WriteAllBytes(into, upright.Rgba);
+        var upright = await services.ReadUprightAsync(photo, ct);
+        await File.WriteAllBytesAsync(into, upright.Rgba, ct);
         return (upright.Width, upright.Height, upright.Space);
     }
 

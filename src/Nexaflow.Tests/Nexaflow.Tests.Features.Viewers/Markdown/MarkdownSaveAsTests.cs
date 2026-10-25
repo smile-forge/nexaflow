@@ -61,7 +61,7 @@ public class MarkdownSaveAsTests
         string source = Document();
         var shell = Picking(null);
 
-        await new MarkdownViewModel(source, shell).SaveAsCommand.ExecuteAsync(null);
+        await new MarkdownViewModel(source, shell, VirtualFileSystem.Instance).SaveAsCommand.ExecuteAsync(null);
 
         await shell.Received(1).PickSaveFileAsync("notes",
             Arg.Is<IReadOnlyList<SaveFileType>>(types => types.Select(t => t.Extension).SequenceEqual(new[] { ".mdz", ".md" })
@@ -75,7 +75,8 @@ public class MarkdownSaveAsTests
         string source = Document();
         string target = Path.Combine(_dir, "kept", "notes.mdz");
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-        var vm = new MarkdownViewModel(source, Picking(target));
+        var vm = new MarkdownViewModel(source, Picking(target), VirtualFileSystem.Instance);
+        await vm.Loaded;
         string? moved = null;
         vm.Moved += path => moved = path;
 
@@ -99,7 +100,8 @@ public class MarkdownSaveAsTests
         string source = Document();
         string target = Path.Combine(_dir, "kept", "notes.md");
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-        var vm = new MarkdownViewModel(source, Picking(target));
+        var vm = new MarkdownViewModel(source, Picking(target), VirtualFileSystem.Instance);
+        await vm.Loaded;
 
         await vm.SaveAsCommand.ExecuteAsync(null);
 
@@ -115,7 +117,8 @@ public class MarkdownSaveAsTests
     public async Task SaveAs_Cancelled_LeavesTheDocumentWhereItWas()
     {
         string source = Document();
-        var vm = new MarkdownViewModel(source, Picking(null));
+        var vm = new MarkdownViewModel(source, Picking(null), VirtualFileSystem.Instance);
+        await vm.Loaded;
         vm.Markdown += "More.\n";
 
         await vm.SaveAsCommand.ExecuteAsync(null);
@@ -132,7 +135,8 @@ public class MarkdownSaveAsTests
         Directory.CreateDirectory(home);
         string target = Path.Combine(home, "notes.mdz");
         var shell = Picking(target);
-        var vm = new MarkdownViewModel(draft, shell, draftFolder: home);
+        var vm = new MarkdownViewModel(draft, shell, VirtualFileSystem.Instance, draftFolder: home);
+        await vm.Loaded;
 
         Assert.IsFalse(vm.IsDirty);
         Assert.IsTrue(vm.SaveCommand.CanExecute(null), "a draft is there to be saved before anything is changed in it");
@@ -150,8 +154,9 @@ public class MarkdownSaveAsTests
     {
         string source = Document();
         string package = Path.Combine(_dir, "notes.mdz");
-        MarkdownPackage.Pack(File.ReadAllText(source), Path.GetDirectoryName(source)!, package);
-        var vm = new MarkdownViewModel(package, Substitute.For<IShellServices>());
+        await MarkdownPackage.PackAsync(VirtualFileSystem.Instance, File.ReadAllText(source), Path.GetDirectoryName(source)!, package);
+        var vm = new MarkdownViewModel(package, Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
+        await vm.Loaded;
 
         StringAssert.Contains(vm.Markdown, "](attachments/figure%201.png)", "opened, it reads as it is written in the package");
         Assert.IsTrue(File.Exists(Path.Combine(vm.DocumentFolder!, "attachments", "figure 1.png")), "its attachments beside it while it is open");

@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Pdf.Services;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Pdf.FileActions;
@@ -13,7 +14,7 @@ namespace Nexaflow.Features.Pdf.FileActions;
 /// <c>/document/pdf</c> experience, which <c>default-filemap.json</c> maps to <c>*.pdf</c> as an
 /// <c>OptionalExtension</c> — a secondary capability, so it never becomes what double-clicking a PDF does.
 /// </summary>
-public sealed class ExtractImagesAction(IShellServices shell) : IFileAction, ICacheable
+public sealed class ExtractImagesAction(IShellServices shell, IVirtualFileSystem vfs) : IFileAction, ICacheable
 {
     public static string? StaticExperienceId => "/document/pdf";
     public string ExperienceId => "/document/pdf";
@@ -45,7 +46,7 @@ public sealed class ExtractImagesAction(IShellServices shell) : IFileAction, ICa
 
         // Fire-and-forget: picking a folder and reading the documents can't block the UI thread, and the
         // shell's own notifications carry the result back.
-        _ = PdfImageExport.RunAsync(shell, paths);
+        _ = PdfImageExport.RunAsync(shell, vfs, paths);
         return Task.FromResult(true);
     }
 }

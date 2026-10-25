@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions
 {
-    internal class FileProperties : IFileAction, IFolderAction, ICacheable
+    internal class FileProperties(IVirtualFileSystem vfs) : IFileAction, IFolderAction, ICacheable
     {
         // ── IFileAction ───────────────────────────────────────────────────────
 
@@ -35,24 +35,24 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
         // ── Actions ───────────────────────────────────────────────────────────
 
-        public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default)
+        public async Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default)
         {
             try
             {
                 // A file inside a disk image / archive is virtual — the shell needs a real path, so
                 // materialise it to a temp copy first (a real file/folder passes through unchanged).
-                NativeMethods.ShowFileProperties(RealPath(filePath));
-                return Task.FromResult(true);
+                NativeMethods.ShowFileProperties(await RealPathAsync(filePath, ct));
+                return true;
             }
             catch
             {
-                return Task.FromResult(false);
+                return false;
             }
         }
 
-        private static string RealPath(string path)
+        private async Task<string> RealPathAsync(string path, CancellationToken ct)
         {
-            try { return VirtualFileSystem.Instance.MaterializeFile(path); }
+            try { return await vfs.MaterializeFileAsync(path, ct); }
             catch { return path; }
         }
 

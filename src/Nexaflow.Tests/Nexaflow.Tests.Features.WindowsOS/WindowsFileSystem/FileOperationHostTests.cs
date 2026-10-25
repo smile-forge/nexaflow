@@ -31,7 +31,7 @@ public class FileOperationHostTests
 {
     private static (FileOperationQueue Queue, IFileOperationHost Host) Host()
     {
-        var queue = FileOperationQueue.For(Substitute.For<IShellServices>().Runs());
+        var queue = FileOperationQueue.For(Substitute.For<IShellServices>().Runs(), VirtualFileSystem.Instance);
         return (queue, queue);
     }
 
@@ -201,7 +201,7 @@ public class FileOperationHostTests
             Assert.IsTrue(await action!.PerformActionAsync(archive));
 
             // A row in the queue is the proof: with no host the action extracts inline and adds nothing.
-            var queue = FileOperationQueue.For(shell);
+            var queue = FileOperationQueue.For(shell, VirtualFileSystem.Instance);
             Assert.AreEqual(1, queue.Operations.Count,
                 "the action ran the extraction itself instead of handing it to the progress host");
             Assert.AreEqual("Extracting", queue.Operations[0].Verb);

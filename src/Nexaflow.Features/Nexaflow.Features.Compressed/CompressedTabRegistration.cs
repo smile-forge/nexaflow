@@ -10,7 +10,7 @@ namespace Nexaflow.Features.Compressed;
 
 /// <summary>Advertises the Compressed inspector tab. Opened by the "As Archive" file action (and, after
 /// the browser routing lands, as a non-default action on an archive).</summary>
-public sealed class CompressedTabRegistration(IShellServices shell) : IPageRegistration
+public sealed class CompressedTabRegistration(IShellServices shell, IVirtualFileSystem vfs) : IPageRegistration
 {
     public static string StaticPageKind => "Compressed";
     public string PageKind => StaticPageKind;
@@ -30,7 +30,7 @@ public sealed class CompressedTabRegistration(IShellServices shell) : IPageRegis
             Title = title,
             Icon = "📦",
             PageParams = pageParams,
-            ContentFactory = () => new CompressedView(new CompressedViewModel(path, shell, VirtualFileSystem.Instance)),
+            ContentFactory = () => new CompressedView(new CompressedViewModel(path, shell, vfs)),
         };
 
         // "folder › archive.zip" — the folder crumb opens a file-browser tab there.

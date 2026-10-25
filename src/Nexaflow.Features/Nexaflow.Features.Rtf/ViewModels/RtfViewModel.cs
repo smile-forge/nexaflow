@@ -22,13 +22,18 @@ namespace Nexaflow.Features.Rtf.ViewModels;
 public sealed partial class RtfViewModel : ObservableObject, IPageViewModel, IDisposable
 {
     private readonly IShellServices _shell;
+
+    /// <summary>The runtime's file system the document is read through — on disk, in an archive or on a location.</summary>
+    private readonly IVirtualFileSystem _vfs;
+
     private IFileWatch? _watch;
     private bool _disposed;
 
-    public RtfViewModel(string filePath, IShellServices shell)
+    public RtfViewModel(string filePath, IShellServices shell, IVirtualFileSystem vfs)
     {
         FilePath = filePath;
         _shell = shell;
+        _vfs   = vfs;
     }
 
     public string FilePath { get; }
@@ -78,7 +83,7 @@ public sealed partial class RtfViewModel : ObservableObject, IPageViewModel, IDi
             IsLoaded = true;   // releases the AI send gate even on failure
         }
 
-        Watch();
+        await WatchAsync();
     }
 
     /// <summary>Reads the document again, as it now stands on disk. A search shown over the old one is dropped with it.</summary>
@@ -92,7 +97,7 @@ public sealed partial class RtfViewModel : ObservableObject, IPageViewModel, IDi
     {
         try
         {
-            var read = await Task.Run(() => Read(FilePath)).ConfigureAwait(true);
+            var read = await Task.Run(() => ReadDocumentAsync(FilePath)).ConfigureAwait(true);
 
             FileSizeText = SizeFormatter.FormatBytes(read.Bytes);
 
@@ -118,9 +123,9 @@ public sealed partial class RtfViewModel : ObservableObject, IPageViewModel, IDi
     /// <summary>What the file holds, and the words it draws — none when it is not RTF at all.</summary>
     private readonly record struct Reading(string Source, string? Words, long Bytes);
 
-    private static Reading Read(string path)
+    private async Task<Reading> ReadDocumentAsync(string path)
     {
-        var source = RtfDocumentFile.Read(path);
+        var source = await RtfDocumentFile.ReadAsync(_vfs, path);
         return new Reading(source, RtfDocumentFile.IsRtf(source) ? RtfParser.Text(source) : null, source.Length);
     }
 
@@ -151,9 +156,9 @@ public sealed partial class RtfViewModel : ObservableObject, IPageViewModel, IDi
 
     // ── The file on disk ──────────────────────────────────────────────────────
 
-    private void Watch()
+    private async Task WatchAsync()
     {
-        if (_disposed || !VirtualFileSystem.Instance.Exists(FilePath)) return;
+        if (_disposed || !await _vfs.ExistsAsync(FilePath)) return;
 
         _watch = _shell.WatchFile(FilePath, OnFileChanged);
     }

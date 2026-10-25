@@ -575,6 +575,7 @@ public sealed partial class VirtualFileSystem : IVirtualFileSystem
     /// <summary>Returns a real on-disk path for the file the (possibly virtual, possibly nested) path
     /// points to, extracting and caching as needed. Public so a caller that needs an actual launchable
     /// file path — e.g. handing an in-archive entry to a shell "open" verb — can get one.</summary>
+    [BlocksOnIo(nameof(MaterializeFileAsync))]
     public string MaterializeFile(string path)
     {
         // A mounted path maps to a real file, so this returns it as-is: no extraction, no temp, no cache

@@ -1,5 +1,3 @@
-using System.IO;
-
 namespace Nexaflow.Features.Common.ThisPc;
 
 /// <summary>How a <see cref="ThisPcItem"/>'s contents are reached.</summary>
@@ -9,6 +7,10 @@ public enum ThisPcItemBacking
     /// pass-through mount, so the user navigates it under the item's own virtual root and never sees
     /// where it actually lives — while every ordinary file operation still works.</summary>
     LocalPath,
+
+    /// <summary><see cref="ThisPcItem.TargetPath"/> is a real directory browsed at that path itself — a volume's root —
+    /// so nothing is mounted for it, and the row opens where it is.</summary>
+    OwnPath,
 
     /// <summary>The provider serves the namespace itself rather than pointing at a directory (a cloud
     /// API, say). Consumers that can only navigate real paths — the file and folder pickers — skip
@@ -21,30 +23,31 @@ public enum ThisPcItemBacking
 /// glyph, a colour or a brush, because each surface owns its own visual vocabulary — themed vectors in
 /// the file browser, plain glyphs in the pickers — and a theme must be able to retune either.
 /// <para>
-/// It covers physical drives as well as contributed locations so that every surface classifies the whole
-/// list through one enum. Deliberately no SSD: that is a refinement the browser probes for after the
-/// fact, not something a contributor gets to claim.
+/// It covers the volumes as well as contributed locations so that every surface classifies the whole list
+/// through one enum. <see cref="SolidState"/> is a refinement a row's detail makes once the device has
+/// answered (<see cref="ThisPcItemDetail.Icon"/>); a volume is listed as a <see cref="Disk"/> until then.
 /// </para>
 /// </summary>
-public enum ThisPcItemIcon { Disk, Removable, Optical, Network, Cloud, Folder }
+public enum ThisPcItemIcon { Disk, Removable, Optical, Network, Cloud, Folder, SolidState }
 
 /// <summary>
-/// One extra row in "This PC", contributed by an <see cref="IThisPcItemProvider"/> — a cloud sync root
-/// today; a network location or a pinned folder just as easily.
+/// One row in "This PC", offered by an <see cref="IThisPcItemProvider"/> — a volume, a cloud sync root, a network
+/// location or a pinned folder alike.
 /// </summary>
 public sealed record ThisPcItem
 {
     /// <summary>
-    /// Stable, provider-namespaced identity, e.g. <c>onedrive.Business1</c>. It becomes the virtual root
-    /// <c>::{Id}</c>, so it must survive a rename — saved tabs and restored sessions are keyed on it —
-    /// and must be a single path segment: no <c>\</c>, <c>/</c> or <c>:</c>.
+    /// Stable, provider-namespaced identity, e.g. <c>onedrive.Business1</c>. A <see cref="ThisPcItemBacking.LocalPath"/>
+    /// row becomes the virtual root <c>::{Id}</c>, so it must survive a rename — saved tabs and restored sessions are
+    /// keyed on it — and must be a single path segment: no <c>\</c>, <c>/</c> or <c>:</c>.
     /// </summary>
     public required string Id { get; init; }
 
     /// <summary>Row text, e.g. "OneDrive – Contoso". Free to change; nothing persists it.</summary>
     public required string Label { get; init; }
 
-    /// <summary>What the row points at — a real directory for <see cref="ThisPcItemBacking.LocalPath"/>.</summary>
+    /// <summary>What the row points at — a real directory for <see cref="ThisPcItemBacking.LocalPath"/> and
+    /// <see cref="ThisPcItemBacking.OwnPath"/>.</summary>
     public required string TargetPath { get; init; }
 
     /// <summary>The "Type" column, e.g. "OneDrive".</summary>
@@ -55,34 +58,6 @@ public sealed record ThisPcItem
 
     /// <summary>Order among this provider's own rows.</summary>
     public int SortOrder { get; init; }
-}
-
-/// <summary>Whether a place is a volume Windows reported or a location a feature contributed.</summary>
-public enum ThisPcPlaceKind { Drive, Provided }
-
-/// <summary>
-/// One top-level place in "This PC", whatever its origin — the single vocabulary every surface builds its
-/// own row type from, so the drive list and the pickers can't drift apart in labelling, ordering or
-/// iconography the way four independent <c>DriveInfo.GetDrives()</c> loops did.
-/// </summary>
-public sealed record ThisPcPlace
-{
-    public required ThisPcPlaceKind Kind { get; init; }
-
-    /// <summary>Where the place is on disk. For a contributed location this is its real target: the file
-    /// browser navigates the virtual root instead, but a picker has to hand back an openable path.</summary>
-    public required string RealPath { get; init; }
-
-    public required string         Label     { get; init; }
-    public required string         TypeLabel { get; init; }
-    public required ThisPcItemIcon Icon      { get; init; }
-
-    /// <summary>The contributed item, when <see cref="Kind"/> is <see cref="ThisPcPlaceKind.Provided"/>.</summary>
-    public ThisPcItem? Item { get; init; }
-
-    /// <summary>The volume, when <see cref="Kind"/> is <see cref="ThisPcPlaceKind.Drive"/> — the browser
-    /// reads capacity and refines the icon from it on a background thread.</summary>
-    public DriveInfo? Drive { get; init; }
 }
 
 /// <summary>The part of a row that costs real work to discover, filled in off the UI thread.</summary>
@@ -102,4 +77,10 @@ public sealed record ThisPcItemDetail
 
     /// <summary>A better label now that the slow work is done, or null to keep the fast one.</summary>
     public string? Label { get; init; }
+
+    /// <summary>The file system's name — <c>NTFS</c>, <c>exFAT</c> — or null where there is none to report.</summary>
+    public string? FileSystem { get; init; }
+
+    /// <summary>A truer icon kind now that the device has answered — a solid-state volume — or null to keep the row's.</summary>
+    public ThisPcItemIcon? Icon { get; init; }
 }

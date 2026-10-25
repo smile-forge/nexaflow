@@ -79,6 +79,14 @@ public class BlockingIoAnalyzerTests
         [.. Analysed(withFileSystem: true, sources).Select(diagnostic => diagnostic.Id)];
 
     [TestMethod]
+    public void EveryRuleIsAnError_SoANewCallSiteFailsTheBuild()
+    {
+        // Nothing in the features or the shared visuals is left reporting one, so a report is always new.
+        foreach (var rule in new BlockingIoAnalyzer().SupportedDiagnostics)
+            Assert.AreEqual(DiagnosticSeverity.Error, rule.DefaultSeverity, rule.Id);
+    }
+
+    [TestMethod]
     [TestCategory("Unit")]
     public void AwaitingTheFileSystemIsNothingToSay() =>
         CollectionAssert.AreEqual(Array.Empty<string>(), Found("""

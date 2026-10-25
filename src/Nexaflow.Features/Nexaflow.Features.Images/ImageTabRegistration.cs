@@ -28,15 +28,17 @@ public sealed class ImageTabRegistration : IPageRegistration
     private readonly IPictureErasing? _erasing;
 
     /// <summary>The editing engine every Images tab of this workspace shares: codecs, renderer and the recipe store.</summary>
-    private readonly ImageEditingServices _editing = new();
+    private readonly ImageEditingServices _editing;
 
     /// <param name="ai">The workspace's AI, which makes a video from the picture on screen where it has a model for it.</param>
     /// <param name="pictures">The picture tools, which restore a photo — AI enhance and upscale — where the app has them.</param>
     /// <param name="selection">Picture selection, which picks things out of a photo — the editor's cut-out — where the app has it.</param>
     /// <param name="reading">Page reading, which reads a picture of a page into Markdown, where the app has it.</param>
-    public ImageTabRegistration(IShellServices shell, IAIService ai, IPictureTools? pictures = null, IPictureSelection? selection = null,
-                                IPageReading? reading = null, IPictureErasing? erasing = null)
+    /// <param name="vfs">The runtime's file system the pictures are read and saved through.</param>
+    public ImageTabRegistration(IShellServices shell, IAIService ai, IVirtualFileSystem vfs, IPictureTools? pictures = null,
+                                IPictureSelection? selection = null, IPageReading? reading = null, IPictureErasing? erasing = null)
     {
+        _editing   = new ImageEditingServices(vfs);
         _shell     = shell;
         _ai        = ai;
         _pictures  = pictures;
@@ -120,6 +122,6 @@ public sealed class ImageTabRegistration : IPageRegistration
         => paths.Count == 1 && pageParams?.TryGetValue(DraftFile.PageParameterName, out var offered) == true
             ? new DraftSaving(paths[0], offered is { Length: > 0 } ? offered : null,
                               (name, extensions, folder) => _shell.PickSaveFileAsync(name, extensions, folder), _shell.ShowError,
-                              (from, to) => ImageDraftHandler.KeepAsync(_editing.Recipes, from, to))
+                              (from, to) => ImageDraftHandler.KeepAsync(_editing, from, to))
             : null;
 }

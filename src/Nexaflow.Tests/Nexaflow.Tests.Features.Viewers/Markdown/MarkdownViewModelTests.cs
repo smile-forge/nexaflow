@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Markdown.ViewModels;
 using Nexaflow.Tests.Fixtures;
@@ -32,27 +33,28 @@ public class MarkdownViewModelTests
             try { File.Delete(path); } catch { }
     }
 
-    private MarkdownViewModel Make(string content = "# Title\n\nBody.\n") => Make(out _, content);
+    private async Task<MarkdownViewModel> MakeAsync(string content = "# Title\n\nBody.\n") => (await MakeWithShellAsync(content)).Vm;
 
     /// <summary>The same document, with the shell it talks to in hand — for what the view-model asks of the host.</summary>
-    private MarkdownViewModel Make(out IShellServices shell, string content = "# Title\n\nBody.\n")
+    private async Task<(MarkdownViewModel Vm, IShellServices Shell)> MakeWithShellAsync(string content = "# Title\n\nBody.\n")
     {
         var path = TestTemp.CreateFile();
         File.WriteAllText(path, content);
         _tempFiles.Add(path);
 
-        shell = Substitute.For<IShellServices>();
-
-        return new MarkdownViewModel(path, shell);
+        var shell = Substitute.For<IShellServices>();
+        var vm = new MarkdownViewModel(path, shell, VirtualFileSystem.Instance);
+        await vm.Loaded;
+        return (vm, shell);
     }
 
     // ── File name label ───────────────────────────────────────────────────────
 
     [TestMethod]
     [CoversNode("markdown-filename")]
-    public void FileName_IsTheOpenDocumentsName_NotItsPath()
+    public async Task FileName_IsTheOpenDocumentsName_NotItsPath()
     {
-        var vm = Make();
+        var vm = await MakeAsync();
 
         Assert.AreEqual(Path.GetFileName(vm.FilePath), vm.FileName);
         Assert.IsFalse(vm.FileName.Contains(Path.DirectorySeparatorChar),
@@ -61,9 +63,9 @@ public class MarkdownViewModelTests
 
     [TestMethod]
     [CoversNode("markdown-links")]
-    public void FollowLink_IsTheShellsToRoute_AndSaysWhetherAnythingTookIt()
+    public async Task FollowLink_IsTheShellsToRoute_AndSaysWhetherAnythingTookIt()
     {
-        var vm = Make(out var shell);
+        var (vm, shell) = await MakeWithShellAsync();
 
         shell.HandleObject("https://example.com/x").Returns(true);
         Assert.IsTrue(vm.FollowLink("https://example.com/x"), "a feature claimed it, so the document's link handling ends there");
@@ -91,7 +93,8 @@ public class MarkdownViewModelTests
         shell.PickSaveFileAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>?>(), Arg.Any<string?>(), Arg.Any<long>())
              .Returns(chosen);
 
-        var vm = new MarkdownViewModel(path, shell);
+        var vm = new MarkdownViewModel(path, shell, VirtualFileSystem.Instance);
+        await vm.Loaded;
         byte[] png = [0x89, 0x50, 0x4E, 0x47];
 
         Assert.IsTrue(await vm.SavePictureAsync(png, "mermaid"));
@@ -115,16 +118,16 @@ public class MarkdownViewModelTests
         var path = TestTemp.CreateFile();
         _tempFiles.Add(path);
 
-        Assert.IsFalse(await new MarkdownViewModel(path, shell).SavePictureAsync([1, 2, 3], null));
+        Assert.IsFalse(await new MarkdownViewModel(path, shell, VirtualFileSystem.Instance).SavePictureAsync([1, 2, 3], null));
     }
 
     // ── Source / preview toggle (pure state) ──────────────────────────────────
 
     [TestMethod]
     [CoversNode("markdown-view-mode")]
-    public void ViewMode_WalksTheSlidersThreeStops()
+    public async Task ViewMode_WalksTheSlidersThreeStops()
     {
-        var vm = Make();
+        var vm = await MakeAsync();
 
         Assert.AreEqual(MarkdownViewMode.Rendered, vm.ViewMode);   // default: rendered + inline editing
         Assert.IsTrue(vm.ShowRendered);
@@ -144,9 +147,9 @@ public class MarkdownViewModelTests
     /// <summary>The slider binds a number, not the enum, so the number has to be the honest inverse of it.</summary>
     [TestMethod]
     [CoversNode("markdown-view-mode")]
-    public void ViewModeIndex_IsTheSlidersPosition_AndReadsAsTheNearestStop()
+    public async Task ViewModeIndex_IsTheSlidersPosition_AndReadsAsTheNearestStop()
     {
-        var vm = Make();
+        var vm = await MakeAsync();
 
         Assert.AreEqual(0d, vm.ViewModeIndex);
 
@@ -169,9 +172,9 @@ public class MarkdownViewModelTests
     [TestMethod]
     [CoversNode("markdown-view-mode")]
     [CoversNode("markdown-source-box")]
-    public void ChangingTheViewMode_PreservesMarkdownText()
+    public async Task ChangingTheViewMode_PreservesMarkdownText()
     {
-        var vm = Make("# Heading\n\nA paragraph.\n");
+        var vm = await MakeAsync("# Heading\n\nA paragraph.\n");
         var before = vm.Markdown;
 
         vm.ViewMode = MarkdownViewMode.Source;
@@ -186,20 +189,20 @@ public class MarkdownViewModelTests
 
     [TestMethod]
     [CoversNode("markdown-save")]
-    public void SaveCommand_CannotExecute_WhenClean()
+    public async Task SaveCommand_CannotExecute_WhenClean()
     {
-        var vm = Make();
+        var vm = await MakeAsync();
 
         Assert.IsFalse(vm.SaveCommand.CanExecute(null));
     }
 
     [TestMethod]
     [CoversNode("markdown-save")]
-    public void SaveCommand_ExecuteWhenClean_IsNoOp_AndStaysClean()
+    public async Task SaveCommand_ExecuteWhenClean_IsNoOp_AndStaysClean()
     {
-        var vm = Make("# Clean\n");
+        var vm = await MakeAsync("# Clean\n");
 
-        vm.SaveCommand.Execute(null);             // disabled-but-invoked: must not throw or dirty
+        await vm.SaveCommand.ExecuteAsync(null);             // disabled-but-invoked: must not throw or dirty
 
         Assert.IsFalse(vm.IsDirty);
         Assert.IsFalse(vm.SaveCommand.CanExecute(null));
@@ -207,15 +210,15 @@ public class MarkdownViewModelTests
 
     [TestMethod]
     [CoversNode("markdown-save")]
-    public void EditThenSave_FlipsCanExecute_ThenBackToFalse()
+    public async Task EditThenSave_FlipsCanExecute_ThenBackToFalse()
     {
-        var vm = Make("# Original\n");
+        var vm = await MakeAsync("# Original\n");
         Assert.IsFalse(vm.SaveCommand.CanExecute(null));
 
         vm.Markdown = "# Edited\n";
         Assert.IsTrue(vm.SaveCommand.CanExecute(null));
 
-        vm.SaveCommand.Execute(null);
+        await vm.SaveCommand.ExecuteAsync(null);
         Assert.IsFalse(vm.SaveCommand.CanExecute(null));
     }
 
@@ -223,9 +226,9 @@ public class MarkdownViewModelTests
 
     [TestMethod]
     [CoversNode("markdown-ai-context")]
-    public void GetContext_Clean_OmitsUnsavedMarker_AndNamesFile()
+    public async Task GetContext_Clean_OmitsUnsavedMarker_AndNamesFile()
     {
-        var vm = Make();
+        var vm = await MakeAsync();
 
         var context = vm.GetContext();
 
@@ -235,9 +238,9 @@ public class MarkdownViewModelTests
 
     [TestMethod]
     [CoversNode("markdown-ai-context")]
-    public void GetContext_Dirty_AdvertisesUnsavedChanges()
+    public async Task GetContext_Dirty_AdvertisesUnsavedChanges()
     {
-        var vm = Make();
+        var vm = await MakeAsync();
 
         vm.Markdown = "# Dirty now\n";
         var context = vm.GetContext();
@@ -247,9 +250,9 @@ public class MarkdownViewModelTests
 
     [TestMethod]
     [CoversNode("markdown-ai-context")]
-    public void GetContextObject_SelectsTheFile_UnderItsFolder()
+    public async Task GetContextObject_SelectsTheFile_UnderItsFolder()
     {
-        var vm = Make();
+        var vm = await MakeAsync();
 
         var ctx = vm.GetContextObject();
 
@@ -268,9 +271,9 @@ public class MarkdownViewModelTests
     /// </summary>
     [TestMethod]
     [CoversNode("markdown-zoom")]
-    public void Zoom_ScalesTheDocumentBodySize()
+    public async Task Zoom_ScalesTheDocumentBodySize()
     {
-        var vm = Make();
+        var vm = await MakeAsync();
         Assert.AreEqual(100, vm.Zoom.Percent, "a freshly opened document is unzoomed");
 
         var unzoomed = vm.Zoom.FontSize;
@@ -286,9 +289,9 @@ public class MarkdownViewModelTests
     /// </summary>
     [TestMethod]
     [CoversNode("markdown-doc-stats")]
-    public void DocumentStats_CountWordsAndLines()
+    public async Task DocumentStats_CountWordsAndLines()
     {
-        var vm = Make("# Title\n\nBody text here.\n");
+        var vm = await MakeAsync("# Title\n\nBody text here.\n");
 
         Assert.AreEqual(3, vm.LineCount, "the trailing newline ends the third line rather than starting a fourth");
         Assert.AreEqual(5, vm.WordCount, "'#', 'Title', 'Body', 'text', 'here.'");
@@ -300,9 +303,9 @@ public class MarkdownViewModelTests
 
     [TestMethod]
     [CoversNode("markdown-doc-stats")]
-    public void DocumentStats_AnEmptyDocumentHasNoLines()
+    public async Task DocumentStats_AnEmptyDocumentHasNoLines()
     {
-        var vm = Make(string.Empty);
+        var vm = await MakeAsync(string.Empty);
         Assert.AreEqual(0, vm.WordCount);
         Assert.AreEqual(0, vm.LineCount, "an empty file is no lines, not one blank one");
     }

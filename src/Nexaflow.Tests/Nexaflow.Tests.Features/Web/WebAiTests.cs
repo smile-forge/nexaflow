@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -38,19 +39,21 @@ public class WebAiTests
         try { if (Directory.Exists(_tempDir)) Directory.Delete(_tempDir, recursive: true); } catch { }
     }
 
-    private HtmlViewModel MakeShortcut(string fileName, string url)
+    private async Task<HtmlViewModel> MakeShortcutAsync(string fileName, string url)
     {
         var path = Path.Combine(_tempDir, fileName);
         File.WriteAllText(path, $"[InternetShortcut]\r\nURL={url}\r\n");
-        return new HtmlViewModel(path);   // ctor takes only a file path — no IShellServices seam to stub.
+        var vm = new HtmlViewModel(path, VirtualFileSystem.Instance);   // ctor takes only a file path — no IShellServices seam to stub.
+        await vm.Loaded;
+        return vm;
     }
 
     [TestMethod]
     [TestCategory("Unit")]
     [CoversNode("web-viewer-ai-context")]
-    public void SecurityContext_TracksTheCurrentPage_AndIsDistinctPerPage_WithHonestContext()
+    public async Task SecurityContext_TracksTheCurrentPage_AndIsDistinctPerPage_WithHonestContext()
     {
-        var a = MakeShortcut("a.url", "https://example.com/alpha");
+        var a = await MakeShortcutAsync("a.url", "https://example.com/alpha");
 
         // Scope is the page the tools act within: the current URL, not null (aspect 4).
         Assert.AreEqual(a.CurrentUrl, a.GetSecurityContext());
@@ -62,7 +65,7 @@ public class WebAiTests
 
         // Two web tabs on different pages produce distinct scopes, so the hub keeps their identically-named
         // tools apart instead of collapsing them first-wins.
-        var b = MakeShortcut("b.url", "https://other.example/page");
+        var b = await MakeShortcutAsync("b.url", "https://other.example/page");
         Assert.AreNotEqual(a.GetSecurityContext(), b.GetSecurityContext());
 
         // get_context names the URL honestly…
@@ -80,7 +83,7 @@ public class WebAiTests
     [CoversNode("web-viewer-ai-act")]
     public async Task VisualTools_ExposedAsReadOnly_AndFailGracefullyWhenNoLiveView()
     {
-        var vm    = MakeShortcut("t.url", "https://example.com/read-me");
+        var vm    = await MakeShortcutAsync("t.url", "https://example.com/read-me");
         var tools = vm.GetClientTools();
 
         CollectionAssert.AreEquivalent(

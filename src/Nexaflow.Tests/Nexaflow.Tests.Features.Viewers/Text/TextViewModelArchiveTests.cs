@@ -64,7 +64,7 @@ public class TextViewModelArchiveTests
     [CoversNode("compressed-open-inner-file")]
     public void LoadAsync_SmallFileInsideZip_LoadsContent() => AsyncPump.Run(async () =>
     {
-        using var vm = new TextViewModel(Path.Combine(_zip, "small.txt"), Substitute.For<IShellServices>())
+        using var vm = new TextViewModel(Path.Combine(_zip, "small.txt"), Substitute.For<IShellServices>(), VirtualFileSystem.Instance)
         { IsMonitoring = false };
         await vm.LoadAsync(CancellationToken.None);
 
@@ -79,7 +79,7 @@ public class TextViewModelArchiveTests
     {
         BigBody(out var lineCount);
 
-        using var vm = new TextViewModel(Path.Combine(_zip, "big.txt"), Substitute.For<IShellServices>())
+        using var vm = new TextViewModel(Path.Combine(_zip, "big.txt"), Substitute.For<IShellServices>(), VirtualFileSystem.Instance)
         { IsMonitoring = false };
         await vm.LoadAsync(CancellationToken.None);
 
@@ -94,7 +94,7 @@ public class TextViewModelArchiveTests
     public void Save_SmallFileInsideZip_WritesBackIntoArchive() => AsyncPump.Run(async () =>
     {
         var entryPath = Path.Combine(_zip, "small.txt");
-        using (var vm = new TextViewModel(entryPath, Substitute.For<IShellServices>()) { IsMonitoring = false })
+        using (var vm = new TextViewModel(entryPath, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false })
         {
             await vm.LoadAsync(CancellationToken.None);
 
@@ -121,7 +121,7 @@ public class TextViewModelArchiveTests
     [CoversNode("text-viewer-windowing")]
     public void LargeFileInsideZip_IsNotEditable() => AsyncPump.Run(async () =>
     {
-        using var vm = new TextViewModel(Path.Combine(_zip, "big.txt"), Substitute.For<IShellServices>())
+        using var vm = new TextViewModel(Path.Combine(_zip, "big.txt"), Substitute.For<IShellServices>(), VirtualFileSystem.Instance)
         { IsMonitoring = false };
         await vm.LoadAsync(CancellationToken.None);
 

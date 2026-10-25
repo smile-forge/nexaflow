@@ -7,6 +7,7 @@ using System.Text.Json.Nodes;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Icons;
+using Nexaflow.IO.Common;
 using Nexaflow.IO.Usb.Descriptors;
 using Nexaflow.IO.Usb.Diagnostics;
 using Nexaflow.IO.Usb.Inventory;
@@ -489,6 +490,7 @@ public sealed partial class UsbRawTool : ObservableObject, IUsbTool, IUsbToolDeb
     }
 
     [RelayCommand]
+    [LocalDiskOnly("a session with a device plugged into this computer, saved where the Windows save dialog picked")]
     private async Task SaveSessionAsync()
     {
         Drain();

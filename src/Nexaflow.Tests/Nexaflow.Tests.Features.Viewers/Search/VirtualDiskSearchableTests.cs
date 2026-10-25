@@ -9,6 +9,7 @@ using Nexaflow.Features.Common.Search;
 using Nexaflow.Features.VirtualDisk.Handlers;
 using Nexaflow.Features.VirtualDisk.ViewModels;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 using Nexaflow.Search;
 using Nexaflow.Tests.Features.VirtualDisk;
 using Nexaflow.Tests.Fixtures;
@@ -85,15 +86,29 @@ public class VirtualDiskSearchableTests : SearchableContentConformanceTests
     private static VirtualEntry File(string name) => new(name, false, 12, 12, new DateTime(2026, 1, 1));
 
     /// <summary>The seeded contents, keyed by the in-image folder path the view-model asks for.</summary>
-    private IVirtualFileSystem SeededVfs()
+    private IVirtualFileSystem SeededVfs() => StubbedVfs(new()
+    {
+        [_vhd]                        = [Dir("docs"), File("alpha42.txt"), File("readme.txt")],
+        [Path.Combine(_vhd, "docs")]  = [File("alpha42-guide.md"), File("quiet.md")],
+    });
+
+    /// <summary>A file system holding the real image — its entry and its bytes, which the metadata is read from — whose
+    /// contents are <paramref name="folders"/>: each folder's entries by its path, and nothing in any other.</summary>
+    private IVirtualFileSystem StubbedVfs(Dictionary<string, VirtualEntry[]> folders)
     {
         var vfs = Substitute.For<IVirtualFileSystem>();
-        vfs.EnumerateEntries(_vhd)
-           .Returns([Dir("docs"), File("alpha42.txt"), File("readme.txt")]);
-        vfs.EnumerateEntries(Path.Combine(_vhd, "docs"))
-           .Returns([File("alpha42-guide.md"), File("quiet.md")]);
+        var image = LocationEntry.FromFileSystemInfo(new FileInfo(_vhd));
+        vfs.GetEntryAsync(_vhd, Arg.Any<CancellationToken>()).Returns(_ => new ValueTask<LocationEntry?>(image));
+        vfs.OpenReadAsync(_vhd, Arg.Any<ReadIntent>(), Arg.Any<CancellationToken>())
+           .Returns(_ => new ValueTask<Stream>(System.IO.File.OpenRead(_vhd)));
+        vfs.EnumerateAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(_ => Listing([]));
+        foreach (var (folder, entries) in folders)
+            vfs.EnumerateAsync(folder, Arg.Any<CancellationToken>()).Returns(_ => Listing(entries));
         return vfs;
     }
+
+    private static IAsyncEnumerable<LocationEntry> Listing(VirtualEntry[] entries)
+        => entries.Select(LocationEntry.FromArchive).ToAsyncEnumerable();
 
     private async Task<VirtualDiskViewModel> BuildAsync(IVirtualFileSystem? vfs = null)
     {
@@ -211,9 +226,7 @@ public class VirtualDiskSearchableTests : SearchableContentConformanceTests
     [TestMethod]
     public void AWalkThatStopsAtItsCap_ReportsAFloorAndSaysSo() => RunUnpumped(async () =>
     {
-        var many = Substitute.For<IVirtualFileSystem>();
-        many.EnumerateEntries(_vhd)
-            .Returns(Enumerable.Range(0, 250).Select(i => File($"alpha42-{i:D3}.txt")).ToList());
+        var many = StubbedVfs(new() { [_vhd] = [.. Enumerable.Range(0, 250).Select(i => File($"alpha42-{i:D3}.txt"))] });
         var vm = await BuildAsync(many);
 
         var outcome = await vm.SearchAsync(Query("alpha42"), display: true, default);

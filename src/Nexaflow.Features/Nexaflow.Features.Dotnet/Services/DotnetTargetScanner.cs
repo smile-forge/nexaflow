@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Nexaflow.Features.Dotnet.Models;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Dotnet.Services;
 
@@ -9,6 +10,7 @@ namespace Nexaflow.Features.Dotnet.Services;
 /// Enumerates the buildable .NET targets directly inside a folder. Solutions are listed
 /// first so callers can default to "solution preferred".
 /// </summary>
+[LocalDiskOnly("a folder the .NET viewlet is shown in, which a viewlet is only offered for on this disk, where the dotnet CLI builds")]
 public static class DotnetTargetScanner
 {
     private static readonly string[] SolutionGlobs = ["*.slnx", "*.sln"];

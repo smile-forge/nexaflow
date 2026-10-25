@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -77,7 +78,7 @@ public class NotebookSearchableTests : SearchableContentConformanceTests
 
     private async Task<NotebookViewModel> BuildAsync()
     {
-        var vm = new NotebookViewModel(_path, RunningShell());
+        var vm = new NotebookViewModel(_path, RunningShell(), VirtualFileSystem.Instance);
         await vm.LoadAsync();
         return vm;
     }

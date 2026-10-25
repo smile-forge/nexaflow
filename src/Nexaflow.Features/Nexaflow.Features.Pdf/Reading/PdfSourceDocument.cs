@@ -28,15 +28,19 @@ internal sealed class PdfSourceDocument : IPdfDocumentAccess, IDisposable
     private FileStream? _hold;
     private bool _disposed;
 
-    public PdfSourceDocument(PdfSourceId id, string path)
+    public PdfSourceDocument(PdfSourceId id, string path, IVirtualFileSystem vfs)
     {
         Id = id;
         Path = path;
+        _vfs = vfs;
     }
+
+    /// <summary>The runtime's file system the document is read through.</summary>
+    private readonly IVirtualFileSystem _vfs;
 
     public PdfSourceId Id { get; }
 
-    /// <summary>The document as opened — a path inside an archive is read through the virtual file system.</summary>
+    /// <summary>The document as opened — a path inside an archive or on a location is read through the file system.</summary>
     public string Path { get; }
 
     /// <summary>Its page slots, once <see cref="ReadSlotsAsync"/> has read them.</summary>
@@ -91,11 +95,11 @@ internal sealed class PdfSourceDocument : IPdfDocumentAccess, IDisposable
         }
         try
         {
-            return await Task.Run(() =>
+            return await Task.Run(async () =>
             {
                 if (_scope is null && !_failed)
                 {
-                    _scope = PdfDocumentScope.TryOpen(Path, token);
+                    _scope = await PdfDocumentScope.TryOpenAsync(_vfs, Path, token).ConfigureAwait(false);
                     _failed = _scope is null;
                 }
 
@@ -111,12 +115,13 @@ internal sealed class PdfSourceDocument : IPdfDocumentAccess, IDisposable
 
     /// <summary>
     /// Opens a handle on the file that refuses writers, so the file stays as the edits that depend on it read it.
-    /// A file inside an archive is held by its archive's own rules, not here.
+    /// A file inside an archive or on a location is held by its own rules, not here.
     /// </summary>
     /// <exception cref="IOException">Another program has the file open for writing.</exception>
+    [LocalDiskOnly("a file the file system resolved to this disk, held open against writers")]
     public void Hold()
     {
-        if (_hold is not null || VirtualFileSystem.Instance.TryResolveReal(Path) is not { } real) return;
+        if (_hold is not null || _vfs.ResolveOnDisk(Path) is not { } real) return;
         _hold = new FileStream(real, FileMode.Open, FileAccess.Read, FileShare.Read);
     }
 

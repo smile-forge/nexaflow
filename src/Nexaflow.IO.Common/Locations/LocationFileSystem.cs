@@ -357,6 +357,19 @@ public sealed class LocationFileSystem : IVirtualFileSystem
             .ConfigureAwait(false);
     }
 
+    public async ValueTask CopyWithinAsync(string from, string to, bool replace, CancellationToken ct = default)
+    {
+        bool fromRemote = TryRoute(from, out var source, out var sourceRest);
+        bool toRemote   = TryRoute(to, out var target, out var targetRest);
+        if (!fromRemote || !toRemote || !IdEquals(source!.Id, target!.Id)
+            || !source.Capabilities.HasFlag(LocationCapabilities.ServerSideCopy))
+            throw new NotSupportedException($"'{from}' and '{to}' are not on one location that copies on its server.");
+
+        var session = await source.Sessions.GetSessionAsync(ct).ConfigureAwait(false);
+        await session.CopyWithinAsync(LocationPath.ToProviderPath(sourceRest), LocationPath.ToProviderPath(targetRest), replace, ct)
+            .ConfigureAwait(false);
+    }
+
     public async ValueTask DeleteAsync(string path, bool recursive, CancellationToken ct = default)
     {
         if (!TryRoute(path, out var location, out var remainder))
@@ -398,6 +411,11 @@ public sealed class LocationFileSystem : IVirtualFileSystem
         => TryRoute(containerPath, out _, out _)
             ? ValueTask.FromResult<ArchiveSummary?>(null)   // a remote file is never a container
             : _shared.DescribeArchiveAsync(containerPath, ct);
+
+    public ValueTask<string> MaterializeFileAsync(string path, CancellationToken ct = default)
+        => TryRoute(path, out _, out _)
+            ? ValueTask.FromException<string>(new NotSupportedException($"'{path}' is on a remote location, which keeps no copy of it on this disk."))
+            : _shared.MaterializeFileAsync(path, ct);
 
     public ValueTask ExtractAllAsync(string containerPath, string destinationDir,
                                      IProgress<TransferProgress>? progress = null, CancellationToken ct = default)

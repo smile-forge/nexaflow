@@ -4,8 +4,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.Services;
 using Nexaflow.Features.Images.ViewModels;
+using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Common.Localization;
 using NSubstitute;
@@ -26,7 +28,10 @@ namespace Nexaflow.Tests.Features.Images;
 [TestClass]
 public class ImagesSurfaceTests
 {
-    private static ImageViewModel Make(IShellServices shell, params string[] paths) => new(paths, shell);
+    /// <summary>The editing engine every viewer here shares, as a registration's tabs do.</summary>
+    private static readonly ImageEditingServices Editing = new(VirtualFileSystem.Instance);
+
+    private static ImageViewModel Make(IShellServices shell, params string[] paths) => new(paths, shell, ImageViewMode.Carousel, Editing);
 
     private static ImageViewModel Make(params string[] paths) => Make(Substitute.For<IShellServices>(), paths);
 

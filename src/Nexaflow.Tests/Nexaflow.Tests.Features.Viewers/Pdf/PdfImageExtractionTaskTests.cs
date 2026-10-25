@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using System.Linq;
 using Nexaflow.Features.Pdf.Services;
@@ -33,7 +34,7 @@ public class PdfImageExtractionTaskTests
     [TestMethod]
     public async Task WritesImagesIntoASubfolderNamedAfterTheDocument()
     {
-        var task = new PdfImageExtractionTask([Sample("image-only.pdf")], _target);
+        var task = new PdfImageExtractionTask([Sample("image-only.pdf")], _target, VirtualFileSystem.Instance);
         await task.RunAsync(default);
 
         // A subfolder rather than the target root, so extracting from several PDFs — or twice into the same
@@ -53,7 +54,7 @@ public class PdfImageExtractionTaskTests
     [TestMethod]
     public async Task LeavesNoPartFilesBehind()
     {
-        var task = new PdfImageExtractionTask([Sample("image-only.pdf")], _target);
+        var task = new PdfImageExtractionTask([Sample("image-only.pdf")], _target, VirtualFileSystem.Instance);
         await task.RunAsync(default);
 
         // Each image is written to a sidecar name and moved into place, so a failure part-way through can't
@@ -64,7 +65,7 @@ public class PdfImageExtractionTaskTests
     [TestMethod]
     public async Task RepeatedImage_WritesOneFileAndReportsTheSkip()
     {
-        var task = new PdfImageExtractionTask([Sample("repeated-image.pdf")], _target);
+        var task = new PdfImageExtractionTask([Sample("repeated-image.pdf")], _target, VirtualFileSystem.Instance);
         await task.RunAsync(default);
 
         Assert.AreEqual(1, Directory.GetFiles(Path.Combine(_target, "repeated-image")).Length);
@@ -78,7 +79,7 @@ public class PdfImageExtractionTaskTests
     [TestMethod]
     public async Task PdfWithNoImages_CreatesNoFolder()
     {
-        var task = new PdfImageExtractionTask([Sample("text.pdf")], _target);
+        var task = new PdfImageExtractionTask([Sample("text.pdf")], _target, VirtualFileSystem.Instance);
         await task.RunAsync(default);
 
         // An empty directory would leave the user wondering what went wrong; the toast says it plainly instead.
@@ -93,7 +94,7 @@ public class PdfImageExtractionTaskTests
     [TestMethod]
     public async Task UnreadablePdf_IsReportedAsAnError_NotAsZeroImages()
     {
-        var task = new PdfImageExtractionTask([Sample("corrupt.pdf")], _target);
+        var task = new PdfImageExtractionTask([Sample("corrupt.pdf")], _target, VirtualFileSystem.Instance);
         await task.RunAsync(default);
 
         var result = task.Results.Single();
@@ -106,7 +107,7 @@ public class PdfImageExtractionTaskTests
     public async Task SeveralPdfs_EachGetTheirOwnFolder_AndOneFailureDoesNotStopTheRest()
     {
         var task = new PdfImageExtractionTask(
-            [Sample("corrupt.pdf"), Sample("image-only.pdf")], _target);
+            [Sample("corrupt.pdf"), Sample("image-only.pdf")], _target, VirtualFileSystem.Instance);
         await task.RunAsync(default);
 
         Assert.AreEqual(2, task.Results.Count);
@@ -118,8 +119,8 @@ public class PdfImageExtractionTaskTests
     [TestMethod]
     public async Task SecondRunIntoTheSameTarget_DoesNotOverwriteTheFirst()
     {
-        await new PdfImageExtractionTask([Sample("image-only.pdf")], _target).RunAsync(default);
-        await new PdfImageExtractionTask([Sample("image-only.pdf")], _target).RunAsync(default);
+        await new PdfImageExtractionTask([Sample("image-only.pdf")], _target, VirtualFileSystem.Instance).RunAsync(default);
+        await new PdfImageExtractionTask([Sample("image-only.pdf")], _target, VirtualFileSystem.Instance).RunAsync(default);
 
         Assert.IsTrue(Directory.Exists(Path.Combine(_target, "image-only")));
         Assert.IsTrue(Directory.Exists(Path.Combine(_target, "image-only (1)")));
@@ -130,9 +131,9 @@ public class PdfImageExtractionTaskTests
     {
         // Shown in the activity ticker, which is the only place a user sees this task at all.
         Assert.AreEqual("Extracting images from image-only.pdf",
-            new PdfImageExtractionTask([Sample("image-only.pdf")], _target).Description);
+            new PdfImageExtractionTask([Sample("image-only.pdf")], _target, VirtualFileSystem.Instance).Description);
         Assert.AreEqual("Extracting images from 2 PDFs",
-            new PdfImageExtractionTask([Sample("a.pdf"), Sample("b.pdf")], _target).Description);
+            new PdfImageExtractionTask([Sample("a.pdf"), Sample("b.pdf")], _target, VirtualFileSystem.Instance).Description);
 
         await Task.CompletedTask;
     }
@@ -143,7 +144,7 @@ public class PdfImageExtractionTaskTests
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
-        var task = new PdfImageExtractionTask([Sample("image-only.pdf")], _target);
+        var task = new PdfImageExtractionTask([Sample("image-only.pdf")], _target, VirtualFileSystem.Instance);
 
         // QueueBackgroundTask treats OperationCanceledException as "finished quietly, no failure reported";
         // swallowing it here would report a successful extraction of nothing.

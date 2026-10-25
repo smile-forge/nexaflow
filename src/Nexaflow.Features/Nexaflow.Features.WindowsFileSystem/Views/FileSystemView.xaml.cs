@@ -318,7 +318,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         var matched = FolderViewletRegistry.GetMatchingViewlets(folderPath, ViewModel.Registry);
         foreach (var viewlet in matched)
         {
-            var host = new ViewletHost(viewlet, folderPath);
+            var host = new ViewletHost(viewlet, folderPath, ViewModel.Vfs);
             host.DisplayModeChanged        += OnViewletDisplayModeChanged;
             host.FileViewRequested         += OnFileViewRequested;
             host.ViewletViewRequested      += OnViewletViewRequested;

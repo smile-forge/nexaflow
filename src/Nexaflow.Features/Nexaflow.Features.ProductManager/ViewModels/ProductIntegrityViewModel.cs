@@ -8,6 +8,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.ProductManager.ClientTools;
 using Nexaflow.Features.ProductManager.Services;
+using Nexaflow.IO.Common;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Syntax;
@@ -199,6 +200,7 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
     }
 
     /// <summary>Lists what the currently-named document can be pointed at — or, if it is gone, where it went.</summary>
+    [LocalDiskOnly("the product's repository, a checkout on this disk, which the product graph reads")]
     private void RefreshTargets()
     {
         AvailableTargets.Clear();
@@ -268,6 +270,7 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
             : Str.Format("ProductManager.Integrity.Targets.NotFoundFormat", name);
     }
 
+    [LocalDiskOnly("the product's repository, a checkout on this disk, which the product graph reads")]
     private Dictionary<string, List<string>> BuildFileIndex()
     {
         var index = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
@@ -508,6 +511,7 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
 
     /// <summary>Opens the link's target file beside this page, so the right class/heading can be read off it.</summary>
     [RelayCommand]
+    [LocalDiskOnly("a file in the product's repository, a checkout on this disk")]
     private void OpenTarget()
     {
         if (SelectedIssue is not IntegrityIssueItem { } row || string.IsNullOrWhiteSpace(row.Doc)) return;

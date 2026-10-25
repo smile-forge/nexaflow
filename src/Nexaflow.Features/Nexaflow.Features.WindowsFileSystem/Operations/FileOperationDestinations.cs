@@ -24,8 +24,11 @@ internal static class FileOperationDestinations
 {
     /// <summary>
     /// Plans <paramref name="sources"/> into <paramref name="destinationFolder"/>.
-    /// <paramref name="refusals"/> comes back with a sentence per source that will not be attempted.
+    /// <paramref name="refusals"/> comes back with a sentence per source that will not be attempted. The sources come
+    /// from a Windows clipboard or a drag — real paths on this disk — so asking which are folders is a local question;
+    /// the destination is only named here, and may be anywhere the file system reaches.
     /// </summary>
+    [LocalDiskOnly("sources from a Windows clipboard or drag, which only ever name files on this disk")]
     public static IReadOnlyList<TransferItem> Plan(
         IReadOnlyList<string> sources,
         string destinationFolder,

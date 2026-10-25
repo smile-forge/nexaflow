@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -45,10 +46,11 @@ public class WebViewModelTests
 
     [TestMethod]
     [TestCategory("Unit")]
-    public void HtmlFile_ResolvesToFileUri_AndExposesFileName()
+    public async Task HtmlFile_ResolvesToFileUri_AndExposesFileName()
     {
         var path = Write("page.html", "<html><body>hi</body></html>");
-        var vm   = new HtmlViewModel(path);
+        var vm   = new HtmlViewModel(path, VirtualFileSystem.Instance);
+        await vm.Loaded;
 
         Assert.AreEqual(Uri.UriSchemeFile, vm.NavigationUri.Scheme);
         Assert.AreEqual("page.html", vm.FileName);
@@ -57,10 +59,11 @@ public class WebViewModelTests
 
     [TestMethod]
     [TestCategory("Unit")]
-    public void UrlShortcut_ParsesUrlValue()
+    public async Task UrlShortcut_ParsesUrlValue()
     {
         var path = Write("link.url", "[InternetShortcut]\r\nURL=https://example.com/path\r\n");
-        var vm   = new HtmlViewModel(path);
+        var vm   = new HtmlViewModel(path, VirtualFileSystem.Instance);
+        await vm.Loaded;
 
         Assert.AreEqual("https", vm.NavigationUri.Scheme);
         Assert.AreEqual("example.com", vm.NavigationUri.Host);
@@ -70,10 +73,11 @@ public class WebViewModelTests
 
     [TestMethod]
     [TestCategory("Unit")]
-    public void UrlShortcut_WithNoUrlLine_FallsBackToAboutBlank()
+    public async Task UrlShortcut_WithNoUrlLine_FallsBackToAboutBlank()
     {
         var path = Write("broken.url", "[InternetShortcut]\r\nIconIndex=0\r\n");
-        var vm   = new HtmlViewModel(path);
+        var vm   = new HtmlViewModel(path, VirtualFileSystem.Instance);
+        await vm.Loaded;
 
         Assert.AreEqual("about:blank", vm.NavigationUri.ToString());
     }
@@ -82,9 +86,10 @@ public class WebViewModelTests
 
     [TestMethod]
     [TestCategory("Unit")]
-    public void WebViewVisible_TracksAvailabilityAndOverlayCover()
+    public async Task WebViewVisible_TracksAvailabilityAndOverlayCover()
     {
-        var vm = new HtmlViewModel(Write("v.html", "<html></html>"));
+        var vm = new HtmlViewModel(Write("v.html", "<html></html>"), VirtualFileSystem.Instance);
+        await vm.Loaded;
 
         Assert.IsTrue(vm.WebViewAvailable);       // default
         Assert.IsFalse(vm.IsCovered);             // default
@@ -100,9 +105,10 @@ public class WebViewModelTests
 
     [TestMethod]
     [TestCategory("Unit")]
-    public void GetContext_ReflectsLoadingState()
+    public async Task GetContext_ReflectsLoadingState()
     {
-        var vm = new HtmlViewModel(Write("c.html", "<html></html>"));
+        var vm = new HtmlViewModel(Write("c.html", "<html></html>"), VirtualFileSystem.Instance);
+        await vm.Loaded;
 
         Assert.IsTrue(vm.IsLoading);                              // default before navigation completes
         StringAssert.Contains(vm.GetContext(), "(loading)");
@@ -117,9 +123,10 @@ public class WebViewModelTests
 
     [TestMethod]
     [TestCategory("Unit")]
-    public void ClientTools_ExposesCaptureAndScroll()
+    public async Task ClientTools_ExposesCaptureAndScroll()
     {
-        var vm    = new HtmlViewModel(Write("t.html", "<html></html>"));
+        var vm    = new HtmlViewModel(Write("t.html", "<html></html>"), VirtualFileSystem.Instance);
+        await vm.Loaded;
         var names = vm.GetClientTools().Select(t => t.Name).ToArray();
 
         CollectionAssert.AreEquivalent(new[] { "capture_web_page", "scroll_web_page" }, names);
@@ -129,7 +136,8 @@ public class WebViewModelTests
     [TestCategory("Unit")]
     public async System.Threading.Tasks.Task CaptureTool_WithoutLiveView_ReturnsError()
     {
-        var vm   = new HtmlViewModel(Write("t.html", "<html></html>"));
+        var vm   = new HtmlViewModel(Write("t.html", "<html></html>"), VirtualFileSystem.Instance);
+        await vm.Loaded;
         var tool = vm.GetClientTools().Single(t => t.Name == "capture_web_page");
 
         // The view normally assigns CaptureScreenshotAsync; with no browser it stays null, so the tool errors.
@@ -143,7 +151,8 @@ public class WebViewModelTests
     [TestCategory("Unit")]
     public async System.Threading.Tasks.Task ScrollTool_WithoutLiveView_ReturnsError()
     {
-        var vm   = new HtmlViewModel(Write("t.html", "<html></html>"));
+        var vm   = new HtmlViewModel(Write("t.html", "<html></html>"), VirtualFileSystem.Instance);
+        await vm.Loaded;
         var tool = vm.GetClientTools().Single(t => t.Name == "scroll_web_page");
 
         var result = await tool.InvokeAsync(
@@ -154,9 +163,10 @@ public class WebViewModelTests
 
     [TestMethod]
     [TestCategory("Unit")]
-    public void ScrollTool_IsReadOnly_AndExemptFromRepeatGuard()
+    public async Task ScrollTool_IsReadOnly_AndExemptFromRepeatGuard()
     {
-        var vm   = new HtmlViewModel(Write("t.html", "<html></html>"));
+        var vm   = new HtmlViewModel(Write("t.html", "<html></html>"), VirtualFileSystem.Instance);
+        await vm.Loaded;
         var tool = vm.GetClientTools().Single(t => t.Name == "scroll_web_page");
 
         Assert.AreEqual(ToolSafety.SafeOperation, tool.Safety);   // scrolling never needs approval

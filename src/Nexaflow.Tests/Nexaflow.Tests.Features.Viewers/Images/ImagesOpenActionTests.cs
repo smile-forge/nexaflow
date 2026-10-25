@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -75,7 +76,7 @@ public class ImagesOpenActionTests
         {
             var (shell, opened) = Shell();
 
-            Assert.IsTrue(await new SlideshowFolderAction(shell).PerformActionAsync(dir));
+            Assert.IsTrue(await new SlideshowFolderAction(shell, VirtualFileSystem.Instance).PerformActionAsync(dir));
 
             var p = opened.Single();
             Assert.AreEqual("slideshow", p["view"]);
@@ -94,7 +95,7 @@ public class ImagesOpenActionTests
         {
             var (shell, opened) = Shell();
 
-            Assert.IsTrue(await new AlbumFolderAction(shell).PerformActionAsync(dir));
+            Assert.IsTrue(await new AlbumFolderAction(shell, VirtualFileSystem.Instance).PerformActionAsync(dir));
 
             Assert.AreEqual("album", opened.Single()["view"],
                             "the two folder actions differ only in the view they request");
@@ -111,7 +112,7 @@ public class ImagesOpenActionTests
         {
             var (shell, opened) = Shell();
 
-            Assert.IsFalse(await new AlbumFolderAction(shell).PerformActionAsync(dir));
+            Assert.IsFalse(await new AlbumFolderAction(shell, VirtualFileSystem.Instance).PerformActionAsync(dir));
             Assert.AreEqual(0, opened.Count);
         }
         finally { Directory.Delete(dir, recursive: true); }
@@ -122,7 +123,7 @@ public class ImagesOpenActionTests
     public void FolderActions_AreOnlyOffered_WhenAFolderIsMostlyImages()
     {
         var (shell, _) = Shell();
-        var action = new AlbumFolderAction(shell);
+        var action = new AlbumFolderAction(shell, VirtualFileSystem.Instance);
 
         Assert.AreEqual(30, action.MinimumFileGlobMatchPercentage,
                         "a folder with a stray screenshot in it should not sprout an Album button");

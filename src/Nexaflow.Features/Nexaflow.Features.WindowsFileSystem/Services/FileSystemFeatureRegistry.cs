@@ -89,8 +89,10 @@ public sealed class FileSystemFeatureRegistry
 
         // No ICacheable filter: a provider is inherently one-per-shell, and the SAME instance must be
         // handed out every time or the Changed subscription the browser holds would be on a dead object.
+        // The volumes are This PC's own rows, offered whatever the catalog holds; every other provider is discovered.
+        _thisPcProviderTypes.Add(typeof(DriveThisPcProvider));
         foreach (var t in shell.DiscoverImplementations<IThisPcItemProvider>())
-            _thisPcProviderTypes.Add(t);
+            if (t != typeof(DriveThisPcProvider)) _thisPcProviderTypes.Add(t);
 
         _allExperiences = _fileActionTypes
             .Select(t => t.GetProperty("StaticExperienceId",
@@ -208,7 +210,7 @@ public sealed class FileSystemFeatureRegistry
             else if (typeof(IFileOperationHost).IsAssignableFrom(pt))
                 // The file browser is what shows a progress row, so it is what supplies one to the actions it
                 // builds. An action that asks for this outside a browser simply does not get one.
-                args[i] = FileOperationQueue.For(_shell);
+                args[i] = FileOperationQueue.For(_shell, Vfs);
             else if (_configs.TryGetValue(pt, out var cfg))
                 args[i] = cfg;
             else if (parms[i].IsOptional)

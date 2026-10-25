@@ -35,6 +35,11 @@ public static class VirtualBackings
     /// external process: <see cref="VirtualBacking.Real"/> or <see cref="VirtualBacking.PassThrough"/>.</summary>
     public static bool IsFullyOnDisk(this VirtualBacking backing)
         => backing is VirtualBacking.Real or VirtualBacking.PassThrough;
+
+    /// <summary>Where <paramref name="path"/> is on this disk, when the whole of it is — null for a path in an archive or on a
+    /// location. What a reader that has to open the file by its own path, or may read the disk directly, goes by.</summary>
+    public static string? ResolveOnDisk(this IVirtualFileSystem vfs, string path)
+        => vfs.GetBacking(path).IsFullyOnDisk() ? vfs.TryResolveReal(path) : null;
 }
 
 /// <summary>

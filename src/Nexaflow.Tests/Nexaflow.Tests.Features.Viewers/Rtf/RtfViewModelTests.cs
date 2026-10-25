@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using System.Text;
 using System.Text.Json.Nodes;
@@ -52,7 +53,7 @@ public class RtfViewModelTests
 
     private async Task<RtfViewModel> LoadedAsync(string content, IShellServices? shell = null)
     {
-        var vm = new RtfViewModel(Written(content), shell ?? Shell());
+        var vm = new RtfViewModel(Written(content), shell ?? Shell(), VirtualFileSystem.Instance);
         await vm.LoadAsync();
         return vm;
     }
@@ -80,7 +81,7 @@ public class RtfViewModelTests
         File.WriteAllBytes(path, [.. Encoding.ASCII.GetBytes(@"{\rtf1\ansi\ansicpg1251\pard "), 0xE4, .. Encoding.ASCII.GetBytes(@"\par}")]);
         _paths.Add(path);
 
-        using var vm = new RtfViewModel(path, Shell());
+        using var vm = new RtfViewModel(path, Shell(), VirtualFileSystem.Instance);
         await vm.LoadAsync();
 
         Assert.AreEqual('\u00E4', vm.Document[^6], "one character per byte, undecoded");
@@ -137,7 +138,7 @@ public class RtfViewModelTests
     [CoversNode("rtf-viewer-error")]
     public async Task AFileThatCannotBeReadSaysWhy()
     {
-        using var vm = new RtfViewModel(Path.Combine(TestTemp.Root, $"nexaflow-{Guid.NewGuid():N}.rtf"), Shell());
+        using var vm = new RtfViewModel(Path.Combine(TestTemp.Root, $"nexaflow-{Guid.NewGuid():N}.rtf"), Shell(), VirtualFileSystem.Instance);
         await vm.LoadAsync();
 
         Assert.IsTrue(vm.HasError);
@@ -150,7 +151,7 @@ public class RtfViewModelTests
     [CoversNode("rtf-load-gate")]
     public async Task TheAiIsHeldBackUntilTheFileHasLoaded()
     {
-        using var vm = new RtfViewModel(Written(Letter), Shell());
+        using var vm = new RtfViewModel(Written(Letter), Shell(), VirtualFileSystem.Instance);
 
         Assert.IsFalse(vm.IsContextReady);
         StringAssert.Contains(vm.GetContext(), "still loading");
@@ -305,7 +306,7 @@ public class RtfViewModelTests
     [CoversNode("rtf-read-text")]
     public async Task ReadText_SaysWhyWhenThereIsNothingToRead()
     {
-        using var unread = new RtfViewModel(Written(Letter), Shell());
+        using var unread = new RtfViewModel(Written(Letter), Shell(), VirtualFileSystem.Instance);
         Assert.IsFalse((await Invoke(unread)).Success, "not loaded yet");
 
         using var broken = await LoadedAsync("not rtf");

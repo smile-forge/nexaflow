@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Security.Cryptography;
+using Nexaflow.IO.Common;
 using UglyToad.PdfPig.Graphics.Colors.Icc;
 
 namespace Nexaflow.Features.Pdf.Document;
@@ -62,6 +63,7 @@ internal sealed class PdfColourEngine : IIccProfileService
     /// <summary>A profile Windows installs in its colour directory, or <see langword="null"/> where it cannot be read.</summary>
     public PdfIccProfile? Installed(string name) => InstalledBytes(name) is { } bytes ? Profile(bytes) : null;
 
+    [LocalDiskOnly("colour profiles installed with Windows")]
     private static byte[]? InstalledBytes(string name)
     {
         try

@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -95,7 +96,7 @@ public class DicomOpenActionTests
             var dicomdir = Path.Combine(dir, "STUDY01", "DICOMDIR");
             File.WriteAllText(dicomdir, "");
 
-            var page = new DicomTabRegistration(Substitute.For<IShellServices>())
+            var page = new DicomTabRegistration(Substitute.For<IShellServices>(), VirtualFileSystem.Instance)
                        .CreatePageDefinition(new Dictionary<string, string> { ["path"] = dicomdir });
 
             Assert.AreEqual("STUDY01", page.Title,
@@ -107,7 +108,7 @@ public class DicomOpenActionTests
     [TestMethod]
     public void AMultiFileTabIsTitledByCount()
     {
-        var page = new DicomTabRegistration(Substitute.For<IShellServices>())
+        var page = new DicomTabRegistration(Substitute.For<IShellServices>(), VirtualFileSystem.Instance)
                    .CreatePageDefinition(new Dictionary<string, string> { ["paths"] = @"a.dcm|b.dcm|c.dcm" });
 
         Assert.AreEqual("DICOM (3)", page.Title);

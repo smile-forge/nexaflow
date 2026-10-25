@@ -13,6 +13,7 @@ using System.Text.RegularExpressions;
 using System.Windows;
 using Nexaflow.Visuals.Common.Controls;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Features.Logs.ViewModels;
 
@@ -61,6 +62,9 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
     private string                  _pendingAppendContent = string.Empty;
     private IFileWatch?             _watch;
     private readonly IShellServices _shell;
+
+    /// <summary>The runtime's file system the log is read through — on disk, in an archive or on a location.</summary>
+    private readonly IVirtualFileSystem _vfs;
 
     // ── Level highlighting ────────────────────────────────────────────────────
 
@@ -121,9 +125,10 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
 
     // ──────────────────────────────────────────────────────────────────────────
 
-    public LogViewModel(string filePath, IShellServices shell)
+    public LogViewModel(string filePath, IShellServices shell, IVirtualFileSystem vfs)
     {
         _shell = shell;
+        _vfs   = vfs;
         _selectedEncoding = AvailableEncodings[0];
         FilePath = filePath;
         FileName = Path.GetFileName(filePath);
@@ -133,36 +138,45 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
 
     public async Task LoadAsync(CancellationToken ct)
     {
-        if (string.IsNullOrEmpty(FilePath) || !VirtualFileSystem.Instance.Exists(FilePath)) return;
+        if (string.IsNullOrEmpty(FilePath)) return;
 
         try
         {
+            if (await _vfs.GetEntryAsync(FilePath, ct) is not { IsDirectory: false } entry) return;
+
             _headLoadCts?.Cancel();
             _headLoadCts = new CancellationTokenSource();
 
-            _activeEncoding = await DetectEncodingAsync(ct);
-
-            var fileSize = VirtualFileSystem.Instance.GetLength(FilePath);
+            var fileSize = entry.Size;
             _lastKnownFileSize = fileSize;
             FileSizeText       = FormatSize(fileSize);
 
-            if (fileSize <= 4096)
+            // One open for the probe and what is shown first — on a location each open is a round trip.
+            byte[] head;
+            await using (var fs = await _vfs.OpenReadAsync(FilePath, fileSize <= 4096 ? ReadIntent.Whole : ReadIntent.Random, ct))
             {
-                // Small file: read entirely
-                string text;
-                await using (var rs = VirtualFileSystem.Instance.OpenRead(FilePath))
-                using (var sr = new StreamReader(rs, _activeEncoding))
-                    text = await sr.ReadToEndAsync(ct);
-                Document.Text  = text;
-                _tailStartByte = 0;
-            }
-            else
-            {
-                // Large file: tail-first
-                await LoadTailAsync(fileSize, ct);
+                // The shared sniffer (BOM + UTF-8 validity scan + UTF-16 heuristic), so every viewer detects encoding
+                // identically — over the head read here, which also votes for the parser.
+                head = new byte[(int)Math.Min(4096, fileSize)];
+                await fs.ReadExactlyAsync(head, ct);
+                _activeEncoding = EncodingDetector.Detect(new MemoryStream(head, writable: false)).Encoding;
+
+                if (fileSize <= 4096)
+                {
+                    // Small file: read entirely
+                    fs.Position = 0;
+                    using var sr  = new StreamReader(fs, _activeEncoding, leaveOpen: true);
+                    Document.Text = await sr.ReadToEndAsync(ct);
+                    _tailStartByte = 0;
+                }
+                else
+                {
+                    // Large file: tail-first
+                    await LoadTailAsync(fs, fileSize, ct);
+                }
             }
 
-            SelectParser();
+            SelectParser(head);
             DetectTimestamps();
             LineCount = Document.LineCount;
 
@@ -179,9 +193,8 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
         }
     }
 
-    private async Task LoadTailAsync(long fileSize, CancellationToken ct)
+    private async Task LoadTailAsync(Stream fs, long fileSize, CancellationToken ct)
     {
-        using var fs = VirtualFileSystem.Instance.OpenRead(FilePath);
 
         // Seek 4 KB back from end; find first \n to start on a clean line
         var seekPoint = fileSize - 4096;
@@ -211,7 +224,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
             var buf        = new byte[65536];
             var totalBytes = 0L;
 
-            using var fs = VirtualFileSystem.Instance.OpenRead(FilePath);
+            await using var fs = await _vfs.OpenReadAsync(FilePath, ReadIntent.Sequential, ct);
             while (totalBytes < _tailStartByte)
             {
                 ct.ThrowIfCancellationRequested();
@@ -239,36 +252,16 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
 
     // ── Encoding detection ────────────────────────────────────────────────────
 
-    private async Task<Encoding> DetectEncodingAsync(CancellationToken ct)
-    {
-        // Use the shared sniffer (BOM + UTF-8 validity scan + UTF-16 heuristic) so every viewer detects
-        // encoding identically. The probe is small; offload the synchronous read off the UI thread.
-        return await Task.Run(() =>
-        {
-            using var fs = VirtualFileSystem.Instance.OpenRead(FilePath);
-            return EncodingDetector.Detect(fs).Encoding;
-        }, ct);
-    }
-
     // ── Parser selection ──────────────────────────────────────────────────────
 
-    private void SelectParser()
+    /// <summary>The parser the file's first bytes and first line vote for.</summary>
+    private void SelectParser(byte[] head)
     {
         var firstLine = Document.LineCount > 0
             ? Document.GetText(Document.GetLineByNumber(1))
             : string.Empty;
 
-        // Use file header bytes for confidence voting
-        byte[] header = [];
-        try
-        {
-            using var fs = VirtualFileSystem.Instance.OpenRead(FilePath);
-            header       = new byte[Math.Min(16, fs.Length)];
-            _ = fs.Read(header, 0, header.Length);
-        }
-        catch { /* best effort */ }
-
-        ActiveParser = LogParserRegistry.SelectParser(header, firstLine);
+        ActiveParser = LogParserRegistry.SelectParser(head.AsSpan(0, Math.Min(16, head.Length)), firstLine);
     }
 
     // ── Timestamp detection ───────────────────────────────────────────────────
@@ -347,9 +340,8 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
 
     private void StartMonitoring()
     {
+        // Started once the file is loaded, so it is there; the shell watches it wherever it is.
         _watch?.Dispose();
-        if (!File.Exists(FilePath)) return;
-
         _watch = _shell.WatchFile(FilePath, OnFileChanged);
     }
 
@@ -359,7 +351,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
         if (!IsMonitoring) return;
 
         long newSize;
-        try   { newSize = new FileInfo(FilePath).Length; }
+        try   { if (await _vfs.GetEntryAsync(FilePath) is not { } changed) return; newSize = changed.Size; }
         catch { return; }
 
         if (newSize <= _lastKnownFileSize) return;
@@ -369,7 +361,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
         var buf          = new byte[newByteCount];
         try
         {
-            using var fs   = VirtualFileSystem.Instance.OpenRead(FilePath);
+            await using var fs = await _vfs.OpenReadAsync(FilePath, ReadIntent.Random);
             fs.Seek(_lastKnownFileSize, SeekOrigin.Begin);
             var read       = await fs.ReadAsync(buf.AsMemory(0, newByteCount));
             var newContent = _activeEncoding.GetString(buf, 0, read);

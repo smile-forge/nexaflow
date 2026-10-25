@@ -22,15 +22,16 @@ public sealed partial class DraftSaving : ObservableObject
     /// <param name="pick">Asks the user where to keep it — a suggested name, the extensions offered, the folder to start in —
     /// and answers null when they cancel.</param>
     /// <param name="failed">Tells the user it could not be kept, and why.</param>
-    /// <param name="keep">Writes the draft at the path picked; a copy of the file when not given.</param>
+    /// <param name="keep">Writes the draft at the path picked: a copy of the file through the runtime's file system, or the
+    /// file with what goes with it.</param>
     public DraftSaving(string path, string? offeredFolder, Func<string, IReadOnlyList<string>, string?, Task<string?>> pick,
-                       Action<string> failed, Func<string, string, Task>? keep = null)
+                       Action<string> failed, Func<string, string, Task> keep)
     {
         Path           = path;
         _offeredFolder = offeredFolder;
         _pick          = pick;
         _failed        = failed;
-        _keep          = keep ?? Copy;
+        _keep          = keep;
     }
 
     /// <summary>The draft, in its temp folder.</summary>
@@ -70,7 +71,4 @@ public sealed partial class DraftSaving : ObservableObject
     }
 
     private bool CanSaveAs => !IsSaving;
-
-    /// <summary>A copy of the draft at <paramref name="to"/>, written over a file the user chose to replace.</summary>
-    public static Task Copy(string from, string to) => Task.Run(() => File.Copy(from, to, overwrite: true));
 }

@@ -6,6 +6,7 @@ using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using Nexaflow.Markdown.Packaging;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
@@ -151,6 +152,7 @@ public sealed partial class PageConversion : ObservableObject
     /// <paramref name="source"/>'s pages read and the folder they are kept in, or null where they cannot be read now. A
     /// reading stopped by a reader who asked to see what it had read comes back as that, not <c>Whole</c>, and is not kept.
     /// </summary>
+    [LocalDiskOnly(ReadingsHere)]
     private async Task<(PagesRead Read, string Folder, bool Whole)?> ReadKeptAsync(PageSource source, CancellationToken ct)
     {
         Halt();
@@ -230,7 +232,12 @@ public sealed partial class PageConversion : ObservableObject
         }
     }
 
+    /// <summary>Why a reading's files are on the disk directly: they are this machine's own — the readings kept in the app's
+    /// cache and the drafts under the temp folder — never the file the pages were read from.</summary>
+    private const string ReadingsHere = "readings kept in the app's cache and drafts under the temp folder";
+
     /// <summary>The reading kept in <paramref name="folder"/>, or null where none is.</summary>
+    [LocalDiskOnly(ReadingsHere)]
     private static PagesRead? Kept(string folder)
     {
         string markdown = System.IO.Path.Combine(folder, KeptMarkdown);
@@ -251,6 +258,7 @@ public sealed partial class PageConversion : ObservableObject
     /// The reading as a draft of its own in the temp folder, named after the source — <c>scan.md</c>, its figures in
     /// <c>scan.figures</c> — holding only the figures its text shows, for the Markdown editor to open and the reader to save.
     /// </summary>
+    [LocalDiskOnly(ReadingsHere)]
     private static string Draft(PageSource source, PagesRead read, string kept)
     {
         string name = System.IO.Path.GetFileNameWithoutExtension(source.Path);

@@ -336,6 +336,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
 
     /// <summary>Somewhere real to walk. "This PC" qualifies now that the scan is the user's own informed
     /// choice — the reason it used to be excluded was that a whole-drive walk could start on its own.</summary>
+    [LocalDiskOnly("Windows Search scans a folder on the drives of this computer")]
     private bool CanScan =>
         (!string.IsNullOrEmpty(SearchRoot) && Directory.Exists(SearchRoot)) || _drives.Count > 0;
 

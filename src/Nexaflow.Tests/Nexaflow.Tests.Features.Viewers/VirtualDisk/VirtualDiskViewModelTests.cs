@@ -86,13 +86,14 @@ public class VirtualDiskViewModelTests
     // ── AI context readiness (regression: a valid disk mid-load must not read as "unreadable") ──
 
     [TestMethod]
-    public void Context_WhileNotLoaded_ReadsAsReading_NotUnreadable()
+    public async Task Context_WhileNotLoaded_ReadsAsReading_NotUnreadable()
     {
-        // A non-existent path makes LoadAsync complete synchronously (no background continuation to race),
-        // so forcing the not-yet-loaded state is deterministic. IsRecognised is false while loading AND on a
-        // genuine failure — the fix keys GetContext off IsLoaded so the two are no longer conflated.
+        // A non-existent path loads straight to the no-file state, so once that load is done, forcing the
+        // not-yet-loaded state is deterministic. IsRecognised is false while loading AND on a genuine failure —
+        // the fix keys GetContext off IsLoaded so the two are no longer conflated.
         var vm = new VirtualDiskViewModel(@"Z:\does-not-exist.vhd", Substitute.For<IShellServices>(), DiskVfs());
-        Assert.IsTrue(vm.IsLoaded, "precondition: the synchronous no-file load has finished");
+        await vm.WhenLoaded;
+        Assert.IsTrue(vm.IsLoaded, "precondition: the no-file load has finished");
 
         vm.IsLoaded = false;   // simulate the mid-load window
 

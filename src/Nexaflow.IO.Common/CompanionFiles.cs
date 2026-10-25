@@ -100,4 +100,28 @@ public static class CompanionFiles
         }
         return failures;
     }
+
+    /// <summary>As <see cref="DeleteWith"/>, through the file system: a deleted file's companions go too, only once the file
+    /// itself has gone. Returns what could not be deleted.</summary>
+    public static async Task<IReadOnlyList<(string Path, Exception Error)>> DeleteWithAsync(
+        IVirtualFileSystem vfs, string primary, IReadOnlyList<string> suffixes, CancellationToken ct = default)
+    {
+        var failures = new List<(string, Exception)>();
+        if (suffixes.Count == 0 || await vfs.ExistsAsync(primary, ct).ConfigureAwait(false)) return failures;
+
+        foreach (var suffix in suffixes)
+        {
+            var companion = primary + suffix;
+            try
+            {
+                if (await vfs.ExistsAsync(companion, ct).ConfigureAwait(false))
+                    await vfs.DeleteAsync(companion, recursive: false, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                failures.Add((companion, ex));
+            }
+        }
+        return failures;
+    }
 }

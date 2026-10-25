@@ -18,16 +18,19 @@ namespace Nexaflow.Features.Images.Editing;
 /// </summary>
 public sealed class ImageEditingServices : IDisposable
 {
-    public ImageEditingServices() : this(new ImageRecipeStore()) { }
+    public ImageEditingServices(IVirtualFileSystem vfs) : this(vfs, new ImageRecipeStore()) { }
 
+    /// <param name="vfs">The runtime's file system the photos are read and saved through.</param>
     /// <param name="restored">Where restorations are kept; the app's cache when not given.</param>
     /// <param name="cutOuts">Where cut-out masks are kept; the app's cache when not given.</param>
     /// <param name="erased">Where erased photos are kept; the app's cache when not given.</param>
-    public ImageEditingServices(ImageRecipeStore recipes, RestoredPictures? restored = null, CutOutMasks? cutOuts = null, ErasedPictures? erased = null)
+    public ImageEditingServices(IVirtualFileSystem vfs, ImageRecipeStore recipes, RestoredPictures? restored = null, CutOutMasks? cutOuts = null,
+                                ErasedPictures? erased = null)
     {
-    Restored = restored ?? new RestoredPictures();
-    CutOuts = cutOuts ?? new CutOutMasks();
-    Erased = erased ?? new ErasedPictures();
+        FileSystem = vfs;
+        Restored   = restored ?? new RestoredPictures();
+        CutOuts    = cutOuts ?? new CutOutMasks();
+        Erased     = erased ?? new ErasedPictures();
         var jpeg = new JpegMetadata();
         var png  = new PngMetadata();
         var webp = new WebpMetadata();
@@ -40,6 +43,9 @@ public sealed class ImageEditingServices : IDisposable
         Recipes     = recipes;
         Exporter    = new ImageExporter(this);
     }
+
+    /// <summary>The runtime's file system the photos are read and saved through.</summary>
+    public IVirtualFileSystem FileSystem { get; }
 
     public MetadataTransfer Metadata { get; }
     public ImageDecoders Decoders { get; }
@@ -58,27 +64,23 @@ public sealed class ImageEditingServices : IDisposable
     /// <summary>The photos as erased, kept so each step is done once.</summary>
     public ErasedPictures Erased { get; }
 
-    /// <summary>True when <paramref name="path"/> is a file on disk — one a sidecar can sit beside and a save can replace.</summary>
+    /// <summary>True when <paramref name="path"/> is a file on this disk — one a sidecar can sit beside and a save can replace.</summary>
+    [LocalDiskOnly("a photo is file-backed only as a file on this disk under its own path; a sidecar sits beside no other")]
     public static bool IsFileBacked(string path) => File.Exists(path);
 
-    /// <summary>The picture's bytes, from disk or from inside an archive.</summary>
-    public static byte[] ReadSource(string path)
-    {
-        if (File.Exists(path)) return File.ReadAllBytes(path);
-        using var source = VirtualFileSystem.Instance.OpenRead(path);
-        using var buffer = new MemoryStream();
-        source.CopyTo(buffer);
-        return buffer.ToArray();
-    }
+    /// <summary>The picture's bytes, wherever it is: on this disk, inside an archive, at a location.</summary>
+    public ValueTask<byte[]> ReadSourceAsync(string path, CancellationToken ct = default) => FileSystem.ReadAllBytesAsync(path, ct);
 
-    /// <summary>Decodes the picture at <paramref name="path"/>, reduced to <paramref name="maxLongEdge"/> when given.</summary>
-    public DecodedImage Decode(string path, int? maxLongEdge) => Decoders.Decode(ReadSource(path), maxLongEdge);
+    /// <summary>Decodes the picture at <paramref name="path"/>, reduced to <paramref name="maxLongEdge"/> when given — off the
+    /// caller's thread once its bytes are read.</summary>
+    public async Task<DecodedImage> DecodeAsync(string path, int? maxLongEdge, CancellationToken ct = default)
+        => Decoders.Decode(await ReadSourceAsync(path, ct).ConfigureAwait(false), maxLongEdge);
 
     /// <summary>The photo at its full size as it stands — its stored pixels turned as its orientation says — as interleaved
     /// 8-bit straight-alpha RGBA, with its colour space: what a picture tool is handed.</summary>
-    public UprightPixels ReadUpright(string photo)
+    public async Task<UprightPixels> ReadUprightAsync(string photo, CancellationToken ct = default)
     {
-        using var decoded = Decode(photo, maxLongEdge: null);
+        using var decoded = await DecodeAsync(photo, maxLongEdge: null, ct).ConfigureAwait(false);
         int width = (int)Math.Round(decoded.SourceSize.Width), height = (int)Math.Round(decoded.SourceSize.Height);
         var space = decoded.ColorSpace;
         using var bitmap = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul, space));
@@ -105,6 +107,7 @@ public sealed class ImageEditingServices : IDisposable
     /// reduced to <paramref name="maxLongEdge"/> when given, as the same picture at its size or larger: upright already,
     /// its pixels read against the photo's own <paramref name="sourceSize"/>.
     /// </summary>
+    [LocalDiskOnly("a picture the tools made, kept in the app's cache")]
     public DecodedImage DecodeRestored(string path, SKSize sourceSize, int? maxLongEdge)
     {
         var decoded = Decoders.Decode(File.ReadAllBytes(path), maxLongEdge);

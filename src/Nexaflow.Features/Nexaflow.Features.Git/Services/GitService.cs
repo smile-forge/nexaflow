@@ -1,5 +1,6 @@
 using System.IO;
 using LibGit2Sharp;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Git.Services;
 
@@ -516,6 +517,7 @@ public sealed class GitService(string folderPath)
     /// <see cref="GitWorktreeService"/> per worktree, so "is it safe to remove" is answered the same way
     /// here as in the viewlet banner; a worktree whose folder is gone reads as broken rather than throwing.
     /// </summary>
+    [LocalDiskOnly("a git repository's worktrees, which git keeps as folders on this disk")]
     public IReadOnlyList<GitWorktreeListItem> GetWorktrees()
     {
         using var repo = new Repository(folderPath);

@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.IO;
 using System.Net;
@@ -80,6 +81,7 @@ public sealed class UrlPreviewTask(string url, string attachmentDir) : IBackgrou
 
     /// <summary>Writes image <paramref name="bytes"/> into the attachment folder as
     /// <c>{baseName}{ext}</c>; returns the file name (relative to the editor's BaseDirectory) or null.</summary>
+    [LocalDiskOnly("a link's preview picture, kept in the note's attachments in the app's config folder")]
     private async Task<string?> SaveImageAsync(byte[] bytes, string baseName, string ext, CancellationToken ct)
     {
         try

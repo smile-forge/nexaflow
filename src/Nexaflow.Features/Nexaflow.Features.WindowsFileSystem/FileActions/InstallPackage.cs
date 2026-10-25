@@ -15,6 +15,9 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
     /// </summary>
     public class InstallPackage : IFileAction, ICacheable
     {
+        private readonly IVirtualFileSystem _vfs;
+
+        public InstallPackage(IVirtualFileSystem vfs) => _vfs = vfs;
         public bool   IsDestructive          => false;
         public bool   SupportsMultipleFiles  => false;
         public string Icon                   => "📦";
@@ -32,7 +35,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
         public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default)
         {
-            var real = VirtualFileSystem.Instance.TryResolveReal(filePath) ?? filePath;
+            var real = _vfs.TryResolveReal(filePath) ?? filePath;
             Process.Start(new ProcessStartInfo(real) { UseShellExecute = true });
             return Task.FromResult(true);
         }

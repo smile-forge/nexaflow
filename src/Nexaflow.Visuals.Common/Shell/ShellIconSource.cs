@@ -2,6 +2,7 @@ using System.IO;
 using System.Security;
 using System.Windows.Media;
 using Microsoft.Win32;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Visuals.Common.Shell;
 
@@ -48,6 +49,7 @@ internal sealed class SystemShellIconSource : IShellIconSource
     }
 
     /// <summary>A desktop.ini only takes effect on a folder marked read-only or system, which is how Explorer tells them apart.</summary>
+    [LocalDiskOnly("a folder Windows customises with a desktop.ini, which only a folder on this disk has")]
     public bool IsCustomizedFolder(string path)
     {
         try { return (File.GetAttributes(path) & (FileAttributes.ReadOnly | FileAttributes.System)) != 0; }

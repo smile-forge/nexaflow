@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Text;
@@ -36,7 +37,7 @@ public class LogViewModelTests
             new UTF8Encoding(false));
         try
         {
-            using var vm = new LogViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+            using var vm = new LogViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             StringAssert.Contains(vm.Document.Text, "INFO first line");
@@ -55,7 +56,7 @@ public class LogViewModelTests
         var path = WriteTemp("INFO Grüße\nWARN café\n", new UnicodeEncoding(bigEndian: false, byteOrderMark: true));
         try
         {
-            using var vm = new LogViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+            using var vm = new LogViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             StringAssert.Contains(vm.Document.Text, "Grüße");
@@ -74,7 +75,7 @@ public class LogViewModelTests
         var path = WriteTemp(sb.ToString(), new UTF8Encoding(false));
         try
         {
-            using var vm = new LogViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+            using var vm = new LogViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             // The tail loads synchronously; the head streams in on a background read and is applied on

@@ -35,6 +35,12 @@ internal sealed class MemoryLocationHost
     /// <summary>The password a connect must present, or null to accept any.</summary>
     public string? Password { get; }
 
+    /// <summary>Whether the host copies on its server (<see cref="LocationCapabilities.ServerSideCopy"/>), and how many
+    /// times it has been asked to.</summary>
+    public bool CopiesOnServer { get; init; }
+
+    public int ServerCopies;
+
     /// <summary>Bumped by <see cref="Drop"/>: a session from an older generation finds its link gone.</summary>
     public int Generation { get; private set; }
 
@@ -77,7 +83,8 @@ internal sealed class MemoryLocationProvider(MemoryLocationHost host) : ILocatio
 
     public LocationCapabilities Capabilities
         => LocationCapabilities.RandomRead | LocationCapabilities.AtomicRename
-           | (host.CaseSensitive ? LocationCapabilities.CaseSensitive : LocationCapabilities.None);
+           | (host.CaseSensitive ? LocationCapabilities.CaseSensitive : LocationCapabilities.None)
+           | (host.CopiesOnServer ? LocationCapabilities.ServerSideCopy : LocationCapabilities.None);
 
     public async ValueTask<ILocationSession> ConnectAsync(ConnectionProfile profile, ICredentialSource credentials, CancellationToken ct)
     {
@@ -201,6 +208,22 @@ internal sealed class MemoryLocationSession(MemoryLocationHost host, int generat
                 nodes.Remove(key);
                 nodes[to + key[from.Length..]] = node;
             }
+            return 0;
+        });
+    }
+
+    public async ValueTask CopyWithinAsync(string from, string to, bool replace, CancellationToken ct)
+    {
+        if (!host.CopiesOnServer) throw new NotSupportedException("This host does not copy on its server.");
+        await HopAsync(ct);
+        host.With(nodes =>
+        {
+            if (!nodes.TryGetValue(from, out var source) || source.IsDirectory)
+                throw new LocationException(LocationError.NotFound, from, $"No file is at '{from}'.");
+            if (nodes.ContainsKey(to) && !replace)
+                throw new LocationException(LocationError.Conflict, to, $"'{to}' already exists.");
+            nodes[to] = source with { Modified = host.NextStamp() };
+            Interlocked.Increment(ref host.ServerCopies);
             return 0;
         });
     }

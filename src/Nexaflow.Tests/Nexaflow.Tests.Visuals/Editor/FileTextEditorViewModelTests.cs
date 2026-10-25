@@ -71,7 +71,7 @@ public class FileTextEditorViewModelTests
         File.WriteAllText(path, "alpha\nbeta\n", new UTF8Encoding(false));
         try
         {
-            using var vm = new FileTextEditorViewModel(path, Shell(), Big);
+            using var vm = new FileTextEditorViewModel(path, Shell(), VirtualFileSystem.Instance, Big);
             await vm.LoadAsync();
             Assert.IsFalse(vm.IsReadOnlyMode);
             Assert.AreEqual("alpha\nbeta\n", vm.Document.Text);
@@ -98,7 +98,7 @@ public class FileTextEditorViewModelTests
         File.WriteAllText(path, "alpha\nbeta\n", new UTF8Encoding(false));
         try
         {
-            using var vm = new FileTextEditorViewModel(path, Shell(), Big);
+            using var vm = new FileTextEditorViewModel(path, Shell(), VirtualFileSystem.Instance, Big);
             await vm.LoadAsync();
 
             Assert.IsTrue(vm.IsContextReady);                     // gated on load completing
@@ -149,7 +149,7 @@ public class FileTextEditorViewModelTests
             new UTF8Encoding(false));
         try
         {
-            using var vm = new FileTextEditorViewModel(path, Shell(), Big);
+            using var vm = new FileTextEditorViewModel(path, Shell(), VirtualFileSystem.Instance, Big);
             await vm.LoadAsync();
             var edit = vm.GetClientTools().Single(t => t.Name == "edit_declaration");
 
@@ -178,7 +178,7 @@ public class FileTextEditorViewModelTests
         File.WriteAllText(path, "x\n", new UTF8Encoding(true)); // BOM
         try
         {
-            using var vm = new FileTextEditorViewModel(path, Shell(), Big);
+            using var vm = new FileTextEditorViewModel(path, Shell(), VirtualFileSystem.Instance, Big);
             await vm.LoadAsync();
             Assert.AreEqual("UTF-8 with BOM", vm.SelectedEncoding.Name);
 
@@ -198,7 +198,7 @@ public class FileTextEditorViewModelTests
         File.WriteAllText(path, new string('a', 5000));
         try
         {
-            using var vm = new FileTextEditorViewModel(path, Shell(), maxEditableBytes: 1000);
+            using var vm = new FileTextEditorViewModel(path, Shell(), VirtualFileSystem.Instance, maxEditableBytes: 1000);
             await vm.LoadAsync();
 
             Assert.IsTrue(vm.IsReadOnlyMode);
@@ -212,8 +212,8 @@ public class FileTextEditorViewModelTests
     [CoversNode("vtext-editor-host")]
     public void LineCommands_HideLineReorderingForCode() => AsyncPumpCore.Run(async () =>
     {
-        using var code = new FileTextEditorViewModel("snippet.cs", Shell(), Big);
-        using var text = new FileTextEditorViewModel("notes.txt", Shell(), Big);
+        using var code = new FileTextEditorViewModel("snippet.cs", Shell(), VirtualFileSystem.Instance, Big);
+        using var text = new FileTextEditorViewModel("notes.txt", Shell(), VirtualFileSystem.Instance, Big);
         await Task.CompletedTask;
 
         // Line ops live in the footer "Lines" popup, not the floating panel.
@@ -229,7 +229,7 @@ public class FileTextEditorViewModelTests
     [CoversNode("code-commands")]
     public void CommandGroups_HideSelectionOnlyGroups_UntilSelectionExists() => AsyncPumpCore.Run(async () =>
     {
-        using var vm = new FileTextEditorViewModel("notes.txt", Shell(), Big);
+        using var vm = new FileTextEditorViewModel("notes.txt", Shell(), VirtualFileSystem.Instance, Big);
         await Task.CompletedTask;
 
         // No selection yet: Encode/Decode (all selection-scoped) are hidden; Checksum stays (it has document ops).
@@ -252,7 +252,7 @@ public class FileTextEditorViewModelTests
         File.WriteAllText(path, "a\nb\n", new UTF8Encoding(false));
         try
         {
-            using var vm = new FileTextEditorViewModel(path, Shell(), Big);
+            using var vm = new FileTextEditorViewModel(path, Shell(), VirtualFileSystem.Instance, Big);
             await vm.LoadAsync();
             vm.SelectedEol = vm.AvailableEols.First(e => e.Eol == LineEnding.CrLf);
 
@@ -271,7 +271,7 @@ public class FileTextEditorViewModelTests
     [CoversNode("code-line-numbers")]
     public void LineNumbers_AreOnByDefault_AndTheToggleFlipsThem() => AsyncPumpCore.Run(async () =>
     {
-        using var vm = new FileTextEditorViewModel("snippet.cs", Shell(), Big);
+        using var vm = new FileTextEditorViewModel("snippet.cs", Shell(), VirtualFileSystem.Instance, Big);
         await Task.CompletedTask;
 
         Assert.IsTrue(vm.ShowLineNumbers, "code opens with the gutter visible");
@@ -293,7 +293,7 @@ public class FileTextEditorViewModelTests
         File.WriteAllText(path, "abc", new UTF8Encoding(false));
         try
         {
-            using var vm = new FileTextEditorViewModel(path, Shell(), Big);
+            using var vm = new FileTextEditorViewModel(path, Shell(), VirtualFileSystem.Instance, Big);
             await vm.LoadAsync();
             var onLoad = vm.FileSizeText;
             Assert.IsFalse(string.IsNullOrWhiteSpace(onLoad), "the footer shows a size once the file is read");
@@ -314,7 +314,7 @@ public class FileTextEditorViewModelTests
         File.WriteAllText(path, "one\n", new UTF8Encoding(false));
         try
         {
-            using var vm = new FileTextEditorViewModel(path, Shell(), Big);
+            using var vm = new FileTextEditorViewModel(path, Shell(), VirtualFileSystem.Instance, Big);
             await vm.LoadAsync();
             Assert.IsFalse(vm.IsDirty);
             Assert.IsFalse(vm.IsReadOnlyMode, "an editable file shows no read-only flag");
@@ -336,7 +336,7 @@ public class FileTextEditorViewModelTests
         File.WriteAllText(path, new string('a', 5000));
         try
         {
-            using var vm = new FileTextEditorViewModel(path, Shell(), maxEditableBytes: 1000);
+            using var vm = new FileTextEditorViewModel(path, Shell(), VirtualFileSystem.Instance, maxEditableBytes: 1000);
             await vm.LoadAsync();
 
             Assert.IsTrue(vm.IsReadOnlyMode, "the footer shows 'read-only' for a file too large to edit");
@@ -355,7 +355,7 @@ public class FileTextEditorViewModelTests
         File.WriteAllText(path, "original\n", new UTF8Encoding(false));
         try
         {
-            using var vm = new FileTextEditorViewModel(path, Shell(), Big);
+            using var vm = new FileTextEditorViewModel(path, Shell(), VirtualFileSystem.Instance, Big);
             await vm.LoadAsync();
 
             File.WriteAllText(path, "changed elsewhere\n", new UTF8Encoding(false));
@@ -379,7 +379,7 @@ public class FileTextEditorViewModelTests
             shell.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
                  .Returns(Task.FromResult(false));           // the user declines
 
-            using var vm = new FileTextEditorViewModel(path, shell, Big);
+            using var vm = new FileTextEditorViewModel(path, shell, VirtualFileSystem.Instance, Big);
             await vm.LoadAsync();
             vm.Document.Text = "my unsaved work\n";
 
@@ -410,7 +410,7 @@ public class FileTextEditorViewModelTests
             shell.WatchFile(Arg.Any<string>(), Arg.Do<Action>(a => onChanged = a))
                  .Returns(Substitute.For<IFileWatch>());
 
-            using var vm = new FileTextEditorViewModel(path, shell, Big);
+            using var vm = new FileTextEditorViewModel(path, shell, VirtualFileSystem.Instance, Big);
             await vm.LoadAsync();
             Assert.IsNotNull(onChanged, "the editor should watch the file it opened");
             Assert.IsFalse(vm.BannerVisible);

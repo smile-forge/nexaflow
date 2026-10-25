@@ -3,6 +3,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Model3D.Loaders;
 using Nexaflow.Features.Model3D.ViewModels;
 using Nexaflow.Features.Model3D.Views;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Model3D;
@@ -17,6 +18,9 @@ public sealed class Model3DTabRegistration : IPageRegistration
 {
     // One registry per workspace registration — cheap to build, shared by every tab it opens.
     private readonly ModelLoaderRegistry _registry = new();
+    private readonly IVirtualFileSystem _vfs;
+
+    public Model3DTabRegistration(IVirtualFileSystem vfs) => _vfs = vfs;
 
     public static string StaticPageKind => "Model3D";
     public string PageKind => StaticPageKind;
@@ -35,7 +39,7 @@ public sealed class Model3DTabRegistration : IPageRegistration
         {
             Title = title,
             Icon = "🧊",
-            ContentFactory = () => new Model3DView(new Model3DViewModel(path, _registry)),
+            ContentFactory = () => new Model3DView(new Model3DViewModel(path, _vfs, _registry)),
         };
         page.SetFileBreadcrumbs(path, title);
         return page;

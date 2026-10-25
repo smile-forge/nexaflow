@@ -1,5 +1,6 @@
 using System.IO;
 using Nexaflow.Features.Pdf.Reading;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Pdf.Editing;
 
@@ -9,6 +10,7 @@ namespace Nexaflow.Features.Pdf.Editing;
 /// moment after the last edit, a newer edit cancelling a write that is under way, and each copy replaces the one
 /// before, which is deleted once nothing reads it.
 /// </summary>
+[LocalDiskOnly("working copies of the edited document, in the session's draft folder under the temp folder")]
 internal sealed class PdfWorkingCopy : IDisposable
 {
     private static readonly TimeSpan Settle = TimeSpan.FromMilliseconds(400);

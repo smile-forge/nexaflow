@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Linq;
 using System.Threading;
@@ -51,7 +52,7 @@ public class FontSearchableTests : SearchableContentConformanceTests
     /// </summary>
     private static FontViewModel Build()
     {
-        var vm = new FontViewModel(null, RunningShell());
+        var vm = new FontViewModel(null, RunningShell(), VirtualFileSystem.Instance);
         foreach (var name in new[] { Alpha1, "beta-serif.ttf", Alpha2, "gamma-display.woff" })
             vm.Fonts.Add(FontItemViewModel.Failed($@"C:\fonts\{name}", "not a real font file"));
 

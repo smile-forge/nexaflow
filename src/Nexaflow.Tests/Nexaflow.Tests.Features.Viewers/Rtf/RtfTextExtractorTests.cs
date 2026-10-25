@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using System.Text;
 using Nexaflow.Features.Rtf.Search;
@@ -13,7 +14,7 @@ namespace Nexaflow.Tests.Features.Rtf;
 [CoversNode("rtf-text-extractor")]
 public class RtfTextExtractorTests
 {
-    private readonly RtfTextExtractor _extractor = new();
+    private readonly RtfTextExtractor _extractor = new(VirtualFileSystem.Instance);
     private readonly List<string> _paths = [];
 
     [TestCleanup]

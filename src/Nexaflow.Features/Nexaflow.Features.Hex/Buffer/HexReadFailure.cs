@@ -1,4 +1,5 @@
 using System.IO;
+using Nexaflow.IO.Common.Locations;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Hex.Buffer;
@@ -39,6 +40,13 @@ public sealed record HexReadFailure(HexReadFault Fault, string Message)
                 new(HexReadFault.AccessDenied, Str.Format("Hex.ReadFailure.AccessDeniedFormat", name)),
 
             FileNotFoundException or DirectoryNotFoundException =>
+                new(HexReadFault.Missing, Str.Format("Hex.ReadFailure.MissingFormat", name)),
+
+            // How the file system says the same two wherever the file is — on disk, in an archive or on a location.
+            LocationException { Error: LocationError.AccessDenied } =>
+                new(HexReadFault.AccessDenied, Str.Format("Hex.ReadFailure.AccessDeniedFormat", name)),
+
+            LocationException { Error: LocationError.NotFound } =>
                 new(HexReadFault.Missing, Str.Format("Hex.ReadFailure.MissingFormat", name)),
 
             IOException io when io.HResult is ErrorSharingViolation or ErrorLockViolation =>

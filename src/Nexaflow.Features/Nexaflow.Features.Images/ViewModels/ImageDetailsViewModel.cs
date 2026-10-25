@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Images.Details;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using SkiaSharp;
 using System.IO;
@@ -99,7 +100,7 @@ public sealed partial class ImageDetailsViewModel : ObservableObject
         var cancel = _reading = new CancellationTokenSource();
         IsReading = true;
         PhotoDetails? details = null;
-        try { details = await Task.Run(() => _reader.Read(path), cancel.Token).ConfigureAwait(false); }
+        try { details = await Task.Run(() => _reader.ReadAsync(path, cancel.Token), cancel.Token).ConfigureAwait(false); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException or OperationCanceledException) { }
 
         await _runOnUi(() =>
@@ -138,6 +139,7 @@ public sealed partial class ImageDetailsViewModel : ObservableObject
     }
 
     /// <summary>When the file last changed — a save replaces it — or null for a picture inside an archive, which does not change under the viewer.</summary>
+    [LocalDiskOnly("when a picture on this disk last changed — a save replaces it; one anywhere else is kept as first read")]
     private static DateTime? Stamp(string path)
     {
         try { return File.Exists(path) ? File.GetLastWriteTimeUtc(path) : null; }

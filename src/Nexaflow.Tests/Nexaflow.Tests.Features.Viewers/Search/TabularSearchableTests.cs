@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -55,7 +56,7 @@ public class TabularSearchableTests : SearchableContentConformanceTests
         "alpha42x,19,Madrid\n";
 
     private static TabularViewModel Build(string csv) =>
-        new(csv, RunningShell(), Substitute.For<IAIService>(), new TabularTemplatesConfig());
+        new(csv, RunningShell(), VirtualFileSystem.Instance, Substitute.For<IAIService>(), new TabularTemplatesConfig());
 
     protected override async Task<ISearchable> CreateAsync()
     {

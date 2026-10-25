@@ -7,6 +7,7 @@ using Nexaflow.Features.Images.Editing.Codecs;
 using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Text.Pages;
 using SkiaSharp;
 
@@ -131,20 +132,21 @@ public sealed partial class ReadPageViewModel : ObservableObject
         if (_session is not { } session) return null;
         string path = session.Path;
         var recipe = session.Recipe;
-        return new PageSource(Key(path, recipe), path, 1, (_, ct) => Task.Run<string?>(() => Page(path, recipe, ct), ct),
+        return new PageSource(Key(path, recipe), path, 1, (_, ct) => Task.Run<string?>(() => PageAsync(path, recipe, ct), ct),
                               ImageTabRegistration.StaticPageKind, new Dictionary<string, string> { ["paths"] = path });
     }
 
-    /// <summary>The page as shown, edits and all, at full size, in a PNG file of its own.</summary>
-    private string Page(string path, ImageRecipe recipe, CancellationToken ct)
+    /// <summary>The page as shown, edits and all, at full size, in a PNG file of its own in the temp folder.</summary>
+    private async Task<string> PageAsync(string path, ImageRecipe recipe, CancellationToken ct)
     {
-        var png = new ImageExporter(_editing).Export(path, recipe, ImageContainer.Png, ct, _made(path, recipe));
+        var png = await new ImageExporter(_editing).ExportAsync(path, recipe, ImageContainer.Png, ct, _made(path, recipe));
         string file = Path.Combine(Path.GetTempPath(), $"nexaflow-page-{Guid.NewGuid():N}.png");
-        File.WriteAllBytes(file, png);
+        await _editing.FileSystem.WriteAllBytesAsync(file, png, ct);
         return file;
     }
 
     /// <summary>What names a picture's text: the file as it is now, and the edits it is shown with.</summary>
+    [LocalDiskOnly("names the text of a picture on this disk by its size and time as well; one anywhere else by where it is and its edits")]
     private static string Key(string path, ImageRecipe recipe)
     {
         var file = new FileInfo(path);

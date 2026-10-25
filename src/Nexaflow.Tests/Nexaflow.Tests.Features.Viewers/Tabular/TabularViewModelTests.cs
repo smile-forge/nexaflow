@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -24,7 +25,7 @@ public class TabularViewModelTests
     /// so the pure popup/panel toggle state can be exercised in isolation.</summary>
     private static TabularViewModel MakeEmpty(TabularTemplatesConfig? templates = null)
         => new(string.Empty,
-               Substitute.For<IShellServices>(), Substitute.For<IAIService>(),
+               Substitute.For<IShellServices>(), VirtualFileSystem.Instance, Substitute.For<IAIService>(),
                templates ?? new TabularTemplatesConfig());
 
     [TestMethod]
@@ -128,7 +129,7 @@ public class TabularViewModelTests
         try
         {
             var vm = new TabularViewModel(csv,
-                Substitute.For<IShellServices>(), Substitute.For<IAIService>(),
+                Substitute.For<IShellServices>(), VirtualFileSystem.Instance, Substitute.For<IAIService>(),
                 new TabularTemplatesConfig());
             vm.Ready.GetAwaiter().GetResult();
 
@@ -276,7 +277,7 @@ public class TabularViewModelTests
     private static TabularViewModel Load(string csv, TabularTemplatesConfig config, IShellServices? shell = null)
     {
         var vm = new TabularViewModel(csv,
-            shell ?? Substitute.For<IShellServices>(), Substitute.For<IAIService>(), config);
+            shell ?? Substitute.For<IShellServices>(), VirtualFileSystem.Instance, Substitute.For<IAIService>(), config);
         vm.Ready.GetAwaiter().GetResult();
         return vm;
     }

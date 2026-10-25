@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing;
@@ -52,7 +53,7 @@ public class ImageEraseTests
             File.WriteAllBytes(_photo, EncodePng(bitmap));
         }
         _ui = new ViewerUiThread();
-        _services = new ImageEditingServices(new ImageRecipeStore(TimeSpan.FromHours(1)),
+        _services = new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1)),
                                              new RestoredPictures(Path.Combine(_dir, "restored"), RestoredPictures.DefaultBudget),
                                              new CutOutMasks(Path.Combine(_dir, "cutouts"), CutOutMasks.DefaultBudget),
                                              new ErasedPictures(Path.Combine(_dir, "erased"), ErasedPictures.DefaultBudget));
@@ -116,7 +117,7 @@ public class ImageEraseTests
 
     [TestMethod]
     [CoversNode("images-edit-erase")]
-    public void ABrushedStep_FilledByContentAwareFill_ErasesAtOnce_InThePhotoShownAndSaved()
+    public async Task ABrushedStep_FilledByContentAwareFill_ErasesAtOnce_InThePhotoShownAndSaved()
     {
         var vm = Editing();
         BrushOverTheSpot(vm, EraseFill.ContentAware);
@@ -129,7 +130,7 @@ public class ImageEraseTests
         AssertNear(Ground, Shown(session, 16, 12), because: "the square is erased on screen");
         AssertNear(Ground, Shown(session, 3, 3), because: "what was not brushed is as it was");
 
-        var saved = _ui.Invoke(() => _services.Exporter.Export(_photo, session.Recipe, ImageContainer.Png, made: session.Made));
+        var saved = await _ui.Invoke(() => _services.Exporter.ExportAsync(_photo, session.Recipe, ImageContainer.Png, made: session.Made));
         using var bitmap = SKBitmap.Decode(saved);
         AssertNear(Ground, bitmap.GetPixel(16, 12), because: "the square is erased in the saved photo");
         Assert.IsTrue(_ui.Invoke(() => vm.Editor.EraseMarks.Strokes.Count == 0), "the marks go once they are erased");

@@ -2,6 +2,7 @@ using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using Nexaflow.Syntax;
 using Nexaflow.Visuals.Text.Editor;
 using Nexaflow.Visuals.Text.Editor.Highlighting;
@@ -22,8 +23,8 @@ public sealed partial class CodeViewModel : FileTextEditorViewModel
     private readonly CodeStructureExtractor _extractor = new();
     private string? _pendingAst;
 
-    public CodeViewModel(string filePath, IShellServices shell, long maxEditableBytes, string? initialAst = null)
-        : base(filePath, shell, maxEditableBytes)
+    public CodeViewModel(string filePath, IShellServices shell, IVirtualFileSystem vfs, long maxEditableBytes, string? initialAst = null)
+        : base(filePath, shell, vfs, maxEditableBytes)
     {
         _pendingAst = initialAst;
         GrammarId = HighlightingRegistry.Resolve(FileName).TreeSitterLanguage;

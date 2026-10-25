@@ -3,6 +3,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Images.Editing.Recipe;
 using SkiaSharp;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Images.Editing.CuttingOut;
 
@@ -11,6 +12,7 @@ namespace Nexaflow.Features.Images.Editing.CuttingOut;
 /// cut-out and set of models, at the photo's full size as it stands — 255 over what is kept, 0 over what is cleared —
 /// as an 8-bit grey PNG.
 /// </summary>
+[LocalDiskOnly("cut-out masks, kept in the app's cache; the photo itself is read through the runtime's file system")]
 public sealed class CutOutMasks(string folder, long budgetBytes)
 {
     /// <summary>How much disk the masks may take together before the oldest are let go.</summary>
@@ -47,7 +49,7 @@ public sealed class CutOutMasks(string folder, long budgetBytes)
             return path;
         }
 
-        var upright = await Task.Run(() => services.ReadUpright(photo), ct);
+        var upright = await Task.Run(() => services.ReadUprightAsync(photo, ct), ct);
         int width = upright.Width, height = upright.Height;
         progress?.Report(0.2);
         IReadOnlyList<byte[]> masks;

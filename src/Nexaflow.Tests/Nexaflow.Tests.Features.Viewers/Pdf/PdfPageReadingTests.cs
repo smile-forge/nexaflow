@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
@@ -255,7 +256,7 @@ public class PdfPageReadingTests
         {
             UiThread.Run(() =>
             {
-                using var scope = PdfDocumentScope.TryOpen(path, CancellationToken.None);
+                using var scope = PdfDocumentScope.TryOpen(File.OpenRead(path), CancellationToken.None);
                 Assert.IsNotNull(scope);
                 var source = PdfPageSource.Of(new OpenScope(scope), scope.Pages.ReadDocument(CancellationToken.None), Brushes.White);
                 var sheet = new Size(400, 600);
@@ -1013,7 +1014,7 @@ public class PdfPageReadingTests
         File.WriteAllBytes(path, Write(content, resources, catalog, extra ?? [], page));
         try
         {
-            using var scope = PdfDocumentScope.TryOpen(path, CancellationToken.None);
+            using var scope = PdfDocumentScope.TryOpen(File.OpenRead(path), CancellationToken.None);
             Assert.IsNotNull(scope, "the document written here should open");
             return scope.Pages.ReadPage(1, CancellationToken.None);
         }

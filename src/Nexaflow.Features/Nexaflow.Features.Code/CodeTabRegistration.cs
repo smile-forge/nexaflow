@@ -1,6 +1,7 @@
 using Nexaflow.Features.Code.ViewModels;
 using Nexaflow.Features.Code.Views;
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.IO;
 
@@ -11,7 +12,7 @@ namespace Nexaflow.Features.Code;
 /// ceiling comes from <see cref="CodeEditorConfig"/> (injected by FeatureManager). An optional <c>ast</c> page
 /// param tells the view to jump to a member after opening (used when following a cross-file member link).
 /// </summary>
-public sealed class CodeTabRegistration(CodeEditorConfig config, IShellServices shell) : IPageRegistration
+public sealed class CodeTabRegistration(CodeEditorConfig config, IShellServices shell, IVirtualFileSystem vfs) : IPageRegistration
 {
     public static string StaticPageKind => "Code";
     public string PageKind => StaticPageKind;
@@ -31,7 +32,7 @@ public sealed class CodeTabRegistration(CodeEditorConfig config, IShellServices 
         {
             Title       = title,
             Icon        = "⟨⟩",
-            ContentFactory = () => new CodeView(new CodeViewModel(path, shell, config.GetMaxEditableBytes(), ast)),
+            ContentFactory = () => new CodeView(new CodeViewModel(path, shell, vfs, config.GetMaxEditableBytes(), ast)),
         };
         page.SetFileBreadcrumbs(path, title);
         return page;

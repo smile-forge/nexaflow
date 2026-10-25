@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Hdf5.ViewModels;
+using Nexaflow.IO.Common;
 using Nexaflow.IO.Hdf5;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
@@ -25,7 +26,7 @@ internal static class Hdf5Harness
 
     public static async Task<Hdf5ViewModel> OpenAsync(string? node = null, string? path = null, IShellServices? shell = null)
     {
-        var vm = new Hdf5ViewModel(path ?? Sample(), node, shell ?? Shell(), new Hdf5SourceCache(TimeSpan.Zero));
+        var vm = new Hdf5ViewModel(path ?? Sample(), node, shell ?? Shell(), VirtualFileSystem.Instance, new Hdf5SourceCache(TimeSpan.Zero));
         await vm.Loaded;
         await Settled(vm);
         return vm;

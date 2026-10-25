@@ -48,14 +48,14 @@ public class MarkdownPackageTests
     }
 
     [TestMethod]
-    public void APackage_HoldsTheDocumentAndItsAttachments_ItsAddressesWrittenToThem()
+    public async Task APackage_HoldsTheDocumentAndItsAttachments_ItsAddressesWrittenToThem()
     {
         Beside(Path.Combine("scan.figures", "figure 1.png"), [1]);
         Beside(Path.Combine("more", "figure 1.png"), [2]);
         Beside("spec.pdf", [3]);
         string package = Path.Combine(_dir, "notes.mdz");
 
-        MarkdownPackage.Pack("![a](scan.figures/figure%201.png) ![b](scan.figures/figure%201.png) ![c](<more/figure 1.png>)\n\n" +
+        await MarkdownPackage.PackAsync(VirtualFileSystem.Instance, "![a](scan.figures/figure%201.png) ![b](scan.figures/figure%201.png) ![c](<more/figure 1.png>)\n\n" +
                              "[spec][spec] [web](https://example.com/a.png)\n\n[spec]: spec.pdf\n",
                              Path.Combine(_dir, "doc"), package);
 
@@ -71,46 +71,46 @@ public class MarkdownPackageTests
     }
 
     [TestMethod]
-    public void UnpackedAgain_ItReadsAsItWasPacked_ItsAttachmentsBesideIt()
+    public async Task UnpackedAgain_ItReadsAsItWasPacked_ItsAttachmentsBesideIt()
     {
         Beside(Path.Combine("scan.figures", "figure 1.png"), [1, 2, 3]);
         string package = Path.Combine(_dir, "notes.mdz");
-        MarkdownPackage.Pack("![a](scan.figures/figure%201.png)\n", Path.Combine(_dir, "doc"), package);
+        await MarkdownPackage.PackAsync(VirtualFileSystem.Instance, "![a](scan.figures/figure%201.png)\n", Path.Combine(_dir, "doc"), package);
 
         string folder = Path.Combine(_dir, "open");
-        string text = MarkdownPackage.Unpack(package, folder);
+        string text = await MarkdownPackage.UnpackAsync(VirtualFileSystem.Instance, package, folder);
 
         Assert.AreEqual("![a](attachments/figure%201.png)\n", text);
         CollectionAssert.AreEqual(new byte[] { 1, 2, 3 }, File.ReadAllBytes(Path.Combine(folder, "attachments", "figure 1.png")));
     }
 
     [TestMethod]
-    public void APackageInsideAZip_IsReadAndWrittenThroughTheFileSystem()
+    public async Task APackageInsideAZip_IsReadAndWrittenThroughTheFileSystem()
     {
         Beside("photo.png", [7, 7]);
         string outer = Path.Combine(_dir, "outer.zip");
         using (var zip = ZipFile.Open(outer, ZipArchiveMode.Create)) zip.CreateEntry("readme.txt");
         string package = Path.Combine(outer, "notes.mdz");
 
-        MarkdownPackage.Pack("# Inside\n\n![p](photo.png)\n", Path.Combine(_dir, "doc"), package);
-        string text = MarkdownPackage.Unpack(package, Path.Combine(_dir, "open"));
+        await MarkdownPackage.PackAsync(VirtualFileSystem.Instance, "# Inside\n\n![p](photo.png)\n", Path.Combine(_dir, "doc"), package);
+        string text = await MarkdownPackage.UnpackAsync(VirtualFileSystem.Instance, package, Path.Combine(_dir, "open"));
 
         Assert.AreEqual("# Inside\n\n![p](attachments/photo.png)\n", text);
         CollectionAssert.AreEqual(new byte[] { 7, 7 }, File.ReadAllBytes(Path.Combine(_dir, "open", "attachments", "photo.png")));
     }
 
     [TestMethod]
-    public void PackedAgain_ItIsReplacedWhole()
+    public async Task PackedAgain_ItIsReplacedWhole()
     {
         string package = Path.Combine(_dir, "notes.mdz");
-        MarkdownPackage.Pack("first\n", _dir, package);
-        MarkdownPackage.Pack("second\n", _dir, package);
+        await MarkdownPackage.PackAsync(VirtualFileSystem.Instance, "first\n", _dir, package);
+        await MarkdownPackage.PackAsync(VirtualFileSystem.Instance, "second\n", _dir, package);
 
-        Assert.AreEqual("second\n", MarkdownPackage.Unpack(package, Path.Combine(_dir, "open")));
+        Assert.AreEqual("second\n", await MarkdownPackage.UnpackAsync(VirtualFileSystem.Instance, package, Path.Combine(_dir, "open")));
     }
 
     [TestMethod]
-    public void AnEntryReachingOutOfTheFolder_IsNotWritten()
+    public async Task AnEntryReachingOutOfTheFolder_IsNotWritten()
     {
         string package = Path.Combine(_dir, "sly.mdz");
         using (var zip = ZipFile.Open(package, ZipArchiveMode.Create))
@@ -119,34 +119,34 @@ public class MarkdownPackageTests
             using (var writer = new StreamWriter(zip.CreateEntry("../outside.txt").Open())) writer.Write("no");
         }
 
-        MarkdownPackage.Unpack(package, Path.Combine(_dir, "open"));
+        await MarkdownPackage.UnpackAsync(VirtualFileSystem.Instance, package, Path.Combine(_dir, "open"));
 
         Assert.IsFalse(File.Exists(Path.Combine(_dir, "outside.txt")));
     }
 
     [TestMethod]
-    public void AZipWithNoDocument_IsNoPackage()
+    public async Task AZipWithNoDocument_IsNoPackage()
     {
         string package = Path.Combine(_dir, "empty.mdz");
         using (var zip = ZipFile.Open(package, ZipArchiveMode.Create)) zip.CreateEntry("attachments/a.png");
 
-        Assert.ThrowsExactly<InvalidDataException>(() => MarkdownPackage.Unpack(package, Path.Combine(_dir, "open")));
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(() => MarkdownPackage.UnpackAsync(VirtualFileSystem.Instance, package, Path.Combine(_dir, "open")));
     }
 
     [TestMethod]
-    public void APackage_IsReadWhereItStands_AsAMarkdownFileIs()
+    public async Task APackage_IsReadWhereItStands_AsAMarkdownFileIs()
     {
         Beside("photo.png", [7, 7]);
         string package = Path.Combine(_dir, "notes.mdz");
-        MarkdownPackage.Pack("# Notes\r\n\r\n![Photo](photo.png)\r\n", Path.Combine(_dir, "doc"), package);
+        await MarkdownPackage.PackAsync(VirtualFileSystem.Instance, "# Notes\r\n\r\n![Photo](photo.png)\r\n", Path.Combine(_dir, "doc"), package);
         string file = Path.Combine(_dir, "notes.md");
         File.WriteAllText(file, "# Notes\n");
 
         Assert.IsTrue(MarkdownDocuments.Names(package) && MarkdownDocuments.Names(file) && !MarkdownDocuments.Names(Path.Combine(_dir, "notes.txt")));
-        Assert.AreEqual("# Notes\n\n![Photo](attachments/photo.png)\n", MarkdownDocuments.ReadText(package), "its own document, read inside it, its lines as the editor has them");
+        Assert.AreEqual("# Notes\n\n![Photo](attachments/photo.png)\n", await MarkdownDocuments.ReadTextAsync(VirtualFileSystem.Instance, package), "its own document, read inside it, its lines as the editor has them");
         Assert.AreEqual(package, MarkdownDocuments.FolderOf(package), "the files it names are read inside it");
         CollectionAssert.AreEqual(new byte[] { 7, 7 }, VirtualFileSystem.Instance.ReadAllBytes(Path.Combine(MarkdownDocuments.FolderOf(package)!, "attachments", "photo.png")));
         Assert.AreEqual(_dir, MarkdownDocuments.FolderOf(file), "and a file's, beside it");
-        Assert.IsNull(MarkdownDocuments.ReadText(Path.Combine(_dir, "gone.mdz")), "nothing there is nothing to read");
+        Assert.IsNull(await MarkdownDocuments.ReadTextAsync(VirtualFileSystem.Instance, Path.Combine(_dir, "gone.mdz")), "nothing there is nothing to read");
     }
 }

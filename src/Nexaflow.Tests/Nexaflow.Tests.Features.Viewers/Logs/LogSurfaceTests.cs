@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -51,7 +52,7 @@ public class LogSurfaceTests
     }
 
     private static LogViewModel Detached()
-        => new("nonexistent.log", Substitute.For<IShellServices>()) { IsMonitoring = false };
+        => new("nonexistent.log", Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
 
     // ── Toolbar: severity highlighting ────────────────────────────────────────
 
@@ -170,7 +171,7 @@ public class LogSurfaceTests
         shell.WatchFile(Arg.Any<string>(), Arg.Do<Action>(a => onChanged = a))
              .Returns(Substitute.For<IFileWatch>());
 
-        var vm = new LogViewModel(path, shell);
+        var vm = new LogViewModel(path, shell, VirtualFileSystem.Instance);
         await vm.LoadAsync(CancellationToken.None);
 
         Assert.IsNotNull(onChanged, "the viewer must ask the shell to watch the file it loaded");
@@ -265,7 +266,7 @@ public class LogSurfaceTests
         var path = WriteTemp(TimestampedLog);
         try
         {
-            using var vm = new LogViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+            using var vm = new LogViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             Assert.AreEqual(vm.Document.LineCount, vm.LineCount);
@@ -298,7 +299,7 @@ public class LogSurfaceTests
         var path = WriteTemp(sb.ToString());
         try
         {
-            using var vm = new LogViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+            using var vm = new LogViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             // Big file → tail first, and the indicator says so until the head lands.
@@ -317,7 +318,7 @@ public class LogSurfaceTests
     public void AStructuredLogIsReadAsJson_LevelsAndAll() => AsyncPump.Run(async () =>
     {
         var path = Path.Combine(TestSampleData.Path("logs"), "app_structured.log");
-        using var vm = new LogViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+        using var vm = new LogViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
         await vm.LoadAsync(CancellationToken.None);
 
         Assert.AreEqual("JSON", vm.ActiveParser.FormatName, "the status bar names the structured format");
@@ -364,7 +365,7 @@ public class LogSurfaceTests
         var path = WriteTemp(TimestampedLog);
         try
         {
-            using var vm = new LogViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+            using var vm = new LogViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             Assert.IsTrue(vm.HasTimestamps, "the time-range fields only appear when timestamps were found");
@@ -383,7 +384,7 @@ public class LogSurfaceTests
         var path = WriteTemp("just some words\nand some more\nno dates at all\nnor here\n");
         try
         {
-            using var vm = new LogViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+            using var vm = new LogViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             Assert.IsFalse(vm.HasTimestamps);

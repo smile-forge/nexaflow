@@ -1,5 +1,6 @@
 using System.IO;
 using LibVLCSharp;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Video.Interop;
 
@@ -14,6 +15,7 @@ internal static class VlcInit
     private static readonly object _gate = new();
     private static bool _initialized;
 
+    [LocalDiskOnly("libVLC, shipped beside the app")]
     public static void EnsureInitialized()
     {
         if (_initialized) return;

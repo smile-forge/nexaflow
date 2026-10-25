@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -50,7 +51,7 @@ public class TabularAiTests
         TabularViewModel? vm = null;
         try
         {
-            vm = new TabularViewModel(csv, RunningShell(), Substitute.For<IAIService>(),
+            vm = new TabularViewModel(csv, RunningShell(), VirtualFileSystem.Instance, Substitute.For<IAIService>(),
                                       new TabularTemplatesConfig());
             await vm.Ready;
 

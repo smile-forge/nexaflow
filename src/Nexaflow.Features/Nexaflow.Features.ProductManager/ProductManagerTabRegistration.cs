@@ -34,7 +34,7 @@ public sealed class ProductManagerTabRegistration : IPageRegistration
     {
         var root  = ProductRootLocator.Resolve(pageParams);
         var title = root is not null
-            ? Str.Format("ProductManager.Page.TitleFormat", new DirectoryInfo(root).Name)
+            ? Str.Format("ProductManager.Page.TitleFormat", ProductStore.NameOfRoot(root))
             : Str.Get("ProductManager.Page.Title");
 
         // `node` is a one-shot navigation hint, NOT part of this tab's identity: the shell stamps whatever
@@ -56,7 +56,7 @@ public sealed class ProductManagerTabRegistration : IPageRegistration
             if (string.IsNullOrWhiteSpace(root)) return Placeholder();
 
             var store = new ProductStore(root);
-            if (!ProductStore.Exists(root)) store.Initialize(new DirectoryInfo(root).Name);
+            if (!ProductStore.Exists(root)) store.Initialize(ProductStore.NameOfRoot(root));
 
             var vm = new ProductViewModel(store, new ProductGit(root), root, _shell);
             vm.NavigationChanged += segments => ApplyBreadcrumbs(tab, vm, segments);

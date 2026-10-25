@@ -161,7 +161,7 @@ public sealed partial class ExecutableViewModel
 
         public async Task RunAsync(CancellationToken ct)
         {
-            string path = owner.FilePath;
+            string path = owner._localPath!;
 
             // Re-read with verification on rather than mutating the shared image: WinVerifyTrust may
             // consult catalogs and the cached CRL store, which is far too slow for the first paint.
@@ -268,8 +268,8 @@ public sealed partial class ExecutableViewModel
         {
             var result = await Task.Run(
                 () => OperatingSystem.IsWindows()
-                    ? AmsiScanner.ScanFile(owner.FilePath, ct)
-                    : new AmsiResult(AmsiVerdict.Unavailable, 0, Str.Get("Executable.Inspector.AMSIIsOnlyAvailableOnWindows"), false),
+                    ? AmsiScanner.ScanFileAsync(owner._vfs, owner.FilePath, ct)
+                    : Task.FromResult(new AmsiResult(AmsiVerdict.Unavailable, 0, Str.Get("Executable.Inspector.AMSIIsOnlyAvailableOnWindows"), false)),
                 ct);
 
             await owner._shell.RunOnUiAsync(() =>
@@ -415,7 +415,7 @@ public sealed partial class ExecutableViewModel
 
         try
         {
-            await File.WriteAllBytesAsync(target, bytes, _cts.Token);
+            await _vfs.WriteAllBytesAsync(target, bytes, _cts.Token);
             _shell.ShowNotification(Str.Format("Executable.Resources.ExtractedOneFormat", FormatSize(bytes.Length), Path.GetFileName(target)));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
@@ -443,7 +443,7 @@ public sealed partial class ExecutableViewModel
             string name = Sanitise($"{TypeLabel(node)}_{node.Label}") + ExtensionFor(node);
             try
             {
-                await File.WriteAllBytesAsync(Path.Combine(folder, name), bytes, _cts.Token);
+                await _vfs.WriteAllBytesAsync(Path.Combine(folder, name), bytes, _cts.Token);
                 written++;
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException) { failed++; }

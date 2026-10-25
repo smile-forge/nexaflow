@@ -14,7 +14,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 /// "/") and is never the double-click default (universal specificity sits below any viewer or
 /// shell verb), so it only ever surfaces as an explicit action button / context-menu item.
 /// </summary>
-public sealed class OpenWithAction : IFileAction, ICacheable
+public sealed class OpenWithAction(IVirtualFileSystem vfs) : IFileAction, ICacheable
 {
     public bool   IsDestructive         => false;
     public bool   SupportsMultipleFiles => false;
@@ -30,17 +30,18 @@ public sealed class OpenWithAction : IFileAction, ICacheable
 
     // A file inside a disk image / archive is virtual — the Open-With dialog needs a real path, so
     // materialise it to a temp copy first (a real file passes through unchanged).
-    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default) => Task.FromResult(NativeMethods.ShowOpenWithDialog(RealPath(filePath)));
+    public async Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default)
+        => NativeMethods.ShowOpenWithDialog(await RealPathAsync(filePath, ct));
 
-    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
+    public async Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
     {
         var first = filePaths.FirstOrDefault();
-        return Task.FromResult(first is not null && NativeMethods.ShowOpenWithDialog(RealPath(first)));
+        return first is not null && NativeMethods.ShowOpenWithDialog(await RealPathAsync(first, ct));
     }
 
-    private static string RealPath(string path)
+    private async Task<string> RealPathAsync(string path, CancellationToken ct)
     {
-        try { return VirtualFileSystem.Instance.MaterializeFile(path); }
+        try { return await vfs.MaterializeFileAsync(path, ct); }
         catch { return path; }
     }
 }

@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading;
 using Nexaflow.Features.Pdf.Document;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Logging;
 
@@ -44,19 +45,33 @@ internal sealed class PdfDocumentScope : IDisposable
     /// — corrupt, encrypted with a password we don't have, locked, or gone. Null means "couldn't tell",
     /// which callers must keep distinct from "read it, there was no text".
     /// <para>
-    /// Read through the VFS rather than <see cref="File"/> so a PDF inside an archive works too: for a real
-    /// path this is just a <c>FileStream</c>, and for a virtual one the entry is materialised first.
+    /// Read through <paramref name="vfs"/> rather than <see cref="File"/> so a PDF inside an archive or on a
+    /// location works too: for a real path this is just a <c>FileStream</c>, and for a virtual one the entry is
+    /// materialised first. A PDF is read at random — its cross-reference table first, from the end.
     /// </para>
     /// </summary>
-    public static PdfDocumentScope? TryOpen(string path, CancellationToken ct)
+    public static async Task<PdfDocumentScope?> TryOpenAsync(IVirtualFileSystem vfs, string path, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
 
-        Stream? stream = null;
+        Stream stream;
+        try { stream = await vfs.OpenReadAsync(path, ReadIntent.Random, ct).ConfigureAwait(false); }
+        catch (OperationCanceledException) { throw; }
+        catch { return null; }   // locked, denied or gone: "not readable", as a parse that fails is
+
+        return TryOpen(stream, ct);
+    }
+
+    /// <summary>
+    /// Reads <paramref name="stream"/> as a PDF, or returns null as <see cref="TryOpenAsync"/> does. The scope owns the
+    /// stream from here: it is disposed with the scope, or at once when the parse fails.
+    /// </summary>
+    public static PdfDocumentScope? TryOpen(Stream stream, CancellationToken ct)
+    {
         var cancelHook = default(CancellationTokenRegistration);
         try
         {
-            stream = VirtualFileSystem.Instance.OpenRead(path);
+            ct.ThrowIfCancellationRequested();
 
             // Registered before the parse starts, so a token cancelled during Open() still bites.
             var toKill = stream;
@@ -93,7 +108,7 @@ internal sealed class PdfDocumentScope : IDisposable
         catch (OperationCanceledException)
         {
             cancelHook.Dispose();
-            stream?.Dispose();
+            stream.Dispose();
             throw;
         }
         catch
@@ -101,7 +116,7 @@ internal sealed class PdfDocumentScope : IDisposable
             // Every other failure — encrypted, malformed beyond recovery, locked, denied — is "not readable",
             // not a crash. The caller falls back to scanning the raw bytes.
             cancelHook.Dispose();
-            stream?.Dispose();
+            stream.Dispose();
             return null;
         }
     }

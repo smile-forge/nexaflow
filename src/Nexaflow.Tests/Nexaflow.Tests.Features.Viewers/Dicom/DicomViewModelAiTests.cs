@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
@@ -23,7 +24,7 @@ public class DicomViewModelAiTests
 
     private static DicomViewModel LoadedVm()
     {
-        var vm = new DicomViewModel([SampleDcm], Substitute.For<IShellServices>(),
+        var vm = new DicomViewModel([SampleDcm], Substitute.For<IShellServices>(), VirtualFileSystem.Instance,
                                     new Dictionary<string, string> { ["path"] = SampleDcm });
         Assert.IsTrue(SpinWait.SpinUntil(() => !vm.IsLoading, 5000), "container did not load in time");
         return vm;

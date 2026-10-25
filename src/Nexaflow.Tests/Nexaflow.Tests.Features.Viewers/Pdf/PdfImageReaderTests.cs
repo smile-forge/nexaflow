@@ -1,3 +1,5 @@
+using System.IO;
+using Nexaflow.IO.Common;
 using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Features.Pdf.Reading;
@@ -15,7 +17,7 @@ public class PdfImageReaderTests
 {
     private static List<PdfImageData> Read(string sampleName, out PdfImageTally tally)
     {
-        using var scope = PdfDocumentScope.TryOpen(TestSampleData.Path("pdf", sampleName), default);
+        using var scope = PdfDocumentScope.TryOpen(File.OpenRead(TestSampleData.Path("pdf", sampleName)), default);
         Assert.IsNotNull(scope, $"{sampleName} should open");
 
         var captured = default(PdfImageTally);
@@ -100,14 +102,14 @@ public class PdfImageReaderTests
     [TestMethod]
     public void CorruptPdf_DoesNotOpen()
     {
-        using var scope = PdfDocumentScope.TryOpen(TestSampleData.Path("pdf", "corrupt.pdf"), default);
+        using var scope = PdfDocumentScope.TryOpen(File.OpenRead(TestSampleData.Path("pdf", "corrupt.pdf")), default);
         Assert.IsNull(scope, "null is how 'couldn't read it' is reported — never an exception at the caller");
     }
 
     [TestMethod]
     public void Cancellation_AbandonsTheRun()
     {
-        using var scope = PdfDocumentScope.TryOpen(TestSampleData.Path("pdf", "repeated-image.pdf"), default);
+        using var scope = PdfDocumentScope.TryOpen(File.OpenRead(TestSampleData.Path("pdf", "repeated-image.pdf")), default);
         Assert.IsNotNull(scope);
 
         using var cts = new CancellationTokenSource();

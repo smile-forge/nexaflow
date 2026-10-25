@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -42,12 +43,16 @@ public class HexAiToolTests
 
     /// <summary>A shell whose RunOnUiAsync actually runs the action — the plain substitute swallows it,
     /// no-opping every UI-marshalled tool (goto / select / set-encoding / overwrite / save).</summary>
-    private HexViewModel Loaded()
+    private async Task<HexViewModel> LoadedAsync()
     {
         var shell = Substitute.For<IShellServices>();
         shell.RunOnUiAsync(Arg.Any<Action>())
-             .Returns(ci => { ci.Arg<Action>()(); return Task.CompletedTask; });
-        return new HexViewModel(_path, shell);
+                  .Returns(ci => { ci.Arg<Action>()(); return Task.CompletedTask; });
+             shell.RunOnUiAsync(Arg.Any<Func<Task<bool>>>())
+                  .Returns(ci => ci.Arg<Func<Task<bool>>>()());
+        var vm = new HexViewModel(_path, shell, VirtualFileSystem.Instance);
+        await vm.Loaded;
+        return vm;
     }
 
     private static Task<ToolResult> Run(HexViewModel vm, string tool, JsonObject? args = null)
@@ -57,9 +62,9 @@ public class HexAiToolTests
 
     [TestMethod]
     [CoversNode("hex-ai-act")]
-    public void TheToolSurfaceIsExactlyWhatTheTreeSaysItIs()
+    public async Task TheToolSurfaceIsExactlyWhatTheTreeSaysItIs()
     {
-        using var vm = Loaded();
+        using var vm = await LoadedAsync();
 
         CollectionAssert.AreEquivalent(
             new[] { "read_bytes", "find_bytes", "get_selection", "goto_offset",
@@ -70,9 +75,9 @@ public class HexAiToolTests
 
     [TestMethod]
     [CoversNode("hex-ai-context")]
-    public void TwoOpenFilesAreDistinctScopes_NotFirstWins()
+    public async Task TwoOpenFilesAreDistinctScopes_NotFirstWins()
     {
-        using var vm = Loaded();
+        using var vm = await LoadedAsync();
 
         Assert.AreEqual(_path, vm.GetSecurityContext(),
                         "two pinned Hex tabs must expose separately-named tool contexts");
@@ -82,9 +87,9 @@ public class HexAiToolTests
 
     [TestMethod]
     [CoversNode("hex-ai-context")]
-    public void TheContextReportsTheFile_ItsSize_TheModeAndTheResolvedEncoding()
+    public async Task TheContextReportsTheFile_ItsSize_TheModeAndTheResolvedEncoding()
     {
-        using var vm = Loaded();
+        using var vm = await LoadedAsync();
 
         var ctx = vm.GetContext();
 
@@ -96,9 +101,9 @@ public class HexAiToolTests
 
     [TestMethod]
     [CoversNode("hex-ai-context")]
-    public void TheContextSaysWhereTheCursorIs_AndWhereItIsNot()
+    public async Task TheContextSaysWhereTheCursorIs_AndWhereItIsNot()
     {
-        using var vm = Loaded();
+        using var vm = await LoadedAsync();
         StringAssert.Contains(vm.GetContext(), "Cursor: unset",
                               "claiming a cursor position before there is one invents an anchor");
 
@@ -109,11 +114,11 @@ public class HexAiToolTests
 
     [TestMethod]
     [CoversNode("hex-ai-context")]
-    public void TheContextSaysWhatIsSelected_AndWhichBytesAreOnScreen()
+    public async Task TheContextSaysWhatIsSelected_AndWhichBytesAreOnScreen()
     {
         // The whole point of the surface is that the model reads past what is displayed. It can only place
         // what it reads if it is told which window the user is actually looking at.
-        using var vm = Loaded();
+        using var vm = await LoadedAsync();
         StringAssert.Contains(vm.GetContext(), "Selection: none");
 
         vm.SetSelection(0, 5);
@@ -125,9 +130,9 @@ public class HexAiToolTests
 
     [TestMethod]
     [CoversNode("hex-ai-context")]
-    public void UnsavedEditsAreDeclared_SoTheModelKnowsDiskAndScreenDisagree()
+    public async Task UnsavedEditsAreDeclared_SoTheModelKnowsDiskAndScreenDisagree()
     {
-        using var vm = Loaded();
+        using var vm = await LoadedAsync();
         Assert.IsFalse(vm.GetContext().Contains("unsaved"));
 
         vm.SetModeOverwriteCommand.Execute(null);
@@ -142,7 +147,7 @@ public class HexAiToolTests
     [CoversNode("hex-ai-act-read-bytes")]
     public async Task ReadBytes_ReturnsBothTheHexAndTheAsciiGutter()
     {
-        using var vm = Loaded();
+        using var vm = await LoadedAsync();
 
         var r = await Run(vm, "read_bytes", new JsonObject { ["offset"] = "0x0", ["length"] = 5 });
 
@@ -155,7 +160,7 @@ public class HexAiToolTests
     [CoversNode("hex-ai-act-read-bytes")]
     public async Task ReadBytes_PastTheEndIsReported_NotThrown()
     {
-        using var vm = Loaded();
+        using var vm = await LoadedAsync();
 
         var r = await Run(vm, "read_bytes", new JsonObject { ["offset"] = "0x100" });
 
@@ -166,7 +171,7 @@ public class HexAiToolTests
     [CoversNode("hex-ai-act-find-bytes")]
     public async Task FindBytes_TakesAHexPatternOrText_AndBothLandOnTheSameKindOfOffset()
     {
-        using var vm = Loaded();
+        using var vm = await LoadedAsync();
 
         var hex = await Run(vm, "find_bytes", new JsonObject { ["pattern"] = "DEADBEEF" });
         StringAssert.Contains(hex.ModelText, "0x5");
@@ -179,7 +184,7 @@ public class HexAiToolTests
     [CoversNode("hex-ai-act-get-selection")]
     public async Task GetSelection_ReportsTheRangeAndItsBytes()
     {
-        using var vm = Loaded();
+        using var vm = await LoadedAsync();
         await Run(vm, "select_range", new JsonObject { ["offset"] = 0, ["length"] = 5 });
 
         var sel = await Run(vm, "get_selection");
@@ -194,7 +199,7 @@ public class HexAiToolTests
     [CoversNode("hex-ai-act-goto-offset")]
     public async Task GotoOffset_MovesTheUsersCursor()
     {
-        using var vm = Loaded();
+        using var vm = await LoadedAsync();
 
         await Run(vm, "goto_offset", new JsonObject { ["offset"] = "0x8" });
 
@@ -205,7 +210,7 @@ public class HexAiToolTests
     [CoversNode("hex-ai-act-select-range")]
     public async Task SelectRange_SelectsInTheView()
     {
-        using var vm = Loaded();
+        using var vm = await LoadedAsync();
 
         await Run(vm, "select_range", new JsonObject { ["offset"] = 0, ["length"] = 5 });
 
@@ -217,7 +222,7 @@ public class HexAiToolTests
     [CoversNode("hex-ai-act-set-encoding")]
     public async Task SetEncoding_OverridesTheSniffedOne()
     {
-        using var vm = Loaded();
+        using var vm = await LoadedAsync();
         Assert.AreEqual(HexEncoding.Ascii, vm.ResolvedEncoding, "sniffed from a file with no BOM");
 
         await Run(vm, "set_encoding", new JsonObject { ["encoding"] = "utf16le" });
@@ -233,7 +238,7 @@ public class HexAiToolTests
     [CoversNode("hex-ai-act-overwrite-bytes")]
     public async Task OverwriteBytes_EditsInPlace_ButLeavesDiskAlone()
     {
-        using var vm = Loaded();
+        using var vm = await LoadedAsync();
 
         var r = await Run(vm, "overwrite_bytes", new JsonObject { ["offset"] = "0x0", ["bytes"] = "41" });
 
@@ -247,7 +252,7 @@ public class HexAiToolTests
     [CoversNode("hex-ai-act-save")]
     public async Task Save_IsWhatFinallyTouchesTheFile()
     {
-        using var vm = Loaded();
+        using var vm = await LoadedAsync();
         await Run(vm, "overwrite_bytes", new JsonObject { ["offset"] = "0x0", ["bytes"] = "41" });
 
         var s = await Run(vm, "save");

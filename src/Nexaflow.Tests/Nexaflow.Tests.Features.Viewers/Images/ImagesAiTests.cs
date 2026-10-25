@@ -1,3 +1,5 @@
+using Nexaflow.IO.Common;
+using Nexaflow.Features.Images.Editing;
 using System;
 using System.Linq;
 using System.Text.Json.Nodes;
@@ -23,6 +25,9 @@ namespace Nexaflow.Tests.Features.Images;
 [TestClass]
 public class ImagesAiTests
 {
+    /// <summary>The editing engine every viewer here shares, as a registration's tabs do.</summary>
+    private static readonly ImageEditingServices Editing = new(VirtualFileSystem.Instance);
+
     /// <summary>A shell whose RunOnUiAsync runs the action inline — navigation marshals through it, so a
     /// bare substitute (which swallows the delegate) would leave CurrentIndex unchanged.</summary>
     private static IShellServices RunningShell()
@@ -40,7 +45,7 @@ public class ImagesAiTests
     {
         // Three real, on-disk sample images so format / size / position are all genuine.
         var paths = TestSampleData.Files("images").Take(3).ToArray();
-        var vm = new ImageViewModel(paths, RunningShell());
+        var vm = new ImageViewModel(paths, RunningShell(), ImageViewMode.Carousel, Editing);
         try
         {
             // Scope: two image tabs on different files stay distinguishable when pinned together.
@@ -89,7 +94,7 @@ public class ImagesAiTests
     [CoversNode("images-ai-act-read-page")]
     public async Task ReadPage_WherePageReadingCannotRun_SaysSo()
     {
-        var vm = new ImageViewModel(TestSampleData.Files("images").Take(1).ToArray(), RunningShell());
+        var vm = new ImageViewModel(TestSampleData.Files("images").Take(1).ToArray(), RunningShell(), ImageViewMode.Carousel, Editing);
         try
         {
             var result = await vm.GetClientTools().Single(t => t.Name == "read_page").InvokeAsync(new JsonObject(), CancellationToken.None);
@@ -110,7 +115,7 @@ public class ImagesAiTests
         UiThread.Run(() =>
         {
             var shell = Substitute.For<IShellServices>();
-            var vm = new ImageViewModel(["only.png"], shell);
+            var vm = new ImageViewModel(["only.png"], shell, ImageViewMode.Carousel, Editing);
             try
             {
                 shell.DidNotReceiveWithAnyArgs().QueueBackgroundTask(default!, ct: default);

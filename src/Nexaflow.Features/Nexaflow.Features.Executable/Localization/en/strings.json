@@ -139,6 +139,7 @@
   "Executable.Inspector.NoDirectoriesArePresent": "No directories are present.",
   "Executable.Inspector.NoExecutableSectionIsAboveThe": "No executable section is above the packing threshold.",
   "Executable.Inspector.NoFileToInspect": "No file to inspect.",
+  "Executable.Inspector.ReadFailedFormat": "The file could not be read: {0}",
   "Executable.Inspector.NoFunctionsListed": "no functions listed",
   "Executable.Inspector.NoImports": "— (no imports)",
   "Executable.Inspector.None": "(none)",

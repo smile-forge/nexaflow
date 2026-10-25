@@ -35,6 +35,10 @@ namespace Nexaflow.Visuals.Text.Editor;
 public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel, IContextPreview, IDisposable
 {
     protected readonly IShellServices Shell;
+
+    /// <summary>The runtime's file system the file is read and saved through — on disk, in an archive or on a location.</summary>
+    protected readonly IVirtualFileSystem Vfs;
+
     private readonly long _maxEditableBytes;
 
     private IFileWatch? _watch;
@@ -93,9 +97,10 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
         new("CR",           LineEnding.Cr),
     ];
 
-    public FileTextEditorViewModel(string filePath, IShellServices shell, long maxEditableBytes)
+    public FileTextEditorViewModel(string filePath, IShellServices shell, IVirtualFileSystem vfs, long maxEditableBytes)
     {
         Shell = shell;
+        Vfs   = vfs;
         _maxEditableBytes = maxEditableBytes;
         _selectedEncoding = AvailableEncodings[0];
         _selectedEol = AvailableEols[0];
@@ -234,14 +239,14 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
         try
         {
             // A not-yet-existing path is a new/blank file — start empty, editable, watched once saved.
-            if (string.IsNullOrEmpty(FilePath) || !VirtualFileSystem.Instance.Exists(FilePath))
+            if (string.IsNullOrEmpty(FilePath) || await Vfs.GetEntryAsync(FilePath, ct) is not { IsDirectory: false } entry)
             {
                 SetDocumentText(string.Empty);
                 IsDirty = false;
                 return;
             }
 
-            long length  = VirtualFileSystem.Instance.GetLength(FilePath);
+            long length  = entry.Size;
             FileSizeText = SizeFormatter.FormatBytes(length);
 
             if (length > _maxEditableBytes)
@@ -252,13 +257,15 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
                 return;
             }
 
+            // Read once — on a location every open is a round trip — then probe and decode the same bytes.
+            var bytes = await Vfs.ReadAllBytesAsync(FilePath, ct);
             EncodingProbe probe;
-            await using (var fs = VirtualFileSystem.Instance.OpenRead(FilePath))
+            using (var fs = new MemoryStream(bytes, writable: false))
                 probe = EncodingDetector.Detect(fs);
             SyncEncodingSelection(probe);
 
             string text;
-            await using (var rs = VirtualFileSystem.Instance.OpenRead(FilePath))
+            using (var rs = new MemoryStream(bytes, writable: false))
             using (var sr = new StreamReader(rs, SelectedEncoding.Encoding))
                 text = await sr.ReadToEndAsync(ct);
             SetDocumentText(text);
@@ -314,7 +321,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
 
     private async Task ReloadForEncodingAsync()
     {
-        if (IsReadOnlyMode || string.IsNullOrEmpty(FilePath) || !VirtualFileSystem.Instance.Exists(FilePath)) return;
+        if (IsReadOnlyMode || string.IsNullOrEmpty(FilePath) || !await Vfs.ExistsAsync(FilePath)) return;
         if (IsDirty && !await Shell.ConfirmAsync(Str.Get("Text.Editor.ChangeEncoding"),
                 Str.Get("Text.Editor.ChangeEncodingAsk")))
             return;
@@ -331,10 +338,10 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
         {
             var text = TextTransforms.NormalizeLineEndings(Document.Text, SelectedEol.Eol);
             var enc  = SelectedEncoding.Encoding;
-            // VFS write: a plain file write for real paths, or an archive rewrite for an in-archive entry.
-            await Task.Run(() => VirtualFileSystem.Instance.WriteAllText(FilePath, text, enc));
+            // A plain file write for real paths, an archive rewrite for an in-archive entry, a whole-file write on a location.
+            await Vfs.WriteAllTextAsync(FilePath, text, enc);
             Document.UndoStack.MarkAsOriginalFile(); // current buffer is now the saved state ⇒ clean
-            FileSizeText = SizeFormatter.FormatBytes(VirtualFileSystem.Instance.GetLength(FilePath));
+            if (await Vfs.GetEntryAsync(FilePath) is { } saved) FileSizeText = SizeFormatter.FormatBytes(saved.Size);
             StartWatching(); // a brand-new file now exists to watch
         }
         catch (Exception ex)
@@ -360,7 +367,8 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
 
     private void StartWatching()
     {
-        if (_watch is not null || string.IsNullOrEmpty(FilePath) || !File.Exists(FilePath)) return;
+        // Called once the file is known to be there — after a load or a save — and the shell watches it wherever it is.
+        if (_watch is not null || string.IsNullOrEmpty(FilePath)) return;
         _watch = Shell.WatchFile(FilePath, OnFileChanged);
     }
 
@@ -370,7 +378,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
     private async void OnFileChanged()
     {
         string onDisk;
-        try { onDisk = await File.ReadAllTextAsync(FilePath, SelectedEncoding.Encoding); }
+        try { onDisk = await Vfs.ReadAllTextAsync(FilePath, SelectedEncoding.Encoding); }
         catch { return; } // file briefly locked/removed — ignore this burst
         if (onDisk == Document.Text) return; // our own write, or a no-op change
 
@@ -380,7 +388,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
 
         SetDocumentText(onDisk);
         IsDirty = false;
-        try { FileSizeText = SizeFormatter.FormatBytes(new FileInfo(FilePath).Length); } catch { }
+        try { if (await Vfs.GetEntryAsync(FilePath) is { } changed) FileSizeText = SizeFormatter.FormatBytes(changed.Size); } catch { }
         BannerMessage = Str.Get("Text.Editor.Reloaded");
         BannerVisible = true;
         await Task.Delay(3000);

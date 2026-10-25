@@ -705,7 +705,7 @@ through the awaitable members of `IVirtualFileSystem`. `Nexaflow.Analyzers.Io` h
 - **`NXIO002`** — `System.IO` reaching the disk itself: a static of `File`, `Directory` or `ZipFile`, `Path.Exists`, or
   making a `FileInfo`, `DirectoryInfo`, `FileStream`, `FileSystemWatcher`, or a `StreamReader` / `StreamWriter` on a
   path. `Path`'s string work and a reader over a stream are not the disk.
-- **`NXIO003`** — a `[LocalDiskOnly]` with an empty reason. An error from the start: there is nothing to shrink.
+- **`NXIO003`** — a `[LocalDiskOnly]` with an empty reason.
 
 `[LocalDiskOnly("…")]` (in `IO.Common`) exempts code that only ever touches this machine's own disk: settings, caches
 and stores under `%APPDATA%` / `%LOCALAPPDATA%`, or a path the file system has already resolved to a real local file.
@@ -714,10 +714,11 @@ included, never what it calls. Its reason says where the files are, because that
 
 `Directory.Build.targets` hands the analyzer to every C# project under `src\Nexaflow.Features\` and
 `src\Nexaflow.Visuals.*` that is not a test project. It keys on where a project lives rather than `UseWPF`, so the
-codec backends are held too. The WPF markup pass (`_wpftmp`) runs none of the `Nexaflow.Analyzers.*` analyzers, or each
-finding would be reported twice. `NXIO001` and `NXIO002` are **warnings** while the existing call sites move, and
-become errors once none is left. `BlockingIoAnalyzerTests` (in `Tests.Features.Architecture`) puts each rule to a
-compilation of its own.
+codec backends are held too, and it compares those paths ignoring case, because MSBuild names the same folder in
+whichever case it was reached by. The WPF markup pass (`_wpftmp`) runs none of the `Nexaflow.Analyzers.*` analyzers, or each
+finding would be reported twice. All three are **errors**: no feature or shared visual reports one, so a new call site
+that blocks on the file system or reaches the disk itself fails the build until it awaits or carries the mark.
+`BlockingIoAnalyzerTests` (in `Tests.Features.Architecture`) puts each rule to a compilation of its own.
 
 ### Automation ids (`NXUI001` / `AutomationIdJourneyCoverageTests`)
 

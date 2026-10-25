@@ -1,12 +1,13 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Text.ViewModels;
 using Nexaflow.Features.Text.Views;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.IO;
 
 namespace Nexaflow.Features.Text;
 
-public sealed class TextTabRegistration(IShellServices shell) : IPageRegistration
+public sealed class TextTabRegistration(IShellServices shell, IVirtualFileSystem vfs) : IPageRegistration
 {
     public static string StaticPageKind => "Text";
     public string PageKind => StaticPageKind;
@@ -22,7 +23,7 @@ public sealed class TextTabRegistration(IShellServices shell) : IPageRegistratio
         var title = string.IsNullOrEmpty(path) ? Str.Get("Text.Viewer.Page.Title") : Path.GetFileName(path);
 
         // One VM per page (the factory runs once) so the dirty marker can ride on the tab title.
-        var vm = new TextViewModel(path, shell);
+        var vm = new TextViewModel(path, shell, vfs);
         var page = new Page
         {
             Title       = title,

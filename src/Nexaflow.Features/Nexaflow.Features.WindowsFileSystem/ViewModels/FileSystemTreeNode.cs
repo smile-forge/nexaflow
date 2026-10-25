@@ -112,8 +112,8 @@ public class FileSystemTreeNode : INotifyPropertyChanged
 
         if (kind == TreeNodeKind.Drive)
             DriveStatus = DriveStatus.Loading;
-        // ThisPc children are added externally (one per drive)
-        // Drive children (Dummy) are added by CheckDriveAsync once IsReady is confirmed
+        // ThisPc children are added externally (one per row)
+        // A row's children (Dummy) are added once its provider has described it
     }
 
     /// <summary>The folders directly inside <paramref name="path"/>, sorted, as the tree shows them: a folder on disk,
@@ -133,20 +133,6 @@ public class FileSystemTreeNode : INotifyPropertyChanged
         catch (UnauthorizedAccessException) { return []; }
         names.Sort(StringComparer.OrdinalIgnoreCase);
         return names;
-    }
-
-    /// <summary>Whether <paramref name="path"/> holds a folder the tree would show — the listing stops at the first.</summary>
-    internal static async Task<bool> HasChildFoldersAsync(IVirtualFileSystem vfs, string path, CancellationToken ct = default)
-    {
-        if (vfs.GetBacking(path) is VirtualBacking.Materialized) return false;
-        try
-        {
-            await foreach (var entry in vfs.EnumerateAsync(path, ct))
-                if (entry.IsDirectory) return true;
-        }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
-        return false;
     }
 
     /// <summary>The read of this node's children, once started; every expand after the first awaits the same one.</summary>
@@ -202,7 +188,7 @@ public class FileSystemTreeNode : INotifyPropertyChanged
     /// </para>
     /// <para>
     /// Awaited from the dispatcher, so the continuation returns there and the collection is mutated on the
-    /// thread that owns it — the same shape as the drive probe in <c>CheckDriveAsync</c>.
+    /// thread that owns it — the same shape as This PC's row probe in <c>CheckThisPcItemAsync</c>.
     /// </para>
     /// </summary>
     internal static async Task ProbeExpandersAsync(IReadOnlyList<FileSystemTreeNode> nodes)
@@ -212,7 +198,7 @@ public class FileSystemTreeNode : INotifyPropertyChanged
         var expandable = new bool[nodes.Count];
         using (Timing.Measure($"Tree.probeExpanders n={nodes.Count} (background)"))
             await Task.Run(() => Parallel.ForAsync(0, nodes.Count, new ParallelOptions { MaxDegreeOfParallelism = ProbeParallelism },
-                async (i, ct) => expandable[i] = await HasChildFoldersAsync(nodes[i].Vfs, nodes[i].FullPath, ct)));
+                async (i, ct) => expandable[i] = await nodes[i].Vfs.HasChildFoldersAsync(nodes[i].FullPath, ct)));
 
         using var _t = Timing.Measure($"Tree.applyExpanders n={nodes.Count} (UI thread)");
         for (var i = 0; i < nodes.Count; i++)

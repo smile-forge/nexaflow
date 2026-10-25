@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -44,7 +45,7 @@ public class TabularContextPreviewTests
         File.WriteAllText(csv, "name,age\nAda,36\nAlan,41\nGrace,85\n");
         try
         {
-            var vm = new TabularViewModel(csv, Substitute.For<IShellServices>(), Substitute.For<IAIService>(),
+            var vm = new TabularViewModel(csv, Substitute.For<IShellServices>(), VirtualFileSystem.Instance, Substitute.For<IAIService>(),
                                           new TabularTemplatesConfig());
             vm.Ready.GetAwaiter().GetResult();
 

@@ -246,6 +246,12 @@ public interface IVirtualFileSystem
     /// both are refused with <see cref="NotSupportedException"/>.</summary>
     ValueTask MoveAsync(string from, string to, bool replace, CancellationToken ct = default);
 
+    /// <summary>Copies a file within one location, on its server, where the location can
+    /// (<see cref="LocationCapabilities.ServerSideCopy"/>), so its bytes never cross the connection.
+    /// <see cref="NotSupportedException"/> anywhere else — between locations, on this disk, inside an archive — and the
+    /// caller streams it instead.</summary>
+    ValueTask CopyWithinAsync(string from, string to, bool replace, CancellationToken ct = default);
+
     /// <summary>Deletes a file, or a folder — only an empty one unless <paramref name="recursive"/>. Permanent: this is
     /// not the recycle bin. <see cref="LocationError.NotFound"/> when nothing is there;
     /// <see cref="LocationError.Conflict"/> when a folder still holds something and <paramref name="recursive"/> is false.</summary>
@@ -265,6 +271,11 @@ public interface IVirtualFileSystem
 
     /// <summary>As <see cref="DescribeArchive"/>.</summary>
     ValueTask<ArchiveSummary?> DescribeArchiveAsync(string containerPath, CancellationToken ct = default);
+
+    /// <summary>A path on this disk holding the file's bytes, for a reader that can only open a file by a path of its own:
+    /// a real or mounted path as it is, an archive entry extracted to a cached temp copy. A file on a remote location keeps
+    /// no copy on this disk, and is refused with <see cref="NotSupportedException"/>.</summary>
+    ValueTask<string> MaterializeFileAsync(string path, CancellationToken ct = default);
 
     /// <summary>As <see cref="ExtractAll"/>.</summary>
     ValueTask ExtractAllAsync(string containerPath, string destinationDir,

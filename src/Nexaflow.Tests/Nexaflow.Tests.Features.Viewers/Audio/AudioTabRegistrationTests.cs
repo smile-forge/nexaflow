@@ -1,5 +1,6 @@
 using Nexaflow.Features.Audio;             // AudioConfig, AudioTabRegistration
 using Nexaflow.Features.Common;            // IShellServices
+using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 
@@ -11,7 +12,7 @@ namespace Nexaflow.Tests.Features.Audio;
 public class AudioTabRegistrationTests
 {
     private static AudioTabRegistration Make()
-        => new(Substitute.For<IShellServices>(), new AudioConfig());
+        => new(Substitute.For<IShellServices>(), new AudioConfig(), VirtualFileSystem.Instance);
 
     [TestMethod]
     public void WholeFolderQueue_IsTitledForTheFolder_NotTheFirstTrack()

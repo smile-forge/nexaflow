@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Data;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Visuals.Common.Converters;
 
@@ -13,6 +14,7 @@ namespace Nexaflow.Visuals.Common.Converters;
 /// </summary>
 public sealed class MissingPathToVisibilityConverter : IValueConverter
 {
+    [LocalDiskOnly("whether a file attached from this disk is still there; a binding has no way to wait for anywhere else")]
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         var path = value as string;

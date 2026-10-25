@@ -32,7 +32,7 @@ public partial class AudioView : UserControl, IPageView
         _vm = vm;
         DataContext = vm;
 
-        Waveform.SeekRequested += (_, fraction) => _vm.SeekToFraction(fraction);
+        Waveform.SeekRequested += (_, fraction) => _ = _vm.SeekToFractionAsync(fraction);
         _vm.Lyrics.PropertyChanged += OnLyricsPropertyChanged;
         _vm.PropertyChanged += OnViewModelPropertyChanged;
 

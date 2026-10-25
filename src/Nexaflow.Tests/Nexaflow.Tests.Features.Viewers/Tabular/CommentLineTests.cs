@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -21,12 +22,12 @@ public class CommentLineTests
     }
 
     [TestMethod]
-    public void LeadingHashLines_AreCollected_WhenTailHasNoHash()
+    public async Task LeadingHashLines_AreCollected_WhenTailHasNoHash()
     {
         var path = WriteTemp("# header comment 1\n# header comment 2\nname,age\nalice,30\nbob,42\ncarol,25\n");
         try
         {
-            var sample = LineSamplingReader.Read(path);
+            var sample = await LineSamplingReader.ReadAsync(VirtualFileSystem.Instance, path);
             Assert.AreEqual(2,                       sample.LeadingCommentLines.Count);
             Assert.AreEqual("# header comment 1",    sample.LeadingCommentLines[0]);
             Assert.AreEqual("name,age",              sample.HeadLines[0]);
@@ -35,31 +36,31 @@ public class CommentLineTests
     }
 
     [TestMethod]
-    public void LeadingHash_NotStripped_WhenTailAlsoHasHash()
+    public async Task LeadingHash_NotStripped_WhenTailAlsoHasHash()
     {
         // The "#" char appears at both ends — it's part of the data, not a comment marker.
         var path = WriteTemp("#1,a\n#2,b\n#3,c\n#4,d\n#5,e\n#6,f\n#7,g\n#8,h\n");
         try
         {
-            var sample = LineSamplingReader.Read(path);
+            var sample = await LineSamplingReader.ReadAsync(VirtualFileSystem.Instance, path);
             Assert.AreEqual(0, sample.LeadingCommentLines.Count);
         }
         finally { File.Delete(path); }
     }
 
     [TestMethod]
-    public void SmallFileLoader_SkipsLeadingCommentLines()
+    public async Task SmallFileLoader_SkipsLeadingCommentLines()
     {
         var path = WriteTemp("# comment\nname,age\nalice,30\nbob,42\n");
         try
         {
-            var sample = LineSamplingReader.Read(path);
+            var sample = await LineSamplingReader.ReadAsync(VirtualFileSystem.Instance, path);
             var shapes = ShapeDetector.DetectAll(sample);
             var shape  = shapes[0];
             var raw    = shape.HasHeader && sample.HeadLines.Count > 0
                 ? SmallFileLoader.TokenizeRow(sample.HeadLines[0], shape) : null;
             var data   = new DataShape(shape, raw, sample.LeadingCommentLines.Count);
-            var loader = new SmallFileLoader(path, sample.Encoding, sample.BomByteCount, data);
+            var loader = await SmallFileLoader.LoadAsync(VirtualFileSystem.Instance, path, sample.Encoding, sample.BomByteCount, data);
 
             // Comment + header are both skipped; only data rows remain.
             Assert.AreEqual(2, loader.KnownRowCount);
@@ -71,19 +72,19 @@ public class CommentLineTests
     }
 
     [TestMethod]
-    public void SmallFileLoader_NoLeadingComments_StartsAtRowZero()
+    public async Task SmallFileLoader_NoLeadingComments_StartsAtRowZero()
     {
         // Regression: ensure the very first data row after the header is included in the
         // streamed window, not eaten by an off-by-one in the skip logic.
         var path = WriteTemp("name,age\nalice,30\nbob,42\ncarol,25\n");
         try
         {
-            var sample = LineSamplingReader.Read(path);
+            var sample = await LineSamplingReader.ReadAsync(VirtualFileSystem.Instance, path);
             var shape  = ShapeDetector.DetectAll(sample)[0];
             var raw    = shape.HasHeader
                 ? SmallFileLoader.TokenizeRow(sample.HeadLines[0], shape) : null;
             var data   = new DataShape(shape, raw, sample.LeadingCommentLines.Count);
-            using var reader = new RowWindowReader(path, sample.Encoding, sample.BomByteCount, data);
+            using var reader = new RowWindowReader(VirtualFileSystem.Instance, path, sample.Encoding, sample.BomByteCount, data);
 
             var rows = reader.GetVisibleAsync(0, 10, _ => true, CancellationToken.None).Result;
             Assert.AreEqual(3,       rows.Count);
@@ -95,19 +96,19 @@ public class CommentLineTests
     }
 
     [TestMethod]
-    public void RowWindowReader_SkipsCommentsAndHeader_AtRow0()
+    public async Task RowWindowReader_SkipsCommentsAndHeader_AtRow0()
     {
         var path = WriteTemp("# comment line one\n# comment line two\nname,age\nalice,30\nbob,42\ncarol,25\n");
         try
         {
-            var sample = LineSamplingReader.Read(path);
+            var sample = await LineSamplingReader.ReadAsync(VirtualFileSystem.Instance, path);
             var shapes = ShapeDetector.DetectAll(sample);
             var shape  = shapes[0];
             var raw    = shape.HasHeader && sample.HeadLines.Count > 0
                 ? SmallFileLoader.TokenizeRow(sample.HeadLines[0], shape) : null;
             var data   = new DataShape(shape, raw, sample.LeadingCommentLines.Count);
 
-            using var reader = new RowWindowReader(path, sample.Encoding, sample.BomByteCount, data);
+            using var reader = new RowWindowReader(VirtualFileSystem.Instance, path, sample.Encoding, sample.BomByteCount, data);
             var rows = reader.GetVisibleAsync(0, 10, _ => true, CancellationToken.None).Result;
             Assert.AreEqual(3,         rows.Count);
             Assert.AreEqual("alice",   rows[0].Cells[0]);

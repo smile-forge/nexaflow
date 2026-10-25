@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -39,7 +40,7 @@ public class TabularSurfaceTests
     private static TabularViewModel Load(string csv)
     {
         var vm = new TabularViewModel(csv,
-            Substitute.For<IShellServices>(), Substitute.For<IAIService>(), new TabularTemplatesConfig());
+            Substitute.For<IShellServices>(), VirtualFileSystem.Instance, Substitute.For<IAIService>(), new TabularTemplatesConfig());
         vm.Ready.GetAwaiter().GetResult();
         return vm;
     }
@@ -147,7 +148,7 @@ public class TabularSurfaceTests
         try
         {
             var shell = Substitute.For<IShellServices>();
-            var vm = new TabularViewModel(csv, shell, Substitute.For<IAIService>(), new TabularTemplatesConfig());
+            var vm = new TabularViewModel(csv, shell, VirtualFileSystem.Instance, Substitute.For<IAIService>(), new TabularTemplatesConfig());
             vm.Ready.GetAwaiter().GetResult();
 
             Assert.IsTrue(vm.PathBreadcrumb.Count > 0, "the tab shows a folder › file trail");

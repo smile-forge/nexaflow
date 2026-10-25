@@ -8,13 +8,15 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Svg.ClientTools;
 using Nexaflow.Features.Svg.Loaders;
 using Nexaflow.Features.Svg.Views;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Svg.ViewModels;
 
 /// <summary>
-/// The SVG viewer page's view-model. Loads a vector file through <see cref="SvgLoader"/> off the UI thread,
+/// The SVG viewer page's view-model. Reads a vector file through the runtime's file system and renders it with
+/// <see cref="SvgLoader"/> off the UI thread,
 /// exposes the frozen <see cref="Artifact"/> the view binds to (crisp at any zoom), the metadata the footer
 /// shows, and a couple of read-only AI tools. Unlike the 3D viewer there's no live-control bridge — the
 /// rendered form is a self-contained frozen drawing, so the view just displays it and the AI's render tool
@@ -28,10 +30,14 @@ public sealed partial class SvgViewModel : ObservableObject, IPageViewModel, ICo
 
     private readonly SvgLoader _loader;
 
-    public SvgViewModel(string filePath, SvgLoader? loader = null)
+    /// <summary>The runtime's file system the file is read through — on disk, in an archive or on a location.</summary>
+    private readonly IVirtualFileSystem _vfs;
+
+    public SvgViewModel(string filePath, IVirtualFileSystem vfs, SvgLoader? loader = null)
     {
         FilePath = filePath;
-        _loader = loader ?? new SvgLoader();
+        _vfs     = vfs;
+        _loader  = loader ?? new SvgLoader();
     }
 
     public string FilePath { get; }
@@ -70,7 +76,7 @@ public sealed partial class SvgViewModel : ObservableObject, IPageViewModel, ICo
         try
         {
             long size = 0;
-            try { size = new FileInfo(FilePath).Length; } catch { /* size is cosmetic */ }
+            try { size = (await _vfs.GetEntryAsync(FilePath))?.Size ?? 0; } catch (IOException) { /* size is cosmetic */ }
             FileSizeText = SizeFormatter.FormatBytes(size);
 
             if (size > MaxRenderBytes)
@@ -79,7 +85,8 @@ public sealed partial class SvgViewModel : ObservableObject, IPageViewModel, ICo
                 return;
             }
 
-            var loaded = await Task.Run(() => _loader.Load(FilePath)).ConfigureAwait(true);
+            var content = await _vfs.ReadAllBytesAsync(FilePath);
+            var loaded  = await Task.Run(() => _loader.Load(content)).ConfigureAwait(true);
 
             Artifact = loaded.Image;
             NaturalWidth = loaded.Bounds.Width;

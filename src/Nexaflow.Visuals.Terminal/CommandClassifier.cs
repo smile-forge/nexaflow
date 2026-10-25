@@ -1,4 +1,5 @@
 using System.IO;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Visuals.Terminal;
 
@@ -51,6 +52,7 @@ public static class CommandClassifier
     private static bool LooksLikePath(string token)
         => token.Contains('\\') || token.Contains('/') || (token.Length > 1 && token[1] == ':');
 
+    [LocalDiskOnly("a command the local shell runs, found on this computer")]
     private static bool ResolvesToFile(string token)
     {
         try
@@ -63,6 +65,7 @@ public static class CommandClassifier
         return false;
     }
 
+    [LocalDiskOnly("the local shell's PATH, on this computer")]
     private static bool OnPath(string token)
     {
         var dirs = (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)

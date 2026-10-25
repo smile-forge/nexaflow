@@ -289,7 +289,7 @@
           "status": "done",
           "doc": "src/Nexaflow.Features/Nexaflow.Features.Audio/AudioFileTypes.cs",
           "class": "AudioFileTypes",
-          "method": "EnumerateAudio"
+          "method": "EnumerateAudioAsync"
         }
       ]
     },
@@ -462,35 +462,318 @@
           "method": "PerformActionAsync"
         }
       ]
+    },
+    "io-locations-transfer": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/FileTransferEngine.cs",
+          "class": "FileTransferEngine"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/LocationTransferTests.cs",
+            "class": "LocationTransferTests"
+          }
+        ]
+      }
+    },
+    "audio-lyrics": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Audio/ViewModels/LyricsViewModel.cs",
+          "class": "LyricsViewModel",
+          "method": "UpdatePosition"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Audio/Services/LrcParser.cs",
+          "class": "LrcParser",
+          "method": "Parse"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Audio/Views/AudioView.xaml.cs",
+          "class": "AudioView",
+          "method": "OnLyricsPropertyChanged"
+        }
+      ]
+    },
+    "audio-seek": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Audio/ViewModels/AudioViewModel.cs",
+          "class": "AudioViewModel",
+          "method": "SeekToFractionAsync"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Audio/Controls/WaveformControl.cs",
+          "class": "WaveformControl",
+          "method": "OnMouseLeftButtonDown"
+        }
+      ]
+    },
+    "compressed-metadata-pane": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Compressed/ViewModels/CompressedViewModel.cs",
+          "class": "CompressedViewModel",
+          "method": "LoadAsync"
+        }
+      ]
+    },
+    "compressed-sign": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Compressed/Services/ArchiveSignatureService.cs",
+          "class": "ArchiveSignatureService",
+          "method": "SignAsync"
+        }
+      ]
+    },
+    "compressed-verify": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Compressed/Services/ArchiveSignatureService.cs",
+          "class": "ArchiveSignatureService",
+          "method": "VerifyAsync"
+        }
+      ]
+    },
+    "dicom-load": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Dicom/Services/DicomContainerLoader.cs",
+          "class": "DicomContainerLoader",
+          "method": "LoadAsync"
+        }
+      ]
+    },
+    "dicom-tag-drawer": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Dicom/Services/DicomTagReader.cs",
+          "class": "DicomTagReader",
+          "method": "ReadAsync"
+        }
+      ]
+    },
+    "dicom-tag-list": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Dicom/Services/DicomTagReader.cs",
+          "class": "DicomTagReader",
+          "method": "ReadAsync"
+        }
+      ]
+    },
+    "hex-read-failure": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Hex/Buffer/HexReadFailure.cs",
+          "class": "HexReadFailure"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Hex/Buffer/HexBuffer.cs",
+          "class": "HexBuffer",
+          "method": "OpenAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Hex/Buffer/HexBuffer.cs",
+          "class": "HexBuffer",
+          "method": "ReloadAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Hex/ViewModels/HexViewModel.cs",
+          "class": "HexViewModel",
+          "method": "CheckReadable"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Hex/HexTabRegistration.cs",
+          "class": "HexTabRegistration",
+          "method": "PromptRetryAsync"
+        }
+      ]
+    },
+    "log-viewer-encoding": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.cs",
+          "class": "LogViewModel",
+          "method": "LoadAsync"
+        }
+      ]
+    },
+    "tabular-comment-strip": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Tabular/Detection/LineSamplingReader.cs",
+          "class": "LineSamplingReader",
+          "method": "ReadAsync"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Common/Controls/VirtualizedRowsControl.xaml.cs",
+          "class": "VirtualizedRowsControl",
+          "method": "BuildIndexHeader"
+        }
+      ]
+    },
+    "tabular-windowed-load": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Tabular/Streaming/RowWindowReader.cs",
+          "class": "RowWindowReader",
+          "method": "ScanForVisibleAsync"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Tabular/ViewModels/TabularViewModel.cs",
+          "class": "TabularViewModel",
+          "method": "RefreshWindowAsync"
+        },
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/testing.md",
+          "title_path": [
+            "Testing",
+            "Sample files (\u0060test-samples/\u0060)"
+          ]
+        }
+      ]
+    },
+    "images-bake": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageExportTests.cs",
+            "class": "ImageExportTests",
+            "method": "SavingOverTheOriginal_LeavesOnlyTheNewFile"
+          }
+        ]
+      }
+    },
+    "winfs-thispc": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ViewModels/FileSystemViewModel.cs",
+          "class": "FileSystemViewModel",
+          "method": "CreateThisPc"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ViewModels/FileSystemViewModel.cs",
+          "class": "FileSystemViewModel",
+          "method": "CheckThisPcItemAsync"
+        }
+      ]
+    },
+    "winfs-thispc-drives": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Services/DriveThisPcProvider.cs",
+          "class": "DriveThisPcProvider"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemViewModelTests.cs",
+            "class": "FileSystemViewModelTests",
+            "method": "CreateThisPc_IsThisPcMode_True"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/ThisPc/DriveThisPcProviderTests.cs",
+            "class": "DriveThisPcProviderTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 30,
+  "changed_sets": 48,
   "touched_nodes": [
+    "audio-lyrics",
     "audio-open",
     "audio-open-asaudio",
     "audio-open-playfolder",
+    "audio-seek",
     "code-open-action",
     "compressed-fileactions",
+    "compressed-metadata-pane",
     "compressed-open-as-archive",
+    "compressed-sign",
     "compressed-unzip-here",
+    "compressed-verify",
     "compressed-zip-it",
     "console-cmd-here",
+    "dicom-load",
+    "dicom-tag-drawer",
+    "dicom-tag-list",
+    "hex-read-failure",
+    "images-bake",
     "images-open-actions",
     "images-open-as-image",
     "io-locations-blocking-guard",
     "io-locations-contract",
     "io-locations-paths",
     "io-locations-routing",
+    "io-locations-transfer",
     "io-vfs-async",
     "io-vfs-mounts",
+    "log-viewer-encoding",
     "made-file-drafts",
     "markdown-open-action",
+    "tabular-comment-strip",
     "tabular-open-action",
+    "tabular-windowed-load",
     "web-browse-action",
     "winfs-act-delete",
     "winfs-breadcrumb",
     "winfs-confirm-overlay",
-    "winfs-filemap-editor"
+    "winfs-filemap-editor",
+    "winfs-thispc",
+    "winfs-thispc-drives"
   ]
 }

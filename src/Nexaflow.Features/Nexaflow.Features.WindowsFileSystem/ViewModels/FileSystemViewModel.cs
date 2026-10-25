@@ -430,34 +430,25 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
 
     /// <summary>
     /// The browse paths This PC would show right now, in order — the identity <see cref="FillThisPc"/>
-    /// builds each row from.
-    /// <para>
-    /// Deliberately not <see cref="ThisPcItemSet.Enumerate"/>, which reads <see cref="DriveInfo.IsReady"/>
-    /// per drive to label it: that blocks on the hardware for a network share or an empty optical bay, and
-    /// this runs on the UI thread every time the tab is shown. Membership is all the comparison needs, and
-    /// membership costs nothing — the drive letters, then the contributed rows, which providers answer
-    /// from their own state (the slow half of a contributed row is <c>GetDetailAsync</c>).
-    /// </para>
+    /// builds each row from. Costs nothing on the UI thread: every provider answers <c>GetItems</c> from what it already
+    /// knows, and the slow half of a row is <c>GetDetailAsync</c>.
     /// </summary>
     private List<string> ThisPcBrowsePaths()
     {
-        var roots = new List<string>();
-        DriveInfo[] drives;
-        try { drives = DriveInfo.GetDrives(); } catch { drives = []; }
-        foreach (var drive in drives)
-        {
-            try { roots.Add(drive.RootDirectory.FullName); } catch { /* gone mid-enumeration */ }
-        }
-
-        var paths = new List<string>(roots);
+        var paths = new List<string>();
         try
         {
-            foreach (var item in ThisPcItemSet.Collect(Registry.ThisPcItemProviders, roots))
-                paths.Add(VirtualMount.RootFor(item.Id));
+            foreach (var row in ThisPcItemSet.Collect(Registry.ThisPcItemProviders))
+                paths.Add(BrowsePathOf(row.Item));
         }
         catch { /* a broken contributor is not a reason to rebuild */ }
         return paths;
     }
+
+    /// <summary>Where a This PC row is browsed: a volume at its own root, a contributed location under its own virtual root
+    /// (<c>::{id}</c>), never the folder behind it.</summary>
+    private static string BrowsePathOf(ThisPcItem item)
+        => item.Backing == ThisPcItemBacking.OwnPath ? item.TargetPath : VirtualMount.RootFor(item.Id);
 
     /// <summary>
     /// Whether the rows on screen are still the ones <paramref name="paths"/> describes — same places, same
@@ -959,124 +950,55 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         return vm;
     }
 
-    private static async Task CheckDriveAsync(IVirtualFileSystem vfs, DriveInfo drive, FileSystemTreeNode? node, FileSystemEntry entry)
-    {
-        using var _t = Timing.Measure($"ThisPC.CheckDrive {drive.Name} (probe + UI settle)");
-        try
-        {
-            using var _probe = Timing.Measure($"ThisPC.CheckDrive {drive.Name} .probe (background)");
-            var result = await Task.Run(() =>
-            {
-                if (!drive.IsReady)
-                    return (IsReady: false, Label: ThisPcItemSet.DriveLabel(drive, ready: false),
-                            UsedBytes: 0L, TotalBytes: 0L, FileSystem: string.Empty,
-                            KindLabel: string.Empty, IconType: DriveIconType.HDD);
-
-                // Same labelling rule the pickers use — see ThisPcItemSet.DriveLabel; now that the drive
-                // has answered, the volume label is safe to read.
-                var lbl    = ThisPcItemSet.DriveLabel(drive, ready: true);
-
-                long total  = drive.TotalSize;
-                long used   = total - drive.TotalFreeSpace;
-                string fs   = drive.DriveFormat;
-                string kind = ThisPcItemSet.DriveTypeLabel(drive);
-
-                // The one refinement the shared classification can't make: telling an SSD from a
-                // spinning disk needs a device query, so it happens here rather than in Enumerate.
-                var iconType = MapIcon(ThisPcItemSet.IconFor(drive));
-                if (iconType == DriveIconType.HDD && drive.DriveType == DriveType.Fixed
-                    && NativeMethods.IsNoSeekPenalty(drive.RootDirectory.FullName))
-                    iconType = DriveIconType.SSD;
-
-                return (IsReady: true, Label: lbl,
-                        UsedBytes: used, TotalBytes: total, FileSystem: fs,
-                        KindLabel: kind, IconType: iconType);
-            });
-            bool hasChildren = result.IsReady && await FileSystemTreeNode.HasChildFoldersAsync(vfs, drive.RootDirectory.FullName);
-
-            // Resume on the WPF dispatcher — safe to touch UI objects directly.
-            if (node is not null) node.Name = result.Label;
-            entry.Name = result.Label;
-
-            if (result.IsReady)
-            {
-                entry.DriveUsedBytes  = result.UsedBytes;
-                entry.DriveTotalBytes = result.TotalBytes;
-                entry.FileSystem      = result.FileSystem;
-                entry.DriveKindLabel  = result.KindLabel;
-                entry.DriveIconType   = result.IconType;
-                entry.DriveStatus     = DriveStatus.Ready;
-
-                if (node is not null)
-                {
-                    node.DriveIconType = result.IconType;
-                    if (hasChildren && node.Children.Count == 0) node.Children.Add(FileSystemTreeNode.Dummy);
-                    node.DriveStatus = DriveStatus.Ready;
-                }
-            }
-            else
-            {
-                entry.DriveStatus = DriveStatus.Unavailable;
-                if (node is not null) node.DriveStatus = DriveStatus.Unavailable;
-            }
-        }
-        catch
-        {
-            entry.DriveStatus = DriveStatus.Unavailable;
-            if (node is not null) node.DriveStatus = DriveStatus.Unavailable;
-        }
-    }
-
     /// <summary>
-    /// Fills the entry list (and optionally the tree) with every top-level place — drives and contributed
-    /// locations alike — from the one enumeration in <see cref="ThisPcItemSet.Enumerate"/>.
+    /// Fills the entry list (and optionally the tree) with every row of This PC — volumes and contributed locations alike —
+    /// from the one merge in <see cref="ThisPcItemSet.Collect"/>.
     /// <para>
-    /// Both kinds get the same treatment: the row appears immediately in a Loading state and a background
-    /// probe settles it Ready or Unavailable, so neither a disconnected drive nor a sync folder that has
-    /// gone can sit there pretending to work. A contributed row's path is its virtual root
-    /// (<c>::{id}</c>), never the folder behind it.
+    /// Every row gets the same treatment: it appears immediately in a Loading state and its provider's probe settles it
+    /// Ready or Unavailable, so neither a disconnected drive nor a sync folder that has gone can sit there pretending to
+    /// work.
     /// </para>
     /// </summary>
     private void FillThisPc(FileSystemTreeNode? thisPc, bool addTreeNodes)
     {
-        IReadOnlyList<ThisPcPlace> places;
-        using (Timing.Measure("ThisPC.ThisPcItemSet.Enumerate"))
+        IReadOnlyList<ThisPcRow> rows;
+        using (Timing.Measure("ThisPC.ThisPcItemSet.Collect"))
         {
-            try { places = ThisPcItemSet.Enumerate(Registry.ThisPcItemProviders); }
+            try { rows = ThisPcItemSet.Collect(Registry.ThisPcItemProviders); }
             catch { Entries.Clear(); return; }   // never let a contributor break This PC itself
         }
-        Timing.Note("ThisPC.places", places.Count.ToString());
+        Timing.Note("ThisPC.rows", rows.Count.ToString());
 
-        // Built in full, then committed in one go: an Add per place raised a CollectionChanged per place,
+        // Built in full, then committed in one go: an Add per row raised a CollectionChanged per row,
         // where one Reset says the same thing. The probes start only once the rows are on screen — each
         // settles the entry object it was handed, and that object is the same one either way.
-        var rows = new List<FileSystemEntry>(places.Count);
-        var probes = new List<(ThisPcPlace Place, FileSystemTreeNode? Node, FileSystemEntry Entry)>(places.Count);
+        var entries = new List<FileSystemEntry>(rows.Count);
+        var probes = new List<(ThisPcRow Row, FileSystemTreeNode? Node, FileSystemEntry Entry)>(rows.Count);
 
-        foreach (var place in places)
+        foreach (var row in rows)
         {
-            // A drive is browsed where it is; a contributed location under its own root.
-            var path = place.Item is { } item ? VirtualMount.RootFor(item.Id) : place.RealPath;
+            var item = row.Item;
+            var path = BrowsePathOf(item);
 
             var entry = new FileSystemEntry
             {
-                Name           = place.Label,
+                Name           = item.Label,
                 FullPath       = path,
                 IsDirectory    = true,
                 IsThisPcItem   = true,
-                ProviderId     = place.Item?.Id,
+                ProviderId     = item.Backing == ThisPcItemBacking.OwnPath ? null : item.Id,
                 DriveStatus    = DriveStatus.Loading,
-                DriveIconType  = MapIcon(place.Icon),
-                DriveKindLabel = place.Kind == ThisPcPlaceKind.Provided ? place.TypeLabel : string.Empty,
+                DriveIconType  = MapIcon(item.Icon),
+                DriveKindLabel = item.TypeLabel,
             };
-            rows.Add(entry);
+            entries.Add(entry);
 
             FileSystemTreeNode? node = null;
             if (thisPc is not null)
             {
                 if (addTreeNodes)
                 {
-                    node = new FileSystemTreeNode(place.Label, path, TreeNodeKind.Drive, Vfs);
+                    node = new FileSystemTreeNode(item.Label, path, TreeNodeKind.Drive, Vfs);
                     thisPc.Children.Add(node);
                 }
                 else
@@ -1084,52 +1006,41 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
                     // The tree already holds nodes — reuse the matching one so expansion state survives.
                     node = thisPc.Children.FirstOrDefault(
                                c => string.Equals(c.FullPath, path, StringComparison.OrdinalIgnoreCase))
-                           ?? new FileSystemTreeNode(place.Label, path, TreeNodeKind.Drive, Vfs);
+                           ?? new FileSystemTreeNode(item.Label, path, TreeNodeKind.Drive, Vfs);
                 }
                 node.DriveIconType = entry.DriveIconType;
             }
 
-            probes.Add((place, node, entry));
+            probes.Add((row, node, entry));
         }
 
-        Entries.ReplaceAll(rows);
+        Entries.ReplaceAll(entries);
 
-        foreach (var (place, node, entry) in probes)
-        {
-            if (place.Drive is { } drive) _ = CheckDriveAsync(Vfs, drive, node, entry);
-            else if (place.Item is { } provided) _ = CheckProvidedAsync(this, provided, node, entry);
-        }
+        foreach (var (row, node, entry) in probes) _ = CheckThisPcItemAsync(row, node, entry);
     }
 
-    /// <summary>Maps the shared place-kind onto the browser's own render vocabulary. The two differ by
-    /// exactly one value: <see cref="DriveIconType.SSD"/>, which is a device fact
-    /// <see cref="CheckDriveAsync"/> probes for and no contributor may claim.</summary>
+    /// <summary>Maps the shared place-kind onto the browser's own render vocabulary. A solid-state volume is a device fact
+    /// a row's detail reports once the drive has answered (<see cref="ThisPcItemDetail.Icon"/>).</summary>
     private static DriveIconType MapIcon(ThisPcItemIcon icon) => icon switch
     {
         ThisPcItemIcon.Removable => DriveIconType.Removable,
         ThisPcItemIcon.Optical   => DriveIconType.CDDVD,
         ThisPcItemIcon.Network   => DriveIconType.Network,
-        ThisPcItemIcon.Cloud     => DriveIconType.Cloud,
+        ThisPcItemIcon.Cloud      => DriveIconType.Cloud,
+        ThisPcItemIcon.SolidState => DriveIconType.SSD,
         _                        => DriveIconType.HDD,
     };
 
-    /// <summary>The provided-row analogue of <see cref="CheckDriveAsync"/>: asks the owning provider for
-    /// the slow half off the UI thread, then settles the row's badge and expander.</summary>
-    private static async Task CheckProvidedAsync(FileSystemViewModel vm, ThisPcItem item,
-                                                 FileSystemTreeNode? node, FileSystemEntry entry)
+    /// <summary>Settles a This PC row from its provider's probe: its label, capacity, file system and icon once the device
+    /// has answered, Ready or Unavailable, and an expander when it holds folders.</summary>
+    private static async Task CheckThisPcItemAsync(ThisPcRow row, FileSystemTreeNode? node, FileSystemEntry entry)
     {
+        using var _t = Timing.Measure($"ThisPC.Check {row.Item.Id} (probe + UI settle)");
         ThisPcItemDetail detail;
-        try
-        {
-            var provider = vm.Registry.ThisPcItemProviders
-                .FirstOrDefault(p => item.Id.StartsWith(p.ProviderId, StringComparison.OrdinalIgnoreCase));
-            detail = provider is null
-                ? await ThisPcItemSet.ProbeLocalAsync(item)
-                : await provider.GetDetailAsync(item);
-        }
+        try { detail = await row.DetailAsync(); }
         catch { detail = new ThisPcItemDetail { Available = false }; }
 
-        // Resumes on the WPF dispatcher — safe to touch UI objects directly (as CheckDriveAsync does).
+        // Resumes on the WPF dispatcher — safe to touch UI objects directly.
         if (detail.Label is { Length: > 0 } label)
         {
             entry.Name = label;
@@ -1138,11 +1049,14 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
 
         entry.DriveUsedBytes  = detail.UsedBytes;
         entry.DriveTotalBytes = detail.TotalBytes;
-        entry.DriveStatus     = detail.Available ? DriveStatus.Ready : DriveStatus.Unavailable;
+        if (detail.FileSystem is { } fileSystem) entry.FileSystem = fileSystem;
+        if (detail.Icon is { } icon) entry.DriveIconType = MapIcon(icon);
+        entry.DriveStatus = detail.Available ? DriveStatus.Ready : DriveStatus.Unavailable;
 
         if (node is not null)
         {
-            node.DriveStatus = entry.DriveStatus;
+            node.DriveIconType = entry.DriveIconType;
+            node.DriveStatus   = entry.DriveStatus;
             if (detail.Available && detail.HasChildren && node.Children.Count == 0)
                 node.Children.Add(FileSystemTreeNode.Dummy);
         }
@@ -1178,7 +1092,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         _ai             = ai;
         Vfs             = vfs;
         Registry        = FileSystemFeatureRegistry.For(shell, ai, configs, vfs);
-        Operations      = FileOperationQueue.For(shell);
+        Operations      = FileOperationQueue.For(shell, vfs);
         FileOperations  = new FileOperationsPanelViewModel(Operations, shell);
         _actionRegistry = new FileActionManager(Registry);
         _opener         = new DefaultFileOpener(Registry);
@@ -2044,9 +1958,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
             var companions = Companions.Listing();
 
             // Only a folder on this machine can be in a sync root; the listing carries each file's state in it.
-            bool inSyncRoot = Vfs.GetBacking(path).IsFullyOnDisk()
-                              && Vfs.TryResolveReal(path) is { } realPath
-                              && CloudPlaceholders.IsInSyncRoot(realPath);
+            bool inSyncRoot = Vfs.ResolveOnDisk(path) is { } realPath && CloudPlaceholders.IsInSyncRoot(realPath);
             var enumerate = Timing.Enabled ? System.Diagnostics.Stopwatch.StartNew() : null;
 
             try

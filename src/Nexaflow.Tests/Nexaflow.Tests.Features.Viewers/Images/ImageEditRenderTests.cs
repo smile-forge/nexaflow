@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.Collections.Immutable;
 using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.Editing.Codecs;
@@ -17,7 +18,7 @@ namespace Nexaflow.Tests.Features.Images;
 [TestClass]
 public class ImageEditRenderTests
 {
-    private static readonly ImageEditingServices Services = new();
+    private static readonly ImageEditingServices Services = new(VirtualFileSystem.Instance);
 
     private static SKImage Render(DecodedImage source, ImageRecipe recipe, RenderRequest? request = null)
     {

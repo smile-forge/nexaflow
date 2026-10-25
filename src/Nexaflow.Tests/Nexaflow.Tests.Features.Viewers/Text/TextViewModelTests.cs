@@ -48,7 +48,7 @@ public class TextViewModelTests
         var path = WriteTemp("line one\nline two\nline three");
         try
         {
-            using var vm = new TextViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+            using var vm = new TextViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             Assert.IsFalse(vm.IsLargeFile);
@@ -67,7 +67,7 @@ public class TextViewModelTests
         var path = WriteTemp("alpha\nbeta\ngamma\n");
         try
         {
-            using var vm = new TextViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+            using var vm = new TextViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             // Aspect 4: two Text tabs on different files must be distinguishable when pinned together, so
@@ -100,7 +100,7 @@ public class TextViewModelTests
         var path = WriteTemp("alpha\nbeta\ngamma\n");
         try
         {
-            using var vm = new TextViewModel(path, RunningShell()) { IsMonitoring = false };
+            using var vm = new TextViewModel(path, RunningShell(), VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             // Context is honest about the file the tools act on.
@@ -156,7 +156,7 @@ public class TextViewModelTests
         var path = WriteManyLines(out var lineCount);
         try
         {
-            using var vm = new TextViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+            using var vm = new TextViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             Assert.IsTrue(vm.IsLargeFile);   // drives the status-bar 'Streaming' badge
@@ -176,7 +176,7 @@ public class TextViewModelTests
         var path = WriteManyLines(out _);
         try
         {
-            using var vm = new TextViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+            using var vm = new TextViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
             Assert.IsFalse(vm.Document.Text.Contains("Line 08000"), "line 8000 starts out as placeholder");
 
@@ -197,7 +197,7 @@ public class TextViewModelTests
         var path = WriteManyLines(out _);
         try
         {
-            using var vm = new TextViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+            using var vm = new TextViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             await vm.SearchConventionalAsync("Line 07777");
@@ -217,7 +217,7 @@ public class TextViewModelTests
         var path = WriteManyLines(out _);
         try
         {
-            using var vm = new TextViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+            using var vm = new TextViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             vm.IsEditing = true;
@@ -242,7 +242,7 @@ public class TextViewModelTests
         try
         {
             var shell = Substitute.For<IShellServices>();
-            using var vm = new TextViewModel(path, shell) { IsMonitoring = false };
+            using var vm = new TextViewModel(path, shell, VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             bool dirtyRaised = false;
@@ -273,7 +273,7 @@ public class TextViewModelTests
         var path = WriteTemp("foo a\nbar b\nfoo c\nbar d\nfoo e"); // "foo" on lines 1, 3, 5
         try
         {
-            using var vm = new TextViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+            using var vm = new TextViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             await vm.SearchConventionalAsync("foo");
@@ -306,7 +306,7 @@ public class TextViewModelTests
         File.WriteAllText(path, "héllo\nwörld", Encoding.Unicode);
         try
         {
-            using var vm = new TextViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+            using var vm = new TextViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
             Assert.AreEqual("UTF-8", vm.SelectedEncoding.Name); // selection is the default; the BOM overrides it
             await vm.LoadAsync(CancellationToken.None);
 
@@ -324,7 +324,7 @@ public class TextViewModelTests
         File.WriteAllBytes(path, Encoding.Latin1.GetBytes("café\nline two"));
         try
         {
-            using var vm = new TextViewModel(path, Substitute.For<IShellServices>()) { IsMonitoring = false };
+            using var vm = new TextViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
             Assert.IsFalse(vm.Document.Text.Contains("café"), "under the default UTF-8, 0xE9 mangles");
 
@@ -351,7 +351,7 @@ public class TextViewModelTests
             Action? onChanged = null;
             shell.WatchFile(Arg.Any<string>(), Arg.Do<Action>(a => onChanged = a)).Returns(watch);
 
-            using var vm = new TextViewModel(path, shell) { IsMonitoring = true };
+            using var vm = new TextViewModel(path, shell, VirtualFileSystem.Instance) { IsMonitoring = true };
             await vm.LoadAsync(CancellationToken.None); // monitoring on → StartMonitoring registers the watch
 
             Assert.IsNotNull(onChanged, "monitoring registered a file watch");
@@ -388,12 +388,12 @@ public class TextViewModelTests
             shell.When(s => s.QueueBackgroundTask(Arg.Any<IBackgroundTask>(), Arg.Any<Action<bool>>(), Arg.Any<CancellationToken>()))
                  .Do(ci => { queued = ci.Arg<IBackgroundTask>(); onComplete = ci.Arg<Action<bool>>(); });
 
-            using var vm = new TextViewModel(path, shell) { IsMonitoring = false };
+            using var vm = new TextViewModel(path, shell, VirtualFileSystem.Instance) { IsMonitoring = false };
             vm.SelectedSplitMode = vm.SplitModes.First(m => m.Mode == SplitMode.ByLineCount);
             vm.SplitValue = "5";
             vm.IsSplitPanelOpen = true;
 
-            vm.SplitCommand.Execute(null);
+            await vm.SplitCommand.ExecuteAsync(null);
 
             Assert.IsFalse(vm.IsSplitPanelOpen, "running a split closes the panel");
             shell.Received(1).QueueBackgroundTask(Arg.Any<IBackgroundTask>(), Arg.Any<Action<bool>>(), Arg.Any<CancellationToken>());

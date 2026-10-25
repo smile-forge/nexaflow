@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using System.Linq;
 using Nexaflow.Features.Dicom.Models;
@@ -34,26 +35,26 @@ public class DicomLoaderTests
     [TestMethod]
     [CoversNode("dicom-load")]
     [CoversNode("dicom-sniffer")]
-    public void Sniffer_Recognises_Dcm_And_Magic_ButNotText()
+    public async Task Sniffer_Recognises_Dcm_And_Magic_ButNotText()
     {
         Assert.IsTrue(DicomFileSniffer.HasDicomExtension("scan.dcm"));
-        Assert.IsTrue(DicomFileSniffer.HasDicmMagic(SampleDcm), "the DICM marker at offset 128 must be found");
+        Assert.IsTrue(DicomFileSniffer.HasDicmMagic(File.OpenRead(SampleDcm)), "the DICM marker at offset 128 must be found");
 
         var txt = Path.Combine(_tmp, "notdicom.txt");
         File.WriteAllText(txt, "hello");
-        Assert.IsFalse(DicomFileSniffer.IsDicom(txt));
+        Assert.IsFalse(await new DicomIo(VirtualFileSystem.Instance).IsDicomAsync(txt));
 
         // An extensionless CD instance is recognised by magic alone.
         var noExt = Path.Combine(_tmp, "IM_0001");
         File.Copy(SampleDcm, noExt);
-        Assert.IsTrue(DicomFileSniffer.IsDicom(noExt));
+        Assert.IsTrue(await new DicomIo(VirtualFileSystem.Instance).IsDicomAsync(noExt));
     }
 
     [TestMethod]
     [CoversNode("dicom-load")]
-    public void Load_SingleImage_BuildsTree_WithOneImage()
+    public async Task Load_SingleImage_BuildsTree_WithOneImage()
     {
-        var container = DicomContainerLoader.Load([SampleDcm]);
+        var container = await DicomContainerLoader.LoadAsync(new DicomIo(VirtualFileSystem.Instance), [SampleDcm]);
 
         Assert.IsFalse(container.IsEmpty);
         Assert.AreEqual(1, container.Patients.Count);
@@ -71,9 +72,9 @@ public class DicomLoaderTests
     [TestMethod]
     [CoversNode("dicom-load")]
     [CoversNode("dicom-hide-patient")]
-    public void Load_SingleImage_PatientNodeCarriesPhi_MaskedWhenHidden()
+    public async Task Load_SingleImage_PatientNodeCarriesPhi_MaskedWhenHidden()
     {
-        var container = DicomContainerLoader.Load([SampleDcm]);
+        var container = await DicomContainerLoader.LoadAsync(new DicomIo(VirtualFileSystem.Instance), [SampleDcm]);
         var patient = container.Patients[0];
 
         Assert.IsTrue(patient.IsPhi);
@@ -90,11 +91,11 @@ public class DicomLoaderTests
 
     [TestMethod]
     [CoversNode("dicom-load")]
-    public void Load_DicomDir_ResolvesReferencedFiles_IntoSeries()
+    public async Task Load_DicomDir_ResolvesReferencedFiles_IntoSeries()
     {
         var dicomdir = DicomTestFiles.WriteDicomDir(_tmp);
 
-        var container = DicomContainerLoader.Load([dicomdir]);
+        var container = await DicomContainerLoader.LoadAsync(new DicomIo(VirtualFileSystem.Instance), [dicomdir]);
 
         Assert.AreEqual(1, container.Patients.Count, "one patient in the file-set");
         Assert.AreEqual(2, container.Images.Count, "two instances across two series");
@@ -106,12 +107,12 @@ public class DicomLoaderTests
 
     [TestMethod]
     [CoversNode("dicom-load")]
-    public void Load_Folder_WithoutDicomDir_ScansInstances()
+    public async Task Load_Folder_WithoutDicomDir_ScansInstances()
     {
         DicomTestFiles.WriteImage(_tmp, "a.dcm", "PX", "A^B", "1.9.1", "1.9.1.1", "1.9.1.1.1");
         DicomTestFiles.WriteImage(_tmp, "b.dcm", "PX", "A^B", "1.9.1", "1.9.1.2", "1.9.1.2.1");
 
-        var container = DicomContainerLoader.Load([_tmp]);
+        var container = await DicomContainerLoader.LoadAsync(new DicomIo(VirtualFileSystem.Instance), [_tmp]);
 
         Assert.AreEqual(1, container.Patients.Count);
         Assert.AreEqual(2, container.Images.Count);
@@ -119,14 +120,14 @@ public class DicomLoaderTests
 
     [TestMethod]
     [CoversNode("dicom-load")]
-    public void Load_Series_OrdersByInstanceNumber_AndLinksSeriesImages()
+    public async Task Load_Series_OrdersByInstanceNumber_AndLinksSeriesImages()
     {
         // Written out of order (instance 3, 1, 2); the loaded series must be ordered 1, 2, 3.
         DicomTestFiles.WriteImage(_tmp, "c.dcm", "PX", "A^B", "1.9.3", "1.9.3.1", "1.9.3.1.3", instanceNumber: 3);
         DicomTestFiles.WriteImage(_tmp, "a.dcm", "PX", "A^B", "1.9.3", "1.9.3.1", "1.9.3.1.1", instanceNumber: 1);
         DicomTestFiles.WriteImage(_tmp, "b.dcm", "PX", "A^B", "1.9.3", "1.9.3.1", "1.9.3.1.2", instanceNumber: 2);
 
-        var container = DicomContainerLoader.Load([_tmp]);
+        var container = await DicomContainerLoader.LoadAsync(new DicomIo(VirtualFileSystem.Instance), [_tmp]);
 
         Assert.AreEqual(3, container.Images.Count);
         CollectionAssert.AreEqual(
@@ -141,14 +142,14 @@ public class DicomLoaderTests
 
     [TestMethod]
     [CoversNode("dicom-load")]
-    public void Load_LargePixelData_ClassifiedAsImage_NotReport()
+    public async Task Load_LargePixelData_ClassifiedAsImage_NotReport()
     {
         // The loader opens headers with SkipLargeTags, which DROPS PixelData for real (large) images. Image
         // detection must therefore key on geometry (Rows/Columns), not PixelData presence — else every real
         // slice is misfiled as a report. A 512×512 instance pushes PixelData well past the large-tag threshold.
         DicomTestFiles.WriteImage(_tmp, "big.dcm", "PX", "Big^One", "1.9.2", "1.9.2.1", "1.9.2.1.1", dim: 512);
 
-        var container = DicomContainerLoader.Load([_tmp]);
+        var container = await DicomContainerLoader.LoadAsync(new DicomIo(VirtualFileSystem.Instance), [_tmp]);
 
         Assert.AreEqual(1, container.Images.Count, "a large image must still be recognised as an image");
         Assert.AreEqual(0, container.Reports.Count, "it must NOT be misclassified as a report");

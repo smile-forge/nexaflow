@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,7 +26,7 @@ namespace Nexaflow.Tests.Features.Video;
 [TestClass]
 public class VideoSurfaceTests
 {
-    private static VideoViewModel Make() => new("clip.mp4", Substitute.For<IShellServices>());
+    private static VideoViewModel Make() => new("clip.mp4", Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
 
     /// <summary>A 1x1 frozen bitmap — enough to stand in for a decoded poster without a decoder.</summary>
     private static ImageSource Frame() =>

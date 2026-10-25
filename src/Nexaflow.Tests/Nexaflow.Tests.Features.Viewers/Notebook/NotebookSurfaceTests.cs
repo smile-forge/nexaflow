@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -93,7 +94,7 @@ public class NotebookSurfaceTests
             """, out var dir);
         try
         {
-            var vm = new NotebookViewModel(path, Substitute.For<IShellServices>());
+            var vm = new NotebookViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
             await vm.LoadAsync();
 
             Assert.IsFalse(vm.HasOutline, "an empty column is worse than no column");
@@ -110,7 +111,7 @@ public class NotebookSurfaceTests
         var path = WriteNotebook(TwoCells, out var dir);
         try
         {
-            var vm = new NotebookViewModel(path, Substitute.For<IShellServices>());
+            var vm = new NotebookViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
             await vm.LoadAsync();
 
             Assert.IsTrue(vm.HasOutline);
@@ -128,7 +129,7 @@ public class NotebookSurfaceTests
         var path = WriteNotebook(TwoCells, out var dir);
         try
         {
-            var vm = new NotebookViewModel(path, Substitute.For<IShellServices>());
+            var vm = new NotebookViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
             Assert.IsFalse(vm.IsContextReady,
                            "pinned this early it would report the empty python/0/0 stub as if it were the file");
 

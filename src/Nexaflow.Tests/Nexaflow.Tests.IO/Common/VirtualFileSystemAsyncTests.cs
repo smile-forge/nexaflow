@@ -364,6 +364,32 @@ public sealed class VirtualFileSystemAsyncTests
         Assert.AreEqual("inside", File.ReadAllText(At("out.txt")));
     }
 
+    [TestMethod]
+    public async Task AFolderHoldingAFolderHasChildFolders_AndOneOfFilesOnlyHasNone()
+    {
+        Directory.CreateDirectory(At(Path.Combine("parent", "child")));
+        Directory.CreateDirectory(At("flat"));
+        File.WriteAllText(At(Path.Combine("flat", "a.txt")), "a");
+
+        Assert.IsTrue(await _vfs.HasChildFoldersAsync(At("parent")));
+        Assert.IsFalse(await _vfs.HasChildFoldersAsync(At("flat")));
+        Assert.IsFalse(await _vfs.HasChildFoldersAsync(At("missing")), "a folder that cannot be read holds none");
+    }
+
+    [TestMethod]
+    public async Task AFileOnDiskIsItsOwnCopy_AndAnArchiveEntryIsExtractedToOne()
+    {
+        File.WriteAllText(At("plain.txt"), "here");
+        WriteZipFile(At("a.zip"), ("inner.txt", "inside"));
+
+        Assert.AreEqual(At("plain.txt"), await _vfs.MaterializeFileAsync(At("plain.txt")), "a real file is handed over as it is");
+        Assert.AreEqual(At("plain.txt"), await _vfs.MaterializeFileAsync(@"::docs\plain.txt"), "and one through a mount is the file behind it");
+
+        var copy = await _vfs.MaterializeFileAsync(Path.Combine(At("a.zip"), "inner.txt"));
+        Assert.AreNotEqual(Path.Combine(At("a.zip"), "inner.txt"), copy);
+        Assert.AreEqual("inside", File.ReadAllText(copy), "an archive entry is a copy on this disk holding its bytes");
+    }
+
     // ── Companions ──────────────────────────────────────────────────────────
 
     [TestMethod]

@@ -16,15 +16,23 @@ internal sealed class DicomRenderer
 {
     private readonly DicomImage _image;
 
-    public DicomRenderer(string filePath)
+    private DicomRenderer(DicomDataset dataset)
+    {
+        Dataset = dataset;
+        _image  = new DicomImage(dataset);
+    }
+
+    /// <summary>Opens the instance at <paramref name="filePath"/> for drawing. A file on this disk is read lazily — fo-dicom
+    /// loads frames as they are drawn; one in an archive or on a location is read whole.</summary>
+    public static async Task<DicomRenderer> OpenAsync(DicomIo io, string filePath, CancellationToken ct = default)
     {
         DicomBootstrap.EnsureInitialized();
-        // Real files open by path (fo-dicom lazy-loads frames); an in-archive path is read through the VFS
-        // and rendered from the in-memory dataset.
-        _image = File.Exists(filePath)
-            ? new DicomImage(filePath)
-            : new DicomImage(DicomIo.Open(filePath, FileReadOption.ReadAll).Dataset);
+        var option = io.IsOnDisk(filePath) ? FileReadOption.ReadLargeOnDemand : FileReadOption.ReadAll;
+        return new DicomRenderer((await io.OpenAsync(filePath, option, ct)).Dataset);
     }
+
+    /// <summary>The instance as read — its header for the overlays, its pixels for the measurements.</summary>
+    public DicomDataset Dataset { get; }
 
     public int Frames => _image.NumberOfFrames;
     public int Width => _image.Width;

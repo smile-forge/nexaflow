@@ -1,5 +1,6 @@
 using System.IO;
 using System.Security.Cryptography;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Images.Editing.Recipe;
 
@@ -12,6 +13,7 @@ namespace Nexaflow.Features.Images.Editing.Recipe;
 /// the timestamp — the content hash decides, and it reads only the first and last 64 KB, which is where every format
 /// keeps its header, its metadata and the end of its pixel data.
 /// </remarks>
+[LocalDiskOnly("fingerprints a photo that is a file on this disk, the only kind a recipe sidecar or a kept file is known by content for")]
 public sealed record SourceFingerprint(long Length, DateTime LastWriteUtc, string ContentHash)
 {
     private const int SampleBytes = 64 * 1024;

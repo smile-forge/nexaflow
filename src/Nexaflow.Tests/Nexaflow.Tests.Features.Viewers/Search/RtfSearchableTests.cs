@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using System.Text;
 using NSubstitute;
@@ -40,7 +41,7 @@ public sealed class RtfSearchableTests : SearchableContentConformanceTests
         File.WriteAllText(path, Document, Encoding.Latin1);
         _paths.Add(path);
 
-        var vm = new RtfViewModel(path, Shell());
+        var vm = new RtfViewModel(path, Shell(), VirtualFileSystem.Instance);
         await vm.LoadAsync();
         return vm;
     }

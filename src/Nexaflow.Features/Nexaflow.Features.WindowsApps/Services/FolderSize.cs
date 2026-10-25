@@ -1,8 +1,10 @@
 using System.IO;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.WindowsApps.Services;
 
 /// <summary>Best-effort on-disk folder sizing, shared by the second (size-filling) load pass.</summary>
+[LocalDiskOnly("an installed app's folder, on this computer")]
 public static class FolderSize
 {
     /// <summary>Sums every file under <paramref name="path"/>. Returns null if it can't be walked.</summary>

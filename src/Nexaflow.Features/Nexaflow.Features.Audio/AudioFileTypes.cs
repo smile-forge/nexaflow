@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Audio;
 
@@ -22,17 +23,18 @@ public static class AudioFileTypes
 
     public static bool IsAudio(string path) => Extensions.Contains(Path.GetExtension(path));
 
-    /// <summary>Top-level audio files in <paramref name="folderPath"/>, ordered by name. Empty on error.</summary>
-    public static List<string> EnumerateAudio(string folderPath)
+    /// <summary>Top-level audio files in <paramref name="folderPath"/>, read through <paramref name="vfs"/> so a folder in an
+    /// archive or on a location queues like one on disk, ordered by name. Empty on error.</summary>
+    public static async Task<List<string>> EnumerateAudioAsync(IVirtualFileSystem vfs, string folderPath, CancellationToken ct = default)
     {
         try
         {
-            return Directory.EnumerateFiles(folderPath, "*", SearchOption.TopDirectoryOnly)
-                .Where(IsAudio)
-                .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            var names = new List<string>();
+            await foreach (var entry in vfs.EnumerateAsync(folderPath, ct))
+                if (!entry.IsDirectory && IsAudio(entry.Name)) names.Add(entry.Name);
+            return names.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).Select(n => Path.Combine(folderPath, n)).ToList();
         }
-        catch
+        catch (Exception e) when (e is not OperationCanceledException)
         {
             return [];
         }

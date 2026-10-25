@@ -49,14 +49,14 @@ public sealed class BlockingIoAnalyzer : DiagnosticAnalyzer
         "NXIO001",
         "A feature awaits the file system rather than blocking on it",
         "{0} blocks on the disk or the network; {1}",
-        Category, DiagnosticSeverity.Warning, isEnabledByDefault: true,
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
         description: "On a location the wait is a network round trip on whatever thread asked, and a runtime's file system refuses the call there. Await the member the report names, or, for code that only touches this machine's own disk, mark it [LocalDiskOnly] with where its files are.");
 
     private static readonly DiagnosticDescriptor Direct = new(
         "NXIO002",
         "A feature reaches files through the file system, not System.IO",
         "{0} reaches the disk directly, so a path from a location never arrives here; go through IVirtualFileSystem, or mark the code [LocalDiskOnly] with where its files are",
-        Category, DiagnosticSeverity.Warning, isEnabledByDefault: true,
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
         description: "A path a person opened may be on another machine. System.IO sees only this one, so a feature that uses it on such a path fails, or worse, finds a different file of the same name.");
 
     private static readonly DiagnosticDescriptor Unreasoned = new(

@@ -1,4 +1,6 @@
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using Nexaflow.IO.Common;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -16,11 +18,29 @@ public static class MarkdownDocuments
         Path.GetExtension(path).ToLowerInvariant() is ".md" or ".markdown" || MarkdownPackage.Names(path);
 
     /// <summary>
-    /// What the document at <paramref name="path"/> says, wherever the file system reaches it, its lines ended as the editor
-    /// ends them; null where nothing is there.
+    /// What the document at <paramref name="path"/> says, wherever <paramref name="vfs"/> reaches it, its lines ended as the
+    /// editor ends them; null where nothing is there.
     /// </summary>
     /// <exception cref="InvalidDataException">The package there holds no document.</exception>
-    public static string? ReadText(string path)
+    public static async Task<string?> ReadTextAsync(IVirtualFileSystem vfs, string path, CancellationToken ct = default)
+    {
+        if (!await vfs.ExistsAsync(path, ct)) return null;
+
+        var document = MarkdownPackage.Names(path) ? Path.Combine(path, MarkdownPackage.Document) : path;
+        if (!await vfs.ExistsAsync(document, ct))
+            throw new InvalidDataException($"{Path.GetFileName(path)} is not a Markdown Package: it holds no {MarkdownPackage.Document}.");
+
+        return (await vfs.ReadAllTextAsync(document, ct: ct)).ReplaceLineEndings("\n");
+    }
+
+    /// <summary>
+    /// As <see cref="ReadTextAsync"/>, answered at once, for a document already known to be on this disk — one the
+    /// assistant's security context resolved, whose path cannot name a location. For a decision made before any work runs,
+    /// such as whether a call needs approval.
+    /// </summary>
+    /// <exception cref="InvalidDataException">The package there holds no document.</exception>
+    [LocalDiskOnly("a document the assistant's security context resolved, which is always on this disk")]
+    public static string? ReadLocalText(string path)
     {
         var files = VirtualFileSystem.Instance;
         if (!files.Exists(path)) return null;

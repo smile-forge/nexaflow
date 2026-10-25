@@ -17,5 +17,5 @@ public readonly record struct FileSubject(string Path, string? LocalFile)
 
     /// <summary>The file at <paramref name="path"/>, with the file on this disk behind it when there is one.</summary>
     public static FileSubject Of(IVirtualFileSystem vfs, string path)
-        => new(path, vfs.GetBacking(path).IsFullyOnDisk() ? vfs.TryResolveReal(path) : null);
+        => new(path, vfs.ResolveOnDisk(path));
 }

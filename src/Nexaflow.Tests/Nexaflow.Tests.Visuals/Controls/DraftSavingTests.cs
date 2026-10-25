@@ -1,4 +1,5 @@
 using System.IO;
+using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Common.Drafts;
 
@@ -42,7 +43,8 @@ public class DraftSavingTests
         var picked = Path.Combine(Directory.CreateDirectory(Path.Combine(_dir, "kept")).FullName, "my fox.jpg");
         var saving = new DraftSaving(draft, @"C:\Pictures",
                                      (name, extensions, folder) => { asked = (name, extensions, folder); return Task.FromResult<string?>(picked); },
-                                     why => Assert.Fail(why));
+                                     why => Assert.Fail(why),
+                                     (from, to) => VirtualFileSystem.Instance.CopyFileAsync(from, to, replace: true).AsTask());
         string? kept = null;
         saving.Kept += path => kept = path;
 

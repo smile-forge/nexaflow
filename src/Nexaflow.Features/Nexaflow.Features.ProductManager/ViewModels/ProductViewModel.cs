@@ -9,6 +9,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.ProductManager.ClientTools;
 using Nexaflow.Features.ProductManager.Services;
+using Nexaflow.IO.Common;
 using Nexaflow.Services.Initiatives.Graph.Store;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
@@ -194,7 +195,7 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
 
         IsEditable  = SelectedVersion == ProductStore.CurrentVersion;
         ProductName = string.IsNullOrWhiteSpace(_state.Product.Product)
-            ? new DirectoryInfo(ProductRoot).Name : _state.Product.Product;
+            ? ProductStore.NameOfRoot(ProductRoot) : _state.Product.Product;
         SyncVersions();
         if (FocusedNodeId is not null && !_state.Nodes.ContainsKey(FocusedNodeId)) FocusedNodeId = null;
         RebuildAll();
@@ -249,6 +250,7 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     /// <summary>⋮ → Open graph: opens the existing <c>.product/graph.json</c> in the Graph viewer <b>without</b>
     /// rebuilding it. Falls through to a build only when no graph has been generated yet.</summary>
     [RelayCommand]
+    [LocalDiskOnly("the product graph's file in the product's repository, a checkout on this disk")]
     private void OpenGraph()
     {
         if (File.Exists(_store.GraphFilePath))
