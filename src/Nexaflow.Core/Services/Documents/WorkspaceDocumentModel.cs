@@ -30,7 +30,7 @@ internal sealed class WorkspaceDocumentModel(ILlmProvider provider, string key, 
 
         try
         {
-            await foreach (var said in provider.StreamAsync([new(LlmRole.System, instructions), new(LlmRole.User, asked)], [],
+            await foreach (var said in provider.StreamAsync([new(LlmRole.System, ProtectedAudience.Framed(instructions)), new(LlmRole.User, asked)], [],
                                                             LlmUrgency.Background, LlmThinking.Off, ct))
             {
                 if (said is LlmTextDelta delta) text.Append(delta.Text);

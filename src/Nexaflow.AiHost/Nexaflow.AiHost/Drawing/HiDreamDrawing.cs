@@ -17,6 +17,10 @@ internal sealed class HiDreamDrawing(ModelRegistry models, GpuScheduler gpu) : I
 
     public bool Draws(int width, int height) => HiDreamSampler.Draws(width, height);
 
+    public bool TakesNegativePrompts => false;
+
+    public bool TakesLoras => false;
+
     public async Task<byte[]> DrawAsync(Draw request, Func<string, Task> stage, Func<int, int, Task> stepped, ModelRegistry.Room room, CancellationToken ct)
     {
         var model = request.Model;

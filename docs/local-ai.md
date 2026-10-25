@@ -11,7 +11,7 @@ agent loop on it. Every model calls tools in its own protocol, prompted by its o
 A voice conversation runs from the AI bar — listening in the host (Silero, Nemotron, Whisper large-v3-turbo, small or
 small.en, Smart Turn), Kokoro speaking English, French and German, barge-in, and actions announced before they are done. The assistant
 makes pictures, speech and video clips with the workspace's models (phase 4) — through OpenAI and Gemini, and on this
-machine pictures with Z-Image Turbo, and at high quality with HiDream-O1, and clips with Wan2.2-TI2V-5B — distilled to
+machine pictures with Z-Image Turbo, and at high quality with HiDream-O1 or MOSS-Image and its LoRAs, and clips with Wan2.2-TI2V-5B — distilled to
 three steps (FastWan) for clips from a description, and its fifty guided steps for clips from a picture; music on this
 machine is still to come. This
 records what was measured, the decisions taken, the design that follows, and the order to build it in. Where it names a type, check for collisions before introducing it.
@@ -711,8 +711,27 @@ sees what it drew; the existing loop, approvals and context handling apply uncha
 - **What a model cannot use is not offered.** Pictures to work from go only to a model that takes them, a mask only
   to one that masks, a first frame only to a video model that starts from one. A parameter of a few values names them
   (`ClientToolParameter.Choices`), declared natively as a JSON Schema `enum`.
+- **Each model says what it is asked with.** Beside its prompt, a picture or a clip is asked for with what its model's
+  `ImageSettings` / `VideoSettings` declare: its exact proportions (`MediaAspect` — `shape` takes square, landscape or
+  portrait, drawn at the model's own proportions for each, or width:height), the sizes it makes at, its levels of
+  detail, a seed, what to keep out, a transparent background; a video size can make only some lengths (Veo's 1080p and
+  4k, eight seconds). The tools build their parameters from the settings — where the two qualities differ, the
+  description says which offers what — and `Refusal` turns away anything a model does not do before it is asked.
+- **The user asks the same way.** `IAIService.MakesPictures` / `MakesClips` give a page the same settings, and
+  `MakePicture` / `MakeClip` run the very call the tool would be given as one of the workspace's background jobs —
+  nothing asked first, the file saved as the name the user gave in a folder they chose. The file view's New picker
+  offers them as Gen Image and Gen Video (`IFileCreateWithOptions`).
+- **Enhanced AI Protection Mode keeps adult content out.** A LoRA meant for adults only (`ImageLora.Adult`) is offered —
+  in the New picker and to `generate_image` alike — only while Options → Shell's Enhanced AI Protection Mode is off
+  (`ShellConfig.EnhancedAiProtection`, on by default); on, it is not even named to the assistant. Core reads the setting
+  where a choice is offered (`GenerateImageTool.Offerable`), so no feature needs to know Core holds it. While it is on,
+  every system prompt behind something the user reads — the conversation's, an analysis's, a problem solved, a picture
+  described for a model that cannot see, an answer about a document — opens with the protected-audience policy
+  (`ProtectedAudience.Framed`), ahead of the persona, which cannot set it aside; and every picture made, by any model,
+  passes the picture check before it is saved or shown — withheld where it is unfit for a general audience, or where the
+  check could not run ([ai-tools.md → Picture checking](ai-tools.md#picture-checking)).
 - **Two qualities of picture.** Every backend sells a fast image model and a better one — Z-Image Turbo and HiDream-O1
-  here, gpt-image-1-mini and gpt-image-1, Gemini 2.5 Flash Image and Gemini 3 Pro Image — so the grid has an Image
+  or MOSS-Image here, gpt-image-1-mini and gpt-image-1, Gemini 2.5 Flash Image and Gemini 3 Pro Image — so the grid has an Image
   Generation row and an Image Generation (HQ) row of the same kind. With a model in both, `generate_image` takes a
   `quality`, standard unless a finished, polished picture is asked for; a high-quality picture is slow and dearer, so
   that one call is approved first and announced in a voice conversation (`IClientTool.SafetyOf`, safety by call).
@@ -728,7 +747,7 @@ sees what it drew; the existing loop, approvals and context handling apply uncha
 | | Cloud | On this machine | Status |
 |---|---|---|---|
 | Speech | OpenAI's speech models | Kokoro | built |
-| Images | OpenAI gpt-image (one picture to work from, a mask) and dall-e-3; Gemini's image models (up to three pictures) and Imagen | Z-Image Turbo and, for high quality, HiDream-O1 — our ONNX builds, sampled by the host | built |
+| Images | OpenAI gpt-image (one picture to work from, a mask) and dall-e-3; Gemini's image models (up to three pictures) and Imagen | Z-Image Turbo and, for high quality, HiDream-O1 and MOSS-Image with its LoRAs — our ONNX builds, sampled by the host | built |
 | Music | neither SDK offers it | ACE-Step 1.5 (community ONNX), custom pipeline | possible, medium effort; brings the audio generation contract |
 | Sound effects | — | no maintained ONNX model; Stable Audio Open would need exporting | gap |
 | Video | OpenAI Sora (4, 8 or 12 s at 720p), Gemini Veo (4 to 8 s) | Wan2.2-TI2V-5B — FastWan's three steps from a description, the full model's fifty from a description or a picture — our ONNX builds, sampled by the host | built |
@@ -788,6 +807,34 @@ shapes — in 35 s on an RTX PRO 6000 (PyTorch: 95 s); twelve prompts drawn with
 HiDream's PyTorch pipeline from the same noise are the same pictures, with the same text in them. Each model's catalog
 entry names its drawing method — the parts it has and the sampler that drives them — and its sizes, so the host draws
 with whichever a picture asks for; the Local page's high-quality job starts on the model made for it.
+
+MOSS-Image-SFT (OpenMOSS, Apache-2.0) is the other high-quality one, and the one that takes a negative prompt and
+LoRAs: a 5B single-stream DiT reading the prompt with Qwen3.5-9B unchanged, decoded by the FLUX.2 small VAE. Its
+denoiser and decoder are ONNX graphs Nexaflow builds and publishes (`tools/ai-models/moss-image`,
+huggingface.co/smile-forge/moss-image-onnx); its prompt encoder is an existing GGUF.
+
+- **The prompt read on llama.cpp.** Qwen3.5-9B's last hidden state is what MOSS-Image reads, so the host reads the
+  prompt — in Qwen3.5's chat template, thinking on — with the GGUF on llama.cpp and keeps every token's row
+  (`LlamaHiddenStates`: a context of its own with embeddings on and no pooling). `Compare-MossEncoder.ps1` chose
+  Q8_0: 2.8 % from fp32 and as close as PyTorch's own bf16 in the pictures, in 8.5 GiB; Q4_K_M misspelt.
+- **8-bit weights, fp16 branches on fp32 streams.** As HiDream's, the residual streams stay fp32 and each branch runs in
+  fp16. Against PyTorch from the same noise the build draws at a median of 23.8 dB — every text asked for right, the
+  same picture with details moved — in 22.9 s a 1024² picture on an RTX PRO 6000 (PyTorch: 27.7 s).
+- **Its own sampler, in C#.** Fifty Euler steps over MOSSImageScheduler's levels — shifted by 5 and snapped to the
+  thousand it was trained on — each asking with the prompt and, block 22 left out as the pipeline leaves it, with the
+  negative prompt, steering by 3 (`MossSampler`, held to the recipe's loop by `MossSamplerTests`).
+- **LoRAs, curated, one at a time.** Eight are offered (`loras.json` in the recipe): Fast, the 8-step distillation, and
+  styles — Anime, Gouache, Psychedelic, Beauty, Animated, Impressionism, and Uncensored, which is meant for adults
+  only. Each is an ONNX Runtime adapter applied unmerged (`OrtLoraAdapter`, its weights copied to the GPU once a
+  picture), its trigger leading the prompt; the graph runs its LoRA branches only while one is active, so a picture
+  without one pays nothing for them. A style draws in the model's own fifty steps and follows PyTorch with it as
+  closely as the build does without, in about 28 s a 1024² picture against 23 s with none; Fast brings its own
+  sampler — eight data-space steps, no negative prompt (`DataSpaceSampler`) — and draws one in 3.5 s. A LoRA's files are fetched the first time a picture asks
+  for it (`OwnedModelRuntime.FetchedAsync`), not with the model.
+
+It draws each shape at about a megapixel — 1024×1024, 1344×768, 768×1344. Loaded part by part, its largest is the
+denoiser: 7.8 GiB at 1024² without a LoRA, 8.5 GiB with a style's and 9.1 GiB with the distillation's — each LoRA branch
+added in fp16 where its projection stays fp16 — so a picture needs a card that holds that.
 
 ### Making clips on this machine
 

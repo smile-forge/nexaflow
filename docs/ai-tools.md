@@ -6,9 +6,10 @@ provider: nothing in the cloud stands in for it, a workspace's ability grid neve
 Its models are fetched once, app-wide, when a person asks, and run in the AI host on the same plan of its GPUs as the
 owned models.
 
-Four are here: the picture tools — Real-ESRGAN and GFPGAN (`real-esrgan-gfpgan`) — picture selection, SAM 3.1
-(`sam3.1`), picture erasing, LaMa (`big-lama`), and page reading, Unlimited-OCR with PP-OCRv5's text detector
-(`unlimited-ocr`).
+Five are here: the picture tools — Real-ESRGAN and GFPGAN (`real-esrgan-gfpgan`) — picture selection, SAM 3.1
+(`sam3.1`), picture erasing, LaMa (`big-lama`), page reading, Unlimited-OCR with PP-OCRv5's text detector
+(`unlimited-ocr`), and picture checking, OwenElliott's image safety classifier (`image-safety-classifier-m`), which
+Core runs itself rather than a page.
 
 ## How a tool fits
 
@@ -216,6 +217,30 @@ stored or decoded to PNG, turned as the page is shown; a notice above the docume
 `pdf_read_scans` reads them for the assistant, and `pdf_read_text` and `pdf_find_text` include their text once read.
 
 
+
+## Picture checking
+
+**What it does.** How fit a picture is for a general audience — the chances it shows gore, sexual content, or neither —
+from OwenElliott's image safety classifier, M (SwiftFormer-M, 12.1M parameters, MIT), on four CPU threads in a few
+milliseconds. While Enhanced AI Protection Mode is on, `generate_image` asks it of every picture made, before it is
+saved or shown — by a person from the New picker as by the assistant — and withholds a picture whose chances of gore
+and of sexual content together reach `PictureChecking.UnfitFrom` (0.5), or one whose check could not run.
+
+**The model.** Its author's own ONNX graph, pinned to its commit — the classifier is published as one graph with its
+normalisation and softmax in it, so there is nothing for a recipe of ours to build. It takes the whole picture squeezed
+to 224 × 224 in RGB values of 0 to 255 (`PictureSafetyClassifier.Planes`), so nothing at a wide picture's edges goes
+unseen; the host reads the picture as it was encoded, whatever Windows reads (`PictureDecoder`). Chosen over Marqo's
+`nsfw-image-detection-384` for its gore class and its speed, and over its own S size for being the more cautious with
+suggestive pictures. On 125 pictures drawn for the purpose — plain, borderline, suggestive, nude and gory — its scores
+fall near 0.1 or near 0.9, so a cut-off anywhere from 0.4 to 0.7 decides almost the same, and 0.5 holds. It caught
+every nude picture and most suggestive ones, but it withholds swimwear, underwear and classical nudes as readily, and
+it misses most gore that is not bright and clinical — a weak check, kept as a second line behind the policy the models
+are given.
+
+**Fetched when first needed.** Unlike the other tools, it is fetched the first time a picture is checked
+(`LocalToolModels.ReadyAsync`): while the mode is on, asking for a picture is asking for its check. It still has its row
+on the Local AI page. `PictureCheckingTests` runs the host with it on the CPU; `OwnedPictureCheckingTests` and
+`GenerationToolsTests` hold the front and the withholding.
 
 ## Adding a tool
 

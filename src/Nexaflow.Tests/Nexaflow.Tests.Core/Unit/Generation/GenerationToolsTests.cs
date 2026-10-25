@@ -77,7 +77,160 @@ public class GenerationToolsTests
         StringAssert.Contains(result.ModelText, "not saved yet");
         CollectionAssert.AreEqual(Drawn, result.Images!.Single().Bytes, "the model sees what it made");
         StringAssert.Contains(result.ModelText, "a fox, curled up", "what the model said about it is passed on");
-        Assert.AreEqual(MediaShape.Landscape, painter.Asked.Single().Shape);
+        Assert.AreEqual(new MediaAspect(3, 2), painter.Asked.Single().Aspect, "landscape, at the model's own proportions for it");
+    }
+
+    [TestMethod]
+    public async Task APicture_IsAskedForWithWhatItsModelOffers_AndOnlyThat()
+    {
+        var painter = new Painter
+        {
+            Settings = new([new(1, 1), new(16, 9), new(9, 16), new(21, 9)])
+            {
+                Resolutions = ["1K", "2K"], Details = [ImageDetail.Low, ImageDetail.High], Seeds = true, NegativePrompts = true, TransparentBackgrounds = true,
+            },
+        };
+        var tool = new GenerateImageTool(painter, null, Files);
+
+        var offered = tool.Parameters.ToDictionary(p => p.Name);
+        Assert.AreEqual("square, landscape, portrait, 1:1, 16:9, 9:16, 21:9", string.Join(", ", offered["shape"].Choices!));
+        Assert.AreEqual("1K, 2K", string.Join(", ", offered["resolution"].Choices!));
+        Assert.AreEqual("low, high", string.Join(", ", offered["detail"].Choices!));
+        Assert.AreEqual("integer", offered["seed"].Type);
+        Assert.AreEqual("boolean", offered["transparent_background"].Type);
+        Assert.IsTrue(offered.ContainsKey("negative_prompt"));
+
+        var made = await tool.InvokeAsync(new JsonObject
+        {
+            ["prompt"] = "A lighthouse", ["shape"] = "21:9", ["resolution"] = "2k", ["detail"] = "HIGH", ["seed"] = 42,
+            ["negative_prompt"] = " boats ", ["transparent_background"] = true,
+        }, default);
+
+        Assert.IsTrue(made.Success, made.ModelText);
+        var asked = painter.Asked.Single();
+        Assert.AreEqual((new MediaAspect(21, 9), "2K", ImageDetail.High, (int?)42, "boats", true),
+                        (asked.Aspect, asked.Resolution, asked.Detail, asked.Seed, asked.NegativePrompt, asked.TransparentBackground),
+                        "each as the model names it");
+
+        var refused = await tool.InvokeAsync(new JsonObject { ["prompt"] = "A lighthouse", ["shape"] = "4:3" }, default);
+        Assert.IsFalse(refused.Success);
+        StringAssert.Contains(refused.ModelText, "21:9", "the refusal says what it does draw");
+        Assert.AreEqual(1, painter.Asked.Count, "nothing it does not draw is asked of it");
+    }
+
+    [TestMethod]
+    public void ASettingNoModelOffers_IsNotOffered_AndOneOnlyHighQualityOffers_SaysSo()
+    {
+        var standard = new Painter();
+        var high     = new Painter { Settings = new([new(1, 1)]) { Seeds = true } };
+
+        var names = new GenerateImageTool(standard, null, Files).Parameters.Select(p => p.Name).ToList();
+        CollectionAssert.IsSubsetOf(new[] { "prompt", "shape", "path" }, names);
+        CollectionAssert.DoesNotContain(names, "seed");
+        CollectionAssert.DoesNotContain(names, "resolution");
+
+        var both = new GenerateImageTool(standard, high, Files).Parameters.ToDictionary(p => p.Name);
+        StringAssert.Contains(both["seed"].Description, "High quality only.");
+        StringAssert.Contains(both["shape"].Description, "Standard quality: 1:1, 3:2, 2:3; high: 1:1.");
+    }
+
+    /// <summary>A model with a negative prompt and three LoRAs: a distillation told nothing to keep out, a style, and one meant for adults only.</summary>
+    private static readonly ImageSettings WithLoras = new([new(1, 1)])
+    {
+        NegativePrompts = true,
+        Loras =
+        [
+            new("fast", "Fast", "In eight steps.") { NegativePrompts = false },
+            new("ink", "Ink", "Ink and wash."),
+            new("bare", "Bare", "For adults only.") { Adult = true },
+        ],
+    };
+
+    [TestMethod]
+    public void TheLorasAModelDrawsWith_AreOffered_OneMeantForAdultsOnly_OnlyWhileProtectionIsOff()
+    {
+        var high = new Painter { Settings = WithLoras };
+
+        var lora = new GenerateImageTool(new Painter(), high, Files).Parameters.Single(p => p.Name == "lora");
+        var allowed = new GenerateImageTool(new Painter(), high, Files, allowsAdultContent: true).Parameters.Single(p => p.Name == "lora");
+
+        CollectionAssert.AreEqual(new[] { "fast", "ink" }, lora.Choices!.ToArray());
+        StringAssert.Contains(lora.Description, "ink: Ink and wash.", "each said what it does, for the model to choose by");
+        StringAssert.Contains(lora.Description, "High quality only.");
+        Assert.IsFalse(lora.Description.Contains("bare"), "one meant for adults only is not even named");
+        CollectionAssert.AreEqual(new[] { "fast", "ink", "bare" }, allowed.Choices!.ToArray());
+        Assert.IsFalse(new GenerateImageTool(new Painter(), null, Files).Parameters.Any(p => p.Name == "lora"), "a model that takes none is offered none");
+    }
+
+    [TestMethod]
+    public async Task APictureWithALora_AsksTheModelForIt_AndOneNotOfferedOrToldWhatItTakesNot_IsRefused()
+    {
+        var painter = new Painter { Settings = WithLoras };
+        var tool = new GenerateImageTool(painter, null, Files);
+
+        var drawn   = await tool.InvokeAsync(new JsonObject { ["prompt"] = "a fox", ["lora"] = "ink", ["negative_prompt"] = "people" }, default);
+        var adult   = await tool.InvokeAsync(new JsonObject { ["prompt"] = "a fox", ["lora"] = "bare" }, default);
+        var keptOut = await tool.InvokeAsync(new JsonObject { ["prompt"] = "a fox", ["lora"] = "fast", ["negative_prompt"] = "people" }, default);
+        var allowed = await new GenerateImageTool(painter, null, Files, allowsAdultContent: true).InvokeAsync(new JsonObject { ["prompt"] = "a fox", ["lora"] = "bare" }, default);
+
+        Assert.IsFalse(drawn.IsError, drawn.ModelText);
+        Assert.IsTrue(adult.IsError, "not offered while Enhanced AI Protection Mode is on");
+        StringAssert.Contains(adult.ModelText, "Its LoRAs are fast, ink, not bare.");
+        Assert.IsTrue(keptOut.IsError);
+        StringAssert.Contains(keptOut.ModelText, "With Fast it is told nothing to keep out.");
+        Assert.IsFalse(allowed.IsError, allowed.ModelText);
+        CollectionAssert.AreEqual(new[] { ("ink", "people"), ("bare", (string?)null) }, painter.Asked.Select(a => (a.Lora, a.NegativePrompt)).ToArray(),
+                                  "only what was offered reaches the model");
+    }
+
+    [TestMethod]
+    public void TheChoicesOffered_LeaveOutALoraMeantForAdultsOnly_UnlessProtectionIsOff()
+    {
+        Assert.AreEqual(2, GenerateImageTool.Offerable(WithLoras, allowsAdultContent: false).Loras.Count);
+        Assert.AreSame(WithLoras, GenerateImageTool.Offerable(WithLoras, allowsAdultContent: true), "allowed, nothing is left out");
+        var none = new ImageSettings([new(1, 1)]);
+        Assert.AreSame(none, GenerateImageTool.Offerable(none, allowsAdultContent: false), "a model with none for adults is offered as it is");
+    }
+
+    /// <summary>A picture check that answers as told, or cannot run; the pictures it was shown.</summary>
+    private sealed class Check(bool fit, string? failure = null) : IPictureCheck
+    {
+        public readonly List<MediaBytes> Shown = [];
+
+        public Task<bool> FitForGeneralAudienceAsync(MediaBytes picture, CancellationToken ct)
+        {
+            Shown.Add(picture);
+            return failure is null ? Task.FromResult(fit) : Task.FromException<bool>(new InvalidOperationException(failure));
+        }
+    }
+
+    [TestMethod]
+    public async Task WhileProtected_APictureJudgedUnfit_IsWithheld_NeitherSavedNorShown()
+    {
+        var check = new Check(fit: false);
+
+        var result = await new GenerateImageTool(new Painter(), null, Files, check: check).InvokeAsync(new JsonObject { ["prompt"] = "a fox", ["path"] = Context }, default);
+
+        Assert.IsTrue(result.IsError);
+        StringAssert.Contains(result.ModelText, "withheld");
+        StringAssert.Contains(result.ModelText, "offer to draw a version that keeps to a general audience");
+        CollectionAssert.AreEqual(Drawn, check.Shown.Single().Bytes, "the picture drawn is what was checked");
+        Assert.AreEqual(0, Directory.GetFiles(Context).Length, "nothing is kept");
+        Assert.AreEqual(0, _opened.Count, "nothing is shown");
+    }
+
+    [TestMethod]
+    public async Task WhileProtected_APictureWhoseCheckCannotRun_IsNotShown_AndAPictureJudgedFit_IsKeptAsAlways()
+    {
+        var broken = await new GenerateImageTool(new Painter(), null, Files, check: new Check(fit: true, failure: "the classifier would not download"))
+            .InvokeAsync(new JsonObject { ["prompt"] = "a fox", ["path"] = Context }, default);
+        var fit = await new GenerateImageTool(new Painter(), null, Files, check: new Check(fit: true))
+            .InvokeAsync(new JsonObject { ["prompt"] = "a fox", ["path"] = Context }, default);
+
+        Assert.IsTrue(broken.IsError, "it fails closed");
+        StringAssert.Contains(broken.ModelText, "the classifier would not download");
+        Assert.IsFalse(fit.IsError, fit.ModelText);
+        Assert.AreEqual(1, Directory.GetFiles(Context).Length, "only the picture judged fit is kept");
     }
 
     [TestMethod]
@@ -279,15 +432,35 @@ public class GenerationToolsTests
         var tool   = new GenerateVideoTool(filmer, null, Files);
 
         Assert.AreEqual(ToolSafety.RequiresApproval, tool.Safety, "a clip costs minutes and money");
-        CollectionAssert.AreEqual(new[] { "landscape", "portrait" }, tool.Parameters.Single(p => p.Name == "shape").Choices!.ToArray());
+        CollectionAssert.AreEqual(new[] { "landscape", "portrait", "16:9", "9:16" }, tool.Parameters.Single(p => p.Name == "shape").Choices!.ToArray());
         Assert.AreEqual(4, GenerateVideoTool.Nearest(filmer.Lengths, 5));
         Assert.AreEqual(12, GenerateVideoTool.Nearest(filmer.Lengths, 10), "between two, the longer");
 
         var result = await tool.InvokeAsync(new JsonObject { ["prompt"] = "waves at night", ["seconds"] = 7, ["shape"] = "square", ["path"] = Context }, default);
 
         Assert.IsTrue(result.Success, result.ModelText);
-        Assert.AreEqual(new VideoGenerationRequest("waves at night", MediaShape.Landscape, 8), filmer.Asked.Single());
+        Assert.AreEqual(new VideoGenerationRequest("waves at night", new MediaAspect(16, 9), 8), filmer.Asked.Single());
         Assert.AreEqual(Path.Combine(Context, "waves at night.mp4"), result.Attachments!.Single());
+    }
+
+    [TestMethod]
+    public async Task AClip_AtASizeThatMakesOnlySomeLengths_IsMadeAtOneOfThem_AndAnotherIsRefused()
+    {
+        var filmer = new Filmer
+        {
+            Made     = [4, 6, 8],
+            Settings = new([new(16, 9), new(9, 16)]) { Resolutions = [new("720p"), new("1080p") { OnlyLengths = [8] }], Seeds = true },
+        };
+        var tool = new GenerateVideoTool(filmer, null, Files);
+
+        var made = await tool.InvokeAsync(new JsonObject { ["prompt"] = "rain on a window", ["resolution"] = "1080P", ["seconds"] = 4, ["path"] = Context }, default);
+        Assert.IsFalse(made.Success, "1080p makes 8 seconds only");
+        StringAssert.Contains(made.ModelText, "8 seconds only");
+
+        made = await tool.InvokeAsync(new JsonObject { ["prompt"] = "rain on a window", ["resolution"] = "1080p", ["shape"] = "9:16", ["seed"] = 3, ["path"] = Context }, default);
+        Assert.IsTrue(made.Success, made.ModelText);
+        Assert.AreEqual(new VideoGenerationRequest("rain on a window", new MediaAspect(9, 16), 8) { Resolution = "1080p", Seed = 3 }, filmer.Asked.Single(),
+                        "no length asked: the one it makes at that size");
     }
 
     [TestMethod]
@@ -373,6 +546,7 @@ public class GenerationToolsTests
         public DataResidency Residency => DataResidency.LeavesMachine;
         public int MaxSources => Sources;
         public bool Masks => Masking;
+        public ImageSettings Settings { get; init; } = new([new(1, 1), new(3, 2), new(2, 3)]);
         public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<string>>([]);
 
         public Task<GeneratedMedia> GenerateImageAsync(ImageGenerationRequest request, CancellationToken ct = default)
@@ -395,7 +569,8 @@ public class GenerationToolsTests
         public DataResidency Residency => DataResidency.LeavesMachine;
         public IReadOnlyList<int> Lengths => Made;
         public bool StartsFromImages => Pictures;
-        public (int Width, int Height)? FirstFrameSize(MediaShape shape) => Frame;
+        public VideoSettings Settings { get; init; } = new([new(16, 9), new(9, 16)]);
+        public (int Width, int Height)? FirstFrameSize(MediaAspect aspect, string? resolution) => Frame;
         public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<string>>([]);
 
         public Task<GeneratedMedia> GenerateVideoAsync(VideoGenerationRequest request, CancellationToken ct = default)

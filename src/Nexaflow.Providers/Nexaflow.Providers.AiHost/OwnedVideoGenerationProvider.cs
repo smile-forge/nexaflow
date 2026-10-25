@@ -57,8 +57,28 @@ public sealed class OwnedVideoGenerationProvider : IVideoGenerationProvider, ILo
     /// <summary>Whether its model carries a picture on into a clip; FastWan, distilled from text alone, does not.</summary>
     public bool StartsFromImages => _model?.Filming?.StartsFromPictures ?? false;
 
+    /// <summary>Its model's shapes at the sizes it was trained on, from any seed, and kept clear of what it is told to keep out
+    /// where it is guided; one of a name it does not have makes nothing, so it offers its first shape alone.</summary>
+    public VideoSettings Settings => _model?.Filming is { } filming ? SettingsOf(filming) : new([new(16, 9)]);
+
+    internal static VideoSettings SettingsOf(OwnedFilming filming) =>
+        new([.. OwnedFilming.Shapes.Select(shape => MediaAspect.Of(filming.Sizes[shape].Width, filming.Sizes[shape].Height))])
+        {
+            Seeds           = true,
+            NegativePrompts = filming.Method == FilmingMethod.Wan,
+        };
+
     /// <summary>The clip's own size: the picture becomes its first frame.</summary>
-    public (int Width, int Height)? FirstFrameSize(MediaShape shape) => _model?.Filming is { } filming ? filming.Sizes[ClipShape(shape)] : null;
+    public (int Width, int Height)? FirstFrameSize(MediaAspect aspect, string? resolution) => _model?.Filming is { } filming ? SizeOf(filming, aspect) : null;
+
+    /// <summary>The size it films <paramref name="aspect"/> at, or null where it films none in those proportions.</summary>
+    private static (int Width, int Height)? SizeOf(OwnedFilming filming, MediaAspect aspect) =>
+        OwnedFilming.Shapes.Select(shape => filming.Sizes[shape]).Where(size => new MediaAspect(size.Width, size.Height) == aspect)
+                           .Select(size => ((int Width, int Height)?)size).FirstOrDefault();
+
+    /// <summary>What a guided model steers away from: its own negative prompt, then what it is told to keep out.</summary>
+    internal static string NegativePrompt(OwnedFilming filming, string? asked) =>
+        string.IsNullOrWhiteSpace(asked) ? filming.NegativePrompt : $"{filming.NegativePrompt}, {asked.Trim()}";
 
     public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
         => Task.FromResult<IReadOnlyList<string>>([.. _runtime.Runnable(ModelKind.VideoGeneration).Select(m => m.Id)]);
@@ -73,7 +93,9 @@ public sealed class OwnedVideoGenerationProvider : IVideoGenerationProvider, ILo
         if (!filming.Seconds.Contains(request.Seconds))
             throw new ArgumentException($"{_model.Catalog.DisplayName} makes clips of {string.Join(", ", filming.Seconds)} seconds, not {request.Seconds}.", nameof(request));
 
-        var (width, height) = filming.Sizes[ClipShape(request.Shape)];
+        if (SettingsOf(filming).Refusal(request) is { } refused) throw new ArgumentException($"{_model.Catalog.DisplayName}: {refused}", nameof(request));
+
+        var (width, height) = SizeOf(filming, request.Aspect)!.Value;
         byte[]? firstFrame = null;
         if (request.FirstFrame is { } picture)
         {
@@ -90,8 +112,9 @@ public sealed class OwnedVideoGenerationProvider : IVideoGenerationProvider, ILo
         var parts = new Dictionary<string, ModelSpec>();
         foreach (var role in FilmingParts.Of(filming.Method))
             parts[role] = await _runtime.PlacedOnDemandAsync(_model, role, ct);
-        var model = new FilmingModel(filming.Method, parts, filming.Steps, filming.Shift, filming.Guidance, filming.Timesteps, filming.NegativePrompt);
-        long seed = Random.Shared.NextInt64();
+        var model = new FilmingModel(filming.Method, parts, filming.Steps, filming.Shift, filming.Guidance, filming.Timesteps,
+                                     NegativePrompt(filming, request.NegativePrompt));
+        long seed = request.Seed ?? Random.Shared.NextInt64();
 
         var label    = $"Filming with {_model.Catalog.DisplayName}";
         var activity = _runtime.Activities.StartActivity(label + "…");
@@ -145,9 +168,6 @@ public sealed class OwnedVideoGenerationProvider : IVideoGenerationProvider, ILo
             foreach (var back in madeWay) back.Dispose();
         }
     }
-
-    /// <summary>A video model makes no square clips: a square one is made landscape.</summary>
-    private static MediaShape ClipShape(MediaShape shape) => shape == MediaShape.Square ? MediaShape.Landscape : shape;
 
     public ValueTask DisposeAsync()
     {

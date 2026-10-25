@@ -56,5 +56,24 @@
   "Video.Info.Channels.Mono": "Mono",
   "Video.Info.Channels.Stereo": "Stereo",
   "Video.Info.Channels.CountFormat": "{0} ch",
-  "Video.Info.UnnamedSubtitleTrack": "subtitle"
+  "Video.Info.UnnamedSubtitleTrack": "subtitle",
+
+  "Video.Create.GenVideo": "Gen Video",
+  "Video.Generate.WhatHappens": "What happens",
+  "Video.Generate.Shape": "Shape",
+  "Video.Generate.AspectFormat": "{0} · {1}",
+  "Video.Generate.Shape.Square": "Square",
+  "Video.Generate.Shape.Landscape": "Landscape",
+  "Video.Generate.Shape.Portrait": "Portrait",
+  "Video.Generate.Size": "Size",
+  "Video.Generate.Length": "Length",
+  "Video.Generate.SecondsFormat": "{0} seconds",
+  "Video.Generate.ModelsOwn": "The model's own",
+  "Video.Generate.Seed": "Seed",
+  "Video.Generate.SeedTip": "Leave it empty for a new clip each time; the same seed and description make much the same clip again",
+  "Video.Generate.SeedInvalid": "A seed is a whole number, 0 or more.",
+  "Video.Generate.KeepOut": "Keep out",
+  "Video.Generate.Note": "It takes minutes and is made in the background — under the background tasks — then opens when it's done.",
+  "Video.Generate.NoModel": "No model in this workspace makes clips yet. Assign one to Video Generation in the AI settings.",
+  "Video.Generate.Download": "Download the model"
 }

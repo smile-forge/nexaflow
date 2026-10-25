@@ -80,4 +80,29 @@ public class LocalToolModelsTests
 
         Assert.IsNull(whileComing, "while it comes again, the last stop is not said");
     }
+
+    [TestMethod]
+    public async Task APictureCheck_FetchesItsClassifierWhenFirstAsked_AndFailsClosedWithWhy_WhenItWillNotCome()
+    {
+        var store = new ModelAssetStore(_root, [], downloadsAllowed: false);
+        var host = Substitute.For<IAiHost>();
+        var check = new PictureChecking(new OwnedPictureChecking(Substitute.For<IBackgroundActivityManager>(), store, host, new HostModelSetup(host),
+                                                                 new ComputeHardwareReport([], null)), store, null);
+
+        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+            ((Nexaflow.Core.Services.Generation.IPictureCheck)check).FitForGeneralAudienceAsync(new MediaBytes([1], "image/png"), CancellationToken.None));
+
+        StringAssert.Contains(ex.Message, "could not be downloaded", "asking for a check started its download");
+        StringAssert.Contains(ex.Message, "downloads are off", "and says why it did not come");
+        Assert.AreEqual(ToolModelsState.NotDownloaded, check.State, "left to be downloaded again");
+    }
+
+    [TestMethod]
+    [DataRow(0.1f, 0.39f, true, DisplayName = "under the line together")]
+    [DataRow(0.0f, 0.5f, false, DisplayName = "sexual content alone at the line")]
+    [DataRow(0.3f, 0.2f, false, DisplayName = "gore and sexual content together at the line")]
+    public void APicture_IsFit_WhileGoreAndSexualContentTogetherStayUnderTheLine(float gore, float sexual, bool fit)
+    {
+        Assert.AreEqual(fit, PictureChecking.IsFit(new PictureVerdict(gore, sexual, 1 - gore - sexual)));
+    }
 }

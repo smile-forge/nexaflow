@@ -171,6 +171,36 @@ namespace Nexaflow.Features.Common
         void MakeClipFromPicture(ClipFromPicture clip);
 
         /// <summary>
+        /// What the workspace draws a picture with now — by the models <c>generate_image</c> draws with, at each quality it has
+        /// one for; null where it draws none.
+        /// </summary>
+        PictureMaking? MakesPictures { get; }
+
+        /// <summary>
+        /// Draws a picture as the user set it up, the way the assistant's own slow calls run: one of the workspace's background
+        /// jobs — listed with the others and stoppable there, saved as <see cref="PictureAsked.Path"/> (beside it under another
+        /// number where that is taken) and opened when made, the user told when it ends. Returns once it has started; nothing is
+        /// asked first, the user having asked. What needs it is enabled by a gate on the image rows.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">The workspace draws no pictures or runs no background jobs, or the file's
+        /// folder is not there.</exception>
+        void MakePicture(PictureAsked picture);
+
+        /// <summary>
+        /// What the workspace makes a clip from a description with now — by the model <c>generate_video</c> makes one with; null
+        /// where it makes none.
+        /// </summary>
+        ClipChoices? MakesClips { get; }
+
+        /// <summary>
+        /// Makes a clip from a description as the user set it up, a background job as <see cref="MakePicture"/> is, saved as
+        /// <see cref="ClipAsked.Path"/> and opened when made.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">The workspace makes no clips or runs no background jobs, or the file's
+        /// folder is not there.</exception>
+        void MakeClip(ClipAsked clip);
+
+        /// <summary>
         /// Where <paramref name="ability"/> stands in the workspace now: no model assigned, assigned but unreachable, waiting on a
         /// download of a model Nexaflow runs itself, or served. What needs it is enabled while
         /// <see cref="AiAbilityStatus.IsUsable"/> — <see cref="Gate"/> keeps a control so.

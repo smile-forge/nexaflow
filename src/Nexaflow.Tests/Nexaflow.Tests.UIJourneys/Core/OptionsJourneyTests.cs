@@ -107,6 +107,7 @@ public class OptionsJourneyTests : OptionsOverlayJourney
             // ── The editors behind the sections ──────────────────────────────────────
             // Every section rendered above; these drive the controls inside the custom editors. They edit the throwaway
             // config dir's copy, and Cancel at the end discards even that.
+            DriveShell(list);
             DriveWorkspaces(list);
             DriveDefaultActions(list);
             DriveExternalApps(list);
@@ -158,6 +159,17 @@ public class OptionsJourneyTests : OptionsOverlayJourney
                   .Select(e => e.Name ?? string.Empty)
                   .Where(n => n.Length > 0)
                   .ToArray();
+    }
+
+    /// <summary>Shell: Enhanced AI Protection Mode is on until the user turns it off, and its switch turns it off and on
+    /// again — the edit discarded with the rest when the panel is cancelled.</summary>
+    private void DriveShell(AutomationElement list)
+    {
+        SelectSection(list, "Shell", "ShellAiProtectionToggle");
+        Check("Enhanced AI Protection Mode is on until the user turns it off", () =>
+            WaitForId("ShellAiProtectionToggle", 5)?.Patterns.Toggle.PatternOrDefault?.ToggleState.Value == ToggleState.On);
+        Check("Its switch turns it off", () => SetToggle("ShellAiProtectionToggle", false));
+        Check("And on again", () => SetToggle("ShellAiProtectionToggle", true));
     }
 
     /// <summary>

@@ -1066,7 +1066,7 @@
             <!-- ── Create Overlay (single pane: type picker + filename) ─────── -->
             <vcc:ModalCard x:Name="CreateOverlay"
                            Grid.Row="0" Grid.Column="0" Grid.RowSpan="3" Grid.ColumnSpan="3" Panel.ZIndex="21"
-                           Tone="Accent" CardWidth="520" CardMaxHeight="470" Header="{loc:Str WindowsFileSystem.Create.Header}"
+                           Tone="Accent" CardWidth="520" CardMaxHeight="760" Header="{loc:Str WindowsFileSystem.Create.Header}"
                            IsOpen="{Binding CreateOverlayVisible}" CancelCommand="{Binding CancelCreateCommand}">
                 <DockPanel>
                     <!-- Bottom: filename, existence warning, action buttons -->
@@ -1168,6 +1168,9 @@
                             </Button.Style>
                         </Button>
                     </StackPanel>
+
+                    <!-- Above the name: the options the chosen type asks for, when it asks for any -->
+                    <ContentControl x:Name="CreateOptionsHost" DockPanel.Dock="Bottom" Content="{Binding SelectedCreateOptions.View}" Focusable="False"/>
 
                     <!-- Middle: scrollable type icons — ~5 columns, 2 visible rows then scroll
                          (each 84×74 cell + 3px margin = 90×80; 2 rows ≈ 160px). -->

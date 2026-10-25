@@ -8,6 +8,10 @@ public enum DrawingMethod
 
     /// <summary>HiDream-O1: one denoiser that draws in pixels, asked with the prompt and without at each UniPC step.</summary>
     HiDream,
+
+    /// <summary>MOSS-Image: a prompt encoder on llama.cpp, a latent denoiser asked with the prompt and with the negative
+    /// prompt at each Euler step, a VAE decoder; it takes a negative prompt and a LoRA.</summary>
+    MossImage,
 }
 
 /// <summary>The parts an image model has, by role.</summary>
@@ -20,8 +24,9 @@ public static class DrawingParts
     /// <summary>The parts a model <paramref name="method"/> draws with is made of.</summary>
     public static IReadOnlyList<string> Of(DrawingMethod method) => method switch
     {
-        DrawingMethod.ZImage  => [PromptEncoder, Denoiser, Decoder],
-        DrawingMethod.HiDream => [Denoiser],
+        DrawingMethod.ZImage    => [PromptEncoder, Denoiser, Decoder],
+        DrawingMethod.HiDream   => [Denoiser],
+        DrawingMethod.MossImage => [PromptEncoder, Denoiser, Decoder],
         _ => throw new ArgumentOutOfRangeException(nameof(method), method, "no image model draws this way"),
     };
 }
@@ -39,8 +44,20 @@ public sealed record DrawingModel(DrawingMethod Method, IReadOnlyDictionary<stri
 /// </summary>
 /// <param name="Width">In pixels; with <see cref="Height"/>, a size the model draws at.</param>
 /// <param name="Seed">The noise the picture starts from: the same seed and prompt draw the same picture.</param>
+/// <param name="NegativePrompt">What to keep out of the picture, for a model that is told; null for none.</param>
+/// <param name="Lora">The LoRA it is drawn with, for a model that takes one; null for none.</param>
 public sealed record Draw(long RequestId, DrawingModel Model, string Prompt, int Width, int Height, long Seed,
-                          RequestPriority Priority) : HostRequest(RequestId);
+                          RequestPriority Priority, string? NegativePrompt = null, DrawingLora? Lora = null) : HostRequest(RequestId);
+
+/// <summary>
+/// A LoRA a picture is drawn with: an ONNX Runtime adapter for its model's denoiser, applied unmerged at a strength, and
+/// — for a distillation — the sampler it brings in place of its model's own.
+/// </summary>
+/// <param name="Adapter">The adapter file, on this machine.</param>
+/// <param name="Strength">How much of it is added; 1 as its makers trained it.</param>
+/// <param name="Sampler">A distillation's own sampler, its file on this machine; null for a LoRA drawn with its model's
+/// sampler.</param>
+public sealed record DrawingLora(string Adapter, float Strength, string? Sampler = null);
 
 /// <summary>The picture, as a PNG.</summary>
 public sealed record Drawn(long RequestId, byte[] Png) : HostReply(RequestId);

@@ -112,11 +112,10 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
 
     /// <summary>Fetches another build of a model that is here. The store refuses it when its drive has no room, and the
     /// activity says so.</summary>
-    private async Task<bool> FetchFilesAsync(OwnedEntry model, IReadOnlyList<ModelAsset> files, CancellationToken ct)
+    private async Task<bool> FetchFilesAsync(string name, IReadOnlyList<ModelAsset> files, CancellationToken ct)
     {
         if (files.All(f => assets.Locate(f) is not null)) return true;
 
-        string name = model.Catalog.DisplayName;
         var activity = activities.StartActivity($"Downloading {name}…");
         var lastPercent = -1;
         var progress = new Progress<AssetProgress>(p =>
@@ -276,7 +275,7 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
     {
         var part = model.Parts.First(p => PartId(model, p) == placed.Id && p.Folder == placed.Folder);
         var files = model.Catalog.Files.Where(f => f.RelativePath.StartsWith(part.Folder + "/", StringComparison.Ordinal)).ToList();
-        if (!files.All(f => assets.Locate(f) is not null) && (!IsHere(model) || !await FetchFilesAsync(model, files, ct)))
+        if (!files.All(f => assets.Locate(f) is not null) && (!IsHere(model) || !await FetchFilesAsync(model.Catalog.DisplayName, files, ct)))
             throw new LlmProviderException($"{model.Catalog.DisplayName} is not on this machine yet.");
 
         // Its folder is where its files are: a file's path, less its place inside the part's folder — whatever root the
@@ -285,6 +284,19 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
         var path = assets.Locate(file)!;
         var inside = file.RelativePath[(part.Folder.Length + 1)..].Replace('/', Path.DirectorySeparatorChar);
         return placed with { Folder = path[..^inside.Length].TrimEnd(Path.DirectorySeparatorChar) };
+    }
+
+    /// <summary>
+    /// Where <paramref name="files"/> are on this machine — files of a model that is here, fetched only once a request
+    /// first asks for them, such as a LoRA's — downloading them first, shown on the activity as <paramref name="name"/>.
+    /// Asking for them is the user's start to that download, as choosing a model to download is.
+    /// </summary>
+    /// <exception cref="LlmProviderException">The model is not here, or the files would not come.</exception>
+    public async Task<IReadOnlyList<string>> FetchedAsync(OwnedEntry model, string name, IReadOnlyList<ModelAsset> files, CancellationToken ct)
+    {
+        if (!IsHere(model)) throw new LlmProviderException($"{model.Catalog.DisplayName} is not on this machine yet.");
+        if (!await FetchFilesAsync(name, files, ct)) throw new LlmProviderException($"{name} could not be downloaded.");
+        return [.. files.Select(f => assets.Locate(f) ?? throw new LlmProviderException($"{name} is not on this machine yet."))];
     }
 
     /// <summary>Where one of <paramref name="part"/>'s files is on this machine.</summary>

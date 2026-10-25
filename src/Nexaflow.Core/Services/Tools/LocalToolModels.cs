@@ -20,6 +20,7 @@ public abstract class LocalToolModels : ILocalTool
     private readonly IBackgroundActivityManager? _activities;
     private readonly Lock _gate = new();
     private bool _downloading;
+    private Task _fetching = Task.CompletedTask;
     private int _percent;
 
     private string? _failure;
@@ -66,9 +67,27 @@ public abstract class LocalToolModels : ILocalTool
             _percent = 0;
             _failure = null;
             _downloading = true;
+            _fetching = FetchAsync();
         }
-        _ = FetchAsync();
         Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Waits until the tool is here, starting its download where none is under way — for a tool the app runs on the
+    /// person's behalf as part of other work, such as a check every picture made passes, where asking for that work is
+    /// asking for the tool.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">It does not run on this machine, or its download failed.</exception>
+    protected async Task ReadyAsync(CancellationToken ct)
+    {
+        if (State is ToolModelsState.Ready) return;
+        if (State is ToolModelsState.Unavailable) throw new InvalidOperationException($"{Name} does not run on this machine.");
+        Download();
+        Task fetching;
+        lock (_gate) fetching = _fetching;
+        await fetching.WaitAsync(ct);
+        if (State is not ToolModelsState.Ready)
+            throw new InvalidOperationException(DownloadFailure is { } why ? $"{Name} could not be downloaded: {why}" : $"{Name} is not on this machine.");
     }
 
     private async Task FetchAsync()

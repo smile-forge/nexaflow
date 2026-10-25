@@ -6,7 +6,8 @@ namespace Nexaflow.Providers.Gemini;
 
 /// <summary>
 /// Google's Veo models: a clip landscape or portrait, optionally starting from a picture of any size. The job is
-/// started, watched until it is done and the MP4 downloaded. Veo 3 makes 4, 6 or 8 seconds; Veo 2 five to eight.
+/// started, watched until it is done and the MP4 downloaded. Veo 3 makes 4, 6 or 8 seconds at 720p, and 8 at 1080p or
+/// — but for Veo 3.1 Lite — 4k; Veo 3.0 takes a seed. Veo 2 makes five to eight seconds at its one size.
 /// </summary>
 public sealed class GeminiVideoGenerationProvider : IVideoGenerationProvider
 {
@@ -40,7 +41,26 @@ public sealed class GeminiVideoGenerationProvider : IVideoGenerationProvider
 
     public bool StartsFromImages => true;
 
-    public (int Width, int Height)? FirstFrameSize(MediaShape shape) => null;
+    public VideoSettings Settings => SettingsOf(_model);
+
+    /// <summary>What each Veo model makes a clip with.</summary>
+    internal static VideoSettings SettingsOf(string model)
+    {
+        var veo2 = model.StartsWith("veo-2", StringComparison.OrdinalIgnoreCase);
+        var lite = model.Contains("lite", StringComparison.OrdinalIgnoreCase);
+        return new([new(16, 9), new(9, 16)])
+        {
+            Resolutions = veo2 ? [] :
+            [
+                new("720p"),
+                new("1080p") { OnlyLengths = [8] },
+                .. lite ? Array.Empty<VideoResolution>() : [new VideoResolution("4k") { OnlyLengths = [8] }],
+            ],
+            Seeds = model.StartsWith("veo-3.0", StringComparison.OrdinalIgnoreCase),
+        };
+    }
+
+    public (int Width, int Height)? FirstFrameSize(MediaAspect aspect, string? resolution) => null;
 
     public async Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
     {
@@ -62,17 +82,11 @@ public sealed class GeminiVideoGenerationProvider : IVideoGenerationProvider
     internal static IReadOnlyList<int> LengthsOf(string model) =>
         model.StartsWith("veo-2", StringComparison.OrdinalIgnoreCase) ? [5, 6, 7, 8] : [4, 6, 8];
 
-    internal static string AspectRatio(MediaShape shape) => shape switch
-    {
-        MediaShape.Landscape => "16:9",
-        MediaShape.Portrait  => "9:16",
-        _ => throw new ArgumentOutOfRangeException(nameof(shape), shape, "Veo makes no square clips."),
-    };
-
     public async Task<GeneratedMedia> GenerateVideoAsync(VideoGenerationRequest request, CancellationToken ct = default)
     {
         if (!Lengths.Contains(request.Seconds))
-            throw new ArgumentException($"{_model} makes clips of {string.Join(", ", Lengths)} seconds.", nameof(request));
+                throw new ArgumentException($"{_model} makes clips of {string.Join(", ", Lengths)} seconds.", nameof(request));
+            if (Settings.Refusal(request) is { } refused) throw new ArgumentException($"{_model}: {refused}", nameof(request));
 
         var activity = _activityManager.StartActivity($"Gemini video ({_model})…");
         try
@@ -82,8 +96,10 @@ public sealed class GeminiVideoGenerationProvider : IVideoGenerationProvider
             var config = new GenerateVideosConfig
             {
                 NumberOfVideos  = 1,
-                AspectRatio     = AspectRatio(request.Shape),
+                AspectRatio     = request.Aspect.ToString(),
                 DurationSeconds = request.Seconds,
+                Resolution      = request.Resolution,
+                Seed            = request.Seed,
             };
 
             var job = await Client.Models.GenerateVideosAsync(_model, source, config, ct);
