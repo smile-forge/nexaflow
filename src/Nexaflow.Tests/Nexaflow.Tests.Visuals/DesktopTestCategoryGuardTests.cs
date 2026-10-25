@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Visuals;
@@ -31,8 +32,9 @@ namespace Nexaflow.Tests.Visuals;
 [NoCoverage("a test-suite hygiene rule, not a product behaviour")]
 public class DesktopTestCategoryGuardTests
 {
-    /// <summary>What, in source, gives away a test that puts a real window on the desktop.</summary>
-    private static readonly string[] NeedsADesktop = ["new Window", "MarkdownEditorHarness"];
+    /// <summary>What, in source, gives away a test that puts a real window on the desktop. Whole words only:
+    /// <c>new WindowPlacement(…)</c> builds a record, not a window.</summary>
+    private static readonly Regex NeedsADesktop = new(@"\bnew Window\b|\bMarkdownEditorHarness\b", RegexOptions.Compiled);
 
     [TestMethod]
     public void ATestThatShowsAWindowDeclaresItAndDoesNotRunInParallel()
@@ -43,7 +45,7 @@ public class DesktopTestCategoryGuardTests
         {
             var source = File.ReadAllText(file);
             if (!source.Contains("[TestClass]", StringComparison.Ordinal)) continue;
-            if (!NeedsADesktop.Any(marker => source.Contains(marker, StringComparison.Ordinal))) continue;
+            if (!NeedsADesktop.IsMatch(source)) continue;
 
             var name = Path.GetFileName(file);
             if (!source.Contains("""TestCategory("Desktop")""", StringComparison.Ordinal))
