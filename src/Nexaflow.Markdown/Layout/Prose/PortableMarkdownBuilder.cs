@@ -17,74 +17,56 @@ namespace Nexaflow.Markdown.Layout.Prose;
 /// layout already made, the same either way.
 /// </para>
 /// </summary>
-public sealed partial class PortableMarkdownBuilder
+public sealed partial class PortableMarkdownBuilder : PortableContentBuilder
 {
     private const double Widest = 640;
     private const double Biggest = 600;
 
-    private readonly ContentReading _reading;
-    private readonly EditState _state;
-    private readonly PortableStyle _style;
-    private readonly bool _readOnly;
-    private readonly PortableNesting _nesting;
-    private readonly ILayoutMedium _medium;
-    private readonly Func<ContentPart, PortableLinkLook?> _links;
-    private readonly Func<ContentPart, LayoutPicture?> _pictures;
-
     private double _y;
     private double _reach;
-    private double _room = double.PositiveInfinity;
 
-    /// <param name="links">How this showing wants each link to look — what its stage settled, said in the medium's inks.</param>
-    /// <param name="pictures">The picture each <c>![alt](where)</c> names, where this showing found one.</param>
-    public PortableMarkdownBuilder(ContentReading reading, EditState state, PortableStyle style, bool isReadOnly, PortableNesting nesting,
-                                   ILayoutMedium medium, Func<ContentPart, PortableLinkLook?> links, Func<ContentPart, LayoutPicture?> pictures)
+    public PortableMarkdownBuilder(ContentReading reading, EditState state, PortableStyle style, bool isReadOnly, ILayoutMedium medium,
+                                   PortableHost host)
+        : base(reading, state, style, isReadOnly, medium, host)
     {
-        _reading = reading;
-        _state = state;
-        _style = style;
-        _readOnly = isReadOnly;
-        _nesting = nesting;
-        _medium = medium;
-        _links = links;
-        _pictures = pictures;
     }
 
-    private bool Writing => !_readOnly;
-
-    /// <summary>Lays the document out. Never null, and never throws.</summary>
-    public PortableLaid Lay(double room = double.PositiveInfinity)
+    /// <summary>Unreadable source shown in a monospaced face, so it reads as the source it is.</summary>
+    protected override PortableCharacters Characters
     {
-        _room = double.IsNaN(room) || room <= 0 ? double.PositiveInfinity : room;
-
-        try
+        get
         {
-            return Build() ?? AsSource([]);
-        }
-        catch (Exception error)
-        {
-            return AsSource([PortableDiagnostic.Of(_reading.Root, string.Format(CultureInfo.CurrentCulture,
-                                                                                 _style.Says("Text.Content.CouldNotSet"), error.Message))]);
+            var face = Face.Plain with { Mono = true };
+            return new PortableCharacters(Typeface(face), Size(face), Style.Text);
         }
     }
 
-    private PortableLaid AsSource(IReadOnlyList<PortableDiagnostic> blamed)
+    protected override PortableLaid? Build()
     {
-        var face = Face.Plain with { Mono = true };
-        return PortableSourceShown.Lay(_reading.Root, blamed, _medium, Typeface(face), Size(face), _style.Text, _style, _room);
-    }
+        if (Reading.Root.Length == 0 || Reading.Root.Children.All(child => child.Role == Roles.Trivia || child.Derived)) return null;
 
-    private PortableLaid? Build()
-    {
-        if (_reading.Root.Length == 0 || _reading.Root.Children.All(child => child.Role == Roles.Trivia || child.Derived)) return null;
+        var into = new PortableBuilder(Medium, Expected());
 
-        var into = new PortableBuilder(_medium);
-
-        into.Open(PortablePieces.Document, _reading.Root, stops: PortableStops.None);
-        Blocks(into, _reading.Root, 0, Fits(_room));
+        into.Open(PortablePieces.Document, Reading.Root, stops: PortableStops.None);
+        Blocks(into, Reading.Root, 0, Fits(Room));
         into.Close();
 
         return new PortableLaid(into.Seal(), Math.Max(_reach, 1), Math.Max(_y, 1), Trouble());
+    }
+
+    /// <summary>
+    /// About how many pieces the document will come to: what its kept blocks came to last time, and a little over for the block typed
+    /// in — so the document's lists are made once at about the size they end up rather than grown to it.
+    /// </summary>
+    private int Expected()
+    {
+        if (LaidBlocks.Of(Reading.Root) is not { } laid) return 0;
+
+        var pieces = 1;
+        for (var at = 0; at < Reading.Root.Children.Count; at++)
+            if (!Reading.Root.Children[at].Derived && laid.For(at)?.Last is { } last) pieces += last.Tree.Count;
+
+        return pieces + (pieces / 8);
     }
 
     // ── Blocks ──────────────────────────────────────────────────────────────
@@ -94,6 +76,7 @@ public sealed partial class PortableMarkdownBuilder
         ContentPart? above = null;
 
         var whole = holder.Parent is null;
+        var laid = whole ? LaidBlocks.Of(holder) : null;
         var folded = whole ? Folded(holder) : null;
 
         for (var at = 0; at < holder.Children.Count; at++)
@@ -106,7 +89,7 @@ public sealed partial class PortableMarkdownBuilder
             if (above is not null) _y += Between(above, part);
             above = part;
 
-            if (whole) Whole(into, part, x, room);
+            if (whole) Whole(into, part, x, room, laid?.For(at));
             else Block(into, part, x, room);
 
             if (folded is not null && folded.Behind.TryGetValue(at, out var fold)) Fold(into, part, fold.Key, fold.Blocks, x);
@@ -115,7 +98,7 @@ public sealed partial class PortableMarkdownBuilder
 
     private SectionFolds? Folded(ContentPart document)
     {
-        if (_style.Expansion is not { Count: > 0 } said) return null;
+        if (Style.Expansion is not { Count: > 0 } said) return null;
 
         var sections = MarkdownSections.Of(document.Node);
         if (sections.Sections.Count == 0) return null;
@@ -143,18 +126,18 @@ public sealed partial class PortableMarkdownBuilder
 
     private void Fold(PortableBuilder into, ContentPart heading, string key, int blocks, double x)
     {
-        var says = Glyphs($"+{blocks}", Face.Plain with { Scale = 0.85, Ink = _style.TextMuted });
-        var pad = _style.TextSize * 0.4;
+        var says = Glyphs($"+{blocks}", Face.Plain with { Scale = 0.85, Ink = Style.TextMuted });
+        var pad = Style.TextSize * 0.4;
 
         _y += Gap * 0.3;
 
-        var box = _medium.Rectangle(new LayoutRect(0, 0, says.Width + (pad * 2), says.Height + (pad * 0.5)), 3, 3);
+        var box = Medium.Rectangle(new LayoutRect(0, 0, says.Width + (pad * 2), says.Height + (pad * 0.5)), 3, 3);
 
         into.Open(PortablePieces.Fold, heading, new LayoutPoint(x, _y), PortableStops.None);
         into.Acts(new PortableActions { Click = new PortableIntent(PortableVerbs.Expand, key, "Unfold this section") });
-        into.Draw(new PortableGeometryMark(box, _style.QuoteBg, null));
+        into.Draw(new PortableGeometryMark(box, Style.QuoteBg, null));
         into.Occupies(box);
-        into.Draw(new PortableTextMark(says, new LayoutPoint(pad, pad * 0.25), _style.TextMuted));
+        into.Draw(new PortableTextMark(says, new LayoutPoint(pad, pad * 0.25), Style.TextMuted));
         into.Close();
 
         _y += box.Bounds.Height;
@@ -173,13 +156,41 @@ public sealed partial class PortableMarkdownBuilder
         var after = (above.Node.HeldAs(MarkdownRoles.Typeset) as ParagraphLook)?.After;
         var before = (below.Node.HeldAs(MarkdownRoles.Typeset) as ParagraphLook)?.Before;
 
-        return after is null && before is null ? Gap : ((after ?? 0) + (before ?? 0)) * _style.TextSize;
+        return after is null && before is null ? Gap : ((after ?? 0) + (before ?? 0)) * Style.TextSize;
     }
 
     /// <summary>One block of the document, as a piece of its own standing at the top of its own frame, its picture kept once painted.</summary>
-    private void Whole(PortableBuilder into, ContentPart part, double x, double room)
+    /// <summary>
+    /// One block of the document, as a piece of its own standing at the top of its own frame — so it means the same wherever it is set
+    /// down, and its picture is kept once painted.
+    ///
+    /// <para>
+    /// Where the reading says the block reads exactly as it did last time (<see cref="LaidBlocks"/>), the layout it was given then is
+    /// set down again rather than laid again: the same block at the same room lays out the same. Only what its pieces stand for has
+    /// moved, and by one amount. Not where somebody is being shown the characters of it, which is a different drawing of the same
+    /// block, and not where a part of it cannot be found again, which is laid afresh rather than guessed at. What is kept is always of
+    /// this reading, so a layout never holds a reading older than the one it was set down from.
+    /// </para>
+    /// </summary>
+    private void Whole(PortableBuilder into, ContentPart part, double x, double room, LaidBlock? laid)
     {
-        var (y, reach) = (_y, _reach);
+        var shown = State.Raw is { } zone && zone.Start <= part.End && part.Start <= zone.End;
+
+        if (!shown && laid?.Last is { } last && last.Room == room && last.IsReadOnly == IsReadOnly && last.At(part) is { } moved)
+        {
+            var tree = last.Tree.Parted(moved.Parts);
+
+            into.Graft(tree, new LayoutPoint(0, _y));
+            _borrowed.AddRange(moved.Trouble);
+
+            laid.Last = last with { Part = part, Tree = tree, Trouble = moved.Trouble };
+
+            _y += last.Height;
+            Reached(last.Reach);
+            return;
+        }
+
+        var (y, reach, borrowed) = (_y, _reach, _borrowed.Count);
         (_y, _reach) = (0, 0);
 
         var apart = Rent();
@@ -193,6 +204,9 @@ public sealed partial class PortableMarkdownBuilder
 
         into.Graft(made, new LayoutPoint(0, _y));
         _y += height;
+
+        if (laid is not null)
+            laid.Last = shown ? null : new KeptLaying(part, made, height, reached, [.. _borrowed.Skip(borrowed)], room, IsReadOnly);
     }
 
     private void Block(PortableBuilder into, ContentPart part, double x, double room)
@@ -211,7 +225,7 @@ public sealed partial class PortableMarkdownBuilder
             case Kinds.Block: Fenced(into, part, x, room); return;
 
             case MarkdownKinds.Definition: Blocks(into, Body(part), x, room); return;
-            case MarkdownKinds.Term: Text(into, Body(part), x, room, Face.Plain with { Bold = true, Ink = _style.DefTerm }); return;
+            case MarkdownKinds.Term: Text(into, Body(part), x, room, Face.Plain with { Bold = true, Ink = Style.DefTerm }); return;
             case MarkdownKinds.Described: Described(into, part, x, room); return;
             case MarkdownKinds.Figure: Figured(into, part, x, room); return;
             case MarkdownKinds.Caption: Captioned(into, part, x, room); return;
@@ -232,18 +246,16 @@ public sealed partial class PortableMarkdownBuilder
 
     private void Paragraph(PortableBuilder into, ContentPart part, double x, double room, ParagraphLook look)
     {
-        var em = _style.TextSize;
+        var em = Style.TextSize;
         var start = Math.Max(look.Indent * em, 0);
         var width = room - start - Math.Max(look.EndIndent * em, 0);
 
         Text(into, Body(part), x + start, Math.Max(width, em), Face.Plain, look);
     }
 
-    private PortableInset? Nested(ContentPart part, double room, PortableStanding standing) => _nesting(part, room, standing);
-
     private void Sourced(PortableBuilder into, ContentPart part, double x, double room) =>
         Set(into, part.Part(Roles.Body) is { } body ? (body, body.Text) : null, part, Face.Plain with { Mono = true, Scale = 0.96 }, x, room,
-            PortableText.SourceKind, _style.Text);
+            PortableText.SourceKind, Style.Text);
 
     private double Set(PortableBuilder into, (ISourcePart Part, string Says)? written, ContentPart holder, Face face, double x, double room,
                        string kind, LayoutInk ink)
@@ -287,17 +299,17 @@ public sealed partial class PortableMarkdownBuilder
         {
             Bold = true,
             Scale = Ranks[Math.Clamp(rank, 1, Ranks.Length) - 1],
-            Ink = _style.Heading,
+            Ink = Style.Heading,
         });
 
         if (rank > 2) return;
 
-        var thick = Math.Max(1, _style.TextSize / 16);
+        var thick = Math.Max(1, Style.TextSize / 16);
 
         _y += Gap * 0.25;
 
         into.Open(PortablePieces.Rule, part, new LayoutPoint(x, _y), PortableStops.None);
-        into.Draw(new PortableRuleMark(new LayoutRect(0, 0, Math.Max(room, 1), thick), _style.Hr));
+        into.Draw(new PortableRuleMark(new LayoutRect(0, 0, Math.Max(room, 1), thick), Style.Hr));
         into.Close();
 
         _y += thick;
@@ -308,10 +320,10 @@ public sealed partial class PortableMarkdownBuilder
 
     private void Rule(PortableBuilder into, ContentPart part, double x, double room)
     {
-        var thick = Math.Max(1, _style.TextSize / 13.5);
+        var thick = Math.Max(1, Style.TextSize / 13.5);
 
         into.Open(PortablePieces.Rule, part, new LayoutPoint(x, _y), PortableStops.None);
-        into.Draw(new PortableRuleMark(new LayoutRect(0, Gap * 0.5, Math.Max(room, 1), thick), _style.Hr));
+        into.Draw(new PortableRuleMark(new LayoutRect(0, Gap * 0.5, Math.Max(room, 1), thick), Style.Hr));
         into.Covers(new LayoutRect(0, 0, Math.Max(room, 1), thick + Gap));
         into.Close();
 
@@ -335,8 +347,8 @@ public sealed partial class PortableMarkdownBuilder
 
     private void Quoted(PortableBuilder into, ContentPart part, double x, double room)
     {
-        var bar = Math.Max(2, _style.TextSize * 4 / 13.5);
-        var pad = _style.TextSize * 0.6;
+        var bar = Math.Max(2, Style.TextSize * 4 / 13.5);
+        var pad = Style.TextSize * 0.6;
         var inside = Math.Max(room - bar - pad * 2, 1);
 
         var (ink, label) = Calls(part);
@@ -352,7 +364,7 @@ public sealed partial class PortableMarkdownBuilder
         var top = _y;
 
         into.Open(PortablePieces.Block, part, new LayoutPoint(x, top), PortableStops.None);
-        into.Draw(new PortableWashMark(new LayoutRect(0, 0, Math.Max(room, 1), height), _style.QuoteBg));
+        into.Draw(new PortableWashMark(new LayoutRect(0, 0, Math.Max(room, 1), height), Style.QuoteBg));
         into.Draw(new PortableRuleMark(new LayoutRect(0, 0, bar, height), ink));
         into.Graft(tree, new LayoutPoint(bar + pad, pad * 0.5));
         into.Close();
@@ -363,19 +375,19 @@ public sealed partial class PortableMarkdownBuilder
 
     private (LayoutInk Ink, string? Label) Calls(ContentPart part)
     {
-        if (part.Kind != MarkdownKinds.Alert) return (_style.Accent, null);
+        if (part.Kind != MarkdownKinds.Alert) return (Style.Accent, null);
 
         var name = Marker(part)?.Part(Roles.Name)?.Text ?? string.Empty;
 
         return name.ToUpperInvariant() switch
         {
-            "NOTE" => (_style.Accent, "Note"),
-            "TIP" => (_style.Success, "Tip"),
-            "IMPORTANT" => (_style.Important, "Important"),
-            "WARNING" => (_style.Warning, "Warning"),
-            "CAUTION" => (_style.Danger, "Caution"),
-            "" => (_style.Accent, null),
-            _ => (_style.Accent, char.ToUpperInvariant(name[0]) + name[1..].ToLowerInvariant()),
+            "NOTE" => (Style.Accent, "Note"),
+            "TIP" => (Style.Success, "Tip"),
+            "IMPORTANT" => (Style.Important, "Important"),
+            "WARNING" => (Style.Warning, "Warning"),
+            "CAUTION" => (Style.Danger, "Caution"),
+            "" => (Style.Accent, null),
+            _ => (Style.Accent, char.ToUpperInvariant(name[0]) + name[1..].ToLowerInvariant()),
         };
     }
 
@@ -418,7 +430,7 @@ public sealed partial class PortableMarkdownBuilder
 
     private void Item(PortableBuilder into, ContentPart item, double x, double room, MarkdownNumbering? counting)
     {
-        var indent = _style.TextSize * 1.6;
+        var indent = Style.TextSize * 1.6;
         var tick = item.Children.FirstOrDefault(child => child.Kind == MarkdownKinds.Task);
 
         if (tick is not null) Ticked(into, tick, x + indent * 0.2);
@@ -430,7 +442,7 @@ public sealed partial class PortableMarkdownBuilder
     private void Marker(PortableBuilder into, ContentPart item, double x, double indent, MarkdownNumbering? counting)
     {
         var written = item.Children.FirstOrDefault(child => child.Role == Roles.Trivia && !child.Derived);
-        var face = Face.Plain with { Ink = _style.TextMuted };
+        var face = Face.Plain with { Ink = Style.TextMuted };
         var glyphs = Glyphs(Numbered(counting), face);
 
         PortableText.Words(into, glyphs, new LayoutPoint(x, _y), indent * 0.85, LayoutAlign.Left, written ?? item, PortablePieces.Marker,
@@ -488,19 +500,19 @@ public sealed partial class PortableMarkdownBuilder
     private void Ticked(PortableBuilder into, ContentPart tick, double x)
     {
         var done = tick.Part(MarkdownRoles.Done) is not null;
-        var side = _style.TextSize * 0.82;
+        var side = Style.TextSize * 0.82;
         var round = side * 0.22;
 
-        into.Open(PortablePieces.Tick, tick, new LayoutPoint(x, _y + _style.TextSize * 0.22));
-        into.Draw(new PortableGeometryMark(_medium.Rectangle(new LayoutRect(0, 0, side, side), round, round),
-                                           done ? _style.Accent : null, _medium.Stroke(_style.CodeBorder, Math.Max(1, side * 0.09))));
+        into.Open(PortablePieces.Tick, tick, new LayoutPoint(x, _y + Style.TextSize * 0.22));
+        into.Draw(new PortableGeometryMark(Medium.Rectangle(new LayoutRect(0, 0, side, side), round, round),
+                                           done ? Style.Accent : null, Medium.Stroke(Style.CodeBorder, Math.Max(1, side * 0.09))));
 
-        if (done) into.Draw(new PortableGeometryMark(Ticking(side), null, _medium.Stroke(_style.Text, Math.Max(1.4, side * 0.14))));
+        if (done) into.Draw(new PortableGeometryMark(Ticking(side), null, Medium.Stroke(Style.Text, Math.Max(1.4, side * 0.14))));
 
         into.Acts(new PortableActions
         {
             Click = new PortableIntent(PortablePieces.TickVerb, done ? "off" : "on",
-                                       done ? _style.Says("Text.Markdown.TaskUndone") : _style.Says("Text.Markdown.TaskDone")),
+                                       done ? Style.Says("Text.Markdown.TaskUndone") : Style.Says("Text.Markdown.TaskDone")),
         });
 
         into.Covers(new LayoutRect(0, 0, side, side));
@@ -511,7 +523,7 @@ public sealed partial class PortableMarkdownBuilder
 
     private LayoutShape Ticking(double side)
     {
-        var path = _medium.Outline(evenOdd: true);
+        var path = Medium.Outline(evenOdd: true);
         path.Begin(new LayoutPoint(side * 0.22, side * 0.52), filled: true, closed: false);
         path.LineTo(new LayoutPoint(side * 0.42, side * 0.73));
         path.LineTo(new LayoutPoint(side * 0.79, side * 0.27));
@@ -546,7 +558,7 @@ public sealed partial class PortableMarkdownBuilder
     private void AsWritten(PortableBuilder into, ContentPart part, double x, double room)
     {
         var held = Held(part);
-        var pad = _style.TextSize * 0.55;
+        var pad = Style.TextSize * 0.55;
         var face = Face.Plain with { Mono = true, Scale = 0.94 };
 
         var glyphs = new IShapedText[held.Count];
@@ -562,7 +574,7 @@ public sealed partial class PortableMarkdownBuilder
         var top = _y;
 
         into.Open(PortablePieces.Block, part, new LayoutPoint(x, top), PortableStops.None);
-        into.Draw(new PortableWashMark(new LayoutRect(0, 0, Math.Max(room, 1), height), _style.CodeBg));
+        into.Draw(new PortableWashMark(new LayoutRect(0, 0, Math.Max(room, 1), height), Style.CodeBg));
         into.Close();
 
         var (across, down) = (x + pad, top + pad);
@@ -570,7 +582,7 @@ public sealed partial class PortableMarkdownBuilder
         for (var at = 0; at < held.Count; at++)
         {
             PortableText.Words(into, glyphs[at], new LayoutPoint(across, down), Math.Max(1, room - pad * 2), LayoutAlign.Left,
-                               held[at].Part, PortablePieces.Verbatim, maps: held[at].Says.Length > 0, ink: _style.Text);
+                               held[at].Part, PortablePieces.Verbatim, maps: held[at].Says.Length > 0, ink: Style.Text);
             down += glyphs[at].Height;
         }
 
@@ -584,7 +596,7 @@ public sealed partial class PortableMarkdownBuilder
 
             var set = Glyphs(mark.Text, face);
             PortableText.Words(into, set, new LayoutPoint(across, down), set.Width + 1, LayoutAlign.Left, mark, PortablePieces.Verbatim,
-                               maps: true, ink: _style.Text);
+                               maps: true, ink: Style.Text);
             across += set.Width;
         }
 
@@ -601,7 +613,7 @@ public sealed partial class PortableMarkdownBuilder
     {
         var block = ContentNested.Holders(part.Part(Roles.Body) ?? part).FirstOrDefault() ?? part;
         var face = Face.Plain with { Mono = true, Scale = 0.94 };
-        var shown = PortableSourceShown.Lay(block, why, _medium, Typeface(face), Size(face), face.Ink ?? _style.Text, _style, Fits(room));
+        var shown = PortableSourceShown.Lay(block, why, Medium, Typeface(face), Size(face), face.Ink ?? Style.Text, Style, Fits(room));
         _borrowed.AddRange(shown.Trouble);
 
         into.Open(PortablePieces.Block, part, new LayoutPoint(x, _y), stops: PortableStops.None);
@@ -613,35 +625,35 @@ public sealed partial class PortableMarkdownBuilder
 
     private void Muted(PortableBuilder into, ContentPart part, double x, double room)
     {
-        var face = Face.Plain with { Mono = true, Scale = 0.94, Ink = _style.TextMuted };
+        var face = Face.Plain with { Mono = true, Scale = 0.94, Ink = Style.TextMuted };
         var held = Held(part);
 
-        if (held.Count == 0) Set(into, null, part, face, x, room, PortablePieces.Verbatim, _style.TextMuted);
+        if (held.Count == 0) Set(into, null, part, face, x, room, PortablePieces.Verbatim, Style.TextMuted);
 
-        foreach (var run in held) Set(into, run, part, face, x, room, PortablePieces.Verbatim, _style.TextMuted);
+        foreach (var run in held) Set(into, run, part, face, x, room, PortablePieces.Verbatim, Style.TextMuted);
     }
 
     private void Described(PortableBuilder into, ContentPart part, double x, double room)
     {
-        var indent = _style.TextSize * 1.8;
+        var indent = Style.TextSize * 1.8;
 
         Blocks(into, Body(part), x + indent, Math.Max(room - indent, 1));
     }
 
     private void Figured(PortableBuilder into, ContentPart part, double x, double room)
     {
-        var pad = _style.TextSize * 0.9;
+        var pad = Style.TextSize * 0.9;
         var inside = Math.Max(room - (pad * 2), 1);
 
         var (tree, _, laidHeight) = Apart(sub => Blocks(sub, Body(part), 0, inside));
 
         var height = laidHeight + (pad * 1.2);
-        var round = Math.Max(2, _style.TextSize * 0.3);
+        var round = Math.Max(2, Style.TextSize * 0.3);
         var top = _y;
 
         into.Open(PortablePieces.Block, part, new LayoutPoint(x, top), PortableStops.None);
-        into.Draw(new PortableGeometryMark(_medium.Rectangle(new LayoutRect(0, 0, Math.Max(room, 1), height), round, round),
-                                           _style.FigureBg, _medium.Stroke(_style.FigureBorder, 1)));
+        into.Draw(new PortableGeometryMark(Medium.Rectangle(new LayoutRect(0, 0, Math.Max(room, 1), height), round, round),
+                                           Style.FigureBg, Medium.Stroke(Style.FigureBorder, 1)));
         into.Graft(tree, new LayoutPoint(pad, pad * 0.6));
         into.Close();
 
@@ -651,7 +663,7 @@ public sealed partial class PortableMarkdownBuilder
 
     private void Captioned(PortableBuilder into, ContentPart part, double x, double room)
     {
-        var face = Face.Plain with { Italic = true, Scale = Caption, Ink = _style.TextMuted };
+        var face = Face.Plain with { Italic = true, Scale = Caption, Ink = Style.TextMuted };
         var (tree, width, height) = Apart(sub => Text(sub, Body(part), 0, room, face));
 
         into.Open(PortablePieces.Block, part, new LayoutPoint(x + Math.Max((room - width) / 2, 0), _y), PortableStops.None);
@@ -664,8 +676,8 @@ public sealed partial class PortableMarkdownBuilder
 
     private void Footed(PortableBuilder into, ContentPart part, double x, double room)
     {
-        var pad = _style.TextSize * 0.3;
-        var thick = Math.Max(1, _style.TextSize / 13.5);
+        var pad = Style.TextSize * 0.3;
+        var thick = Math.Max(1, Style.TextSize / 13.5);
 
         var (tree, _, laidHeight) = Apart(sub => Blocks(sub, Body(part), 0, room));
 
@@ -673,8 +685,8 @@ public sealed partial class PortableMarkdownBuilder
         var top = _y;
 
         into.Open(PortablePieces.Block, part, new LayoutPoint(x, top), PortableStops.None);
-        into.Draw(new PortableRuleMark(new LayoutRect(0, 0, Math.Max(room, 1), thick), _style.Hr));
-        into.Draw(new PortableWashMark(new LayoutRect(0, thick, Math.Max(room, 1), height - thick), _style.FooterBg));
+        into.Draw(new PortableRuleMark(new LayoutRect(0, 0, Math.Max(room, 1), thick), Style.Hr));
+        into.Draw(new PortableWashMark(new LayoutRect(0, thick, Math.Max(room, 1), height - thick), Style.FooterBg));
         into.Graft(tree, new LayoutPoint(0, thick + pad));
         into.Close();
 
@@ -686,7 +698,7 @@ public sealed partial class PortableMarkdownBuilder
 
     // ── Keeping count ───────────────────────────────────────────────────────
 
-    private double Gap => _style.TextSize * 0.72;
+    private double Gap => Style.TextSize * 0.72;
 
     private void Reached(double x) => _reach = Math.Max(_reach, x);
 
@@ -706,7 +718,7 @@ public sealed partial class PortableMarkdownBuilder
         return (Sealed(into), width, height);
     }
 
-    private PortableBuilder Rent() => _builders.Count > 0 ? _builders.Pop() : new PortableBuilder(_medium);
+    private PortableBuilder Rent() => _builders.Count > 0 ? _builders.Pop() : new PortableBuilder(Medium);
 
     private PortableTree Sealed(PortableBuilder built)
     {
@@ -723,7 +735,7 @@ public sealed partial class PortableMarkdownBuilder
     private static ContentPart Body(ContentPart part) => part.Part(Roles.Body) ?? part;
 
     private IReadOnlyList<PortableDiagnostic> Trouble() =>
-        [.. ContentNested.OwnParts(_reading.Root)
+        [.. ContentNested.OwnParts(Reading.Root)
             .Where(part => part.Node.Trouble is not null)
             .Select(part => PortableDiagnostic.Of(part, part.Node.Trouble!)),
          .. _borrowed];

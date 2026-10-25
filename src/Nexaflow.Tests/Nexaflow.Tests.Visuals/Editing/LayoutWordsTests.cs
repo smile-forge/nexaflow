@@ -5,11 +5,14 @@ using System.Windows.Media;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 
 /// <summary>
-/// A run of text as one piece (<see cref="LayoutWords"/>): a press means the letter it landed on, the caret stands
+/// A run of text as one piece (<see cref="PortableWords"/>): a press means the letter it landed on, the caret stands
 /// between two letters, and a stretch taking part of a run is washed as those letters — none of which costs a piece
 /// per character.
 /// </summary>
@@ -26,24 +29,23 @@ public class LayoutWordsTests
     private static readonly TestPart LabelPart = new(4, 4);
     private static readonly TestPart ValuePart = new(11, 3);
 
-    private static FormattedText Set(string text) =>
-        new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-            new Typeface("Segoe UI"), 12, Brushes.Black, 1.0);
+    private static WpfText Set(string text) =>
+        WpfMedium.OnThisThread.Shape(text, new Typeface("Segoe UI"), 12, Brushes.Black, null, CultureInfo.InvariantCulture);
 
     /// <summary>A label and a value, each one run of text, inside a piece standing for the whole line.</summary>
-    private static LayoutTree Line(bool maps = true)
+    private static PortableTree Line(bool maps = true)
     {
-        var build = new LayoutBuilder();
+        var build = new PortableBuilder(WpfMedium.OnThisThread);
         build.Open("line", new TestPart(0, 14));
 
-        LayoutText.Words(build, Set(Label), new Point(10, 0), 200, TextAlignment.Left, LabelPart, "label");
-        LayoutText.Words(build, Set(Value), new Point(80, 0), 200, TextAlignment.Left, ValuePart, "value", maps);
+        PortableText.Words(build, Set(Label), new LayoutPoint(10, 0), 200, LayoutAlign.Left, LabelPart, "label");
+        PortableText.Words(build, Set(Value), new LayoutPoint(80, 0), 200, LayoutAlign.Left, ValuePart, "value", maps);
 
         build.Close();
         return build.Seal();
     }
 
-    private static Piece Run(Piece root) => root.Children.Single(piece => piece.Kind == "value");
+    private static PortablePiece Run(PortablePiece root) => root.Children.Single(piece => piece.Kind == "value");
 
     [TestMethod]
     public void APressMeansTheLetterItLandedOn() => UiThread.Run(() =>
@@ -58,11 +60,11 @@ public class LayoutWordsTests
             var middle = letter.Y + (letter.Height / 2);
 
             Assert.AreEqual(ValuePart.Start + index,
-                root.OffsetAt(new Point(anchor.X + letter.X + (letter.Width * 0.25), anchor.Y + middle)),
+                root.OffsetAt(new LayoutPoint(anchor.X + letter.X + (letter.Width * 0.25), anchor.Y + middle)),
                 $"the left half of letter {index} means before it");
 
             Assert.AreEqual(ValuePart.Start + index + 1,
-                root.OffsetAt(new Point(anchor.X + letter.X + (letter.Width * 0.75), anchor.Y + middle)),
+                root.OffsetAt(new LayoutPoint(anchor.X + letter.X + (letter.Width * 0.75), anchor.Y + middle)),
                 $"and the right half means after it");
         }
     });
@@ -112,7 +114,7 @@ public class LayoutWordsTests
 
         Assert.IsFalse(root.WordsAt(ValuePart.Start + 1).Exists, "a caret cannot stand inside what nobody typed");
 
-        var press = root.OffsetAt(new Point(value.Anchor.X + letter.X, value.Anchor.Y + letter.Y + 1));
+        var press = root.OffsetAt(new LayoutPoint(value.Anchor.X + letter.X, value.Anchor.Y + letter.Y + 1));
         Assert.IsTrue(press == ValuePart.Start || press == ValuePart.End(),
             "a press means one end of it, the way a press on any drawing does");
     });
@@ -120,9 +122,9 @@ public class LayoutWordsTests
     [TestMethod]
     public void ARunGoesWhereverItsTreeIsPutDown() => UiThread.Run(() =>
     {
-        var build = new LayoutBuilder();
+        var build = new PortableBuilder(WpfMedium.OnThisThread);
         build.Open("page");
-        build.Graft(Line(), new Point(300, 100));
+        build.Graft(Line(), new LayoutPoint(300, 100));
         build.Close();
 
         var root = build.Seal().Root;
@@ -130,7 +132,7 @@ public class LayoutWordsTests
         var letter = value.Words!.Covers(2, 3);
 
         Assert.AreEqual(ValuePart.Start + 2,
-            root.OffsetAt(new Point(value.Anchor.X + letter.X + (letter.Width * 0.25), value.Anchor.Y + letter.Y + 1)));
+            root.OffsetAt(new LayoutPoint(value.Anchor.X + letter.X + (letter.Width * 0.25), value.Anchor.Y + letter.Y + 1)));
 
         Assert.AreEqual(value.Anchor.X + value.Words!.Caret(2).X, root.CaretRect(ValuePart.Start + 2).X, 0.001);
     });
@@ -138,7 +140,7 @@ public class LayoutWordsTests
     [TestMethod]
     public void AWordIsLettersAndDigitsTogether() => UiThread.Run(() =>
     {
-        var words = new LayoutWords(Set("Dogs 38.6"), default, true);
+        var words = new PortableWords(Set("Dogs 38.6"), default, true);
 
         Assert.AreEqual((0, 4), words.WordAt(2), "a word of letters");
         Assert.AreEqual((5, 7), words.WordAt(6), "the digits before the point");
@@ -146,7 +148,7 @@ public class LayoutWordsTests
         Assert.AreEqual((8, 9), words.WordAt(8), "and the digit after it is its own word");
 
         // The point is only a word of its own where nothing wordy is written before it.
-        Assert.AreEqual((3, 4), new LayoutWords(Set("38 .6"), default, true).WordAt(3));
+        Assert.AreEqual((3, 4), new PortableWords(Set("38 .6"), default, true).WordAt(3));
     });
 
     [TestMethod]
@@ -156,17 +158,17 @@ public class LayoutWordsTests
         var set = Set(said);
         set.MaxTextWidth = set.Width / 2.5;
 
-        var words = new LayoutWords(set, default, Maps: true);
+        var words = new PortableWords(set, default, Maps: true);
         var first = words.Covers(0, 1);
         var last = words.Covers(said.Length - 1, said.Length);
 
         Assert.IsTrue(last.Y > first.Y, "set as more than one line");
-        Assert.AreEqual(said.Length, words.IndexAt(new Point(last.Right + 50, last.Y + (last.Height / 2))),
+        Assert.AreEqual(said.Length, words.IndexAt(new LayoutPoint(last.Right + 50, last.Y + (last.Height / 2))),
                         "past the end of the last line is the end of the run");
-        Assert.AreEqual(said.Length - 1, words.IndexAt(new Point(last.X + (last.Width * 0.25), last.Y + (last.Height / 2))),
+        Assert.AreEqual(said.Length - 1, words.IndexAt(new LayoutPoint(last.X + (last.Width * 0.25), last.Y + (last.Height / 2))),
                         "the left half of the last letter is before it, on its own line");
-        Assert.AreEqual(0, words.IndexAt(new Point(first.X, first.Y - 50)), "above every line is the first");
-        Assert.IsTrue(words.IndexAt(new Point(first.Right + 400, first.Y + (first.Height / 2))) < said.Length / 2,
+        Assert.AreEqual(0, words.IndexAt(new LayoutPoint(first.X, first.Y - 50)), "above every line is the first");
+        Assert.IsTrue(words.IndexAt(new LayoutPoint(first.Right + 400, first.Y + (first.Height / 2))) < said.Length / 2,
                       "past the end of the first line is the end of that line");
     });
 }

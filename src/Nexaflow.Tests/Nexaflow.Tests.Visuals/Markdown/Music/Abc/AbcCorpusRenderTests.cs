@@ -9,6 +9,9 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
 
@@ -52,10 +55,10 @@ public class AbcCorpusRenderTests
         {
             var abc = Text(file);
 
-            Laid layout;
+            PortableLaid layout;
             try
             {
-                layout = Laying.Engraved("abc", abc, 700, StyleFormat.Light);
+                layout = Laying.Engraved("abc", abc, 700, WpfStyles.Light);
             }
             catch (Exception ex)
             {

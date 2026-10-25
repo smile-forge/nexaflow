@@ -1,6 +1,9 @@
 using System.Collections.Generic;
 using System.Windows;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Editing;
 
@@ -122,31 +125,22 @@ public enum LayoutOffer
 }
 
 /// <summary>
-/// What a piece answers to. Held in a table beside the pieces rather than a slot on each, as a run of words is
-/// (<see cref="LayoutWords"/>): almost nothing drawn answers to a press, and a piece that does not costs a null.
+/// What the pieces of a layout answer to, read as gestures: what a builder said a press or a choosing means
+/// (<see cref="PortableActions"/>), said as an offer the host answers.
 /// </summary>
-public sealed record LayoutActions
+public static class LayoutAnswers
 {
-    /// <summary>What one press on it means.</summary>
-    public LayoutIntent? Click { get; init; }
-
-    /// <summary>What two mean, where that is something else.</summary>
-    public LayoutIntent? DoubleClick { get; init; }
-
-    /// <summary>What choosing it means, for a host following the selection.</summary>
-    public LayoutIntent? Select { get; init; }
-
-    /// <summary>What can be done to it, offered when it is asked for.</summary>
-    public IReadOnlyList<LayoutIntent> Menu { get; init; } = [];
-
-    /// <summary>What <paramref name="gesture"/> means here, or null where it means nothing.</summary>
-    public LayoutIntent? For(LayoutGesture gesture) => gesture switch
+    /// <summary>What <paramref name="gesture"/> means on a piece answering with <paramref name="acts"/>, or null where it means nothing.</summary>
+    public static LayoutIntent? For(this PortableActions? acts, LayoutGesture gesture) => gesture switch
     {
-        LayoutGesture.Click => Click,
-        LayoutGesture.DoubleClick => DoubleClick,
-        LayoutGesture.Select => Select,
+        LayoutGesture.Click => Offer(acts?.Click),
+        LayoutGesture.Select => Offer(acts?.Select),
         _ => null,
     };
+
+    /// <summary>What a builder said, as an offer.</summary>
+    public static LayoutIntent? Offer(PortableIntent? intent) =>
+        intent is { } said ? new LayoutIntent(said.Verb, said.Target, said.Tip) : null;
 }
 
 /// <summary>
@@ -155,7 +149,7 @@ public sealed record LayoutActions
 /// </summary>
 /// <param name="Part">
 /// The piece's own part, else the nearest ancestor's: the walk up the tree from what was pressed to the thing it
-/// belongs to. See <see cref="Piece.Naming"/>.
+/// belongs to. See <see cref="PortablePiece.Naming"/>.
 /// </param>
 /// <param name="Node">The same, as the AST knows it, where it is a node of one — a piece may name a span with no tree behind it.</param>
 /// <param name="Over">What the gesture is about: the piece alone, or the whole selection it was made inside.</param>
@@ -163,11 +157,11 @@ public sealed record LayoutActions
 public readonly record struct LayoutAct(
     LayoutGesture Gesture,
     LayoutIntent Intent,
-    Piece Piece,
+    PortablePiece Piece,
     ISourcePart? Part,
     ContentPart? Node,
-    IReadOnlyList<Piece> Over,
-    Point At);
+    IReadOnlyList<PortablePiece> Over,
+    LayoutPoint At);
 
 /// <summary>
 /// What answers a gesture — the far end of the chain a builder starts by declaring an intent.

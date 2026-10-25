@@ -6,6 +6,10 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.Visuals.Editing;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Layout.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -17,17 +21,17 @@ public class DiagramLegendTests
 {
     private static readonly string[] Columns = ["Label", "Value"];
 
-    private static Piece Drawn(bool across, out DiagramLegend legend)
+    private static PortablePiece Drawn(bool across, out PortableDiagramLegend legend)
     {
-        legend = new DiagramLegend(
+        legend = new PortableDiagramLegend(
         [
-            new DiagramKey(new TestPart(0, 5), Brushes.Red, [DiagramShapesTests.Words("Dogs"), DiagramShapesTests.Words("386")]),
-            new DiagramKey(new TestPart(6, 5), null, [DiagramShapesTests.Words("Hamsters and gerbils"), DiagramShapesTests.Words("15")]),
-        ], Columns, across, Brushes.Gray);
+            new PortableDiagramKey(new TestPart(0, 5), Brushes.Red.Ink(), [DiagramShapesTests.Words("Dogs"), DiagramShapesTests.Words("386")]),
+            new PortableDiagramKey(new TestPart(6, 5), null, [DiagramShapesTests.Words("Hamsters and gerbils"), DiagramShapesTests.Words("15")]),
+        ], Columns, across, Brushes.Gray.Ink());
 
-        var build = new LayoutBuilder();
+        var build = new PortableBuilder(WpfMedium.OnThisThread);
         build.Open("page");
-        legend.Draw(build, new Point(10, 10));
+        legend.Draw(build, new LayoutPoint(10, 10));
         build.Close();
 
         return build.Seal().Root;
@@ -52,7 +56,7 @@ public class DiagramLegendTests
         var keys = root.SelfAndDescendants().Where(piece => piece.Kind == MermaidPiece.Key).ToList();
 
         Assert.AreEqual(keys[0].Bounds.Top, keys[1].Bounds.Top, 0.5, "on one line");
-        Assert.IsTrue(keys[1].Bounds.Left >= keys[0].Bounds.Right + DiagramLegend.Apart - 0.5, "the second after the first");
+        Assert.IsTrue(keys[1].Bounds.Left >= keys[0].Bounds.Right + PortableDiagramLegend.Apart - 0.5, "the second after the first");
     });
 
     [TestMethod]
@@ -63,19 +67,19 @@ public class DiagramLegendTests
         var swatches = root.SelfAndDescendants().Where(piece => piece.Kind == MermaidPiece.Swatch).ToList();
 
         Assert.AreEqual(0, keys[0].Part!.Start);
-        Assert.IsInstanceOfType<RuleMark>(swatches[0].Marks[0], "a colour is a square of it");
-        Assert.IsInstanceOfType<GeometryMark>(swatches[1].Marks[0], "and no colour yet is the square's outline");
+        Assert.IsInstanceOfType<PortableRuleMark>(swatches[0].Marks[0], "a colour is a square of it");
+        Assert.IsInstanceOfType<PortableGeometryMark>(swatches[1].Marks[0], "and no colour yet is the square's outline");
     });
 
     [TestMethod]
     public void ASwatchIsDrawnAtTheSizeItIsAskedFor() => UiThread.Run(() =>
     {
-        var legend = new DiagramLegend([new DiagramKey(new TestPart(0, 5), Brushes.Red, [DiagramShapesTests.Words("Dogs")])], Columns, across: false, Brushes.Gray)
+        var legend = new PortableDiagramLegend([new PortableDiagramKey(new TestPart(0, 5), Brushes.Red.Ink(), [DiagramShapesTests.Words("Dogs")])], Columns, across: false, Brushes.Gray.Ink())
         {
             Square = 30,
         };
 
-        var build = new LayoutBuilder();
+        var build = new PortableBuilder(WpfMedium.OnThisThread);
         build.Open("page");
         legend.Draw(build, default);
         build.Close();

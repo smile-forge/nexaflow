@@ -256,7 +256,7 @@ public sealed class PortableBuilder
             }
         }
 
-        return new PortableTree([.. _pieces], [.. _marks], [.. _parts], [.. _kinds], [.. _paints], [.. _regions], [.. _words],
+        return new PortableTree(_medium, [.. _pieces], [.. _marks], [.. _parts], [.. _kinds], [.. _paints], [.. _regions], [.. _words],
                                 _acts.Count == 0 ? null : new Dictionary<int, PortableActions>(_acts), across, acrossAt, down, downAt,
                                 runs);
     }

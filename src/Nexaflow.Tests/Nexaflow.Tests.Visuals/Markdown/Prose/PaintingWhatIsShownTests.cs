@@ -7,6 +7,9 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Prose;
 
@@ -53,17 +56,17 @@ public class PaintingWhatIsShownTests
         Assert.IsTrue(Blocks(laid).All(block => block.Holds));
     });
 
-    private static Laid Long() =>
+    private static PortableLaid Long() =>
         Laying.Lay(null, string.Join("\n\n", Enumerable.Range(1, 200).Select(n => $"Paragraph {n} says something.")), 480);
 
-    private static List<LayoutKept> Blocks(Laid laid) =>
-        [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == MarkdownPieces.Whole).Select(piece => piece.Painting!.Kept!)];
+    private static List<PortableKept> Blocks(PortableLaid laid) =>
+        [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == PortablePieces.Whole).Select(piece => piece.Painting!.Kept!)];
 
-    private static void Paint(Laid laid, Rect? showing)
+    private static void Paint(PortableLaid laid, Rect? showing)
     {
         var visual = new DrawingVisual();
         using var dc = visual.RenderOpen();
 
-        LayoutPainter.Paint(dc, laid.Root, Brushes.Black, showing);
+        WpfPainter.Paint(dc, laid.Root, Brushes.Black, showing);
     }
 }

@@ -88,7 +88,7 @@ internal sealed partial class PortableSequenceDrawing
         Break,
 
         /// <summary>No frame at all: a wash of colour behind the messages inside it.</summary>
-        LayoutRect,
+        Rect,
     }
 
     /// <summary>
@@ -668,7 +668,7 @@ internal sealed partial class PortableSequenceDrawing
         "par" => Frame.Par,
         "critical" => Frame.Critical,
         "break" => Frame.Break,
-        "rect" => Frame.LayoutRect,
+        "rect" => Frame.Rect,
         _ => Frame.Alt,
     };
 

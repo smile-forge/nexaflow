@@ -6,6 +6,9 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -46,7 +49,7 @@ public class MarkdownFindTests
     {
         // The slice is drawn as a label, a share and a legend row, each its own piece and none of them the
         // word on its own. Looking in the source finds it; looking at the drawing would not.
-        var laid = Laying.Lay(null, Doc, 480, StyleFormat.Dark);
+        var laid = Laying.Lay(null, Doc, 480, WpfStyles.Dark);
         var inside = MarkdownFind.Every(Doc, "chrome")[1];
 
         Assert.IsTrue(laid.Root.RangeRects(inside.Start, inside.Length).Count > 0,
@@ -75,7 +78,7 @@ public class MarkdownFindTests
         // A writer who numbered every line 1. meant a list, and the page says 1. 2. 3. — so a reader looking
         // for the third item searches for what they can see, and the source has never said it.
         const string source = "1. one\n1. two\n1. three\n";
-        var laid = Laying.Lay(null, source, 480, StyleFormat.Dark);
+        var laid = Laying.Lay(null, source, 480, WpfStyles.Dark);
 
         Assert.AreEqual(0, MarkdownFind.Every(source, "3.").Count, "nowhere in the source does it say 3.");
 
@@ -91,7 +94,7 @@ public class MarkdownFindTests
         // A run already says whether what is drawn is what was written, because that is what makes a caret
         // possible inside it. The ones that say no are exactly the ones to look at — whatever they are, and
         // whatever language drew them.
-        var laid = Laying.Lay(null, "> [!CAUTION]\n> Mind out.\n\na &amp; b and not \\*this\\*\n", 480, StyleFormat.Dark);
+        var laid = Laying.Lay(null, "> [!CAUTION]\n> Mind out.\n\na &amp; b and not \\*this\\*\n", 480, WpfStyles.Dark);
 
         Assert.AreEqual(1, MarkdownFind.Shown(laid, "Caution").Count, "an alert's label");
         Assert.AreEqual(1, MarkdownFind.Shown(laid, "&").Count, "an entity");
@@ -102,7 +105,7 @@ public class MarkdownFindTests
     public void AndASearchIsBothAtOnceWithEachPlaceOnlyOnce() => UiThread.Run(() =>
     {
         const string source = "Item 2 is below.\n\n1. one\n1. two\n";
-        var laid = Laying.Lay(null, source, 480, StyleFormat.Dark);
+        var laid = Laying.Lay(null, source, 480, WpfStyles.Dark);
 
         var found = MarkdownFind.In(laid, source, "2");
 

@@ -20,8 +20,8 @@ namespace Nexaflow.Markdown.Layout.Barcode;
 /// </para>
 /// </summary>
 public sealed class PortableBarcodeBuilder(ContentReading reading, EditState state, PortableStyle style, bool isReadOnly, ILayoutMedium medium,
-                                           PortableNesting nesting)
-    : PortableContentBuilder(reading, state, style, isReadOnly, medium, nesting)
+                                           PortableHost host)
+    : PortableContentBuilder(reading, state, style, isReadOnly, medium, host)
 {
     /// <summary>OCR-B is the retail-standard face; falls back to monospace since it ships with no OS.</summary>
     private const string LabelFont = "OCR-B, OCRB, OCR B, Consolas, Menlo, monospace";

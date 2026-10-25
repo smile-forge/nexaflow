@@ -5,6 +5,9 @@ using System.Windows;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Latex;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
@@ -130,8 +133,8 @@ public class CaretPlaceTests
         var againstTheSix = laid.Places[atOne[0]].CaretRect();
         var againstThePlus = laid.Places[atOne[1]].CaretRect();
 
-        Assert.AreEqual(atOne[1], laid.StopNear(new Point(againstThePlus.X - 0.2, againstThePlus.Y + 1)));
-        Assert.AreEqual(atOne[0], laid.StopNear(new Point(againstTheSix.X + 0.2, againstTheSix.Y + 1)));
+        Assert.AreEqual(atOne[1], laid.StopNear(new LayoutPoint(againstThePlus.X - 0.2, againstThePlus.Y + 1)));
+        Assert.AreEqual(atOne[0], laid.StopNear(new LayoutPoint(againstTheSix.X + 0.2, againstTheSix.Y + 1)));
     });
 
     [TestMethod]
@@ -144,7 +147,7 @@ public class CaretPlaceTests
             var laid = Laid(latex);
             var forwards = Walk(laid);
 
-            var backwards = new List<CaretPlace> { forwards[^1] };
+            var backwards = new List<PortableCaretPlace> { forwards[^1] };
             for (var at = laid.Places.Count - 1; laid.Step(at, forward: false) is { } previous; at = previous)
                 backwards.Add(laid.Places[previous]);
 
@@ -153,7 +156,7 @@ public class CaretPlaceTests
         }
     });
 
-    private static Laid Laid(string latex)
+    private static PortableLaid Laid(string latex)
     {
         var laid = Laying.Formula(latex, 22);
         Assert.IsNotNull(laid, latex);
@@ -162,10 +165,10 @@ public class CaretPlaceTests
     }
 
     /// <summary>Every place in a formula, in the order the right arrow visits them.</summary>
-    private static List<CaretPlace> Walk(Laid laid)
+    private static List<PortableCaretPlace> Walk(PortableLaid laid)
     {
 
-        var places = new List<CaretPlace> { laid.Places[0] };
+        var places = new List<PortableCaretPlace> { laid.Places[0] };
         for (var at = 0; laid.Step(at, forward: true) is { } next; at = next)
         {
             places.Add(laid.Places[next]);

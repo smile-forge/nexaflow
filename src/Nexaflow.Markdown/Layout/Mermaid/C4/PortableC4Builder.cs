@@ -66,7 +66,7 @@ internal sealed partial class PortableC4Builder : PortableContentBuilder
     private readonly PortableDiagramTone ink;
 
     internal PortableC4Builder(ContentReading reading, EditState state, PortableStyle style, bool isReadOnly, ILayoutMedium medium,
-                               PortableNesting nesting) : base(reading, state, style, isReadOnly, medium, nesting)
+                               PortableHost host) : base(reading, state, style, isReadOnly, medium, host)
     {
         Ink = new PortableDiagramInk(style, medium);
         Words = new PortableDiagramText(reading, state, style, medium, part => Nested(part, double.PositiveInfinity, PortableStanding.Inline));

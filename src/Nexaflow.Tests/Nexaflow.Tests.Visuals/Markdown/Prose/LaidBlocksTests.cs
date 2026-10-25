@@ -11,6 +11,9 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Code;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Prose;
 
@@ -27,7 +30,7 @@ public class LaidBlocksTests
     [TestMethod]
     public void EverySampleLaidAgainAfterAnEditIsTheSampleLaidAfresh()
     {
-        var style = StyleFormat.Dark;
+        var style = WpfStyles.Dark;
 
         var documents = TestSampleData.Files("markdown").ToList();
         documents.Add(Path.GetFullPath(Path.Combine(TestSampleData.Root, "..", "docs", "MarkdownSupport.md")));
@@ -56,7 +59,7 @@ public class LaidBlocksTests
                 // laid again keeps the blocks whose reuse is the point of the test.
                 Settled(new ContentEngine(), edited, style);
 
-                var again = content.Lay(null, EditState.For(edited), StyleFormat.Dark, Room, false);
+                var again = content.Lay(null, EditState.For(edited), WpfStyles.Dark, Room, false);
                 var fresh = new ContentEngine().Lay(null, EditState.For(edited), style, Room, false);
 
                 Same(fresh, again, Path.GetFileName(path));
@@ -80,7 +83,7 @@ public class LaidBlocksTests
     /// and waiting for the first of them settles only part of it.
     /// </para>
     /// </summary>
-    private static Laid Settled(ContentEngine engine, string text, StyleFormat style)
+    private static PortableLaid Settled(ContentEngine engine, string text, PortableStyle style)
     {
         using var landed = new ManualResetEventSlim();
 
@@ -123,13 +126,13 @@ public class LaidBlocksTests
         var text = File.ReadAllText(path);
 
         var engine = new ContentEngine();
-        var settled = Settled(engine, text, StyleFormat.Dark);
+        var settled = Settled(engine, text, WpfStyles.Dark);
 
         Assert.IsFalse(engine.Rereading, "nothing of it is still being read a second time");
 
         // And nothing left to land is what makes the two sides of the test above comparable at all: the same
         // characters laid afresh now find every reading kept, so they come out piece for piece the same.
-        Same(settled, new ContentEngine().Lay(null, EditState.For(text), StyleFormat.Dark, Room, false),
+        Same(settled, new ContentEngine().Lay(null, EditState.For(text), WpfStyles.Dark, Room, false),
              "mixed-content.md");
     }
 
@@ -138,8 +141,8 @@ public class LaidBlocksTests
     {
         var content = new ContentEngine();
 
-        var before = Wholes(content.Lay(null, EditState.For("First words.\n\nSecond words.\n"), StyleFormat.Dark, Room, false));
-        var after = Wholes(content.Lay(null, EditState.For("First words.\n\nSecond words, and more.\n"), StyleFormat.Dark, Room, false));
+        var before = Wholes(content.Lay(null, EditState.For("First words.\n\nSecond words.\n"), WpfStyles.Dark, Room, false));
+        var after = Wholes(content.Lay(null, EditState.For("First words.\n\nSecond words, and more.\n"), WpfStyles.Dark, Room, false));
 
         Assert.AreSame(before[0].Painting?.Kept, after[0].Painting?.Kept, "the paragraph nobody touched is set down as it was");
         Assert.AreNotSame(before[1].Painting?.Kept, after[1].Painting?.Kept, "the one typed in is laid again");
@@ -149,10 +152,10 @@ public class LaidBlocksTests
     public void ABlockSetDownAgainStandsForWhereItsCharactersNowAre()
     {
         var content = new ContentEngine();
-        content.Lay(null, EditState.For("alpha\n\nbeta\n"), StyleFormat.Dark, Room, false);
+        content.Lay(null, EditState.For("alpha\n\nbeta\n"), WpfStyles.Dark, Room, false);
 
         const string source = "an alpha\n\nbeta\n";
-        var laid = content.Lay(null, EditState.For(source), StyleFormat.Dark, Room, false);
+        var laid = content.Lay(null, EditState.For(source), WpfStyles.Dark, Room, false);
 
         var beta = laid.Root.SelfAndDescendants().First(piece => piece.Words is not null && Written(source, piece) == "beta");
 
@@ -165,8 +168,8 @@ public class LaidBlocksTests
         // The paragraph's characters are the same either side of the edit; where its link goes is not.
         var content = new ContentEngine();
 
-        var before = Wholes(content.Lay(null, EditState.For("Go [there][a].\n\n[a]: https://one.example\n"), StyleFormat.Dark, Room, false));
-        var after = Wholes(content.Lay(null, EditState.For("Go [there][a].\n\n[a]: https://two.example\n"), StyleFormat.Dark, Room, false));
+        var before = Wholes(content.Lay(null, EditState.For("Go [there][a].\n\n[a]: https://one.example\n"), WpfStyles.Dark, Room, false));
+        var after = Wholes(content.Lay(null, EditState.For("Go [there][a].\n\n[a]: https://two.example\n"), WpfStyles.Dark, Room, false));
 
         Assert.AreNotSame(before[0].Painting?.Kept, after[0].Painting?.Kept);
     }
@@ -178,9 +181,9 @@ public class LaidBlocksTests
         var content = new ContentEngine();
         const string source = "First words.\n\nSecond words.\n";
 
-        var before = Wholes(content.Lay(null, EditState.For(source), StyleFormat.Dark, Room, false));
+        var before = Wholes(content.Lay(null, EditState.For(source), WpfStyles.Dark, Room, false));
         content.Forget();
-        var after = Wholes(content.Lay(null, EditState.For(source), StyleFormat.Dark, Room, false));
+        var after = Wholes(content.Lay(null, EditState.For(source), WpfStyles.Dark, Room, false));
 
         Assert.AreNotSame(before[0].Painting?.Kept, after[0].Painting?.Kept);
     }
@@ -191,19 +194,19 @@ public class LaidBlocksTests
         var content = new ContentEngine();
         const string source = "# Title\n\nwords\n";
 
-        content.Lay(null, new EditState(source, 7, null, new RawZone(0, 7)), StyleFormat.Dark, Room, false);
-        var read = content.Lay(null, EditState.For(source), StyleFormat.Dark, Room, false);
-        var fresh = new ContentEngine().Lay(null, EditState.For(source), StyleFormat.Dark, Room, false);
+        content.Lay(null, new EditState(source, 7, null, new RawZone(0, 7)), WpfStyles.Dark, Room, false);
+        var read = content.Lay(null, EditState.For(source), WpfStyles.Dark, Room, false);
+        var fresh = new ContentEngine().Lay(null, EditState.For(source), WpfStyles.Dark, Room, false);
 
         Same(fresh, read, "a title shown as written, then read");
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static List<Piece> Wholes(Laid laid) =>
-        [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == MarkdownPieces.Whole)];
+    private static List<PortablePiece> Wholes(PortableLaid laid) =>
+        [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == PortablePieces.Whole)];
 
-    private static string Written(string source, Piece piece) =>
+    private static string Written(string source, PortablePiece piece) =>
         piece.Part is { } part ? source.Substring(part.Start, part.Length) : "";
 
     private static int WordStart(string text, int at)
@@ -213,7 +216,7 @@ public class LaidBlocksTests
     }
 
     /// <summary>Two layouts of one source agree about every piece — what it is, where, and what it stands for — and about everything around them.</summary>
-    private static void Same(Laid expected, Laid actual, string what)
+    private static void Same(PortableLaid expected, PortableLaid actual, string what)
     {
         Assert.AreEqual(expected.Size, actual.Size, $"{what}: size");
 
@@ -248,7 +251,7 @@ public class LaidBlocksTests
     /// been.
     /// </para>
     /// </summary>
-    private static string Diverged(IReadOnlyList<Piece> want, IReadOnlyList<Piece> got)
+    private static string Diverged(IReadOnlyList<PortablePiece> want, IReadOnlyList<PortablePiece> got)
     {
         for (var at = 0; at < Math.Min(want.Count, got.Count); at++)
         {
@@ -265,7 +268,7 @@ public class LaidBlocksTests
 
     private static (int, int)? Span(ISourcePart? part) => part is null ? null : (part.Start, part.Length);
 
-    private static string Said(Diagnostic trouble) =>
+    private static string Said(PortableDiagnostic trouble) =>
         $"{trouble.Start}+{trouble.Length} {trouble.Message} {Span(trouble.Part)}";
 
     [TestMethod]
@@ -275,8 +278,8 @@ public class LaidBlocksTests
         const string chart = "```mermaid\ngantt\n    dateFormat YYYY-MM-DD\n    Task :2024-01-01, 3d\n```\n";
         var content = new ContentEngine();
 
-        var before = Wholes(content.Lay(null, EditState.For(chart + "\nWords.\n"), StyleFormat.Dark, Room, false));
-        var after = Wholes(content.Lay(null, EditState.For(chart + "\nMore words.\n"), StyleFormat.Dark, Room, false));
+        var before = Wholes(content.Lay(null, EditState.For(chart + "\nWords.\n"), WpfStyles.Dark, Room, false));
+        var after = Wholes(content.Lay(null, EditState.For(chart + "\nMore words.\n"), WpfStyles.Dark, Room, false));
 
         Assert.AreSame(before[0].Painting?.Kept, after[0].Painting?.Kept);
     }

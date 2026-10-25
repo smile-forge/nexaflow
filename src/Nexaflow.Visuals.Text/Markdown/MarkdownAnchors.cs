@@ -3,6 +3,9 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -32,7 +35,7 @@ public static class MarkdownAnchors
     /// The piece a <c>#id</c> points at, on a laid-out document — the heading the reader wrote that name on,
     /// or nothing where the document has no such heading.
     /// </summary>
-    public static Piece Sought(Laid laid, string anchor)
+    public static PortablePiece Sought(PortableLaid laid, string anchor)
     {
         foreach (var piece in laid.Root.SelfAndDescendants())
             if (piece.Part is ContentPart part && Named(part) is { } id

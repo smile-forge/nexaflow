@@ -1,5 +1,6 @@
 using System.Windows;
 
+using Nexaflow.Markdown.Layout;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -118,7 +119,7 @@ public sealed record ContentAsk(string Named, string Source)
     public Nexaflow.Markdown.Ast.ContentPart? Part { get; init; }
 
     /// <summary>The piece of layout it landed on — what was drawn there, which says which of the things drawn from one part it was.</summary>
-    public Editing.Piece Piece { get; init; }
+    public PortablePiece Piece { get; init; }
 
     /// <summary>The root of <see cref="Part"/>'s tree: the content in this language, all of it.</summary>
     public Nexaflow.Markdown.Ast.ContentPart? Root { get; init; }

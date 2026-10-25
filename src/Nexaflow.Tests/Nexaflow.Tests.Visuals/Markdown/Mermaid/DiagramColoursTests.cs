@@ -6,6 +6,10 @@ using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Layout.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -29,7 +33,7 @@ public class DiagramColoursTests
     public void EveryRampRunsFromOneEndToTheOther()
     {
         foreach (var ramp in Ramps)
-            Assert.AreNotEqual(DiagramColours.At(ramp, 0), DiagramColours.At(ramp, 1),
+            Assert.AreNotEqual(PortableDiagramColours.At(ramp, 0), PortableDiagramColours.At(ramp, 1),
                                $"{ramp} ends where it started, so nothing along it means anything");
     }
 
@@ -40,14 +44,14 @@ public class DiagramColoursTests
         // still reads in order when it is printed grey.
         foreach (var ramp in Ramps)
         {
-            if (DiagramColours.Diverges(ramp)) continue;
+            if (PortableDiagramColours.Diverges(ramp)) continue;
 
-            var was = Grey(DiagramColours.At(ramp, 0));
-            var up = Grey(DiagramColours.At(ramp, 1)) > was;
+            var was = Grey(PortableDiagramColours.At(ramp, 0));
+            var up = Grey(PortableDiagramColours.At(ramp, 1)) > was;
 
             for (var share = 0.1; share <= 1.0001; share += 0.1)
             {
-                var now = Grey(DiagramColours.At(ramp, share));
+                var now = Grey(PortableDiagramColours.At(ramp, share));
 
                 Assert.IsTrue(up ? now > was - 0.01 : now < was + 0.01,
                               $"{ramp} turns back on itself at {share:0.0}");
@@ -63,8 +67,8 @@ public class DiagramColoursTests
         // Which is what makes the middle value read as the middle rather than as an end.
         var ramp = DiagramRamp.BlueRed;
 
-        Assert.IsTrue(Grey(DiagramColours.At(ramp, 0.5)) > Grey(DiagramColours.At(ramp, 0)));
-        Assert.IsTrue(Grey(DiagramColours.At(ramp, 0.5)) > Grey(DiagramColours.At(ramp, 1)));
+        Assert.IsTrue(Grey(PortableDiagramColours.At(ramp, 0.5)) > Grey(PortableDiagramColours.At(ramp, 0)));
+        Assert.IsTrue(Grey(PortableDiagramColours.At(ramp, 0.5)) > Grey(PortableDiagramColours.At(ramp, 1)));
     }
 
     [TestMethod]
@@ -72,8 +76,8 @@ public class DiagramColoursTests
     {
         // A correlation read blue for negative and red for positive, which is the way round anybody
         // expects it.
-        Assert.IsTrue(DiagramColours.At(DiagramRamp.BlueRed, 0).B > DiagramColours.At(DiagramRamp.BlueRed, 0).R);
-        Assert.IsTrue(DiagramColours.At(DiagramRamp.BlueRed, 1).R > DiagramColours.At(DiagramRamp.BlueRed, 1).B);
+        Assert.IsTrue(PortableDiagramColours.At(DiagramRamp.BlueRed, 0).B > PortableDiagramColours.At(DiagramRamp.BlueRed, 0).R);
+        Assert.IsTrue(PortableDiagramColours.At(DiagramRamp.BlueRed, 1).R > PortableDiagramColours.At(DiagramRamp.BlueRed, 1).B);
     }
 
     [TestMethod]
@@ -81,38 +85,38 @@ public class DiagramColoursTests
     {
         foreach (var ramp in Ramps)
         {
-            Assert.AreEqual(DiagramColours.At(ramp, 0), DiagramColours.At(ramp, -2));
-            Assert.AreEqual(DiagramColours.At(ramp, 1), DiagramColours.At(ramp, 5));
+            Assert.AreEqual(PortableDiagramColours.At(ramp, 0), PortableDiagramColours.At(ramp, -2));
+            Assert.AreEqual(PortableDiagramColours.At(ramp, 1), PortableDiagramColours.At(ramp, 5));
         }
     }
 
     [TestMethod]
     public void ColoursWrittenOutAreReadBetween()
     {
-        Color[] stops = [Colors.Black, Colors.White];
+        LayoutColor[] stops = [LayoutColors.Black, LayoutColors.White];
 
-        Assert.AreEqual(Colors.Black, DiagramColours.At(stops, 0));
-        Assert.AreEqual(Colors.White, DiagramColours.At(stops, 1));
-        Assert.AreEqual(128, DiagramColours.At(stops, 0.5).R, 1);
+        Assert.AreEqual(LayoutColors.Black, PortableDiagramColours.At(stops, 0));
+        Assert.AreEqual(LayoutColors.White, PortableDiagramColours.At(stops, 1));
+        Assert.AreEqual(128, PortableDiagramColours.At(stops, 0.5).R, 1);
     }
 
     [TestMethod]
     public void ThreeColoursPutTheMiddleOneInTheMiddle()
     {
-        Color[] stops = [Colors.Blue, Colors.White, Colors.Red];
+        LayoutColor[] stops = [LayoutColors.Blue, LayoutColors.White, LayoutColors.Red];
 
-        Assert.AreEqual(Colors.White, DiagramColours.At(stops, 0.5));
+        Assert.AreEqual(LayoutColors.White, PortableDiagramColours.At(stops, 0.5));
     }
 
     [TestMethod]
     public void EveryRampCanBeNamed()
     {
         foreach (var ramp in Ramps)
-            Assert.AreEqual(ramp, DiagramColours.Named(ramp.ToString()),
+            Assert.AreEqual(ramp, PortableDiagramColours.Named(ramp.ToString()),
                             $"{ramp} cannot be asked for by its own name");
 
-        Assert.AreEqual(DiagramRamp.BlueRed, DiagramColours.Named("rdbu"));
-        Assert.IsNull(DiagramColours.Named("sunburst"));
+        Assert.AreEqual(DiagramRamp.BlueRed, PortableDiagramColours.Named("rdbu"));
+        Assert.IsNull(PortableDiagramColours.Named("sunburst"));
     }
 
     // ── The bar ─────────────────────────────────────────────────────────────
@@ -122,7 +126,7 @@ public class DiagramColoursTests
     {
         var bar = Bar(out var laid);
 
-        Assert.IsTrue(bar.Size.Width > DiagramLegend.SwatchSize, "the numbers are beside the bar");
+        Assert.IsTrue(bar.Size.Width > PortableDiagramLegend.SwatchSize, "the numbers are beside the bar");
         Assert.AreEqual(3, laid.Root.SelfAndDescendants().Count(piece => piece.Words is not null));
     });
 
@@ -136,24 +140,24 @@ public class DiagramColoursTests
             Assert.IsNull(piece.Part, $"{piece.Kind} was drawn from something nobody wrote");
     });
 
-    private static DiagramBar Bar(out Laid laid)
+    private static PortableDiagramBar Bar(out PortableLaid laid)
     {
         // The same words a shape is made to the size of, which is the one maker these tests share.
-        var bar = new DiagramBar(DiagramColours.Stops(DiagramRamp.Viridis),
+        var bar = new PortableDiagramBar(PortableDiagramColours.Stops(DiagramRamp.Viridis),
                                  [(0, DiagramShapesTests.Words("0")),
                                   (0.5, DiagramShapesTests.Words("50")),
                                   (1, DiagramShapesTests.Words("100"))],
-                                 Brushes.Gray);
+                                 Brushes.Gray.Ink());
 
-        var build = new LayoutBuilder();
+        var build = new PortableBuilder(WpfMedium.OnThisThread);
         build.Open("Root");
-        bar.Draw(build, new Point(0, 0));
+        bar.Draw(build, new LayoutPoint(0, 0));
         build.Close();
 
-        laid = new Laid(build.Seal(), bar.Size, []);
+        laid = new PortableLaid(build.Seal(), bar.Size.Width, bar.Size.Height, []);
         return bar;
     }
 
-    private static double Grey(Color colour) =>
+    private static double Grey(LayoutColor colour) =>
         ((0.2126 * colour.R) + (0.7152 * colour.G) + (0.0722 * colour.B)) / 255;
 }

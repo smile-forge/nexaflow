@@ -10,11 +10,14 @@ using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 
 /// <summary>
-/// Coverage for <see cref="ContentBuilder"/> — the one promise every builder makes: laying something out
+/// Coverage for <see cref="PortableContentBuilder"/> — the one promise every builder makes: laying something out
 /// always produces a layout.
 ///
 /// <para>
@@ -32,13 +35,13 @@ namespace Nexaflow.Tests.Visuals.Editing;
 public class ContentBuilderTests
 {
     /// <summary>A builder that draws nothing, however it is asked.</summary>
-    private sealed class Unwilling(string source, Func<Laid?> read)
-        : ContentBuilder(ContentReading.Of(ContentNode.Leaf(Kinds.Verbatim, source)), EditState.For(source),
-                         StyleFormat.Dark, isReadOnly: true, Nexaflow.Tests.Visuals.Markdown.Laying.NestingNothing)
+    private sealed class Unwilling(string source, Func<PortableLaid?> read)
+        : PortableContentBuilder(ContentReading.Of(ContentNode.Leaf(Kinds.Verbatim, source)), EditState.For(source),
+                                 WpfStyles.Dark, isReadOnly: true, WpfMedium.OnThisThread, Nexaflow.Tests.Visuals.Markdown.Laying.Hosting)
     {
-        protected override Laid? Build() => read();
+        protected override PortableLaid? Build() => read();
 
-        protected override CharacterSetting Characters => new(new Typeface("Consolas"), 13, Brushes.Black, Culture: CultureInfo.InvariantCulture);
+        protected override PortableCharacters Characters => new(Medium.Face("Consolas"), 13, Style.Text);
     }
 
     [TestMethod]
@@ -47,7 +50,7 @@ public class ContentBuilderTests
         var laid = new Unwilling("a+b", () => null).Lay();
 
         Assert.IsTrue(laid.ShowsSource, "the source is shown as its own characters");
-        Assert.AreEqual(3, laid.Root.SelfAndDescendants().Single(piece => piece.Kind == LayoutText.SourceKind).Sits().Length, "standing for every character of it");
+        Assert.AreEqual(3, laid.Root.SelfAndDescendants().Single(piece => piece.Kind == PortableText.SourceKind).Sits().Length, "standing for every character of it");
         Assert.IsTrue(laid.Size.Width > 0 && laid.Size.Height > 0, "and it takes up room");
         Assert.AreEqual(0, laid.Trouble.Count, "nothing went wrong — there was simply nothing to read");
     });
@@ -71,7 +74,7 @@ public class ContentBuilderTests
         Assert.IsTrue(laid.ShowsSource, "the source is still on the page");
 
         var trouble = laid.Trouble.Single();
-        Assert.AreEqual(DiagnosticSeverity.Error, trouble.Severity);
+        Assert.AreEqual(PortableSeverity.Error, trouble.Severity);
         Assert.AreEqual((0, 2), (trouble.Start, trouble.Length), "covering all of it — it has no better idea");
         StringAssert.Contains(trouble.Message, "ran off the end");
     });
@@ -80,10 +83,10 @@ public class ContentBuilderTests
     public void ABuilderThatThrowsSaysWhyUnderTheSource() => UiThread.Run(() =>
     {
         var laid = new Unwilling("x^", () => throw new InvalidOperationException("ran off the end")).Lay();
-        var reason = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == SourceShown.Reason);
+        var reason = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == PortableSourceShown.Reason);
 
-        StringAssert.Contains(reason.Marks.ToArray().OfType<TextMark>().Single().Glyphs.Text, "ran off the end");
-    var source = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == LayoutText.SourceKind).Bounds;
+        StringAssert.Contains(reason.Marks.ToArray().OfType<PortableTextMark>().Single().Glyphs.Text, "ran off the end");
+    var source = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == PortableText.SourceKind).Bounds;
         Assert.IsTrue(reason.Bounds.Top > source.Bottom - 5 && reason.Bounds.Top < source.Bottom, "tucked right under the source it is about");
     });
 
@@ -93,12 +96,12 @@ public class ContentBuilderTests
         // A tree the builder was given: it names the part it could not draw, and the helper finds where that part's characters are.
         var tree = ContentPart.Of(ContentNode.Branch("line", [ContentNode.Leaf("word", "one "), ContentNode.Leaf("word", "two"), ContentNode.Leaf("word", " three")]));
         var two = tree.Children[1];
-        var laid = SourceShown.Lay(tree, [(two, "Two is not a word here.")],
-                                   new CharacterSetting(new Typeface("Consolas"), 13, Brushes.Black, Culture: CultureInfo.InvariantCulture),
-                                   StyleFormat.Dark);
+        var medium = WpfMedium.OnThisThread;
+        var laid = PortableSourceShown.Lay(tree, [(two, "Two is not a word here.")], medium, medium.Face("Consolas"), 13, WpfStyles.Dark.Text,
+                                           WpfStyles.Dark);
 
-        var unread = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == SourceShown.Unread);
-        var letters = laid.Root.SelfAndDescendants().Where(piece => piece.Kind == LayoutText.SourceKind + "-letter").ToList();
+        var unread = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == PortableSourceShown.Unread);
+        var letters = laid.Root.SelfAndDescendants().Where(piece => piece.Kind == PortableText.SourceKind + "-letter").ToList();
 
         Assert.AreSame(two, unread.Part, "standing for the part itself");
         Assert.AreEqual(letters[4].Bounds.Left, unread.Bounds.Left, 0.5, "over the characters it printed as");
@@ -136,7 +139,7 @@ public class ContentBuilderTests
             var laid = element.Laid;
 
             Assert.IsTrue(laid.ShowsSource, $"{where}: the source is still on the page");
-            Assert.AreEqual(3, laid.Root.SelfAndDescendants().Single(piece => piece.Kind == LayoutText.SourceKind).Sits().Length,
+            Assert.AreEqual(3, laid.Root.SelfAndDescendants().Single(piece => piece.Kind == PortableText.SourceKind).Sits().Length,
                             $"{where}: standing for every character of it");
 
             var trouble = laid.Trouble.Single();
@@ -162,7 +165,7 @@ public class ContentBuilderTests
         // Content in another language is read while the document's own builder is part-way through laying it, so a throw
         // let out would be blamed on the only tree that builder has — all of it.
         var document = $"Pets:\n\n```{HandLaid.Unreading}\nx\n```\n\nThe end.\n";
-        var element = new MarkdownElement(document, StyleFormat.Dark);
+        var element = new MarkdownElement(document, WpfStyles.Dark);
         element.Measure(new Size(400, double.PositiveInfinity));
 
         var laid = element.Laid;
@@ -170,7 +173,7 @@ public class ContentBuilderTests
 
         var trouble = laid.Trouble.Single();
         StringAssert.Contains(trouble.Message, "no reader", "with the block's own reason on it");
-        Assert.IsTrue(laid.Root.SelfAndDescendants().Any(piece => piece.Kind == SourceShown.Reason), "and that reason written under it");
+        Assert.IsTrue(laid.Root.SelfAndDescendants().Any(piece => piece.Kind == PortableSourceShown.Reason), "and that reason written under it");
         Assert.IsTrue(trouble.Start > document.IndexOf("```", StringComparison.Ordinal)
                       && trouble.Start + trouble.Length <= document.IndexOf("The end.", StringComparison.Ordinal),
                       "marked inside the block, not over the whole document");

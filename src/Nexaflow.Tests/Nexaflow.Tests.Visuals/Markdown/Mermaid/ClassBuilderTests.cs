@@ -10,6 +10,9 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Class;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -106,13 +109,13 @@ public class ClassBuilderTests : MermaidBuilderContract
     });
 
     /// <summary>How many lines are drawn inside the class — the rules dividing it, and any member underlined.</summary>
-    private static int Rules(Laid laid) =>
+    private static int Rules(PortableLaid laid) =>
         Pieces(laid, ClassPiece.Class).Single().SelfAndDescendants().Sum(piece => piece.Marks.Length is var _ ? Lines(piece) : 0);
 
-    private static int Lines(Piece piece)
+    private static int Lines(PortablePiece piece)
     {
         var lines = 0;
-        foreach (var mark in piece.Marks) if (mark is LineMark) lines++;
+        foreach (var mark in piece.Marks) if (mark is PortableLineMark) lines++;
 
         return lines;
     }
@@ -145,8 +148,7 @@ public class ClassBuilderTests : MermaidBuilderContract
 
         var tether = Pieces(laid, ClassPiece.Tether).Single();
         var note = Pieces(laid, ClassPiece.Note).Single(piece => Written(source, piece.Part).StartsWith("note for", System.StringComparison.Ordinal));
-        var reach = tether.Bounds;
-        reach.Inflate(2, 2);
+        var reach = LayoutRect.Inflate(tether.Bounds, 2, 2);
 
         Assert.AreEqual(note.Part!.Start, tether.Part!.Start, "the line stands for the note, and a note about no class has none");
         Assert.IsTrue(reach.IntersectsWith(note.Bounds), $"it runs from the note: {tether.Bounds} to {note.Bounds}");
@@ -200,15 +202,15 @@ public class ClassBuilderTests : MermaidBuilderContract
 
     // ── What it works with ──────────────────────────────────────────────────
 
-    private static Laid Build(string source, double room = 900) =>
+    private static PortableLaid Build(string source, double room = 900) =>
         Laying.Lay("mermaid", source, room);
 
     /// <summary>Every class drawn, by what its name says.</summary>
-    private static Dictionary<string, Rect> Boxes(string source) => Boxes(Build(source));
+    private static Dictionary<string, LayoutRect> Boxes(string source) => Boxes(Build(source));
 
-    private static Dictionary<string, Rect> Boxes(Laid laid)
+    private static Dictionary<string, LayoutRect> Boxes(PortableLaid laid)
     {
-        var boxes = new Dictionary<string, Rect>();
+        var boxes = new Dictionary<string, LayoutRect>();
 
         foreach (var piece in Pieces(laid, ClassPiece.Class))
             if (Saying(piece).FirstOrDefault() is { Length: > 0 } said)
@@ -218,17 +220,17 @@ public class ClassBuilderTests : MermaidBuilderContract
     }
 
     /// <summary>Where the words saying this were drawn inside a piece.</summary>
-    private static Rect Words(Piece piece, string said) =>
+    private static LayoutRect Words(PortablePiece piece, string said) =>
         Said(piece).First(words => words.Words!.Glyphs.Text == said).Bounds;
 
     /// <summary>The words drawn under a piece, in the order they were drawn.</summary>
-    private static IEnumerable<Piece> Said(Piece piece) =>
+    private static IEnumerable<PortablePiece> Said(PortablePiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Words && part.Words is not null);
 
     /// <summary>What each run of words under a piece says, in the order they were drawn.</summary>
-    private static IReadOnlyList<string> Saying(Piece piece) => [.. Said(piece).Select(words => words.Words!.Glyphs.Text)];
+    private static IReadOnlyList<string> Saying(PortablePiece piece) => [.. Said(piece).Select(words => words.Words!.Glyphs.Text)];
 
-    private static bool Holds(Rect over, Rect inner) =>
+    private static bool Holds(LayoutRect over, LayoutRect inner) =>
         inner.Left >= over.Left - 1 && inner.Right <= over.Right + 1 && inner.Top >= over.Top - 1 && inner.Bottom <= over.Bottom + 1;
 
     // ── What is read from the lines as written ──────────────────────────────
@@ -289,19 +291,19 @@ public class ClassBuilderTests : MermaidBuilderContract
     [TestMethod]
     public void EachRelationDrawsWhatItsEndsSay_AndADottedLineWhereItsLineIsDotted() => UiThread.Run(() =>
     {
-        IReadOnlyList<GeometryMark> Marks(string relation) =>
+        IReadOnlyList<PortableGeometryMark> Marks(string relation) =>
             [.. Pieces(Build($"classDiagram\n  {relation}"), ClassPiece.Relation).Single()
-                .SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>()];
+                .SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<PortableGeometryMark>()];
 
-        string Outline(string relation) => string.Join("|", Marks(relation).Select(mark => $"{PathGeometry.CreateFromGeometry(mark.Shape).ToString(CultureInfo.InvariantCulture)} {mark.Fill}"));
+        string Outline(string relation) => string.Join("|", Marks(relation).Select(mark => $"{PathGeometry.CreateFromGeometry(mark.Shape.Geometry()).ToString(CultureInfo.InvariantCulture)} {mark.Fill?.Color}"));
 
         var ends = new[] { "A <|-- B", "A *-- B", "A o-- B", "A --> B", "A -- B" }.Select(Outline).ToList();
         Assert.AreEqual(5, ends.Distinct().Count(), "inheritance, composition, aggregation, association and a link each draw their own");
         Assert.AreNotEqual(Outline("A <|-- B"), Outline("A <|--|> B"), "and one written both ways draws a head at either end");
 
-        Assert.IsNull(Marks("A --> B")[0].Dashes);
+        Assert.IsNull((Marks("A --> B")[0].Stroke as WpfStroke)?.Dashes);
         foreach (var dotted in new[] { "A ..> B", "A ..|> B", "A .. B" })
-            Assert.IsNotNull(Marks(dotted)[0].Dashes, dotted);
+            Assert.IsNotNull((Marks(dotted)[0].Stroke as WpfStroke)?.Dashes, dotted);
     });
 
     [TestMethod]

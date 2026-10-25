@@ -11,6 +11,9 @@ using Nexaflow.Visuals.Text.Markdown;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 
@@ -43,7 +46,7 @@ internal static class HandLaid
     private const string Unbinding = "hand-unbound";
     private const string Unbuilding = "hand-unbuilt";
 
-    private static readonly ConcurrentDictionary<string, Func<EditState, bool, Laid>> Lays = new();
+    private static readonly ConcurrentDictionary<string, Func<EditState, bool, PortableLaid>> Lays = new();
     private static int _made;
 
     /// <summary>
@@ -101,35 +104,35 @@ internal static class HandLaid
     }
 
     /// <summary>An element showing <paramref name="source"/> as <paramref name="lay"/> lays it, told the state and whether nobody can write in it.</summary>
-    public static ContentElement Element(string source, Func<EditState, bool, Laid> lay, bool readOnly = false)
+    public static ContentElement Element(string source, Func<EditState, bool, PortableLaid> lay, bool readOnly = false)
     {
         var named = Laying + Interlocked.Increment(ref _made).ToString(CultureInfo.InvariantCulture);
         Lays[named] = lay;
 
-        return new ContentElement(source, StyleFormat.Dark, new ContentEngine(), named) { IsReadOnly = readOnly };
+        return new ContentElement(source, WpfStyles.Dark, new ContentEngine(), named) { IsReadOnly = readOnly };
     }
 
     /// <summary>An element showing <paramref name="source"/> in a language whose reading falls over before anything is laid out.</summary>
-    public static ContentElement Unreadable(string source) => new(source, StyleFormat.Dark, new ContentEngine(), Unreading);
+    public static ContentElement Unreadable(string source) => new(source, WpfStyles.Dark, new ContentEngine(), Unreading);
 
     /// <summary>An element showing <paramref name="source"/> in a language one of whose stages falls over.</summary>
-    public static ContentElement Unstageable(string source) => new(source, StyleFormat.Dark, new ContentEngine(), Unstaging);
+    public static ContentElement Unstageable(string source) => new(source, WpfStyles.Dark, new ContentEngine(), Unstaging);
 
     /// <summary>An element showing <paramref name="source"/> in a language whose binding falls over.</summary>
-    public static ContentElement Unbindable(string source) => new(source, StyleFormat.Dark, new ContentEngine(), Unbinding);
+    public static ContentElement Unbindable(string source) => new(source, WpfStyles.Dark, new ContentEngine(), Unbinding);
 
     /// <summary>An element showing <paramref name="source"/> in a language whose builder is not one.</summary>
-    public static ContentElement Unbuildable(string source) => new(source, StyleFormat.Dark, new ContentEngine(), Unbuilding);
+    public static ContentElement Unbuildable(string source) => new(source, WpfStyles.Dark, new ContentEngine(), Unbuilding);
 
     /// <summary>A fixed box, so a block in a test language is something drawn and something to hover over.</summary>
-    private static Laid Boxed()
+    private static PortableLaid Boxed()
     {
-        var build = new LayoutBuilder();
+        var build = new PortableBuilder(WpfMedium.OnThisThread);
         build.Open("hand-boxed");
-        build.Draw(new RuleMark(new Rect(0, 0, 60, 20), Brushes.Blue));
+        build.Draw(new PortableRuleMark(new LayoutRect(0, 0, 60, 20), WpfMedium.OnThisThread.Ink(Brushes.Blue)));
         build.Close();
 
-        return new Laid(build.Seal(), new Size(60, 20), []);
+        return new PortableLaid(build.Seal(), 60, 20, []);
     }
 
     /// <summary>A language that falls over when asked what its block's corner offers.</summary>
@@ -141,18 +144,19 @@ internal static class HandLaid
     /// <summary>The content, carrying how the test lays it out — hung on it by a stage, as any language's stages hang what they work out.</summary>
     private sealed class Handed : ContentNode
     {
-        public Handed(ContentNode written, Func<EditState, bool, Laid> lay) : base(written) => Lay = lay;
+        public Handed(ContentNode written, Func<EditState, bool, PortableLaid> lay) : base(written) => Lay = lay;
 
-        public Func<EditState, bool, Laid> Lay { get; }
+        public Func<EditState, bool, PortableLaid> Lay { get; }
 
         protected override ContentNode Reshaped(ContentNode shape) => new Handed(shape, Lay);
     }
 
-    private sealed class Builder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
-        : ContentBuilder(reading, state, style, isReadOnly, nesting)
+    private sealed class Builder(ContentReading reading, EditState state, PortableStyle style, bool isReadOnly, ILayoutMedium medium,
+                                 PortableHost host)
+        : PortableContentBuilder(reading, state, style, isReadOnly, medium, host)
     {
-        protected override Laid? Build() => ((Handed)Reading.Root.Node).Lay(State, IsReadOnly);
+        protected override PortableLaid? Build() => ((Handed)Reading.Root.Node).Lay(State, IsReadOnly);
 
-        protected override CharacterSetting Characters => new(new Typeface("Segoe UI"), Style.TextSize, Brushes.Black, Culture: CultureInfo.InvariantCulture);
+        protected override PortableCharacters Characters => new(Medium.Face("Segoe UI"), Style.TextSize, Style.Text);
     }
 }

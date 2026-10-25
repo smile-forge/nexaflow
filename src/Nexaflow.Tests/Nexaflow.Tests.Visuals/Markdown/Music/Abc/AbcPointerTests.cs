@@ -7,6 +7,9 @@ using Nexaflow.Visuals.Text.Markdown.Music.Abc;
 using Nexaflow.Visuals.Text.Markdown;
 using System.Collections.Generic;
 using System;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
 
@@ -39,7 +42,7 @@ public class AbcPointerTests
         // A head, a stem, a ledger line and a dot are how a note is drawn, not anything anybody typed.
         // Each is a node so that a press lands on it and climbs — which is the same rule that resolves a
         // staff line, said once rather than per piece.
-        var layout = Laying.Engraved("abc", Sung, 900, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", Sung, 900, WpfStyles.Light);
 
         foreach (var note in Every(layout, "note"))
             foreach (var piece in note.Children)
@@ -51,11 +54,11 @@ public class AbcPointerTests
             }
     });
 
-    private static System.Collections.Generic.List<Piece> Every(Laid layout, string kind) =>
+    private static System.Collections.Generic.List<PortablePiece> Every(PortableLaid layout, string kind) =>
         [.. layout.Root.SelfAndDescendants().Where(n => Kind(n) == kind)];
 
-    private static Point Middle(Piece node) =>
+    private static LayoutPoint Middle(PortablePiece node) =>
         new(node.Bounds.X + (node.Bounds.Width / 2), node.Bounds.Y + (node.Bounds.Height / 2));
 
-    private static string Kind(Piece node) => node.Exists ? node.Kind : "nothing";
+    private static string Kind(PortablePiece node) => node.Exists ? node.Kind : "nothing";
 }

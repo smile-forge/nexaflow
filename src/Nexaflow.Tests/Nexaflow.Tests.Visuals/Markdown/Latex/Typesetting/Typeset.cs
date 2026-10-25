@@ -6,11 +6,14 @@ using Nexaflow.Markdown.Latex;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
+using Nexaflow.Markdown.Layout.Maths;
 using Nexaflow.Markdown.Typesetting.Tex;
 using TexEnvironment = Nexaflow.Markdown.Typesetting.Tex.TexEnvironment;
 using Nexaflow.Markdown.Typesetting;
 using Nexaflow.Markdown.Typesetting.Tex.Rendering;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting;
 
@@ -35,7 +38,7 @@ internal static class Typeset
     {
         _environments ??= new Dictionary<TexStyle, TexEnvironment>();
         if (!_environments.TryGetValue(style, out var environment))
-            _environments[style] = environment = WpfTeXEnvironment.Create(style);
+            _environments[style] = environment = PortableTexFonts.Of(WpfHandles.Medium, "Arial").Environment(style, 20.0);
 
         return environment;
     }
@@ -94,19 +97,19 @@ internal static class Typeset
 
     /// <summary>The stretches that were read but have no drawing, and so are set as the characters written — which the layout says, each with a warning.</summary>
     public static IReadOnlyList<string> Undrawn(string markup) =>
-        Laid(markup).Trouble.Where(said => said.Severity == DiagnosticSeverity.Warning)
+        Laid(markup).Trouble.Where(said => said.Severity == PortableSeverity.Warning)
                             .Select(said => markup.Substring(said.Start, said.Length))
                             .Distinct()
                             .ToList();
 
     /// <summary>The formula laid out at unit scale, which is settled onto its ink.</summary>
-    public static Laid Laid(string markup) => Laying.Formula(markup, 1.0);
+    public static PortableLaid Laid(string markup) => Laying.Formula(markup, 1.0);
 
     /// <summary>Every mark the formula draws, with the x its piece lands at measured from the formula's left edge.</summary>
-    public static IReadOnlyList<(LayoutMark Mark, double X)> Marks(string markup)
+    public static IReadOnlyList<(PortableMark Mark, double X)> Marks(string markup)
     {
         // A formula that sets nothing — a space, a phantom — is shown as the characters written, which is no ink of the formula's.
-        var marks = new List<(LayoutMark, double)>();
+        var marks = new List<(PortableMark, double)>();
         if (Laid(markup) is not { ShowsSource: false, Tree: var tree }) return marks;
 
         var left = tree.AnchorOf(0).X;

@@ -11,6 +11,9 @@ using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -41,10 +44,13 @@ public sealed partial class ContentEngine
     /// <summary>A document with nothing in it, for before anything has been laid.</summary>
     private static readonly ContentPart NothingRead = ContentPart.Of(new BlockNode(MarkdownParser.Language, []));
 
-    private Point? _pointer;
+    private LayoutPoint? _pointer;
     private ContentPart? _over;
-    private Laid? _corner;
-    private Rect? _showing;
+    private PortableLaid? _corner;
+
+    /// <summary>What each button of the corner offers, by the piece it is — what a press on one is taken as meaning.</summary>
+    private IReadOnlyDictionary<int, LayoutIntent> _cornerOffers = new Dictionary<int, LayoutIntent>();
+    private LayoutRect? _showing;
 
     /// <summary>
     /// The content as it was read — the tree the laid layout was drawn from — so every question about what it is made of is
@@ -53,10 +59,10 @@ public sealed partial class ContentEngine
     internal ContentPart ReadRoot => Reading?.Root ?? NothingRead;
 
     /// <summary>The buttons in the corner of the block the pointer is over, laid out where they stand — or null where it is over none that offers any.</summary>
-    internal Laid? Corner => _corner;
+    internal PortableLaid? Corner => _corner;
 
     /// <summary>The part of the content on screen, in its own units, which the corner of a block taller than that stays inside — or null where all of it is.</summary>
-    internal Rect? OnScreen
+    internal LayoutRect? OnScreen
     {
         get => _showing;
         set
@@ -70,7 +76,7 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>The pointer moved over the content, or left it.</summary>
-    private void Hover(Point? at)
+    private void Hover(LayoutPoint? at)
     {
         // Over the corner's own buttons, the block they belong to is still the one pointed at — but which of them the pointer
         // is on may have changed, and only that one is drawn as the one a press would answer.
@@ -99,11 +105,11 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>Where the button a point is on stands, or nothing where it is on none of them.</summary>
-    private static Rect? ButtonUnder(Laid? corner, Point? at) =>
+    private static LayoutRect? ButtonUnder(PortableLaid? corner, LayoutPoint? at) =>
         corner is { } shown && at is { } point
             ? shown.Root.SelfAndDescendants()
                    .Where(piece => piece.Acts is not null && piece.Bounds.Contains(point))
-                   .Select(piece => (Rect?)piece.Bounds)
+                   .Select(piece => (LayoutRect?)piece.Bounds)
                    .FirstOrDefault()
             : null;
 
@@ -152,20 +158,20 @@ public sealed partial class ContentEngine
     /// still on the diagram.
     /// </para>
     /// </summary>
-    internal ContentPart? Blocked(Point at)
+    internal ContentPart? Blocked(LayoutPoint at)
     {
-        bool Holds(Rect band) => !band.IsEmpty && at.Y >= band.Y && at.Y < band.Bottom;
+        bool Holds(LayoutRect band) => !band.IsEmpty && at.Y >= band.Y && at.Y < band.Bottom;
 
         var piece = _laid.Root.PieceAt(at);
 
         if (piece.Exists && Blocked(piece.Sits().Start) is { } nearest && Holds(Where(nearest))) return nearest;
 
         // Content in one language is one block of it, and the whole of what was laid is that block.
-        if (_named is not null) return Holds(new Rect(_laid.Size)) ? ReadRoot : null;
+        if (_named is not null) return Holds(new LayoutRect(_laid.Size)) ? ReadRoot : null;
 
-        foreach (var whole in LayoutQuery.ChildrenWhere(_laid.Root, (reach, _) => Holds(reach)))
+        foreach (var whole in PortableQuery.ChildrenWhere(_laid.Root, (reach, _) => Holds(reach)))
         {
-            if (whole.Kind != MarkdownPieces.Whole || !Holds(whole.Bounds)) continue;
+            if (whole.Kind != PortablePieces.Whole || !Holds(whole.Bounds)) continue;
 
             if (whole.SelfAndDescendants().Select(inside => inside.Part).FirstOrDefault(part => part is { Length: > 0 }) is { } named)
                 return Blocked(named.Start);
@@ -254,25 +260,25 @@ public sealed partial class ContentEngine
     /// page, and widening one here would only make every picture of it as wide as the longest line in the document.
     /// </para>
     /// </summary>
-    internal Rect Where(ContentPart block)
+    internal LayoutRect Where(ContentPart block)
     {
         // Content in one language is one block, and all of what was laid is it.
-        if (block.Parent is null) return new Rect(_laid.Size);
+        if (block.Parent is null) return new LayoutRect(_laid.Size);
 
-        foreach (var whole in LayoutQuery.ChildrenWhere(_laid.Root, (_, span) => span.First <= block.End && span.Last >= block.Start))
+        foreach (var whole in PortableQuery.ChildrenWhere(_laid.Root, (_, span) => span.First <= block.End && span.Last >= block.Start))
         {
-            if (whole.Kind != MarkdownPieces.Whole) continue;
+            if (whole.Kind != PortablePieces.Whole) continue;
             if (whole.SelfAndDescendants().Select(piece => piece.Part).FirstOrDefault(part => part is { Length: > 0 }) is not { } named) continue;
 
             if (named.Start >= block.Start && named.Start < block.End) return whole.Bounds;
         }
 
         var rects = _laid.Root.RangeRects(block.Start, Math.Max(block.Length, 1));
-        if (rects.Count == 0) return Rect.Empty;
+        if (rects.Count == 0) return LayoutRect.Empty;
 
         var box = rects[0];
 
-        foreach (var rect in rects) box = Rect.Union(box, rect);
+        foreach (var rect in rects) box = LayoutRect.Union(box, rect);
 
         return box;
     }
@@ -285,7 +291,7 @@ public sealed partial class ContentEngine
     /// Whether it did: not where nobody may write, and not in a block already shown as written, where two presses pick out a
     /// word as they do in any text.
     /// </returns>
-    internal bool OpenAsWritten(Point at)
+    internal bool OpenAsWritten(LayoutPoint at)
     {
         if (_readOnly || Blocked(at) is not { } block) return false;
 
@@ -306,13 +312,13 @@ public sealed partial class ContentEngine
     // ── What a block offers ─────────────────────────────────────────────────
 
     /// <summary>What the block at a point offers in its corner — whichever of the usual buttons it allows, and whatever it adds of its own.</summary>
-    internal IReadOnlyList<LayoutIntent> Offers(Point at) => Blocked(at) is { } block ? [.. Offered(block)] : [];
+    internal IReadOnlyList<LayoutIntent> Offers(LayoutPoint at) => Blocked(at) is { } block ? [.. Offered(block)] : [];
 
     /// <summary>
     /// What a corner button means for the block at <paramref name="at"/>, told to the host with the block it was pressed on —
     /// the same as a press on the button would.
     /// </summary>
-    internal void Raise(LayoutIntent offer, Point at)
+    internal void Raise(LayoutIntent offer, LayoutPoint at)
     {
         if (Blocked(at) is not { } block) return;
 
@@ -375,7 +381,7 @@ public sealed partial class ContentEngine
     /// the fault it reported.
     /// </para>
     /// </summary>
-    private Laid? Cornered(ContentPart block)
+    private PortableLaid? Cornered(ContentPart block)
     {
         try
         {
@@ -385,7 +391,8 @@ public sealed partial class ContentEngine
             var box = Where(block);
             if (box.IsEmpty) return null;
 
-            var faces = offers.Select(offer => (Offer: offer, Face: Face(offer))).ToList();
+            var medium = WpfMedium.OnThisThread;
+            var faces = offers.Select(offer => (Offer: offer, Face: Face(offer, medium))).ToList();
             var width = faces.Sum(face => Width(face.Face, face.Offer));
 
             var top = Math.Max(box.Y, _showing?.Y ?? box.Y) + CornerDrop;
@@ -395,26 +402,28 @@ public sealed partial class ContentEngine
             // words are still on the block they belong to.
             var x = Math.Max(box.Right, Room) - CornerInset - width;
 
-            var build = new LayoutBuilder();
-            build.Open(CornerPieces.Corner, stops: Stops.None);
+            var build = new PortableBuilder(medium);
+            var meant = new Dictionary<int, LayoutIntent>();
+            build.Open(CornerPieces.Corner, stops: PortableStops.None);
 
             foreach (var (offer, face) in faces)
             {
                 var wide = Width(face, offer);
-                var where = new Rect(x, top, wide, ButtonSize);
+                var where = new LayoutRect(x, top, wide, ButtonSize);
 
-                var shape = new RectangleGeometry(where, ButtonRound, ButtonRound);
-                shape.Freeze();
+                var shape = medium.Rectangle(where, ButtonRound, ButtonRound);
 
                 // The one the pointer is on is outlined, so a reader pressing sees which of them would answer. Faintness is the
                 // whole corner's and the element's to draw; which button is meant is this one's to say.
                 var under = _pointer is { } point && where.Contains(point);
 
-                build.Open(CornerPieces.Button, stops: Stops.None);
-                build.Acts(new LayoutActions { Click = offer });
-                build.Draw(new GeometryMark(shape, _style.QuoteBg, under ? _style.Accent : null, under ? 1 : 0));
+                // What the button means is said to the tree as a builder says it, and kept here as offered — a language's own
+                // offer says more than a press needs to know, and the host answering it is told all of it.
+                meant[build.Open(CornerPieces.Button, stops: PortableStops.None)] = offer;
+                build.Acts(new PortableActions { Click = new PortableIntent(offer.Verb, offer.Target, offer.Tip) });
+                build.Draw(new PortableGeometryMark(shape, _style.QuoteBg, under ? medium.Stroke(_style.Accent, 1) : null));
                 build.Occupies(shape);
-                build.Draw(new TextMark(face, new Point(x + ((wide - face.Width) / 2), top + ((ButtonSize - face.Height) / 2)), _style.Text));
+                build.Draw(new PortableTextMark(face, new LayoutPoint(x + ((wide - face.Width) / 2), top + ((ButtonSize - face.Height) / 2)), _style.Text));
                 build.Close();
 
                 x += wide;
@@ -423,7 +432,10 @@ public sealed partial class ContentEngine
             build.Close();
 
             var tree = build.Seal();
-            return new Laid(tree, tree.Root.Bounds.Size, []);
+            var bounds = tree.Root.Bounds;
+            _cornerOffers = meant;
+
+            return new PortableLaid(tree, bounds.Width, bounds.Height, []);
         }
         catch
         {
@@ -432,15 +444,17 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>What a button shows: the mark for what it does, where there is one, and its name where there is not.</summary>
-    private FormattedText Face(LayoutIntent offer) =>
+    private IShapedText Face(LayoutIntent offer, WpfMedium medium) =>
         DiagramRibbon.Icon(offer) is { } mark
-            ? new FormattedText(mark, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, new Typeface(DiagramRibbon.IconFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
-                                MarkSize, _style.Text, LayoutText.Density)
-            : new FormattedText(DiagramRibbon.Names(offer), CultureInfo.CurrentCulture, FlowDirection.LeftToRight, _style.Face(_style.TextFont),
-                                MarkSize, _style.Text, LayoutText.Density);
+            ? medium.Shape(mark, _markFace ??= medium.Face(new Typeface(DiagramRibbon.IconFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal)),
+                           MarkSize, _style.Text)
+            : medium.Shape(DiagramRibbon.Names(offer), _style.Face(_style.TextFont), MarkSize, _style.Text);
+
+    /// <summary>The face a button's mark is drawn in, found the first time one is.</summary>
+    private LayoutFace? _markFace;
 
     /// <summary>How wide a button is: square where it shows a mark, and its name's width with room round it where it does not.</summary>
-    private static double Width(FormattedText face, LayoutIntent offer) =>
+    private static double Width(IShapedText face, LayoutIntent offer) =>
         DiagramRibbon.Icon(offer) is not null ? ButtonSize : face.Width + (ButtonPad * 2);
 
     /// <summary>What the corner's pieces are.</summary>
@@ -470,7 +484,7 @@ public sealed partial class ContentEngine
     /// what a drop on that piece comes to; failing that, the markdown it came as, written at the nearest place to it.
     /// </summary>
     /// <param name="at">Where it was let go, in the content's own units — which piece that is, is this to work out.</param>
-    internal bool Brought(string words, string markdown, Point at)
+    internal bool Brought(string words, string markdown, LayoutPoint at)
     {
         if (_readOnly) return false;
 

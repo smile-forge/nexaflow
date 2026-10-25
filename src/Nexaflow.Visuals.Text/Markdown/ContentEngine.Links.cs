@@ -4,6 +4,9 @@ using System.Text;
 using System.Windows;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -28,18 +31,18 @@ public sealed record LaidLink
     public string Text { get; internal init; } = string.Empty;
 
     /// <summary>Everything it covers, in the content's own units — a link that wraps covers both its lines.</summary>
-    public Rect Bounds { get; internal init; }
+    public LayoutRect Bounds { get; internal init; }
 
     /// <summary>A point on it, in the content's own units: the middle of where it starts.</summary>
-    public Point At { get; internal init; }
+    public LayoutPoint At { get; internal init; }
 
     internal LayoutIntent Intent { get; init; }
 
     /// <summary>The piece a press on <see cref="At"/> lands on.</summary>
-    internal Piece Piece { get; init; }
+    internal PortablePiece Piece { get; init; }
 
     /// <summary>The layout it was read from.</summary>
-    internal Laid? From { get; init; }
+    internal PortableLaid? From { get; init; }
 }
 
 public sealed partial class ContentEngine
@@ -57,18 +60,18 @@ public sealed partial class ContentEngine
         var links = new List<LaidLink>();
         var text = new StringBuilder();
 
-        Piece first = default;
-        Rect start = Rect.Empty, covers = Rect.Empty;
+        PortablePiece first = default;
+        LayoutRect start = LayoutRect.Empty, covers = LayoutRect.Empty;
         LayoutIntent intent = default;
         var open = false;
 
         foreach (var (piece, where) in _laid.Tree.Root.Placed())
         {
-            if (piece.Acts?.Click is { Verb: LayoutVerbs.Navigate } press)
+            if (LayoutAnswers.Offer(piece.Acts?.Click) is { Verb: LayoutVerbs.Navigate } press)
             {
                 if (open && press == intent)
                 {
-                    covers.Union(where);
+                    covers = LayoutRect.Union(covers, where);
                     continue;
                 }
 
@@ -98,7 +101,7 @@ public sealed partial class ContentEngine
             {
                 Text   = said.Length > 0 ? said : intent.Tip ?? intent.Target ?? string.Empty,
                 Bounds = covers,
-                At     = new Point(start.X + start.Width / 2, start.Y + start.Height / 2),
+                At     = new LayoutPoint(start.X + start.Width / 2, start.Y + start.Height / 2),
                 Intent = intent,
                 Piece  = first,
                 From   = _laid,

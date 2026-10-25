@@ -11,7 +11,10 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Flowchart;
-using Nexaflow.Visuals.Text.Markdown.Mermaid.Swimlane;
+using Nexaflow.Markdown.Layout.Mermaid.Swimlane;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -168,9 +171,9 @@ public class SwimlaneBuilderTests : MermaidBuilderContract
 
         var (on, yes, up) = (links[1].Bounds, links[2].Bounds, links[3].Bounds);
 
-        Assert.AreEqual(Middle(nodes["Tests pass?"]).X, Middle(up).X, 2, "the line straight up leaves by the point at the top");
+        Assert.AreEqual(Middle(nodes["Tests pass?"].ToWpf()).X, Middle(up.ToWpf()).X, 2, "the line straight up leaves by the point at the top");
         Assert.IsTrue(yes.Left >= nodes["Tests pass?"].Right - 2, $"and the other by the corner on the side it heads for: {yes} from {nodes["Tests pass?"]}");
-        Assert.AreEqual(Middle(nodes["Build"]).Y, Middle(on).Y, 2, "a line on to the next rank leaves from the middle of the side it leaves by");
+        Assert.AreEqual(Middle(nodes["Build"].ToWpf()).Y, Middle(on.ToWpf()).Y, 2, "a line on to the next rank leaves from the middle of the side it leaves by");
     });
 
     [TestMethod]
@@ -236,9 +239,9 @@ public class SwimlaneBuilderTests : MermaidBuilderContract
         Assert.AreEqual("subgraph Customer\n    one\n  end", Written(source, lane.Part),
                         "the band stands for the whole of what the lane was written as, not the line that opened it");
 
-        Assert.IsTrue(Stands(lane, new Point(lane.Bounds.Left + 2, lane.Bounds.Bottom - 2)),
+        Assert.IsTrue(Stands(lane, new LayoutPoint(lane.Bounds.Left + 2, lane.Bounds.Bottom - 2)),
                       "a press in the band where nothing else is drawn means the lane");
-        Assert.IsFalse(Stands(lane, Middle(node.Bounds)), "and where a node is drawn it means the node");
+        Assert.IsFalse(Stands(lane, Middle(node.Bounds.ToWpf()).ToLayout()), "and where a node is drawn it means the node");
     });
 
     [TestMethod]
@@ -277,13 +280,13 @@ public class SwimlaneBuilderTests : MermaidBuilderContract
 
     // ── What it works with ──────────────────────────────────────────────────
 
-    private static Laid Build(string source, double room = 900) =>
+    private static PortableLaid Build(string source, double room = 900) =>
         Laying.Lay("mermaid", source, room);
 
     /// <summary>Every lane drawn, by the name in its strip.</summary>
-    private static Dictionary<string, Rect> Lanes(Laid laid, string source)
+    private static Dictionary<string, LayoutRect> Lanes(PortableLaid laid, string source)
     {
-        var lanes = new Dictionary<string, Rect>();
+        var lanes = new Dictionary<string, LayoutRect>();
 
         foreach (var band in Pieces(laid, FlowchartPiece.Lane))
             lanes[Named(laid, source, band)] = band.Bounds;
@@ -292,23 +295,23 @@ public class SwimlaneBuilderTests : MermaidBuilderContract
     }
 
     /// <summary>The lanes in the order their bands are set across the chart.</summary>
-    private static string[] Across(Laid laid, string source) =>
+    private static string[] Across(PortableLaid laid, string source) =>
         [.. Pieces(laid, FlowchartPiece.Lane).OrderBy(band => band.Bounds.Left).Select(band => Named(laid, source, band))];
 
     /// <summary>What a lane's band is called, which is what is written in the strip drawn over it.</summary>
-    private static string Named(Laid laid, string source, Piece band) =>
+    private static string Named(PortableLaid laid, string source, PortablePiece band) =>
         Pieces(laid, FlowchartPiece.Title)
-            .Where(strip => band.Bounds.Contains(Middle(strip.Bounds)))
+            .Where(strip => band.Bounds.Contains(Middle(strip.Bounds.ToWpf()).ToLayout()))
             .SelectMany(Said)
             .Select(said => said.Words!.Glyphs.Text)
             .FirstOrDefault() ?? Written(source, band.Part) ?? band.Bounds.ToString();
 
     /// <summary>Every node drawn, by what is written on it.</summary>
-    private static Dictionary<string, Rect> Nodes(string source) => Nodes(Build(source));
+    private static Dictionary<string, LayoutRect> Nodes(string source) => Nodes(Build(source));
 
-    private static Dictionary<string, Rect> Nodes(Laid laid)
+    private static Dictionary<string, LayoutRect> Nodes(PortableLaid laid)
     {
-        var nodes = new Dictionary<string, Rect>();
+        var nodes = new Dictionary<string, LayoutRect>();
 
         foreach (var piece in Pieces(laid, FlowchartPiece.Node))
             nodes[Said(piece).Select(said => said.Words!.Glyphs.Text).FirstOrDefault() ?? piece.Bounds.ToString()] = piece.Bounds;
@@ -317,22 +320,22 @@ public class SwimlaneBuilderTests : MermaidBuilderContract
     }
 
     /// <summary>The words drawn under a piece, in the order they were drawn.</summary>
-    private static IEnumerable<Piece> Said(Piece piece) =>
+    private static IEnumerable<PortablePiece> Said(PortablePiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Words && part.Words is not null);
 
-    private static Color? Filled(Piece piece) =>
+    private static Color? Filled(PortablePiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Shape).Select(Fill).FirstOrDefault();
 
-    private static bool Holds(Rect over, Rect inner) =>
+    private static bool Holds(LayoutRect over, LayoutRect inner) =>
         inner.Left >= over.Left - 1 && inner.Right <= over.Right + 1 && inner.Top >= over.Top - 1 && inner.Bottom <= over.Bottom + 1;
 
     /// <summary>Whether a piece's shape stands at a point, which is where a press on it lands rather than on what is under it.</summary>
-    private static bool Stands(Piece piece, Point at)
+    private static bool Stands(PortablePiece piece, LayoutPoint at)
     {
         var shift = piece.Offset;
         foreach (var over in piece.Ancestors()) shift += over.Offset;
 
-        return piece.SelfAndDescendants().First(part => part.Kind == MermaidPiece.Shape).Region?.FillContains(at - shift) == true;
+        return piece.SelfAndDescendants().First(part => part.Kind == MermaidPiece.Shape).Region?.Contains(at - shift) == true;
     }
 
     [TestMethod]

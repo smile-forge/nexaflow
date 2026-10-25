@@ -4,7 +4,10 @@ using Nexaflow.Markdown.Plot;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
-using Nexaflow.Visuals.Text.Markdown.Plot;
+using Nexaflow.Markdown.Layout.Plot;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Plot;
 
@@ -26,7 +29,7 @@ public class PlotBuilderTests
 {
     private const string Cars = "weight  mpg\n3504  18\n2372  24\n1613  35";
 
-    private static Laid Lay(string source, PlotFence fence = PlotFence.Scatter, double room = 560) =>
+    private static PortableLaid Lay(string source, PlotFence fence = PlotFence.Scatter, double room = 560) =>
         Laying.Lay(fence.ToString().ToLowerInvariant(), source, room);
 
     [TestMethod]
@@ -43,10 +46,10 @@ public class PlotBuilderTests
         StringAssert.Contains(laid.Trouble.Single().Message, "jitter");
     });
 
-    private static Piece[] Marks(Laid laid) =>
+    private static PortablePiece[] Marks(PortableLaid laid) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == PlotPiece.Mark)];
 
-    private static Piece[] Of(Laid laid, string kind) =>
+    private static PortablePiece[] Of(PortableLaid laid, string kind) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];
 
     // ── The marks ───────────────────────────────────────────────────────────
@@ -229,14 +232,14 @@ public class PlotBuilderTests
         const string source = "width: wide\n\n1 2\n3 4";
         var laid = Lay(source);
 
-        Assert.AreEqual(source, Text(laid, LayoutText.SourceKind), "there is no plot to draw: the lines are shown as they are written");
+        Assert.AreEqual(source, Text(laid, PortableText.SourceKind), "there is no plot to draw: the lines are shown as they are written");
         StringAssert.Contains(laid.Trouble.Single().Message, "width", "this says what is wrong with them");
-        StringAssert.Contains(Text(laid, SourceShown.Reason), "width", "and the reason is written under them");
+        StringAssert.Contains(Text(laid, PortableSourceShown.Reason), "width", "and the reason is written under them");
     });
 
-    private static string Text(Laid laid, string kind) =>
+    private static string Text(PortableLaid laid, string kind) =>
         string.Concat(laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)
-            .SelectMany(piece => piece.Marks.ToArray()).OfType<TextMark>().Select(mark => mark.Glyphs.Text));
+            .SelectMany(piece => piece.Marks.ToArray()).OfType<PortableTextMark>().Select(mark => mark.Glyphs.Text));
 
     [TestMethod]
     [CoversNode("correlation-plots-render")]
@@ -247,7 +250,7 @@ public class PlotBuilderTests
 
         Assert.IsTrue(laid.ShowsSource);
         Assert.AreEqual(1, laid.Trouble.Count);
-        Assert.AreEqual(1, laid.Root.SelfAndDescendants().Count(piece => piece.Kind == SourceShown.Unread), "that row marked");
+        Assert.AreEqual(1, laid.Root.SelfAndDescendants().Count(piece => piece.Kind == PortableSourceShown.Unread), "that row marked");
     });
 
     // ── The way in ──────────────────────────────────────────────────────────
@@ -264,7 +267,7 @@ public class PlotBuilderTests
     [CoversNode("correlation-plots-render")]
     public void AScatterBlockDispatchesThroughTheDiagramRenderer() => UiThread.Run(() =>
     {
-        var element = Alone.Drawn("scatter", Cars, StyleFormat.Dark);
+        var element = Alone.Drawn("scatter", Cars, WpfStyles.Dark);
 
         Assert.IsInstanceOfType<ContentElement>(element,
             "a plot is rendered content, not the source text it was written as");
@@ -273,7 +276,7 @@ public class PlotBuilderTests
     // ── Scales ──────────────────────────────────────────────────────────────
 
     /// <summary>The words along one axis, in the order they are drawn.</summary>
-    private static string[] Marks(Laid laid, string axis) =>
+    private static string[] Marks(PortableLaid laid, string axis) =>
         [.. laid.Root.SelfAndDescendants()
                  .First(piece => piece.Kind == axis)
                  .SelfAndDescendants()
@@ -281,7 +284,7 @@ public class PlotBuilderTests
                  .Select(piece => piece.Words?.Glyphs.Text ?? string.Empty)];
 
     /// <summary>Where each of them is across the page.</summary>
-    private static double[] Along(Laid laid, string axis) =>
+    private static double[] Along(PortableLaid laid, string axis) =>
         [.. laid.Root.SelfAndDescendants()
                  .First(piece => piece.Kind == axis)
                  .SelfAndDescendants()
@@ -339,7 +342,7 @@ public class PlotBuilderTests
 
         Assert.IsTrue(laid.ShowsSource);
         Assert.AreEqual(1, laid.Trouble.Count);
-        Assert.AreEqual(1, laid.Root.SelfAndDescendants().Count(piece => piece.Kind == SourceShown.Unread), "that row marked");
+        Assert.AreEqual(1, laid.Root.SelfAndDescendants().Count(piece => piece.Kind == PortableSourceShown.Unread), "that row marked");
     });
 
     // ── Gridlines ───────────────────────────────────────────────────────────
@@ -370,9 +373,9 @@ public class PlotBuilderTests
     });
 
     /// <summary>What a piece was drawn in, which is how two groups are told apart.</summary>
-    private static Color? Fill(Piece piece) =>
-        piece.SelfAndDescendants().SelectMany(inner => inner.Marks.ToArray()).OfType<GeometryMark>()
-             .Select(mark => mark.Fill).OfType<SolidColorBrush>().Select(brush => (Color?)brush.Color)
+    private static Color? Fill(PortablePiece piece) =>
+        piece.SelfAndDescendants().SelectMany(inner => inner.Marks.ToArray()).OfType<PortableGeometryMark>()
+             .Select(mark => mark.Fill?.Brush()).OfType<SolidColorBrush>().Select(brush => (Color?)brush.Color)
              .FirstOrDefault();
 
     [TestMethod]
@@ -760,7 +763,7 @@ public class PlotBuilderTests
         {
             Assert.IsNotNull(label.Part, "a value drawn from nothing could not be typed into");
             Assert.IsNotNull(label.Words, "it is a run of text rather than a picture of one");
-            Assert.AreNotEqual(Stops.None, label.Stops, "and a caret can stand between any two of its digits");
+            Assert.AreNotEqual(PortableStops.None, label.Stops, "and a caret can stand between any two of its digits");
 
             Assert.AreEqual(Source.Substring(label.Part!.Start, label.Part.Length),
                             label.Words!.Glyphs.Text,
@@ -827,9 +830,9 @@ public class PlotBuilderTests
         Assert.AreNotEqual(Clearness(marks[0]), Clearness(marks[1]));
     });
 
-    private static double Clearness(Piece piece) =>
-        piece.SelfAndDescendants().SelectMany(inner => inner.Marks.ToArray()).OfType<GeometryMark>()
-             .Select(mark => mark.Fill?.Opacity ?? 1).FirstOrDefault();
+    private static double Clearness(PortablePiece piece) =>
+        piece.SelfAndDescendants().SelectMany(inner => inner.Marks.ToArray()).OfType<PortableGeometryMark>()
+             .Select(mark => mark.Fill?.Brush().Opacity ?? 1).FirstOrDefault();
 
     [TestMethod]
     [CoversNode("correlation-plots-render")]
@@ -874,7 +877,7 @@ public class PlotBuilderTests
     });
 
     /// <summary>What is written up the side, which is the axis title drawn turned.</summary>
-    private static string? Upright(Laid laid)
+    private static string? Upright(PortableLaid laid)
     {
         foreach (var piece in Of(laid, PlotPiece.AxisTitle))
             if (piece.Turned is not null) return piece.Words?.Glyphs.Text;
@@ -933,13 +936,13 @@ public class PlotBuilderTests
         Clear(Lay("title: One\nsubtitle: Two\n\n" + Cars, room: 640));
     });
 
-    private static void Clear(Laid laid)
+    private static void Clear(PortableLaid laid)
     {
         var title = Of(laid, PlotPiece.Title)[0].Bounds;
         var panel = Of(laid, PlotPiece.Grid)[0].Bounds;
 
-        foreach (var piece in Of(laid, PlotPiece.Grid)) panel.Union(piece.Bounds);
-        foreach (var piece in Of(laid, PlotPiece.Title)) title.Union(piece.Bounds);
+        foreach (var piece in Of(laid, PlotPiece.Grid)) panel = LayoutRect.Union(panel, piece.Bounds);
+        foreach (var piece in Of(laid, PlotPiece.Title)) title = LayoutRect.Union(title, piece.Bounds);
 
         Assert.IsTrue(title.Top >= panel.Bottom - 0.5 || title.Bottom <= panel.Top + 0.5,
                       $"a title reaching {title.Top}–{title.Bottom} runs into a panel of {panel.Top}–{panel.Bottom}");
@@ -949,12 +952,12 @@ public class PlotBuilderTests
     /// How much wider than tall the panel came out. Measured off the gridlines, which span the panel
     /// exactly — an axis piece reaches past it by however far its last number overhangs.
     /// </summary>
-    private static double Shape(Laid laid)
+    private static double Shape(PortableLaid laid)
     {
         var grid = Of(laid, PlotPiece.Grid);
         var panel = grid[0].Bounds;
 
-        foreach (var piece in grid) panel.Union(piece.Bounds);
+        foreach (var piece in grid) panel = LayoutRect.Union(panel, piece.Bounds);
 
         return panel.Width / panel.Height;
     }
@@ -978,15 +981,15 @@ public class PlotBuilderTests
         var laid = Lay("jitter: 0.9\n\nmonth  rating\nJan  3\nJan  3\nJan  5\nFeb  5\nFeb  2\nMar  4");
 
         var panel = Of(laid, PlotPiece.Grid)[0].Bounds;
-            foreach (var piece in Of(laid, PlotPiece.Grid)) panel.Union(piece.Bounds);
+            foreach (var piece in Of(laid, PlotPiece.Grid)) panel = LayoutRect.Union(panel, piece.Bounds);
 
             // A mark held to the edge lands on it, and an edge is not a place two doubles agree about.
-            panel.Inflate(0.01, 0.01);
+            panel = LayoutRect.Inflate(panel, 0.01, 0.01);
 
         foreach (var mark in Marks(laid))
         {
-            var middle = new System.Windows.Point(mark.Bounds.Left + (mark.Bounds.Width / 2),
-                                                  mark.Bounds.Top + (mark.Bounds.Height / 2));
+            var middle = new LayoutPoint(mark.Bounds.Left + (mark.Bounds.Width / 2),
+                                         mark.Bounds.Top + (mark.Bounds.Height / 2));
 
             Assert.IsTrue(panel.Contains(middle),
                           $"a mark at {middle} stands outside a panel of {panel}");
@@ -1129,7 +1132,7 @@ public class PlotBuilderTests
     });
 
     /// <summary>Each of an axis's ticks: what it says, and where it is along the page.</summary>
-    private static (string Says, double At)[] Ticked(Laid laid, string axis, Func<Piece, double> along) =>
+    private static (string Says, double At)[] Ticked(PortableLaid laid, string axis, Func<PortablePiece, double> along) =>
         [.. laid.Root.SelfAndDescendants()
                  .First(piece => piece.Kind == axis)
                  .SelfAndDescendants()
@@ -1145,7 +1148,7 @@ public class PlotBuilderTests
 
     private static string ByCylinders(string settings = "facet: cyl") => settings + "\n\n" + Cylinders;
 
-    private static string[] Strips(Laid laid) =>
+    private static string[] Strips(PortableLaid laid) =>
         [.. Of(laid, PlotPiece.Strip).Select(piece => piece.Words?.Glyphs.Text ?? string.Empty)];
 
     [TestMethod]

@@ -6,7 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Markdown.Matrix;
-using Nexaflow.Visuals.Text.Markdown.Matrix;
+using Nexaflow.Markdown.Layout.Matrix;
 using Nexaflow.Markdown.Matrix.DataMatrix;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Matrix;

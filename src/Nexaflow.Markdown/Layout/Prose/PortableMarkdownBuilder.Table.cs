@@ -19,7 +19,7 @@ public sealed partial class PortableMarkdownBuilder
             return;
         }
 
-        var pad = _style.TextSize * 0.45;
+        var pad = Style.TextSize * 0.45;
         var (widths, asked) = Widths(placed, rows, columns, room, pad);
 
         var laid = new List<List<(PortableTree Tree, double Width, double Height)>>(placed.Count);
@@ -106,7 +106,7 @@ public sealed partial class PortableMarkdownBuilder
 
     private Face Faced(ContentPart row) =>
         row.Role == MarkdownRoles.Head
-            ? Face.Plain with { Bold = true, Scale = 13.0 / 13.5, Ink = _style.Heading }
+            ? Face.Plain with { Bold = true, Scale = 13.0 / 13.5, Ink = Style.Heading }
             : Face.Plain;
 
     private static double Across(double[] widths, Cell cell, double pad)
@@ -121,7 +121,7 @@ public sealed partial class PortableMarkdownBuilder
     private double[] Heights(List<List<Cell>> placed, List<List<(PortableTree Tree, double Width, double Height)>> laid, double pad)
     {
         var heights = new double[placed.Count];
-        var least = _style.TextSize + (pad * 2);
+        var least = Style.TextSize + (pad * 2);
 
         for (var row = 0; row < placed.Count; row++) heights[row] = least;
 
@@ -159,7 +159,7 @@ public sealed partial class PortableMarkdownBuilder
         {
             into.Open(PortablePieces.Block, row, new LayoutPoint(x, top), PortableStops.None);
             into.Draw(new PortableWashMark(new LayoutRect(0, 0, Math.Max(widths.Sum(), 1), height),
-                                           head ? _style.TableHeaderBg : _style.TableAltRowBg));
+                                           head ? Style.TableHeaderBg : Style.TableAltRowBg));
             into.Close();
         }
 
@@ -257,7 +257,7 @@ public sealed partial class PortableMarkdownBuilder
     private void Grid(PortableBuilder into, ContentPart part, double x, double[] widths, List<double> lines,
                       List<List<Cell>> placed, int columns)
     {
-        var thin = Math.Max(1, _style.TextSize / 16);
+        var thin = Math.Max(1, Style.TextSize / 16);
         var wide = widths.Sum();
         var rows = lines.Count - 1;
         var owners = Owners(placed, rows, columns);
@@ -277,7 +277,7 @@ public sealed partial class PortableMarkdownBuilder
 
                 var to = column < columns ? edges[Math.Min(column, widths.Length)] : wide;
 
-                if (to > from) into.Draw(new PortableRuleMark(new LayoutRect(from, lines[row] - lines[0], to - from, thin), _style.TableBorder));
+                if (to > from) into.Draw(new PortableRuleMark(new LayoutRect(from, lines[row] - lines[0], to - from, thin), Style.TableBorder));
 
                 from = column < columns ? edges[Math.Min(column + 1, widths.Length)] : wide;
             }
@@ -289,7 +289,7 @@ public sealed partial class PortableMarkdownBuilder
                 if (column > 0 && column < columns && Joined(owners, row, column - 1, row, column)) continue;
 
                 into.Draw(new PortableRuleMark(new LayoutRect(edges[Math.Min(column, edges.Length - 1)], lines[row] - lines[0],
-                                                              thin, lines[row + 1] - lines[row]), _style.TableBorder));
+                                                              thin, lines[row + 1] - lines[row]), Style.TableBorder));
             }
 
         into.Close();

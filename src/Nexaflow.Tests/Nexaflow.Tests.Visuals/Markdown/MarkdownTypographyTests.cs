@@ -7,6 +7,9 @@ using Nexaflow.Visuals.Common.Theming;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -78,7 +81,7 @@ public class MarkdownTypographyTests
     /// <summary>How large the heading, the body and the code run are set at a given body size — by where their baseline falls.</summary>
     private static (double H1, double Body, double Code) Sizes(double body)
     {
-        var laid = Laying.Lay(null, Doc, 600, StyleFormat.Dark with { TextSize = body });
+        var laid = Laying.Lay(null, Doc, 600, WpfStyles.Dark with { TextSize = body });
         var words = laid.Root.SelfAndDescendants().Where(piece => piece.Words is not null).ToList();
 
         double Of(string said) => words.First(piece => piece.Words!.Glyphs.Text.Contains(said, StringComparison.Ordinal))

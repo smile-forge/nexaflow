@@ -6,6 +6,9 @@ using Nexaflow.Visuals.Icons;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -133,7 +136,7 @@ public class ContentLanguageDrawingTests
             if (Laying.Read(named, body).Root.SelfAndDescendants().FirstOrDefault(part => part.Trouble is not null) is { } troubled)
                 faults.Add($"{name}: '{troubled.Text}' {troubled.Trouble}");
 
-            var laid = Laying.Lay(named, body, 480, StyleFormat.Dark);
+            var laid = Laying.Lay(named, body, 480, WpfStyles.Dark);
             if (laid.Trouble.Count > 0) faults.Add($"{name}: {string.Join("; ", laid.Trouble.Select(trouble => trouble.Message))}");
             if (laid.ShowsSource || !Anything(laid)) faults.Add($"{name}: drew no {name}");
         }
@@ -157,22 +160,22 @@ public class ContentLanguageDrawingTests
         Assert.AreNotEqual(0, laid.Trouble.Count, "and it says why");
 
         var document = Lay("barcode", "format:\nvalue:\n");
-        var shown = document.Root.SelfAndDescendants().Single(piece => piece.Kind == LayoutText.SourceKind);
-        var text = shown.Marks.ToArray().OfType<TextMark>().Single().Glyphs.Text;
+        var shown = document.Root.SelfAndDescendants().Single(piece => piece.Kind == PortableText.SourceKind);
+        var text = shown.Marks.ToArray().OfType<PortableTextMark>().Single().Glyphs.Text;
 
         StringAssert.StartsWith(text, "```barcode", "the block that could not be read is on the page as what was typed, its fences and all");
         var sits = shown.Sits();
         Assert.IsTrue(document.Stops.Count(stop => stop > sits.Start && stop < sits.End) > 1, "and the caret goes straight into it");
-        Assert.IsTrue(document.Root.SelfAndDescendants().Any(piece => piece.Kind == SourceShown.Reason), "with why under it");
+        Assert.IsTrue(document.Root.SelfAndDescendants().Any(piece => piece.Kind == PortableSourceShown.Reason), "with why under it");
     });
 
     // ── Reading the answers ─────────────────────────────────────────────────
 
-    private static Laid Lay(string named, string source) =>
-        Laying.Lay(null, $"```{named}\n{source}```\n", 480, StyleFormat.Dark);
+    private static PortableLaid Lay(string named, string source) =>
+        Laying.Lay(null, $"```{named}\n{source}```\n", 480, WpfStyles.Dark);
 
     /// <summary>Whether anything at all reached the page: a run of words, or a mark of any kind.</summary>
-    private static bool Anything(Laid laid)
+    private static bool Anything(PortableLaid laid)
     {
         foreach (var piece in laid.Root.SelfAndDescendants())
         {

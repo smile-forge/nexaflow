@@ -11,6 +11,9 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -26,7 +29,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// <strong>What is laid is one reading.</strong> The stretches taken into the layout are stitched into one tree, what is not
 /// taken yet standing after them as one leaf of trivia, and that tree goes through the pipeline as any content does — its
 /// stages, then its builder. Laying further takes another stretch into the tree and lays it again, and every block that reads
-/// as it did is set down as it was laid (<see cref="Stages.WithUnchanged"/>), so only the new blocks are laid — and the block
+/// as it did is set down as it was laid (<see cref="Nexaflow.Markdown.Layout.Prose.WithUnchanged"/>), so only the new blocks are laid — and the block
 /// the new ones follow is in the same reading, so what stands between them is the builder's to say, as it always is.
 /// </para>
 /// <para>
@@ -99,7 +102,7 @@ public sealed partial class ContentEngine
     /// taking a stretch at a time into the reading that is laid, reading it first where it has not been read, and starting the
     /// rest reading in the background.
     /// </summary>
-    private Laid Windowed(ContentLanguage language, EditState state, StyleFormat style, double room, bool readOnly)
+    private PortableLaid Windowed(ContentLanguage language, EditState state, PortableStyle style, double room, bool readOnly)
     {
         Interlocked.Exchange(ref _growing, 0);
 
@@ -111,7 +114,7 @@ public sealed partial class ContentEngine
         var spent = Stopwatch.StartNew();
         var reach = Reach();
         var needed = _reveal ?? -1;
-        Laid laid;
+        PortableLaid laid;
 
         // Short of where it has to reach when last laid: more is taken before anything is laid, so every laying out goes further,
         // however long laying what is taken already takes.
@@ -136,7 +139,7 @@ public sealed partial class ContentEngine
         var (to, bottom) = (window.LaidTo, window.Bottom);
         if (to <= 0 || to >= window.Source.Length) return laid;
 
-        return laid with { Size = new Size(laid.Size.Width, bottom + ((window.Source.Length - to) * (bottom / to))) };
+        return laid with { Height = bottom + ((window.Source.Length - to) * (bottom / to)) };
     }
 
     /// <summary>
@@ -363,7 +366,7 @@ public sealed partial class ContentEngine
     /// read over with them: each time as much again has been read, so what the first stretches define is known early and all of
     /// it costs no more than working the whole over twice, and once it is all read. Says so when it is done.
     /// </summary>
-    private void Background(ContentWindow window, StyleFormat style)
+    private void Background(ContentWindow window, PortableStyle style)
     {
         var cancel = new CancellationTokenSource();
         window.Reading = cancel;

@@ -9,6 +9,9 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Sankey;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -112,13 +115,13 @@ public class SankeyBuilderTests : MermaidBuilderContract
     public void AFlowIsColouredTheWayTheFrontMatterAsks() => UiThread.Run(() =>
     {
         var written = Marks(Build("---\nconfig:\n  sankey:\n    linkColor: \"#7f7f7f\"\n---\nsankey-beta\n\na,b,10"));
-        Assert.AreEqual(Color.FromRgb(0x7F, 0x7F, 0x7F), ((SolidColorBrush)written.Fill!).Color);
+        Assert.AreEqual(Color.FromRgb(0x7F, 0x7F, 0x7F), ((SolidColorBrush)written.Fill!.Brush()).Color);
 
         var gradient = Marks(Build("sankey-beta\na,b,10"));
-        Assert.IsInstanceOfType<LinearGradientBrush>(gradient.Fill, "a flow nothing colours runs from one end's colour to the other's");
+        Assert.IsInstanceOfType<LinearGradientBrush>(gradient.Fill?.Brush(), "a flow nothing colours runs from one end's colour to the other's");
 
         var source = Marks(Build("---\nconfig:\n  sankey:\n    linkColor: source\n    nodeColors:\n      a: \"#ff0000\"\n---\nsankey-beta\n\na,b,10"));
-        Assert.AreEqual(Color.FromRgb(0xFF, 0, 0), ((SolidColorBrush)source.Fill!).Color, "and one coloured by where it comes from takes that colour");
+        Assert.AreEqual(Color.FromRgb(0xFF, 0, 0), ((SolidColorBrush)source.Fill!.Brush()).Color, "and one coloured by where it comes from takes that colour");
     });
 
     [TestMethod]
@@ -159,8 +162,8 @@ public class SankeyBuilderTests : MermaidBuilderContract
         var laid = Build(source);
         var bars = Pieces(laid, SankeyPiece.Node).ToDictionary(piece => Written(source, piece.Part), piece => piece.Bounds);
 
-        Assert.AreEqual(Middle(bars["A"]).Y, Middle(bars["W"]).Y, 2, "W is level with A");
-        Assert.AreEqual(Middle(bars["B"]).Y, Middle(bars["Y"]).Y, 2, "and Y with B, far below it");
+        Assert.AreEqual(Middle(bars["A"].ToWpf()).Y, Middle(bars["W"].ToWpf()).Y, 2, "W is level with A");
+        Assert.AreEqual(Middle(bars["B"].ToWpf()).Y, Middle(bars["Y"].ToWpf()).Y, 2, "and Y with B, far below it");
     });
 
     [TestMethod]
@@ -178,26 +181,26 @@ public class SankeyBuilderTests : MermaidBuilderContract
     public void ARibbonIsDrawnAtHalfStrength_AndTheBarsItJoinsWhole() => UiThread.Run(() =>
     {
         var laid = Build("sankey-beta\na,b,10");
-        var ribbon = Marks(laid).Fill!;
-        var bar = Pieces(laid, SankeyPiece.Node)[0].Marks.ToArray().OfType<GeometryMark>().First().Fill!;
+        var ribbon = Marks(laid).Fill!.Brush();
+        var bar = Pieces(laid, SankeyPiece.Node)[0].Marks.ToArray().OfType<PortableGeometryMark>().First().Fill!.Brush();
 
         Assert.AreEqual(0.5, ribbon.Opacity, 0.01, "the ribbon is the darker body of the flow");
         Assert.AreEqual(1, bar.Opacity, 0.01, "and the bars the light ends of it");
         Assert.IsTrue(((LinearGradientBrush)ribbon).GradientStops.All(stop => stop.Color.A == 255), "faded as a whole, not stop by stop");
     });
 
-    private static Laid Build(string source, double room = 900) =>
+    private static PortableLaid Build(string source, double room = 900) =>
         Laying.Lay("mermaid", source, room);
 
-    private static GeometryMark Marks(Laid laid) =>
-        Pieces(laid, SankeyPiece.Flow).Single().Marks.ToArray().OfType<GeometryMark>().First();
+    private static PortableGeometryMark Marks(PortableLaid laid) =>
+        Pieces(laid, SankeyPiece.Flow).Single().Marks.ToArray().OfType<PortableGeometryMark>().First();
 
     /// <summary>The bars alone, a node's piece holding what is written beside it as well.</summary>
-    private static List<Rect> Bars(Laid laid) =>
+    private static List<LayoutRect> Bars(PortableLaid laid) =>
         [.. Pieces(laid, SankeyPiece.Node).Select(piece =>
         {
-            var bar = piece.Marks.ToArray().OfType<GeometryMark>().First().Shape.Bounds;
-            return Rect.Offset(bar, piece.Bounds.X - piece.Box.X, piece.Bounds.Y - piece.Box.Y);
+            var bar = piece.Marks.ToArray().OfType<PortableGeometryMark>().First().Shape.Bounds;
+            return LayoutRect.Offset(bar, piece.Bounds.X - piece.Box.X, piece.Bounds.Y - piece.Box.Y);
         })];
 
     [TestMethod]

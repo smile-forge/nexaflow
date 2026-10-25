@@ -23,6 +23,9 @@ using PDFiumCore;
 using Windows.Storage;
 using Windows.Storage.Streams;
 using WinPdf = Windows.Data.Pdf;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Features.Pdf;
 
@@ -295,7 +298,7 @@ public class PdfCorpusFidelityTests
         {
             var number = slot.Number;
             PdfPageNode page;
-            LayoutTree tree;
+            PortableTree tree;
             BitmapSource? ours;
             var clock = Stopwatch.StartNew();
             try
@@ -320,7 +323,7 @@ public class PdfCorpusFidelityTests
             var dips = new Rect(0, 0, page.Size.Width * PdfPageLayout.DipsPerPoint, page.Size.Height * PdfPageLayout.DipsPerPoint);
             try
             {
-                ours = LayoutPictures.Painted(tree.Root, dips, PixelsPerPoint(page.Size) / PdfPageLayout.DipsPerPoint,
+                ours = WpfPainter.Painted(tree.Root, dips, PixelsPerPoint(page.Size) / PdfPageLayout.DipsPerPoint,
                     Brushes.Black, Brushes.White);
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -434,8 +437,8 @@ public class PdfCorpusFidelityTests
         private void KeepForReview(string relative, int number, BitmapSource ours, BitmapSource reference)
         {
             var folder = Directory.CreateDirectory(Path.Combine(_work, "review", relative)).FullName;
-            File.WriteAllBytes(Path.Combine(folder, $"p{number}-ours.png"), LayoutPictures.Png(ours));
-            File.WriteAllBytes(Path.Combine(folder, $"p{number}-diff.png"), LayoutPictures.Png(Measures.Map(ours, reference)));
+            File.WriteAllBytes(Path.Combine(folder, $"p{number}-ours.png"), WpfPainter.Png(ours));
+            File.WriteAllBytes(Path.Combine(folder, $"p{number}-diff.png"), WpfPainter.Png(Measures.Map(ours, reference)));
         }
 
         private void Finish(string relative, List<string> rows, StringBuilder trees)
@@ -983,7 +986,7 @@ public class PdfCorpusFidelityTests
                 }
 
                 picture.Freeze();
-                return LayoutPictures.Png(picture);
+                return WpfPainter.Png(picture);
             }
 
             public override void Dispose()

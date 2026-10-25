@@ -83,7 +83,7 @@ public sealed partial class PortableMarkdownBuilder
             case MarkdownKinds.Emphasis: Inside(part, face with { Italic = true }, runs); return;
             case MarkdownKinds.Strike: Inside(part, face with { Strike = true }, runs); return;
             case MarkdownKinds.Insert: Inside(part, face with { Underline = true }, runs); return;
-            case MarkdownKinds.Mark: Inside(part, face with { Wash = _style.Marked }, runs); return;
+            case MarkdownKinds.Mark: Inside(part, face with { Wash = Style.Marked }, runs); return;
 
             case MarkdownKinds.Sub: Inside(part, face with { Scale = face.Scale * 0.72, Lift = 0.22 }, runs); return;
             case MarkdownKinds.Sup: Inside(part, face with { Scale = face.Scale * 0.72, Lift = -0.34 }, runs); return;
@@ -103,7 +103,7 @@ public sealed partial class PortableMarkdownBuilder
 
             case MarkdownKinds.Code when part.Part(Roles.Body) is { } code:
             {
-                var set = face with { Mono = true, Scale = face.Scale * 0.94, Ink = _style.Accent, Wash = _style.CodeBg };
+                var set = face with { Mono = true, Scale = face.Scale * 0.94, Ink = Style.Accent, Wash = Style.CodeBg };
 
                 if (code.Children.Count == 0) runs.Add(new Run(code.Text, code, set, Maps: true));
                 else
@@ -122,11 +122,11 @@ public sealed partial class PortableMarkdownBuilder
                 return;
 
             case MarkdownKinds.Citation:
-                Inside(part, face with { Scale = face.Scale * 0.85, Lift = -0.34, Ink = _style.Citation }, runs);
+                Inside(part, face with { Scale = face.Scale * 0.85, Lift = -0.34, Ink = Style.Citation }, runs);
                 return;
 
             case MarkdownKinds.Abbreviation when part.Part(Roles.Body) is { } word:
-                runs.Add(new Run(word.Text, part, face with { Dotted = true, Ink = _style.Text }, Maps: true));
+                runs.Add(new Run(word.Text, part, face with { Dotted = true, Ink = Style.Text }, Maps: true));
                 return;
 
             case MarkdownKinds.Html:
@@ -187,7 +187,7 @@ public sealed partial class PortableMarkdownBuilder
             Underline = face.Underline || look.Underline,
             Strike = face.Strike || look.Strike,
             Capitals = face.Capitals || look.Capitals,
-            Font = look.Font is { Length: > 0 } named ? $"{named}, {_style.TextFont}" : face.Font,
+            Font = look.Font is { Length: > 0 } named ? $"{named}, {Style.TextFont}" : face.Font,
             Scale = look.Script == TextScript.None ? scale : scale * 0.72,
             Lift = look.Script switch
             {
@@ -205,7 +205,7 @@ public sealed partial class PortableMarkdownBuilder
     {
         if (_inks.TryGetValue(argb, out var made)) return made;
 
-        return _inks[argb] = _medium.Ink(new LayoutColor((byte)(argb >> 24), (byte)(argb >> 16), (byte)(argb >> 8), (byte)argb));
+        return _inks[argb] = Medium.Ink(new LayoutColor((byte)(argb >> 24), (byte)(argb >> 16), (byte)(argb >> 8), (byte)argb));
     }
 
     private readonly Dictionary<uint, LayoutInk> _inks = [];
@@ -218,8 +218,8 @@ public sealed partial class PortableMarkdownBuilder
         var says = part.Part(MarkdownRoles.Title)?.Text;
         var act = where is { Length: > 0 } ? new PortableIntent(PortableVerbs.Navigate, where, says) : null;
 
-        var look = _links(part);
-        var linked = face with { Underline = look?.Underline ?? true, Ink = look?.Ink ?? _style.Accent };
+        var look = LinkOf(part);
+        var linked = face with { Underline = look?.Underline ?? true, Ink = look?.Ink ?? Style.Accent };
         var body = part.Part(Roles.Body);
 
         if (look is { Says.Length: > 0 } && act is { } meant) act = meant with { Tip = look.Says };
@@ -258,11 +258,11 @@ public sealed partial class PortableMarkdownBuilder
             return;
         }
 
-        var mono = face with { Mono = true, Scale = face.Scale * 0.94, Ink = _style.Accent };
+        var mono = face with { Mono = true, Scale = face.Scale * 0.94, Ink = Style.Accent };
 
         if (nested is { Laid.Trouble.Count: > 0 } unread)
         {
-            var shown = PortableSourceShown.Lay(part, unread.Laid.Trouble, _medium, Typeface(mono), Size(mono), mono.Ink ?? _style.Text, _style);
+            var shown = PortableSourceShown.Lay(part, unread.Laid.Trouble, Medium, Typeface(mono), Size(mono), mono.Ink ?? Style.Text, Style);
             _borrowed.AddRange(shown.Trouble);
             runs.Add(new Run(string.Empty, part, face, Maps: false, Inset: new PortableInset(shown)));
 
@@ -275,7 +275,7 @@ public sealed partial class PortableMarkdownBuilder
 
     private void Pictured(ContentPart part, Face face, List<Run> runs)
     {
-        if (_pictures(part) is not { } picture)
+        if (PictureOf(part) is not { } picture)
         {
             Linked(part, face, runs);
 
@@ -283,7 +283,7 @@ public sealed partial class PortableMarkdownBuilder
         }
 
         var box = Fitted(picture, MarkdownPictureSize.Of(part.Node));
-        var into = new PortableBuilder(_medium);
+        var into = new PortableBuilder(Medium);
 
         into.Open(PortablePieces.Picture, part);
         into.Draw(new PortablePictureMark(picture, box));
@@ -323,7 +323,7 @@ public sealed partial class PortableMarkdownBuilder
         var width = 0.0;
 
         var first = true;
-        var hang = Math.Max((look?.FirstLine ?? 0) * _style.TextSize, -x);
+        var hang = Math.Max((look?.FirstLine ?? 0) * Style.TextSize, -x);
         var align = look?.Align ?? ParagraphAlign.Start;
 
         for (var index = 0; index < runs.Count; index++)
@@ -361,7 +361,7 @@ public sealed partial class PortableMarkdownBuilder
                 continue;
             }
 
-            var measure = _medium.Measuring(Typeface(run.Face), Size(run.Face));
+            var measure = Medium.Measuring(Typeface(run.Face), Size(run.Face));
             var text = run.Text;
             var at = 0;
 
@@ -394,7 +394,7 @@ public sealed partial class PortableMarkdownBuilder
         double Tabbed(double at)
         {
             var stops = look ?? Untabbed;
-            var em = _style.TextSize;
+            var em = Style.TextSize;
             var indent = stops.Indent * em;
 
             return Math.Max((stops.NextStop((indent + at) / em) * em) - indent - at, 0);
@@ -413,7 +413,7 @@ public sealed partial class PortableMarkdownBuilder
 
     private PortableInset TabRoom(ContentPart part, double width)
     {
-        var into = new PortableBuilder(_medium);
+        var into = new PortableBuilder(Medium);
 
         into.Open(PortablePieces.Block, part, stops: PortableStops.None);
         into.Covers(new LayoutRect(0, 0, Math.Max(width, 0), 1));
@@ -468,7 +468,7 @@ public sealed partial class PortableMarkdownBuilder
             var (run, glyphs) = groups[index];
 
             tops.Add(glyphs is not null
-                ? baseline - glyphs.Baseline + (run.Face.Lift * _style.TextSize)
+                ? baseline - glyphs.Baseline + (run.Face.Lift * Style.TextSize)
                 : middle - (run.Inset!.Height / 2));
 
             over = Math.Min(over, tops[index]);
@@ -564,7 +564,7 @@ public sealed partial class PortableMarkdownBuilder
 
         if (run.Face.Wash is { } wash)
         {
-            var pad = _style.TextSize * 0.12;
+            var pad = Style.TextSize * 0.12;
 
             into.Open(PortablePieces.Block, run.Part, new LayoutPoint(x - pad, top));
             into.Draw(new PortableWashMark(new LayoutRect(0, 0, glyphs.Width + (pad * 2), glyphs.Height), wash));
@@ -574,7 +574,7 @@ public sealed partial class PortableMarkdownBuilder
         if (run.Act is not { } act)
         {
             PortableText.Words(into, glyphs, new LayoutPoint(x, top), double.PositiveInfinity, LayoutAlign.Left,
-                               run.Part, PortablePieces.Words, maps: run.Maps, writes: !run.Maps, ink: run.Face.Ink ?? _style.Text);
+                               run.Part, PortablePieces.Words, maps: run.Maps, writes: !run.Maps, ink: run.Face.Ink ?? Style.Text);
 
             return;
         }
@@ -583,7 +583,7 @@ public sealed partial class PortableMarkdownBuilder
         into.Acts(new PortableActions { Click = act });
 
         PortableText.Words(into, glyphs, default, double.PositiveInfinity, LayoutAlign.Left,
-                           run.Part, PortablePieces.Words, maps: run.Maps, writes: !run.Maps, ink: run.Face.Ink ?? _style.Text);
+                           run.Part, PortablePieces.Words, maps: run.Maps, writes: !run.Maps, ink: run.Face.Ink ?? Style.Text);
 
         into.Close();
     }
@@ -597,13 +597,13 @@ public sealed partial class PortableMarkdownBuilder
                     | (face.Underline ? TextLines.Under : TextLines.None)
                     | (face.Dotted ? TextLines.Dotted : TextLines.None);
 
-        return _medium.Shape(text, Typeface(face), Size(face), face.Ink ?? _style.Text, lines,
-                             face.Dotted ? face.Ink ?? _style.TextMuted : null);
+        return Medium.Shape(text, Typeface(face), Size(face), face.Ink ?? Style.Text, lines,
+                             face.Dotted ? face.Ink ?? Style.TextMuted : null);
     }
 
-    private LayoutFace Typeface(Face face) => _style.Face(face.Font ?? (face.Mono ? _style.MonoFont : _style.TextFont), face.Bold, face.Italic);
+    private LayoutFace Typeface(Face face) => Style.Face(face.Font ?? (face.Mono ? Style.MonoFont : Style.TextFont), face.Bold, face.Italic);
 
-    private double Size(Face face) => Math.Max(1, _style.TextSize * (face.Scale <= 0 ? 1 : face.Scale));
+    private double Size(Face face) => Math.Max(1, Style.TextSize * (face.Scale <= 0 ? 1 : face.Scale));
 
     private IShapedText Space => _space ??= Glyphs(" ", Face.Plain);
 

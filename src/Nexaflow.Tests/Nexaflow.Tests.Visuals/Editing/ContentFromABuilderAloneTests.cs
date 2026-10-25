@@ -5,6 +5,9 @@ using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Tests.Visuals.Markdown;
 
 using Content = Nexaflow.Visuals.Text.Editing.ContentElement;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 
@@ -34,7 +37,7 @@ public class ContentFromABuilderAloneTests
     [CoversNode("abc-editing")]
     public void ATuneTakesACaretAndIsTypedInto() => UiThread.Run(() =>
     {
-        var tune = Laid(Alone.Drawn("abc", "X:1\nL:1/8\nK:C\nCDEF|\n", StyleFormat.Dark));
+        var tune = Laid(Alone.Drawn("abc", "X:1\nL:1/8\nK:C\nCDEF|\n", WpfStyles.Dark));
 
         Assert.IsTrue(tune.AcceptsCaret, "the engraver named parts of the source, so there is somewhere to stand");
         Assert.IsTrue(tune.Laid.Places.Count > 0);
@@ -64,7 +67,7 @@ public class ContentFromABuilderAloneTests
         Assert.IsTrue(barcode.MoveCaret(forward: true));
     });
 
-    private static Content Barcode(string source) => Alone.Drawn("barcode", source, StyleFormat.Dark);
+    private static Content Barcode(string source) => Alone.Drawn("barcode", source, WpfStyles.Dark);
 
     /// <summary>Measured and arranged, because a caret is a place on a page that has been laid out.</summary>
     private static Content Laid(Content content)

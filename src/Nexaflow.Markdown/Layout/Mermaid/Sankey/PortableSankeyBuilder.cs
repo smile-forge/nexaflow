@@ -47,7 +47,7 @@ internal sealed class PortableSankeyBuilder : PortableContentBuilder
     private const double Wash = 0.5;
 
     internal PortableSankeyBuilder(ContentReading reading, EditState state, PortableStyle style, bool isReadOnly, ILayoutMedium medium,
-                                   PortableNesting nesting) : base(reading, state, style, isReadOnly, medium, nesting)
+                                   PortableHost host) : base(reading, state, style, isReadOnly, medium, host)
     {
         Ink = new PortableDiagramInk(style, medium);
         Words = new PortableDiagramText(reading, state, style, medium, part => Nested(part, double.PositiveInfinity, PortableStanding.Inline));
@@ -536,6 +536,6 @@ internal sealed class PortableSankeyBuilder : PortableContentBuilder
 
         // The fade is the ink's own, not its stops': a colour taken off a faded ink is the colour whole, and a gradient of
         // those is as bright as the bars at either end of it.
-        return Medium.Faded(Medium.Gradient([(from.Color, 0), (to.Color, 1)], new LayoutPoint(0, 0.5), new LayoutPoint(1, 0.5)), Wash);
+        return PortableDiagramInk.Faded(Medium, Medium.Gradient([(from.Color, 0), (to.Color, 1)], new LayoutPoint(0, 0.5), new LayoutPoint(1, 0.5)), Wash);
     }
 }

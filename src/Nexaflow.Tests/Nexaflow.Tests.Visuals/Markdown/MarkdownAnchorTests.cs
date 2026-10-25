@@ -5,6 +5,9 @@ using Nexaflow.Markdown.Prose;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -25,7 +28,7 @@ public class MarkdownAnchorTests
     [TestMethod]
     public void Headings_CarryGitHubStyleIds_ARepeatNumbered() => UiThread.Run(() =>
     {
-        var laid = Laying.Lay(null, Doc, 640, StyleFormat.Dark);
+        var laid = Laying.Lay(null, Doc, 640, WpfStyles.Dark);
 
         foreach (var id in new[] { "intro", "opening-and-closing-help", "searching", "searching-1" })
             Assert.IsTrue(MarkdownAnchors.Sought(laid, id).Exists, $"a heading answers to #{id}");

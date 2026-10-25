@@ -7,6 +7,9 @@ using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.WordCloud;
 using System.Windows.Media.Imaging;
 using Nexaflow.Markdown.WordCloud;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.WordCloud;
 
@@ -27,10 +30,10 @@ public class WordCloudBuilderTests
 {
     private const string Stack = "WPF: 40\nXAML: 25\nMVVM: 12";
 
-    private static Laid Lay(string source, double room = 480) =>
-        Laying.Lay("wordcloud", source, room, StyleFormat.Dark);
+    private static PortableLaid Lay(string source, double room = 480) =>
+        Laying.Lay("wordcloud", source, room, WpfStyles.Dark);
 
-    private static Piece[] Words(Laid laid) =>
+    private static PortablePiece[] Words(PortableLaid laid) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == WordCloudPiece.Word)];
 
     // ── The words ──────────────────────────────────────────────────────────
@@ -65,7 +68,7 @@ public class WordCloudBuilderTests
         var word = Words(Lay(Stack)).First();
 
         Assert.IsNotNull(word.Words, "a word is a run of text, not a picture of one");
-        Assert.AreNotEqual(Stops.None, word.Stops);
+        Assert.AreNotEqual(PortableStops.None, word.Stops);
     });
 
     [TestMethod]
@@ -106,7 +109,7 @@ public class WordCloudBuilderTests
                               five: 5
                               """));
 
-        var inked = words.Select(word => word.Words!.Glyphs.BuildGeometry(word.Bounds.TopLeft)).ToList();
+        var inked = words.Select(word => ((WpfText)word.Words!.Glyphs).BuildGeometry(word.Bounds.TopLeft.ToWpf())).ToList();
 
         for (var one = 0; one < inked.Count; one++)
             for (var other = one + 1; other < inked.Count; other++)
@@ -126,8 +129,7 @@ public class WordCloudBuilderTests
 
         // Half a pixel of slack: the picture is the union of the words' own rectangles, so the word on each
         // edge lands exactly on it and whether it is "inside" comes down to the last bit of a double.
-        var picture = new Rect(laid.Size);
-        picture.Inflate(0.5, 0.5);
+        var picture = LayoutRect.Inflate(new LayoutRect(laid.Size), 0.5, 0.5);
 
         foreach (var word in Words(laid))
             Assert.IsTrue(picture.Contains(word.Bounds), $"{Said(word)} at {word.Bounds} is outside {picture}");
@@ -201,7 +203,7 @@ public class WordCloudBuilderTests
 
         Assert.IsTrue(words.Length > 20, $"only {words.Length} word(s) were placed");
 
-        var corner = new Rect(laid.Size.Width * 0.55, 0, laid.Size.Width * 0.45, laid.Size.Height * 0.55);
+        var corner = new LayoutRect(laid.Size.Width * 0.55, 0, laid.Size.Width * 0.45, laid.Size.Height * 0.55);
 
         foreach (var word in words)
             Assert.IsFalse(corner.Contains(word.Bounds),
@@ -216,7 +218,7 @@ public class WordCloudBuilderTests
         // round cloud would look like the mask had simply not worked.
         var laid = Lay("mask: nowhere.png\n" + Stack);
 
-        StringAssert.Contains(Text(laid, LayoutText.SourceKind), "mask: nowhere.png", "shown as written");
+        StringAssert.Contains(Text(laid, PortableText.SourceKind), "mask: nowhere.png", "shown as written");
         StringAssert.Contains(laid.Trouble[0].Message, "nowhere.png");
     });
 
@@ -271,15 +273,15 @@ public class WordCloudBuilderTests
         // Its lines are all a reader has left to work with, so they are what is shown — and this says why, under them.
         var laid = Lay("shape: blob\nWPF: 40");
 
-        Assert.AreEqual("shape: blob\nWPF: 40", Text(laid, LayoutText.SourceKind), "there is no cloud to draw");
+        Assert.AreEqual("shape: blob\nWPF: 40", Text(laid, PortableText.SourceKind), "there is no cloud to draw");
         Assert.AreEqual(1, laid.Trouble.Count);
         StringAssert.Contains(laid.Trouble[0].Message, "not a shape");
-        StringAssert.Contains(Text(laid, SourceShown.Reason), "not a shape");
+        StringAssert.Contains(Text(laid, PortableSourceShown.Reason), "not a shape");
     });
 
-    private static string Text(Laid laid, string kind) =>
+    private static string Text(PortableLaid laid, string kind) =>
         string.Concat(laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)
-            .SelectMany(piece => piece.Marks.ToArray()).OfType<TextMark>().Select(mark => mark.Glyphs.Text));
+            .SelectMany(piece => piece.Marks.ToArray()).OfType<PortableTextMark>().Select(mark => mark.Glyphs.Text));
 
     [TestMethod]
     [CoversNode("wordcloud-render")]
@@ -290,8 +292,8 @@ public class WordCloudBuilderTests
 
         Assert.IsTrue(laid.ShowsSource);
         Assert.AreEqual(1, laid.Trouble.Count);
-        Assert.AreEqual(DiagnosticSeverity.Error, laid.Trouble[0].Severity);
-        Assert.AreEqual(1, laid.Root.SelfAndDescendants().Count(piece => piece.Kind == SourceShown.Unread), "that line marked");
+        Assert.AreEqual(PortableSeverity.Error, laid.Trouble[0].Severity);
+        Assert.AreEqual(1, laid.Root.SelfAndDescendants().Count(piece => piece.Kind == PortableSourceShown.Unread), "that line marked");
     });
 
     [TestMethod]
@@ -301,7 +303,7 @@ public class WordCloudBuilderTests
         var laid = Lay("");
 
         StringAssert.Contains(laid.Trouble[0].Message, "word");
-        StringAssert.Contains(Text(laid, SourceShown.Reason), "word", "said under what is written");
+        StringAssert.Contains(Text(laid, PortableSourceShown.Reason), "word", "said under what is written");
     });
 
     [TestMethod]
@@ -313,9 +315,9 @@ public class WordCloudBuilderTests
         var laid = Lay("width: 120\nheight: 100\nminSize: 40\nmaxSize: 60\nfit: false\n"
                      + "alpha: 10\nbravo: 10\ncharlie: 10\ndelta: 10\necho: 10");
 
-        Assert.IsTrue(laid.Trouble.Any(trouble => trouble.Severity == DiagnosticSeverity.Warning),
+        Assert.IsTrue(laid.Trouble.Any(trouble => trouble.Severity == PortableSeverity.Warning),
                       "something should have been left out, and said so");
     });
 
-    private static string Said(Piece word) => word.Words?.Glyphs.Text ?? word.Kind;
+    private static string Said(PortablePiece word) => word.Words?.Glyphs.Text ?? word.Kind;
 }

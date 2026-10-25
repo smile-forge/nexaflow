@@ -21,14 +21,10 @@ namespace Nexaflow.Markdown.Layout.Mermaid.Swimlane;
 /// </summary>
 internal sealed class PortableSwimlaneBuilder : PortableContentBuilder
 {
-    private readonly Func<ContentPart, LayoutPicture?> _pictures;
-
-    /// <param name="pictures">The picture a node names, as the host found it — or null where it found none.</param>
     internal PortableSwimlaneBuilder(ContentReading reading, EditState state, PortableStyle style, bool isReadOnly, ILayoutMedium medium,
-                                     PortableNesting nesting, Func<ContentPart, LayoutPicture?> pictures)
-        : base(reading, state, style, isReadOnly, medium, nesting)
+                                     PortableHost host)
+        : base(reading, state, style, isReadOnly, medium, host)
     {
-        _pictures = pictures;
         Ink = new PortableDiagramInk(style, medium);
         Words = new PortableDiagramText(reading, state, style, medium, part => Nested(part, double.PositiveInfinity, PortableStanding.Inline));
         Sheet = new PortableDiagramSheet(state, style, medium, isReadOnly, Words, AsSource);
@@ -51,7 +47,7 @@ internal sealed class PortableSwimlaneBuilder : PortableContentBuilder
         var block = MermaidBlock.Of(Reading);
         var lanes = PortableDiagramConfig.Of(Reading, SwimlaneConfig.Default);
         var drawing = new PortableBuilder(Medium);
-        var body = new PortableFlowchartDrawing(Reading, State, Style, Medium, Ink, Words, Sheet, Folded, _pictures, (lanes.Sideways, lanes.Ordered),
+        var body = new PortableFlowchartDrawing(Reading, State, Style, Medium, Ink, Words, Sheet, Folded, PictureOf, (lanes.Sideways, lanes.Ordered),
                                                 lanes.Chart)
             .Draw(block, drawing);
 

@@ -469,7 +469,7 @@ internal sealed partial class PortableSequenceDrawing
                     break;
 
                 case Opening opening:
-                    var deep = opening.Kind == Frame.LayoutRect
+                    var deep = opening.Kind == Frame.Rect
                         ? config.Framed
                         : Tabbed(opening, config).Height + config.Framed;
 
@@ -914,7 +914,7 @@ internal sealed partial class PortableSequenceDrawing
     {
         if (!plan.Frames.TryGetValue(opening.Key, out var bounds)) return;
 
-        if (opening.Kind == Frame.LayoutRect)
+        if (opening.Kind == Frame.Rect)
         {
             var wash = Ink.Written(opening.Colour) is { } tint ? PortableDiagramInk.Faded(build.Medium, tint, Wash) : null;
 

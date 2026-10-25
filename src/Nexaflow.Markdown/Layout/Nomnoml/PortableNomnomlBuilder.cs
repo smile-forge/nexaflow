@@ -30,13 +30,15 @@ internal sealed class PortableNomnomlBuilder : PortableContentBuilder
     private const string NoteWord = "note";
 
     internal PortableNomnomlBuilder(ContentReading reading, EditState state, PortableStyle style, bool isReadOnly, ILayoutMedium medium,
-                                    PortableNesting nesting)
-        : base(reading, state, style, isReadOnly, medium, nesting)
+                                    PortableHost host)
+        : base(reading, state, style, isReadOnly, medium, host)
     {
         Ink = new PortableDiagramInk(style, medium);
         Words = new PortableDiagramText(reading, state, style, medium, part => Nested(part, double.PositiveInfinity, PortableStanding.Inline));
         Sheet = new PortableDiagramSheet(state, style, medium, isReadOnly, Words, AsSource);
-        Folded = new PortableDiagramFolding(reading, style, Words, Ink);    }
+        Folded = new PortableDiagramFolding(reading, style, Words, Ink);
+    }
+
     /// <summary>What the diagram is drawn in: the colours its source and front matter write, and the theme's where they write none.</summary>
     private PortableDiagramInk Ink { get; }
 

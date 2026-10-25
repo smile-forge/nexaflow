@@ -8,10 +8,12 @@ using Nexaflow.Markdown.Typesetting.Tex.Rendering.Transformations;
 
 using static Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting.Typeset;
 using Nexaflow.Markdown.Latex;
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
+using Nexaflow.Markdown.Layout.Maths;
 using Nexaflow.Markdown.Typesetting;
 using Nexaflow.Markdown.Typesetting.Tex.Fonts;
 using Nexaflow.Markdown.Typesetting.Tex.Rendering;
+
+using Nexaflow.Markdown.Layout;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting;
 
@@ -63,8 +65,8 @@ public class TexFontTests
     [CoversNode("latex-fonts-read-once")]
     public void EveryFormulaDrawsFromTheFacesReadOnce_AtItsOwnSize() => UiThread.Run(() =>
     {
-        var small = WpfTeXEnvironment.Create(scale: 10.0).MathFont;
-        var large = WpfTeXEnvironment.Create(scale: 30.0).MathFont;
+        var small = PortableTexFonts.Of(WpfHandles.Medium, "Arial").Environment(TexStyle.Display, 10.0).MathFont;
+        var large = PortableTexFonts.Of(WpfHandles.Medium, "Arial").Environment(TexStyle.Display, 30.0).MathFont;
 
         Assert.AreSame(small.GetCharInfo('x', "text", TexStyle.Text).Value.Font, large.GetCharInfo('x', "text", TexStyle.Text).Value.Font,
                        "the second formula opened the faces again");
@@ -75,11 +77,10 @@ public class TexFontTests
     [TestMethod]
     public void ACharacterTheTextFontLacksSaysSoWhenItIsDrawn() => UiThread.Run(() =>
     {
-        var environment = Environment();
-        var info = Glyph.Letter('∅', TexUtilities.TextStyleName).Info(environment.TextFont, environment.Style).Value;
+        var laid = Laying.Formula(@"\text{∅}", 20.0);
 
-        var thrown = Assert.ThrowsExactly<TexCharacterMappingNotFoundException>(() => info.GetGlyphRun(20.0, 0.5, 1.0));
-        Assert.AreEqual("The Arial font does not support '∅' (U+2205) character.", thrown.Message);
+        Assert.IsTrue(laid.ShowsSource, "a formula that cannot be drawn is shown as it is written");
+        StringAssert.Contains(laid.Trouble.Single().Message, "The Arial font does not support '∅' (U+2205) character.");
     });
 
     [TestMethod]

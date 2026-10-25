@@ -4,6 +4,8 @@ using Nexaflow.Visuals.Text.Editing;
 
 using static Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting.Typeset;
 
+using Nexaflow.Markdown.Layout;
+
 namespace Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting;
 
 /// <summary>
@@ -149,7 +151,7 @@ public class AdditionalSymbolsTests
     public void DfracTfracAndCfracAreFractionsWithABar(string markup) => UiThread.Run(() =>
     {
         Renders(markup);
-        Assert.IsTrue(Marks(markup).Any(mark => mark.Mark is RuleMark), "a fraction draws its bar");
+        Assert.IsTrue(Marks(markup).Any(mark => mark.Mark is PortableRuleMark), "a fraction draws its bar");
     });
 
     [TestMethod]
@@ -159,7 +161,7 @@ public class AdditionalSymbolsTests
     public void NicefracAndSfracAreSlashedFractions(string markup) => UiThread.Run(() =>
     {
         Renders(markup);
-        Assert.IsFalse(Marks(markup).Any(mark => mark.Mark is RuleMark), "a slashed fraction draws no bar");
+        Assert.IsFalse(Marks(markup).Any(mark => mark.Mark is PortableRuleMark), "a slashed fraction draws no bar");
     });
 
     [TestMethod]

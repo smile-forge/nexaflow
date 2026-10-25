@@ -1,6 +1,9 @@
 using System.Windows;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 
@@ -31,17 +34,17 @@ internal static class Built
     /// hangs below the very piece that holds it.
     /// </para>
     /// </summary>
-    public static int At(this LayoutBuilder build, Rect where, ISourcePart? part, string kind)
+    public static int At(this PortableBuilder build, LayoutRect where, ISourcePart? part, string kind)
     {
         var anchor = build.Anchor;
-        var at = build.Open(kind, part, new Point(where.X - anchor.X, where.Y - anchor.Y), gathers: false);
+        var at = build.Open(kind, part, new LayoutPoint(where.X - anchor.X, where.Y - anchor.Y), gathers: false);
 
-        build.Covers(new Rect(0, 0, where.Width, where.Height));
+        build.Covers(new LayoutRect(0, 0, where.Width, where.Height));
         return at;
     }
 
     /// <summary>…and the same for a piece holding nothing.</summary>
-    public static int Leaf(this LayoutBuilder build, Rect where, ISourcePart? part, string kind)
+    public static int Leaf(this PortableBuilder build, LayoutRect where, ISourcePart? part, string kind)
     {
         var at = build.At(where, part, kind);
         build.Close();

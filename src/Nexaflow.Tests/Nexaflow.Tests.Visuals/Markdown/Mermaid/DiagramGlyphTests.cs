@@ -4,6 +4,10 @@ using System.Windows;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Layout.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -24,7 +28,7 @@ public class DiagramGlyphTests
 {
     private static readonly DiagramGlyph[] Glyphs = Enum.GetValues<DiagramGlyph>();
 
-    private static readonly Rect Box = new(10, 20, 40, 40);
+    private static readonly LayoutRect Box = new(10, 20, 40, 40);
 
     [TestMethod]
     public void EveryGlyphFillsTheBoxItIsGiven() => UiThread.Run(() =>
@@ -32,7 +36,7 @@ public class DiagramGlyphTests
         // Which is what makes two glyphs at the same place the same size as each other.
         foreach (var glyph in Glyphs)
         {
-            var bounds = DiagramGlyphs.Outline(glyph, Box).Bounds;
+            var bounds = PortableDiagramGlyphs.Outline(WpfHandles.Medium, glyph, Box).Bounds;
 
             Assert.AreEqual(Box.Left, bounds.Left, 0.5, $"{glyph} starts where it was asked to");
             Assert.AreEqual(Box.Top, bounds.Top, 0.5, $"{glyph} starts where it was asked to");
@@ -46,16 +50,16 @@ public class DiagramGlyphTests
     {
         // A mark with a hole where the point is would put the point somewhere it is not.
         foreach (var glyph in Glyphs)
-            Assert.IsTrue(DiagramGlyphs.Outline(glyph, Box).FillContains(new Point(30, 40)),
+            Assert.IsTrue(PortableDiagramGlyphs.Outline(WpfHandles.Medium, glyph, Box).Contains(new LayoutPoint(30, 40)),
                           $"{glyph} covers the point it stands at");
     });
 
     [TestMethod]
     public void TheGlyphsAreHandedOutInOrderAndStartAgainRatherThanRunOut() => UiThread.Run(() =>
     {
-        Assert.AreEqual(DiagramGlyph.Circle, DiagramGlyphs.At(0));
-        Assert.AreEqual(DiagramGlyphs.At(0), DiagramGlyphs.At(DiagramGlyphs.Order.Count));
-        Assert.AreEqual(DiagramGlyphs.At(1), DiagramGlyphs.At(DiagramGlyphs.Order.Count + 1));
+        Assert.AreEqual(DiagramGlyph.Circle, PortableDiagramGlyphs.At(0));
+        Assert.AreEqual(PortableDiagramGlyphs.At(0), PortableDiagramGlyphs.At(PortableDiagramGlyphs.Order.Count));
+        Assert.AreEqual(PortableDiagramGlyphs.At(1), PortableDiagramGlyphs.At(PortableDiagramGlyphs.Order.Count + 1));
     });
 
     [TestMethod]
@@ -63,25 +67,25 @@ public class DiagramGlyphTests
     {
         // So a block asking for one by name reaches all of them.
         foreach (var glyph in Glyphs)
-            Assert.IsTrue(DiagramGlyphs.Order.Contains(glyph), $"{glyph} is in the order");
+            Assert.IsTrue(PortableDiagramGlyphs.Order.Contains(glyph), $"{glyph} is in the order");
 
-        Assert.AreEqual(DiagramGlyph.Triangle, DiagramGlyphs.Named("triangle"));
-        Assert.AreEqual(DiagramGlyph.TriangleDown, DiagramGlyphs.Named("triangle-down"));
-        Assert.AreEqual(DiagramGlyph.Cross, DiagramGlyphs.Named("X"));
-        Assert.AreEqual(DiagramGlyph.Plus, DiagramGlyphs.Named("+"));
-        Assert.IsNull(DiagramGlyphs.Named("sunburst"));
+        Assert.AreEqual(DiagramGlyph.Triangle, PortableDiagramGlyphs.Named("triangle"));
+        Assert.AreEqual(DiagramGlyph.TriangleDown, PortableDiagramGlyphs.Named("triangle-down"));
+        Assert.AreEqual(DiagramGlyph.Cross, PortableDiagramGlyphs.Named("X"));
+        Assert.AreEqual(DiagramGlyph.Plus, PortableDiagramGlyphs.Named("+"));
+        Assert.IsNull(PortableDiagramGlyphs.Named("sunburst"));
     }
 
     [TestMethod]
     public void ACrossReachesTheCornersAndAPlusDoesNot() => UiThread.Run(() =>
     {
         // Which is the whole of the difference between the two, and why both are worth having.
-        var cross = DiagramGlyphs.Outline(DiagramGlyph.Cross, Box);
-        var plus = DiagramGlyphs.Outline(DiagramGlyph.Plus, Box);
+        var cross = PortableDiagramGlyphs.Outline(WpfHandles.Medium, DiagramGlyph.Cross, Box);
+        var plus = PortableDiagramGlyphs.Outline(WpfHandles.Medium, DiagramGlyph.Plus, Box);
 
-        var corner = new Point(Box.Left + 2, Box.Top + 2);
+        var corner = new LayoutPoint(Box.Left + 2, Box.Top + 2);
 
-        Assert.IsTrue(cross.FillContains(corner));
-        Assert.IsFalse(plus.FillContains(corner));
+        Assert.IsTrue(cross.Contains(corner));
+        Assert.IsFalse(plus.Contains(corner));
     });
 }

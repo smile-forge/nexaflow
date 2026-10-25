@@ -10,13 +10,12 @@ namespace Nexaflow.Markdown.Layout.Mermaid;
 /// of what is drawn — nothing of the block's own is, so nothing of it is there to be found, picked out or written in
 /// (<see cref="MermaidFenceParser"/>). A header naming no diagram is shown as written, the keyword marked.
 /// </summary>
-/// <param name="standing">How the block stands where it is laid — which is how the diagram it holds stands there too.</param>
 internal sealed class PortableMermaidFenceBuilder(ContentReading reading, EditState state, PortableStyle style, bool isReadOnly,
-                                                  ILayoutMedium medium, PortableNesting nesting, PortableStanding standing)
-    : PortableContentBuilder(reading, state, style, isReadOnly, medium, nesting)
+                                                  ILayoutMedium medium, PortableHost host)
+    : PortableContentBuilder(reading, state, style, isReadOnly, medium, host)
 {
     protected override PortableLaid? Build() =>
-        Nested(Reading.Root, Room, standing)?.Laid
+        Nested(Reading.Root, Room, StandsAs)?.Laid
         ?? AsSource([.. Reading.Root.SelfAndDescendants().Where(part => part.Trouble is not null).Select(part => (part, part.Trouble!))]);
 
     protected override PortableCharacters Characters => PortableDiagramSheet.Characters(Style);

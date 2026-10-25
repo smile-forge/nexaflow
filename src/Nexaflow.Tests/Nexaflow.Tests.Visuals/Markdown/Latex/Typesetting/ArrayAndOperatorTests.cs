@@ -5,6 +5,8 @@ using Nexaflow.Visuals.Text.Editing;
 
 using static Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting.Typeset;
 
+using Nexaflow.Markdown.Layout;
+
 namespace Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting;
 
 /// <summary>
@@ -18,13 +20,13 @@ public class ArrayAndOperatorTests
 {
     /// <summary>Every rule the formula draws, as where it starts measured from the formula's left edge.</summary>
     private static List<double> RuleOffsets(string markup) =>
-        Marks(markup).Where(mark => mark.Mark is RuleMark)
-                     .Select(mark => mark.X + ((RuleMark)mark.Mark).Bounds.Left)
+        Marks(markup).Where(mark => mark.Mark is PortableRuleMark)
+                     .Select(mark => mark.X + ((PortableRuleMark)mark.Mark).Bounds.Left)
                      .ToList();
 
     /// <summary>The rules the formula draws that run across it rather than down it.</summary>
     private static int AcrossRules(string markup) =>
-        Marks(markup).Count(mark => mark.Mark is RuleMark rule && rule.Bounds.Width > rule.Bounds.Height);
+        Marks(markup).Count(mark => mark.Mark is PortableRuleMark rule && rule.Bounds.Width > rule.Bounds.Height);
 
     // ── array ────────────────────────────────────────────────────────────────────
 

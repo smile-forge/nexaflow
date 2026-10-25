@@ -9,6 +9,9 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 using Nexaflow.Visuals.Text.Markdown.Stages;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Prose;
 
@@ -187,21 +190,20 @@ public class MarkdownLinkTests
 
     // ── Reading the answers ─────────────────────────────────────────────────
 
-    private static Laid Lay(string source, System.Func<string, string, LinkLook?>? asked = null) =>
+    private static PortableLaid Lay(string source, System.Func<string, string, LinkLook?>? asked = null) =>
         Laying.Lay(null, source, 480, inputs: new ContentInputs(Links: asked));
 
-    private static List<Piece> Words(Laid laid) =>
+    private static List<PortablePiece> Words(PortableLaid laid) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Words is not null)];
 
-    private static List<LayoutIntent> Acts(Laid laid) =>
+    private static List<PortableIntent> Acts(PortableLaid laid) =>
         [.. laid.Root.SelfAndDescendants()
                  .Select(piece => piece.Acts?.Click)
-                 .Where(act => act is not null)
-                 .Select(act => act!.Value)
+                 .OfType<PortableIntent>()
                  .Distinct()];
 
     private static MarkdownElement Element(string source, List<string> asked) =>
-        new(source, StyleFormat.Dark, new Host(asked)) { IsReadOnly = true };
+        new(source, WpfStyles.Dark, new Host(asked)) { IsReadOnly = true };
 
     /// <summary>Presses the words of a link, the way the element's own mouse handler does.</summary>
     private static void Press(MarkdownElement element, string words)

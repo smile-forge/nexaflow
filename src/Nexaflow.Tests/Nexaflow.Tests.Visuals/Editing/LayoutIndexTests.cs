@@ -4,6 +4,9 @@ using System.Linq;
 using System.Windows;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 
@@ -32,25 +35,25 @@ public class LayoutIndexTests
     /// set below the row's box and reaching past the block's, a rule under that drawn from nothing anybody wrote, and an empty
     /// place to write in.
     /// </summary>
-    private static Piece Document()
+    private static PortablePiece Document()
     {
-        var build = new LayoutBuilder();
-        build.At(new Rect(0, 0, 600, Blocks * BlockHeight), new TestPart(0, Blocks * BlockLength), "document");
+        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        build.At(new LayoutRect(0, 0, 600, Blocks * BlockHeight), new TestPart(0, Blocks * BlockLength), "document");
 
         for (var block = 0; block < Blocks; block++)
         {
             var (top, start) = (block * BlockHeight, block * BlockLength);
 
-            build.At(new Rect(0, top, 600, 30), new TestPart(start, BlockLength), "block");
+            build.At(new LayoutRect(0, top, 600, 30), new TestPart(start, BlockLength), "block");
 
-            build.At(new Rect(10, top + 4, 200, 16), new TestPart(start, 12), "row");
-            build.Leaf(new Rect(10, top + 4, 12, 16), new TestPart(start, 1), "char");
-            build.Leaf(new Rect(30 + (block % 7), top + 4, 12, 16), new TestPart(start + 2, 1), "char");
-            build.Leaf(new Rect(50, top + 22, 8, 10), new TestPart(start + 4, 3), "script");
+            build.At(new LayoutRect(10, top + 4, 200, 16), new TestPart(start, 12), "row");
+            build.Leaf(new LayoutRect(10, top + 4, 12, 16), new TestPart(start, 1), "char");
+            build.Leaf(new LayoutRect(30 + (block % 7), top + 4, 12, 16), new TestPart(start + 2, 1), "char");
+            build.Leaf(new LayoutRect(50, top + 22, 8, 10), new TestPart(start + 4, 3), "script");
             build.Close();
 
-            build.Leaf(new Rect(10, top + 34, 300, 1), null, "rule");
-            build.Leaf(new Rect(400, top + 6, 10, 12), new TestPart(start + 15, 0), "hole");
+            build.Leaf(new LayoutRect(10, top + 34, 300, 1), null, "rule");
+            build.Leaf(new LayoutRect(400, top + 6, 10, 12), new TestPart(start + 15, 0), "hole");
             build.Close();
         }
 
@@ -59,11 +62,11 @@ public class LayoutIndexTests
     }
 
     /// <summary>Points all over the document and round it: on ink, between blocks, past either side, above and below it.</summary>
-    private static IEnumerable<Point> Points()
+    private static IEnumerable<LayoutPoint> Points()
     {
         for (var y = -30.0; y < (Blocks * BlockHeight) + 30; y += 9)
             foreach (var x in new[] { -20.0, 5, 15, 33, 54, 200, 405, 700 })
-                yield return new Point(x, y);
+                yield return new LayoutPoint(x, y);
     }
 
     /// <summary>Stretches of source all over the document: single places, a few characters, and runs across blocks.</summary>
@@ -75,16 +78,16 @@ public class LayoutIndexTests
     }
 
     /// <summary>Everything a piece and all it holds take up on the page, every one of them asked.</summary>
-    private static Rect Reaching(Piece piece)
+    private static LayoutRect Reaching(PortablePiece piece)
     {
-        var reach = Rect.Empty;
-        foreach (var inside in piece.SelfAndDescendants()) reach.Union(inside.Bounds);
+        var reach = LayoutRect.Empty;
+        foreach (var inside in piece.SelfAndDescendants()) reach = LayoutRect.Union(reach, inside.Bounds);
 
         return reach;
     }
 
     /// <summary>The stretch of source a piece and all it holds sit in, every one of them asked.</summary>
-    private static (int First, int Last) Sitting(Piece piece) =>
+    private static (int First, int Last) Sitting(PortablePiece piece) =>
         (piece.SelfAndDescendants().Min(inside => inside.Sits().Start), piece.SelfAndDescendants().Max(inside => inside.Sits().End));
 
     [TestMethod]
@@ -110,7 +113,7 @@ public class LayoutIndexTests
 
         foreach (var point in Points())
         {
-            var asked = LayoutQuery.PlacedNear(root, reach => reach.Contains(point)).Select(placed => placed.Piece.At).ToList();
+            var asked = PortableQuery.PlacedNear(root, reach => reach.Contains(point)).Select(placed => placed.Piece.At).ToList();
             var every = reaching.Where(piece => piece.Reach.Contains(point)).Select(piece => piece.At).ToList();
 
             CollectionAssert.AreEqual(every, asked, $"at {point}");
@@ -126,7 +129,7 @@ public class LayoutIndexTests
 
         foreach (var (start, end) in Stretches())
         {
-            var asked = LayoutQuery.SittingIn(root, start, end).Select(piece => piece.At).ToList();
+            var asked = PortableQuery.SittingIn(root, start, end).Select(piece => piece.At).ToList();
             var every = sitting.Where(piece => piece.Span.First <= end && piece.Span.Last >= start).Select(piece => piece.At).ToList();
 
             CollectionAssert.AreEqual(every, asked, $"over [{start}, {end}]");
@@ -142,7 +145,7 @@ public class LayoutIndexTests
 
         foreach (var point in Points())
         {
-            var asked = LayoutQuery.ChildrenWhere(root, (reach, _) => reach.Contains(point)).ToList();
+            var asked = PortableQuery.ChildrenWhere(root, (reach, _) => reach.Contains(point)).ToList();
             var every = blocks.Where(block => block.Reach.Contains(point)).Select(block => block.Block).ToList();
 
             CollectionAssert.AreEqual(every, asked, $"at {point}");
@@ -184,9 +187,9 @@ public class LayoutIndexTests
     /// otherwise the nearest thing holding it that names some source — and where none is, what the nearest ink means: the
     /// deeper, and then the first drawn, among the equally near.
     /// </summary>
-    private static Piece PressedByAll(Piece root, Point point)
+    private static PortablePiece PressedByAll(PortablePiece root, LayoutPoint point)
     {
-        static Piece Named(Piece leaf) => leaf.Ancestors().FirstOrDefault(up => up.Part is { Length: > 0 });
+        static PortablePiece Named(PortablePiece leaf) => leaf.Ancestors().FirstOrDefault(up => up.Part is { Length: > 0 });
 
         var under = root.Leaves()
             .Select(leaf => (Leaf: leaf, Means: leaf.Stands() ? leaf : Named(leaf), Where: leaf.Bounds))
@@ -203,7 +206,7 @@ public class LayoutIndexTests
             .Where(leaf => leaf.Means.Exists)
             .ToList();
 
-        double Distance(Rect where)
+        double Distance(LayoutRect where)
         {
             var dx = Math.Max(Math.Max(where.X - point.X, point.X - where.Right), 0);
             var dy = Math.Max(Math.Max(where.Y - point.Y, point.Y - where.Bottom), 0);
@@ -219,15 +222,15 @@ public class LayoutIndexTests
     [TestMethod]
     public void BetweenTwoThingsAsNearAsEachOther_ThePressMeansTheOneDrawnFirst()
     {
-        var build = new LayoutBuilder();
-        build.At(new Rect(0, 0, 100, 100), new TestPart(0, 2), "page");
-        build.Leaf(new Rect(0, 0, 10, 10), new TestPart(0, 1), "char");
-        build.Leaf(new Rect(30, 0, 10, 10), new TestPart(1, 1), "char");
+        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        build.At(new LayoutRect(0, 0, 100, 100), new TestPart(0, 2), "page");
+        build.Leaf(new LayoutRect(0, 0, 10, 10), new TestPart(0, 1), "char");
+        build.Leaf(new LayoutRect(30, 0, 10, 10), new TestPart(1, 1), "char");
         build.Close();
 
         var root = build.Seal().Root;
 
-        Assert.AreEqual(0, root.PieceAt(new Point(20, 5)).Sits().Start, "as near the second as the first, so the first");
+        Assert.AreEqual(0, root.PieceAt(new LayoutPoint(20, 5)).Sits().Start, "as near the second as the first, so the first");
     }
 
     [TestMethod]
@@ -255,7 +258,7 @@ public class LayoutIndexTests
     public void AnOffsetMovesToTheNearestStop_TheEarlierWhereTwoAreAsNear()
     {
         var root = Document();
-        var laid = new Laid(root.Tree!, new Size(600, Blocks * BlockHeight), []);
+        var laid = new PortableLaid(root.Tree!, 600, Blocks * BlockHeight, []);
         var stops = laid.Stops;
 
         for (var offset = -2; offset < (Blocks * BlockLength) + 2; offset++)
@@ -269,11 +272,11 @@ public class LayoutIndexTests
     public void ATreeSettledElsewhereIsAskedWhereItNowStands()
     {
         var root = Document();
-        var before = root.PieceAt(new Point(15, 10));
+        var before = root.PieceAt(new LayoutPoint(15, 10));
 
-        root.Tree!.Settle(new Vector(0, 1000));
+        root.Tree!.Settle(new LayoutVector(0, 1000));
 
-        Assert.AreEqual(before, root.PieceAt(new Point(15, 1010)), "the same letter, where it was moved to");
+        Assert.AreEqual(before, root.PieceAt(new LayoutPoint(15, 1010)), "the same letter, where it was moved to");
         Assert.AreEqual(root.Tree.At(root.At).Bounds, root.Tree.Indexed.Where(root.At), "and what is kept moved with it");
     }
 }

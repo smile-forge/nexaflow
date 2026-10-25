@@ -209,16 +209,33 @@ public readonly record struct LayoutRect
     public static LayoutRect Offset(LayoutRect rect, LayoutVector by) =>
         rect.IsEmpty ? rect : new LayoutRect(rect.X + by.X, rect.Y + by.Y, rect.Width, rect.Height);
 
-    /// <summary>The box round where the rectangle lands under <paramref name="matrix"/>.</summary>
+    /// <summary>
+    /// The box round where the rectangle lands under <paramref name="matrix"/>. A matrix that only scales and moves takes the rectangle's
+    /// own corner and size, as WPF does, and any other its four corners — so the two agree to the last bit.
+    /// </summary>
     public static LayoutRect Transform(LayoutRect rect, LayoutMatrix matrix)
     {
         if (rect.IsEmpty) return rect;
         if (matrix.IsIdentity) return rect;
 
-        var a = matrix.Transform(new LayoutPoint(rect.X, rect.Y));
-        var b = matrix.Transform(new LayoutPoint(rect.Right, rect.Y));
-        var c = matrix.Transform(new LayoutPoint(rect.X, rect.Bottom));
-        var d = matrix.Transform(new LayoutPoint(rect.Right, rect.Bottom));
+        if (matrix is { M12: 0, M21: 0 })
+        {
+            var (x, y, width, height) = (rect.X, rect.Y, rect.Width, rect.Height);
+
+            if (matrix.M11 != 1 || matrix.M22 != 1)
+            {
+                (x, y, width, height) = (x * matrix.M11, y * matrix.M22, width * matrix.M11, height * matrix.M22);
+                if (width < 0) (x, width) = (x + width, -width);
+                if (height < 0) (y, height) = (y + height, -height);
+            }
+
+            return new LayoutRect(x + matrix.OffsetX, y + matrix.OffsetY, width, height);
+        }
+
+        var a = matrix.Transform(rect.TopLeft);
+        var b = matrix.Transform(rect.TopRight);
+        var c = matrix.Transform(rect.BottomRight);
+        var d = matrix.Transform(rect.BottomLeft);
 
         var left = Math.Min(Math.Min(a.X, b.X), Math.Min(c.X, d.X));
         var top = Math.Min(Math.Min(a.Y, b.Y), Math.Min(c.Y, d.Y));
@@ -290,12 +307,23 @@ public readonly record struct LayoutMatrix(double M11, double M12, double M21, d
     public LayoutVector Transform(LayoutVector vector) =>
         new((vector.X * M11) + (vector.Y * M21), (vector.X * M12) + (vector.Y * M22));
 
-    /// <summary>The transform that undoes this one. Only asked of one that <see cref="HasInverse"/>.</summary>
+    /// <summary>
+    /// The transform that undoes this one. Only asked of one that <see cref="HasInverse"/>. A matrix that only scales, moves or both is
+    /// undone by its own reciprocals, as WPF undoes one, and any other through its determinant — so the two agree to the last bit.
+    /// </summary>
     public LayoutMatrix Inverted()
     {
-        var determinant = Determinant;
+        if (M12 == 0 && M21 == 0)
+        {
+            if (M11 == 1 && M22 == 1) return new LayoutMatrix(1, 0, 0, 1, -OffsetX, -OffsetY);
 
-        return new LayoutMatrix(M22 / determinant, -M12 / determinant, -M21 / determinant, M11 / determinant,
-                                ((M21 * OffsetY) - (OffsetX * M22)) / determinant, ((OffsetX * M12) - (M11 * OffsetY)) / determinant);
+            var (across, down) = (1.0 / M11, 1.0 / M22);
+            return new LayoutMatrix(across, 0, 0, down, -OffsetX * across, -OffsetY * down);
+        }
+
+        var inverse = 1.0 / Determinant;
+
+        return new LayoutMatrix(M22 * inverse, -M12 * inverse, -M21 * inverse, M11 * inverse,
+                                ((M21 * OffsetY) - (OffsetX * M22)) * inverse, ((OffsetX * M12) - (M11 * OffsetY)) * inverse);
     }
 }

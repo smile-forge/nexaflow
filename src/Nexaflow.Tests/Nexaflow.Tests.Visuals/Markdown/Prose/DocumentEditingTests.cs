@@ -5,6 +5,9 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Prose;
 
@@ -170,7 +173,7 @@ public class DocumentEditingTests
 
     private static MarkdownElement Element(string source, int caret)
     {
-        var element = new MarkdownElement(source, StyleFormat.Dark);
+        var element = new MarkdownElement(source, WpfStyles.Dark);
 
         element.Measure(new Size(480, double.PositiveInfinity));
         element.Arrange(new Rect(0, 0, 480, element.DesiredSize.Height));
@@ -184,5 +187,5 @@ public class DocumentEditingTests
     private static void Settle(MarkdownElement element, string separator) => element.Settle(separator);
 
     private static bool Sourced(MarkdownElement element) =>
-        element.Laid.Root.SelfAndDescendants().Any(piece => piece.Kind == LayoutText.SourceKind);
+        element.Laid.Root.SelfAndDescendants().Any(piece => piece.Kind == PortableText.SourceKind);
 }

@@ -13,92 +13,57 @@ using Point = Nexaflow.Markdown.Typesetting.Tex.Rendering.Point;
 namespace Nexaflow.Markdown.Layout.Maths;
 
 /// <summary>
-/// A formula, typeset and laid on the renderer-free layout tree — the WPF builder's layout, made through a medium.
-///
-/// <para>
-/// The typesetting is the same code as the WPF builder's: <see cref="TexTypesetter"/> sets the formula and this lays what it set,
-/// as the <see cref="ITexLayer"/> it draws through — each piece opened where its parent chose, each glyph, stroke and rule asked of
-/// the medium. A pilot of a builder beside its parser: what it does not do is the WPF builder's only to do — say what a part stands
-/// for to the editor — which is the editing seam's, not the layout's.
-/// </para>
+/// A formula, typeset and laid on the layout tree. <see cref="TexTypesetter"/> sets it and this lays what it set, as the
+/// <see cref="ITexLayer"/> it draws through — each piece opened where its parent chose, each glyph, stroke and rule asked of the
+/// medium. Set larger and apart as a block among a document's, and smaller in a line of words.
 /// </summary>
-internal sealed class PortableLatexBuilder : ITexLayer
+internal sealed class PortableLatexBuilder : PortableContentBuilder, ITexLayer
 {
     private const double Display = 1.5;
 
-    private readonly ContentReading _reading;
-    private readonly PortableStyle _style;
-    private readonly PortableStanding _standing;
-    private readonly bool _readOnly;
-    private readonly ILayoutMedium _medium;
-    private readonly PortableTexFonts _fonts;
+    /// <summary>The family <c>\text{…}</c> is set in.</summary>
+    private const string TextFamily = "Arial";
 
-    private double _room = double.PositiveInfinity;
-
-    public PortableLatexBuilder(ContentReading reading, EditState state, PortableStyle style, PortableStanding standing, bool isReadOnly,
-                                ILayoutMedium medium, PortableTexFonts fonts)
+    internal PortableLatexBuilder(ContentReading reading, EditState state, PortableStyle style, bool isReadOnly, ILayoutMedium medium,
+                                  PortableHost host)
+        : base(reading, state, style, isReadOnly, medium, host)
     {
-        _reading = reading;
-        _style = style;
-        _standing = standing;
-        _readOnly = isReadOnly;
-        _medium = medium;
-        _fonts = fonts;
     }
 
-    private double Scale => _standing == PortableStanding.Block ? _style.TextSize * Display : _style.TextSize;
+    private double Scale => StandsAs == PortableStanding.Block ? Style.TextSize * Display : Style.TextSize;
 
-    private bool Inline => _standing == PortableStanding.Inline;
+    private bool Inline => StandsAs == PortableStanding.Inline;
 
-    private double Block => double.IsInfinity(_room) ? 0 : _room;
+    private double Block => double.IsInfinity(Room) ? 0 : Room;
 
-    /// <summary>Lays the formula out. Never null, and never throws.</summary>
-    public PortableLaid Lay(double room = double.PositiveInfinity)
+    protected override PortableCharacters Characters => new(Style.Face(Style.MonoFont), Scale * 0.6, Style.Text);
+    protected override PortableLaid? Build()
     {
-        _room = double.IsNaN(room) || room <= 0 ? double.PositiveInfinity : room;
+        if (Reading.Root.Length == 0) return null;
 
-        try
-        {
-            return Build() ?? AsSource([]);
-        }
-        catch (Exception error)
-        {
-            return AsSource([PortableDiagnostic.Of(_reading.Root, string.Format(CultureInfo.CurrentCulture,
-                                                                                 _style.Says("Text.Content.CouldNotSet"), error.Message))]);
-        }
-    }
-
-    private PortableLaid AsSource(IReadOnlyList<PortableDiagnostic> blamed) =>
-        PortableSourceShown.Lay(_reading.Root, blamed, _medium, _style.Face(_style.MonoFont), Scale * 0.6, _style.Text, _style, _room);
-
-    private PortableLaid? Build()
-    {
-        if (_reading.Root.Length == 0) return null;
-
-        var environment = _fonts.Environment(Inline ? TexStyle.Text : TexStyle.Display, Scale);
-        var formula = TexTypesetter.Formula(_reading.Root, environment);
+        var environment = PortableTexFonts.Of(Medium, TextFamily).Environment(Inline ? TexStyle.Text : TexStyle.Display, Scale);
+        var formula = TexTypesetter.Formula(Reading.Root, environment);
 
         var placed = LayFormula(formula);
         if (placed.Tree is not { } laid) return null;
 
-        var wrong = _reading.Root.SelfAndDescendants().Where(part => part.Node.Trouble is not null).ToList();
+        var wrong = Reading.Root.SelfAndDescendants().Where(part => part.Node.Trouble is not null).ToList();
         var undrawn = placed.Undrawn.ToList();
 
-        if (_readOnly && wrong.Count > 0)
-            return AsSource([.. wrong.Select(part => PortableDiagnostic.Of(new PortableTexPart(part), part.Node.Trouble!))]);
+        if (IsReadOnly && wrong.Count > 0) return AsSource([.. wrong.Select(part => (part, part.Node.Trouble!))]);
 
         var trouble = wrong.Select(part => PortableDiagnostic.Of(part, part.Node.Trouble!) with { Part = new PortableTexPart(part) })
-            .Concat(undrawn.Select(part => PortableDiagnostic.Of(part, _style.Says("Text.Latex.Undrawable")) with { Part = new PortableTexPart(part) }))
+            .Concat(undrawn.Select(part => PortableDiagnostic.Of(part, Style.Says("Text.Latex.Undrawable"), PortableSeverity.Warning) with { Part = new PortableTexPart(part) }))
             .ToList();
 
-        var (tree, width, height) = TexTypesetter.Number(_reading.Root, environment) is { } number
+        var (tree, width, height) = TexTypesetter.Number(Reading.Root, environment) is { } number
             ? Numbered(placed, number)
             : (laid, placed.Width, placed.Height);
 
-        if (_standing == PortableStanding.Block)
+        if (StandsAs == PortableStanding.Block)
         {
-            var air = _style.TextSize * 0.5;
-            var left = double.IsFinite(_room) ? Math.Max(0, (_room - width) / 2) : 0;
+            var air = Style.TextSize * 0.5;
+            var left = double.IsFinite(Room) ? Math.Max(0, (Room - width) / 2) : 0;
 
             tree.Settle(new LayoutVector(left, air));
             (width, height) = (left + width, height + (air * 2));
@@ -114,7 +79,7 @@ internal sealed class PortableLatexBuilder : ITexLayer
         var laid = LayFormula(number);
         if (laid.Tree is not { } tag) return (formula.Tree!, formula.Width, formula.Height);
 
-        var build = new PortableBuilder(_medium);
+        var build = new PortableBuilder(Medium);
         build.Open("Block");
         build.Graft(formula.Tree!, default, PortableSide.Centre);
         build.Graft(tag, new LayoutPoint(0, formula.Baseline - laid.Baseline), PortableSide.Right, clear: Scale);
@@ -134,7 +99,7 @@ internal sealed class PortableLatexBuilder : ITexLayer
     {
         List<int>? ink = null;
 
-        foreach (var grid in TexGrid.In(_reading.Root.Node))
+        foreach (var grid in TexGrid.In(Reading.Root.Node))
         {
             ink ??= [.. Enumerable.Range(0, tree.Count).Where(at => tree.Piece(at).Extent == 1 && tree.PartOf(at) is { Length: > 0 })];
 
@@ -196,7 +161,7 @@ internal sealed class PortableLatexBuilder : ITexLayer
 
     private Placed LayFormula(Set formula)
     {
-        _laying = new PortableBuilder(_medium);
+        _laying = new PortableBuilder(Medium);
         _open.Clear();
         _above.Clear();
         _undrawn.Clear();
@@ -215,7 +180,7 @@ internal sealed class PortableLatexBuilder : ITexLayer
         return new Placed(tree, covers.Width, covers.Height, -covers.Y, [.. _undrawn]);
     }
 
-    public void Place(Set piece, double x, double y)
+    private void Place(Set piece, double x, double y)
     {
         var turns = _pending;
         _pending = [];
@@ -267,7 +232,7 @@ internal sealed class PortableLatexBuilder : ITexLayer
     {
         var part = piece.Spacing ? null : piece.Part;
 
-        if (_open.Count == 0) return part ?? _reading.Root;
+        if (_open.Count == 0) return part ?? Reading.Root;
 
         if (part is null) return null;
 
@@ -294,7 +259,7 @@ internal sealed class PortableLatexBuilder : ITexLayer
         return first.Start <= whole.Start && last.Start + last.Length >= whole.Start + whole.Length;
     }
 
-    public void PlaceTransformed(Set piece, IEnumerable<Transformation> transforms, double x, double y)
+    private void PlaceTransformed(Set piece, IEnumerable<Transformation> transforms, double x, double y)
     {
         var scaled = transforms.Select(t => t.Scale(Scale)).ToList();
 
@@ -315,27 +280,38 @@ internal sealed class PortableLatexBuilder : ITexLayer
         _offsetY -= dy;
     }
 
-    public void DrawGlyph(CharInfo info, double x, double y, IBrush? foreground)
+    private void DrawGlyph(CharInfo info, double x, double y, IBrush? foreground)
     {
         var raw = _open.Peek().Raw;
         var face = ((MediumTypeface)info.Font).Face;
         var at = new LayoutPoint((x - (raw.X / Scale)) * Scale, (y - (raw.Y / Scale)) * Scale);
 
-        var glyphs = _medium.Character(face, info.Character, info.Size * Scale, at)
+        var glyphs = Medium.Character(face, info.Character, info.Size * Scale, at)
                      ?? throw new TexCharacterMappingNotFoundException(
                          $"The {face.Family} font does not support '{info.Character}' (U+{(int)info.Character:X4}) character.");
 
         _laying.Draw(new PortableGlyphMark(glyphs, Inked(foreground)));
     }
 
-    public void DrawLine(Point from, Point to, IBrush? foreground) =>
+    private void DrawLine(Point from, Point to, IBrush? foreground) =>
         _laying.Draw(new PortableLineMark(Local(from.X, from.Y), Local(to.X, to.Y), Inked(foreground)));
 
-    public void DrawRule(Rectangle rectangle, IBrush? foreground)
+    private void DrawRule(Rectangle rectangle, IBrush? foreground)
     {
         var at = Local(rectangle.X, rectangle.Y);
         _laying.Draw(new PortableRuleMark(new LayoutRect(at.X, at.Y, Scale * rectangle.Width, Scale * rectangle.Height), Inked(foreground)));
     }
+
+    // What the typesetter draws through, said only to it: a builder offers nothing a builder does not.
+    void ITexLayer.Place(Set piece, double x, double y) => Place(piece, x, y);
+
+    void ITexLayer.PlaceTransformed(Set piece, IEnumerable<Transformation> transforms, double x, double y) => PlaceTransformed(piece, transforms, x, y);
+
+    void ITexLayer.DrawGlyph(CharInfo info, double x, double y, IBrush? foreground) => DrawGlyph(info, x, y, foreground);
+
+    void ITexLayer.DrawLine(Point from, Point to, IBrush? foreground) => DrawLine(from, to, foreground);
+
+    void ITexLayer.DrawRule(Rectangle rectangle, IBrush? foreground) => DrawRule(rectangle, foreground);
 
     private LayoutPoint Local(double x, double y)
     {
@@ -347,7 +323,7 @@ internal sealed class PortableLatexBuilder : ITexLayer
     private LayoutInk? Inked(IBrush? ink) => ink switch
     {
         null => null,
-        TexInk named => _medium.Ink(new LayoutColor(named.A, named.R, named.G, named.B)),
+        TexInk named => Medium.Ink(new LayoutColor(named.A, named.R, named.G, named.B)),
         InkBrush handed => handed.Ink,
         _ => throw new NotSupportedException($"an ink the layout cannot draw: {ink.GetType().Name}"),
     };
@@ -359,13 +335,13 @@ internal sealed class PortableLatexBuilder : ITexLayer
         List<LayoutTurn>? turns = null;
         foreach (var transformation in pending)
             if (transformation is Transformation.Rotate rotate)
-                (turns ??= []).Add(_medium.Rotation(rotate.RotationDegrees, new LayoutPoint(-raw.X, -raw.Y)));
+                (turns ??= []).Add(Medium.Rotation(rotate.RotationDegrees, new LayoutPoint(-raw.X, -raw.Y)));
 
         return turns;
     }
 
     private LayoutGuides Snap(Set piece, double x, double y, LayoutPoint raw) =>
-        _medium.Guides([(Scale * x) - raw.X, (Scale * (x + piece.TotalWidth)) - raw.X],
+        Medium.Guides([(Scale * x) - raw.X, (Scale * (x + piece.TotalWidth)) - raw.X],
                        [(Scale * y) - raw.Y, (Scale * (y + piece.TotalHeight)) - raw.Y]);
 
     private static LayoutRect Extent(PortablePiece root)
@@ -390,9 +366,11 @@ public sealed record InkBrush(LayoutInk Ink) : IBrush;
 /// A part of a formula's reading, offered as the stretch of source it is named by: a braced argument by its contents, a cell by
 /// its ink — the convention editing a formula needs, which is not the span the part covers.
 /// </summary>
-internal sealed class PortableTexPart(ContentPart of) : ISourcePart
+internal sealed class PortableTexPart(ContentPart of) : IStandsFor
 {
     public ContentPart Of { get; } = of;
+
+    ISourcePart IStandsFor.Of => this.Of;
 
     public int Start => Named.Start;
 
@@ -404,4 +382,6 @@ internal sealed class PortableTexPart(ContentPart of) : ISourcePart
         TexKinds.Cell => Of.Written,
         _ => (Of.Start, Of.Length),
     };
+
+    public override string ToString() => $"{Of.Role}[{Start},{Length}]";
 }

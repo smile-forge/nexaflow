@@ -350,4 +350,55 @@ internal static partial class PortableDiagramShapes
     }
 
     private static double Rounding(LayoutRect body) => Math.Min(10, body.Height / 2);
+
+    /// <summary>
+        /// A shape drawn as a small picture of itself, <paramref name="side"/> across — what a ribbon puts on a button where a word
+        /// would say less than the shape itself does.
+        ///
+        /// <para>
+        /// Drawn at the size a node is and shrunk, rather than drawn small. What a shape is made of is measured in characters — a
+        /// corner six across, a stack of sheets five apart, a fork's bar sixteen long — so built straight into a box of sixteen those
+        /// measurements are the whole shape, and a rounded rectangle comes out a circle. Its proportions are what it takes round a
+        /// short word (<see cref="Around"/>) for the same reason: in a square box a stadium is a circle and a fork is a rectangle.
+        /// </para>
+        /// <para>
+        /// A shape given a size of its own keeps that size against an ordinary node, so a junction is a dot beside a circle rather
+        /// than a second circle — down to half the button, past which there is nothing left to tell one from another. It is drawn as
+        /// the lines it is drawn with, except where it is drawn solid (<see cref="DrawnSolid"/>), a solid mark being told from a
+        /// hollow one the same size by nothing else.
+        /// </para>
+        /// </summary>
+    public static LayoutShape AsPicture(ILayoutMedium medium, DiagramShape shape, double side)
+    {
+        var ordinary = Around(DiagramShape.Rectangle, PictureWords, PicturePad);
+        var natural = Around(shape, PictureWords, PicturePad);
+
+        var share = Math.Max(PictureLeast, Math.Min(1, Math.Max(natural.Width, natural.Height) / Math.Max(ordinary.Width, ordinary.Height)));
+        var scale = share * side / Math.Max(natural.Width, natural.Height);
+
+        // The line is drawn in the shape's own measurements and shrunk with it, so it comes out the same weight whatever the shape.
+        var solid = DrawnSolid(shape);
+        var line = PictureLine / scale;
+        var room = solid ? 0 : line / 2;
+        var box = new LayoutRect(room, room, natural.Width - (2 * room), natural.Height - (2 * room));
+
+        var outline = Outline(medium, shape, box);
+        List<LayoutShape> drawn = [solid ? outline : medium.Widen(outline, line)];
+        if (Details(medium, shape, box) is { } details) drawn.Add(medium.Widen(details, line));
+
+        return medium.Transformed(medium.Group(drawn, evenOdd: false),
+                                  new LayoutMatrix(scale, 0, 0, scale, (side - (natural.Width * scale)) / 2, (side - (natural.Height * scale)) / 2));
+    }
+
+    /// <summary>What a short name takes on a node, which is what a shape is measured round to learn its proportions.</summary>
+    private static readonly LayoutSize PictureWords = new(28, 16);
+
+    /// <summary>The room a node leaves round what is written on it.</summary>
+    private const double PicturePad = 8;
+
+    /// <summary>How thick the line a shape's picture is drawn with is, once it is the size it is shown at.</summary>
+    private const double PictureLine = 1.25;
+
+    /// <summary>The least of its box a shape is drawn across, however small it is drawn beside an ordinary node.</summary>
+    private const double PictureLeast = 0.5;
 }

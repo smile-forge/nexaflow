@@ -9,6 +9,9 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Prose;
 
@@ -24,7 +27,7 @@ public class RtfDrawingTests
     private const string Header = @"{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss\fcharset0 Arial;}}{\colortbl ;\red255\green0\blue0;}" + "\r\n";
 
     /// <summary>The ordinary text size of the light palette, which every distance in a paragraph's look is measured in.</summary>
-    private static double Em => StyleFormat.Light.TextSize;
+    private static double Em => WpfStyles.Light.TextSize;
 
     [TestMethod]
     public void OnlyTheWordsAreDrawn_NeverTheControlWordsRoundThem()
@@ -37,7 +40,7 @@ public class RtfDrawingTests
     {
         var laid = Lay(Header + @"\pard plain {\cf1 red}\par}");
         var red = Words(laid).Single(piece => piece.Words!.Glyphs.Text == "red");
-        var ink = (SolidColorBrush)Marks(red).OfType<TextMark>().Single().Foreground!;
+        var ink = (SolidColorBrush)Marks(red).OfType<PortableTextMark>().Single().Ink!.Brush();
 
         Assert.AreEqual(Color.FromRgb(255, 0, 0), ink.Color);
     }
@@ -54,7 +57,7 @@ public class RtfDrawingTests
     public void APageBreakIsTheRoomOfAFewBlankLines_BetweenThePagesWords()
     {
         var laid = Lay(@"{\rtf1\pard Title\page\pard Next\par}");
-        var page = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == MarkdownPieces.Page).Bounds;
+        var page = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == PortablePieces.Page).Bounds;
         var words = Words(laid).Select(piece => piece.Bounds).ToList();
 
         Assert.AreEqual(2, words.Count);
@@ -134,7 +137,7 @@ public class RtfDrawingTests
 
         Assert.AreEqual(Em, Gap(spaced) - Gap(tight), 0.5);
 
-        static double Gap(Laid laid) => Words(laid)[1].Bounds.Y - Words(laid)[0].Bounds.Y;
+        static double Gap(PortableLaid laid) => Words(laid)[1].Bounds.Y - Words(laid)[0].Bounds.Y;
     }
 
     [TestMethod]
@@ -195,7 +198,7 @@ public class RtfDrawingTests
         var png = Convert.ToHexString(Convert.FromBase64String(
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="));
         var laid = Lay(@"{\rtf1 before {\pict\pngblip\picwgoal480\pichgoal480 " + png + @"} after\par}");
-        var picture = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == MarkdownPieces.Picture);
+        var picture = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == PortablePieces.Picture);
 
         Assert.AreEqual(2 * Em, picture.Bounds.Width, 0.5, "drawn at the size it was asked for");
     }
@@ -205,7 +208,7 @@ public class RtfDrawingTests
     {
         const string source = @"{\rtf1\trowd\cellx1000\cellx2000\pard\intbl A\cell B\cell\row}";
 
-        Assert.AreEqual(2, Lay(source).Root.SelfAndDescendants().Count(piece => piece.Kind == MarkdownPieces.Cell));
+        Assert.AreEqual(2, Lay(source).Root.SelfAndDescendants().Count(piece => piece.Kind == PortablePieces.Cell));
         Assert.AreEqual("A\nB", Read(source).Text);
     }
 
@@ -218,19 +221,19 @@ public class RtfDrawingTests
 
     // ── Reading the answers ─────────────────────────────────────────────────
 
-    private static Laid Lay(string source, double room = 480) =>
-        Laying.Lay(RtfParser.Language, source, room, StyleFormat.Light);
+    private static PortableLaid Lay(string source, double room = 480) =>
+        Laying.Lay(RtfParser.Language, source, room, WpfStyles.Light);
 
     /// <summary>What the document reads as, read from what it read to.</summary>
     private static DrawnText Read(string source) => DrawnText.Of(RtfParser.Parse(source));
 
-    private static List<Piece> Words(Laid laid) =>
+    private static List<PortablePiece> Words(PortableLaid laid) =>
         [.. laid.Root.SelfAndDescendants()
-            .Where(piece => piece.Kind == MarkdownPieces.Words && piece.Words!.Glyphs.Text.Trim().Length > 0)];
+            .Where(piece => piece.Kind == PortablePieces.Words && piece.Words!.Glyphs.Text.Trim().Length > 0)];
 
-    private static List<LayoutMark> Marks(Piece piece)
+    private static List<PortableMark> Marks(PortablePiece piece)
     {
-        var found = new List<LayoutMark>();
+        var found = new List<PortableMark>();
 
         foreach (var mark in piece.Marks) found.Add(mark);
 

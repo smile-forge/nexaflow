@@ -8,6 +8,9 @@ using Nexaflow.Tests.Features.Fixtures;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Latex;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
@@ -159,7 +162,7 @@ public class TypesettingUnchangedTests
     /// the same line the corpus sweep draws between a picture and a tree.
     /// </para>
     /// </summary>
-    private static string Shape(Laid layout)
+    private static string Shape(PortableLaid layout)
     {
         var text = new StringBuilder();
         text.Append(Number(layout.Size.Width)).Append('x').Append(Number(layout.Size.Height)).Append('\n');

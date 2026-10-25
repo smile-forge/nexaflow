@@ -7,6 +7,9 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Prose;
 
@@ -43,8 +46,8 @@ public class MarkdownParityTests
         StringAssert.Contains(Drawn(laid), "Important");
         Assert.IsTrue(laid.Root.SelfAndDescendants().Any(piece => Marks(piece).Any(mark => mark switch
         {
-            RuleMark rule => ReferenceEquals(rule.Foreground, StyleFormat.Dark.Important),
-            WashMark wash => ReferenceEquals(wash.Fill, StyleFormat.Dark.Important),
+            PortableRuleMark rule => ReferenceEquals(rule.Ink, WpfStyles.Dark.Important),
+            PortableWashMark wash => ReferenceEquals(wash.Fill, WpfStyles.Dark.Important),
             _ => false,
         })), "in the colour kept for it, not the accent every other alert could share");
     }
@@ -65,7 +68,7 @@ public class MarkdownParityTests
     {
         var laid = Lay("one\n\n---\n\ntwo\n");
 
-        Assert.AreEqual(1, Pieces(laid, MarkdownPieces.Rule).Count);
+        Assert.AreEqual(1, Pieces(laid, PortablePieces.Rule).Count);
         Assert.IsFalse(Drawn(laid).Contains('-'), "and the dashes are not drawn");
     }
 
@@ -73,19 +76,19 @@ public class MarkdownParityTests
     public void ARuleIsPressedAsTheBandItSitsInAndTakesNoCaret()
     {
         var laid = Lay("one\n\n---\n\ntwo\n");
-        var rule = Pieces(laid, MarkdownPieces.Rule).Single();
+        var rule = Pieces(laid, PortablePieces.Rule).Single();
 
         Assert.IsTrue(rule.Bounds.Height >= 8, $"a band a pointer can land on, not a hairline ({rule.Bounds.Height:0.#} tall)");
-        Assert.AreEqual(Stops.None, rule.Stops, "there is nothing in a rule to write, so the pointer over it is no bar");
+        Assert.AreEqual(PortableStops.None, rule.Stops, "there is nothing in a rule to write, so the pointer over it is no bar");
     }
 
     [TestMethod]
     public void AQuoteIsBarredInTheAccent()
     {
         var laid = Lay("> quoted\n");
-        var quote = Pieces(laid, MarkdownPieces.Block).First(piece => Marks(piece).OfType<RuleMark>().Any());
+        var quote = Pieces(laid, PortablePieces.Block).First(piece => Marks(piece).OfType<PortableRuleMark>().Any());
 
-        Assert.AreEqual(StyleFormat.Dark.Accent, Marks(quote).OfType<RuleMark>().Single().Foreground);
+        Assert.AreEqual(WpfStyles.Dark.Accent, Marks(quote).OfType<PortableRuleMark>().Single().Ink);
     }
 
     [TestMethod]
@@ -95,7 +98,7 @@ public class MarkdownParityTests
 
         StringAssert.Contains(Drawn(laid), "quoted");
         Assert.IsFalse(Drawn(laid).Contains('>'), "the marks are not drawn");
-        Assert.IsTrue(laid.Root.SelfAndDescendants().Any(piece => Marks(piece).OfType<RuleMark>().Any()), "and a bar stands beside it");
+        Assert.IsTrue(laid.Root.SelfAndDescendants().Any(piece => Marks(piece).OfType<PortableRuleMark>().Any()), "and a bar stands beside it");
     }
 
     [TestMethod]
@@ -111,9 +114,9 @@ public class MarkdownParityTests
     {
         var laid = Lay("    var x = 1;\n");
 
-        var shown = Pieces(laid, MarkdownPieces.Verbatim).Single();
+        var shown = Pieces(laid, PortablePieces.Verbatim).Single();
         StringAssert.Contains(shown.Words!.Glyphs.Text, "var x = 1;");
-        Assert.IsTrue(laid.Root.SelfAndDescendants().Any(piece => Marks(piece).OfType<WashMark>().Any()), "on a panel, as code is");
+        Assert.IsTrue(laid.Root.SelfAndDescendants().Any(piece => Marks(piece).OfType<PortableWashMark>().Any()), "on a panel, as code is");
     }
 
     // ── Words ───────────────────────────────────────────────────────────────
@@ -156,7 +159,7 @@ public class MarkdownParityTests
     {
         var laid = Lay("![alt text](https://example.com/x.png)\n");
 
-        Assert.IsFalse(laid.Root.SelfAndDescendants().Any(piece => Marks(piece).OfType<PictureMark>().Any()), "nothing was fetched");
+        Assert.IsFalse(laid.Root.SelfAndDescendants().Any(piece => Marks(piece).OfType<PortablePictureMark>().Any()), "nothing was fetched");
         StringAssert.Contains(Drawn(laid), "alt text");
     }
 
@@ -171,7 +174,7 @@ public class MarkdownParityTests
     {
         var laid = SetApart("a ==lit== b\n", "lit", MarkdownKinds.Mark);
 
-        Assert.IsTrue(laid.Root.SelfAndDescendants().Any(piece => Marks(piece).OfType<WashMark>().Any()), "a wash behind them");
+        Assert.IsTrue(laid.Root.SelfAndDescendants().Any(piece => Marks(piece).OfType<PortableWashMark>().Any()), "a wash behind them");
     }
 
     [TestMethod]
@@ -221,7 +224,7 @@ public class MarkdownParityTests
             var glyphs = before.Words!.Glyphs;
             if (!glyphs.Text.EndsWith(' ')) continue;
 
-            Assert.IsTrue(words[at].Where.Left >= where.Left + glyphs.WidthIncludingTrailingWhitespace - 0.5,
+            Assert.IsTrue(words[at].Where.Left >= where.Left + glyphs.WidthWithSpace - 0.5,
                           $"'{words[at].Piece.Words!.Glyphs.Text}' starts past the space after '{glyphs.Text}'");
         }
     }
@@ -232,7 +235,7 @@ public class MarkdownParityTests
         var laid = Lay("a ==marked `code`== b\n");
         var code = Words(laid).Single(piece => piece.Words!.Glyphs.Text == "code");
 
-        Assert.AreEqual(StyleFormat.Dark.Accent, Marks(code).OfType<TextMark>().Single().Foreground);
+        Assert.AreEqual(WpfStyles.Dark.Accent, Marks(code).OfType<PortableTextMark>().Single().Ink);
     }
 
     [TestMethod]
@@ -286,7 +289,7 @@ public class MarkdownParityTests
     {
         var laid = Lay("| a | b |\n|---|---|\n| x \\| y | z |\n");
 
-        Assert.AreEqual(4, Pieces(laid, MarkdownPieces.Cell).Count, "two columns, not three");
+        Assert.AreEqual(4, Pieces(laid, PortablePieces.Cell).Count, "two columns, not three");
         StringAssert.Contains(Drawn(laid), "x | y");
     }
 
@@ -308,9 +311,9 @@ public class MarkdownParityTests
     public void AGridTableCellCanSpanTheColumnsUnderIt()
     {
         var laid = Lay("+-------+------+\n| Big          |\n+=======+======+\n| a     | b    |\n+-------+------+\n");
-        var cells = Pieces(laid, MarkdownPieces.Cell);
+        var cells = Pieces(laid, PortablePieces.Cell);
 
-        Piece Holding(string said) => cells.First(cell => cell.SelfAndDescendants().Any(piece => piece.Words?.Glyphs.Text.Trim() == said));
+        PortablePiece Holding(string said) => cells.First(cell => cell.SelfAndDescendants().Any(piece => piece.Words?.Glyphs.Text.Trim() == said));
 
         var big = Holding("Big");
         var under = Holding("a").Bounds.Width + Holding("b").Bounds.Width;
@@ -332,7 +335,7 @@ public class MarkdownParityTests
 
         // A cell's own box grows to take in whatever it holds, so the columns are read off the head, which holds one word each.
         var placed = laid.Root.Placed().ToList();
-        var edges = placed.Where(one => one.Piece.Kind == MarkdownPieces.Cell).Take(3).Select(one => one.Where.Right).ToList();
+        var edges = placed.Where(one => one.Piece.Kind == PortablePieces.Cell).Take(3).Select(one => one.Where.Right).ToList();
 
         foreach (var (words, where) in placed.Where(one => one.Piece.Words is not null))
         {
@@ -345,34 +348,34 @@ public class MarkdownParityTests
 
     // ── Reading the answers ─────────────────────────────────────────────────
 
-    private static Laid Lay(string source, double room = 480) => Laying.Lay(null, source, room, StyleFormat.Dark);
+    private static PortableLaid Lay(string source, double room = 480) => Laying.Lay(null, source, room, WpfStyles.Dark);
 
-    private static List<Piece> Pieces(Laid laid, string kind) =>
+    private static List<PortablePiece> Pieces(PortableLaid laid, string kind) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];
 
-    private static List<Piece> Words(Laid laid) =>
-        [.. Pieces(laid, MarkdownPieces.Words).Where(piece => piece.Words!.Glyphs.Text.Trim().Length > 0)];
+    private static List<PortablePiece> Words(PortableLaid laid) =>
+        [.. Pieces(laid, PortablePieces.Words).Where(piece => piece.Words!.Glyphs.Text.Trim().Length > 0)];
 
-    private static string Drawn(Laid laid) =>
+    private static string Drawn(PortableLaid laid) =>
         string.Concat(laid.Root.SelfAndDescendants().SelectMany(piece =>
-            piece.Words is { } words ? [words.Glyphs.Text] : piece.Marks.ToArray().OfType<TextMark>().Select(mark => mark.Glyphs.Text)));
+            piece.Words is { } words ? [words.Glyphs.Text] : piece.Marks.ToArray().OfType<PortableTextMark>().Select(mark => mark.Glyphs.Text)));
 
-    private static List<LayoutMark> Marks(Piece piece)
+    private static List<PortableMark> Marks(PortablePiece piece)
     {
-        var found = new List<LayoutMark>();
+        var found = new List<PortableMark>();
         foreach (var mark in piece.Marks) found.Add(mark);
         return found;
     }
 
     /// <summary>Where every link on the page goes.</summary>
-    private static List<string> Targets(Laid laid) =>
+    private static List<string> Targets(PortableLaid laid) =>
         [.. laid.Root.SelfAndDescendants()
             .Select(piece => piece.Acts?.Click)
             .Where(act => act is { Verb: LayoutVerbs.Navigate })
-            .Select(act => act!.Value.Target ?? string.Empty)];
+            .Select(act => act!.Target ?? string.Empty)];
 
     /// <summary>The words drawn without their marks, as a piece of their own, drawn from the construct that marked them.</summary>
-    private static Laid SetApart(string source, string words, string kind)
+    private static PortableLaid SetApart(string source, string words, string kind)
     {
         var laid = Lay(source);
         var piece = Words(laid).SingleOrDefault(one => one.Words!.Glyphs.Text == words);
@@ -399,7 +402,7 @@ public class MarkdownParityTests
     {
         var laid = Lay(source);
 
-        Assert.IsTrue(Pieces(laid, MarkdownPieces.Cell).Count > 0, "a table was drawn");
+        Assert.IsTrue(Pieces(laid, PortablePieces.Cell).Count > 0, "a table was drawn");
 
         foreach (var said in words) StringAssert.Contains(Drawn(laid), said);
     }

@@ -9,12 +9,15 @@ using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
 /// <summary>
 /// End-to-end check that every diagram in the sample markdown dataset parses and renders
-/// through the real markdown pipeline — read, its stages run, and laid by <see cref="MarkdownBuilder"/> with every fence laid by its language.
+/// through the real markdown pipeline — read, its stages run, and laid by <see cref="PortableMarkdownBuilder"/> with every fence laid by its language.
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
@@ -117,7 +120,7 @@ public class MarkdownSampleRenderTests
 
                 var layout = Laying.Formula(latex, 20);
                 var ok = layout is not null
-                         && !layout.Trouble.Any(d => d.Severity == DiagnosticSeverity.Error);
+                         && !layout.Trouble.Any(d => d.Severity == PortableSeverity.Error);
 
                 if (known.Any(gap => latex.Contains(gap, StringComparison.Ordinal)))
                 {
@@ -315,7 +318,7 @@ public class MarkdownSampleRenderTests
     /// </summary>
     private static void Lays(string md, IEnumerable<ContentPart> fences, string what)
     {
-        var laid = Laying.Lay(null, md, 700, StyleFormat.Dark);
+        var laid = Laying.Lay(null, md, 700, WpfStyles.Dark);
         Assert.IsTrue(laid.Draws, $"{what}: the document drew nothing");
 
         var drawn = laid.Root.SelfAndDescendants().Where(piece => piece.Part is not null).Select(piece => piece.Sits().Start).ToList();

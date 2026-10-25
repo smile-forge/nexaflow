@@ -7,6 +7,9 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Prose;
 
@@ -21,7 +24,7 @@ public class MarkdownTableRulesTests
     [TestMethod]
     public void ATableIsRuledOverAndUnderEveryRowAndBesideEveryColumn()
     {
-        var (across, down, table) = Rules(Laying.Lay(null, "| a | b |\n|---|---|\n| c | d |\n", 480, StyleFormat.Dark));
+        var (across, down, table) = Rules(Laying.Lay(null, "| a | b |\n|---|---|\n| c | d |\n", 480, WpfStyles.Dark));
 
         var levels = across.GroupBy(rule => Math.Round(rule.Y, 1)).ToList();
         var edges = down.GroupBy(rule => Math.Round(rule.X, 1)).ToList();
@@ -40,16 +43,16 @@ public class MarkdownTableRulesTests
         var (_, down, table) = Rules(laid);
 
         var inner = down.Where(rule => rule.X > table.Left + 1 && rule.X < table.Right - 2).ToList();
-        var big = laid.Root.SelfAndDescendants().First(piece => piece.Kind == MarkdownPieces.Cell).Bounds;
+        var big = laid.Root.SelfAndDescendants().First(piece => piece.Kind == PortablePieces.Cell).Bounds;
 
         Assert.IsTrue(inner.Count > 0, "the columns are ruled apart where they are two");
         Assert.IsFalse(inner.Any(rule => rule.Top < big.Bottom - 0.5), "but not through the cell covering both");
     }
 
     /// <summary>Every rule of the one table laid, where it is on the page, split into those across and those down, and where the table is.</summary>
-    private static (List<Rect> Across, List<Rect> Down, Rect Table) Rules(Laid laid)
+    private static (List<LayoutRect> Across, List<LayoutRect> Down, LayoutRect Table) Rules(PortableLaid laid)
     {
-        var rules = new List<Rect>();
+        var rules = new List<LayoutRect>();
 
         foreach (var piece in laid.Root.SelfAndDescendants())
         {
@@ -57,20 +60,20 @@ public class MarkdownTableRulesTests
             foreach (var up in piece.Ancestors()) origin += up.Offset;
 
             foreach (var mark in piece.Marks)
-                if (mark is RuleMark rule) rules.Add(Rect.Offset(rule.Bounds, origin));
+                if (mark is PortableRuleMark rule) rules.Add(LayoutRect.Offset(rule.Bounds, origin));
         }
 
-        List<Rect> across = [.. rules.Where(rule => rule.Width > rule.Height)];
-        List<Rect> down = [.. rules.Where(rule => rule.Height >= rule.Width)];
+        List<LayoutRect> across = [.. rules.Where(rule => rule.Width > rule.Height)];
+        List<LayoutRect> down = [.. rules.Where(rule => rule.Height >= rule.Width)];
 
         // How wide from the lines across it and how tall from the lines down it: each kind of line is as thick as it is,
         // and counting that thickness in the other direction would make the table a line wider than its rules.
-        var wide = across.Aggregate(Rect.Empty, (all, rule) => Rect.Union(all, rule));
-        var tall = down.Aggregate(Rect.Empty, (all, rule) => Rect.Union(all, rule));
+        var wide = across.Aggregate(LayoutRect.Empty, (all, rule) => LayoutRect.Union(all, rule));
+        var tall = down.Aggregate(LayoutRect.Empty, (all, rule) => LayoutRect.Union(all, rule));
 
         Assert.IsFalse(wide.IsEmpty, "the table is ruled across");
         Assert.IsFalse(tall.IsEmpty, "the table is ruled down");
 
-        return (across, down, new Rect(wide.Left, tall.Top, wide.Width, tall.Height));
+        return (across, down, new LayoutRect(wide.Left, tall.Top, wide.Width, tall.Height));
     }
 }

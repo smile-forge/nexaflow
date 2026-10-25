@@ -11,6 +11,9 @@ using Nexaflow.Visuals.Text.Markdown.Music;
 using Nexaflow.Visuals.Text.Markdown.Languages;
 using Nexaflow.Markdown.Editing;
 
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
 
@@ -42,7 +45,7 @@ public class AbcDragTests
     [TestMethod]
     public void EveryDragAcrossItComesBackWithAnAnswer() => UiThread.Run(() =>
     {
-        var layout = Laying.Engraved("abc", AuldGreyCat, 900, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", AuldGreyCat, 900, WpfStyles.Light);
         var pieces = layout.Root.Leaves().ToList();
 
         Assert.IsTrue(pieces.Count > 20, $"only {pieces.Count} pieces — the tune did not engrave");
@@ -81,7 +84,7 @@ public class AbcDragTests
         // drawn at all.
         foreach (var (what, abc) in AbcConstructs.Everything.Concat([("the Auld Grey Cat", AuldGreyCat)]))
         {
-            var layout = Laying.Engraved("abc", abc, 700, StyleFormat.Light);
+            var layout = Laying.Engraved("abc", abc, 700, WpfStyles.Light);
 
             foreach (var node in layout.Root.Leaves())
                 Assert.IsTrue(!node.Bounds.IsEmpty && node.Bounds.Width > 0 && node.Bounds.Height > 0,
@@ -97,7 +100,7 @@ public class AbcDragTests
 
         const string One = "X:1\nL:1/8\nK:G\n{g}A {/g}B {^d}c {gAG}d |\n";
 
-        var element = Alone.Engraved(MusicDialect.Abc, One, StyleFormat.Light, zoom: 4.0);
+        var element = Alone.Engraved(MusicDialect.Abc, One, WpfStyles.Light, zoom: 4.0);
         element.Measure(new System.Windows.Size(1600, double.PositiveInfinity));
         element.Arrange(new System.Windows.Rect(new System.Windows.Point(0, 0), element.DesiredSize));
 
@@ -118,7 +121,7 @@ public class AbcDragTests
         // centred in the rest — so what it must never do is take a width of its own choosing.
         const double Given = 1284;
 
-        var score = Alone.Drawn("abc", AuldGreyCat, StyleFormat.Light);
+        var score = Alone.Drawn("abc", AuldGreyCat, WpfStyles.Light);
         score.Measure(new System.Windows.Size(Given, double.PositiveInfinity));
         score.Arrange(new System.Windows.Rect(new System.Windows.Point(0, 0), score.DesiredSize));
         score.UpdateLayout();
@@ -127,7 +130,7 @@ public class AbcDragTests
                         "the block is the page: it takes the whole width and puts the margins inside");
 
     // Where the ink is: every staff line runs the whole width of the music.
-        var music = score.Laid.Root.Leaves().Select(piece => piece.Bounds).Where(box => !box.IsEmpty).Aggregate(System.Windows.Rect.Union);
+        var music = score.Laid.Root.Leaves().Select(piece => piece.Bounds).Where(box => !box.IsEmpty).Aggregate(LayoutRect.Union);
         var wanted = Given * 0.8;   // four fifths of the page, which a score keeps to
 
         Assert.IsTrue(music.Width > wanted * 0.9,
@@ -145,7 +148,7 @@ public class AbcDragTests
         const string Meters =
             "X:1\nM:4/4\nK:C\nA4|\nM:C\nA4|\nM:C|\nA4|\nM:6/8\nA3A3|\nM:none\nA4|\n";
 
-        var layout = Laying.Engraved("abc", Meters, 900, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", Meters, 900, WpfStyles.Light);
 
         var ends = layout.Root.SelfAndDescendants()
             .Where(n => Kind(n) == "system")
@@ -169,7 +172,7 @@ public class AbcDragTests
         // ends — and a chord symbol is written between a bar line and the note it stands over. Reaching a beam
         // by its own bar did the same.
         const string Tune = "X:1\nL:1/8\nK:C\n\"C\"C2E2 G3A | \"G\"GFED CDEF |\n";
-        var layout = Laying.Engraved("abc", Tune, 900, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", Tune, 900, WpfStyles.Light);
         var first = Of(layout, "note")[0];
         var chords = Of(layout, "chord");
 
@@ -190,7 +193,7 @@ public class AbcDragTests
         // A rest is on the staff as much as a note is. Left off the staff's run, a drag from one side of it to
         // the other passed it by — and the wash, joined across the gap, claimed it anyway.
         const string Tune = "X:1\nL:1/4\nK:C\nC z E z | G2 z2 |\n";
-        var layout = Laying.Engraved("abc", Tune, 900, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", Tune, 900, WpfStyles.Light);
         var notes = Of(layout, "note");
 
         var chosen = ContentSelection.Between(layout.Root, notes[0], notes[^1]);
@@ -208,7 +211,7 @@ public class AbcDragTests
         // separate selections. The gaps between what was taken are spanned — along the staff, and down from the
         // notes to the words under them when both were taken.
         const string Tune = "X:1\nL:1/4\nK:C\nC D E F | G A B c |\nw: one two three four five six sev-en eight\n";
-        var layout = Laying.Engraved("abc", Tune, 900, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", Tune, 900, WpfStyles.Light);
         var notes = Of(layout, "note");
         var words = Of(layout, "syllable");
 
@@ -230,7 +233,7 @@ public class AbcDragTests
         // takes notes on both and none of the words between, and the wash has to say so: spanning down from one
         // staff to the other would claim a line of lyrics nobody selected.
         const string Tune = "X:1\nL:1/4\nK:C\nC D E F |\nw: one two three four\nG A B c |\nw: five six sev-en eight\n";
-        var layout = Laying.Engraved("abc", Tune, 900, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", Tune, 900, WpfStyles.Light);
         var notes = Of(layout, "note");
         var words = Of(layout, "syllable");
 
@@ -250,7 +253,7 @@ public class AbcDragTests
         // its first piece to its last, and in a tune a chord symbol is written between two notes.
         const string Tune = "X:1\nM:3/4\nL:1/8\nK:F\n\"Bb\"B2\"F/C\"A2\"C7\"G2| \"F\"F6|]\n"
                           + "w:en-gran-de-cer.\nw:no co-ra-cao.\nw:o co-ra-cao.\n";
-        var layout = Laying.Engraved("abc", Tune, 900, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", Tune, 900, WpfStyles.Light);
         var note = At(layout, Tune, "B2");
 
         var chosen = ContentSelection.Between(layout.Root, At(layout, Tune, "ra", after: "w:o"), note);
@@ -267,7 +270,7 @@ public class AbcDragTests
         // typed the arc, so it is named by the group it is drawn in, and a group only partly taken read as something
         // unchosen lying in the gap — when it is around the notes, not between them.
         const string Tune = "X:1\nM:3/4\nL:1/8\nK:F\n\"F\"c2A2F2| (\"Bb\"G2\"F/C\"F2)\"C\"E2| \"F\"F4z2|]\n";
-        var layout = Laying.Engraved("abc", Tune, 900, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", Tune, 900, WpfStyles.Light);
         var (g, f) = (At(layout, Tune, "G2"), At(layout, Tune, "F2", after: "G2"));
 
         var wash = Washed(layout, ContentSelection.Between(layout.Root, At(layout, Tune, "c2"), f));
@@ -280,7 +283,7 @@ public class AbcDragTests
         // Reported from the app: washing only what a note drew left the top line of its staff showing over a low
         // note, which read as a gap in what was selected.
         const string Tune = "X:1\nL:1/4\nK:C\nE F G A |\n";
-        var layout = Laying.Engraved("abc", Tune, 900, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", Tune, 900, WpfStyles.Light);
         var notes = Of(layout, "note");
         var staff = notes[0].Bounds;   // a note reserves exactly the staff it stands on
         var ink = notes[0].Ink();
@@ -301,7 +304,7 @@ public class AbcDragTests
         // to its words became one patch with them, which joined the words beside it and never the note.
         const string Tune = "X:1\nM:3/4\nL:1/8\nK:F\n\"Bb\"B2\"F/C\"A2\"C7\"G2| \"F\"F6|]\n"
                           + "w:en-gran-de-cer.\nw:no co-ra-cao.\nw:o co-ra-cao.\nw:Con-ti-goa-i.\n";
-        var layout = Laying.Engraved("abc", Tune, 900, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", Tune, 900, WpfStyles.Light);
         var (b, a, en, gran) = (At(layout, Tune, "B2"), At(layout, Tune, "A2"), At(layout, Tune, "en"), At(layout, Tune, "gran"));
 
         var wash = Washed(layout, ContentSelection.Between(layout.Root, At(layout, Tune, "ra", after: "w:o"), b));
@@ -313,33 +316,33 @@ public class AbcDragTests
     });
 
     /// <summary>The deepest piece naming the first <paramref name="written"/> after <paramref name="after"/>.</summary>
-    private static Piece At(Laid layout, string tune, string written, string after = "")
+    private static PortablePiece At(PortableLaid layout, string tune, string written, string after = "")
     {
         var offset = tune.IndexOf(written, tune.IndexOf(after, StringComparison.Ordinal), StringComparison.Ordinal);
         return layout.Root.SelfAndDescendants().Last(p => p.Stands() && p.Sits().Start <= offset && offset < p.Sits().End);
     }
 
-    private static List<Piece> Of(Laid layout, string kind) =>
+    private static List<PortablePiece> Of(PortableLaid layout, string kind) =>
         [.. layout.Root.SelfAndDescendants().Where(n => Kind(n) == kind)];
 
-    private static bool Taken(ContentSelection chosen, Piece piece) =>
+    private static bool Taken(ContentSelection chosen, PortablePiece piece) =>
         chosen.Ranges.Any(r => piece.Sits().Start >= r.Start && piece.Sits().End <= r.Start + r.Length);
 
-    private static Geometry Washed(Laid layout, ContentSelection chosen) =>
-        layout.Root.Wash([.. chosen.Ranges.Select(r => new EditRange(r.Start, r.Length))], 1.5);
+    private static Geometry Washed(PortableLaid layout, ContentSelection chosen) =>
+        layout.Root.Wash([.. chosen.Ranges.Select(r => new EditRange(r.Start, r.Length))], 1.5)?.Geometry() ?? Geometry.Empty;
 
-    private static string Written(string tune, Piece piece) => $"'{tune.Substring(piece.Sits().Start, piece.Sits().Length)}'";
+    private static string Written(string tune, PortablePiece piece) => $"'{tune.Substring(piece.Sits().Start, piece.Sits().Length)}'";
 
     /// <summary>A point in the space between two things — side by side, or one over the other.</summary>
-    private static System.Windows.Point Gap(System.Windows.Rect one, System.Windows.Rect other, bool across) =>
+    private static System.Windows.Point Gap(LayoutRect one, LayoutRect other, bool across) =>
         across
             ? new((one.Right + other.Left) / 2, (Math.Max(one.Top, other.Top) + Math.Min(one.Bottom, other.Bottom)) / 2)
             : new((Math.Max(one.Left, other.Left) + Math.Min(one.Right, other.Right)) / 2, (one.Bottom + other.Top) / 2);
 
-    private static System.Windows.Point Centre(System.Windows.Rect box) => new(box.X + (box.Width / 2), box.Y + (box.Height / 2));
+    private static System.Windows.Point Centre(LayoutRect box) => new(box.X + (box.Width / 2), box.Y + (box.Height / 2));
 
-    private static System.Windows.Point Middle(Piece node) =>
+    private static System.Windows.Point Middle(PortablePiece node) =>
         new(node.Bounds.X + (node.Bounds.Width / 2), node.Bounds.Y + (node.Bounds.Height / 2));
 
-    private static string Kind(Piece node) => node.Exists ? node.Kind : "?";
+    private static string Kind(PortablePiece node) => node.Exists ? node.Kind : "?";
 }

@@ -10,6 +10,9 @@ using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Pie;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Pie;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -38,7 +41,7 @@ public class PieBuilderTests : MermaidBuilderContract
         ("nothing to draw", "pie\n  \"None\" : lots"),
     ];
 
-    private static Laid Build(string source, double room = 700) =>
+    private static PortableLaid Build(string source, double room = 700) =>
         Laying.Lay("mermaid", source, room);
 
     [TestMethod]
@@ -68,7 +71,7 @@ public class PieBuilderTests : MermaidBuilderContract
 
             foreach (var point in Points(wedge.Bounds))
             {
-                if (!wedge.Region!.FillContains(point - wedge.Anchor)) continue;
+                if (!wedge.Region!.Contains(point - wedge.Anchor)) continue;
 
                 Assert.AreEqual(wedge.Sits().Start, laid.PieceAt(point).Selectable().Sits().Start,
                                 $"a press at {point} in {Written(Pets, wedge.Part)} came back as something else");
@@ -83,11 +86,11 @@ public class PieBuilderTests : MermaidBuilderContract
     });
 
     /// <summary>Points across a rectangle, a few pixels apart — somewhere to press.</summary>
-    private static IEnumerable<Point> Points(Rect where)
+    private static IEnumerable<LayoutPoint> Points(LayoutRect where)
     {
         for (var x = where.X + 4; x < where.Right; x += 9)
             for (var y = where.Y + 4; y < where.Bottom; y += 9)
-                yield return new Point(x, y);
+                yield return new LayoutPoint(x, y);
     }
 
     [TestMethod]
@@ -170,10 +173,10 @@ public class PieBuilderTests : MermaidBuilderContract
         var wedges = Pieces(laid, PiePiece.Wedge).ToList();
 
         // The middle of the chart is the middle of everything the wedges cover together.
-        var across = wedges.Select(wedge => wedge.Bounds).Aggregate(Rect.Union);
-        var middle = new Point(across.X + (across.Width / 2), across.Y + (across.Height / 2));
+        var across = wedges.Select(wedge => wedge.Bounds).Aggregate(LayoutRect.Union);
+        var middle = new LayoutPoint(across.X + (across.Width / 2), across.Y + (across.Height / 2));
 
-        Assert.IsFalse(wedges.Any(wedge => wedge.Region!.FillContains(middle - wedge.Anchor)),
+        Assert.IsFalse(wedges.Any(wedge => wedge.Region!.Contains(middle - wedge.Anchor)),
                        "the hole belongs to none of them");
     });
 
@@ -220,7 +223,7 @@ public class PieBuilderTests : MermaidBuilderContract
 
         Assert.AreEqual(0, Pieces(laid, PiePiece.Wedge).Count());
         Assert.AreEqual(1, Pieces(laid, MermaidPiece.Key).Count(), "a chart with its legend, not its source");
-        Assert.IsFalse(Pieces(laid, LayoutText.SourceKind).Any());
+        Assert.IsFalse(Pieces(laid, PortableText.SourceKind).Any());
     });
 
     [TestMethod]
@@ -229,7 +232,7 @@ public class PieBuilderTests : MermaidBuilderContract
         const string source = "pie\n  \"Dogs\" : lots";
         var laid = Build(source);
 
-        Assert.IsTrue(Pieces(laid, LayoutText.SourceKind).Any(), "the lines are on the page");
+        Assert.IsTrue(Pieces(laid, PortableText.SourceKind).Any(), "the lines are on the page");
         Assert.AreEqual(0, Pieces(laid, PiePiece.Wedge).Count());
         StringAssert.Contains(laid.Trouble.Single().Message, "not a number");
     });
@@ -237,7 +240,7 @@ public class PieBuilderTests : MermaidBuilderContract
     [TestMethod]
     public void ItDispatchesThroughTheDiagramRenderer() => UiThread.Run(() =>
     {
-        var content = (ContentElement)Alone.Drawn("mermaid", Pets, StyleFormat.Dark);
+        var content = (ContentElement)Alone.Drawn("mermaid", Pets, WpfStyles.Dark);
 
         content.Measure(new Size(700, double.PositiveInfinity));
         Assert.IsTrue(content.DesiredSize.Width > 0 && content.DesiredSize.Height > 0);

@@ -13,6 +13,10 @@ using Nexaflow.Visuals.Text.Markdown.Code;
 using Nexaflow.Visuals.Text.Markdown.Languages;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 using Nexaflow.Visuals.Text.Markdown.Stages;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Layout.Code;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Code;
 
@@ -52,13 +56,13 @@ public class CodeLanguageTests
     [TestMethod]
     public void EveryGrammarIsALanguageOfItsOwn_ReadOnlyAfterEveryOtherLanguage()
     {
-        Assert.AreEqual(typeof(CodeBuilder), ContentLanguages.For("csharp")!.Builder);
+        Assert.AreEqual(typeof(PortableCodeBuilder), ContentLanguages.For("csharp")!.Builder);
         Assert.AreSame(ContentLanguages.For("csharp"), ContentLanguages.For("c#"), "one language, whatever a writer calls it");
         Assert.AreNotSame(ContentLanguages.For("csharp"), ContentLanguages.For("python"), "and another for another grammar");
 
         // A word a language of its own claims must reach that one, however many words code answers to.
-        Assert.AreNotEqual(typeof(CodeBuilder), ContentLanguages.For("mermaid")!.Builder);
-        Assert.AreNotEqual(typeof(CodeBuilder), ContentLanguages.For("qr")!.Builder);
+        Assert.AreNotEqual(typeof(PortableCodeBuilder), ContentLanguages.For("mermaid")!.Builder);
+        Assert.AreNotEqual(typeof(PortableCodeBuilder), ContentLanguages.For("qr")!.Builder);
     }
 
     [TestMethod]
@@ -99,10 +103,10 @@ public class CodeLanguageTests
         var engine = new ContentEngine();
         var document = "# Code\n\n```csharp\n" + Unread(Source) + "```\n";
 
-        Assert.IsTrue(Reread(engine, () => engine.Lay(null, EditState.For(document), StyleFormat.Dark, 480, readOnly: true)), "it said so");
+        Assert.IsTrue(Reread(engine, () => engine.Lay(null, EditState.For(document), WpfStyles.Dark, 480, readOnly: true)), "it said so");
 
         engine.Forget();
-        CollectionAssert.Contains(Pieces(engine.Lay(null, EditState.For(document), StyleFormat.Dark, 480, readOnly: true)).ToList(), "keyword",
+        CollectionAssert.Contains(Pieces(engine.Lay(null, EditState.For(document), WpfStyles.Dark, 480, readOnly: true)).ToList(), "keyword",
                                   "and what was read the first time is read again");
     }
 
@@ -156,16 +160,16 @@ public class CodeLanguageTests
     [TestMethod]
     public void ADocumentDrawsItsFenceAsCode()
     {
-        var laid = Laying.Lay(null, "```csharp\n" + Source + "```\n", 480, StyleFormat.Dark);
+        var laid = Laying.Lay(null, "```csharp\n" + Source + "```\n", 480, WpfStyles.Dark);
 
-        Assert.AreEqual(0, laid.Root.SelfAndDescendants().Count(piece => piece.Kind == MarkdownPieces.Verbatim),
+        Assert.AreEqual(0, laid.Root.SelfAndDescendants().Count(piece => piece.Kind == PortablePieces.Verbatim),
             "the fence was laid by the code language, not shown as characters by the document");
     }
 
     [TestMethod]
     public void AFenceInALanguageNoGrammarReadsIsStillShown()
     {
-        var laid = Laying.Lay(null, "```nothing-reads-this\nx = 1\n```\n", 480, StyleFormat.Dark);
+        var laid = Laying.Lay(null, "```nothing-reads-this\nx = 1\n```\n", 480, WpfStyles.Dark);
 
         Assert.IsTrue(laid.Size.Height > 0);
     }
@@ -199,10 +203,10 @@ public class CodeLanguageTests
     }
 
     /// <summary><paramref name="source"/> laid out once the grammar has read it, which happens off the way to drawing.</summary>
-    private static Laid Landed(string language, string source)
+    private static PortableLaid Landed(string language, string source)
     {
         var engine = new ContentEngine();
-        Laid Lay() => engine.Lay(language, EditState.For(source), StyleFormat.Dark, 480, readOnly: true);
+        PortableLaid Lay() => engine.Lay(language, EditState.For(source), WpfStyles.Dark, 480, readOnly: true);
 
         Assert.IsTrue(Reread(engine, () => Pieces(Lay()).Any(kind => kind != Kinds.Verbatim)), "the grammar read it");
         return Lay();
@@ -230,9 +234,9 @@ public class CodeLanguageTests
         }
     }
 
-    private static System.Collections.Generic.IEnumerable<string> Pieces(Laid laid) =>
+    private static System.Collections.Generic.IEnumerable<string> Pieces(PortableLaid laid) =>
         laid.Root.SelfAndDescendants().Where(piece => piece.Words is not null).Select(piece => piece.Kind);
 
-    private static System.Collections.Generic.IEnumerable<ISourcePart> Words(Laid laid) =>
+    private static System.Collections.Generic.IEnumerable<ISourcePart> Words(PortableLaid laid) =>
         laid.Root.SelfAndDescendants().Where(piece => piece.Words is not null && piece.Part is not null).Select(piece => piece.Part!);
 }

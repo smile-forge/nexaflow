@@ -11,6 +11,9 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Git;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -62,14 +65,14 @@ public class GitBuilderTests : MermaidBuilderContract
         Assert.IsTrue(laid.Size.Width <= 240.01, $"{laid.Size.Width} wide");
     });
 
-    private static Laid Build(string source, double room = 900) =>
+    private static PortableLaid Build(string source, double room = 900) =>
         Laying.Lay("mermaid", source, room);
 
     [TestMethod]
     public void EveryCommitIsDrawnAlongTheLaneOfTheBranchItIsMadeOn() => UiThread.Run(() =>
     {
         var laid = Build(History);
-        var commits = Pieces(laid, GitPiece.Commit).Select(commit => Middle(commit.Bounds)).ToList();
+        var commits = Pieces(laid, GitPiece.Commit).Select(commit => Middle(commit.Bounds.ToWpf())).ToList();
 
         Assert.AreEqual(5, commits.Count, "four commits and the merge");
         Assert.IsTrue(commits[0].X < commits[1].X, "one commit after another");
@@ -117,7 +120,7 @@ public class GitBuilderTests : MermaidBuilderContract
     public void ABranchLeavesAlongItsLaneFromTheCommitItComesFrom_AndAMergeTurnsInAtTheMerge() => UiThread.Run(() =>
     {
         var laid = Build(History);
-        var commits = Pieces(laid, GitPiece.Commit).Select(commit => Middle(commit.Bounds)).ToList();
+        var commits = Pieces(laid, GitPiece.Commit).Select(commit => Middle(commit.Bounds.ToWpf())).ToList();
         var follows = Pieces(laid, GitPiece.Follow);
 
         // commit, commit, develop's commit, the merge, commit: develop leaves main at the second and comes back at the merge.
@@ -135,9 +138,9 @@ public class GitBuilderTests : MermaidBuilderContract
         // B is picked onto main past C on develop and D on main: whichever way the line turned, it would run through one.
         const string source = "gitGraph\n  commit id: \"A\"\n  branch develop\n  commit id: \"B\"\n  commit id: \"C\"\n  checkout main\n  commit id: \"D\"\n  cherry-pick id: \"B\"";
         var laid = Build(source);
-        var commits = Pieces(laid, GitPiece.Commit).Select(commit => Middle(commit.Marks.ToArray().OfType<GeometryMark>().First().Shape.Bounds)).ToList();
+        var commits = Pieces(laid, GitPiece.Commit).Select(commit => Middle(commit.Marks.ToArray().OfType<PortableGeometryMark>().First().Shape.Bounds.ToWpf())).ToList();
         var picked = Pieces(laid, GitPiece.Follow).Single(follow => Written(source, follow.Part).StartsWith("cherry-pick", StringComparison.Ordinal) && follow.Bounds.Height > 1);
-        var line = picked.Marks.ToArray().OfType<GeometryMark>().First().Shape;
+        var line = picked.Marks.ToArray().OfType<PortableGeometryMark>().First().Shape.Geometry();
         var pen = new Pen(Brushes.Black, 2);
 
         Assert.IsFalse(line.StrokeContains(pen, commits[2]), "clear of C");
@@ -158,16 +161,16 @@ public class GitBuilderTests : MermaidBuilderContract
     public void AHighlightedCommitIsSetInTheLanesInverseColour() => UiThread.Run(() =>
     {
         var laid = Build("---\nconfig:\n  themeVariables:\n    'gitInv0': '#ff0000'\n---\ngitGraph\n  commit type: HIGHLIGHT");
-        var outer = Pieces(laid, GitPiece.Commit).Single().Marks.ToArray().OfType<GeometryMark>().First();
+        var outer = Pieces(laid, GitPiece.Commit).Single().Marks.ToArray().OfType<PortableGeometryMark>().First();
 
-        Assert.AreEqual(Color.FromRgb(0xFF, 0, 0), ((SolidColorBrush)outer.Fill!).Color, "gitInv0, its key quoted as Mermaid's documents write it");
+        Assert.AreEqual(Color.FromRgb(0xFF, 0, 0), ((SolidColorBrush)outer.Fill!.Brush()).Color, "gitInv0, its key quoted as Mermaid's documents write it");
     });
 
     [TestMethod]
     public void RunningDownThePageTheLanesGoAcross_AndUpItTheHistoryTurnsOver() => UiThread.Run(() =>
     {
-        var down = Pieces(Build("gitGraph TB:\n  commit\n  commit"), GitPiece.Commit).Select(commit => Middle(commit.Bounds)).ToList();
-        var up = Pieces(Build("gitGraph BT:\n  commit\n  commit"), GitPiece.Commit).Select(commit => Middle(commit.Bounds)).ToList();
+        var down = Pieces(Build("gitGraph TB:\n  commit\n  commit"), GitPiece.Commit).Select(commit => Middle(commit.Bounds.ToWpf())).ToList();
+        var up = Pieces(Build("gitGraph BT:\n  commit\n  commit"), GitPiece.Commit).Select(commit => Middle(commit.Bounds.ToWpf())).ToList();
 
         Assert.IsTrue(down[0].Y < down[1].Y, "one commit under another");
         Assert.AreEqual(down[0].X, down[1].X, 0.5, "both on the one lane");
@@ -202,7 +205,7 @@ public class GitBuilderTests : MermaidBuilderContract
         var merge = Pieces(Build(History), GitPiece.Commit)[3];
 
         Assert.IsTrue(commits[3].Bounds.Width > commits[0].Bounds.Width, "a highlighted commit is drawn bigger");
-        Assert.AreEqual(2, merge.Marks.ToArray().OfType<GeometryMark>().Count(), "a merge is a circle and the ring taken out of it");
+        Assert.AreEqual(2, merge.Marks.ToArray().OfType<PortableGeometryMark>().Count(), "a merge is a circle and the ring taken out of it");
     });
 
     [TestMethod]
@@ -258,7 +261,7 @@ public class GitBuilderTests : MermaidBuilderContract
     {
         var commits = Pieces(Build(Kept), GitPiece.Commit);
 
-        Assert.IsTrue(commits[2].Marks.ToArray().OfType<GeometryMark>().Any(mark => mark.Shape is GeometryGroup), "the cross over it");
-        Assert.IsFalse(commits[0].Marks.ToArray().OfType<GeometryMark>().Any(mark => mark.Shape is GeometryGroup), "and none over an ordinary one");
+        Assert.IsTrue(commits[2].Marks.ToArray().OfType<PortableGeometryMark>().Any(mark => mark.Shape.Geometry() is GeometryGroup), "the cross over it");
+        Assert.IsFalse(commits[0].Marks.ToArray().OfType<PortableGeometryMark>().Any(mark => mark.Shape.Geometry() is GeometryGroup), "and none over an ordinary one");
     });
 }

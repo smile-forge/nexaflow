@@ -9,6 +9,9 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 
@@ -119,12 +122,12 @@ public class ContentMoveTests
     {
         var root = ContentPart.Of(MarkdownParser.Parsing()(source).Tree);
 
-        return new ContentMove(carried, to, new Landing(new EditState(source, to), Laid.Nothing, -1), default, root, root);
+        return new ContentMove(carried, to, new Landing(new EditState(source, to), PortableLaid.Nothing(WpfMedium.OnThisThread), -1), default, root, root);
     }
 
     private static MarkdownElement Element(bool readOnly = false)
     {
-        var element = new MarkdownElement(Source, StyleFormat.Dark) { IsReadOnly = readOnly };
+        var element = new MarkdownElement(Source, WpfStyles.Dark) { IsReadOnly = readOnly };
 
         element.Measure(new Size(400, double.PositiveInfinity));
         element.Arrange(new Rect(0, 0, 400, element.DesiredSize.Height));
@@ -134,7 +137,7 @@ public class ContentMoveTests
     }
 
     /// <summary>The piece the words of the one paragraph were drawn as.</summary>
-    private static Piece Words(MarkdownElement element) =>
+    private static PortablePiece Words(MarkdownElement element) =>
         element.Laid.Root.SelfAndDescendants().First(piece => piece.Words is { Maps: true });
 
     /// <summary>A press, a drag and a release, which is one gesture whether it picks out or carries.</summary>
@@ -148,13 +151,13 @@ public class ContentMoveTests
 
     private static string Picked(MarkdownElement element) => element.SelectedText;
 
-    private static Point Left(Piece piece) => new(piece.Bounds.X + 1, piece.Bounds.Y + (piece.Bounds.Height / 2));
+    private static Point Left(PortablePiece piece) => new(piece.Bounds.X + 1, piece.Bounds.Y + (piece.Bounds.Height / 2));
 
-    private static Point Right(Piece piece) =>
+    private static Point Right(PortablePiece piece) =>
         new(piece.Bounds.Right - 1, piece.Bounds.Y + (piece.Bounds.Height / 2));
 
     /// <summary>A point about <paramref name="letters"/> letters along the run, which is enough to land inside a word.</summary>
-    private static Point Middle(Piece piece, int letters) =>
+    private static Point Middle(PortablePiece piece, int letters) =>
         new(piece.Bounds.X + (piece.Bounds.Width * letters / Source.TrimEnd('\n').Length),
             piece.Bounds.Y + (piece.Bounds.Height / 2));
 

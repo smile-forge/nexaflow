@@ -26,10 +26,10 @@
   </ItemGroup>
 
   <!-- Nexaflow.Analyzers.Content holds what a content builder is (NXCB001-004): every builder the one shape, and only the
-       engine making one. Handed to every WPF project, which is every project that could hold a builder, apart from test
-       projects — the one place a builder is made by hand, to hold the base to what it promises. Excluded for the same
-       reasons as above besides: external/, and the _wpftmp pass. -->
-  <ItemGroup Condition="'$(UseWPF)' == 'true'
+       engine making one. Handed to Nexaflow.Markdown, where the builders live beside their parsers, and to every WPF project,
+       where the engine and its hosts are — apart from test projects, the one place a builder is made by hand, to hold the
+       base to what it promises. Excluded for the same reasons as above besides: external/, and the _wpftmp pass. -->
+  <ItemGroup Condition="('$(UseWPF)' == 'true' Or '$(MSBuildProjectName)' == 'Nexaflow.Markdown')
                         And '$(MSBuildProjectExtension)' == '.csproj'
                         And '$(IsTestProject)' != 'true'
                         And '$(_TargetAssemblyProjectName)' == ''

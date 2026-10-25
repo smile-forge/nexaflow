@@ -76,7 +76,7 @@ internal sealed class PortableCynefinBuilder : PortableContentBuilder
     };
 
     internal PortableCynefinBuilder(ContentReading reading, EditState state, PortableStyle style, bool isReadOnly, ILayoutMedium medium,
-                                    PortableNesting nesting) : base(reading, state, style, isReadOnly, medium, nesting)
+                                    PortableHost host) : base(reading, state, style, isReadOnly, medium, host)
     {
         Ink = new PortableDiagramInk(style, medium);
         Words = new PortableDiagramText(reading, state, style, medium, part => Nested(part, double.PositiveInfinity, PortableStanding.Inline));

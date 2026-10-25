@@ -7,6 +7,9 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 
@@ -34,10 +37,10 @@ public class SourceLettersTests
         string.Concat(Enumerable.Repeat("word-> ", 43)),
     ];
 
-    private static readonly CharacterSetting[] Settings =
+    private static readonly (Typeface Face, double Size)[] Settings =
     [
-        new(new Typeface("Cascadia Code, Consolas"), 13, Brushes.Black, Culture: CultureInfo.InvariantCulture),
-        new(new Typeface("Segoe UI"), 15, Brushes.Black, Culture: CultureInfo.InvariantCulture),
+        (new Typeface("Cascadia Code, Consolas"), 13),
+        (new Typeface("Segoe UI"), 15),
     ];
 
     [TestMethod]
@@ -47,11 +50,13 @@ public class SourceLettersTests
         foreach (var written in Written)
         {
             var tree = ContentPart.Of(ContentNode.Leaf("source", written));
-            var laid = SourceShown.Lay(tree, [(tree, "Not read.")], setting, StyleFormat.Dark);
+            var medium = WpfMedium.OnThisThread;
+            var laid = PortableSourceShown.Lay(tree, [(tree, "Not read.")], medium, medium.Face(setting.Face), setting.Size, WpfStyles.Dark.Text,
+                                               WpfStyles.Dark);
 
             var letters = laid.Root.SelfAndDescendants()
-                .Where(piece => piece.Kind == LayoutText.SourceKind + "-letter")
-                .ToDictionary(piece => piece.Part!.Start, piece => piece.Bounds);
+                .Where(piece => piece.Kind == PortableText.SourceKind + "-letter")
+                .ToDictionary(piece => piece.Part!.Start, piece => piece.Bounds.ToWpf());
             var drawn = Drawn(written, setting);
 
             CollectionAssert.AreEquivalent(drawn.Keys.ToList(), letters.Keys.ToList(),
@@ -67,10 +72,10 @@ public class SourceLettersTests
     });
 
     /// <summary>Where the type engine draws each letter: its line set as one run, a line's height below the lines above it.</summary>
-    private static Dictionary<int, Rect> Drawn(string written, CharacterSetting setting)
+    private static Dictionary<int, Rect> Drawn(string written, (Typeface Face, double Size) setting)
     {
         var boxes = new Dictionary<int, Rect>();
-        var blank = setting.Set(" ").Height;
+        var blank = Set(" ", setting).Height;
         var top = 0.0;
 
         for (var start = 0; start <= written.Length;)
@@ -79,7 +84,7 @@ public class SourceLettersTests
             if (end < 0) end = written.Length;
 
             var shown = end > start && written[end - 1] == '\r' ? end - 1 : end;
-            var line = shown > start ? setting.Set(written[start..shown]) : null;
+            var line = shown > start ? Set(written[start..shown], setting) : null;
 
             for (var at = start; at < shown; at++)
                 if (line!.BuildHighlightGeometry(new Point(0, top), at - start, 1)?.Bounds is { IsEmpty: false, Width: > 0, Height: > 0 } box)
@@ -91,6 +96,10 @@ public class SourceLettersTests
 
         return boxes;
     }
+
+    /// <summary>A line set by WPF's type engine as one run, in the face and size it is asked in.</summary>
+    private static FormattedText Set(string text, (Typeface Face, double Size) setting) =>
+        new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, setting.Face, setting.Size, Brushes.Black, 1.0);
 
     private static bool Close(Rect a, Rect b) =>
         new[] { a.X - b.X, a.Y - b.Y, a.Width - b.Width, a.Height - b.Height }.All(d => System.Math.Abs(d) < 0.01);

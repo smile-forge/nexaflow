@@ -5,6 +5,9 @@ using Nexaflow.Markdown.Export;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Export;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Export;
 
@@ -22,7 +25,7 @@ public class MarkdownExportTests
     public void AnAlertIsWrittenInTheColourAndUnderTheWordItIsDrawnWith() => UiThread.Run(() =>
     {
         var quote = (ExportQuote)Exported("> [!WARNING]\n> Careful.\n").Blocks.Single();
-        var warning = ((SolidColorBrush)StyleFormat.Light.Warning).Color;
+        var warning = ((SolidColorBrush)WpfStyles.Light.Warning.Brush()).Color;
 
         Assert.AreEqual(new ExportCallout("WARNING", "Warning", Argb(warning)), quote.Callout);
         StringAssert.Contains(new HtmlDocumentWriter().Written(Exported("> [!WARNING]\n> Careful.\n")), $"#{warning.R:X2}{warning.G:X2}{warning.B:X2}");

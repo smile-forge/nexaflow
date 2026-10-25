@@ -7,6 +7,9 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Sequence;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -110,7 +113,7 @@ public class SequenceBuilderTests : MermaidBuilderContract
         var line = Pieces(laid, SequencePiece.Line).Single().Bounds;
         var said = Words(Pieces(laid, SequencePiece.Message).Single(), "Hello John");
 
-        Assert.IsTrue(said.Bottom <= Middle(line).Y, $"what it says is over the line: {said} over {line}");
+        Assert.IsTrue(said.Bottom <= Middle(line.ToWpf()).Y, $"what it says is over the line: {said} over {line}");
         Assert.IsTrue(said.Left >= line.Left - 1 && said.Right <= line.Right + 1, "and between its ends");
     });
 
@@ -145,9 +148,9 @@ public class SequenceBuilderTests : MermaidBuilderContract
         Assert.IsFalse(Bowed(Lay(source)), "the loop turns square corners");
         Assert.IsTrue(Bowed(Lay("---\nconfig:\n  sequence:\n    rightAngles: false\n---\n" + source)), "and bows where rightAngles says not to");
 
-        static bool Bowed(Laid laid) =>
-            Pieces(laid, SequencePiece.Line).Single().SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>()
-                .SelectMany(mark => PathGeometry.CreateFromGeometry(mark.Shape).Figures)
+        static bool Bowed(PortableLaid laid) =>
+            Pieces(laid, SequencePiece.Line).Single().SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<PortableGeometryMark>()
+                .SelectMany(mark => PathGeometry.CreateFromGeometry(mark.Shape.Geometry()).Figures)
                 .SelectMany(figure => figure.Segments)
                 .Any(segment => segment is BezierSegment or PolyBezierSegment);
     });
@@ -229,8 +232,8 @@ public class SequenceBuilderTests : MermaidBuilderContract
         var bar = Pieces(laid, SequencePiece.Bar).Single().Bounds;
         var lines = Pieces(laid, SequencePiece.Line).Select(piece => piece.Bounds).ToList();
 
-        Assert.IsTrue(bar.Top <= Middle(lines[0]).Y + 1, "the bar starts at the message that opened it");
-        Assert.IsTrue(bar.Bottom >= Middle(lines[2]).Y - 1, "and runs to the one that ended it");
+        Assert.IsTrue(bar.Top <= Middle(lines[0].ToWpf()).Y + 1, "the bar starts at the message that opened it");
+        Assert.IsTrue(bar.Bottom >= Middle(lines[2].ToWpf()).Y - 1, "and runs to the one that ended it");
     });
 
     [TestMethod]
@@ -240,8 +243,8 @@ public class SequenceBuilderTests : MermaidBuilderContract
         var bar = Pieces(laid, SequencePiece.Bar).Single().Bounds;
         var lines = Pieces(laid, SequencePiece.Line).Select(piece => piece.Bounds).ToList();
 
-        Assert.AreEqual(Middle(lines[0]).Y, bar.Top, 1, "the bar starts where the message activating it runs, as a + on it would");
-        Assert.AreEqual(Middle(lines[1]).Y, bar.Bottom, 1, "and ends where the message before the deactivate runs");
+        Assert.AreEqual(Middle(lines[0].ToWpf()).Y, bar.Top, 1, "the bar starts where the message activating it runs, as a + on it would");
+        Assert.AreEqual(Middle(lines[1].ToWpf()).Y, bar.Bottom, 1, "and ends where the message before the deactivate runs");
         Assert.IsTrue(lines[0].Right <= bar.Left + 1, $"and the message meets the bar rather than the lifeline under it: {lines[0]} to {bar}");
     });
 
@@ -303,10 +306,10 @@ public class SequenceBuilderTests : MermaidBuilderContract
     {
         var laid = Lay("sequenceDiagram\n  autonumber\n  A->>B: x\n  B->>A: y");
         var heads = Standing(laid);
-        var numbers = Pieces(laid, SequencePiece.Number).Select(piece => Middle(piece.Bounds)).ToList();
+        var numbers = Pieces(laid, SequencePiece.Number).Select(piece => Middle(piece.Bounds.ToWpf())).ToList();
 
-        Assert.AreEqual(Middle(heads[0]).X, numbers[0].X, 1, "the first leaves A, and is numbered on A's lifeline");
-        Assert.AreEqual(Middle(heads[1]).X, numbers[1].X, 1, "the second leaves B, and is numbered on B's");
+        Assert.AreEqual(Middle(heads[0].ToWpf()).X, numbers[0].X, 1, "the first leaves A, and is numbered on A's lifeline");
+        Assert.AreEqual(Middle(heads[1].ToWpf()).X, numbers[1].X, 1, "the second leaves B, and is numbered on B's");
     });
 
     [TestMethod]
@@ -315,8 +318,8 @@ public class SequenceBuilderTests : MermaidBuilderContract
         var laid = Lay("sequenceDiagram\n  A->>B: a message long enough to make the frame wide\n  alt is sick\n    B->>A: no\n  else is well\n    B->>A: yes\n  end");
         var frame = Pieces(laid, SequencePiece.Frame).Single();
 
-        Assert.AreEqual(Middle(frame.Bounds).X, Middle(Words(frame, "is sick")).X, 1, "what the frame is about is its title");
-        Assert.AreEqual(Middle(frame.Bounds).X, Middle(Words(frame, "is well")).X, 1, "and so is what each part of it is about");
+        Assert.AreEqual(Middle(frame.Bounds.ToWpf()).X, Middle(Words(frame, "is sick").ToWpf()).X, 1, "what the frame is about is its title");
+        Assert.AreEqual(Middle(frame.Bounds.ToWpf()).X, Middle(Words(frame, "is well").ToWpf()).X, 1, "and so is what each part of it is about");
     });
 
     [TestMethod]
@@ -339,11 +342,11 @@ public class SequenceBuilderTests : MermaidBuilderContract
         var (database, actor) = (Drawing(heads[0]), Drawing(heads[1]));
 
         Assert.AreEqual(2, database.Count, "a box, and the mark of a database");
-        Assert.IsTrue(database[1].Shape.Bounds.Right < Middle(database[0].Shape.Bounds).X, "the mark set before the name, at the left of the box");
+        Assert.IsTrue(database[1].Shape.Bounds.Right < Middle(database[0].Shape.Bounds.ToWpf()).X, "the mark set before the name, at the left of the box");
         Assert.AreEqual(1, actor.Count, "an actor is the figure alone, with its name under it");
 
-        static List<GeometryMark> Drawing(Piece head) =>
-            [.. head.Children.First(piece => piece.Kind == MermaidPiece.Shape).Marks.ToArray().OfType<GeometryMark>()];
+        static List<PortableGeometryMark> Drawing(PortablePiece head) =>
+            [.. head.Children.First(piece => piece.Kind == MermaidPiece.Shape).Marks.ToArray().OfType<PortableGeometryMark>()];
     });
 
     [TestMethod]
@@ -381,17 +384,17 @@ public class SequenceBuilderTests : MermaidBuilderContract
     // ── Reading what was drawn ──────────────────────────────────────────────
 
     /// <summary>Where each participant's own box stands at the top of its lifeline, in the order they stand.</summary>
-    private static List<Rect> Standing(Laid laid) =>
+    private static List<LayoutRect> Standing(PortableLaid laid) =>
         [.. Pieces(laid, SequencePiece.Lifeline)
               .Select(piece => piece.SelfAndDescendants().First(part => part.Kind == SequencePiece.Head).Bounds)
               .OrderBy(bounds => bounds.Left)];
 
-    private static Rect Words(Piece piece, string said) => Said(piece).First(words => words.Words!.Glyphs.Text == said).Bounds;
+    private static LayoutRect Words(PortablePiece piece, string said) => Said(piece).First(words => words.Words!.Glyphs.Text == said).Bounds;
 
-    private static IEnumerable<Piece> Said(Piece piece) =>
+    private static IEnumerable<PortablePiece> Said(PortablePiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Words && part.Words is not null);
 
-    private static bool Holds(Rect over, Rect inner) =>
+    private static bool Holds(LayoutRect over, LayoutRect inner) =>
         inner.Left >= over.Left - 1 && inner.Right <= over.Right + 1 && inner.Top >= over.Top - 1
         && inner.Bottom <= over.Bottom + 1;
 
@@ -437,9 +440,9 @@ public class SequenceBuilderTests : MermaidBuilderContract
     {
         // Room enough that nothing is fitted into it, so the only thing moving is how big the page sets its words.
         var ordinary = Laying.Lay(Language, Intro, double.PositiveInfinity,
-                                  StyleFormat.Dark with { TextSize = StyleFormat.DefaultTextSize });
+                                  WpfStyles.Dark with { TextSize = PortableStyle.DefaultTextSize });
         var zoomed = Laying.Lay(Language, Intro, double.PositiveInfinity,
-                                StyleFormat.Dark with { TextSize = StyleFormat.DefaultTextSize * 2 });
+                                WpfStyles.Dark with { TextSize = PortableStyle.DefaultTextSize * 2 });
 
         Assert.IsTrue(zoomed.Size.Width > ordinary.Size.Width * 1.7 && zoomed.Size.Width < ordinary.Size.Width * 2.3,
                       $"body text at twice the size draws the diagram about twice as wide: {ordinary.Size.Width:0.#} "
@@ -453,7 +456,7 @@ public class SequenceBuilderTests : MermaidBuilderContract
     public void APageSetLargerStillFitsItsDiagramToTheRoom() => UiThread.Run(() =>
     {
         // The two scales multiply rather than fight: the page sets it larger, and the room takes it back down.
-        var zoomed = Laying.Lay(Language, Crowded, 520, StyleFormat.Dark with { TextSize = StyleFormat.DefaultTextSize * 2 });
+        var zoomed = Laying.Lay(Language, Crowded, 520, WpfStyles.Dark with { TextSize = PortableStyle.DefaultTextSize * 2 });
 
         Assert.IsTrue(zoomed.Size.Width <= 520, $"drawn inside the room it has: {zoomed.Size.Width:0.#} of 520");
     });

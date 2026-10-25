@@ -7,6 +7,9 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
 
@@ -47,7 +50,7 @@ public class AbcEditsTests
             .OrderBy(part => part.Length)
             .FirstOrDefault() ?? tune;
 
-        return AbcEdits.Instance.Edit(new ContentEdit(kind, text, new Landing(state, Laid.Nothing, -1), default, at, tune));
+        return AbcEdits.Instance.Edit(new ContentEdit(kind, text, new Landing(state, PortableLaid.Nothing(WpfHandles.Medium), -1), default, at, tune));
     }
 
     /// <summary>

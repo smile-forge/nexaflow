@@ -8,6 +8,9 @@ using System.Windows.Media;
 using System.Windows.Media.Effects;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 

@@ -5,6 +5,9 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Sequence;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -123,7 +126,7 @@ public class C4SequenceBuilderTests : MermaidBuilderContract
 
         Assert.AreEqual(2, rows.Count);
         Assert.AreEqual(rows[0].Top, rows[1].Top, 1, "the rows stand side by side");
-        Assert.IsTrue(key.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Swatch).All(swatch => swatch.Marks.ToArray().OfType<RuleMark>().Any()),
+        Assert.IsTrue(key.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Swatch).All(swatch => swatch.Marks.ToArray().OfType<PortableRuleMark>().Any()),
                       "and every swatch is filled with the colour the cards it names are painted, though nothing wrote one");
     });
 
@@ -137,10 +140,10 @@ public class C4SequenceBuilderTests : MermaidBuilderContract
         Assert.AreEqual(1, Pieces(laid, SequencePiece.Line).Count);
     });
 
-    private static IEnumerable<Piece> Said(Piece piece) =>
+    private static IEnumerable<PortablePiece> Said(PortablePiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Words && part.Words is not null);
 
-    private static bool Holds(Rect over, Rect inner) =>
+    private static bool Holds(LayoutRect over, LayoutRect inner) =>
         inner.Left >= over.Left - 1 && inner.Right <= over.Right + 1;
 
     [TestMethod]

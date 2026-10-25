@@ -9,6 +9,22 @@ namespace Nexaflow.Markdown.Layout;
 public sealed record PortableCharacters(LayoutFace Face, double Size, LayoutInk Ink);
 
 /// <summary>
+/// What hosts content being laid out, said to its builder beside the content itself: where the content stands, what lays out
+/// whatever it holds written in another language, and what the host found the content to name — the pictures its parts point at,
+/// and how its links are to look. The one thing a builder asks of whatever shows it.
+/// </summary>
+/// <param name="Standing">Where the content stands in what holds it.</param>
+/// <param name="Nesting">What lays out content written in another language inside it.</param>
+public sealed record PortableHost(PortableStanding Standing, PortableNesting Nesting)
+{
+    /// <summary>The picture a part names, as the host found it — null where it found none.</summary>
+    public Func<ContentPart, LayoutPicture?> Pictures { get; init; } = static _ => null;
+
+    /// <summary>How the host wants a link to look — null where it says nothing.</summary>
+    public Func<ContentPart, PortableLinkLook?> Links { get; init; } = static _ => null;
+}
+
+/// <summary>
 /// What every builder onto the renderer-free layout tree has in common, which is one promise: <strong>laying something out always
 /// produces a layout.</strong> What the reader meant, where it can be read; the source shown as its own characters where it cannot; and
 /// the same again with the reason attached where the attempt threw — a builder is reading text somebody is in the middle of typing, so
@@ -26,24 +42,33 @@ public sealed record PortableCharacters(LayoutFace Face, double Size, LayoutInk 
 /// </summary>
 public abstract class PortableContentBuilder
 {
-    private readonly PortableNesting _nesting;
+    private readonly PortableHost _host;
 
     /// <param name="reading">The content, read and worked over before it ever got here.</param>
     /// <param name="state">What is being written, and where — see <see cref="State"/>.</param>
     /// <param name="style">What it is drawn in, said in the medium's own handles.</param>
     /// <param name="isReadOnly">Whether the block is only being looked at.</param>
     /// <param name="medium">What it is laid out in — what shapes its words and makes its outlines.</param>
-    /// <param name="nesting">What lays out content written in another language inside this one — see <see cref="Nested"/>.</param>
+    /// <param name="host">What hosts it: where it stands, what lays out what it holds in another language, and what was found for it.</param>
     protected PortableContentBuilder(ContentReading reading, EditState state, PortableStyle style, bool isReadOnly, ILayoutMedium medium,
-                                     PortableNesting nesting)
+                                     PortableHost host)
     {
         Reading = reading;
         State = state;
         Style = style;
         IsReadOnly = isReadOnly;
         Medium = medium;
-        _nesting = nesting;
+        _host = host;
     }
+
+    /// <summary>Where the content stands in what holds it — on its own, as a block among a document's, or in a line of words.</summary>
+    protected PortableStanding StandsAs => _host.Standing;
+
+    /// <summary>The picture <paramref name="part"/> names, as the host found it — or null where it found none.</summary>
+    protected LayoutPicture? PictureOf(ContentPart part) => _host.Pictures(part);
+
+    /// <summary>How the host wants the link <paramref name="part"/> is to look — or null where it says nothing.</summary>
+    protected PortableLinkLook? LinkOf(ContentPart part) => _host.Links(part);
 
     /// <summary>The content this is laying out, read and worked over before it ever got here.</summary>
     protected ContentReading Reading { get; }
@@ -102,7 +127,7 @@ public abstract class PortableContentBuilder
     /// What <paramref name="holder"/> holds written in another language, laid out at <paramref name="room"/> standing as
     /// <paramref name="standing"/> says, or null where nothing read it — the one thing a builder asks of whatever hosts it.
     /// </summary>
-    protected PortableInset? Nested(ContentPart holder, double room, PortableStanding standing) => _nesting(holder, room, standing);
+    protected PortableInset? Nested(ContentPart holder, double room, PortableStanding standing) => _host.Nesting(holder, room, standing);
 
     /// <summary>
     /// Lay the content out, or null where none of it is this builder's to draw. Null is for "nothing here is mine to draw", not for

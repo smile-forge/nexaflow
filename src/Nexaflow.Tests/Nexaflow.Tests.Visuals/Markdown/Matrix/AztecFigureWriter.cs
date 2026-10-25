@@ -9,6 +9,9 @@ using Nexaflow.Markdown.Matrix;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Markdown.Matrix.Aztec;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Matrix;
 
@@ -48,7 +51,7 @@ public class AztecFigureWriter
                     Margin            = new Thickness(14, 12, 14, 6),
                     VerticalAlignment = VerticalAlignment.Bottom,   // so the captions share a baseline
                 };
-                column.Children.Add(Alone.Drawn("aztec", source, StyleFormat.Light));
+                column.Children.Add(Alone.Drawn("aztec", source, WpfStyles.Light));
                 column.Children.Add(new TextBlock
                 {
                     Text                = caption,

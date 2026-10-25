@@ -6,6 +6,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Layout;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 

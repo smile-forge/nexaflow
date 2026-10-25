@@ -14,6 +14,9 @@ using Nexaflow.Visuals.Text.Markdown.Latex;
 using Rect = System.Windows.Rect;
 using Nexaflow.Tests.Visuals.Markdown.Latex;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
@@ -230,7 +233,7 @@ public class LatexPictureSweepTests
     /// formulas as changed on the strength of it.
     /// </para>
     /// </summary>
-    private static string Reading(string latex, Laid layout)
+    private static string Reading(string latex, PortableLaid layout)
     {
         var text = new StringBuilder();
 
@@ -269,7 +272,7 @@ public class LatexPictureSweepTests
         foreach (var child in part.Children) Parsed(child, depth + 1, text);
     }
 
-    private static int Depth(Piece node)
+    private static int Depth(PortablePiece node)
     {
         var depth = 1;
         for (var at = node.Parent; at.Exists; at = at.Parent) depth++;
@@ -279,7 +282,7 @@ public class LatexPictureSweepTests
     /// <summary>Rounded, so that a difference below what anyone could see is not called a difference.</summary>
     private static string Round(double value) => value.ToString("F2");
 
-    private static RenderTargetBitmap? Picture(Laid layout)
+    private static RenderTargetBitmap? Picture(PortableLaid layout)
     {
         // Room around it: at this scale a glyph can spill a little past the laid-out box, and the crop
         // that follows only has to find the ink, not to be told where it is.
@@ -293,7 +296,7 @@ public class LatexPictureSweepTests
         {
             dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, width, height));
             dc.PushTransform(new TranslateTransform(pad, pad));
-            LayoutPainter.Paint(dc, layout.Root, Brushes.Black);
+            WpfPainter.Paint(dc, layout.Root, Brushes.Black);
             dc.Pop();
         }
 

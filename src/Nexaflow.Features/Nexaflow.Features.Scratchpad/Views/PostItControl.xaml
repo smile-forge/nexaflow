@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:Nexaflow.Features.Scratchpad.Converters"
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
+             xmlns:paint="clr-namespace:Nexaflow.Visuals.Text.Painting;assembly=Nexaflow.Visuals.Text"
              Width="{Binding Width}" Height="{Binding Height}"
              RenderTransformOrigin="0.5,0.5"
              UseLayoutRounding="True"
@@ -154,7 +155,7 @@
                  the rest render. Native caret/selection/copy span the whole note. -->
             <md:MarkdownSurface x:Name="Editor" Grid.Row="1" IsReadOnly="False" VerticalScrollBarVisibility="Auto"
                                      Margin="8,6"
-                                     Palette="{x:Static md:StyleFormat.Light}"
+                                     Palette="{x:Static paint:WpfStyles.Light}"
                                      Placeholder="Type to add a note…"
                                      BaseDirectory="{Binding AttachmentDirectory}"
                                      Markdown="{Binding Content, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>

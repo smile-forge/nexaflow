@@ -21,8 +21,8 @@ namespace Nexaflow.Markdown.Layout.Matrix;
 /// </para>
 /// </summary>
 public sealed class PortableMatrixBuilder(ContentReading reading, EditState state, PortableStyle style, bool isReadOnly, ILayoutMedium medium,
-                                          PortableNesting nesting)
-    : PortableContentBuilder(reading, state, style, isReadOnly, medium, nesting)
+                                          PortableHost host)
+    : PortableContentBuilder(reading, state, style, isReadOnly, medium, host)
 {
     private const string SourceFont = "Cascadia Code, Consolas, monospace";
 

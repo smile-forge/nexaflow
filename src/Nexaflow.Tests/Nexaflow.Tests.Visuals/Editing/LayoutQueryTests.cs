@@ -3,6 +3,9 @@ using System.Windows;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 
@@ -26,47 +29,47 @@ public class LayoutQueryTests
     /// <c>\frac{x^2}{2}+y</c>, laid out the way a typesetter would: a numerator above a rule above a
     /// denominator, then a binary operator and a term beside them.
     /// </summary>
-    private static Piece Fraction()
+    private static PortablePiece Fraction()
     {
         //                    \frac{x^2}{2}+y
         //  offsets            0    6 8  11 13 14
-        var build = new LayoutBuilder();
+        var build = new PortableBuilder(WpfMedium.OnThisThread);
 
-        build.At(new Rect(0, 0, 100, 44), new TestPart(0, 15), "row");
+        build.At(new LayoutRect(0, 0, 100, 44), new TestPart(0, 15), "row");
 
-        build.At(new Rect(0, 0, 26, 44), new TestPart(0, 13), "fraction");
+        build.At(new LayoutRect(0, 0, 26, 44), new TestPart(0, 13), "fraction");
 
-        build.At(new Rect(2, 0, 20, 17), new TestPart(6, 3), "script");
-        build.Leaf(new Rect(2, 8, 11, 9), new TestPart(6, 1), "char");    // x
-        build.Leaf(new Rect(14, 0, 7, 9), new TestPart(8, 1), "char");    // 2 (exponent)
+        build.At(new LayoutRect(2, 0, 20, 17), new TestPart(6, 3), "script");
+        build.Leaf(new LayoutRect(2, 8, 11, 9), new TestPart(6, 1), "char");    // x
+        build.Leaf(new LayoutRect(14, 0, 7, 9), new TestPart(8, 1), "char");    // 2 (exponent)
         build.Close();
 
         // The bar names nothing: no character of \frac{x^2}{2} produced it, and the piece holding the whole
         // fraction already carries that span. It is the fraction's own drawing.
-        build.Leaf(new Rect(2, 20, 22, 2), null, "rule");
-        build.Leaf(new Rect(7, 30, 10, 13), new TestPart(11, 1), "char");   // 2 (denominator)
+        build.Leaf(new LayoutRect(2, 20, 22, 2), null, "rule");
+        build.Leaf(new LayoutRect(7, 30, 10, 13), new TestPart(11, 1), "char");   // 2 (denominator)
         build.Close();
 
-        build.Leaf(new Rect(28, 18, 16, 13), new TestPart(13, 1), "char");  // +
-        build.Leaf(new Rect(46, 18, 11, 13), new TestPart(14, 1), "char");  // y
+        build.Leaf(new LayoutRect(28, 18, 16, 13), new TestPart(13, 1), "char");  // +
+        build.Leaf(new LayoutRect(46, 18, 11, 13), new TestPart(14, 1), "char");  // y
         build.Close();
 
         return build.Seal().Root;
     }
 
     /// <summary>A 3x3 grid: rows of cells, the shape a matrix lays out as.</summary>
-    private static Piece Matrix()
+    private static PortablePiece Matrix()
     {
-        var build = new LayoutBuilder();
+        var build = new PortableBuilder(WpfMedium.OnThisThread);
 
-        build.At(new Rect(0, 0, 70, 60), new TestPart(0, 9), "grid");
+        build.At(new LayoutRect(0, 0, 70, 60), new TestPart(0, 9), "grid");
 
         for (var r = 0; r < 3; r++)
         {
-            build.At(new Rect(0, r * 20, 70, 13), new TestPart(r * 3, 3), "row");
+            build.At(new LayoutRect(0, r * 20, 70, 13), new TestPart(r * 3, 3), "row");
 
             for (var c = 0; c < 3; c++)
-                build.Leaf(new Rect(c * 25, r * 20, 10, 13), new TestPart((r * 3) + c, 1), "char");
+                build.Leaf(new LayoutRect(c * 25, r * 20, 10, 13), new TestPart((r * 3) + c, 1), "char");
 
             build.Close();
         }
@@ -82,7 +85,7 @@ public class LayoutQueryTests
     {
         var root = Fraction();
 
-        var hit = root.PieceAt(new Point(17, 4));   // inside the exponent
+        var hit = root.PieceAt(new LayoutPoint(17, 4));   // inside the exponent
         Assert.IsTrue(hit.Exists, "a press lands on a piece");
         Assert.AreEqual(8, hit.Sits().Start, "the exponent, not the script or the fraction that contain it");
     }
@@ -94,7 +97,7 @@ public class LayoutQueryTests
         // in the lower one came back with an offset from the upper.
         var root = Matrix();
 
-        var hit = root.PieceAt(new Point(5, 45));   // first cell of the third row
+        var hit = root.PieceAt(new LayoutPoint(5, 45));   // first cell of the third row
         Assert.IsTrue(hit.Exists, "a press lands on a piece");
         Assert.AreEqual(6, hit.Sits().Start);
     }
@@ -105,7 +108,7 @@ public class LayoutQueryTests
         var root = Fraction();
 
         // Between the + and the y — no ink there, but a press must still mean something.
-        var hit = root.PieceAt(new Point(45, 24));
+        var hit = root.PieceAt(new LayoutPoint(45, 24));
         Assert.IsTrue(hit.Exists, "a press lands on a piece");
         Assert.IsTrue(hit.Sits().Start is 13 or 14, $"expected the + or the y, got offset {hit.Sits().Start}");
     }
@@ -116,7 +119,7 @@ public class LayoutQueryTests
         // Every point in the formula is inside the root, and inside the fraction; neither is an answer.
         var root = Fraction();
 
-        foreach (var point in new[] { new Point(7, 10), new Point(12, 35), new Point(30, 24) })
+        foreach (var point in new[] { new LayoutPoint(7, 10), new LayoutPoint(12, 35), new LayoutPoint(30, 24) })
         {
             var hit = root.PieceAt(point);
             Assert.IsTrue(hit.Exists, "a press lands on a piece");
@@ -132,7 +135,7 @@ public class LayoutQueryTests
         var root = Fraction();
         var exponent = root.Leaves().Single(n => n.Sits().Start == 8);
 
-        var promoted = LayoutQuery.Promote([exponent]);
+        var promoted = PortableQuery.Promote([exponent]);
 
         Assert.AreEqual(1, promoted.Count);
         Assert.AreEqual((8, 1), (promoted[0].Sits().Start, promoted[0].Sits().Length));
@@ -146,7 +149,7 @@ public class LayoutQueryTests
         var frac = root.Children.First();
         var denominator = root.Leaves().Single(n => n.Sits().Start == 11);
 
-        var ranges = LayoutQuery.Ranges(LayoutQuery.Promote([frac, denominator]));
+        var ranges = PortableQuery.Ranges(PortableQuery.Promote([frac, denominator]));
 
         Assert.AreEqual(1, ranges.Count);
         Assert.AreEqual((0, 13), ranges[0]);
@@ -160,7 +163,7 @@ public class LayoutQueryTests
         var root = Matrix();
         var column = root.Leaves().Where(n => n.Sits().Start % 3 == 1).ToList();
 
-        var ranges = LayoutQuery.Ranges(LayoutQuery.Promote(column));
+        var ranges = PortableQuery.Ranges(PortableQuery.Promote(column));
 
         CollectionAssert.AreEqual(new[] { (1, 1), (4, 1), (7, 1) }, ranges.ToArray());
     }
@@ -171,7 +174,7 @@ public class LayoutQueryTests
         var root = Matrix();
         var middleRow = root.Leaves().Where(n => n.Sits().Start is 3 or 4 or 5).ToList();
 
-        var promoted = LayoutQuery.Promote(middleRow);
+        var promoted = PortableQuery.Promote(middleRow);
 
         Assert.AreEqual(1, promoted.Count);
         Assert.AreEqual("row", promoted[0].Kind);
@@ -219,11 +222,11 @@ public class LayoutQueryTests
     [TestMethod]
     public void ThereIsNoVerticalMoveOffASingleRow()
     {
-        var build = new LayoutBuilder();
+        var build = new PortableBuilder(WpfMedium.OnThisThread);
 
-        build.At(new Rect(0, 0, 30, 13), new TestPart(0, 3), "row");
-        build.Leaf(new Rect(0, 0, 10, 13), new TestPart(0, 1), "char");
-        build.Leaf(new Rect(10, 0, 10, 13), new TestPart(1, 1), "char");
+        build.At(new LayoutRect(0, 0, 30, 13), new TestPart(0, 3), "row");
+        build.Leaf(new LayoutRect(0, 0, 10, 13), new TestPart(0, 1), "char");
+        build.Leaf(new LayoutRect(10, 0, 10, 13), new TestPart(1, 1), "char");
         build.Close();
 
         var root = build.Seal().Root;
@@ -250,12 +253,12 @@ public class LayoutQueryTests
     [TestMethod]
     public void AnOrdinaryRunOfTermsIsOneRow()
     {
-        var build = new LayoutBuilder();
+        var build = new PortableBuilder(WpfMedium.OnThisThread);
 
-        build.At(new Rect(0, 0, 40, 13), new TestPart(0, 4), "row");
-        build.Leaf(new Rect(0, 0, 10, 13), new TestPart(0, 1), "char");
-        build.Leaf(new Rect(12, 2, 10, 9), new TestPart(1, 1), "char");
-        build.Leaf(new Rect(24, 0, 10, 13), new TestPart(2, 1), "char");
+        build.At(new LayoutRect(0, 0, 40, 13), new TestPart(0, 4), "row");
+        build.Leaf(new LayoutRect(0, 0, 10, 13), new TestPart(0, 1), "char");
+        build.Leaf(new LayoutRect(12, 2, 10, 9), new TestPart(1, 1), "char");
+        build.Leaf(new LayoutRect(24, 0, 10, 13), new TestPart(2, 1), "char");
         build.Close();
 
         var root = build.Seal().Root;

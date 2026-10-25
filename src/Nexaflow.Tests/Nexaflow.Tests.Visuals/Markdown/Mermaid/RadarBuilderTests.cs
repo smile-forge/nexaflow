@@ -11,6 +11,9 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Radar;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -50,7 +53,7 @@ public class RadarBuilderTests : MermaidBuilderContract
         ("nothing to draw", "radar-beta\n  title Empty"),
     ];
 
-    private static Laid Build(string source, double room = 700, bool writing = false) =>
+    private static PortableLaid Build(string source, double room = 700, bool writing = false) =>
         Laying.Lay("mermaid", source, room, writing: writing);
 
     [TestMethod]
@@ -63,8 +66,8 @@ public class RadarBuilderTests : MermaidBuilderContract
     public void TheFirstAxisPointsStraightUp_AndTheRestFollowClockwise() => UiThread.Run(() =>
     {
         var laid = Build(Restaurants);
-        var middle = Middle(Pieces(laid, RadarPiece.Ring).Last().Bounds);
-        var spokes = Pieces(laid, RadarPiece.Spoke).Select(spoke => Middle(spoke.Bounds)).ToList();
+        var middle = Middle(Pieces(laid, RadarPiece.Ring).Last().Bounds.ToWpf());
+        var spokes = Pieces(laid, RadarPiece.Spoke).Select(spoke => Middle(spoke.Bounds.ToWpf())).ToList();
 
         Assert.IsTrue(spokes[0].Y < middle.Y - 20, "the first up");
         Assert.IsTrue(spokes[1].X > middle.X + 20, "the second right");
@@ -134,11 +137,11 @@ public class RadarBuilderTests : MermaidBuilderContract
         const string source = "radar-beta\n  axis a, b, c, d\n  curve big{4, 4, 4, 4}\n  curve small{1, 1, 1, 1}\n  max 4";
         var laid = Build(source);
         var rim = Pieces(laid, RadarPiece.Ring).Last().Bounds;
-        var middle = Middle(rim);
+        var middle = Middle(rim.ToWpf()).ToLayout();
 
         // Along the diagonal between two spokes, so no spoke is pressed.
-        Point Along(double share) => middle + new Vector(share * rim.Width / 2 * Math.Sqrt(0.5), -share * rim.Width / 2 * Math.Sqrt(0.5));
-        int Pressed(Point point) => laid.PieceAt(point).Selectable().Sits().Start;
+        LayoutPoint Along(double share) => middle + new LayoutVector(share * rim.Width / 2 * Math.Sqrt(0.5), -share * rim.Width / 2 * Math.Sqrt(0.5));
+        int Pressed(LayoutPoint point) => laid.PieceAt(point).Selectable().Sits().Start;
 
         Assert.AreEqual(source.IndexOf("small{", StringComparison.Ordinal), Pressed(Along(0.1)), "inside both, the curve written last, drawn over the other");
         Assert.AreEqual(source.IndexOf("big{", StringComparison.Ordinal), Pressed(Along(0.5)), "inside only the big one, the big one");
@@ -152,9 +155,9 @@ public class RadarBuilderTests : MermaidBuilderContract
         foreach (var (source, round) in new[] { (circle, true), (circle + "\n  graticule polygon", false) })
         {
             var rim = Pieces(Build(source), RadarPiece.Ring).Last();
-            var diagonal = Middle(rim.Bounds) + new Vector(rim.Bounds.Width * 0.3, rim.Bounds.Width * 0.3);
+            var diagonal = Middle(rim.Bounds.ToWpf()).ToLayout() + new LayoutVector(rim.Bounds.Width * 0.3, rim.Bounds.Width * 0.3);
 
-            Assert.AreEqual(round, rim.Region!.FillContains(diagonal - rim.Anchor), round ? "a circle reaches out between the axes" : "a polygon does not");
+            Assert.AreEqual(round, rim.Region!.Contains(diagonal - rim.Anchor), round ? "a circle reaches out between the axes" : "a polygon does not");
         }
     });
 
@@ -169,10 +172,10 @@ public class RadarBuilderTests : MermaidBuilderContract
     });
 
     /// <summary>The colour a piece's outline is drawn in.</summary>
-    private static Color Stroke(Piece piece)
+    private static Color Stroke(PortablePiece piece)
     {
         foreach (var mark in piece.Marks)
-            if (mark is GeometryMark { Stroke: SolidColorBrush stroke }) return stroke.Color;
+            if (mark is PortableGeometryMark { Stroke.Ink: WpfInk { Brush: SolidColorBrush stroke } }) return stroke.Color;
 
         throw new AssertFailedException($"a {piece.Kind} with no outline");
     }
@@ -215,7 +218,7 @@ public class RadarBuilderTests : MermaidBuilderContract
     {
         var laid = Build("radar-beta\n  title Empty");
 
-        Assert.IsTrue(Pieces(laid, LayoutText.SourceKind).Any(), "the lines are on the page");
+        Assert.IsTrue(Pieces(laid, PortableText.SourceKind).Any(), "the lines are on the page");
         Assert.AreEqual(0, Pieces(laid, RadarPiece.Spoke).Count);
     });
 

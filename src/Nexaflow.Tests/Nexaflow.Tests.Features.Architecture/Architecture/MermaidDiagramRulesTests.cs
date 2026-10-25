@@ -20,7 +20,7 @@ namespace Nexaflow.Tests.Features.Architecture;
 /// <item><b>Code on the shared tree never reaches into it.</b> A layout the legacy code has that a diagram needs is moved into
 /// the kit and made to take the kit's own input.</item>
 /// <item><b>A diagram's own code goes through the kit</b> — its grammar through <c>MermaidLine</c>, its builder through
-/// <c>DiagramWords</c>, <c>DiagramInk</c> and the kit's shapes — so what the kit decides once is not decided again, differently,
+/// <c>PortableDiagramWords</c>, <c>PortableDiagramInk</c> and the kit's shapes — so what the kit decides once is not decided again, differently,
 /// per diagram. The kit's own files, directly in the <c>Mermaid</c> folders, are what these rules send everything else to.</item>
 /// </list>
 /// </summary>
@@ -30,8 +30,8 @@ public class MermaidDiagramRulesTests
 {
     private static readonly string Root = RepoRoot.Locate();
     private const string Grammars = "src/Nexaflow.Markdown/Mermaid/";
-    private const string Builders = "src/Nexaflow.Visuals.Text/Markdown/Mermaid/";
-    private const string Prose    = "src/Nexaflow.Visuals.Text/Markdown/Prose/";
+    private const string Builders = "src/Nexaflow.Markdown/Layout/Mermaid/";
+    private const string Prose    = "src/Nexaflow.Markdown/Layout/Prose/";
 
     private sealed record Rule(Regex Found, string Instead);
 
@@ -56,13 +56,13 @@ public class MermaidDiagramRulesTests
     /// <summary>What a diagram's own drawing does through the kit.</summary>
     private static readonly Rule[] Drawing =
     [
-        new(new(@"\bDiagramColour\b"), "DiagramInk — a builder asks for a brush that follows the theme, not for colour arithmetic"),
-        new(new(@"new FormattedText\("), "MermaidBuilder.Written and Worked — every word a diagram sets is DiagramWords"),
-        new(new(@"LayoutText\.(Words|Hole|Place)\("), "DiagramWords.Set"),
-        new(new(@"new SolidColorBrush\(|Color\.From(Rgb|Argb)\(|\bColors\.|\bBrushes\.|""#[0-9A-Fa-f]{3,8}"""), "DiagramInk and the palette — a colour nobody wrote is the theme's"),
-        new(new(@"\.Opacity\s*="), "DiagramInk.Faded"),
-        new(new(@"Palette\.Series\s*\["), "DiagramInk.Series"),
-        new(new(@"System\.Windows\.Controls|\bTextBlock\b|\bCanvas\b"), "the layout tree — a diagram is pieces and marks, not controls"),
+        new(new(@"\bPortableDiagramColour\b"), "PortableDiagramInk — a builder asks for an ink that follows the theme, not for colour arithmetic"),
+        new(new(@"\b[Mm]edium\.Shape\("), "PortableDiagramText.Written and Worked — every word a diagram sets is PortableDiagramWords"),
+        new(new(@"PortableText\.(Words|Hole|Place)\("), "PortableDiagramWords.Set"),
+        new(new(@"\bLayoutColors?\b|\b[Mm]edium\.Ink\(|""#[0-9A-Fa-f]{3,8}"""), "PortableDiagramInk and the palette — a colour nobody wrote is the theme's"),
+        new(new(@"\b[Mm]edium\.Faded\("), "PortableDiagramInk.Faded"),
+        new(new(@"\bStyle\.Series\s*\["), "PortableDiagramInk.Series"),
+        new(new(@"System\.Windows\b"), "the layout tree — a diagram is pieces and marks, drawn by whatever medium it is handed"),
     ];
 
     /// <summary>

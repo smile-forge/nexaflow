@@ -15,8 +15,8 @@ namespace Nexaflow.Markdown.Layout;
 /// </para>
 /// </summary>
 public sealed class PortableUnreadBuilder(ContentReading reading, EditState state, PortableStyle style, bool isReadOnly, ILayoutMedium medium,
-                                          PortableNesting nesting)
-    : PortableContentBuilder(reading, state, style, isReadOnly, medium, nesting)
+                                          PortableHost host)
+    : PortableContentBuilder(reading, state, style, isReadOnly, medium, host)
 {
     /// <summary>The whole of it blamed, since nothing read any part of it well enough to blame a part.</summary>
     protected override PortableLaid Build() => AsSource(Reading.Root.Trouble ?? string.Empty);

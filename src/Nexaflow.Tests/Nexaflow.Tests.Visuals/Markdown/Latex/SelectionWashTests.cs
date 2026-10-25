@@ -8,6 +8,9 @@ using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
@@ -42,7 +45,7 @@ public class SelectionWashTests
 
             var glyph = formula.Laid.Root.Leaves().Single(n => n.Sits().Start == offset);
             var wash = RectanglesDrawnBy(formula)
-                .Where(r => r.Contains(glyph.Bounds))
+                .Where(r => r.Contains(glyph.Bounds.ToWpf()))
                 .OrderBy(r => r.Width * r.Height)
                 .First();
 
@@ -59,7 +62,7 @@ public class SelectionWashTests
     /// <summary>A formula laid out and measured, so it has a render size to draw into.</summary>
     private static ContentElement Measured(string latex)
     {
-        var formula = Alone.Drawn("latex", latex, StyleFormat.Dark with { TextSize = 22 });
+        var formula = Alone.Drawn("latex", latex, WpfStyles.Dark with { TextSize = 22 });
         formula.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         formula.Arrange(new Rect(formula.DesiredSize));
         return formula;

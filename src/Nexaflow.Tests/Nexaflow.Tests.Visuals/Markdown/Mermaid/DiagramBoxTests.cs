@@ -3,6 +3,10 @@ using System.Linq;
 using System.Windows;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Layout.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -32,7 +36,7 @@ public class DiagramBoxTests
     [TestMethod]
     public void ABandWrittenButLeftEmptyStillTakesItsAir() => UiThread.Run(() =>
     {
-        var box = Measure([Band("A"), new DiagramCompartment([])]);
+        var box = Measure([Band("A"), new PortableDiagramCompartment([])]);
 
         CollectionAssert.AreEqual(new[] { Tall + (Air * 2), Air * 2 }, box.Depths.ToArray());
     });
@@ -50,7 +54,7 @@ public class DiagramBoxTests
     [TestMethod]
     public void ARuleRunsBetweenEachBandAndTheNextAndNoneUnderTheLast() => UiThread.Run(() =>
     {
-        var bounds = new Rect(10, 20, 200, 100);
+        var bounds = new LayoutRect(10, 20, 200, 100);
         var box = Measure([Band("A"), Band("one"), Band("two")]);
 
         CollectionAssert.AreEqual(new[] { 20 + box.Depths[0], 20 + box.Depths[0] + box.Depths[1] },
@@ -61,8 +65,8 @@ public class DiagramBoxTests
     [TestMethod]
     public void ACentredRowIsSetAcrossTheMiddleAndALeftOneAPadIn() => UiThread.Run(() =>
     {
-        var bounds = new Rect(10, 20, 200, 100);
-        var box = Measure([new DiagramCompartment([Row("Name")]) { Centred = true }, Band("a field")]);
+        var bounds = new LayoutRect(10, 20, 200, 100);
+        var box = Measure([new PortableDiagramCompartment([Row("Name")]) { Centred = true }, Band("a field")]);
 
         var placed = box.Placed(bounds).ToList();
         var name = placed[0].Set[0];
@@ -76,13 +80,13 @@ public class DiagramBoxTests
     [TestMethod]
     public void ColumnsLineUpDownAnAlignedBandAndFollowOneAnotherWhereTheyDoNot() => UiThread.Run(() =>
     {
-        var bounds = new Rect(0, 0, 400, 200);
+        var bounds = new LayoutRect(0, 0, 400, 200);
 
-        var aligned = new DiagramCompartment([Row("string", "name"), Row("int", "a much longer one")]) { Aligned = true };
+        var aligned = new PortableDiagramCompartment([Row("string", "name"), Row("int", "a much longer one")]) { Aligned = true };
         var set = Measure([aligned]).Placed(bounds).Select(placed => placed.Set[1].Where.X).ToList();
         Assert.AreEqual(set[0], set[1], 0.5, "the second column starts in the same place down the band");
 
-        var flowing = new DiagramCompartment([Row("string", "name"), Row("int", "a much longer one")]);
+        var flowing = new PortableDiagramCompartment([Row("string", "name"), Row("int", "a much longer one")]);
         var follows = Measure([flowing]).Placed(bounds).Select(placed => placed.Set[1].Where.X).ToList();
         Assert.IsTrue(follows[0] > follows[1], "and where they do not, each follows what is written before it on its row");
     });
@@ -90,8 +94,8 @@ public class DiagramBoxTests
     [TestMethod]
     public void AColumnNothingWritesInTakesNoRoom() => UiThread.Run(() =>
     {
-        var written = Measure([new DiagramCompartment([Row("string", "name")]) { Aligned = true }]);
-        var blank = Measure([new DiagramCompartment([new DiagramRow([DiagramShapesTests.Words("string"), null,
+        var written = Measure([new PortableDiagramCompartment([Row("string", "name")]) { Aligned = true }]);
+        var blank = Measure([new PortableDiagramCompartment([new PortableDiagramRow([DiagramShapesTests.Words("string"), null,
                                                                      DiagramShapesTests.Words("name")])])
                              { Aligned = true }]);
 
@@ -100,11 +104,11 @@ public class DiagramBoxTests
 
     // ── What it works with ──────────────────────────────────────────────────
 
-    private static DiagramBox Measure(IReadOnlyList<DiagramCompartment> bands) =>
-        DiagramBox.Measure(bands, Tall, Pad, Air, Gap, new Size(96, 34));
+    private static PortableDiagramBox Measure(IReadOnlyList<PortableDiagramCompartment> bands) =>
+        PortableDiagramBox.Measure(bands, Tall, Pad, Air, Gap, new LayoutSize(96, 34));
 
-    private static DiagramCompartment Band(params string[] rows) => new([.. rows.Select(said => Row(said))]);
+    private static PortableDiagramCompartment Band(params string[] rows) => new([.. rows.Select(said => Row(said))]);
 
-    private static DiagramRow Row(params string[] columns) =>
+    private static PortableDiagramRow Row(params string[] columns) =>
         new([.. columns.Select(said => DiagramShapesTests.Words(said))]);
 }

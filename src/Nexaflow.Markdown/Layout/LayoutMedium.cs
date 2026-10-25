@@ -156,7 +156,7 @@ public interface ILayoutMedium
     /// <paramref name="shape"/> as straight lines, its curves broken no further than <paramref name="tolerance"/> from where they run —
     /// each figure the points it passes through, from where it starts.
     /// </summary>
-    IReadOnlyList<LayoutPoint[]> Flattened(LayoutShape shape, double tolerance);
+    IReadOnlyList<LayoutFigure> Flattened(LayoutShape shape, double tolerance);
 }
 
 /// <summary>
@@ -175,6 +175,9 @@ public abstract class LayoutGuides
 
 /// <summary>How far one letter's ink reaches, set at a size of one: across, above its baseline, and below it.</summary>
 public readonly record struct LetterInk(double Width, double Height, double Depth);
+
+/// <summary>One figure of an outline, flattened into straight lines: the corners it runs through, and whether it closes back on itself.</summary>
+public readonly record struct LayoutFigure(LayoutPoint[] Points, bool Closed);
 
 /// <summary>A colour, straight alpha.</summary>
 public readonly record struct LayoutColor(byte A, byte R, byte G, byte B)

@@ -10,6 +10,9 @@ using System.Windows.Controls;
 using System.Windows.Threading;
 
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -52,7 +55,7 @@ public partial class MarkdownLayoutBench
         {
             IsReadOnly = false,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Palette = StyleFormat.Dark,
+            Palette = WpfStyles.Dark,
         };
 
         // Off the desktop but shown: what is not shown is neither laid out nor painted.
@@ -115,7 +118,7 @@ public partial class MarkdownLayoutBench
             var pointing = Steps(Moves, () => element.PointerCursor(Along(++pointed, 13)));
 
             var hovered = 0;
-            var hovering = Steps(Moves, () => surface.Engine.Input(new ContentHover(Along(++hovered, 11))));
+            var hovering = Steps(Moves, () => surface.Engine.Input(new ContentHover(Along(++hovered, 11).ToLayout())));
 
             element.BeginPointerSelect(top);
             Settle();

@@ -1,6 +1,9 @@
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Latex;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
@@ -11,7 +14,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 internal static class Formula
 {
     /// <summary>The layout, which is the whole of what a builder returns.</summary>
-    public static Laid Lay(string latex, double scale, bool placeholders = false,
+    public static PortableLaid Lay(string latex, double scale, bool placeholders = false,
                            RawZone? shownAsWritten = null) =>
         Laying.Formula(latex, scale, shownAsWritten: shownAsWritten, placeholders: placeholders);
 

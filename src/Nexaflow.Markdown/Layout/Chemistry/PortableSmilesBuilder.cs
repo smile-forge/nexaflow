@@ -16,8 +16,8 @@ namespace Nexaflow.Markdown.Layout.Chemistry;
 /// in the block is put right in its source, shown as written.
 /// </summary>
 public sealed class PortableSmilesBuilder(ContentReading reading, EditState state, PortableStyle style, bool isReadOnly, ILayoutMedium medium,
-                                          PortableNesting nesting)
-    : PortableContentBuilder(reading, state, style, isReadOnly, medium, nesting)
+                                          PortableHost host)
+    : PortableContentBuilder(reading, state, style, isReadOnly, medium, host)
 {
     private const string LabelFont = "Segoe UI, Arial, sans-serif";
     private const string SourceFont = "Cascadia Code, Consolas, monospace";

@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Markdown.Scores;
@@ -40,7 +41,13 @@ public sealed class PortableScoreFonts
 
     public LayoutFace ChordsHeavy { get; }
 
-    public static PortableScoreFonts Of(ILayoutMedium medium)
+    /// <summary>The faces <paramref name="medium"/> sets a score in, found the first time anything asks and kept with the medium.</summary>
+    public static PortableScoreFonts Of(ILayoutMedium medium) => Kept.GetValue(medium, Found);
+
+    /// <summary>What each medium was found to have, kept as long as the medium is.</summary>
+    private static readonly ConditionalWeakTable<ILayoutMedium, PortableScoreFonts> Kept = new();
+
+    private static PortableScoreFonts Found(ILayoutMedium medium)
     {
         LayoutFace? music;
         try { music = medium.Font("Bravura.otf"); }
@@ -175,43 +182,4 @@ internal sealed class PortableScoreWords(IShapedText glyphs) : IScoreWords
     public double Height => Glyphs.Height;
 
     public (double Top, double Height) Letters => (Glyphs.Height + Glyphs.Overhang - Glyphs.Extent, Glyphs.Extent);
-}
-
-/// <summary>
-/// A tune, engraved onto the renderer-free layout tree by the same engraver the WPF builder uses, through a
-/// <see cref="PortableScoreLayer"/>, set in the middle of its page.
-/// </summary>
-internal sealed class PortableMusicBuilder(ContentReading reading, Engraver engraver, PortableStyle style, ILayoutMedium medium,
-                                           PortableScoreFonts fonts)
-{
-    /// <summary>Fallback size for source that couldn't be engraved.</summary>
-    private const double SourceSize = 13;
-
-    public PortableLaid Lay(double room = double.PositiveInfinity)
-    {
-        if (double.IsNaN(room) || room <= 0 || !double.IsFinite(room)) return Score(Engraver.Unbounded);
-
-        var score = Score(room * Engraver.PageWidth);
-        var page = new PortableBuilder(medium);
-        var width = Math.Max(room, score.Width);
-
-        new PortableInset(score).Set(page, new LayoutPoint((width - score.Width) / 2, 0), "MusicPage");
-
-        return new PortableLaid(page.Seal(), width, score.Height, score.Trouble);
-    }
-
-    private PortableLaid Score(double room)
-    {
-        var tune = engraver.Read();
-
-        var troubled = Engraver.Troubled(tune);
-        if (troubled.Count > 0)
-            return PortableSourceShown.Lay(reading.Root, [.. troubled.Select(part => PortableDiagnostic.Of(part, part.Trouble!))], medium,
-                                           style.Face(style.MonoFont), SourceSize, style.Text, style, room);
-
-        var layer = new PortableScoreLayer(medium, style.Text, fonts);
-        var (width, height) = engraver.Engrave(tune, room, layer);
-
-        return new PortableLaid(layer.Tree!, width, height, []);
-    }
 }

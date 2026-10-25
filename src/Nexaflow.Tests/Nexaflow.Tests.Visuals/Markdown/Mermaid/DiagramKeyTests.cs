@@ -9,6 +9,9 @@ using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -67,7 +70,7 @@ public class DiagramKeyTests
         {
             var what = Path.GetFileName(path);
             var document = File.ReadAllText(path).Replace("\r\n", "\n");
-            var laid = new ContentEngine().Lay(null, EditState.For(document), StyleFormat.Dark, Room, readOnly: false);
+            var laid = new ContentEngine().Lay(null, EditState.For(document), WpfStyles.Dark, Room, readOnly: false);
             var held = Held(document);
 
             // Only the stops inside a diagram: what a key does in the document's own prose is a different question.
@@ -136,7 +139,7 @@ public class DiagramKeyTests
     /// What the caret at <paramref name="offset"/> stands against, found the way the engine finds it — so a count that has
     /// risen says which parts to look at rather than only which lines broke.
     /// </summary>
-    private static string Standing(Laid laid, int offset)
+    private static string Standing(PortableLaid laid, int offset)
     {
         var piece = laid.Root.WordsAt(offset);
         var words = piece.Exists;

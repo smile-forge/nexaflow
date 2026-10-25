@@ -12,14 +12,10 @@ namespace Nexaflow.Markdown.Layout.Mermaid.Flowchart;
 /// </summary>
 internal sealed class PortableFlowchartBuilder : PortableContentBuilder
 {
-    private readonly Func<ContentPart, LayoutPicture?> _pictures;
-
-    /// <param name="pictures">The picture a node names, as the host found it — or null where it found none.</param>
     internal PortableFlowchartBuilder(ContentReading reading, EditState state, PortableStyle style, bool isReadOnly, ILayoutMedium medium,
-                                      PortableNesting nesting, Func<ContentPart, LayoutPicture?> pictures)
-        : base(reading, state, style, isReadOnly, medium, nesting)
+                                      PortableHost host)
+        : base(reading, state, style, isReadOnly, medium, host)
     {
-        _pictures = pictures;
         Ink = new PortableDiagramInk(style, medium);
         Words = new PortableDiagramText(reading, state, style, medium, part => Nested(part, double.PositiveInfinity, PortableStanding.Inline));
         Sheet = new PortableDiagramSheet(state, style, medium, isReadOnly, Words, AsSource);
@@ -41,7 +37,7 @@ internal sealed class PortableFlowchartBuilder : PortableContentBuilder
 
         var block = MermaidBlock.Of(Reading);
         var drawing = new PortableBuilder(Medium);
-        var body = new PortableFlowchartDrawing(Reading, State, Style, Medium, Ink, Words, Sheet, Folded, _pictures, laning: null,
+        var body = new PortableFlowchartDrawing(Reading, State, Style, Medium, Ink, Words, Sheet, Folded, PictureOf, laning: null,
                                                 PortableDiagramConfig.Of(Reading, FlowchartConfig.Default))
             .Draw(block, drawing);
 

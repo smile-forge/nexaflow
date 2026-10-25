@@ -5,6 +5,8 @@ using Nexaflow.Visuals.Text.Editing;
 using static Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting.Typeset;
 using Nexaflow.Markdown.Latex;
 
+using Nexaflow.Markdown.Layout;
+
 namespace Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting;
 
 /// <summary>
@@ -146,7 +148,7 @@ public class CorpusGapTests
         // OT1 has no underscore, so LaTeX draws a short rule under the baseline; so does this.
         var marks = Marks(@"\_");
         Assert.AreEqual(1, marks.Count);
-        Assert.IsInstanceOfType<RuleMark>(marks.Single().Mark);
+        Assert.IsInstanceOfType<PortableRuleMark>(marks.Single().Mark);
         Assert.IsTrue(Width(@"\_") > 0.0);
     });
 }

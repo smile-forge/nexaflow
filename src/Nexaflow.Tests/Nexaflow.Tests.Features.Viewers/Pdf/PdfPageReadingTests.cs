@@ -15,6 +15,9 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using UglyToad.PdfPig.Graphics.Core;
 using UglyToad.PdfPig.PdfFonts;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Features.Pdf;
 
@@ -199,7 +202,7 @@ public class PdfPageReadingTests
 
         var run = Runs(page.Content).Single();
         var middle = run.Glyphs[4].Box;
-        var at = new Point((middle.Left + middle.Width / 2) * PdfPageLayout.DipsPerPoint,
+        var at = new LayoutPoint((middle.Left + middle.Width / 2) * PdfPageLayout.DipsPerPoint,
                            (middle.Top + middle.Height / 2) * PdfPageLayout.DipsPerPoint);
 
         var offset = tree.Root.OffsetAt(at);
@@ -232,7 +235,7 @@ public class PdfPageReadingTests
 
         var tree = PdfPageLayout.Lay(page, Brushes.White);
         // A press means what the pieces placed under it answer to, as every host of a layout tree reads it.
-        var at = new Point(50 * PdfPageLayout.DipsPerPoint, 170 * PdfPageLayout.DipsPerPoint);
+        var at = new LayoutPoint(50 * PdfPageLayout.DipsPerPoint, 170 * PdfPageLayout.DipsPerPoint);
         var answers = tree.Root.Placed()
             .Where(p => p.Where.Contains(at) && p.Piece.Acts?.For(LayoutGesture.Click) is not null)
             .Select(static p => p.Piece.Acts!.For(LayoutGesture.Click)!.Value)
@@ -1056,13 +1059,13 @@ public class PdfPageReadingTests
     // ── Pixels ────────────────────────────────────────────────────────────────────
 
     /// <summary>The laid page painted at one pixel to a point, so a pixel's coordinates are the page's own.</summary>
-    private static System.Windows.Media.Imaging.BitmapSource UiThreadPainted(LayoutTree tree, PdfPageNode page)
+    private static System.Windows.Media.Imaging.BitmapSource UiThreadPainted(PortableTree tree, PdfPageNode page)
     {
         System.Windows.Media.Imaging.BitmapSource? picture = null;
         UiThread.Run(() =>
         {
             var size = new Size(page.Size.Width * PdfPageLayout.DipsPerPoint, page.Size.Height * PdfPageLayout.DipsPerPoint);
-            picture = LayoutPictures.Painted(tree.Root, new Rect(size), 1 / PdfPageLayout.DipsPerPoint, Brushes.Black, Brushes.White);
+            picture = WpfPainter.Painted(tree.Root, new Rect(size), 1 / PdfPageLayout.DipsPerPoint, Brushes.Black, Brushes.White);
         });
         Assert.IsNotNull(picture);
         return picture;

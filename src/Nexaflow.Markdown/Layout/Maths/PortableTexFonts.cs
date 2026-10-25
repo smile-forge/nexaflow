@@ -4,6 +4,8 @@ using Nexaflow.Markdown.Typesetting.Tex.Exceptions;
 using Nexaflow.Markdown.Typesetting.Tex.Fonts;
 using Nexaflow.Markdown.Typesetting.Tex.Utils;
 using TexEnvironment = Nexaflow.Markdown.Typesetting.Tex.TexEnvironment;
+using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 
 namespace Nexaflow.Markdown.Layout.Maths;
 
@@ -27,9 +29,15 @@ public sealed class PortableTexFonts
     /// <summary>The face <c>\text{…}</c> is set in.</summary>
     public LayoutFace Text { get; }
 
-    /// <param name="textFamily">The family <c>\text{…}</c> is set in.</param>
+    /// <summary>
+    /// The maths faces <paramref name="medium"/> has, with <paramref name="textFamily"/> for <c>\text{…}</c> — read the first time anything
+    /// asks and kept with the medium, since the tables do not change.
+    /// </summary>
     public static PortableTexFonts Of(ILayoutMedium medium, string textFamily) =>
-        new(medium, DefaultTexFontData.Read(new MediumFontProvider(medium)), medium.Face(textFamily));
+        Kept.GetOrCreateValue(medium).GetOrAdd(textFamily, family => new(medium, DefaultTexFontData.Read(new MediumFontProvider(medium)), medium.Face(family)));
+
+    /// <summary>What each medium was found to have, kept as long as the medium is.</summary>
+    private static readonly ConditionalWeakTable<ILayoutMedium, ConcurrentDictionary<string, PortableTexFonts>> Kept = new();
 
     /// <summary>What one formula is typeset in: its style, the maths faces at its size, and the text face at the same.</summary>
     internal TexEnvironment Environment(TexStyle style, double scale) =>

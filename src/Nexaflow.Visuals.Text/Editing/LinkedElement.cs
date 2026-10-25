@@ -5,11 +5,14 @@ using System.Windows;
 using System.Windows.Input;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Editing;
 
 /// <summary>
-/// Content whose pieces answer to a gesture (<see cref="LayoutActions"/>), and which hands what they mean to whatever
+/// Content whose pieces answer to a gesture (<see cref="PortableActions"/>), and which hands what they mean to whatever
 /// the host put behind them. A press that is answered means that rather than a place to put the caret, and the pointer
 /// is a hand over one saying what it leads to.
 ///
@@ -19,11 +22,11 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// </para>
 /// </summary>
 /// <param name="actions">What answers a gesture — null where nothing here answers one.</param>
-public class LinkedElement(string source, StyleFormat palette, ContentEngine engine, string? language, ILayoutActions? actions)
+public class LinkedElement(string source, PortableStyle palette, ContentEngine engine, string? language, ILayoutActions? actions)
     : ContentElement(source, palette, engine, language, actions)
 {
     /// <inheritdoc/>
-    protected override Cursor Pointing(Point at)
+    protected override Cursor Pointing(LayoutPoint at)
     {
         if (Offered(at, LayoutGesture.Click) is not { } act) return base.Pointing(at);
 
@@ -74,26 +77,22 @@ public class LinkedElement(string source, StyleFormat palette, ContentEngine eng
     protected virtual IEnumerable<LayoutIntent> Offering(LayoutAct act) => [];
 
     /// <summary>What every one of <paramref name="over"/> offers, by verb, in the order the first of them says it.</summary>
-    private static List<LayoutIntent> Shared(IReadOnlyList<Piece> over)
+    private static List<LayoutIntent> Shared(IReadOnlyList<PortablePiece> over)
     {
         var first = Offers(over[0]);
         return [.. first.Where(offer => over.All(piece => Offers(piece).Any(other => other.Verb == offer.Verb)))];
     }
 
-    /// <summary>Everything a piece says can be done to it: what a press means, what two mean, and what it lists besides.</summary>
-    private static IEnumerable<LayoutIntent> Offers(Piece piece) =>
-        piece.Acts is not { } acts
-            ? []
-            : new[] { acts.Click, acts.DoubleClick }.OfType<LayoutIntent>().Concat(acts.Menu)
-                .GroupBy(offer => offer.Verb)
-                .Select(one => one.First());
+    /// <summary>Everything a piece says can be done to it: what a press on it means.</summary>
+    private static IEnumerable<LayoutIntent> Offers(PortablePiece piece) =>
+        LayoutAnswers.Offer(piece.Acts?.Click) is { } press ? [press] : [];
 
     /// <summary>
     /// Does what was chosen from the menu: what the language offered is its edit handler's to do, from where the menu was opened;
     /// anything else, to each piece it was offered for, or — where no piece offered it, because the content or the host did —
     /// once, for where the menu was opened.
     /// </summary>
-    private void Invoke(LayoutIntent meant, IReadOnlyList<Piece> over, Point where, IReadOnlyList<LayoutIntent> asked)
+    private void Invoke(LayoutIntent meant, IReadOnlyList<PortablePiece> over, LayoutPoint where, IReadOnlyList<LayoutIntent> asked)
     {
         // Whatever the content itself offered is the content's to do, a paste as much as anything else: what is on the
         // clipboard is the host's, but asking for it is the engine's (ContentChange.Asks).

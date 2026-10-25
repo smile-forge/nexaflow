@@ -10,6 +10,9 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Timeline;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -65,7 +68,7 @@ public class TimelineBuilderTests : MermaidBuilderContract
         Assert.IsTrue(laid.Size.Width <= 500.01, $"{laid.Size.Width} wide");
     });
 
-    private static Laid Build(string source, double room = 900) =>
+    private static PortableLaid Build(string source, double room = 900) =>
         Laying.Lay("mermaid", source, room);
 
     [TestMethod]
@@ -100,7 +103,7 @@ public class TimelineBuilderTests : MermaidBuilderContract
         var events = Pieces(laid, TimelinePiece.Event);
 
         Assert.AreEqual("Dolor Sit", Written(Pizzas, events[1].Part));
-        Assert.AreEqual(Middle(periods[0].Bounds).X, Middle(events[1].Bounds).X, 0.5, "under the period it goes on from");
+        Assert.AreEqual(Middle(periods[0].Bounds.ToWpf()).X, Middle(events[1].Bounds.ToWpf()).X, 0.5, "under the period it goes on from");
     });
 
     [TestMethod]
@@ -140,8 +143,8 @@ public class TimelineBuilderTests : MermaidBuilderContract
         for (var at = 0; at < periods.Count; at++)
             Assert.AreEqual(Fill(periods[at]), Fill(dots[at]), "in the period's own colour");
 
-        var name = Pieces(laid, TimelinePiece.Section)[0].SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<TextMark>().First();
-        Assert.AreSame(StyleFormat.Dark.Heading, name.Foreground, "a section's name heads what it holds, as the title does");
+        var name = Pieces(laid, TimelinePiece.Section)[0].SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<PortableTextMark>().First();
+        Assert.AreSame(WpfStyles.Dark.Heading, name.Ink, "a section's name heads what it holds, as the title does");
     });
 
     [TestMethod]
@@ -189,7 +192,7 @@ public class TimelineBuilderTests : MermaidBuilderContract
         var events = Pieces(laid, TimelinePiece.Event);
 
         CollectionAssert.AreEqual(new[] { "Facebook", "Google", "Orkut" }, events.Select(said => Written(source, said.Part)).ToArray());
-        Assert.IsTrue(events.All(said => Middle(said.Bounds).X == Middle(period.Bounds).X), "every one under the period");
+        Assert.IsTrue(events.All(said => Middle(said.Bounds.ToWpf()).X == Middle(period.Bounds.ToWpf()).X), "every one under the period");
     });
 
     [TestMethod]

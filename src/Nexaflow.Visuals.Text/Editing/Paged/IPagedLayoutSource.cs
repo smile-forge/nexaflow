@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Editing.Paged;
 
@@ -69,7 +72,7 @@ public sealed record PageLink(int Page, string Href);
 /// <param name="Tree">The page's layout, in device-independent pixels at full size, its origin the page's top left.</param>
 /// <param name="Size">The page's size as laid.</param>
 /// <param name="Text">The text its pieces' parts stand for: a part's start and length are offsets into this.</param>
-public sealed record LaidPage(LayoutTree Tree, Size Size, string Text);
+public sealed record LaidPage(PortableTree Tree, Size Size, string Text);
 
 /// <summary>A place in paged text: a page, and an offset into that page's text.</summary>
 public readonly record struct PagePlace(int Page, int Offset) : IComparable<PagePlace>

@@ -3,6 +3,10 @@ using System.Linq;
 using System.Windows;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Layout.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -15,8 +19,8 @@ public class DiagramTreeTests
 
     private static readonly Node Root = new("root", new Node("a", new Node("a1"), new Node("a2")), new Node("b"), new Node("c"));
 
-    private static Dictionary<Node, Rect> Laid(bool sided = true) =>
-        DiagramTree.Lay(Root, node => node.Children, _ => new Size(80, 20), sided);
+    private static Dictionary<Node, LayoutRect> Laid(bool sided = true) =>
+        PortableDiagramTree.Lay(Root, node => node.Children, _ => new LayoutSize(80, 20), sided);
 
     [TestMethod]
     public void TheRootsChildrenTakeTurnsEitherSideOfIt()

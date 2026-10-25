@@ -3,12 +3,15 @@ using Nexaflow.Markdown.Matrix;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
-using Nexaflow.Visuals.Text.Markdown.Matrix;
+using Nexaflow.Markdown.Layout.Matrix;
 using Nexaflow.Markdown.Matrix.Pdf417;
 using Nexaflow.Markdown.Matrix.Pdf417.Stages;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using System.Windows;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Matrix;
 
@@ -33,7 +36,7 @@ public class Pdf417BuilderTests
     [CoversNode("pdf417-render")]
     public void APdf417FenceIsDrawnByItsLanguageWithNowhereInItToWrite() => UiThread.Run(() =>
     {
-        var element = Alone.Drawn("pdf417", "type: text\ntext: hello", StyleFormat.Dark);
+        var element = Alone.Drawn("pdf417", "type: text\ntext: hello", WpfStyles.Dark);
 
         element.Measure(new Size(600, double.PositiveInfinity));
         Assert.IsFalse(element.AcceptsCaret, "a symbol has nowhere in it to write");
@@ -112,7 +115,7 @@ public class Pdf417BuilderTests
         Assert.AreEqual(34 + 17 * 3, Left(truncated, EncodePdf417.Stop));
         Assert.AreEqual(1, MatrixLayouts.Of(truncated, EncodePdf417.Stop).Single().Bounds.Width, 0.001);
 
-        static double Left(Laid laid, string kind) => MatrixLayouts.Of(laid, kind).Single().Bounds.X;
+        static double Left(PortableLaid laid, string kind) => MatrixLayouts.Of(laid, kind).Single().Bounds.X;
     });
 
     [TestMethod]
@@ -123,7 +126,7 @@ public class Pdf417BuilderTests
         var block = Read(source);
         var symbol = Encoded(source);
 
-        var drawn = MatrixLayouts.ReadBack(Alone.Drawn("pdf417", source, StyleFormat.Dark),
+        var drawn = MatrixLayouts.ReadBack(Alone.Drawn("pdf417", source, WpfStyles.Dark),
                                            symbol.Width, symbol.Height, block.Settings, block.RowHeight);
         var decoded = Pdf417TestDecoder.Decode(drawn);
 
@@ -140,12 +143,12 @@ public class Pdf417BuilderTests
 
         StringAssert.Contains(laid.Trouble.Single().Message, "30");
         Assert.IsTrue(laid.ShowsSource, "a code is only read, so what will not read is put right in its source");
-        Assert.AreEqual(1, MatrixLayouts.Of(laid, SourceShown.Reason).Length, "with why, under it");
+        Assert.AreEqual(1, MatrixLayouts.Of(laid, PortableSourceShown.Reason).Length, "with why, under it");
     });
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static Laid Build(string source) => Laying.Lay("pdf417", source, style: StyleFormat.Dark);
+    private static PortableLaid Build(string source) => Laying.Lay("pdf417", source, style: WpfStyles.Dark);
 
     private static Pdf417Block Read(string source)
     {

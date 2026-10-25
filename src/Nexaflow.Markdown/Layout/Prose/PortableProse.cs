@@ -1,15 +1,21 @@
 using Nexaflow.Markdown.Ast;
+using System.Collections.Concurrent;
 
 namespace Nexaflow.Markdown.Layout.Prose;
 
 /// <summary>
 /// What a document is drawn in, said in a medium's own handles: its inks, its faces, its text size, and what the reader has
 /// folded. Made once for a showing by whatever hosts it, as a theme is resolved once, so laying a document looks nothing up.
+///
+/// <para>
+/// A record, so a showing that differs in one thing says so — <c>style with { TextSize = 18 }</c> — and what differs shares the
+/// faces already found: a face is found once for every style made from the same one.
+/// </para>
 /// </summary>
-public sealed class PortableStyle
+public sealed record PortableStyle
 {
     private readonly Func<string, int, bool, LayoutFace> _faces;
-    private readonly Dictionary<(string Family, int Weight, bool Italic), LayoutFace> _known = [];
+    private readonly ConcurrentDictionary<(string Family, int Weight, bool Italic), LayoutFace> _known = new();
 
     /// <param name="faces">The face for a family at a weight — 400 regular, 700 bold — slanted or not: asked once for each, and kept.</param>
     public PortableStyle(Func<string, int, bool, LayoutFace> faces) => _faces = faces;
@@ -107,7 +113,7 @@ public sealed class PortableStyle
     {
         if (_known.TryGetValue((family, weight, italic), out var known)) return known;
 
-        return _known[(family, weight, italic)] = _faces(family, weight, italic);
+        return _known.GetOrAdd((family, weight, italic), _faces(family, weight, italic));
     }
 }
 
@@ -136,6 +142,11 @@ public sealed record PortableDiagnostic(int Start, int Length, string Message)
     public ISourcePart? Part { get; init; }
 
     public PortableSeverity Severity { get; init; }
+
+    public int End => Start + Length;
+
+    /// <summary>Whether a piece stands wholly inside what could not be read — drawn from characters rather than from meaning.</summary>
+    public bool Covers(PortablePiece piece) => piece.Sits() is { Length: > 0 } at && at.Start >= Start && at.End <= End;
 }
 
 /// <summary>How much is wrong: nothing could be made of it, or what was drawn is not quite what was asked.</summary>
@@ -143,27 +154,6 @@ public enum PortableSeverity
 {
     Error,
     Warning,
-}
-
-/// <summary>What a builder makes: a tree, how much room it wants, and whatever could not be read.</summary>
-public sealed record PortableLaid(PortableTree Tree, double Width, double Height, IReadOnlyList<PortableDiagnostic> Trouble)
-{
-    public PortablePiece Root => Tree.Root;
-
-    /// <summary>Whether anything reached the page: a run of words, or a mark of any kind.</summary>
-    public bool Draws
-    {
-        get
-        {
-            for (var at = 0; at < Tree.Count; at++)
-                if (Tree.WordsOf(at) is not null || Tree.MarksOf(at).Length > 0) return true;
-
-            return false;
-        }
-    }
-
-    /// <summary>Whether this is the source shown as it is written, rather than anything drawn from it.</summary>
-    public bool ShowsSource => Root.Kind is PortableText.SourceKind or PortableSourceShown.Block;
 }
 
 /// <summary>Another language's content, laid out and ready to be set down inside this one's.</summary>

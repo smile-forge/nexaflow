@@ -12,6 +12,9 @@ using Nexaflow.Visuals.Text.Markdown.Latex;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Tests.Visuals.Markdown;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 
@@ -62,12 +65,12 @@ public class LayoutCostBench
         var lines = new List<string> { $"=== {DateTime.Now:yyyy-MM-dd HH:mm} — {Passes} passes each" };
 
         foreach (var (what, abc) in Tunes)
-            lines.Add(Measure(what, () => Laying.Engraved("abc", abc, 700, StyleFormat.Light),
-                              layout => (layout.Root, layout.Size, (Action<DrawingContext>)(dc => LayoutPainter.Paint(dc, layout.Root, Brushes.Black)))));
+            lines.Add(Measure(what, () => Laying.Engraved("abc", abc, 700, WpfStyles.Light),
+                              layout => (layout.Root, layout.Size, (Action<DrawingContext>)(dc => WpfPainter.Paint(dc, layout.Root, Brushes.Black)))));
 
         foreach (var (what, latex) in Formulas)
             lines.Add(Measure(what, () => Laying.Formula(latex, 22)!,
-                              layout => (layout.Root, layout.Size, dc => LayoutPainter.Paint(dc, layout.Root, Brushes.Black))));
+                              layout => (layout.Root, layout.Size, dc => WpfPainter.Paint(dc, layout.Root, Brushes.Black))));
 
         lines.Add("");
         File.AppendAllLines(Path.Combine(into, "layout-cost.txt"), lines);
@@ -79,7 +82,7 @@ public class LayoutCostBench
     /// drawing, which is how the first version of this lied.
     /// </summary>
     private static string Measure<T>(string what, Func<T> compose,
-                                     Func<T, (Piece Root, Size Size, Action<DrawingContext> Paint)> read)
+                                     Func<T, (PortablePiece Root, LayoutSize Size, Action<DrawingContext> Paint)> read)
     {
         for (var pass = 0; pass < 40; pass++) Draw(read(compose()));
 
@@ -114,7 +117,7 @@ public class LayoutCostBench
     private static double Per(Stopwatch clock) => clock.Elapsed.TotalMilliseconds / Passes;
 
     /// <summary>The marks executed into a drawing context — what a repaint costs when nothing has moved.</summary>
-    private static void Draw((Piece Root, Size Size, Action<DrawingContext> Paint) laid)
+    private static void Draw((PortablePiece Root, LayoutSize Size, Action<DrawingContext> Paint) laid)
     {
         var visual = new DrawingVisual();
         using var dc = visual.RenderOpen();
@@ -122,7 +125,7 @@ public class LayoutCostBench
     }
 
     /// <summary>…and that turned into pixels, which is what actually reaches the screen.</summary>
-    private static void Raster((Piece Root, Size Size, Action<DrawingContext> Paint) laid)
+    private static void Raster((PortablePiece Root, LayoutSize Size, Action<DrawingContext> Paint) laid)
     {
         var visual = new DrawingVisual();
         using (var dc = visual.RenderOpen()) laid.Paint(dc);

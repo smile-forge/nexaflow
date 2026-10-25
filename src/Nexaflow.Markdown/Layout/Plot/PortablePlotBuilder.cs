@@ -1,4 +1,3 @@
-using Nexaflow.Markdown.Layout.Mermaid;
 using System.Globalization;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
@@ -38,8 +37,8 @@ internal sealed partial class PortablePlotBuilder : PortableContentBuilder
     private readonly PortableDiagramInk _ink;
 
     internal PortablePlotBuilder(ContentReading reading, EditState state, PortableStyle palette, bool isReadOnly, ILayoutMedium medium,
-                                 PortableNesting nesting)
-        : base(reading, state, palette, isReadOnly, medium, nesting)
+                                 PortableHost host)
+        : base(reading, state, palette, isReadOnly, medium, host)
     {
         _palette = palette;
         _ink = new PortableDiagramInk(palette, medium);

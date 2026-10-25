@@ -7,6 +7,9 @@ using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
@@ -67,7 +70,7 @@ public class CaretIsDrawnTests
     /// <summary>A formula laid out and measured, so it has a render size to draw into.</summary>
     private static ContentElement Measured(string latex)
     {
-        var formula = Alone.Drawn("latex", latex, StyleFormat.Dark with { TextSize = 16 });
+        var formula = Alone.Drawn("latex", latex, WpfStyles.Dark with { TextSize = 16 });
         formula.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         formula.Arrange(new Rect(formula.DesiredSize));
         return formula;

@@ -6,6 +6,10 @@ using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Layout.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -38,12 +42,12 @@ public class DiagramAxisTests
     [TestMethod]
     public void EachTicksWordsStandBesideItsTick() => UiThread.Run(() =>
     {
-        var ticks = new[] { 0.0, 0.5, 1 }.Select(at => new DiagramTick(at, DiagramShapesTests.Words(at.ToString(CultureInfo.InvariantCulture)))).ToList();
+        var ticks = new[] { 0.0, 0.5, 1 }.Select(at => new PortableDiagramTick(at, DiagramShapesTests.Words(at.ToString(CultureInfo.InvariantCulture)))).ToList();
 
-        var build = new LayoutBuilder();
+        var build = new PortableBuilder(WpfMedium.OnThisThread);
         build.Open("page");
-        DiagramAxis.Draw(build, "Axis", null, new Point(20, 100), new Point(220, 100), ticks, new DiagramStroke(Brushes.Black), "Tick");
-        DiagramAxis.Draw(build, "Side", null, new Point(20, 100), new Point(20, 0), ticks, new DiagramStroke(Brushes.Black), "Value", after: false);
+        PortableDiagramAxis.Draw(build, "Axis", null, new LayoutPoint(20, 100), new LayoutPoint(220, 100), ticks, new PortableDiagramStroke(Brushes.Black.Ink()), "Tick");
+        PortableDiagramAxis.Draw(build, "Side", null, new LayoutPoint(20, 100), new LayoutPoint(20, 0), ticks, new PortableDiagramStroke(Brushes.Black.Ink()), "Value", after: false);
         build.Close();
 
         var root = build.Seal().Root;
@@ -52,9 +56,9 @@ public class DiagramAxisTests
 
         CollectionAssert.AreEqual(new[] { 20.0, 120, 220 }, under.Select(piece => System.Math.Round(piece.Bounds.X + (piece.Bounds.Width / 2))).ToArray(),
                                   "centred under their ticks");
-        Assert.IsTrue(under.All(piece => piece.Bounds.Top >= 100 + DiagramAxis.TickLength), "and under the line");
-        Assert.IsTrue(beside.All(piece => piece.Bounds.Right <= 20 - DiagramAxis.TickLength), "an upright axis's words are to its left, where asked");
-        Assert.IsTrue(DiagramAxis.Room(ticks, upright: true) >= beside.Max(piece => piece.Bounds.Width) + DiagramAxis.TickLength,
+        Assert.IsTrue(under.All(piece => piece.Bounds.Top >= 100 + PortableDiagramAxis.TickLength), "and under the line");
+        Assert.IsTrue(beside.All(piece => piece.Bounds.Right <= 20 - PortableDiagramAxis.TickLength), "an upright axis's words are to its left, where asked");
+        Assert.IsTrue(PortableDiagramAxis.Room(ticks, upright: true) >= beside.Max(piece => piece.Bounds.Width) + PortableDiagramAxis.TickLength,
                       "and the room it says they take is at least what they take");
     });
 }

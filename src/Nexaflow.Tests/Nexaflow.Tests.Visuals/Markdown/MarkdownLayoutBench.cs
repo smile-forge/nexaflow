@@ -25,6 +25,9 @@ using System.Windows;
 using Nexaflow.Markdown.Editing;
 using System.Text;
 using Nexaflow.Markdown.Rtf;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -73,7 +76,7 @@ public partial class MarkdownLayoutBench
         var docs = TestSampleData.Files("markdown").OrderBy(path => path, StringComparer.OrdinalIgnoreCase).ToList();
         docs.Add(Path.GetFullPath(Path.Combine(TestSampleData.Root, "..", "docs", "MarkdownSupport.md")));
 
-        var style = StyleFormat.Dark;
+        var style = WpfStyles.Dark;
         var inputs = ContentInputs.None;
 
         var rows = new List<Dictionary<string, object>>();
@@ -128,7 +131,7 @@ public partial class MarkdownLayoutBench
     });
 
     /// <summary>One document, step by step.</summary>
-    private static Dictionary<string, object> Document(string name, string text, string? language, StyleFormat style, ContentInputs inputs,
+    private static Dictionary<string, object> Document(string name, string text, string? language, PortableStyle style, ContentInputs inputs,
                                                        Dictionary<string, (int Count, double Ms, double Kb)> languages,
                                                        Dictionary<string, (int Count, double Ms, double Kb)> stages,
                                                        Dictionary<string, (int Count, double Ms, double Kb)> kinds)
@@ -163,7 +166,7 @@ public partial class MarkdownLayoutBench
             new Nexaflow.Visuals.Text.Markdown.Stages.WithLinks(inputs.Links),
 
             // Timed against itself: from the second run every block is the one it was, so every block is compared whole.
-            new Nexaflow.Visuals.Text.Markdown.Stages.WithUnchanged(),
+            new Nexaflow.Markdown.Layout.Prose.WithUnchanged(),
         ];
 
         var tree = read;
@@ -176,14 +179,14 @@ public partial class MarkdownLayoutBench
 
             // What is built from below is built from nothing: a reading saying which blocks are unchanged would hand the
             // second build what the first one laid.
-            if (stage is not Nexaflow.Visuals.Text.Markdown.Stages.WithUnchanged) tree = stage.Run(input);
+            if (stage is not Nexaflow.Markdown.Layout.Prose.WithUnchanged) tree = stage.Run(input);
         }
 
         var reading = ContentReading.Of(tree);
 
         // Laying out is the engine's, parse and all: what building costs is what is left of laying it out once reading it and
         // working it over are taken away.
-        Laid laid = null!;
+        PortableLaid laid = null!;
         var whole = Median(() => laid = Laying.Lay(language, text, Room, style, writing: true, inputs: inputs));
         var build = Math.Max(0, whole - tRead - staged.Values.Sum(Convert.ToDouble));
 
@@ -287,7 +290,7 @@ public partial class MarkdownLayoutBench
     }
 
     /// <summary>A nested language's own parse and each of its stages, and what laying it out costs whole.</summary>
-    private static void Language(string language, string source, StyleFormat style, ContentInputs inputs,
+    private static void Language(string language, string source, PortableStyle style, ContentInputs inputs,
                                  Dictionary<string, (int Count, double Ms, double Kb)> stages)
     {
         try
@@ -332,7 +335,7 @@ public partial class MarkdownLayoutBench
     /// <paramref name="text"/> opened as a page opens it: an engine showing it, a screen of it on screen, laid at the room — with
     /// whatever it reads in the background read, so what it holds is what an open page holds once that is done.
     /// </summary>
-    private static ContentEngine Opened(string text, string? language, StyleFormat style, ContentInputs inputs)
+    private static ContentEngine Opened(string text, string? language, PortableStyle style, ContentInputs inputs)
     {
         var engine = Shown(text, language, style, inputs);
         engine.ReadingRest.Wait();
@@ -340,11 +343,11 @@ public partial class MarkdownLayoutBench
         return engine;
     }
 
-    private static ContentEngine Shown(string text, string? language, StyleFormat style, ContentInputs inputs)
+    private static ContentEngine Shown(string text, string? language, PortableStyle style, ContentInputs inputs)
     {
         var engine = new ContentEngine(inputs);
         engine.Show(language, style);
-        engine.OnScreen = Screen;
+        engine.OnScreen = Screen.ToLayout();
         engine.Start(text);
         engine.Fit(Room);
 
@@ -355,7 +358,7 @@ public partial class MarkdownLayoutBench
     /// The medians of <see cref="Runs"/> openings, after one to warm up: how long the page took to show, and how much that
     /// allocated — the reading of the rest behind it waited for between runs, untimed, so no run is slowed by the last.
     /// </summary>
-    private static (double Ms, double Kb) Opening(string text, string? language, StyleFormat style, ContentInputs inputs)
+    private static (double Ms, double Kb) Opening(string text, string? language, PortableStyle style, ContentInputs inputs)
     {
         Opened(text, language, style, inputs);
 
@@ -482,12 +485,12 @@ public partial class MarkdownLayoutBench
     private static double Round(double ms) => Math.Round(ms, 3);
 
     /// <summary>Paints a laid tree as the element does, and says how long that took — all of it, or what is near <paramref name="showing"/>.</summary>
-    private static double Painted(Laid laid, StyleFormat style, Rect? showing = null)
+    private static double Painted(PortableLaid laid, PortableStyle style, Rect? showing = null)
     {
         var clock = Stopwatch.StartNew();
         var visual = new DrawingVisual();
 
-        using (var dc = visual.RenderOpen()) LayoutPainter.Paint(dc, laid.Root, style.Text, showing);
+        using (var dc = visual.RenderOpen()) WpfPainter.Paint(dc, laid.Root, style.Text.Brush(), showing);
 
         return clock.Elapsed.TotalMilliseconds;
     }
@@ -568,13 +571,13 @@ public partial class MarkdownLayoutBench
     /// reading, the laid tree, the pictures kept of its blocks, and all of it as an open document holds it — and what opening
     /// it and typing in it allocate, by type, sampled by the runtime about every hundred KB.
     /// </summary>
-    private static Dictionary<string, object> Memory(string text, StyleFormat style, ContentInputs inputs)
+    private static Dictionary<string, object> Memory(string text, PortableStyle style, ContentInputs inputs)
     {
-        void Paint(Laid laid)
+        void Paint(PortableLaid laid)
         {
             var visual = new DrawingVisual();
             using var dc = visual.RenderOpen();
-            LayoutPainter.Paint(dc, laid.Root, style.Text);
+            WpfPainter.Paint(dc, laid.Root, style.Text.Brush());
         }
 
         // Every cache warmed first, so what is held is what the document holds.

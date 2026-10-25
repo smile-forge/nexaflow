@@ -9,6 +9,9 @@ using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -52,13 +55,13 @@ public class SlowStageTests
         using var landed = new ManualResetEventSlim();
         engine.Reread += (_, _) => landed.Set();
 
-        engine.Lay(Named, EditState.For(source), StyleFormat.Dark, 600, readOnly: true);
+        engine.Lay(Named, EditState.For(source), WpfStyles.Dark, 600, readOnly: true);
         Assert.IsFalse(Marked(), "laid at once, before anything was found");
 
         Assert.IsTrue(landed.Wait(TimeSpan.FromSeconds(10)), "and told when it was");
 
         engine.Forget();
-        engine.Lay(Named, EditState.For(source), StyleFormat.Dark, 600, readOnly: true);
+        engine.Lay(Named, EditState.For(source), WpfStyles.Dark, 600, readOnly: true);
         Assert.IsTrue(Marked(), "then laid again with it");
     });
 

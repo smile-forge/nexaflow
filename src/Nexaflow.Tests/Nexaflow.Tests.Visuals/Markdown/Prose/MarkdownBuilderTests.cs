@@ -9,6 +9,9 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Prose;
 
@@ -104,7 +107,7 @@ public class MarkdownBuilderTests
     }
 
     /// <summary>Whether some trouble lies in a formula's or a diagram's own text, rather than in markdown's.</summary>
-    private static bool InAnotherLanguage(Laid laid, Diagnostic trouble) =>
+    private static bool InAnotherLanguage(PortableLaid laid, PortableDiagnostic trouble) =>
         laid.Root.SelfAndDescendants()
             .Select(piece => piece.Part as Nexaflow.Markdown.Ast.ContentPart)
             .Any(part => part is not null && (ContentNested.Language(part) is not null || part.Kind == MarkdownKinds.Formula)
@@ -243,7 +246,7 @@ public class MarkdownBuilderTests
     public void ANumberedListIsDrawnWithTheNumberTheItemIsAndKeepsWhatWasTyped()
     {
         // A writer who numbered every line 1. meant a list. What they typed is still there to be read back.
-        var markers = Pieces(Lay("1. one\n1. two\n"), MarkdownPieces.Marker);
+        var markers = Pieces(Lay("1. one\n1. two\n"), PortablePieces.Marker);
 
         Assert.AreEqual("1.", markers[0].Words!.Glyphs.Text);
         Assert.AreEqual("2.", markers[1].Words!.Glyphs.Text);
@@ -254,7 +257,7 @@ public class MarkdownBuilderTests
     [TestMethod]
     public void ANestedListIsSetFurtherInThanTheOneHoldingIt()
     {
-        var markers = Pieces(Lay("- one\n  - under\n- two\n"), MarkdownPieces.Marker);
+        var markers = Pieces(Lay("- one\n  - under\n- two\n"), PortablePieces.Marker);
 
         Assert.AreEqual(3, markers.Count);
         Assert.IsTrue(markers[1].Bounds.X > markers[0].Bounds.X);
@@ -267,7 +270,7 @@ public class MarkdownBuilderTests
     public void ATickIsItsOwnPieceOverTheThreeCharactersItStandsFor()
     {
         const string source = "- [ ] to do\n- [x] done\n";
-        var ticks = Pieces(Lay(source), MarkdownPieces.Tick);
+        var ticks = Pieces(Lay(source), PortablePieces.Tick);
 
         Assert.AreEqual(2, ticks.Count);
         Assert.AreEqual("[ ]", source.Substring(ticks[0].Part!.Start, ticks[0].Part!.Length));
@@ -277,7 +280,7 @@ public class MarkdownBuilderTests
     [TestMethod]
     public void ATickSaysWhatPressingItWouldMeanAndNotWhatWouldHappen()
     {
-        var ticks = Pieces(Lay("- [ ] to do\n- [x] done\n"), MarkdownPieces.Tick);
+        var ticks = Pieces(Lay("- [ ] to do\n- [x] done\n"), PortablePieces.Tick);
 
         Assert.AreEqual(MarkdownVerbs.Tick, ticks[0].Acts?.Click?.Verb);
         Assert.AreEqual("on", ticks[0].Acts?.Click?.Target);
@@ -289,7 +292,7 @@ public class MarkdownBuilderTests
     [TestMethod]
     public void ATableIsAPiecePerCell()
     {
-        Assert.AreEqual(4, Pieces(Lay("| a | b |\n|---|---|\n| 1 | 2 |\n"), MarkdownPieces.Cell).Count);
+        Assert.AreEqual(4, Pieces(Lay("| a | b |\n|---|---|\n| 1 | 2 |\n"), PortablePieces.Cell).Count);
     }
 
     [TestMethod]
@@ -297,7 +300,7 @@ public class MarkdownBuilderTests
     {
         // The same declaration a matrix makes, answered by the same code — so a drag across a table behaves the way a
         // drag across a matrix already does, and neither of them has a selection of its own.
-        var cells = Pieces(Lay("| a | b |\n|---|---|\n| 1 | 2 |\n"), MarkdownPieces.Cell);
+        var cells = Pieces(Lay("| a | b |\n|---|---|\n| 1 | 2 |\n"), PortablePieces.Cell);
 
         Assert.AreEqual(2, cells[0].Sharing(vertical: false).Count);
         Assert.AreEqual(2, cells[0].Sharing(vertical: true).Count);
@@ -306,7 +309,7 @@ public class MarkdownBuilderTests
     [TestMethod]
     public void ACellIsSetTheWayTheRuleUnderTheHeadSays()
     {
-        var cells = Pieces(Lay("| a | b |\n|:--|--:|\n| 1 | 2 |\n", room: 400), MarkdownPieces.Cell);
+        var cells = Pieces(Lay("| a | b |\n|:--|--:|\n| 1 | 2 |\n", room: 400), PortablePieces.Cell);
 
         Assert.IsTrue(Inset(cells[3]) > Inset(cells[2]),
             "a column set to the right starts further into its cell than one set to the left");
@@ -319,14 +322,14 @@ public class MarkdownBuilderTests
     {
         var drawn = Lay("```mermaid\npie\n  \"a\" : 1\n```\n");
 
-        Assert.AreEqual(0, Pieces(drawn, MarkdownPieces.Verbatim).Count, "it was laid, not shown as characters");
+        Assert.AreEqual(0, Pieces(drawn, PortablePieces.Verbatim).Count, "it was laid, not shown as characters");
         Assert.IsTrue(drawn.Size.Height > 0);
     }
 
     [TestMethod]
     public void AFenceInALanguageNothingDrawsIsShownAsItWasWritten()
     {
-        var shown = Pieces(Lay("```nothing-reads-this\nvar x = 1;\n```\n"), MarkdownPieces.Verbatim);
+        var shown = Pieces(Lay("```nothing-reads-this\nvar x = 1;\n```\n"), PortablePieces.Verbatim);
 
         Assert.AreEqual(1, shown.Count);
         Assert.AreEqual("var x = 1;", shown[0].Words!.Glyphs.Text);
@@ -344,7 +347,7 @@ public class MarkdownBuilderTests
             .Where(part => part.Children.Count == 0 && !part.Derived && part.Length > 0)
             .ToList();
 
-        Assert.AreEqual(0, Pieces(drawn, MarkdownPieces.Verbatim).Count, "it was laid, not shown as characters");
+        Assert.AreEqual(0, Pieces(drawn, PortablePieces.Verbatim).Count, "it was laid, not shown as characters");
         Assert.IsTrue(written.Any(part => part.Start > source.IndexOf("\"b\"", StringComparison.Ordinal) - 1), "a piece of its last line was drawn");
 
         foreach (var part in written)
@@ -354,7 +357,7 @@ public class MarkdownBuilderTests
     [TestMethod]
     public void CodeWrittenInAQuoteIsShownWithoutTheQuotesMarks()
     {
-        var shown = Pieces(Lay(">     code1\n>       code2\n"), MarkdownPieces.Verbatim);
+        var shown = Pieces(Lay(">     code1\n>       code2\n"), PortablePieces.Verbatim);
 
         CollectionAssert.AreEqual(new[] { "code1", "  code2" }, shown.Select(piece => piece.Words!.Glyphs.Text).ToArray());
     }
@@ -366,7 +369,7 @@ public class MarkdownBuilderTests
     {
         var drawn = Lay("$$\n\\frac{x^2}{2}\n$$\n");
 
-        Assert.AreEqual(0, Pieces(drawn, MarkdownPieces.Verbatim).Count, "it was typeset, not shown as its source");
+        Assert.AreEqual(0, Pieces(drawn, PortablePieces.Verbatim).Count, "it was typeset, not shown as its source");
         Assert.IsTrue(drawn.Size.Height > 0);
     }
 
@@ -386,8 +389,8 @@ public class MarkdownBuilderTests
     [TestMethod]
     public void AndItIsCentredInTheRoomItWasGiven()
     {
-        var wide = Pieces(Lay("$$\nx\n$$\n", room: 600), MarkdownPieces.Block);
-        var narrow = Pieces(Lay("$$\nx\n$$\n", room: 200), MarkdownPieces.Block);
+        var wide = Pieces(Lay("$$\nx\n$$\n", room: 600), PortablePieces.Block);
+        var narrow = Pieces(Lay("$$\nx\n$$\n", room: 200), PortablePieces.Block);
 
         Assert.IsTrue(wide.Count > 0 && narrow.Count > 0);
         Assert.IsTrue(wide.Min(piece => piece.Bounds.X) > narrow.Min(piece => piece.Bounds.X),
@@ -402,7 +405,7 @@ public class MarkdownBuilderTests
         // life as a box of source. What could be read is set, and the reader's own parser waves under the rest.
         var drawn = Lay("$$\n\\not_a_command{\n$$\n");
 
-        Assert.AreEqual(0, Pieces(drawn, MarkdownPieces.Verbatim).Count,
+        Assert.AreEqual(0, Pieces(drawn, PortablePieces.Verbatim).Count,
             "an unreadable formula is still typeset, still somewhere the caret can go and repair it");
         Assert.IsTrue(drawn.Size.Height > 0);
     }
@@ -431,10 +434,10 @@ public class MarkdownBuilderTests
         const string source = "The value $\\not_a_command{$ and on.\n";
         var drawn = Lay(source);
 
-        var shown = drawn.Root.SelfAndDescendants().Single(piece => piece.Kind == LayoutText.SourceKind);
-        Assert.AreEqual("$\\not_a_command{$", shown.Marks.ToArray().OfType<TextMark>().Single().Glyphs.Text);
+        var shown = drawn.Root.SelfAndDescendants().Single(piece => piece.Kind == PortableText.SourceKind);
+        Assert.AreEqual("$\\not_a_command{$", shown.Marks.ToArray().OfType<PortableTextMark>().Single().Glyphs.Text);
         Assert.AreEqual(source.IndexOf('$'), shown.Sits().Start, "standing where it is written");
-        Assert.IsTrue(drawn.Root.SelfAndDescendants().Any(piece => piece.Kind == SourceShown.Reason), "with why under it");
+        Assert.IsTrue(drawn.Root.SelfAndDescendants().Any(piece => piece.Kind == PortableSourceShown.Reason), "with why under it");
         Assert.AreNotEqual(0, drawn.Trouble.Count, "and what is wrong said");
         StringAssert.Contains(Drawn(drawn), "and on.", "the sentence going on round it");
     }
@@ -443,9 +446,9 @@ public class MarkdownBuilderTests
     public void AFormulaInASentenceBeingWrittenStaysTypesetWithAWaveUnderWhatIsWrong()
     {
         // Being written, half a formula is what is on the page most of the time — so it stays set, as one on its own line does.
-        var drawn = Laying.Lay(null, "The value $x + \\not_a_command$ and on.\n", 480, StyleFormat.Dark, writing: true);
+        var drawn = Laying.Lay(null, "The value $x + \\not_a_command$ and on.\n", 480, WpfStyles.Dark, writing: true);
 
-        Assert.IsFalse(drawn.Root.SelfAndDescendants().Any(piece => piece.Kind == LayoutText.SourceKind), "not shown as written");
+        Assert.IsFalse(drawn.Root.SelfAndDescendants().Any(piece => piece.Kind == PortableText.SourceKind), "not shown as written");
         Assert.AreNotEqual(0, drawn.Trouble.Count, "with what could not be read said");
     }
 
@@ -454,7 +457,7 @@ public class MarkdownBuilderTests
     {
         // There is no formula in "$$\n$$" to typeset, and the characters are the only place a caret could go —
         // so they are what is drawn, and typing into them is what starts the formula off.
-        var shown = Pieces(Lay("$$\n$$\n"), MarkdownPieces.Verbatim);
+        var shown = Pieces(Lay("$$\n$$\n"), PortablePieces.Verbatim);
 
         Assert.AreNotEqual(0, shown.Count);
         Assert.IsTrue(shown.All(piece => piece.Words!.Maps), "so the caret lands in the dollars and the next key writes maths");
@@ -496,10 +499,10 @@ public class MarkdownBuilderTests
     [TestMethod]
     public void AHeadingThatOpensASectionIsRuledOffUnder()
     {
-        Assert.AreEqual(1, Pieces(Lay("# Title\n\nwords\n"), MarkdownPieces.Rule).Count);
-        Assert.AreEqual(1, Pieces(Lay("## Part\n\nwords\n"), MarkdownPieces.Rule).Count);
+        Assert.AreEqual(1, Pieces(Lay("# Title\n\nwords\n"), PortablePieces.Rule).Count);
+        Assert.AreEqual(1, Pieces(Lay("## Part\n\nwords\n"), PortablePieces.Rule).Count);
 
-        Assert.AreEqual(0, Pieces(Lay("### Smaller\n\nwords\n"), MarkdownPieces.Rule).Count,
+        Assert.AreEqual(0, Pieces(Lay("### Smaller\n\nwords\n"), PortablePieces.Rule).Count,
             "a third-rank heading is a heading inside a section, not the start of one");
     }
 
@@ -536,7 +539,7 @@ public class MarkdownBuilderTests
         var laid = Lay("words\n\n^^ at the foot\n");
 
         StringAssert.Contains(Drawn(laid), "at the foot");
-        Assert.IsTrue(laid.Root.SelfAndDescendants().Any(piece => Marks(piece).OfType<RuleMark>().Any()),
+        Assert.IsTrue(laid.Root.SelfAndDescendants().Any(piece => Marks(piece).OfType<PortableRuleMark>().Any()),
             "something has to say the document proper has ended");
     }
 
@@ -555,7 +558,7 @@ public class MarkdownBuilderTests
         // A block of it is source a reader may want to see and fix, so it is shown as source — not as code,
         // which it is not, and not as prose, which it would be pretending to be. A tag in the middle of a
         // sentence is not something a sentence can show, so the words close up round it as a browser would.
-        var block = Pieces(Lay("<div>markup</div>\n"), MarkdownPieces.Verbatim).Single();
+        var block = Pieces(Lay("<div>markup</div>\n"), PortablePieces.Verbatim).Single();
 
         Assert.AreEqual("<div>markup</div>", block.Words!.Glyphs.Text);
         Assert.IsTrue(block.Words.Maps, "and the caret goes into it, because it is the source");
@@ -617,12 +620,12 @@ public class MarkdownBuilderTests
 
     // ── Reading the answers ─────────────────────────────────────────────────
 
-    private static string Markers(Laid laid) =>
-        string.Concat(Pieces(laid, MarkdownPieces.Marker).Select(piece => piece.Words!.Glyphs.Text));
+    private static string Markers(PortableLaid laid) =>
+        string.Concat(Pieces(laid, PortablePieces.Marker).Select(piece => piece.Words!.Glyphs.Text));
 
-    private static List<LayoutMark> Marks(Piece piece)
+    private static List<PortableMark> Marks(PortablePiece piece)
     {
-        var found = new List<LayoutMark>();
+        var found = new List<PortableMark>();
 
         foreach (var mark in piece.Marks) found.Add(mark);
 
@@ -631,25 +634,25 @@ public class MarkdownBuilderTests
 
     // ── Reading the answers ─────────────────────────────────────────────────
 
-    private static Laid Lay(string source, double room = 480) =>
-        Laying.Lay(null, source, room, StyleFormat.Dark);
+    private static PortableLaid Lay(string source, double room = 480) =>
+        Laying.Lay(null, source, room, WpfStyles.Dark);
 
-    private static List<Piece> Pieces(Laid laid, string kind) =>
+    private static List<PortablePiece> Pieces(PortableLaid laid, string kind) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];
 
-    private static List<Piece> Words(Laid laid) =>
-        [.. Pieces(laid, MarkdownPieces.Words).Where(piece => piece.Words!.Glyphs.Text.Trim().Length > 0)];
+    private static List<PortablePiece> Words(PortableLaid laid) =>
+        [.. Pieces(laid, PortablePieces.Words).Where(piece => piece.Words!.Glyphs.Text.Trim().Length > 0)];
 
-    private static string Drawn(Laid laid) =>
-        string.Concat(Pieces(laid, MarkdownPieces.Words).Select(piece => piece.Words!.Glyphs.Text));
+    private static string Drawn(PortableLaid laid) =>
+        string.Concat(Pieces(laid, PortablePieces.Words).Select(piece => piece.Words!.Glyphs.Text));
 
     /// <summary>How far into its cell a cell's words start.</summary>
-    private static double Inset(Piece cell) =>
-        cell.SelfAndDescendants().First(piece => piece.Kind == MarkdownPieces.Words).Bounds.X - cell.Bounds.X;
+    private static double Inset(PortablePiece cell) =>
+        cell.SelfAndDescendants().First(piece => piece.Kind == PortablePieces.Words).Bounds.X - cell.Bounds.X;
 
     /// <summary>The box another language's content was grafted into — what a formula came out as.</summary>
-    private static Rect Formula(Laid laid) =>
-        Pieces(laid, MarkdownPieces.Block)
+    private static LayoutRect Formula(PortableLaid laid) =>
+        Pieces(laid, PortablePieces.Block)
             .Where(piece => piece.Bounds.Width > 0)
             .OrderBy(piece => piece.Bounds.Width)
             .First()

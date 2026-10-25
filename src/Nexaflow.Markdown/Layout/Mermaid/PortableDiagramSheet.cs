@@ -271,17 +271,14 @@ internal sealed class PortableDiagramSheet(EditState state, PortableStyle style,
     }
 
     /// <summary>
-    /// Whether a part of the tree is drawn as words the reader types into — itself, or something inside it — in the drawing's first
-    /// piece and what that piece holds.
+    /// Whether a part of the tree is drawn as words the reader types into — itself, or something inside it — anywhere in the drawing:
+    /// a diagram drawn as several pieces side by side, its layers or its lanes, writes its words in any of them.
     /// </summary>
     private static bool Typed(PortableTree drawn, ContentPart part)
     {
-        if (drawn.Count == 0) return false;
-
         var inside = part.SelfAndDescendants().ToHashSet();
-        var end = drawn.Piece(0).Extent;
 
-        for (var at = 0; at < end; at++)
+        for (var at = 0; at < drawn.Count; at++)
             if (drawn.WordsOf(at) is { Maps: true } && drawn.PartOf(at) is ContentPart written && inside.Contains(written)) return true;
 
         return false;

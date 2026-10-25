@@ -5,6 +5,9 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -39,7 +42,7 @@ public class FlowchartRenameTests
     private static string Typed(string markdown, string says, string text)
     {
         var engine = new ContentEngine();
-        var element = new MarkdownElement(markdown, StyleFormat.Dark, engine: engine) { IsReadOnly = false };
+        var element = new MarkdownElement(markdown, WpfStyles.Dark, engine: engine) { IsReadOnly = false };
 
         element.Measure(new Size(900, double.PositiveInfinity));
         element.Arrange(new Rect(element.DesiredSize));
@@ -52,7 +55,7 @@ public class FlowchartRenameTests
 
         var box = engine.Where(run);
 
-        engine.Input(new ContentPress(new Point(box.Right - 0.5, box.Y + (box.Height / 2))));
+        engine.Input(new ContentPress(new LayoutPoint(box.Right - 0.5, box.Y + (box.Height / 2))));
         foreach (var letter in text) element.Type(letter);
 
         return element.Markdown;

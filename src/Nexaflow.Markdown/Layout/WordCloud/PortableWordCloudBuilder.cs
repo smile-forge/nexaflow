@@ -14,10 +14,9 @@ namespace Nexaflow.Markdown.Layout.WordCloud;
 /// with outlines instead of pixels. Every word keeps its own source part so it stays editable; weights are edited in the source, not
 /// drawn.
 /// </summary>
-/// <param name="pictures">The picture a part of the block was found to name — a <c>mask:</c>'s, hung under it before this ever ran.</param>
 public sealed class PortableWordCloudBuilder(ContentReading reading, EditState state, PortableStyle style, bool isReadOnly, ILayoutMedium medium,
-                                             PortableNesting nesting, Func<ContentPart, LayoutPicture?> pictures)
-    : PortableContentBuilder(reading, state, style, isReadOnly, medium, nesting)
+                                             PortableHost host)
+    : PortableContentBuilder(reading, state, style, isReadOnly, medium, host)
 {
     /// <summary>The face the source is shown in when the block cannot be read as a cloud at all.</summary>
     private const string SourceFont = "Cascadia Code, Consolas, monospace";
@@ -226,7 +225,7 @@ public sealed class PortableWordCloudBuilder(ContentReading reading, EditState s
 
         LayoutPixels? found = null;
         foreach (var part in Reading.Root.SelfAndDescendants())
-            if (pictures(part)?.Pixels(StencilPixels) is { } read)
+            if (PictureOf(part)?.Pixels(StencilPixels) is { } read)
             {
                 found = read;
                 break;
@@ -269,7 +268,7 @@ public sealed class PortableWordCloudBuilder(ContentReading reading, EditState s
 
         if (Medium.TextOutline(text, default) is not { } drawn) return figures;
 
-        foreach (var figure in Medium.Flattened(drawn, Tolerance))
+        foreach (var (figure, _) in Medium.Flattened(drawn, Tolerance))
         {
             if (figure.Length <= 2) continue;
 

@@ -7,7 +7,10 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
-using Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
+using Nexaflow.Markdown.Layout.Scores;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music;
 
@@ -28,13 +31,13 @@ public class MusicSampleDocTests
     [TestMethod]
     [CoversNode("ly-core")]
     public void EveryLilyPondSampleBlock_Engraves() => UiThread.Run(() =>
-        AssertDoc("music-lilypond.md", ly => Laying.Engraved("lilypond", ly, 900, StyleFormat.Light)));
+        AssertDoc("music-lilypond.md", ly => Laying.Engraved("lilypond", ly, 900, WpfStyles.Light)));
 
     [TestMethod]
     public void EveryAbcSampleBlock_Engraves() => UiThread.Run(() =>
-        AssertDoc("music-abc.md", abc => Laying.Engraved("abc", abc, 900, StyleFormat.Light)));
+        AssertDoc("music-abc.md", abc => Laying.Engraved("abc", abc, 900, WpfStyles.Light)));
 
-    private static void AssertDoc(string file, Func<string, Laid> build)
+    private static void AssertDoc(string file, Func<string, PortableLaid> build)
     {
         var blocks = Blocks(File.ReadAllText(Path.Combine(TestSampleData.Root, "markdown", file)));
         Assert.IsTrue(blocks.Count > 10, $"{file} should showcase the notation, not sample it ({blocks.Count} blocks)");

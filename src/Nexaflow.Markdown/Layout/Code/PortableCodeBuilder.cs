@@ -19,8 +19,8 @@ namespace Nexaflow.Markdown.Layout.Code;
 /// </para>
 /// </summary>
 public sealed class PortableCodeBuilder(ContentReading reading, EditState state, PortableStyle style, bool isReadOnly, ILayoutMedium medium,
-                                        PortableNesting nesting)
-    : PortableContentBuilder(reading, state, style, isReadOnly, medium, nesting)
+                                        PortableHost host)
+    : PortableContentBuilder(reading, state, style, isReadOnly, medium, host)
 {
     private readonly Dictionary<string, LayoutInk> _inks = [];
 

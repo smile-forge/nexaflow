@@ -8,6 +8,10 @@ using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Layout.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -20,7 +24,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 [CoversNode("mermaid-builder")]
 public class MermaidBuilderTests
 {
-    /// <summary>The clear air between the card's edge and what is drawn on it — see MermaidBuilder.</summary>
+    /// <summary>The clear air between the card's edge and what is drawn on it — see PortableDiagramSheet.</summary>
     private const double Pad = 12;
     [TestMethod]
     public void AFrontMatterTitleIsSetOverTheDiagram_AndCarriesWhatWasWrittenForIt() => UiThread.Run(() =>
@@ -41,10 +45,10 @@ public class MermaidBuilderTests
     {
         var laid = Box.Build("pie\n  \"Dogs\" : 1");
 
-        // At the top of the card, which every diagram is drawn on — see MermaidBuilder.Card.
+        // At the top of the card, which every diagram is drawn on — see PortableDiagramSheet.Card.
         Assert.IsFalse(Pieces(laid, MermaidPiece.Title).Any());
         Assert.AreEqual(laid.Root.Bounds.Top + Pad, Pieces(laid, Box.Kind).Single().Bounds.Top, 0.001);
-        Assert.AreEqual(new Size(Box.Width + (Pad * 2), Box.Height + (Pad * 2)), laid.Size);
+        Assert.AreEqual(new LayoutSize(Box.Width + (Pad * 2), Box.Height + (Pad * 2)), laid.Size);
     });
 
     [TestMethod]
@@ -67,8 +71,8 @@ public class MermaidBuilderTests
         var trouble = laid.Trouble.Single();
         Assert.AreEqual("%%{init: never closed", source.Substring(trouble.Start, trouble.Length), "marked where it is");
 
-        var reason = Pieces(laid, SourceShown.Reason).Single();
-        Assert.IsTrue(reason.Bounds.Top > Pieces(laid, LayoutText.SourceKind).Single().Bounds.Bottom - 5, "and why, right beneath it");
+        var reason = Pieces(laid, PortableSourceShown.Reason).Single();
+        Assert.IsTrue(reason.Bounds.Top > Pieces(laid, PortableText.SourceKind).Single().Bounds.Bottom - 5, "and why, right beneath it");
         Assert.IsTrue(laid.Size.Height >= reason.Bounds.Bottom - 0.001, "inside the room the block takes");
     });
 
@@ -84,23 +88,55 @@ public class MermaidBuilderTests
         Assert.IsTrue(Typing.Build(source, isReadOnly: true).ShowsSource, "where it cannot be written in, it is shown as written");
     });
 
-    /// <summary>A diagram that draws every part it was told is wrong as words the reader types into.</summary>
-    private sealed class Typing(string source, bool isReadOnly)
-        : MermaidBuilder(Laying.Read("pie", source), EditState.For(source), StyleFormat.Dark, isReadOnly, Laying.NestingNothing)
+    /// <summary>
+    /// A diagram of a test's own, made the way every diagram's builder is: the kit's words and the kit's sheet, and a drawing of its
+    /// own laid on the sheet.
+    /// </summary>
+    private abstract class Sheeted : PortableContentBuilder
     {
-        public static Laid Build(string source, bool isReadOnly) => new Typing(source, isReadOnly).Lay(700);
+        protected Sheeted(string source, bool isReadOnly)
+            : base(Laying.Read("pie", source), EditState.For(source), WpfStyles.Dark, isReadOnly, WpfMedium.OnThisThread, Laying.Hosting)
+        {
+            Words = new PortableDiagramText(Reading, State, Style, Medium, part => Nested(part, double.PositiveInfinity, PortableStanding.Inline));
+            Sheet = new PortableDiagramSheet(State, Style, Medium, isReadOnly, Words, AsSource);
+        }
 
-        protected override Size Draw(MermaidBlock block, LayoutBuilder build)
+        protected PortableDiagramText Words { get; }
+
+        private PortableDiagramSheet Sheet { get; }
+
+        protected abstract LayoutSize Draw(MermaidBlock block, PortableBuilder build);
+
+        protected override PortableLaid? Build()
+        {
+            Sheet.Start(Room);
+
+            var block = MermaidBlock.Of(Reading);
+            var drawing = new PortableBuilder(Medium);
+            var body = Draw(block, drawing);
+
+            return Sheet.Laid(block, drawing, body, (block.Title, block.TitleSays, block.TitleAsWritten));
+        }
+
+        protected override PortableCharacters Characters => PortableDiagramSheet.Characters(Style);
+    }
+
+    /// <summary>A diagram that draws every part it was told is wrong as words the reader types into.</summary>
+    private sealed class Typing(string source, bool isReadOnly) : Sheeted(source, isReadOnly)
+    {
+        public static PortableLaid Build(string source, bool isReadOnly) => new Typing(source, isReadOnly).Lay(700);
+
+        protected override LayoutSize Draw(MermaidBlock block, PortableBuilder build)
         {
             var top = 0.0;
             foreach (var wrong in block.Reading.Root.SelfAndDescendants().Where(part => part.Trouble is not null))
             {
-                var words = Written(wrong, null, 12, Brushes.White);
-                words.Set(build, new Point(0, top), "Wrong");
+                var words = Words.Written(wrong, null, 12, Style.Text);
+                words.Set(build, new LayoutPoint(0, top), "Wrong");
                 top += words.Height;
             }
 
-            return new Size(200, Math.Max(top, 1));
+            return new LayoutSize(200, Math.Max(top, 1));
         }
     }
 
@@ -117,7 +153,7 @@ public class MermaidBuilderTests
     public void AHeaderNamingNoTypeDispatchesToTheBlockAsWritten() => UiThread.Run(() =>
     {
         const string source = "---\ntitle: T\n---\nwibble TD\n  a --> b";
-        var content = (ContentElement)Alone.Drawn("mermaid", source, StyleFormat.Dark);
+        var content = (ContentElement)Alone.Drawn("mermaid", source, WpfStyles.Dark);
 
         content.Measure(new Size(600, double.PositiveInfinity));
         Assert.IsTrue(content.DesiredSize.Width > 0 && content.DesiredSize.Height > 0);
@@ -132,10 +168,10 @@ public class MermaidBuilderTests
         const string source = "---\ntitle: T\n---\nwibble TD\n  a --> b";
         var laid = Laying.Lay("mermaid", source);
 
-        var shown = Pieces(laid, LayoutText.SourceKind).Single();
+        var shown = Pieces(laid, PortableText.SourceKind).Single();
         Assert.AreEqual(source, Text(source, shown.Part));
         Assert.IsFalse(Pieces(laid, MermaidPiece.Title).Any(), "its front matter is on the page already, title and all");
-        Assert.AreEqual(1, Pieces(laid, SourceShown.Reason).Count(), "and why, under it");
+        Assert.AreEqual(1, Pieces(laid, PortableSourceShown.Reason).Count(), "and why, under it");
     });
 
     [TestMethod]
@@ -150,35 +186,34 @@ public class MermaidBuilderTests
                      "---\nconfig:\n  nexaflow:\n    collapsed:\n      - b\n---\nflowchart TD\n  a --> b",
                  })
         {
-            var drawn = (ContentElement)Alone.Drawn("mermaid", source, StyleFormat.Dark);
-            Assert.IsFalse(drawn.Laid.Root.SelfAndDescendants().Any(piece => piece.Kind == LayoutText.SourceKind), source);
+            var drawn = (ContentElement)Alone.Drawn("mermaid", source, WpfStyles.Dark);
+            Assert.IsFalse(drawn.Laid.Root.SelfAndDescendants().Any(piece => piece.Kind == PortableText.SourceKind), source);
         }
     });
 
-    private static IEnumerable<Piece> Pieces(Laid laid, string kind) =>
+    private static IEnumerable<PortablePiece> Pieces(PortableLaid laid, string kind) =>
         laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind);
 
     private static string Text(string source, Nexaflow.Markdown.Ast.ISourcePart? part) =>
         part is null ? "" : source.Substring(part.Start, part.Length);
 
     /// <summary>A diagram that is one box of a known size — what the frame is tested around.</summary>
-    private sealed class Box(string source, bool fail)
-        : MermaidBuilder(Laying.Read("pie", source), EditState.For(source), StyleFormat.Dark, isReadOnly: true, Laying.NestingNothing)
+    private sealed class Box(string source, bool fail) : Sheeted(source, isReadOnly: true)
     {
         public const string Kind = "Box";
         public const double Width = 120;
         public const double Height = 80;
 
-        public static Laid Build(string source, bool fail = false) => new Box(source, fail).Lay(700);
+        public static PortableLaid Build(string source, bool fail = false) => new Box(source, fail).Lay(700);
 
-        protected override Size Draw(MermaidBlock block, LayoutBuilder build)
+        protected override LayoutSize Draw(MermaidBlock block, PortableBuilder build)
         {
             if (fail) throw new System.InvalidOperationException("the diagram drew nothing");
 
             build.Open(Kind);
-            build.Draw(new RuleMark(new Rect(0, 0, Width, Height), Brushes.Gray));
+            build.Draw(new PortableRuleMark(new LayoutRect(0, 0, Width, Height), Style.TextMuted));
             build.Close();
-            return new Size(Width, Height);
+            return new LayoutSize(Width, Height);
         }
     }
 }

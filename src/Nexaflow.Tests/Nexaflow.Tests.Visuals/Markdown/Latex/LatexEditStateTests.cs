@@ -4,6 +4,9 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Source;
 
@@ -30,7 +33,7 @@ public class EditStateTests
 
         foreach (var character in text)
         {
-            var edit = new ContentEdit(EditKind.Typing, character.ToString(), new Landing(state, Laid.Nothing, -1), default, null, formula);
+            var edit = new ContentEdit(EditKind.Typing, character.ToString(), new Landing(state, PortableLaid.Nothing(WpfHandles.Medium), -1), default, null, formula);
             state = LatexEdits.Instance.Edit(edit) is { } change ? ContentEngine.Made(state, change) : state.Type(character);
         }
 

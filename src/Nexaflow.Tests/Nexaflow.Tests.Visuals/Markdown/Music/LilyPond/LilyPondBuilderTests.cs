@@ -10,7 +10,10 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
-using Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
+using Nexaflow.Markdown.Layout.Scores;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music.LilyPond;
 
@@ -568,7 +571,7 @@ public class LilyPondBuilderTests
               GABc dedB|dedB dedB|c2ec B2dB|A2F2 G4:|
             |:g2gf gdBd|g2f2 e2d2|c2ec B2dB|c2A2 A2df|
               g2gf g2Bd|g2f2 e2d2|c2ec B2dB|A2F2 G4:|
-            """, 900, StyleFormat.Light);
+            """, 900, WpfStyles.Light);
 
         var ly = Lay("""
             \header { title = "Speed the Plough" }
@@ -597,42 +600,42 @@ public class LilyPondBuilderTests
 
     // ── Reading the picture ─────────────────────────────────────────────────
 
-    private static Laid Lay(string ly) => Laying.Engraved("lilypond", ly, 900, StyleFormat.Light);
+    private static PortableLaid Lay(string ly) => Laying.Engraved("lilypond", ly, 900, WpfStyles.Light);
 
-    private static List<Piece> All(Laid layout, string kind) => All(layout.Root, kind);
+    private static List<PortablePiece> All(PortableLaid layout, string kind) => All(layout.Root, kind);
 
-    private static List<Piece> All(Piece root, string kind) => [.. root.SelfAndDescendants().Where(p => p.Kind == kind)];
+    private static List<PortablePiece> All(PortablePiece root, string kind) => [.. root.SelfAndDescendants().Where(p => p.Kind == kind)];
 
-    private static List<Piece> Bars(Laid layout) => All(layout, "measure");
+    private static List<PortablePiece> Bars(PortableLaid layout) => All(layout, "measure");
 
-    private static int[] NotesPerBar(Laid layout) => [.. Bars(layout).Select(bar => All(bar, "note").Count)];
+    private static int[] NotesPerBar(PortableLaid layout) => [.. Bars(layout).Select(bar => All(bar, "note").Count)];
 
     /// <summary>What a piece names, as it is written.</summary>
-    private static string Named(Piece piece, string ly)
+    private static string Named(PortablePiece piece, string ly)
     {
         var at = piece.Sits();
         return ly.Substring(at.Start, at.Length);
     }
 
     /// <summary>The words a piece draws.</summary>
-    private static string Printed(Piece piece)
+    private static string Printed(PortablePiece piece)
     {
         var text = new StringBuilder();
         foreach (var inner in piece.SelfAndDescendants())
             foreach (var mark in inner.Marks)
-                if (mark is TextMark written) text.Append(written.Glyphs.Text);
+                if (mark is PortableTextMark written) text.Append(written.Glyphs.Text);
 
         return text.ToString();
     }
 
-    private static double Centre(Piece piece) => piece.Bounds.Left + (piece.Bounds.Width / 2);
+    private static double Centre(PortablePiece piece) => piece.Bounds.Left + (piece.Bounds.Width / 2);
 
     /// <summary>Which of the notes a syllable is sung on: the one it is centred nearest.</summary>
-    private static int Under(List<Piece> notes, Piece syllable) =>
+    private static int Under(List<PortablePiece> notes, PortablePiece syllable) =>
         Enumerable.Range(0, notes.Count).MinBy(at => Math.Abs(Centre(notes[at]) - Centre(syllable)));
 
     /// <summary>Every bar's note heads, as how far each sits below the top of its staff.</summary>
-    private static List<int[]> HeadsByBar(Laid layout)
+    private static List<int[]> HeadsByBar(PortableLaid layout)
     {
         var bars = new List<int[]>();
 

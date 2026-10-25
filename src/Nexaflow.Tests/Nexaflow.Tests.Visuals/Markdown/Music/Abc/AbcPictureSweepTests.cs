@@ -15,6 +15,9 @@ using Nexaflow.Markdown.Music.Abc;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
 using Nexaflow.Markdown.Scores.Rendering;
 using Nexaflow.Visuals.Text.Markdown.Music;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
 
@@ -214,7 +217,7 @@ public class AbcPictureSweepTests
 
                 // Engraved at our own size — see Score. The reference is brought down to ours for the
                 // picture, which is the same direction the measurement goes.
-                var element = Alone.Engraved(MusicDialect.Abc, Text(tune.Abc), StyleFormat.Light);
+                var element = Alone.Engraved(MusicDialect.Abc, Text(tune.Abc), WpfStyles.Light);
                 element.Measure(new Size(width / staff, double.PositiveInfinity));
                 element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
 
@@ -291,7 +294,7 @@ public class AbcPictureSweepTests
             // Engraved at our own size, into their page width expressed in our units — so the systems break
             // where theirs broke. The comparison itself brings both pages to one height (InkOverlap), which
             // is why nothing here has to be drawn at their size to be compared with it.
-            var element = Alone.Engraved(MusicDialect.Abc, abc, StyleFormat.Light);
+            var element = Alone.Engraved(MusicDialect.Abc, abc, WpfStyles.Light);
             element.Measure(new Size(width / staff, double.PositiveInfinity));
 
             var size = element.DesiredSize;

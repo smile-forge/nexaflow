@@ -12,6 +12,9 @@ using Nexaflow.Visuals.Text.Markdown.Prose;
 using System.Windows.Media;
 using Nexaflow.Visuals.Text.Markdown.Stages;
 using Nexaflow.Visuals.Common.Theming;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -46,7 +49,7 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
 
     private MarkdownElement _shown;
     /// <summary>What the element now on the page is drawn in.</summary>
-    private StyleFormat? _drawnIn;
+    private PortableStyle? _drawnIn;
 
     /// <summary>
     /// What lays the document out, for as long as this shows one: what it read, the blocks that read as they did, and what the
@@ -187,15 +190,15 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
 
     /// <summary>
     /// The colours it is drawn in. Unset, it follows the theme (<see cref="StyleFormat.FromTheme"/>); a fixed light
-    /// surface — a post-it — says <see cref="StyleFormat.Light"/>.
+    /// surface — a post-it — says <see cref="WpfStyles.Light"/>.
     /// </summary>
     public static readonly DependencyProperty PaletteProperty = DependencyProperty.Register(
-        nameof(Palette), typeof(StyleFormat), typeof(MarkdownSurface),
+        nameof(Palette), typeof(PortableStyle), typeof(MarkdownSurface),
         new PropertyMetadata(null, (surface, _) => ((MarkdownSurface)surface).Remake()));
 
-    public StyleFormat? Palette
+    public PortableStyle? Palette
     {
-        get => (StyleFormat?)GetValue(PaletteProperty);
+        get => (PortableStyle?)GetValue(PaletteProperty);
         set => SetValue(PaletteProperty, value);
     }
 
@@ -325,8 +328,8 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     // ── Showing it ──────────────────────────────────────────────────────────
 
     /// <summary>The colours and size it is drawn at, as they stand: the size the host gave, or the shell's where it gave none.</summary>
-    private StyleFormat Drawn =>
-        (Palette ?? StyleFormat.FromTheme()) with
+    private PortableStyle Drawn =>
+        (Palette ?? WpfStyles.FromTheme()) with
         {
             TextSize = double.IsNaN(BaseFontSize) || BaseFontSize <= 0 ? TextTypography.BaseFontSize : BaseFontSize,
         };
@@ -474,7 +477,7 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     /// painted from the page's own tree, cut to where the block came out, so nothing is read again to make it.
     /// </summary>
     public System.Windows.Media.Imaging.BitmapSource? CapturePicture(ContentPart block, Brush? ground = null) =>
-        Pictured(_engine.Where(block), _shown.Zoom, ground);
+        Pictured(_engine.Where(block).ToWpf(), _shown.Zoom, ground);
 
     /// <summary>
     /// A picture of the whole document as it stands, no bigger than <paramref name="within"/> — for a host showing an
@@ -488,7 +491,7 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
 
         var fit = Math.Min(1, Math.Min(within.Width / size.Width, within.Height / size.Height));
 
-        return Pictured(new Rect(size), fit * _shown.Zoom, ground);
+        return Pictured(new Rect(0, 0, size.Width, size.Height), fit * _shown.Zoom, ground);
     }
 
     /// <summary>What a picture of <paramref name="box"/> of the page comes to, drawn at <paramref name="scale"/>.</summary>
@@ -496,7 +499,7 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     {
         var dpi = VisualTreeHelper.GetDpi(this);
 
-        return LayoutPictures.Painted(_shown.Laid.Root, box, scale, (_drawnIn ?? Drawn).Text, ground, dpi.PixelsPerInchX, dpi.PixelsPerInchY);
+        return WpfPainter.Painted(_shown.Laid.Root, box, scale, (_drawnIn ?? Drawn).Text.Brush(), ground, dpi.PixelsPerInchX, dpi.PixelsPerInchY);
     }
     private Point Middle() =>
         new(_scroller.HorizontalOffset + (_scroller.ViewportWidth / 2),

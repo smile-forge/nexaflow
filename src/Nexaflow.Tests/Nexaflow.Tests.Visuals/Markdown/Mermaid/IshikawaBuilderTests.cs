@@ -9,6 +9,10 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Ishikawa;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Layout.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -42,7 +46,7 @@ public class IshikawaBuilderTests : MermaidBuilderContract
         ("nothing to draw", "ishikawa-beta"),
     ];
 
-    private static Laid Build(string source, double room = 700) =>
+    private static PortableLaid Build(string source, double room = 700) =>
         Laying.Lay("mermaid", source, room);
 
     [TestMethod]
@@ -81,10 +85,10 @@ public class IshikawaBuilderTests : MermaidBuilderContract
         var laid = Build(Photo);
         var spine = Pieces(laid, IshikawaPiece.Spine).Single().Bounds;
         var head = Pieces(laid, IshikawaPiece.Head).Single().Bounds;
-        var causes = Pieces(laid, IshikawaPiece.Cause).Select(cause => Middle(cause.Bounds)).ToList();
-        var spineAt = Middle(spine).Y;
+        var causes = Pieces(laid, IshikawaPiece.Cause).Select(cause => Middle(cause.Bounds.ToWpf())).ToList();
+        var spineAt = Middle(spine.ToWpf()).Y;
 
-        Assert.IsTrue(head.Left >= spine.Right - DiagramConnector.Reach, "the head at the spine's end");
+        Assert.IsTrue(head.Left >= spine.Right - PortableDiagramConnector.Reach, "the head at the spine's end");
         Assert.IsTrue(causes[0].Y < spineAt && causes[2].Y < spineAt, "the first and third above");
         Assert.IsTrue(causes[1].Y > spineAt && causes[3].Y > spineAt, "the second and fourth below");
         Assert.IsTrue(causes[2].X < causes[0].X, "each pair further from the head");
@@ -94,12 +98,12 @@ public class IshikawaBuilderTests : MermaidBuilderContract
     public void SingleBonesNameEachCauseInAChip_AndListEverythingUnderItBeneath() => UiThread.Run(() =>
     {
         var laid = Build(SingleBones);
-        var spine = Middle(Pieces(laid, IshikawaPiece.Spine).Single().Bounds).Y;
+        var spine = Middle(Pieces(laid, IshikawaPiece.Spine).Single().Bounds.ToWpf()).Y;
         var chips = Pieces(laid, IshikawaPiece.Cause);
         var labels = Pieces(laid, IshikawaPiece.Label);
 
         CollectionAssert.AreEqual(new[] { "Process", "User", "Equipment", "Environment" }, chips.Select(chip => Written(SingleBones, chip.Part)).ToArray());
-        Assert.IsTrue(Middle(chips[0].Bounds).Y < spine && Middle(chips[1].Bounds).Y > spine, "above the spine and below it in turn");
+        Assert.IsTrue(Middle(chips[0].Bounds.ToWpf()).Y < spine && Middle(chips[1].Bounds.ToWpf()).Y > spine, "above the spine and below it in turn");
         Assert.IsTrue(chips.Zip(chips.Skip(1)).All(pair => pair.First.Bounds.Left < pair.Second.Bounds.Left), "each further along the spine");
         Assert.IsTrue(Pieces(laid, IshikawaPiece.Head).Single().Bounds.Left > chips.Max(chip => chip.Bounds.Right), "the event past them all");
 
@@ -126,7 +130,7 @@ public class IshikawaBuilderTests : MermaidBuilderContract
     });
 
     /// <summary>Single bones, which chip the event's own causes and list everything under them.</summary>
-    private static (List<string> Chips, List<Piece> Listed, string Source) Chipped(string source)
+    private static (List<string> Chips, List<PortablePiece> Listed, string Source) Chipped(string source)
     {
         var chipped = "---\nconfig:\n  ishikawa:\n    singleBone: true\n---\n" + source;
         var laid = Build(chipped);
