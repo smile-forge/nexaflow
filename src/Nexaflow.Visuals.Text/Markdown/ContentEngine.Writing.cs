@@ -531,7 +531,7 @@ public sealed partial class ContentEngine
     {
         if (length <= 0) { ClearSelection(); return; }
 
-        var (from, snapped) = _laid.Root.Snap(start, length);
+        var (from, snapped) = _laid.Root.Snap(start, length, ByLetter);
 
         var next = _state.Select(from, snapped);
         if (!Unpick() && next.Selection.SequenceEqual(_state.Selection)) return;
