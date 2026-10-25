@@ -4,8 +4,8 @@ Nexaflow's host runs it — and how close each picture comes, as PSNR. Both read
 text encoder, so what is measured is the graphs and the loop; compare_moss_encoder.py measures the encoder.
 
 Each part's peak GPU memory is measured too, in a process of its own holding that part alone, as the host loads them:
-whether a picture can be drawn on a card of 8 GB. So is how long each build takes to draw a picture, the decoder
-included, against the PyTorch pipeline's own time.
+the card a picture needs at each size. So is how long the build takes to draw a picture, the decoder included,
+against the PyTorch pipeline's own time.
 
 usage: python -I check_moss_image.py <moss-image checkpoint> <build-dir> <pictures-dir>
        python -I check_moss_image.py --memory <graph> <part> <height> <width>     (one part's peak, in MiB)
@@ -19,6 +19,7 @@ import time
 from pathlib import Path
 
 import numpy as np
+import onnxruntime as ort
 
 PROMPTS = [
     "A photorealistic portrait of an elderly fisherman with a weathered face, wearing a yellow raincoat, a harbour at dawn behind him, shallow depth of field.",
@@ -81,20 +82,51 @@ def time_rows(timestep, freq_dim=256):
     return np.concatenate([np.cos(phase), np.sin(phase)])[None].astype(np.float32)
 
 
-def draw(denoiser, decoder, caption, negative, noise):
+def draw(denoiser, decoder, caption, negative, noise, strength=0.0, adapter=None):
     """Fifty Euler steps, each asking the denoiser with the prompt and, block 22 left out, with the negative prompt,
-    and steering by 3 — MOSSImagePipeline's defaults — then the decoder."""
+    and steering by 3 — MOSSImagePipeline's defaults — then the decoder. A LoRA adapter, where given, is active on every
+    pass at `strength`."""
     latents = noise.copy()
     _, _, h, w = latents.shape
     rope_prompt, rope_negative = rope(h, w, caption.shape[1]), rope(h, w, negative.shape[1])
+    run = run_options(adapter)
     s = sigmas()
     for k in range(len(s) - 1):
         time = time_rows(s[k] * TRAINING_STEPS)
         ask = lambda rows, rotary, skip: denoiser.run(None, {"latents": latents, "caption": rows, "rope": rotary, "time": time,
-                                                            "skip": np.array(skip)})[0]
+                                                            "skip": np.array(skip), "lora_strength": np.array(strength, np.float32)}, run)[0]
         cond = ask(caption, rope_prompt, False)
         uncond = ask(negative, rope_negative, True)
         latents = (latents + (s[k + 1] - s[k]) * (uncond + GUIDANCE * (cond - uncond))).astype(np.float32)
+    return pixels_of(decoder, latents)
+
+
+def draw_dataspace(denoiser, decoder, caption, noise, sampler, strength, adapter):
+    """A distillation's data-space loop, as its makers run it: from the noise z and a clean estimate x0 of zeros, each
+    step asks the denoiser at z + Q x0 — Q its latent mix — with the step's code as the timestep, and takes z − v as the
+    new estimate; no negative prompt. The last estimate is the picture."""
+    z = noise.astype(np.float32)
+    _, _, h, w = z.shape
+    rotary = rope(h, w, caption.shape[1])
+    mix = np.asarray(sampler["latent_mix"], dtype=np.float32)
+    run = run_options(adapter)
+    clean = np.zeros_like(z)
+    for code in sampler["step_codes"]:
+        latents = (z + np.einsum("oc,bchw->bohw", mix, clean)).astype(np.float32)
+        velocity = denoiser.run(None, {"latents": latents, "caption": caption, "rope": rotary, "time": time_rows(code),
+                                       "skip": np.array(False), "lora_strength": np.array(strength, np.float32)}, run)[0]
+        clean = (z - velocity).astype(np.float32)
+    return pixels_of(decoder, clean)
+
+
+def run_options(adapter):
+    run = ort.RunOptions()
+    if adapter is not None:
+        run.add_active_adapter(adapter)
+    return run
+
+
+def pixels_of(decoder, latents):
     pixels = decoder.run(None, {"latents": latents})[0][0]
     return (pixels.transpose(1, 2, 0) * 255).round().clip(0, 255).astype(np.uint8)
 
@@ -102,7 +134,6 @@ def draw(denoiser, decoder, caption, negative, noise):
 # ── memory ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
 def session(path):
-    import onnxruntime as ort
     options = ort.SessionOptions()
     options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
     return ort.InferenceSession(str(path), options, providers=[("CUDAExecutionProvider", {"device_id": 0, "arena_extend_strategy": "kSameAsRequested"})])
@@ -112,7 +143,6 @@ def measure(graph, part, height, width):
     """The GPU memory one part takes to load and run once at a size, in MiB: the device's use at its peak, less its use
     before the part was loaded. (On Windows the driver gives no process's own use, so the device's is read; nothing else
     should be starting on the card while it is measured.)"""
-    import onnxruntime as ort
     import pynvml
     pynvml.nvmlInit()
     device = pynvml.nvmlDeviceGetHandleByIndex(0)
@@ -136,7 +166,8 @@ def measure(graph, part, height, width):
         rows = 300
         graph_session.run(None, {"latents": np.random.randn(1, 128, h, w).astype(np.float32),
                                  "caption": np.random.randn(1, rows, 4096).astype(np.float32),
-                                 "rope": rope(h, w, rows), "time": time_rows(500.0), "skip": np.array(False)})
+                                 "rope": rope(h, w, rows), "time": time_rows(500.0), "skip": np.array(False),
+                                 "lora_strength": np.array(0.0, np.float32)})
     time.sleep(0.2)
     running[0] = False
     watcher.join()
@@ -200,26 +231,24 @@ def main():
     del pipe
     torch.cuda.empty_cache()
 
-    import onnxruntime as ort
     ort.preload_dlls()
     decoder = session(build / "decoder" / "decoder.onnx")
     report = {"pytorch": {"seconds_1024": round(float(np.median([s for i, s in enumerate(pytorch_seconds) if SIZES[i % len(SIZES)] == (1024, 1024)])), 1)}}
-    for name in sorted(p.name for p in build.iterdir() if p.name.startswith("denoiser") and p.name != "denoiser-fp16"):
-        denoiser = session(build / name / "denoiser.onnx")
-        (pictures / name).mkdir(parents=True, exist_ok=True)
-        scores, seconds = [], []
-        for i, prompt in enumerate(PROMPTS):
-            started = time.perf_counter()
-            image = Image.fromarray(draw(denoiser, decoder, *readings[i], noises[i]))
-            seconds.append((SIZES[i % len(SIZES)], time.perf_counter() - started))
-            image.save(pictures / name / f"{i:02d}.png")
-            scores.append(psnr(Image.open(pictures / "pytorch" / f"{i:02d}.png").convert("RGB"), image))
-            print(f"{name} {i:02d} psnr {scores[-1]:.1f} dB  {prompt[:60]}", flush=True)
-        del denoiser
-        report[name] = {"psnr_min": round(min(scores), 1), "psnr_median": round(float(np.median(scores)), 1),
-                        "psnr": [round(s, 1) for s in scores],
-                        "seconds_1024": round(float(np.median([t for size, t in seconds if size == (1024, 1024)])), 1),
-                        "peak_mib": {f"{h}x{w}": peak_memory(build / name / "denoiser.onnx", "denoiser", h, w) for h, w in MEMORY_SIZES}}
+    denoiser = session(build / "denoiser" / "denoiser.onnx")
+    (pictures / "denoiser").mkdir(parents=True, exist_ok=True)
+    scores, seconds = [], []
+    for i, prompt in enumerate(PROMPTS):
+        started = time.perf_counter()
+        image = Image.fromarray(draw(denoiser, decoder, *readings[i], noises[i]))
+        seconds.append((SIZES[i % len(SIZES)], time.perf_counter() - started))
+        image.save(pictures / "denoiser" / f"{i:02d}.png")
+        scores.append(psnr(Image.open(pictures / "pytorch" / f"{i:02d}.png").convert("RGB"), image))
+        print(f"denoiser {i:02d} psnr {scores[-1]:.1f} dB  {prompt[:60]}", flush=True)
+    del denoiser
+    report["denoiser"] = {"psnr_min": round(min(scores), 1), "psnr_median": round(float(np.median(scores)), 1),
+                          "psnr": [round(s, 1) for s in scores],
+                          "seconds_1024": round(float(np.median([t for size, t in seconds if size == (1024, 1024)])), 1),
+                          "peak_mib": {f"{h}x{w}": peak_memory(build / "denoiser" / "denoiser.onnx", "denoiser", h, w) for h, w in MEMORY_SIZES}}
     report["decoder"] = {"peak_mib": {f"{h}x{w}": peak_memory(build / "decoder" / "decoder.onnx", "decoder", h, w) for h, w in MEMORY_SIZES}}
     (pictures / "check.json").write_text(json.dumps(report, indent=2))
     print(json.dumps(report), flush=True)

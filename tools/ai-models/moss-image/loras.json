@@ -1,0 +1,112 @@
+{
+  "comment": "The LoRAs Nexaflow offers for MOSS-Image, each converted to an ONNX Runtime adapter and checked by this recipe. Every one is Apache-2.0. 'alpha' is given only where the file carries none, from its model card. 'adult' entries are offered only while the app allows adult content. 'sampler' replaces MOSS-Image's own fifty guided steps.",
+  "loras": [
+    {
+      "id": "moss-fast-8step",
+      "displayName": "Fast (8 steps)",
+      "kind": "fast",
+      "repo": "lodestones/MOSS-Image-SFT-8-steps-dmd",
+      "revision": "f95df83b5e90ae91ea412434b3f9b7f1c8c6314f",
+      "file": "generator.safetensors",
+      "size": 1230219664,
+      "sha256": "f67fd6c79c2e2880943f6d8dd2bf4de8eec5f202ea13ebc2fdb1179974c297a4",
+      "format": "generator",
+      "alpha": 128,
+      "strength": 1.0,
+      "sampler": { "kind": "dataspace", "steps": 8 }
+    },
+    {
+      "id": "moss-anime",
+      "displayName": "Anime",
+      "kind": "style",
+      "repo": "axiomofmind/Moss-image-anime-lora",
+      "revision": "38fa56fa567b70412828ac67c050a4c2c1a5c40a",
+      "file": "MOSS-Image-Anime-LoRA-ComfyUI.safetensors",
+      "size": 74379584,
+      "sha256": "6661f88183757c7be9044578d3907335d6abe83a736995bd502b78db2c5b83cf",
+      "format": "peft",
+      "trigger": "moss_seinen_style",
+      "strength": 1.0
+    },
+    {
+      "id": "moss-gouache",
+      "displayName": "Gouache",
+      "kind": "style",
+      "repo": "axiomofmind/Moss-image-gouache-lora",
+      "revision": "63f1d3fa77623c5198714f43f33be30632b9cb44",
+      "file": "MOSS-Image-Gouache-LoRA-ComfyUI.safetensors",
+      "size": 74379584,
+      "sha256": "136736fd02a932068982a2211f3010ca579d0186a784b37af592020eb947cedf",
+      "format": "peft",
+      "trigger": "moss_vgouache_style",
+      "strength": 1.0
+    },
+    {
+      "id": "moss-psychedelic",
+      "displayName": "Psychedelic",
+      "kind": "style",
+      "repo": "axiomofmind/Moss-image-psychedelic-lora",
+      "revision": "3482e5226f462b7c14319cc79167ed6d894ded71",
+      "file": "MOSS-Image-Psychedelic-LoRA-ComfyUI.safetensors",
+      "size": 74379584,
+      "sha256": "43584190c0d0ba4d3ef124c78bf5ddb1ecc942a6d872b79134a1b2d1bd5dec8a",
+      "format": "peft",
+      "trigger": "moss_psychpop_style",
+      "strength": 1.0
+    },
+    {
+      "id": "moss-beauty",
+      "displayName": "Beauty",
+      "kind": "style",
+      "repo": "axiomofmind/Moss-image-beauty-lora",
+      "revision": "967ff12a0cb59fe0db0662f1d8942a38197d6620",
+      "file": "MOSS-Image-Beauty-LoRA-ComfyUI.safetensors",
+      "size": 74379584,
+      "sha256": "cc180d2bd0344551228d3e2def01f1e0f51896bf94f406c4e378cdfe8b1210b4",
+      "format": "peft",
+      "trigger": "moss_beauty_style",
+      "strength": 1.0
+    },
+    {
+      "id": "moss-nsfw",
+      "displayName": "Uncensored",
+      "kind": "style",
+      "adult": true,
+      "repo": "axiomofmind/Moss-image-nsfw-uncensored-lora",
+      "revision": "7f8c6953c6a88af8cbc8daeb34633c237dd1a7bb",
+      "file": "MOSS-Image-NSFW-Uncensored-LoRA-ComfyUI.safetensors",
+      "size": 74379584,
+      "sha256": "f766c5774a3fb68caa490bbc3f8153e8b5ccacafc36a1ee7f9ad6ec230ff11a3",
+      "format": "peft",
+      "trigger": "moss_xvstyle",
+      "strength": 0.7
+    },
+    {
+      "id": "moss-animated",
+      "displayName": "Animated",
+      "kind": "style",
+      "trainedOn": "base",
+      "repo": "axiomofmind/Moss-image-animated-lora",
+      "revision": "b2ba71a4b0e773209603d13b8fc603d4b0ea319b",
+      "file": "MOSS-Image-Animated-LoRA-ComfyUI.safetensors",
+      "size": 74379584,
+      "sha256": "a99173f545271dcd43bbb79483c60feceab447b80841d2391936a60672e41934",
+      "format": "peft",
+      "trigger": "moss_ac_style",
+      "strength": 0.7
+    },
+    {
+      "id": "moss-impressionism",
+      "displayName": "Impressionism",
+      "kind": "style",
+      "trainedOn": "base",
+      "repo": "Kandoo/MOSS-Image-Impressionism-LoRA",
+      "revision": "5941252a5095f9be551b708419f7df2078d57864",
+      "file": "moss-image-impressionism-lora.safetensors",
+      "size": 74470552,
+      "sha256": "c8cff3df16db40b1f17daa195c2d18256085d728394533c0a6c958d43b08ea17",
+      "format": "kohya",
+      "strength": 1.0
+    }
+  ]
+}

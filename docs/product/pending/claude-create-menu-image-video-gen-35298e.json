@@ -228,6 +228,14 @@
         {
           "type": "code",
           "doc": "tools/ai-models/moss-image/compare_moss_encoder.py"
+        },
+        {
+          "type": "code",
+          "doc": "tools/ai-models/moss-image/convert_moss_loras.py"
+        },
+        {
+          "type": "code",
+          "doc": "tools/ai-models/moss-image/check_moss_loras.py"
         }
       ]
     }
