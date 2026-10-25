@@ -36,6 +36,31 @@ public sealed class PortableStyle
     public required LayoutInk FigureBorder { get; init; }
     public required LayoutInk FooterBg { get; init; }
 
+    /// <summary>A scannable code's dark modules and the light field round them — dark on light whatever the theme, which a scanner needs.</summary>
+    public required LayoutInk QrDark { get; init; }
+
+    public required LayoutInk QrLight { get; init; }
+
+    /// <summary>
+    /// A barcode's bars and the stock behind them: a pair of their own rather than the QR code's, since a barcode is routinely printed in
+    /// a brand colour and a QR code rarely is.
+    /// </summary>
+    public required LayoutInk BarcodeDark { get; init; }
+
+    public required LayoutInk BarcodeLight { get; init; }
+
+    /// <summary>Distinct colours a chart takes in turn for its series — round again past the last.</summary>
+    public required IReadOnlyList<LayoutInk> Series { get; init; }
+
+    /// <summary>
+    /// The colours a chemical structure draws its elements in, by symbol. An element that is not here, carbon among them, is drawn in
+    /// <see cref="Text"/>.
+    /// </summary>
+    public required IReadOnlyDictionary<string, LayoutInk> Elements { get; init; }
+
+    /// <summary>What a kind of code token is drawn in, or null where the theme says nothing about it — asked once a kind.</summary>
+    public Func<string, LayoutInk?> Syntax { get; init; } = static _ => null;
+
     /// <summary>The family body text is set in.</summary>
     public required string TextFont { get; init; }
 
@@ -78,10 +103,19 @@ public sealed record PortableLinkLook(LayoutInk? Ink = null, bool Underline = tr
 /// <summary>A stretch of source that could not be made sense of, and why.</summary>
 public sealed record PortableDiagnostic(int Start, int Length, string Message)
 {
-    public static PortableDiagnostic Of(ISourcePart part, string message) =>
-        new(part.Start, Math.Max(part.Length, 1), message) { Part = part };
+    public static PortableDiagnostic Of(ISourcePart part, string message, PortableSeverity severity = PortableSeverity.Error) =>
+        new(part.Start, Math.Max(part.Length, 1), message) { Part = part, Severity = severity };
 
     public ISourcePart? Part { get; init; }
+
+    public PortableSeverity Severity { get; init; }
+}
+
+/// <summary>How much is wrong: nothing could be made of it, or what was drawn is not quite what was asked.</summary>
+public enum PortableSeverity
+{
+    Error,
+    Warning,
 }
 
 /// <summary>What a builder makes: a tree, how much room it wants, and whatever could not be read.</summary>

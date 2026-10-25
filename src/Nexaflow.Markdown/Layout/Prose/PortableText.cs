@@ -12,16 +12,61 @@ public static class PortableText
     /// Places a run of text as one piece with a caret position between any two of its letters, and hands back where the piece
     /// went.
     /// </summary>
+    /// <param name="degrees">
+    /// How far the run is turned about where it starts — nought for the ordinary case. A turned run reaches where its letters land
+    /// rather than where they were set, and stands in the letters themselves, so a press on it means the letter under the pointer.
+    /// </param>
     public static int Words(PortableBuilder into, IShapedText text, LayoutPoint at, double room, LayoutAlign align, ISourcePart? part,
-                            string kind, bool maps = true, bool writes = false, LayoutInk? ink = null)
+                            string kind, bool maps = true, bool writes = false, LayoutInk? ink = null, double degrees = 0)
     {
         text.Bound(room, align);
 
-        var piece = into.Open(kind, part, at, maps || writes ? PortableStops.Both : PortableStops.None);
+        var turn = degrees == 0 ? null : new PortablePaint([into.Medium.Rotation(degrees, default)]);
+
+        // A run that says something about a piece of source rather than showing it is nowhere to put a caret.
+        var piece = into.Open(kind, part, at, maps || writes ? PortableStops.Both : PortableStops.None, gathers: turn is null, paints: turn);
 
         into.Draw(new PortableTextMark(text, default, ink));
         into.Words(new PortableWords(text, default, maps, writes));
 
+        if (turn is not null)
+        {
+            var letters = new LayoutRect(0, 0, text.Width, text.Height);
+            into.Covers(LayoutRect.Transform(letters, turn.Turn![0].Matrix));
+            into.Occupies(into.Medium.Rectangle(letters));
+        }
+
+        into.Close();
+        return piece;
+    }
+
+    /// <summary>The kind of piece a hole is drawn as — see <see cref="Hole"/>.</summary>
+    public const string HoleKind = "Hole";
+
+    /// <summary>How far a hole runs across for how far up it runs: squat enough to read as a slot, as a formula's does.</summary>
+    private const double HoleAspect = 0.55 / 0.62;
+
+    /// <summary>How wide a hole standing among letters like <paramref name="letter"/> is drawn.</summary>
+    public static double HoleWidth(IShapedText letter) => letter.Extent * HoleAspect;
+
+    /// <summary>
+    /// Places a hole: the hollow box standing where something is still to be written. Stands for no characters — its part is empty,
+    /// sitting where they will go — so it is somewhere to put the caret, and what is typed at it lands where it stands. As tall as a
+    /// small letter and resting on the line, so it reads as a letter still to come.
+    /// </summary>
+    /// <param name="letter">A small letter in the type it stands among: its ink is how tall the box is, and its baseline where it sits.</param>
+    public static int Hole(PortableBuilder into, ISourcePart hole, LayoutPoint at, IShapedText letter, LayoutInk ink)
+    {
+        var height = letter.Extent;
+        var width = HoleWidth(letter);
+        var hairline = Math.Max(height * 0.07, 0.75);
+
+        var box = into.Medium.Rectangle(new LayoutRect(hairline / 2, letter.Baseline - height + (hairline / 2),
+                                                       Math.Max(width - hairline, 0), Math.Max(height - hairline, 0)));
+
+        var piece = into.Open(HoleKind, hole, at);
+        into.Draw(new PortableGeometryMark(box, null, into.Medium.Stroke(ink, hairline)));
+        into.Covers(new LayoutRect(0, 0, width, letter.Height));
         into.Close();
         return piece;
     }
@@ -117,9 +162,25 @@ public static class PortableSourceShown
     private const double ReasonGap = -3;
     private const double ReasonRoom = 260;
 
+    /// <summary>
+    /// The tree laid out as the characters it prints to, each blamed part standing over its own and each reason written beneath — every
+    /// distinct reason once, in the order first given.
+    /// </summary>
+    /// <param name="blamed">Each part that could not be drawn, and why; the tree itself where the whole of it could not.</param>
+    public static PortableLaid Lay(ContentPart tree, IReadOnlyList<(ContentPart Part, string Reason)> blamed, ILayoutMedium medium,
+                                   LayoutFace face, double size, LayoutInk ink, PortableStyle style, double room = double.PositiveInfinity) =>
+        Shown(tree, [.. blamed.Select(blame => PortableDiagnostic.Of(blame.Part, blame.Reason))],
+              Runs(tree, blamed.Select(blame => blame.Part).ToHashSet()), medium, face, size, ink, style, room);
+
     /// <summary>The tree laid out as the characters it prints to, with what content inside it said marked where it stands.</summary>
     public static PortableLaid Lay(ContentPart tree, IReadOnlyList<PortableDiagnostic> trouble, ILayoutMedium medium, LayoutFace face,
-                                   double size, LayoutInk ink, PortableStyle style, double room = double.PositiveInfinity)
+                                   double size, LayoutInk ink, PortableStyle style, double room = double.PositiveInfinity) =>
+        Shown(tree, trouble, [.. trouble.Select(said => (said.Part ?? new SourceSpan(said.Start, said.Length), said.Start - tree.Start, said.Length))],
+              medium, face, size, ink, style, room);
+
+    private static PortableLaid Shown(ContentPart tree, IReadOnlyList<PortableDiagnostic> trouble,
+                                      IReadOnlyList<(ISourcePart Part, int From, int Length)> runs, ILayoutMedium medium, LayoutFace face,
+                                      double size, LayoutInk ink, PortableStyle style, double room)
     {
         var printed = tree.Print().TrimEnd('\r', '\n');
         var text = medium.Shape(printed.Length == 0 ? " " : printed, face, size, ink);
@@ -144,16 +205,11 @@ public static class PortableSourceShown
         PortableText.Place(build, text, default, Math.Max(text.WidthWithSpace, 1), LayoutAlign.Left,
                            new SourceSpan(tree.Start, printed.Length), PortableText.SourceKind, letters, medium, face, size);
 
-        foreach (var said in trouble)
+        foreach (var (part, from, length) in runs)
         {
-            var part = said.Part ?? new SourceSpan(said.Start, said.Length);
-            var (from, length) = (said.Start - tree.Start, said.Length);
             if (length <= 0 || from < 0 || from + length > text.Text.Length) continue;
 
-            var covered = text.Covers(default, from, length);
-            if (covered.IsEmpty) continue;
-
-            var shape = medium.Rectangle(covered);
+            if (medium.Covering(text, default, from, length) is not { } shape) continue;
 
             build.Open(Unread, part, stops: PortableStops.None);
             build.Draw(new PortableGeometryMark(shape, medium.Ink(default), null));
@@ -173,5 +229,36 @@ public static class PortableSourceShown
 
         build.Close();
         return new PortableLaid(build.Seal(), width, height, trouble);
+    }
+
+    /// <summary>Where each blamed part's characters fall in what the tree prints — found by walking it as the print does.</summary>
+    private static List<(ISourcePart Part, int From, int Length)> Runs(ContentPart tree, IReadOnlySet<ContentPart> blamed)
+    {
+        var runs = new List<(ISourcePart, int, int)>();
+        var at = 0;
+
+        void Walk(ContentPart part)
+        {
+            if (part.Derived) return;
+
+            if (blamed.Contains(part))
+            {
+                var length = part.Print().Length;
+                runs.Add((part, at, length));
+                at += length;
+                return;
+            }
+
+            if (part.Node.IsLeaf)
+            {
+                at += part.Node.Text.Length;
+                return;
+            }
+
+            foreach (var child in part.Children) Walk(child);
+        }
+
+        Walk(tree);
+        return runs;
     }
 }

@@ -1,0 +1,105 @@
+{
+  "branch": "claude/layout-tree-wpf-abstraction-ea335e",
+  "nodes": {
+    "md-code-highlighting": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeSpans.cs",
+          "class": "CodeSpans"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeGrammars.cs",
+          "class": "CodeGrammars"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Code/CodeKinds.cs",
+          "class": "CodeKinds"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
+          "class": "Shipped"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/CodeLines.cs",
+          "class": "CodeLines"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeParser.cs",
+          "class": "CodeParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Slow.cs",
+          "class": "ContentEngine",
+          "method": "Read"
+        }
+      ]
+    },
+    "qr-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/Qr/Stages/EncodeQr.cs",
+          "class": "EncodeQr"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/MatrixPiece.cs",
+          "class": "MatrixPiece"
+        }
+      ]
+    },
+    "matrix-renderer": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/MatrixPiece.cs",
+          "class": "MatrixPiece"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/MatrixBlockReader.cs",
+          "class": "MatrixBlockReader"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/ReedSolomon.cs",
+          "class": "ReedSolomon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/IModuleMatrix.cs",
+          "class": "IModuleMatrix"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/MatrixNodes.cs",
+          "class": "MatrixSymbolNode"
+        }
+      ]
+    },
+    "smiles-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Chemistry/MoleculePiece.cs",
+          "class": "MoleculePiece"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 4,
+  "touched_nodes": [
+    "matrix-renderer",
+    "md-code-highlighting",
+    "qr-render",
+    "smiles-render"
+  ]
+}

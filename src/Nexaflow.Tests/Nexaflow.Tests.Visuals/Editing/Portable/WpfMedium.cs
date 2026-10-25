@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Media.TextFormatting;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Visuals.Text.Editing;
@@ -227,6 +228,56 @@ internal sealed class WpfMedium : ILayoutMedium
 
     /// <summary>A picture a host handed over.</summary>
     public LayoutPicture Picture(ImageSource picture) => new WpfPicture(picture);
+
+    public LayoutInk Faded(LayoutInk ink, double opacity)
+    {
+        if (opacity >= 1) return ink;
+
+        var brush = ((WpfInk)ink).Brush;
+        if (_faded.TryGetValue((brush, opacity), out var known)) return known;
+
+        var faded = brush.Clone();
+        faded.Opacity = Math.Max(0, opacity);
+        faded.Freeze();
+        return _faded[(brush, opacity)] = new WpfInk(faded);
+    }
+
+    private readonly Dictionary<(Brush Ink, double Opacity), WpfInk> _faded = [];
+
+    public LayoutShape? TextOutline(IShapedText text, LayoutPoint origin) =>
+        ((WpfText)text).BuildGeometry(origin.ToWpf()) is { } outline ? WpfShape.Of(outline) : null;
+
+    public LayoutShape? Covering(IShapedText text, LayoutPoint at, int from, int count) =>
+        ((WpfText)text).BuildHighlightGeometry(at.ToWpf(), from, count) is { } covered ? WpfShape.Of(covered) : null;
+
+    public IReadOnlyList<LayoutPoint[]> Flattened(LayoutShape shape, double tolerance)
+    {
+        var flattened = ((WpfShape)shape).Geometry.GetFlattenedPathGeometry(tolerance, ToleranceType.Absolute);
+        var figures = new List<LayoutPoint[]>(flattened.Figures.Count);
+        var points = new List<LayoutPoint>();
+
+        foreach (var figure in flattened.Figures)
+        {
+            points.Clear();
+            points.Add(new LayoutPoint(figure.StartPoint.X, figure.StartPoint.Y));
+
+            foreach (var segment in figure.Segments)
+                switch (segment)
+                {
+                    case PolyLineSegment poly:
+                        foreach (var point in poly.Points) points.Add(new LayoutPoint(point.X, point.Y));
+                        break;
+
+                    case LineSegment line:
+                        points.Add(new LayoutPoint(line.Point.X, line.Point.Y));
+                        break;
+                }
+
+            figures.Add([.. points]);
+        }
+
+        return figures;
+    }
 }
 
 internal static class WpfLayout
@@ -361,18 +412,25 @@ internal sealed class WpfShapeBuilder : ShapeBuilder
         _into = _geometry.Open();
     }
 
-    public override void Begin(LayoutPoint at, bool filled = true, bool closed = true) => _into.BeginFigure(at.ToWpf(), filled, closed);
+    /// <summary>Whether the figure being made has its edges drawn by a pen.</summary>
+    private bool _stroked = true;
 
-    public override void LineTo(LayoutPoint to) => _into.LineTo(to.ToWpf(), true, false);
+    public override void Begin(LayoutPoint at, bool filled = true, bool closed = true, bool stroked = true)
+    {
+        _stroked = stroked;
+        _into.BeginFigure(at.ToWpf(), filled, closed);
+    }
+
+    public override void LineTo(LayoutPoint to) => _into.LineTo(to.ToWpf(), _stroked, false);
 
     public override void BezierTo(LayoutPoint first, LayoutPoint second, LayoutPoint to) =>
-        _into.BezierTo(first.ToWpf(), second.ToWpf(), to.ToWpf(), true, false);
+        _into.BezierTo(first.ToWpf(), second.ToWpf(), to.ToWpf(), _stroked, false);
 
-    public override void QuadraticTo(LayoutPoint control, LayoutPoint to) => _into.QuadraticBezierTo(control.ToWpf(), to.ToWpf(), true, false);
+    public override void QuadraticTo(LayoutPoint control, LayoutPoint to) => _into.QuadraticBezierTo(control.ToWpf(), to.ToWpf(), _stroked, false);
 
     public override void ArcTo(LayoutPoint to, double radiusX, double radiusY, double rotation, bool large, bool clockwise) =>
         _into.ArcTo(to.ToWpf(), new Size(radiusX, radiusY), rotation, large,
-                    clockwise ? SweepDirection.Clockwise : SweepDirection.Counterclockwise, true, false);
+                    clockwise ? SweepDirection.Clockwise : SweepDirection.Counterclockwise, _stroked, false);
 
     public override LayoutShape Close()
     {
@@ -416,6 +474,21 @@ internal sealed class WpfPicture(ImageSource picture) : LayoutPicture
     public override double Width => Source.Width;
 
     public override double Height => Source.Height;
+
+    public override LayoutPixels? Pixels(double widest)
+    {
+        if (Source is not BitmapSource picture) return null;
+
+        if (picture.PixelWidth > widest)
+            picture = new TransformedBitmap(picture, new ScaleTransform(widest / picture.PixelWidth, widest / picture.PixelWidth));
+
+        var square = new FormatConvertedBitmap(picture, PixelFormats.Bgra32, null, 0);
+        var stride = square.PixelWidth * 4;
+        var pixels = new byte[stride * square.PixelHeight];
+        square.CopyPixels(pixels, stride, 0);
+
+        return new LayoutPixels(pixels, square.PixelWidth, square.PixelHeight);
+    }
 }
 
 /// <summary>

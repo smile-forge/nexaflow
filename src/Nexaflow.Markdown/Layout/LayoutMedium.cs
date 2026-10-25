@@ -115,6 +115,27 @@ public interface ILayoutMedium
 
     /// <summary>The pixel grid a piece's edges land on, across and down, in its own frame. The arrays are handed over.</summary>
     LayoutGuides Guides(double[] across, double[] down);
+
+    /// <summary><paramref name="ink"/> at <paramref name="opacity"/> — itself, where that is whole.</summary>
+    LayoutInk Faded(LayoutInk ink, double opacity);
+
+    /// <summary>
+    /// The outline of the letters <paramref name="text"/> was set in, with its top left at <paramref name="origin"/> — for content that
+    /// packs or clips by the shape of its words rather than by their box — or null where it has none.
+    /// </summary>
+    LayoutShape? TextOutline(IShapedText text, LayoutPoint origin);
+
+    /// <summary>
+    /// What a stretch of <paramref name="text"/> covers, measured from <paramref name="at"/> — a box for each line it runs over, not one
+    /// round all of them, so a press between its lines is not a press on it — or null where it covers nothing.
+    /// </summary>
+    LayoutShape? Covering(IShapedText text, LayoutPoint at, int from, int count);
+
+    /// <summary>
+    /// <paramref name="shape"/> as straight lines, its curves broken no further than <paramref name="tolerance"/> from where they run —
+    /// each figure the points it passes through, from where it starts.
+    /// </summary>
+    IReadOnlyList<LayoutPoint[]> Flattened(LayoutShape shape, double tolerance);
 }
 
 /// <summary>
@@ -277,7 +298,11 @@ public enum ShapeCombine
 /// </summary>
 public abstract class ShapeBuilder
 {
-    public abstract void Begin(LayoutPoint at, bool filled = true, bool closed = true);
+    /// <param name="stroked">
+    /// Whether a pen tracing the outline draws this figure's edges — false for one that is only ever filled, so a renderer need not
+    /// keep its edges for a pen.
+    /// </param>
+    public abstract void Begin(LayoutPoint at, bool filled = true, bool closed = true, bool stroked = true);
 
     public abstract void LineTo(LayoutPoint to);
 
@@ -297,7 +322,16 @@ public abstract class LayoutPicture
     public abstract double Width { get; }
 
     public abstract double Height { get; }
+
+    /// <summary>
+    /// What it is drawn as, a pixel at a time and no wider than <paramref name="widest"/> pixels — scaled down to that where it is wider —
+    /// or null where it is no picture made of pixels.
+    /// </summary>
+    public abstract LayoutPixels? Pixels(double widest);
 }
+
+/// <summary>A picture read as pixels: four bytes to each — blue, green, red, alpha — a row at a time, from the top.</summary>
+public sealed record LayoutPixels(byte[] Bgra, int Across, int Down);
 
 /// <summary>What an outline is stroked with, as a medium holds it.</summary>
 public abstract class LayoutStroke

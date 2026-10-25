@@ -382,7 +382,14 @@ public class PortableTexBench
 
     private static string N(Rect rect) => rect.IsEmpty ? "empty" : $"{N(rect.X)},{N(rect.Y)},{N(rect.Width)},{N(rect.Height)}";
 
-    private static string Ink(Brush? brush) => brush is SolidColorBrush { Color: var colour } ? colour.ToString() : brush is null ? "-" : brush.GetType().Name;
+    /// <summary>An ink as its colour — and every ink nothing shows through as one, whatever colour it would be were it seen.</summary>
+    private static string Ink(Brush? brush) => brush switch
+    {
+        SolidColorBrush { Color.A: 0 } => "transparent",
+        SolidColorBrush { Color: var colour } => colour.ToString(),
+        null => "-",
+        _ => brush.GetType().Name,
+    };
 
     /// <summary>A laid tree, written down to the last coordinate of the last glyph.</summary>
     internal static void Digest(Laid laid, StringBuilder into, bool advances = true)

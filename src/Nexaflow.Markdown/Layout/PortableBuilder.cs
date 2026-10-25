@@ -41,6 +41,9 @@ public sealed class PortableBuilder
 
     private const int Fewest = 32;
 
+    /// <summary>What the layout is made in — what anything placing a piece of its own asks for a turn or an outline.</summary>
+    public ILayoutMedium Medium => _medium;
+
     private sealed class Frame
     {
         public int At;

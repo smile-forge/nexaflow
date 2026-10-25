@@ -6,6 +6,7 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.WordCloud;
 using System.Windows.Media.Imaging;
+using Nexaflow.Markdown.WordCloud;
 
 namespace Nexaflow.Tests.Visuals.Markdown.WordCloud;
 

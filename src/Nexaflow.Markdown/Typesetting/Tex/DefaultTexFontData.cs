@@ -9,8 +9,8 @@ namespace Nexaflow.Markdown.Typesetting.Tex;
 /// <see cref="DefaultTexFont"/>, whatever size each one sets them at.
 ///
 /// <para>
-/// Reading it parses the XML and opens a <see cref="System.Windows.Media.GlyphTypeface"/> for every face it lists, which
-/// costs milliseconds and over a megabyte each time. None of it depends on size, and none of it changes once read: the
+/// Reading it parses the XML and has the host's <see cref="IFontProvider"/> open every face it lists, which costs
+/// milliseconds and over a megabyte each time. None of it depends on size, and none of it changes once read: the
 /// parser is the only writer of a <see cref="TexFontInfo"/>, and everything here is handed out read-only. So one reading
 /// serves every formula, on every thread that lays one out.
 /// </para>

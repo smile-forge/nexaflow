@@ -1,4 +1,4 @@
-namespace Nexaflow.Visuals.Text.Markdown.Chemistry;
+namespace Nexaflow.Markdown.Chemistry;
 
 /// <summary>The pieces a <c>smiles</c> block's layout is made of.</summary>
 public static class MoleculePiece

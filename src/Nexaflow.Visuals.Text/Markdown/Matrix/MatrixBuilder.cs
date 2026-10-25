@@ -13,16 +13,6 @@ using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Matrix;
 
-/// <summary>The pieces every 2D code's layout has, whatever the code is made of.</summary>
-public static class MatrixPiece
-{
-    /// <summary>The whole symbol, quiet zone included — and the reason beneath it, when there is one.</summary>
-    public const string Symbol = "Symbol";
-
-    /// <summary>The modules a code does not name as a part of its own.</summary>
-    public const string Modules = "Modules";
-}
-
 /// <summary>
 /// Lays out a <c>qr</c>, <c>aztec</c>, <c>datamatrix</c> or <c>pdf417</c> block: the symbol its stage encoded it to
 /// (<see cref="MatrixSymbolNode"/>) as a layout tree — a light ground with a quiet zone round it, and each of the parts the code is

@@ -7,6 +7,7 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Chemistry;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+using Nexaflow.Markdown.Chemistry;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Chemistry;
 

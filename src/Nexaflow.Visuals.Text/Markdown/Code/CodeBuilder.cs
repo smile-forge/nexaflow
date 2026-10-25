@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Media;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Code;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Visuals.Text.Editing;
@@ -12,16 +13,6 @@ using Nexaflow.Visuals.Text.Editor.Highlighting;
 using Nexaflow.Visuals.Text.Markdown.Stages;
 
 namespace Nexaflow.Visuals.Text.Markdown.Code;
-
-/// <summary>What a piece of code is — to the tree it is read into, and to the layout it is set in.</summary>
-public static class CodeKinds
-{
-    /// <summary>A whole stretch of code.</summary>
-    public const string Code = "code";
-
-    /// <summary>Where one line of it ends and the next begins: a line feed, and the return before it where there is one.</summary>
-    public const string LineEnd = "line-end";
-}
 
 /// <summary>
 /// A stretch of code, set line for line in a monospaced face, each token in the colour its kind is given.

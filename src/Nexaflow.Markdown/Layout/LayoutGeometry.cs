@@ -21,6 +21,17 @@ public readonly record struct LayoutVector(double X, double Y)
     public static LayoutVector operator +(LayoutVector a, LayoutVector b) => new(a.X + b.X, a.Y + b.Y);
 
     public static LayoutVector operator -(LayoutVector a, LayoutVector b) => new(a.X - b.X, a.Y - b.Y);
+
+    public static LayoutVector operator -(LayoutVector vector) => new(-vector.X, -vector.Y);
+
+    public static LayoutVector operator *(LayoutVector vector, double scalar) => new(vector.X * scalar, vector.Y * scalar);
+
+    public static LayoutVector operator *(double scalar, LayoutVector vector) => new(vector.X * scalar, vector.Y * scalar);
+
+    /// <summary>Divided as WPF's vector is, by multiplying by the reciprocal, so the two agree to the last bit.</summary>
+    public static LayoutVector operator /(LayoutVector vector, double scalar) => vector * (1.0 / scalar);
+
+    public double Length => Math.Sqrt((X * X) + (Y * Y));
 }
 
 /// <summary>
@@ -101,6 +112,21 @@ public readonly record struct LayoutRect
         var bottom = Math.Max(Math.Max(a.Y, b.Y), Math.Max(c.Y, d.Y));
 
         return new LayoutRect(left, top, right - left, bottom - top);
+    }
+
+    /// <summary>
+    /// The rectangle grown by <paramref name="x"/> at each side and <paramref name="y"/> at top and bottom — empty where that shrinks
+    /// it past nothing. An empty one stays empty, where WPF's throws.
+    /// </summary>
+    public static LayoutRect Inflate(LayoutRect rect, double x, double y)
+    {
+        if (rect.IsEmpty) return rect;
+
+        // Each side added in turn, as WPF grows its own, so the two agree to the last bit.
+        var width = rect.Width + x + x;
+        var height = rect.Height + y + y;
+
+        return width >= 0 && height >= 0 ? new LayoutRect(rect.X - x, rect.Y - y, width, height) : Empty;
     }
 
     public bool Contains(LayoutPoint point) =>

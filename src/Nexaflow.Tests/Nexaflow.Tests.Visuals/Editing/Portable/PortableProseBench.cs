@@ -17,6 +17,7 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 using Nexaflow.Visuals.Text.Markdown.Stages;
+using Nexaflow.Visuals.Text.Editor.Highlighting;
 
 namespace Nexaflow.Tests.Visuals.Editing.Portable;
 
@@ -274,6 +275,15 @@ public class PortableProseBench
             FigureBg = medium.Ink(style.FigureBg),
             FigureBorder = medium.Ink(style.FigureBorder),
             FooterBg = medium.Ink(style.FooterBg),
+            QrDark = medium.Ink(style.QrDark),
+            QrLight = medium.Ink(style.QrLight),
+            BarcodeDark = medium.Ink(style.BarcodeDark),
+            BarcodeLight = medium.Ink(style.BarcodeLight),
+            Series = [.. style.Series.Select(brush => (LayoutInk)medium.Ink(brush))],
+            Elements = style.Elements.ToDictionary(element => element.Key, element => (LayoutInk)medium.Ink(element.Value)),
+            Syntax = kind => SyntaxTokenMap.ResourceKey(kind) is { } key && Application.Current?.TryFindResource(key) is Brush brush
+                ? medium.Ink(brush)
+                : null,
             TextFont = style.TextFont.Source,
             MonoFont = style.MonoFont.Source,
             TextSize = style.TextSize,
