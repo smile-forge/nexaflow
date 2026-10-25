@@ -132,7 +132,7 @@ public sealed partial class ReadPageViewModel : ObservableObject
         if (_session is not { } session) return null;
         string path = session.Path;
         var recipe = session.Recipe;
-        return new PageSource(Key(path, recipe), path, 1, (_, ct) => Task.Run<string?>(() => PageAsync(path, recipe, ct), ct),
+        return new PageSource(Key(path, recipe), path, 1, (_, ct) => Task.Run<string?>(async () => await PageAsync(path, recipe, ct), ct),
                               ImageTabRegistration.StaticPageKind, new Dictionary<string, string> { ["paths"] = path });
     }
 

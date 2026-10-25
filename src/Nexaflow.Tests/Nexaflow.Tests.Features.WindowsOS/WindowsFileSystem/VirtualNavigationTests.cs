@@ -202,8 +202,8 @@ public class VirtualNavigationTests
         Nexaflow.IO.Common.VirtualFileSystem.Instance.UnregisterMount(fx.MountId);
 
         // Navigation is gated on the VFS, so a withdrawn location simply stops resolving rather than
-        // showing the user a folder that is no longer theirs to await browse.
-        vm.BrowseToAsync(Path.Combine(fx.VirtualRoot, "Documents"));
+        // showing the user a folder that is no longer theirs to browse.
+        await vm.BrowseToAsync(Path.Combine(fx.VirtualRoot, "Documents"));
         Assert.AreEqual(fx.VirtualRoot, vm.CurrentPath);
     }
 }

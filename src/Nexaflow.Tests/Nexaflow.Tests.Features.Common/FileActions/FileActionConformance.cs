@@ -156,11 +156,11 @@ public abstract class ViewerActionConformanceTests : FileActionConformanceTests
     }
 
     [TestMethod]
-    public void TheTwoOverloads_AgreeOnAFileThisActionHandles() =>
+    public Task TheTwoOverloads_AgreeOnAFileThisActionHandles() =>
         AssertOverloadsAgree(AcceptableFile);
 
     [TestMethod]
-    public void TheTwoOverloads_AgreeOnAFileThisActionDoesNotHandle() =>
+    public Task TheTwoOverloads_AgreeOnAFileThisActionDoesNotHandle() =>
         AssertOverloadsAgree(FileThisActionDoesNotHandle);
 
     /// <summary>
