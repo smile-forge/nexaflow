@@ -713,4 +713,15 @@ public class GraphAskTests
         StringAssert.Contains(GraphAsk.Run(repo, "search \"say \\\"hi\\\"\" | count", ReadQ).Text, "1 matching line(s)",
                               "and a literal search term has the escape taken back out");
     }
+
+    /// <summary>A pattern a caller typed runs in the resident process beside every other session's questions, so it gets a
+    /// budget: one that backtracked held a core for nearly ten minutes.</summary>
+    [TestMethod]
+    public void APatternACallerTyped_IsStoppedPastItsBudget_RatherThanRunningOn()
+    {
+        var rx = UserPattern.Compile(@"class \w+[^\n]*:\s*[^\n]*\bIFileAction\b");
+
+        Assert.AreEqual(TimeSpan.FromSeconds(90), UserPattern.Budget);
+        Assert.AreEqual(UserPattern.Budget, rx.MatchTimeout);
+    }
 }

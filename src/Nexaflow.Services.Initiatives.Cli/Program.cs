@@ -2210,7 +2210,7 @@ internal static class Program
         if (!TryLoadGraph(root, out var g, out var code, a.Has("--main"), recheck: a.Has("--refresh"))) return code;
 
         Regex rx;
-        try { rx = new Regex(pattern, RegexOptions.IgnoreCase); }
+        try { rx = UserPattern.Compile(pattern, RegexOptions.IgnoreCase); }
         catch (Exception ex) { Console.Error.WriteLine($"error: bad regex: {ex.Message}"); return Error; }
 
         var from = a.Value("--from");
@@ -2238,9 +2238,14 @@ internal static class Program
                                  .OrderBy(n => n.Id, StringComparer.Ordinal).ToList();
 
             var main = a.Has("--main");
-            var byNode = GraphQuery.GrepNodes(codeNodes.Take(scanCap), pattern, rel => TryReadLines(root, rel, main))
-                .GroupBy(h => h.Node.Id, StringComparer.Ordinal)
-                .ToDictionary(x => x.Key, x => x.Select(h => (h.Line, h.Text)).ToList(), StringComparer.Ordinal);
+            Dictionary<string, List<(int Line, string Text)>> byNode;
+            try
+            {
+                byNode = GraphQuery.GrepNodes(codeNodes.Take(scanCap), pattern, rel => TryReadLines(root, rel, main))
+                    .GroupBy(h => h.Node.Id, StringComparer.Ordinal)
+                    .ToDictionary(x => x.Key, x => x.Select(h => (h.Line, h.Text)).ToList(), StringComparer.Ordinal);
+            }
+            catch (RegexMatchTimeoutException) { return PatternTooSlow(pattern); }
             List<(int Line, string Text)> HitsIn(GraphNode n) => byNode.GetValueOrDefault(n.Id) ?? [];
 
             var tally = ScanContent(codeNodes, limit, scanCap, HitsIn, (n, hits) =>
@@ -2266,11 +2271,20 @@ internal static class Program
         {
             bool Matches(GraphNode n) => rx.IsMatch(n.Id) || (n.Label is { } lb && rx.IsMatch(lb))
                                          || (n.Metadata is { } m && m.Values.Any(v => rx.IsMatch(v)));
-            var hits = searched.Where(Matches).OrderBy(n => GraphQuery.TypeRank(n.Type)).ThenBy(n => n.Id, StringComparer.Ordinal).ToList();
+            List<GraphNode> hits;
+            try { hits = searched.Where(Matches).OrderBy(n => GraphQuery.TypeRank(n.Type)).ThenBy(n => n.Id, StringComparer.Ordinal).ToList(); }
+            catch (RegexMatchTimeoutException) { return PatternTooSlow(pattern); }
             foreach (var n in hits.Take(limit)) Console.WriteLine(GraphReport.NodeLine(n));
             Console.WriteLine($"{hits.Count} node(s) whose graph text matches /{pattern}/" + (hits.Count > limit ? $" — showing {limit}" : "") + ".");
         }
         return Clean;
+    }
+
+    /// <summary>Says a caller's pattern ran past its budget, and fails the command.</summary>
+    private static int PatternTooSlow(string pattern)
+    {
+        Console.Error.WriteLine($"error: {UserPattern.TooSlow(pattern)}");
+        return Error;
     }
 
     /// <summary>
