@@ -29,7 +29,7 @@ the root `CLAUDE.md`. This section fixes the tiers and the rules between them.
 | Contracts | `Nexaflow.Features.Common` | ALL feature-facing interfaces + small DTOs. Features and Core meet only here |
 | Features | `Nexaflow.Features.*` (~30, + 3 `Compressed.*` codec backends) | One assembly per feature; reflection-discovered, lazily loaded |
 | Shared leaves (non-contract) | `Nexaflow.Visuals.Common` (controls/converters/formatters), `Nexaflow.Visuals.Text` (markdown rendering), `Nexaflow.Visuals.Terminal` (terminal input logic), `Nexaflow.IO.Common` (encoding/line-endings, glob, hashing, base64 + `IStreamCodec`/`IArchiveHandler` codec contracts, the `VirtualFileSystem` over archives and mounts, the remote-location contracts and each runtime's `LocationFileSystem`, text index/transforms, file watching/splitting), `Nexaflow.IO.Terminal` (PTY host), `Nexaflow.Syntax` (tree-sitter engine) | Concrete shared code a feature may reference; never references Core or a feature |
-| Providers | `Nexaflow.Providers.Common` + one project per LLM backend (Claude, Gemini, OpenAI, Ollama, Aria) | Loaded by file name at runtime; never compile-time referenced |
+| Providers | `Nexaflow.Providers.Common` and `Nexaflow.Providers.OpenAICompatible` (the chat-completions wire format OpenAI and xAI share) + one project per backend (Claude, Gemini, OpenAI, xAI, Ollama, Aria) | Loaded by file name at runtime; never compile-time referenced |
 | Elevation | `Nexaflow.Elevation.Contracts` (pure DTO leaf) + `Nexaflow.PrivilegeBridge` (separate elevated exe) | The admin-action trust boundary — see [Elevation / Privilege Bridge](#elevation--privilege-bridge) |
 | Languages | `Nexaflow.Language.<code>` under `src/Nexaflow.Languages/` — one resource-only pack per language, gathered from every project's `Localization/<code>/` | Shipped to `Languages\` and loaded by path, never referenced — see [localization.md](localization.md) |
 | Initiatives | `Nexaflow.Services.Initiatives` + `Nexaflow.Services.Initiatives.Cli` (`nfi`) | WPF-free backend for the product tree, the knowledge graph, `SnaplinkValidator` and graph edit plans — never references WPF, Core or a feature. The CLI runs the same validator headlessly for the installer's build gate (exit 1 = broken links) — see [product-graph.md](product-graph.md) |
@@ -248,7 +248,7 @@ that acts on a finished answer — tool ranking, image descriptions, analysis �
 with the `CompleteAsync` extension. Aria answers whole and yields one event.
 
 Each provider also says **where a request's content goes** (`Residency`: it leaves this machine, or stays on it —
-read from the endpoint for Ollama and for an OpenAI- or Claude-compatible base URL) and whether it **can take a
+read from the endpoint for Ollama and for a base URL set on OpenAI, xAI or Claude) and whether it **can take a
 request now** (`IsAvailable`; the API-key providers are not without a key). `AIService` walks an ability's chain to
 the first available provider, whatever the page. When the page's `GetContextSecurityRisk` is `High` — a conversation
 is as high-risk as the riskiest page pinned in it — and a model that would read it sends data off this machine,
@@ -312,6 +312,8 @@ All providers implement `IAiProvider` through their kind's contract (and optiona
 | `Nexaflow.Providers.Claude` | Anthropic Claude API over HTTPS. |
 | `Nexaflow.Providers.Gemini` | Google Gemini API over HTTPS. |
 | `Nexaflow.Providers.OpenAI` | OpenAI API over HTTPS: chat models, and the realtime transcription API for speech to text. |
+| `Nexaflow.Providers.OpenAICompatible` | Not a provider: `ChatCompletionsLlmProvider`, the chat-completions wire format (messages, tools, the streamed reply, the model list) that the OpenAI and xAI language models derive from, each saying only its name, endpoint, key and what its models can do. Shared like `Providers.Common`, so it declares no concrete provider or config (`ArchitectureRulesTests`). |
+| `Nexaflow.Providers.XAI` | xAI's Grok models over its OpenAI-compatible API. Which models it serves, which take pictures and how much each reads come from xAI's own model endpoints (`/language-models`, `/models/{id}`), not from the model's name. |
 | `Nexaflow.Providers.Whisper` | whisper.cpp (Whisper.net) on this machine's CPU: Dictation only, with Whisper base, where the machine runs none of Nexaflow's own speech models; its models come from the asset store. |
 | `Nexaflow.Providers.Ollama` | Ollama REST API for locally-hosted models. |
 

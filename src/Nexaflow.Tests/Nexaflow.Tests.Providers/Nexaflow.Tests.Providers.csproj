@@ -22,7 +22,9 @@
     <ProjectReference Include="..\..\Nexaflow.Providers\Nexaflow.Providers.Gemini\Nexaflow.Providers.Gemini.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Providers\Nexaflow.Providers.Ollama\Nexaflow.Providers.Ollama.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Providers\Nexaflow.Providers.OpenAI\Nexaflow.Providers.OpenAI.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Providers\Nexaflow.Providers.OpenAICompatible\Nexaflow.Providers.OpenAICompatible.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Providers\Nexaflow.Providers.Whisper\Nexaflow.Providers.Whisper.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Providers\Nexaflow.Providers.XAI\Nexaflow.Providers.XAI.csproj" />
     <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
   </ItemGroup>
 

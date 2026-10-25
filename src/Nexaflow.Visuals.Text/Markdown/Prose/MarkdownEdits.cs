@@ -65,6 +65,9 @@ internal sealed partial class MarkdownEdits : IContentLanguage, IOnEdit
     /// <inheritdoc/>
     public IOnEdit OnEdit => this;
 
+    /// <summary>Prose is chosen by the letter: a drag from one word to another starts and ends where it was pointed, across lines, marks and formulas alike.</summary>
+    public bool ChosenByLetter => true;
+
     /// <summary>
     /// A block to start in every language there is one to start in (<see cref="ContentLanguages.Insertable"/>), each drawn as its icon and
     /// named for a reader hovering over it — nothing, where the reader may not write.

@@ -177,8 +177,8 @@ public sealed partial class ProtectedText
     /// </summary>
     public static string? Problem(string source, string answer)
     {
-        // Something written as a mark that is none — two numbers run together, a word bracketed — is not words a reader can
-        // read either; the passage's own text is the only place one may stand.
+        // Something written as a mark that is none — two numbers run together, a word bracketed, a tag named by words — is not
+        // words a reader can read either; the passage's own text is the only place one may stand.
         if (Strays().Matches(answer).Select(stray => stray.Value).FirstOrDefault(stray => !Mark().IsMatch(stray) && !source.Contains(stray)) is { } made)
             return $"{made} is no mark of this passage: write what it stands for as words, or the passage's own marks as they are";
 
@@ -437,8 +437,11 @@ public sealed partial class ProtectedText
     [GeneratedRegex(@"⟦\s*(?<hold>\d+)(?:\s[^⟧]*)?⟧|<\s*(?<closes>/?)\s*(?<pair>\d+)\s*>")]
     private static partial Regex Mark();
 
-    /// <summary>Anything written between the brackets a mark is written in.</summary>
-    [GeneratedRegex(@"⟦[^⟦⟧]*⟧")]
+    /// <summary>
+    /// Anything written between the brackets a mark is written in, and a tag named by words rather than a number — a model
+    /// marking a name or a term the way the passage's own pairs mark words, which looks like one of them and is none.
+    /// </summary>
+    [GeneratedRegex(@"⟦[^⟦⟧]*⟧|</?[\p{L}_][^<>\n]{0,80}>")]
     private static partial Regex Strays();
 
     [GeneratedRegex(@"\s*\n\s*")]

@@ -169,7 +169,7 @@ internal static class DaemonServer
                 DaemonLog.Say("-", "crash", (e.ExceptionObject?.ToString() ?? "unknown").ReplaceLineEndings(" | "));
 
             RequestScope.Install();
-            using var host = new InitiativesHost(root);
+            using var host = new InitiativesHost(root, new DaemonMeter());
 
             // Read once, up front, because that is what starts the watcher: the tree is small, and without this
             // nothing here would ever notice it change — the verbs each load their own copy and tell no one.
@@ -283,7 +283,7 @@ internal static class DaemonServer
             }
 
             work = Ledger.Accept(request.Ticket, request.Args, request.CodeRoot ?? "");
-            DaemonLog.Say(work.Ticket, "accept", WorkLedger.Describe(request.Args));
+            DaemonLog.Say(work.Ticket, "accept", $"{DaemonMeter.TreeName(request.CodeRoot)}  {WorkLedger.Describe(request.Args)}");
             DaemonProtocol.Write(server, new DaemonAck(work.Ticket, true, null));
 
             if (request.Stop) stopping.Cancel();
@@ -407,6 +407,7 @@ internal static class DaemonServer
                 Stdin        = request.Stdin,
                 Host         = host,
                 Cancellation = gone,
+                Ticket       = work.Ticket,
             });
 
             var code = request.Args.Length == 0 ? 0 : Program.Execute(request.Args);
@@ -421,14 +422,9 @@ internal static class DaemonServer
         }
         finally
         {
+            // Nothing is written here: a tree writes its own archive a moment after it changes, off every caller's path
+            // (see GraphWorkspace.Flush), so an answer never waits for tens of megabytes to go to disk.
             for (var i = held.Count - 1; i >= 0; i--) held[i].Semaphore.Release();
-
-            // Whatever the command changed is on disk before the next caller can ask for it, so an abrupt end costs a
-            // load rather than a rebuild — a read too, whose catching up is a change like any other. This tree's alone:
-            // flushing every tree took every tree's lock, so one tree's answer waited behind whatever another tree was in
-            // the middle of. A command that was abandoned has nothing of the tree's to write: the tree moved on without it.
-            if (!held.Exists(turn => turn.Abandoned.IsCancellationRequested))
-                try { host.Flush(request.CodeRoot); } catch (IOException) { }
         }
     }
 

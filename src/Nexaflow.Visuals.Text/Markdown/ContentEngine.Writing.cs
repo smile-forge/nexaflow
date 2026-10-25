@@ -326,6 +326,14 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
+    /// Writes <paramref name="text"/> over a stretch exactly as it is given — what was written somewhere else, already in this
+    /// document's own characters, so nothing a language makes of a key typed here is made of it — as a step that can be taken
+    /// back, with the caret just after it, so the next one written there carries on the same step.
+    /// </summary>
+    internal void WriteAsGiven(int start, int length, string text) =>
+        Apply((length > 0 ? _state.Select(start, length) : _state.MoveCaretTo(start)).Write(text).MoveCaretTo(start + text.Length), notify: true);
+
+    /// <summary>
     /// Inserts text at the caret, replacing any selection — how a palette key types itself. <paramref name="caretBack"/> walks
     /// the caret into a template's first hole.
     /// </summary>
@@ -523,7 +531,7 @@ public sealed partial class ContentEngine
     {
         if (length <= 0) { ClearSelection(); return; }
 
-        var (from, snapped) = _laid.Root.Snap(start, length);
+        var (from, snapped) = _laid.Root.Snap(start, length, ByLetter);
 
         var next = _state.Select(from, snapped);
         if (!Unpick() && next.Selection.SequenceEqual(_state.Selection)) return;

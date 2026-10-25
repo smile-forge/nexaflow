@@ -1,8 +1,11 @@
+using ICSharpCode.AvalonEdit;
+using ICSharpCode.AvalonEdit.Rendering;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Markdown.ViewModels;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Visuals.Text.Editor;
 using Nexaflow.Visuals.Text.Markdown;
 using System;
 using System.Collections.Generic;
@@ -46,11 +49,22 @@ public partial class MarkdownView : UserControl, IPageView
         // Search collaboration: the rendered surface (the inline editor) owns its own highlighting; the
         // source box's match is shown by selecting it. The VM decides which is active.
         viewModel.FindInRendered        = Editor.FindInRendered;
+        viewModel.RenderedFound         = () => (Editor.Found, Editor.At);
         viewModel.StepRendered          = Editor.StepSearch;
         viewModel.ClearRendered         = Editor.ClearSearch;
         viewModel.RenderedMarkPositions = Editor.SearchMarkPositions;
         viewModel.SourceSelectionRequested += SelectInSource;
         viewModel.PropertyChanged += OnSearchPropertyChanged;
+
+        // Laid out again — folded, opened, laid further, written in — so where the matches stand is read again.
+        Editor.PreRender += (_, _) => viewModel.RenderedLaidOut();
+
+        // The raw half: the document's text, kept in step with it both ways; the theme's caret; and the wash a search paints.
+        TakeDocument(viewModel.Markdown ?? string.Empty);
+        SourceBox.Document.UndoStack.ClearAll();
+        SourceBox.TextChanged += (_, _) => TakeSourceEdit();
+        SourceBox.TextArea.Caret.CaretBrush = (Brush)FindResource("AccentBrush");
+        SourceBox.TextArea.TextView.BackgroundRenderers.Add(_sourceWash);
         Unloaded += (_, _) =>
         {
             viewModel.SourceSelectionRequested -= SelectInSource;
@@ -86,8 +100,7 @@ public partial class MarkdownView : UserControl, IPageView
 
         // In the split both halves show the one document, so they are held at the same place in it: whichever one
         // the reader moves says which character it now starts at, and the other is put there too.
-        SourceBox.AddHandler(ScrollViewer.ScrollChangedEvent,
-                             new ScrollChangedEventHandler((_, _) => Paired(fromSource: true)));
+        SourceBox.TextArea.TextView.ScrollOffsetChanged += (_, _) => Paired(fromSource: true);
         Editor.PlaceChanged += (_, _) => Paired(fromSource: false);
 
         Focusable = true;
@@ -169,10 +182,18 @@ public partial class MarkdownView : UserControl, IPageView
     /// <summary>
     /// Follows the view-mode slider: lays the surfaces out, then puts the caret where the slider was going.
     /// Sliding toward Source lands in the raw box and back toward Rendered in the rendered editor — which in
-    /// the split is whichever half just appeared — so typing works the moment the pane arrives.
+    /// the split is whichever half just appeared — so typing works the moment the pane arrives. The reader stays where they
+    /// were in the document, and a live search goes on from the match they were on.
     /// </summary>
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // Written in the rendered half, or read from the file again: the raw half is given it.
+        if (e.PropertyName == nameof(MarkdownViewModel.Markdown))
+        {
+            TakeDocument(ViewModel.Markdown ?? string.Empty);
+            return;
+        }
+
         // Saved as a file somewhere else: its pictures are read beside that one now.
         if (e.PropertyName == nameof(MarkdownViewModel.DocumentFolder))
         {
@@ -181,7 +202,13 @@ public partial class MarkdownView : UserControl, IPageView
         }
         if (e.PropertyName != nameof(MarkdownViewModel.ViewMode)) return;
 
-        var towardsSource = ViewModel.ViewMode > _laidOut;
+        var was = _laidOut;
+        var towardsSource = ViewModel.ViewMode > was;
+
+        // Read before the columns change: the surface going away has no layout left to say it from afterwards.
+        var at = ReaderAt();
+        var fromSource = was is MarkdownViewMode.Source || (was is MarkdownViewMode.Split && _ledBySource);
+
         ApplyViewMode();
         Dispatcher.BeginInvoke(() =>
         {
@@ -189,11 +216,14 @@ public partial class MarkdownView : UserControl, IPageView
             else               Editor.Focus();
         });
 
-        // Arriving at the split, the half the reader was already on says where both of them stand. Queued at Loaded
-        // priority because neither half has a layout to be anywhere in until the new column widths have been through one.
-        if (ViewModel.ViewMode is MarkdownViewMode.Split)
-            Dispatcher.BeginInvoke(() => Paired(fromSource: !towardsSource),
-                                   System.Windows.Threading.DispatcherPriority.Loaded);
+        // Neither surface has a layout to be anywhere in until the new column widths have been through one, so the reader is
+        // put back at Loaded priority. A search carried across goes on after that, once the halves have let go of each other
+        // (ArriveAt): bringing its match into view moves a half, which the other then follows as it follows the reader.
+        Dispatcher.BeginInvoke(() =>
+        {
+            ArriveAt(at, fromSource);
+            Dispatcher.BeginInvoke(ViewModel.CarrySearchToShownSurface, System.Windows.Threading.DispatcherPriority.Background);
+        }, System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     /// <summary>What the columns were last laid out for. The XAML starts them on <see cref="MarkdownViewMode.Rendered"/>.</summary>
@@ -239,26 +269,79 @@ public partial class MarkdownView : UserControl, IPageView
         SplitterColumn.Width = mode is MarkdownViewMode.Split ? GridLength.Auto : Gone;
     }
 
-    // The rendered surface reports its match positions only after it has laid out, so read them on a queued
-    // pass rather than the instant the count changes.
+    // The marks, and the places the raw half washes, come from the view-model whenever the search or the page under it moves.
     private void OnSearchPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(MarkdownViewModel.MiniMapMarks)) return;
-        MiniMapCanvas.Marks = ViewModel.MiniMapMarks;
+        switch (e.PropertyName)
+        {
+            case nameof(MarkdownViewModel.MiniMapMarks):
+                MiniMapCanvas.Marks = ViewModel.MiniMapMarks;
+                break;
+
+            case nameof(MarkdownViewModel.SourceSearch):
+                (_sourceWash.Highlights, _sourceWash.Current) = ViewModel.SourceSearch;
+                SourceBox.TextArea.TextView.InvalidateLayer(_sourceWash.Layer);
+                break;
+        }
     }
 
-    /// <summary>Selects a span of the raw source and scrolls it into view. Queued at Loaded priority because
-    /// the search switches to the source surface in the same beat — the box has no layout until that lands.</summary>
+    /// <summary>Washes what a search found in the raw half — the renderer every editor in the app paints its matches with.</summary>
+    private readonly SearchHighlightRenderer _sourceWash = new();
+
+    // ── The raw half, kept in step with the document ──────────────────────
+
+    /// <summary>
+    /// Puts what the document now says into the raw half, where it changed somewhere else — written in the rendered half, read
+    /// from the file again. Only the stretch that differs is replaced, so the caret, the place and what can be undone outside it
+    /// stay as they were, and a keystroke in a long document is not the whole of it written out again.
+    /// </summary>
+    private void TakeDocument(string markdown)
+    {
+        var document = SourceBox.Document;
+        var change = SourceDifference.Between(document.Text, markdown);
+        if (change.None) return;
+
+        _takingDocument = true;
+        try
+        {
+            document.Replace(change.Start, change.Removed, markdown.Substring(change.Start, change.Added));
+        }
+        finally
+        {
+            _takingDocument = false;
+        }
+    }
+
+    /// <summary>
+    /// What the reader wrote in the raw half, given to the rendered half as an edit of the same document — so what it can take back
+    /// and what it was finding go on — and from there to the document. Not when it is the raw half being given the document.
+    /// </summary>
+    private void TakeSourceEdit()
+    {
+        if (_takingDocument) return;
+
+        Editor.TakeEdit(SourceBox.Text);
+    }
+
+    /// <summary>Whether the raw half is being given what the document says, so its own report of that change is not taken for writing.</summary>
+    private bool _takingDocument;
+
+    /// <summary>
+    /// Puts the raw half's caret on a match, picked out, and scrolls it into view. The keyboard stays where the reader left it:
+    /// the wash shows every match whether or not the half has it. Queued at Loaded priority because a change of view lays the
+    /// half out in the same beat, and it has no layout to scroll until that lands.
+    /// </summary>
     private void SelectInSource(int offset, int length)
     {
         Dispatcher.BeginInvoke(() =>
         {
-            var max = SourceBox.Text.Length;
+            var max = SourceBox.Document.TextLength;
             if (offset < 0 || offset > max) return;
 
-            SourceBox.Focus();
             SourceBox.Select(offset, Math.Min(length, max - offset));
-            SourceBox.ScrollToLine(SourceBox.GetLineIndexFromCharacterIndex(offset));
+
+            var at = SourceBox.Document.GetLocation(offset);
+            SourceBox.ScrollTo(at.Line, at.Column);
         }, System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
@@ -274,34 +357,48 @@ public partial class MarkdownView : UserControl, IPageView
     {
         if (_pairing || !ViewModel.IsSplit) return;
 
+        _ledBySource = fromSource;
+
+        var at = fromSource ? SourceTop() : Editor.ShownFrom;
+        if (at >= 0) WhilePairing(() => PutBeside(at, fromSource));
+    }
+
+    /// <summary>Puts the half that did not move beside <paramref name="at"/>, where the one that did now stands.</summary>
+    private void PutBeside(int at, bool fromSource)
+    {
+        var block = Editor.BlockAt(at);
+        var mine = fromSource ? SourceShowsWhole(block) : Editor.ShowsWhole(block);
+        var theirs = fromSource ? Editor.ShowsWhole(block) : SourceShowsWhole(block);
+
+        // Lines carry across while both halves show the block as lines. Where one of them draws it far bigger
+        // than the other writes it — a diagram a page and a half tall from ten lines of source — no place
+        // inside it answers to a place inside the other, and only its edges mean anything to both.
+        if (!mine && theirs)
+        {
+            // What the reader wants beside a drawing they are partway down is the whole of the short source it
+            // was made from, however far into it they have read.
+            at = block.Start;
+        }
+        else if (mine && !theirs && at > block.Start)
+        {
+            // And the other way about: past the first line of that source, the drawing it makes is behind the
+            // reader, so what both halves can still mean is the block after it.
+            if (Editor.BlockAfter(at) is { Length: > 0 } next) at = next.Start;
+        }
+
+        if (fromSource) Editor.ShowFrom(at);
+        else            ShowSourceFrom(at);
+    }
+
+    /// <summary>
+    /// Moves a half while holding the halves apart, so the report its move makes is not read as the reader moving it.
+    /// </summary>
+    private void WhilePairing(Action move)
+    {
         _pairing = true;
         try
         {
-            var at = fromSource ? SourceTop() : Editor.ShownFrom;
-            if (at < 0) return;
-
-            var block = Editor.BlockAt(at);
-            var mine = fromSource ? SourceShowsWhole(block) : Editor.ShowsWhole(block);
-            var theirs = fromSource ? Editor.ShowsWhole(block) : SourceShowsWhole(block);
-
-            // Lines carry across while both halves show the block as lines. Where one of them draws it far bigger
-            // than the other writes it — a diagram a page and a half tall from ten lines of source — no place
-            // inside it answers to a place inside the other, and only its edges mean anything to both.
-            if (!mine && theirs)
-            {
-                // What the reader wants beside a drawing they are partway down is the whole of the short source it
-                // was made from, however far into it they have read.
-                at = block.Start;
-            }
-            else if (mine && !theirs && at > block.Start)
-            {
-                // And the other way about: past the first line of that source, the drawing it makes is behind the
-                // reader, so what both halves can still mean is the block after it.
-                if (Editor.BlockAfter(at) is { Length: > 0 } next) at = next.Start;
-            }
-
-            if (fromSource) Editor.ShowFrom(at);
-            else            ShowSourceFrom(at);
+            move();
         }
         finally
         {
@@ -311,51 +408,103 @@ public partial class MarkdownView : UserControl, IPageView
         }
     }
 
+    /// <summary>
+    /// Where the reader is, as a place in the source: the top of whichever surface is showing — in the split, the half they
+    /// moved last — or -1 where it has no layout to be anywhere in. Read before a change of view lays the surfaces out again.
+    /// </summary>
+    private int ReaderAt() => _laidOut switch
+    {
+        MarkdownViewMode.Source => SourceTop(),
+        MarkdownViewMode.Split when _ledBySource => SourceTop(),
+        _ => Editor.ShownFrom,
+    };
+
+    /// <summary>
+    /// Puts the surfaces a change of view has just shown at <paramref name="at"/>, where the reader was before it — a surface
+    /// that has been out of sight, or laid again at another width, is otherwise wherever it was left, which is usually the top.
+    /// In the split the half the reader came from is put there and the other beside it, as the split always holds them.
+    /// </summary>
+    /// <param name="fromSource">Whether the reader came from the raw box rather than the rendered surface.</param>
+    private void ArriveAt(int at, bool fromSource)
+    {
+        if (at < 0) return;
+
+        WhilePairing(() =>
+        {
+            switch (ViewModel.ViewMode)
+            {
+                case MarkdownViewMode.Source:
+                    ShowSourceFrom(at);
+                    break;
+
+                case MarkdownViewMode.Rendered:
+                    Editor.ShowFrom(at);
+                    break;
+
+                default:
+                    _ledBySource = fromSource;
+                    if (fromSource) ShowSourceFrom(at);
+                    else            Editor.ShowFrom(at);
+
+                    PutBeside(at, fromSource);
+                    break;
+            }
+        });
+    }
+
     /// <summary>Whether a half is being put where the other one stands, so its own report is not read as the reader moving.</summary>
     private bool _pairing;
 
+    /// <summary>Whether the half of the split the reader moved last is the raw box.</summary>
+    private bool _ledBySource;
+
     /// <summary>
-    /// The character the raw box's first whole line starts at, or -1 before it has a line to be on. The line the
-    /// top edge cuts through is not it: a drag of the scrollbar comes to rest anywhere, so half the line above is
-    /// usually still showing, and answering with it has the other half display the whole of what this one has all
-    /// but scrolled past.
+    /// The character the raw half's first whole row starts at, or -1 before it has a row to be on. The row the top edge cuts
+    /// through is not it: a drag of the scrollbar comes to rest anywhere, so half the row above is usually still showing, and
+    /// answering with it has the other half display the whole of what this one has all but scrolled past. A line wrapped onto
+    /// several rows is read row by row, so a long paragraph scrolled half past is answered from where its showing rows start.
     /// </summary>
     private int SourceTop()
     {
-        var line = SourceBox.GetFirstVisibleLineIndex();
-        if (line < 0) return -1;
+        var view = SourceBox.TextArea.TextView;
+        view.EnsureVisualLines();
 
-        var at = SourceBox.GetCharacterIndexFromLineIndex(line);
-        if (line + 1 < SourceBox.LineCount
-            && SourceBox.GetRectFromCharacterIndex(at) is { IsEmpty: false, Top: var top } && top < SourceBox.Padding.Top - Hair)
-            at = SourceBox.GetCharacterIndexFromLineIndex(line + 1);
+        var top = view.ScrollOffset.Y;
+        if (view.GetVisualLineFromVisualTop(top) is not { } line) return -1;
 
-        return at;
+        foreach (var row in line.TextLines)
+            if (line.GetTextLineVisualYPosition(row, VisualYPosition.LineTop) >= top - Hair)
+                return line.FirstDocumentLine.Offset + line.GetRelativeOffset(line.GetTextLineVisualStartColumn(row));
+
+        return line.LastDocumentLine.NextLine?.Offset ?? line.FirstDocumentLine.Offset;
     }
 
     /// <summary>Closer than this and two places on the page are the one place.</summary>
     private const double Hair = 0.5;
 
-    /// <summary>Puts the line the character at <paramref name="offset"/> is on at the top of the raw box.</summary>
+    /// <summary>Puts the row the character at <paramref name="offset"/> is on at the top of the raw half.</summary>
     private void ShowSourceFrom(int offset)
     {
-        if (offset < 0 || offset > SourceBox.Text.Length) return;
+        if (offset < 0 || offset > SourceBox.Document.TextLength) return;
 
-        var at = SourceBox.GetRectFromCharacterIndex(offset);
-        if (at.IsEmpty) return;
-
-        SourceBox.ScrollToVerticalOffset(SourceBox.VerticalOffset + at.Top - SourceBox.Padding.Top);
+        var at = SourceTopOf(offset);
+        if (!double.IsNaN(at)) SourceBox.ScrollToVerticalOffset(at);
     }
 
-    /// <summary>Whether the raw box can show the whole of a stretch of source at once.</summary>
+    /// <summary>How far down the raw half's text the row holding <paramref name="offset"/> starts.</summary>
+    private double SourceTopOf(int offset) =>
+        SourceBox.TextArea.TextView.GetVisualPosition(new TextViewPosition(SourceBox.Document.GetLocation(offset)), VisualYPosition.LineTop).Y;
+
+    /// <summary>Whether the raw half can show the whole of a stretch of source at once.</summary>
     private bool SourceShowsWhole((int Start, int Length) block)
     {
         if (block.Length <= 0 || SourceBox.ViewportHeight <= 0) return false;
 
-        var opens = SourceBox.GetRectFromCharacterIndex(block.Start);
-        var closes = SourceBox.GetRectFromCharacterIndex(Math.Min(block.Start + block.Length, SourceBox.Text.Length));
+        var view = SourceBox.TextArea.TextView;
+        var closes = Math.Min(block.Start + block.Length, SourceBox.Document.TextLength);
+        var bottom = view.GetVisualPosition(new TextViewPosition(SourceBox.Document.GetLocation(closes)), VisualYPosition.LineBottom).Y;
 
-        return !opens.IsEmpty && !closes.IsEmpty && closes.Bottom - opens.Top <= SourceBox.ViewportHeight;
+        return bottom - SourceTopOf(block.Start) <= SourceBox.ViewportHeight;
     }
 
     // ── IPageView ─────────────────────────────────────────────────────────

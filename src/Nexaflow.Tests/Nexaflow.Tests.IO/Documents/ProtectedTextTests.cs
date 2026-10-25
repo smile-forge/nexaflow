@@ -127,6 +127,20 @@ public class ProtectedTextTests
     }
 
     [TestMethod]
+    public void ATagNamedByWords_IsNoMarkOfThePassage_UnlessThePassageWritesIt()
+    {
+        // What a model does with the pairs it is shown, given a glossary: marks the terms the same way, named by the terms.
+        const string Source = "eine gewöhnliche Differentialgleichung (GDG)";
+
+        StringAssert.Contains(ProtectedText.Problem(Source, "an <ordinary differential equation>ordinary differential equation</ordinary differential equation> (GDG)"),
+            "<ordinary differential equation> is no mark", "so it is asked for again rather than written into the document as words");
+        StringAssert.Contains(ProtectedText.Problem("eine <1>GDG</1>", "an <1><GDG>GDG</GDG></1>"), "<GDG> is no mark", "inside one of its own pairs too");
+
+        Assert.IsNull(ProtectedText.Problem("wenn a < b und c > d", "if a < b and c > d"), "a comparison is not a tag");
+        Assert.IsNull(ProtectedText.Problem("der Typ <T>", "the type <T>"), "and a passage that writes one keeps it");
+    }
+
+    [TestMethod]
     public void WhatIsWrong_IsTheSentencesRoundIt_BoundedBySentencesTheAnswerHasRight()
     {
         const string source = "A ⟦0⟧ a. B ⟦1⟧ b. C ⟦2⟧ c. D ⟦3⟧ d. E ⟦4⟧ e. F ⟦5⟧ f.";

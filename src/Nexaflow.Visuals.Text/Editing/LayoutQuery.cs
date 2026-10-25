@@ -1030,15 +1030,22 @@ public static class LayoutQuery
     }
 
     /// <summary>
-    /// Every piece standing for a place wholly inside a stretch of source — and, where <paramref name="near"/> says, reaching
-    /// into that part of the page.
+    /// What a stretch of source takes: every piece standing wholly inside it, and every piece drawn as something other than
+    /// what was written whose edge it runs across. Such a piece — an escape, an entity, a numbered marker — cannot be measured
+    /// inside, since nothing it draws stands for one character of its source rather than another; so a stretch that begins
+    /// part way into one and runs on past it, or the other way round, takes the whole of what it draws. A stretch lying
+    /// wholly inside one says nothing about which of what it draws is meant, and takes none of it. Where
+    /// <paramref name="near"/> says, only what reaches into that part of the page.
     /// </summary>
     private static HashSet<Piece> Covered(Piece root, int start, int length, Rect? near = null)
     {
         var end = start + length;
 
         return SittingIn(root, start, end, near)
-            .Where(piece => piece.Stands() && piece.Sits().Start >= start && piece.Sits().End <= end)
+            .Where(piece => piece.Stands() && piece.Sits() is var sits
+                            && (sits.Start >= start && sits.End <= end
+                                || piece is { Words.Maps: false } && sits.Start < end && sits.End > start
+                                   && (sits.Start < start && sits.End < end || sits.Start > start && sits.End > end)))
             .ToHashSet();
     }
 
@@ -1266,7 +1273,14 @@ public static class LayoutQuery
     /// pieces, so it can never be a half-open brace, and the same call snaps a drag over half a beam group to
     /// the group without knowing what a brace or a beam is.
     /// </summary>
-    public static (int Start, int Length) Snap(this Piece root, int start, int length)
+    public static (int Start, int Length) Snap(this Piece root, int start, int length) => root.Snap(start, length, static _ => false);
+
+    /// <summary>
+    /// <see cref="Snap(Piece, int, int)"/>, keeping each end that is in words <paramref name="byLetter"/> says are chosen by the
+    /// letter at the letter it is at: a drag from the middle of one word to the middle of another starts and ends where it was
+    /// pointed, however much lies between. Only an end anywhere else is grown out to the whole things there.
+    /// </summary>
+    public static (int Start, int Length) Snap(this Piece root, int start, int length, Func<Piece, bool> byLetter)
     {
         var whole = root.Sits();
         var from = Math.Clamp(Math.Min(start, start + length), whole.Start, whole.End);
@@ -1278,6 +1292,9 @@ public static class LayoutQuery
         if (root.WordsAt(from) is { Part: { } written } && from >= written.Start && to <= written.End())
             return (from, to - from);
 
+        var (fromKept, toKept) = (AmongLetters(root, from, byLetter), AmongLetters(root, to, byLetter));
+        if (fromKept && toKept) return (from, to - from);
+
         // Whatever lies wholly inside the range was dragged over — every piece, not only the ink, so a drag
         // from before a root's sign to past its contents takes the root itself and not merely what is under
         // the bar. Anything only half inside is left to promotion, which is what stops a range that clipped a
@@ -1288,6 +1305,9 @@ public static class LayoutQuery
 
         if (touched.Count == 0)
         {
+            // Letters at one end are something visible already.
+            if (fromKept || toKept) return (from, to - from);
+
             // The range covers only characters nothing was drawn for — a lone brace, say, or half of a
             // command's name. Snap to whatever is nearest, so a selection is always of something visible.
             var nearest = NearestWritten(root, from, to);
@@ -1298,9 +1318,15 @@ public static class LayoutQuery
         var promoted = Promote(touched);
         if (promoted.Count == 0) return (from, to - from);
 
-        var (first, last) = (promoted.Min(piece => piece.Sits().Start), promoted.Max(piece => piece.Sits().End));
+        var first = fromKept ? from : promoted.Min(piece => piece.Sits().Start);
+        var last = toKept ? to : promoted.Max(piece => piece.Sits().End);
         return (first, last - first);
     }
+
+    /// <summary>Whether <paramref name="offset"/> is a place among the letters of words <paramref name="byLetter"/> says are chosen by the letter.</summary>
+    private static bool AmongLetters(Piece root, int offset, Func<Piece, bool> byLetter) =>
+        SittingIn(root, offset, offset).Any(piece => piece is { Words.Maps: true } && piece.Part is { Length: > 0 } part
+                                                   && offset >= part.Start && offset <= part.End() && byLetter(piece));
 
     /// <summary>
     /// The leaf sitting nearest a stretch of source: the least of how far its start is from <paramref name="from"/> and its end

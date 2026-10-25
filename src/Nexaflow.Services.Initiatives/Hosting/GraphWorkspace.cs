@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -39,18 +40,24 @@ public sealed record GraphReading(GraphSnapshot? Snapshot, GraphCatchUp CatchUp)
 /// <b>Versions, not a lock.</b> What a reader is handed (<see cref="Current"/>) is never changed again. A change —
 /// a refresh, an edit merged back, the product layer redone — is made to a fork and published in its place, so any
 /// number of commands read one tree at once, a long one keeps the version it started with, and none of them waits
-/// for a writer or sees one half-way. Building the next version is what is serialised, and that is milliseconds.
+/// for a writer or sees one half-way. Building the next version is what is serialised; writing the archive is not —
+/// it is done from a published version, which nothing changes, outside the lock (<see cref="Flush"/>), and a holder
+/// that lives on does it a moment after the change rather than on anyone's request path.
 /// </para>
 /// <para>
 /// <b>Currency is tracked, not checked per question.</b> A workspace that watches (<c>watch: true</c>, which a
 /// resident host asks for) collects what changes under its tree as it happens, folds it into the next version a
-/// quiet moment later, and answers a query without looking at the disk at all; a reader arriving before that
-/// catches up first rather than answer from what it knows is behind. Known is the word: a change is known once the system
-/// reports it, which is milliseconds after it lands — the one window in which a question can beat its own tree. Everything else — a process starting, a
-/// watcher that lost track, a workspace not watching — is one scan of the stamps (<see cref="GraphFreshness"/>).
-/// Whatever is found is folded in, however much: a branch switched or merged under a session is that session's code
-/// now, and a graph that only reported it left every query describing the old one. When so much has moved that
-/// reading it all is the cost, git vouches for what it can (<see cref="GraphAnchor"/>) and only the rest is read.
+/// quiet moment later, and answers a query without looking at the disk at all. What it has collected and not yet
+/// folded, a reader judges for itself against the published version — a stat per path, no lock — and only a path
+/// that version does not describe sends it to wait for the catch-up, rather than answer from what it knows is behind.
+/// That is the common case made free: most of what a watcher reports is the graph's own edits, already folded in by
+/// the time the notification lands. Known is the word: a change is known once the system reports it, which is
+/// milliseconds after it lands — the one window in which a question can beat its own tree. Everything else — a
+/// process starting, a watcher that lost track, a workspace not watching — is one scan of the stamps
+/// (<see cref="GraphFreshness"/>). Whatever is found is folded in, however much: a branch switched or merged under a
+/// session is that session's code now, and a graph that only reported it left every query describing the old one.
+/// When so much has moved that reading it all is the cost, git vouches for what it can (<see cref="GraphAnchor"/>)
+/// and only the rest is read.
 /// </para>
 /// </summary>
 public sealed class GraphWorkspace : IDisposable
@@ -62,19 +69,37 @@ public sealed class GraphWorkspace : IDisposable
     /// </summary>
     private const int VouchAbove = 256;
 
+    /// <summary>
+    /// How many reported paths a reader judges for itself before it leaves them to the catch-up. An edit reports a
+    /// handful, and judging them is a stat each; a checkout reports thousands, almost all of them really changed, and
+    /// a reader that stat-ed every one only to wait anyway would have paid twice.
+    /// </summary>
+    private const int JudgeAtMost = 256;
+
+    /// <summary>How soon after a change a holder that lives on writes the archive: long enough that a burst of edits is one
+    /// write, short enough that a process ending abruptly loses little — and what it loses costs a re-read, not a
+    /// wrong answer, since a stamp is only ever saved for a file that was read.</summary>
+    private static readonly TimeSpan SaveWithin = TimeSpan.FromSeconds(5);
+
     /// <summary>The files git rewrites on every checkout, merge, reset and commit — the moments the anchor can move on.</summary>
     private static readonly HashSet<string> GitMoments = new(StringComparer.OrdinalIgnoreCase)
     {
         "HEAD", "index", "ORIG_HEAD", "MERGE_HEAD",
     };
 
-    /// <summary>Building the next version, loading, flushing: one at a time. A reader takes it only to catch up.</summary>
+    /// <summary>Building the next version and loading: one at a time. A reader takes it only to catch up.</summary>
     private readonly object _gate = new();
+
+    /// <summary>Writing the archive: one at a time, and never while holding <see cref="_gate"/> — taken first, always.</summary>
+    private readonly object _saving = new();
 
     /// <summary>What readers are handed. Replaced whole, never changed.</summary>
     private GraphSnapshot? _published;
 
     private volatile bool _dirty;
+
+    /// <summary>Counts every change the archive does not have yet, so a save can tell whether one arrived while it wrote.</summary>
+    private long _version;
 
     /// <summary>The files this process has refreshed and dropped since it read the archive — what it would have to do again
     /// to a newer archive another process saved meanwhile. Null once a change arrives that is not described by files, such
@@ -99,16 +124,17 @@ public sealed class GraphWorkspace : IDisposable
     private readonly Func<ProductState>? _tree;
     private readonly Func<GraphSnapshot?>? _seed;
     private readonly bool _watch;
+    private readonly IGraphWorkspaceMeter? _meter;
     private TreeChangeWatcher? _changes;
     private TreeChangeWatcher? _gitChanges;
+
+    /// <summary>The write a change arms, for a holder that lives on; one at a time — see <see cref="SaveSoon"/>.</summary>
+    private ITimer? _saveTimer;
+    private bool _saveArmed;
 
     /// <summary>The whole tree has been scanned since the held version was loaded, so the watcher accounts for every
     /// change since — the condition for answering without looking.</summary>
     private volatile bool _verified;
-
-    /// <summary>Set while a catch-up has taken the watcher's changes and not yet published what they made: a reader then
-    /// waits for it, rather than read the version those changes are about to replace.</summary>
-    private volatile bool _catchingUp;
 
     /// <summary>Git has been seen to move, so the anchor is due a fresh look once the tree is caught up.</summary>
     private volatile bool _reanchor;
@@ -122,10 +148,12 @@ public sealed class GraphWorkspace : IDisposable
     /// host already keeps it current, and two copies of it would be one too many.</param>
     /// <param name="seed">Where to start when this tree has no archive yet — the main checkout's graph, for a worktree.
     /// Most of a branch is the same code, so starting from it and catching up is the cheap way in.</param>
-    /// <param name="watch">Whether to watch the tree for changes. For a holder that lives longer than one command; a
-    /// workspace that does not watch scans the stamps on every read instead.</param>
+    /// <param name="watch">Whether this is held for longer than one command: the tree is watched for changes, and the
+    /// archive written a moment after each. A workspace that does not watch scans the stamps on every read instead, and
+    /// is written when its holder says so.</param>
+    /// <param name="meter">Told where the time went, for a holder that accounts for it.</param>
     public GraphWorkspace(ProductStore store, string productRoot, string? codeRoot, Func<ProductState>? tree = null,
-                          Func<GraphSnapshot?>? seed = null, bool watch = false)
+                          Func<GraphSnapshot?>? seed = null, bool watch = false, IGraphWorkspaceMeter? meter = null)
     {
         Store       = store;
         ProductRoot = productRoot;
@@ -133,6 +161,7 @@ public sealed class GraphWorkspace : IDisposable
         _tree       = tree;
         _seed       = seed;
         _watch      = watch;
+        _meter      = meter;
     }
 
     public ProductStore Store { get; }
@@ -168,9 +197,10 @@ public sealed class GraphWorkspace : IDisposable
     /// <summary>
     /// The current version, and what bringing it current took.
     /// <para>
-    /// When the watcher has nothing new and the archive has not been replaced underneath, this is a field read: the
-    /// cost a warm process exists to reach. Otherwise it catches up first — loading, folding in what moved — and a
-    /// reader that arrives while a catch-up runs waits for it rather than read the version it is replacing.
+    /// When the published version accounts for everything the watcher has reported and the archive has not been
+    /// replaced underneath, this is a field read and a stat per reported path: the cost a warm process exists to reach.
+    /// Otherwise it catches up first — loading, folding in what moved — and a reader that arrives while a catch-up runs
+    /// waits for it rather than read the version it is replacing.
     /// </para>
     /// </summary>
     /// <param name="recheck">Scan every file however quiet the watcher has been — for a caller that suspects something
@@ -179,10 +209,10 @@ public sealed class GraphWorkspace : IDisposable
     public GraphReading Read(bool recheck = false, Action<int, int>? progress = null,
                              CancellationToken cancellation = default)
     {
-        if (!recheck && Volatile.Read(ref _published) is { } held && IsQuiet() && !ArchiveMovedOn())
-            return new GraphReading(held, GraphCatchUp.None);
+        if (!recheck && Accounted() is { } held) return new GraphReading(held, GraphCatchUp.None);
 
-        lock (_gate)
+        Enter();
+        try
         {
             var seeded = _published is null || ArchiveMovedOn() ? Load() : false;
             if (_published is null) return new GraphReading(null, GraphCatchUp.None);
@@ -190,6 +220,7 @@ public sealed class GraphWorkspace : IDisposable
             var caught = CatchUp(recheck || !_verified || !_watch, progress, cancellation);
             return new GraphReading(_published, seeded ? caught with { Seeded = true } : caught);
         }
+        finally { Monitor.Exit(_gate); }
     }
 
     /// <summary>
@@ -201,7 +232,8 @@ public sealed class GraphWorkspace : IDisposable
     public GraphCatchUp Update(IReadOnlyCollection<string> refresh, IReadOnlyCollection<string>? forget = null,
                                CancellationToken cancellation = default)
     {
-        lock (_gate)
+        Enter();
+        try
         {
             if (_published is null) Load();
             if (_published is not { } snapshot) return GraphCatchUp.None;
@@ -217,6 +249,7 @@ public sealed class GraphWorkspace : IDisposable
             Publish(draft, reread, dropped);
             return new GraphCatchUp(read, dropped);
         }
+        finally { Monitor.Exit(_gate); }
     }
 
     /// <summary>
@@ -226,7 +259,8 @@ public sealed class GraphWorkspace : IDisposable
     /// </summary>
     public T Mutate<T>(Func<GraphSnapshot, T> change)
     {
-        lock (_gate)
+        Enter();
+        try
         {
             if (_published is null || ArchiveMovedOn()) Load();
 
@@ -234,10 +268,11 @@ public sealed class GraphWorkspace : IDisposable
             var result = change(draft);
 
             Volatile.Write(ref _published, draft);
-            _dirty     = true;
             _refreshed = _forgotten = null;
+            MarkDirty();
             return result;
         }
+        finally { Monitor.Exit(_gate); }
     }
 
     /// <summary>
@@ -251,11 +286,11 @@ public sealed class GraphWorkspace : IDisposable
             if (GraphGit.Look(SourceRoot, null) is { } look) built.Anchor = new GraphAnchor(look.Head, look.Dirty);
 
             Volatile.Write(ref _published, built);
-            _dirty     = true;
             _refreshed = _forgotten = null;
+            MarkDirty();
             StartWatching();
-            Flush();
         }
+        Flush();
     }
 
     /// <summary>
@@ -275,7 +310,7 @@ public sealed class GraphWorkspace : IDisposable
             if (!changed && draft.Tree == snapshot.Tree) return;
 
             Volatile.Write(ref _published, draft);
-            _dirty |= changed;
+            if (changed) MarkDirty();
         }
     }
 
@@ -287,36 +322,74 @@ public sealed class GraphWorkspace : IDisposable
     /// directory entry vouched for files nobody had read: a change made outside nfi, saved over by anything else on the
     /// tree, became invisible until the next full build.
     /// </para>
+    /// <para>
+    /// The write is of a published version, which nothing changes, so it is made outside the lock: a reader catching up
+    /// and an edit folding itself in carry on while the archive — tens of megabytes — goes to disk. A change that lands
+    /// meanwhile is the next write's.
+    /// </para>
     /// </summary>
     public void Flush()
     {
-        lock (_gate)
+        lock (_saving)
         {
-            if (!_dirty || _published is not { } snapshot) return;
-
-            // Another process saved since this one read the archive — the app beside the resident process, say. Writing
-            // this version over it would drop whatever that process added, so when this one's changes are described by
-            // the files it touched, they are made again on the newer archive and that is what is saved.
-            if (_refreshed is { } refreshed && _forgotten is { } forgotten && _archive is { } mark
-                && Info(Store.GraphFilePath) is { } info && !mark.Matches(info)
-                && GraphArchive.Read(Store.GraphFilePath) is { } newer)
+            GraphSnapshot snapshot;
+            long version;
+            HashSet<string>? refreshed, forgotten;
+            lock (_gate)
             {
-                GraphBuilder.RefreshFiles(newer, ProductRoot, refreshed, CodeRoot);
-                foreach (var rel in forgotten) GraphBuilder.ForgetFile(newer, rel);
-                newer.Anchor = newer.Anchor?.Without(refreshed.Concat(forgotten));
-                Volatile.Write(ref _published, snapshot = newer);
+                if (!_dirty || _published is not { } held) return;
+                snapshot = held;
+
+                // Another process saved since this one read the archive — the app beside the resident process, say. Writing
+                // this version over it would drop whatever that process added, so when this one's changes are described by
+                // the files it touched, they are made again on the newer archive and that is what is saved.
+                if (_refreshed is { } mine && _forgotten is { } gone && _archive is { } mark
+                    && Info(Store.GraphFilePath) is { } info && !mark.Matches(info)
+                    && GraphArchive.Read(Store.GraphFilePath) is { } newer)
+                {
+                    GraphBuilder.RefreshFiles(newer, ProductRoot, mine, CodeRoot);
+                    foreach (var rel in gone) GraphBuilder.ForgetFile(newer, rel);
+                    newer.Anchor = newer.Anchor?.Without(mine.Concat(gone));
+                    Volatile.Write(ref _published, snapshot = newer);
+                }
+
+                // What changes from here on is the next write's to describe.
+                version    = _version;
+                refreshed  = _refreshed;
+                forgotten  = _forgotten;
+                _refreshed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                _forgotten = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             }
 
-            Store.SaveSnapshot(snapshot);
-            _dirty     = false;
-            _refreshed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            _forgotten = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var took = Stopwatch.StartNew();
+            try { Store.SaveSnapshot(snapshot); }
+            catch
+            {
+                // Not written, so what it would have described is still owed to the next one.
+                lock (_gate)
+                {
+                    _refreshed = Owed(refreshed, _refreshed);
+                    _forgotten = Owed(forgotten, _forgotten);
+                }
+                throw;
+            }
 
-            // What we just wrote is now what the held version corresponds to. Without this the next read
-            // would see an archive it had never stamped, and re-load the file it had itself just produced.
-            StampArchive();
+            lock (_gate)
+            {
+                // Still marked while it wrote, so no reader took the archive going to disk for someone else's; stamped before
+                // it is cleared, for the same reason. What we just wrote is now what the held version corresponds to: without
+                // the stamp the next read would see an archive it had never stamped, and re-load the file it had itself just
+                // produced.
+                StampArchive();
+                if (_version == version) _dirty = false;
+            }
+            _meter?.Saved(this, took.Elapsed);
         }
     }
+
+    /// <summary>What an unwritten save still owes: both sets of files, or null — "not described by files" — if either was.</summary>
+    private static HashSet<string>? Owed(HashSet<string>? taken, HashSet<string>? since) =>
+        taken is null || since is null ? null : new HashSet<string>(taken.Concat(since), StringComparer.OrdinalIgnoreCase);
 
     public void Dispose()
     {
@@ -324,25 +397,55 @@ public sealed class GraphWorkspace : IDisposable
         {
             if (_disposed) return;
             _disposed = true;
+            _saveTimer?.Dispose();
         }
         _changes?.Dispose();
         _gitChanges?.Dispose();
     }
 
-    // ── Loading and catching up ─────────────────────────────────────────────
+    // ── Reading without the lock ────────────────────────────────────────────
 
-    /// <summary>Whether a reader may take the held version as it stands: watched, scanned since loading, nothing
-    /// collected since, and no catch-up in flight.</summary>
-    private bool IsQuiet() =>
-        _watch && _verified && !_catchingUp && _changes is { HasChanges: false };
+    /// <summary>
+    /// The published version, when it accounts for everything reported since it was verified — null when the reader has
+    /// to catch up first.
+    /// <para>
+    /// The order is what makes it safe without the lock. What is pending is read before the version, and a catch-up
+    /// publishes before it settles what it took, so a batch is never out of the one without being in the other; and a load
+    /// clears <see cref="_verified"/> before it publishes, so the second look at it catches a version nobody has scanned.
+    /// </para>
+    /// </summary>
+    private GraphSnapshot? Accounted()
+    {
+        if (!_watch || !_verified || _changes is not { } changes) return null;
+
+        var pending = changes.Pending();
+        if (Volatile.Read(ref _published) is not { } held || !_verified || ArchiveMovedOn()) return null;
+
+        if (pending.IsEmpty) return held;
+        if (pending.Overflowed || pending.Paths.Count > JudgeAtMost) return null;
+        return GraphFreshness.Of(held, SourceRoot, pending).IsEmpty ? held : null;
+    }
+
+    /// <summary>Takes the lock, telling the meter how long that took when it was not at once.</summary>
+    private void Enter()
+    {
+        if (Monitor.TryEnter(_gate)) return;
+
+        var waited = Stopwatch.StartNew();
+        Monitor.Enter(_gate);
+        _meter?.Waited(this, waited.Elapsed);
+    }
+
+    // ── Loading and catching up ─────────────────────────────────────────────
 
     /// <summary>
     /// Reads the archive — or, when this tree has none, starts from <see cref="_seed"/> — and records what it was, so the
-    /// next call can tell in one stat whether it still is.
+    /// next call can tell in one stat whether it still is. Under the gate.
     /// </summary>
     /// <returns>Whether it started from the seed.</returns>
     private bool Load()
     {
+        var took   = Stopwatch.StartNew();
         var read   = GraphArchive.Read(Store.GraphFilePath);
         var seeded = false;
         if (read is null && !File.Exists(Store.GraphFilePath) && _seed?.Invoke() is { } from)
@@ -351,13 +454,16 @@ public sealed class GraphWorkspace : IDisposable
             seeded = true;
         }
 
-        Volatile.Write(ref _published, read);
+        // Unverified before it is published, so a reader outside the lock never takes it for a scanned one.
         _verified  = false;
-        _dirty     = seeded;   // a graph started from another tree's is this one's from now on, and is written as such
+        Volatile.Write(ref _published, read);
+        _dirty     = false;
         _refreshed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         _forgotten = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (seeded) MarkDirty();   // a graph started from another tree's is this one's from now on, and is written as such
         StampArchive();
         StartWatching();
+        _meter?.Loaded(this, seeded, took.Elapsed);
 
         // Re-deriving the product layer takes seconds, so a load that finds it behind the tree leaves it to the pool
         // rather than to whoever asked: they answer from the layer as it was, and the next reader from the new one.
@@ -378,15 +484,17 @@ public sealed class GraphWorkspace : IDisposable
     private GraphCatchUp CatchUp(bool full, Action<int, int>? progress, CancellationToken cancellation)
     {
         var snapshot = _published!;
-        _catchingUp = true;
+        var took     = Stopwatch.StartNew();
+
+        // Held, not taken: until what it is folded into is published, a reader outside the lock still sees it pending.
+        var batch = _changes?.Hold() ?? default;
         try
         {
-            var batch = _changes?.Take() ?? default;
             full |= batch.Overflowed;
 
-            var drift = full                                 ? GraphFreshness.Scan(snapshot, SourceRoot)
-                      : batch.Paths is { Count: > 0 } paths ? GraphFreshness.Of(snapshot, SourceRoot, paths)
-                      :                                       GraphFreshness.Drift.None;
+            var drift = full           ? GraphFreshness.Scan(snapshot, SourceRoot)
+                      : !batch.IsEmpty ? GraphFreshness.Of(snapshot, SourceRoot, batch)
+                      :                  GraphFreshness.Drift.None;
 
             var caught = drift.IsEmpty ? GraphCatchUp.None : Fold(snapshot, drift, progress, cancellation);
             if (full)
@@ -395,6 +503,7 @@ public sealed class GraphWorkspace : IDisposable
                 // A tree never anchored is anchored once it is known to describe the tree, off the request path.
                 if (_watch && _published?.Anchor is null) ReanchorLater();
             }
+            _meter?.CaughtUp(this, caught, full, took.Elapsed);
             return caught;
         }
         catch
@@ -403,7 +512,7 @@ public sealed class GraphWorkspace : IDisposable
             _verified = false;
             throw;
         }
-        finally { _catchingUp = false; }
+        finally { _changes?.Settle(batch); }
     }
 
     /// <summary>Folds what <paramref name="drift"/> found into the next version and publishes it.</summary>
@@ -445,12 +554,62 @@ public sealed class GraphWorkspace : IDisposable
         return new GraphCatchUp(read, dropped);
     }
 
+    /// <summary>Under the gate.</summary>
     private void Publish(GraphSnapshot draft, IEnumerable<string> refreshed, IEnumerable<string> forgotten)
     {
         Volatile.Write(ref _published, draft);
-        _dirty = true;
         _refreshed?.UnionWith(refreshed);
         _forgotten?.UnionWith(forgotten);
+        MarkDirty();
+    }
+
+    /// <summary>Under the gate: the held version is ahead of the archive, and a holder that lives on writes it soon.</summary>
+    private void MarkDirty()
+    {
+        _dirty = true;
+        _version++;
+        if (_watch) SaveSoon();
+    }
+
+    /// <summary>
+    /// Arms the write, unless it is armed already — so a burst of changes is one write, made <see cref="SaveWithin"/>
+    /// after the first of them and on the pool, not on the path of whoever made the change. Under the gate.
+    /// </summary>
+    private void SaveSoon()
+    {
+        if (_disposed || _saveArmed) return;
+
+        if (_saveTimer is null)
+        {
+            // Without the ambient context of the change that armed it first: the write is the workspace's, not that caller's.
+            var flow = ExecutionContext.IsFlowSuppressed() ? (AsyncFlowControl?)null : ExecutionContext.SuppressFlow();
+            try
+            {
+                _saveTimer = TimeProvider.System.CreateTimer(_ => SaveInBackground(), null,
+                                                             Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            }
+            finally { flow?.Undo(); }
+        }
+        _saveArmed = true;
+        _saveTimer.Change(SaveWithin, Timeout.InfiniteTimeSpan);
+    }
+
+    private void SaveInBackground()
+    {
+        // Disarmed before writing, so a change made while it writes arms the next write rather than being left for shutdown.
+        // A workspace let go of is not written: whoever let go of it meant the next command to load from disk.
+        lock (_gate)
+        {
+            _saveArmed = false;
+            if (_disposed) return;
+        }
+
+        try { Flush(); }
+        catch (Exception)
+        {
+            // A pool thread has nobody to tell, and an exception escaping it ends the process. Nothing is lost by stopping
+            // here: the version is still marked unsaved, so the next change, or the holder's last flush, writes it.
+        }
     }
 
     /// <summary>
@@ -535,7 +694,7 @@ public sealed class GraphWorkspace : IDisposable
             Files  = snapshot.Files,
             Anchor = new GraphAnchor(look.Head, look.Dirty),
         });
-        _dirty = true;
+        MarkDirty();
     }
 
     // ── Stamps ──────────────────────────────────────────────────────────────
@@ -549,8 +708,8 @@ public sealed class GraphWorkspace : IDisposable
     /// <summary>
     /// Whether the archive on disk is no longer the one the held version came from — someone else rebuilt it.
     /// <para>
-    /// Not asked while this workspace has unflushed changes of its own. Re-reading would drop them, and the
-    /// alternative — writing ours over theirs — is the same loss facing the other way. Holding what we have
+    /// Not asked while this workspace has unsaved changes of its own, or is writing them. Re-reading would drop them, and
+    /// the alternative — writing ours over theirs — is the same loss facing the other way. Holding what we have
     /// until <see cref="Flush"/> has written it keeps the choice out of a query's path; the flush re-stamps,
     /// so the very next call sees a clean version and can take their build in then.
     /// </para>
@@ -563,12 +722,13 @@ public sealed class GraphWorkspace : IDisposable
         if (info is null) return false;                 // no archive at all is not a newer one
 
         // An archive read before this was recorded has no stamp; re-reading once settles it.
-        return _archive is not { } mark || !mark.Matches(info);
+        return Volatile.Read(ref _archive) is not { } mark || !mark.Matches(info);
     }
 
     /// <summary>Records the archive's current identity as the one the held version corresponds to.</summary>
     private void StampArchive() =>
-        _archive = Info(Store.GraphFilePath) is { } info ? new ArchiveMark(info.Length, info.LastWriteTimeUtc) : null;
+        Volatile.Write(ref _archive,
+                       Info(Store.GraphFilePath) is { } info ? new ArchiveMark(info.Length, info.LastWriteTimeUtc) : null);
 
     /// <summary>Whether the authored tree has moved on since <paramref name="snapshot"/>'s product layer was derived.</summary>
     private bool TreeMovedOn(GraphSnapshot snapshot) =>

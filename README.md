@@ -80,7 +80,7 @@ Not an agent you send away to work somewhere you can't see. Every page describes
 
 Reading runs on its own; anything that writes asks first, and deletes go to the Recycle Bin. Some of the restraint is deliberate and permanent — git tooling is read-only, and file actions stay inside the folder you're in. A tool that can quietly do anything is a tool you have to supervise instead of use.
 
-An AI input bar on every window, and a dedicated AI Chat tab with saved history. Pick from Claude, Gemini, OpenAI, or any local model via Ollama — or a combination. It's optional: Nexaflow is a workspace first, and every page works with no provider configured at all.
+An AI input bar on every window, and a dedicated AI Chat tab with saved history. Pick from Claude, Gemini, OpenAI, Grok, or any local model via Ollama — or a combination. It's optional: Nexaflow is a workspace first, and every page works with no provider configured at all.
 
 **🧠 AI that runs on your machine**
 
@@ -94,7 +94,7 @@ With a capable graphics card, Nexaflow runs its own models — no service to ins
 
 **[⬇️ Download the latest release](https://github.com/smile-forge/nexaflow/releases/latest)**
 
-Requires Windows 10 or 11. AI features are optional — use Nexaflow's own models on an NVIDIA graphics card, a local model via Ollama, or an API key for Claude, Gemini, or OpenAI.
+Requires Windows 10 or 11. AI features are optional — use Nexaflow's own models on an NVIDIA graphics card, a local model via Ollama, or an API key for Claude, Gemini, OpenAI, or xAI (Grok).
 
 Every page's help is online too — the same text F1 shows you in the app: **[the full reference](https://smile-forge.github.io/nexaflow/help/)**.
 

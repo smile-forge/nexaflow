@@ -90,6 +90,33 @@ public class RenderedMarkdownSearchTests
         });
 
     [TestMethod]
+    public void InALongDocument_AMatchNotLaidYet_IsLaidTo_AndScrolledIntoView() =>
+        UiThread.Run(() =>
+        {
+            // Long enough to be laid a stretch at a time, with its only match far past the first stretch.
+            var filler = string.Concat(System.Linq.Enumerable.Repeat("filler paragraph line with some words in it\n\n", 4000));
+            var tall = "top of the document\n\n" + filler + "the unmistakable zebra far down\n\n" + filler;
+            var zebra = tall.IndexOf("zebra", System.StringComparison.Ordinal);
+
+            MarkdownEditorHarness.Run(tall, editor =>
+            {
+                var matches = editor.FindInRendered(Matcher("zebra"));
+
+                // Laying to it is the engine's, a stretch at a time between frames; it arrives once that is done.
+                for (var turn = 0; turn < 100 && editor.ShownFrom < zebra / 2; turn++)
+                {
+                    MarkdownEditorHarness.Pump();
+                    editor.UpdateLayout();
+                    System.Threading.Thread.Sleep(20);
+                }
+
+                Assert.AreEqual(1, matches.Count);
+                Assert.IsTrue(editor.ShownFrom > zebra / 2 && editor.ShownFrom <= zebra,
+                    $"shown from {editor.ShownFrom}, the match is at {zebra}");
+            });
+        });
+
+    [TestMethod]
     public void ClearingSearch_RestoresTheDocument() =>
         UiThread.Run(() => MarkdownEditorHarness.Run(Doc, editor =>
         {

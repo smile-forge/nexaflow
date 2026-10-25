@@ -66,7 +66,7 @@ src/
   Nexaflow.Elevation/                 Elevation.Contracts (DTOs) + PrivilegeBridge (the elevated exe)
   Nexaflow.AiHost/                    the AI host: Contracts (pipe protocol) + Client (the app's side) + the host exe — models Nexaflow runs itself
   Nexaflow.Languages/                 one resource-only pack per language
-  Nexaflow.Providers/                 Providers.Common + one project per backend (Claude, Gemini, OpenAI, Ollama, Aria, Whisper; AiHost — "Nexaflow")
+  Nexaflow.Providers/                 Providers.Common + OpenAICompatible (the chat-completions wire format) + one project per backend (Claude, Gemini, OpenAI, xAI, Ollama, Aria, Whisper; AiHost — "Nexaflow")
   Nexaflow.Tests/                     one suite per subject — docs/testing.md
 ```
 
@@ -239,7 +239,8 @@ run them in Windows Sandbox with `Nexaflow.Tests.Sandbox`, which can also screen
 `Tests.Features.Architecture` and `Tests.Providers`); `FeatureTouchPointTests` names any missed add-a-feature step.
 
 - Features depend only on `Features.Common` and `Nexaflow.Visuals.*` — never Core, rarely each other. Providers depend
-  only on `Providers.Common` — never Core, never each other.
+  only on `Providers.Common` and `Providers.OpenAICompatible` (the chat-completions wire format several backends
+  speak) — never Core, never each other.
 - Core never instantiates feature views or view-models — all tab and viewlet creation goes through `FeatureManager`. A
   feature advertises a page with an `IPageRegistration` (`PageKind` + `CreatePage`, plus `static string
   StaticPageKind`), discovered by reflection.

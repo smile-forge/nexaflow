@@ -30,6 +30,7 @@ public sealed class InitiativesHost : IDisposable
     private readonly object _gate = new();
     private readonly Dictionary<string, GraphWorkspace> _workspaces = new(StringComparer.OrdinalIgnoreCase);
     private readonly ProductStore _store;
+    private readonly IGraphWorkspaceMeter? _meter;
     private FileChangeWatcher? _treeWatcher;
     private ProductState? _tree;
 
@@ -39,10 +40,12 @@ public sealed class InitiativesHost : IDisposable
     private bool _disposed;
 
     /// <param name="productRoot">The checkout that holds <c>.product</c> — the main one, always.</param>
-    public InitiativesHost(string productRoot)
+    /// <param name="meter">Told where each graph's time goes, for a holder that accounts for it.</param>
+    public InitiativesHost(string productRoot, IGraphWorkspaceMeter? meter = null)
     {
         ProductRoot = productRoot;
         _store      = new ProductStore(productRoot);
+        _meter      = meter;
     }
 
     public string ProductRoot { get; }
@@ -104,7 +107,7 @@ public sealed class InitiativesHost : IDisposable
             var scope = key.Length == 0 ? null : Path.GetFileName(key);
             var bound = store ?? (scope is null ? _store : new ProductStore(ProductRoot, scope));
             return _workspaces[key] = new GraphWorkspace(bound, ProductRoot, key.Length == 0 ? null : key, () => Tree,
-                                                         seed: key.Length == 0 ? null : MainGraph, watch: true);
+                                                         seed: key.Length == 0 ? null : MainGraph, watch: true, meter: _meter);
         }
     }
 
@@ -117,8 +120,8 @@ public sealed class InitiativesHost : IDisposable
         return main is not null ? main.Current() : GraphArchive.Read(_store.GraphFilePath);
     }
 
-    /// <summary>Writes every workspace that has unsaved changes. Called before the process goes away, so an
-    /// idle timeout costs the next caller a load and not a rebuild.</summary>
+    /// <summary>Writes every workspace that has unsaved changes. Each writes itself a moment after it changes; this is for
+    /// before the process goes away, so an idle timeout costs the next caller a load and not a rebuild.</summary>
     public void Flush()
     {
         GraphWorkspace[] workspaces;
@@ -126,23 +129,6 @@ public sealed class InitiativesHost : IDisposable
 
         foreach (var workspace in workspaces)
             try { workspace.Flush(); } catch (IOException) { /* a tree that cannot be written is not worth failing shutdown over */ }
-    }
-
-    /// <summary>
-    /// Writes the one working tree's workspace, if this host holds one — what a single command changed.
-    /// <para>
-    /// A command used to flush every workspace on its way out, and flushing one takes that workspace's lock. So
-    /// an answer on one tree waited behind whatever another tree was doing — a refresh, a rebuild after a tree
-    /// edit — and a command stuck on another tree held every other tree's answers with it. Each tree is
-    /// written by its own commands, and all of them together on the way out of the process.
-    /// </para>
-    /// </summary>
-    public void Flush(string? codeRoot)
-    {
-        GraphWorkspace? workspace;
-        lock (_gate) _workspaces.TryGetValue(WorkspaceKey(codeRoot), out workspace);
-
-        try { workspace?.Flush(); } catch (IOException) { /* the next flush, or shutdown's, tries again */ }
     }
 
     /// <summary>

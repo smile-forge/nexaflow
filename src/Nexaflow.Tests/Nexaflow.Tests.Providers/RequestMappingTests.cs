@@ -6,6 +6,7 @@ using Nexaflow.Providers.Common;
 using Nexaflow.Providers.Gemini;
 using Nexaflow.Providers.Ollama;
 using Nexaflow.Providers.OpenAI;
+using Nexaflow.Providers.OpenAICompatible;
 using OllamaSharp.Models.Chat;
 
 namespace Nexaflow.Tests.Providers;
@@ -140,7 +141,7 @@ public class RequestMappingTests
     [TestMethod]
     public void OpenAI_MapsRoles_InOrder()
     {
-        var messages = OpenAILlmProvider.BuildChatMessages(Convo());
+        var messages = ChatCompletionsLlmProvider.BuildChatMessages(Convo());
         Assert.AreEqual(4, messages.Count);   // system stays inline for OpenAI
         Assert.IsInstanceOfType<global::OpenAI.Chat.SystemChatMessage>(messages[0]);
         Assert.IsInstanceOfType<global::OpenAI.Chat.UserChatMessage>(messages[1]);
@@ -150,7 +151,7 @@ public class RequestMappingTests
     [TestMethod]
     public void OpenAI_ImageAttachment_BecomesVisionPart()
     {
-        var messages = OpenAILlmProvider.BuildChatMessages(Convo(withImage: true));
+        var messages = ChatCompletionsLlmProvider.BuildChatMessages(Convo(withImage: true));
         var user = (global::OpenAI.Chat.UserChatMessage)messages[1];
         Assert.AreEqual(2, user.Content.Count, "Expected a text part + an image part.");
     }
@@ -168,7 +169,7 @@ public class RequestMappingTests
     [TestMethod]
     public void OpenAI_ACallRidesOnTheReply_AndWhatCameOfIt_IsAToolMessageAnsweringIt()
     {
-        var messages = OpenAILlmProvider.BuildChatMessages(ToolStep());
+        var messages = ChatCompletionsLlmProvider.BuildChatMessages(ToolStep());
 
         Assert.AreEqual(5, messages.Count);
         var called = (global::OpenAI.Chat.AssistantChatMessage)messages[2];
@@ -182,7 +183,7 @@ public class RequestMappingTests
     [TestMethod]
     public void OpenAI_ATool_IsAFunctionWithItsSchema()
     {
-        var declared = OpenAILlmProvider.Declare(DeleteFile);
+        var declared = ChatCompletionsLlmProvider.Declare(DeleteFile);
 
         Assert.AreEqual("delete_file", declared.FunctionName);
         StringAssert.Contains(declared.FunctionParameters.ToString(), "\"required\":[\"name\"]");
@@ -200,7 +201,7 @@ public class RequestMappingTests
         ];
 
         var read = new List<LlmStreamEvent>();
-        await foreach (var e in OpenAILlmProvider.Events(Streamed(wire.Select(w =>
+        await foreach (var e in ChatCompletionsLlmProvider.Events(Streamed(wire.Select(w =>
                            System.ClientModel.Primitives.ModelReaderWriter.Read<global::OpenAI.Chat.StreamingChatCompletionUpdate>(BinaryData.FromString(w))!))))
             read.Add(e);
 
@@ -361,8 +362,8 @@ public class RequestMappingTests
     {
         LlmMessage[] convo = [new(LlmRole.User, "What is said?") { Attachments = [new LlmAttachment("clip.wav", "audio/wav", [1, 2, 3, 4])] }];
 
-        var heard = (global::OpenAI.Chat.UserChatMessage)OpenAILlmProvider.BuildChatMessages(convo, hearsAudio: true)[0];
-        var named = (global::OpenAI.Chat.UserChatMessage)OpenAILlmProvider.BuildChatMessages(convo, hearsAudio: false)[0];
+        var heard = (global::OpenAI.Chat.UserChatMessage)ChatCompletionsLlmProvider.BuildChatMessages(convo, hearsAudio: true)[0];
+        var named = (global::OpenAI.Chat.UserChatMessage)ChatCompletionsLlmProvider.BuildChatMessages(convo, hearsAudio: false)[0];
 
         Assert.AreEqual(2, heard.Content.Count, "a text part and an audio part");
         #pragma warning disable OPENAI001 // the SDK marks chat audio input for evaluation

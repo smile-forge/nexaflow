@@ -41,7 +41,7 @@ public sealed partial class ContentEngine
     private static bool Supplied(Piece piece)
     {
         for (var at = piece; at.Exists; at = at.Parent)
-            if (at.Part is ContentPart part) return part.Supplied;
+            if (at.Part.TreePart() is { } part) return part.Supplied;
 
         return false;
     }
@@ -58,7 +58,7 @@ public sealed partial class ContentEngine
         {
             if (at.Acts?.Select is not null) return at;
 
-            if (at.Part is not ContentPart part) continue;
+            if (at.Part.TreePart() is not { } part) continue;
             if (!part.Supplied) break;
 
             whole = at;

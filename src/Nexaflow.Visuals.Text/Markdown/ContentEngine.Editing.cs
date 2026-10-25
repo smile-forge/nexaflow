@@ -179,13 +179,8 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>The part of a syntax tree a piece was drawn from: its own, the one it stands for, or the first of a run's.</summary>
-    private static ContentPart? Drawn(ISourcePart? part) => part switch
-    {
-        ContentPart drawn => drawn,
-        IStandsFor standing => Drawn(standing.Of),
-        PartRun run => run.Parts.Select(Drawn).FirstOrDefault(drawn => drawn is not null),
-        _ => null,
-    };
+    private static ContentPart? Drawn(ISourcePart? part) =>
+        part is PartRun run ? run.Parts.Select(Drawn).FirstOrDefault(drawn => drawn is not null) : part.TreePart();
 
     /// <summary>What a key taking back characters means at the edges of content written in another language — null anywhere else.</summary>
     private static ContentChange? Edges(ContentEdit edit)
