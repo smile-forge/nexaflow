@@ -364,8 +364,8 @@ internal sealed class PooledLocationSession(ILocationSession inner, PooledConnec
 
     internal ValueTask CommitAsync(ILocationWrite write, CancellationToken ct) => Run(() => write.CommitAsync(ct));
 
-    internal ValueTask<ITerminalTransport> OpenShellAsync(ILocationShell shell, string workingDirectory, int columns, int rows, CancellationToken ct)
-        => Run(() => shell.OpenAsync(workingDirectory, columns, rows, ct));
+    internal ValueTask<ITerminalTransport> OpenShellAsync(ILocationShell shell, TerminalLaunch launch, CancellationToken ct)
+        => Run(() => shell.LaunchAsync(launch, ct));
 
     /// <summary>A stream the session opened, counted as use until it is closed.</summary>
     private sealed class HeldStream(Stream inner, PooledConnection owner) : Stream
@@ -448,9 +448,9 @@ internal sealed class PooledLocationSession(ILocationSession inner, PooledConnec
     /// <summary>The location's shell, its terminals counted as use until each is closed.</summary>
     private sealed class HeldShell(ILocationShell inner, PooledLocationSession session, PooledConnection owner) : ILocationShell
     {
-        public async ValueTask<ITerminalTransport> OpenAsync(string workingDirectory, int columns, int rows, CancellationToken ct)
+        public async ValueTask<ITerminalTransport> LaunchAsync(TerminalLaunch launch, CancellationToken ct)
         {
-            var transport = await session.OpenShellAsync(inner, workingDirectory, columns, rows, ct).ConfigureAwait(false);
+            var transport = await session.OpenShellAsync(inner, launch, ct).ConfigureAwait(false);
             owner.Enter();
             return new HeldTerminal(transport, owner);
         }

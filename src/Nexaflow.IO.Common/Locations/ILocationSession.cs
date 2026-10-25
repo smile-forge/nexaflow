@@ -84,12 +84,8 @@ public interface ILocationWatch : IDisposable
     event Action<string>? Changed;
 }
 
-/// <summary>Opens a shell on a location's host.</summary>
-public interface ILocationShell
-{
-    /// <summary>Starts a shell in <paramref name="workingDirectory"/> (a provider path) at the given size.</summary>
-    ValueTask<ITerminalTransport> OpenAsync(string workingDirectory, int columns, int rows, CancellationToken ct);
-}
+/// <summary>A shell on a location's host. Its <see cref="TerminalLaunch.WorkingDirectory"/> is a provider path.</summary>
+public interface ILocationShell : ITerminalLauncher { }
 
 /// <summary>
 /// The live session behind one connected location. The session pool implements it per connection, sharing one

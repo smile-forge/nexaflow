@@ -824,10 +824,108 @@
           }
         ]
       }
+    },
+    "ioterm-transport": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Terminal/ITerminalTransport.cs",
+          "class": "ITerminalTransport"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Terminal/ITerminalLauncher.cs",
+          "class": "ITerminalLauncher"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Terminal/HeldEvent.cs",
+          "class": "HeldEvent"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Terminal/PseudoConsoleLauncher.cs",
+          "class": "PseudoConsoleLauncher"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Terminal/PseudoConsoleHostService.cs",
+          "class": "PseudoConsoleHostService"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Terminal/ViewModels/TerminalViewModel.cs",
+          "class": "TerminalViewModel",
+          "method": "Resize"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Terminal/Views/TerminalView.xaml.cs",
+          "class": "TerminalView",
+          "method": "ApplyTerminalSize"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/TerminalTransportTests.cs",
+            "class": "TerminalTransportTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Terminal/HeldEventTests.cs",
+            "class": "HeldEventTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Terminal/PseudoConsoleTransportTests.cs",
+            "class": "PseudoConsoleTransportTests"
+          }
+        ]
+      }
+    },
+    "ioterm-screen": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.IO.Terminal/TerminalScreen.cs",
+          "class": "TerminalScreen"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Terminal/TerminalScreen.cs",
+          "class": "TerminalScreen",
+          "method": "Resize"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Terminal/TerminalScreenTests.cs",
+            "class": "TerminalScreenTests",
+            "method": "OnScreenLines_StayInSnapshot_NotScrollback"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Terminal/TerminalScreenTests.cs",
+            "class": "TerminalScreenTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Terminal/TerminalScreenResizeTests.cs",
+            "class": "TerminalScreenResizeTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 54,
+  "changed_sets": 58,
   "touched_nodes": [
     "audio-lyrics",
     "audio-open",
@@ -860,6 +958,8 @@
     "io-locations-transfer",
     "io-vfs-async",
     "io-vfs-mounts",
+    "ioterm-screen",
+    "ioterm-transport",
     "log-viewer-encoding",
     "made-file-drafts",
     "markdown-open-action",

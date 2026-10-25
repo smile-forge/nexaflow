@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Elevation.Contracts;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.IO.Common.Terminal;
 using Nexaflow.IO.Terminal;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Terminal.Models;
@@ -20,22 +21,33 @@ using System.Windows.Input;
 namespace Nexaflow.Visuals.Terminal.ViewModels;
 
 /// <summary>
-/// Reusable terminal page view-model: owns one <see cref="PseudoConsoleHostService"/> whose shell stays
-/// alive for the tab's lifetime, renders its output, and tracks the working directory, environment
-/// snapshot and command history. Shell-specific bits (which executable, how to phrase <c>cd</c>/<c>set</c>)
+/// Reusable terminal page view-model: owns one terminal transport (<see cref="ITerminalTransport"/>), started by the
+/// <see cref="ITerminalLauncher"/> it is given — ConPTY on this computer, a location's shell elsewhere — whose shell
+/// stays alive for the tab's lifetime, renders its output at the size the view has room for, and tracks the working
+/// directory, environment snapshot and command history. Shell-specific bits (which executable, how to phrase <c>cd</c>/<c>set</c>)
 /// and the environment source/persistence are supplied by a feature-specific subclass — so cmd and a
 /// future PowerShell feature share everything here without referencing each other.
 /// </summary>
 public abstract partial class TerminalViewModel : ObservableObject, IDisposable, IPageViewModel, IChatEngagement
 {
     // ── Terminal back-end ─────────────────────────────────────────────────
-    protected readonly PseudoConsoleHostService _pty;
+    private readonly ITerminalLauncher _launcher;
+    private readonly Lock _transportGate = new();
+    private ITerminalTransport? _transport;            // null until the launcher hands it over
+    private readonly List<string> _pendingInput = [];   // typed before the shell was there
+
+    // Output arrives as raw bytes and a code point may straddle two chunks, so one decoder carries what is left over.
+    private readonly Decoder _decoder = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetDecoder();
+
+    // The screen's bounds in cells: a collapsed pane still gives the shell room to print, and a vast one stays a
+    // size a pseudo-console takes.
+    private const int MinColumns = 20, MinRows = 5, MaxColumns = 1000, MaxRows = 500;
 
     // VT screen buffer: raw PTY bytes are rendered into a cols×rows grid;
     // the visible screen + scrollback are read back from it after each chunk.
     private readonly TerminalScreen _screen;
-    private readonly int _cols;
-    private readonly int _rows;
+    private int _cols;
+    private int _rows;
 
     // True while the cursor row is a bare shell prompt (vs. a command running / output flowing). Drives
     // the init sequence (fire once per prompt) and gates the Enter command/query routing.
@@ -139,23 +151,23 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
     // ── Construction / startup ────────────────────────────────────────────
 
-    protected TerminalViewModel(PseudoConsoleHostService pty, IShellServices shell, IAIService ai,
+    /// <param name="launcher">What starts the shell — ConPTY on this computer, a location's shell elsewhere.</param>
+    /// <param name="cols">The width the shell starts at, until the view says how much room it has.</param>
+    /// <param name="rows">The height the shell starts at, likewise.</param>
+    protected TerminalViewModel(ITerminalLauncher launcher, IShellServices shell, IAIService ai,
                                 int cols = 220, int rows = 50)
     {
-        _shell  = shell;
-        _ai     = ai;
-        _cols   = cols;
-        _rows   = rows;
-        _screen = new TerminalScreen(cols, rows);
-        _pty    = pty;
-        _pty.OutputReceived += OnPtyOutput;
-        _pty.TerminalError  += OnTerminalError;
-        _pty.ProcessExited  += OnProcessExited;
+        _shell    = shell;
+        _ai       = ai;
+        _cols     = cols;
+        _rows     = rows;
+        _screen   = new TerminalScreen(cols, rows);
+        _launcher = launcher;
 
         _envView = CollectionViewSource.GetDefaultView(EnvVars);
         _envView.Filter = o => MatchesEnvFilter(o as EnvVar);
 
-        // The PTY is started in SetupInitialState — after the active environment's variable overrides
+        // The shell is started in SetupInitialState — after the active environment's variable overrides
         // are known, so they can be applied at process creation.
     }
 
@@ -171,18 +183,94 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
         // Start the shell directly in the launch folder (lpCurrentDirectory) and overlay the
         // environment's variable overrides at process creation — no visible `cd` entry on open.
-        _pty.StartDirectory = initialPath;
-        if (_activeEnv?.EnvOverrides is { Count: > 0 } overrides)
-            _pty.EnvironmentOverrides = overrides;
+        var overrides = _activeEnv?.EnvOverrides is { Count: > 0 } envOverrides ? envOverrides : null;
 
         // Only the initial command is deferred to the first prompt; the launch path is already applied.
         _pendingInitPath = null;
         _pendingInitCmd  = _activeEnv?.InitialCommand;
         _initPhase       = _pendingInitCmd is not null ? 0 : 2;
 
-        _pty.Start((short)_cols, (short)_rows);
+        ShellStarted = StartAsync(new TerminalLaunch(initialPath, overrides, _cols, _rows));
         RefreshEnvVars();
         RefreshFiles();
+    }
+
+    /// <summary>The shell's start — awaited by tests; done once the launcher has handed over the transport, or failed.</summary>
+    public Task ShellStarted { get; private set; } = Task.CompletedTask;
+
+    /// <summary>
+    /// Launches the shell and takes its transport: its output, failure and exit are followed, what was typed before it was
+    /// there is sent, and a size the view settled on meanwhile is passed on. A launch that fails is reported in the
+    /// scrollback, as a transport failure is.
+    /// </summary>
+    private async Task StartAsync(TerminalLaunch launch)
+    {
+        ITerminalTransport transport;
+        try { transport = await _launcher.LaunchAsync(launch, _disposeCts.Token); }
+        catch (OperationCanceledException) { return; }
+        catch (Exception e)
+        {
+            OnTerminalError(e.Message);
+            return;
+        }
+
+        string[] pending;
+        lock (_transportGate)
+        {
+            if (_disposed)
+            {
+                transport.Dispose();
+                return;
+            }
+            _transport = transport;
+            pending    = [.. _pendingInput];
+            _pendingInput.Clear();
+        }
+
+        transport.Output += OnTransportOutput;
+        transport.Failed += OnTerminalError;
+        transport.Exited += OnProcessExited;
+        foreach (var text in pending) transport.Write(Encoding.UTF8.GetBytes(text));
+        if ((_cols, _rows) != (launch.Columns, launch.Rows)) transport.Resize(_cols, _rows);
+    }
+
+    /// <summary>Sends <paramref name="text"/> as typed; before the shell is there it waits, and goes once it is.</summary>
+    private void Send(string text)
+    {
+        ITerminalTransport? transport;
+        lock (_transportGate)
+        {
+            transport = _transport;
+            if (transport is null)
+            {
+                _pendingInput.Add(text);
+                return;
+            }
+        }
+        transport.Write(Encoding.UTF8.GetBytes(text));
+    }
+
+    /// <summary>
+    /// Tells the shell the size the view has room for, in character cells, kept between a small and a large bound: the
+    /// screen takes it — rows that no longer fit move into the scrollback — and the transport passes it to the shell,
+    /// which redraws for it. Called on the UI thread.
+    /// </summary>
+    public void Resize(int columns, int rows)
+    {
+        columns = Math.Clamp(columns, MinColumns, MaxColumns);
+        rows    = Math.Clamp(rows, MinRows, MaxRows);
+        if (columns == _cols && rows == _rows) return;
+
+        _cols = columns;
+        _rows = rows;
+        _screen.Resize(columns, rows);
+        foreach (var line in _screen.TakeScrollback())
+            Scrollback.Add(line.TrimEnd());
+        ScreenText = string.Join("\n", _screen.Snapshot()).TrimEnd('\n');
+
+        ITerminalTransport? transport;
+        lock (_transportGate) transport = _transport;
+        transport?.Resize(columns, rows);
     }
 
     protected TerminalEnvironment? FindEnvByName(string name)
@@ -204,7 +292,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         RecordHistory(trimmed);
         IsBusy   = true;
         _atPrompt = false;
-        _pty.WriteRaw(trimmed + "\r");
+        Send(trimmed + "\r");
         ScrollRequested?.Invoke(this, EventArgs.Empty);
     }
 
@@ -220,7 +308,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     {
         EngagementInvalidated?.Invoke();
         StopWatcher();
-        _pty.SendCtrlC();
+        _transport?.Interrupt();
         IsBusy = false;
     }
 
@@ -233,7 +321,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     {
         EngagementInvalidated?.Invoke();
         StopWatcher();
-        _pty.TerminateForegroundChildren();
+        _transport?.TerminateForeground();
         IsBusy = false;
     }
 
@@ -251,7 +339,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         // lone space) — take over any background-command watch.
         EngagementInvalidated?.Invoke();
         if (!string.IsNullOrWhiteSpace(text)) StopWatcher();
-        _pty.WriteRaw(text);
+        Send(text);
     }
 
     /// <summary>
@@ -267,7 +355,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         // take over any background-command watch.
         EngagementInvalidated?.Invoke();
         StopWatcher();
-        _pty.WriteRaw(seq);
+        Send(seq);
         return true;
     }
 
@@ -286,18 +374,18 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         switch (decision.Action)
         {
             case TerminalEnterAction.ForwardToProgram:
-                _pty.WriteRaw("\r");                 // interactive program reading input
+                Send("\r");                 // interactive program reading input
                 break;
 
             case TerminalEnterAction.RunAsCommand:
                 if (decision.Text.Length > 0) RecordHistory(decision.Text);
                 IsBusy    = true;
                 _atPrompt = false;
-                _pty.WriteRaw("\r");
+                Send("\r");
                 break;
 
             case TerminalEnterAction.AskTheAssistant:
-                if (decision.ClearShellLine) _pty.WriteRaw("\x1b");   // Esc clears cmd's current input line
+                if (decision.ClearShellLine) Send("\x1b");   // Esc clears cmd's current input line
                 _shell.SubmitAiQuery(decision.Text);
                 break;
         }
@@ -362,8 +450,16 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
     // ── PTY output handling ───────────────────────────────────────────────
 
-    private void OnPtyOutput(string rawChunk)
-        => _ = _shell.RunOnUiAsync(() => ProcessScreenOutput(rawChunk));
+    /// <summary>Decodes a chunk of the shell's output — carrying a code point split across chunks to the next — and renders
+    /// it on the UI thread. Called one chunk at a time on the transport's reader thread.</summary>
+    private void OnTransportOutput(ReadOnlyMemory<byte> chunk)
+    {
+        var chars = new char[_decoder.GetCharCount(chunk.Span, flush: false)];
+        int count = _decoder.GetChars(chunk.Span, chars, flush: false);
+        if (count == 0) return;
+        var text = new string(chars, 0, count);
+        _ = _shell.RunOnUiAsync(() => ProcessScreenOutput(text));
+    }
 
     private void ProcessScreenOutput(string rawChunk)
     {
@@ -1125,15 +1221,22 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
+        ITerminalTransport? transport;
+        lock (_transportGate)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            transport = _transport;
+            _transport = null;
+        }
         StopWatcher();
         _disposeCts.Cancel();
         _disposeCts.Dispose();
         _quietTimer?.Dispose();
-        _pty.OutputReceived -= OnPtyOutput;
-        _pty.TerminalError  -= OnTerminalError;
-        _pty.ProcessExited  -= OnProcessExited;
-        _pty.Dispose();
+        if (transport is null) return;
+        transport.Output -= OnTransportOutput;
+        transport.Failed -= OnTerminalError;
+        transport.Exited -= OnProcessExited;
+        transport.Dispose();
     }
 }

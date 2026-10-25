@@ -21,17 +21,10 @@ namespace Nexaflow.Tests.Features.Console;
 [TestClass]
 public class ConsoleSurfaceTests
 {
-    private sealed class FakePty : PseudoConsoleHostService
-    {
-        public override void Start(short cols = 220, short rows = 50) { }
-        public override void WriteInput(string text) { }
-        public override void SendCtrlC() { }
-    }
-
     private sealed class TestTerminal : TerminalViewModel
     {
         public TestTerminal(IShellServices shell)
-            : base(new FakePty(), shell, Substitute.For<IAIService>()) { }
+            : base(new FakeTerminal(), shell, Substitute.For<IAIService>()) { }
 
         protected override IReadOnlyList<TerminalEnvironment> Environments => [];
         protected override string? FindBoundEnvName(string folderPath) => null;

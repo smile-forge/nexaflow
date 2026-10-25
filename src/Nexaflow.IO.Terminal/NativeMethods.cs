@@ -8,6 +8,7 @@ internal static class NativeMethods
     internal const uint EXTENDED_STARTUPINFO_PRESENT        = 0x00080000;
     internal const uint CREATE_SUSPENDED                    = 0x00000004;
     internal const uint CREATE_UNICODE_ENVIRONMENT          = 0x00000400;
+    internal const uint STARTF_USESTDHANDLES                = 0x00000100;
     internal const uint INFINITE                            = 0xFFFFFFFF;
     internal const uint WAIT_OBJECT_0                       = 0x00000000;
     internal const int  PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE = 0x00020016;

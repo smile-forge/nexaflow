@@ -22,11 +22,11 @@ public sealed class TerminalScreen
 {
     // ── Grid ─────────────────────────────────────────────────────────────
 
-    private readonly int _cols;
-    private readonly int _rows;
+    private int _cols;
+    private int _rows;
 
     // Each cell is one Unicode scalar value (or '\0' for empty).
-    private readonly char[,] _cells;
+    private char[,] _cells;
 
     // Cursor position (0-based)
     private int _curRow;
@@ -138,6 +138,58 @@ public sealed class TerminalScreen
         if (row.Length > 0 && row[^1] == '>')
             return row;
         return null;
+    }
+
+    /// <summary>
+    /// Takes a new size in cells — what the shell is told it now has. Rows that no longer fit leave from the top into the
+    /// scrollback, as lines leave a shrinking window, so the cursor's row stays on screen; each row keeps the columns that
+    /// still fit; the cursor keeps its cell, pulled inside the new grid; the scroll region spans the whole screen again, and
+    /// default tab stops are laid out to the new width. On the alternate screen the saved main screen is fitted the same
+    /// way, and the program redraws its own screen, since the shell tells it the size changed.
+    /// </summary>
+    public void Resize(int cols, int rows)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(cols, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(rows, 1);
+        if (cols == _cols && rows == _rows) return;
+
+        int drop = Math.Max(0, _curRow + 1 - rows);
+        if (!_inAltBuffer)
+            for (int r = 0; r < drop; r++) _scrollback.Enqueue(ReadRow(r));
+        _cells = Fit(_cells, _rows, _cols, rows, cols, drop);
+        _curRow   = Math.Clamp(_curRow - drop, 0, rows - 1);
+        _savedRow = Math.Clamp(_savedRow - drop, 0, rows - 1);
+
+        if (_altCells is not null)
+        {
+            int altDrop = Math.Max(0, _altCurRow + 1 - rows);
+            for (int r = 0; r < altDrop; r++) _scrollback.Enqueue(RowText(_altCells, r, _cols));
+            _altCells  = Fit(_altCells, _rows, _cols, rows, cols, altDrop);
+            _altCurRow = Math.Clamp(_altCurRow - altDrop, 0, rows - 1);
+            _altCurCol = Math.Min(_altCurCol, cols - 1);
+        }
+
+        _curCol   = Math.Min(_curCol, cols - 1);
+        _savedCol = Math.Min(_savedCol, cols - 1);
+        _tabStops.RemoveWhere(stop => stop >= cols);
+        for (int c = (_cols / 8 + 1) * 8; c < cols; c += 8) _tabStops.Add(c);
+
+        _cols = cols;
+        _rows = rows;
+        _scrollTop    = 0;
+        _scrollBottom = rows - 1;
+    }
+
+    /// <summary><paramref name="cells"/> as a <paramref name="rows"/> × <paramref name="cols"/> grid, its first
+    /// <paramref name="skip"/> rows gone.</summary>
+    private static char[,] Fit(char[,] cells, int oldRows, int oldCols, int rows, int cols, int skip)
+    {
+        var fitted = new char[rows, cols];
+        int width = Math.Min(cols, oldCols);
+        for (int r = 0; r < rows && r + skip < oldRows; r++)
+            for (int c = 0; c < width; c++)
+                fitted[r, c] = cells[r + skip, c];
+        return fitted;
     }
 
     // ── Character processing ──────────────────────────────────────────────
@@ -594,12 +646,14 @@ public sealed class TerminalScreen
     };
 
     /// <summary>Read a row as a string, trailing NUL/spaces stripped.</summary>
-    private string ReadRow(int row)
+    private string ReadRow(int row) => RowText(_cells, row, _cols);
+
+    private static string RowText(char[,] cells, int row, int cols)
     {
-        var sb = new StringBuilder(_cols);
-        for (int c = 0; c < _cols; c++)
+        var sb = new StringBuilder(cols);
+        for (int c = 0; c < cols; c++)
         {
-            char ch = _cells[row, c];
+            char ch = cells[row, c];
             sb.Append(ch == '\0' ? ' ' : ch);
         }
         return sb.ToString().TrimEnd();

@@ -22,13 +22,6 @@ namespace Nexaflow.Tests.Features.Console;
 [CoversNode("visuals-terminal")]
 public class ConsoleViewModelCommandTests
 {
-    private sealed class FakePty : PseudoConsoleHostService
-    {
-        public override void Start(short cols = 220, short rows = 50) { }
-        public override void WriteInput(string text) { }
-        public override void SendCtrlC() { }
-    }
-
     /// <summary>
     /// A terminal VM with a fixed environment list and an optional Configure section, so the overlay /
     /// picker / filter state can be driven directly. Mirrors the cmd feature's subclass shape without
@@ -40,7 +33,7 @@ public class ConsoleViewModelCommandTests
         private readonly string? _configSection;
 
         public TestTerminal(IReadOnlyList<TerminalEnvironment>? envs = null, string? configSection = null)
-            : base(new FakePty(), Substitute.For<IShellServices>(), Substitute.For<IAIService>())
+            : base(new FakeTerminal(), Substitute.For<IShellServices>(), Substitute.For<IAIService>())
         {
             _envs          = envs ?? [];
             _configSection = configSection;

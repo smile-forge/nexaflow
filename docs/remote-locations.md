@@ -38,7 +38,7 @@ The groundwork is real but synchronous and Windows-path shaped, so the first job
 | `FileTransferEngine` | `IO.Common` | Progress, throughput, ETA, cancel. An item whose ends are both real paths on this disk takes the disk's own path; one with an end only the file system reaches (an archive, a location) goes through `FileTransferRequest.FileSystem` with the same promises | Free-space parking only where the destination is on this disk. Within one location that declares `ServerSideCopy` an unverified copy asks the server (`CopyWithinAsync`) and moves no bytes |
 | `IThisPcItemProvider` | `Features.Common/ThisPc` | Every row of This PC is a provider's: the volumes (the file browser's own provider), OneDrive's sync folders; each provider describes its own rows, and connections use the same seam | — |
 | `PathScope` | `IO.Common/PathScope.cs` | Assistant reach equals what the user has open | Normalises Windows paths only |
-| `PseudoConsoleHostService` + `TerminalScreen` | `IO.Terminal` | ConPTY host for cmd/pwsh and a VT100 screen buffer | The view is a scrolling list of finished lines, so full-screen programs (vim, htop, tmux) are not drawn |
+| `PseudoConsoleHostService` + `TerminalScreen` | `IO.Terminal` | The ConPTY transport for cmd/pwsh, started by `PseudoConsoleLauncher`, and a VT100 screen buffer sized to the console the shell is shown in | The view is a scrolling list of finished lines, so full-screen programs (vim, htop, tmux) are not drawn |
 | `ProtectedData` | `Core/ConfigManager.cs` | DPAPI protects stored secrets | Per-file, not a credential store with per-host entries |
 
 ## Locations and addressing
@@ -206,9 +206,12 @@ The terminal opens a shell on whatever host the current folder lives on, through
 full-screen programs, because over SSH that is half of what people run.
 
 - **`ITerminalTransport`** (`IO.Common/Terminal`, beside the location contracts that hand one out) sits under the
-  terminal view-model: bytes in, bytes out, resize, interrupt, exit.
-  `PseudoConsoleHostService` becomes the ConPTY transport; an SSH channel with a `pty-req` is the second.
-  `ILocationSession.Shell` hands out the right one for its host.
+  terminal view-model: bytes in, bytes out, resize, interrupt, end the foreground program, exit. What a transport
+  raises before anyone listens is held for the first listener, so the shell's first words are never lost. An
+  `ITerminalLauncher` hands a transport over running: `PseudoConsoleLauncher` starts `PseudoConsoleHostService`, the
+  ConPTY transport, and `ILocationSession.Shell` is the launcher for a location's host, where an SSH channel with a
+  `pty-req` is the second transport. The view-model decodes output with one stateful UTF-8 decoder, since chunks split
+  code points, holds what is typed before the shell is there, and tells the shell the size the console has room for.
 - **Shell profiles are discovered, not configured.** cmd, Windows PowerShell, `pwsh` if installed, each WSL distro from
   `wsl.exe --list`, each saved SSH connection and each `Host` in `~/.ssh/config`. A profile can set its starting folder,
   environment and colours.
@@ -292,7 +295,8 @@ Each phase is usable on its own, so the 2.0 date can slip phase 2 without strand
 
 **Product tree.** The capability lives under Common / Shared: `io-vfs-async` and `io-locations` (the provider contract,
 location paths, the runtime file system, the backends registry, connections and credentials, and the session pool)
-beneath `iocommon-vfs`, with a node per backend, the terminal transport and the grid view added as each lands. The use cases — connect, browse, open terminal here — get a
+beneath `iocommon-vfs`, with a node per backend and the grid view added as each lands; the terminal transport is
+`ioterm-transport` under `io-terminal`. The use cases — connect, browse, open terminal here — get a
 `locations` node under `features` with the first backend a person can reach. Each is snaplinked to its code as it lands
 and committed in the branch's pending file.
 
