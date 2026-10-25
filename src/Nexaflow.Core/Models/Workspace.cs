@@ -56,6 +56,15 @@ public sealed partial class Workspace : ObservableObject
     /// </summary>
     public bool SuppressSessionRestore { get; set; }
 
+    /// <summary>
+    /// Where this workspace's last window was meant to be when it closed — its monitor, normal size and position,
+    /// and whether it was maximised — so the next window opens there. It is the placement the user chose, not one
+    /// Windows forced while a monitor was asleep or missing (<see cref="Services.WindowPlacementTracker"/>). Kept
+    /// whatever <see cref="SuppressSessionRestore"/> says: reopening where it was is not an offer. Serialized inline
+    /// in the workspace list.
+    /// </summary>
+    public WindowPlacement? LastWindowPlacement { get; set; }
+
     /// <summary>UI-only, transient: set by the Workspaces editor on each row copy to mark whether the
     /// workspace is currently live (its Delete button is hidden — a running workspace can't be removed).
     /// Never serialised; false on the saved workspaces.</summary>

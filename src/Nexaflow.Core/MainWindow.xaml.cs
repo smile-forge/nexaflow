@@ -23,6 +23,8 @@ public partial class MainWindow : Window
     private readonly ShellServices _shellServices;
     private SnapLayoutHook _snapHook = null!;
 
+    private readonly WindowPlacementTracker _placement = new();
+
     public ShellViewModel ViewModel => _vm;
 
     public MainWindow(BackgroundActivityManager activityManager, WorkspaceRuntime workspace,
@@ -35,7 +37,8 @@ public partial class MainWindow : Window
         _shellServices = workspace.ShellServices!;
         _vm = new ShellViewModel(activityManager, workspace)
         {
-            Window = this
+            Window    = this,
+            Placement = _placement,
         };
         DataContext = _vm;
         Services.StartupTimings.Mark("MainWindow.ShellViewModel");
@@ -297,6 +300,7 @@ public partial class MainWindow : Window
         NativeMethods.EnableDarkMode(this);
         _snapHook = new SnapLayoutHook(MaximizeRestoreButton, ToggleMaxRestore);
         _snapHook.Install(this);
+        _placement.Install(this);
     }
 
     protected override void OnStateChanged(EventArgs e)
