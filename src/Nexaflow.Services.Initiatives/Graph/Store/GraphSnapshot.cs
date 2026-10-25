@@ -45,6 +45,30 @@ public sealed class GraphSnapshot
     /// <summary>The commit this graph describes and where it departs from it, or null when nothing has asked git.</summary>
     public GraphAnchor? Anchor { get; set; }
 
+    /// <summary>
+    /// Every file this graph read or lists: those it holds material for, and the file nodes that name themselves as their
+    /// own source. A file node is also synthesized for an import target that never resolved, and those carry the
+    /// REFERRING file as their source — counting them made a clean main checkout report hundreds of files absent.
+    /// <para>
+    /// Worked out on first ask and kept, which is what lets a reader judge the few paths a watcher reported without a pass
+    /// over every node. Ask it only of a version that is published — nothing changes one of those — never of a draft
+    /// still being changed.
+    /// </para>
+    /// </summary>
+    public IReadOnlySet<string> KnownFiles => _knownFiles ??= KnownFilesOf(this);
+
+    private IReadOnlySet<string>? _knownFiles;
+
+    private static HashSet<string> KnownFilesOf(GraphSnapshot snapshot)
+    {
+        var known = new HashSet<string>(snapshot.Cache.Files.Keys, StringComparer.OrdinalIgnoreCase);
+        foreach (var node in snapshot.Graph.Nodes)
+            if (node.Type == NodeType.File && node.FilePath is { Length: > 0 } path
+                && string.Equals(node.Source, path, StringComparison.OrdinalIgnoreCase))
+                known.Add(path);
+        return known;
+    }
+
     /// <summary>A snapshot whose collections are its own and whose elements are this one's — the start of a change that
     /// leaves this one as it is for whoever is reading it. See <see cref="KnowledgeGraph.Fork"/>.</summary>
     public GraphSnapshot Fork() => new()

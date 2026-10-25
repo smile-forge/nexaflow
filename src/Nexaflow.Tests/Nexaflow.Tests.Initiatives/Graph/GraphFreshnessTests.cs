@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Nexaflow.IO.Common;
 using Nexaflow.Services.Initiatives.Graph;
 using Nexaflow.Services.Initiatives.Graph.Model;
 using Nexaflow.Services.Initiatives.Graph.Store;
@@ -220,5 +222,27 @@ public class GraphFreshnessTests
         var drift = GraphFreshness.Of(snapshot, _root, [Full(code), Full(notes)]);
 
         CollectionAssert.AreEqual(new[] { code }, drift.Added.ToList());
+    }
+
+    /// <summary>
+    /// A file saved in a folder makes the folder report a write too, and walking the folder for each such report is what made
+    /// the graph's own edits cost a look at their whole directory. Written to, a folder stands for nothing — its entries come
+    /// by their own names; created or renamed in, it is the only report there is of what came with it.
+    /// </summary>
+    [TestMethod]
+    public void Of_ABatch_TakesAFolderOnlyWrittenTo_ForNothing_AndOneThatArrived_ForWhatCame()
+    {
+        var proj     = File_("Proj.csproj", "<Project />\n");
+        var snapshot = Read([proj]);
+        Directory.CreateDirectory(Path.Combine(_root, "src", "Proj", "Moved"));
+        var came     = File_("Moved/Came.cs");
+        var folder   = Path.Combine(_root, "src", "Proj", "Moved");
+
+        var written = GraphFreshness.Of(snapshot, _root, new TreeChangeBatch([folder], false, new HashSet<string>()));
+        var arrived = GraphFreshness.Of(snapshot, _root,
+                                        new TreeChangeBatch([folder], false, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { folder }));
+
+        Assert.IsTrue(written.IsEmpty, "a folder written to says nothing its entries do not say themselves");
+        CollectionAssert.AreEqual(new[] { came }, arrived.Added.ToList());
     }
 }

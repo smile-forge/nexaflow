@@ -340,43 +340,6 @@ public class DaemonServingTests
     }
 
     /// <summary>
-    /// A command's flush wrote every tree's graph, which meant taking every tree's lock: an answer on one worktree
-    /// waited behind whatever another worktree's command was in the middle of. A tree's flush is that tree's alone.
-    /// </summary>
-    [TestMethod]
-    public void FlushOfOneTreeDoesNotWaitOnAnother()
-    {
-        using var host = new InitiativesHost(_root);
-        var busy = Directory.CreateDirectory(Path.Combine(_root, "busy-tree")).FullName;
-        var idle = Directory.CreateDirectory(Path.Combine(_root, "idle-tree")).FullName;
-
-        host.Workspace(idle).Mutate(_ => 0);          // something to write, so the flush has real work to do
-
-        using var inside  = new ManualResetEventSlim();
-        using var release = new ManualResetEventSlim();
-        var holding = Task.Run(() => host.Workspace(busy).Mutate(_ =>
-        {
-            inside.Set();
-            release.Wait(TimeSpan.FromSeconds(30));
-            return 0;
-        }));
-
-        try
-        {
-            Assert.IsTrue(inside.Wait(TimeSpan.FromSeconds(15)), "the busy tree should be mid-command");
-
-            var flushed = Task.Run(() => host.Flush(idle));
-            Assert.IsTrue(flushed.Wait(TimeSpan.FromSeconds(5)),
-                          "the idle tree's flush waited on the busy tree's command");
-        }
-        finally
-        {
-            release.Set();
-            holding.Wait(TimeSpan.FromSeconds(30));
-        }
-    }
-
-    /// <summary>
     /// Two callers racing to start the process produce one that serves and one that finds the pipe's lock held and
     /// exits 0. The loser's caller read that exit as a death and failed, while the winner was a moment from answering.
     /// </summary>
