@@ -729,10 +729,105 @@
           }
         ]
       }
+    },
+    "io-locations-registry": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/LocationProviderRegistry.cs",
+          "class": "LocationProviderRegistry"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/FeatureManager.cs",
+          "class": "FeatureManager",
+          "method": "EnsureLocationProviders"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/LocationBackendDiscoveryTests.cs",
+            "class": "LocationBackendDiscoveryTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/LocationProviderRegistryTests.cs",
+            "class": "LocationProviderRegistryTests"
+          }
+        ]
+      }
+    },
+    "io-locations-connections": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/WorkspaceConnections.cs",
+          "class": "WorkspaceConnections"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/CredentialManagerStore.cs",
+          "class": "CredentialManagerStore"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/StoredCredentialSource.cs",
+          "class": "StoredCredentialSource"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/WorkspaceConnectionsTests.cs",
+            "class": "WorkspaceConnectionsTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/CredentialManagerStoreTests.cs",
+            "class": "CredentialManagerStoreTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/StoredCredentialSourceTests.cs",
+            "class": "StoredCredentialSourceTests"
+          }
+        ]
+      }
+    },
+    "io-locations-pool": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/LocationSessionPool.cs",
+          "class": "LocationSessionPool"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/RuntimeLocations.cs",
+          "class": "RuntimeLocations"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/LocationSessionPoolTests.cs",
+            "class": "LocationSessionPoolTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/RuntimeLocationsTests.cs",
+            "class": "RuntimeLocationsTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 48,
+  "changed_sets": 54,
   "touched_nodes": [
     "audio-lyrics",
     "audio-open",
@@ -756,8 +851,11 @@
     "images-open-actions",
     "images-open-as-image",
     "io-locations-blocking-guard",
+    "io-locations-connections",
     "io-locations-contract",
     "io-locations-paths",
+    "io-locations-pool",
+    "io-locations-registry",
     "io-locations-routing",
     "io-locations-transfer",
     "io-vfs-async",

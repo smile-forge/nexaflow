@@ -272,6 +272,9 @@
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.IO/Nexaflow.Tests.IO.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Tests/Nexaflow.IO.Location.Memory/Nexaflow.IO.Location.Memory.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Maths/Nexaflow.Tests.Maths.csproj">
       <Platform Project="x64" />
     </Project>

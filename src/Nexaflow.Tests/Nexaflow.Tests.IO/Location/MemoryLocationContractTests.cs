@@ -1,4 +1,5 @@
 using Nexaflow.IO.Common.Locations;
+using Nexaflow.IO.Location.Memory;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.IO.Location;
@@ -66,7 +67,9 @@ public sealed class LocationSignInTests
     {
         var profile = new ConnectionProfile("sftp-nas", "sftp", "NAS", "nas") { User = "adam" };
 
-        Assert.AreEqual("nexaflow:sftp-nas", profile.CredentialTarget);
+        Assert.AreEqual("nexaflow:sftp-nas", profile.CredentialTargetFor(SecretKind.Password));
+        Assert.AreEqual("nexaflow:sftp-nas:keypassphrase", profile.CredentialTargetFor(SecretKind.KeyPassphrase),
+                        "each kind of secret has a target of its own");
     }
 
     [TestMethod]

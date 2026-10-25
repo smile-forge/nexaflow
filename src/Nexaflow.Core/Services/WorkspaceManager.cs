@@ -272,6 +272,7 @@ public sealed class WorkspaceManager
         BackgroundTasks?.StopJobsOf(ws);
         FeatureManager.Instance.EvictWorkspace(ws);
         ProviderManager.Instance.ReleaseProviderSet(ws.Providers);   // cools any now-unused models
+        _ = ws.Locations.DisposeAsync();                             // unmounts, and closes every session
         ws.Providers = null;
         ws.AiService = null;
         _workspaces.Remove(ws);
@@ -583,6 +584,10 @@ public sealed class WorkspaceManager
                 svc.Register(columnId, provider);
             ws.RaiseProvidersChanged();
         }
+
+        // The workspace's connections, mounted on the runtime's file system from its own session pool.
+        FeatureManager.Instance.EnsureLocationProviders();
+        ws.Locations.Follow(workspace.Connections);
     }
 
     /// <summary>The grid columns actually assigned to an ability — the models in use (need an instance).</summary>

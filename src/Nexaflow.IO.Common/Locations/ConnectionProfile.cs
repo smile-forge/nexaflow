@@ -2,7 +2,7 @@ namespace Nexaflow.IO.Common.Locations;
 
 /// <summary>
 /// A saved, named endpoint: which provider reaches it, where, as whom, and where browsing starts. It holds no
-/// secret — the password or key passphrase lives in Windows Credential Manager under <see cref="CredentialTarget"/>,
+/// secret — the password or key passphrase lives in Windows Credential Manager under <see cref="CredentialTargetFor"/>,
 /// so a profile can be saved, listed and shown to the assistant by label without carrying one.
 /// </summary>
 /// <param name="Id">Stable, path-segment-safe key (<see cref="LocationPath.IsSegmentSafeId"/>) forming the virtual
@@ -30,8 +30,12 @@ public sealed record ConnectionProfile(string Id, string Kind, string Label, str
     /// <summary>Provider-specific settings by name — a key file, a share, a passive-mode flag.</summary>
     public IReadOnlyDictionary<string, string> Options { get; init; } = NoOptions;
 
-    /// <summary>The Windows Credential Manager target holding this connection's secret.</summary>
-    public string CredentialTarget => CredentialTargetPrefix + Id;
+    /// <summary>The Windows Credential Manager target holding this connection's secret of <paramref name="kind"/>:
+    /// <c>nexaflow:{Id}</c> for its password, the kind after it for any other (<c>nexaflow:{Id}:keypassphrase</c>).</summary>
+    public string CredentialTargetFor(SecretKind kind)
+        => kind == SecretKind.Password
+            ? CredentialTargetPrefix + Id
+            : $"{CredentialTargetPrefix}{Id}:{kind.ToString().ToLowerInvariant()}";
 
     // Value equality over Options too: two profiles that differ only in a key file are different endpoints, and
     // the record's generated equality would compare the dictionaries by reference.

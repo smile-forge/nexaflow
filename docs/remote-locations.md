@@ -102,8 +102,12 @@ public interface ILocationSessionSource                          // the pool, pe
 - **One file system per runtime.** Sessions belong to a `WorkspaceRuntime`, so each runtime has its own
   `LocationFileSystem` (`WorkspaceRuntime.Vfs`): the shared `VirtualFileSystem` for real, archive and mounted paths,
   plus a `LocationMount` per connected location that routes `::{connectionId}` to its `ILocationSessionSource`.
-  `FeatureManager` injects it for an `IVirtualFileSystem` constructor parameter; `VirtualFileSystem.Instance` cannot
-  see a runtime's locations, so a feature never reaches for it.
+    `FeatureManager` injects it for an `IVirtualFileSystem` constructor parameter; `VirtualFileSystem.Instance` cannot
+    see a runtime's locations, so a feature never reaches for it. `WorkspaceRuntime.Locations` mounts the workspace's
+    connections there and follows them as they are saved or removed, or as the window switches workspace.
+  - **Backends are found by their assembly.** The feature catalog sweeps `Nexaflow.IO.Location.*.dll` beside the features,
+    and each backend registers in `LocationProviderRegistry` as its assembly activates, or when a runtime asks for them
+    before it mounts its connections. A connection no backend reaches is mounted nowhere, and says why.
 
 - **Async first, all the way down.** Every member takes a `CancellationToken`. Listing is an `IAsyncEnumerable` so a
   50,000-entry folder paints its first rows at once, as Windows Search hits stream.
@@ -155,13 +159,20 @@ Manager; none of this needs admin rights.
 | Thing | Scope | Stored |
 | --- | --- | --- |
 | `ConnectionProfile` (kind, host, port, user, root, options) | per `Workspace`, beside provider configs | `Contexts\<name>\connections\config_<version>.json`, through `ConfigManager` like every per-workspace config, so it migrates the same way |
-| Secret (password, key passphrase) | per user | Credential Manager, target `nexaflow:{connectionId}`, via `CredWrite` / `CredRead` |
+| Secret (password, key passphrase) | per user | Credential Manager (`CredentialManagerStore`): target `nexaflow:{connectionId}` for the password, `nexaflow:{connectionId}:keypassphrase` for a key's passphrase, via `CredWrite` / `CredRead` / `CredDelete`; removing the connection deletes them |
 | SSH host keys | per user | `%USERPROFILE%\.ssh\known_hosts`, read and appended, so OpenSSH and Nexaflow agree |
-| Live `ILocationSession` | per `WorkspaceRuntime` | memory only, pooled and ref-counted like provider instances |
+| Live `ILocationSession` | per `WorkspaceRuntime` | memory only, in the runtime's `LocationSessionPool`, counted by the sets that hold it like provider instances |
 
 - **One session per connection, shared.** The browser, a viewer, a transfer and a terminal on the same host share one
-  SSH or SMB session through a pool modelled on `ProviderManager.AcquireProviderSet`, released when the last tab lets go
-  and after an idle timeout.
+  session through the runtime's `LocationSessionPool`, modelled on `ProviderManager.AcquireProviderSet`. An entry is keyed
+  by everything that decides the endpoint — the connection less its label, so a rename keeps the session — and held by
+  the `LocationSet` the runtime has mounted, the fresh set acquired before the old one is released. A session connects on
+  first use, closes once it has been idle for ten minutes with no operation, stream, write, watch or terminal still open,
+  and is let go when its link drops, so the next use reconnects.
+- **Asking the person.** `ICredentialSource` is the stored secrets plus `ICredentialPrompt`, the questions only the person
+  can answer: a password not stored, a 2FA code, a host key never seen. The prompt dialog ships with the first backend
+  that asks one; until then `StoredCredentialSource` has nobody to ask, and a sign-in that must ask fails with
+  `AuthFailed` saying so.
 - **SSH auth order:** the Windows OpenSSH agent, then Pageant, then key files named in the profile or `~/.ssh/config`,
   then keyboard-interactive (passwords and 2FA prompts). `~/.ssh/config` host aliases are read, so `ssh nas` and the
   connection named `nas` are the same thing.
@@ -280,8 +291,8 @@ Each phase is usable on its own, so the 2.0 date can slip phase 2 without strand
   AutomationId is named by one.
 
 **Product tree.** The capability lives under Common / Shared: `io-vfs-async` and `io-locations` (the provider contract,
-location paths and the runtime file system) beneath `iocommon-vfs`, with a node per backend, the connections, the
-terminal transport and the grid view added as each lands. The use cases — connect, browse, open terminal here — get a
+location paths, the runtime file system, the backends registry, connections and credentials, and the session pool)
+beneath `iocommon-vfs`, with a node per backend, the terminal transport and the grid view added as each lands. The use cases — connect, browse, open terminal here — get a
 `locations` node under `features` with the first backend a person can reach. Each is snaplinked to its code as it lands
 and committed in the branch's pending file.
 

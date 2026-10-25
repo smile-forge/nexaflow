@@ -59,6 +59,7 @@
 
     <ProjectReference Include="..\Nexaflow.Tests.Features.Common\Nexaflow.Tests.Features.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
+    <ProjectReference Include="..\Nexaflow.IO.Location.Memory\Nexaflow.IO.Location.Memory.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Plugins.Contracts\Nexaflow.Plugins.Contracts.csproj" />
     <!-- TestCoverageCollector, for the guard that every [CoversNode] resolves a source file. -->

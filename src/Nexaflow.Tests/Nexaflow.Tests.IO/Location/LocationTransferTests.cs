@@ -4,6 +4,7 @@ using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.IO.Common;
+using Nexaflow.IO.Location.Memory;
 
 namespace Nexaflow.Tests.IO.Location;
 

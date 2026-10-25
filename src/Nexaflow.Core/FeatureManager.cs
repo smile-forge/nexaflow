@@ -3,6 +3,7 @@ using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ThisPc;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 using Nexaflow.Visuals.Text.Markdown;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -89,6 +90,7 @@ public sealed class FeatureManager
 
     private static readonly string ArchiveHandlerName = typeof(IArchiveHandler).FullName!;
     private static readonly string StreamCodecName    = typeof(IStreamCodec).FullName!;
+    private static readonly string LocationProviderName = typeof(ILocationProvider).FullName!;
 
     /// <summary>
     /// Side-effects of loading a feature assembly, performed once on its first load: register its global
@@ -122,6 +124,9 @@ public sealed class FeatureManager
                 try { if (Activator.CreateInstance(at) is IArchiveHandler h) VirtualFileSystem.Instance.RegisterHandler(h); } catch { }
             if (te.Contracts.Contains(StreamCodecName) && asm.GetType(te.Name) is { } ct)
                 try { if (Activator.CreateInstance(ct) is IStreamCodec c) VirtualFileSystem.Instance.RegisterCodec(c); } catch { }
+            // Location backends likewise: the process's registry is where a runtime's sessions find their protocol.
+            if (te.Contracts.Contains(LocationProviderName) && asm.GetType(te.Name) is { } lt)
+                RegisterLocationProvider(lt);
 
 
 
@@ -155,6 +160,24 @@ public sealed class FeatureManager
             lock (_themeLock) _themeGen++;
             RequestThemeRefresh();
         }
+    }
+
+    /// <summary>
+    /// Registers every location backend the catalog knows, loading the assemblies that hold them — what a runtime calls before
+    /// it mounts its connections, since a backend's assembly may not have activated yet. A backend already registered stays
+    /// as it is.
+    /// </summary>
+    public void EnsureLocationProviders()
+    {
+        foreach (var type in FeatureCatalog.Instance.TypesImplementing<ILocationProvider>())
+            RegisterLocationProvider(type);
+    }
+
+    private static void RegisterLocationProvider(Type type)
+    {
+        if (LocationProviderRegistry.Instance.Providers.Any(p => p.GetType() == type)) return;
+        try { if (Activator.CreateInstance(type) is ILocationProvider provider) LocationProviderRegistry.Instance.Register(provider); }
+        catch { /* a backend that cannot be built reaches nothing; its connections are listed unreachable */ }
     }
 
     /// <summary>Synchronously folds any pending feature theme contributions into the active theme — called
