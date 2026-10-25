@@ -184,6 +184,8 @@
   "Shell.Tools.Reading.Name": "Lecture de pages",
   "Shell.Tools.Reading.About": "Lisez des pages écrites — numérisations, pages photographiées, PDF numérisés — en Markdown : les colonnes en un seul texte, les formules en LaTeX, les tableaux et les figures, dans les visionneuses d'images et de PDF ou en le demandant à l'assistant. Unlimited-OCR et PP-OCRv5.",
   "Shell.Tools.Erasing.Name": "Effacement",
+  "Shell.Tools.Checking.Name": "Vérification des images",
+  "Shell.Tools.Checking.About": "Tant que le mode de protection IA renforcée est activé, chaque image créée est vérifiée avant d'être enregistrée ou affichée, et celle qui ne convient pas à tous les publics est retenue. Téléchargée à la première image créée ; s'exécute sur le processeur en quelques millisecondes. Classifieur de sécurité d'images d'OwenElliott.",
   "Shell.Tools.Erasing.About": "Effacez des photos les rayures, la poussière, les fils, les personnes ou les panneaux, et remplissez leur place à partir de ce qui les entoure, dans l'éditeur d'images ou en le demandant à l'assistant sur une image ouverte. LaMa.",
   "Shell.Config.Downloaded.Title": "Modèles téléchargés",
   "Shell.Config.Downloaded.Heading": "Modèles téléchargés",

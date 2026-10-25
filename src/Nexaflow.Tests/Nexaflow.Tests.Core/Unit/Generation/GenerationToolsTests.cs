@@ -192,6 +192,47 @@ public class GenerationToolsTests
         Assert.AreSame(none, GenerateImageTool.Offerable(none, allowsAdultContent: false), "a model with none for adults is offered as it is");
     }
 
+    /// <summary>A picture check that answers as told, or cannot run; the pictures it was shown.</summary>
+    private sealed class Check(bool fit, string? failure = null) : IPictureCheck
+    {
+        public readonly List<MediaBytes> Shown = [];
+
+        public Task<bool> FitForGeneralAudienceAsync(MediaBytes picture, CancellationToken ct)
+        {
+            Shown.Add(picture);
+            return failure is null ? Task.FromResult(fit) : Task.FromException<bool>(new InvalidOperationException(failure));
+        }
+    }
+
+    [TestMethod]
+    public async Task WhileProtected_APictureJudgedUnfit_IsWithheld_NeitherSavedNorShown()
+    {
+        var check = new Check(fit: false);
+
+        var result = await new GenerateImageTool(new Painter(), null, Files, check: check).InvokeAsync(new JsonObject { ["prompt"] = "a fox", ["path"] = Context }, default);
+
+        Assert.IsTrue(result.IsError);
+        StringAssert.Contains(result.ModelText, "withheld");
+        StringAssert.Contains(result.ModelText, "offer to draw a version that keeps to a general audience");
+        CollectionAssert.AreEqual(Drawn, check.Shown.Single().Bytes, "the picture drawn is what was checked");
+        Assert.AreEqual(0, Directory.GetFiles(Context).Length, "nothing is kept");
+        Assert.AreEqual(0, _opened.Count, "nothing is shown");
+    }
+
+    [TestMethod]
+    public async Task WhileProtected_APictureWhoseCheckCannotRun_IsNotShown_AndAPictureJudgedFit_IsKeptAsAlways()
+    {
+        var broken = await new GenerateImageTool(new Painter(), null, Files, check: new Check(fit: true, failure: "the classifier would not download"))
+            .InvokeAsync(new JsonObject { ["prompt"] = "a fox", ["path"] = Context }, default);
+        var fit = await new GenerateImageTool(new Painter(), null, Files, check: new Check(fit: true))
+            .InvokeAsync(new JsonObject { ["prompt"] = "a fox", ["path"] = Context }, default);
+
+        Assert.IsTrue(broken.IsError, "it fails closed");
+        StringAssert.Contains(broken.ModelText, "the classifier would not download");
+        Assert.IsFalse(fit.IsError, fit.ModelText);
+        Assert.AreEqual(1, Directory.GetFiles(Context).Length, "only the picture judged fit is kept");
+    }
+
     [TestMethod]
     public async Task APicture_AskedIntoAFolderOpenInATab_IsSavedThere_Opened_AndToldToTheModel()
     {

@@ -11,8 +11,9 @@ namespace Nexaflow.Core.Services.Generation;
 /// polished picture is asked for — from a prompt, or from pictures given to it where the model works from them — then
 /// saves and opens it, and shows it to the model. What else a picture may be asked for with — its exact proportions,
 /// size, detail, seed, what to keep out, a transparent background, a LoRA — is what the models' <see cref="ImageSettings"/>
-/// offer; a LoRA meant for adults only is offered only while Enhanced AI Protection Mode is off. A high-quality picture is
-/// slow and dearer, so it is approved first.
+/// offer; a LoRA meant for adults only is offered only while Enhanced AI Protection Mode is off, and while it is on every
+/// picture passes its check (<see cref="IPictureCheck"/>) before it is saved or shown. A high-quality picture is slow and
+/// dearer, so it is approved first.
 /// </summary>
 internal sealed class GenerateImageTool : IClientTool
 {
@@ -20,16 +21,20 @@ internal sealed class GenerateImageTool : IClientTool
     private readonly IImageGenerationProvider? _highQuality;
     private readonly GeneratedFiles _files;
     private readonly bool _allowsAdultContent;
+    private readonly IPictureCheck? _check;
 
     /// <summary>Either model may be missing, not both; with both, a <c>quality</c> argument chooses between them.</summary>
     /// <param name="allowsAdultContent">Enhanced AI Protection Mode is off: a LoRA meant for adults only is offered.</param>
-    public GenerateImageTool(IImageGenerationProvider? standard, IImageGenerationProvider? highQuality, GeneratedFiles files, bool allowsAdultContent = false)
+    /// <param name="check">The check every picture passes while Enhanced AI Protection Mode is on; null while it is off.</param>
+    public GenerateImageTool(IImageGenerationProvider? standard, IImageGenerationProvider? highQuality, GeneratedFiles files, bool allowsAdultContent = false,
+                             IPictureCheck? check = null)
     {
         if (standard is null && highQuality is null) throw new ArgumentException("An image tool needs a model to draw with.");
         _standard           = standard;
         _highQuality        = highQuality;
         _files              = files;
         _allowsAdultContent = allowsAdultContent;
+        _check              = check;
     }
 
     /// <summary>A model's settings as they are offered: a LoRA meant for adults only left out unless the app allows adult
@@ -189,6 +194,21 @@ internal sealed class GenerateImageTool : IClientTool
         catch (LlmProviderException ex)
         {
             return ToolResult.Error("could not draw it", ex.Message);
+        }
+
+        // Enhanced AI Protection Mode: a picture unfit for a general audience is neither kept nor shown — nor one whose
+        // check could not run.
+        if (_check is not null)
+        {
+            bool fit;
+            try { fit = await _check.FitForGeneralAudienceAsync(made.Media, ct); }
+            catch (InvalidOperationException ex)
+            {
+                return ToolResult.Error("not checked", $"The picture was not shown: Enhanced AI Protection Mode checks every picture, and its check could not run. {ex.Message}");
+            }
+            if (!fit)
+                return ToolResult.Error("withheld", "The picture was withheld: Enhanced AI Protection Mode found it unfit for a general audience. "
+                                                    + "Say so briefly and calmly, and offer to draw a version that keeps to a general audience.");
         }
 
         var saved = await _files.KeepAsync(made.Media, MadeKind.Picture, ToolArgs.Str(arguments, "path"), prompt, ct);

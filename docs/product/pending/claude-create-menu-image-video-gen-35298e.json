@@ -399,6 +399,11 @@
           "type": "code",
           "doc": "src/Nexaflow.Core/Services/ProtectedAudience.cs",
           "class": "ProtectedAudience"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/PictureChecking.cs",
+          "class": "PictureChecking"
         }
       ],
       "concerns": {
@@ -422,10 +427,54 @@
           }
         ]
       }
+    },
+    "picture-checking": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Checking/PictureSafetyClassifier.cs",
+          "class": "PictureSafetyClassifier"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Checking/CheckPictureHandler.cs",
+          "class": "CheckPictureHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedPictureChecking.cs",
+          "class": "OwnedPictureChecking"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/PictureChecking.cs",
+          "class": "PictureChecking"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/PictureCheckingTests.cs",
+            "class": "PictureCheckingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedPictureCheckingTests.cs",
+            "class": "OwnedPictureCheckingTests"
+          }
+        ],
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "docs/ai-tools.md"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 22,
+  "changed_sets": 25,
   "touched_nodes": [
     "agent-generation-tools",
     "images-gen-image",
@@ -434,6 +483,7 @@
     "owned-images-moss",
     "owned-images-moss-encoder",
     "owned-images-moss-loras",
+    "picture-checking",
     "providers-image-generation",
     "providers-video-generation",
     "video-gen-video",

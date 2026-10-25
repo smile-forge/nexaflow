@@ -1521,6 +1521,27 @@
   ],
   "tools": [
     {
+      "id": "image-safety-classifier-m",
+      "displayName": "Image Safety Classifier (M)",
+      "kind": "pictureChecking",
+      "parts": [
+        {
+          "role": "safetyClassifier",
+          "runner": "picture-safety-classifier",
+          "folder": "tools/image-safety-classifier-m",
+          "file": "image-safety-classifier-m.onnx",
+          "runsOnCpu": true
+        }
+      ],
+      "files": [
+        {
+          "path": "tools/image-safety-classifier-m/image-safety-classifier-m.onnx",
+          "url": "https://huggingface.co/OwenElliott/image-safety-classifier-m/resolve/a5ce9eec1ac11773ca9ff44f45b1bb6591631562/onnx/image-safety-classifier-m.onnx",
+          "size": 46308944,
+          "sha256": "ddef8084eeee5b460bbb70744b15747f07fd1538d39efe0f448212b87bb3aee7"
+        }
+      ]
+    },    {
       "id": "real-esrgan-gfpgan",
       "displayName": "Real-ESRGAN and GFPGAN",
       "kind": "pictureRestoration",

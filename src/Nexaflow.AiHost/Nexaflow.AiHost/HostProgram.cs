@@ -63,6 +63,7 @@ internal static class HostProgram
                 new SelectHandler(models, scheduler),
                 new FindTextHandler(models),
                 new Erasing.EraseHandler(models, scheduler),
+                new Checking.CheckPictureHandler(models),
             ]);
             await server.RunAsync();
             log.Write("the app closed the pipe; exiting");

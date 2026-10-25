@@ -101,7 +101,10 @@ public sealed class AIService : IAIService
 
         /// <summary>Whether the app allows adult content: not while Enhanced AI Protection Mode is on, as it is by default
         /// (<see cref="ProtectedAudience"/>). Read where it is offered, so a change applies to the next choice made.</summary>
-        private static bool AllowsAdultContent => !ProtectedAudience.IsOn;
+    private static bool AllowsAdultContent => !ProtectedAudience.IsOn;
+
+        /// <summary>The check every picture made passes while Enhanced AI Protection Mode is on; null while it is off.</summary>
+        private static Generation.IPictureCheck? PictureCheck => ProtectedAudience.IsOn ? ProviderManager.Instance.Service<Tools.PictureChecking>() : null;
 
     /// <summary>What <paramref name="model"/> lets a picture be asked for with, as <c>generate_image</c> names it.</summary>
     private static PictureChoices? PictureChoicesOf(IImageGenerationProvider? model, bool allowsAdultContent)
@@ -129,7 +132,7 @@ public sealed class AIService : IAIService
         // It saves only where the user named, and opens the picture once it is there.
         var tool = new Generation.GenerateImageTool(ImageGenerator, HighQualityImageGenerator,
                                                     Generation.GeneratedFiles.For(shell, new PathScope([], [Path.GetDirectoryName(target)!])),
-                                                    AllowsAdultContent);
+                                                    AllowsAdultContent, PictureCheck);
         var arguments = new JsonObject
         {
             ["prompt"]  = picture.Prompt,
@@ -362,7 +365,7 @@ public sealed class AIService : IAIService
         {
             var made = Generation.GeneratedFiles.For(shell, scope);
             tools.AddRange(new Generation.GenerationTools(ImageGenerator, HighQualityImageGenerator, TextToSpeech, VideoGenerator,
-                                                          HighQualityVideoGenerator, made, AllowsAdultContent).Tools);
+                                                          HighQualityVideoGenerator, made, AllowsAdultContent, PictureCheck).Tools);
             tools.AddRange(AwaitingMakingTools(made));
         }
 

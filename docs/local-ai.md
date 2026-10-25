@@ -727,7 +727,9 @@ sees what it drew; the existing loop, approvals and context handling apply uncha
   where a choice is offered (`GenerateImageTool.Offerable`), so no feature needs to know Core holds it. While it is on,
   every system prompt behind something the user reads — the conversation's, an analysis's, a problem solved, a picture
   described for a model that cannot see, an answer about a document — opens with the protected-audience policy
-  (`ProtectedAudience.Framed`), ahead of the persona, which cannot set it aside.
+  (`ProtectedAudience.Framed`), ahead of the persona, which cannot set it aside; and every picture made, by any model,
+  passes the picture check before it is saved or shown — withheld where it is unfit for a general audience, or where the
+  check could not run ([ai-tools.md → Picture checking](ai-tools.md#picture-checking)).
 - **Two qualities of picture.** Every backend sells a fast image model and a better one — Z-Image Turbo and HiDream-O1
   or MOSS-Image here, gpt-image-1-mini and gpt-image-1, Gemini 2.5 Flash Image and Gemini 3 Pro Image — so the grid has an Image
   Generation row and an Image Generation (HQ) row of the same kind. With a model in both, `generate_image` takes a
