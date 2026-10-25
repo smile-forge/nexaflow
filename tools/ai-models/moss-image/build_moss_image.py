@@ -13,8 +13,9 @@ The graphs are traced from the published PyTorch model with only these changes, 
   * the negative prompt's pass skips block 22, as MOSSImagePipeline does by default: an input, `skip`, chooses it;
   * attention is ONNX Runtime's fused MultiHeadAttention, which never holds every token-by-token score;
   * every block's q, k, v, o, ffn_up_gate and ffn_down projection has a LoRA branch beside it — (x down) up, times
-    `lora_strength`, added in fp32 — run only while `lora_strength` is not 0, the blocks being an `If` of the two paths
-    over the same weights; its matrices are inputs of any rank defaulting to zeros, and the timestep's MLP and
+    `lora_strength`, added in fp16 where the projection stays fp16 and in fp32 where it rejoins the stream — run only
+    while `lora_strength` is not 0, the blocks being an `If` of the two paths over the same weights; its matrices are
+    inputs of any rank defaulting to zeros, and the timestep's MLP and
     the modulations' biases are inputs defaulting to the model's own; an ONNX Runtime LoRA adapter (convert_moss_loras.py)
     sets them for a picture, unmerged, as the LoRAs' makers ask;
   * the decoder takes the denoiser's latents, undoes the VAE's batch norm and its 2x2 patching, and gives pixels in
@@ -234,17 +235,18 @@ class Denoiser(torch.nn.Module):
         self.heads = transformer.config.num_heads
 
     def project(self, linear, x16, lora, strength, scale=1.0, keep16=False):
-        """A projection and, where a LoRA is active, its branch, summed in fp32; given back in fp16 where `keep16`
-        asks — the q, k, v and feed-forward inputs — else in fp32, a branch's end scaled back up."""
+        """A projection and, where a LoRA is active, its branch (x down) up times `lora_strength`. Where `keep16` asks —
+        the q, k, v and feed-forward inputs, never scaled — it is given back in fp16 and the branch is added in fp16:
+        the sum would be rounded to fp16 anyway, and fp32 copies of these projections would hold a gigabyte at 1024².
+        Else it is given back in fp32, a branch's end scaled back up, the LoRA's change added after."""
         out = linear(x16)
-        if lora is None and keep16 and scale == 1.0:
-            return out
+        branch = None if lora is None else torch.matmul(torch.matmul(x16, lora[0]), lora[1])
+        if keep16:
+            if scale != 1.0:
+                raise ValueError("a projection given back in fp16 is never scaled")
+            return out if branch is None else out + branch * strength.to(torch.float16)
         out = out.float() if scale == 1.0 else out.float() * scale
-        if lora is None:
-            return out
-        down, up = lora
-        summed = out + torch.matmul(torch.matmul(x16, down), up).float() * strength
-        return summed.to(torch.float16) if keep16 else summed
+        return out if branch is None else out + branch.float() * strength
 
     def text(self, caption, cos, sin, positions):
         projection = self.t.text_embedder

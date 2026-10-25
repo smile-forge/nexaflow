@@ -45,9 +45,9 @@ On an RTX PRO 6000, one part loaded at a time as Nexaflow's host loads them:
 
 | | GPU memory at 1024² | at 1456² | Seconds a 1024² picture |
 |---|---|---|---|
-| `denoiser/` | 7.8 GiB | 9.1 GiB | 22.9 |
+| `denoiser/` | 7.8 GiB | 9.1 GiB | 23.0 |
 | `decoder/` | 3.0 GiB | 5.4 GiB | (included above) |
-| PyTorch pipeline, bf16 | | | 27.7 |
+| PyTorch pipeline, bf16 | | | 28.0 |
 
 The memory is the device's use at its peak less its use before the part was loaded, CUDA's context included. The
 largest part decides the card a picture needs: the prompt encoder's 8.5 GiB, or the denoiser's at the size drawn.
@@ -71,16 +71,20 @@ one at a time, each block projection's output plus strength · (x down) up, in f
 `check_moss_loras.py` draws three prompts at 1024² with each, the trigger leading the prompt, both in PyTorch — the LoRA
 read straight from its own file and added unmerged in fp32 — and with the build and its adapter:
 
-| LoRA | Build against PyTorch with the LoRA, median (range) | PyTorch with the LoRA against without, median | Seconds a 1024² picture |
+| LoRA | Build against PyTorch with the LoRA, median (range) | PyTorch with the LoRA against without, median |
 |---|---|---|---|
-| `moss-fast-8step` | 15.9 dB (15.1–22.9) | 11.6 dB | 3.8 |
-| `moss-anime` | 26.1 dB (19.5–30.7) | 15.4 dB | 37.1 |
-| `moss-gouache` | 22.8 dB (22.1–24.7) | 11.7 dB | 36.0 |
-| `moss-psychedelic` | 26.1 dB (20.3–29.9) | 16.8 dB | 36.5 |
-| `moss-beauty` | 24.1 dB (19.8–31.3) | 16.1 dB | 36.3 |
-| `moss-nsfw` | 25.3 dB (21.2–27.9) | 18.2 dB | 35.5 |
-| `moss-animated` | 24.8 dB (21.1–25.3) | 14.8 dB | 35.3 |
-| `moss-impressionism` | 32.2 dB (28.5–38.2) | 15.6 dB | 36.2 |
+| `moss-fast-8step` | 15.9 dB (15.1–22.9) | 11.6 dB |
+| `moss-anime` | 26.1 dB (19.5–30.7) | 15.4 dB |
+| `moss-gouache` | 22.8 dB (22.1–24.7) | 11.7 dB |
+| `moss-psychedelic` | 26.1 dB (20.3–29.9) | 16.8 dB |
+| `moss-beauty` | 24.1 dB (19.8–31.3) | 16.1 dB |
+| `moss-nsfw` | 25.3 dB (21.2–27.8) | 18.2 dB |
+| `moss-animated` | 24.7 dB (21.1–25.4) | 14.8 dB |
+| `moss-impressionism` | 32.2 dB (28.5–38.2) | 15.6 dB |
+
+On an RTX PRO 6000 with nothing else on it, a style LoRA draws a 1024² picture in about 28 s, five more than without
+one, and the distillation in 3.5 s; with one active the denoiser peaks at 8.5 GiB at 1024² with a style and 9.1 GiB
+with the distillation, its own adapter the larger. (`check-loras.json` times were taken while the GPU was shared.)
 
 A style LoRA follows PyTorch as closely as the build does without one, and changes the picture far more than the build
 differs from PyTorch. The two trained on MOSS-Image-Base draw their style on SFT cleanly. The distillation draws the
@@ -117,7 +121,9 @@ each change keeps its arithmetic:
   `skip` input does the same, an `If` around that block.
 - **LoRA branches only while one is active.** Every block's q, k, v, o, ffn_up_gate and ffn_down projection has a LoRA
   branch beside it, and the 42 blocks are an `If` of two paths over the same weights: with a LoRA, and without one,
-  where nothing of the branches runs. `lora_strength` other than 0 chooses the first.
+  where nothing of the branches runs. `lora_strength` other than 0 chooses the first. A branch is added in fp16 where
+  its projection stays fp16 — q, k, v and the feed-forward's input — so a LoRA holds no fp32 copy of them, a gigabyte
+  at 1024².
 - **Laid out by the host.** The rotary angles and the timestep's sinusoid come in ready-made, computed as the reference
   computes them — the angles in fp32, the sinusoid in fp64 — so no Python integer fixes a shape in the graph.
 - **Fused operations.** Every norm is one `RMSNormalization` and every rotation one `RotaryEmbedding` (opset 23), and

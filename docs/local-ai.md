@@ -828,12 +828,13 @@ huggingface.co/smile-forge/moss-image-onnx); its prompt encoder is an existing G
   only. Each is an ONNX Runtime adapter applied unmerged (`OrtLoraAdapter`, its weights copied to the GPU once a
   picture), its trigger leading the prompt; the graph runs its LoRA branches only while one is active, so a picture
   without one pays nothing for them. A style draws in the model's own fifty steps and follows PyTorch with it as
-  closely as the build does without; Fast brings its own sampler — eight data-space steps, no negative prompt
-  (`DataSpaceSampler`) — and draws a 1024² picture in 3.8 s. A LoRA's files are fetched the first time a picture asks
+  closely as the build does without, in about 28 s a 1024² picture against 23 s with none; Fast brings its own
+  sampler — eight data-space steps, no negative prompt (`DataSpaceSampler`) — and draws one in 3.5 s. A LoRA's files are fetched the first time a picture asks
   for it (`OwnedModelRuntime.FetchedAsync`), not with the model.
 
 It draws each shape at about a megapixel — 1024×1024, 1344×768, 768×1344. Loaded part by part, its largest is the
-denoiser: 7.8 GiB at 1024² without a LoRA, 10.1 GiB with the distillation's, so a picture needs a card that holds that.
+denoiser: 7.8 GiB at 1024² without a LoRA, 8.5 GiB with a style's and 9.1 GiB with the distillation's — each LoRA branch
+added in fp16 where its projection stays fp16 — so a picture needs a card that holds that.
 
 ### Making clips on this machine
 

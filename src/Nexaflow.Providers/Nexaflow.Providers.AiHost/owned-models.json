@@ -1166,7 +1166,7 @@
           "runner": "moss-image-denoiser",
           "folder": "models/moss-image/denoiser",
           "file": "denoiser.onnx",
-          "memoryBytes": 10868490240,
+          "memoryBytes": 9810477056,
           "executionProvider": "cuda"
         },
         {
@@ -1180,10 +1180,10 @@
       ],
       "files": [
         { "path": "models/moss-image/encoder/Qwen3.5-9B-Q8_0.gguf", "url": "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/3885219b6810b007914f3a7950a8d1b469d598a5/Qwen3.5-9B-Q8_0.gguf", "size": 9527502048, "sha256": "809626574d0cb43d4becfa56169980da2bb448f2299270f7be443cb89d0a6ae4" },
-        { "path": "models/moss-image/denoiser/denoiser.onnx", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/12f40c02f8ef9555f3e1a5aa3670dda51b762fdc/denoiser/denoiser.onnx", "size": 1283854, "sha256": "ae2584ac9dae60acbd94e46ee2886b0c3daf65dc02c6fcd22fdb5aa52cb2ff38" },
-        { "path": "models/moss-image/denoiser/denoiser.onnx.data", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/12f40c02f8ef9555f3e1a5aa3670dda51b762fdc/denoiser/denoiser.onnx.data", "size": 5658382336, "sha256": "3cf5c59f4a9e49d5377600511d3b88d8260db69e7468a847537c157de2e29c82" },
-        { "path": "models/moss-image/decoder/decoder.onnx", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/12f40c02f8ef9555f3e1a5aa3670dda51b762fdc/decoder/decoder.onnx", "size": 120563, "sha256": "a517f79d0f2f8d20163fa88599700cec1c9115109aab7d96127300827c374fc3" },
-        { "path": "models/moss-image/decoder/decoder.onnx.data", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/12f40c02f8ef9555f3e1a5aa3670dda51b762fdc/decoder/decoder.onnx.data", "size": 56524800, "sha256": "933727b1a5f9ad3030927a6876fe82597517a8f3eddebc4ddba0869d9520792a" }
+        { "path": "models/moss-image/denoiser/denoiser.onnx", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/denoiser/denoiser.onnx", "size": 1239723, "sha256": "d1c25efdd22f1f7cec3b908d319db7779d612ecdba9a2b2344ba2dab632bf45b" },
+        { "path": "models/moss-image/denoiser/denoiser.onnx.data", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/denoiser/denoiser.onnx.data", "size": 5658382336, "sha256": "3cf5c59f4a9e49d5377600511d3b88d8260db69e7468a847537c157de2e29c82" },
+        { "path": "models/moss-image/decoder/decoder.onnx", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/decoder/decoder.onnx", "size": 120563, "sha256": "a517f79d0f2f8d20163fa88599700cec1c9115109aab7d96127300827c374fc3" },
+        { "path": "models/moss-image/decoder/decoder.onnx.data", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/decoder/decoder.onnx.data", "size": 56524800, "sha256": "933727b1a5f9ad3030927a6876fe82597517a8f3eddebc4ddba0869d9520792a" }
       ],
       "loras": [
         {
@@ -1194,8 +1194,8 @@
           "adapter": "models/moss-image/loras/moss-fast-8step.onnx_adapter",
           "sampler": "models/moss-image/loras/moss-fast-8step.sampler.json",
           "files": [
-            { "path": "models/moss-image/loras/moss-fast-8step.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/12f40c02f8ef9555f3e1a5aa3670dda51b762fdc/loras/moss-fast-8step.onnx_adapter", "size": 635596296, "sha256": "903c4510e91c3a03c2d8967bdec62e6f3b7125c86a2d4ec05aaef08b2542c6ed" },
-            { "path": "models/moss-image/loras/moss-fast-8step.sampler.json", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/12f40c02f8ef9555f3e1a5aa3670dda51b762fdc/loras/moss-fast-8step.sampler.json", "size": 381852, "sha256": "153cc4520ddf44793ebf5ae3c56eee044e81a8a5e990579177e11c20a7e504b5" }
+            { "path": "models/moss-image/loras/moss-fast-8step.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/loras/moss-fast-8step.onnx_adapter", "size": 635596296, "sha256": "903c4510e91c3a03c2d8967bdec62e6f3b7125c86a2d4ec05aaef08b2542c6ed" },
+            { "path": "models/moss-image/loras/moss-fast-8step.sampler.json", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/loras/moss-fast-8step.sampler.json", "size": 381852, "sha256": "153cc4520ddf44793ebf5ae3c56eee044e81a8a5e990579177e11c20a7e504b5" }
           ]
         },
         {
@@ -1206,7 +1206,7 @@
           "strength": 1.0,
           "adapter": "models/moss-image/loras/moss-anime.onnx_adapter",
           "files": [
-            { "path": "models/moss-image/loras/moss-anime.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/12f40c02f8ef9555f3e1a5aa3670dda51b762fdc/loras/moss-anime.onnx_adapter", "size": 74353744, "sha256": "74993c2d4c9bae27a5d505dcb22fac2c1115462bb6c531ffa7a0dca865a2bb04" }
+            { "path": "models/moss-image/loras/moss-anime.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/loras/moss-anime.onnx_adapter", "size": 74353744, "sha256": "74993c2d4c9bae27a5d505dcb22fac2c1115462bb6c531ffa7a0dca865a2bb04" }
           ]
         },
         {
@@ -1217,7 +1217,7 @@
           "strength": 1.0,
           "adapter": "models/moss-image/loras/moss-gouache.onnx_adapter",
           "files": [
-            { "path": "models/moss-image/loras/moss-gouache.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/12f40c02f8ef9555f3e1a5aa3670dda51b762fdc/loras/moss-gouache.onnx_adapter", "size": 74353744, "sha256": "26a5251a9be5b1b554f3f0a33b8f449833e63cd125e981c970fc374738eb4807" }
+            { "path": "models/moss-image/loras/moss-gouache.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/loras/moss-gouache.onnx_adapter", "size": 74353744, "sha256": "26a5251a9be5b1b554f3f0a33b8f449833e63cd125e981c970fc374738eb4807" }
           ]
         },
         {
@@ -1228,7 +1228,7 @@
           "strength": 1.0,
           "adapter": "models/moss-image/loras/moss-psychedelic.onnx_adapter",
           "files": [
-            { "path": "models/moss-image/loras/moss-psychedelic.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/12f40c02f8ef9555f3e1a5aa3670dda51b762fdc/loras/moss-psychedelic.onnx_adapter", "size": 74353744, "sha256": "612aae5b002e2db7903823218e6c4793c2e3c9bff383a497e55b6c83d3d3ff4a" }
+            { "path": "models/moss-image/loras/moss-psychedelic.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/loras/moss-psychedelic.onnx_adapter", "size": 74353744, "sha256": "612aae5b002e2db7903823218e6c4793c2e3c9bff383a497e55b6c83d3d3ff4a" }
           ]
         },
         {
@@ -1239,7 +1239,7 @@
           "strength": 1.0,
           "adapter": "models/moss-image/loras/moss-beauty.onnx_adapter",
           "files": [
-            { "path": "models/moss-image/loras/moss-beauty.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/12f40c02f8ef9555f3e1a5aa3670dda51b762fdc/loras/moss-beauty.onnx_adapter", "size": 74353744, "sha256": "dbe1a386fcb500c289efef15013109bb86b8c8c00463d4b7b739e06c93304a1c" }
+            { "path": "models/moss-image/loras/moss-beauty.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/loras/moss-beauty.onnx_adapter", "size": 74353744, "sha256": "dbe1a386fcb500c289efef15013109bb86b8c8c00463d4b7b739e06c93304a1c" }
           ]
         },
         {
@@ -1251,7 +1251,7 @@
           "adult": true,
           "adapter": "models/moss-image/loras/moss-nsfw.onnx_adapter",
           "files": [
-            { "path": "models/moss-image/loras/moss-nsfw.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/12f40c02f8ef9555f3e1a5aa3670dda51b762fdc/loras/moss-nsfw.onnx_adapter", "size": 74353744, "sha256": "85a41404115bc67106ae6dde3dbc06613b9d6456a3a8d119a82ba90a5665b746" }
+            { "path": "models/moss-image/loras/moss-nsfw.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/loras/moss-nsfw.onnx_adapter", "size": 74353744, "sha256": "85a41404115bc67106ae6dde3dbc06613b9d6456a3a8d119a82ba90a5665b746" }
           ]
         },
         {
@@ -1262,7 +1262,7 @@
           "strength": 0.7,
           "adapter": "models/moss-image/loras/moss-animated.onnx_adapter",
           "files": [
-            { "path": "models/moss-image/loras/moss-animated.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/12f40c02f8ef9555f3e1a5aa3670dda51b762fdc/loras/moss-animated.onnx_adapter", "size": 74353744, "sha256": "d53905f1507ae1a58718f18d529238622ad6c83eaca53923dc5a35ac221c0f37" }
+            { "path": "models/moss-image/loras/moss-animated.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/loras/moss-animated.onnx_adapter", "size": 74353744, "sha256": "d53905f1507ae1a58718f18d529238622ad6c83eaca53923dc5a35ac221c0f37" }
           ]
         },
         {
@@ -1272,7 +1272,7 @@
           "strength": 1.0,
           "adapter": "models/moss-image/loras/moss-impressionism.onnx_adapter",
           "files": [
-            { "path": "models/moss-image/loras/moss-impressionism.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/12f40c02f8ef9555f3e1a5aa3670dda51b762fdc/loras/moss-impressionism.onnx_adapter", "size": 74353744, "sha256": "6a804db2fd20e528d3535bc1a7827384e03379029daf6f161e0039582c12a4a6" }
+            { "path": "models/moss-image/loras/moss-impressionism.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/loras/moss-impressionism.onnx_adapter", "size": 74353744, "sha256": "6a804db2fd20e528d3535bc1a7827384e03379029daf6f161e0039582c12a4a6" }
           ]
         }
       ]

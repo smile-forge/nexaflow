@@ -129,12 +129,12 @@ public class OwnedModelsTests
         Assert.IsFalse(moss.RunsOn(OwnedModels.Cpu), "its graphs are built for the GPU");
         CollectionAssert.AreEquivalent(new[] { "moss-image-prompt-encoder", "moss-image-denoiser", "moss-image-decoder" },
                                        moss.PartsFor(OwnedModels.Cuda).Select(p => p.Runner).ToArray());
-        Assert.IsTrue(moss.Parts.Max(p => p.MemoryBytes) < 11L << 30, "its largest part, the denoiser with a LoRA, fits a 12 GB card");
+        Assert.IsTrue(moss.Parts.Max(p => p.MemoryBytes) < 10L << 30, "its largest part, the denoiser with a LoRA, under 10 GiB");
 
         var gguf = moss.Catalog.Files.Single(f => f.RelativePath.EndsWith(".gguf", StringComparison.Ordinal));
         Assert.AreEqual("models/moss-image/encoder/Qwen3.5-9B-Q8_0.gguf", gguf.RelativePath);
         StringAssert.Contains(gguf.Source.AbsoluteUri, "/unsloth/Qwen3.5-9B-GGUF/resolve/3885219b", "Qwen3.5-9B unchanged, pinned where the recipe compared it");
-        Assert.IsTrue(moss.Catalog.Files.Where(f => f != gguf).All(f => f.Source.AbsoluteUri.Contains("/smile-forge/moss-image-onnx/resolve/12f40c02")),
+        Assert.IsTrue(moss.Catalog.Files.Where(f => f != gguf).All(f => f.Source.AbsoluteUri.Contains("/smile-forge/moss-image-onnx/resolve/1b6c0496")),
                       "every graph pinned to the published revision");
 
         CollectionAssert.AreEqual(new[] { "moss-fast-8step", "moss-anime", "moss-gouache", "moss-psychedelic", "moss-beauty", "moss-nsfw", "moss-animated", "moss-impressionism" },
@@ -149,7 +149,7 @@ public class OwnedModelsTests
         Assert.AreEqual(0.7f, moss.Loras.Single(l => l.Offer.Id == "moss-nsfw").Strength, "at the strength its makers recommend");
 
         var loraFiles = moss.Loras.SelectMany(l => l.Files).ToList();
-        Assert.IsTrue(loraFiles.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/moss-image-onnx/resolve/12f40c02") && f.Source.AbsoluteUri.Contains("/loras/")));
+        Assert.IsTrue(loraFiles.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/moss-image-onnx/resolve/1b6c0496") && f.Source.AbsoluteUri.Contains("/loras/")));
         Assert.IsFalse(loraFiles.Any(moss.Catalog.Files.Contains), "a LoRA is fetched when a picture first asks for it, not with the model");
     }
 
