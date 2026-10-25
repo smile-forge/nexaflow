@@ -15,6 +15,7 @@ namespace Nexaflow.Features.WindowsFileSystem.Services;
 /// rely on that: they declare <c>IFileAction.RequiresFullyBackedPath</c> and are withheld instead.
 /// </para>
 /// </summary>
+[LocalDiskOnly("paths handed to Windows itself — the clipboard, a drag-out, a shell verb — which are on this disk; actions needing one are withheld from a remote path by its backing")]
 internal static class ShellPath
 {
     /// <summary>A real, launchable path. Returns the input unchanged if nothing can be produced, so

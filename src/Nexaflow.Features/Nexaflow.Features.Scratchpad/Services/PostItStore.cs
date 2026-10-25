@@ -1,10 +1,12 @@
 using Nexaflow.Features.Scratchpad.Models;
+using Nexaflow.IO.Common;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Nexaflow.Features.Scratchpad.Services;
 
+[LocalDiskOnly("the notes, their attachments and their recycle bin, in the app's config folder")]
 public sealed class PostItStore
 {
     private static readonly JsonSerializerOptions _opts = new()

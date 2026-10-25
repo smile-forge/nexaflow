@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -23,9 +25,9 @@ public sealed class OpenAsFontAction(IShellServices shell) : IFileAction, ICache
     public bool CanPerformAction => true;
     public bool OpensViewer => true;
 
-    public bool PerformAction(string filePath) => Open([filePath]);
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default) => Task.FromResult(Open([filePath]));
 
-    public bool PerformAction(IEnumerable<string> filePaths) => Open(filePaths);
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default) => Task.FromResult(Open(filePaths));
 
     private bool Open(IEnumerable<string> filePaths)
     {

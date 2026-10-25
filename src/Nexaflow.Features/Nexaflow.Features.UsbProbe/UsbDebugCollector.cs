@@ -2,6 +2,7 @@ using System.IO;
 using System.Reflection;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.UsbProbe.ViewModels;
+using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Stores;
 using Nexaflow.IO.Usb.Binding;
 using Nexaflow.IO.Usb.Diagnostics;
@@ -41,6 +42,7 @@ sealed class UsbDebugCollector(IReadOnlyList<ISubfeatureHandle<IUsbToolProvider>
     public Task<string?> PickSaveFileAsync(UsbDeviceNode device) => shell.PickSaveFileAsync(FileNameOf(device), [".json"]);
 
     /// <summary>The details, saved to <paramref name="path"/>; the status line saying where.</summary>
+    [LocalDiskOnly("a debug report on a device plugged into this computer, saved where the Windows save dialog picked")]
     public async Task<string> SaveAsync(string path, UsbDeviceNode device, IReadOnlyList<IUsbTool>? live, IReadOnlyList<string> log, CancellationToken ct)
     {
         var text = await TextAsync(device, live, log, ct);

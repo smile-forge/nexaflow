@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Media.Imaging;
 using Nexaflow.Features.Common;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Visuals.Text.Pages;
 
@@ -21,6 +22,7 @@ public sealed record PagesRead(string Markdown, IReadOnlyList<string> Pages);
 /// workspace's image model to be drawn again as a Mermaid diagram of its kind (<see cref="DiagramDrawing"/>). A diagram
 /// Nexaflow draws as written replaces the picture; any other figure stays one.
 /// </summary>
+[LocalDiskOnly("page pictures and the figures cut from them, in the reading's own folder in the app's cache")]
 public sealed class PageReader(IPageReading reading, IAIService? ai)
 {
     /// <summary>
@@ -148,6 +150,7 @@ public sealed class PageReader(IPageReading reading, IAIService? ai)
 }
 
 /// <summary>Figures cut from the picture of their page, at its own resolution.</summary>
+[LocalDiskOnly("page pictures in the reading's own folder in the app's cache")]
 public static class PageFigures
 {
     /// <summary>Each of <paramref name="figures"/> cut from the page in <paramref name="page"/> as a PNG; null for one

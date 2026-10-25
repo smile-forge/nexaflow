@@ -23,13 +23,13 @@ public class LineSamplingReaderTests
     }
 
     [TestMethod]
-    public void Read_TenLineFile_ReturnsFirst4AndLast4()
+    public async Task Read_TenLineFile_ReturnsFirst4AndLast4()
     {
         var lines = string.Join("\n", Enumerable.Range(1, 10).Select(i => $"row{i}"));
         var path  = WriteTemp(lines + "\n");
         try
         {
-            var sample = LineSamplingReader.Read(path);
+            var sample = await LineSamplingReader.ReadAsync(Nexaflow.IO.Common.VirtualFileSystem.Instance, path);
             CollectionAssert.AreEqual(new[] { "row1", "row2", "row3", "row4" }, sample.HeadLines.ToArray());
             CollectionAssert.AreEqual(new[] { "row7", "row8", "row9", "row10" }, sample.TailLines.ToArray());
             Assert.AreEqual(LineEndingKind.Lf, sample.LineEnding);
@@ -38,12 +38,12 @@ public class LineSamplingReaderTests
     }
 
     [TestMethod]
-    public void Read_CrlfFile_DetectsCrlfLineEnding()
+    public async Task Read_CrlfFile_DetectsCrlfLineEnding()
     {
         var path = WriteTemp("a\r\nb\r\nc\r\nd\r\ne\r\n");
         try
         {
-            var sample = LineSamplingReader.Read(path);
+            var sample = await LineSamplingReader.ReadAsync(Nexaflow.IO.Common.VirtualFileSystem.Instance, path);
             Assert.AreEqual(LineEndingKind.Crlf, sample.LineEnding);
             Assert.AreEqual("a", sample.HeadLines[0]);
         }
@@ -51,12 +51,12 @@ public class LineSamplingReaderTests
     }
 
     [TestMethod]
-    public void Read_Utf8BomFile_ReportsBomAndCorrectEncoding()
+    public async Task Read_Utf8BomFile_ReportsBomAndCorrectEncoding()
     {
         var path = WriteTemp("name\nx\ny\n", new UTF8Encoding(false), bomBytes: [0xEF, 0xBB, 0xBF]);
         try
         {
-            var sample = LineSamplingReader.Read(path);
+            var sample = await LineSamplingReader.ReadAsync(Nexaflow.IO.Common.VirtualFileSystem.Instance, path);
             Assert.IsTrue(sample.HadBom);
             Assert.AreEqual(3, sample.BomByteCount);
             Assert.AreEqual(Encoding.UTF8, sample.Encoding);
@@ -65,12 +65,12 @@ public class LineSamplingReaderTests
     }
 
     [TestMethod]
-    public void Read_ShortFile_HeadAndTailMayOverlap()
+    public async Task Read_ShortFile_HeadAndTailMayOverlap()
     {
         var path = WriteTemp("only\n");
         try
         {
-            var sample = LineSamplingReader.Read(path);
+            var sample = await LineSamplingReader.ReadAsync(Nexaflow.IO.Common.VirtualFileSystem.Instance, path);
             Assert.IsTrue(sample.HeadLines.Count >= 1);
             Assert.AreEqual("only", sample.HeadLines[0]);
         }

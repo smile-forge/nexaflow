@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Tabular.Detection;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Features.Tabular.Streaming;
 
@@ -18,15 +19,15 @@ namespace Nexaflow.Features.Tabular.Streaming;
 public static class RowCounter
 {
     public static Task<int> CountAsync(
-        string path, int bomBytes, CsvShape shape,
+        IVirtualFileSystem vfs, string path, int bomBytes, CsvShape shape,
         Action<int> progress, CancellationToken ct,
         int leadingCommentLines = 0,
         Encoding? encoding = null)
     {
-        return Task.Run(() =>
+        return Task.Run(async () =>
         {
             encoding ??= Encoding.UTF8;
-            using var fs = VirtualFileSystem.Instance.OpenRead(path);
+            await using var fs = await vfs.OpenReadAsync(path, ReadIntent.Sequential, ct);
             fs.Position = bomBytes;
             using var sr = new StreamReader(fs, encoding, detectEncodingFromByteOrderMarks: false, bufferSize: 65536);
 

@@ -1,5 +1,6 @@
 using System.IO;
 using System.Runtime.InteropServices;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.WindowsSearch.Services;
 
@@ -147,6 +148,7 @@ public sealed class IndexCoverageReader : IDisposable
     }
 
     /// <summary>The crawl scope speaks URLs; a folder path has to be presented as one.</summary>
+    [LocalDiskOnly("a folder as the Windows Search index names it, which covers only the drives of this computer")]
     private static string ToUrl(string path)
     {
         if (path.Contains("://", StringComparison.Ordinal)) return path;

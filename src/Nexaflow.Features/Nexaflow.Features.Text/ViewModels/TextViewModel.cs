@@ -17,6 +17,7 @@ using System.Text.RegularExpressions;
 using System.Windows;
 using Nexaflow.Visuals.Common.Theming;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Features.Text.ViewModels;
 
@@ -53,7 +54,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     public event Action<bool>? DirtyChanged;
 
     /// <summary>True when this file can be edited: any small file, or a large file on a real (non-archive) path.</summary>
-    public bool CanEdit => !IsLargeFile || VirtualFileSystem.Instance.SplitOutermostContainer(FilePath).Inner is null;
+    public bool CanEdit => !IsLargeFile || _vfs.SplitOutermostContainer(FilePath).Inner is null;
 
     // ── Encoding ──────────────────────────────────────────────────────────────
 
@@ -155,13 +156,18 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     private int    _winDocOffset;          // Document offset where the window's real text begins
     private bool   _suppressDocChanges;    // guards programmatic Document mutations from the edit pipeline
     private bool   _slidingWindow;         // re-entrancy guard for slides
-    private string AddBufferPath => Path.Combine(
-        Path.GetDirectoryName(FilePath) ?? string.Empty, "." + FileName + ".nexedit");
+
+    /// <summary>The large-file editor's change file — this machine's own scratch, in the temp folder, so a file in an
+    /// archive or on a location is edited as one on disk is.</summary>
+    private readonly string _addBufferPath = Path.Combine(Path.GetTempPath(), $"nexaflow-{Guid.NewGuid():N}.nexedit");
 
     // ── Monitoring ────────────────────────────────────────────────────────────
 
     private IFileWatch?             _watch;
     private readonly IShellServices _shell;
+
+    /// <summary>The runtime's file system the file is read, saved and split through — on disk, in an archive or on a location.</summary>
+    private readonly IVirtualFileSystem _vfs;
 
     // ── Search cancellation ───────────────────────────────────────────────────
 
@@ -182,9 +188,10 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     // ─────────────────────────────────────────────────────────────────────────
 
-    public TextViewModel(string filePath, IShellServices shell)
+    public TextViewModel(string filePath, IShellServices shell, IVirtualFileSystem vfs)
     {
         _shell = shell;
+        _vfs   = vfs;
         _selectedEncoding  = AvailableEncodings[0]; // UTF-8
         _selectedSplitMode = SplitModes[0];
         FilePath = filePath;
@@ -201,14 +208,15 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
         try
         {
-            long length  = VirtualFileSystem.Instance.GetLength(FilePath);
+            var entry    = await _vfs.GetEntryAsync(FilePath, ct) ?? throw new FileNotFoundException($"Could not find file '{FilePath}'.", FilePath);
+            long length  = entry.Size;
             FileSizeText = FormatSize(length);
             IsLargeFile  = length >= SmallFileSizeLimit;
             OnPropertyChanged(nameof(CanEdit));
 
             if (!IsLargeFile)
             {
-                using var smallStream = VirtualFileSystem.Instance.OpenRead(FilePath);
+                await using var smallStream = await _vfs.OpenReadAsync(FilePath, ReadIntent.Whole, ct);
                 using var smallReader = new StreamReader(smallStream, SelectedEncoding.Encoding);
                 _suppressDocChanges = true;
                 Document.Text = await smallReader.ReadToEndAsync(ct);
@@ -219,7 +227,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
             else
             {
                 _file?.Dispose();
-                _file = await OverlayTextFile.OpenAsync(FilePath, SelectedEncoding.Encoding, LinesPerPage, AddBufferPath, ct);
+                _file = await OverlayTextFile.OpenAsync(_vfs, FilePath, SelectedEncoding.Encoding, LinesPerPage, _addBufferPath, ct);
                 LineCount = (int)Math.Min(int.MaxValue, _file.TotalLines);
                 _winStartLine = 0;
                 await SlideWindowAsync(0);
@@ -418,29 +426,29 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
             if (!IsLargeFile || _file is null)
             {
-                VirtualFileSystem.Instance.WriteAllText(FilePath, Document.Text, SelectedEncoding.Encoding);
+                await _vfs.WriteAllTextAsync(FilePath, Document.Text, SelectedEncoding.Encoding);
                 IsDirty = false;
             }
             else
             {
-                var tmp = FilePath + ".nexsave.tmp";
-                await using (var outStream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16, useAsync: true))
-                    await _file.SaveAsync(outStream, CancellationToken.None);
-
-                // Release the original's file handle so the atomic replace can swap it in.
+                // Written whole and then put in place, so a save that fails leaves the file as it was.
                 long keepLine = _winStartLine;
-                _file.Dispose();
-                _file = null;
+                await using (var write = await _vfs.BeginWriteAsync(FilePath, WriteMode.Replace))
+                {
+                    await _file.SaveAsync(write.Content, CancellationToken.None);
 
-                if (File.Exists(FilePath)) File.Replace(tmp, FilePath, null);
-                else File.Move(tmp, FilePath);
+                    // Release the original's file handle so the replace can swap the new content in.
+                    _file.Dispose();
+                    _file = null;
+                    await write.CommitAsync(CancellationToken.None);
+                }
 
                 IsDirty = false;
 
                 // Re-open the overlay over the saved file (the add-buffer is consumed) but DON'T rebuild the
                 // document — the on-screen content is identical to what was just saved, so leaving it as-is
                 // keeps the viewport exactly where the user was.
-                _file = await OverlayTextFile.OpenAsync(FilePath, SelectedEncoding.Encoding, LinesPerPage, AddBufferPath, CancellationToken.None);
+                _file = await OverlayTextFile.OpenAsync(_vfs, FilePath, SelectedEncoding.Encoding, LinesPerPage, _addBufferPath, CancellationToken.None);
                 LineCount = (int)Math.Min(int.MaxValue, _file.TotalLines);
                 var w = await _file.ReadWindowAsync(keepLine, 0, CancellationToken.None); // just to recompute the window's byte offset
                 _winStartByte = w.StartByteOffset;
@@ -486,8 +494,8 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     private void StartMonitoring()
     {
+        // Started once the file is loaded, so it is there; the shell watches it wherever it is.
         _watch?.Dispose();
-        if (!VirtualFileSystem.Instance.Exists(FilePath)) return;
         _watch = _shell.WatchFile(FilePath, OnFileChanged);
         if (IsEditing || IsBusy) _watch.Enabled = false;
     }
@@ -529,9 +537,9 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     private void ToggleSplitPanel() => IsSplitPanelOpen = !IsSplitPanelOpen;
 
     [RelayCommand]
-    private void Split()
+    private async Task Split()
     {
-        if (string.IsNullOrEmpty(FilePath) || !VirtualFileSystem.Instance.Exists(FilePath)) return;
+        if (string.IsNullOrEmpty(FilePath) || !await _vfs.ExistsAsync(FilePath)) return;
 
         SplitOptions options;
         var mode = SelectedSplitMode.Mode;
@@ -557,7 +565,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         }
 
         IsSplitPanelOpen = false;
-        var task = new SplitFileBackgroundTask(FilePath, options);
+        var task = new SplitFileBackgroundTask(_vfs, FilePath, options);
         _shell.QueueBackgroundTask(task, ok =>
         {
             if (ok && task.Result is { OutputFiles.Count: > 0 } r)
@@ -1341,6 +1349,5 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         _watch?.Dispose();
         _searchCts?.Cancel();
         _file?.Dispose();
-        try { if (File.Exists(FilePath + ".nexsave.tmp")) File.Delete(FilePath + ".nexsave.tmp"); } catch { }
     }
 }

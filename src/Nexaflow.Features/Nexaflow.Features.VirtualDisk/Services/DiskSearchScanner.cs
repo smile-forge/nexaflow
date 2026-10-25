@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 using Nexaflow.Search;
 
 namespace Nexaflow.Features.VirtualDisk.Services;
@@ -36,7 +38,7 @@ internal static class DiskSearchScanner
     /// are the shallow ones, where a depth-first walk would spend the whole budget inside the first branch
     /// it happened to enter.
     /// </summary>
-    internal static ScanResult Scan(
+    internal static async Task<ScanResult> ScanAsync(
         IVirtualFileSystem vfs, string diskPath, SearchRequest request,
         int folderCap, int hitCap, CancellationToken ct)
     {
@@ -56,10 +58,10 @@ internal static class DiskSearchScanner
             var inner = queue.Dequeue();
             visited++;
 
-            IReadOnlyList<VirtualEntry> entries;
+            var entries = new List<LocationEntry>();
             // A directory the filesystem driver can't read is skipped rather than reported: a damaged or
             // partly-unsupported image still has the rest of its tree worth searching.
-            try { entries = vfs.EnumerateEntries(Full(diskPath, inner)); }
+            try { await foreach (var entry in vfs.EnumerateAsync(Full(diskPath, inner), ct)) entries.Add(entry); }
             catch (Exception) { continue; }
 
             foreach (var e in Order(entries))
@@ -86,7 +88,7 @@ internal static class DiskSearchScanner
 
     /// <summary>The same folders-before-files order the tree draws in, so the hit list and the filtered
     /// tree agree about what comes first.</summary>
-    private static IEnumerable<VirtualEntry> Order(IReadOnlyList<VirtualEntry> entries) =>
+    private static IEnumerable<LocationEntry> Order(IReadOnlyList<LocationEntry> entries) =>
         entries.OrderBy(e => e.IsDirectory ? 0 : 1)
                .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase);
 

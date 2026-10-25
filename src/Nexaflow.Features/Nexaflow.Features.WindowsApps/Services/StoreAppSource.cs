@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Xml.Linq;
 using Nexaflow.Features.WindowsApps.Models;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using Windows.ApplicationModel;
 using Windows.Management.Deployment;
@@ -16,6 +17,7 @@ namespace Nexaflow.Features.WindowsApps.Services;
 /// Also the home of the package-model operations behind Windows' "Advanced options" page — move,
 /// repair, reset, terminate and add-ons (<see cref="IStoreAppOperations"/>).
 /// </summary>
+[LocalDiskOnly("Store app packages and their data, in Windows' own folders on this computer")]
 public sealed class StoreAppSource : IInstalledAppSource, IStoreAppOperations
 {
     public AppSource Source => AppSource.Store;

@@ -17,7 +17,7 @@ public class DiskImageReaderTests
     public void Vhd_Describe_ReportsPartitionedFatVolume()
     {
         using var fix = new DiskSampleFactory.Fixtures();
-        using var reader = DiskImageReader.Open(fix.VhdPath);
+        using var reader = new DiskImageReader(File.OpenRead(fix.VhdPath), Path.GetFileName(fix.VhdPath));
 
         var info = reader.Describe();
         Assert.AreEqual("VHD", info.Format);
@@ -30,7 +30,7 @@ public class DiskImageReaderTests
     public void Vhd_ListChildren_ReadsRootAndNestedDirectory()
     {
         using var fix = new DiskSampleFactory.Fixtures();
-        using var reader = DiskImageReader.Open(fix.VhdPath);
+        using var reader = new DiskImageReader(File.OpenRead(fix.VhdPath), Path.GetFileName(fix.VhdPath));
 
         var root = reader.ListChildren("").Select(e => e.Name).ToList();
         Assert.IsTrue(HasName(root, "readme.txt"));
@@ -44,7 +44,7 @@ public class DiskImageReaderTests
     public void Vhd_StatEntry_DistinguishesFileDirAndMissing()
     {
         using var fix = new DiskSampleFactory.Fixtures();
-        using var reader = DiskImageReader.Open(fix.VhdPath);
+        using var reader = new DiskImageReader(File.OpenRead(fix.VhdPath), Path.GetFileName(fix.VhdPath));
 
         Assert.IsTrue(reader.StatEntry("docs") is { IsDirectory: true });
         Assert.IsTrue(reader.StatEntry("readme.txt") is { IsDirectory: false });
@@ -55,7 +55,7 @@ public class DiskImageReaderTests
     public void Vhd_OpenFile_StreamsContents()
     {
         using var fix = new DiskSampleFactory.Fixtures();
-        using var reader = DiskImageReader.Open(fix.VhdPath);
+        using var reader = new DiskImageReader(File.OpenRead(fix.VhdPath), Path.GetFileName(fix.VhdPath));
 
         var name = reader.ListChildren("")
             .First(e => !e.IsDirectory && e.Name.Contains("readme", StringComparison.OrdinalIgnoreCase))
@@ -69,7 +69,7 @@ public class DiskImageReaderTests
     public void Iso_Describe_And_ListRoot()
     {
         using var fix = new DiskSampleFactory.Fixtures();
-        using var reader = DiskImageReader.Open(fix.IsoPath);
+        using var reader = new DiskImageReader(File.OpenRead(fix.IsoPath), Path.GetFileName(fix.IsoPath));
 
         var info = reader.Describe();
         Assert.AreEqual("ISO 9660", info.Format);

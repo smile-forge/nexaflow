@@ -2,24 +2,34 @@ using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Features.Compressed.Services;
 
 /// <summary>
 /// Format-agnostic <b>detached</b> signing: hashes the whole archive and signs the hash with a per-user
-/// ECDSA (P-256) key, storing the result in a <c>&lt;archive&gt;.sig</c> sidecar. Verification recomputes
-/// the hash and checks it against the embedded public key. (Content-specific signing — APK/JAR — is a
-/// later, separate concern.)
+/// ECDSA (P-256) key, storing the result in a <c>&lt;archive&gt;.sig</c> sidecar. The archive and its sidecar
+/// are read and written through the runtime's file system, wherever the archive is; the key stays in the app's
+/// config folder. Verification recomputes the hash and checks it against the embedded public key.
+/// (Content-specific signing — APK/JAR — is a later, separate concern.)
 /// </summary>
 public sealed class ArchiveSignatureService
 {
     private const string Algorithm = "ECDSA-P256-SHA256";
+    private readonly IVirtualFileSystem _vfs;
     private readonly string _keyDir;
 
-    public ArchiveSignatureService() : this(DefaultKeyDir()) { }
+    public ArchiveSignatureService(IVirtualFileSystem vfs) : this(vfs, DefaultKeyDir()) { }
 
     /// <summary>Test seam: keep the signing key in an explicit directory.</summary>
-    internal ArchiveSignatureService(string keyDir) => _keyDir = keyDir;
+    internal ArchiveSignatureService(IVirtualFileSystem vfs, string keyDir)
+    {
+        _vfs    = vfs;
+        _keyDir = keyDir;
+    }
 
     private static string DefaultKeyDir()
     {
@@ -29,48 +39,51 @@ public sealed class ArchiveSignatureService
         return Path.Combine(baseDir, "compressed");
     }
 
-    public bool HasSignature(string archivePath) => File.Exists(SigPath(archivePath));
+    public async Task<bool> HasSignatureAsync(string archivePath, CancellationToken ct = default)
+        => await _vfs.GetEntryAsync(SigPath(archivePath), ct) is { IsDirectory: false };
 
     /// <summary>Signs the archive and writes its <c>.sig</c> sidecar; returns the signer fingerprint.</summary>
-    public string Sign(string archivePath)
+    public async Task<string> SignAsync(string archivePath, CancellationToken ct = default)
     {
+        var hash = await HashArchiveAsync(archivePath, ct);
         using var ecdsa = LoadOrCreateKey();
-        var sig = ecdsa.SignHash(HashArchive(archivePath));
+        var sig = ecdsa.SignHash(hash);
         var pub = ecdsa.ExportSubjectPublicKeyInfo();
         var record = new SignatureRecord(
             Algorithm, Convert.ToBase64String(sig), Convert.ToBase64String(pub), Fingerprint(pub));
-        File.WriteAllText(SigPath(archivePath), JsonSerializer.Serialize(record));
+        await _vfs.WriteAllTextAsync(SigPath(archivePath), JsonSerializer.Serialize(record), ct: ct);
         return record.Fingerprint;
     }
 
     /// <summary>Verifies the archive against its sidecar. Returns whether it is valid and the signer
     /// fingerprint (null when there is no sidecar).</summary>
-    public (bool Valid, string? Fingerprint) Verify(string archivePath)
+    public async Task<(bool Valid, string? Fingerprint)> VerifyAsync(string archivePath, CancellationToken ct = default)
     {
-        var sigPath = SigPath(archivePath);
-        if (!File.Exists(sigPath)) return (false, null);
+        if (!await HasSignatureAsync(archivePath, ct)) return (false, null);
 
         SignatureRecord? record;
-        try { record = JsonSerializer.Deserialize<SignatureRecord>(File.ReadAllText(sigPath)); }
+        try { record = JsonSerializer.Deserialize<SignatureRecord>(await _vfs.ReadAllTextAsync(SigPath(archivePath), ct: ct)); }
         catch { return (false, null); }
         if (record is null) return (false, record?.Fingerprint);
 
         try
         {
+            var hash = await HashArchiveAsync(archivePath, ct);
             using var ecdsa = ECDsa.Create();
             ecdsa.ImportSubjectPublicKeyInfo(Convert.FromBase64String(record.PublicKey), out _);
-            bool ok = ecdsa.VerifyHash(HashArchive(archivePath), Convert.FromBase64String(record.Signature));
+            bool ok = ecdsa.VerifyHash(hash, Convert.FromBase64String(record.Signature));
             return (ok, record.Fingerprint);
         }
         catch { return (false, record.Fingerprint); }
     }
 
-    private static byte[] HashArchive(string archivePath)
+    private async Task<byte[]> HashArchiveAsync(string archivePath, CancellationToken ct)
     {
-        using var fs = File.OpenRead(archivePath);
-        return SHA256.HashData(fs);
+        await using var stream = await _vfs.OpenReadAsync(archivePath, ReadIntent.Sequential, ct);
+        return await SHA256.HashDataAsync(stream, ct);
     }
 
+    [LocalDiskOnly("the per-user signing key, in the app's config folder")]
     private ECDsa LoadOrCreateKey()
     {
         Directory.CreateDirectory(_keyDir);

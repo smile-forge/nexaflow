@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Features.Json.Services;
 
@@ -22,7 +23,9 @@ public sealed record LoadResult(
     long           RootContentOffset,   // file byte position of the first item's first byte
     string?        ErrorMessage);
 
-internal sealed class JsonFileLoader
+/// <summary>Reads a JSON file through the runtime's file system — whole when it is small, a batch at a time when it is not,
+/// each batch a ranged read, so a large file on a location is never fetched entire to show its first screen.</summary>
+internal sealed class JsonFileLoader(IVirtualFileSystem vfs)
 {
     private const long SmallFileSizeLimit  = 1 * 1024 * 1024;
     private const int  FrontChunkSize      = 256 * 1024;
@@ -47,10 +50,10 @@ internal sealed class JsonFileLoader
     {
         try
         {
-            if (!VirtualFileSystem.Instance.Exists(filePath))
+            if (await vfs.GetEntryAsync(filePath, ct) is not { IsDirectory: false } entry)
                 return new LoadResult(null, [], false, 0, 0, 0, Str.Format("Json.Load.FileNotFoundFormat", filePath));
 
-            long fileSize = VirtualFileSystem.Instance.GetLength(filePath);
+            long fileSize = entry.Size;
             return fileSize <= SmallFileSizeLimit
                 ? await LoadSmallAsync(filePath, fileSize, ct)
                 : await LoadLargeAsync(filePath, fileSize, ct);
@@ -61,10 +64,10 @@ internal sealed class JsonFileLoader
 
     // ── Small file path ──────────────────────────────────────────────────────
 
-    private static async Task<LoadResult> LoadSmallAsync(string filePath, long fileSize, CancellationToken ct)
+    private async Task<LoadResult> LoadSmallAsync(string filePath, long fileSize, CancellationToken ct)
     {
         string text;
-        await using (var rs = VirtualFileSystem.Instance.OpenRead(filePath))
+        await using (var rs = await vfs.OpenReadAsync(filePath, ReadIntent.Whole, ct))
         using (var sr = new StreamReader(rs, Encoding.UTF8))
             text = await sr.ReadToEndAsync(ct);
         try
@@ -84,7 +87,7 @@ internal sealed class JsonFileLoader
 
     private async Task<LoadResult> LoadLargeAsync(string filePath, long fileSize, CancellationToken ct)
     {
-        await using var stream = VirtualFileSystem.Instance.OpenRead(filePath);
+        await using var stream = await vfs.OpenReadAsync(filePath, ReadIntent.Random, ct);
 
         // Read front chunk; grow if even the first item is bigger than the chunk
         var (frontBuf, frontRead) = await ReadGrowingChunkAsync(stream, 0, fileSize, ct);
@@ -179,7 +182,7 @@ internal sealed class JsonFileLoader
     {
         if (startOffset >= fileSize - 2) return ([], startOffset);
 
-        await using var stream = VirtualFileSystem.Instance.OpenRead(filePath);
+        await using var stream = await vfs.OpenReadAsync(filePath, ReadIntent.Random, ct);
 
         // Grow chunk if no items found — handles items larger than initial chunk size
         var chunkSize = FrontChunkSize;
@@ -208,10 +211,12 @@ internal sealed class JsonFileLoader
     {
         const int SampleBytes = 64 * 1024;
 
+        // One open for both samples — on a location each open is a round trip.
+        await using var stream = await vfs.OpenReadAsync(filePath, ReadIntent.Random, ct);
+
         // Front sample: parse the first object only
-        await using var fs1 = VirtualFileSystem.Instance.OpenRead(filePath);
         var frontBuf  = new byte[(int)Math.Min(SampleBytes, fileSize)];
-        int frontRead = await fs1.ReadAsync(frontBuf, 0, frontBuf.Length, ct);
+        int frontRead = await stream.ReadAsync(frontBuf, 0, frontBuf.Length, ct);
 
         var rootStart = FindFirstStructuralChar(frontBuf.AsSpan(0, frontRead), out var rootChar);
         if (rootChar != (byte)'[' && rootChar != (byte)'{') return null;
@@ -225,11 +230,10 @@ internal sealed class JsonFileLoader
         var firstKeys      = GetObjectKeys(firstNode);
 
         // Back sample: parse the LAST object
-        await using var fs2 = VirtualFileSystem.Instance.OpenRead(filePath);
         var backStart  = Math.Max(0, fileSize - SampleBytes);
-        fs2.Seek(backStart, SeekOrigin.Begin);
+        stream.Seek(backStart, SeekOrigin.Begin);
         var backBuf  = new byte[(int)(fileSize - backStart)];
-        int backRead = await fs2.ReadAsync(backBuf, 0, backBuf.Length, ct);
+        int backRead = await stream.ReadAsync(backBuf, 0, backBuf.Length, ct);
 
         var (lastNode, lastItemBytes) = ExtractLastItem(Encoding.UTF8.GetString(backBuf, 0, backRead), isArray);
         if (lastItemBytes <= 0) lastItemBytes = firstItemBytes;

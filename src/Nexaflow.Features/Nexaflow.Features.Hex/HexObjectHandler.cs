@@ -17,11 +17,15 @@ namespace Nexaflow.Features.Hex;
 /// An already-open tab on the same file is re-pointed rather than duplicated, so repeatedly jumping
 /// from an inspector does not leave a trail of tabs.
 /// </para>
+/// <para>
+/// A range is claimed by its shape. Whether its file is there is the viewer's to find out — it says so
+/// when the file is missing or unreadable, and offers a retry — where a check here would wait on the disk
+/// or the network in the middle of routing.
+/// </para>
 /// </summary>
 public sealed class HexObjectHandler(IShellServices shell) : IGenericObjectHandler
 {
-    public bool CanHandleObject(object obj)
-        => obj is FileByteRange { IsValid: true } range && File.Exists(range.Path);
+    public bool CanHandleObject(object obj) => obj is FileByteRange { IsValid: true };
 
     public void Handle(object obj)
     {

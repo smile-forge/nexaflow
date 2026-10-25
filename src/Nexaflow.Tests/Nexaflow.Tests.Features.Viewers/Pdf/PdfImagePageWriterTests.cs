@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
@@ -82,7 +83,7 @@ public class PdfImagePageWriterTests
         var path = TestTemp.CreateFile(".png");
         File.WriteAllText(path, "not a picture");
 
-        Assert.ThrowsExactly<NotSupportedException>(() => PdfImagePageWriter.Write(path, new Size(612, 792), new MemoryStream(), CancellationToken.None));
+        Assert.ThrowsExactly<NotSupportedException>(() => PdfImagePageWriter.Write(File.ReadAllBytes(path), path, new Size(612, 792), new MemoryStream(), CancellationToken.None));
     }
 
     private static PdfDocument Written(byte[] picture, string extension)
@@ -90,7 +91,7 @@ public class PdfImagePageWriterTests
         var path = TestTemp.CreateFile(extension);
         File.WriteAllBytes(path, picture);
         using var output = new MemoryStream();
-        PdfImagePageWriter.Write(path, new Size(612, 792), output, CancellationToken.None);
+        PdfImagePageWriter.Write(picture, path, new Size(612, 792), output, CancellationToken.None);
         return PdfDocument.Open(output.ToArray());
     }
 

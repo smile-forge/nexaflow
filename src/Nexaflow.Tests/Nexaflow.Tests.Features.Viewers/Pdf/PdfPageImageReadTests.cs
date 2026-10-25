@@ -1,3 +1,5 @@
+using System.IO;
+using Nexaflow.IO.Common;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -16,7 +18,7 @@ public class PdfPageImageReadTests
 {
     private static PdfDocumentScope Open(string name)
     {
-        var scope = PdfDocumentScope.TryOpen(TestSampleData.Path("pdf", name), CancellationToken.None);
+        var scope = PdfDocumentScope.TryOpen(File.OpenRead(TestSampleData.Path("pdf", name)), CancellationToken.None);
         Assert.IsNotNull(scope, $"{name} should open");
         return scope;
     }

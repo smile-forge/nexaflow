@@ -1,6 +1,7 @@
 ﻿using System.Data.OleDb;
 using System.IO;
 using Nexaflow.Features.Common.Search;
+using Nexaflow.IO.Common;
 using Nexaflow.Search;
 
 namespace Nexaflow.Features.WindowsSearch.Services;
@@ -230,6 +231,7 @@ public static class WindowsSearchService
     /// the two paths agree about what "found in this file" means.</summary>
     private const long WalkReadCap = 4L * 1024 * 1024;
 
+    [LocalDiskOnly("the walk Windows Search falls back to, over the drives of this computer it indexes")]
     private static async Task<int> Walk(
         SearchRequest request,
         string rootPath,

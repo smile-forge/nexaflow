@@ -13,7 +13,7 @@ namespace Nexaflow.Features.Compressed.FileActions;
 /// <summary>Compresses the selection into a sibling archive of the configured default format — a folder,
 /// a file, or a whole multi-selection of either in one archive. (A format-pick overlay is offered once
 /// more than one create-capable format is installed.)</summary>
-public sealed class ZipItAction(IShellServices shell, CompressedConfig config,
+public sealed class ZipItAction(IShellServices shell, CompressedConfig config, IVirtualFileSystem vfs,
                                IFileOperationHost? operations = null)
     : IFileAction, IFolderAction, ICacheable
 {
@@ -43,7 +43,7 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config,
 
     /// <summary>Compresses one item into an archive named after it: a folder as its contents (no wrapper
     /// directory), a file on its own with its extension replaced.</summary>
-    public bool PerformAction(string path)
+    public async Task<bool> PerformActionAsync(string path, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(path)) return false;
 
@@ -57,22 +57,23 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config,
         }
 
         // A file drops its own extension ("report.docx" → "report.zip"); a folder keeps its whole name,
-        // which may itself contain a dot.
-        bool isFolder = Directory.Exists(trimmed);
+        // which may itself contain a dot. A folder is one as listed — not a file the file system can open as
+        // one, as it does a .docx, which is a zip.
+        bool isFolder = await vfs.GetEntryAsync(trimmed, ct) is { IsDirectory: true };
         var  baseName = isFolder ? name : Path.GetFileNameWithoutExtension(name);
 
         return isFolder
-            ? Compress(parent, baseName, ZipSubject.Named(name), trimmed, null)
-            : Compress(parent, baseName, ZipSubject.Named(name), null, [trimmed]);
+            ? await CompressAsync(parent, baseName, ZipSubject.Named(name), trimmed, null, ct)
+            : await CompressAsync(parent, baseName, ZipSubject.Named(name), null, [trimmed], ct);
     }
 
     /// <summary>Compresses the whole selection — files, folders or a mix — into ONE archive beside it,
     /// named after the folder the items sit in. A selection of one is zipped under its own name instead.</summary>
-    public bool PerformAction(IEnumerable<string> paths)
+    public async Task<bool> PerformActionAsync(IEnumerable<string> paths, CancellationToken ct = default)
     {
         var items = paths?.Where(p => !string.IsNullOrWhiteSpace(p)).ToList() ?? [];
         if (items.Count == 0) return false;
-        if (items.Count == 1) return PerformAction(items[0]);
+        if (items.Count == 1) return await PerformActionAsync(items[0], ct);
 
         var parent = Path.GetDirectoryName(
             items[0].TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
@@ -88,22 +89,22 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config,
             parent.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         var baseName = string.IsNullOrEmpty(folderName) ? Str.Get("Compressed.ZipIt.DefaultName") : folderName;
 
-        return Compress(parent, baseName, ZipSubject.Selection(items.Count), null, items);
+        return await CompressAsync(parent, baseName, ZipSubject.Selection(items.Count), null, items, ct);
     }
 
     /// <summary>Writes an archive of the configured format at a free name under <paramref name="parent"/>,
     /// reporting any refusal or failure against <paramref name="subject"/>. Exactly one of
     /// <paramref name="sourceDir"/> and <paramref name="sources"/> is given.</summary>
-    private bool Compress(string parent, string baseName, ZipSubject subject,
-                          string? sourceDir, IReadOnlyList<string>? sources)
+    private async Task<bool> CompressAsync(string parent, string baseName, ZipSubject subject,
+                                           string? sourceDir, IReadOnlyList<string>? sources, CancellationToken ct)
     {
         string dest;
         try
         {
             var ext = NormalizeFormat(config.DefaultFormat);
-            dest = UniqueArchivePath(parent, baseName, ext);
+            dest = await UniqueArchivePathAsync(parent, baseName, ext, ct);
 
-            if (!VirtualFileSystem.Instance.CanCreate(Path.GetFileName(dest)))
+            if (!vfs.CanCreate(Path.GetFileName(dest)))
             {
                 shell.ShowError(Str.Format("Compressed.ZipIt.NoProviderFormat", config.DefaultFormat));
                 return false;
@@ -115,13 +116,13 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config,
             return false;
         }
 
-        // No host means nobody is showing progress, so there is nothing to be gained by going async.
-        if (operations is null) return CompressNow(dest, subject, sourceDir, sources);
+        // No host means nobody is showing progress, so the write is awaited here.
+        if (operations is null) return await CompressNowAsync(dest, subject, sourceDir, sources);
 
-        // Claim the name before returning. It was picked synchronously but the write is now seconds away,
-        // so without this two Zip Its in quick succession would both pick it and the second would replace
-        // the first. WriteNewArchive already replaces an existing file, so a placeholder costs nothing.
-        try { File.Create(dest).Dispose(); }
+        // Claim the name before returning. It was picked before the write, which is now seconds away, so
+        // without this two Zip Its in quick succession would both pick it and the second would replace the
+        // first. Writing the archive replaces an existing file, so a placeholder costs nothing.
+        try { await vfs.WriteAllBytesAsync(dest, [], ct); }
         catch (Exception ex)
         {
             shell.ShowError(subject.Failure(ex.Message));
@@ -130,8 +131,7 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config,
 
         _ = operations.Run(
             new FileOperationRequest(Str.Get("Compressed.Operation.Compressing"), subject.RowLabel, Path.GetFileName(dest), dest),
-            (progress, ct) => Task.Run(() => Build(dest, subject, sourceDir, sources, progress, ct),
-                                       CancellationToken.None));
+            (progress, token) => BuildAsync(dest, subject, sourceDir, sources, progress, token));
         return true;
     }
 
@@ -140,42 +140,42 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config,
     /// A run that does not finish takes the placeholder with it, so a cancelled zip leaves nothing behind
     /// — the temp is already the VFS's to clear.
     /// </summary>
-    private static TransferResult Build(string dest, ZipSubject subject, string? sourceDir,
-                                        IReadOnlyList<string>? sources,
-                                        IProgress<TransferProgress> progress, CancellationToken ct)
+    private async Task<TransferResult> BuildAsync(string dest, ZipSubject subject, string? sourceDir,
+                                                  IReadOnlyList<string>? sources,
+                                                  IProgress<TransferProgress> progress, CancellationToken ct)
     {
         try
         {
-            if (sourceDir is not null) VirtualFileSystem.Instance.CreateArchive(dest, sourceDir, progress, ct);
-            else                       VirtualFileSystem.Instance.CreateArchive(dest, sources!, progress, ct);
+            if (sourceDir is not null) await vfs.CreateArchiveAsync(dest, sourceDir, progress, ct);
+            else                       await vfs.CreateArchiveAsync(dest, sources!, progress, ct);
             return new TransferResult(true, 0, 0, [], [], [], []);
         }
         catch (OperationCanceledException)
         {
-            Discard(dest);
+            await DiscardAsync(dest);
             return new TransferResult(false, 0, 0, [], [], [], []);
         }
         catch (Exception ex)
         {
-            Discard(dest);
+            await DiscardAsync(dest);
             return new TransferResult(true, 0, 0,
                 [new TransferItemFailure(dest, "compress", 0, subject.Failure(ex.Message))],
                 [], [], []);
         }
     }
 
-    private static void Discard(string dest)
+    private async Task DiscardAsync(string dest)
     {
-        try { File.Delete(dest); } catch { /* best effort */ }
+        try { await vfs.DeleteAsync(dest, recursive: false); } catch { /* best effort */ }
     }
 
-    /// <summary>The original blocking path, kept for when there is no progress row to run in.</summary>
-    private bool CompressNow(string dest, ZipSubject subject, string? sourceDir, IReadOnlyList<string>? sources)
+    /// <summary>The write with no progress row to run in: a failure is shown rather than described.</summary>
+    private async Task<bool> CompressNowAsync(string dest, ZipSubject subject, string? sourceDir, IReadOnlyList<string>? sources)
     {
         try
         {
-            if (sourceDir is not null) VirtualFileSystem.Instance.CreateArchive(dest, sourceDir);
-            else                       VirtualFileSystem.Instance.CreateArchive(dest, sources!);
+            if (sourceDir is not null) await vfs.CreateArchiveAsync(dest, sourceDir);
+            else                       await vfs.CreateArchiveAsync(dest, sources!);
             return true;
         }
         catch (Exception ex)
@@ -191,10 +191,11 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config,
         return "." + f;   // "zip" → ".zip", "tar.gz" → ".tar.gz"
     }
 
-    private static string UniqueArchivePath(string parent, string baseName, string ext)
+    /// <summary>A free archive name under <paramref name="parent"/>: "name.ext", then "name (1).ext"….</summary>
+    private async Task<string> UniqueArchivePathAsync(string parent, string baseName, string ext, CancellationToken ct)
     {
         var dest = Path.Combine(parent, baseName + ext);
-        for (int n = 1; File.Exists(dest) || Directory.Exists(dest); n++)
+        for (int n = 1; await vfs.ExistsAsync(dest, ct); n++)
             dest = Path.Combine(parent, $"{baseName} ({n}){ext}");
         return dest;
     }

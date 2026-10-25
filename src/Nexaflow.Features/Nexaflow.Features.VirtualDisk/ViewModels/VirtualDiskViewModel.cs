@@ -12,6 +12,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.VirtualDisk.Models;
 using Nexaflow.Features.VirtualDisk.Services;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -84,7 +85,7 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
         // always releases and GetContext can tell "still loading" apart from "genuinely unreadable".
         try
         {
-            if (string.IsNullOrEmpty(_diskPath) || !File.Exists(_diskPath))
+            if (string.IsNullOrEmpty(_diskPath) || !await IsImageFileAsync())
             {
                 IsRecognised = false;
                 Format = Str.Get("VirtualDisk.Info.NoFile");
@@ -94,9 +95,13 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
 
             DiskInfo? info = null;
             string? error = null;
-            await RunBusy(Str.Get("VirtualDisk.Status.ReadingDisk"), () =>
+            await RunBusyAsync(Str.Get("VirtualDisk.Status.ReadingDisk"), async () =>
             {
-                try { using var reader = DiskImageReader.Open(_diskPath); info = reader.Describe(); }
+                try
+                {
+                    using var reader = new DiskImageReader(await _vfs.OpenReadAsync(_diskPath, ReadIntent.Random), Path.GetFileName(_diskPath));
+                    info = reader.Describe();
+                }
                 catch (Exception ex) { error = ex.Message; }
             });
 
@@ -126,6 +131,13 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
         finally { IsLoaded = true; }
     }
 
+    /// <summary>True when the image is a file the file system can read — a folder or nothing at all is not.</summary>
+    private async Task<bool> IsImageFileAsync()
+    {
+        try { return await _vfs.GetEntryAsync(_diskPath) is { IsDirectory: false }; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException) { return false; }
+    }
+
     /// <summary>The format as the metadata pane shows it. Container and filesystem names are technical
     /// notation and read the same in every language; only the raw-image name is a phrase.</summary>
     private static string FormatLabel(string format) =>
@@ -142,14 +154,14 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
     private async Task LoadRootAsync()
     {
         _roots.Clear();
-        IReadOnlyList<VirtualEntry> entries = [];
-        await RunBusy(Str.Get("VirtualDisk.Status.Reading"), () => entries = _vfs.EnumerateEntries(_diskPath));
+        IReadOnlyList<LocationEntry> entries = [];
+        await RunBusyAsync(Str.Get("VirtualDisk.Status.Reading"), async () => entries = await ListAsync(_diskPath));
         foreach (var e in Order(entries))
             _roots.Add(NewNode(e, string.Empty, 0));
         RebuildVisibleRows();
     }
 
-    private static DiskNode NewNode(VirtualEntry e, string parentInner, int depth) => new()
+    private static DiskNode NewNode(LocationEntry e, string parentInner, int depth) => new()
     {
         Name = e.Name,
         InnerPath = parentInner.Length == 0 ? e.Name : parentInner + "/" + e.Name,
@@ -159,9 +171,17 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
         Modified = e.Modified,
     };
 
-    private static IEnumerable<VirtualEntry> Order(IReadOnlyList<VirtualEntry> entries) =>
+    private static IEnumerable<LocationEntry> Order(IEnumerable<LocationEntry> entries) =>
         entries.OrderBy(e => e.IsDirectory ? 0 : 1)
                .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>One in-disk folder's entries, read through the file system.</summary>
+    private async Task<IReadOnlyList<LocationEntry>> ListAsync(string path)
+    {
+        var entries = new List<LocationEntry>();
+        await foreach (var entry in _vfs.EnumerateAsync(path)) entries.Add(entry);
+        return entries;
+    }
 
     // ── Row interaction (lazy expand) ────────────────────────────────────────
 
@@ -190,8 +210,8 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
     {
         if (node.Loaded) return;
         var path = VfsPath(node.InnerPath);
-        IReadOnlyList<VirtualEntry> entries = [];
-        await RunBusy(Str.Get("VirtualDisk.Status.Reading"), () => entries = _vfs.EnumerateEntries(path));
+        IReadOnlyList<LocationEntry> entries = [];
+        await RunBusyAsync(Str.Get("VirtualDisk.Status.Reading"), async () => entries = await ListAsync(path));
         node.Children.Clear();
         foreach (var e in Order(entries))
             node.Children.Add(NewNode(e, node.InnerPath, node.Depth + 1));
@@ -227,14 +247,14 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
         var dest = await _shell.PickFolderAsync(Path.GetDirectoryName(_diskPath));
         if (string.IsNullOrEmpty(dest)) return;
         var path = _diskPath;
-        await RunBusy(Str.Get("VirtualDisk.Status.Extracting"), () => _vfs.ExtractAll(path, dest));
+        await RunBusyAsync(Str.Get("VirtualDisk.Status.Extracting"), () => _vfs.ExtractAllAsync(path, dest).AsTask());
         StatusText = Str.Format("VirtualDisk.Status.ExtractedToFormat", dest);
     }
 
     [RelayCommand(CanExecute = nameof(CanMount))]
     private Task Mount() => DiskMountService.MountAsync(_shell, _diskPath);
 
-    private async Task RunBusy(string status, Action work)
+    private async Task RunBusyAsync(string status, Func<Task> work)
     {
         IsBusy = true;
         StatusText = status;
@@ -290,9 +310,9 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
           + "disk root. Reads one directory at a time through the image without extracting.",
             [new ClientToolParameter("path", "In-disk folder path, forward-slash separated. Empty = disk root.", Required: false)],
             ToolSafety.SafeOperation,
-            (args, _) => Task.FromResult(
-                IsRecognised ? ListFiles(ToolArgs.Str(args, "path", "dir", "folder"))
-                             : ToolResult.Error("No readable disk image is loaded."))),
+            async (args, _) => IsRecognised
+                ? await ListFilesAsync(ToolArgs.Str(args, "path", "dir", "folder"))
+                : ToolResult.Error("No readable disk image is loaded.")),
 
         new DelegateClientTool(
             "read_file",
@@ -301,13 +321,13 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
           + "unreadable files are refused.",
             [new ClientToolParameter("path", "The file's full in-disk path, forward-slash separated.")],
             ToolSafety.SafeOperation,
-            (args, _) =>
+            async (args, _) =>
             {
-                if (!IsRecognised) return Task.FromResult(ToolResult.Error("No readable disk image is loaded."));
+                if (!IsRecognised) return ToolResult.Error("No readable disk image is loaded.");
                 var inner = ToolArgs.Str(args, "path", "file", "name");
-                return Task.FromResult(string.IsNullOrEmpty(inner)
+                return string.IsNullOrEmpty(inner)
                     ? ToolResult.Error("No 'path' provided.")
-                    : ReadFileText(inner));
+                    : await ReadFileTextAsync(inner);
             }),
     ];
 
@@ -335,19 +355,19 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
         return ToolResult.Ok(count, sb.ToString().TrimEnd('\n'));
     }
 
-    private ToolResult ListFiles(string? innerPath)
+    private async Task<ToolResult> ListFilesAsync(string? innerPath)
     {
         var inner = (innerPath ?? string.Empty).Replace('\\', '/').Trim('/');
         var full  = VfsPath(inner);
         try
         {
-            if (!_vfs.Exists(full))
+            if (!await _vfs.ExistsAsync(full))
                 return ToolResult.Error(inner.Length == 0
                     ? "The disk root could not be read." : $"No folder '{innerPath}' in the disk.");
-            if (!_vfs.IsDirectory(full))
+            if (!await _vfs.IsDirectoryAsync(full))
                 return ToolResult.Error($"'{inner}' is a file, not a folder — use read_file to read it.");
 
-            var entries = Order(_vfs.EnumerateEntries(full)).ToList();
+            var entries = Order(await ListAsync(full)).ToList();
             if (entries.Count == 0)
                 return ToolResult.Ok("empty folder",
                     inner.Length == 0 ? "The disk root is empty." : $"'{inner}' is empty.");
@@ -367,28 +387,22 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
         catch (Exception ex) { return ToolResult.Error($"Could not list '{inner}': {ex.Message}"); }
     }
 
-    private ToolResult ReadFileText(string innerPath)
+    private async Task<ToolResult> ReadFileTextAsync(string innerPath)
     {
         var inner = innerPath.Replace('\\', '/').Trim('/');
         var full  = VfsPath(inner);
         try
         {
-            if (!_vfs.Exists(full))     return ToolResult.Error($"No file '{innerPath}' in the disk.");
-            if (_vfs.IsDirectory(full)) return ToolResult.Error($"'{inner}' is a folder — use list_files to list it.");
+            if (!await _vfs.ExistsAsync(full))     return ToolResult.Error($"No file '{innerPath}' in the disk.");
+            if (await _vfs.IsDirectoryAsync(full)) return ToolResult.Error($"'{inner}' is a folder — use list_files to list it.");
 
-            var size = _vfs.GetLength(full);
+            var size = (await _vfs.GetEntryAsync(full))?.Size ?? 0;
             if (size > MaxFileReadBytes)
                 return ToolResult.Error(
                     $"'{inner}' is {SizeFormatter.FormatBytes(size)} — too large to read inline "
                   + $"(limit {SizeFormatter.FormatBytes(MaxFileReadBytes)}). Extract it instead.");
 
-            byte[] bytes;
-            using (var stream = _vfs.OpenRead(full))
-            using (var ms = new MemoryStream())
-            {
-                stream.CopyTo(ms);
-                bytes = ms.ToArray();
-            }
+            var bytes = await _vfs.ReadAllBytesAsync(full);
 
             if (LooksBinary(bytes))
                 return ToolResult.Error(

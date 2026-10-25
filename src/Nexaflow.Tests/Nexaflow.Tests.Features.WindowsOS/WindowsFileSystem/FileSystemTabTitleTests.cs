@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -38,7 +39,7 @@ public class FileSystemTabTitleTests
 
         return new FileSystemPageRegistration(
             shell, ai, new Dictionary<Type, IFeatureConfig>(),
-            new FileMapConfig(), new ExternalAppsConfig(), new TemplatedCreateConfig());
+            new FileMapConfig(), new ExternalAppsConfig(), new TemplatedCreateConfig(), VirtualFileSystem.Instance);
     }
 
     /// <summary>The params a ribbon button holds: how the folder was reached, and nothing about naming.</summary>

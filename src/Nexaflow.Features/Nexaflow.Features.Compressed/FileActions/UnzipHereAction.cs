@@ -10,7 +10,7 @@ using Nexaflow.Visuals.Common.Localization;
 namespace Nexaflow.Features.Compressed.FileActions;
 
 /// <summary>Extracts an archive into a new sibling folder named after it (zip-slip guarded by the VFS).</summary>
-public sealed class UnzipHereAction(IShellServices shell, IFileOperationHost? operations = null)
+public sealed class UnzipHereAction(IShellServices shell, IVirtualFileSystem vfs, IFileOperationHost? operations = null)
     : IFileAction, ICacheable
 {
     public static string? StaticExperienceId => "/archive";
@@ -26,15 +26,15 @@ public sealed class UnzipHereAction(IShellServices shell, IFileOperationHost? op
     public bool CanPerformAction => true;
     public bool OpensViewer => false;
 
-    public bool PerformAction(string filePath)
+    public async Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default)
     {
         string dest;
         try
         {
-            dest = UniqueSiblingDir(filePath);
+            dest = await UniqueSiblingDirAsync(filePath, ct);
             // Claim the name now, for the same reason ZipItAction claims its archive name: it was picked
-            // synchronously but the extraction is seconds away, so two unzips would otherwise pick the same one.
-            if (operations is not null) Directory.CreateDirectory(dest);
+            // before the extraction, which is seconds away, so two unzips would otherwise pick the same one.
+            if (operations is not null) await vfs.CreateDirectoryAsync(dest, ct);
         }
         catch (Exception ex)
         {
@@ -42,12 +42,12 @@ public sealed class UnzipHereAction(IShellServices shell, IFileOperationHost? op
             return false;
         }
 
-        // No host means nobody is showing progress, so there is nothing to be gained by going async.
-        if (operations is null) return ExtractNow(filePath, dest);
+        // No host means nobody is showing progress, so the extraction is awaited here.
+        if (operations is null) return await ExtractNowAsync(filePath, dest);
 
         _ = operations.Run(
             new FileOperationRequest(Str.Get("Compressed.Operation.Extracting"), Path.GetFileName(filePath), Path.GetFileName(dest), dest),
-            (progress, ct) => Task.Run(() => Extract(filePath, dest, progress, ct), CancellationToken.None));
+            (progress, token) => ExtractAsync(filePath, dest, progress, token));
         return true;
     }
 
@@ -56,12 +56,12 @@ public sealed class UnzipHereAction(IShellServices shell, IFileOperationHost? op
     /// thrown, so a cancellation can still name the folder it left half-populated and the panel can
     /// offer to clear it up.
     /// </summary>
-    private static TransferResult Extract(string archivePath, string dest,
-                                          IProgress<TransferProgress> progress, CancellationToken ct)
+    private async Task<TransferResult> ExtractAsync(string archivePath, string dest,
+                                                    IProgress<TransferProgress> progress, CancellationToken ct)
     {
         try
         {
-            VirtualFileSystem.Instance.ExtractAll(archivePath, dest, progress, ct);
+            await vfs.ExtractAllAsync(archivePath, dest, progress, ct);
             return new TransferResult(true, 0, 0, [], [], [], []);
         }
         catch (OperationCanceledException)
@@ -77,12 +77,12 @@ public sealed class UnzipHereAction(IShellServices shell, IFileOperationHost? op
         }
     }
 
-    /// <summary>The original blocking path, kept for when there is no progress row to run in.</summary>
-    private bool ExtractNow(string filePath, string dest)
+    /// <summary>The extraction with no progress row to run in: a failure is shown rather than described.</summary>
+    private async Task<bool> ExtractNowAsync(string filePath, string dest)
     {
         try
         {
-            VirtualFileSystem.Instance.ExtractAll(filePath, dest);
+            await vfs.ExtractAllAsync(filePath, dest);
             return true;
         }
         catch (Exception ex)
@@ -94,19 +94,20 @@ public sealed class UnzipHereAction(IShellServices shell, IFileOperationHost? op
 
     /// <summary>One row per archive, so several selected archives are several cancellable operations
     /// rather than one opaque wait — the same shape as dropping three folders.</summary>
-    public bool PerformAction(IEnumerable<string> filePaths)
+    public async Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
     {
         bool any = false;
-        foreach (var p in filePaths) any |= PerformAction(p);
+        foreach (var p in filePaths) any |= await PerformActionAsync(p, ct);
         return any;
     }
 
-    private static string UniqueSiblingDir(string archivePath)
+    /// <summary>A free name beside the archive, after it: "name", then "name (1)", "name (2)"….</summary>
+    private async Task<string> UniqueSiblingDirAsync(string archivePath, CancellationToken ct)
     {
         var dir      = Path.GetDirectoryName(archivePath) ?? ".";
         var baseName = StripArchiveExtension(Path.GetFileName(archivePath));
         var dest     = Path.Combine(dir, baseName);
-        for (int n = 1; Directory.Exists(dest) || File.Exists(dest); n++)
+        for (int n = 1; await vfs.ExistsAsync(dest, ct); n++)
             dest = Path.Combine(dir, $"{baseName} ({n})");
         return dest;
     }

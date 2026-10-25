@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Nexaflow.IO.Common;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Syntax;
@@ -63,6 +64,7 @@ public sealed partial class SnaplinkPickerViewModel : ObservableObject
         foreach (var n in Load(root)) Roots.Add(n);
     }
 
+    [LocalDiskOnly("the product's repository, a checkout on this disk, whose files a snaplink names")]
     private IReadOnlyList<FileNode> Load(string dir)
     {
         var result = new List<FileNode>();

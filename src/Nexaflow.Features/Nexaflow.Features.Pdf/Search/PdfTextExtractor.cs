@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Features.Pdf.Reading;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Pdf.Search;
 
@@ -23,7 +24,7 @@ namespace Nexaflow.Features.Pdf.Search;
 /// which <c>FileTextExtractorResolutionTests</c> catches.
 /// </para>
 /// </summary>
-public sealed class PdfTextExtractor(PdfConfig config) : IFileTextExtractor
+public sealed class PdfTextExtractor(PdfConfig config, IVirtualFileSystem vfs) : IFileTextExtractor
 {
     // Asked for every candidate file in a sweep, so it stays an extension test and never opens anything.
     public bool CanExtract(string path)
@@ -44,14 +45,14 @@ public sealed class PdfTextExtractor(PdfConfig config) : IFileTextExtractor
     public Task<string?> ExtractAsync(string path, long maxBytes, CancellationToken ct)
     {
         // Cancelling before the work starts skips it entirely rather than scheduling and then throwing.
-        return Task.Run(() => Extract(path, maxBytes, ct), ct);
+        return Task.Run(() => ExtractCoreAsync(path, maxBytes, ct), ct);
     }
 
-    private string? Extract(string path, long maxBytes, CancellationToken ct)
+    private async Task<string?> ExtractCoreAsync(string path, long maxBytes, CancellationToken ct)
     {
-        if (maxBytes <= 0 || IsTooLargeToParse(path)) return null;
+        if (maxBytes <= 0 || await IsTooLargeToParseAsync(path, ct)) return null;
 
-        using var scope = PdfDocumentScope.TryOpen(path, ct);
+        using var scope = await PdfDocumentScope.TryOpenAsync(vfs, path, ct);
         if (scope is null) return null;
 
         // Cancellation propagates: the sweep is being abandoned, and swallowing it here would report an empty
@@ -63,14 +64,14 @@ public sealed class PdfTextExtractor(PdfConfig config) : IFileTextExtractor
     // Opening a PDF means reading its cross-reference table before any page exists, and that stretch can't be
     // interrupted. Since the sweep is sequential, one enormous file would hold up every candidate behind it —
     // so an oversized PDF is declined up front and reported as unreadable rather than parsed.
-    private bool IsTooLargeToParse(string path)
+    private async Task<bool> IsTooLargeToParseAsync(string path, CancellationToken ct)
     {
         try
         {
             var ceiling = (long)Math.Max(1, config.SearchMaxFileSizeMb) * 1024 * 1024;
-            return new FileInfo(path).Length > ceiling;
+            return (await vfs.GetEntryAsync(path, ct))?.Size > ceiling;
         }
-        catch
+        catch (Exception e) when (e is not OperationCanceledException)
         {
             return false;   // can't stat it — let the open attempt be the thing that fails
         }

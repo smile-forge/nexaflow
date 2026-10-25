@@ -18,6 +18,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Visuals.Common.Drafts;
 using Nexaflow.Features.Audio.Views;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Audio.ViewModels;
 
@@ -35,6 +36,15 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
 
     private readonly List<string> _paths;
     private readonly IShellServices _shell;
+
+    /// <summary>The runtime's file system the tracks, and the lyrics beside them, are reached through.</summary>
+    private readonly IVirtualFileSystem _vfs;
+
+    /// <summary>The track <see cref="_local"/> is the copy on this disk of.</summary>
+    private string? _localFor;
+
+    /// <summary>The current track as a file on this disk — asked once per track, by playback and the track's details alike.</summary>
+    private Task<string>? _local;
     private readonly AudioConfig _config;
     private readonly DispatcherTimer _renderTimer;
 
@@ -51,10 +61,11 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
     private bool _backgrounded;
     private IDisposable? _mediatedHandle;
 
-    public AudioViewModel(IReadOnlyList<string> paths, int startIndex, IShellServices shell, AudioConfig config,
-                          bool autoPlay = false)
+    public AudioViewModel(IReadOnlyList<string> paths, int startIndex, IShellServices shell, IVirtualFileSystem vfs,
+                          AudioConfig config, bool autoPlay = false)
     {
         _shell = shell;
+        _vfs = vfs;
         _config = config;
         _paths = paths.Where(AudioFileTypes.IsAudio).ToList();
         _index = _paths.Count == 0 ? -1 : Math.Clamp(startIndex, 0, _paths.Count - 1);
@@ -230,12 +241,14 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
     /// <summary>First-load entry point — call from the view's <c>Loaded</c>. Honours "Play folder" auto-play.</summary>
     public async Task LoadAsync()
     {
+        var playing = Task.CompletedTask;
         if (_autoPlayPending)
         {
             _autoPlayPending = false;
-            StartPlayback();
+            playing = StartPlaybackAsync();
         }
         await LoadCurrentAsync();
+        await playing;
     }
 
     /// <summary>The tab became visible: reclaim playback from the chrome remote (or resume if it was paused by
@@ -342,7 +355,10 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         WaveformPeaks = [];
         NotifyQueue();
 
-        var tags = await Task.Run(() => TagService.Read(path));
+        var local = await LocalCopyOf(path);
+        if (token != _loadToken || _disposed) return;
+
+        var tags = await Task.Run(() => TagService.Read(local));
         if (token != _loadToken || _disposed) return;
 
         Title = string.IsNullOrWhiteSpace(tags.Title) ? FileName : tags.Title;
@@ -350,10 +366,31 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         Album = tags.Album;
         Duration = tags.Duration;
         AlbumArt = ImageHelpers.ToBitmap(tags.AlbumArt);
-        TagEditor = new TagEditorViewModel(tags, _shell, SaveTagsAsync);
+        TagEditor = new TagEditorViewModel(tags, _shell, _vfs, SaveTagsAsync);
 
         await LoadLyricsAsync(path, tags, token);
-        _ = LoadWaveformAsync(path, token);
+        _ = LoadWaveformAsync(local, token);
+    }
+
+    /// <summary>
+    /// <paramref name="path"/> as a file on this disk — what NAudio and TagLib open by path: a track on disk as it is, one in
+    /// an archive extracted to a copy. The same track is asked for once, however many readers want it.
+    /// </summary>
+    private Task<string> LocalCopyOf(string path)
+    {
+        if (_localFor != path || _local is null)
+        {
+            _localFor = path;
+            _local    = MaterializeAsync(path);
+        }
+        return _local;
+    }
+
+    /// <summary>A track that cannot be had on this disk is handed over as it is, and its decoder says why it cannot play.</summary>
+    private async Task<string> MaterializeAsync(string path)
+    {
+        try { return await _vfs.MaterializeFileAsync(path); }
+        catch (Exception e) when (e is IOException or NotSupportedException or UnauthorizedAccessException) { return path; }
     }
 
     private async Task LoadLyricsAsync(string path, TrackTags tags, int token)
@@ -362,9 +399,9 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         IReadOnlyList<LyricLine> lines;
         bool synced;
 
-        if (File.Exists(lrc))
+        if (await LyricsBesideAsync(lrc) is { } text)
         {
-            lines = await Task.Run(() => LrcParser.ParseFile(lrc));
+            lines = LrcParser.Parse(text);
             synced = true;
         }
         else if (!string.IsNullOrWhiteSpace(tags.Lyrics))
@@ -384,6 +421,19 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         Lyrics.Load(lines, synced);
     }
 
+    /// <summary>The text of the <c>.lrc</c> beside a track — empty when it is there but cannot be read, null when there is none.</summary>
+    private async Task<string?> LyricsBesideAsync(string lrc)
+    {
+        try
+        {
+            return await _vfs.ExistsAsync(lrc) ? await _vfs.ReadAllTextAsync(lrc) : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            return string.Empty;
+        }
+    }
+
     private async Task LoadWaveformAsync(string path, int token)
     {
         var peaks = await Task.Run(() => WaveformAnalyzer.Analyze(path, WaveformBuckets));
@@ -393,7 +443,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
     // ── Transport commands ───────────────────────────────────────────────────
 
     [RelayCommand]
-    private void PlayPause()
+    private async Task PlayPause()
     {
         if (CurrentPath is null) return;
 
@@ -406,7 +456,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         }
         else
         {
-            StartPlayback();
+            await StartPlaybackAsync();
         }
     }
 
@@ -430,25 +480,24 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         // Within the first few seconds, "previous" restarts the current track (familiar player behaviour).
         if (_engine is { } e && e.Position > RestartThreshold)
         {
-            SeekToFraction(0);
-            return Task.CompletedTask;
+            return SeekToFractionAsync(0);
         }
         return SwitchToAsync(_index - 1, IsPlaying);
     }
 
     /// <summary>Seeks to a 0..1 position in the current track (waveform click / restart).</summary>
-    public void SeekToFraction(double fraction)
+    public async Task SeekToFractionAsync(double fraction)
     {
-        if (CurrentPath is null || !EnsureEngineLoaded()) return;
+        if (CurrentPath is null || !await EnsureEngineLoadedAsync()) return;
         var target = TimeSpan.FromSeconds(Duration.TotalSeconds * Math.Clamp(fraction, 0, 1));
         _engine!.Seek(target);
         Position = target;
         Lyrics.UpdatePosition(target);
     }
 
-    private void StartPlayback()
+    private async Task StartPlaybackAsync()
     {
-        if (!EnsureEngineLoaded()) return;
+        if (!await EnsureEngineLoadedAsync()) return;
         _engine!.Play();
         IsPlaying = true;
         StartRenderTimerIfVisible();
@@ -466,20 +515,25 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         _index = newIndex;
         NotifyQueue();
 
-        if (keepPlaying) StartPlayback();
+        var playing = keepPlaying ? StartPlaybackAsync() : Task.CompletedTask;
         await LoadCurrentAsync();
+        await playing;
     }
 
-    private bool EnsureEngineLoaded()
+    private async Task<bool> EnsureEngineLoadedAsync()
     {
         if (CurrentPath is not { } path) return false;
         _engine ??= CreateEngine();
 
         if (_engineLoadedPath != path)
         {
+            var local = await LocalCopyOf(path);
+            // The queue may have moved on, the tab closed or another caller loaded it while the track was fetched.
+            if (_disposed || CurrentPath != path) return false;
+            if (_engineLoadedPath == path) return true;
             try
             {
-                _engine.Load(path, _config.SpectrumBarCount);
+                _engine.Load(local, _config.SpectrumBarCount);
                 _engineLoadedPath = path;
             }
             catch (Exception ex)
@@ -546,7 +600,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
             _shell.ShowError(Str.Get("Audio.Error.SaveTagsFailed"));
         }
 
-        if (wasPlaying && EnsureEngineLoaded())
+        if (wasPlaying && await EnsureEngineLoadedAsync())
         {
             _engine!.Seek(resumeAt);
             _engine.Play();
@@ -733,7 +787,8 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         }
 
         (byte[] Wav, TimeSpan Length) clip;
-        try { clip = await Task.Run(() => TrackClip.Read(path, start, length), ct); }
+        var local = await LocalCopyOf(path);
+        try { clip = await Task.Run(() => TrackClip.Read(local, start, length), ct); }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return ToolResult.Error("couldn't read the track", $"The track couldn't be decoded: {ex.Message}");
@@ -760,15 +815,16 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         if (CurrentPath is null)
             return ToolResult.Error("no track", "No track is loaded, so there is nothing to control.");
 
-        await _shell.RunOnUiAsync(() =>
+        await _shell.RunOnUiAsync(async () =>
         {
             switch (verb)
             {
-                case "play":   if (!IsPlaying) StartPlayback(); break;
-                case "pause":  if (IsPlaying)  PlayPause();     break;   // PlayPause pauses when currently playing
-                case "toggle": PlayPause();                     break;
-                case "stop":   Stop();                          break;
+                case "play":   if (!IsPlaying) await StartPlaybackAsync(); break;
+                case "pause":  if (IsPlaying)  await PlayPause();          break;   // PlayPause pauses when currently playing
+                case "toggle": await PlayPause();                          break;
+                case "stop":   Stop();                                     break;
             }
+            return true;
         });
 
         var state = IsPlaying ? "playing" : verb == "stop" ? "stopped" : "paused";
@@ -786,14 +842,13 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
             return ToolResult.Error("invalid position",
                 $"Couldn't read a position from '{positionText}'. Give whole seconds (e.g. 90) or mm:ss (e.g. 1:30).");
 
-        bool ok = false;
-        await _shell.RunOnUiAsync(() =>
+        bool ok = await _shell.RunOnUiAsync(async () =>
         {
-            if (!EnsureEngineLoaded()) return;
+            if (!await EnsureEngineLoadedAsync()) return false;
             _engine!.Seek(target);
             Position = _engine.Position;
             Lyrics.UpdatePosition(Position);
-            ok = true;
+            return true;
         });
 
         return ok

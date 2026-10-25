@@ -21,6 +21,25 @@ public enum VirtualBacking
 
     /// <summary>Inside an archive: only the single requested file can be produced, to a temp copy.</summary>
     Materialized,
+
+    /// <summary>On a remote location: nothing is on disk, and the bytes arrive over the network through the
+    /// async members. An action that would hand the path to an external process is suppressed, as for an
+    /// archive entry.</summary>
+    Remote,
+}
+
+/// <summary>Reading a <see cref="VirtualBacking"/>.</summary>
+public static class VirtualBackings
+{
+    /// <summary>True when the path's whole subtree is on disk, so its resolved real path may be handed to an
+    /// external process: <see cref="VirtualBacking.Real"/> or <see cref="VirtualBacking.PassThrough"/>.</summary>
+    public static bool IsFullyOnDisk(this VirtualBacking backing)
+        => backing is VirtualBacking.Real or VirtualBacking.PassThrough;
+
+    /// <summary>Where <paramref name="path"/> is on this disk, when the whole of it is — null for a path in an archive or on a
+    /// location. What a reader that has to open the file by its own path, or may read the disk directly, goes by.</summary>
+    public static string? ResolveOnDisk(this IVirtualFileSystem vfs, string path)
+        => vfs.GetBacking(path).IsFullyOnDisk() ? vfs.TryResolveReal(path) : null;
 }
 
 /// <summary>

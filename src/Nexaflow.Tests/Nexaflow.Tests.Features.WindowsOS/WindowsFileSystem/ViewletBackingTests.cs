@@ -78,7 +78,7 @@ public class ViewletBackingTests
         shell.DiscoverImplementations<IFolderAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFileCreateAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<Nexaflow.Features.Common.ThisPc.IThisPcItemProvider>().Returns(Array.Empty<Type>());
-        return FileSystemFeatureRegistry.For(shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>());
+        return FileSystemFeatureRegistry.For(shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
     }
 
     private static IReadOnlyList<string> NamesFor(string folderPath)

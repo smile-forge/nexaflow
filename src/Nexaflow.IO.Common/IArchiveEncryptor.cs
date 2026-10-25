@@ -14,9 +14,11 @@ public interface IArchiveEncryptor
     /// <summary>True when this backend can encrypt the given file's format (e.g. <c>.zip</c>).</summary>
     bool CanEncrypt(string fileName);
 
-    /// <summary>Writes an encrypted copy of <paramref name="sourcePath"/> to <paramref name="destPath"/>.</summary>
-    void Encrypt(string sourcePath, string destPath, string password);
+    /// <summary>Writes an encrypted copy of the archive read from <paramref name="source"/>, which can seek, to
+    /// <paramref name="destination"/>. Both streams stay the caller's.</summary>
+    void Encrypt(Stream source, Stream destination, string password);
 
-    /// <summary>Writes a decrypted (plain) copy of the encrypted <paramref name="sourcePath"/>.</summary>
-    void Decrypt(string sourcePath, string destPath, string password);
+    /// <summary>Writes a decrypted (plain) copy of the encrypted archive read from <paramref name="source"/>, which can seek,
+    /// to <paramref name="destination"/>. Both streams stay the caller's.</summary>
+    void Decrypt(Stream source, Stream destination, string password);
 }

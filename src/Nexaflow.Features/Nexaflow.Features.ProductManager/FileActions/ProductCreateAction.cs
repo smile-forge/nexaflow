@@ -17,14 +17,14 @@ public sealed class ProductCreateAction : IFileCreateAction, ICacheable
     public string DisplayName   => Str.Get("ProductManager.Action.NewProduct");
     public string FileExtension => string.Empty;   // the typed text is the product name, not a filename
 
-    public string? Create(string folderPath, string fileName)
+    public Task<string?> CreateItemAsync(string folderPath, string fileName, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(folderPath) || string.IsNullOrWhiteSpace(fileName))
-            return null;
+            return Task.FromResult<string?>(null);
         if (ProductStore.Exists(folderPath))
             throw new InvalidOperationException(Str.Get("ProductManager.Action.AlreadyProduct"));
 
         new ProductStore(folderPath).Initialize(fileName.Trim());
-        return ProductStore.DotProductDir(folderPath);
+        return Task.FromResult<string?>(ProductStore.DotProductDir(folderPath));
     }
 }

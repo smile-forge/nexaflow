@@ -29,12 +29,12 @@ public abstract class FileActionConformanceTests
     protected abstract IFileAction CreateAction();
 
     [TestMethod]
-    public void AnEmptySelection_IsRefused_WithoutReachingASideEffect()
+    public async Task AnEmptySelection_IsRefused_WithoutReachingASideEffect()
     {
         var action = CreateAction();
 
         // If this throws, the action reached past the guard: the assertion is that nothing happens at all.
-        var acted = action.PerformAction([]);
+        var acted = await action.PerformActionAsync([]);
 
         Assert.IsFalse(acted,
             $"'{action.DisplayName}' reported success on an empty selection — the action strip flashes its "
@@ -42,13 +42,13 @@ public abstract class FileActionConformanceTests
     }
 
     [TestMethod]
-    public void AnEmptySelection_IsRefused_ByTheForceOverloadToo()
+    public async Task AnEmptySelection_IsRefused_ByTheForceOverloadToo()
     {
         // force skips confirmation prompts, not the "is there anything to do" question — and it is the
         // overload a pinned destructive action reaches.
         var action = CreateAction();
 
-        Assert.IsFalse(action.PerformAction([], force: true),
+        Assert.IsFalse(await action.PerformActionAsync([], force: true),
             $"'{action.DisplayName}' skipped its empty-selection guard when forced");
     }
 }
@@ -122,21 +122,21 @@ public abstract class ViewerActionConformanceTests : FileActionConformanceTests
     private static string Normalise(string key) => key == "path" ? "paths" : key;
 
     [TestMethod]
-    public void ItOpensItsOwnTab_OnTheFileItWasInvokedOn()
+    public async Task ItOpensItsOwnTab_OnTheFileItWasInvokedOn()
     {
         var (action, tabs) = Arrange();
 
-        Assert.IsTrue(action.PerformAction(AcceptableFile),
+        Assert.IsTrue(await action.PerformActionAsync(AcceptableFile),
             $"'{action.DisplayName}' should accept {AcceptableFile}");
         Assert.AreEqual(1, tabs.Count, "one invocation opens one tab");
         Assert.AreEqual(ExpectedPageKind, tabs[0].PageKind);
     }
 
     [TestMethod]
-    public void TheTabParametersCarryTheFile()
+    public async Task TheTabParametersCarryTheFile()
     {
         var (action, tabs) = Arrange();
-        action.PerformAction(AcceptableFile);
+        await action.PerformActionAsync(AcceptableFile);
 
         // The key differs by action (path / paths / a '|'-joined queue), and that is the tab's business —
         // what matters is that the file the user picked actually reaches the page that opens.
@@ -145,22 +145,22 @@ public abstract class ViewerActionConformanceTests : FileActionConformanceTests
     }
 
     [TestMethod]
-    public void AnEmptySelection_OpensNoTab()
+    public async Task AnEmptySelection_OpensNoTab()
     {
         // The return value is the base's rule; this is the other half of it for a viewer — a tab opened on
         // nothing would be an empty page the user has to close.
         var (action, tabs) = Arrange();
-        action.PerformAction([]);
+        await action.PerformActionAsync([]);
 
         Assert.AreEqual(0, tabs.Count);
     }
 
     [TestMethod]
-    public void TheTwoOverloads_AgreeOnAFileThisActionHandles() =>
+    public Task TheTwoOverloads_AgreeOnAFileThisActionHandles() =>
         AssertOverloadsAgree(AcceptableFile);
 
     [TestMethod]
-    public void TheTwoOverloads_AgreeOnAFileThisActionDoesNotHandle() =>
+    public Task TheTwoOverloads_AgreeOnAFileThisActionDoesNotHandle() =>
         AssertOverloadsAgree(FileThisActionDoesNotHandle);
 
     /// <summary>
@@ -168,13 +168,13 @@ public abstract class ViewerActionConformanceTests : FileActionConformanceTests
     /// the selection overload while the single-file overload opens anything means "As Audio" on a text file
     /// queues it in the player from the file list, and silently does nothing from a one-item selection.
     /// </summary>
-    private void AssertOverloadsAgree(string path)
+    private async Task AssertOverloadsAgree(string path)
     {
         var (single, singleTabs) = Arrange();
-        var singleSaid = single.PerformAction(path);
+        var singleSaid = await single.PerformActionAsync(path);
 
         var (multi, multiTabs) = Arrange();
-        var multiSaid = multi.PerformAction([path]);
+        var multiSaid = await multi.PerformActionAsync([path]);
 
         Assert.AreEqual(singleSaid, multiSaid,
             $"'{single.DisplayName}' answered {singleSaid} for {path} but {multiSaid} for a one-item "
@@ -189,33 +189,33 @@ public abstract class ViewerActionConformanceTests : FileActionConformanceTests
     }
 
     [TestMethod]
-    public void ASelectionOpensOneTab_WhenTheViewerHoldsOneFileAtATime()
+    public async Task ASelectionOpensOneTab_WhenTheViewerHoldsOneFileAtATime()
     {
         var (action, tabs) = Arrange();
         if (action.SupportsMultipleFiles)
         {
             // The other design: one tab that holds the whole selection (the player's queue, the font set).
-            Assert.IsTrue(action.PerformAction([AcceptableFile, AcceptableFile]));
+            Assert.IsTrue(await action.PerformActionAsync([AcceptableFile, AcceptableFile]));
             Assert.AreEqual(1, tabs.Count, "a multi-file viewer takes the selection into a single tab");
             return;
         }
 
-        Assert.IsTrue(action.PerformAction([AcceptableFile, AcceptableFile]));
+        Assert.IsTrue(await action.PerformActionAsync([AcceptableFile, AcceptableFile]));
         Assert.AreEqual(1, tabs.Count,
             "SupportsMultipleFiles is false, so a selection opens the first file — not a tab per file");
     }
 
     [TestMethod]
-    public void TheForceOverloads_MatchTheOrdinaryOnes()
+    public async Task TheForceOverloads_MatchTheOrdinaryOnes()
     {
         // force skips confirmation prompts; a viewer action has none, so the two must be indistinguishable.
         // The interface's default implementation gives this for free — the test is here for the action that
         // overrides it and forgets that opening a file was never the destructive part.
         var (plain, plainTabs) = Arrange();
-        plain.PerformAction(AcceptableFile);
+        await plain.PerformActionAsync(AcceptableFile);
 
         var (forced, forcedTabs) = Arrange();
-        forced.PerformAction(AcceptableFile, force: true);
+        await forced.PerformActionAsync(AcceptableFile, force: true);
 
         CollectionAssert.AreEqual(plainTabs.Select(t => t.ToString()).ToArray(),
                                   forcedTabs.Select(t => t.ToString()).ToArray());

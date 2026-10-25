@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -27,7 +28,7 @@ namespace Nexaflow.Tests.Features.Audio;
 public class AudioSurfaceTests
 {
     private static AudioViewModel Make(params string[] paths)
-        => new(paths, 0, Substitute.For<IShellServices>(), new AudioConfig());
+        => new(paths, 0, Substitute.For<IShellServices>(), VirtualFileSystem.Instance, new AudioConfig());
 
     private static string Sample(string name) => Path.Combine(TestSampleData.Path("audio"), name);
 
@@ -119,11 +120,11 @@ public class AudioSurfaceTests
 
     [TestMethod]
     [CoversNode("audio-seek")]
-    public void SeekingBeforeAnythingIsLoaded_IsANoOp_NotACrash()
+    public async Task SeekingBeforeAnythingIsLoaded_IsANoOp_NotACrash()
     {
         var vm = Make();          // empty queue — the waveform is still clickable
 
-        vm.SeekToFraction(0.5);
+        await vm.SeekToFractionAsync(0.5);
 
         Assert.AreEqual(TimeSpan.Zero, vm.Position);
     }
@@ -236,7 +237,7 @@ public class AudioSurfaceTests
         TrackTags? captured = null;
         var editor = new TagEditorViewModel(
             initial ?? new TrackTags { Title = "Original", Artist = "Band" },
-            Substitute.For<IShellServices>(),
+            Substitute.For<IShellServices>(), VirtualFileSystem.Instance,
             (tags, _, _) => { captured = tags; return Task.FromResult(true); });
         saved = captured;
         return editor;
@@ -274,7 +275,7 @@ public class AudioSurfaceTests
         TrackTags? written = null;
         var editor = new TagEditorViewModel(
             new TrackTags { Title = "Original", Artist = "Band", Year = 1999 },
-            Substitute.For<IShellServices>(),
+            Substitute.For<IShellServices>(), VirtualFileSystem.Instance,
             (tags, _, _) => { written = tags; return Task.FromResult(true); });
 
         editor.Title = "Renamed";

@@ -40,7 +40,7 @@ public class OverlayTextFileTests
         var path    = Path.Combine(_dir, $"src_{Guid.NewGuid():N}.txt");
         File.WriteAllText(path, content, enc);
         var addPath = path + ".nexedit.tmp";
-        var file    = await OverlayTextFile.OpenAsync(path, enc, linesPerPage, addPath, CancellationToken.None);
+        var file    = await OverlayTextFile.OpenAsync(VirtualFileSystem.Instance, path, enc, linesPerPage, addPath, CancellationToken.None);
         return (file, path, addPath);
     }
 

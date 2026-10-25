@@ -3,6 +3,7 @@ using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Images.Editing.Recipe;
+using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Imaging;
 using SkiaSharp;
 
@@ -27,6 +28,7 @@ public sealed record EraseSteps(ImmutableArray<RecipeErase> Steps)
 /// An erased photo is the photo upright, as every recipe coordinate reads it, in its own colour space, 8 bits a channel,
 /// kept as PNG with that colour space embedded, so it decodes as the same pixels.
 /// </remarks>
+[LocalDiskOnly("erased photos, kept in the app's cache and handed to picture erasing through the temp folder; the photo itself is read through the runtime's file system")]
 public sealed class ErasedPictures(string folder, long budgetBytes)
 {
     /// <summary>How much disk the erased photos may take together before the oldest are let go.</summary>
@@ -77,7 +79,7 @@ public sealed class ErasedPictures(string folder, long budgetBytes)
                 from = kept;
                 break;
             }
-        var picture = await Task.Run(() => services.ReadUpright(from ?? photo), ct);
+        var picture = await Task.Run(() => services.ReadUprightAsync(from ?? photo, ct), ct);
         Directory.CreateDirectory(Folder);
         for (int i = done; i < count; i++)
         {

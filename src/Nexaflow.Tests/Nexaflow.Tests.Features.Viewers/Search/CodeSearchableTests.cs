@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using NSubstitute;
 using Nexaflow.Features.Code.ViewModels;
@@ -39,7 +40,7 @@ public sealed class CodeSearchableTests : SearchableContentConformanceTests
         _path = Path.Combine(TestTemp.Root, "nexasearch_" + Guid.NewGuid().ToString("N") + ".cs");
         File.WriteAllText(_path, Source);
 
-        var vm = new CodeViewModel(_path, Substitute.For<IShellServices>(), maxEditableBytes: long.MaxValue);
+        var vm = new CodeViewModel(_path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance, maxEditableBytes: long.MaxValue);
         await vm.LoadAsync();
         return vm;
     }

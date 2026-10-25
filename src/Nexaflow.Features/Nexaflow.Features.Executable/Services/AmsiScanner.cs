@@ -3,6 +3,7 @@ using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Executable.Services;
@@ -87,14 +88,26 @@ public static partial class AmsiScanner
     /// onto the managed heap and size is not a practical constraint.
     /// </para>
     /// </summary>
-    public static unsafe AmsiResult ScanFile(string path, CancellationToken ct = default)
+    public static async Task<AmsiResult> ScanFileAsync(IVirtualFileSystem vfs, string path, CancellationToken ct = default)
+    {
+        string real;
+        try { real = await vfs.MaterializeFileAsync(path, ct); }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception e) when (e is FileNotFoundException or LocationException { Error: LocationError.NotFound }) { return NoLongerExists(); }
+        catch (Exception e)
+        {
+            return new AmsiResult(AmsiVerdict.Unavailable, 0, Str.Format("Executable.Amsi.ReadFailedFormat", e.Message), false);
+        }
+
+        return ScanLocal(real, Path.GetFileName(path), ct);
+    }
+
+    /// <summary>Scans the file at <paramref name="real"/>, mapped into memory whole.</summary>
+    [LocalDiskOnly("a file on this disk — a file in an archive is extracted before it is scanned")]
+    private static unsafe AmsiResult ScanLocal(string real, string name, CancellationToken ct)
     {
         try
         {
-            string real;
-            try { real = VirtualFileSystem.Instance.MaterializeFile(path); }
-            catch (FileNotFoundException) { return NoLongerExists(); }
-
             var info = new FileInfo(real);
             if (!info.Exists) return NoLongerExists();
             if (info.Length == 0)
@@ -115,7 +128,7 @@ public static partial class AmsiScanner
             try
             {
                 view.SafeMemoryMappedViewHandle.AcquirePointer(ref pointer);
-                return Scan((IntPtr)pointer, length, Path.GetFileName(path), truncated);
+                return Scan((IntPtr)pointer, length, name, truncated);
             }
             finally
             {

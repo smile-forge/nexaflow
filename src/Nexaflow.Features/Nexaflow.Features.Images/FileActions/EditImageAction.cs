@@ -2,6 +2,8 @@ using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Features.Images.FileActions;
 
@@ -31,18 +33,18 @@ public sealed class EditImageAction : IFileAction, ICacheable
     /// <summary>A sidecar is written beside the photo, which an archive has no room for.</summary>
     public bool   RequiresFullyBackedPath => true;
 
-    public bool PerformAction(string filePath) => PerformAction([filePath]);
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default) => PerformActionAsync([filePath], ct);
 
     /// <summary>A selection opens together, the first image in the editor and the rest a step away.</summary>
-    public bool PerformAction(IEnumerable<string> filePaths)
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
     {
         var images = filePaths.Where(ImageFileTypes.IsImage).ToList();
-        if (images.Count == 0) return false;
+        if (images.Count == 0) return Task.FromResult(false);
         _shellServices.OpenTab(ImageTabRegistration.StaticPageKind, new Dictionary<string, string>
         {
             ["paths"] = string.Join('|', images),
             ["view"]  = "edit",
         });
-        return true;
+        return Task.FromResult(true);
     }
 }

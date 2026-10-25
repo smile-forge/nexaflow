@@ -32,10 +32,10 @@ public sealed class FileActionManager
     /// </summary>
     public IReadOnlyList<IFileCreateEntry> GetCreateActions()
     {
-        var list = new List<IFileCreateEntry>(_registry.FileCreateActions);
-        list.AddRange(_registry.FileCreateWithOptions.Where(kind => kind.IsOffered));
-        list.AddRange(ShellNewRegistry.Instance.BuildCreateActions());
-        list.AddRange(TemplatedCreateRegistry.Instance.BuildCreateActions());
+var list = new List<IFileCreateEntry>(_registry.FileCreateActions);
+list.AddRange(_registry.FileCreateWithOptions.Where(kind => kind.IsOffered));
+list.AddRange(ShellNewRegistry.Instance.BuildCreateActions(_registry.Vfs));
+list.AddRange(TemplatedCreateRegistry.Instance.BuildCreateActions(_registry.Vfs));
         return list;
     }
 
@@ -44,6 +44,9 @@ public sealed class FileActionManager
     /// Passed to <see cref="FileMapManager.RegisterKnownExperiences"/> after construction.
     /// </summary>
     public IReadOnlyList<string> AllExperiences => _registry.AllExperiences;
+
+    /// <summary>The runtime's file system the actions are matched against.</summary>
+    public IVirtualFileSystem Vfs => _registry.Vfs;
 
     // ── Filtering ─────────────────────────────────────────────────────────────
 
@@ -94,17 +97,17 @@ public sealed class FileActionManager
 
         // An action that launches the file in another program may need its neighbours — a dependency,
         // a sidecar, an installer payload. Inside an archive only the one file can be produced, so such
-        // an action is withheld rather than offered and left to fail confusingly. A mount is fine: the
-        // whole subtree is on disk behind it.
+        // an action is withheld rather than offered and left to fail confusingly; on a remote location
+        // not even that file is on disk. A mount is fine: the whole subtree is on disk behind it.
         bool fullyBacked = selected.All(e =>
-            VirtualFileSystem.Instance.GetBacking(e.FullPath) != VirtualBacking.Materialized);
+            Vfs.GetBacking(e.FullPath).IsFullyOnDisk());
 
         var filtered = new List<IFileAction>();
         for (int i = 0; i < file.Count; i++)
         {
             if (!canPerform[i]) continue;
             if (!fullyBacked && file[i].RequiresFullyBackedPath) continue;
-            if (!HasRequiredCompanions(file[i], selected)) continue;
+            if (!HasRequiredCompanions(file[i], selected, _registry.Vfs)) continue;
             if (FileMatches(file[i], selected, anyDrives, multipleFiles, includeOptional))
                 filtered.Add(file[i]);
         }
@@ -113,11 +116,14 @@ public sealed class FileActionManager
 
     /// <summary>
     /// True unless <paramref name="action"/> is about a companion (<see cref="IFileAction.RequiredCompanionSuffix"/>)
-    /// that some selected item lacks — a folder, or a file with none beside it.
+    /// that some selected item lacks — a folder, or a file with none beside it. A companion is looked for beside a file on
+    /// this disk; a file on a location is not offered an action about one.
     /// </summary>
-    public static bool HasRequiredCompanions(IFileAction action, IReadOnlyList<FileSystemEntry> selected) =>
+    [LocalDiskOnly("a companion beside a file the file system resolved to this disk")]
+    public static bool HasRequiredCompanions(IFileAction action, IReadOnlyList<FileSystemEntry> selected, IVirtualFileSystem vfs) =>
         action.RequiredCompanionSuffix is not { } suffix
-        || selected.All(e => !e.IsDirectory && System.IO.File.Exists(e.FullPath + suffix));
+        || selected.All(e => !e.IsDirectory && FileSubject.Of(vfs, e.FullPath).LocalFile is { } local
+                             && System.IO.File.Exists(local + suffix));
 
     /// <summary>
     /// Filters folder actions for a folder-only selection. Safe to call on any thread.
@@ -172,7 +178,7 @@ public sealed class FileActionManager
         || action.ContainsFileGlobs is not null
         || action.ContainsFolderGlobs is not null;
 
-    private static bool FileMatches(
+    private bool FileMatches(
         IFileAction                    action,
         IReadOnlyList<FileSystemEntry> selected,
         bool                           anyDrives,
@@ -188,7 +194,7 @@ public sealed class FileActionManager
 
         foreach (var entry in files)
         {
-            var experiences = FileMapManager.Instance.GetExperiencesForFile(new FileInfo(entry.FullPath), includeOptional);
+            var experiences = FileMapManager.Instance.GetExperiencesForFile(FileSubject.Of(_registry.Vfs, entry.FullPath), includeOptional);
             if (!experiences.Contains(action.ExperienceId, System.StringComparer.OrdinalIgnoreCase))
                 return false;
         }
@@ -203,7 +209,7 @@ public sealed class FileActionManager
                        .All(e => GlobMatch(e.Name, glob));
     }
 
-    private static bool ContentsMatch(IFolderAction action, IReadOnlyList<FileSystemEntry> selected)
+    private bool ContentsMatch(IFolderAction action, IReadOnlyList<FileSystemEntry> selected)
     {
         foreach (var entry in selected.Where(e => e.IsDirectory))
             if (!FolderContentsMatch(action, entry.FullPath)) return false;
@@ -212,7 +218,7 @@ public sealed class FileActionManager
 
     /// <summary>Name + contents check against a single folder path — the open-folder equivalent of
     /// <see cref="FolderNameMatches"/> + <see cref="ContentsMatch"/>.</summary>
-    private static bool FolderMatchesPath(IFolderAction action, string folderPath)
+    private bool FolderMatchesPath(IFolderAction action, string folderPath)
     {
         var glob = action.FolderNameGlob;
         if (glob is not "*")
@@ -224,7 +230,7 @@ public sealed class FileActionManager
         return FolderContentsMatch(action, folderPath);
     }
 
-    private static bool FolderContentsMatch(IFolderAction action, string folderPath)
+    private bool FolderContentsMatch(IFolderAction action, string folderPath)
     {
         var fileGlobs   = action.ContainsFileGlobs;
         var folderGlobs = action.ContainsFolderGlobs;
@@ -246,22 +252,28 @@ public sealed class FileActionManager
         return true;
     }
 
-    /// <summary>Top-level file and directory <b>names</b> of a folder — from the real filesystem, or through the
-    /// VFS when the path is virtual (inside a mounted disk image or archive), so folder actions such as
-    /// "As DICOM" are offered there too, not just on real folders.</summary>
-    private static (IReadOnlyList<string> Files, IReadOnlyList<string> Dirs) TopLevelNames(string folderPath)
+    /// <summary>Top-level file and directory <b>names</b> of a folder — read where it really is when the file system
+    /// resolves it to this disk (a mounted one included), or through the file system inside an archive or disk image
+    /// on this disk, so folder actions such as "As DICOM" are offered there too. A folder on a location has none to
+    /// read here: its actions are matched by name alone.</summary>
+    [LocalDiskOnly("a folder the file system resolved to this disk, or an archive on it")]
+    private (IReadOnlyList<string> Files, IReadOnlyList<string> Dirs) TopLevelNames(string folderPath)
     {
-        if (Directory.Exists(folderPath))
+        var vfs     = _registry.Vfs;
+        var backing = vfs.GetBacking(folderPath);
+        if (backing is VirtualBacking.Remote) return ([], []);
+
+        if (vfs.ResolveOnDisk(folderPath) is { } real && Directory.Exists(real))
         {
-            var files = Directory.GetFiles(folderPath, "*", SearchOption.TopDirectoryOnly)
+            var files = Directory.GetFiles(real, "*", SearchOption.TopDirectoryOnly)
                                  .Select(Path.GetFileName).OfType<string>().ToList();
-            var dirs = Directory.GetDirectories(folderPath, "*", SearchOption.TopDirectoryOnly)
+            var dirs = Directory.GetDirectories(real, "*", SearchOption.TopDirectoryOnly)
                                 .Select(p => Path.GetFileName(p.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)))
                                 .OfType<string>().Where(n => n.Length > 0).ToList();
             return (files, dirs);
         }
 
-        var entries = VirtualFileSystem.Instance.EnumerateEntries(folderPath);
+        var entries = vfs.EnumerateEntries(folderPath);
         return (entries.Where(e => !e.IsDirectory).Select(e => e.Name).ToList(),
                 entries.Where(e => e.IsDirectory).Select(e => e.Name).ToList());
     }

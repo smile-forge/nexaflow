@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Media;
 
 namespace Nexaflow.Features.Common
@@ -100,20 +102,28 @@ namespace Nexaflow.Features.Common
         /// </summary>
         string? RequiredCompanionSuffix => null;
 
-        bool PerformAction(string filePath);
-        bool PerformAction(IEnumerable<string> filePaths);
+        /// <summary>
+        /// Runs the action on one file, answering whether it did something now — the strip flashes its success tick on
+        /// <c>true</c>, and an action that asks first and acts later answers <c>false</c>. Awaitable because the file may
+        /// be on a location, where a rename or a delete knows how it went only after a round trip; an action that only
+        /// opens a tab answers at once.
+        /// </summary>
+        Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default);
+
+        /// <summary>As <see cref="PerformActionAsync(string, CancellationToken)"/>, on several files.</summary>
+        Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default);
 
         /// <summary>
         /// Force-executes the action on a single path, skipping any confirmation prompts.
         /// Defaults to calling the normal overload.
         /// </summary>
-        bool PerformAction(string filePath, bool force) => PerformAction(filePath);
+        Task<bool> PerformActionAsync(string filePath, bool force, CancellationToken ct = default) => PerformActionAsync(filePath, ct);
 
         /// <summary>
         /// Force-executes the action on multiple paths, skipping any confirmation prompts.
         /// Defaults to calling the normal overload.
         /// </summary>
-        bool PerformAction(IEnumerable<string> filePaths, bool force) => PerformAction(filePaths);
+        Task<bool> PerformActionAsync(IEnumerable<string> filePaths, bool force, CancellationToken ct = default) => PerformActionAsync(filePaths, ct);
 
         /// <summary>
         /// Per-instance state that defines this action — for runtime-constructed types

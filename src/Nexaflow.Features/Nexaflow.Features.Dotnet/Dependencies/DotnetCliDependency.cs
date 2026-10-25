@@ -1,5 +1,6 @@
 using System.IO;
 using Nexaflow.Features.Common.Dependencies;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Dotnet.Dependencies;
@@ -33,6 +34,7 @@ public sealed class DotnetCliDependency : IExternalDependency
     /// launching the tool with <c>--version</c>: probes run for every declared component whenever the About
     /// page is opened, and spawning processes to answer "is it installed" is both slower and noisier.
     /// </summary>
+    [LocalDiskOnly("the dotnet CLI on this computer's PATH")]
     private static string? ResolveOnPath(string exeName)
     {
         var path = Environment.GetEnvironmentVariable("PATH");

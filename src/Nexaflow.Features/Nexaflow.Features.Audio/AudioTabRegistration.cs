@@ -5,6 +5,7 @@ using System.Linq;
 using Nexaflow.Features.Audio.ViewModels;
 using Nexaflow.Features.Audio.Views;
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Drafts;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -21,11 +22,13 @@ public sealed class AudioTabRegistration : IPageRegistration
 {
     private readonly IShellServices _shell;
     private readonly AudioConfig _config;
+    private readonly IVirtualFileSystem _vfs;
 
-    public AudioTabRegistration(IShellServices shell, AudioConfig config)
+    public AudioTabRegistration(IShellServices shell, AudioConfig config, IVirtualFileSystem vfs)
     {
         _shell = shell;
         _config = config;
+        _vfs = vfs;
     }
 
     public static string StaticPageKind => "Audio";
@@ -79,7 +82,8 @@ public sealed class AudioTabRegistration : IPageRegistration
 
         var draft = paths.Count == 1 && pageParams?.TryGetValue(DraftFile.PageParameterName, out var offered) == true
             ? new DraftSaving(paths[0], offered is { Length: > 0 } ? offered : null,
-                              (name, extensions, folder) => _shell.PickSaveFileAsync(name, extensions, folder), _shell.ShowError)
+                              (name, extensions, folder) => _shell.PickSaveFileAsync(name, extensions, folder), _shell.ShowError,
+                              (from, to) => _vfs.CopyFileAsync(from, to, replace: true).AsTask())
             : null;
         // A draft kept somewhere is that file from then on: it opens there, and the draft's tab goes.
         if (draft is not null)
@@ -91,7 +95,7 @@ public sealed class AudioTabRegistration : IPageRegistration
 
         page.ContentFactory = () =>
         {
-            var vm = new AudioViewModel(paths, index, _shell, _config, autoPlay) { Draft = draft };
+            var vm = new AudioViewModel(paths, index, _shell, _vfs, _config, autoPlay) { Draft = draft };
             page.Closed += (_, _) => vm.Dispose();
             return new AudioView(vm);
         };

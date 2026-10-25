@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -64,7 +65,7 @@ public class JsonSearchableTests : SearchableContentConformanceTests
 
     private static async Task<JsonViewModel> LoadAsync(string path)
     {
-        var vm = new JsonViewModel(path, new JsonFileLoader(), new JsonPathEvaluator(), RunningShell());
+        var vm = new JsonViewModel(path, VirtualFileSystem.Instance, new JsonPathEvaluator(), RunningShell());
         await vm.LoadAsync(CancellationToken.None);
 
         // For a large file LoadAsync returns before the placeholder fill finishes, so the first screen

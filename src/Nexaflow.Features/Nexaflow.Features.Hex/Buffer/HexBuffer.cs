@@ -1,5 +1,6 @@
 using Nexaflow.IO.Common;
 using System.IO;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Features.Hex.Buffer;
 
@@ -19,8 +20,9 @@ public sealed class HexBuffer : IDisposable
     private const int WindowSize   = WindowRows * BytesPerRow; // 8 192 bytes
     private const int ReloadMargin = WindowRows / 4;           // rows before edge that triggers reload
 
-    private Stream? _stream;   // a VFS stream: a real FileStream, or a seekable temp for an in-archive entry
+    private Stream? _stream;   // a VFS stream: a real FileStream, a seekable temp for an in-archive entry, or a location's ranged read
     private readonly string _filePath;
+    private readonly IVirtualFileSystem _vfs;
 
     // ── File read window ──────────────────────────────────────────────────────
     private long _windowOffset = -1;
@@ -51,10 +53,20 @@ public sealed class HexBuffer : IDisposable
     /// </summary>
     public HexReadFailure? Failure { get; private set; }
 
-    public HexBuffer(string filePath)
+    /// <summary>A buffer over <paramref name="filePath"/>, read through <paramref name="vfs"/> — empty until
+    /// <see cref="LoadAsync"/> has opened it.</summary>
+    public HexBuffer(IVirtualFileSystem vfs, string filePath)
     {
+        _vfs      = vfs;
         _filePath = filePath;
-        Open();
+    }
+
+    /// <summary>A buffer over <paramref name="filePath"/>, opened.</summary>
+    public static async Task<HexBuffer> OpenAsync(IVirtualFileSystem vfs, string filePath, CancellationToken ct = default)
+    {
+        var buffer = new HexBuffer(vfs, filePath);
+        await buffer.LoadAsync(ct);
+        return buffer;
     }
 
     /// <summary>
@@ -62,19 +74,19 @@ public sealed class HexBuffer : IDisposable
     /// fault. Anything else that goes wrong is recorded rather than thrown: the tab is already on screen
     /// by the time this runs, so the honest outcome is a view that knows it is empty and can say why.
     /// </summary>
-    private void Open()
+    public async Task LoadAsync(CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(_filePath)) return;
 
-        // Deliberately no Exists() pre-check: it is File.Exists underneath, which answers false for a
+        // Deliberately no Exists() pre-check: on disk it is File.Exists underneath, which answers false for a
         // file that is merely unreadable, so it would report every permission problem as "missing".
         // Only the exception can tell those apart.
         try
         {
-            _stream    = VirtualFileSystem.Instance.OpenRead(_filePath);
+            _stream    = await _vfs.OpenReadAsync(_filePath, ReadIntent.Random, ct);
             FileLength = _stream.Length;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _stream    = null;
             FileLength = 0;
@@ -91,7 +103,7 @@ public sealed class HexBuffer : IDisposable
     /// have been released, the share may be back. Edits do not survive: the buffer had nothing readable
     /// to edit, and a piece table indexed into a file we could not read is not worth preserving.
     /// </summary>
-    public void Reload()
+    public async Task ReloadAsync()
     {
         _stream?.Dispose();
         _stream       = null;
@@ -104,7 +116,7 @@ public sealed class HexBuffer : IDisposable
         _undoStack.Clear();
         _redoStack.Clear();
         IsModified    = false;
-        Open();
+        await LoadAsync();
     }
 
     // First failure wins: see Failure.
@@ -342,55 +354,34 @@ public sealed class HexBuffer : IDisposable
 
     // ── Save ──────────────────────────────────────────────────────────────────
 
-    public void Save(string? savePath = null)
+    /// <summary>
+    /// Writes the edited bytes to <paramref name="savePath"/>, or over the file itself. Written whole and then put
+    /// in place, so a save that fails leaves the file as it was; the bytes are streamed, so a large file is never
+    /// held in memory. Saved in place, the buffer is then over the saved file, its edits folded in.
+    /// </summary>
+    public async Task SaveAsync(string? savePath = null, CancellationToken ct = default)
     {
         string target = savePath ?? _filePath;
         bool isSaveAs = savePath != null && savePath != _filePath;
 
-        if (isSaveAs)
+        await using (var write = await _vfs.BeginWriteAsync(target, WriteMode.Replace, ct: ct))
         {
-            using var outFs = new FileStream(target, FileMode.Create, FileAccess.Write, FileShare.None);
-            WriteAll(outFs);
-        }
-        else if (File.Exists(target))
-        {
-            // Real file: write to a temp then replace (atomic-ish), memory-light for large files.
-            string tmp = target + ".hextmp";
-            try
-            {
-                using (var tmpFs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
-                    WriteAll(tmpFs);
+            await WriteAllAsync(write.Content, ct);
 
+            // Saved over itself: release the original so the new content can be swapped in.
+            if (!isSaveAs)
+            {
                 _stream?.Dispose();
                 _stream = null;
-
-                File.Replace(tmp, target, null);
-
-                _stream    = new FileStream(target, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
-                FileLength = _stream.Length;
-                // Re-initialise piece table to single file piece
-                _pieces    = [new Piece(PieceSource.File, 0, FileLength)];
-                _windowOffset = -1;
             }
-            catch
-            {
-                if (File.Exists(tmp)) File.Delete(tmp);
-                throw;
-            }
+            await write.CommitAsync(ct);
         }
-        else
+
+        if (!isSaveAs)
         {
-            // In-archive entry: build the new bytes and rewrite the owning archive through the VFS.
-            byte[] bytes;
-            using (var ms = new MemoryStream()) { WriteAll(ms); bytes = ms.ToArray(); }
-
-            _stream?.Dispose();
-            _stream = null;
-
-            VirtualFileSystem.Instance.Replace(target, bytes);
-
-            _stream    = VirtualFileSystem.Instance.OpenRead(target);
+            _stream    = await _vfs.OpenReadAsync(target, ReadIntent.Random, ct);
             FileLength = _stream.Length;
+            // Re-initialise piece table to single file piece
             _pieces    = [new Piece(PieceSource.File, 0, FileLength)];
             _windowOffset = -1;
         }
@@ -400,7 +391,7 @@ public sealed class HexBuffer : IDisposable
         IsModified = false;
     }
 
-    private void WriteAll(Stream target)
+    private async Task WriteAllAsync(Stream target, CancellationToken ct)
     {
         const int bufSize = 64 * 1024;
         var buf = new byte[bufSize];
@@ -410,7 +401,7 @@ public sealed class HexBuffer : IDisposable
             int count = (int)Math.Min(bufSize, vLen - offset);
             for (int i = 0; i < count; i++)
                 buf[i] = ReadByte(offset + i);
-            target.Write(buf, 0, count);
+            await target.WriteAsync(buf.AsMemory(0, count), ct);
         }
     }
 

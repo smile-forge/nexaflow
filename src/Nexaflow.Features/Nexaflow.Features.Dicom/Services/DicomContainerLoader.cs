@@ -26,11 +26,11 @@ internal static class DicomContainerLoader
         "1.2.840.10008.5.1.4.1.1.104.5", // Encapsulated MTL
     };
 
-    public static DicomContainer Load(IReadOnlyList<string> paths, CancellationToken ct = default)
+    public static async Task<DicomContainer> LoadAsync(DicomIo io, IReadOnlyList<string> paths, CancellationToken ct = default)
     {
         DicomBootstrap.EnsureInitialized();
 
-        var (files, title, displayTitle) = ResolveFiles(paths, ct);
+        var (files, title, displayTitle) = await ResolveFilesAsync(io, paths, ct);
 
         var instances = new List<(DicomInstanceInfo Info, DicomDataset Ds)>();
         var warnings = new List<string>();
@@ -39,9 +39,10 @@ internal static class DicomContainerLoader
             ct.ThrowIfCancellationRequested();
             try
             {
-                var file = DicomIo.Open(f, FileReadOption.SkipLargeTags);
+                var file = await io.OpenAsync(f, FileReadOption.SkipLargeTags, ct);
                 instances.Add((BuildInfo(f, file), file.Dataset));
             }
+            catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
                 warnings.Add($"{Path.GetFileName(f)}: {ex.Message}");
@@ -55,24 +56,22 @@ internal static class DicomContainerLoader
 
     /// <summary>The instance files to read, the container's English title and the title a person reads. The two
     /// differ only for a multi-selection, whose title is a phrase; a folder or file is titled by its name.</summary>
-    private static (IReadOnlyList<string> Files, string Title, string DisplayTitle) ResolveFiles(
-        IReadOnlyList<string> paths, CancellationToken ct)
+    private static async Task<(IReadOnlyList<string> Files, string Title, string DisplayTitle)> ResolveFilesAsync(
+        DicomIo io, IReadOnlyList<string> paths, CancellationToken ct)
     {
         if (paths.Count == 1)
         {
             var p = paths[0];
-            if (Directory.Exists(p))
+            if (await io.IsDirectoryAsync(p, ct))
             {
-                // A real folder: a DICOMDIR index is the fast path; otherwise scan it.
+                // A folder, on disk or in an archive: a DICOMDIR index is the fast path; otherwise scan it.
                 var dicomdir = Path.Combine(p, "DICOMDIR");
-                if (File.Exists(dicomdir))
-                    return Named(ReadDicomDir(dicomdir), new DirectoryInfo(p).Name);
-                return Named(EnumerateDicomFiles(p, ct), new DirectoryInfo(p).Name);
+                if (await io.ExistsAsync(dicomdir, ct))
+                    return Named(await ReadDicomDirAsync(io, dicomdir), LeafName(p));
+                return Named(await EnumerateDicomFilesAsync(io, p, ct), LeafName(p));
             }
-            if (DicomIo.IsDirectory(p))                       // a virtual folder inside an archive (.zip)
-                return Named(EnumerateDicomFiles(p, ct), LeafName(p));
             if (IsDicomDirFile(p))
-                return Named(ReadDicomDir(p), DicomDirTitle(p));
+                return Named(await ReadDicomDirAsync(io, p), DicomDirTitle(p));
             return Named([p], Path.GetFileName(p));
         }
 
@@ -81,8 +80,8 @@ internal static class DicomContainerLoader
         foreach (var p in paths)
         {
             ct.ThrowIfCancellationRequested();
-            if (Directory.Exists(p) || DicomIo.IsDirectory(p)) files.AddRange(EnumerateDicomFiles(p, ct));
-            else if (DicomIo.IsDicom(p)) files.Add(p);
+            if (await io.IsDirectoryAsync(p, ct)) files.AddRange(await EnumerateDicomFilesAsync(io, p, ct));
+            else if (await io.IsDicomAsync(p, ct)) files.Add(p);
         }
         return (files, $"DICOM ({files.Count} instances)", Str.Format("Dicom.Page.SelectionTitleFormat", files.Count));
     }
@@ -100,39 +99,43 @@ internal static class DicomContainerLoader
     private static string DicomDirTitle(string dicomdirPath)
     {
         var dir = Path.GetDirectoryName(dicomdirPath);
-        return string.IsNullOrEmpty(dir) ? "DICOMDIR" : new DirectoryInfo(dir).Name;
+        return string.IsNullOrEmpty(dir) ? "DICOMDIR" : LeafName(dir);
     }
 
-    private static IReadOnlyList<string> EnumerateDicomFiles(string folder, CancellationToken ct)
+    private static async Task<IReadOnlyList<string>> EnumerateDicomFilesAsync(DicomIo io, string folder, CancellationToken ct)
     {
         var result = new List<string>();
-        foreach (var f in DicomIo.EnumerateFiles(folder))     // real directory or in-archive folder
+        await foreach (var f in io.EnumerateFilesAsync(folder, ct))     // a folder on disk or in an archive
         {
             ct.ThrowIfCancellationRequested();
-            if (IsDicomDirFile(f)) continue;                  // the index itself, not an instance
-            if (DicomIo.IsDicom(f)) result.Add(f);
+            if (IsDicomDirFile(f)) continue;                            // the index itself, not an instance
+            if (await io.IsDicomAsync(f, ct)) result.Add(f);
         }
         return result;
     }
 
-    /// <summary>Walks a DICOMDIR's record tree and resolves every <c>ReferencedFileID</c> to a real path
-    /// under the DICOMDIR's own directory.</summary>
-    private static IReadOnlyList<string> ReadDicomDir(string dicomdirPath)
+    /// <summary>Walks a DICOMDIR's record tree and keeps every <c>ReferencedFileID</c> that names a file under the
+    /// DICOMDIR's own directory.</summary>
+    private static async Task<IReadOnlyList<string>> ReadDicomDirAsync(DicomIo io, string dicomdirPath)
     {
         var baseDir = Path.GetDirectoryName(dicomdirPath) ?? string.Empty;
-        var files = new List<string>();
+        var referenced = new List<string>();
         try
         {
-            var dir = DicomDirectory.Open(dicomdirPath);
+            var dir = await io.OpenDirectoryAsync(dicomdirPath);
             foreach (var record in dir.RootDirectoryRecordCollection)
-                CollectReferencedFiles(record, baseDir, files);
+                CollectReferencedFiles(record, baseDir, referenced);
         }
         catch
         {
             // A malformed index shouldn't kill the open — fall back to scanning the medium.
-            return EnumerateDicomFiles(baseDir, CancellationToken.None);
+            return await EnumerateDicomFilesAsync(io, baseDir, CancellationToken.None);
         }
-        return files.Count > 0 ? files : EnumerateDicomFiles(baseDir, CancellationToken.None);
+
+        var files = new List<string>();
+        foreach (var file in referenced)
+            if (await io.ExistsAsync(file)) files.Add(file);
+        return files.Count > 0 ? files : await EnumerateDicomFilesAsync(io, baseDir, CancellationToken.None);
     }
 
     private static void CollectReferencedFiles(DicomDirectoryRecord record, string baseDir, List<string> files)
@@ -144,8 +147,7 @@ internal static class DicomContainerLoader
             var parts = segments.Length == 1 && segments[0].Contains('\\')
                 ? segments[0].Split('\\', StringSplitOptions.RemoveEmptyEntries)
                 : segments;
-            var full = Path.Combine(new[] { baseDir }.Concat(parts).ToArray());
-            if (File.Exists(full)) files.Add(full);
+            files.Add(Path.Combine(new[] { baseDir }.Concat(parts).ToArray()));
         }
         foreach (var child in record.LowerLevelDirectoryRecordCollection)
             CollectReferencedFiles(child, baseDir, files);

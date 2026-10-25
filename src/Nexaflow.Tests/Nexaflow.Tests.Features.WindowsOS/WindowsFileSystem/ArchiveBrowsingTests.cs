@@ -29,10 +29,11 @@ public class ArchiveBrowsingTests
     }
 
     [TestMethod]
-    public void NavigateInto_Zip_ListsTopLevel()
+    public async Task NavigateInto_Zip_ListsTopLevel()
     {
         using var fix = new Fixture();
-        fix.Vm.NavigateTo(fix.ZipPath);
+        await fix.Vm.BrowseToAsync(fix.ZipPath);
+        await fix.Vm.EntriesLoaded;
 
         Assert.AreEqual(fix.ZipPath, fix.Vm.CurrentPath);
         var names = fix.Vm.Entries.Select(e => e.Name).ToHashSet();
@@ -42,22 +43,24 @@ public class ArchiveBrowsingTests
     }
 
     [TestMethod]
-    public void NavigateInto_ZipSubfolder_ListsChildren()
+    public async Task NavigateInto_ZipSubfolder_ListsChildren()
     {
         using var fix = new Fixture();
-        fix.Vm.NavigateTo(Path.Combine(fix.ZipPath, "docs"));
+        await fix.Vm.BrowseToAsync(Path.Combine(fix.ZipPath, "docs"));
+        await fix.Vm.EntriesLoaded;
 
         var names = fix.Vm.Entries.Select(e => e.Name).ToList();
         CollectionAssert.AreEqual(new[] { "guide.md" }, names);
     }
 
     [TestMethod]
-    public void OpenEntry_OnZipFile_NavigatesIn()
+    public async Task OpenEntry_OnZipFile_NavigatesIn()
     {
         using var fix = new Fixture();
         // Simulate the browser sitting in the real folder, then double-clicking the zip.
         var zipEntry = new FileSystemEntry { Name = "a.zip", FullPath = fix.ZipPath, IsDirectory = false };
-        fix.Vm.OpenEntryCommand.Execute(zipEntry);
+        await fix.Vm.OpenEntryCommand.ExecuteAsync(zipEntry);
+        await fix.Vm.EntriesLoaded;
 
         Assert.AreEqual(fix.ZipPath, fix.Vm.CurrentPath);
         Assert.IsTrue(fix.Vm.Entries.Any(e => e.Name == "readme.txt"));
@@ -82,11 +85,9 @@ public class ArchiveBrowsingTests
 
             var shell = Substitute.For<IShellServices>();
             var ai = Substitute.For<IAIService>();
-            Vm = new FileSystemViewModel(_dir, shell, ai, new Dictionary<Type, IFeatureConfig>());
-
             var vfs = new VirtualFileSystem();
             vfs.RegisterHandler(new ZipArchiveHandler());
-            Vm.Vfs = vfs;
+            Vm = new FileSystemViewModel(_dir, shell, ai, new Dictionary<Type, IFeatureConfig>(), vfs);
         }
 
         private static void Add(ZipArchive zip, string path, string body)

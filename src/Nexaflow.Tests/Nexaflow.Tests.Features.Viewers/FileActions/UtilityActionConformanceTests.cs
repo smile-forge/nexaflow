@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using Nexaflow.Features.Common;
 using Nexaflow.Tests.Features.FileActions;
 using Nexaflow.Tests.Fixtures;
@@ -26,7 +27,7 @@ public class MountDiskActionConformance : FileActionConformanceTests
 public class UnzipHereActionConformance : FileActionConformanceTests
 {
     protected override IFileAction CreateAction() =>
-        new Nexaflow.Features.Compressed.FileActions.UnzipHereAction(Substitute.For<IShellServices>());
+        new Nexaflow.Features.Compressed.FileActions.UnzipHereAction(Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
 }
 
 [TestClass]
@@ -34,7 +35,7 @@ public class UnzipHereActionConformance : FileActionConformanceTests
 public class AvScanActionConformance : FileActionConformanceTests
 {
     protected override IFileAction CreateAction() =>
-        new Nexaflow.Features.Executable.FileActions.AvScanAction(Substitute.For<IShellServices>());
+        new Nexaflow.Features.Executable.FileActions.AvScanAction(Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
 }
 
 [TestClass]
@@ -42,5 +43,5 @@ public class AvScanActionConformance : FileActionConformanceTests
 public class ExtractImagesActionConformance : FileActionConformanceTests
 {
     protected override IFileAction CreateAction() =>
-        new Nexaflow.Features.Pdf.FileActions.ExtractImagesAction(Substitute.For<IShellServices>());
+        new Nexaflow.Features.Pdf.FileActions.ExtractImagesAction(Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
 }

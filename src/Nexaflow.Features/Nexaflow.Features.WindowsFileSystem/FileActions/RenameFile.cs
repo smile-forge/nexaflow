@@ -1,15 +1,23 @@
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions
 {
     public class RenameFile : IFileAction, IFolderAction, ICacheable
     {
         private readonly IShellServices _shell;
+        private readonly IVirtualFileSystem _vfs;
 
-        public RenameFile(IShellServices shell) => _shell = shell;
+        public RenameFile(IShellServices shell, IVirtualFileSystem vfs)
+        {
+            _shell = shell;
+            _vfs   = vfs;
+        }
 
         // ── IFileAction ───────────────────────────────────────────────────────
 
@@ -36,10 +44,10 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
         // ── Actions ───────────────────────────────────────────────────────────
 
-        public bool PerformAction(string path)
+        public async Task<bool> PerformActionAsync(string path, CancellationToken ct = default)
         {
             path           = Services.ShellPath.RealForMutation(path);
-            bool isDir     = Directory.Exists(path);
+            bool isDir     = await _vfs.IsDirectoryAsync(path, ct);
             string dir     = Path.GetDirectoryName(path)!;
             string oldName = Path.GetFileName(path);
             string title   = isDir ? Str.Get("WindowsFileSystem.Rename.FolderTitle") : Str.Get("WindowsFileSystem.Rename.FileTitle");
@@ -48,33 +56,35 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
                 title:        title,
                 label:        Str.Get("WindowsFileSystem.Rename.Label"),
                 initialValue: oldName,
-                onConfirm: newName =>
-                {
-                    newName = newName.Trim();
-                    if (string.IsNullOrEmpty(newName) || newName == oldName) return;
-
-                    string dest = Path.Combine(dir, newName);
-                    if (isDir)
-                        Directory.Move(path, dest);
-                    else
-                    {
-                        File.Move(path, dest);
-                        Services.FileCompanions.For(_shell).Follow(path, dest, move: true);
-                    }
-
-                    _shell.RequestRefresh();
-                },
+                onConfirm: newName => _ = RenameAsync(path, Path.Combine(dir, newName.Trim()), oldName, newName.Trim(), isDir),
                 onCancel: () => { });
 
-            return false;   // action is async — refresh handled by confirm callback
+            return false;   // the rename waits on the prompt — refresh handled by RenameAsync
         }
 
-        public bool PerformAction(IEnumerable<string> filePaths)
+        /// <summary>The rename the prompt confirmed, its companions with it. A failure is shown rather than thrown, because
+        /// nothing awaits a prompt's callback.</summary>
+        private async Task RenameAsync(string path, string dest, string oldName, string newName, bool isDir)
+        {
+            if (string.IsNullOrEmpty(newName) || newName == oldName) return;
+            try
+            {
+                await _vfs.MoveAsync(path, dest, replace: false);
+                if (!isDir) await Services.FileCompanions.For(_shell).FollowAsync(_vfs, path, dest, move: true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _shell.ShowError(Str.Format("WindowsFileSystem.Rename.FailedFormat", oldName, ex.Message));
+            }
+            _shell.RequestRefresh();
+        }
+
+        public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
         {
             // SupportsMultipleFiles = false so this overload is never called,
             // but implement it defensively by renaming the first item.
-            foreach (var p in filePaths) return PerformAction(p);
-            return false;
+            foreach (var p in filePaths) return PerformActionAsync(p, ct);
+            return Task.FromResult(false);
         }
     }
 }

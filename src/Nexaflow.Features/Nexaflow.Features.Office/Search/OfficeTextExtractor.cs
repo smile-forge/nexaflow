@@ -3,6 +3,7 @@ using Nexaflow.Features.Common.Search;
 using Nexaflow.Features.Office.Packaging;
 using Nexaflow.Features.Office.Word;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Features.Office.Search;
 
@@ -20,7 +21,7 @@ namespace Nexaflow.Features.Office.Search;
 /// only what is read before the byte budget fills — and cancellation is honoured between any two elements.
 /// </para>
 /// </summary>
-public sealed class OfficeTextExtractor : IFileTextExtractor
+public sealed class OfficeTextExtractor(IVirtualFileSystem vfs) : IFileTextExtractor
 {
     // The four WordprocessingML package types. Not .doc: binary Word 97-2003 is another format entirely, and
     // claiming it would only swap the raw scan's real chance at its text for a guaranteed "couldn't tell".
@@ -44,18 +45,19 @@ public sealed class OfficeTextExtractor : IFileTextExtractor
     public Task<string?> ExtractAsync(string path, long maxBytes, CancellationToken ct)
     {
         // Cancelling before the work starts skips it entirely rather than scheduling and then throwing.
-        return Task.Run(() => Extract(path, maxBytes, ct), ct);
+        return Task.Run(() => ExtractCoreAsync(path, maxBytes, ct), ct);
     }
 
-    private static string? Extract(string path, long maxBytes, CancellationToken ct)
+    private async Task<string?> ExtractCoreAsync(string path, long maxBytes, CancellationToken ct)
     {
         if (maxBytes <= 0) return null;
 
         try
         {
-            // Through the VFS so a document inside an archive works too; for a real path this is a plain
-            // FileStream that shares read-write, so a document open in Word right now is still readable.
-            using var stream  = VirtualFileSystem.Instance.OpenRead(path);
+            // Through the runtime's file system so a document inside an archive or on a location works too; for a real
+            // path this is a plain FileStream that shares read-write, so a document open in Word right now is still
+            // readable. A package is read by its central directory, so at random.
+            await using var stream = await vfs.OpenReadAsync(path, ReadIntent.Random, ct);
             using var package = OpcPackage.TryOpen(stream);
             if (package is null) return null;
 

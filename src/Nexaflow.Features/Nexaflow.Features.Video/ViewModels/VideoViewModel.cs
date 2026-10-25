@@ -47,6 +47,12 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
 
     private readonly string _path;
     private readonly IShellServices? _shell;
+
+    /// <summary>The runtime's file system the video is reached through — on disk, in an archive or on a location.</summary>
+    private readonly IVirtualFileSystem _vfs;
+
+    /// <summary>The file's size, read with the media — what the info panel shows; null when it could not be had.</summary>
+    private long? _size;
     private readonly bool _hardwareDecoding;
     private readonly CancellationTokenSource _cts = new();
 
@@ -68,10 +74,11 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
     /// registration handles it by notifying the user and closing the tab.</summary>
     public event Action<string>? FatalError;
 
-    public VideoViewModel(string path, IShellServices? shell, bool hardwareDecoding = false)
+    public VideoViewModel(string path, IShellServices? shell, IVirtualFileSystem vfs, bool hardwareDecoding = false)
     {
         _path             = path;
         _shell            = shell;
+        _vfs              = vfs;
         _hardwareDecoding = hardwareDecoding;
         Keyframes.CollectionChanged += (_, _) =>
         {
@@ -87,10 +94,12 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
     // once (real files pass through). Cached so the keyframe/caption probes reuse the same extraction. First
     // touched inside the background init below, so the extraction never blocks the UI thread.
     private string? _realMediaPath;
-    private string RealMediaPath() => _realMediaPath ??= Materialize(_path);
-    private static string Materialize(string p)
+    /// <summary>The video as a file on this disk — libVLC opens a file by its path: one on disk as it is, one in an archive
+    /// extracted to a copy. Asked once.</summary>
+    private async Task<string> RealMediaPathAsync() => _realMediaPath ??= await MaterializeAsync(_path);
+    private async Task<string> MaterializeAsync(string p)
     {
-        try { return VirtualFileSystem.Instance.MaterializeFile(p); }
+        try { return await _vfs.MaterializeFileAsync(p).ConfigureAwait(false); }
         catch { return p; }
     }
 
@@ -180,6 +189,9 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
 
         try
         {
+            var media = await RealMediaPathAsync().ConfigureAwait(false);
+            try { _size = (await _vfs.GetEntryAsync(_path).ConfigureAwait(false))?.Size; } catch (IOException) { /* size is cosmetic */ }
+
             await Task.Run(() =>
             {
                 VlcInit.EnsureInitialized();
@@ -190,7 +202,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
                 // Render frames into a WPF WriteableBitmap (no native window → no airspace).
                 _sink = new VlcVideoSink(_mp, OnUi, bmp => VideoFrame = bmp);
 
-                _media = new Media(new Uri(RealMediaPath()));
+                _media = new Media(new Uri(media));
 
                 _mp.TimeChanged      += OnTimeChanged;
                 _mp.LengthChanged    += OnLengthChanged;
@@ -424,7 +436,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
         file.Rows.Add(new(Str.Get("Video.Info.Field.Name"), FileName) { ReportLabel = "Name" });
         file.Rows.Add(new(Str.Get("Video.Info.Field.Container"), Path.GetExtension(_path).TrimStart('.').ToUpperInvariant())
                       { ReportLabel = "Container" });
-        try { file.Rows.Add(new(Str.Get("Video.Info.Field.Size"), FormatBytes(new FileInfo(_path).Length)) { ReportLabel = "Size" }); } catch { }
+        if (_size is { } size) file.Rows.Add(new(Str.Get("Video.Info.Field.Size"), FormatBytes(size)) { ReportLabel = "Size" });
         file.Rows.Add(new(Str.Get("Video.Info.Field.Duration"), durLabel) { ReportLabel = "Duration" });
         sections.Add(file);
 
@@ -539,7 +551,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
         if (_libVlc is null) return;
 
         Media thumbMedia;
-        try { thumbMedia = new Media(new Uri(RealMediaPath())); } catch { return; }
+        try { thumbMedia = new Media(new Uri(await RealMediaPathAsync().ConfigureAwait(false))); } catch { return; }
 
         using (thumbMedia)
         {
@@ -599,7 +611,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
             : 720u;
 
         Media capMedia;
-        try { capMedia = new Media(new Uri(RealMediaPath())); } catch { return null; }
+        try { capMedia = new Media(new Uri(await RealMediaPathAsync().ConfigureAwait(false))); } catch { return null; }
         using (capMedia)
         using (var linked = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token, ct))
         {
@@ -617,6 +629,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
 
     /// <summary>The frame on screen, at the video's own size, opened in the image editor's Cut out — playback paused on it.</summary>
     [RelayCommand]
+    [LocalDiskOnly("a frame cut out of the video, kept in the temp folder for the picture editor")]
     private async Task CutOutFrame()
     {
         if (_shell is null) return;

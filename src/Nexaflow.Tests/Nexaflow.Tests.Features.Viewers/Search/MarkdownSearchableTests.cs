@@ -6,6 +6,7 @@ using Nexaflow.Features.Markdown.ViewModels;
 using Nexaflow.Search;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Tests.Features.Search;
 
@@ -45,13 +46,13 @@ public sealed class MarkdownSearchableTests : SearchableContentConformanceTests
         return shell;
     }
 
-    private MarkdownViewModel Open() => new(_path!, Shell());
-
-    protected override Task<ISearchable> CreateAsync()
+    protected override async Task<ISearchable> CreateAsync()
     {
         _path = Path.Combine(TestTemp.Root, "nexasearch_" + Guid.NewGuid().ToString("N") + ".md");
         File.WriteAllText(_path, Document);
-        return Task.FromResult<ISearchable>(Open());
+        var vm = new MarkdownViewModel(_path, Shell(), VirtualFileSystem.Instance);
+        await vm.Loaded;
+        return vm;
     }
 
     [TestCleanup]

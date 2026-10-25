@@ -1,4 +1,6 @@
 using System.Windows.Media;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Features.Common;
 
@@ -38,8 +40,9 @@ public interface IFileCreateAction : IFileCreateEntry
     /// <summary>
     /// Creates the new item named <paramref name="fileName"/> inside <paramref name="folderPath"/>.
     /// <paramref name="fileName"/> is already extension-resolved by the host (the user's extension
-    /// if they typed one, otherwise <see cref="IFileCreateEntry.FileExtension"/> appended), so implementations use it
-    /// verbatim. Returns the full path of the created item, or <c>null</c> on failure.
-    /// </summary>
-    string? Create(string folderPath, string fileName);
+/// if they typed one, otherwise <see cref="IFileCreateEntry.FileExtension"/> appended), so implementations use it
+/// verbatim. Answers the full path of the created item, which the browser selects, or <c>null</c> on failure.
+/// Awaitable because the folder may be on a location, where the item exists only once the server says so.
+/// </summary>
+Task<string?> CreateItemAsync(string folderPath, string fileName, CancellationToken ct = default);
 }

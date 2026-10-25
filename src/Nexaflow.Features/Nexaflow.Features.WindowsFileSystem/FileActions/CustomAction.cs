@@ -5,6 +5,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Media;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions;
@@ -51,24 +53,24 @@ public sealed class CustomAction : IFileAction
     /// input, or use the working directory. Only offered where the folder genuinely exists on disk.</summary>
     public bool RequiresFullyBackedPath => true;
 
-    public bool PerformAction(string filePath) => Launch(new[] { filePath });
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default) => Task.FromResult(Launch(new[] { filePath }));
 
-    public bool PerformAction(IEnumerable<string> filePaths)
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
     {
         var paths = filePaths.ToList();
-        if (paths.Count == 0) return false;
-        if (paths.Count == 1) return Launch(paths);
+        if (paths.Count == 0) return Task.FromResult(false);
+        if (paths.Count == 1) return Task.FromResult(Launch(paths));
 
         if (_def.MultiFile == MultiFileMode.OneLaunchPerFile)
         {
             bool ok = false;
             foreach (var p in paths) ok |= Launch(new[] { p });
-            return ok;
+            return Task.FromResult(ok);
         }
 
         // SingleLaunchAllFiles (or SingleFileOnly slipped through — treat as single launch
         // with full list rather than silently dropping the action).
-        return Launch(paths);
+        return Task.FromResult(Launch(paths));
     }
 
     private bool Launch(IReadOnlyList<string> paths)

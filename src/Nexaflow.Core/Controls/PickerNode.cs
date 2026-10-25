@@ -17,7 +17,8 @@ namespace Nexaflow.Core.Controls;
 internal abstract partial class PickerNode<TNode> : ObservableObject where TNode : PickerNode<TNode>
 {
     public string FullPath    { get; }
-    public string DisplayName { get; }
+    /// <summary>The row's text; a root takes its fuller label once its provider has described it.</summary>
+    [ObservableProperty] private string _displayName;
 
     /// <summary>Holds a placeholder until the node is opened, which is what gives an unread folder its expander.</summary>
     public RangeObservableCollection<TNode> Children { get; } = [];
@@ -30,7 +31,7 @@ internal abstract partial class PickerNode<TNode> : ObservableObject where TNode
     protected PickerNode(string fullPath, string displayName, TNode? placeholder)
     {
         FullPath    = fullPath;
-        DisplayName = displayName;
+        _displayName = displayName;
         if (placeholder is not null) Children.Add(placeholder);
     }
 

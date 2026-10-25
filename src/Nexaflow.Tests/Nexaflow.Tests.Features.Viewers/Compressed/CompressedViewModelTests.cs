@@ -23,10 +23,11 @@ public class CompressedViewModelTests
     [TestMethod]
     [CoversNode("compressed-entry-tree")]
     [CoversNode("compressed-metadata-pane")]
-    public void Load_PopulatesMetadataAndTree()
+    public async Task Load_PopulatesMetadataAndTree()
     {
         using var fix = new Fixture();
         var vm = new CompressedViewModel(fix.ZipPath, fix.Shell, fix.Vfs);
+        await vm.Loaded;
 
         Assert.IsTrue(vm.IsRecognised);
         Assert.AreEqual("Zip", vm.Format);
@@ -47,6 +48,7 @@ public class CompressedViewModelTests
     {
         using var fix = new Fixture();
         var vm = new CompressedViewModel(fix.ZipPath, fix.Shell, fix.Vfs);
+        await vm.Loaded;
 
         // scope: the archive path, so two pinned Compressed tabs stay distinguishable (aspect 4)
         Assert.AreEqual(fix.ZipPath, vm.GetSecurityContext());
@@ -100,10 +102,11 @@ public class CompressedViewModelTests
 
     [TestMethod]
     [CoversNode("compressed-entry-tree")]
-    public void ActivateRow_TogglesFolderVisibility()
+    public async Task ActivateRow_TogglesFolderVisibility()
     {
         using var fix = new Fixture();
         var vm = new CompressedViewModel(fix.ZipPath, fix.Shell, fix.Vfs);
+        await vm.Loaded;
 
         var docs = vm.VisibleRows.First(r => r.Name == "docs");
         // Collapse if auto-expanded, then expand and confirm children appear.

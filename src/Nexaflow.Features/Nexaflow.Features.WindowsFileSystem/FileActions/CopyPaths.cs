@@ -3,6 +3,8 @@ using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions
@@ -46,17 +48,17 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
         // ── Actions ───────────────────────────────────────────────────────────
 
-        public bool PerformAction(string filePath) => PerformAction([filePath]);
+        public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default) => PerformActionAsync([filePath], ct);
 
-        public bool PerformAction(IEnumerable<string> filePaths)
+        public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
         {
             // An empty selection must not reach the clipboard: writing nothing REPLACES whatever the user
             // had copied, so "copy path" on nothing would silently throw their clipboard away — the same
             // trap CopyFiles fell into, reachable here through a pinned ribbon button.
-            if (ClipboardText(filePaths) is not { } text) return false;
+            if (ClipboardText(filePaths) is not { } text) return Task.FromResult(false);
 
-            try { Clipboard.SetText(text); return true; }
-            catch { return false; }   // another process holds the clipboard open
+            try { Clipboard.SetText(text); return Task.FromResult(true); }
+            catch { return Task.FromResult(false); }   // another process holds the clipboard open
         }
 
         /// <summary>

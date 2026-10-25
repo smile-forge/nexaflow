@@ -1,7 +1,9 @@
+using System.IO;
 using System.Linq;
 using Nexaflow.Features.Common.ThisPc;
 using Nexaflow.Features.OneDrive;
 using Nexaflow.Features.OneDrive.Services;
+using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.OneDrive;
@@ -16,10 +18,29 @@ namespace Nexaflow.Tests.Features.OneDrive;
 public class OneDriveProviderTests
 {
     private static OneDriveThisPcProvider Provider(OneDriveConfig config, FakeRegistryView registry)
-        => new(config, new OneDriveDetector(registry, _ => null));
+        => new(config, VirtualFileSystem.Instance, new OneDriveDetector(registry, _ => null));
 
     private static FakeRegistryView OneAccount() =>
         new FakeRegistryView().WithAccount("Business1", @"C:\Users\me\OneDrive - Contoso", displayName: "Contoso");
+
+    [TestMethod]
+    public async Task ASyncFolderIsThereWhenTheFileSystemFindsIt_WithAnExpanderWhenItHoldsAFolder()
+    {
+        var root = Path.Combine(TestTemp.Root, "nexa-onedrive-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(Path.Combine(root, "Documents"));
+        try
+        {
+            var provider = Provider(new OneDriveConfig(), new FakeRegistryView());
+            ThisPcItem Row(string path) => new() { Id = "onedrive.x", Label = "OneDrive", TargetPath = path, TypeLabel = "OneDrive" };
+
+            var there = await provider.GetDetailAsync(Row(root));
+            Assert.IsTrue(there.Available);
+            Assert.IsTrue(there.HasChildren);
+
+            Assert.IsFalse((await provider.GetDetailAsync(Row(Path.Combine(root, "gone")))).Available);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
 
     [TestMethod]
     public void ADetectedAccountBecomesACloudRowPointingAtItsFolder()
@@ -162,7 +183,7 @@ public class OneDriveProviderTests
     public void RepeatedCallsDoNotRereadTheRegistryEveryTime()
     {
         var registry = new CountingRegistryView(OneAccount());
-        var provider = new OneDriveThisPcProvider(new OneDriveConfig(),
+        var provider = new OneDriveThisPcProvider(new OneDriveConfig(), VirtualFileSystem.Instance,
                                                   new OneDriveDetector(registry, _ => null));
 
         for (int i = 0; i < 5; i++) provider.GetItems();

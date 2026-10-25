@@ -3,6 +3,7 @@ using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Executable.ViewModels;
 using Nexaflow.Features.Executable.Views;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Executable;
@@ -12,7 +13,7 @@ namespace Nexaflow.Features.Executable;
 /// node in the dependency graph is clicked — each dependency becomes its own tab, with breadcrumbs
 /// built from its real path so the trail back to the module's folder comes for free.
 /// </summary>
-public sealed class ExecutableTabRegistration(IShellServices shell) : IPageRegistration
+public sealed class ExecutableTabRegistration(IShellServices shell, IVirtualFileSystem vfs) : IPageRegistration
 {
     public static string StaticPageKind => "Executable";
     public string PageKind => StaticPageKind;
@@ -38,7 +39,7 @@ public sealed class ExecutableTabRegistration(IShellServices shell) : IPageRegis
         {
             // Built here rather than above so opening a tab stays cheap: the view-model queues the
             // parse in its constructor, and a page definition may be created without ever being shown.
-            var vm = new ExecutableViewModel(path, shell);
+            var vm = new ExecutableViewModel(path, shell, vfs);
             page.Closed += (_, _) => vm.Dispose();
             return new ExecutableView(vm);
         };

@@ -3,6 +3,7 @@ using Nexaflow.Features.Code.ViewModels;
 using Nexaflow.Features.Common;
 using NSubstitute;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Tests.Features.CodeIntel;
 
@@ -28,7 +29,7 @@ public class CodeViewModelTests
         """;
 
     private static CodeViewModel Make(string fileName, IShellServices? shell = null)
-        => new(fileName, shell ?? Substitute.For<IShellServices>(), maxEditableBytes: long.MaxValue);
+        => new(fileName, shell ?? Substitute.For<IShellServices>(), VirtualFileSystem.Instance, maxEditableBytes: long.MaxValue);
 
     // ── Grammar resolution ────────────────────────────────────────────────────
 

@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.Linq;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Text.ViewModels;
@@ -16,7 +17,7 @@ namespace Nexaflow.Tests.Features.Text;
 public class TextViewModelCommandTests
 {
     private static TextViewModel Make()
-        => new("nonexistent.txt", Substitute.For<IShellServices>()) { IsMonitoring = false };
+        => new("nonexistent.txt", Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
 
     [TestMethod]
     [CoversNode("text-viewer-split")]

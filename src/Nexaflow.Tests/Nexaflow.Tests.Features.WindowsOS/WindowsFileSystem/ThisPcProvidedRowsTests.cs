@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -22,7 +23,7 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem;
 [CoversNode("winfs-thispc-providers")]
 public class ThisPcProvidedRowsTests
 {
-    /// <summary>The settle runs off the UI thread (as CheckDriveAsync does), so poll rather than assume.</summary>
+    /// <summary>The settle runs off the UI thread (as every row's probe does), so poll rather than assume.</summary>
     private static void WaitFor(Func<bool> condition, string because)
     {
         for (int i = 0; i < 200 && !condition(); i++) Thread.Sleep(10);
@@ -100,13 +101,13 @@ public class ThisPcProvidedRowsTests
     }
 
     [TestMethod]
-    public void ReturningToThisPcRefreshesTheProvidedRowWithoutDuplicatingIt()
+    public async Task ReturningToThisPcRefreshesTheProvidedRowWithoutDuplicatingIt()
     {
         using var fx = new ProvidedRootFixture();
         var vm = fx.ThisPc();
         var before = vm.Entries.Count;
 
-        vm.NavigateTo(fx.VirtualRoot);
+        await vm.BrowseToAsync(fx.VirtualRoot);
         vm.GoToThisPc();
 
         Assert.AreEqual(before, vm.Entries.Count);

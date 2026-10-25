@@ -36,6 +36,7 @@ public class ArchiveInspectorSurfaceTests
         var dest = fix.NewFolder();
         fix.Shell.PickFolderAsync(Arg.Any<string>()).Returns(Task.FromResult<string?>(dest));
         var vm = new CompressedViewModel(fix.ZipPath, fix.Shell, fix.Vfs);
+        await vm.Loaded;
 
         await vm.ExtractCommand.ExecuteAsync(null);
 
@@ -51,6 +52,7 @@ public class ArchiveInspectorSurfaceTests
         using var fix = new Fixture();
         fix.Shell.PickFolderAsync(Arg.Any<string>()).Returns(Task.FromResult<string?>(null));
         var vm = new CompressedViewModel(fix.ZipPath, fix.Shell, fix.Vfs);
+        await vm.Loaded;
 
         await vm.ExtractCommand.ExecuteAsync(null);
 
@@ -66,6 +68,7 @@ public class ArchiveInspectorSurfaceTests
         using var fix = new Fixture();
         var extra = fix.NewFile("notes.txt", "added");
         var vm = new CompressedViewModel(fix.ZipPath, fix.Shell, fix.Vfs);
+        await vm.Loaded;
         Assert.IsFalse(vm.VisibleRows.Any(r => r.Name == "notes.txt"));
 
         await vm.AddSourcesAsync([extra]);
@@ -83,6 +86,7 @@ public class ArchiveInspectorSurfaceTests
         var a = fix.NewFile("one.txt", "1");
         var b = fix.NewFile("two.txt", "2");
         var vm = new CompressedViewModel(fix.ZipPath, fix.Shell, fix.Vfs);
+        await vm.Loaded;
 
         await vm.AddSourcesAsync([a, b]);
 
@@ -96,6 +100,7 @@ public class ArchiveInspectorSurfaceTests
         using var fix = new Fixture();
         var real = fix.NewFile("real.txt", "x");
         var vm = new CompressedViewModel(fix.ZipPath, fix.Shell, fix.Vfs);
+        await vm.Loaded;
 
         await vm.AddSourcesAsync([real, Path.Combine(fix.Dir, "vanished.txt")]);
 
@@ -108,6 +113,7 @@ public class ArchiveInspectorSurfaceTests
     {
         using var fix = new Fixture();
         var vm = new CompressedViewModel(fix.ZipPath, fix.Shell, fix.Vfs);
+        await vm.Loaded;
         var before = vm.VisibleRows.Count;
 
         await vm.AddSourcesAsync([Path.Combine(fix.Dir, "not-here.txt")]);
@@ -124,6 +130,7 @@ public class ArchiveInspectorSurfaceTests
     {
         using var fix = new Fixture();
         var vm = new CompressedViewModel(fix.ZipPath, fix.Shell, fix.Vfs);
+        await vm.Loaded;
 
         await vm.TestCommand.ExecuteAsync(null);
 
@@ -139,6 +146,7 @@ public class ArchiveInspectorSurfaceTests
         using var fix = new Fixture();
         var corrupt = fix.CorruptCopy();
         var vm = new CompressedViewModel(corrupt, fix.Shell, fix.Vfs);
+        await vm.Loaded;
         if (!vm.IsRecognised) Assert.Inconclusive("the corrupted copy no longer parses as an archive at all");
 
         await vm.TestCommand.ExecuteAsync(null);
@@ -155,6 +163,7 @@ public class ArchiveInspectorSurfaceTests
     {
         using var fix = new Fixture();
         var vm = new CompressedViewModel(fix.ZipPath, fix.Shell, fix.Vfs);
+        await vm.Loaded;
 
         vm.RecompressCommand.Execute(null);
 
@@ -174,6 +183,7 @@ public class ArchiveInspectorSurfaceTests
     {
         using var fix = new Fixture();
         var vm = new CompressedViewModel(fix.ZipPath, fix.Shell, fix.Vfs);
+        await vm.Loaded;
         if (!vm.EncryptCommand.CanExecute(null)) Assert.Inconclusive("no encrypting backend is registered here");
         var bytesBefore = File.ReadAllBytes(fix.ZipPath).Length;
 
@@ -193,6 +203,7 @@ public class ArchiveInspectorSurfaceTests
     {
         using var fix = new Fixture();
         var vm = new CompressedViewModel(fix.ZipPath, fix.Shell, fix.Vfs);
+        await vm.Loaded;
         if (!vm.EncryptCommand.CanExecute(null)) Assert.Inconclusive("no encrypting backend is registered here");
         vm.EncryptCommand.Execute(null);
         var bytesBefore = File.ReadAllBytes(fix.ZipPath).Length;

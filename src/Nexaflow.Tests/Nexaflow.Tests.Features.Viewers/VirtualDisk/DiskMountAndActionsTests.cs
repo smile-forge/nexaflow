@@ -34,7 +34,7 @@ public class DiskMountAndActionsTests
 
     [TestMethod]
     [CoversNode("vdisk-open-actions")]
-    public void OpenAsDisk_OpensInspectorTabForThePath()
+    public async Task OpenAsDisk_OpensInspectorTabForThePath()
     {
         var shell = Substitute.For<IShellServices>();
         var action = new OpenAsDiskAction(shell);
@@ -43,7 +43,7 @@ public class DiskMountAndActionsTests
         Assert.AreEqual("/disk", OpenAsDiskAction.StaticExperienceId);
         Assert.IsTrue(action.OpensViewer);
 
-        Assert.IsTrue(action.PerformAction(@"C:\images\disk.vhdx"));
+        Assert.IsTrue(await action.PerformActionAsync(@"C:\images\disk.vhdx"));
         shell.Received(1).OpenTab(
             "VirtualDisk",
             Arg.Is<Dictionary<string, string>>(d => d["path"] == @"C:\images\disk.vhdx"),

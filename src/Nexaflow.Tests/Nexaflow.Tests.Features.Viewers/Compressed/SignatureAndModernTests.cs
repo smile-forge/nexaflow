@@ -17,40 +17,40 @@ public class SignatureAndModernTests
     [TestMethod]
     [CoversNode("compressed-sign")]
     [CoversNode("compressed-verify")]
-    public void Sign_ThenVerify_IsValid_AndDetectsTampering()
+    public async Task Sign_ThenVerify_IsValid_AndDetectsTampering()
     {
         var dir = NewDir();
         try
         {
             var archive = Path.Combine(dir, "a.zip");
             File.WriteAllBytes(archive, [1, 2, 3, 4, 5]);
-            var signer = new ArchiveSignatureService(Path.Combine(dir, "keys"));
+            var signer = new ArchiveSignatureService(VirtualFileSystem.Instance, Path.Combine(dir, "keys"));
 
-            var fingerprint = signer.Sign(archive);
+            var fingerprint = await signer.SignAsync(archive);
             Assert.IsTrue(File.Exists(archive + ".sig"));
             Assert.IsFalse(string.IsNullOrEmpty(fingerprint));
 
-            var (valid, fp) = signer.Verify(archive);
+            var (valid, fp) = await signer.VerifyAsync(archive);
             Assert.IsTrue(valid);
             Assert.AreEqual(fingerprint, fp);
 
             // Tamper with the archive — verification must now fail.
             File.WriteAllBytes(archive, [1, 2, 3, 4, 6]);
-            Assert.IsFalse(signer.Verify(archive).Valid);
+            Assert.IsFalse((await signer.VerifyAsync(archive)).Valid);
         }
         finally { Cleanup(dir); }
     }
 
     [TestMethod]
     [CoversNode("compressed-verify")]
-    public void Verify_NoSidecar_ReturnsNotValidNullFingerprint()
+    public async Task Verify_NoSidecar_ReturnsNotValidNullFingerprint()
     {
         var dir = NewDir();
         try
         {
             var archive = Path.Combine(dir, "unsigned.zip");
             File.WriteAllBytes(archive, [9, 9, 9]);
-            var (valid, fp) = new ArchiveSignatureService(Path.Combine(dir, "keys")).Verify(archive);
+            var (valid, fp) = await new ArchiveSignatureService(VirtualFileSystem.Instance, Path.Combine(dir, "keys")).VerifyAsync(archive);
             Assert.IsFalse(valid);
             Assert.IsNull(fp);
         }

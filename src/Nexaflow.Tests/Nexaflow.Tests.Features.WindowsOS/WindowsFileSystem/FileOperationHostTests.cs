@@ -31,7 +31,7 @@ public class FileOperationHostTests
 {
     private static (FileOperationQueue Queue, IFileOperationHost Host) Host()
     {
-        var queue = FileOperationQueue.For(Substitute.For<IShellServices>().Runs());
+        var queue = FileOperationQueue.For(Substitute.For<IShellServices>().Runs(), VirtualFileSystem.Instance);
         return (queue, queue);
     }
 
@@ -173,7 +173,7 @@ public class FileOperationHostTests
     /// </para>
     /// </summary>
     [TestMethod]
-    public void TheRegistryHandsAnArchiveActionTheProgressHost()
+    public async Task TheRegistryHandsAnArchiveActionTheProgressHost()
     {
         var shell = Substitute.For<IShellServices>().Runs();
         shell.DiscoverImplementations<IFileAction>().Returns([typeof(UnzipHereAction)]);
@@ -183,7 +183,7 @@ public class FileOperationHostTests
         shell.DiscoverImplementations<IThisPcItemProvider>().Returns([]);
 
         var registry = FileSystemFeatureRegistry.For(
-            shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>());
+            shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
 
         var action = registry.FileActions.OfType<UnzipHereAction>().SingleOrDefault();
         Assert.IsNotNull(action, "the registry did not build the archive action at all");
@@ -198,10 +198,10 @@ public class FileOperationHostTests
 
         try
         {
-            Assert.IsTrue(action!.PerformAction(archive));
+            Assert.IsTrue(await action!.PerformActionAsync(archive));
 
             // A row in the queue is the proof: with no host the action extracts inline and adds nothing.
-            var queue = FileOperationQueue.For(shell);
+            var queue = FileOperationQueue.For(shell, VirtualFileSystem.Instance);
             Assert.AreEqual(1, queue.Operations.Count,
                 "the action ran the extraction itself instead of handing it to the progress host");
             Assert.AreEqual("Extracting", queue.Operations[0].Verb);

@@ -29,7 +29,7 @@ public interface IFileCreateOptions : INotifyPropertyChanged, IDisposable
 
     /// <summary>
     /// Makes the item named <paramref name="fileName"/> in the folder the options were opened on, the name resolved as for
-    /// <see cref="IFileCreateAction.Create"/>. The making may go on in the background, the item appearing once it is made.
+    /// <see cref="IFileCreateAction.CreateItemAsync"/>. The making may go on in the background, the item appearing once it is made.
     /// Returns the full path it is made at, or null where it was not begun.
     /// </summary>
     string? Create(string fileName);

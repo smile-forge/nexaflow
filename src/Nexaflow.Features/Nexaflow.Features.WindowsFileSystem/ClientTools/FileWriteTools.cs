@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsFileSystem.ClientTools;
@@ -33,16 +34,19 @@ public sealed class CreateTextFileTool(FileSystemViewModel vm) : IClientTool
         var content   = ToolArgs.Str(arguments, "content", "text") ?? string.Empty;
         var overwrite = ToolArgs.Bool(arguments, "overwrite");
 
-        if (File.Exists(full) && !overwrite)
-            return ToolResult.Error($"'{name}' already exists. Pass overwrite:true to replace it.");
-
         try
         {
+            if (!overwrite && await vm.Vfs.ExistsAsync(full, ct))
+                return ToolResult.Error($"'{name}' already exists. Pass overwrite:true to replace it.");
+
             var dir = Path.GetDirectoryName(full);
-            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-            await File.WriteAllTextAsync(full, content, ct);
+            if (!string.IsNullOrEmpty(dir)) await vm.Vfs.CreateDirectoryAsync(dir, ct);
+            await vm.Vfs.WriteAllTextAsync(full, content, ct: ct);
         }
-        catch (Exception ex) { return ToolResult.Error($"Could not create '{name}': {ex.Message}"); }
+        catch (Exception ex)
+        {
+            return ToolResult.Error($"Could not create '{name}': {ex.Message}");
+        }
 
         vm.Refresh();
         return ToolResult.Ok($"created {Path.GetFileName(full)}", $"Created '{FsTool.Display(vm, full)}'.")
@@ -68,11 +72,16 @@ public sealed class CreateDirectoryTool(FileSystemViewModel vm) : IClientTool
         if (!FsTool.TryResolve(vm, name, out var full, out var error))
             return ToolResult.Error(error);
 
-        if (Directory.Exists(full)) return ToolResult.Error($"'{name}' already exists.");
-        if (File.Exists(full))      return ToolResult.Error($"A file named '{name}' already exists.");
-
-        try { await Task.Run(() => Directory.CreateDirectory(full), ct); }
-        catch (Exception ex) { return ToolResult.Error($"Could not create folder '{name}': {ex.Message}"); }
+        try
+        {
+            if (await vm.Vfs.GetEntryAsync(full, ct) is { } there)
+                return ToolResult.Error(there.IsDirectory ? $"'{name}' already exists." : $"A file named '{name}' already exists.");
+            await vm.Vfs.CreateDirectoryAsync(full, ct);
+        }
+        catch (Exception ex)
+        {
+            return ToolResult.Error($"Could not create folder '{name}': {ex.Message}");
+        }
 
         vm.Refresh();
         return ToolResult.Ok($"created folder {Path.GetFileName(full)}", $"Created folder '{FsTool.Display(vm, full)}'.");
@@ -101,25 +110,24 @@ public sealed class CopyTool(FileSystemViewModel vm) : IClientTool
             return ToolResult.Error(e2);
 
         var overwrite = ToolArgs.Bool(arguments, "overwrite");
-        var isDir     = Directory.Exists(src);
-        if (!isDir && !File.Exists(src)) return ToolResult.Error($"Source not found: {src}");
-
-        // A destination that is an existing folder means "copy into it".
-        if (Directory.Exists(dst)) dst = Path.Combine(dst, Path.GetFileName(src));
-
         try
         {
-            await Task.Run(() =>
+            if (await vm.Vfs.GetEntryAsync(src, ct) is not { } source) return ToolResult.Error($"Source not found: {src}");
+
+            // A destination that is an existing folder means "copy into it".
+            if (await vm.Vfs.IsDirectoryAsync(dst, ct)) dst = Path.Combine(dst, Path.GetFileName(src));
+
+            if (source.IsDirectory) await FsTool.CopyDirectoryAsync(vm.Vfs, src, dst, overwrite, ct);
+            else
             {
-                if (isDir) FsTool.CopyDirectory(src, dst, overwrite);
-                else
-                {
-                    File.Copy(src, dst, overwrite);
-                    vm.Companions.Follow(src, dst, move: false);
-                }
-            }, ct);
+                await vm.Vfs.CopyFileAsync(src, dst, replace: overwrite, ct);
+                await vm.Companions.FollowAsync(vm.Vfs, src, dst, move: false, ct);
+            }
         }
-        catch (Exception ex) { return ToolResult.Error($"Copy failed: {ex.Message}"); }
+        catch (Exception ex)
+        {
+            return ToolResult.Error($"Copy failed: {ex.Message}");
+        }
 
         vm.Refresh();
         return ToolResult.Ok($"copied {Path.GetFileName(src)}",
@@ -147,23 +155,18 @@ public sealed class MoveTool(FileSystemViewModel vm) : IClientTool
         if (!FsTool.TryResolve(vm, ToolArgs.Str(arguments, "destination", "to", "dest"), out var dst, out var e2))
             return ToolResult.Error(e2);
 
-        var isDir = Directory.Exists(src);
-        if (!isDir && !File.Exists(src)) return ToolResult.Error($"Source not found: {src}");
-        if (Directory.Exists(dst)) dst = Path.Combine(dst, Path.GetFileName(src));
-
         try
         {
-            await Task.Run(() =>
-            {
-                if (isDir) Directory.Move(src, dst);
-                else
-                {
-                    File.Move(src, dst);
-                    vm.Companions.Follow(src, dst, move: true);
-                }
-            }, ct);
+            if (await vm.Vfs.GetEntryAsync(src, ct) is not { } source) return ToolResult.Error($"Source not found: {src}");
+            if (await vm.Vfs.IsDirectoryAsync(dst, ct)) dst = Path.Combine(dst, Path.GetFileName(src));
+
+            await vm.Vfs.MoveAsync(src, dst, replace: false, ct);
+            if (!source.IsDirectory) await vm.Companions.FollowAsync(vm.Vfs, src, dst, move: true, ct);
         }
-        catch (Exception ex) { return ToolResult.Error($"Move failed: {ex.Message}"); }
+        catch (Exception ex)
+        {
+            return ToolResult.Error($"Move failed: {ex.Message}");
+        }
 
         vm.Refresh();
         return ToolResult.Ok($"moved {Path.GetFileName(src)}",
@@ -195,26 +198,19 @@ public sealed class RenameTool(FileSystemViewModel vm) : IClientTool
         if (newName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
             return ToolResult.Error($"'{newName}' is not a valid file name.");
 
-        var isDir = Directory.Exists(src);
-        if (!isDir && !File.Exists(src)) return ToolResult.Error($"Not found: {src}");
-
         var dst = Path.Combine(Path.GetDirectoryName(src)!, newName);
-        if (File.Exists(dst) || Directory.Exists(dst))
-            return ToolResult.Error($"'{newName}' already exists.");
-
         try
         {
-            await Task.Run(() =>
-            {
-                if (isDir) Directory.Move(src, dst);
-                else
-                {
-                    File.Move(src, dst);
-                    vm.Companions.Follow(src, dst, move: true);
-                }
-            }, ct);
+            if (await vm.Vfs.GetEntryAsync(src, ct) is not { } source) return ToolResult.Error($"Not found: {src}");
+            if (await vm.Vfs.ExistsAsync(dst, ct)) return ToolResult.Error($"'{newName}' already exists.");
+
+            await vm.Vfs.MoveAsync(src, dst, replace: false, ct);
+            if (!source.IsDirectory) await vm.Companions.FollowAsync(vm.Vfs, src, dst, move: true, ct);
         }
-        catch (Exception ex) { return ToolResult.Error($"Rename failed: {ex.Message}"); }
+        catch (Exception ex)
+        {
+            return ToolResult.Error($"Rename failed: {ex.Message}");
+        }
 
         vm.Refresh();
         return ToolResult.Ok($"renamed to {newName}", $"Renamed '{Path.GetFileName(src)}' to '{newName}'.")
@@ -234,6 +230,9 @@ public sealed class DeleteTool(FileSystemViewModel vm) : IClientTool
     public ToolSafety Safety => ToolSafety.RequiresApproval;
     public bool Parallelizable => true;
 
+    /// <summary>The words the approval shows. Asked before anything runs, so it is answered at once: the tab's security
+    /// context resolves every name to this disk, where telling a folder from a file is a local question.</summary>
+    [LocalDiskOnly("a path the tab's security context resolved, which is always on this disk")]
     public ToolCallAnnouncement? Announce(JsonObject arguments)
     {
         string name = Path.GetFileName(ToolArgs.Str(arguments, "name", "path", "file") ?? "");
@@ -252,12 +251,18 @@ public sealed class DeleteTool(FileSystemViewModel vm) : IClientTool
     {
         if (!FsTool.TryResolve(vm, ToolArgs.Str(arguments, "name", "path", "file"), out var full, out var error))
             return ToolResult.Error(error);
-        if (!File.Exists(full) && !Directory.Exists(full))
-            return ToolResult.Error($"Not found: {full}");
 
         bool ok;
-        try { ok = await Task.Run(() => NativeMethods.RecycleFiles(vm.Companions.WithCompanions([full])), ct); }
-        catch (Exception ex) { return ToolResult.Error($"Delete failed: {ex.Message}"); }
+        try
+        {
+            if (!await vm.Vfs.ExistsAsync(full, ct)) return ToolResult.Error($"Not found: {full}");
+            // The Recycle Bin is this machine's, and so is everything the tab's security context resolves to.
+            ok = await Task.Run(() => NativeMethods.RecycleFiles(vm.Companions.WithCompanions([full])), ct);
+        }
+        catch (Exception ex)
+        {
+            return ToolResult.Error($"Delete failed: {ex.Message}");
+        }
 
         if (!ok) return ToolResult.Error($"Could not recycle '{Path.GetFileName(full)}'.");
 

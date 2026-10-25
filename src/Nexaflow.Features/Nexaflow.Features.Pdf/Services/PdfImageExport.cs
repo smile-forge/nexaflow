@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Pdf.Services;
@@ -11,13 +12,13 @@ namespace Nexaflow.Features.Pdf.Services;
 /// <summary>
 /// Drives "extract images": ask where, hand the work to the shell, then say what happened.
 /// <para>
-/// Separate from the action because <see cref="IFileAction.PerformAction(string)"/> is synchronous and this
-/// needs to await a folder pick. The action fires this and returns immediately.
+/// Separate from the action so the action can return at once: this awaits a folder pick, then hands the work to the
+/// shell. The action fires this and returns immediately.
 /// </para>
 /// </summary>
 internal static class PdfImageExport
 {
-    public static async Task RunAsync(IShellServices shell, IReadOnlyList<string> pdfPaths)
+    public static async Task RunAsync(IShellServices shell, IVirtualFileSystem vfs, IReadOnlyList<string> pdfPaths)
     {
         if (pdfPaths.Count == 0) return;
 
@@ -25,16 +26,16 @@ internal static class PdfImageExport
         var target = await shell.PickFolderAsync(Path.GetDirectoryName(pdfPaths[0]));
         if (string.IsNullOrEmpty(target)) return;   // cancelled the picker — not an error, say nothing
 
-        Queue(shell, pdfPaths.Select(PdfImageSource.OfFile).ToList(), target);
+        Queue(shell, vfs, pdfPaths.Select(PdfImageSource.OfFile).ToList(), target);
     }
 
     /// <summary>
     /// Hands the extraction of <paramref name="sources"/> into <paramref name="target"/> to the shell, which says what
     /// happened once it is done.
     /// </summary>
-    public static void Queue(IShellServices shell, IReadOnlyList<PdfImageSource> sources, string target)
+    public static void Queue(IShellServices shell, IVirtualFileSystem vfs, IReadOnlyList<PdfImageSource> sources, string target)
     {
-        var task = new PdfImageExtractionTask(sources, target);
+        var task = new PdfImageExtractionTask(sources, target, vfs);
 
         // No token: the shell offers no way for the user to cancel a queued activity, and inventing a source
         // nothing can trip would only look like cancellation was supported. The task honours whatever token

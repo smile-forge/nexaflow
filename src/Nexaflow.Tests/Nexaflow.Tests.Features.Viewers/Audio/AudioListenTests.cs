@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.Buffers.Binary;
 using System.Text.Json.Nodes;
 using Nexaflow.Features.Audio;
@@ -14,7 +15,7 @@ namespace Nexaflow.Tests.Features.Audio;
 public class AudioListenTests
 {
     private static AudioViewModel Player(string track)
-        => new([track], 0, Substitute.For<IShellServices>(), new AudioConfig());
+        => new([track], 0, Substitute.For<IShellServices>(), VirtualFileSystem.Instance, new AudioConfig());
 
     private static string Track(string name) => TestSampleData.Files("audio").Single(f => f.EndsWith(name));
 
@@ -44,7 +45,7 @@ public class AudioListenTests
     [TestMethod]
     public async Task NoTrack_AndABadLength_AreErrorsTheModelCanRecoverFrom()
     {
-        var empty = new AudioViewModel([], 0, Substitute.For<IShellServices>(), new AudioConfig());
+        var empty = new AudioViewModel([], 0, Substitute.For<IShellServices>(), VirtualFileSystem.Instance, new AudioConfig());
         var listen = Player(Track("tone_mono.wav")).GetClientTools().Single(t => t.Name == "listen_to_track");
 
         Assert.IsTrue((await empty.GetClientTools().Single(t => t.Name == "listen_to_track").InvokeAsync([], default)).IsError);

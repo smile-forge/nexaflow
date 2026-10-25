@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using System.Threading;
 using System.Windows.Media.Imaging;
@@ -14,7 +15,7 @@ public class PdfScansTests
 {
     private static PdfDocumentScope Open(string name)
     {
-        var scope = PdfDocumentScope.TryOpen(TestSampleData.Path("pdf", name), CancellationToken.None);
+        var scope = PdfDocumentScope.TryOpen(File.OpenRead(TestSampleData.Path("pdf", name)), CancellationToken.None);
         Assert.IsNotNull(scope, $"{name} should open");
         return scope;
     }

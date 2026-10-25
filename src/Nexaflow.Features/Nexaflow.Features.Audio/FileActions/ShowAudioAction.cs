@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -31,14 +33,14 @@ public sealed class ShowAudioAction : IFileAction, ICacheable
     // selection overload so the two cannot disagree: the file browser picks the overload from how many files
     // are selected, so filtering one and not the other queued a text file from the file list and refused the
     // very same file as a one-item selection.
-    public bool PerformAction(string filePath) => PerformAction([filePath]);
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default) => PerformActionAsync([filePath], ct);
 
-    public bool PerformAction(IEnumerable<string> filePaths)
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
     {
         var audio = filePaths.Where(AudioFileTypes.IsAudio).ToList();
-        if (audio.Count == 0) return false;
+        if (audio.Count == 0) return Task.FromResult(false);
         Open(audio, 0);
-        return true;
+        return Task.FromResult(true);
     }
 
     private void Open(IReadOnlyList<string> queue, int index) =>

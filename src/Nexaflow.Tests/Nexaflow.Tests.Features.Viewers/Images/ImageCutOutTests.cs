@@ -42,7 +42,7 @@ public class ImageCutOutTests
         _photo = Path.Combine(_dir, "mug.png");
         using (var bitmap = Flat(32, 24, Photo)) File.WriteAllBytes(_photo, EncodePng(bitmap));
         _ui = new ViewerUiThread();
-        _services = new ImageEditingServices(new ImageRecipeStore(TimeSpan.FromHours(1)),
+        _services = new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1)),
                                              cutOuts: new CutOutMasks(Path.Combine(_dir, "cutouts"), CutOutMasks.DefaultBudget));
     }
 

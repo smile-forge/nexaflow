@@ -1,9 +1,12 @@
+using Nexaflow.IO.Common;
 using System.Collections.Generic;
 using NSubstitute;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Tests.Fixtures;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -34,8 +37,8 @@ public class ThisPcDriveActionsTests
         public bool   AppliesToRoot         => false;
         public bool   AppliesToDrives       => true;
 
-        public bool PerformAction(string folderPath) => true;
-        public bool PerformAction(IEnumerable<string> folderPaths) => true;
+        public Task<bool> PerformActionAsync(string folderPath, CancellationToken ct = default) => Task.FromResult(true);
+        public Task<bool> PerformActionAsync(IEnumerable<string> folderPaths, CancellationToken ct = default) => Task.FromResult(true);
     }
 
     /// <summary>A folder action that does NOT apply to drives — must be filtered out for a drive selection.</summary>
@@ -50,8 +53,8 @@ public class ThisPcDriveActionsTests
         public bool   AppliesToRoot         => false;
         public bool   AppliesToDrives       => false;
 
-        public bool PerformAction(string folderPath) => true;
-        public bool PerformAction(IEnumerable<string> folderPaths) => true;
+        public Task<bool> PerformActionAsync(string folderPath, CancellationToken ct = default) => Task.FromResult(true);
+        public Task<bool> PerformActionAsync(IEnumerable<string> folderPaths, CancellationToken ct = default) => Task.FromResult(true);
     }
 
     private static FileSystemViewModel ThisPc()
@@ -65,7 +68,7 @@ public class ThisPcDriveActionsTests
         shell.DiscoverImplementations<IFileCreateAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFolderViewlet>().Returns(Array.Empty<Type>());
 
-        return FileSystemViewModel.CreateThisPc(shell, ai, new Dictionary<Type, IFeatureConfig>());
+        return FileSystemViewModel.CreateThisPc(shell, ai, new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
     }
 
     private static FileSystemEntry Drive(string letter) =>

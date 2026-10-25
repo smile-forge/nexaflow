@@ -1,3 +1,5 @@
+using System.IO;
+using Nexaflow.IO.Common;
 using System;
 using System.Linq;
 using System.Threading;
@@ -23,7 +25,7 @@ public class PdfPageTextTests
         string name, int from, int to, long budget = Budget,
         PdfReadingOrder order = PdfReadingOrder.ContentStream)
     {
-        using var scope = PdfDocumentScope.TryOpen(Sample(name), CancellationToken.None);
+        using var scope = PdfDocumentScope.TryOpen(File.OpenRead(Sample(name)), CancellationToken.None);
         Assert.IsNotNull(scope, $"{name} should open");
         return PdfTextReader.ReadPages(scope.Document, from, to, budget, order, CancellationToken.None).ToList();
     }
@@ -165,7 +167,7 @@ public class PdfPageTextTests
         // ReadPages and Read now share one word-appending implementation. This is the guard that the sharing
         // didn't quietly change what search sees: body text, title, and the filled-in form value, all of
         // which the search index depends on.
-        using var scope = PdfDocumentScope.TryOpen(Sample("text.pdf"), CancellationToken.None);
+        using var scope = PdfDocumentScope.TryOpen(File.OpenRead(Sample("text.pdf")), CancellationToken.None);
         Assert.IsNotNull(scope);
 
         var result = PdfTextReader.Read(scope.Document, Budget, includeMetadata: true, CancellationToken.None);

@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -36,7 +37,7 @@ public class JsonViewModelTests
     private static async Task<(JsonViewModel vm, string path)> LoadVmAsync(string content)
     {
         var path = WriteTempJson(content);
-        var vm   = new JsonViewModel(path, new JsonFileLoader(), new JsonPathEvaluator(),
+        var vm   = new JsonViewModel(path, VirtualFileSystem.Instance, new JsonPathEvaluator(),
                                      Substitute.For<IShellServices>());
         await vm.LoadAsync(CancellationToken.None);
         return (vm, path);

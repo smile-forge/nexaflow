@@ -49,8 +49,14 @@ public class FileSystemTreeNode : INotifyPropertyChanged
     public ObservableCollection<FileSystemTreeNode> Children { get; } = [];
 
     // Dummy child keeps the expand arrow visible before real load
-    internal static readonly FileSystemTreeNode Dummy = new("…", string.Empty, isDummy: true);
-    private readonly bool _isDummy;
+    internal static readonly FileSystemTreeNode Dummy = new("…");
+
+    /// <summary>The runtime's file system the node reads its children through; null only for <see cref="Dummy"/>,
+    /// which has none to read.</summary>
+    private readonly IVirtualFileSystem? _vfs;
+
+    /// <summary>The runtime's file system the node reads its children through.</summary>
+    internal IVirtualFileSystem Vfs => _vfs ?? throw new InvalidOperationException("The placeholder row reads nothing.");
 
     public bool IsExpanded
     {
@@ -64,7 +70,7 @@ public class FileSystemTreeNode : INotifyPropertyChanged
                 return;
             _isExpanded = value;
             OnPropertyChanged();
-            if (value) LoadChildren();
+            if (value) _ = LoadChildrenAsync();
         }
     }
 
@@ -74,113 +80,127 @@ public class FileSystemTreeNode : INotifyPropertyChanged
         set { _isSelected = value; OnPropertyChanged(); }
     }
 
-    /// <summary>Regular folder node.</summary>
-    public FileSystemTreeNode(string name, string fullPath, bool isDummy = false)
+    /// <summary>Regular folder node, reading its children through <paramref name="vfs"/>.</summary>
+    public FileSystemTreeNode(string name, string fullPath, IVirtualFileSystem vfs)
     {
         _name    = name;
         FullPath = fullPath;
         Kind     = TreeNodeKind.Folder;
-        _isDummy = isDummy;
+        _vfs     = vfs;
 
-        // Deliberately no I/O here. Deciding whether this node gets an expander costs two directory
-        // opens, and a parent builds one child per subfolder — so probing in the constructor put 2xN
-        // blocking opens on the dispatcher before the tree could draw. ProbeExpandersAsync does the whole
-        // batch off-thread instead; see LoadChildren.
+        // Deliberately no I/O here. Deciding whether this node gets an expander costs a directory read, and a
+        // parent builds one child per subfolder — so probing in the constructor put N blocking reads on the
+        // dispatcher before the tree could draw. ProbeExpandersAsync does the whole batch off-thread instead;
+        // see ReadChildrenAsync.
+    }
+
+    /// <summary>The placeholder row under a node not yet read.</summary>
+    private FileSystemTreeNode(string name)
+    {
+        _name    = name;
+        FullPath = string.Empty;
+        Kind     = TreeNodeKind.Folder;
     }
 
     /// <summary>Drive or This PC node — readiness is checked asynchronously; no blocking I/O here.</summary>
-    public FileSystemTreeNode(string name, string fullPath, TreeNodeKind kind)
+    public FileSystemTreeNode(string name, string fullPath, TreeNodeKind kind, IVirtualFileSystem vfs)
     {
         _name    = name;
         FullPath = fullPath;
         Kind     = kind;
+        _vfs     = vfs;
 
         if (kind == TreeNodeKind.Drive)
             DriveStatus = DriveStatus.Loading;
-        // ThisPc children are added externally (one per drive)
-        // Drive children (Dummy) are added by CheckDriveAsync once IsReady is confirmed
+        // ThisPc children are added externally (one per row)
+        // A row's children (Dummy) are added once its provider has described it
     }
 
-    /// <summary>The VFS the tree resolves through, so a mounted node expands like any other folder.
-    /// Settable for tests; defaults to the process singleton.</summary>
-    internal static IVirtualFileSystem Vfs { get; set; } = VirtualFileSystem.Instance;
-
-    /// <summary>The real directory behind a (possibly mounted) node path, or null if there isn't one.</summary>
-    internal static string? RealDirOf(string path)
-        => Vfs.TryResolveReal(path) is { } real && Directory.Exists(real) ? real : null;
-
-    internal static bool DirectoryExistsSafe(string path) => RealDirOf(path) is not null;
-
-    internal static bool HasSubDirectoriesSafe(string path)
+    /// <summary>The folders directly inside <paramref name="path"/>, sorted, as the tree shows them: a folder on disk,
+    /// under a mount or on a location — never an archive's insides, which browse in the list. A folder that cannot be
+    /// read (gone, access denied, a dropped connection) has none.</summary>
+    internal static async Task<IReadOnlyList<string>> ChildFoldersAsync(IVirtualFileSystem vfs, string path,
+                                                                        CancellationToken ct = default)
     {
-        if (RealDirOf(path) is not { } real) return false;
-        try { return Directory.EnumerateDirectories(real).Any(); }
-        catch { return false; }
-    }
-
-    /// <summary>Whether this node's real children have been read. Explicit rather than inferred from the
-    /// Dummy child: now that the expander is settled asynchronously, "no children" is ambiguous between
-    /// "not probed yet" and "genuinely empty", and expanding on the first reading skipped the load.</summary>
-    internal bool ChildrenLoaded { get; private set; }
-
-    private void LoadChildren()
-    {
-        if (ChildrenLoaded) return;
-        ChildrenLoaded = true;
-
-        // The child list itself stays synchronous: it is ONE directory read, and TryExpandTo walks
-        // Children the instant it sets IsExpanded, so an empty collection here would break expand-to-path.
-        var made = new List<FileSystemTreeNode>();
-        using (Timing.Measure($"Tree.LoadChildren {FullPath} (UI thread)"))
+        if (vfs.GetBacking(path) is VirtualBacking.Materialized) return [];
+        var names = new List<string>();
+        try
         {
-            Children.Clear();
-            if (RealDirOf(FullPath) is not { } real) return;
-            try
-            {
-                foreach (var dir in Directory.GetDirectories(real)
-                                             .OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
-                {
-                    // Child paths extend THIS node's path, which under a mount is the virtual one —
-                    // taking `dir` verbatim would leak the real location into the tree.
-                    var name = Path.GetFileName(dir);
-                    var child = new FileSystemTreeNode(name, Path.Combine(FullPath, name));
-                    Children.Add(child);
-                    made.Add(child);
-                }
-            }
-            catch { /* access denied etc. */ }
+            await foreach (var entry in vfs.EnumerateAsync(path, ct))
+                if (entry.IsDirectory) names.Add(entry.Name);
+        }
+        catch (IOException) { return []; }
+        catch (UnauthorizedAccessException) { return []; }
+        names.Sort(StringComparer.OrdinalIgnoreCase);
+        return names;
+    }
+
+    /// <summary>The read of this node's children, once started; every expand after the first awaits the same one.</summary>
+    private Task? _childrenLoad;
+
+    /// <summary>Whether this node's children have been asked for. Explicit rather than inferred from the Dummy child:
+    /// the expander is settled asynchronously, so "no children" is ambiguous between "not probed yet" and "genuinely
+    /// empty", and expanding on the first reading skipped the load.</summary>
+    internal bool ChildrenLoaded => _childrenLoad is not null;
+
+    /// <summary>
+    /// Reads this node's children — once; a second expand awaits the first read. Expand-to-path awaits it before it
+    /// walks <see cref="Children"/>, so the walk never sees a list still being read, and the read itself is a round
+    /// trip on a location that the dispatcher does not wait for.
+    /// </summary>
+    internal Task LoadChildrenAsync() => _childrenLoad ??= ReadChildrenAsync();
+
+    private async Task ReadChildrenAsync()
+    {
+        // This PC's rows are its places, added by the browser; there is no folder behind it to read.
+        if (_vfs is null || string.IsNullOrEmpty(FullPath)) return;
+
+        IReadOnlyList<string> names;
+        using (Timing.Measure($"Tree.LoadChildren {FullPath} (read)"))
+            names = await ChildFoldersAsync(_vfs, FullPath);
+
+        var made = new List<FileSystemTreeNode>(names.Count);
+        Children.Clear();
+        foreach (var name in names)
+        {
+            // Child paths extend THIS node's path, which under a mount is the virtual one — the listing never
+            // surfaces the real location the mount maps onto.
+            var child = new FileSystemTreeNode(name, Path.Combine(FullPath, name), _vfs);
+            Children.Add(child);
+            made.Add(child);
         }
         Timing.Note($"Tree.LoadChildren {FullPath} children", made.Count.ToString());
         _ = ProbeExpandersAsync(made);
     }
 
+    /// <summary>How many folders the expander probe reads at once: enough to hide a location's round trips, few
+    /// enough not to queue the thread pool behind a wide folder.</summary>
+    private const int ProbeParallelism = 8;
+
     /// <summary>
     /// Settles the expander on a freshly built batch of sibling nodes, off the dispatcher.
     /// <para>
-    /// Whether a folder is expandable is two directory opens — cheap warm, tens of milliseconds cold on a
-    /// spindle, and unbounded behind a mount that resolves somewhere slow. Done inline that cost is paid
-    /// N times before the tree draws; done here the children appear immediately and each twisty arrives
-    /// when its answer does. Nothing is claimed before it is known: a node shows no expander until the
-    /// probe says it has one, so the tree never offers to open something empty.
+    /// Whether a folder is expandable is a directory read — cheap warm, tens of milliseconds cold on a spindle, a
+    /// round trip on a location, and unbounded behind a mount that resolves somewhere slow. Done inline that cost is
+    /// paid N times before the tree draws; done here the children appear immediately and each twisty arrives when
+    /// its answer does, <see cref="ProbeParallelism"/> folders at a time. Nothing is claimed before it is known: a
+    /// node shows no expander until the probe says it has one, so the tree never offers to open something empty.
     /// </para>
     /// <para>
     /// Awaited from the dispatcher, so the continuation returns there and the collection is mutated on the
-    /// thread that owns it — the same shape as the drive probe in <c>CheckDriveAsync</c>.
+    /// thread that owns it — the same shape as This PC's row probe in <c>CheckThisPcItemAsync</c>.
     /// </para>
     /// </summary>
     internal static async Task ProbeExpandersAsync(IReadOnlyList<FileSystemTreeNode> nodes)
     {
         if (nodes.Count == 0) return;
 
-        var paths = new string[nodes.Count];
-        for (var i = 0; i < nodes.Count; i++) paths[i] = nodes[i].FullPath;
+        var expandable = new bool[nodes.Count];
+        using (Timing.Measure($"Tree.probeExpanders n={nodes.Count} (background)"))
+            await Task.Run(() => Parallel.ForAsync(0, nodes.Count, new ParallelOptions { MaxDegreeOfParallelism = ProbeParallelism },
+                async (i, ct) => expandable[i] = await nodes[i].Vfs.HasChildFoldersAsync(nodes[i].FullPath, ct)));
 
-        bool[] expandable;
-        using (Timing.Measure($"Tree.probeExpanders n={paths.Length} (background)"))
-            expandable = await Task.Run(
-                () => Array.ConvertAll(paths, p => DirectoryExistsSafe(p) && HasSubDirectoriesSafe(p)));
-
-        using var _t = Timing.Measure($"Tree.applyExpanders n={paths.Length} (UI thread)");
+        using var _t = Timing.Measure($"Tree.applyExpanders n={nodes.Count} (UI thread)");
         for (var i = 0; i < nodes.Count; i++)
         {
             // ChildrenLoaded is the load-bearing half of this test. A node can be expanded while its probe

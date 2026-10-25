@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common.Locations;
 using Nexaflow.Providers.Common;
 using System.IO;
 using System.Text.Json.Serialization;
@@ -73,6 +74,10 @@ public sealed partial class Workspace : ObservableObject
 
     /// <summary>Provider configs (API keys etc.) — one instance per discovered config type.</summary>
     [JsonIgnore] public IReadOnlyList<IProviderConfig> ProviderConfigs { get; private set; } = [];
+
+    /// <summary>The connections this workspace keeps, their secrets in Credential Manager; null until its shared services
+    /// are loaded.</summary>
+    [JsonIgnore] public WorkspaceConnections? Connections { get; private set; }
 
     /// <summary>
     /// Per-workspace feature configs (one instance per <see cref="WorkspaceScopedConfigAttribute"/> type)
@@ -153,6 +158,7 @@ public sealed partial class Workspace : ObservableObject
         ConfigManager.Instance.LoadFrom(Dir, Persona, Persona.ConfigName);
         RibbonService    = new RibbonLayoutService(Dir);
         ProviderConfigs  = ProviderManager.Instance.LoadProviderConfigs(Dir);
+        Connections      = new WorkspaceConnections(Dir, CredentialManagerStore.Default);
         // Scoped feature configs are materialized lazily (see FindWorkspaceConfig) so a feature whose only
         // footprint here is a scoped config isn't force-loaded at startup.
     }

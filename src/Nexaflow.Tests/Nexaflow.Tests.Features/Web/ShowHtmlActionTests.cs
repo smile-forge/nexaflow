@@ -26,43 +26,43 @@ public class ShowHtmlActionTests
 
     [TestMethod]
     [TestCategory("Unit")]
-    public void PerformAction_OpensTheFileInAWebTab()
+    public async Task PerformAction_OpensTheFileInAWebTab()
     {
         var (action, shell) = Subject();
 
-        Assert.IsTrue(action.PerformAction(@"C:\pages\index.html"));
+        Assert.IsTrue(await action.PerformActionAsync(@"C:\pages\index.html"));
         shell.Received(1).OpenTab("Html", Arg.Is<Dictionary<string, string>>(p => p["path"] == @"C:\pages\index.html"));
     }
 
     [TestMethod]
     [TestCategory("Unit")]
-    public void PerformAction_OnASelection_OpensTheFirstWebFile_AndIgnoresTheRest()
+    public async Task PerformAction_OnASelection_OpensTheFirstWebFile_AndIgnoresTheRest()
     {
         var (action, shell) = Subject();
 
         // Single-file action (SupportsMultipleFiles is false): one tab, for the first file it recognises.
-        Assert.IsTrue(action.PerformAction([@"C:\notes.txt", @"C:\site\page.htm", @"C:\other.html"]));
+        Assert.IsTrue(await action.PerformActionAsync([@"C:\notes.txt", @"C:\site\page.htm", @"C:\other.html"]));
         shell.Received(1).OpenTab("Html", Arg.Any<Dictionary<string, string>>());
         shell.Received(1).OpenTab("Html", Arg.Is<Dictionary<string, string>>(p => p["path"] == @"C:\site\page.htm"));
     }
 
     [TestMethod]
     [TestCategory("Unit")]
-    public void PerformAction_OnASelectionWithNothingWebby_OpensNothing_AndReportsFailure()
+    public async Task PerformAction_OnASelectionWithNothingWebby_OpensNothing_AndReportsFailure()
     {
         var (action, shell) = Subject();
 
-        Assert.IsFalse(action.PerformAction([@"C:\notes.txt", @"C:\image.png"]));
+        Assert.IsFalse(await action.PerformActionAsync([@"C:\notes.txt", @"C:\image.png"]));
         shell.DidNotReceive().OpenTab(Arg.Any<string>(), Arg.Any<Dictionary<string, string>>());
     }
 
     [TestMethod]
     [TestCategory("Unit")]
-    public void RecognisedExtensions_AreCaseInsensitive_AndIncludeInternetShortcuts()
+    public async Task RecognisedExtensions_AreCaseInsensitive_AndIncludeInternetShortcuts()
     {
         var (action, shell) = Subject();
 
-        Assert.IsTrue(action.PerformAction([@"C:\LINK.URL"]));
+        Assert.IsTrue(await action.PerformActionAsync([@"C:\LINK.URL"]));
         shell.Received(1).OpenTab("Html", Arg.Is<Dictionary<string, string>>(p => p["path"] == @"C:\LINK.URL"));
     }
 

@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using Nexaflow.Features.Common;            // IShellServices
 using Nexaflow.Features.Video.Models;       // SubtitleTrackOption
@@ -19,7 +20,7 @@ namespace Nexaflow.Tests.Features.Video;
 public class VideoViewModelTests
 {
     private static VideoViewModel Make()
-        => new("clip.mp4", Substitute.For<IShellServices>());
+        => new("clip.mp4", Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
 
     [TestMethod]
     [CoversNode("video-infopanel-toggle")]

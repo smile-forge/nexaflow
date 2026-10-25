@@ -81,7 +81,7 @@ public class ArchiveActionsTests
 
     [TestMethod]
     [CoversNode("compressed-zip-it")]
-    public void ZipIt_MultipleSelectedFiles_ProducesOneArchiveNamedForTheirFolder()
+    public async Task ZipIt_MultipleSelectedFiles_ProducesOneArchiveNamedForTheirFolder()
     {
         using var fix = new Dir();
         EnsureProcessVfsCanZip();
@@ -91,8 +91,8 @@ public class ArchiveActionsTests
         foreach (var n in new[] { "one.txt", "two.txt", "three.txt" })
             File.WriteAllText(Path.Combine(folder, n), n);
 
-        var action = new ZipItAction(Substitute.For<IShellServices>(), new CompressedConfig());
-        Assert.IsTrue(action.PerformAction(new[] { Path.Combine(folder, "one.txt"), Path.Combine(folder, "two.txt") }));
+        var action = new ZipItAction(Substitute.For<IShellServices>(), new CompressedConfig(), VirtualFileSystem.Instance);
+        Assert.IsTrue(await action.PerformActionAsync(new[] { Path.Combine(folder, "one.txt"), Path.Combine(folder, "two.txt") }));
 
         var zip = Path.Combine(folder, "reports.zip");
         Assert.IsTrue(File.Exists(zip), "the selection is zipped once, under the name of the folder it sits in");
@@ -107,7 +107,7 @@ public class ArchiveActionsTests
 
     [TestMethod]
     [CoversNode("compressed-zip-it")]
-    public void ZipIt_SingleFile_TakesItsNameWithTheExtensionReplaced()
+    public async Task ZipIt_SingleFile_TakesItsNameWithTheExtensionReplaced()
     {
         using var fix = new Dir();
         EnsureProcessVfsCanZip();
@@ -115,8 +115,8 @@ public class ArchiveActionsTests
         var doc = Path.Combine(fix.Root, "report.docx");
         File.WriteAllText(doc, "body");
 
-        var action = new ZipItAction(Substitute.For<IShellServices>(), new CompressedConfig());
-        Assert.IsTrue(action.PerformAction(doc));
+        var action = new ZipItAction(Substitute.For<IShellServices>(), new CompressedConfig(), VirtualFileSystem.Instance);
+        Assert.IsTrue(await action.PerformActionAsync(doc));
 
         var zip = Path.Combine(fix.Root, "report.zip");
         Assert.IsTrue(File.Exists(zip), "'report.docx' zips to 'report.zip', not 'report.docx.zip'");

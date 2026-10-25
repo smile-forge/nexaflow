@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -47,7 +48,7 @@ public class DicomSurfaceTests
 
     private static DicomViewModel Open(params string[] paths)
     {
-        var vm = new DicomViewModel(paths, Substitute.For<IShellServices>(),
+        var vm = new DicomViewModel(paths, Substitute.For<IShellServices>(), VirtualFileSystem.Instance,
                                     new Dictionary<string, string> { ["path"] = paths.FirstOrDefault() ?? "" });
         Settled(() => !vm.IsLoading, "the container to load");
         return vm;

@@ -79,7 +79,9 @@ public class RepackageAndEncryptTests
 
             var enc = new SecureZipEncryptor();
             var encrypted = Path.Combine(dir, "a.enc.zip");
-            enc.Encrypt(zip, encrypted, "hunter2");
+            using (var source = File.OpenRead(zip))
+            using (var target = File.Create(encrypted))
+                enc.Encrypt(source, target, "hunter2");
 
             // The encrypted zip is not readable by the in-box (no-encryption) handler.
             var vfs = new VirtualFileSystem();
@@ -91,7 +93,9 @@ public class RepackageAndEncryptTests
 
             // Decrypt with the right password and verify contents.
             var decrypted = Path.Combine(dir, "a.dec.zip");
-            enc.Decrypt(encrypted, decrypted, "hunter2");
+            using (var source = File.OpenRead(encrypted))
+            using (var target = File.Create(decrypted))
+                enc.Decrypt(source, target, "hunter2");
             Assert.AreEqual("classified", vfs.ReadAllText(Path.Combine(decrypted, "secret.txt")));
             Assert.AreEqual("details", vfs.ReadAllText(Path.Combine(decrypted, "docs", "info.txt")));
         }

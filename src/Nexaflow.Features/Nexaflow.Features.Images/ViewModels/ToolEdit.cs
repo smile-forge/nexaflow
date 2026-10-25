@@ -7,6 +7,7 @@ using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Features.Images.Editing.Erasing;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Images.ViewModels;
 
@@ -212,6 +213,7 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer 
     }
 
     /// <summary>The kept result would not decode — let go of since it was found: it is made again.</summary>
+    [LocalDiskOnly("what the tools made, kept in the app's cache")]
     public void Lost(ImageEditSession session)
     {
         if (!ReferenceEquals(session, _session)) return;

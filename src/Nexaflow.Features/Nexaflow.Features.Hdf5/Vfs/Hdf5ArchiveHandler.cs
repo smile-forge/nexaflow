@@ -22,6 +22,7 @@ public sealed class Hdf5ArchiveHandler : IArchiveHandler
 
     public bool CanHandle(string fileName) => Hdf5Location.HasHdf5Extension(fileName);
 
+    [LocalDiskOnly("the file's own time when it arrives as a FileStream, which is on this disk by being one")]
     public IArchiveSession Open(Stream container, string fileName, ArchiveOpenOptions? options = null)
     {
         var modified = container is FileStream fs && File.Exists(fs.Name) ? File.GetLastWriteTime(fs.Name) : DateTime.Now;

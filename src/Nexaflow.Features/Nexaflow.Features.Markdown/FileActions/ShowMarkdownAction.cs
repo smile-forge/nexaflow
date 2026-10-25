@@ -1,6 +1,8 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Features.Markdown.FileActions;
 
@@ -24,19 +26,19 @@ public class ShowMarkdownAction : IFileAction, ICacheable
     public bool   CanPerformAction       => true;
     public bool   OpensViewer            => true;
 
-    public bool PerformAction(string filePath)
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default)
     {
         _shellServices.OpenTab("Markdown", new Dictionary<string, string> { ["path"] = filePath });
-        return true;
+        return Task.FromResult(true);
     }
 
-    public bool PerformAction(IEnumerable<string> filePaths)
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
     {
         foreach (var path in filePaths)
         {
             _shellServices.OpenTab("Markdown", new Dictionary<string, string> { ["path"] = path });
-            return true;
+            return Task.FromResult(true);
         }
-        return false;
+        return Task.FromResult(false);
     }
 }

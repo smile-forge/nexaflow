@@ -1,6 +1,9 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Threading;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Terminal.Models;
 using Nexaflow.Visuals.Terminal.ViewModels;
@@ -35,9 +38,41 @@ public partial class TerminalView : UserControl, IPageView
 
         Loaded += (_, _) => Dispatcher.BeginInvoke(() => TerminalSurface.Focus());
 
+        // The shell is told the size the console has room for: once laid out, and again each time the pane settles
+        // after a resize — a drag raises a size change per frame, and the shell redraws for each one it is told.
+        _sizeSettle = new DispatcherTimer(TimeSpan.FromMilliseconds(120), DispatcherPriority.Background,
+                                          (_, _) => ApplyTerminalSize(), Dispatcher) { IsEnabled = false };
+        ConsoleScroller.SizeChanged += (_, _) =>
+        {
+            _sizeSettle.Stop();
+            _sizeSettle.Start();
+        };
+        Loaded += (_, _) => Dispatcher.BeginInvoke(ApplyTerminalSize, DispatcherPriority.Loaded);
+
         // Dispose the PTY session when the tab is actually closed.
         if (vm.Tab is { } t)
             t.Closed += (_, _) => vm.Dispose();
+    }
+
+    private readonly DispatcherTimer _sizeSettle;
+
+    /// <summary>Works out how many character cells fit the console's viewport, in the screen's own font, and gives the
+    /// view-model that size.</summary>
+    private void ApplyTerminalSize()
+    {
+        _sizeSettle.Stop();
+        var typeface = new Typeface(ScreenLines.FontFamily, ScreenLines.FontStyle, ScreenLines.FontWeight, ScreenLines.FontStretch);
+        var cell = new FormattedText("M", CultureInfo.InvariantCulture, FlowDirection.LeftToRight, typeface, ScreenLines.FontSize,
+                                     ScreenLines.Foreground, VisualTreeHelper.GetDpi(this).PixelsPerDip);
+        double cellWidth  = cell.WidthIncludingTrailingWhitespace;
+        double lineHeight = ScreenLines.FontFamily.LineSpacing * ScreenLines.FontSize;
+
+        var padding = ConsoleScroller.Padding;
+        double width  = ConsoleScroller.ViewportWidth  - padding.Left - padding.Right;
+        double height = ConsoleScroller.ViewportHeight - padding.Top  - padding.Bottom;
+        if (cellWidth <= 0 || lineHeight <= 0 || width <= 0 || height <= 0) return;
+
+        ViewModel.Resize((int)(width / cellWidth), (int)(height / lineHeight));
     }
 
     private void ScrollToBottom()

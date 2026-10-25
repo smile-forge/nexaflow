@@ -29,11 +29,11 @@ public class AudioOpenActionTests
 
     [TestMethod]
     [CoversNode("audio-open-asaudio")]
-    public void ASingleFileOpensAlone_NotAsTheWholeFolder()
+    public async Task ASingleFileOpensAlone_NotAsTheWholeFolder()
     {
         var (shell, opened) = Shell();
 
-        Assert.IsTrue(new ShowAudioAction(shell).PerformAction(@"C:\music\track.mp3"));
+        Assert.IsTrue(await new ShowAudioAction(shell).PerformActionAsync(@"C:\music\track.mp3"));
 
         Assert.AreEqual(@"C:\music\track.mp3", opened.Single()["paths"],
                         "opening one file must not quietly queue its neighbours — that is Play folder's job");
@@ -42,11 +42,11 @@ public class AudioOpenActionTests
 
     [TestMethod]
     [CoversNode("audio-open-asaudio")]
-    public void ASelectionBecomesExactlyThatQueue_InTheOrderGiven()
+    public async Task ASelectionBecomesExactlyThatQueue_InTheOrderGiven()
     {
         var (shell, opened) = Shell();
 
-        var handled = new ShowAudioAction(shell).PerformAction(
+        var handled = await new ShowAudioAction(shell).PerformActionAsync(
             [@"C:\music\b.flac", @"C:\music\cover.jpg", @"C:\music\a.mp3"]);
 
         Assert.IsTrue(handled);
@@ -57,11 +57,11 @@ public class AudioOpenActionTests
 
     [TestMethod]
     [CoversNode("audio-open-asaudio")]
-    public void ASelectionWithNoAudioIsDeclined()
+    public async Task ASelectionWithNoAudioIsDeclined()
     {
         var (shell, opened) = Shell();
 
-        Assert.IsFalse(new ShowAudioAction(shell).PerformAction([@"C:\docs\a.txt"]));
+        Assert.IsFalse(await new ShowAudioAction(shell).PerformActionAsync([@"C:\docs\a.txt"]));
         Assert.AreEqual(0, opened.Count);
     }
 }

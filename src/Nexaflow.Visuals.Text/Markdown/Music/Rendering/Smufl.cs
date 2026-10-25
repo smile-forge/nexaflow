@@ -5,6 +5,7 @@ using System.IO;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Visuals.Text.Markdown.Music.Rendering;
 
@@ -88,6 +89,7 @@ internal static class Smufl
     /// <summary>True when the Bravura font resolved and glyphs can be drawn.</summary>
     public static bool Available => _font is not null;
 
+    [LocalDiskOnly("the Bravura font shipped beside the app")]
     private static FontFamily? LoadFont()
     {
         foreach (var dir in CandidateFontDirs())

@@ -15,6 +15,7 @@ using Nexaflow.Features.Executable.Models;
 using Nexaflow.Features.Executable.Services;
 using Nexaflow.IO.Pe;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Executable.ViewModels;
 
@@ -45,19 +46,31 @@ public sealed partial class ExecutableViewModel : ObservableObject, IPageViewMod
     }
 
     private readonly IShellServices _shell;
+
+    /// <summary>The runtime's file system the binary, and what is extracted from it, go through.</summary>
+    private readonly IVirtualFileSystem _vfs;
+
+    /// <summary>The binary as a file on this disk — the PE reader and Windows' signature check open it by path. Set before
+    /// the parse is queued.</summary>
+    private string? _localPath;
     private readonly CancellationTokenSource _cts = new();
 
     private PeImage? _image;
     private bool     _disposed;
 
-    public ExecutableViewModel(string filePath, IShellServices shell)
+    public ExecutableViewModel(string filePath, IShellServices shell, IVirtualFileSystem vfs)
     {
         _shell   = shell;
+        _vfs     = vfs;
         FilePath = filePath;
         FileName = string.IsNullOrEmpty(filePath) ? Str.Get("Executable.Page.Title") : Path.GetFileName(filePath);
 
-        BeginLoad();
+        Loaded = BeginLoadAsync();
     }
+
+    /// <summary>The file found and its parse queued — or why there is nothing to inspect. Started by the constructor,
+    /// because the file may be in an archive or on a location, where reaching it is not instant.</summary>
+    public Task Loaded { get; }
 
     public string FilePath { get; }
     public string FileName { get; }
@@ -158,15 +171,23 @@ public sealed partial class ExecutableViewModel : ObservableObject, IPageViewMod
 
     // ── Load ──────────────────────────────────────────────────────────────────
 
-    private void BeginLoad()
+    private async Task BeginLoadAsync()
     {
-        if (string.IsNullOrWhiteSpace(FilePath) || !File.Exists(FilePath))
+        try
         {
-            IsLoading = false;
+            if (!string.IsNullOrWhiteSpace(FilePath) && await _vfs.ExistsAsync(FilePath))
+            {
+                _localPath = await _vfs.MaterializeFileAsync(FilePath);
+                _shell.QueueBackgroundTask(new LoadTask(this), ct: _cts.Token);
+                return;
+            }
             LoadError = Str.Get("Executable.Inspector.NoFileToInspect");
-            return;
         }
-        _shell.QueueBackgroundTask(new LoadTask(this), ct: _cts.Token);
+        catch (Exception e) when (e is IOException or NotSupportedException or UnauthorizedAccessException)
+        {
+            LoadError = Str.Format("Executable.Inspector.ReadFailedFormat", e.Message);
+        }
+        IsLoading = false;
     }
 
     private sealed class LoadTask(ExecutableViewModel owner) : IBackgroundTask
@@ -178,7 +199,7 @@ public sealed partial class ExecutableViewModel : ObservableObject, IPageViewMod
             // Signature verification is left out of the initial parse: it calls into the OS and can
             // consult catalogs, so it belongs with the other lazy Analysis work.
             var options = new PeReadOptions { VerifySignature = false };
-            var image   = await Task.Run(() => PeReader.Read(owner.FilePath, options), ct);
+            var image   = await Task.Run(() => PeReader.Read(owner._localPath!, options), ct);
 
             ct.ThrowIfCancellationRequested();
             await owner._shell.RunOnUiAsync(() => owner.Publish(image));

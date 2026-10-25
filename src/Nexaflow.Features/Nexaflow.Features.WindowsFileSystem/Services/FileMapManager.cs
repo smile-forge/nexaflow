@@ -23,6 +23,10 @@ public sealed class FileMapManager
     // ── Singleton ────────────────────────────────────────────────────────────
 
     public static FileMapManager Instance { get; } = new();
+
+    /// <summary>Why the file map's own persistence may use the disk directly: it is this machine's config, never a file
+    /// a person opened.</summary>
+    private const string OwnStore = "the file map's mappings, manifest and index under the app's config folder";
     private FileMapManager() { }
 
     // ── Persistence paths ────────────────────────────────────────────────────
@@ -51,6 +55,7 @@ public sealed class FileMapManager
 
     // ── Public API ───────────────────────────────────────────────────────────
 
+    [LocalDiskOnly(OwnStore)]
     public void Initialize(string baseDir)
     {
         _filemapDir = Path.Combine(baseDir, "filemap");
@@ -77,6 +82,7 @@ public sealed class FileMapManager
     /// true when at least one was removed (so the caller rebuilds the index). The <c>/registry/.ext</c>
     /// namespace was synthetic and matched no action; these files only ever cluttered the Options tree.
     /// </summary>
+    [LocalDiskOnly(OwnStore)]
     private bool CleanupLegacyRegistryMappings()
     {
         bool removed = false;
@@ -148,6 +154,7 @@ public sealed class FileMapManager
     /// <summary>
     /// Deletes a mapping file and removes it from the in-memory state.
     /// </summary>
+    [LocalDiskOnly(OwnStore)]
     public void DeleteMapping(string experienceId)
     {
         lock (_mappings)
@@ -215,10 +222,10 @@ public sealed class FileMapManager
     /// <see cref="CriteriaType.OptionalExtension"/> are included. Pass false for the right-click menu so a
     /// secondary capability (e.g. inspecting a <c>*.docx</c> as an archive) doesn't clutter it.
     /// </param>
-    public IReadOnlyList<string> GetExperiencesForFile(FileInfo file, bool includeOptional = true)
+    public IReadOnlyList<string> GetExperiencesForFile(FileSubject file, bool includeOptional = true)
     {
         var idx = _index;
-        var ext = file.Extension.ToLowerInvariant();
+        var ext = Path.GetExtension(file.Path).ToLowerInvariant();
 
         var matched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -254,11 +261,11 @@ public sealed class FileMapManager
         }
 
         // 4. MagicNumber (lazy — only when worth checking)
-        if (idx.MagicExtensions.Contains(ext) && file.Exists && file.Length > 0)
+        if (idx.MagicExtensions.Contains(ext) && file.LocalFile is { } local)
         {
             try
             {
-                var typeName = DetectMagicType(file);
+                var typeName = DetectMagicType(local);
                 if (typeName is not null &&
                     idx.ByMagicNumber.TryGetValue(typeName, out var byMagic))
                     foreach (var id in byMagic) matched.Add(id);
@@ -268,7 +275,7 @@ public sealed class FileMapManager
 
         // 5. PathPattern
         foreach (var (pattern, id) in idx.PathPatternRules)
-            if (GlobMatch(file.FullName, pattern))
+            if (GlobMatch(file.Path, pattern))
                 matched.Add(id);
 
         // 6. Hierarchical expansion: /binary/installer → also /binary, /
@@ -310,6 +317,7 @@ public sealed class FileMapManager
     /// so the baseline is captured from today's pristine files — without a recorded baseline an
     /// old-pristine default is indistinguishable from a user edit and is conservatively preserved.
     /// </summary>
+    [LocalDiskOnly(OwnStore)]
     private bool SyncBundledDefaults()
     {
         if (!File.Exists(BundledDefaultMapPath)) return false;
@@ -330,6 +338,7 @@ public sealed class FileMapManager
 
     /// <summary>The bundled default mappings (from <c>default-filemap.json</c>), loaded once. Empty when
     /// the seed is missing.</summary>
+    [LocalDiskOnly(OwnStore)]
     private IReadOnlyList<ExperienceMapping> BundledDefaults()
     {
         if (_bundledDefaults is not null) return _bundledDefaults;
@@ -348,6 +357,7 @@ public sealed class FileMapManager
     /// (already deserialized) keyed by <paramref name="bundleHash"/> against the on-disk mappings and the
     /// hash manifest. Returns true when any mapping file was written/deleted.
     /// </summary>
+    [LocalDiskOnly(OwnStore)]
     internal bool ApplyBundledDefaults(List<ExperienceMapping> defaults, string bundleHash)
     {
         var manifest = LoadDefaultsManifest();
@@ -410,6 +420,7 @@ public sealed class FileMapManager
         return changed;
     }
 
+    [LocalDiskOnly(OwnStore)]
     private DefaultsManifest? LoadDefaultsManifest()
     {
         try
@@ -421,6 +432,7 @@ public sealed class FileMapManager
         catch { return null; }
     }
 
+    [LocalDiskOnly(OwnStore)]
     private void SaveDefaultsManifest(DefaultsManifest manifest)
     {
         try { File.WriteAllText(DefaultsManifestPath, JsonSerializer.Serialize(manifest, _jsonOpts)); }
@@ -432,6 +444,7 @@ public sealed class FileMapManager
         Hash(JsonSerializer.Serialize(mapping, _jsonOpts));
 
     /// <summary>Canonical content hash of an on-disk mapping file (whitespace/order insensitive).</summary>
+    [LocalDiskOnly(OwnStore)]
     private string HashOnDisk(string path)
     {
         try
@@ -446,6 +459,7 @@ public sealed class FileMapManager
     private static string Hash(string text) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
 
+    [LocalDiskOnly(OwnStore)]
     private void LoadMappings()
     {
         lock (_mappings)
@@ -466,6 +480,7 @@ public sealed class FileMapManager
         }
     }
 
+    [LocalDiskOnly(OwnStore)]
     private void WriteMapping(ExperienceMapping mapping)
     {
         string path = MappingFilePath(mapping.ExperienceId);
@@ -562,6 +577,7 @@ public sealed class FileMapManager
         public Dictionary<string, List<string>>     ByMagicNumber    { get; set; } = [];
     }
 
+    [LocalDiskOnly(OwnStore)]
     private void WriteIndex(ReverseIndex idx)
     {
         try
@@ -581,6 +597,7 @@ public sealed class FileMapManager
         catch { }
     }
 
+    [LocalDiskOnly(OwnStore)]
     private bool TryLoadIndex()
     {
         try
@@ -618,7 +635,7 @@ public sealed class FileMapManager
     /// ancestor of, any ID directly indexed at that level for this file.
     /// The "/" root ID is always Universal (0) — never elevated by more specific criteria.
     /// </summary>
-    public int GetMatchSpecificity(FileInfo file, string experienceId)
+    public int GetMatchSpecificity(FileSubject file, string experienceId)
     {
         if (string.IsNullOrEmpty(experienceId)) return -1;
 
@@ -626,13 +643,13 @@ public sealed class FileMapManager
         bool isRootId = experienceId == "/";
 
         var idx = _index;
-        var ext = file.Extension.ToLowerInvariant();
+        var ext = Path.GetExtension(file.Path).ToLowerInvariant();
 
         if (!isRootId)
         {
             // PathPattern-specific (level 5) — an explicit path/glob scope beats everything.
             foreach (var (pattern, id) in idx.PathPatternRules)
-                if (GlobMatch(file.FullName, pattern) && IsAncestorOrSelf([id], experienceId)) return 5;
+                if (GlobMatch(file.Path, pattern) && IsAncestorOrSelf([id], experienceId)) return 5;
 
             // Extension-specific (level 4) — compound extensions (.tar.gz) count, longest first.
             foreach (var cand in ExtensionCandidates(file.Name))
@@ -640,11 +657,11 @@ public sealed class FileMapManager
                     IsAncestorOrSelf(byExt, experienceId)) return 4;
 
             // MagicNumber (level 3)
-            if (idx.MagicExtensions.Contains(ext) && file.Exists && file.Length > 0)
+            if (idx.MagicExtensions.Contains(ext) && file.LocalFile is { } local)
             {
                 try
                 {
-                    var typeName = DetectMagicType(file);
+                    var typeName = DetectMagicType(local);
                     if (typeName is not null &&
                         idx.ByMagicNumber.TryGetValue(typeName, out var byMagic) &&
                         IsAncestorOrSelf(byMagic, experienceId)) return 3;
@@ -701,14 +718,18 @@ public sealed class FileMapManager
     /// <summary>
     /// Reads the first 12 bytes of a file and returns a well-known type name
     /// (e.g. "PDF", "ZIP", "PNG") or null if unrecognised.
-    /// The names match what users enter as <see cref="CriteriaType.MagicNumber"/> values.
+    /// The names match what users enter as <see cref="CriteriaType.MagicNumber"/> values. Reads only a file the
+    /// file system resolved to this disk (<see cref="FileSubject.LocalFile"/>), and nothing when it is not there.
     /// </summary>
-    private static string? DetectMagicType(FileInfo file)
+    [LocalDiskOnly("a file the file system resolved to this disk; one on a location is matched by name")]
+    private static string? DetectMagicType(string localFile)
     {
+        if (!File.Exists(localFile)) return null;
+
         // 132 bytes so the DICOM marker at offset 128 (after the 128-byte preamble) is covered too.
         Span<byte> buf = stackalloc byte[132];
         int read;
-        using (var fs = file.OpenRead())
+        using (var fs = File.OpenRead(localFile))
             read = fs.Read(buf);
         if (read < 2) return null;
 

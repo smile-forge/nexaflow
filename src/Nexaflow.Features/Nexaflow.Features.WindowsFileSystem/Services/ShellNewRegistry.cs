@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Media;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.WindowsFileSystem.Services;
 
@@ -42,11 +43,11 @@ public sealed class ShellNewRegistry
     /// <summary>
     /// Fresh <see cref="IFileCreateAction"/>s for every cached ShellNew entry, or empty when
     /// registry mapping is off / the scan has not completed. Safe to call from the UI thread
-    /// (icons are frozen during the scan).
+    /// (icons are frozen during the scan). Each creates through <paramref name="vfs"/>, the runtime's file system.
     /// </summary>
-    public IReadOnlyList<IFileCreateAction> BuildCreateActions()
+    public IReadOnlyList<IFileCreateAction> BuildCreateActions(IVirtualFileSystem vfs)
         => _enabled
-            ? _entries.Select(e => (IFileCreateAction)new ShellNewCreateAction(e)).ToList()
+            ? _entries.Select(e => (IFileCreateAction)new ShellNewCreateAction(e, vfs)).ToList()
             : Array.Empty<IFileCreateAction>();
 
     private void ScanAsync()

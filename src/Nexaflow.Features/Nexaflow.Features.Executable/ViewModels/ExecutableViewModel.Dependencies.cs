@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Executable.Models;
 using Nexaflow.Features.Executable.Services;
+using Nexaflow.IO.Common;
 using Nexaflow.IO.Pe;
 using Nexaflow.Markdown.Binding;
 using Nexaflow.Visuals.Common.Localization;
@@ -332,11 +333,15 @@ public sealed partial class ExecutableViewModel
         Dependencies.Walk();
     }
 
+    /// <summary>Why a dependency is looked for on the disk directly: it is where Windows' loader would find it, this machine's folders.</summary>
+    private const string LoaderSearch = "a DLL where the Windows loader's search order finds it, in this machine's folders";
+
     /// <summary>
     /// A clicked mermaid node, or a double-clicked tree row: open that dependency in its own
     /// inspector tab. The new page builds its own breadcrumbs from the path, so the trail back to
     /// the module's folder comes for free.
     /// </summary>
+    [LocalDiskOnly(LoaderSearch)]
     public bool OpenDependency(string? path)
     {
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return false;
@@ -370,6 +375,7 @@ public sealed partial class ExecutableViewModel
 
     /// <summary>Opens the folder a module would actually load from, resolved through the same loader
     /// search order the walk uses.</summary>
+    [LocalDiskOnly(LoaderSearch)]
     private void LocateByName(string name, string? knownPath, bool isApiSet)
     {
         if (isApiSet)

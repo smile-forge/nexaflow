@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
@@ -216,7 +217,7 @@ public class PdfPageMergeTests
             await session.SaveAsync(null, CancellationToken.None);
         }
 
-        using (var scope = PdfDocumentScope.TryOpen(path, CancellationToken.None))
+        using (var scope = PdfDocumentScope.TryOpen(File.OpenRead(path), CancellationToken.None))
         {
             Assert.IsNotNull(scope);
             Assert.AreEqual(3, scope.Document.NumberOfPages);
@@ -247,7 +248,7 @@ public class PdfPageMergeTests
 
     private static async Task<PdfDocumentSession> Opened(string? path = null)
     {
-        var session = new PdfDocumentSession(path ?? Copy());
+        var session = new PdfDocumentSession(path ?? Copy(), VirtualFileSystem.Instance);
         Assert.IsTrue(await session.OpenAsync(CancellationToken.None));
         return session;
     }

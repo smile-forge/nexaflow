@@ -18,6 +18,7 @@
   "Markdown.SaveAs.Package": "Markdown Package",
   "Markdown.Search.LineFormat": "line {0}",
   "Markdown.Search.MatchFormat": "match {0}",
+  "Markdown.Error.OpenFailedFormat": "Couldn't open {0}: {1}",
   "Markdown.Error.SaveFailedFormat": "The document could not be saved: {0}",
   "Markdown.Error.PictureSaveFailedFormat": "Could not save the picture to {0}: {1}",
   "Markdown.Error.PrintFormat": "The document could not be printed: {0}",

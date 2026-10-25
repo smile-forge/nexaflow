@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Web.ViewModels;
 using Nexaflow.Features.Web.Views;
+using Nexaflow.IO.Common;
 using System.Collections.Generic;
 
 namespace Nexaflow.Features.Web;
@@ -10,7 +11,7 @@ namespace Nexaflow.Features.Web;
 /// Accepts a "path" page parameter containing the file path or URL to display.
 /// The tab title and breadcrumb track the current page (see <see cref="WebPageChrome"/>).
 /// </summary>
-public sealed class HtmlTabRegistration(IShellServices shell) : IPageRegistration
+public sealed class HtmlTabRegistration(IShellServices shell, IVirtualFileSystem vfs) : IPageRegistration
 {
     public static string StaticPageKind => "Html";
     public string PageKind => StaticPageKind;
@@ -35,7 +36,7 @@ public sealed class HtmlTabRegistration(IShellServices shell) : IPageRegistratio
 
         page.ContentFactory = () =>
         {
-            var view = new HtmlView(new HtmlViewModel(url), shell);
+            var view = new HtmlView(new HtmlViewModel(url, vfs), shell);
             view.PageChanged += () => UpdateChrome(page, view);
             // Ends the embedded browser process with the tab. Closed fires only on a genuine close —
             // a tear-off or move to another window re-keys the registry and never reaches it.

@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Audio.Models;
 using Nexaflow.Features.Audio.Services;
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Audio.ViewModels;
@@ -20,16 +21,20 @@ namespace Nexaflow.Features.Audio.ViewModels;
 public partial class TagEditorViewModel : ObservableObject
 {
     private readonly IShellServices _shell;
+
+    /// <summary>The runtime's file system a picked picture is read through.</summary>
+    private readonly IVirtualFileSystem _vfs;
     private readonly Func<TrackTags, byte[]?, bool, Task<bool>> _saveAsync;
 
     private byte[]? _newArt;
     private bool _replaceArt;
     private bool _loading;
 
-    public TagEditorViewModel(TrackTags tags, IShellServices shell,
+    public TagEditorViewModel(TrackTags tags, IShellServices shell, IVirtualFileSystem vfs,
                               Func<TrackTags, byte[]?, bool, Task<bool>> saveAsync)
     {
         _shell = shell;
+        _vfs = vfs;
         _saveAsync = saveAsync;
         Load(tags);
     }
@@ -69,7 +74,7 @@ public partial class TagEditorViewModel : ObservableObject
         if (string.IsNullOrEmpty(path)) return;
         try
         {
-            _newArt = await File.ReadAllBytesAsync(path);
+            _newArt = await _vfs.ReadAllBytesAsync(path);
             _replaceArt = true;
             ArtPreview = ImageHelpers.ToBitmap(_newArt);
             IsDirty = true;

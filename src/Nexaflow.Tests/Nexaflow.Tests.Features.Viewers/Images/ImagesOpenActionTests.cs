@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -41,11 +42,11 @@ public class ImagesOpenActionTests
 
     [TestMethod]
     [CoversNode("images-open-as-image")]
-    public void AsImage_OnASelection_TakesTheImagesAndDropsTheRest()
+    public async Task AsImage_OnASelection_TakesTheImagesAndDropsTheRest()
     {
         var (shell, opened) = Shell();
 
-        var handled = new ShowImageAction(shell).PerformAction(
+        var handled = await new ShowImageAction(shell).PerformActionAsync(
             [@"C:\pics\a.png", @"C:\pics\notes.txt", @"C:\pics\b.jpg"]);
 
         Assert.IsTrue(handled);
@@ -56,11 +57,11 @@ public class ImagesOpenActionTests
 
     [TestMethod]
     [CoversNode("images-open-as-image")]
-    public void AsImage_OnASelectionWithNoImages_DeclinesRatherThanOpeningAnEmptyTab()
+    public async Task AsImage_OnASelectionWithNoImages_DeclinesRatherThanOpeningAnEmptyTab()
     {
         var (shell, opened) = Shell();
 
-        Assert.IsFalse(new ShowImageAction(shell).PerformAction([@"C:\docs\a.txt", @"C:\docs\b.pdf"]));
+        Assert.IsFalse(await new ShowImageAction(shell).PerformActionAsync([@"C:\docs\a.txt", @"C:\docs\b.pdf"]));
         Assert.AreEqual(0, opened.Count);
     }
 
@@ -68,14 +69,14 @@ public class ImagesOpenActionTests
 
     [TestMethod]
     [CoversNode("images-open-slideshow")]
-    public void Slideshow_OpensTheWholeFolderInTheCarousel()
+    public async Task Slideshow_OpensTheWholeFolderInTheCarousel()
     {
         var dir = MakeFolder("a.png", "b.jpg", "readme.txt");
         try
         {
             var (shell, opened) = Shell();
 
-            Assert.IsTrue(new SlideshowFolderAction(shell).PerformAction(dir));
+            Assert.IsTrue(await new SlideshowFolderAction(shell, VirtualFileSystem.Instance).PerformActionAsync(dir));
 
             var p = opened.Single();
             Assert.AreEqual("slideshow", p["view"]);
@@ -87,14 +88,14 @@ public class ImagesOpenActionTests
 
     [TestMethod]
     [CoversNode("images-open-album")]
-    public void Album_OpensTheSameFolderInTheGrid()
+    public async Task Album_OpensTheSameFolderInTheGrid()
     {
         var dir = MakeFolder("a.png", "b.jpg");
         try
         {
             var (shell, opened) = Shell();
 
-            Assert.IsTrue(new AlbumFolderAction(shell).PerformAction(dir));
+            Assert.IsTrue(await new AlbumFolderAction(shell, VirtualFileSystem.Instance).PerformActionAsync(dir));
 
             Assert.AreEqual("album", opened.Single()["view"],
                             "the two folder actions differ only in the view they request");
@@ -104,14 +105,14 @@ public class ImagesOpenActionTests
 
     [TestMethod]
     [CoversNode("images-open-actions")]
-    public void AFolderWithNoImages_IsDeclined()
+    public async Task AFolderWithNoImages_IsDeclined()
     {
         var dir = MakeFolder("notes.txt", "data.csv");
         try
         {
             var (shell, opened) = Shell();
 
-            Assert.IsFalse(new AlbumFolderAction(shell).PerformAction(dir));
+            Assert.IsFalse(await new AlbumFolderAction(shell, VirtualFileSystem.Instance).PerformActionAsync(dir));
             Assert.AreEqual(0, opened.Count);
         }
         finally { Directory.Delete(dir, recursive: true); }
@@ -122,7 +123,7 @@ public class ImagesOpenActionTests
     public void FolderActions_AreOnlyOffered_WhenAFolderIsMostlyImages()
     {
         var (shell, _) = Shell();
-        var action = new AlbumFolderAction(shell);
+        var action = new AlbumFolderAction(shell, VirtualFileSystem.Instance);
 
         Assert.AreEqual(30, action.MinimumFileGlobMatchPercentage,
                         "a folder with a stray screenshot in it should not sprout an Album button");

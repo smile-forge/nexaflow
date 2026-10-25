@@ -10,7 +10,7 @@ namespace Nexaflow.Features.VirtualDisk;
 
 /// <summary>Advertises the "As Disk" inspector tab — disk/partition/volume metadata beside a lazily-browsed
 /// contents tree. Opened by the "As Disk" file action on a disk image.</summary>
-public sealed class VirtualDiskTabRegistration(IShellServices shell) : IPageRegistration
+public sealed class VirtualDiskTabRegistration(IShellServices shell, IVirtualFileSystem vfs) : IPageRegistration
 {
     public static string StaticPageKind => "VirtualDisk";
     public string PageKind => StaticPageKind;
@@ -31,7 +31,7 @@ public sealed class VirtualDiskTabRegistration(IShellServices shell) : IPageRegi
             Icon = "💽",
             PageParams = pageParams,
             ContentFactory = () => new VirtualDiskView(
-                new VirtualDiskViewModel(path, shell, VirtualFileSystem.Instance)),
+                new VirtualDiskViewModel(path, shell, vfs)),
         };
 
         // "folder › disk.vhdx" — the folder crumb opens a file-browser tab there.

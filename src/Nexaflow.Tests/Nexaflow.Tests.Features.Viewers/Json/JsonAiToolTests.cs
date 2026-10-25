@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -37,7 +38,7 @@ public class JsonAiToolTests
     {
         _path = Path.Combine(TestTemp.Root, $"jsonai_{Guid.NewGuid():N}.json");
         File.WriteAllText(_path, content, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-        var vm = new JsonViewModel(_path, new JsonFileLoader(), new JsonPathEvaluator(),
+        var vm = new JsonViewModel(_path, VirtualFileSystem.Instance, new JsonPathEvaluator(),
                                    Substitute.For<IShellServices>());
         await vm.LoadAsync(CancellationToken.None);
         return vm;

@@ -41,8 +41,8 @@ public class FileMapPathSpecificityTests
             Criteria     = [new() { Type = CriteriaType.PathPattern, Value = pattern }],
         });
 
-        var inScope    = new FileInfo(Path.Combine(folder, "sub", "a.zzt"));
-        var outOfScope = new FileInfo(@"C:\nowhere\a.zzt");
+        var inScope    = FileSubject.ByName(Path.Combine(folder, "sub", "a.zzt"));
+        var outOfScope = FileSubject.ByName(@"C:\nowhere\a.zzt");
 
         // PathPattern is the top of the ladder (5) — it beats an extension match (4),
         // so DefaultFileOpener (internal = spec*2+1) wins over the shell verb (4*2).

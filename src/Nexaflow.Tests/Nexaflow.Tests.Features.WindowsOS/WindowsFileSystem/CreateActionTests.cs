@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using Nexaflow.Features.Text.FileActions;
@@ -18,15 +19,15 @@ public class CreateActionTests
     }
 
     [TestMethod]
-    public void NewFolder_Create_MakesDirectory()
+    public async Task NewFolder_Create_MakesDirectory()
     {
         var dir = TempDir();
         try
         {
-            var action = new NewFolderCreateAction();
+            var action = new NewFolderCreateAction(VirtualFileSystem.Instance);
             Assert.AreEqual(string.Empty, action.FileExtension);
 
-            var created = action.Create(dir, "My Folder");
+            var created = await action.CreateItemAsync(dir, "My Folder");
 
             Assert.IsNotNull(created);
             Assert.IsTrue(Directory.Exists(Path.Combine(dir, "My Folder")));
@@ -35,15 +36,15 @@ public class CreateActionTests
     }
 
     [TestMethod]
-    public void BlankText_Create_WritesEmptyFile()
+    public async Task BlankText_Create_WritesEmptyFile()
     {
         var dir = TempDir();
         try
         {
-            var action = new BlankTextCreateAction();
+            var action = new BlankTextCreateAction(VirtualFileSystem.Instance);
             Assert.AreEqual(".txt", action.FileExtension);
 
-            var created = action.Create(dir, "notes.txt");
+            var created = await action.CreateItemAsync(dir, "notes.txt");
 
             Assert.IsNotNull(created);
             var path = Path.Combine(dir, "notes.txt");
@@ -54,16 +55,16 @@ public class CreateActionTests
     }
 
     [TestMethod]
-    public void Template_Create_CopiesTemplateContent()
+    public async Task Template_Create_CopiesTemplateContent()
     {
         var dir = TempDir();
         try
         {
             var tpl = Path.Combine(dir, "src.md");
             File.WriteAllText(tpl, "TEMPLATE BODY");
-            var action = new TemplateCreateAction("Doc", "📌", ".md", tpl);
+            var action = new TemplateCreateAction("Doc", "📌", ".md", tpl, VirtualFileSystem.Instance);
 
-            var created = action.Create(dir, "out.md");
+            var created = await action.CreateItemAsync(dir, "out.md");
 
             Assert.IsNotNull(created);
             Assert.AreEqual("TEMPLATE BODY", File.ReadAllText(Path.Combine(dir, "out.md")));
@@ -72,14 +73,14 @@ public class CreateActionTests
     }
 
     [TestMethod]
-    public void Template_Create_MissingTemplate_FallsBackToEmptyFile()
+    public async Task Template_Create_MissingTemplate_FallsBackToEmptyFile()
     {
         var dir = TempDir();
         try
         {
-            var action = new TemplateCreateAction("Doc", "📌", ".md", Path.Combine(dir, "missing.md"));
+            var action = new TemplateCreateAction("Doc", "📌", ".md", Path.Combine(dir, "missing.md"), VirtualFileSystem.Instance);
 
-            var created = action.Create(dir, "out.md");
+            var created = await action.CreateItemAsync(dir, "out.md");
 
             Assert.IsNotNull(created);
             Assert.AreEqual(string.Empty, File.ReadAllText(Path.Combine(dir, "out.md")));
@@ -88,15 +89,15 @@ public class CreateActionTests
     }
 
     [TestMethod]
-    public void ShellNew_Create_NullFile_MakesEmptyFile()
+    public async Task ShellNew_Create_NullFile_MakesEmptyFile()
     {
         var dir = TempDir();
         try
         {
             var entry  = new ShellNewEntry(".txt", "Text Document", null, new ShellNewSpec(ShellNewKind.NullFile));
-            var action = new ShellNewCreateAction(entry);
+            var action = new ShellNewCreateAction(entry, VirtualFileSystem.Instance);
 
-            action.Create(dir, "new.txt");
+            await action.CreateItemAsync(dir, "new.txt");
 
             var path = Path.Combine(dir, "new.txt");
             Assert.IsTrue(File.Exists(path));
@@ -106,16 +107,16 @@ public class CreateActionTests
     }
 
     [TestMethod]
-    public void ShellNew_Create_Data_WritesBytes()
+    public async Task ShellNew_Create_Data_WritesBytes()
     {
         var dir = TempDir();
         try
         {
             var bytes  = new byte[] { 1, 2, 3, 4 };
             var entry  = new ShellNewEntry(".bin", "Binary", null, new ShellNewSpec(ShellNewKind.Data, Data: bytes));
-            var action = new ShellNewCreateAction(entry);
+            var action = new ShellNewCreateAction(entry, VirtualFileSystem.Instance);
 
-            action.Create(dir, "x.bin");
+            await action.CreateItemAsync(dir, "x.bin");
 
             CollectionAssert.AreEqual(bytes, File.ReadAllBytes(Path.Combine(dir, "x.bin")));
         }
@@ -123,7 +124,7 @@ public class CreateActionTests
     }
 
     [TestMethod]
-    public void ShellNew_Create_FileName_CopiesTemplate()
+    public async Task ShellNew_Create_FileName_CopiesTemplate()
     {
         var dir = TempDir();
         try
@@ -131,9 +132,9 @@ public class CreateActionTests
             var tpl = Path.Combine(dir, "template.dat");
             File.WriteAllText(tpl, "SEED");
             var entry  = new ShellNewEntry(".dat", "Data", null, new ShellNewSpec(ShellNewKind.FileName, FileName: tpl));
-            var action = new ShellNewCreateAction(entry);
+            var action = new ShellNewCreateAction(entry, VirtualFileSystem.Instance);
 
-            action.Create(dir, "fresh.dat");
+            await action.CreateItemAsync(dir, "fresh.dat");
 
             Assert.AreEqual("SEED", File.ReadAllText(Path.Combine(dir, "fresh.dat")));
         }

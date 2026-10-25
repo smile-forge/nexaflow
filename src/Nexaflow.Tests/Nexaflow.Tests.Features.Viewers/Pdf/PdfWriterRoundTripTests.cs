@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using System.Linq;
 using Nexaflow.Features.Pdf;
@@ -73,7 +74,7 @@ public class PdfWriterRoundTripTests
     [CoversNode("pdf-search")]
     public async Task Text_IsExtractedFromACompressedContentStream()
     {
-        var text = await new PdfTextExtractor(new PdfConfig()).ExtractAsync(WriteDocument(), Budget, default);
+        var text = await new PdfTextExtractor(new PdfConfig(), VirtualFileSystem.Instance).ExtractAsync(WriteDocument(), Budget, default);
 
         Assert.IsNotNull(text);
         StringAssert.Contains(text, Needle);
@@ -84,7 +85,7 @@ public class PdfWriterRoundTripTests
     [CoversNode("pdf-extract-images")]
     public void Images_AreExtracted_WithTheJpegPassedThroughAndTheRepeatDropped()
     {
-        using var scope = PdfDocumentScope.TryOpen(WriteDocument(), default);
+        using var scope = PdfDocumentScope.TryOpen(File.OpenRead(WriteDocument()), default);
         Assert.IsNotNull(scope);
 
         var tally = default(PdfImageTally);
@@ -106,7 +107,7 @@ public class PdfWriterRoundTripTests
     [CoversNode("pdf-extract-images")]
     public async Task ExtractionTask_WritesBothImages()
     {
-        var task = new Nexaflow.Features.Pdf.Services.PdfImageExtractionTask([WriteDocument()], _dir);
+        var task = new Nexaflow.Features.Pdf.Services.PdfImageExtractionTask([WriteDocument()], _dir, VirtualFileSystem.Instance);
         await task.RunAsync(default);
 
         var written = Directory.GetFiles(Path.Combine(_dir, "written")).Select(Path.GetFileName).ToList();

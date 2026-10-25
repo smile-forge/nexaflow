@@ -34,7 +34,8 @@ public partial class ViewletHost : UserControl, IViewletController
     Task IViewletController.QuiesceFolderAsync(CancellationToken ct)
         => QuiesceFolderHandler?.Invoke(ct) ?? Task.CompletedTask;
 
-    public ViewletHost(IFolderViewlet viewlet, string folderPath)
+    /// <param name="vfs">The runtime's file system the folder is browsed through.</param>
+    public ViewletHost(IFolderViewlet viewlet, string folderPath, Nexaflow.IO.Common.IVirtualFileSystem vfs)
     {
         InitializeComponent();
         _viewlet = viewlet;
@@ -44,7 +45,7 @@ public partial class ViewletHost : UserControl, IViewletController
         // actually work in, so a mount is resolved to its real location once, here, and no viewlet has to
         // know mounts exist. One that opted out reads through the VFS and gets the path as browsed.
         if (viewlet.RequiresFullyBackedPath)
-            folderPath = Nexaflow.IO.Common.VirtualFileSystem.Instance.TryResolveReal(folderPath) ?? folderPath;
+            folderPath = vfs.TryResolveReal(folderPath) ?? folderPath;
 
         DisplayNameText.Text        = viewlet.DisplayName;
         ViewletContentArea.Content  = viewlet.CreateView(folderPath, this);

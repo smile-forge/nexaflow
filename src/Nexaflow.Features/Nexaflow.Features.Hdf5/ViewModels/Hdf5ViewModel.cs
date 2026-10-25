@@ -3,6 +3,7 @@ using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Features.Common;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 using Nexaflow.IO.Hdf5;
 using Nexaflow.IO.Hdf5.Projection;
 using Nexaflow.Visuals.Common.Localization;
@@ -10,8 +11,9 @@ using Nexaflow.Visuals.Common.Localization;
 namespace Nexaflow.Features.Hdf5.ViewModels;
 
 /// <summary>
-/// Drives the HDF5 viewer tab. Opens the file off the UI thread — from disk, or through the VFS when it sits inside
-/// an archive — lists its tree a group and a page at a time, and shows the selected object: a group's members, a
+/// Drives the HDF5 viewer tab. Opens the file off the UI thread — from disk, or through the runtime's file system when
+/// it sits inside an archive or on a location — lists its tree a group and a page at a time, and shows the selected
+/// object: a group's members, a
 /// dataset as a windowed table sliced for N-D data, or why a link leads nowhere, with its details and attributes
 /// in the drawer.
 /// </summary>
@@ -21,6 +23,10 @@ public sealed partial class Hdf5ViewModel : ObservableObject, IPageViewModel, ID
     internal const int TreePage = 500;
 
     private readonly IShellServices _shell;
+
+    /// <summary>The runtime's file system a file not on this disk is read through — in an archive or on a location.</summary>
+    private readonly IVirtualFileSystem _vfs;
+
     private readonly Hdf5SourceCache _cache;
     private readonly string? _initialNode;
     private readonly CancellationTokenSource _cts = new();
@@ -28,11 +34,12 @@ public sealed partial class Hdf5ViewModel : ObservableObject, IPageViewModel, ID
     private Hdf5Lease? _lease;
     private bool _disposed;
 
-    public Hdf5ViewModel(string filePath, string? node, IShellServices shell, Hdf5SourceCache cache)
+    public Hdf5ViewModel(string filePath, string? node, IShellServices shell, IVirtualFileSystem vfs, Hdf5SourceCache cache)
     {
         FilePath     = filePath;
         _initialNode = node;
         _shell       = shell;
+        _vfs         = vfs;
         _cache       = cache;
         _statusText  = Str.Get("Hdf5.Status.Loading");
         Loaded       = LoadAsync();
@@ -91,7 +98,7 @@ public sealed partial class Hdf5ViewModel : ObservableObject, IPageViewModel, ID
     {
         try
         {
-            _lease = await Task.Run(Open, _cts.Token);
+            _lease = await Task.Run(OpenAsync, _cts.Token);
         }
         catch (OperationCanceledException) { return; }
         catch (Exception ex) when (ex is Hdf5Exception or IOException or UnauthorizedAccessException or InvalidDataException)
@@ -117,9 +124,11 @@ public sealed partial class Hdf5ViewModel : ObservableObject, IPageViewModel, ID
         await NavigateToAsync(_initialNode ?? Hdf5Path.Root);
     }
 
-    private Hdf5Lease Open() => File.Exists(FilePath)
-        ? _cache.Acquire(FilePath)
-        : _cache.Acquire(VirtualFileSystem.Instance.OpenRead(FilePath));
+    /// <summary>A file on this disk is opened by its path, so tabs on it share one reader; anywhere else it is read
+    /// through the file system.</summary>
+    private async Task<Hdf5Lease> OpenAsync() => _vfs.ResolveOnDisk(FilePath) is { } real
+        ? _cache.Acquire(real)
+        : _cache.Acquire(await _vfs.OpenReadAsync(FilePath, ReadIntent.Random, _cts.Token));
 
     private Hdf5NodeViewModel NewNode(Hdf5NodeViewModel? parent, Hdf5Object o) =>
         Hdf5NodeViewModel.For(parent, o, node => ListAsync(node, 0));

@@ -191,6 +191,7 @@ public sealed partial class StoreBrowser : ObservableObject, IDisposable
         }
     }
 
+    [LocalDiskOnly("the folder the host keeps on this computer for files fetched off a device")]
     async Task OpenFileAsync(StoreRow file)
     {
         string? local = _store.LocalPathOf(file.Entry.Id);

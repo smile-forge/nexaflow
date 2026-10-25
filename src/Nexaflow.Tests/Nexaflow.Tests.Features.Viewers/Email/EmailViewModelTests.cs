@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -24,7 +25,12 @@ public class EmailViewModelTests
 {
     private static string SamplePath => TestSampleData.Path("email", "simple.eml");
 
-    private static EmailViewModel Open() => new(SamplePath, Substitute.For<IShellServices>());
+    private static async Task<EmailViewModel> OpenAsync()
+    {
+        var vm = new EmailViewModel(SamplePath, Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
+        await vm.Loaded;
+        return vm;
+    }
 
     private static Task<ToolResult> Run(EmailViewModel vm, string tool, JsonObject? args = null)
         => vm.GetClientTools().Single(t => t.Name == tool).InvokeAsync(args ?? [], CancellationToken.None);
@@ -33,9 +39,9 @@ public class EmailViewModelTests
 
     [TestMethod]
     [CoversNode("email-ai-act")]
-    public void TheSurfaceIsThreeReads_AndNothingThatTransmitsMail()
+    public async Task TheSurfaceIsThreeReads_AndNothingThatTransmitsMail()
     {
-        var vm = Open();
+        var vm = await OpenAsync();
         try
         {
             var tools = vm.GetClientTools();
@@ -52,9 +58,9 @@ public class EmailViewModelTests
 
     [TestMethod]
     [CoversNode("email-ai-act")]
-    public void TheGuidanceTellsTheModelItCannotSendFromHere()
+    public async Task TheGuidanceTellsTheModelItCannotSendFromHere()
     {
-        var vm = Open();
+        var vm = await OpenAsync();
         try
         {
             StringAssert.Contains(vm.GetAiSystemPromptGuidance()!, "cannot send",
@@ -67,9 +73,9 @@ public class EmailViewModelTests
 
     [TestMethod]
     [CoversNode("email-ai-context")]
-    public void TheContextCarriesTheEnvelopeAndTheBody()
+    public async Task TheContextCarriesTheEnvelopeAndTheBody()
     {
-        var vm = Open();
+        var vm = await OpenAsync();
         try
         {
             var ctx = vm.GetContext();
@@ -83,9 +89,9 @@ public class EmailViewModelTests
 
     [TestMethod]
     [CoversNode("email-ai-context")]
-    public void TheContextNamesTheAttachments_SoTheModelKnowsWhatItCanAskFor()
+    public async Task TheContextNamesTheAttachments_SoTheModelKnowsWhatItCanAskFor()
     {
-        var vm = Open();
+        var vm = await OpenAsync();
         try
         {
             StringAssert.Contains(vm.GetContext(), "notes.txt");
@@ -95,9 +101,9 @@ public class EmailViewModelTests
 
     [TestMethod]
     [CoversNode("email-ai-context")]
-    public void TwoOpenMessagesAreDistinctScopes_NotFirstWins()
+    public async Task TwoOpenMessagesAreDistinctScopes_NotFirstWins()
     {
-        var vm = Open();
+        var vm = await OpenAsync();
         try { Assert.AreEqual(SamplePath, vm.GetSecurityContext()); }
         finally { vm.Dispose(); }
     }
@@ -108,7 +114,7 @@ public class EmailViewModelTests
     [CoversNode("email-ai-act-read-email")]
     public async Task ReadEmail_ReturnsTheHeadersAndTheUncappedBody()
     {
-        var vm = Open();
+        var vm = await OpenAsync();
         try
         {
             var r = await Run(vm, "read_email");
@@ -125,7 +131,7 @@ public class EmailViewModelTests
     [CoversNode("email-ai-act-list-attachments")]
     public async Task ListAttachments_EnumeratesTheRealOnes()
     {
-        var vm = Open();
+        var vm = await OpenAsync();
         try
         {
             var r = await Run(vm, "list_attachments");
@@ -140,7 +146,7 @@ public class EmailViewModelTests
     [CoversNode("email-ai-act-read-attachment")]
     public async Task ReadAttachment_ReturnsATextAttachmentsContents()
     {
-        var vm = Open();
+        var vm = await OpenAsync();
         try
         {
             var r = await Run(vm, "read_attachment", new JsonObject { ["name"] = "notes.txt" });
@@ -156,7 +162,7 @@ public class EmailViewModelTests
     [CoversNode("email-ai-act-read-attachment")]
     public async Task ReadAttachment_AnUnknownNameIsReported_NotThrown()
     {
-        var vm = Open();
+        var vm = await OpenAsync();
         try
         {
             var r = await Run(vm, "read_attachment", new JsonObject { ["name"] = "does-not-exist.bin" });

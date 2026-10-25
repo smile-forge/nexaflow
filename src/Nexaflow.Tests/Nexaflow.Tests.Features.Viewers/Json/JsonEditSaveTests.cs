@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -37,7 +38,7 @@ public class JsonEditSaveTests
         _path = Path.Combine(TestTemp.Root, $"jsonedit_{Guid.NewGuid():N}.json");
         File.WriteAllText(_path, content, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         var shell = Substitute.For<IShellServices>();
-        var vm = new JsonViewModel(_path, new JsonFileLoader(), new JsonPathEvaluator(), shell);
+        var vm = new JsonViewModel(_path, VirtualFileSystem.Instance, new JsonPathEvaluator(), shell);
         await vm.LoadAsync(CancellationToken.None);
 
         // LoadAsync deliberately returns before the placeholder fill finishes, so the first screen isn't

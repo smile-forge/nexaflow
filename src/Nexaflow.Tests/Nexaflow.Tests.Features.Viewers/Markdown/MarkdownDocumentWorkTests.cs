@@ -32,15 +32,15 @@ public class MarkdownDocumentWorkTests
     [TestCleanup]
     public void Cleanup() => Directory.Delete(_folder, recursive: true);
 
-    private MarkdownViewModel Make(out IShellServices shell, out IAIService ai, string name = "pets.md", bool works = true, string? draft = null,
+    private async Task<(MarkdownViewModel Vm, IShellServices Shell, IAIService Ai)> MakeAsync(string name = "pets.md", bool works = true, string? draft = null,
                                    IDocumentWorkWatch? watch = null)
     {
         var path = Path.Combine(_folder, name);
         if (MarkdownPackage.Names(path)) Package(path, "# Pets\n\nDogs bark.\n\n![A dog](attachments/dog.png)\n");
         else File.WriteAllText(path, "# Pets\n\nDogs bark.\n");
 
-        shell = Substitute.For<IShellServices>();
-        ai = Substitute.For<IAIService>();
+        var shell = Substitute.For<IShellServices>();
+        var ai = Substitute.For<IAIService>();
 
         var gate = Substitute.For<IAiAbilityGate>();
         gate.IsEnabled.Returns(works);
@@ -49,7 +49,9 @@ public class MarkdownDocumentWorkTests
         ai.Gate(Arg.Any<AiAbility[]>()).Returns(gate);
         ai.WatchDocumentWork(Arg.Any<string>()).Returns(watch ?? new WorkWatch());
 
-        return new MarkdownViewModel(path, shell, draftFolder: draft, ai: ai);
+        var vm = new MarkdownViewModel(path, shell, VirtualFileSystem.Instance, draftFolder: draft, ai: ai);
+        await vm.Loaded;
+        return (vm, shell, ai);
     }
 
     /// <summary>A Markdown Package at <paramref name="path"/>: <paramref name="document"/>, and the picture it names.</summary>
@@ -79,9 +81,9 @@ public class MarkdownDocumentWorkTests
 
     [TestMethod]
     [CoversNode("markdown-summarize")]
-    public void Summarise_HandsTheWorkspaceWhatTheEditorHolds()
+    public async Task Summarise_HandsTheWorkspaceWhatTheEditorHolds()
     {
-        var vm = Make(out _, out var ai);
+        var (vm, _, ai) = await MakeAsync();
         vm.Markdown = "# Pets\n\nDogs bark loudly.\n";
 
         vm.SummarizeCommand.Execute(null);
@@ -91,9 +93,9 @@ public class MarkdownDocumentWorkTests
 
     [TestMethod]
     [CoversNode("markdown-translate")]
-    public void Translate_AsksTheLanguage_ThenHandsTheWorkspaceTheDocumentAndIt()
+    public async Task Translate_AsksTheLanguage_ThenHandsTheWorkspaceTheDocumentAndIt()
     {
-        var vm = Make(out _, out var ai);
+        var (vm, _, ai) = await MakeAsync();
 
         vm.OpenTranslateCommand.Execute(null);
         Assert.IsTrue(vm.IsTranslateOpen, "the language is asked for first");
@@ -107,9 +109,9 @@ public class MarkdownDocumentWorkTests
 
     [TestMethod]
     [CoversNode("markdown-translate")]
-    public void CancellingTheLanguage_TranslatesNothing()
+    public async Task CancellingTheLanguage_TranslatesNothing()
     {
-        var vm = Make(out _, out var ai);
+        var (vm, _, ai) = await MakeAsync();
 
         vm.OpenTranslateCommand.Execute(null);
         vm.CancelTranslateCommand.Execute(null);
@@ -120,9 +122,9 @@ public class MarkdownDocumentWorkTests
 
     [TestMethod]
     [CoversNode("markdown-summarize")]
-    public void UntilTheDocumentsRowHasAModelReady_NothingIsSetGoing()
+    public async Task UntilTheDocumentsRowHasAModelReady_NothingIsSetGoing()
     {
-        var vm = Make(out _, out var ai, works: false);
+        var (vm, _, ai) = await MakeAsync(works: false);
 
         vm.SummarizeCommand.Execute(null);
 
@@ -132,29 +134,29 @@ public class MarkdownDocumentWorkTests
 
     [TestMethod]
     [CoversNode("markdown-summarize")]
-    public void OnlyAMarkdownDocument_IsWorkedThroughAsAWhole_AndAButtonThatCannotSaysWhy()
+    public async Task OnlyAMarkdownDocument_IsWorkedThroughAsAWhole_AndAButtonThatCannotSaysWhy()
     {
-        Assert.IsTrue(Make(out _, out _).SummarizeCommand.CanExecute(null));
+        Assert.IsTrue((await MakeAsync()).Vm.SummarizeCommand.CanExecute(null));
 
-        var tune = Make(out _, out _, name: "tune.abc");
+        var (tune, _, _) = await MakeAsync(name: "tune.abc");
         Assert.IsFalse(tune.SummarizeCommand.CanExecute(null), "a file of one fenced language is no document of sections");
         Assert.IsFalse(tune.SummaryWork!.IsEnabled);
         StringAssert.Contains(tune.SummaryWork.DisabledTip, "tune.abc", "and its button says so, not that a model is missing");
 
-        var draft = Make(out _, out _, draft: _folder);
+        var (draft, _, _) = await MakeAsync(draft: _folder);
         Assert.IsFalse(draft.OpenTranslateCommand.CanExecute(null), "nor is a draft not yet saved anywhere");
         Assert.IsFalse(draft.TranslationWork!.IsEnabled);
         Assert.AreNotEqual("No Documents model", draft.TranslationWork.DisabledTip, "which its button says too");
 
-        var unready = Make(out _, out _, works: false);
+        var (unready, _, _) = await MakeAsync(works: false);
         Assert.AreEqual("No Documents model", unready.SummaryWork!.DisabledTip, "with nothing else in the way, the model's own reason");
     }
 
     [TestMethod]
     [CoversNode("markdown-summarize")]
-    public void APackage_IsWorkedThroughAsAWhole_AsAWordDocumentIs_ItsPicturesWhereTheEditorReadsThem()
+    public async Task APackage_IsWorkedThroughAsAWhole_AsAWordDocumentIs_ItsPicturesWhereTheEditorReadsThem()
     {
-        var vm = Make(out _, out var ai, name: "pets.mdz");
+        var (vm, _, ai) = await MakeAsync(name: "pets.mdz");
 
         Assert.IsTrue(vm.SummarizeCommand.CanExecute(null), "a Markdown Package is a Markdown document");
         vm.SummarizeCommand.Execute(null);
@@ -168,10 +170,10 @@ public class MarkdownDocumentWorkTests
     [TestMethod]
     [CoversNode("markdown-summarize")]
     [CoversNode("markdown-translate")]
-    public void WorkUnderWay_IsShownOnItsButton_SayingWhatIsBeingDone()
+    public async Task WorkUnderWay_IsShownOnItsButton_SayingWhatIsBeingDone()
     {
         var watch = new WorkWatch();
-        var vm = Make(out _, out _, watch: watch);
+        var (vm, _, _) = await MakeAsync(watch: watch);
         Assert.IsFalse(vm.IsSummarizing || vm.IsTranslating);
 
         watch.Underway =
@@ -196,9 +198,9 @@ public class MarkdownDocumentWorkTests
 
     [TestMethod]
     [CoversNode("markdown-place-links")]
-    public void ALinkIntoAMarkdownFileAtAPlace_OpensItThere()
+    public async Task ALinkIntoAMarkdownFileAtAPlace_OpensItThere()
     {
-        var vm = Make(out var shell, out _);
+        var (vm, shell, _) = await MakeAsync();
         var target = Path.Combine(_folder, "notes.md");
 
         Assert.IsTrue(vm.FollowLink(new Uri(target).AbsoluteUri + "#heading%3Acats"));

@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using Nexaflow.Features.Pdf.Editing;
 using Nexaflow.Tests.Fixtures;
@@ -19,7 +20,7 @@ public class PdfArrangementWriterTests
 
     [TestMethod]
     [TestCategory("Unit")]
-    public void TheDocument_IsWrittenInTheOrderArranged_WithPagesFromAnotherDocument()
+    public async Task TheDocument_IsWrittenInTheOrderArranged_WithPagesFromAnotherDocument()
     {
         var path = TestSampleData.Path("pdf", "outline.pdf");
         using var source = PdfDocument.Open(path);
@@ -35,7 +36,7 @@ public class PdfArrangementWriterTests
         };
 
         using var output = new MemoryStream();
-        PdfArrangementWriter.Write(PdfPageArrangement.Of(pages), sources, Base, output, CancellationToken.None);
+        await PdfArrangementWriter.WriteAsync(VirtualFileSystem.Instance, PdfPageArrangement.Of(pages), sources, Base, output, CancellationToken.None);
 
         using var written = PdfDocument.Open(output.ToArray());
         Assert.AreEqual(count + 1, written.NumberOfPages);
@@ -46,12 +47,12 @@ public class PdfArrangementWriterTests
 
     [TestMethod]
     [TestCategory("Unit")]
-    public void ASourceThatCannotBeRead_SaysSo()
+    public async Task ASourceThatCannotBeRead_SaysSo()
     {
         var missing = Path.Combine(TestTemp.CreateSubdirectory().FullName, "gone.pdf");
         var pages = PdfPageArrangement.Of([new PdfArrangedPage(new PdfPageId(1), Base, 1)]);
 
-        Assert.ThrowsExactly<IOException>(() => PdfArrangementWriter.Write(
+        await Assert.ThrowsExactlyAsync<IOException>(() => PdfArrangementWriter.WriteAsync(VirtualFileSystem.Instance, 
             pages, new Dictionary<PdfSourceId, PdfSourceFile> { [Base] = new(missing, null) }, Base, new MemoryStream(), CancellationToken.None));
     }
 }

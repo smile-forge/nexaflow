@@ -5,6 +5,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Dicom.Services;
 using Nexaflow.Features.Dicom.ViewModels;
 using Nexaflow.Features.Dicom.Views;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Dicom;
@@ -18,10 +19,12 @@ namespace Nexaflow.Features.Dicom;
 public sealed class DicomTabRegistration : IPageRegistration
 {
     private readonly IShellServices _shell;
+    private readonly IVirtualFileSystem _vfs;
 
-    public DicomTabRegistration(IShellServices shell)
+    public DicomTabRegistration(IShellServices shell, IVirtualFileSystem vfs)
     {
         _shell = shell;
+        _vfs = vfs;
         // Install fo-dicom's native codecs once, up front, so the first render doesn't stall on setup.
         DicomBootstrap.EnsureInitialized();
     }
@@ -58,7 +61,7 @@ public sealed class DicomTabRegistration : IPageRegistration
 
         page.ContentFactory = () =>
         {
-            var vm = new DicomViewModel(paths, _shell, originParams);
+            var vm = new DicomViewModel(paths, _shell, _vfs, originParams);
             page.Closed += (_, _) => vm.Dispose();
             return new DicomView(vm);
         };
@@ -82,14 +85,15 @@ public sealed class DicomTabRegistration : IPageRegistration
         return [];
     }
 
+    /// <summary>A tab's title, from the path alone so defining the tab waits on nothing: a folder or a file by its name, a
+    /// DICOMDIR by the folder it indexes.</summary>
     private static string DisplayName(string path)
     {
-        if (Directory.Exists(path)) return new DirectoryInfo(path).Name;
         if (string.Equals(Path.GetFileName(path), "DICOMDIR", StringComparison.OrdinalIgnoreCase))
         {
             var dir = Path.GetDirectoryName(path);
-            return string.IsNullOrEmpty(dir) ? "DICOMDIR" : new DirectoryInfo(dir).Name;
+            return string.IsNullOrEmpty(dir) ? "DICOMDIR" : Path.GetFileName(dir.TrimEnd('/', '\\'));
         }
-        return Path.GetFileName(path);
+        return Path.GetFileName(path.TrimEnd('/', '\\')) is { Length: > 0 } name ? name : path;
     }
 }

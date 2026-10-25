@@ -41,7 +41,7 @@ public class OptionalExtensionTests
         });
     }
 
-    private static FileInfo Docx => new(@"C:\x\report.docx");
+    private static FileSubject Docx => FileSubject.ByName(@"C:\x\report.docx");
 
     [TestMethod]
     public void Optional_IsAvailable_WhenOptionalIncluded()

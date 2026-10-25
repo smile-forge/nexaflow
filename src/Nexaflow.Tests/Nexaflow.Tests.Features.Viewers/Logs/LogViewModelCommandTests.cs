@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Logs.ViewModels;
@@ -20,7 +21,7 @@ namespace Nexaflow.Tests.Features.Logs;
 public class LogViewModelCommandTests
 {
     private static LogViewModel Make()
-        => new("nonexistent.log", Substitute.For<IShellServices>()) { IsMonitoring = false };
+        => new("nonexistent.log", Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
 
     [TestMethod]
     [CoversNode("log-viewer-filter")]

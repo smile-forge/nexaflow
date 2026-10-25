@@ -535,7 +535,7 @@ public class CodeIntelligenceTests
 
     [TestMethod]
     [CoversNode("code-open-action")]
-    public void ShowCodeAction_OpensCodeTab()
+    public async Task ShowCodeAction_OpensCodeTab()
     {
         var shell = Substitute.For<IShellServices>();
         var action = new ShowCodeAction(shell);
@@ -544,7 +544,7 @@ public class CodeIntelligenceTests
         Assert.AreEqual("/text/code", action.ExperienceId);
         Assert.IsTrue(action.OpensViewer);
 
-        action.PerformAction(@"C:\x.cs");
+        await action.PerformActionAsync(@"C:\x.cs");
         shell.Received().OpenTab("Code", Arg.Is<Dictionary<string, string>>(d => d["path"] == @"C:\x.cs"));
     }
 

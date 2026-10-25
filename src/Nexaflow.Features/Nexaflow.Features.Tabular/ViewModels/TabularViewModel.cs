@@ -15,6 +15,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Tabular.Detection;
 using Nexaflow.Features.Tabular.Streaming;
 using Nexaflow.Features.Tabular.Templates;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Collections;
 using Nexaflow.Visuals.Common.Controls;
 using Nexaflow.Visuals.Common.Localization;
@@ -27,6 +28,9 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
     private const int   VisibleWindowSize       = 150;
 
     private readonly IShellServices _shell;
+
+    /// <summary>The runtime's file system the table is read through — on disk, in an archive or on a location.</summary>
+    private readonly IVirtualFileSystem _vfs;
     private readonly IAIService     _ai;
     private CancellationTokenSource _windowCts = new();
     private CancellationTokenSource? _countCts;
@@ -124,10 +128,11 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
 
     partial void OnShowOnlyCompatibleChanged(bool value) => RebuildPanelTemplates();
 
-    public TabularViewModel(string filePath, IShellServices shell, IAIService ai,
+    public TabularViewModel(string filePath, IShellServices shell, IVirtualFileSystem vfs, IAIService ai,
                             TabularTemplatesConfig templates, string? initialTransformsJson = null)
     {
         _shell                  = shell;
+        _vfs                    = vfs;
         _ai                     = ai;
         _templates              = templates;
         _initialTransformsJson  = initialTransformsJson;
@@ -307,7 +312,7 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
             StatusMessage = Str.Get("Tabular.Status.ReadingSample");
             BuildBreadcrumb();
 
-            _sample = await Task.Run(() => LineSamplingReader.Read(FilePath));
+            _sample = await Task.Run(() => LineSamplingReader.ReadAsync(_vfs, FilePath));
             FileSizeBytes = _sample.FileLength;
             EncodingName  = _sample.Encoding.WebName.ToUpperInvariant();
             // Estimate row count up-front so the synthetic scrollbar can scroll past the
@@ -392,8 +397,8 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
 
             IsSmallMode = FileSizeBytes < SmallFileThresholdBytes;
             _source     = IsSmallMode
-                ? new SmallFileLoader(FilePath, _sample.Encoding, _sample.BomByteCount, _data)
-                : (IRowSource)new RowWindowReader(FilePath, _sample.Encoding, _sample.BomByteCount, _data);
+                ? await SmallFileLoader.LoadAsync(_vfs, FilePath, _sample.Encoding, _sample.BomByteCount, _data)
+                : new RowWindowReader(_vfs, FilePath, _sample.Encoding, _sample.BomByteCount, _data);
 
             // Known count: immediate for small mode; deferred for large mode.
             if (_source is SmallFileLoader sm) KnownRowCount = sm.KnownRowCount;
@@ -402,7 +407,7 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
                 IsCountingRows = true;
                 _countCts = new CancellationTokenSource();
                 _counting = RowCounter.CountAsync(
-                    FilePath, _sample.BomByteCount, _data.RawShape,
+                    _vfs, FilePath, _sample.BomByteCount, _data.RawShape,
                     rows => _shell.RunOnUiAsync(() => GrowKnownRowCount(rows)),
                     _countCts.Token,
                     leadingCommentLines: _data.LeadingCommentCount,

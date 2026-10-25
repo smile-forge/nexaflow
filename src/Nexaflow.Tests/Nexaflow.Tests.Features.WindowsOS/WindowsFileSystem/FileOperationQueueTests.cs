@@ -70,7 +70,7 @@ public class FileOperationQueueTests
         var three = Folder("three", "c.txt");
         var dest  = Folder("dest");
 
-        var queue = FileOperationQueue.For(Shell());
+        var queue = FileOperationQueue.For(Shell(), VirtualFileSystem.Instance);
 
         // Nothing waits between these — that is the point. The first used to block the UI thread for
         // as long as it took, and a window with no message pump cannot be handed a second drop.
@@ -95,7 +95,7 @@ public class FileOperationQueueTests
         var src  = Folder("src", "a.txt");
         var dest = Folder("dest");
 
-        var op = FileOperationQueue.For(Shell()).EnqueueDrop([src], dest, move: false);
+        var op = FileOperationQueue.For(Shell(), VirtualFileSystem.Instance).EnqueueDrop([src], dest, move: false);
 
         Assert.IsNotNull(op);
         Assert.IsFalse(op.Completion.IsCompleted, "the enqueue does no IO of its own");
@@ -110,8 +110,8 @@ public class FileOperationQueueTests
         var ai    = Substitute.For<IAIService>();
         var cfg   = new Dictionary<Type, IFeatureConfig>();
 
-        var first  = new FileSystemViewModel(_scratch, shell, ai, cfg);
-        var second = new FileSystemViewModel(_scratch, shell, ai, cfg);
+        var first  = new FileSystemViewModel(_scratch, shell, ai, cfg, VirtualFileSystem.Instance);
+        var second = new FileSystemViewModel(_scratch, shell, ai, cfg, VirtualFileSystem.Instance);
 
         Assert.AreSame(first.Operations, second.Operations,
             "an operation started in one tab has to be visible from the next");
@@ -119,7 +119,7 @@ public class FileOperationQueueTests
 
     [TestMethod]
     public void ADifferentWorkspaceGetsItsOwnQueue()
-        => Assert.AreNotSame(FileOperationQueue.For(Shell()), FileOperationQueue.For(Shell()));
+        => Assert.AreNotSame(FileOperationQueue.For(Shell(), VirtualFileSystem.Instance), FileOperationQueue.For(Shell(), VirtualFileSystem.Instance));
 
     // ── Refusals ──────────────────────────────────────────────────────────────
 
@@ -131,7 +131,7 @@ public class FileOperationQueueTests
         Directory.CreateDirectory(inner);
 
         var shell = Shell();
-        var op    = FileOperationQueue.For(shell).EnqueueDrop([src], inner, move: false);
+        var op    = FileOperationQueue.For(shell, VirtualFileSystem.Instance).EnqueueDrop([src], inner, move: false);
 
         Assert.IsNull(op, "nothing is queued when there is nothing legal to do");
         shell.Received().ShowError(Arg.Is<string>(s => s.Contains("into itself")));
@@ -146,7 +146,7 @@ public class FileOperationQueueTests
         Directory.CreateDirectory(Path.Combine(dest, "src"));
         File.WriteAllText(Path.Combine(dest, "src", "a.txt"), "already here");
 
-        var op = FileOperationQueue.For(Shell()).EnqueueDrop([src], dest, move: false);
+        var op = FileOperationQueue.For(Shell(), VirtualFileSystem.Instance).EnqueueDrop([src], dest, move: false);
         await op!.Completion;
 
         Assert.AreEqual("already here", File.ReadAllText(Path.Combine(dest, "src", "a.txt")),
@@ -162,7 +162,7 @@ public class FileOperationQueueTests
         var src  = Folder("src", "a.txt");
         var dest = Folder("dest");
 
-        var op = FileOperationQueue.For(Shell()).EnqueueDrop([src], dest, move: true);
+        var op = FileOperationQueue.For(Shell(), VirtualFileSystem.Instance).EnqueueDrop([src], dest, move: true);
         op!.Cancel();
         await op.Completion;
 
@@ -193,7 +193,7 @@ public class FileOperationQueueTests
             File.WriteAllText(Path.Combine(src, $"f{i:D4}.txt"), "x");
         var dest = Folder("dest");
 
-        var op = FileOperationQueue.For(Shell()).EnqueueDrop([src], dest, move: false);
+        var op = FileOperationQueue.For(Shell(), VirtualFileSystem.Instance).EnqueueDrop([src], dest, move: false);
         Assert.IsNotNull(op);
 
         var spun = System.Diagnostics.Stopwatch.StartNew();
@@ -254,7 +254,7 @@ public class FileOperationQueueTests
     {
         var src   = Folder("src", "a.txt");
         var dest  = Folder("dest");
-        var queue = FileOperationQueue.For(Shell());
+        var queue = FileOperationQueue.For(Shell(), VirtualFileSystem.Instance);
 
         var op = queue.EnqueueDrop([src], dest, move: false);
         Assert.IsNotNull(op);

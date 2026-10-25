@@ -9,6 +9,7 @@ using Nexaflow.Features.Pdf.Reading;
 using Nexaflow.Features.Pdf.Rendering;
 using Nexaflow.Features.Pdf.Services;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editing.Paged;
@@ -62,13 +63,35 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     private readonly PdfConfig _config;
     private readonly CancellationTokenSource _cts = new();
     private string _path;          // as opened, then as last saved as — may be virtual (inside an archive)          // as opened — may be virtual (inside an archive)
-    private readonly string? _tempCopy;     // materialised copy to delete on dispose, if we made one
+    private string? _tempCopy;              // materialised copy to delete on dispose, if we made one
+
+    /// <summary>The runtime's file system the document is read and saved through.</summary>
+    private readonly IVirtualFileSystem _vfs;
+
+    /// <summary>The file as the file system last described it — its size for the properties, its version for the
+    /// readings kept of its pages.</summary>
+    private LocationEntry? _entry;
 
     private readonly PdfDocumentSession _session;
     private bool _disposed;
 
-    /// <summary>The document as a real file — what the default PDF application is handed.</summary>
-    public Uri FileUri { get; private set; }
+    /// <summary>
+    /// The document as a file on this disk, for the default PDF application, which cannot open one inside an archive: the
+    /// file itself, or a copy of one in an archive — deleted with the tab.
+    /// </summary>
+    public async Task<string> ExternalPathAsync()
+    {
+        var real = await RealizeLocalFileAsync(_path);
+        if (!string.Equals(real, _path, StringComparison.OrdinalIgnoreCase)) _tempCopy = real;
+        return real;
+    }
+
+    /// <summary>Reads what the file system says of the file now — after it is opened, saved or moved.</summary>
+    private async Task DescribeFileAsync()
+    {
+        try { _entry = await _vfs.GetEntryAsync(_path); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException) { _entry = null; }
+    }
 
     public string FileName { get; private set; }
 
@@ -185,10 +208,12 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
 
     /// <param name="reading">Page reading, which reads the document's scanned pages into Markdown, where the app has it.</param>
     /// <param name="ai">The workspace's AI, whose image model draws the scanned pages' diagrams again.</param>
-    public PdfViewModel(string path, IShellServices shell, PdfConfig config, IPageReading? reading = null, IAIService? ai = null)
+    public PdfViewModel(string path, IShellServices shell, IVirtualFileSystem vfs, PdfConfig config, IPageReading? reading = null,
+                        IAIService? ai = null)
     {
         _path    = path;
         _shell   = shell;
+        _vfs     = vfs;
         _config  = config;
         FileName = Path.GetFileName(path);
         Conversion = new PageConversion(reading, ai, shell);
@@ -198,12 +223,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
             if (e.PropertyName == nameof(PageConversion.HasStatus)) OnPropertyChanged(nameof(ShowsScansNotice));
         };
 
-        // A PDF inside an archive is virtual and the default PDF application can't open it; materialise a real copy
-        // and remember to delete it. A plain on-disk file passes straight through and gets no temp copy.
-        var real = RealizeLocalFile(path);
-        _tempCopy = string.Equals(real, path, StringComparison.OrdinalIgnoreCase) ? null : real;
-        FileUri   = new Uri(real);
-        _session  = new PdfDocumentSession(path);
+        _session  = new PdfDocumentSession(path, vfs);
         PagesPanel = new PdfPagesPanel(_session, shell, page => GoToPage(page), () => _source);
         _session.Changed         += OnArrangementChanged;
         _session.DocumentChanged += () => _ = _shell.RunOnUiAsync(() => _ = RefreshDocumentPanelAsync());
@@ -211,9 +231,9 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         _session.Moved           += OnMoved;
     }
 
-    private static string RealizeLocalFile(string filePath)
+    private async Task<string> RealizeLocalFileAsync(string filePath)
     {
-        try { return VirtualFileSystem.Instance.MaterializeFile(filePath); }
+        try { return await _vfs.MaterializeFileAsync(filePath); }
         catch { return filePath; }
     }
 
@@ -230,6 +250,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     public async Task LoadAsync(System.Windows.Media.Brush paper)
     {
         var opened = false;
+        await DescribeFileAsync();
         try
         {
             opened = await _session.OpenAsync(_cts.Token);
@@ -418,11 +439,12 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
             source = new PdfImageSource(copy, FileName, Draft: true);
         }
 
-        PdfImageExport.Queue(_shell, [source], target);
+        PdfImageExport.Queue(_shell, _vfs, [source], target);
     }
 
     private bool CanExtractImages() => PageCount > 0;
 
+    [LocalDiskOnly("a copy written for an extraction, in a folder of its own under the temp folder")]
     private static void TryDeleteDraft(string draft)
     {
         try
@@ -451,7 +473,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
                 return;
 
             await _session.SaveAsync(target, _cts.Token);
-            if (_tempCopy is not null) FileUri = new Uri(RealizeLocalFile(_path));
+            await DescribeFileAsync();
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
@@ -493,9 +515,8 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     {
         _path    = path;
         FileName = Path.GetFileName(path);
-        FileUri  = new Uri(RealizeLocalFile(path));
+        _ = DescribeFileAsync();
         OnPropertyChanged(nameof(FileName));
-        OnPropertyChanged(nameof(FileUri));
         Moved?.Invoke(path);
     }
 
@@ -516,8 +537,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     /// </summary>
     private PageSource PagesToRead(IReadOnlyList<int> numbers, string what)
     {
-        var file = new FileInfo(_path);
-        string key = $"{_path}|{(file.Exists ? file.Length : 0)}|{(file.Exists ? file.LastWriteTimeUtc.Ticks : 0)}|{_session.Arrangement.GetHashCode()}|{what}";
+        string key = $"{_path}|{_entry?.Size ?? 0}|{_entry?.Modified.ToUniversalTime().Ticks ?? 0}|{_session.Arrangement.GetHashCode()}|{what}";
         _askedPages = numbers;
         return new PageSource(key, _path, numbers.Count, (at, ct) => PagePictureAsync(numbers[at], ct),
             PdfTabRegistration.StaticPageKind, new Dictionary<string, string> { ["path"] = _path });
@@ -529,6 +549,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     /// <see cref="ReadingResolution"/>, or a scanned page at its own resolution where that is finer, its longest side held to
     /// <see cref="ReadingSide"/>. Null where the page cannot be drawn.
     /// </summary>
+    [LocalDiskOnly("page pictures written to the temp folder for the page reader")]
     private async Task<string?> PagePictureAsync(int number, CancellationToken ct)
     {
         if (_source is not { } source || number < 1 || number > source.PageCount) return null;
@@ -589,15 +610,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         if (info.ModifiedDate is { } md) yield return new PdfInfoRow(Str.Get("Pdf.Property.Modified"), md);
     }
 
-    private long? TryFileSize()
-    {
-        try
-        {
-            var fi = new FileInfo(_tempCopy ?? _path);
-            return fi.Exists ? fi.Length : null;
-        }
-        catch { return null; }
-    }
+    private long? TryFileSize() => _entry is { IsDirectory: false } file ? file.Size : null;
 
     /// <summary>
     /// Declines to parse a document past the viewer's own ceiling. Deliberately not the search ceiling: a
@@ -1250,7 +1263,13 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         _session.Dispose();
         _cts.Dispose();
 
-        // Only a copy we made ourselves — never the user's file.
+        DeleteTempCopy();
+    }
+
+    /// <summary>Only a copy we made ourselves — never the user's file.</summary>
+    [LocalDiskOnly("the copy of a PDF in an archive made for the default PDF application")]
+    private void DeleteTempCopy()
+    {
         if (_tempCopy is not null)
             try { File.Delete(_tempCopy); } catch { }
     }

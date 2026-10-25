@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -56,7 +57,7 @@ public class JsonFileLoaderTests
         var path = WriteText("""{ "a": 1, "b": "two", "c": [1, 2, 3] }""");
         try
         {
-            var result = await new JsonFileLoader().LoadAsync(path, CancellationToken.None);
+            var result = await new JsonFileLoader(VirtualFileSystem.Instance).LoadAsync(path, CancellationToken.None);
 
             Assert.IsNull(result.ErrorMessage);
             Assert.IsFalse(result.IsLargeFile);
@@ -73,7 +74,7 @@ public class JsonFileLoaderTests
         var path = WriteText("[10, 20, 30, 40, 50]");
         try
         {
-            var result = await new JsonFileLoader().LoadAsync(path, CancellationToken.None);
+            var result = await new JsonFileLoader(VirtualFileSystem.Instance).LoadAsync(path, CancellationToken.None);
 
             Assert.IsNull(result.ErrorMessage);
             var arr = result.Root as JsonArrayNodeModel;
@@ -89,7 +90,7 @@ public class JsonFileLoaderTests
         var path = WriteText("42");
         try
         {
-            var result = await new JsonFileLoader().LoadAsync(path, CancellationToken.None);
+            var result = await new JsonFileLoader(VirtualFileSystem.Instance).LoadAsync(path, CancellationToken.None);
 
             Assert.IsNull(result.ErrorMessage);
             var val = result.Root as JsonValueNodeModel;
@@ -105,7 +106,7 @@ public class JsonFileLoaderTests
         var path = WriteText("{ not valid json ");
         try
         {
-            var result = await new JsonFileLoader().LoadAsync(path, CancellationToken.None);
+            var result = await new JsonFileLoader(VirtualFileSystem.Instance).LoadAsync(path, CancellationToken.None);
 
             Assert.IsNull(result.Root);
             Assert.IsNotNull(result.ErrorMessage);
@@ -118,7 +119,7 @@ public class JsonFileLoaderTests
     {
         var missing = Path.Combine(TestTemp.Root, $"does_not_exist_{Guid.NewGuid():N}.json");
 
-        var result = await new JsonFileLoader().LoadAsync(missing, CancellationToken.None);
+        var result = await new JsonFileLoader(VirtualFileSystem.Instance).LoadAsync(missing, CancellationToken.None);
 
         Assert.IsNull(result.Root);
         StringAssert.Contains(result.ErrorMessage, "not found");
@@ -132,7 +133,7 @@ public class JsonFileLoaderTests
         var path = WriteLargeArray();
         try
         {
-            var result = await new JsonFileLoader().LoadAsync(path, CancellationToken.None);
+            var result = await new JsonFileLoader(VirtualFileSystem.Instance).LoadAsync(path, CancellationToken.None);
 
             Assert.IsNull(result.ErrorMessage);
             Assert.IsTrue(result.IsLargeFile);
@@ -156,7 +157,7 @@ public class JsonFileLoaderTests
         var path = WriteLargeArray();
         try
         {
-            var loader = new JsonFileLoader();
+            var loader = new JsonFileLoader(VirtualFileSystem.Instance);
             var result = await loader.LoadAsync(path, CancellationToken.None);
             var arr    = (JsonArrayNodeModel)result.Root!;
             var tail   = arr.Children.OfType<VirtualJsonNodeModel>().First();
@@ -180,7 +181,7 @@ public class JsonFileLoaderTests
         var path = WriteLargeArray(utf8Bom: true);
         try
         {
-            var result = await new JsonFileLoader().LoadAsync(path, CancellationToken.None);
+            var result = await new JsonFileLoader(VirtualFileSystem.Instance).LoadAsync(path, CancellationToken.None);
 
             Assert.IsNull(result.ErrorMessage);
             Assert.IsTrue(result.IsLargeFile);
@@ -196,7 +197,7 @@ public class JsonFileLoaderTests
         try
         {
             var fileSize = new FileInfo(path).Length;
-            var estimate = await new JsonFileLoader().EstimateAsync(path, fileSize, isArray: true, CancellationToken.None);
+            var estimate = await new JsonFileLoader(VirtualFileSystem.Instance).EstimateAsync(path, fileSize, isArray: true, CancellationToken.None);
 
             Assert.IsNotNull(estimate);
             Assert.IsTrue(estimate!.EstimatedCount > 0);

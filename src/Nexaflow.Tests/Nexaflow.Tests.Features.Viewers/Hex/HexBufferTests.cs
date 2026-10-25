@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using Nexaflow.Features.Hex.Buffer;
 using Nexaflow.Tests.Fixtures;
@@ -23,9 +24,9 @@ public class HexBufferTests
     }
 
     [TestMethod]
-    public void EmptyPath_GivesEmptyBuffer()
+    public async Task EmptyPath_GivesEmptyBuffer()
     {
-        using var buf = new HexBuffer(string.Empty);
+        using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, string.Empty);
         Assert.AreEqual(0, buf.FileLength);
         Assert.AreEqual(0, buf.VirtualLength);
         Assert.AreEqual(0, buf.TotalRows);
@@ -35,21 +36,21 @@ public class HexBufferTests
     }
 
     [TestMethod]
-    public void NonexistentPath_GivesEmptyBuffer()
+    public async Task NonexistentPath_GivesEmptyBuffer()
     {
-        using var buf = new HexBuffer(Path.Combine(TestTemp.Root, $"nope_{Guid.NewGuid():N}.bin"));
+        using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, Path.Combine(TestTemp.Root, $"nope_{Guid.NewGuid():N}.bin"));
         Assert.AreEqual(0, buf.FileLength);
         Assert.AreEqual(0, buf.VirtualLength);
     }
 
     [TestMethod]
-    public void OpenFile_ReadsOriginalBytes()
+    public async Task OpenFile_ReadsOriginalBytes()
     {
         var data = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
         var path = WriteTempFile(data);
         try
         {
-            using var buf = new HexBuffer(path);
+            using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
             Assert.AreEqual(data.Length, buf.FileLength);
             Assert.AreEqual(data.Length, buf.VirtualLength);
             CollectionAssert.AreEqual(data, ReadAllVirtual(buf));
@@ -58,24 +59,24 @@ public class HexBufferTests
     }
 
     [TestMethod]
-    public void TotalRows_RoundsUp()
+    public async Task TotalRows_RoundsUp()
     {
         var path = WriteTempFile(new byte[17]); // 16 + 1
         try
         {
-            using var buf = new HexBuffer(path);
+            using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
             Assert.AreEqual(2, buf.TotalRows);
         }
         finally { File.Delete(path); }
     }
 
     [TestMethod]
-    public void ReadByte_OutOfRange_ReturnsZero()
+    public async Task ReadByte_OutOfRange_ReturnsZero()
     {
         var path = WriteTempFile(new byte[] { 7, 8, 9 });
         try
         {
-            using var buf = new HexBuffer(path);
+            using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
             Assert.AreEqual(0, buf.ReadByte(-1));
             Assert.AreEqual(0, buf.ReadByte(3));
             Assert.AreEqual(0, buf.ReadByte(100));
@@ -84,12 +85,12 @@ public class HexBufferTests
     }
 
     [TestMethod]
-    public void ReadRange_StopsAtEnd()
+    public async Task ReadRange_StopsAtEnd()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
-            using var buf = new HexBuffer(path);
+            using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
             var range = buf.ReadRange(1, 5);
             Assert.AreEqual(5, range.Length);
             Assert.AreEqual(2, range[0]);
@@ -100,12 +101,12 @@ public class HexBufferTests
     }
 
     [TestMethod]
-    public void Overwrite_ChangesByteAndMarksEdited()
+    public async Task Overwrite_ChangesByteAndMarksEdited()
     {
         var path = WriteTempFile(new byte[] { 10, 20, 30, 40 });
         try
         {
-            using var buf = new HexBuffer(path);
+            using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
             buf.Overwrite(1, 0xAB);
 
             Assert.AreEqual(10, buf.ReadByte(0));
@@ -123,12 +124,12 @@ public class HexBufferTests
     }
 
     [TestMethod]
-    public void Overwrite_AtFirstAndLast_Works()
+    public async Task Overwrite_AtFirstAndLast_Works()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
-            using var buf = new HexBuffer(path);
+            using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
             buf.Overwrite(0, 0xAA);
             buf.Overwrite(2, 0xCC);
             CollectionAssert.AreEqual(new byte[] { 0xAA, 2, 0xCC }, ReadAllVirtual(buf));
@@ -137,12 +138,12 @@ public class HexBufferTests
     }
 
     [TestMethod]
-    public void Overwrite_OutOfRange_NoOp()
+    public async Task Overwrite_OutOfRange_NoOp()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
-            using var buf = new HexBuffer(path);
+            using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
             buf.Overwrite(-1, 0xFF);
             buf.Overwrite(3, 0xFF);
             Assert.IsFalse(buf.IsModified);
@@ -152,12 +153,12 @@ public class HexBufferTests
     }
 
     [TestMethod]
-    public void Insert_GrowsBuffer_AndShiftsTrailingBytes()
+    public async Task Insert_GrowsBuffer_AndShiftsTrailingBytes()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
-            using var buf = new HexBuffer(path);
+            using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
             buf.Insert(1, 0x99);
 
             Assert.AreEqual(4, buf.VirtualLength);
@@ -169,12 +170,12 @@ public class HexBufferTests
     }
 
     [TestMethod]
-    public void Insert_AtStart_PrependsByte()
+    public async Task Insert_AtStart_PrependsByte()
     {
         var path = WriteTempFile(new byte[] { 1, 2 });
         try
         {
-            using var buf = new HexBuffer(path);
+            using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
             buf.Insert(0, 0x77);
             CollectionAssert.AreEqual(new byte[] { 0x77, 1, 2 }, ReadAllVirtual(buf));
         }
@@ -182,12 +183,12 @@ public class HexBufferTests
     }
 
     [TestMethod]
-    public void Insert_AtEnd_AppendsByte()
+    public async Task Insert_AtEnd_AppendsByte()
     {
         var path = WriteTempFile(new byte[] { 1, 2 });
         try
         {
-            using var buf = new HexBuffer(path);
+            using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
             buf.Insert(2, 0x77); // at VirtualLength
             CollectionAssert.AreEqual(new byte[] { 1, 2, 0x77 }, ReadAllVirtual(buf));
             Assert.AreEqual(3, buf.VirtualLength);
@@ -196,12 +197,12 @@ public class HexBufferTests
     }
 
     [TestMethod]
-    public void Insert_OutOfRange_NoOp()
+    public async Task Insert_OutOfRange_NoOp()
     {
         var path = WriteTempFile(new byte[] { 1, 2 });
         try
         {
-            using var buf = new HexBuffer(path);
+            using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
             buf.Insert(-1, 0xFF);
             buf.Insert(99, 0xFF);
             Assert.IsFalse(buf.IsModified);
@@ -211,12 +212,12 @@ public class HexBufferTests
     }
 
     [TestMethod]
-    public void Delete_RemovesByte_AndShortensBuffer()
+    public async Task Delete_RemovesByte_AndShortensBuffer()
     {
         var path = WriteTempFile(new byte[] { 10, 20, 30, 40 });
         try
         {
-            using var buf = new HexBuffer(path);
+            using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
             buf.Delete(1);
 
             Assert.AreEqual(3, buf.VirtualLength);
@@ -227,12 +228,12 @@ public class HexBufferTests
     }
 
     [TestMethod]
-    public void Delete_OutOfRange_NoOp()
+    public async Task Delete_OutOfRange_NoOp()
     {
         var path = WriteTempFile(new byte[] { 1, 2 });
         try
         {
-            using var buf = new HexBuffer(path);
+            using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
             buf.Delete(-1);
             buf.Delete(2);
             Assert.IsFalse(buf.IsModified);
@@ -243,12 +244,12 @@ public class HexBufferTests
 
     [TestMethod]
     [CoversNode("hex-undo-redo")]
-    public void Undo_ReversesOverwrite()
+    public async Task Undo_ReversesOverwrite()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
-            using var buf = new HexBuffer(path);
+            using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
             buf.Overwrite(1, 0xFF);
             buf.Undo();
 
@@ -262,12 +263,12 @@ public class HexBufferTests
 
     [TestMethod]
     [CoversNode("hex-undo-redo")]
-    public void Undo_ReversesInsertAndDelete()
+    public async Task Undo_ReversesInsertAndDelete()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
-            using var buf = new HexBuffer(path);
+            using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
             buf.Insert(1, 0x99);
             buf.Delete(0);
             Assert.AreEqual(3, buf.VirtualLength);
@@ -283,12 +284,12 @@ public class HexBufferTests
 
     [TestMethod]
     [CoversNode("hex-undo-redo")]
-    public void Redo_ReappliesEdit()
+    public async Task Redo_ReappliesEdit()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
-            using var buf = new HexBuffer(path);
+            using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
             buf.Overwrite(0, 0xAB);
             buf.Undo();
             buf.Redo();
@@ -301,12 +302,12 @@ public class HexBufferTests
 
     [TestMethod]
     [CoversNode("hex-undo-redo")]
-    public void NewEdit_ClearsRedoStack()
+    public async Task NewEdit_ClearsRedoStack()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
-            using var buf = new HexBuffer(path);
+            using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
             buf.Overwrite(0, 0xAA);
             buf.Undo();
             Assert.IsTrue(buf.CanRedo);
@@ -318,17 +319,17 @@ public class HexBufferTests
     }
 
     [TestMethod]
-    public void Save_PersistsEdits_AndClearsModified()
+    public async Task Save_PersistsEdits_AndClearsModified()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3, 4 });
         try
         {
-            using (var buf = new HexBuffer(path))
+            using (var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path))
             {
                 buf.Overwrite(1, 0x99);
                 buf.Insert(0, 0xAA);
                 buf.Delete(4); // delete the original "4" (now at index 4 after insert)
-                buf.Save();
+                await buf.SaveAsync();
 
                 Assert.IsFalse(buf.IsModified);
                 Assert.IsFalse(buf.CanUndo);
@@ -341,16 +342,16 @@ public class HexBufferTests
     }
 
     [TestMethod]
-    public void SaveAs_WritesToDifferentFile_AndKeepsOriginal()
+    public async Task SaveAs_WritesToDifferentFile_AndKeepsOriginal()
     {
         var src  = WriteTempFile(new byte[] { 1, 2, 3 });
         var dest = Path.Combine(TestTemp.Root, $"hexbuf_dest_{Guid.NewGuid():N}.bin");
         try
         {
-            using (var buf = new HexBuffer(src))
+            using (var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, src))
             {
                 buf.Overwrite(0, 0xEE);
-                buf.Save(dest);
+                await buf.SaveAsync(dest);
             }
             CollectionAssert.AreEqual(new byte[] { 0xEE, 2, 3 }, File.ReadAllBytes(dest));
             CollectionAssert.AreEqual(new byte[] { 1, 2, 3 },    File.ReadAllBytes(src));
@@ -364,7 +365,7 @@ public class HexBufferTests
 
     [TestMethod]
     [CoversNode("hex-windowing")]
-    public void LargeFile_ReadAcrossWindowBoundaries_IsCorrect()
+    public async Task LargeFile_ReadAcrossWindowBoundaries_IsCorrect()
     {
         // > 8 KB so multiple window loads are required during scan
         var data = new byte[20_000];
@@ -372,7 +373,7 @@ public class HexBufferTests
         var path = WriteTempFile(data);
         try
         {
-            using var buf = new HexBuffer(path);
+            using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
             // Sample at scattered offsets that force window re-loads.
             int[] samples = { 0, 1, 4095, 4096, 8191, 8192, 12_345, 19_999 };
             foreach (var o in samples)
@@ -383,14 +384,14 @@ public class HexBufferTests
 
     [TestMethod]
     [CoversNode("hex-windowing")]
-    public void EnsureWindow_DoesNotMutateContent()
+    public async Task EnsureWindow_DoesNotMutateContent()
     {
         var data = new byte[10_000];
         for (int i = 0; i < data.Length; i++) data[i] = (byte)(i & 0xFF);
         var path = WriteTempFile(data);
         try
         {
-            using var buf = new HexBuffer(path);
+            using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
             buf.EnsureWindow(topRow: 500, visibleRows: 30);
             Assert.AreEqual(data[8_000], buf.ReadByte(8_000));
             buf.EnsureWindow(topRow: 0, visibleRows: 30);
@@ -400,12 +401,12 @@ public class HexBufferTests
     }
 
     [TestMethod]
-    public void IsEdited_FalseForOriginalBytes_TrueForAddBufferBytes()
+    public async Task IsEdited_FalseForOriginalBytes_TrueForAddBufferBytes()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
-            using var buf = new HexBuffer(path);
+            using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
             Assert.IsFalse(buf.IsEdited(0));
             buf.Overwrite(0, 0x42);
             Assert.IsTrue(buf.IsEdited(0));
@@ -416,12 +417,12 @@ public class HexBufferTests
 
     [TestMethod]
     [CoversNode("hex-undo-redo")]
-    public void RepeatedEdits_OnSameOffset_AllReversibleInOrder()
+    public async Task RepeatedEdits_OnSameOffset_AllReversibleInOrder()
     {
         var path = WriteTempFile(new byte[] { 0, 0, 0 });
         try
         {
-            using var buf = new HexBuffer(path);
+            using var buf = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
             buf.Overwrite(1, 0xAA);
             buf.Overwrite(1, 0xBB);
             buf.Overwrite(1, 0xCC);

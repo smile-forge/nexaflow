@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -39,7 +40,7 @@ public class TabularSurfaceTests
     private static TabularViewModel Load(string csv)
     {
         var vm = new TabularViewModel(csv,
-            Substitute.For<IShellServices>(), Substitute.For<IAIService>(), new TabularTemplatesConfig());
+            Substitute.For<IShellServices>(), VirtualFileSystem.Instance, Substitute.For<IAIService>(), new TabularTemplatesConfig());
         vm.Ready.GetAwaiter().GetResult();
         return vm;
     }
@@ -147,7 +148,7 @@ public class TabularSurfaceTests
         try
         {
             var shell = Substitute.For<IShellServices>();
-            var vm = new TabularViewModel(csv, shell, Substitute.For<IAIService>(), new TabularTemplatesConfig());
+            var vm = new TabularViewModel(csv, shell, VirtualFileSystem.Instance, Substitute.For<IAIService>(), new TabularTemplatesConfig());
             vm.Ready.GetAwaiter().GetResult();
 
             Assert.IsTrue(vm.PathBreadcrumb.Count > 0, "the tab shows a folder › file trail");
@@ -170,7 +171,7 @@ public class TabularSurfaceTests
 
     [TestMethod]
     [CoversNode("tabular-open-action")]
-    public void AsTableAction_OpensTheTabularTab_WithThePath()
+    public async Task AsTableAction_OpensTheTabularTab_WithThePath()
     {
         var shell = Substitute.For<IShellServices>();
         var action = new ShowTabularAction(shell);
@@ -180,7 +181,7 @@ public class TabularSurfaceTests
         Assert.IsTrue(action.OpensViewer);
         Assert.IsFalse(action.IsDestructive);
 
-        Assert.IsTrue(action.PerformAction(@"C:\data\sales.csv"));
+        Assert.IsTrue(await action.PerformActionAsync(@"C:\data\sales.csv"));
 
         shell.Received(1).OpenTab("Tabular",
             Arg.Is<Dictionary<string, string>>(p => p["path"] == @"C:\data\sales.csv"),

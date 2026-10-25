@@ -5,6 +5,7 @@ using System.Linq;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Font.ViewModels;
 using Nexaflow.Features.Font.Views;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Font;
@@ -15,7 +16,7 @@ namespace Nexaflow.Features.Font;
 /// first preselected. The view-model owns a temp-file resolver for decoded WOFF, disposed on
 /// <see cref="Page.Closed"/>.
 /// </summary>
-public sealed class FontTabRegistration(IShellServices shell) : IPageRegistration
+public sealed class FontTabRegistration(IShellServices shell, IVirtualFileSystem vfs) : IPageRegistration
 {
     public static string StaticPageKind => "Font";
     public string PageKind => StaticPageKind;
@@ -58,7 +59,7 @@ public sealed class FontTabRegistration(IShellServices shell) : IPageRegistratio
 
         page.ContentFactory = () =>
         {
-            var vm = new FontViewModel(paths, shell);
+            var vm = new FontViewModel(paths, shell, vfs);
             page.Closed += (_, _) => vm.Dispose();
             return new FontView(vm);
         };

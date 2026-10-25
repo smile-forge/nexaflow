@@ -224,7 +224,10 @@ add it to the first-run wizard. Implement `IConfigMigration` to fix shape change
 
 Context actions discovered by `FileSystemFeatureRegistry` (in Core, **not** `FeatureManager`) across Core and
 every feature. Viewer-opener actions live in the owning feature; system actions (copy/rename…) live in
-`Nexaflow.Core.FileActions`. The constructor receives `IShellServices` by injection.
+`Nexaflow.Core.FileActions`. The constructor receives `IShellServices` by injection, and the runtime's
+`IVirtualFileSystem` when it asks for one. `PerformActionAsync` and `CreateItemAsync` are awaitable: an action that
+touches files does so through that file system, so it works on a mount, in an archive and on a location alike, and
+one that only opens a tab answers at once.
 
 - `IFileAction` is matched to a file by hierarchical `ExperienceId` (e.g. `/binary/installer`) via
   `FileMapManager`; parent ids satisfy child experiences, and the user maps experiences→file-types in Options.

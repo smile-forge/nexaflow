@@ -11,6 +11,7 @@ using Nexaflow.Features.Email.Model;
 using Nexaflow.Features.Email.Reading;
 using Nexaflow.Features.Email.Services;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 using Nexaflow.Markdown.Rtf;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
@@ -32,6 +33,9 @@ internal sealed partial class EmailViewModel : ObservableObject, IPageViewModel,
 {
     private readonly IShellServices _shell;
     private readonly string _path;
+
+    /// <summary>The runtime's file system the message is read through — on disk, in an archive or on a location.</summary>
+    private readonly IVirtualFileSystem _vfs;
     private HtmlBodyExporter? _exporter;
     private EmailDocument? _doc;
 
@@ -85,18 +89,23 @@ internal sealed partial class EmailViewModel : ObservableObject, IPageViewModel,
     /// <summary>Whether the body is drawn as the rich text it was written as, rather than as markdown made from HTML or plain text.</summary>
     public bool IsRichText => RenderedLanguage is not null;
 
-    public EmailViewModel(string path, IShellServices shell)
+    public EmailViewModel(string path, IShellServices shell, IVirtualFileSystem vfs)
     {
-        _path = path;
+        _path  = path;
         _shell = shell;
-        Load();
+        _vfs   = vfs;
+        Loaded = LoadAsync();
     }
 
-    private void Load()
+    /// <summary>The message read and the page filled from it, or the reason it could not be. Started by the constructor,
+    /// because the file may be on a location, where reading it is a round trip nothing should wait for.</summary>
+    public Task Loaded { get; }
+
+    private async Task LoadAsync()
     {
         try
         {
-            using var stream = VirtualFileSystem.Instance.OpenRead(_path);
+            await using var stream = await _vfs.OpenReadAsync(_path, ReadIntent.Whole);
             var doc = EmailDocumentReader.Instance.Read(stream, Path.GetFileName(_path));
             _doc = doc;
             _exporter = new HtmlBodyExporter(doc);

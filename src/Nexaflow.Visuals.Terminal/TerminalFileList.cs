@@ -1,4 +1,5 @@
 using System.IO;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Terminal.Models;
 
 namespace Nexaflow.Visuals.Terminal;
@@ -17,6 +18,7 @@ public static class TerminalFileList
     /// <summary>Lists <paramref name="path"/>. An unreadable or missing directory lists as empty rather
     /// than throwing — the panel sits beside a live shell that can be anywhere, including somewhere it has
     /// just been denied.</summary>
+    [LocalDiskOnly("the local shell's working folder, on this computer")]
     public static IReadOnlyList<TerminalFsEntry> Enumerate(string? path)
     {
         var entries = new List<TerminalFsEntry>();

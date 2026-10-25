@@ -22,7 +22,7 @@ public sealed class CmdTerminalViewModel : TerminalViewModel
         string?              initialPath,
         TerminalEnvironment? initialEnv,
         bool                 pickerPending = false)
-        : base(new PseudoConsoleHostService(), shell, ai)
+        : base(new PseudoConsoleLauncher(), shell, ai)
     {
         _config = config;
         SetupInitialState(initialEnv, initialPath, pickerPending);

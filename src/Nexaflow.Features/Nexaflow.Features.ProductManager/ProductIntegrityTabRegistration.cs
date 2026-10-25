@@ -33,7 +33,7 @@ public sealed class ProductIntegrityTabRegistration : IPageRegistration
     {
         var root  = ProductRootLocator.Resolve(pageParams);
         var title = root is not null
-            ? Str.Format("ProductManager.Integrity.Page.TitleFormat", new DirectoryInfo(root).Name)
+            ? Str.Format("ProductManager.Integrity.Page.TitleFormat", ProductStore.NameOfRoot(root))
             : Str.Get("ProductManager.Integrity.Page.Title");
 
         var tab = new Page

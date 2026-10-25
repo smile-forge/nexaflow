@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Dotnet.Services;
 
@@ -14,6 +15,7 @@ namespace Nexaflow.Features.Dotnet.Services;
 /// LocalAppData. Best-effort — any IO/parse failure just falls back to the guess.
 /// </para>
 /// </summary>
+[LocalDiskOnly("the startup project each solution last ran, in the app's data folder")]
 public static class StartupProjectCache
 {
     private static readonly object _gate = new();

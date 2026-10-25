@@ -1,4 +1,5 @@
 using Nexaflow.Features.WindowsFileSystem.FileActions;
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -12,6 +13,7 @@ namespace Nexaflow.Features.WindowsFileSystem.Services;
 /// definition, and prunes orphaned files no definition references. Unit-testable against a
 /// temp directory.
 /// </summary>
+[LocalDiskOnly("templated-create sources copied into, and pruned from, the app's config folder")]
 public static class TemplateStore
 {
     /// <summary>

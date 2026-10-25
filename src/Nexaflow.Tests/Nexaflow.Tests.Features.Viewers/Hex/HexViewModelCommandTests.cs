@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Hex.ViewModels;
@@ -27,12 +28,13 @@ public class HexViewModelCommandTests
 
     [TestMethod]
     [CoversNode("hex-save")]
-    public void SaveCommands_DisabledUntilModified_ThenEnabled()
+    public async Task SaveCommands_DisabledUntilModified_ThenEnabled()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
-            using var vm = new HexViewModel(path, Substitute.For<IShellServices>());
+            using var vm = new HexViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
+            await vm.Loaded;
             Assert.IsFalse(vm.IsModified);
             Assert.IsFalse(vm.SaveCommand.CanExecute(null), "Save should be disabled on a clean buffer.");
             Assert.IsFalse(vm.SaveAsCommand.CanExecute(null), "Save As should be disabled on a clean buffer.");
@@ -49,17 +51,18 @@ public class HexViewModelCommandTests
 
     [TestMethod]
     [CoversNode("hex-save")]
-    public void Save_PersistsEdit_ClearsDirty_AndRedisablesSave()
+    public async Task Save_PersistsEdit_ClearsDirty_AndRedisablesSave()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
-            var vm = new HexViewModel(path, Substitute.For<IShellServices>());
+            var vm = new HexViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
+            await vm.Loaded;
             vm.SetModeOverwriteCommand.Execute(null);
             vm.WriteByte(0, 0x42);
             Assert.IsTrue(vm.SaveCommand.CanExecute(null));
 
-            vm.SaveCommand.Execute(null);
+            await vm.SaveCommand.ExecuteAsync(null);
 
             Assert.IsFalse(vm.IsModified, "Save must clear the dirty flag.");
             Assert.IsFalse(vm.SaveCommand.CanExecute(null), "Save must re-disable after a clean save.");
@@ -74,19 +77,20 @@ public class HexViewModelCommandTests
 
     [TestMethod]
     [CoversNode("hex-save")]
-    public void Save_WhenBufferSaveThrows_ReportsViaShell_AndStaysDirty()
+    public async Task Save_WhenBufferSaveThrows_ReportsViaShell_AndStaysDirty()
     {
         // Read-only file makes the atomic File.Replace path throw inside Buffer.Save.
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
             var shell = Substitute.For<IShellServices>();
-            using var vm = new HexViewModel(path, shell);
+            using var vm = new HexViewModel(path, shell, VirtualFileSystem.Instance);
+            await vm.Loaded;
             vm.SetModeOverwriteCommand.Execute(null);
             vm.WriteByte(0, 0x55);
 
             File.SetAttributes(path, FileAttributes.ReadOnly);
-            vm.SaveCommand.Execute(null);
+            await vm.SaveCommand.ExecuteAsync(null);
 
             shell.Received().ShowError(Arg.Is<string>(m => m.Contains("Save failed")));
             Assert.IsTrue(vm.IsModified, "A failed save must leave the buffer dirty.");
@@ -102,12 +106,13 @@ public class HexViewModelCommandTests
 
     [TestMethod]
     [CoversNode("hex-undo-redo")]
-    public void UndoRedo_CanExecute_TracksBufferHistory()
+    public async Task UndoRedo_CanExecute_TracksBufferHistory()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
-            using var vm = new HexViewModel(path, Substitute.For<IShellServices>());
+            using var vm = new HexViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
+            await vm.Loaded;
             Assert.IsFalse(vm.UndoCommand.CanExecute(null), "No history yet — undo disabled.");
             Assert.IsFalse(vm.RedoCommand.CanExecute(null), "No history yet — redo disabled.");
 
@@ -125,12 +130,13 @@ public class HexViewModelCommandTests
 
     [TestMethod]
     [CoversNode("hex-undo-redo")]
-    public void RedoCommand_ReappliesEdit_AndRestoresDirtyState()
+    public async Task RedoCommand_ReappliesEdit_AndRestoresDirtyState()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
-            using var vm = new HexViewModel(path, Substitute.For<IShellServices>());
+            using var vm = new HexViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
+            await vm.Loaded;
             vm.SetModeOverwriteCommand.Execute(null);
             vm.WriteByte(0, 0xBC);
             vm.UndoCommand.Execute(null);
@@ -149,12 +155,13 @@ public class HexViewModelCommandTests
 
     [TestMethod]
     [CoversNode("hex-undo-redo")]
-    public void NewEdit_AfterUndo_ClearsRedoAvailability()
+    public async Task NewEdit_AfterUndo_ClearsRedoAvailability()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
-            using var vm = new HexViewModel(path, Substitute.For<IShellServices>());
+            using var vm = new HexViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
+            await vm.Loaded;
             vm.SetModeOverwriteCommand.Execute(null);
             vm.WriteByte(0, 0xAA);
             vm.UndoCommand.Execute(null);
@@ -169,12 +176,13 @@ public class HexViewModelCommandTests
 
     [TestMethod]
     [CoversNode("hex-undo-redo")]
-    public void MultipleEdits_UndoStackUnwinds_ToCleanState()
+    public async Task MultipleEdits_UndoStackUnwinds_ToCleanState()
     {
         var path = WriteTempFile(new byte[] { 1, 2, 3 });
         try
         {
-            using var vm = new HexViewModel(path, Substitute.For<IShellServices>());
+            using var vm = new HexViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
+            await vm.Loaded;
             vm.SetModeOverwriteCommand.Execute(null);
             vm.WriteByte(0, 0x11);
             vm.WriteByte(1, 0x22);
@@ -196,9 +204,10 @@ public class HexViewModelCommandTests
     // ── Goto clamping edge cases not covered elsewhere ──────────────────────────
 
     [TestMethod]
-    public void GotoOffset_OnEmptyBuffer_LeavesCursorUnset()
+    public async Task GotoOffset_OnEmptyBuffer_LeavesCursorUnset()
     {
-        using var vm = new HexViewModel(string.Empty, Substitute.For<IShellServices>());
+        using var vm = new HexViewModel(string.Empty, Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
+        await vm.Loaded;
         vm.GotoText = "0x10";
         vm.GotoOffsetCommand.Execute(null);
         Assert.AreEqual(0, vm.CursorOffset, "With no bytes, goto clamps to offset 0.");
@@ -206,12 +215,13 @@ public class HexViewModelCommandTests
     }
 
     [TestMethod]
-    public void GotoOffset_EmptyText_JumpsToStart()
+    public async Task GotoOffset_EmptyText_JumpsToStart()
     {
         var path = WriteTempFile(new byte[64]);
         try
         {
-            using var vm = new HexViewModel(path, Substitute.For<IShellServices>());
+            using var vm = new HexViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
+            await vm.Loaded;
             vm.SetCursor(20);
             vm.GotoText = "   ";           // whitespace → parses as 0
             vm.GotoOffsetCommand.Execute(null);

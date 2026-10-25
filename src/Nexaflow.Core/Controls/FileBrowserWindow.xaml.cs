@@ -85,12 +85,16 @@ internal sealed class FileBrowserViewModel
 
     public FileBrowserViewModel(IReadOnlyList<string>? extensions,
                                 WorkspaceRuntime? workspace = null,
-                                IReadOnlyList<ThisPcPlace>? places = null,
+                                IReadOnlyList<ThisPcRow>? rows = null,
                                 Action<FileNodeViewModel>? ticked = null)
     {
-        foreach (var place in places ?? PickerRoots.For(workspace))
-            Roots.Add(new FileNodeViewModel(place.RealPath, place.Label, isDirectory: true, extensions,
-                                            PickerRoots.GlyphFor(place.Icon), ticked));
+        foreach (var row in rows ?? PickerRoots.For(workspace))
+        {
+            var root = new FileNodeViewModel(row.Item.TargetPath, row.Item.Label, isDirectory: true, extensions,
+                                             PickerRoots.GlyphFor(row.Item.Icon), ticked);
+            Roots.Add(root);
+            _ = PickerRoots.SettleAsync(Roots, root, row);
+        }
     }
 }
 

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Markdown;
 

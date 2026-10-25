@@ -11,6 +11,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Compressed.ViewModels;
@@ -24,7 +25,7 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
 {
     private readonly IShellServices _shell;
     private readonly IVirtualFileSystem _vfs;
-    private readonly Services.ArchiveSignatureService _signer = new();
+    private readonly Services.ArchiveSignatureService _signer;
     private readonly IArchiveEncryptor? _encryptor;
 
     // ── Overlays (choice picker + password) ────────────────────────────────────
@@ -85,17 +86,21 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
     {
         _shell = shell;
         _vfs = vfs;
+        _signer = new Services.ArchiveSignatureService(vfs);
         _encryptor = shell.DiscoverImplementations<IArchiveEncryptor>()
             .Select(t => { try { return Activator.CreateInstance(t) as IArchiveEncryptor; } catch { return null; } })
             .FirstOrDefault(e => e is not null);
         ArchivePath = path;
         FileName = string.IsNullOrEmpty(path) ? Str.Get("Compressed.Page.Title") : Path.GetFileName(path);
-        Load();
+        Loaded = LoadAsync();
     }
+
+    /// <summary>The archive's first reading — awaited by tests; not part of the UI flow.</summary>
+    public Task Loaded { get; }
 
     // ── Loading ────────────────────────────────────────────────────────────────
 
-    private void Load()
+    private async Task LoadAsync()
     {
         // Every action that reaches here rewrites the archive (add, recompress), so the tree is rebuilt
         // from scratch — the search's node references would point at entries that no longer exist.
@@ -105,7 +110,7 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
         _root = null;
 
         ArchiveSummary? summary = null;
-        try { summary = _vfs.DescribeArchive(ArchivePath); }
+        try { summary = await _vfs.DescribeArchiveAsync(ArchivePath); }
         catch (Exception ex) { StatusText = Str.Format("Compressed.Status.ReadFailedFormat", ex.Message); }
 
         if (summary is null)
@@ -134,7 +139,7 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
         CompressedSizeText = ArchiveNode.FormatBytes(comp);
         RatioText = total > 0 ? Str.Format("Compressed.Meta.RatioFormat", 100.0 * (1.0 - (double)comp / total)) : "—";
         EncryptionText = summary.IsEncrypted ? Str.Get("Compressed.Meta.Encrypted") : Str.Get("Compressed.Meta.NotEncrypted");
-        HasSignature = _signer.HasSignature(ArchivePath);
+        HasSignature = await _signer.HasSignatureAsync(ArchivePath);
         SignatureText = HasSignature ? Str.Get("Compressed.Signature.SignedUnchecked") : Str.Get("Compressed.Signature.Unsigned");
         Comment = summary.Comment;
         HasComment = !string.IsNullOrWhiteSpace(summary.Comment);
@@ -256,7 +261,7 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
         var dest = await _shell.PickFolderAsync(Path.GetDirectoryName(ArchivePath));
         if (string.IsNullOrEmpty(dest)) return;
         var path = ArchivePath;
-        await RunBusy(Str.Get("Compressed.Status.Extracting"), () => _vfs.ExtractAll(path, dest));
+        await RunBusyAsync(Str.Get("Compressed.Status.Extracting"), () => _vfs.ExtractAllAsync(path, dest).AsTask());
         StatusText = Str.Format("Compressed.Status.ExtractedFormat", dest);
     }
 
@@ -271,26 +276,34 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
     [RelayCommand(CanExecute = nameof(IsRecognised))]
     private async Task Test()
     {
-        var summary = _vfs.DescribeArchive(ArchivePath);
+        var summary = await _vfs.DescribeArchiveAsync(ArchivePath);
         if (summary is null) { StatusText = Str.Get("Compressed.Status.NothingToTest"); return; }
         var path = ArchivePath;
-        int ok = 0, bad = 0;
-        await RunBusy(Str.Get("Compressed.Status.Testing"), () =>
-        {
-            foreach (var e in summary.Entries.Where(e => !e.IsDirectory))
-            {
-                try
-                {
-                    using var s = _vfs.OpenRead(Path.Combine(path, e.Name.Replace('/', Path.DirectorySeparatorChar)));
-                    s.CopyTo(Stream.Null);
-                    ok++;
-                }
-                catch { bad++; }
-            }
-        });
+        (int Ok, int Bad) read = default;
+        await RunBusyAsync(Str.Get("Compressed.Status.Testing"), async () => read = await ReadEveryEntryAsync(path, summary));
+        var (ok, bad) = read;
         StatusText = bad > 0 ? Str.Format("Compressed.Status.TestFailedFormat", bad, ok + bad)
             : ok == 1 ? Str.Format("Compressed.Status.TestPassedOne", ok)
             : Str.Format("Compressed.Status.TestPassedFormat", ok);
+    }
+
+    /// <summary>Reads every file entry of <paramref name="summary"/> back through the file system: how many read
+    /// whole, and how many failed.</summary>
+    private async Task<(int Ok, int Bad)> ReadEveryEntryAsync(string archivePath, ArchiveSummary summary)
+    {
+        int ok = 0, bad = 0;
+        foreach (var e in summary.Entries.Where(e => !e.IsDirectory))
+        {
+            try
+            {
+                var entry = Path.Combine(archivePath, e.Name.Replace('/', Path.DirectorySeparatorChar));
+                await using var s = await _vfs.OpenReadAsync(entry, ReadIntent.Sequential);
+                await s.CopyToAsync(Stream.Null);
+                ok++;
+            }
+            catch { bad++; }
+        }
+        return (ok, bad);
     }
 
     [RelayCommand(CanExecute = nameof(IsRecognised))]
@@ -298,7 +311,7 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
     {
         var path = ArchivePath;
         string fingerprint = string.Empty;
-        await RunBusy(Str.Get("Compressed.Status.Signing"), () => fingerprint = _signer.Sign(path));
+        await RunBusyAsync(Str.Get("Compressed.Status.Signing"), async () => fingerprint = await _signer.SignAsync(path));
         HasSignature = true;
         SignatureText = Str.Format("Compressed.Signature.SignedFormat", fingerprint);
         StatusText = Str.Get("Compressed.Status.Signed");
@@ -308,10 +321,10 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
     private async Task Verify()
     {
         var path = ArchivePath;
-        if (!_signer.HasSignature(path)) { SignatureText = Str.Get("Compressed.Signature.Unsigned"); StatusText = Str.Get("Compressed.Status.NoSignature"); return; }
+        if (!await _signer.HasSignatureAsync(path)) { SignatureText = Str.Get("Compressed.Signature.Unsigned"); StatusText = Str.Get("Compressed.Status.NoSignature"); return; }
 
         (bool Valid, string? Fingerprint) result = default;
-        await RunBusy(Str.Get("Compressed.Status.Verifying"), () => result = _signer.Verify(path));
+        await RunBusyAsync(Str.Get("Compressed.Status.Verifying"), async () => result = await _signer.VerifyAsync(path));
         SignatureText = result.Valid ? Str.Format("Compressed.Signature.VerifiedFormat", result.Fingerprint) : Str.Get("Compressed.Signature.Invalid");
         StatusText = result.Valid ? Str.Get("Compressed.Status.SignatureMatches") : Str.Get("Compressed.Status.SignatureMismatch");
     }
@@ -345,9 +358,9 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
             if (picked is null) return;
             var level = int.Parse(picked.Value, CultureInfo.InvariantCulture);
             var path = ArchivePath;
-            await RunBusy(Str.Get("Compressed.Status.Recompressing"),
-                () => _vfs.Repackage(path, path, new ArchiveWriteOptions { CompressionLevel = level }));
-            Load();
+            await RunBusyAsync(Str.Get("Compressed.Status.Recompressing"),
+                () => _vfs.RepackageAsync(path, path, new ArchiveWriteOptions { CompressionLevel = level }).AsTask());
+            await LoadAsync();
             StatusText = Str.Format("Compressed.Status.RecompressedFormat", picked.Label);
         });
     }
@@ -356,29 +369,31 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
     private void Convert() => ShowChoice(Str.Get("Compressed.Convert.Title"),
         ConvertTargets().Select(f => new ChoiceOption(f, f, IconForFormat(f))), async fmt =>
     {
-        var dest = SiblingPath(Str.Format("Compressed.Convert.FileNameFormat", ArchiveStem, fmt.Replace('.', '_')), "." + fmt);
+        var dest = await SiblingPathAsync(Str.Format("Compressed.Convert.FileNameFormat", ArchiveStem, fmt.Replace('.', '_')), "." + fmt);
         var path = ArchivePath;
-        await RunBusy(Str.Format("Compressed.Status.ConvertingFormat", fmt), () => _vfs.Repackage(path, dest, null));
+        await RunBusyAsync(Str.Format("Compressed.Status.ConvertingFormat", fmt), () => _vfs.RepackageAsync(path, dest, null).AsTask());
         StatusText = Str.Format("Compressed.Status.ConvertedFormat", Path.GetFileName(dest));
     }, asGrid: true);
 
     [RelayCommand(CanExecute = nameof(CanEncryptArchive))]
     private void Encrypt() => ShowPassword(Str.Get("Compressed.Encrypt.Title"), async pwd =>
     {
-        var dest = SiblingPath(Str.Format("Compressed.Encrypt.FileNameFormat", ArchiveStem), ".zip");
+        var dest = await SiblingPathAsync(Str.Format("Compressed.Encrypt.FileNameFormat", ArchiveStem), ".zip");
         var path = ArchivePath;
-        await RunBusy(Str.Get("Compressed.Status.Encrypting"), () => _encryptor!.Encrypt(path, dest, pwd));
+        await RunBusyAsync(Str.Get("Compressed.Status.Encrypting"),
+            () => TranscodeAsync(path, dest, (source, target) => _encryptor!.Encrypt(source, target, pwd)));
         StatusText = Str.Format("Compressed.Status.EncryptedFormat", Path.GetFileName(dest));
     });
 
     [RelayCommand(CanExecute = nameof(CanDecryptArchive))]
     private void Decrypt() => ShowPassword(Str.Get("Compressed.Decrypt.Title"), async pwd =>
     {
-        var dest = SiblingPath(Str.Format("Compressed.Decrypt.FileNameFormat", ArchiveStem), ".zip");
+        var dest = await SiblingPathAsync(Str.Format("Compressed.Decrypt.FileNameFormat", ArchiveStem), ".zip");
         var path = ArchivePath;
         try
         {
-            await RunBusy(Str.Get("Compressed.Status.Decrypting"), () => _encryptor!.Decrypt(path, dest, pwd));
+            await RunBusyAsync(Str.Get("Compressed.Status.Decrypting"),
+                () => TranscodeAsync(path, dest, (source, target) => _encryptor!.Decrypt(source, target, pwd)));
             StatusText = Str.Format("Compressed.Status.DecryptedFormat", Path.GetFileName(dest));
         }
         catch { StatusText = Str.Get("Compressed.Status.DecryptFailed"); }
@@ -406,11 +421,11 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
 
     /// <summary>A free path beside the archive named <paramref name="stem"/> + <paramref name="ext"/>,
     /// numbered " (1)", " (2)"… when that name is taken.</summary>
-    private string SiblingPath(string stem, string ext)
+    private async Task<string> SiblingPathAsync(string stem, string ext)
     {
         var dir = Path.GetDirectoryName(ArchivePath) ?? ".";
         var dest = Path.Combine(dir, stem + ext);
-        for (int n = 1; File.Exists(dest); n++) dest = Path.Combine(dir, $"{stem} ({n}){ext}");
+        for (int n = 1; await _vfs.ExistsAsync(dest); n++) dest = Path.Combine(dir, $"{stem} ({n}){ext}");
         return dest;
     }
 
@@ -462,19 +477,39 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
     public async Task AddSourcesAsync(IReadOnlyList<string> sources)
     {
         if (!CanModify) { StatusText = Str.Get("Compressed.Status.ReadOnly"); return; }
-        var files = sources.Where(File.Exists)
-            .Select(s => (SourcePath: s, EntryName: Path.GetFileName(s)))
-            .ToList();
+        var files = new List<(string SourcePath, string EntryName)>();
+        foreach (var source in sources)
+            if (await IsFileAsync(source)) files.Add((source, Path.GetFileName(source)));
         if (files.Count == 0) return;
         var path = ArchivePath;
-        await RunBusy(Str.Get("Compressed.Status.Adding"), () => _vfs.AddFiles(path, files));
-        Load();
+        await RunBusyAsync(Str.Get("Compressed.Status.Adding"), () => _vfs.AddFilesAsync(path, files).AsTask());
+        await LoadAsync();
         StatusText = files.Count == 1
             ? Str.Format("Compressed.Status.AddedOne", files.Count)
             : Str.Format("Compressed.Status.AddedFormat", files.Count);
     }
 
-    private async Task RunBusy(string status, Action work)
+    /// <summary>True when <paramref name="path"/> is a file the file system can read — a folder or nothing at all is not.</summary>
+    private async Task<bool> IsFileAsync(string path)
+    {
+        try { return await _vfs.GetEntryAsync(path) is { IsDirectory: false }; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException) { return false; }
+    }
+
+    /// <summary>Writes a new archive at <paramref name="dest"/> from the one at <paramref name="path"/> through
+    /// <paramref name="transcode"/>, both through the file system, wherever each is: nothing appears at
+    /// <paramref name="dest"/> unless it is written whole.</summary>
+    private async Task TranscodeAsync(string path, string dest, Action<Stream, Stream> transcode)
+    {
+        await using var source = await _vfs.OpenReadAsync(path, ReadIntent.Random);
+        await using var write = await _vfs.BeginWriteAsync(dest, WriteMode.CreateNew);
+        transcode(source, write.Content);
+        await write.CommitAsync(default);
+    }
+
+    /// <summary>Runs <paramref name="work"/> off the UI thread with the page busy and <paramref name="status"/> shown;
+    /// a failure is shown in its place.</summary>
+    private async Task RunBusyAsync(string status, Func<Task> work)
     {
         IsBusy = true;
         StatusText = status;
@@ -520,9 +555,9 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
           + "one-line summary only counts. Directories are marked <dir>. Capped for very large archives.",
             [new ClientToolParameter("prefix", "Optional in-archive path prefix to filter by (e.g. \"docs/\").", Required: false)],
             ToolSafety.SafeOperation,
-            (args, _) => Task.FromResult(
-                IsRecognised ? ListEntries(ToolArgs.Str(args, "prefix", "path", "filter"))
-                             : ToolResult.Error("No recognised archive is loaded."))),
+            async (args, _) => IsRecognised
+                ? await ListEntriesAsync(ToolArgs.Str(args, "prefix", "path", "filter"))
+                : ToolResult.Error("No recognised archive is loaded.")),
 
         new DelegateClientTool(
             "read_entry",
@@ -530,13 +565,13 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
           + "Reads through the archive without extracting to disk; binary, oversized, or encrypted entries are refused.",
             [new ClientToolParameter("path", "The entry's full path inside the archive, forward-slash separated.")],
             ToolSafety.SafeOperation,
-            (args, _) =>
+            async (args, _) =>
             {
-                if (!IsRecognised) return Task.FromResult(ToolResult.Error("No recognised archive is loaded."));
+                if (!IsRecognised) return ToolResult.Error("No recognised archive is loaded.");
                 var entryPath = ToolArgs.Str(args, "path", "entry", "name");
-                return Task.FromResult(string.IsNullOrEmpty(entryPath)
+                return string.IsNullOrEmpty(entryPath)
                     ? ToolResult.Error("No 'path' provided.")
-                    : ReadEntryText(entryPath));
+                    : await ReadEntryTextAsync(entryPath);
             }),
 
         new DelegateClientTool(
@@ -545,8 +580,7 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
           + "how many failed. Read-only; nothing is written or extracted.",
             [],
             ToolSafety.SafeOperation,
-            (_, _) => Task.FromResult(
-                IsRecognised ? TestArchive() : ToolResult.Error("No recognised archive is loaded."))),
+            async (_, _) => IsRecognised ? await TestArchiveAsync() : ToolResult.Error("No recognised archive is loaded.")),
     ];
 
     // ── AI read-tool helpers ─────────────────────────────────────────────────────
@@ -573,10 +607,10 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
         return sb.ToString().TrimEnd('\n');
     }
 
-    private ToolResult ListEntries(string? prefix)
+    private async Task<ToolResult> ListEntriesAsync(string? prefix)
     {
         ArchiveSummary? summary;
-        try { summary = _vfs.DescribeArchive(ArchivePath); }
+        try { summary = await _vfs.DescribeArchiveAsync(ArchivePath); }
         catch (Exception ex) { return ToolResult.Error($"Could not read archive: {ex.Message}"); }
         if (summary is null) return ToolResult.Error("No recognised archive is loaded.");
 
@@ -610,11 +644,11 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
         return ToolResult.Ok($"{listed} entr{(listed == 1 ? "y" : "ies")} listed", sb.ToString().TrimEnd('\n'));
     }
 
-    private ToolResult ReadEntryText(string entryPath)
+    private async Task<ToolResult> ReadEntryTextAsync(string entryPath)
     {
         var norm = entryPath.Replace('\\', '/').Trim('/');
         ArchiveSummary? summary;
-        try { summary = _vfs.DescribeArchive(ArchivePath); }
+        try { summary = await _vfs.DescribeArchiveAsync(ArchivePath); }
         catch (Exception ex) { return ToolResult.Error($"Could not read archive: {ex.Message}"); }
         if (summary is null) return ToolResult.Error("No recognised archive is loaded.");
         if (summary.IsEncrypted)
@@ -629,14 +663,7 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
               + $"(limit {ArchiveNode.FormatBytes(MaxEntryReadBytes)}). Extract it instead.");
 
         byte[] bytes;
-        try
-        {
-            var full = Path.Combine(ArchivePath, norm.Replace('/', Path.DirectorySeparatorChar));
-            using var stream = _vfs.OpenRead(full);
-            using var ms = new MemoryStream();
-            stream.CopyTo(ms);
-            bytes = ms.ToArray();
-        }
+        try { bytes = await _vfs.ReadAllBytesAsync(Path.Combine(ArchivePath, norm.Replace('/', Path.DirectorySeparatorChar))); }
         catch (Exception ex) { return ToolResult.Error($"Could not read '{norm}': {ex.Message}"); }
 
         if (LooksBinary(bytes))
@@ -648,24 +675,14 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
             text.Length == 0 ? "(empty entry)" : text);
     }
 
-    private ToolResult TestArchive()
+    private async Task<ToolResult> TestArchiveAsync()
     {
         ArchiveSummary? summary;
-        try { summary = _vfs.DescribeArchive(ArchivePath); }
+        try { summary = await _vfs.DescribeArchiveAsync(ArchivePath); }
         catch (Exception ex) { return ToolResult.Error($"Could not read archive: {ex.Message}"); }
         if (summary is null) return ToolResult.Error("No recognised archive is loaded.");
 
-        int ok = 0, bad = 0;
-        foreach (var e in summary.Entries.Where(e => !e.IsDirectory))
-        {
-            try
-            {
-                using var s = _vfs.OpenRead(Path.Combine(ArchivePath, e.Name.Replace('/', Path.DirectorySeparatorChar)));
-                s.CopyTo(Stream.Null);
-                ok++;
-            }
-            catch { bad++; }
-        }
+        var (ok, bad) = await ReadEveryEntryAsync(ArchivePath, summary);
         var msg = bad == 0
             ? $"OK — all {ok} entr{(ok == 1 ? "y" : "ies")} read back cleanly."
             : $"{bad} of {ok + bad} entries failed to read — the archive may be corrupt.";

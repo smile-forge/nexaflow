@@ -1,3 +1,5 @@
+using System.IO;
+using Nexaflow.IO.Common;
 using System.Linq;
 using System.Threading;
 using Nexaflow.Features.Pdf.Reading;
@@ -19,7 +21,7 @@ public class PdfMetadataReaderTests
 
     private static PdfDocumentInfo? Read(string name)
     {
-        using var scope = PdfDocumentScope.TryOpen(Sample(name), CancellationToken.None);
+        using var scope = PdfDocumentScope.TryOpen(File.OpenRead(Sample(name)), CancellationToken.None);
         return scope is null ? null : PdfMetadataReader.Read(scope.Document, CancellationToken.None);
     }
 
@@ -210,7 +212,7 @@ public class PdfMetadataReaderTests
     {
         // The scope declines first, so the panel's "couldn't read this" message comes from a document that
         // genuinely wouldn't open — never from a reader silently returning empty facts about one that did.
-        using var scope = PdfDocumentScope.TryOpen(Sample("corrupt.pdf"), CancellationToken.None);
+        using var scope = PdfDocumentScope.TryOpen(File.OpenRead(Sample("corrupt.pdf")), CancellationToken.None);
         Assert.IsNull(scope);
     }
 }

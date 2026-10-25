@@ -42,7 +42,7 @@ public class FileSplitterTests
         var content = string.Concat(Enumerable.Range(1, 10).Select(i => $"line{i}\n"));
         var src = WriteSource("ten.txt", content);
 
-        var result = await FileSplitter.SplitAsync(src, new SplitOptions { Mode = SplitMode.ByLineCount, LinesPerPart = 3 });
+        var result = await FileSplitter.SplitAsync(VirtualFileSystem.Instance, src, new SplitOptions { Mode = SplitMode.ByLineCount, LinesPerPart = 3 });
 
         Assert.AreEqual(4, result.OutputFiles.Count);   // 3 + 3 + 3 + 1
         Assert.AreEqual(10, result.TotalLines);
@@ -56,7 +56,7 @@ public class FileSplitterTests
         var src = WriteSource("rows.txt", content);
         const int max = 30;
 
-        var result = await FileSplitter.SplitAsync(src, new SplitOptions { Mode = SplitMode.BySize, MaxBytesPerPart = max });
+        var result = await FileSplitter.SplitAsync(VirtualFileSystem.Instance, src, new SplitOptions { Mode = SplitMode.BySize, MaxBytesPerPart = max });
 
         foreach (var f in result.OutputFiles)
             Assert.IsTrue(new FileInfo(f).Length <= max, $"part {f} exceeds {max} bytes");
@@ -68,7 +68,7 @@ public class FileSplitterTests
     {
         var src = WriteSource("doc.txt", "# A\n1\n2\n# B\n3\n");
 
-        var result = await FileSplitter.SplitAsync(src, new SplitOptions { Mode = SplitMode.ByRegex, BoundaryPattern = "^# " });
+        var result = await FileSplitter.SplitAsync(VirtualFileSystem.Instance, src, new SplitOptions { Mode = SplitMode.ByRegex, BoundaryPattern = "^# " });
 
         Assert.AreEqual(2, result.OutputFiles.Count);
         Assert.AreEqual("# A\n1\n2\n", File.ReadAllText(result.OutputFiles[0]));
@@ -81,7 +81,7 @@ public class FileSplitterTests
     {
         var src = WriteSource("big.txt", "short\n" + new string('x', 100) + "\nshort\n");
 
-        var result = await FileSplitter.SplitAsync(src, new SplitOptions { Mode = SplitMode.BySize, MaxBytesPerPart = 10 });
+        var result = await FileSplitter.SplitAsync(VirtualFileSystem.Instance, src, new SplitOptions { Mode = SplitMode.BySize, MaxBytesPerPart = 10 });
 
         CollectionAssert.AreEqual(File.ReadAllBytes(src), Concat(result));
         Assert.IsTrue(result.OutputFiles.Count >= 3);
@@ -92,6 +92,6 @@ public class FileSplitterTests
     {
         var src = WriteSource("x.txt", "a\n");
         await Assert.ThrowsExactlyAsync<ArgumentException>(
-            () => FileSplitter.SplitAsync(src, new SplitOptions { Mode = SplitMode.BySize, MaxBytesPerPart = 0 }));
+            () => FileSplitter.SplitAsync(VirtualFileSystem.Instance, src, new SplitOptions { Mode = SplitMode.BySize, MaxBytesPerPart = 0 }));
     }
 }

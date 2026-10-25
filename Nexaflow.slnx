@@ -227,6 +227,9 @@
     <Project Path="src/Nexaflow.Analyzers/Nexaflow.Analyzers.Coverage/Nexaflow.Analyzers.Coverage.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Analyzers/Nexaflow.Analyzers.Io/Nexaflow.Analyzers.Io.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Analyzers/Nexaflow.Analyzers.Ui/Nexaflow.Analyzers.Ui.csproj">
       <Platform Project="x64" />
     </Project>
@@ -273,6 +276,9 @@
       <Platform Project="x64" />
     </Project>
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.IO/Nexaflow.Tests.IO.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.Tests/Nexaflow.IO.Location.Memory/Nexaflow.IO.Location.Memory.csproj">
       <Platform Project="x64" />
     </Project>
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Maths/Nexaflow.Tests.Maths.csproj">

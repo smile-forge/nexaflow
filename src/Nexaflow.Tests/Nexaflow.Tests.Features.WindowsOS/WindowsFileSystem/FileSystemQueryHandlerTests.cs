@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using NSubstitute;
 using Nexaflow.Features.Common;
@@ -23,10 +24,12 @@ public class FileSystemQueryHandlerTests
         return (shell, ai, new Dictionary<Type, IFeatureConfig>());
     }
 
-    private static FileSystemViewModel AtPath(string path)
+    private static async Task<FileSystemViewModel> AtPathAsync(string path)
     {
         var (shell, ai, configs) = Deps();
-        return new FileSystemViewModel(path, shell, ai, configs);
+        var vm = new FileSystemViewModel(path, shell, ai, configs, VirtualFileSystem.Instance);
+        await vm.Browsing;
+        return vm;
     }
 
     private static string TempDir()
@@ -39,13 +42,13 @@ public class FileSystemQueryHandlerTests
     // ── CanProcess ─────────────────────────────────────────────────────────────
 
     [TestMethod]
-    public void CanProcess_RelativePathWithSpaces_ThatExists_IsAccepted()
+    public async Task CanProcess_RelativePathWithSpaces_ThatExists_IsAccepted()
     {
         var dir = TempDir();
         try
         {
             Directory.CreateDirectory(Path.Combine(dir, "My Stuff"));
-            var vm = AtPath(dir);
+            var vm = await AtPathAsync(dir);
 
             var score = new FileSystemQueryHandler().CanProcess("My Stuff", false, vm);
 
@@ -55,13 +58,13 @@ public class FileSystemQueryHandlerTests
     }
 
     [TestMethod]
-    public void CanProcess_RelativePathNoSpaces_ThatExists_IsAccepted()
+    public async Task CanProcess_RelativePathNoSpaces_ThatExists_IsAccepted()
     {
         var dir = TempDir();
         try
         {
             Directory.CreateDirectory(Path.Combine(dir, "src"));
-            var vm = AtPath(dir);
+            var vm = await AtPathAsync(dir);
 
             Assert.IsTrue(new FileSystemQueryHandler().CanProcess("src", false, vm) > 0f);
         }
@@ -69,12 +72,12 @@ public class FileSystemQueryHandlerTests
     }
 
     [TestMethod]
-    public void CanProcess_RelativePath_ThatDoesNotExist_IsRejected()
+    public async Task CanProcess_RelativePath_ThatDoesNotExist_IsRejected()
     {
         var dir = TempDir();
         try
         {
-            var vm = AtPath(dir);
+            var vm = await AtPathAsync(dir);
 
             // Real folder name shape, but nothing on disk — must not be claimed.
             Assert.AreEqual(0f, new FileSystemQueryHandler().CanProcess("no such folder", false, vm));
@@ -83,13 +86,13 @@ public class FileSystemQueryHandlerTests
     }
 
     [TestMethod]
-    public void CanProcess_Wildcard_IsRejected()
+    public async Task CanProcess_Wildcard_IsRejected()
     {
         var dir = TempDir();
         try
         {
             Directory.CreateDirectory(Path.Combine(dir, "logs"));
-            var vm = AtPath(dir);
+            var vm = await AtPathAsync(dir);
 
             Assert.AreEqual(0f, new FileSystemQueryHandler().CanProcess("logs\\*.txt", false, vm));
         }
@@ -100,7 +103,7 @@ public class FileSystemQueryHandlerTests
     public void CanProcess_ThisPcMode_RelativePath_IsRejected()
     {
         var (shell, ai, configs) = Deps();
-        var vm = FileSystemViewModel.CreateThisPc(shell, ai, configs);
+        var vm = FileSystemViewModel.CreateThisPc(shell, ai, configs, VirtualFileSystem.Instance);
 
         // No folder root to resolve against.
         Assert.AreEqual(0f, new FileSystemQueryHandler().CanProcess("anything", false, vm));
@@ -109,12 +112,12 @@ public class FileSystemQueryHandlerTests
     // ── CanProcess: the ">" prefix forces navigation ───────────────────────────
 
     [TestMethod]
-    public void CanProcess_Prefixed_NonExistentRelativePath_IsClaimed()
+    public async Task CanProcess_Prefixed_NonExistentRelativePath_IsClaimed()
     {
         var dir = TempDir();
         try
         {
-            var vm = AtPath(dir);
+            var vm = await AtPathAsync(dir);
 
             // Un-prefixed this scores 0 (see above); typed as ">no such folder" the user forced navigation,
             // so the handler must take it and let ProcessAsync report the bad path.
@@ -124,13 +127,13 @@ public class FileSystemQueryHandlerTests
     }
 
     [TestMethod]
-    public void CanProcess_Prefixed_Wildcard_IsClaimed()
+    public async Task CanProcess_Prefixed_Wildcard_IsClaimed()
     {
         var dir = TempDir();
         try
         {
             Directory.CreateDirectory(Path.Combine(dir, "logs"));
-            var vm = AtPath(dir);
+            var vm = await AtPathAsync(dir);
 
             // The wildcard rule yields to the search handlers on bare input only — ">" overrides it.
             Assert.IsTrue(new FileSystemQueryHandler().CanProcess("logs\\*.txt", true, vm) > 0f);
@@ -139,12 +142,12 @@ public class FileSystemQueryHandlerTests
     }
 
     [TestMethod]
-    public void CanProcess_Prefixed_EmptyInput_IsRejected()
+    public async Task CanProcess_Prefixed_EmptyInput_IsRejected()
     {
         var dir = TempDir();
         try
         {
-            Assert.AreEqual(0f, new FileSystemQueryHandler().CanProcess("   ", true, AtPath(dir)));
+            Assert.AreEqual(0f, new FileSystemQueryHandler().CanProcess("   ", true, await AtPathAsync(dir)));
         }
         finally { Directory.Delete(dir, recursive: true); }
     }
@@ -163,7 +166,7 @@ public class FileSystemQueryHandlerTests
         {
             var target = Path.Combine(dir, "My Stuff");
             Directory.CreateDirectory(target);
-            var vm = AtPath(dir);
+            var vm = await AtPathAsync(dir);
 
             var error = await new FileSystemQueryHandler().ProcessAsync("My Stuff", false, vm);
 
@@ -179,7 +182,7 @@ public class FileSystemQueryHandlerTests
         var dir = TempDir();
         try
         {
-            var vm = AtPath(dir);
+            var vm = await AtPathAsync(dir);
 
             var error = await new FileSystemQueryHandler().ProcessAsync("no such folder", false, vm);
 

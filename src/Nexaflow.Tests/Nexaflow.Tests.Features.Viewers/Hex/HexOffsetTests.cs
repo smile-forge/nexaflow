@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nexaflow.Features.Common;
@@ -35,8 +36,17 @@ public sealed class HexOffsetTests
         Assert.IsFalse(handler.CanHandleObject(PeFixturePath));
         Assert.IsFalse(handler.CanHandleObject("https://example.com"));
         Assert.IsFalse(handler.CanHandleObject(42));
-        Assert.IsFalse(handler.CanHandleObject(new FileByteRange(@"C:\nope\missing.bin", 0, 1)));
+
         Assert.IsFalse(handler.CanHandleObject(new FileByteRange(PeFixturePath, -1, 0)));
+    }
+
+    [TestMethod, TestCategory("Unit")]
+    public void A_range_is_claimed_by_its_shape_whether_or_not_its_file_is_there()
+    {
+        var handler = new HexObjectHandler(Substitute.For<IShellServices>());
+
+        // Routing never waits on the disk or the network; the viewer is what finds the file gone and says so.
+        Assert.IsTrue(handler.CanHandleObject(new FileByteRange(@"C:\nope\missing.bin", 0, 1)));
     }
 
     [TestMethod, TestCategory("Unit")]
@@ -78,7 +88,7 @@ public sealed class HexOffsetTests
     [TestMethod, TestCategory("Unit")]
     public void The_page_declares_its_optional_offset_parameters()
     {
-        var registration = new HexTabRegistration(Substitute.For<IShellServices>());
+        var registration = new HexTabRegistration(Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
         var names = new List<string>();
         foreach (var parameter in registration.Parameters) names.Add(parameter.Name);
 
@@ -93,7 +103,7 @@ public sealed class HexOffsetTests
     {
         // The shell dedups open tabs on identity params alone. If the byte range counted, every jump
         // from the PE inspector would fork another tab on the same file instead of re-seeking this one.
-        var registration = new HexTabRegistration(Substitute.For<IShellServices>());
+        var registration = new HexTabRegistration(Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
 
         foreach (var parameter in registration.Parameters)
             Assert.AreEqual(parameter.Name == "path", parameter.Identity,

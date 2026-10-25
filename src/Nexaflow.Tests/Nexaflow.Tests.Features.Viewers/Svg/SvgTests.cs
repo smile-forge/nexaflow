@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
@@ -24,7 +25,7 @@ public class SvgTests
     [CoversNode("svg-loader")]
     public void Loader_ReadsSvg_ProducesFrozenDrawingAndMetadata()
     {
-        var loaded = new SvgLoader().Load(Sample("sample.svg"));
+        var loaded = new SvgLoader().Load(File.ReadAllBytes(Sample("sample.svg")));
 
         Assert.IsNotNull(loaded.Image);
         Assert.IsTrue(loaded.Image.IsFrozen, "the drawing must be frozen to cross to the UI thread");
@@ -39,7 +40,7 @@ public class SvgTests
     [CoversNode("svg-loader")]
     public void Loader_ReadsGzippedSvgz_SameAsSvg()
     {
-        var loaded = new SvgLoader().Load(Sample("sample.svgz"));
+        var loaded = new SvgLoader().Load(File.ReadAllBytes(Sample("sample.svgz")));
 
         Assert.IsTrue(loaded.Image.IsFrozen);
         Assert.IsTrue(loaded.Bounds.Width > 0 && loaded.Bounds.Height > 0, "gzip decodes and renders");
@@ -51,7 +52,7 @@ public class SvgTests
     [CoversNode("svg-load-gate")]
     public void GetContext_GatedUntilLoaded()
     {
-        var vm = new SvgViewModel(Sample("sample.svg"));
+        var vm = new SvgViewModel(Sample("sample.svg"), VirtualFileSystem.Instance);
         Assert.IsFalse(vm.IsContextReady, "context is gated until the SVG has loaded");
         StringAssert.Contains(vm.GetContext(), "still loading");
     }
@@ -61,7 +62,7 @@ public class SvgTests
     [CoversNode("svg-ai-context")]
     public async Task ViewModel_Loads_ExposesContextAndTools()
     {
-        var vm = new SvgViewModel(Sample("sample.svg"));
+        var vm = new SvgViewModel(Sample("sample.svg"), VirtualFileSystem.Instance);
 
         await vm.LoadAsync();
 
@@ -82,7 +83,7 @@ public class SvgTests
     [CoversNode("svg-error-overlay")]
     public async Task LoadAsync_MissingFile_SetsErrorButReleasesGate()
     {
-        var vm = new SvgViewModel(Path.Combine(TestSampleData.Path("svg"), "does-not-exist.svg"));
+        var vm = new SvgViewModel(Path.Combine(TestSampleData.Path("svg"), "does-not-exist.svg"), VirtualFileSystem.Instance);
 
         await vm.LoadAsync();
 
@@ -96,7 +97,7 @@ public class SvgTests
     [CoversNode("svg-ai-act")]
     public async Task GetSvgInfo_Tool_ReportsDimensions()
     {
-        var vm = new SvgViewModel(Sample("sample.svg"));
+        var vm = new SvgViewModel(Sample("sample.svg"), VirtualFileSystem.Instance);
         await vm.LoadAsync();
 
         var info = vm.GetClientTools().Single(t => t.Name == "get_svg_info");
@@ -110,7 +111,7 @@ public class SvgTests
     [CoversNode("svg-ai-act")]
     public async Task RenderTool_FailsGracefully_BeforeLoad()
     {
-        var vm = new SvgViewModel(Sample("sample.svg")); // not loaded → no artifact
+        var vm = new SvgViewModel(Sample("sample.svg"), VirtualFileSystem.Instance); // not loaded → no artifact
         var render = vm.GetClientTools().Single(t => t.Name == "render_svg_image");
 
         var result = await render.InvokeAsync(new JsonObject(), default);

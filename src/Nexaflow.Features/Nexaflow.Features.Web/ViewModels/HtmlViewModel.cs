@@ -27,8 +27,16 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel, IContextP
     private const double ToolCaptureEdge = 1200;
 
 
-    /// <summary>The URI that WebView2 should navigate to.</summary>
-    public Uri NavigationUri { get; }
+    /// <summary>The URI that WebView2 should navigate to — <c>about:blank</c> until <see cref="Loaded"/> has worked it out.</summary>
+    public Uri NavigationUri { get; private set; } = new("about:blank");
+
+    /// <summary>The page's address worked out: a shortcut's target read, a file inside an archive extracted to a copy on
+    /// this disk. Started by the constructor, because the file may be on a location, where reading it is a round trip;
+    /// the view navigates once it completes.</summary>
+    public Task Loaded { get; }
+
+    /// <summary>The runtime's file system the page's file is read through.</summary>
+    private readonly IVirtualFileSystem _vfs;
 
     /// <summary>Display name shown in the toolbar (file name without path).</summary>
     public string FileName { get; }
@@ -80,23 +88,27 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel, IContextP
     /// "install the runtime" link on the fallback panel.</summary>
     [ObservableProperty] private bool _runtimeMissing;
 
-    public HtmlViewModel(string filePath)
+    public HtmlViewModel(string filePath, IVirtualFileSystem vfs)
     {
         FileName = Path.GetFileName(filePath);
+        _vfs     = vfs;
+        Loaded   = ResolveAsync(filePath);
+    }
 
-        var ext = Path.GetExtension(filePath).ToLowerInvariant();
-        NavigationUri = ext == ".url"
-            ? ResolveUrlShortcut(filePath)
-            : new Uri(RealizeLocalFile(filePath));
+    private async Task ResolveAsync(string filePath)
+    {
+        NavigationUri = Path.GetExtension(filePath).Equals(".url", StringComparison.OrdinalIgnoreCase)
+            ? await ResolveUrlShortcutAsync(filePath)
+            : new Uri(await RealizeLocalFileAsync(filePath));
 
         CurrentUrl = NavigationUri.ToString();
     }
 
     /// <summary>A real, WebView2-navigable path. A file inside a disk image / archive is virtual — WebView2
     /// can't load it, so materialise it to a temp copy first; a real on-disk file passes straight through.</summary>
-    private static string RealizeLocalFile(string filePath)
+    private async Task<string> RealizeLocalFileAsync(string filePath)
     {
-        try { return VirtualFileSystem.Instance.MaterializeFile(filePath); }
+        try { return await _vfs.MaterializeFileAsync(filePath); }
         catch { return filePath; }
     }
 
@@ -104,12 +116,11 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel, IContextP
     /// Parses an Internet Shortcut (.url) file and extracts the URL= value.
     /// Falls back to about:blank on any error.
     /// </summary>
-    private static Uri ResolveUrlShortcut(string filePath)
+    private async Task<Uri> ResolveUrlShortcutAsync(string filePath)
     {
         try
         {
-            using var stream = VirtualFileSystem.Instance.OpenRead(filePath);
-            using var reader = new StreamReader(stream);
+            using var reader = new StringReader(await _vfs.ReadAllTextAsync(filePath));
             string? line;
             while ((line = reader.ReadLine()) is not null)
             {

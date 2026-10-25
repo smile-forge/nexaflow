@@ -2,6 +2,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using Nexaflow.Features.Images.Editing.Recipe;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Images.Editing.Kept;
 
@@ -10,6 +11,7 @@ namespace Nexaflow.Features.Images.Editing.Kept;
 /// and a line saying what was made of it and by which models — after a restart too — and, past the budget, the least
 /// recently used let go first.
 /// </summary>
+[LocalDiskOnly("what the picture tools made, kept in the app's cache; a photo is known by its content where it is a file on this disk, by where it is otherwise")]
 public sealed class KeptFiles(string folder, long budgetBytes, string extension)
 {
     public string Folder => folder;

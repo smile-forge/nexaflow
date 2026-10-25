@@ -26,12 +26,13 @@ internal static class DicomTagReader
     /// <summary>Reads the instance at <paramref name="path"/> into drawer rows. <paramref name="wording"/> supplies the
     /// words written in place of a value (an unnamed tag, a masked identifier, a sequence, binary data): the drawer
     /// passes <see cref="DicomTagWording.ForDisplay"/>; left out, it is the assistant's English.</summary>
-    public static IReadOnlyList<DicomTagItem> Read(string path, bool hidePatient, DicomTagWording? wording = null)
+    public static async Task<IReadOnlyList<DicomTagItem>> ReadAsync(DicomIo io, string path, bool hidePatient, DicomTagWording? wording = null,
+                                                                    CancellationToken ct = default)
     {
         var list = new List<DicomTagItem>();
         var words = wording ?? DicomTagWording.Assistant;
         DicomDataset ds;
-        try { ds = DicomIo.Open(path, FileReadOption.SkipLargeTags).Dataset; }
+        try { ds = (await io.OpenAsync(path, FileReadOption.SkipLargeTags, ct)).Dataset; }
         catch { return list; }
 
         foreach (var item in ds)

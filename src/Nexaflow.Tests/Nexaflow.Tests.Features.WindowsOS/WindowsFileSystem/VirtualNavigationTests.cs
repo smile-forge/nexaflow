@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -21,11 +22,11 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem;
 [CoversNode("winfs-thispc-providers")]
 public class VirtualNavigationTests
 {
-    private static List<(string Label, string Path)> Crumbs(FileSystemViewModel vm)
+    private static async Task<List<(string Label, string Path)>> Crumbs(FileSystemViewModel vm)
     {
         List<(string, string)> captured = [];
         vm.NavigationChanged += segs => { captured = [.. segs]; };
-        vm.NavigateTo(vm.CurrentPath);   // re-fire for the current location
+        await vm.BrowseToAsync(vm.CurrentPath);   // re-fire for the current location
         return captured;
     }
 
@@ -37,12 +38,12 @@ public class VirtualNavigationTests
     // ── The mounted journey ──────────────────────────────────────────────────
 
     [TestMethod]
-    public void EnteringAProvidedLocationListsItsContents()
+    public async Task EnteringAProvidedLocationListsItsContents()
     {
         using var fx = new ProvidedRootFixture();
         var vm = fx.ThisPc();
 
-        vm.NavigateTo(fx.VirtualRoot);
+        await vm.BrowseToAsync(fx.VirtualRoot);
         WaitForEntries(vm, 2);
 
         CollectionAssert.AreEquivalent(
@@ -51,12 +52,12 @@ public class VirtualNavigationTests
     }
 
     [TestMethod]
-    public void NothingInsideAProvidedLocationEverRevealsTheRealFolder()
+    public async Task NothingInsideAProvidedLocationEverRevealsTheRealFolder()
     {
         using var fx = new ProvidedRootFixture();
         var vm = fx.ThisPc();
 
-        vm.NavigateTo(fx.VirtualRoot);
+        await vm.BrowseToAsync(fx.VirtualRoot);
         WaitForEntries(vm, 2);
 
         Assert.IsFalse(vm.CurrentPath.Contains(fx.RealRoot, StringComparison.OrdinalIgnoreCase));
@@ -66,14 +67,14 @@ public class VirtualNavigationTests
     }
 
     [TestMethod]
-    public void TheRealFolderStaysHiddenTwoLevelsDownToo()
+    public async Task TheRealFolderStaysHiddenTwoLevelsDownToo()
     {
         // The regression this guards: the streaming loader reports FileSystemInfo.FullName, which IS the
         // real path. Child paths must be composed from the virtual parent instead.
         using var fx = new ProvidedRootFixture();
         var vm = fx.ThisPc();
 
-        vm.NavigateTo(Path.Combine(fx.VirtualRoot, "Documents"));
+        await vm.BrowseToAsync(Path.Combine(fx.VirtualRoot, "Documents"));
         WaitForEntries(vm, 2);
 
         Assert.AreEqual($@"{fx.VirtualRoot}\Documents", vm.CurrentPath);
@@ -82,33 +83,36 @@ public class VirtualNavigationTests
     }
 
     [TestMethod]
-    public void GoingUpWalksBackToTheProvidedRootAndThenToThisPc()
+    public async Task GoingUpWalksBackToTheProvidedRootAndThenToThisPc()
     {
         using var fx = new ProvidedRootFixture();
         var vm = fx.ThisPc();
 
-        vm.NavigateTo(Path.Combine(fx.VirtualRoot, "Documents", "Nested"));
+        await vm.BrowseToAsync(Path.Combine(fx.VirtualRoot, "Documents", "Nested"));
         Assert.AreEqual($@"{fx.VirtualRoot}\Documents\Nested", vm.CurrentPath);
 
         vm.NavigateUp();
+        await vm.Browsing;
         Assert.AreEqual($@"{fx.VirtualRoot}\Documents", vm.CurrentPath);
 
         vm.NavigateUp();
+        await vm.Browsing;
         Assert.AreEqual(fx.VirtualRoot, vm.CurrentPath);
 
         vm.NavigateUp();
+        await vm.Browsing;
         Assert.IsTrue(vm.IsThisPcMode, "above a provided root is This PC, not the folder it maps to");
     }
 
     [TestMethod]
-    public void TheBreadcrumbNamesTheLocationNotItsId()
+    public async Task TheBreadcrumbNamesTheLocationNotItsId()
     {
         using var fx = new ProvidedRootFixture();
         var vm = fx.ThisPc();
 
-        vm.NavigateTo(Path.Combine(fx.VirtualRoot, "Documents"));
+        await vm.BrowseToAsync(Path.Combine(fx.VirtualRoot, "Documents"));
 
-        var crumbs = Crumbs(vm);
+        var crumbs = await Crumbs(vm);
         CollectionAssert.AreEqual(
             new[] { Str.Get("WindowsFileSystem.ThisPc.Title"), fx.Label, "Documents" },
             crumbs.Select(c => c.Label).ToArray());
@@ -116,23 +120,23 @@ public class VirtualNavigationTests
     }
 
     [TestMethod]
-    public void AVirtualPathSurvivesTheRoundTripThroughSavedTabState()
+    public async Task AVirtualPathSurvivesTheRoundTripThroughSavedTabState()
     {
         using var fx = new ProvidedRootFixture();
         var vm = fx.ThisPc();
-        vm.NavigateTo(Path.Combine(fx.VirtualRoot, "Documents"));
+        await vm.BrowseToAsync(Path.Combine(fx.VirtualRoot, "Documents"));
 
         // What the page registration persists is the last breadcrumb's path.
-        var persisted = Crumbs(vm)[^1].Path;
+        var persisted = (await Crumbs(vm))[^1].Path;
 
         var restored = fx.ThisPc();
-        restored.NavigateTo(persisted);
+        await restored.BrowseToAsync(persisted);
 
         Assert.AreEqual($@"{fx.VirtualRoot}\Documents", restored.CurrentPath);
     }
 
     [TestMethod]
-    public void TheTreeExpandsAProvidedLocationIntoItsRealSubfolders()
+    public async Task TheTreeExpandsAProvidedLocationIntoItsRealSubfolders()
     {
         using var fx = new ProvidedRootFixture();
         var vm = fx.ThisPc();
@@ -142,6 +146,7 @@ public class VirtualNavigationTests
 
         for (int i = 0; i < 200 && node.Children.Count == 0; i++) Thread.Sleep(10);
         node.IsExpanded = true;
+        await node.LoadChildrenAsync();
 
         var child = node.Children.SingleOrDefault(c => c.Name == "Documents");
         Assert.IsNotNull(child, "a mounted node expands like any other folder");
@@ -152,21 +157,22 @@ public class VirtualNavigationTests
     // ── The real journey, unchanged ──────────────────────────────────────────
 
     [TestMethod]
-    public void ReachingTheSameFolderByItsRealPathKeepsTheRealTrail()
+    public async Task ReachingTheSameFolderByItsRealPathKeepsTheRealTrail()
     {
         using var fx = new ProvidedRootFixture();
         var real = Path.Combine(fx.RealRoot, "Documents");
-        var vm   = fx.At(real);
+        var vm   = await fx.AtAsync(real);
 
         Assert.AreEqual(real, vm.CurrentPath, "the real route is not rewritten to the mount");
 
         vm.NavigateUp();
+        await vm.Browsing;
         Assert.AreEqual(fx.RealRoot, vm.CurrentPath,
                         "Up from a real path walks the real chain, not out to This PC");
     }
 
     [TestMethod]
-    public void AnOrdinaryFolderIsUnaffectedByAnyOfThis()
+    public async Task AnOrdinaryFolderIsUnaffectedByAnyOfThis()
     {
         using var fx = new ProvidedRootFixture(withProvider: false);
         var dir = Path.Combine(TestTemp.Root, "nexa-plain-" + Guid.NewGuid().ToString("N"));
@@ -174,7 +180,7 @@ public class VirtualNavigationTests
         File.WriteAllText(Path.Combine(dir, "a.txt"), "a");
         try
         {
-            var vm = fx.At(dir);
+            var vm = await fx.AtAsync(dir);
             WaitForEntries(vm, 2);
 
             Assert.AreEqual(dir, vm.CurrentPath);
@@ -186,18 +192,18 @@ public class VirtualNavigationTests
     // ── Withdrawal ───────────────────────────────────────────────────────────
 
     [TestMethod]
-    public void ATabInsideAProvidedLocationCannotFollowItAfterItIsWithdrawn()
+    public async Task ATabInsideAProvidedLocationCannotFollowItAfterItIsWithdrawn()
     {
         using var fx = new ProvidedRootFixture();
         var vm = fx.ThisPc();
-        vm.NavigateTo(fx.VirtualRoot);
+        await vm.BrowseToAsync(fx.VirtualRoot);
         Assert.AreEqual(fx.VirtualRoot, vm.CurrentPath);
 
         Nexaflow.IO.Common.VirtualFileSystem.Instance.UnregisterMount(fx.MountId);
 
         // Navigation is gated on the VFS, so a withdrawn location simply stops resolving rather than
         // showing the user a folder that is no longer theirs to browse.
-        vm.NavigateTo(Path.Combine(fx.VirtualRoot, "Documents"));
+        await vm.BrowseToAsync(Path.Combine(fx.VirtualRoot, "Documents"));
         Assert.AreEqual(fx.VirtualRoot, vm.CurrentPath);
     }
 }

@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
@@ -34,7 +35,7 @@ public class AudioAiTests
     }
 
     private static AudioViewModel NewPlayer(IReadOnlyList<string> paths, int startIndex = 0)
-        => new(paths, startIndex, Shell(), new AudioConfig());
+        => new(paths, startIndex, Shell(), VirtualFileSystem.Instance, new AudioConfig());
 
     private static Task<ToolResult> Invoke(AudioViewModel vm, string tool, JsonObject? args = null)
         => vm.GetClientTools().Single(t => t.Name == tool).InvokeAsync(args ?? new JsonObject(), CancellationToken.None);

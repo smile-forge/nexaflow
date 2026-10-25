@@ -8,9 +8,10 @@ namespace Nexaflow.Features.Font.Decoding;
 
 /// <summary>
 /// Turns a font file path into a <see cref="Uri"/> that WPF can render/inspect. Raw sfnt files
-/// (<c>.ttf/.otf/.ttc</c>) pass straight through; wrapped formats are handed to a matching
-/// <see cref="IFontFormatDecoder"/>, decoded to sfnt bytes, and written to a per-instance temp file
-/// whose Uri is returned (WPF resolves glyphs from it lazily, so it must outlive the tab). Unsupported
+/// (<c>.ttf/.otf/.ttc</c>) on this disk pass straight through; one in an archive or on a location is fetched
+/// once into a per-instance temp file, and wrapped formats are handed to a matching
+/// <see cref="IFontFormatDecoder"/>, decoded to sfnt bytes, and written to one too — its Uri is returned
+/// (WPF resolves glyphs from it lazily, so it must outlive the tab). Unsupported
 /// formats return null. Owned by the page view-model; <see cref="Dispose"/> best-effort-deletes the
 /// temp files. Adding a format = one more decoder in <see cref="_decoders"/>.
 /// </summary>
@@ -29,43 +30,45 @@ public sealed class FontSourceResolver : IDisposable
         RawSfntExtensions.Contains(extension) || _decoders.Any(d => d.CanDecode(extension));
 
     /// <summary>
-    /// A renderable Uri for <paramref name="path"/>, or null if the format has no decoder. Throws
-    /// (bad container, unreadable file) only via the decoder — callers wrap this in try/catch.
+    /// A renderable Uri for <paramref name="path"/>, read through <paramref name="vfs"/>, or null if the format has no
+    /// decoder. Throws (bad container, unreadable file) — callers wrap this in try/catch.
     /// </summary>
-    public Uri? ResolveRenderableUri(string path)
+    public async Task<Uri?> ResolveRenderableUriAsync(IVirtualFileSystem vfs, string path, CancellationToken ct = default)
     {
-        // A font inside a disk image / archive is virtual — GlyphTypeface / decoders need a real path, so
-        // materialise it first (a real file passes through unchanged).
-        var full = Path.GetFullPath(RealPath(path));
-        var ext = Path.GetExtension(full).ToLowerInvariant();
+        var ext = Path.GetExtension(path).ToLowerInvariant();
+        bool raw = RawSfntExtensions.Contains(ext);
+        var decoder = raw ? null : _decoders.FirstOrDefault(d => d.CanDecode(ext));
+        if (!raw && decoder is null) return null;
 
-        if (RawSfntExtensions.Contains(ext))
-            return new Uri(full);
+        // WPF reads glyphs from a file of its own: one on this disk is handed over as it is.
+        if (raw && vfs.ResolveOnDisk(path) is { } real)
+            return new Uri(Path.GetFullPath(real));
 
-        var decoder = _decoders.FirstOrDefault(d => d.CanDecode(ext));
-        if (decoder is null) return null;
+        var bytes = await vfs.ReadAllBytesAsync(path, ct);
+        if (raw) return Keep(bytes, Path.GetFileNameWithoutExtension(path), ext);
 
-        byte[] sfnt;
-        using (var fs = File.OpenRead(full))
-            sfnt = decoder.DecodeToSfnt(fs);
-
-        Directory.CreateDirectory(_tempDir);
+        var sfnt = decoder!.DecodeToSfnt(new MemoryStream(bytes, writable: false));
         // 'OTTO' magic marks a CFF/OpenType outline table set → .otf, otherwise TrueType → .ttf.
         var outExt = sfnt.Length >= 4 && sfnt[0] == (byte)'O' && sfnt[1] == (byte)'T'
                      && sfnt[2] == (byte)'T' && sfnt[3] == (byte)'O' ? ".otf" : ".ttf";
-        var temp = Path.Combine(_tempDir,
-            Path.GetFileNameWithoutExtension(full) + "-" + Guid.NewGuid().ToString("N")[..8] + outExt);
+        return Keep(sfnt, Path.GetFileNameWithoutExtension(path), outExt);
+    }
+
+    /// <summary>A font's bytes written to a file of this tab's own, for WPF to read lazily.</summary>
+    [LocalDiskOnly(OwnFolder)]
+    private Uri Keep(byte[] sfnt, string name, string extension)
+    {
+        Directory.CreateDirectory(_tempDir);
+        var temp = Path.Combine(_tempDir, name + "-" + Guid.NewGuid().ToString("N")[..8] + extension);
         File.WriteAllBytes(temp, sfnt);
         _tempFiles.Add(temp);
         return new Uri(temp);
     }
 
-    private static string RealPath(string path)
-    {
-        try { return VirtualFileSystem.Instance.MaterializeFile(path); }
-        catch { return path; }
-    }
+    /// <summary>Why the kept fonts are on the disk directly: they are this tab's own, in its folder under the temp folder.</summary>
+    private const string OwnFolder = "fonts fetched or decoded for WPF, kept in this tab's own folder under the temp folder";
 
+    [LocalDiskOnly(OwnFolder)]
     public void Dispose()
     {
         foreach (var f in _tempFiles)

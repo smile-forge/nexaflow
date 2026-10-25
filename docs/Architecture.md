@@ -28,7 +28,7 @@ the root `CLAUDE.md`. This section fixes the tiers and the rules between them.
 | Shell | `Nexaflow.Core` | WinExe entry point; window chrome, tab strip, ribbon, breadcrumbs, AI input bar; `FeatureManager`/`FeatureCatalog`, `WorkspaceManager`, `ProviderManager`, `ConfigManager` |
 | Contracts | `Nexaflow.Features.Common` | ALL feature-facing interfaces + small DTOs. Features and Core meet only here |
 | Features | `Nexaflow.Features.*` (~30, + 3 `Compressed.*` codec backends) | One assembly per feature; reflection-discovered, lazily loaded |
-| Shared leaves (non-contract) | `Nexaflow.Visuals.Common` (controls/converters/formatters), `Nexaflow.Visuals.Text` (markdown rendering), `Nexaflow.Visuals.Terminal` (terminal input logic), `Nexaflow.IO.Common` (encoding/line-endings, glob, hashing, base64 + `IStreamCodec`/`IArchiveHandler` codec contracts, the archive `VirtualFileSystem`, text index/transforms, file watching/splitting), `Nexaflow.IO.Terminal` (PTY host), `Nexaflow.Syntax` (tree-sitter engine) | Concrete shared code a feature may reference; never references Core or a feature |
+| Shared leaves (non-contract) | `Nexaflow.Visuals.Common` (controls/converters/formatters), `Nexaflow.Visuals.Text` (markdown rendering), `Nexaflow.Visuals.Terminal` (terminal input logic), `Nexaflow.IO.Common` (encoding/line-endings, glob, hashing, base64 + `IStreamCodec`/`IArchiveHandler` codec contracts, the `VirtualFileSystem` over archives and mounts, the remote-location contracts and each runtime's `LocationFileSystem`, text index/transforms, file watching/splitting), `Nexaflow.IO.Terminal` (PTY host), `Nexaflow.Syntax` (tree-sitter engine) | Concrete shared code a feature may reference; never references Core or a feature |
 | Providers | `Nexaflow.Providers.Common` and `Nexaflow.Providers.OpenAICompatible` (the chat-completions wire format OpenAI and xAI share) + one project per backend (Claude, Gemini, OpenAI, xAI, Ollama, Aria) | Loaded by file name at runtime; never compile-time referenced |
 | Elevation | `Nexaflow.Elevation.Contracts` (pure DTO leaf) + `Nexaflow.PrivilegeBridge` (separate elevated exe) | The admin-action trust boundary — see [Elevation / Privilege Bridge](#elevation--privilege-bridge) |
 | Languages | `Nexaflow.Language.<code>` under `src/Nexaflow.Languages/` — one resource-only pack per language, gathered from every project's `Localization/<code>/` | Shipped to `Languages\` and loaded by path, never referenced — see [localization.md](localization.md) |
@@ -132,8 +132,9 @@ A `WorkspaceRuntime` (`Core/Models/WorkspaceRuntime.cs`) points at one `Workspac
 | `Providers : ProviderSet` | The live provider instances **acquired from the pool** for this runtime (deduped by config process-wide); released when the runtime is reconfigured/disposed |
 | `AiService : AIService` | The agent loop + AI-input-bar routing — resolves each `AiAbility` through the workspace's assignments + this runtime's providers; reads/writes the workspace's conversations |
 | `ShellServices : ShellServices` | This runtime's **window + tab registry** (every window in the runtime). Stable for the runtime's life — a workspace switch reconfigures internals, not this object |
+| `Vfs : LocationFileSystem` | This runtime's **file system**: the shared `VirtualFileSystem` plus the remote locations this runtime has connected ([remote-locations.md](remote-locations.md)). Stable for the runtime's life |
 
-The `IShellServices` / `IAIService` injected into a feature are the **active runtime's** instances (`FeatureManager` resolves them per `WorkspaceRuntime`). So "open a tab" and "ask the AI" always act within exactly one runtime.
+The `IShellServices` / `IAIService` / `IVirtualFileSystem` injected into a feature are the **active runtime's** instances (`FeatureManager` resolves them per `WorkspaceRuntime`). So "open a tab", "ask the AI" and "read that file" always act within exactly one runtime — and only the runtime's file system can see the locations it connected, which `VirtualFileSystem.Instance` cannot.
 
 The Options and Manage-AI overlays are **modal** — they block switching. A live workspace can't be deleted, and there
 is always at least one workspace.
@@ -159,7 +160,7 @@ The shell host. Owns the window chrome, tab strip, ribbon bar, breadcrumb bar, a
 |------|----------------|
 | `App.xaml.cs` | Startup (`InitializeApp`): global-config + provider-**assembly** load, `WorkspaceManager.Initialize` (saved workspaces only), feature discovery, first window (a fresh `WorkspaceRuntime`). Also the windowless `--prestart` daemon, the launch arguments (`LaunchRequest`: `--context "Name"`, and `--open "path"` from Explorer's "Open in Nexaflow"), and the single-instance IPC that forwards a later launch (a new window = a new runtime; an `--open` path goes to the one workspace with windows open, else the first) |
 | `Models/Workspace.cs` | The saved, shared workspace config (holds `AiConfig`/`Persona`/`ProviderConfigs`/`RibbonService`+`RibbonChanged`/conversations dir + default/last-session tabsets) — see [Ownership & Lifetime](#ownership--lifetime) |
-| `Models/WorkspaceRuntime.cs` | The runtime (points at a `Workspace`; holds `Providers`/`AiService`/`ShellServices`) |
+| `Models/WorkspaceRuntime.cs` | The runtime (points at a `Workspace`; holds `Providers`/`AiService`/`ShellServices`/`Vfs`) |
 | `Models/OpenPageRequest.cs` | `(PageKind, PageParams)` carrier for shell-level open commands (breadcrumb follow-links). Core-internal MVVM glue |
 | `Services/Agent/ClientBlockParser.cs`, `ParsedAssistantTurn.cs` | The assistant wire-protocol parser the agent loop reads fenced `client_tool` blocks with. Core-only, so it lives in Core — not a feature contract |
 | `Services/WorkspaceManager.cs` | Singleton: the `Workspaces` list + live `WorkspaceRuntime`s; `Initialize`/`CreateWorkspace`/`SwitchWorkspace`/`ReconfigureWorkspace`/`NotifyWindowClosed`, `Add`/`Clone`/`Rename`/`Remove`/`DeleteWorkspace`, orphaned-data quarantine |
@@ -360,7 +361,7 @@ ConversationRecord
 
 ### `IPageRegistration` — Adding a new page kind
 
-Implement in your feature assembly. `FeatureManager` discovers it **automatically** via the cached `FeatureCatalog` index (no code-registration step); its assembly is loaded and the registration built **lazily** on first use. It injects constructor dependencies per `WorkspaceRuntime`: any `IFeatureConfig` declared in the same assembly, the scoped `IShellServices`, and `IAIService`. Expose a `static string StaticPageKind` — the catalog reads the page kind from it without instantiating (and caches it).
+Implement in your feature assembly. `FeatureManager` discovers it **automatically** via the cached `FeatureCatalog` index (no code-registration step); its assembly is loaded and the registration built **lazily** on first use. It injects constructor dependencies per `WorkspaceRuntime`: any `IFeatureConfig` declared in the same assembly, the scoped `IShellServices`, `IAIService`, and the runtime's `IVirtualFileSystem`. Expose a `static string StaticPageKind` — the catalog reads the page kind from it without instantiating (and caches it).
 
 `CreatePageDefinition` must stay **cheap and side-effect-free** — callers build a definition speculatively just to read its `Title`/`Icon` (e.g. for a menu) and may discard it. Construct the view-model and view **inside the `ContentFactory` closure** so they're built only when the tab is first shown. Optionally advertise `Parameters` (so the shell/AI can describe how to open the page) and set `CanBeContextItem`/`CreatePageDefinitions` for pages offered in the AI "add context" and ribbon-editor menus.
 
@@ -483,7 +484,7 @@ To make a page *searchable*, don't write a handler at all — implement `ISearch
 
 Implement in the assembly that owns the concern. `FileSystemFeatureRegistry` (in Core — **not** `FeatureManager`) discovers these across Core and the feature assemblies. Actions that open a viewer tab belong in the feature that owns the viewer; system-level actions (copy, rename…) belong in `Nexaflow.Core.FileActions`.
 
-Actions are matched to files via `ExperienceId` — a hierarchical path (e.g. `"/image"`, `"/binary/installer"`) that `FileMapManager` resolves against the selected file. Constructor dependencies (e.g. `IShellServices`) are injected on resolution; show modal prompts via `IShellServices.ShowPrompt` / `ShowConfirmation`.
+Actions are matched to files via `ExperienceId` — a hierarchical path (e.g. `"/image"`, `"/binary/installer"`) that `FileMapManager` resolves against the selected file. Constructor dependencies (e.g. `IShellServices`, and the runtime's `IVirtualFileSystem` for an action that touches files) are injected on resolution; show modal prompts via `IShellServices.ShowPrompt` / `ShowConfirmation`.
 
 Key `IFileAction` members:
 
@@ -496,9 +497,11 @@ Key `IFileAction` members:
 | `RequiresRefresh` | Triggers file tree refresh after execute |
 | `SupportsMultipleFiles` | Whether the action can receive a collection |
 | `CanPerformAction` | Computed gate (e.g. checks selection state) |
-| `PerformAction(string)` / `PerformAction(IEnumerable<string>)` | Execute the action |
+| `PerformActionAsync(string)` / `PerformActionAsync(IEnumerable<string>)` | Execute the action, answering whether it did something now — the strip's success tick. Awaitable, because on a location a rename or a delete knows how it went only after a round trip; an action that only opens a tab answers at once |
 
-`IFolderAction`s are matched **structurally** rather than by `ExperienceId`: `FolderNameGlob` (folder name), `ContainsFolderGlobs` (has a matching sub-folder), and `ContainsFileGlobs` (has matching files). When `ContainsFileGlobs` is set, `MinimumFileGlobMatchPercentage` (default `0` = "at least one match") requires that share of the folder's top-level files to match — e.g. the image Slideshow/Album actions require ≥30% images. The content check enumerates the folder once and bails as soon as the threshold is reached or has become unreachable. The same name/content constraints are applied to `AppliesToRoot` actions against the **currently-open folder** (no selection), so a constrained action only appears on a qualifying folder, not every folder.
+`IFileCreateAction.CreateItemAsync` answers the path of the item it made, which the browser selects.
+
+`IFolderAction`s are matched **structurally** rather than by `ExperienceId`: `FolderNameGlob` (folder name), `ContainsFolderGlobs` (has a matching sub-folder), and `ContainsFileGlobs` (has matching files). When `ContainsFileGlobs` is set, `MinimumFileGlobMatchPercentage` (default `0` = "at least one match") requires that share of the folder's top-level files to match — e.g. the image Slideshow/Album actions require ≥30% images. The content check enumerates the folder once and bails as soon as the threshold is reached or has become unreachable. The same name/content constraints are applied to `AppliesToRoot` actions against the **currently-open folder** (no selection), so a constrained action only appears on a qualifying folder, not every folder. Contents are read only where the file system resolves the folder to this disk (an archive on it included): matching runs while the strip or a context menu is built, so on a location a folder action is matched by its name alone, as a file's magic-number rule is skipped there.
 
 ---
 
@@ -757,8 +760,8 @@ ShellServices:
 
 ```
 User selects file in file browser → clicks action button
-  → FileActionManager.PerformAction(action, paths)
-  → e.g. ShowMarkdownAction.PerformAction(path)
+  → FileActionViewModel awaits action.PerformActionAsync(path)
+  → e.g. ShowMarkdownAction.PerformActionAsync(path)
       _shellServices.OpenTab("Markdown", { "path": filePath })
   → ShellServices → MarkdownTabRegistration.CreatePageDefinition(params) → tab opens
 ```

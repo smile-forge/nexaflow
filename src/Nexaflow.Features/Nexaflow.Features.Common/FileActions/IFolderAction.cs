@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Media;
 
 namespace Nexaflow.Features.Common
@@ -78,10 +80,19 @@ namespace Nexaflow.Features.Common
         /// by a currently mounted disk image. Keep it cheap: it runs on every selection change.</summary>
         bool AppliesToFolder(string folderPath) => true;
 
-        bool PerformAction(string folderPath);
-        bool PerformAction(IEnumerable<string> folderPaths);
+        /// <summary>
+        /// Runs the action on one folder, answering whether it did something now (the success tick). Awaitable because the
+        /// folder may be on a location, where a paste or a delete knows how it went only after a round trip.
+        /// </summary>
+        Task<bool> PerformActionAsync(string folderPath, CancellationToken ct = default);
 
-        bool PerformAction(string folderPath, bool force) => PerformAction(folderPath);
-        bool PerformAction(IEnumerable<string> folderPaths, bool force) => PerformAction(folderPaths);
+        /// <summary>As <see cref="PerformActionAsync(string, CancellationToken)"/>, on several folders.</summary>
+        Task<bool> PerformActionAsync(IEnumerable<string> folderPaths, CancellationToken ct = default);
+
+        /// <summary>Force-executes the action, skipping any confirmation prompts. Defaults to the normal overload.</summary>
+        Task<bool> PerformActionAsync(string folderPath, bool force, CancellationToken ct = default) => PerformActionAsync(folderPath, ct);
+
+        /// <summary>Force-executes the action on several folders, skipping any confirmation prompts. Defaults to the normal overload.</summary>
+        Task<bool> PerformActionAsync(IEnumerable<string> folderPaths, bool force, CancellationToken ct = default) => PerformActionAsync(folderPaths, ct);
     }
 }
