@@ -59,6 +59,24 @@ public sealed class ContentSelection
         return touched.Count == 0 ? None : new ContentSelection(LayoutQuery.Promote(touched));
     }
 
+    /// <summary>
+    /// What a drag from <paramref name="anchor"/> to <paramref name="focus"/> picks out where each is in a run the builder declared
+    /// — a cell of a table or of a matrix — as <see cref="Between"/> answers it there: the things between them along one run, or the
+    /// block they span between two. Null where either is on no declared run, which is where <see cref="Between"/> would step through
+    /// what is merely drawn beside it, and words beside words are a stretch of text rather than a row of things.
+    /// </summary>
+    public static ContentSelection? Gridded(Piece root, Piece anchor, Piece focus) =>
+        OnDeclaredRun(anchor) && OnDeclaredRun(focus) ? Along(root, anchor, focus) ?? Stacked(root, anchor, focus) : null;
+
+    /// <summary>Whether <paramref name="piece"/>, or something holding it, is on a run the builder declared.</summary>
+    private static bool OnDeclaredRun(Piece piece)
+    {
+        for (var at = piece; at.Exists; at = at.Parent)
+            if (at.RunOn(vertical: false) >= 0 || at.RunOn(vertical: true) >= 0) return true;
+
+        return false;
+    }
+
     /// <summary>One whole piece, as a selection.</summary>
     public static ContentSelection Of(Piece piece) => piece.Exists ? new([piece]) : None;
 

@@ -48,6 +48,7 @@ public class TreeChangeWatcherTests
 
         File.WriteAllText(file, "class A { }");
         Until(() => watcher.HasChanges, "the write to be collected");
+        Thread.Sleep(200);                             // one write is several notifications; the rest of them land too
 
         CollectionAssert.Contains(watcher.Take().Paths.ToList(), file);
         Assert.IsFalse(watcher.HasChanges, "what was taken is gone, and the next batch starts empty");
@@ -170,5 +171,47 @@ public class TreeChangeWatcherTests
             public void Dispose() { lock (clock._timers) clock._timers.Remove(this); }
             public ValueTask DisposeAsync() { Dispose(); return ValueTask.CompletedTask; }
         }
+    }
+
+    /// <summary>
+    /// What a holder took and is still folding in stays pending until it says it is done, so a reader looking in between learns
+    /// a change is on its way rather than finding nothing and trusting a state the batch is about to replace.
+    /// </summary>
+    [TestMethod]
+    public void AHeldBatch_IsStillPending_UntilItIsSettled()
+    {
+        using var watcher = new TreeChangeWatcher(_root, _ => true);
+        var file = Path.Combine(_root, "src", "deep", "A.cs");
+
+        File.WriteAllText(file, "class A { }");
+        Until(() => watcher.HasChanges, "the write to be collected");
+        Thread.Sleep(200);                             // one write is several notifications; the rest of them land too
+
+        var held = watcher.Hold();
+        Assert.IsFalse(watcher.HasChanges, "held is taken: the next batch starts empty");
+        CollectionAssert.Contains(watcher.Pending().Paths.ToList(), file, "but it is still pending");
+
+        watcher.Settle(held);
+        Assert.IsFalse(watcher.Pending().Paths.Contains(file), "and once settled it is not");
+    }
+
+    /// <summary>A path that came, went or was renamed is told apart from one only written to: for a folder, only the first says
+    /// anything its entries do not say themselves.</summary>
+    [TestMethod]
+    public void AFileCreated_IsMoved_AndAFileRewritten_IsNot()
+    {
+        var rewritten = Path.Combine(_root, "src", "Old.cs");
+        File.WriteAllText(rewritten, "class O { }");
+        using var watcher = new TreeChangeWatcher(_root, _ => true);
+        var created = Path.Combine(_root, "src", "deep", "New.cs");
+
+        File.WriteAllText(created, "class N { }");
+        File.AppendAllText(rewritten, "// more");
+        Until(() => watcher.Pending().Paths.Contains(rewritten), "the rewrite to be collected");
+        Thread.Sleep(100);
+
+        var batch = watcher.Take();
+        Assert.IsTrue(batch.Moved.Contains(created));
+        Assert.IsFalse(batch.Moved.Contains(rewritten), "written to, not come or gone");
     }
 }

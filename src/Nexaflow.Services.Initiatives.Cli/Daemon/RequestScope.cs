@@ -26,6 +26,9 @@ internal sealed record RequestContext(string Directory)
 
     /// <summary>Cancelled when the caller has gone — nobody is left to read the answer.</summary>
     public CancellationToken Cancellation { get; init; }
+
+    /// <summary>The request's ticket, so what it causes deeper down can be logged beside it.</summary>
+    public string? Ticket { get; init; }
 }
 
 /// <summary>
@@ -73,6 +76,9 @@ internal static class RequestScope
 
     /// <summary>Cancelled once the caller has gone. <see cref="CancellationToken.None"/> outside a request.</summary>
     internal static CancellationToken Cancellation => Active.Value?.Context.Cancellation ?? CancellationToken.None;
+
+    /// <summary>The ticket of the request being served, or null outside one.</summary>
+    internal static string? Ticket => Active.Value?.Context.Ticket;
 
     /// <summary>
     /// An environment variable as the <b>caller</b> has it. The daemon inherits whichever shell started it, so

@@ -448,9 +448,10 @@ public static class GraphAsk
                 if (arg is null) return "like needs a pattern: like <regex>.";
                 if (!q.Seeded) return "like narrows what is already found: search, grep or node first.";
                 Regex rx;
-                try { rx = new Regex(arg, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant); }
+                try { rx = UserPattern.Compile(arg, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant); }
                 catch (ArgumentException ex) { return $"bad regex /{arg}/: {ex.Message}"; }
-                q.Hits = [.. q.Hits.Where(h => rx.IsMatch(h.Node.Id) || rx.IsMatch(h.Node.Label))];
+                try { q.Hits = [.. q.Hits.Where(h => rx.IsMatch(h.Node.Id) || rx.IsMatch(h.Node.Label))]; }
+                catch (RegexMatchTimeoutException) { return UserPattern.TooSlow(arg); }
                 return null;
             }
 
@@ -553,9 +554,13 @@ public static class GraphAsk
         }
 
         var over = q.Seeded ? q.Hits.Select(h => h.Node) : g.Nodes;
-        q.Hits = [.. GraphQuery.GrepNodes(over, regex, read)
-            .GroupBy(h => h.Node.Id, StringComparer.Ordinal)
-            .Select(byNode => new Hit(byNode.First().Node, [.. byNode.Select(h => (h.Line, h.Text))]))];
+        try
+        {
+            q.Hits = [.. GraphQuery.GrepNodes(over, regex, read)
+                .GroupBy(h => h.Node.Id, StringComparer.Ordinal)
+                .Select(byNode => new Hit(byNode.First().Node, [.. byNode.Select(h => (h.Line, h.Text))]))];
+        }
+        catch (RegexMatchTimeoutException) { return UserPattern.TooSlow(regex); }
         q.Seeded = true;
         return null;
     }
@@ -592,7 +597,7 @@ public static class GraphAsk
             return $"diagnostics takes one id pattern (got '{string.Join(' ', pattern)}') - quote alternatives: \"NXUI001|CS0618\".";
         if (pattern.Count == 1)
         {
-            try { ids = new Regex(pattern[0], RegexOptions.IgnoreCase | RegexOptions.CultureInvariant); }
+            try { ids = UserPattern.Compile(pattern[0], RegexOptions.IgnoreCase | RegexOptions.CultureInvariant); }
             catch (ArgumentException ex) { return $"bad regex /{pattern[0]}/: {ex.Message}"; }
         }
 

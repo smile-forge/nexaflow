@@ -182,6 +182,9 @@
     <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.Common/Nexaflow.Providers.Common.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.OpenAICompatible/Nexaflow.Providers.OpenAICompatible.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.Gemini/Nexaflow.Providers.Gemini.csproj" Id="f8d63e1c-cefa-48e3-87a8-f7bc570cf4f2">
       <Platform Project="x64" />
     </Project>
@@ -192,6 +195,9 @@
       <Platform Project="x64" />
     </Project>
     <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.Whisper/Nexaflow.Providers.Whisper.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.XAI/Nexaflow.Providers.XAI.csproj">
       <Platform Project="x64" />
     </Project>
   </Folder>
