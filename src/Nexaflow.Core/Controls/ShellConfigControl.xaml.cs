@@ -50,6 +50,7 @@ public partial class ShellConfigControl : UserControl, ICustomConfigApply, IConf
             cfg.TextFontSize               = _vm.TextFontSize;
             cfg.PrestartAtLogin            = _vm.PrestartAtLogin;
             cfg.DisableAnimationsOnBattery = _vm.DisableAnimationsOnBattery;
+            cfg.EnhancedAiProtection       = _vm.EnhancedAiProtection;
 
             // Sync the HKCU Run entry to the toggle (takes effect next login).
             LoginAutoStartService.Set(_vm.PrestartAtLogin);
@@ -94,6 +95,7 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private double _textFontSize;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _prestartAtLogin;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _disableAnimationsOnBattery;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _enhancedAiProtection;
     [ObservableProperty] private IReadOnlyList<Color> _swatches = [];
 
     public ThemeOption Theme    => Enum.Parse<ThemeOption>(SelectedTheme);
@@ -101,9 +103,9 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
 
     /// <summary>Every choice the page saves, as one value, so the page and its saved state compare whole.</summary>
     private readonly record struct Choices(
-        string Theme, string Language, double TextFontSize, bool PrestartAtLogin, bool DisableAnimationsOnBattery);
+        string Theme, string Language, double TextFontSize, bool PrestartAtLogin, bool DisableAnimationsOnBattery, bool EnhancedAiProtection);
 
-    private Choices Current => new(SelectedTheme, SelectedLanguage, TextFontSize, PrestartAtLogin, DisableAnimationsOnBattery);
+    private Choices Current => new(SelectedTheme, SelectedLanguage, TextFontSize, PrestartAtLogin, DisableAnimationsOnBattery, EnhancedAiProtection);
 
     // What the page last saved, or opened on — taken after the language and size were snapped onto offered values,
     // since a config the page had to normalise is not an edit the user made.
@@ -132,6 +134,7 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
         _textFontSize               = NearestOfferedSize(cfg.TextFontSize);
         _prestartAtLogin            = cfg.PrestartAtLogin;
         _disableAnimationsOnBattery = cfg.DisableAnimationsOnBattery;
+        _enhancedAiProtection       = cfg.EnhancedAiProtection;
         _saved                      = Current;
         LoadSwatches(cfg.Theme);
     }

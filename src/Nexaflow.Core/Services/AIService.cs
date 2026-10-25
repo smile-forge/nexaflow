@@ -97,17 +97,27 @@ public sealed class AIService : IAIService
 
     public PictureMaking? MakesPictures => ImageGenerator is null && HighQualityImageGenerator is null
         ? null
-        : new(PictureChoicesOf(ImageGenerator), PictureChoicesOf(HighQualityImageGenerator));
+            : new(PictureChoicesOf(ImageGenerator, AllowsAdultContent), PictureChoicesOf(HighQualityImageGenerator, AllowsAdultContent));
+
+        /// <summary>Whether the app allows adult content: not while Enhanced AI Protection Mode is on, as it is by default
+        /// (<see cref="ShellConfig.EnhancedAiProtection"/>). Read where it is offered, so a change applies to the next choice made.</summary>
+        private static bool AllowsAdultContent => !(ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault()?.EnhancedAiProtection ?? true);
 
     /// <summary>What <paramref name="model"/> lets a picture be asked for with, as <c>generate_image</c> names it.</summary>
-    private static PictureChoices? PictureChoicesOf(IImageGenerationProvider? model) => model?.Settings is not { } settings ? null : new([.. settings.Aspects.Select(a => a.ToString())])
+    private static PictureChoices? PictureChoicesOf(IImageGenerationProvider? model, bool allowsAdultContent)
     {
-        Resolutions            = settings.Resolutions,
-        Details                = [.. settings.Details.Select(Generation.GenerateImageTool.DetailName)],
-        Seeds                  = settings.Seeds,
-        NegativePrompts        = settings.NegativePrompts,
-        TransparentBackgrounds = settings.TransparentBackgrounds,
-    };
+        if (model?.Settings is not { } offered) return null;
+        var settings = Generation.GenerateImageTool.Offerable(offered, allowsAdultContent);
+        return new([.. settings.Aspects.Select(a => a.ToString())])
+        {
+            Resolutions            = settings.Resolutions,
+            Details                = [.. settings.Details.Select(Generation.GenerateImageTool.DetailName)],
+            Seeds                  = settings.Seeds,
+            NegativePrompts        = settings.NegativePrompts,
+            TransparentBackgrounds = settings.TransparentBackgrounds,
+            Loras                  = [.. settings.Loras.Select(l => new PictureLora(l.Id, l.Name, l.Description, l.NegativePrompts))],
+        };
+    }
 
     public void MakePicture(PictureAsked picture)
     {
@@ -118,7 +128,8 @@ public sealed class AIService : IAIService
         // The call generate_image would be given, run as the assistant's slow calls run — but the user's, so nothing is asked.
         // It saves only where the user named, and opens the picture once it is there.
         var tool = new Generation.GenerateImageTool(ImageGenerator, HighQualityImageGenerator,
-                                                    Generation.GeneratedFiles.For(shell, new PathScope([], [Path.GetDirectoryName(target)!])));
+                                                    Generation.GeneratedFiles.For(shell, new PathScope([], [Path.GetDirectoryName(target)!])),
+                                                    AllowsAdultContent);
         var arguments = new JsonObject
         {
             ["prompt"]  = picture.Prompt,
@@ -131,6 +142,7 @@ public sealed class AIService : IAIService
         if (picture.Seed is { } seed)                        arguments["seed"]                   = seed;
         if (picture.NegativePrompt is { Length: > 0 } keep)  arguments["negative_prompt"]        = keep;
         if (picture.TransparentBackground)                   arguments["transparent_background"] = true;
+        if (picture.Lora is { Length: > 0 } lora)            arguments["lora"]                   = lora;
         jobs.Start(tool, arguments, origin: null);
     }
 
@@ -350,7 +362,7 @@ public sealed class AIService : IAIService
         {
             var made = Generation.GeneratedFiles.For(shell, scope);
             tools.AddRange(new Generation.GenerationTools(ImageGenerator, HighQualityImageGenerator, TextToSpeech, VideoGenerator,
-                                                          HighQualityVideoGenerator, made).Tools);
+                                                          HighQualityVideoGenerator, made, AllowsAdultContent).Tools);
             tools.AddRange(AwaitingMakingTools(made));
         }
 

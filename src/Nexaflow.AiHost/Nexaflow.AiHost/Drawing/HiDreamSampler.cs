@@ -44,19 +44,7 @@ internal static class HiDreamSampler
 
     /// <summary>The noise a picture starts from, in the tokens' layout — 8 × standard normal, the same for the same seed.</summary>
     public static float[] Noise(long seed, int tokens)
-    {
-        var random = new Random(unchecked((int)(seed ^ (seed >> 32))));
-        var noise = new float[tokens * TokenWidth];
-        for (int i = 0; i < noise.Length; i += 2)
-        {
-            // Box–Muller: two uniforms in (0, 1] give two independent normals.
-            double u1 = 1.0 - random.NextDouble(), u2 = random.NextDouble();
-            double r = NoiseScale * Math.Sqrt(-2.0 * Math.Log(u1));
-            noise[i] = (float)(r * Math.Cos(2 * Math.PI * u2));
-            if (i + 1 < noise.Length) noise[i + 1] = (float)(r * Math.Sin(2 * Math.PI * u2));
-        }
-        return noise;
-    }
+        => new GaussianNoise(seed).Draw(tokens * TokenWidth, NoiseScale);
 
     /// <summary>
     /// The picture's rotary positions, [3, rows · cols]: each patch at (4096, 4096 + row, 4096 + column), row by row. The

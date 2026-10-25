@@ -10,23 +10,34 @@ namespace Nexaflow.Core.Services.Generation;
 /// Draws a picture with the workspace's Image Generation model, or its Image Generation (HQ) model when a finished,
 /// polished picture is asked for — from a prompt, or from pictures given to it where the model works from them — then
 /// saves and opens it, and shows it to the model. What else a picture may be asked for with — its exact proportions,
-/// size, detail, seed, what to keep out, a transparent background — is what the models' <see cref="ImageSettings"/>
-/// offer. A high-quality picture is slow and dearer, so it is approved first.
+/// size, detail, seed, what to keep out, a transparent background, a LoRA — is what the models' <see cref="ImageSettings"/>
+/// offer; a LoRA meant for adults only is offered only while Enhanced AI Protection Mode is off. A high-quality picture is
+/// slow and dearer, so it is approved first.
 /// </summary>
 internal sealed class GenerateImageTool : IClientTool
 {
     private readonly IImageGenerationProvider? _standard;
     private readonly IImageGenerationProvider? _highQuality;
     private readonly GeneratedFiles _files;
+    private readonly bool _allowsAdultContent;
 
     /// <summary>Either model may be missing, not both; with both, a <c>quality</c> argument chooses between them.</summary>
-    public GenerateImageTool(IImageGenerationProvider? standard, IImageGenerationProvider? highQuality, GeneratedFiles files)
+    /// <param name="allowsAdultContent">Enhanced AI Protection Mode is off: a LoRA meant for adults only is offered.</param>
+    public GenerateImageTool(IImageGenerationProvider? standard, IImageGenerationProvider? highQuality, GeneratedFiles files, bool allowsAdultContent = false)
     {
         if (standard is null && highQuality is null) throw new ArgumentException("An image tool needs a model to draw with.");
-        _standard    = standard;
-        _highQuality = highQuality;
-        _files       = files;
+        _standard           = standard;
+        _highQuality        = highQuality;
+        _files              = files;
+        _allowsAdultContent = allowsAdultContent;
     }
+
+    /// <summary>A model's settings as they are offered: a LoRA meant for adults only left out unless the app allows adult
+    /// content — to a person setting a picture up and to the assistant alike.</summary>
+    internal static ImageSettings Offerable(ImageSettings settings, bool allowsAdultContent) =>
+        allowsAdultContent || !settings.Loras.Any(l => l.Adult) ? settings : settings with { Loras = [.. settings.Loras.Where(l => !l.Adult)] };
+
+    private ImageSettings Offering(IImageGenerationProvider model) => Offerable(model.Settings, _allowsAdultContent);
 
     public string Name => "generate_image";
 
@@ -35,7 +46,7 @@ internal sealed class GenerateImageTool : IClientTool
     private bool OffersQuality => _standard is not null && _highQuality is not null;
 
     /// <summary>The models' settings, standard first.</summary>
-    private IEnumerable<ImageSettings> Offered => new[] { _standard, _highQuality }.OfType<IImageGenerationProvider>().Select(m => m.Settings);
+    private IEnumerable<ImageSettings> Offered => new[] { _standard, _highQuality }.OfType<IImageGenerationProvider>().Select(Offering);
 
     public string Description => (MostSources > 0
         ? "Draws a picture from a description, or changes, restyles or combines pictures given to it, and opens it for the user."
@@ -70,6 +81,10 @@ internal sealed class GenerateImageTool : IClientTool
             ? [new ClientToolParameter("transparent_background", $"Draws it on a transparent background.{Only(s => s.TransparentBackgrounds)}",
                                        Required: false, Type: "boolean")]
             : Array.Empty<ClientToolParameter>(),
+        .. Offered.Any(s => s.Loras.Count > 0)
+            ? [new ClientToolParameter("lora", $"A LoRA to draw it with, one at a time — {LoraList}.{Only(s => s.Loras.Count > 0)} None when not given.",
+                                       Required: false, Choices: [.. Offered.SelectMany(s => s.Loras).Select(l => l.Id).Distinct()])]
+            : Array.Empty<ClientToolParameter>(),
         .. MostSources > 0
             ? [new ClientToolParameter("sources", $"Full paths of up to {MostSources} PNG, JPEG or WebP picture(s) to work from: pictures open in a tab, or in a folder open in one.{SourcesNote}",
                                        Required: false, Type: "array", ItemType: "string")]
@@ -91,16 +106,19 @@ internal sealed class GenerateImageTool : IClientTool
     private string Offer<T>(Func<ImageSettings, IReadOnlyList<T>> choices)
     {
         if (!OffersQuality) return "";
-        var (standard, high) = (choices(_standard!.Settings), choices(_highQuality!.Settings));
+        var (standard, high) = (choices(Offering(_standard!)), choices(Offering(_highQuality!)));
         if (standard.SequenceEqual(high)) return "";
         static string Listed(IReadOnlyList<T> offered) => offered.Count == 0 ? "none" : string.Join(", ", offered);
         return $" Standard quality: {Listed(standard)}; high: {Listed(high)}.";
     }
 
+    /// <summary>Each LoRA offered, by its id, and what it does.</summary>
+    private string LoraList => string.Join("; ", Offered.SelectMany(s => s.Loras).DistinctBy(l => l.Id).Select(l => $"{l.Id}: {l.Description}"));
+
     /// <summary>Where only one quality offers something, which.</summary>
     private string Only(Func<ImageSettings, bool> offers) =>
-        OffersQuality && offers(_standard!.Settings) != offers(_highQuality!.Settings)
-            ? offers(_standard.Settings) ? " Standard quality only." : " High quality only."
+        OffersQuality && offers(Offering(_standard!)) != offers(Offering(_highQuality!))
+            ? offers(Offering(_standard!)) ? " Standard quality only." : " High quality only."
             : "";
 
     /// <summary>Where the two qualities take different sources, which takes how many.</summary>
@@ -141,7 +159,7 @@ internal sealed class GenerateImageTool : IClientTool
         if (_files.Refusal(ToolArgs.Str(arguments, "path")) is { } refused) return ToolResult.Error("not saved there", refused);
 
         var model = Model(arguments);
-        if (Request(model.Settings, prompt, arguments, out var problem) is not { } asked) return ToolResult.Error("not offered", problem!);
+        if (Request(Offering(model), prompt, arguments, out var problem) is not { } asked) return ToolResult.Error("not offered", problem!);
 
         var paths = arguments["sources"] is JsonArray listed ? listed.Select(s => s?.ToString()).OfType<string>().ToList() : [];
         if (paths.Count > model.MaxSources)
@@ -212,6 +230,7 @@ internal sealed class GenerateImageTool : IClientTool
             Seed                  = ToolArgs.IntOrNull(arguments, "seed"),
             NegativePrompt        = ToolArgs.Str(arguments, "negative_prompt") is { Length: > 0 } keptOut ? keptOut.Trim() : null,
             TransparentBackground = ToolArgs.Bool(arguments, "transparent_background"),
+            Lora                  = ToolArgs.Str(arguments, "lora") is { Length: > 0 } lora ? lora.Trim() : null,
         };
         problem = settings.Refusal(request);
         return problem is null ? request : null;

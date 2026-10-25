@@ -57,7 +57,7 @@ internal static class HostProgram
                 new GenerateHandler(models, scheduler),
                 new ListenHandler(models, scheduler),
                 new SpeakHandler(models, scheduler, new SpeechPhonemizers()),
-                new DrawHandler(models, [new ZImageDrawing(models, scheduler), new HiDreamDrawing(models, scheduler)]),
+                new DrawHandler(models, [new ZImageDrawing(models, scheduler), new HiDreamDrawing(models, scheduler), new MossDrawing(models, scheduler)]),
                 new FilmHandler(models, [new WanFilming(models, scheduler)]),
                 new RestoreHandler(models, scheduler),
                 new SelectHandler(models, scheduler),

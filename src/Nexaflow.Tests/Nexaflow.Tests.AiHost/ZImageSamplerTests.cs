@@ -105,6 +105,6 @@ public class ZImageSamplerTests
     {
         float[] planes = [0f, 1f, 2f, -1f, 0.5f, 0.25f];   // [3, 1, 2]: r = (0, 1), g = (2, -1), b = (0.5, 0.25)
 
-        CollectionAssert.AreEqual(new byte[] { 0, 255, 128, 255, 0, 64 }, ZImageSampler.Rgb(planes, 1, 2));
+        CollectionAssert.AreEqual(new byte[] { 0, 255, 128, 255, 0, 64 }, DecodedPixels.Rgb(planes, 1, 2));
     }
 }

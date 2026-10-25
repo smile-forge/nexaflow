@@ -109,26 +109,3 @@ internal static class WanSampler
         return next;
     }
 }
-
-/// <summary>
-/// The noise a clip is made from: standard normal values drawn in turn from one seed — the noise it starts from, then a
-/// distilled model's fresh noise at each step — so the same seed, prompt and picture make the same clip.
-/// </summary>
-internal sealed class ClipNoise(long seed)
-{
-    private readonly Random _random = new(unchecked((int)(seed ^ (seed >> 32))));
-
-    public float[] Draw(int count)
-    {
-        var noise = new float[count];
-        for (int i = 0; i < noise.Length; i += 2)
-        {
-            // Box–Muller: two uniforms in (0, 1] give two independent normals.
-            double u1 = 1.0 - _random.NextDouble(), u2 = _random.NextDouble();
-            double r = Math.Sqrt(-2.0 * Math.Log(u1));
-            noise[i] = (float)(r * Math.Cos(2 * Math.PI * u2));
-            if (i + 1 < noise.Length) noise[i + 1] = (float)(r * Math.Sin(2 * Math.PI * u2));
-        }
-        return noise;
-    }
-}

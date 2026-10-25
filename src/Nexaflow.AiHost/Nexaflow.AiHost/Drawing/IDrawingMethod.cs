@@ -16,6 +16,12 @@ internal interface IDrawingMethod
     /// <summary>Whether it draws pictures of this size.</summary>
     bool Draws(int width, int height);
 
+    /// <summary>Whether it is told what to keep out of a picture (<see cref="Draw.NegativePrompt"/>).</summary>
+    bool TakesNegativePrompts { get; }
+
+    /// <summary>Whether it draws with a LoRA (<see cref="Draw.Lora"/>).</summary>
+    bool TakesLoras { get; }
+
     /// <summary>Draws <paramref name="request"/>'s picture, as interleaved 8-bit RGB rows.</summary>
     /// <param name="stage">Told of a part loading, by what it is doing.</param>
     /// <param name="stepped">Told of each denoising step as it finishes: how many are done, of how many.</param>

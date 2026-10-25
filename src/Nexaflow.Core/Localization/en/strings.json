@@ -336,6 +336,7 @@
   "Shell.Config.Shell.TextFontSize": "Text size",
   "Shell.Config.Shell.PrestartAtLogin": "Start with Windows",
   "Shell.Config.Shell.DisableAnimationsOnBattery": "Disable background animations on battery",
+  "Shell.Config.Shell.EnhancedAiProtection": "Enhanced AI Protection Mode",
 
   "Shell.Config.Security": "Security",
   "Shell.Config.Security.AllowWindowAccess": "Allow AI to view other windows",
@@ -420,6 +421,9 @@
   "Shell.Options.Shell.Battery": "Battery saver",
   "Shell.Options.Shell.BatteryToggle": "Disable background animations when on battery",
   "Shell.Options.Shell.BatteryNote": "Stops the animated backdrop some themes draw behind the shell while running on battery. Takes effect immediately; themes without a backdrop (Dark, Light) are unaffected.",
+  "Shell.Options.Shell.Protection": "AI protection",
+  "Shell.Options.Shell.AiProtection": "Enhanced AI Protection Mode",
+  "Shell.Options.Shell.AiProtectionNote": "Reinforces protection against adult and sensitive content.",
   "Shell.Options.Abilities.Title": "AI Ability Assignments",
   "Shell.Options.Abilities.AddColumn": "+ Add Provider / Model",
   "Shell.Options.Abilities.AddColumnTitle": "Add a provider / model column",

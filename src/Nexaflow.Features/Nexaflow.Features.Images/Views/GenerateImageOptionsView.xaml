@@ -74,6 +74,16 @@
             <TextBlock Text="{loc:Str Images.Generate.SeedInvalid}" FontSize="11" Margin="0,4,0,0" Foreground="{StaticResource WarningBrush}"
                        Visibility="{Binding SeedIsValid, Converter={StaticResource NotBoolVis}}"/>
 
+            <StackPanel Visibility="{Binding Loras.Count, Converter={StaticResource CountVis}}">
+                <TextBlock Text="{loc:Str Images.Generate.Lora}" Style="{StaticResource OptionLabel}"/>
+                <ComboBox ItemsSource="{Binding Loras}" SelectedItem="{Binding Lora, Mode=TwoWay}" DisplayMemberPath="Label"
+                          Style="{StaticResource DarkComboBox}" HorizontalAlignment="Left" MinWidth="200"
+                          ToolTip="{loc:Str Images.Generate.LoraTip}"
+                          AutomationProperties.AutomationId="Images_GenerateLora"
+                          AutomationProperties.Name="{loc:Str Images.Generate.Lora}"/>
+                <TextBlock Text="{Binding LoraNote}" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"/>
+            </StackPanel>
+
             <StackPanel Visibility="{Binding NegativePrompts, Converter={StaticResource BoolVis}}">
                 <TextBlock Text="{loc:Str Images.Generate.KeepOut}" Style="{StaticResource OptionLabel}"/>
                 <TextBox Text="{Binding NegativePrompt, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBox}"

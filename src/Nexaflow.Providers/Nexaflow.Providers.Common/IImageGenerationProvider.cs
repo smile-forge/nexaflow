@@ -39,6 +39,9 @@ public sealed record ImageGenerationRequest(string Prompt, MediaAspect Aspect)
 
     /// <summary>Drawn on a transparent background, by a model that <see cref="ImageSettings.TransparentBackgrounds"/>.</summary>
     public bool TransparentBackground { get; init; }
+
+    /// <summary>One of the model's <see cref="ImageSettings.Loras"/>, by its id; null for none.</summary>
+    public string? Lora { get; init; }
     /// <summary>Images to work from, at most <see cref="IImageGenerationProvider.MaxSources"/>.</summary>
     public IReadOnlyList<MediaBytes> Sources { get; init; } = [];
 

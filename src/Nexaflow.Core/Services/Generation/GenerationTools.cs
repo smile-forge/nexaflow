@@ -6,15 +6,15 @@ namespace Nexaflow.Core.Services.Generation;
 /// <summary>
 /// The tools that make things — a picture, text read aloud, a video clip — each offered when the workspace has a model
 /// for it now: its Image Generation and Image Generation (HQ), Speech Out, and Video Generation and Video Generation (HQ)
-/// rows.
+/// rows. Adult content is offered only while the app allows it (<paramref name="allowsAdultContent"/>).
 /// </summary>
 internal sealed class GenerationTools(IImageGenerationProvider? images, IImageGenerationProvider? highQualityImages,
                                       ITextToSpeechProvider? voice, IVideoGenerationProvider? videos,
-                                      IVideoGenerationProvider? highQualityVideos, GeneratedFiles files)
+                                      IVideoGenerationProvider? highQualityVideos, GeneratedFiles files, bool allowsAdultContent = false)
 {
     public IReadOnlyList<IClientTool> Tools =>
     [
-        .. images is null && highQualityImages is null ? Array.Empty<IClientTool>() : [new GenerateImageTool(images, highQualityImages, files)],
+        .. images is null && highQualityImages is null ? Array.Empty<IClientTool>() : [new GenerateImageTool(images, highQualityImages, files, allowsAdultContent)],
         .. voice  is null ? Array.Empty<IClientTool>() : [new GenerateSpeechTool(voice, files)],
         .. videos is null && highQualityVideos is null ? Array.Empty<IClientTool>() : [new GenerateVideoTool(videos, highQualityVideos, files)],
     ];

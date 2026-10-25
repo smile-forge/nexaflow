@@ -1,5 +1,5 @@
 {
-  "comment": "The LoRAs Nexaflow offers for MOSS-Image, each converted to an ONNX Runtime adapter and checked by this recipe. Every one is Apache-2.0. 'alpha' is given only where the file carries none, from its model card. 'adult' entries are offered only while the app allows adult content. 'sampler' replaces MOSS-Image's own fifty guided steps.",
+  "comment": "The LoRAs Nexaflow offers for MOSS-Image, each converted to an ONNX Runtime adapter and checked by this recipe. Every one is Apache-2.0. 'alpha' is given only where the file carries none, from its model card. 'adult' entries are offered only while the app's Enhanced AI Protection Mode is off. 'sampler' replaces MOSS-Image's own fifty guided steps.",
   "loras": [
     {
       "id": "moss-fast-8step",

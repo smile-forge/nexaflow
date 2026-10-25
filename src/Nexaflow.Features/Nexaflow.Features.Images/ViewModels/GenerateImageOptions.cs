@@ -13,7 +13,7 @@ namespace Nexaflow.Features.Images.ViewModels;
 /// <summary>
 /// The options a picture made from the New picker is drawn with: what to draw, and what the workspace's image model at
 /// the quality chosen offers besides — its proportions, size and detail, a seed, what to keep out, a transparent
-/// background — as <c>generate_image</c> offers the assistant. The workspace's models are followed while the view is
+/// background, a LoRA — as <c>generate_image</c> offers the assistant. The workspace's models are followed while the view is
 /// shown, so a model assigned or downloaded meanwhile is offered at once; one waiting on its download is offered to
 /// download.
 /// </summary>
@@ -101,6 +101,18 @@ public sealed partial class GenerateImageOptions : ObservableObject, IFileCreate
 
     [ObservableProperty] private bool _transparentBackground;
 
+    /// <summary>The LoRAs the model draws with, after none; empty where it takes none.</summary>
+    public ObservableCollection<GenerationChoice> Loras { get; } = [];
+
+    [ObservableProperty] private GenerationChoice? _lora;
+
+    /// <summary>What the LoRA chosen does to a picture; empty for none.</summary>
+    [ObservableProperty] private string _loraNote = string.Empty;
+
+    /// <summary>The model's LoRAs as it offers them, and whether it takes a negative prompt, at the quality chosen.</summary>
+    private IReadOnlyList<PictureLora> _offeredLoras = [];
+    private bool _modelTakesNegativePrompts;
+
     /// <summary>Whether <see cref="Seed"/> is empty or a whole number of 0 or more.</summary>
     public bool SeedIsValid => !Seeds || GenerationChoices.SeedValue(Seed, out _);
 
@@ -123,6 +135,7 @@ public sealed partial class GenerateImageOptions : ObservableObject, IFileCreate
             Seed                  = Seeds ? seed : null,
             NegativePrompt        = NegativePrompts && NegativePrompt.Trim() is { Length: > 0 } keptOut ? keptOut : null,
             TransparentBackground = TransparentBackgrounds && TransparentBackground,
+            Lora                  = Lora?.Value,
         });
         return path;
     }
@@ -165,10 +178,23 @@ public sealed partial class GenerateImageOptions : ObservableObject, IFileCreate
         Resolution = GenerationChoices.Refill(Resolutions, choices?.Resolutions.Select(r => new GenerationChoice(r, r)), Resolution, Str.Get("Images.Generate.ModelsOwn"));
         Detail = GenerationChoices.Refill(Details, choices?.Details.Select(d => new GenerationChoice(Str.Get($"Images.Generate.Detail.{Capitalised(d)}"), d)), Detail, Str.Get("Images.Generate.ModelsOwn"));
         Seeds                  = choices?.Seeds ?? false;
-        NegativePrompts        = choices?.NegativePrompts ?? false;
         TransparentBackgrounds = choices?.TransparentBackgrounds ?? false;
+        _modelTakesNegativePrompts = choices?.NegativePrompts ?? false;
+        _offeredLoras = choices?.Loras ?? [];
+        Lora = GenerationChoices.Refill(Loras, _offeredLoras.Select(l => new GenerationChoice(l.Name, l.Id)), Lora, Str.Get("Images.Generate.NoLora"));
+        OfferLora();
         OnPropertyChanged(nameof(SeedIsValid));
         OnPropertyChanged(nameof(CanCreate));
+    }
+
+    partial void OnLoraChanged(GenerationChoice? value) => OfferLora();
+
+    /// <summary>Says what the LoRA chosen does, and offers what to keep out only where the model and its LoRA are told it.</summary>
+    private void OfferLora()
+    {
+        var chosen = _offeredLoras.FirstOrDefault(l => l.Id == Lora?.Value);
+        LoraNote        = chosen?.Description ?? string.Empty;
+        NegativePrompts = _modelTakesNegativePrompts && (chosen?.NegativePrompts ?? true);
     }
 
     /// <summary>"Landscape · 16:9": the shape the proportions make, then the proportions.</summary>

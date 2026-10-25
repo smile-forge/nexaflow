@@ -45,9 +45,9 @@ On an RTX PRO 6000, one part loaded at a time as Nexaflow's host loads them:
 
 | | GPU memory at 1024² | at 1456² | Seconds a 1024² picture |
 |---|---|---|---|
-| `denoiser/` | 7.8 GiB | 9.1 GiB | 24.0 |
+| `denoiser/` | 7.8 GiB | 9.1 GiB | 22.9 |
 | `decoder/` | 3.0 GiB | 5.4 GiB | (included above) |
-| PyTorch pipeline, bf16 | | | 28.4 |
+| PyTorch pipeline, bf16 | | | 27.7 |
 
 The memory is the device's use at its peak less its use before the part was loaded, CUDA's context included. The
 largest part decides the card a picture needs: the prompt encoder's 8.5 GiB, or the denoiser's at the size drawn.

@@ -134,8 +134,8 @@ public class WanSamplerTests
     [TestMethod]
     public void TheNoise_IsTheSameForTheSameSeed_DrawnInTurn()
     {
-        var a = new ClipNoise(42);
-        var b = new ClipNoise(42);
+        var a = new GaussianNoise(42);
+        var b = new GaussianNoise(42);
 
         var first = a.Draw(64);
         CollectionAssert.AreEqual(first, b.Draw(64));

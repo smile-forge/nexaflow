@@ -134,6 +134,64 @@ public class GenerationToolsTests
         StringAssert.Contains(both["shape"].Description, "Standard quality: 1:1, 3:2, 2:3; high: 1:1.");
     }
 
+    /// <summary>A model with a negative prompt and three LoRAs: a distillation told nothing to keep out, a style, and one meant for adults only.</summary>
+    private static readonly ImageSettings WithLoras = new([new(1, 1)])
+    {
+        NegativePrompts = true,
+        Loras =
+        [
+            new("fast", "Fast", "In eight steps.") { NegativePrompts = false },
+            new("ink", "Ink", "Ink and wash."),
+            new("bare", "Bare", "For adults only.") { Adult = true },
+        ],
+    };
+
+    [TestMethod]
+    public void TheLorasAModelDrawsWith_AreOffered_OneMeantForAdultsOnly_OnlyWhileProtectionIsOff()
+    {
+        var high = new Painter { Settings = WithLoras };
+
+        var lora = new GenerateImageTool(new Painter(), high, Files).Parameters.Single(p => p.Name == "lora");
+        var allowed = new GenerateImageTool(new Painter(), high, Files, allowsAdultContent: true).Parameters.Single(p => p.Name == "lora");
+
+        CollectionAssert.AreEqual(new[] { "fast", "ink" }, lora.Choices!.ToArray());
+        StringAssert.Contains(lora.Description, "ink: Ink and wash.", "each said what it does, for the model to choose by");
+        StringAssert.Contains(lora.Description, "High quality only.");
+        Assert.IsFalse(lora.Description.Contains("bare"), "one meant for adults only is not even named");
+        CollectionAssert.AreEqual(new[] { "fast", "ink", "bare" }, allowed.Choices!.ToArray());
+        Assert.IsFalse(new GenerateImageTool(new Painter(), null, Files).Parameters.Any(p => p.Name == "lora"), "a model that takes none is offered none");
+    }
+
+    [TestMethod]
+    public async Task APictureWithALora_AsksTheModelForIt_AndOneNotOfferedOrToldWhatItTakesNot_IsRefused()
+    {
+        var painter = new Painter { Settings = WithLoras };
+        var tool = new GenerateImageTool(painter, null, Files);
+
+        var drawn   = await tool.InvokeAsync(new JsonObject { ["prompt"] = "a fox", ["lora"] = "ink", ["negative_prompt"] = "people" }, default);
+        var adult   = await tool.InvokeAsync(new JsonObject { ["prompt"] = "a fox", ["lora"] = "bare" }, default);
+        var keptOut = await tool.InvokeAsync(new JsonObject { ["prompt"] = "a fox", ["lora"] = "fast", ["negative_prompt"] = "people" }, default);
+        var allowed = await new GenerateImageTool(painter, null, Files, allowsAdultContent: true).InvokeAsync(new JsonObject { ["prompt"] = "a fox", ["lora"] = "bare" }, default);
+
+        Assert.IsFalse(drawn.IsError, drawn.ModelText);
+        Assert.IsTrue(adult.IsError, "not offered while Enhanced AI Protection Mode is on");
+        StringAssert.Contains(adult.ModelText, "Its LoRAs are fast, ink, not bare.");
+        Assert.IsTrue(keptOut.IsError);
+        StringAssert.Contains(keptOut.ModelText, "With Fast it is told nothing to keep out.");
+        Assert.IsFalse(allowed.IsError, allowed.ModelText);
+        CollectionAssert.AreEqual(new[] { ("ink", "people"), ("bare", (string?)null) }, painter.Asked.Select(a => (a.Lora, a.NegativePrompt)).ToArray(),
+                                  "only what was offered reaches the model");
+    }
+
+    [TestMethod]
+    public void TheChoicesOffered_LeaveOutALoraMeantForAdultsOnly_UnlessProtectionIsOff()
+    {
+        Assert.AreEqual(2, GenerateImageTool.Offerable(WithLoras, allowsAdultContent: false).Loras.Count);
+        Assert.AreSame(WithLoras, GenerateImageTool.Offerable(WithLoras, allowsAdultContent: true), "allowed, nothing is left out");
+        var none = new ImageSettings([new(1, 1)]);
+        Assert.AreSame(none, GenerateImageTool.Offerable(none, allowsAdultContent: false), "a model with none for adults is offered as it is");
+    }
+
     [TestMethod]
     public async Task APicture_AskedIntoAFolderOpenInATab_IsSavedThere_Opened_AndToldToTheModel()
     {

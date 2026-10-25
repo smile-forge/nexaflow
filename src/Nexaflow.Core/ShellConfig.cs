@@ -56,6 +56,14 @@ public sealed class ShellConfig : IFeatureConfig
     public bool DisableAnimationsOnBattery { get; set; } = true;
 
     /// <summary>
+    /// Enhanced AI protection: while it is on, nothing meant for adults only is offered — not an image style made for it,
+    /// to a person or to the assistant — and the assistant is kept from adult and sensitive content. On by default.
+    /// App-wide, read where a choice is offered, so a change applies the next time one is made.
+    /// </summary>
+    [ConfigDisplayName("Shell.Config.Shell.EnhancedAiProtection")]
+    public bool EnhancedAiProtection { get; set; } = true;
+
+    /// <summary>
     /// Assembly version of the last run that reached the main window. Compared to the current version
     /// to decide whether to show the "What's New" wizard step after an update. Not user-editable
     /// (ShellConfig renders via <c>ShellConfigControl</c>, so this property never appears in the grid);

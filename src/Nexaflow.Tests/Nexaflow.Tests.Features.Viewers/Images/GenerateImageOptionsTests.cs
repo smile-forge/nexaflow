@@ -95,6 +95,36 @@ public class GenerateImageOptionsTests
     }
 
     [TestMethod]
+    public void ALora_IsChosenAfterNone_SaysWhatItDoes_AndOneThatTakesNoNegativePrompt_HidesWhatToKeepOut()
+    {
+        var withLoras = new PictureChoices(["1:1"])
+        {
+            NegativePrompts = true,
+            Loras = [new("fast", "Fast", "In eight steps.", NegativePrompts: false), new("ink", "Ink", "Ink and wash.", NegativePrompts: true)],
+        };
+        var ai = Ai(new(withLoras, null));
+        var options = new GenerateImageOptions(ai, Folder);
+
+        CollectionAssert.AreEqual(new[] { null, "fast", "ink" }, options.Loras.Select(l => l.Value).ToArray(), "none first");
+        Assert.AreEqual(Str.Get("Images.Generate.NoLora"), options.Lora!.Label);
+        Assert.AreEqual("", options.LoraNote);
+        Assert.IsTrue(options.NegativePrompts);
+
+        options.Lora = options.Loras.Single(l => l.Value == "fast");
+        Assert.AreEqual("In eight steps.", options.LoraNote);
+        Assert.IsFalse(options.NegativePrompts, "the distillation is told nothing to keep out");
+
+        options.Lora = options.Loras.Single(l => l.Value == "ink");
+        Assert.IsTrue(options.NegativePrompts);
+        options.Prompt = "a fox";
+        options.NegativePrompt = "people";
+        options.Create("fox.png");
+
+        ai.Received(1).MakePicture(Arg.Is<PictureAsked>(p => p.Lora == "ink" && p.NegativePrompt == "people"));
+        Assert.AreEqual(0, new GenerateImageOptions(Ai(new(Standard, null)), Folder).Loras.Count, "a model that takes none offers none");
+    }
+
+    [TestMethod]
     public void EachAspect_IsLabelledWithTheShapeItMakes()
     {
         var options = new GenerateImageOptions(Ai(new(Standard, null)), Folder);

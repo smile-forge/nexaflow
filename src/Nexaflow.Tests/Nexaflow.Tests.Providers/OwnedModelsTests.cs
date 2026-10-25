@@ -117,6 +117,112 @@ public class OwnedModelsTests
     }
 
     [TestMethod]
+    public void MossImage_ShipsAsAHighQualityModel_ReadingItsPromptWithAnExistingGguf_WithItsCuratedLoras()
+    {
+        var moss = OwnedModels.OfKind(ModelKind.ImageGeneration).Single(m => m.Id == "moss-image");
+
+        Assert.AreEqual(ModelTier.HighQuality, moss.Catalog.Tier);
+        Assert.AreEqual((DrawingMethod.MossImage, 50, 5f, 3f, true),
+                        (moss.Sampler!.Method, moss.Sampler.Steps, moss.Sampler.Shift, moss.Sampler.Guidance, moss.Sampler.NegativePrompts),
+                        "MossImagePipeline's own sampling, steering from a negative prompt");
+        Assert.AreEqual((1344, 768), moss.Sampler.Sizes[MediaShape.Landscape]);
+        Assert.IsFalse(moss.RunsOn(OwnedModels.Cpu), "its graphs are built for the GPU");
+        CollectionAssert.AreEquivalent(new[] { "moss-image-prompt-encoder", "moss-image-denoiser", "moss-image-decoder" },
+                                       moss.PartsFor(OwnedModels.Cuda).Select(p => p.Runner).ToArray());
+        Assert.IsTrue(moss.Parts.Max(p => p.MemoryBytes) < 11L << 30, "its largest part, the denoiser with a LoRA, fits a 12 GB card");
+
+        var gguf = moss.Catalog.Files.Single(f => f.RelativePath.EndsWith(".gguf", StringComparison.Ordinal));
+        Assert.AreEqual("models/moss-image/encoder/Qwen3.5-9B-Q8_0.gguf", gguf.RelativePath);
+        StringAssert.Contains(gguf.Source.AbsoluteUri, "/unsloth/Qwen3.5-9B-GGUF/resolve/3885219b", "Qwen3.5-9B unchanged, pinned where the recipe compared it");
+        Assert.IsTrue(moss.Catalog.Files.Where(f => f != gguf).All(f => f.Source.AbsoluteUri.Contains("/smile-forge/moss-image-onnx/resolve/12f40c02")),
+                      "every graph pinned to the published revision");
+
+        CollectionAssert.AreEqual(new[] { "moss-fast-8step", "moss-anime", "moss-gouache", "moss-psychedelic", "moss-beauty", "moss-nsfw", "moss-animated", "moss-impressionism" },
+                                  moss.Loras.Select(l => l.Offer.Id).ToArray());
+        var fast = moss.Loras[0];
+        Assert.IsNotNull(fast.Sampler, "the distillation brings its own sampler");
+        Assert.IsFalse(fast.Offer.NegativePrompts, "and draws in its own steps, with no negative prompt");
+        Assert.IsTrue(moss.Loras.Skip(1).All(l => l.Sampler is null && l.Offer.NegativePrompts), "a style is drawn with the model's own sampler");
+        CollectionAssert.AreEqual(new[] { "moss-nsfw" }, moss.Loras.Where(l => l.Offer.Adult).Select(l => l.Offer.Id).ToArray(), "one meant for adults only");
+        Assert.AreEqual("moss_seinen_style, a fox", moss.Loras.Single(l => l.Offer.Id == "moss-anime").Prompted("a fox"), "its trigger leads the prompt");
+        Assert.AreEqual("a fox", moss.Loras.Single(l => l.Offer.Id == "moss-impressionism").Prompted("a fox"), "one with no trigger leaves it as it is");
+        Assert.AreEqual(0.7f, moss.Loras.Single(l => l.Offer.Id == "moss-nsfw").Strength, "at the strength its makers recommend");
+
+        var loraFiles = moss.Loras.SelectMany(l => l.Files).ToList();
+        Assert.IsTrue(loraFiles.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/moss-image-onnx/resolve/12f40c02") && f.Source.AbsoluteUri.Contains("/loras/")));
+        Assert.IsFalse(loraFiles.Any(moss.Catalog.Files.Contains), "a LoRA is fetched when a picture first asks for it, not with the model");
+    }
+
+    [TestMethod]
+    public void TheOtherShippedImageModels_TakeNoNegativePromptAndNoLora()
+    {
+        foreach (var image in OwnedModels.OfKind(ModelKind.ImageGeneration).Where(m => m.Id != "moss-image"))
+            Assert.AreEqual((false, 0), (image.Sampler!.NegativePrompts, image.Loras.Count), image.Id);
+    }
+
+    private const string MossSampler = """{ "method": "mossImage", "steps": 50, "shift": 5, "guidance": 3, "negativePrompts": true, "sizes": { "square": [1024, 1024], "landscape": [1344, 768], "portrait": [768, 1344] } }""";
+
+    private static string LoraFile(string path) => $$"""{ "path": "{{path}}", "url": "https://h/l", "size": 1, "sha256": "{{Hash}}" }""";
+
+    [TestMethod]
+    public void ALora_IsReadWithItsFilesTriggerStrengthAndSampler()
+    {
+        var json = $$"""
+            { "models": [ { "id": "m", "kind": "imageGeneration", "sampler": {{MossSampler}}, "parts": [ {{Image}} ],
+                "files": [ {{File("models/m/e.gguf")}}, {{File("models/d/d.onnx")}}, {{File("models/v/v.onnx")}} ],
+                "loras": [
+                  { "id": "fast", "displayName": "Fast", "description": "In eight steps.", "strength": 1.0, "adapter": "models/l/fast.onnx_adapter",
+                    "sampler": "models/l/fast.sampler.json", "files": [ {{LoraFile("models/l/fast.onnx_adapter")}}, {{LoraFile("models/l/fast.sampler.json")}} ] },
+                  { "id": "ink", "displayName": "Ink", "description": "Ink and wash.", "trigger": "ink_style", "strength": 0.8, "adult": true,
+                    "adapter": "models/l/ink.onnx_adapter", "files": [ {{LoraFile("models/l/ink.onnx_adapter")}} ] } ] } ] }
+            """;
+
+        var model = OwnedModels.Read(Encoding.UTF8.GetBytes(json)).Single();
+
+        var (fast, ink) = (model.Loras[0], model.Loras[1]);
+        Assert.AreEqual(("fast", "Fast", "In eight steps.", false, false), (fast.Offer.Id, fast.Offer.Name, fast.Offer.Description, fast.Offer.Adult, fast.Offer.NegativePrompts));
+        Assert.AreEqual(("models/l/fast.onnx_adapter", "models/l/fast.sampler.json"), (fast.Adapter.RelativePath, fast.Sampler!.RelativePath));
+        Assert.AreEqual(("ink_style", 0.8f, true, true, (ModelAsset?)null), (ink.Trigger, ink.Strength, ink.Offer.Adult, ink.Offer.NegativePrompts, ink.Sampler));
+        Assert.AreEqual(3, model.Catalog.Files.Count, "a LoRA's files are its own, not the model's");
+    }
+
+    [TestMethod]
+    [DataRow("""{ "id": "a", "displayName": "A", "description": "d", "strength": 1, "adapter": "models/l/a.onnx_adapter", "files": [ LORA_B ] }""", DisplayName = "an adapter not among its files")]
+    [DataRow("""{ "id": "a", "displayName": "A", "description": "d", "strength": 1, "adapter": "models/l/a.onnx_adapter", "files": [ LORA_A, LORA_B ] }""", DisplayName = "a file that is neither adapter nor sampler")]
+    [DataRow("""{ "id": "a", "displayName": "A", "description": "d", "strength": 1, "adapter": "models/l/a.onnx_adapter", "sampler": "models/l/b", "files": [ LORA_A ] }""", DisplayName = "a sampler not among its files")]
+    [DataRow("""{ "id": "a", "displayName": "A", "strength": 1, "adapter": "models/l/a.onnx_adapter", "files": [ LORA_A ] }""", DisplayName = "nothing said of what it does")]
+    [DataRow("""{ "id": "a", "displayName": "A", "description": "d", "strength": 0, "adapter": "models/l/a.onnx_adapter", "files": [ LORA_A ] }""", DisplayName = "no strength")]
+    [DataRow("""{ "id": "a", "displayName": "A", "description": "d", "strength": 1, "adapter": "models/l/a.onnx_adapter", "files": [ LORA_A ] }, { "id": "a", "displayName": "B", "description": "d", "strength": 1, "adapter": "models/l/a.onnx_adapter", "files": [ LORA_A ] }""", DisplayName = "two of one id")]
+    public void ALoraThatDoesNotSayWhatItIsOrWhichFileIsWhich_IsRefused(string loras)
+    {
+        var json = $$"""
+            { "models": [ { "id": "m", "kind": "imageGeneration", "sampler": {{MossSampler}}, "parts": [ {{Image}} ],
+                "files": [ {{File("models/m/e.gguf")}}, {{File("models/d/d.onnx")}}, {{File("models/v/v.onnx")}} ],
+                "loras": [ {{loras.Replace("LORA_A", LoraFile("models/l/a.onnx_adapter")).Replace("LORA_B", LoraFile("models/l/b"))}} ] } ] }
+            """;
+
+        Assert.ThrowsExactly<InvalidDataException>(() => OwnedModels.Read(Encoding.UTF8.GetBytes(json)));
+    }
+
+    [TestMethod]
+    public void LorasDrawnInTheModelsOwnSteps_AreRefused_ForAModelThatTakesNoNegativePrompt_AsAreLorasForAModelThatDoesNotDraw()
+    {
+        const string style = """{ "id": "a", "displayName": "A", "description": "d", "strength": 1, "adapter": "models/l/a.onnx_adapter", "files": [ LORA ] }""";
+        var unsteered = $$"""
+            { "models": [ { "id": "m", "kind": "imageGeneration", "sampler": {{Sampler}}, "parts": [ {{Image}} ],
+                "files": [ {{File("models/m/e.onnx")}}, {{File("models/d/d.onnx")}}, {{File("models/v/v.onnx")}} ],
+                "loras": [ {{style.Replace("LORA", LoraFile("models/l/a.onnx_adapter"))}} ] } ] }
+            """;
+        var talker = $$"""
+            { "models": [ { "id": "m", "kind": "language", "parts": [ { "role": "chat", "runner": "llama-chat", "folder": "models/m", "memoryBytes": 1, "bytesPerToken": 1, "contextTokens": 8192 } ], "files": [ {{File("models/m/w.bin")}} ],
+                "loras": [ {{style.Replace("LORA", LoraFile("models/l/a.onnx_adapter"))}} ] } ] }
+            """;
+
+        StringAssert.Contains(Assert.ThrowsExactly<InvalidDataException>(() => OwnedModels.Read(Encoding.UTF8.GetBytes(unsteered))).Message, "no negative prompt");
+        StringAssert.Contains(Assert.ThrowsExactly<InvalidDataException>(() => OwnedModels.Read(Encoding.UTF8.GetBytes(talker))).Message, "only a model that draws");
+    }
+
+    [TestMethod]
     public void TheShippedVideoModels_AreFastWanFirst_FromADescription_ThenWan22_FromAPictureToo()
     {
         var videos = OwnedModels.OfKind(ModelKind.VideoGeneration).Select(m => m.Id).ToList();

@@ -88,6 +88,12 @@ public sealed record ImageSettings(IReadOnlyList<MediaAspect> Aspects)
     /// <summary>Whether it draws on a transparent background when asked.</summary>
     public bool TransparentBackgrounds { get; init; }
 
+    /// <summary>The LoRAs it draws with when asked — one at a time; empty where it takes none.</summary>
+    public IReadOnlyList<ImageLora> Loras { get; init; } = [];
+
+    /// <summary>The LoRA of that id, or null where it has none.</summary>
+    public ImageLora? LoraOf(string? id) => Loras.FirstOrDefault(l => l.Id == id);
+
     /// <summary>The proportions <paramref name="shape"/> is drawn at: the first of that shape it draws.</summary>
     public MediaAspect AspectFor(MediaShape shape) => Aspects.FirstOrDefault(a => a.Shape == shape, Aspects[0]);
 
@@ -103,8 +109,30 @@ public sealed record ImageSettings(IReadOnlyList<MediaAspect> Aspects)
         if (request.Seed is { } seed && (!Seeds || seed < 0)) return Seeds ? "A seed is 0 or more." : "It takes no seed.";
         if (!string.IsNullOrWhiteSpace(request.NegativePrompt) && !NegativePrompts) return "It is told nothing to keep out.";
         if (request.TransparentBackground && !TransparentBackgrounds) return "It draws no transparent background.";
+        if (request.Lora is { } id)
+        {
+            if (LoraOf(id) is not { } lora)
+                return Loras.Count == 0 ? "It takes no LoRA." : $"Its LoRAs are {string.Join(", ", Loras.Select(l => l.Id))}, not {id}.";
+            if (!string.IsNullOrWhiteSpace(request.NegativePrompt) && !lora.NegativePrompts)
+                return $"With {lora.Name} it is told nothing to keep out.";
+        }
         return null;
     }
+}
+
+/// <summary>
+/// A LoRA an image model draws with when asked — a style, or a faster way of drawing — applied as its makers apply it.
+/// </summary>
+/// <param name="Id">What a request names it by.</param>
+/// <param name="Name">What it is shown as.</param>
+/// <param name="Description">What it does to a picture, in a sentence, for whoever chooses one — a person or the assistant.</param>
+public sealed record ImageLora(string Id, string Name, string Description)
+{
+    /// <summary>Meant for adults only: the app offers it only while its protection against adult content is off.</summary>
+    public bool Adult { get; init; }
+
+    /// <summary>Whether a picture drawn with it is told what to keep out: a distillation drawing in its own few steps is not.</summary>
+    public bool NegativePrompts { get; init; } = true;
 }
 
 /// <summary>A size a video model makes clips at, as it names it ("1080p"), and the lengths it makes at that size where it

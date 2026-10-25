@@ -151,6 +151,30 @@
                        Foreground="{StaticResource TextMutedBrush}"
                        FontSize="11" TextWrapping="Wrap"/>
 
+            <!-- ── Enhanced AI protection ── -->
+            <Grid Margin="0,12,0,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{loc:Str Shell.Options.Shell.Protection}"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="12" VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ToggleButton Style="{StaticResource ToggleSwitch}"
+                                  AutomationProperties.AutomationId="ShellAiProtectionToggle"
+                                  IsChecked="{Binding EnhancedAiProtection}"/>
+                    <TextBlock Text="{loc:Str Shell.Options.Shell.AiProtection}"
+                               Foreground="{StaticResource TextBrush}"
+                               FontSize="12" VerticalAlignment="Center"
+                               Margin="10,0,0,0"/>
+                </StackPanel>
+            </Grid>
+            <TextBlock Margin="180,2,0,12"
+                       Text="{loc:Str Shell.Options.Shell.AiProtectionNote}"
+                       Foreground="{StaticResource TextMutedBrush}"
+                       FontSize="11" TextWrapping="Wrap"/>
+
         </StackPanel>
     </ScrollViewer>
 </UserControl>

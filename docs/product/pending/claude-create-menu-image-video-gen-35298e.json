@@ -227,7 +227,132 @@
         },
         {
           "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/MossDrawing.cs",
+          "class": "MossDrawing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/MossSampler.cs",
+          "class": "MossSampler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/MossDenoiser.cs",
+          "class": "MossDenoiser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/MossDecoder.cs",
+          "class": "MossDecoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/owned-models.json"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/local-ai.md"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/MossSamplerTests.cs",
+            "class": "MossSamplerTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/MossImageModelTests.cs",
+            "class": "MossImageModelTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedModelsTests.cs",
+            "class": "OwnedModelsTests"
+          }
+        ]
+      }
+    },
+    "opt-shell-adult-content": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ShellConfig.cs",
+          "class": "ShellConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Generation/GenerateImageTool.cs",
+          "class": "GenerateImageTool",
+          "method": "Offerable"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/ShellConfigControl.xaml"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Generation/GenerationToolsTests.cs",
+            "class": "GenerationToolsTests",
+            "method": "TheLorasAModelDrawsWith_AreOffered_OneMeantForAdultsOnly_OnlyWhileTheAppAllowsIt"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/OptionsJourneyTests.cs",
+            "class": "OptionsJourneyTests",
+            "method": "DriveShell"
+          }
+        ],
+        "theming": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Controls/ShellConfigControl.xaml"
+          }
+        ]
+      }
+    },
+    "owned-images-moss-encoder": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/MossPromptEncoder.cs",
+          "class": "MossPromptEncoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Llama/LlamaHiddenStates.cs",
+          "class": "LlamaHiddenStates"
+        },
+        {
+          "type": "code",
           "doc": "tools/ai-models/moss-image/compare_moss_encoder.py"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/MossImageModelTests.cs",
+            "class": "MossImageModelTests"
+          }
+        ]
+      }
+    },
+    "owned-images-moss-loras": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/DataSpaceSampler.cs",
+          "class": "DataSpaceSampler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedModels.cs",
+          "class": "OwnedLora"
         },
         {
           "type": "code",
@@ -237,15 +362,51 @@
           "type": "code",
           "doc": "tools/ai-models/moss-image/check_moss_loras.py"
         }
-      ]
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedImageGenerationProviderTests.cs",
+            "class": "OwnedImageGenerationProviderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesMossJourneyTests.cs",
+            "class": "ImagesMossJourneyTests"
+          }
+        ]
+      }
+    },
+    "opt-shell-ai-protection": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/OptionsJourneyTests.cs",
+            "class": "OptionsJourneyTests",
+            "method": "DriveShell"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Generation/GenerationToolsTests.cs",
+            "class": "GenerationToolsTests",
+            "method": "TheLorasAModelDrawsWith_AreOffered_OneMeantForAdultsOnly_OnlyWhileProtectionIsOff"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 12,
+  "changed_sets": 21,
   "touched_nodes": [
     "agent-generation-tools",
     "images-gen-image",
+    "opt-shell-adult-content",
+    "opt-shell-ai-protection",
     "owned-images-moss",
+    "owned-images-moss-encoder",
+    "owned-images-moss-loras",
     "providers-image-generation",
     "providers-video-generation",
     "video-gen-video",
