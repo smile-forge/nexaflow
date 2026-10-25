@@ -231,7 +231,11 @@ normalisation and softmax in it, so there is nothing for a recipe of ours to bui
 to 224 × 224 in RGB values of 0 to 255 (`PictureSafetyClassifier.Planes`), so nothing at a wide picture's edges goes
 unseen; the host reads the picture as it was encoded, whatever Windows reads (`PictureDecoder`). Chosen over Marqo's
 `nsfw-image-detection-384` for its gore class and its speed, and over its own S size for being the more cautious with
-suggestive pictures; neither has been measured here on what it is meant to catch, only on pictures it should pass.
+suggestive pictures. On 125 pictures drawn for the purpose — plain, borderline, suggestive, nude and gory — its scores
+fall near 0.1 or near 0.9, so a cut-off anywhere from 0.4 to 0.7 decides almost the same, and 0.5 holds. It caught
+every nude picture and most suggestive ones, but it withholds swimwear, underwear and classical nudes as readily, and
+it misses most gore that is not bright and clinical — a weak check, kept as a second line behind the policy the models
+are given.
 
 **Fetched when first needed.** Unlike the other tools, it is fetched the first time a picture is checked
 (`LocalToolModels.ReadyAsync`): while the mode is on, asking for a picture is asking for its check. It still has its row
