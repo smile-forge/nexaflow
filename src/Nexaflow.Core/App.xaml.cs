@@ -601,7 +601,11 @@ public partial class App : Application
 
         var win = new MainWindow(activityManager, ws, openPath: openPath);
         StartupTimings.Mark("MainWindowBuilt");
-        CenterOnMonitor(win, wizardMonitor);
+        // Back where this workspace's last window was meant to be; the first time, on the wizard's monitor.
+        if (workspace.LastWindowPlacement is { IsUsable: true } placement)
+            ((IWindowHost)win.ViewModel).OpenAt(placement);
+        else
+            CenterOnMonitor(win, wizardMonitor);
         win.Show();
         StartupTimings.Mark("WindowShown");
         // Models load ahead only once a window has drawn, so none of their loading competes with it.

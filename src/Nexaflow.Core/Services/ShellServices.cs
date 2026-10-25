@@ -213,17 +213,10 @@ public sealed class ShellServices : IShellServices
             ThemeManager.Apply(theme, FeatureManager.Instance.ThemeContributionUris);
         LanguageManager.Instance.Select(language);
 
-        // Fresh window, placed where the old one was, then close the old one.
+        // Fresh window, opened where the old one is meant to be, then close the old one.
         var fresh = CreateWindowFactory();
-        var src   = current.Window;
-        var dst   = fresh.Window;
-        dst.WindowStartupLocation = WindowStartupLocation.Manual;
-        var bounds = src.WindowState == WindowState.Maximized
-            ? src.RestoreBounds
-            : new Rect(src.Left, src.Top, src.Width, src.Height);
-        dst.Left = bounds.Left; dst.Top = bounds.Top; dst.Width = bounds.Width; dst.Height = bounds.Height;
-        dst.Show();
-        if (src.WindowState == WindowState.Maximized) dst.WindowState = WindowState.Maximized;
+        if (current.IntendedPlacement is { } placement) fresh.OpenAt(placement);
+        fresh.Window.Show();
 
         current.Window.Close();   // synchronously unregisters its tabs from _tabToWindow
 
@@ -402,20 +395,20 @@ public sealed class ShellServices : IShellServices
 
         var ws = _workspace.Workspace;
 
-        // A workspace that never offers a restore records nothing — and drops anything recorded before the
-        // setting was turned on, so the offer can't reappear from stale data.
-        if (ws.SuppressSessionRestore)
-        {
-            if (ws.LastSessionTabs is null) return;
-            ws.LastSessionTabs = null;
-            WorkspaceManager.Instance.SaveWorkspaces();
-            return;
-        }
+        // Where the window was meant to be is kept whatever the tab setting below: reopening there is not an offer.
+        if (target.IntendedPlacement is { } placement) ws.LastWindowPlacement = placement;
 
-        var layout = target.CaptureTabLayout();
-        ws.LastSessionTabs = layout.Count > 0 && !TabsetsEquivalent(layout, ws.DefaultTabs)
-            ? layout.ToList()
-            : null;
+        // A workspace that never offers a restore records no tabs — and drops any recorded before the setting
+        // was turned on, so the offer can't reappear from stale data.
+        if (ws.SuppressSessionRestore)
+            ws.LastSessionTabs = null;
+        else
+        {
+            var layout = target.CaptureTabLayout();
+            ws.LastSessionTabs = layout.Count > 0 && !TabsetsEquivalent(layout, ws.DefaultTabs)
+                ? layout.ToList()
+                : null;
+        }
         WorkspaceManager.Instance.SaveWorkspaces();
     }
 

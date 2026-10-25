@@ -1,0 +1,40 @@
+{
+  "branch": "claude/window-state-restoration-a04f6e",
+  "nodes": {
+    "win-cux-placement-restore": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Models/WindowPlacement.cs",
+          "class": "WindowPlacement"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/PlacementIntent.cs",
+          "class": "PlacementIntent"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/WindowPlacementTracker.cs",
+          "class": "WindowPlacementTracker"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/AttachedMonitors.cs",
+          "class": "AttachedMonitors"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Models/Workspace.cs",
+          "class": "Workspace",
+          "method": "LastWindowPlacement"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 1,
+  "touched_nodes": [
+    "win-cux-placement-restore"
+  ]
+}

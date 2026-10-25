@@ -50,6 +50,7 @@ public sealed class WorkspacesConfig : IFeatureConfig
             workspace.LastSessionTabs = workspace.LastSessionTabs?.Where(t => t is not null).ToList() is { Count: > 0 } last
                 ? last
                 : null;
+            if (workspace.LastWindowPlacement is { IsUsable: false }) workspace.LastWindowPlacement = null;
 
             clean.Add(workspace);
         }

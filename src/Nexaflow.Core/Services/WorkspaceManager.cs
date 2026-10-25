@@ -470,22 +470,16 @@ public sealed class WorkspaceManager
 
         // Snapshot the acting window's tabs grouped by pane (so a left/right split survives) and its placement.
         var snapshot  = acting.CaptureTabLayout();
-        var src       = acting.Window;
-        bool maximized = src.WindowState == WindowState.Maximized;
-        var bounds    = maximized ? src.RestoreBounds
-                                  : new Rect(src.Left, src.Top, src.Width, src.Height);
+        var placement = acting.IntendedPlacement;
 
         // Fresh workspace on the same workspace — the shared Workspace already carries the saved edits.
         var fresh = CreateWorkspace(old.Workspace);
 
-        // Replacement window, placed where the old one was, shown BEFORE the old closes so the
+        // Replacement window, opened where the old one is meant to be, shown BEFORE the old closes so the
         // workspace is never left window-less (which would dispose it / shut the app down).
         var freshHost = WindowHostFactory(fresh);
-        var dst = freshHost.Window;
-        dst.WindowStartupLocation = WindowStartupLocation.Manual;
-        dst.Left = bounds.Left; dst.Top = bounds.Top; dst.Width = bounds.Width; dst.Height = bounds.Height;
-        dst.Show();
-        if (maximized) dst.WindowState = WindowState.Maximized;
+        if (placement is not null) freshHost.OpenAt(placement);
+        freshHost.Window.Show();
 
         // Tear down the old workspace's windows (last close releases its providers + evicts caches).
         old.ShellServices?.CloseAllWindows();

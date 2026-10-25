@@ -25,6 +25,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     public Window Window { get; init; } = null!;
 
+    /// <summary>Keeps this window's intended placement; installed by the window once it has a handle.</summary>
+    internal WindowPlacementTracker Placement { get; init; } = null!;
+
+    WindowPlacement? IWindowHost.IntendedPlacement => Placement.Intended;
+
+    void IWindowHost.OpenAt(WindowPlacement placement) => Placement.OpenAt(placement);
+
     bool IWindowHost.IsFocused
     {
         get => _isFocused;

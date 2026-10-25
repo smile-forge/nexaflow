@@ -22,6 +22,9 @@ internal sealed class FakeWindowHost : IWindowHost
     public bool IsFocused { get; set; }
     public Window Window => null!;
 
+    public WindowPlacement? IntendedPlacement { get; set; }
+    public void OpenAt(WindowPlacement placement) => IntendedPlacement = placement;
+
     public void AddTab(Page tab) => _tabs.Insert(0, tab);
     public void FocusSecondPane() { }   // no pane model in the stub; AddTab still records the tab
     public void RemoveTab(Page tab) => _tabs.Remove(tab);
