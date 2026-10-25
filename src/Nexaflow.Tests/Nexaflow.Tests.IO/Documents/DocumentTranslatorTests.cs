@@ -444,6 +444,48 @@ public class DocumentTranslatorTests
         CollectionAssert.AreEqual(new[] { "Dogs bark." }, ScriptedModel.Pieces(model.Of(ScriptedModel.Translation)[1]));
     }
 
+    [TestMethod]
+    public async Task APieceGivenAsWrittenBeforeItsTranslation_IsAskedForAgain_AndNeverWrittenIntoTheDocument()
+    {
+        // A piece with no marks to be doubled, quoted on its number's line with its translation under it: the shape of the
+        // passage before as the model is shown it, its text and then its translation.
+        var asks = 0;
+        var model = new ScriptedModel((instructions, asked) => new(
+            instructions.StartsWith(ScriptedModel.Translation, StringComparison.Ordinal)
+                ? asks++ == 0
+                    ? "@@ 1\nDOGS BARK.\n\n@@ 2 Cats purr.\nCATS PURR.\n\n@@ 3\nBIRDS SING."
+                    : ScriptedModel.Translated(asked, ScriptedModel.Shout)
+                : ScriptedModel.Answer(instructions, asked), DocumentReplyEnd.Finished));
+
+        var translated = await Translate(model, new MemoryNotes(), source: ThreeParagraphs);
+
+        Assert.AreEqual("DOGS BARK.\n\nCATS PURR.\n\nBIRDS SING.", translated.Trim());
+
+        var asked = model.Of(ScriptedModel.Translation);
+        Assert.AreEqual(2, asked.Count);
+        StringAssert.Contains(asked[0], "the translation alone, never the text it translates", "the first ask says so");
+        CollectionAssert.AreEqual(new[] { "Cats purr." }, ScriptedModel.Pieces(asked[1]), "only the piece given as written, asked for again");
+        StringAssert.Contains(asked[1], "give the translation alone", "saying what was wrong with it");
+    }
+
+    [TestMethod]
+    public async Task APieceKeptFromAnEarlierRun_AsWrittenBeforeItsTranslation_IsAskedForAgain()
+    {
+        var notes = new MemoryNotes();
+        await Translate(new ScriptedModel((_, asked) => new(ScriptedModel.Translated(asked, ScriptedModel.Shout), DocumentReplyEnd.Finished)), notes,
+                        source: ThreeParagraphs);
+
+        foreach (var (place, kept) in notes.Kept.Where(note => note.Value.Contains("CATS PURR.", StringComparison.Ordinal)).ToList())
+            notes.Kept[place] = kept.Replace("CATS PURR.", "Cats purr.\nCATS PURR.", StringComparison.Ordinal);
+
+        var again = new ScriptedModel((_, asked) => new(ScriptedModel.Translated(asked, ScriptedModel.Shout), DocumentReplyEnd.Finished));
+        var translated = await Translate(again, notes, source: ThreeParagraphs);
+
+        Assert.AreEqual("DOGS BARK.\n\nCATS PURR.\n\nBIRDS SING.", translated.Trim());
+        Assert.IsTrue(again.Of(ScriptedModel.Translation).Any(asked => ScriptedModel.Pieces(asked).Contains("Cats purr.")),
+                      "what was kept with the German still in it is asked for again, not written in");
+    }
+
     /// <summary>An answer to every piece but the one at <paramref name="skip"/>, shouted, numbered as asked.</summary>
     private static string Answered(IReadOnlyList<string> pieces, int skip) =>
         string.Concat(pieces.Select((piece, at) => at == skip ? string.Empty : $"@@ {at + 1}\n{ScriptedModel.Shout(piece)}\n\n"));

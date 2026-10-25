@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Windows;
 
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
@@ -144,4 +145,29 @@ public class DragThroughWordsTests
         element.ExtendPointerSelect(to);
         element.EndPointerSelect();
     }
+
+    [TestMethod]
+    public void ADragOntoTheNextLine_WashesOnlyWhatItChose_PastWhereItWasPressedToo() => UiThread.Run(() =>
+    {
+        // The end of one line and the start of the next reach across each other once the drag passes below where it was
+        // pressed — and the two are still two stretches of words, not the whole of both lines.
+        const string text = "Diese Gesetze werden in den Vorlesungen Technische Mechanik (ITET, 1. Semester), Physik I (RW, 1. Semester) und "
+            + "Fluiddynamik I (RW, 4. Semester, Grundlagenfach) behandelt. Durch Kombinieren dieser Gesetze erhalten wir\n";
+        var element = Element(text);
+        var lines = element.Laid.Root.SelfAndDescendants().Where(piece => piece.Words is { Maps: true }).ToList();
+        Assert.IsTrue(lines.Count >= 2, "wrapped over several lines");
+
+        var (first, second) = (lines[0].Bounds, lines[1].Bounds);
+        var (across, down) = (first.Y + (first.Height / 2), second.Y + (second.Height / 2));
+        var (pressed, reached) = (first.Left + (first.Width / 2), first.Left + (first.Width * 0.7));
+
+        Sweep(element, new Point(pressed, across), new Point(reached, down));
+        var wash = element.Laid.Root.Wash([.. element.Selection.Select(range => new EditRange(range.Start, range.Length))], 2);
+
+
+        Assert.IsTrue(wash.FillContains(new Point(first.Right - 4, across)), "the rest of the first line is chosen");
+        Assert.IsTrue(wash.FillContains(new Point(second.Left + 4, down)), "and the start of the next");
+        Assert.IsFalse(wash.FillContains(new Point(first.Left + 4, across)), "but not the first line before where the drag was pressed");
+        Assert.IsFalse(wash.FillContains(new Point(second.Right - 4, down)), "nor the next past where it reached");
+    });
 }

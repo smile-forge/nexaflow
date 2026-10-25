@@ -199,7 +199,7 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
 
         if (!fresh && await notes.ReadAsync(job.Shelf, key, ct) is { } kept
             && kept.Split(Apart) is { } stored && stored.Length == unit.Count
-            && unit.Select((piece, at) => ProtectedText.Problem(piece.Text, stored[at])).All(problem => problem is null))
+            && unit.Select((piece, at) => ProblemWith(piece.Text, stored[at])).All(problem => problem is null))
             return stored;
 
         var answers = await AnswersAsync(job, unit, hits, before, hint, ct, fresh);
@@ -244,7 +244,7 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
             // A mark the model made up is taken out rather than its whole answer turned away.
             var answers = AnswersByNumber(reply.Text, unit.Count)
                 .Select((answer, at) => answer is null ? null : ProtectedText.Mended(unit[at].Text, answer)).ToList();
-            var right = answers.Select((answer, at) => answer is not null && ProtectedText.Problem(unit[at].Text, answer) is null).ToList();
+            var right = answers.Select((answer, at) => answer is not null && ProblemWith(unit[at].Text, answer) is null).ToList();
 
             if (answers.All(answer => answer is not null))
             {
@@ -261,7 +261,7 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
 
             wrong = answers.All(answer => answer is null)
                 ? $"answer with exactly {unit.Count} @@ line{(unit.Count == 1 ? "" : "s")}, numbered from 1, each on a line of its own and followed by its translation"
-                : answers.Select((answer, at) => answer is not null && ProtectedText.Problem(unit[at].Text, answer) is { } problem ? $"in @@ {at + 1}, {problem}" : null)
+                : answers.Select((answer, at) => answer is not null && ProblemWith(unit[at].Text, answer) is { } problem ? $"in @@ {at + 1}, {problem}" : null)
                          .FirstOrDefault(problem => problem is not null);
         }
 
@@ -291,7 +291,7 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
     {
         var again = Enumerable.Range(0, unit.Count).Where(at => !right[at]).ToList();
 
-        var wrong = again.Select((at, asked) => answers[at] is { } answer && ProtectedText.Problem(unit[at].Text, answer) is { } problem
+        var wrong = again.Select((at, asked) => answers[at] is { } answer && ProblemWith(unit[at].Text, answer) is { } problem
                                                     ? $"in @@ {asked + 1}, {problem}" : null)
                          .OfType<string>().ToList();
         var said = wrong.Count == 0 ? hint : $"{hint} Your last answer was wrong: {string.Join("; ", wrong)}.".Trim();
@@ -319,7 +319,7 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
         {
             var source = unit[at].Text;
 
-            for (var mended = 0; ProtectedText.Problem(source, answers[at]) is { } problem; mended++)
+            for (var mended = 0; ProblemWith(source, answers[at]) is { } problem; mended++)
             {
                 if (mended == MostRepairs || ProtectedText.Wrong(source, answers[at]) is not { } wrong || wrong.SourceLength * 2 > source.Length) return null;
 
@@ -331,7 +331,7 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
                 if (reply.Ended == DocumentReplyEnd.Failed || reply.RanOut || AnswersByNumber(reply.Text, 1) is not [{ } given]) return null;
 
                 var again = ProtectedText.Mended(stretch.Text, given);
-                if (ProtectedText.Problem(stretch.Text, again) is not null) return null;
+                if (ProblemWith(stretch.Text, again) is not null) return null;
 
                 // Put back as the sentences it stands for were: the space after them after it.
                 var replaced = answer[wrong.AnswerFrom..wrong.AnswerTo];
@@ -479,11 +479,29 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
         asked.Append($"Translate each of these into {job.Language}:\n\n");
         for (var at = 0; at < unit.Count; at++) asked.Append("@@ ").Append(at + 1).Append('\n').Append(unit[at].Text.Trim()).Append("\n\n");
 
-        asked.Append("Answer with the same @@ lines, each on a line of its own and followed by its translation on the lines after it, and nothing else.");
+        asked.Append("Answer with the same @@ lines, each on a line of its own and followed by its translation on the lines after it — the translation alone, ")
+             .Append("never the text it translates — and nothing else.");
         if (hint is not null) asked.Append(' ').Append(hint);
         if (wrong is not null) asked.Append($"\n\nYour last answer was wrong: {wrong}. Answer again.");
 
         return asked.ToString();
+    }
+
+    /// <summary>
+    /// What is wrong with <paramref name="answer"/> as the translation of <paramref name="source"/>, or null where nothing is: a mark
+    /// wrong (<see cref="ProtectedText.Problem"/>), or the piece given as written before its translation. A model shown the passage
+    /// before as its text and then its translation answers so, and where the piece has no marks to be doubled, nothing else sees it:
+    /// the two would be put in the document as one paragraph.
+    /// </summary>
+    private static string? ProblemWith(string source, string answer) =>
+        ProtectedText.Problem(source, answer)
+        ?? (Echoes(source, answer) ? "you wrote the text as it stands before its translation: give the translation alone" : null);
+
+    /// <summary>Whether <paramref name="answer"/> opens with <paramref name="source"/> as it was written, and goes on past it.</summary>
+    private static bool Echoes(string source, string answer)
+    {
+        var (asked, given) = (source.Trim(), answer.TrimStart());
+        return asked.Length > 0 && given.Length > asked.Length && given.StartsWith(asked, StringComparison.Ordinal) && char.IsWhiteSpace(given[asked.Length]);
     }
 
     private static string Instructions(Job job, IReadOnlyList<(string Source, string Target)> hits)
