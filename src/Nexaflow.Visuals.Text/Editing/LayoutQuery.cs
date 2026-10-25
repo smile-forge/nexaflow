@@ -1094,9 +1094,11 @@ public static class LayoutQuery
     }
 
     /// <summary>
-    /// Rectangles that touch once each has grown by <paramref name="reach"/>, joined into one and returned
-    /// grown — so letters set against each other become a single run and two notes with air between them stay
-    /// two washes, rather than joining by shared vertical band (which washed a whole staff top to bottom).
+    /// Rectangles in one row that touch once each has grown by <paramref name="reach"/>, joined into one and
+    /// returned grown — so letters set against each other become a single run and two notes with air between them
+    /// stay two washes, rather than joining by shared vertical band (which washed a whole staff top to bottom). One
+    /// above another they stay two, however far they reach across: the end of a line and the start of the next,
+    /// joined into what holds both, washed both lines whole.
     /// </summary>
     public static List<Rect> Clusters(IEnumerable<Rect> rects, double reach)
     {
@@ -1117,7 +1119,7 @@ public static class LayoutQuery
             for (var i = 0; i < grown.Count && !merged; i++)
                 for (var j = i + 1; j < grown.Count && !merged; j++)
                 {
-                    if (!grown[i].IntersectsWith(grown[j])) continue;
+                    if (!grown[i].IntersectsWith(grown[j]) || !OneRow(grown[i], grown[j], reach)) continue;
 
                     var joined = grown[i];
                     joined.Union(grown[j]);
@@ -1128,6 +1130,16 @@ public static class LayoutQuery
         }
 
         return grown;
+    }
+
+    /// <summary>
+    /// Whether two rectangles grown by <paramref name="reach"/> share a row: as they were before growing, they overlap from top to
+    /// bottom by at least half the shorter one's height — what <see cref="Joins"/> asks of two things facing each other along a row.
+    /// </summary>
+    private static bool OneRow(Rect one, Rect other, double reach)
+    {
+        var overlap = Math.Min(one.Bottom, other.Bottom) - Math.Max(one.Top, other.Top) - (2 * reach);
+        return overlap > 0 && overlap >= (Math.Min(one.Height, other.Height) - (2 * reach)) / 2;
     }
 
     /// <summary>
