@@ -3,6 +3,8 @@ using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions
 {
@@ -33,18 +35,18 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
         // ── Actions ───────────────────────────────────────────────────────────
 
-        public bool PerformAction(string filePath)
+        public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default)
         {
             try
             {
                 // A file inside a disk image / archive is virtual — the shell needs a real path, so
                 // materialise it to a temp copy first (a real file/folder passes through unchanged).
                 NativeMethods.ShowFileProperties(RealPath(filePath));
-                return true;
+                return Task.FromResult(true);
             }
             catch
             {
-                return false;
+                return Task.FromResult(false);
             }
         }
 
@@ -57,10 +59,10 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
         // SupportsMultipleFiles is false, so the action strip never offers this on a multi-selection — but
         // the ribbon-pin path invokes a pinned action directly, and this threw NotImplementedException there.
         // Show the first file's properties, the same defensive answer RenameFile and ExecuteFile give.
-        public bool PerformAction(IEnumerable<string> filePaths)
+        public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
         {
-            foreach (var p in filePaths) return PerformAction(p);
-            return false;
+            foreach (var p in filePaths) return PerformActionAsync(p, ct);
+            return Task.FromResult(false);
         }
     }
 }

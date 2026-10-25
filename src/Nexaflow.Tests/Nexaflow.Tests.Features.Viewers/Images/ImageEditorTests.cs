@@ -523,26 +523,26 @@ public class ImageEditorTests
 
     [TestMethod]
     [CoversNode("images-open-edit")]
-    public void TheEditAction_OpensTheImagesStraightIntoTheEditor()
+    public async Task TheEditAction_OpensTheImagesStraightIntoTheEditor()
     {
         var shell = Shell();
-        Assert.IsTrue(new EditImageAction(shell).PerformAction([_photo, Path.Combine(_dir, "notes.txt")]));
+        Assert.IsTrue(await new EditImageAction(shell).PerformActionAsync([_photo, Path.Combine(_dir, "notes.txt")]));
         shell.Received().OpenTab("Images", Arg.Is<Dictionary<string, string>>(p => p["view"] == "edit" && p["paths"] == _photo));
     }
 
     [TestMethod]
     [CoversNode("images-revert-action")]
-    public void TheRevertAction_ConfirmsThenRemovesTheEdits_AndAsksForTheCompanion()
+    public async Task TheRevertAction_ConfirmsThenRemovesTheEdits_AndAsksForTheCompanion()
     {
         new ImageRecipeStore().Save(_photo, new ImageRecipe { Geometry = new RecipeGeometry { QuarterTurns = 1 } });
         var shell = Shell();
         var action = new RevertImageEditsAction(shell);
 
         Assert.AreEqual(ImageRecipeStore.Extension, action.RequiredCompanionSuffix, "offered only on an edited image");
-        action.PerformAction(_photo);
+        await action.PerformActionAsync(_photo);
 
         shell.Received().ShowConfirmation(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Action>(), Arg.Any<Action>());
         Assert.IsFalse(File.Exists(ImageRecipeStore.SidecarPath(_photo)));
-        Assert.IsFalse(action.PerformAction(Path.Combine(_dir, "unedited.jpg")), "nothing to revert");
+        Assert.IsFalse(await action.PerformActionAsync(Path.Combine(_dir, "unedited.jpg")), "nothing to revert");
     }
 }

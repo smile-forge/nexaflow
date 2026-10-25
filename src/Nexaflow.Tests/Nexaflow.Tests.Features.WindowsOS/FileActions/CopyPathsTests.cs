@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Tests.Fixtures;
 using System;
@@ -79,7 +80,7 @@ public class CopyPathsTests
         shell.DiscoverImplementations<IFolderViewlet>().Returns(Array.Empty<Type>());
 
         var vm = FileSystemViewModel.CreateThisPc(
-            shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>());
+            shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
 
         CollectionAssert.Contains(
             Offered(vm, new FileSystemEntry { Name = "docs", FullPath = @"C:\docs", IsDirectory = true }),

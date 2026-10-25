@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Ribbon;
 using Nexaflow.Features.WindowsFileSystem.Services;
@@ -19,8 +20,9 @@ public sealed class FileActionRibbonPinHandler : IRibbonPinHandler, IRibbonItemE
 {
     private readonly FileSystemFeatureRegistry _registry;
 
-    public FileActionRibbonPinHandler(IShellServices shell, IAIService ai, IReadOnlyDictionary<Type, IFeatureConfig> configs)
-        => _registry = FileSystemFeatureRegistry.For(shell, ai, configs);
+    public FileActionRibbonPinHandler(IShellServices shell, IAIService ai, IReadOnlyDictionary<Type, IFeatureConfig> configs,
+                                      IVirtualFileSystem vfs)
+        => _registry = FileSystemFeatureRegistry.For(shell, ai, configs, vfs);
 
     public IReadOnlyList<string> AcceptedFormats { get; } = [FileSystemPageRegistration.FileActionKind];
 
@@ -78,6 +80,11 @@ public sealed class FileActionRibbonPinHandler : IRibbonPinHandler, IRibbonItemE
                 : null;
 
     public void Execute(Dictionary<string, string>? pageParams, IRibbonExecutionContext context)
+        => _ = ExecuteAsync(pageParams, context);
+
+    /// <summary>Runs the pinned action. The files it names may be on a location, so asking whether they are still there
+    /// is a round trip; nothing awaits a ribbon click, so a failure is shown here rather than thrown.</summary>
+    private async Task ExecuteAsync(Dictionary<string, string>? pageParams, IRibbonExecutionContext context)
     {
         if (pageParams?.TryGetValue(KeyActionType, out var typeName) != true) return;
 
@@ -101,19 +108,26 @@ public sealed class FileActionRibbonPinHandler : IRibbonPinHandler, IRibbonItemE
             return;
         }
 
-        // Through the VFS: a pinned action on a mounted or in-archive path is still valid, and asking
-        // File.Exists about it would wrongly offer to delete the user's ribbon button.
-        var missing = paths.Where(p => !VirtualFileSystem.Instance.Exists(p)).ToList();
-        if (missing.Count > 0)
+        try
         {
-            context.ShowConfirmation(
-                Str.Get("WindowsFileSystem.Ribbon.FilesNotFoundTitle"),
-                Str.Get("WindowsFileSystem.Ribbon.FilesNotFoundMessage"),
-                context.RemoveCurrentRibbonItem);
-            return;
-        }
+            // Through the VFS: a pinned action on a mounted, in-archive or remote path is still valid, and asking
+            // File.Exists about it would wrongly offer to delete the user's ribbon button.
+            foreach (var path in paths)
+            {
+                if (await _registry.Vfs.ExistsAsync(path)) continue;
+                context.ShowConfirmation(
+                    Str.Get("WindowsFileSystem.Ribbon.FilesNotFoundTitle"),
+                    Str.Get("WindowsFileSystem.Ribbon.FilesNotFoundMessage"),
+                    context.RemoveCurrentRibbonItem);
+                return;
+            }
 
-        if (paths.Count == 1) action.PerformAction(paths[0]);
-        else                  action.PerformAction(paths);
+            if (paths.Count == 1) await action.PerformActionAsync(paths[0]);
+            else                  await action.PerformActionAsync(paths);
+        }
+        catch (Exception ex) when (ex is FileOperationException or IOException)
+        {
+            context.ShowError(ex.Message);
+        }
     }
 }

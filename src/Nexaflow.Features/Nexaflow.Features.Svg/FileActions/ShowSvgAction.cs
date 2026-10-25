@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -23,16 +25,16 @@ public sealed class ShowSvgAction(IShellServices shell) : IFileAction, ICacheabl
     public bool CanPerformAction => true;
     public bool OpensViewer => true;
 
-    public bool PerformAction(string filePath)
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default)
     {
         shell.OpenTab(SvgTabRegistration.StaticPageKind, new Dictionary<string, string> { ["path"] = filePath });
-        return true;
+        return Task.FromResult(true);
     }
 
-    public bool PerformAction(IEnumerable<string> filePaths)
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
     {
         var first = filePaths.FirstOrDefault();
-        if (first is null) return false;
-        return PerformAction(first);
+        if (first is null) return Task.FromResult(false);
+        return PerformActionAsync(first, ct);
     }
 }

@@ -47,12 +47,12 @@ public class DeleteActionTests
     // ── The gate ──────────────────────────────────────────────────────────────
 
     [TestMethod]
-    public void ANormalDeleteAsksFirst_AndDoesNothingUntilItIsAnswered()
+    public async Task ANormalDeleteAsksFirst_AndDoesNothingUntilItIsAnswered()
     {
         var shell = Substitute.For<IShellServices>();   // never runs either callback
         var file = File_("keep.txt");
 
-        var acted = new DeleteFile(shell).PerformAction(file);
+        var acted = await new DeleteFile(shell).PerformActionAsync(file);
 
         Assert.IsFalse(acted, "the delete is deferred to the confirmation, so nothing has happened yet");
         Assert.IsTrue(File.Exists(file));
@@ -61,7 +61,7 @@ public class DeleteActionTests
     }
 
     [TestMethod]
-    public void DecliningTheConfirmationLeavesTheFileAlone()
+    public async Task DecliningTheConfirmationLeavesTheFileAlone()
     {
         var shell = Substitute.For<IShellServices>();
         shell.When(s => s.ShowConfirmation(Arg.Any<string>(), Arg.Any<string>(),
@@ -69,14 +69,14 @@ public class DeleteActionTests
              .Do(ci => ((Action)ci[3]).Invoke());       // the cancel callback
         var file = File_("keep.txt");
 
-        new DeleteFile(shell).PerformAction(file);
+        await new DeleteFile(shell).PerformActionAsync(file);
 
         Assert.IsTrue(File.Exists(file));
         shell.DidNotReceive().RequestRefresh();
     }
 
     [TestMethod]
-    public void TheConfirmationNamesOneFile_ButCountsASelection()
+    public async Task TheConfirmationNamesOneFile_ButCountsASelection()
     {
         var shell = Substitute.For<IShellServices>();
         var messages = new System.Collections.Generic.List<string>();
@@ -84,8 +84,8 @@ public class DeleteActionTests
                                            Arg.Any<Action>(), Arg.Any<Action>()))
              .Do(ci => messages.Add(ci.ArgAt<string>(1)));
 
-        new DeleteFile(shell).PerformAction(File_("budget.xlsx"));
-        new DeleteFile(shell).PerformAction([File_("a.txt"), File_("b.txt"), File_("c.txt")]);
+        await new DeleteFile(shell).PerformActionAsync(File_("budget.xlsx"));
+        await new DeleteFile(shell).PerformActionAsync([File_("a.txt"), File_("b.txt"), File_("c.txt")]);
 
         Assert.AreEqual(Str.Format("WindowsFileSystem.Delete.ConfirmOneFormat", "budget.xlsx"), messages[0],
                         "with one file the prompt should say which one — that is the whole check");
@@ -93,11 +93,11 @@ public class DeleteActionTests
     }
 
     [TestMethod]
-    public void DeletingNothingAsksNothing()
+    public async Task DeletingNothingAsksNothing()
     {
         var shell = Substitute.For<IShellServices>();
 
-        Assert.IsFalse(new DeleteFile(shell).PerformAction([]));
+        Assert.IsFalse(await new DeleteFile(shell).PerformActionAsync([]));
 
         shell.DidNotReceiveWithAnyArgs().ShowConfirmation(default!, default!, default!, default!);
     }
@@ -110,7 +110,7 @@ public class DeleteActionTests
         var shell = Substitute.For<IShellServices>().Runs();
         var file  = File_("gone.txt");
 
-        var acted = new DeleteFile(shell).PerformAction(file, force: true);
+        var acted = await new DeleteFile(shell).PerformActionAsync(file, force: true);
 
         Assert.IsTrue(acted);
         await FileOperationQueue.For(shell).Operations[^1].Completion;

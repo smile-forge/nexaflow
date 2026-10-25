@@ -15,11 +15,12 @@ namespace Nexaflow.Features.WindowsFileSystem;
 public sealed class FileSystemObjectHandler(
     IShellServices shell,
     IAIService ai,
-    IReadOnlyDictionary<Type, IFeatureConfig> configs) : IGenericObjectHandler
+    IReadOnlyDictionary<Type, IFeatureConfig> configs,
+    IVirtualFileSystem vfs) : IGenericObjectHandler
 {
     public bool CanHandleObject(object obj)
         => ToLocalPath(obj) is { } p &&
-           (File.Exists(p) || Directory.Exists(p) || VirtualFileSystem.Instance.Exists(p));
+           (File.Exists(p) || Directory.Exists(p) || vfs.Exists(p));
 
     public void Handle(object obj)
     {
@@ -30,7 +31,7 @@ public sealed class FileSystemObjectHandler(
         // container that keeps its own viewer (.docx, .eml) falls through to DefaultFileOpener, matching the
         // file list's double-click (FileSystemViewModel.OpenEntry). The old blanket IsDirectory check did
         // not, so a .docx/.eml opened via HandleObject wrongly got a folder tab.
-        if (OpensAsFolder(VirtualFileSystem.Instance, path))
+        if (OpensAsFolder(vfs, path))
         {
             shell.OpenTab("FileSystem", new()
             {
@@ -44,7 +45,7 @@ public sealed class FileSystemObjectHandler(
         }
 
         // Same registry the file list uses (shared per shell), so the action set matches.
-        var registry = FileSystemFeatureRegistry.For(shell, ai, configs);
+        var registry = FileSystemFeatureRegistry.For(shell, ai, configs, vfs);
         // Fire-and-forget: we're on the UI thread (a clicked link); no view to refresh here.
         _ = new DefaultFileOpener(registry).OpenAsync(path);
     }

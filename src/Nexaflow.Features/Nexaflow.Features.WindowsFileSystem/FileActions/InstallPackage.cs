@@ -3,6 +3,8 @@ using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions
 {
@@ -28,17 +30,17 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
         /// than not offering the action.</summary>
         public bool   RequiresFullyBackedPath => true;
 
-        public bool PerformAction(string filePath)
+        public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default)
         {
             var real = VirtualFileSystem.Instance.TryResolveReal(filePath) ?? filePath;
             Process.Start(new ProcessStartInfo(real) { UseShellExecute = true });
-            return true;
+            return Task.FromResult(true);
         }
 
-        public bool PerformAction(IEnumerable<string> filePaths)
+        public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
         {
-            foreach (var p in filePaths) return PerformAction(p);
-            return false;
+            foreach (var p in filePaths) return PerformActionAsync(p, ct);
+            return Task.FromResult(false);
         }
     }
 }

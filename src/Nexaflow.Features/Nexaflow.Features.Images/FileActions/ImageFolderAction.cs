@@ -1,6 +1,8 @@
 using Nexaflow.Features.Common;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Features.Images.FileActions;
 
@@ -31,10 +33,10 @@ public abstract class ImageFolderAction : IFolderAction, ICacheable
     public abstract string Icon        { get; }
     public abstract string DisplayName { get; }
 
-    public bool PerformAction(string folderPath)
+    public Task<bool> PerformActionAsync(string folderPath, CancellationToken ct = default)
     {
         var images = ImageFileTypes.EnumerateImages(folderPath);
-        if (images.Count == 0) return false;
+        if (images.Count == 0) return Task.FromResult(false);
 
         _shell.OpenTab("Images", new Dictionary<string, string>
         {
@@ -42,12 +44,9 @@ public abstract class ImageFolderAction : IFolderAction, ICacheable
             ["view"]  = ViewMode,
             ["scope"] = "folder",   // whole-folder view → breadcrumb reads "all image files"
         });
-        return true;
+        return Task.FromResult(true);
     }
 
-    public bool PerformAction(IEnumerable<string> folderPaths)
-    {
-        var first = folderPaths.FirstOrDefault();
-        return first is not null && PerformAction(first);
-    }
+    public Task<bool> PerformActionAsync(IEnumerable<string> folderPaths, CancellationToken ct = default)
+    => folderPaths.FirstOrDefault() is { } first ? PerformActionAsync(first, ct) : Task.FromResult(false);
 }

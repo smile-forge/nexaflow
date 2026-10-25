@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -29,15 +31,12 @@ public sealed class DicomFolderAction : IFolderAction, ICacheable
     // Offered when the folder contains a DICOMDIR or at least one .dcm instance.
     public string[]? ContainsFileGlobs => ["DICOMDIR", "*.dcm", "*.dicom"];
 
-    public bool PerformAction(string folderPath)
+    public Task<bool> PerformActionAsync(string folderPath, CancellationToken ct = default)
     {
         _shell.OpenTab(DicomTabRegistration.StaticPageKind, new Dictionary<string, string> { ["path"] = folderPath });
-        return true;
+        return Task.FromResult(true);
     }
 
-    public bool PerformAction(IEnumerable<string> folderPaths)
-    {
-        var first = folderPaths.FirstOrDefault();
-        return first is not null && PerformAction(first);
-    }
+    public Task<bool> PerformActionAsync(IEnumerable<string> folderPaths, CancellationToken ct = default)
+    => folderPaths.FirstOrDefault() is { } first ? PerformActionAsync(first, ct) : Task.FromResult(false);
 }

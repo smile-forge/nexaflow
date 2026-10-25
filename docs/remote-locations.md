@@ -34,7 +34,7 @@ The groundwork is real but synchronous and Windows-path shaped, so the first job
 | `IVirtualFileSystem` | `IO.Common/IVirtualFileSystem.cs` | Transparent over archives, `::{id}` mounts and connected locations; async, cancellable members beside the sync ones; breadcrumbs, parent paths, display names and display forms | Most callers still use the sync members, which serve local paths only; `NXIO001` reports each |
 | `VirtualBacking` | `IO.Common/VirtualMount.cs` | Actions ask how a path's bytes are obtained before handing it to a process; `Remote` marks a path on a location | A remote path has no materialised copy until the content cache lands, so an action needing a native path is suppressed |
 | `LocationEntry` | `IO.Common/Locations/LocationEntry.cs` | Name, size, modified, hidden and read-only, symlink target, POSIX mode, owner, group, content hash, archive extras | — |
-| WindowsFileSystem feature | `Features.WindowsFileSystem` | The browser, This PC, file actions, transfers | Much of it calls `File.*` / `Directory.*` directly rather than the VFS; `NXIO002` reports each |
+| WindowsFileSystem feature | `Features.WindowsFileSystem` | The browser, This PC, file actions, transfers. Browsing, the tree, the address bar, create, rename and the assistant's file tools go through the runtime's async VFS; file actions are awaitable | Transfers and the operation queue still call `File.*` / `Directory.*`; `NXIO002` reports each |
 | `FileTransferEngine` | `IO.Common` | Progress, throughput, ETA, cancel | Assumes both ends are Windows paths |
 | `IThisPcItemProvider` | `Features.Common/ThisPc` | How OneDrive puts a row on This PC; connections use the same | — |
 | `PathScope` | `IO.Common/PathScope.cs` | Assistant reach equals what the user has open | Normalises Windows paths only |
@@ -114,6 +114,10 @@ public interface ILocationSessionSource                          // the pool, pe
   marked `[LocalDiskOnly("where its files are")]`, and a mark with no reason is an error (`NXIO003`). The existing
   call sites move to the async members, or take the mark, in phase 0. [testing.md](testing.md#how-a-feature-reaches-a-file-nxio001nxio003)
   has the detail.
+- **What is offered on a location is decided by name.** The action strip, a context menu and the folder viewlets are
+  built synchronously, so the rules that read content — a magic-number file type, a folder's contents globs, a
+  companion beside a file — read only what the file system resolves to this disk (`FileSubject.LocalFile`). On a
+  location a file is matched by its extension and a folder by its name.
 - **Reads say what they need.** `ReadIntent` is `Sequential`, `Random` or `Whole`. A provider with ranged reads (SFTP,
   SMB, FTP `REST`) returns a seekable stream that fetches blocks on demand, so a 4 GB log or a PDF opens at its first
   page. One without spools to the cache and returns the cached file.

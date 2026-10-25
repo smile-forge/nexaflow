@@ -4,6 +4,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Images;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Video;
+using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 

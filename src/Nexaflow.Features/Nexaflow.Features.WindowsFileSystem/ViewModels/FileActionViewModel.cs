@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
+using Nexaflow.IO.Common.Locations;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -11,7 +12,7 @@ using System.Windows.Media;
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 /// <summary>
 /// Wraps an <see cref="IFileAction"/> for presentation in the action strip.
-/// Shift-held state is forwarded to <see cref="IFileAction.PerformAction(string, bool)"/>
+/// Shift-held state is forwarded to <see cref="IFileAction.PerformActionAsync(string, bool, System.Threading.CancellationToken)"/>
 /// as the <c>force</c> flag so individual actions can decide how to handle it.
 /// </summary>
 public partial class FileActionViewModel : ObservableObject
@@ -89,12 +90,13 @@ public partial class FileActionViewModel : ObservableObject
         try
         {
             ok = _paths.Count == 1
-                ? _action.PerformAction(_paths[0], force)
-                : _action.PerformAction(_paths, force);
+                ? await _action.PerformActionAsync(_paths[0], force)
+                : await _action.PerformActionAsync(_paths, force);
         }
-        catch (FileOperationException ex)
+        catch (Exception ex) when (ex is FileOperationException or LocationException)
         {
-            // A specific, already-friendly copy/move failure — show it instead of crashing.
+            // A specific, already-friendly failure — a copy that could not finish, a location that went away — shown
+            // instead of crashing.
             ActionFailed?.Invoke(ex.Message);
             return;
         }

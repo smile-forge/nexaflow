@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 
@@ -39,6 +40,7 @@ public sealed record ShellNewContent(byte[]? Bytes, string? TemplatePath);
 /// is kept side-effect-free (except the filesystem probe in
 /// <see cref="ResolveTemplatePath"/>) so it can be tested without HKCR.
 /// </summary>
+[LocalDiskOnly("the ShellNew templates Windows keeps in its own ShellNew folder")]
 public static class ShellNewContentResolver
 {
     public static ShellNewContent Resolve(ShellNewSpec spec) => spec.Kind switch

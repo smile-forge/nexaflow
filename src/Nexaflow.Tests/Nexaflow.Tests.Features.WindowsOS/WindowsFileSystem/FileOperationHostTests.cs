@@ -173,7 +173,7 @@ public class FileOperationHostTests
     /// </para>
     /// </summary>
     [TestMethod]
-    public void TheRegistryHandsAnArchiveActionTheProgressHost()
+    public async Task TheRegistryHandsAnArchiveActionTheProgressHost()
     {
         var shell = Substitute.For<IShellServices>().Runs();
         shell.DiscoverImplementations<IFileAction>().Returns([typeof(UnzipHereAction)]);
@@ -183,7 +183,7 @@ public class FileOperationHostTests
         shell.DiscoverImplementations<IThisPcItemProvider>().Returns([]);
 
         var registry = FileSystemFeatureRegistry.For(
-            shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>());
+            shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
 
         var action = registry.FileActions.OfType<UnzipHereAction>().SingleOrDefault();
         Assert.IsNotNull(action, "the registry did not build the archive action at all");
@@ -198,7 +198,7 @@ public class FileOperationHostTests
 
         try
         {
-            Assert.IsTrue(action!.PerformAction(archive));
+            Assert.IsTrue(await action!.PerformActionAsync(archive));
 
             // A row in the queue is the proof: with no host the action extracts inline and adds nothing.
             var queue = FileOperationQueue.For(shell);

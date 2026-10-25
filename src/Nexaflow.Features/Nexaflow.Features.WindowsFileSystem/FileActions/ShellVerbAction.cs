@@ -4,6 +4,8 @@ using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Media;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions;
@@ -60,7 +62,7 @@ public sealed class ShellVerbAction : IFileAction
     /// file's neighbours to be there too. Offered only where the whole folder really is on disk.</summary>
     public bool RequiresFullyBackedPath => true;
 
-    public bool PerformAction(string filePath)
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default)
     {
         try
         {
@@ -70,15 +72,15 @@ public sealed class ShellVerbAction : IFileAction
                 Verb            = _verb,
                 UseShellExecute = true
             });
-            return true;
+            return Task.FromResult(true);
         }
-        catch { return false; }
+        catch { return Task.FromResult(false); }
     }
 
-    public bool PerformAction(IEnumerable<string> filePaths)
+    public async Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
     {
         bool ok = false;
-        foreach (var p in filePaths) ok |= PerformAction(p);
+        foreach (var p in filePaths) ok |= await PerformActionAsync(p, ct);
         return ok;
     }
 

@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using Nexaflow.IO.Common.Listing;
 using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.IO.Common;
@@ -70,8 +71,9 @@ public sealed partial class VirtualFileSystem
             var real = ToReal(path);
             if (Directory.Exists(real))
             {
-                foreach (var info in new DirectoryInfo(real).EnumerateFileSystemInfos())
-                    await page.WriteAsync(LocationEntry.FromFileSystemInfo(info), ct).ConfigureAwait(false);
+                // Straight from the file system, so a synced folder's rows carry their cloud state from this one pass.
+                foreach (var listed in DirectoryListing.Enumerate(real))
+                    await page.WriteAsync(LocationEntry.FromListed(listed, real), ct).ConfigureAwait(false);
             }
             else
             {
@@ -174,7 +176,9 @@ public sealed partial class VirtualFileSystem
             var target = OnDisk(to, nameof(MoveAsync));
             if (Directory.Exists(source))
             {
-                if (Directory.Exists(target) || File.Exists(target))
+                // A rename that changes only the case finds the folder itself at the target, and is no conflict.
+                bool itself = string.Equals(Path.GetFullPath(source), Path.GetFullPath(target), StringComparison.OrdinalIgnoreCase);
+                if (!itself && (Directory.Exists(target) || File.Exists(target)))
                     throw LocationFailures.Conflict(to, $"'{to}' already exists; a folder is never moved over another entry.");
                 Directory.Move(source, target);
             }

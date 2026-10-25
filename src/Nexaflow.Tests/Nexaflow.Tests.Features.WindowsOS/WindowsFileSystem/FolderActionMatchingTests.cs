@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using NSubstitute;
 using Nexaflow.Features.Common;
@@ -30,7 +31,7 @@ public class FolderActionMatchingTests
         shell.DiscoverImplementations<IFileCreateAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFolderViewlet>().Returns(Array.Empty<Type>());
 
-        var registry = FileSystemFeatureRegistry.For(shell, ai, new Dictionary<Type, IFeatureConfig>());
+        var registry = FileSystemFeatureRegistry.For(shell, ai, new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
         return new FileActionManager(registry);
     }
 
@@ -164,7 +165,7 @@ public class FolderActionMatchingTests
             shell.DiscoverImplementations<IFolderAction>().Returns([typeof(Nexaflow.Features.Dicom.FileActions.DicomFolderAction)]);
             shell.DiscoverImplementations<IFileCreateAction>().Returns(Array.Empty<Type>());
             shell.DiscoverImplementations<IFolderViewlet>().Returns(Array.Empty<Type>());
-            var manager = new FileActionManager(FileSystemFeatureRegistry.For(shell, ai, new Dictionary<Type, IFeatureConfig>()));
+            var manager = new FileActionManager(FileSystemFeatureRegistry.For(shell, ai, new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance));
 
             // Selecting the .zip (browsed as a container) — its entries include .dcm files, so "As DICOM" applies.
             var selected = new List<FileSystemEntry> { new() { Name = "study.zip", FullPath = zip, IsDirectory = true } };

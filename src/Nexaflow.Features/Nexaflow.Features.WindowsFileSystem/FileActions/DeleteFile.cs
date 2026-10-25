@@ -2,6 +2,8 @@ using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 
@@ -43,16 +45,13 @@ public class DeleteFile : IFileAction, IFolderAction, ICacheable
 
     // ── Single path ───────────────────────────────────────────────────────────
 
-    public bool PerformAction(string filePath)
-        => PerformAction(filePath, force: false);
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default) => PerformActionAsync(filePath, force: false, ct);
 
-    public bool PerformAction(string filePath, bool force)
-        => PerformAction(new[] { filePath }, force);
+    public Task<bool> PerformActionAsync(string filePath, bool force, CancellationToken ct = default) => PerformActionAsync(new[] { filePath }, force, ct);
 
     // ── Multiple paths ────────────────────────────────────────────────────────
 
-    public bool PerformAction(IEnumerable<string> filePaths)
-        => PerformAction(filePaths, force: false);
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default) => PerformActionAsync(filePaths, force: false, ct);
 
     /// <summary>
     /// Queues the delete rather than doing it here. Emptying a large tree used to block the UI thread
@@ -60,18 +59,18 @@ public class DeleteFile : IFileAction, IFolderAction, ICacheable
     /// with nothing on screen to say why. Recycling still goes through shell32 — only it produces a
     /// Recycle Bin entry — but on a background thread, with a row in the operations panel.
     /// </summary>
-    public bool PerformAction(IEnumerable<string> filePaths, bool force)
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, bool force, CancellationToken ct = default)
     {
         // Delete what the row points at, not a temp copy of it — see ShellPath.RealForMutation.
         var paths = new List<string>(Services.ShellPath.RealForMutation(filePaths));
-        if (paths.Count == 0) return false;
+        if (paths.Count == 0) return Task.FromResult(false);
 
         var queue = Operations.FileOperationQueue.For(_shell);
 
         if (force)
         {
             queue.EnqueueDelete(paths, permanent: true);
-            return true;
+            return Task.FromResult(true);
         }
 
         string message = paths.Count == 1
@@ -84,6 +83,6 @@ public class DeleteFile : IFileAction, IFolderAction, ICacheable
             onConfirm: () => queue.EnqueueDelete(paths, permanent: false),
             onCancel:  () => { });
 
-        return false;   // the actual delete is deferred to the confirm callback
+        return Task.FromResult(false);   // the actual delete is deferred to the confirm callback
     }
 }

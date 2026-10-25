@@ -110,8 +110,8 @@ public class FileOperationQueueTests
         var ai    = Substitute.For<IAIService>();
         var cfg   = new Dictionary<Type, IFeatureConfig>();
 
-        var first  = new FileSystemViewModel(_scratch, shell, ai, cfg);
-        var second = new FileSystemViewModel(_scratch, shell, ai, cfg);
+        var first  = new FileSystemViewModel(_scratch, shell, ai, cfg, VirtualFileSystem.Instance);
+        var second = new FileSystemViewModel(_scratch, shell, ai, cfg, VirtualFileSystem.Instance);
 
         Assert.AreSame(first.Operations, second.Operations,
             "an operation started in one tab has to be visible from the next");

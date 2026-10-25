@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -28,10 +30,10 @@ public sealed class AudioFolderAction : IFolderAction, ICacheable
     public string Icon        => "🎵";
     public string DisplayName => Str.Get("Audio.Action.PlayFolder");
 
-    public bool PerformAction(string folderPath)
+    public Task<bool> PerformActionAsync(string folderPath, CancellationToken ct = default)
     {
         var queue = AudioFileTypes.EnumerateAudio(folderPath);
-        if (queue.Count == 0) return false;
+        if (queue.Count == 0) return Task.FromResult(false);
 
         _shell.OpenTab("Audio", new Dictionary<string, string>
         {
@@ -40,12 +42,9 @@ public sealed class AudioFolderAction : IFolderAction, ICacheable
             ["autoplay"] = "true",   // "Play folder" starts immediately
             ["scope"] = "folder",    // whole-folder queue → breadcrumb reads "all audio files"
         });
-        return true;
+        return Task.FromResult(true);
     }
 
-    public bool PerformAction(IEnumerable<string> folderPaths)
-    {
-        var first = folderPaths.FirstOrDefault();
-        return first is not null && PerformAction(first);
-    }
+    public Task<bool> PerformActionAsync(IEnumerable<string> folderPaths, CancellationToken ct = default)
+    => folderPaths.FirstOrDefault() is { } first ? PerformActionAsync(first, ct) : Task.FromResult(false);
 }

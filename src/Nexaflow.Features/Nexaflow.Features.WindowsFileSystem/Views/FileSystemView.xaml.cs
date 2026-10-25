@@ -212,7 +212,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
             if (string.Equals(path, ViewModel.CurrentPath, StringComparison.OrdinalIgnoreCase))
                 ViewModel.Refresh();
             else
-                ViewModel.NavigateTo(path);
+                _ = ViewModel.BrowseToAsync(path);
         }
         else
         {
@@ -358,15 +358,30 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     /// navigate there in this same tab (falling back to This PC) so the user isn't stranded. If it still
     /// exists, refresh its contents and rebuild the viewlets in place — the mutation may have changed which
     /// viewlets apply.
+    /// <para>
+    /// Asking whether the folder survived is a round trip on a location. This handles an event nothing awaits, so it is
+    /// <c>async void</c> and handles every failure itself; a reader who moved on meanwhile is left where they went.
+    /// </para>
     /// </summary>
-    private void ReEvaluateCurrentFolder()
+    private async void ReEvaluateCurrentFolder()
     {
         var path = ViewModel.CurrentPath;
 
-        if (!string.IsNullOrEmpty(path) && !System.IO.Directory.Exists(path))
+        bool gone;
+        try
         {
-            if (FileSystemViewModel.NearestExistingAncestor(path) is { } ancestor)
-                ViewModel.NavigateTo(ancestor);            // navigation rebuilds contents + viewlets
+            gone = !string.IsNullOrEmpty(path) && !await ViewModel.Vfs.IsDirectoryAsync(path);
+        }
+        catch (System.IO.IOException)
+        {
+            gone = true;
+        }
+        if (!string.Equals(path, ViewModel.CurrentPath, StringComparison.OrdinalIgnoreCase)) return;
+
+        if (gone)
+        {
+            if (await ViewModel.NearestExistingAncestorAsync(path) is { } ancestor)
+                await ViewModel.BrowseToAsync(ancestor);   // navigation rebuilds contents + viewlets
             else
                 ViewModel.GoToThisPc(rebuildTree: true);   // even the drive is gone — fall back to This PC
             return;

@@ -144,7 +144,7 @@ public class NotebookSurfaceTests
 
     [TestMethod]
     [CoversNode("notebook-open")]
-    public void AsNotebook_OpensTheTabOnTheFileItWasInvokedOn()
+    public async Task AsNotebook_OpensTheTabOnTheFileItWasInvokedOn()
     {
         var shell = Substitute.For<IShellServices>();
         var opened = new List<Dictionary<string, string>>();
@@ -152,7 +152,7 @@ public class NotebookSurfaceTests
              .Do(ci => opened.Add(ci.Arg<Dictionary<string, string>>()));
         var action = new ShowNotebookAction(shell);
 
-        Assert.IsTrue(action.PerformAction(@"C:\work\analysis.ipynb"));
+        Assert.IsTrue(await action.PerformActionAsync(@"C:\work\analysis.ipynb"));
 
         Assert.AreEqual(@"C:\work\analysis.ipynb", opened.Single()["path"]);
         Assert.IsFalse(action.SupportsMultipleFiles, "one notebook per tab — they are long documents");

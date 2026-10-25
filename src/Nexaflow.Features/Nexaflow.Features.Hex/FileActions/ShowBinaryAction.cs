@@ -1,3 +1,5 @@
+using System.Threading;
+using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -25,15 +27,12 @@ public sealed class ShowBinaryAction : IFileAction, ICacheable
     public bool   CanPerformAction      => true;
     public bool   OpensViewer           => true;
 
-    public bool PerformAction(string filePath)
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default)
     {
         _shell.OpenTab("Hex", new Dictionary<string, string> { ["path"] = filePath });
-        return true;
+        return Task.FromResult(true);
     }
 
-    public bool PerformAction(IEnumerable<string> filePaths)
-    {
-        var first = filePaths.FirstOrDefault();
-        return first is not null && PerformAction(first);
-    }
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
+    => filePaths.FirstOrDefault() is { } first ? PerformActionAsync(first, ct) : Task.FromResult(false);
 }

@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -23,17 +24,17 @@ public class FileSystemViewModelCreateTests
         public string? LastFolder;
         public string? LastName;
 
-        public string? Create(string folderPath, string fileName)
+        public Task<string?> CreateItemAsync(string folderPath, string fileName, CancellationToken ct = default)
         {
             LastFolder = folderPath;
             LastName   = fileName;
             var p = Path.Combine(folderPath, fileName);
             if (ext.Length == 0) Directory.CreateDirectory(p); else File.WriteAllText(p, string.Empty);
-            return p;
+            return Task.FromResult<string?>(p);
         }
     }
 
-    private static FileSystemViewModel AtPath(string path)
+    private static async Task<FileSystemViewModel> AtPathAsync(string path)
     {
         var shell = Substitute.For<IShellServices>();
         var ai    = Substitute.For<IAIService>();
@@ -41,7 +42,9 @@ public class FileSystemViewModelCreateTests
         shell.DiscoverImplementations<IFolderAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFileCreateAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFolderViewlet>().Returns(Array.Empty<Type>());
-        return new FileSystemViewModel(path, shell, ai, new Dictionary<Type, IFeatureConfig>());
+        var vm = new FileSystemViewModel(path, shell, ai, new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
+        await vm.Browsing;
+        return vm;
     }
 
     private static string TempDir()
@@ -52,13 +55,14 @@ public class FileSystemViewModelCreateTests
     }
 
     [TestMethod]
-    public void OpenCreateOverlay_PopulatesSelectsAndPrefills()
+    public async Task OpenCreateOverlay_PopulatesSelectsAndPrefills()
     {
         var dir = TempDir();
         try
         {
-            var vm = AtPath(dir);
+            var vm = await AtPathAsync(dir);
             vm.OpenCreateOverlayWith([new FakeCreateAction(".txt"), new FakeCreateAction("")]);
+            await vm.CreateNameChecked;
 
             Assert.IsTrue(vm.CreateOverlayVisible);
             Assert.AreEqual(2, vm.CreateActions.Count);
@@ -72,12 +76,12 @@ public class FileSystemViewModelCreateTests
     }
 
     [TestMethod]
-    public void SelectingFolderType_PrefillsNewFolder()
+    public async Task SelectingFolderType_PrefillsNewFolder()
     {
         var dir = TempDir();
         try
         {
-            var vm = AtPath(dir);
+            var vm = await AtPathAsync(dir);
             vm.OpenCreateOverlayWith([new FakeCreateAction(".txt"), new FakeCreateAction("")]);
 
             vm.CreateActions[1].SelectCommand.Execute(null);
@@ -91,16 +95,18 @@ public class FileSystemViewModelCreateTests
     }
 
     [TestMethod]
-    public void ExistingName_FlagsWarning_AndDisablesCreate()
+    public async Task ExistingName_FlagsWarning_AndDisablesCreate()
     {
         var dir = TempDir();
         try
         {
             File.WriteAllText(Path.Combine(dir, "taken.txt"), "x");
-            var vm = AtPath(dir);
+            var vm = await AtPathAsync(dir);
             vm.OpenCreateOverlayWith([new FakeCreateAction(".txt")]);
 
             vm.CreateFileName = "taken";   // resolves to taken.txt
+            Assert.IsFalse(vm.CanCreate, "nothing is created while the folder is still being asked");
+            await vm.CreateNameChecked;
 
             Assert.IsTrue(vm.CreateNameExists);
             Assert.IsFalse(vm.CanCreate);
@@ -110,18 +116,19 @@ public class FileSystemViewModelCreateTests
     }
 
     [TestMethod]
-    public void Create_AppendsTypeExtension_InvokesActionWithResolvedName()
+    public async Task Create_AppendsTypeExtension_InvokesActionWithResolvedName()
     {
         var dir = TempDir();
         try
         {
             var fake = new FakeCreateAction(".txt");
-            var vm   = AtPath(dir);
+            var vm   = await AtPathAsync(dir);
             vm.OpenCreateOverlayWith([fake]);
 
             vm.CreateFileName = "memo";
+            await vm.CreateNameChecked;
             Assert.IsTrue(vm.CreateCommand.CanExecute(null));
-            vm.CreateCommand.Execute(null);
+            await vm.CreateCommand.ExecuteAsync(null);
 
             Assert.AreEqual("memo.txt", fake.LastName);
             Assert.IsTrue(File.Exists(Path.Combine(dir, "memo.txt")));
@@ -131,17 +138,18 @@ public class FileSystemViewModelCreateTests
     }
 
     [TestMethod]
-    public void Create_KeepsUserProvidedExtension()
+    public async Task Create_KeepsUserProvidedExtension()
     {
         var dir = TempDir();
         try
         {
             var fake = new FakeCreateAction(".txt");
-            var vm   = AtPath(dir);
+            var vm   = await AtPathAsync(dir);
             vm.OpenCreateOverlayWith([fake]);
 
             vm.CreateFileName = "page.md";
-            vm.CreateCommand.Execute(null);
+            await vm.CreateNameChecked;
+            await vm.CreateCommand.ExecuteAsync(null);
 
             Assert.AreEqual("page.md", fake.LastName);
             Assert.IsTrue(File.Exists(Path.Combine(dir, "page.md")));
@@ -150,12 +158,12 @@ public class FileSystemViewModelCreateTests
     }
 
     [TestMethod]
-    public void CancelCreate_HidesOverlay()
+    public async Task CancelCreate_HidesOverlay()
     {
         var dir = TempDir();
         try
         {
-            var vm = AtPath(dir);
+            var vm = await AtPathAsync(dir);
             vm.OpenCreateOverlayWith([new FakeCreateAction(".txt")]);
 
             vm.CancelCreateCommand.Execute(null);

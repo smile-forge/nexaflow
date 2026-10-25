@@ -1,3 +1,6 @@
+using Nexaflow.IO.Common.Cloud;
+using Nexaflow.IO.Common.Listing;
+
 namespace Nexaflow.IO.Common.Locations;
 
 /// <summary>
@@ -19,6 +22,9 @@ public sealed record LocationEntry(string Name, bool IsDirectory, long Size, Sys
 
     public bool IsReadOnly { get; init; }
 
+    /// <summary>When the file was created, where the location keeps it; null where it does not, as most servers do not.</summary>
+    public System.DateTime? Created { get; init; }
+
     /// <summary>Where a symbolic link points, or null when the entry is not one.</summary>
     public string? SymlinkTarget { get; init; }
 
@@ -35,6 +41,10 @@ public sealed record LocationEntry(string Name, bool IsDirectory, long Size, Sys
     /// <summary>The archive facts of an entry inside an archive, or null for any other entry.</summary>
     public ArchiveEntryDetail? Archive { get; init; }
 
+    /// <summary>Where a file in a cloud-synced folder on this machine stands (a OneDrive placeholder, say), as the listing
+    /// that found it reported; <see cref="CloudFileState.None"/> anywhere else.</summary>
+    public CloudFileState CloudState { get; init; }
+
     public bool IsSymlink => SymlinkTarget is not null;
 
     /// <summary>The entry for a real file or folder. Reads only what the enumeration that produced
@@ -47,7 +57,28 @@ public sealed record LocationEntry(string Name, bool IsDirectory, long Size, Sys
         {
             IsHidden      = (attributes & System.IO.FileAttributes.Hidden) != 0,
             IsReadOnly    = (attributes & System.IO.FileAttributes.ReadOnly) != 0,
+            Created       = info.CreationTime,
             SymlinkTarget = (attributes & System.IO.FileAttributes.ReparsePoint) != 0 ? LinkTargetOf(info) : null,
+        };
+    }
+
+    /// <summary>The entry for one row of a <see cref="DirectoryListing"/> of <paramref name="directory"/>: everything the
+    /// listing read in the same pass, cloud state included. A link's target is the one thing it does not carry, so it is
+    /// read for a reparse point that is no cloud placeholder — the placeholder is the common reparse point, and has none.</summary>
+    public static LocationEntry FromListed(ListedEntry listed, string directory)
+    {
+        var attributes = listed.Attributes;
+        bool isDirectory = listed.IsDirectory;
+        bool link = (attributes & System.IO.FileAttributes.ReparsePoint) != 0 && listed.CloudState == CloudFileState.None;
+        return new LocationEntry(listed.Name, isDirectory, isDirectory ? 0 : listed.Size, listed.LastWriteTime)
+        {
+            IsHidden      = (attributes & System.IO.FileAttributes.Hidden) != 0,
+            IsReadOnly    = (attributes & System.IO.FileAttributes.ReadOnly) != 0,
+            CloudState    = listed.CloudState,
+            SymlinkTarget = link
+                ? LinkTargetOf(isDirectory ? new System.IO.DirectoryInfo(System.IO.Path.Combine(directory, listed.Name))
+                                           : new System.IO.FileInfo(System.IO.Path.Combine(directory, listed.Name)))
+                : null,
         };
     }
 

@@ -482,7 +482,7 @@ To make a page *searchable*, don't write a handler at all — implement `ISearch
 
 Implement in the assembly that owns the concern. `FileSystemFeatureRegistry` (in Core — **not** `FeatureManager`) discovers these across Core and the feature assemblies. Actions that open a viewer tab belong in the feature that owns the viewer; system-level actions (copy, rename…) belong in `Nexaflow.Core.FileActions`.
 
-Actions are matched to files via `ExperienceId` — a hierarchical path (e.g. `"/image"`, `"/binary/installer"`) that `FileMapManager` resolves against the selected file. Constructor dependencies (e.g. `IShellServices`) are injected on resolution; show modal prompts via `IShellServices.ShowPrompt` / `ShowConfirmation`.
+Actions are matched to files via `ExperienceId` — a hierarchical path (e.g. `"/image"`, `"/binary/installer"`) that `FileMapManager` resolves against the selected file. Constructor dependencies (e.g. `IShellServices`, and the runtime's `IVirtualFileSystem` for an action that touches files) are injected on resolution; show modal prompts via `IShellServices.ShowPrompt` / `ShowConfirmation`.
 
 Key `IFileAction` members:
 
@@ -495,9 +495,11 @@ Key `IFileAction` members:
 | `RequiresRefresh` | Triggers file tree refresh after execute |
 | `SupportsMultipleFiles` | Whether the action can receive a collection |
 | `CanPerformAction` | Computed gate (e.g. checks selection state) |
-| `PerformAction(string)` / `PerformAction(IEnumerable<string>)` | Execute the action |
+| `PerformActionAsync(string)` / `PerformActionAsync(IEnumerable<string>)` | Execute the action, answering whether it did something now — the strip's success tick. Awaitable, because on a location a rename or a delete knows how it went only after a round trip; an action that only opens a tab answers at once |
 
-`IFolderAction`s are matched **structurally** rather than by `ExperienceId`: `FolderNameGlob` (folder name), `ContainsFolderGlobs` (has a matching sub-folder), and `ContainsFileGlobs` (has matching files). When `ContainsFileGlobs` is set, `MinimumFileGlobMatchPercentage` (default `0` = "at least one match") requires that share of the folder's top-level files to match — e.g. the image Slideshow/Album actions require ≥30% images. The content check enumerates the folder once and bails as soon as the threshold is reached or has become unreachable. The same name/content constraints are applied to `AppliesToRoot` actions against the **currently-open folder** (no selection), so a constrained action only appears on a qualifying folder, not every folder.
+`IFileCreateAction.CreateItemAsync` answers the path of the item it made, which the browser selects.
+
+`IFolderAction`s are matched **structurally** rather than by `ExperienceId`: `FolderNameGlob` (folder name), `ContainsFolderGlobs` (has a matching sub-folder), and `ContainsFileGlobs` (has matching files). When `ContainsFileGlobs` is set, `MinimumFileGlobMatchPercentage` (default `0` = "at least one match") requires that share of the folder's top-level files to match — e.g. the image Slideshow/Album actions require ≥30% images. The content check enumerates the folder once and bails as soon as the threshold is reached or has become unreachable. The same name/content constraints are applied to `AppliesToRoot` actions against the **currently-open folder** (no selection), so a constrained action only appears on a qualifying folder, not every folder. Contents are read only where the file system resolves the folder to this disk (an archive on it included): matching runs while the strip or a context menu is built, so on a location a folder action is matched by its name alone, as a file's magic-number rule is skipped there.
 
 ---
 
@@ -756,8 +758,8 @@ ShellServices:
 
 ```
 User selects file in file browser → clicks action button
-  → FileActionManager.PerformAction(action, paths)
-  → e.g. ShowMarkdownAction.PerformAction(path)
+  → FileActionViewModel awaits action.PerformActionAsync(path)
+  → e.g. ShowMarkdownAction.PerformActionAsync(path)
       _shellServices.OpenTab("Markdown", { "path": filePath })
   → ShellServices → MarkdownTabRegistration.CreatePageDefinition(params) → tab opens
 ```

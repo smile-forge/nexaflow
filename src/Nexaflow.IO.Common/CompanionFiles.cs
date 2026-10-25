@@ -69,4 +69,35 @@ public static class CompanionFiles
         }
         return failures;
     }
+
+    /// <summary>
+    /// As <see cref="Follow"/>, through the file system, so a companion follows its file on a mount or a connected location
+    /// too. A companion already at the destination described the file just replaced there and goes first — a hidden one
+    /// refuses to be overwritten. Returns what could not follow; the rest has.
+    /// </summary>
+    public static async Task<IReadOnlyList<(string Path, Exception Error)>> FollowAsync(
+        IVirtualFileSystem vfs, string source, string destination, IReadOnlyList<string> suffixes, bool move,
+        CancellationToken ct = default)
+    {
+        var failures = new List<(string, Exception)>();
+        foreach (var suffix in suffixes)
+        {
+            string from = source + suffix, to = destination + suffix;
+            try
+            {
+                bool present = await vfs.ExistsAsync(from, ct).ConfigureAwait(false);
+                if (await vfs.ExistsAsync(to, ct).ConfigureAwait(false))
+                    await vfs.DeleteAsync(to, recursive: false, ct).ConfigureAwait(false);
+                if (!present) continue;
+
+                if (move) await vfs.MoveAsync(from, to, replace: false, ct).ConfigureAwait(false);
+                else await vfs.CopyFileAsync(from, to, replace: false, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                failures.Add((from, ex));
+            }
+        }
+        return failures;
+    }
 }

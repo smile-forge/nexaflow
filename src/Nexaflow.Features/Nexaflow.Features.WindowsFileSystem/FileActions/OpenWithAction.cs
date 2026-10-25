@@ -3,6 +3,8 @@ using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 
@@ -28,12 +30,12 @@ public sealed class OpenWithAction : IFileAction, ICacheable
 
     // A file inside a disk image / archive is virtual — the Open-With dialog needs a real path, so
     // materialise it to a temp copy first (a real file passes through unchanged).
-    public bool PerformAction(string filePath) => NativeMethods.ShowOpenWithDialog(RealPath(filePath));
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default) => Task.FromResult(NativeMethods.ShowOpenWithDialog(RealPath(filePath)));
 
-    public bool PerformAction(IEnumerable<string> filePaths)
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
     {
         var first = filePaths.FirstOrDefault();
-        return first is not null && NativeMethods.ShowOpenWithDialog(RealPath(first));
+        return Task.FromResult(first is not null && NativeMethods.ShowOpenWithDialog(RealPath(first)));
     }
 
     private static string RealPath(string path)

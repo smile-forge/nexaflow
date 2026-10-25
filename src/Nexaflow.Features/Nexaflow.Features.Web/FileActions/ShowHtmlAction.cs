@@ -2,6 +2,8 @@ using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Features.Web.FileActions
 {
@@ -33,19 +35,19 @@ namespace Nexaflow.Features.Web.FileActions
 
         // Routed through the selection overload so both filter alike — opening one file and opening a
         // one-item selection of it are the same user intent, and only one of them used to check the type.
-        public bool PerformAction(string filePath) => PerformAction([filePath]);
+        public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default) => PerformActionAsync([filePath], ct);
 
-        public bool PerformAction(IEnumerable<string> filePaths)
+        public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
         {
             foreach (var path in filePaths)
             {
                 if (_exts.Contains(Path.GetExtension(path)))
                 {
                     _shellServices.OpenTab("Html", new Dictionary<string, string> { ["path"] = path });
-                    return true;
+                    return Task.FromResult(true);
                 }
             }
-            return false;
+            return Task.FromResult(false);
         }
     }
 }

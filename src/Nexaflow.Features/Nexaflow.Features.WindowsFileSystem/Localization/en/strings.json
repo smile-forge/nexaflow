@@ -74,6 +74,7 @@
   "WindowsFileSystem.Rename.FileTitle": "Rename File",
   "WindowsFileSystem.Rename.FolderTitle": "Rename Folder",
   "WindowsFileSystem.Rename.Label": "New name:",
+  "WindowsFileSystem.Rename.FailedFormat": "Could not rename '{0}': {1}",
 
   "WindowsFileSystem.Experiences.AllFiles": "All files",
   "WindowsFileSystem.Experiences.Executables": "Executable files (.exe)",

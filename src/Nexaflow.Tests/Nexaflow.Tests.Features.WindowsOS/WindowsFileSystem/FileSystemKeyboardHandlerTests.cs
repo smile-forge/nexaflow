@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using System.Windows.Input;
 using NSubstitute;
@@ -28,9 +29,9 @@ public class FileSystemKeyboardHandlerTests
     }
 
     [TestCleanup]
-    public void RemoveScratch() { try { Directory.Delete(_scratch, recursive: true); } catch { } }
+    public async Task RemoveScratch() { try { Directory.Delete(_scratch, recursive: true); } catch { } }
 
-    private FileSystemViewModel AtScratch()
+    private async Task<FileSystemViewModel> AtScratchAsync()
     {
         var shell = Substitute.For<IShellServices>();
         var ai    = Substitute.For<IAIService>();
@@ -39,7 +40,9 @@ public class FileSystemKeyboardHandlerTests
         shell.DiscoverImplementations<IFileCreateAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFolderViewlet>().Returns(Array.Empty<Type>());
 
-        return new FileSystemViewModel(_scratch, shell, ai, new Dictionary<Type, IFeatureConfig>());
+        var vm = new FileSystemViewModel(_scratch, shell, ai, new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
+        await vm.Browsing;
+        return vm;
     }
 
     /// <summary>A directory entry is the deterministic case: OpenEntry navigates rather than dispatching to
@@ -52,27 +55,27 @@ public class FileSystemKeyboardHandlerTests
     }
 
     [TestMethod]
-    public void ShiftEnter_isOffered_forASingleSelection()
+    public async Task ShiftEnter_isOffered_forASingleSelection()
     {
-        var vm = AtScratch();
+        var vm = await AtScratchAsync();
         vm.OnSelectionChanged([Subfolder("one")]);
 
         Assert.IsTrue(new FileSystemKeyboardHandler(vm).CanProcessKey(Key.Enter, ModifierKeys.Shift));
     }
 
     [TestMethod]
-    public void ShiftEnter_isNotOffered_withNoSelection()
+    public async Task ShiftEnter_isNotOffered_withNoSelection()
     {
-        var vm = AtScratch();
+        var vm = await AtScratchAsync();
         vm.OnSelectionChanged([]);
 
         Assert.IsFalse(new FileSystemKeyboardHandler(vm).CanProcessKey(Key.Enter, ModifierKeys.Shift));
     }
 
     [TestMethod]
-    public void ShiftEnter_isNotOffered_forAMultiSelection()
+    public async Task ShiftEnter_isNotOffered_forAMultiSelection()
     {
-        var vm = AtScratch();
+        var vm = await AtScratchAsync();
         vm.OnSelectionChanged([Subfolder("one"), Subfolder("two")]);
 
         Assert.IsFalse(new FileSystemKeyboardHandler(vm).CanProcessKey(Key.Enter, ModifierKeys.Shift),
@@ -80,22 +83,23 @@ public class FileSystemKeyboardHandlerTests
     }
 
     [TestMethod]
-    public void PlainEnter_isNeverClaimed_soTheAiInputKeepsIt()
+    public async Task PlainEnter_isNeverClaimed_soTheAiInputKeepsIt()
     {
-        var vm = AtScratch();
+        var vm = await AtScratchAsync();
         vm.OnSelectionChanged([Subfolder("one")]);
 
         Assert.IsFalse(new FileSystemKeyboardHandler(vm).CanProcessKey(Key.Enter, ModifierKeys.None));
     }
 
     [TestMethod]
-    public void ShiftEnter_opensTheSelectedFolder_byNavigatingToIt()
+    public async Task ShiftEnter_opensTheSelectedFolder_byNavigatingToIt()
     {
-        var vm = AtScratch();
+        var vm = await AtScratchAsync();
         var target = Subfolder("target");
         vm.OnSelectionChanged([target]);
 
         Assert.IsTrue(new FileSystemKeyboardHandler(vm).ProcessKey(Key.Enter, ModifierKeys.Shift));
+        await vm.Browsing;
         Assert.AreEqual(target.FullPath, vm.CurrentPath,
             "Shift+Enter must route through OpenEntryCommand, which navigates into a selected folder.");
     }

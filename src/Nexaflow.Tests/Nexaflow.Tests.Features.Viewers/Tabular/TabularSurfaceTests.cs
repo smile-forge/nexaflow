@@ -170,7 +170,7 @@ public class TabularSurfaceTests
 
     [TestMethod]
     [CoversNode("tabular-open-action")]
-    public void AsTableAction_OpensTheTabularTab_WithThePath()
+    public async Task AsTableAction_OpensTheTabularTab_WithThePath()
     {
         var shell = Substitute.For<IShellServices>();
         var action = new ShowTabularAction(shell);
@@ -180,7 +180,7 @@ public class TabularSurfaceTests
         Assert.IsTrue(action.OpensViewer);
         Assert.IsFalse(action.IsDestructive);
 
-        Assert.IsTrue(action.PerformAction(@"C:\data\sales.csv"));
+        Assert.IsTrue(await action.PerformActionAsync(@"C:\data\sales.csv"));
 
         shell.Received(1).OpenTab("Tabular",
             Arg.Is<Dictionary<string, string>>(p => p["path"] == @"C:\data\sales.csv"),

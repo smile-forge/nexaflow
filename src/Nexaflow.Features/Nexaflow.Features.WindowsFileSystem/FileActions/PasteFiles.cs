@@ -1,6 +1,8 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions
 {
@@ -31,24 +33,24 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
         /// </summary>
         public bool CanPerformAction => NativeMethods.ClipboardHasFiles();
 
-        public bool PerformAction(string destinationFolder)
+        public Task<bool> PerformActionAsync(string destinationFolder, CancellationToken ct = default)
         {
             var (paths, isCut) = NativeMethods.ClipboardReadDrop();
-            if (paths.Count == 0) return false;
+            if (paths.Count == 0) return Task.FromResult(false);
 
             // The clipboard is only consumed once the cut has actually landed — a failed one is left in
             // place so the cause can be fixed and the paste repeated.
             var op = Operations.FileOperationQueue.For(shell)
                 .EnqueuePaste(paths, destinationFolder, isCut, onCutSucceeded: NativeMethods.ClipboardClear);
 
-            return op is not null;
+            return Task.FromResult(op is not null);
         }
 
-        public bool PerformAction(IEnumerable<string> folderPaths)
+        public Task<bool> PerformActionAsync(IEnumerable<string> folderPaths, CancellationToken ct = default)
         {
             // When called with multiple paths, use the first one as destination.
-            foreach (var path in folderPaths) return PerformAction(path);
-            return false;
+            foreach (var path in folderPaths) return PerformActionAsync(path, ct);
+            return Task.FromResult(false);
         }
     }
 }

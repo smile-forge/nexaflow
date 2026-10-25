@@ -40,17 +40,17 @@ public sealed class AvScanAction(IShellServices shell) : IFileAction, ICacheable
     /// <summary>Shows a result, not a tab — so it stays out of the viewer-reachability rules.</summary>
     public bool OpensViewer => false;
 
-    public bool PerformAction(string filePath) => PerformAction([filePath]);
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default) => PerformActionAsync([filePath], ct);
 
-    public bool PerformAction(IEnumerable<string> filePaths)
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
     {
-        var paths = filePaths.Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
-        if (paths.Count == 0) return false;
+            var paths = filePaths.Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
+            if (paths.Count == 0) return Task.FromResult(false);
 
-        // The provider does real work and can take seconds on a large file; never on the dispatcher.
-        shell.QueueBackgroundTask(new ScanTask(shell, paths));
-        return true;
-    }
+            // The provider does real work and can take seconds on a large file; never on the dispatcher.
+            shell.QueueBackgroundTask(new ScanTask(shell, paths));
+            return Task.FromResult(true);
+        }
 
     private sealed class ScanTask(IShellServices shell, IReadOnlyList<string> paths) : IBackgroundTask
     {

@@ -35,6 +35,10 @@ public sealed class FileCompanions
 
     public IReadOnlyList<string> Suffixes { get; }
 
+    /// <summary>Why the companions of files handed to Windows are looked for on the disk directly: what goes to the
+    /// clipboard, a drag-out or the Recycle Bin is a real path, which only ever names a file on this machine.</summary>
+    private const string ToWindows = "files handed to Windows — the clipboard, a drag-out, the Recycle Bin — which are on this disk";
+
     /// <summary>A browser with these kinds of companion — for a test, or a caller that declares its own.</summary>
     public static FileCompanions Of(IReadOnlyList<FileCompanionKind> kinds) => new(kinds);
 
@@ -61,6 +65,7 @@ public sealed class FileCompanions
     }
 
     /// <summary>The companions of the file at <paramref name="primaryPath"/> that exist.</summary>
+    [LocalDiskOnly(ToWindows)]
     public IEnumerable<string> ExistingCompanionsOf(string primaryPath) =>
         Suffixes.Select(s => primaryPath + s).Where(File.Exists);
 
@@ -68,6 +73,7 @@ public sealed class FileCompanions
     /// <paramref name="paths"/> with every existing companion of each file after it — what a clipboard or a drag out
     /// to another program should carry, since it knows nothing of companions.
     /// </summary>
+    [LocalDiskOnly(ToWindows)]
     public IReadOnlyList<string> WithCompanions(IEnumerable<string> paths)
     {
         var all = new List<string>();
@@ -100,20 +106,13 @@ public sealed class FileCompanions
         ];
     }
 
-    /// <summary>
-    /// The companions of a file copied, moved or renamed from <paramref name="from"/> to <paramref name="to"/> go
-    /// with it (<see cref="CompanionFiles.Follow"/>). One that cannot is left where it was — orphaned beside the old
-    /// name, where the list then shows it — and reported in the result.
-    /// </summary>
-    public IReadOnlyList<(string Path, Exception Error)> Follow(string from, string to, bool move) =>
-        Suffixes.Count == 0 || Directory.Exists(to) ? [] : CompanionFiles.Follow(from, to, Suffixes, move);
-
-    /// <summary>
-    /// True when <paramref name="name"/>, in <paramref name="directory"/>, is the companion of a file beside it — what
-    /// a listing outside the file list (an assistant's, a search's) leaves out.
-    /// </summary>
-    public bool IsCompanionIn(string directory, string name) =>
-        Parse(name) is { } parsed && File.Exists(Path.Combine(directory, parsed.PrimaryName));
+    /// <summary>As <see cref="Follow"/>, through <paramref name="vfs"/> (<see cref="CompanionFiles.FollowAsync"/>), for a file
+    /// that may be on a mount or a connected location.</summary>
+    public async Task<IReadOnlyList<(string Path, Exception Error)>> FollowAsync(IVirtualFileSystem vfs, string from, string to,
+                                                                                bool move, CancellationToken ct = default) =>
+        Suffixes.Count == 0 || await vfs.IsDirectoryAsync(to, ct)
+            ? []
+            : await CompanionFiles.FollowAsync(vfs, from, to, Suffixes, move, ct);
 
     // ── Listing ─────────────────────────────────────────────────────────────
 

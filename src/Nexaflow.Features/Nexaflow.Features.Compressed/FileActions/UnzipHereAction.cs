@@ -26,30 +26,30 @@ public sealed class UnzipHereAction(IShellServices shell, IFileOperationHost? op
     public bool CanPerformAction => true;
     public bool OpensViewer => false;
 
-    public bool PerformAction(string filePath)
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default)
     {
-        string dest;
-        try
-        {
-            dest = UniqueSiblingDir(filePath);
-            // Claim the name now, for the same reason ZipItAction claims its archive name: it was picked
-            // synchronously but the extraction is seconds away, so two unzips would otherwise pick the same one.
-            if (operations is not null) Directory.CreateDirectory(dest);
-        }
-        catch (Exception ex)
-        {
-            shell.ShowError(Str.Format("Compressed.UnzipHere.FailedFormat", Path.GetFileName(filePath), ex.Message));
-            return false;
-        }
+            string dest;
+            try
+            {
+                dest = UniqueSiblingDir(filePath);
+                // Claim the name now, for the same reason ZipItAction claims its archive name: it was picked
+                // synchronously but the extraction is seconds away, so two unzips would otherwise pick the same one.
+                if (operations is not null) Directory.CreateDirectory(dest);
+            }
+            catch (Exception ex)
+            {
+                shell.ShowError(Str.Format("Compressed.UnzipHere.FailedFormat", Path.GetFileName(filePath), ex.Message));
+                return Task.FromResult(false);
+            }
 
-        // No host means nobody is showing progress, so there is nothing to be gained by going async.
-        if (operations is null) return ExtractNow(filePath, dest);
+            // No host means nobody is showing progress, so there is nothing to be gained by going async.
+            if (operations is null) return Task.FromResult(ExtractNow(filePath, dest));
 
-        _ = operations.Run(
-            new FileOperationRequest(Str.Get("Compressed.Operation.Extracting"), Path.GetFileName(filePath), Path.GetFileName(dest), dest),
-            (progress, ct) => Task.Run(() => Extract(filePath, dest, progress, ct), CancellationToken.None));
-        return true;
-    }
+            _ = operations.Run(
+                new FileOperationRequest(Str.Get("Compressed.Operation.Extracting"), Path.GetFileName(filePath), Path.GetFileName(dest), dest),
+                (progress, token) => Task.Run(() => Extract(filePath, dest, progress, token), CancellationToken.None));
+            return Task.FromResult(true);
+        }
 
     /// <summary>
     /// The extraction as the progress row wants it: every outcome described in the result rather than
@@ -94,10 +94,10 @@ public sealed class UnzipHereAction(IShellServices shell, IFileOperationHost? op
 
     /// <summary>One row per archive, so several selected archives are several cancellable operations
     /// rather than one opaque wait — the same shape as dropping three folders.</summary>
-    public bool PerformAction(IEnumerable<string> filePaths)
+    public async Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
     {
         bool any = false;
-        foreach (var p in filePaths) any |= PerformAction(p);
+        foreach (var p in filePaths) any |= await PerformActionAsync(p, ct);
         return any;
     }
 

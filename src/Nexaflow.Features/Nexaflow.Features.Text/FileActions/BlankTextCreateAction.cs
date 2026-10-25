@@ -1,6 +1,10 @@
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
+using System;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Features.Text.FileActions;
 
@@ -9,19 +13,19 @@ namespace Nexaflow.Features.Text.FileActions;
 /// feature registry — no reference to WindowsFileSystem is needed (both contracts live in
 /// <c>Features.Common</c>).
 /// </summary>
-public sealed class BlankTextCreateAction : IFileCreateAction, ICacheable
+public sealed class BlankTextCreateAction(IVirtualFileSystem vfs) : IFileCreateAction, ICacheable
 {
     public string Icon          => "📄";
     public string DisplayName   => Str.Get("Text.Viewer.Action.NewTextFile");
     public string FileExtension => ".txt";
 
-    public string? Create(string folderPath, string fileName)
+    public async Task<string?> CreateItemAsync(string folderPath, string fileName, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(folderPath) || string.IsNullOrWhiteSpace(fileName))
             return null;
 
         var dest = Path.Combine(folderPath, fileName);
-        File.WriteAllText(dest, string.Empty);
+        await vfs.CreateFileAsync(dest, ReadOnlyMemory<byte>.Empty, ct);
         return dest;
     }
 }

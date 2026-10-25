@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -26,18 +28,18 @@ public sealed class ShowDicomAction : IFileAction, ICacheable
     public bool CanPerformAction => true;
     public bool OpensViewer => true;
 
-    public bool PerformAction(string filePath)
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default)
     {
         _shell.OpenTab(DicomTabRegistration.StaticPageKind, new Dictionary<string, string> { ["path"] = filePath });
-        return true;
+        return Task.FromResult(true);
     }
 
-    public bool PerformAction(IEnumerable<string> filePaths)
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
     {
         var files = filePaths.ToList();
-        if (files.Count == 0) return false;
+        if (files.Count == 0) return Task.FromResult(false);
         _shell.OpenTab(DicomTabRegistration.StaticPageKind,
             new Dictionary<string, string> { ["paths"] = string.Join('|', files) });
-        return true;
+        return Task.FromResult(true);
     }
 }

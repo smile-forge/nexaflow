@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -24,15 +26,15 @@ public sealed class OpenAsEmailAction(IShellServices shell) : IFileAction, ICach
 
     // Both overloads filter. Filtering only the selection one meant "As Email" opened a message tab on a
     // text file from the file list and silently did nothing on a one-item selection of that same file.
-    public bool PerformAction(string filePath) => PerformAction([filePath]);
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default) => PerformActionAsync([filePath], ct);
 
-    public bool PerformAction(IEnumerable<string> filePaths)
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
     {
         var first = filePaths.FirstOrDefault(EmailFileTypes.IsEmail);
-        if (first is null) return false;
+        if (first is null) return Task.FromResult(false);
 
         shell.OpenTab(EmailTabRegistration.StaticPageKind,
             new Dictionary<string, string> { ["path"] = first });
-        return true;
+        return Task.FromResult(true);
     }
 }

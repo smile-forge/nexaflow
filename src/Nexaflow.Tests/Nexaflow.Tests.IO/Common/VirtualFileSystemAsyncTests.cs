@@ -281,6 +281,16 @@ public sealed class VirtualFileSystemAsyncTests
     }
 
     [TestMethod]
+    public async Task AFolderRenamedOnlyInCaseFindsItselfAtTheTargetAndIsNoConflict()
+    {
+        Directory.CreateDirectory(At("Photos"));
+
+        await _vfs.MoveAsync(At("Photos"), At("photos"), replace: false);
+
+        Assert.AreEqual("photos", new DirectoryInfo(_dir).GetDirectories().Single().Name);
+    }
+
+    [TestMethod]
     public async Task AnArchiveEntryIsNotMovedOrDeletedAsAFile()
     {
         WriteZipFile(At("bundle.zip"), ("inner.txt", "zipped"));
@@ -312,6 +322,72 @@ public sealed class VirtualFileSystemAsyncTests
         await _vfs.CreateDirectoryAsync(@"::docs\a\b\c");
 
         Assert.IsTrue(Directory.Exists(At(@"a\b\c")));
+    }
+
+    // ── Whole files ─────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task ANewFileHoldsItsBytesAndRefusesToLandOnAnother()
+    {
+        await _vfs.CreateFileAsync(@"::docs\new.txt", "hello"u8.ToArray());
+
+        Assert.AreEqual("hello", File.ReadAllText(At("new.txt")));
+        Assert.AreEqual(LocationError.Conflict,
+            await FailureOf(async () => await _vfs.CreateFileAsync(At("new.txt"), "again"u8.ToArray())));
+        Assert.AreEqual("hello", File.ReadAllText(At("new.txt")));
+    }
+
+    [TestMethod]
+    public async Task ACopyCarriesEveryByteAndReplacesOnlyWhenAsked()
+    {
+        var bytes = new byte[300_000];
+        Random.Shared.NextBytes(bytes);
+        File.WriteAllBytes(At("big.bin"), bytes);
+        File.WriteAllText(At("taken.bin"), "theirs");
+
+        await _vfs.CopyFileAsync(At("big.bin"), @"::docs\copy.bin", replace: false);
+        CollectionAssert.AreEqual(bytes, File.ReadAllBytes(At("copy.bin")));
+
+        Assert.AreEqual(LocationError.Conflict,
+            await FailureOf(async () => await _vfs.CopyFileAsync(At("big.bin"), At("taken.bin"), replace: false)));
+        await _vfs.CopyFileAsync(At("big.bin"), At("taken.bin"), replace: true);
+        CollectionAssert.AreEqual(bytes, File.ReadAllBytes(At("taken.bin")));
+    }
+
+    [TestMethod]
+    public async Task AnArchiveEntryCopiesOutLikeAFile()
+    {
+        WriteZipFile(At("a.zip"), ("inner.txt", "inside"));
+
+        await _vfs.CopyFileAsync(Path.Combine(At("a.zip"), "inner.txt"), At("out.txt"), replace: false);
+
+        Assert.AreEqual("inside", File.ReadAllText(At("out.txt")));
+    }
+
+    // ── Companions ──────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task ACompanionFollowsItsFileThroughAMountAndAStaleOneAtTheTargetGoes()
+    {
+        File.WriteAllText(At("photo.jpg.nfedit"), "edits");
+        File.WriteAllText(At("other.jpg.nfedit"), "stale");
+        File.SetAttributes(At("other.jpg.nfedit"), FileAttributes.Hidden);
+
+        var failed = await CompanionFiles.FollowAsync(_vfs, @"::docs\photo.jpg", @"::docs\other.jpg", [".nfedit"], move: true);
+
+        Assert.AreEqual(0, failed.Count);
+        Assert.IsFalse(File.Exists(At("photo.jpg.nfedit")));
+        Assert.AreEqual("edits", File.ReadAllText(At("other.jpg.nfedit")));
+    }
+
+    [TestMethod]
+    public async Task WhereTheSourceHasNoCompanionOneAtTheTargetDescribedTheReplacedFileAndGoes()
+    {
+        File.WriteAllText(At("other.jpg.nfedit"), "stale");
+
+        await CompanionFiles.FollowAsync(_vfs, At("photo.jpg"), At("other.jpg"), [".nfedit"], move: false);
+
+        Assert.IsFalse(File.Exists(At("other.jpg.nfedit")));
     }
 
     // ── Watching and capabilities ───────────────────────────────────────────

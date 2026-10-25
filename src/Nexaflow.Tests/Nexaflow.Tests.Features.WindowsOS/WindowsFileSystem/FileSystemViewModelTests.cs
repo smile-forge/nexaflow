@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using System.Text.Json.Nodes;
 using NSubstitute;
@@ -23,7 +24,7 @@ public class FileSystemViewModelTests
     public void CreateScratch() => _scratch = TempDir();
 
     [TestCleanup]
-    public void RemoveScratch() { try { Directory.Delete(_scratch, recursive: true); } catch { } }
+    public async Task RemoveScratch() { try { Directory.Delete(_scratch, recursive: true); } catch { } }
 
     // ── Factory helpers ───────────────────────────────────────────────────────
 
@@ -44,13 +45,15 @@ public class FileSystemViewModelTests
     private static FileSystemViewModel ThisPc()
     {
         var (shell, ai, configs) = Deps();
-        return FileSystemViewModel.CreateThisPc(shell, ai, configs);
+        return FileSystemViewModel.CreateThisPc(shell, ai, configs, VirtualFileSystem.Instance);
     }
 
-    private static FileSystemViewModel AtPath(string path)
+    private static async Task<FileSystemViewModel> AtPathAsync(string path)
     {
         var (shell, ai, configs) = Deps();
-        return new FileSystemViewModel(path, shell, ai, configs);
+        var vm = new FileSystemViewModel(path, shell, ai, configs, VirtualFileSystem.Instance);
+        await vm.Browsing;
+        return vm;
     }
 
     // ── CreateThisPc ─────────────────────────────────────────────────────────
@@ -92,19 +95,19 @@ public class FileSystemViewModelTests
     // ── Path constructor ──────────────────────────────────────────────────────
 
     [TestMethod]
-    public void PathConstructor_SetsCurrentPath()
+    public async Task PathConstructor_SetsCurrentPath()
     {
         var path = _scratch;
-        var vm   = AtPath(path);
+        var vm   = await AtPathAsync(path);
 
         Assert.AreEqual(path, vm.CurrentPath.TrimEnd(Path.DirectorySeparatorChar),
             StringComparer.OrdinalIgnoreCase);
     }
 
     [TestMethod]
-    public void PathConstructor_IsThisPcMode_False()
+    public async Task PathConstructor_IsThisPcMode_False()
     {
-        var vm = AtPath(_scratch);
+        var vm = await AtPathAsync(_scratch);
 
         Assert.IsFalse(vm.IsThisPcMode);
     }
@@ -121,10 +124,10 @@ public class FileSystemViewModelTests
     }
 
     [TestMethod]
-    public void GetContext_PathMode_ContainsCurrentPath()
+    public async Task GetContext_PathMode_ContainsCurrentPath()
     {
         var path = _scratch;
-        var vm   = AtPath(path);
+        var vm   = await AtPathAsync(path);
 
         StringAssert.Contains(vm.GetContext(), vm.CurrentPath);
     }
@@ -136,7 +139,7 @@ public class FileSystemViewModelTests
         Directory.CreateDirectory(Path.Combine(_scratch, "old"));
         File.WriteAllText(Path.Combine(_scratch, "test.zip"), "x");
 
-        var vm = AtPath(_scratch);
+        var vm = await AtPathAsync(_scratch);
         await WaitForLoadAsync(vm);
         vm.OnSelectionChanged([vm.Entries.Single(e => e.Name == "test.zip")]);
 
@@ -177,18 +180,18 @@ public class FileSystemViewModelTests
             (_, _) => Task.FromResult(ToolResult.Ok("ok")));
 
     [TestMethod]
-    public void GetContext_WithViewletSurface_AppendsItsLine()
+    public async Task GetContext_WithViewletSurface_AppendsItsLine()
     {
-        var vm = AtPath(_scratch);
+        var vm = await AtPathAsync(_scratch);
         vm.SetActiveViewletSurfaces([new StubViewletSurface("STUB-VIEWLET-LINE")]);
 
         StringAssert.Contains(vm.GetContext(), "STUB-VIEWLET-LINE");
     }
 
     [TestMethod]
-    public void GetContext_BlankSurfaceContext_AddsNothing()
+    public async Task GetContext_BlankSurfaceContext_AddsNothing()
     {
-        var vm   = AtPath(_scratch);
+        var vm   = await AtPathAsync(_scratch);
         var bare = vm.GetContext();
 
         vm.SetActiveViewletSurfaces([new StubViewletSurface(null), new StubViewletSurface("   ")]);
@@ -206,9 +209,9 @@ public class FileSystemViewModelTests
     }
 
     [TestMethod]
-    public void GetClientTools_WithViewletSurface_IncludesSurfaceAndFileTools()
+    public async Task GetClientTools_WithViewletSurface_IncludesSurfaceAndFileTools()
     {
-        var vm = AtPath(_scratch);
+        var vm = await AtPathAsync(_scratch);
         vm.SetActiveViewletSurfaces([new StubViewletSurface(null, StubTool("stub_tool"))]);
 
         var names = vm.GetClientTools().Select(t => t.Name).ToList();
@@ -217,9 +220,9 @@ public class FileSystemViewModelTests
     }
 
     [TestMethod]
-    public void GetClientTools_NoSurfaces_ExcludesSurfaceTools()
+    public async Task GetClientTools_NoSurfaces_ExcludesSurfaceTools()
     {
-        var vm = AtPath(_scratch);
+        var vm = await AtPathAsync(_scratch);
 
         Assert.IsFalse(vm.GetClientTools().Any(t => t.Name == "stub_tool"));
     }
@@ -227,33 +230,33 @@ public class FileSystemViewModelTests
     // ── NavigateTo ────────────────────────────────────────────────────────────
 
     [TestMethod]
-    public void NavigateTo_ValidPath_SetsCurrentPath()
+    public async Task NavigateTo_ValidPath_SetsCurrentPath()
     {
         var vm   = ThisPc();
         var path = _scratch;
 
-        vm.NavigateTo(path);
+        await vm.BrowseToAsync(path);
 
         Assert.AreEqual(path, vm.CurrentPath,
             StringComparer.OrdinalIgnoreCase);
     }
 
     [TestMethod]
-    public void NavigateTo_ValidPath_IsThisPcMode_False()
+    public async Task NavigateTo_ValidPath_IsThisPcMode_False()
     {
         var vm = ThisPc();
 
-        vm.NavigateTo(_scratch);
+        await vm.BrowseToAsync(_scratch);
 
         Assert.IsFalse(vm.IsThisPcMode);
     }
 
     [TestMethod]
-    public void NavigateTo_NonExistentPath_DoesNotChangeCurrentPath()
+    public async Task NavigateTo_NonExistentPath_DoesNotChangeCurrentPath()
     {
         var vm = ThisPc();
 
-        vm.NavigateTo(@"Z:\DoesNotExist\NeverWillExist");
+        await vm.BrowseToAsync(@"Z:\DoesNotExist\NeverWillExist");
 
         Assert.AreEqual(string.Empty, vm.CurrentPath);
     }
@@ -261,7 +264,7 @@ public class FileSystemViewModelTests
     // ── NearestExistingAncestor (re-home a tab after its folder is deleted) ─────
 
     [TestMethod]
-    public void NearestExistingAncestor_LeafGone_ReturnsDeepestExistingParent()
+    public async Task NearestExistingAncestor_LeafGone_ReturnsDeepestExistingParent()
     {
         var root     = Path.Combine(TestTemp.Root, "nexanav_" + Guid.NewGuid().ToString("N"));
         var existing = Path.Combine(root, "a", "b");
@@ -270,7 +273,7 @@ public class FileSystemViewModelTests
         {
             // Several levels are gone (the worktree + anything under it) — walk up to the surviving one.
             var gone = Path.Combine(existing, "gone", "deeper");
-            Assert.AreEqual(existing, FileSystemViewModel.NearestExistingAncestor(gone));
+            Assert.AreEqual(existing, await ThisPc().NearestExistingAncestorAsync(gone));
         }
         finally { Directory.Delete(root, recursive: true); }
     }
@@ -313,13 +316,13 @@ public class FileSystemViewModelTests
     // ── NavigationChanged event ───────────────────────────────────────────────
 
     [TestMethod]
-    public void NavigateTo_ValidPath_FiresNavigationChanged()
+    public async Task NavigateTo_ValidPath_FiresNavigationChanged()
     {
         var vm    = ThisPc();
         bool fired = false;
         vm.NavigationChanged += _ => fired = true;
 
-        vm.NavigateTo(_scratch);
+        await vm.BrowseToAsync(_scratch);
 
         Assert.IsTrue(fired, "NavigationChanged was not raised");
     }
@@ -327,10 +330,10 @@ public class FileSystemViewModelTests
     // ── ResetRootToCurrentPath ────────────────────────────────────────────────
 
     [TestMethod]
-    public void ResetRootToCurrentPath_UpdatesRootPath()
+    public async Task ResetRootToCurrentPath_UpdatesRootPath()
     {
         var path = _scratch;
-        var vm   = AtPath(path);
+        var vm   = await AtPathAsync(path);
 
         vm.ResetRootToCurrentPath();
 
@@ -353,7 +356,7 @@ public class FileSystemViewModelTests
         var dir = TempDir();
         try
         {
-            var vm     = AtPath(dir);
+            var vm     = await AtPathAsync(dir);
             var result = await new CreateTextFileTool(vm).InvokeAsync(
                 new JsonObject { ["name"] = "note.txt", ["content"] = "hello world" }, default);
 
@@ -374,7 +377,7 @@ public class FileSystemViewModelTests
         try
         {
             File.WriteAllText(Path.Combine(dir, "exists.txt"), "old");
-            var vm     = AtPath(dir);
+            var vm     = await AtPathAsync(dir);
             var result = await new CreateTextFileTool(vm).InvokeAsync(
                 new JsonObject { ["name"] = "exists.txt", ["content"] = "new" }, default);
 
@@ -392,7 +395,7 @@ public class FileSystemViewModelTests
         {
             File.WriteAllText(Path.Combine(dir, "george-list.txt"), "x");
             File.WriteAllText(Path.Combine(dir, "other.txt"), "x");
-            var vm     = AtPath(dir);
+            var vm     = await AtPathAsync(dir);
             var result = await new FindFilesByNameTool(vm).InvokeAsync(
                 new JsonObject { ["pattern"] = "george*" }, default);
 
@@ -410,7 +413,7 @@ public class FileSystemViewModelTests
         try
         {
             File.WriteAllText(Path.Combine(dir, "data.txt"), "file body here");
-            var vm     = AtPath(dir);
+            var vm     = await AtPathAsync(dir);
             var result = await new GetFileContentsTool(vm).InvokeAsync(
                 new JsonObject { ["name"] = "data.txt" }, default);
 
@@ -428,7 +431,7 @@ public class FileSystemViewModelTests
         var dir = TempDir();
         try
         {
-            var vm     = AtPath(dir);
+            var vm     = await AtPathAsync(dir);
             var result = await new GetFileContentsTool(vm).InvokeAsync(
                 new JsonObject { ["name"] = @"..\secret.txt" }, default);
 
@@ -447,7 +450,7 @@ public class FileSystemViewModelTests
         try
         {
             File.WriteAllText(Path.Combine(dir, "old.txt"), "body");
-            var vm     = AtPath(dir);
+            var vm     = await AtPathAsync(dir);
             var result = await new RenameTool(vm).InvokeAsync(
                 new JsonObject { ["name"] = "old.txt", ["new_name"] = "new.txt" }, default);
 
@@ -468,7 +471,7 @@ public class FileSystemViewModelTests
         {
             File.WriteAllText(Path.Combine(dir, "a.txt"), "a");
             File.WriteAllText(Path.Combine(dir, "b.txt"), "b");
-            var vm     = AtPath(dir);
+            var vm     = await AtPathAsync(dir);
             var result = await new RenameTool(vm).InvokeAsync(
                 new JsonObject { ["name"] = "a.txt", ["new_name"] = "b.txt" }, default);
 
@@ -487,7 +490,7 @@ public class FileSystemViewModelTests
         try
         {
             File.WriteAllText(Path.Combine(dir, "src.txt"), "payload");
-            var vm     = AtPath(dir);
+            var vm     = await AtPathAsync(dir);
             var result = await new CopyTool(vm).InvokeAsync(
                 new JsonObject { ["source"] = "src.txt", ["destination"] = "copy.txt" }, default);
 
@@ -509,7 +512,7 @@ public class FileSystemViewModelTests
         try
         {
             File.WriteAllText(Path.Combine(dir, "src.txt"), "payload");
-            var vm     = AtPath(dir);
+            var vm     = await AtPathAsync(dir);
             var result = await new MoveTool(vm).InvokeAsync(
                 new JsonObject { ["source"] = "src.txt", ["destination"] = "moved.txt" }, default);
 
@@ -530,7 +533,7 @@ public class FileSystemViewModelTests
         {
             var path = Path.Combine(dir, "trash.txt");
             File.WriteAllText(path, "junk");
-            var vm     = AtPath(dir);
+            var vm     = await AtPathAsync(dir);
             var result = await new DeleteTool(vm).InvokeAsync(
                 new JsonObject { ["name"] = "trash.txt" }, default);
 
@@ -547,7 +550,7 @@ public class FileSystemViewModelTests
         var dir = TempDir();
         try
         {
-            var vm     = AtPath(dir);
+            var vm     = await AtPathAsync(dir);
             var result = await new DeleteTool(vm).InvokeAsync(
                 new JsonObject { ["name"] = "does-not-exist.txt" }, default);
 
@@ -558,14 +561,14 @@ public class FileSystemViewModelTests
 
     [TestMethod]
     [CoversNode("win-file-system-ai-act-delete-file")]
-    public void DeleteFileTool_Announces_AFileOrAFolder_InFixedWords()
+    public async Task DeleteFileTool_Announces_AFileOrAFolder_InFixedWords()
     {
         var dir = TempDir();
         try
         {
             File.WriteAllText(Path.Combine(dir, "test.zip"), "");
             Directory.CreateDirectory(Path.Combine(dir, "old"));
-            var tool = new DeleteTool(AtPath(dir));
+            var tool = new DeleteTool(await AtPathAsync(dir));
 
             Assert.AreEqual(new ToolCallAnnouncement("delete", "file test.zip", "Deleting file test.zip", "File deleted.", "The file is unchanged."),
                             tool.Announce(new JsonObject { ["name"] = "test.zip" }));
@@ -583,7 +586,7 @@ public class FileSystemViewModelTests
         var dir = TempDir();
         try
         {
-            var vm     = AtPath(dir);
+            var vm     = await AtPathAsync(dir);
             var result = await new CreateDirectoryTool(vm).InvokeAsync(
                 new JsonObject { ["name"] = "newfolder" }, default);
 
@@ -601,7 +604,7 @@ public class FileSystemViewModelTests
         try
         {
             File.WriteAllText(Path.Combine(dir, "data.bin"), new string('x', 42));
-            var vm     = AtPath(dir);
+            var vm     = await AtPathAsync(dir);
             var result = await new GetFileStatsTool(vm).InvokeAsync(
                 new JsonObject { ["name"] = "data.bin" }, default);
 
@@ -621,7 +624,7 @@ public class FileSystemViewModelTests
         try
         {
             File.WriteAllLines(Path.Combine(dir, "lines.txt"), ["line1", "line2", "line3"]);
-            var vm     = AtPath(dir);
+            var vm     = await AtPathAsync(dir);
             var result = await new GetLineCountTool(vm).InvokeAsync(
                 new JsonObject { ["name"] = "lines.txt" }, default);
 
@@ -638,7 +641,7 @@ public class FileSystemViewModelTests
         var dir = TempDir();
         try
         {
-            var vm     = AtPath(dir);
+            var vm     = await AtPathAsync(dir);
             var result = await new GetLineCountTool(vm).InvokeAsync(
                 new JsonObject { ["name"] = "nope.txt" }, default);
 
@@ -667,7 +670,7 @@ public class FileSystemViewModelTests
         foreach (var name in new[] { "a.txt", "b.txt", "c.txt" })
             File.WriteAllText(Path.Combine(_scratch, name), "x");
 
-        var vm = AtPath(_scratch);
+        var vm = await AtPathAsync(_scratch);
         await WaitForLoadAsync(vm);
 
         Assert.AreEqual("2 folders", vm.FolderCountText);

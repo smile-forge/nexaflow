@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.VirtualDisk.Services;
 using Nexaflow.Visuals.Common.Localization;
@@ -27,22 +29,22 @@ public sealed class UnmountDiskAction(IShellServices shell) : IFolderAction, ICa
     public bool AppliesToFolder(string folderPath) =>
         DriveRootLetter(folderPath) is { } letter && _mounter.IsImageBacked(letter);
 
-    public bool PerformAction(string folderPath)
+    public Task<bool> PerformActionAsync(string folderPath, CancellationToken ct = default)
     {
-        if (DriveRootLetter(folderPath) is not { } letter) return false;
+        if (DriveRootLetter(folderPath) is not { } letter) return Task.FromResult(false);
         var imagePath = _mounter.ImagePathForDrive(letter);
         if (string.IsNullOrEmpty(imagePath))
         {
             shell.ShowError(Str.Format("VirtualDisk.Mount.NotMountedFormat", letter));
-            return false;
+            return Task.FromResult(false);
         }
         _ = DiskMountService.UnmountAsync(shell, imagePath);
-        return true;
+        return Task.FromResult(true);
     }
 
-    public bool PerformAction(IEnumerable<string> folderPaths)
+    public async Task<bool> PerformActionAsync(IEnumerable<string> folderPaths, CancellationToken ct = default)
     {
-        foreach (var path in folderPaths) PerformAction(path);
+        foreach (var path in folderPaths) await PerformActionAsync(path, ct);
         return true;
     }
 

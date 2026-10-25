@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Tests.Features.FileActions;
@@ -47,7 +48,7 @@ public class DeleteFileConformance : FileActionConformanceTests
 [CoversNode("winfs-action-strip")]
 public class RenameFileConformance : FileActionConformanceTests
 {
-    protected override IFileAction CreateAction() => new RenameFile(Substitute.For<IShellServices>());
+    protected override IFileAction CreateAction() => new RenameFile(Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
 }
 
 [TestClass]

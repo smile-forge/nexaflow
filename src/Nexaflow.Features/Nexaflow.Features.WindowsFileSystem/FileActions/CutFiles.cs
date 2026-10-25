@@ -1,6 +1,8 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions
 {
@@ -34,22 +36,22 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
         // ── Actions ───────────────────────────────────────────────────────────
 
-        public bool PerformAction(string filePath)
+        public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default)
         {
             // Companions ride along, so a paste anywhere — here or in Explorer — moves them too.
             NativeMethods.ClipboardCutFiles(Services.FileCompanions.For(_shell).WithCompanions(Services.ShellPath.Realize([filePath])));
-            return true;
+            return Task.FromResult(true);
         }
 
-        public bool PerformAction(IEnumerable<string> filePaths)
+        public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
         {
             // See CopyFiles: an empty file-drop list replaces the user's clipboard, so an empty selection
             // must stop before the clipboard rather than clearing it and reporting success.
             var paths = Services.ShellPath.Realize(filePaths).ToList();
-            if (paths.Count == 0) return false;
+            if (paths.Count == 0) return Task.FromResult(false);
 
             NativeMethods.ClipboardCutFiles(Services.FileCompanions.For(_shell).WithCompanions(paths));
-            return true;
+            return Task.FromResult(true);
         }
     }
 }

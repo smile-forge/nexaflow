@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -100,13 +101,13 @@ public class ThisPcProvidedRowsTests
     }
 
     [TestMethod]
-    public void ReturningToThisPcRefreshesTheProvidedRowWithoutDuplicatingIt()
+    public async Task ReturningToThisPcRefreshesTheProvidedRowWithoutDuplicatingIt()
     {
         using var fx = new ProvidedRootFixture();
         var vm = fx.ThisPc();
         var before = vm.Entries.Count;
 
-        vm.NavigateTo(fx.VirtualRoot);
+        await vm.BrowseToAsync(fx.VirtualRoot);
         vm.GoToThisPc();
 
         Assert.AreEqual(before, vm.Entries.Count);

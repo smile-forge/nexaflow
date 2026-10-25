@@ -1,5 +1,7 @@
 using Nexaflow.Features.Common;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Media;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions;
@@ -31,17 +33,13 @@ public sealed class FolderActionAdapter : IFileAction
     public string?      Tooltip               => Inner.Tooltip;
     public bool         IsRibbonPinnable      => Inner.IsRibbonPinnable;
 
-    public bool PerformAction(string filePath)
-        => Inner.PerformAction(filePath);
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default) => Inner.PerformActionAsync(filePath, ct);
 
-    public bool PerformAction(IEnumerable<string> filePaths)
-        => Inner.PerformAction(filePaths);
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default) => Inner.PerformActionAsync(filePaths, ct);
 
-    public bool PerformAction(string filePath, bool force)
-        => Inner.PerformAction(filePath, force);
+    public Task<bool> PerformActionAsync(string filePath, bool force, CancellationToken ct = default) => Inner.PerformActionAsync(filePath, force, ct);
 
-    public bool PerformAction(IEnumerable<string> filePaths, bool force)
-        => Inner.PerformAction(filePaths, force);
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, bool force, CancellationToken ct = default) => Inner.PerformActionAsync(filePaths, force, ct);
 
     /// <summary>
     /// Persists the inner action's type name so <c>FeatureManager.FindFileAction</c>

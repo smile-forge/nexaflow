@@ -28,12 +28,12 @@ public sealed class ExecutableFeatureTests
     // ── File actions ──────────────────────────────────────────────────────────
 
     [TestMethod, TestCategory("Unit")]
-    public void Inspect_opens_the_executable_page_for_the_file()
+    public async Task Inspect_opens_the_executable_page_for_the_file()
     {
         var shell  = Shell();
         var action = new InspectPeAction(shell);
 
-        Assert.IsTrue(action.PerformAction(@"C:\Windows\System32\kernel32.dll"));
+        Assert.IsTrue(await action.PerformActionAsync(@"C:\Windows\System32\kernel32.dll"));
 
         shell.Received(1).OpenTab(
             ExecutableTabRegistration.StaticPageKind,
@@ -66,22 +66,22 @@ public sealed class ExecutableFeatureTests
     }
 
     [TestMethod, TestCategory("Unit")]
-    public void Av_scan_queues_background_work_rather_than_blocking()
+    public async Task Av_scan_queues_background_work_rather_than_blocking()
     {
         var shell  = Shell();
         var action = new AvScanAction(shell);
 
-        Assert.IsTrue(action.PerformAction(PeFixtures.Notepad));
+        Assert.IsTrue(await action.PerformActionAsync(PeFixtures.Notepad));
 
         shell.Received(1).QueueBackgroundTask(
             Arg.Any<IBackgroundTask>(), Arg.Any<Action<bool>>(), Arg.Any<CancellationToken>());
     }
 
     [TestMethod, TestCategory("Unit")]
-    public void Av_scan_with_no_files_does_nothing()
+    public async Task Av_scan_with_no_files_does_nothing()
     {
         var shell = Shell();
-        Assert.IsFalse(new AvScanAction(shell).PerformAction([]));
+        Assert.IsFalse(await new AvScanAction(shell).PerformActionAsync([]));
         shell.DidNotReceive().QueueBackgroundTask(
             Arg.Any<IBackgroundTask>(), Arg.Any<Action<bool>>(), Arg.Any<CancellationToken>());
     }

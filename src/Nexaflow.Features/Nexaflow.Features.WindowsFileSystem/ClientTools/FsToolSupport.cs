@@ -1,7 +1,13 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 using Nexaflow.Visuals.Common.Formatting;
 
 namespace Nexaflow.Features.WindowsFileSystem.ClientTools;
@@ -13,17 +19,66 @@ namespace Nexaflow.Features.WindowsFileSystem.ClientTools;
 internal static class FsTool
 {
     /// <summary>Cheap heuristic: a NUL byte in the first 8 KB means the file is binary, not text.</summary>
-    public static bool LooksBinary(string path)
+    public static async Task<bool> LooksBinaryAsync(FileSystemViewModel vm, string path, CancellationToken ct)
     {
         try
         {
-            using var fs = File.OpenRead(path);
-            var buf  = new byte[(int)Math.Min(8192, fs.Length)];
-            var read = fs.Read(buf, 0, buf.Length);
-            for (var i = 0; i < read; i++) if (buf[i] == 0) return true;
-            return false;
+            await using var stream = await vm.Vfs.OpenReadAsync(path, ReadIntent.Sequential, ct);
+            var buf  = new byte[8192];
+            int read = 0, n;
+            while (read < buf.Length && (n = await stream.ReadAsync(buf.AsMemory(read), ct)) > 0) read += n;
+            return Array.IndexOf(buf, (byte)0, 0, read) >= 0;
         }
-        catch { return false; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+    }
+
+    /// <summary>The folders and files directly inside <paramref name="folder"/>, by name — its companions left out, as the
+    /// browser leaves them out: they go wherever their file goes.</summary>
+    public static async Task<(IReadOnlyList<string> Folders, IReadOnlyList<string> Files)> ListAsync(
+        FileSystemViewModel vm, string folder, CancellationToken ct)
+    {
+        var folders    = new List<string>();
+        var files      = new List<FileSystemEntry>();
+        var companions = vm.Companions.Listing();
+        await foreach (var entry in vm.Vfs.EnumerateAsync(folder, ct))
+        {
+            if (entry.IsDirectory) { folders.Add(entry.Name); continue; }
+            var row = new FileSystemEntry { Name = entry.Name, FullPath = Path.Combine(folder, entry.Name) };
+            if (!companions.Hold(row)) files.Add(row);
+        }
+        files.AddRange(companions.Finish());
+        return (folders, [.. files.Select(f => f.Name)]);
+    }
+
+    /// <summary>
+    /// Paths under <paramref name="basePath"/> whose name matches <paramref name="glob"/> (Windows wildcards, any case) —
+    /// in that folder, or in every folder below it when <paramref name="recursive"/> — companions left out, stopping once
+    /// <paramref name="max"/> are found. A subfolder that cannot be read is passed over; the folder searched must be readable.
+    /// </summary>
+    public static async Task<List<string>> FindAsync(FileSystemViewModel vm, string basePath, string glob, bool recursive,
+                                                     int max, CancellationToken ct)
+    {
+        var found   = new List<string>();
+        var pending = new Queue<string>([basePath]);
+        while (pending.Count > 0 && found.Count < max)
+        {
+            var folder     = pending.Dequeue();
+            var companions = vm.Companions.Listing();
+            var rows       = new List<FileSystemEntry>();
+            try
+            {
+                await foreach (var entry in vm.Vfs.EnumerateAsync(folder, ct))
+                {
+                    var row = new FileSystemEntry { Name = entry.Name, FullPath = Path.Combine(folder, entry.Name), IsDirectory = entry.IsDirectory };
+                    if (entry.IsDirectory && recursive) pending.Enqueue(row.FullPath);
+                    if (!companions.Hold(row)) rows.Add(row);
+                }
+            }
+            catch (Exception ex) when (folder != basePath && ex is IOException or UnauthorizedAccessException) { continue; }
+            rows.AddRange(companions.Finish());
+            found.AddRange(rows.Where(r => System.IO.Enumeration.FileSystemName.MatchesWin32Expression(glob, r.Name, ignoreCase: true)).Select(r => r.FullPath));
+        }
+        return found.Count > max ? found.GetRange(0, max) : found;
     }
 
     /// <summary>Formats a byte count as a human-readable size (e.g. 1.4 MB).</summary>
@@ -99,13 +154,20 @@ internal static class FsTool
         return Path.GetFileName(full);
     }
 
-    /// <summary>Recursively copies a directory tree.</summary>
-    public static void CopyDirectory(string sourceDir, string destDir, bool overwrite)
+    /// <summary>Copies a directory tree, through the file system, wherever its two ends are.</summary>
+    public static async Task CopyDirectoryAsync(IVirtualFileSystem vfs, string sourceDir, string destDir, bool overwrite,
+                                                CancellationToken ct)
     {
-        Directory.CreateDirectory(destDir);
-        foreach (var file in Directory.GetFiles(sourceDir))
-            File.Copy(file, Path.Combine(destDir, Path.GetFileName(file)), overwrite);
-        foreach (var dir in Directory.GetDirectories(sourceDir))
-            CopyDirectory(dir, Path.Combine(destDir, Path.GetFileName(dir)), overwrite);
+        await vfs.CreateDirectoryAsync(destDir, ct);
+        var children = new List<LocationEntry>();
+        await foreach (var entry in vfs.EnumerateAsync(sourceDir, ct)) children.Add(entry);
+
+        foreach (var child in children)
+        {
+            var from = Path.Combine(sourceDir, child.Name);
+            var to   = Path.Combine(destDir, child.Name);
+            if (child.IsDirectory) await CopyDirectoryAsync(vfs, from, to, overwrite, ct);
+            else await vfs.CopyFileAsync(from, to, replace: overwrite, ct);
+        }
     }
 }

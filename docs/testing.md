@@ -753,7 +753,7 @@ ship without being held to the same rules, and a rule added to the base applies 
 | Contract | Base | Implementors |
 |---|---|---|
 | `ISearchable` — a page may decline regex, but never *appear* to support it | `Search/SearchableConformance.cs` (two tiers: with and without seeded content) | every searchable page |
-| viewer `IFileAction` — `PerformAction(p)` and `PerformAction([p])` are the same user intent | `FileActions/FileActionConformance.cs` | every action with `OpensViewer => true` |
+| viewer `IFileAction` — `PerformActionAsync(p)` and `PerformActionAsync([p])` are the same user intent | `FileActions/FileActionConformance.cs` | every action with `OpensViewer => true` |
 
 Each rule is one a hand-written test would assert in some features and not others — and the features that skip it
 are the ones that drift. The file-action contract holds the two overloads to one answer: filtering by file type

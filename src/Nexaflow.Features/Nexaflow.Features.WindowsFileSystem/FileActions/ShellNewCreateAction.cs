@@ -1,6 +1,9 @@
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Media;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions;
@@ -13,7 +16,7 @@ public sealed record ShellNewEntry(string Extension, string DisplayName, ImageSo
 /// (one per discovered extension) so it is NOT <see cref="ICacheable"/> — the
 /// picker materialises these from <c>ShellNewRegistry</c> each time it opens.
 /// </summary>
-public sealed class ShellNewCreateAction(ShellNewEntry entry) : IFileCreateAction
+public sealed class ShellNewCreateAction(ShellNewEntry entry, IVirtualFileSystem vfs) : IFileCreateAction
 {
     public string       Icon          => "📄";
     public string       DisplayName   => string.IsNullOrWhiteSpace(entry.DisplayName)
@@ -24,7 +27,7 @@ public sealed class ShellNewCreateAction(ShellNewEntry entry) : IFileCreateActio
     public string       FileExtension => entry.Extension;
     public ImageSource? IconImage     => entry.IconImage;
 
-    public string? Create(string folderPath, string fileName)
+    public async Task<string?> CreateItemAsync(string folderPath, string fileName, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(folderPath) || string.IsNullOrWhiteSpace(fileName))
             return null;
@@ -32,12 +35,11 @@ public sealed class ShellNewCreateAction(ShellNewEntry entry) : IFileCreateActio
         var dest    = Path.Combine(folderPath, fileName);
         var content = ShellNewContentResolver.Resolve(entry.Spec);
 
-        if (content.Bytes is not null)
-            File.WriteAllBytes(dest, content.Bytes);
-        else if (content.TemplatePath is not null && File.Exists(content.TemplatePath))
-            File.Copy(content.TemplatePath, dest, overwrite: false);
+        // The template is this machine's (ShellNew folder or the registry); the new file goes wherever the folder is.
+        if (content.TemplatePath is not null && content.Bytes is null)
+            await vfs.CopyFileAsync(content.TemplatePath, dest, replace: false, ct);
         else
-            File.WriteAllText(dest, string.Empty);
+            await vfs.CreateFileAsync(dest, content.Bytes ?? [], ct);
 
         return dest;
     }

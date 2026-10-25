@@ -24,7 +24,7 @@ public class FileMapResetTests
         FileMapManager.Instance.Initialize(baseDir: dir);
     }
 
-    private static FileInfo Docx => new(@"C:\x\report.docx");
+    private static FileSubject Docx => FileSubject.ByName(@"C:\x\report.docx");
 
     [TestMethod]
     public void GetBundledDefault_KnownVsUserCreated()

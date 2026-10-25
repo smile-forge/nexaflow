@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -58,7 +59,7 @@ public class FileListReloadTests
     {
         SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
 
-        var vm   = AtPath(_scratch);
+        var vm   = AtPath(_scratch);   // the browse settles on this thread's dispatcher, which PumpUntil runs
         var list = FileList(vm.Entries);
         PumpUntil(() => !vm.IsLoadingEntries && vm.Entries.Count == Photos + 1, "the folder to load");
 
@@ -104,7 +105,7 @@ public class FileListReloadTests
         shell.DiscoverImplementations<IFolderAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFileCreateAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFolderViewlet>().Returns(Array.Empty<Type>());
-        return new FileSystemViewModel(path, shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>());
+        return new FileSystemViewModel(path, shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
     }
 
     /// <summary>The page's file list as far as this concerns it: a recycling, virtualizing grid over the entries.</summary>

@@ -4,6 +4,8 @@ using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Features.Images.FileActions;
 
@@ -34,28 +36,28 @@ public sealed class RevertImageEditsAction : IFileAction, ICacheable
     public bool    RequiresFullyBackedPath => true;
     public string? RequiredCompanionSuffix => ImageRecipeStore.Extension;
 
-    public bool PerformAction(string filePath) => PerformAction([filePath]);
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default) => PerformActionAsync([filePath], ct);
 
-    public bool PerformAction(IEnumerable<string> filePaths)
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
     {
-        var edited = filePaths.Where(p => File.Exists(ImageRecipeStore.SidecarPath(p))).ToList();
-        if (edited.Count == 0) return false;
+            var edited = filePaths.Where(p => File.Exists(ImageRecipeStore.SidecarPath(p))).ToList();
+            if (edited.Count == 0) return Task.FromResult(false);
 
-        string message = edited.Count == 1
-            ? Str.Format("Images.Action.RevertConfirmOneFormat", Path.GetFileName(edited[0]))
-            : Str.Format("Images.Action.RevertConfirmManyFormat", edited.Count);
+            string message = edited.Count == 1
+                ? Str.Format("Images.Action.RevertConfirmOneFormat", Path.GetFileName(edited[0]))
+                : Str.Format("Images.Action.RevertConfirmManyFormat", edited.Count);
 
-        _shell.ShowConfirmation(
-            title:     Str.Get("Images.Action.RevertConfirmTitle"),
-            message:   message,
-            onConfirm: () =>
-            {
-                using var store = new ImageRecipeStore();
-                foreach (var path in edited) store.Delete(path);
-                _shell.RequestRefresh();
-            },
-            onCancel:  () => { });
+            _shell.ShowConfirmation(
+                title:     Str.Get("Images.Action.RevertConfirmTitle"),
+                message:   message,
+                onConfirm: () =>
+                {
+                    using var store = new ImageRecipeStore();
+                    foreach (var path in edited) store.Delete(path);
+                    _shell.RequestRefresh();
+                },
+                onCancel:  () => { });
 
-        return false;   // the revert waits on the confirmation
-    }
+            return Task.FromResult(false);   // the revert waits on the confirmation
+        }
 }
