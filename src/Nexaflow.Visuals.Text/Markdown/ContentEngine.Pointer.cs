@@ -281,26 +281,60 @@ public sealed partial class ContentEngine
         // From content a binding supplied, there are no characters to choose between: it picks out every piece of it spanned.
         if (Supplied(_anchorNode)) { PickSpanned(at); return; }
 
-        // Through text it picks out characters, because that is what dragging through text means (CharactersBetween). Everywhere
-        // else it is whole pieces — see below.
-        if (CharactersBetween(_anchorNode, _laid.PieceAt(at)))
+        var pointed = _laid.PieceAt(at);
+        var offset = _laid.OffsetAt(at);
+
+        // Through one run of text, or through code, it picks out characters, because that is what dragging through text means
+        // (CharactersBetween).
+        if (CharactersBetween(_anchorNode, pointed))
         {
-            ExtendSelectionTo(_laid.OffsetAt(at));
+            ExtendSelectionTo(offset);
             return;
         }
 
-        // What was dragged over is a set of pieces, not a stretch of text. Inside a matrix that is what makes a drag down a
-        // column select the column rather than everything written between its top cell and its bottom one.
-        if (_anchorNode.Selectable() is { Exists: true } from && _laid.PieceAt(at).Selectable() is { Exists: true } focus)
+        if (_anchorNode.Selectable() is { Exists: true } from && pointed.Selectable() is { Exists: true } focus)
         {
-            // Through whatever owns each end. Landing on a bracket means the group it opens or closes: half a pair is not a
-            // smaller selection, it is one that cannot be read.
-            SelectNodes(ContentSelection.Between(_laid.Root, from, focus));
-            return;
+            // Between two things neither of which is words, what was dragged over is a set of pieces, not a stretch of text. Inside a
+            // matrix that is what makes a drag down a column select the column rather than everything written between its top cell
+            // and its bottom one. Through whatever owns each end: landing on a bracket means the group it opens or closes, since half
+            // a pair is not a smaller selection, it is one that cannot be read.
+            if (!ByLetter(_anchorNode) && !ByLetter(pointed))
+            {
+                SelectNodes(ContentSelection.Between(_laid.Root, from, focus));
+                return;
+            }
+
+            // From words, a set of pieces only between two cells the builder declared — down a table's column is the column.
+            if (ContentSelection.Gridded(_laid.Root, from, focus) is { } block)
+            {
+                SelectNodes(block);
+                return;
+            }
         }
 
-        ExtendSelectionTo(_laid.OffsetAt(at));
+        ChooseStretch(pointed, offset);
     }
+
+    /// <summary>
+    /// Chooses the source from one end of a drag to the other, where at least one of them is in words. An end in words is the
+    /// letter it is at (<see cref="ByLetter"/>) — where the drag was pressed stays where it was pressed, whatever the drag passes
+    /// over, a formula between taken whole and the end of a line no edge. An end on anything else takes the whole of the thing it
+    /// is on, so a drag reaching into a formula takes the symbol it reached.
+    /// </summary>
+    private void ChooseStretch(Piece pointed, int offset)
+    {
+        var (anchor, focus) = (Reach(_anchorNode, Anchor), Reach(pointed, offset));
+        var (from, to) = (Math.Min(anchor.Start, focus.Start), Math.Max(anchor.End, focus.End));
+
+        Select(from, to - from);
+    }
+
+    /// <summary>What one end of a drag, on <paramref name="end"/> at <paramref name="offset"/>, reaches: the letter, in words, or else the whole of the thing it is on.</summary>
+    private (int Start, int End) Reach(Piece end, int offset) =>
+        !ByLetter(end) && end.Selectable() is { Exists: true } thing && thing.Sits() is var whole ? (whole.Start, whole.End) : (offset, offset);
+
+    /// <summary>Whether <paramref name="piece"/> is words a drag picks out by the letter: drawn as written, in a language chosen by the letter (<see cref="IContentLanguage.ChosenByLetter"/>).</summary>
+    private bool ByLetter(Piece piece) => piece.Words is { Maps: true } && Language(LanguageOf(piece)).Editing.ChosenByLetter;
 
     /// <summary>
     /// Whether a drag from <paramref name="from"/> to <paramref name="to"/> picks out characters rather than whole pieces: both ends
