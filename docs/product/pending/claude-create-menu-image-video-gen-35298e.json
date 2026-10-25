@@ -214,13 +214,30 @@
           "class": "VideoSettings"
         }
       ]
+    },
+    "owned-images-moss": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/moss-image/README.md"
+        },
+        {
+          "type": "code",
+          "doc": "tools/ai-models/moss-image/build_moss_image.py"
+        },
+        {
+          "type": "code",
+          "doc": "tools/ai-models/moss-image/compare_moss_encoder.py"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 11,
+  "changed_sets": 12,
   "touched_nodes": [
     "agent-generation-tools",
     "images-gen-image",
+    "owned-images-moss",
     "providers-image-generation",
     "providers-video-generation",
     "video-gen-video",
