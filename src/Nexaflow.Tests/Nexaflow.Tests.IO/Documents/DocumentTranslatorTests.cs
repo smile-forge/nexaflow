@@ -329,6 +329,43 @@ public class DocumentTranslatorTests
     }
 
     [TestMethod]
+    public void AnEntryIsUsedWhereItsTermIsAWord_NotWhereItsLettersAreInsideALongerOne()
+    {
+        var glossary = new DocumentGlossary([("Bild", "picture")]);
+
+        Assert.AreEqual(0, glossary.In("Siehe die Abbildung 3.").Count, "a figure is not a picture");
+        Assert.AreEqual(1, glossary.In("Das Bild zeigt es.").Count);
+        Assert.AreEqual(1, glossary.In("BILD: siehe oben").Count, "in any case");
+        Assert.AreEqual(1, glossary.In("(Bild)").Count, "beside what is not a letter");
+    }
+
+    [TestMethod]
+    public void AndInAScriptThatRunsItsWordsTogether_WhereverItIsWritten()
+    {
+        // Chinese puts no space between words, so a term inside a sentence is still a word of it.
+        Assert.AreEqual(1, new DocumentGlossary([("函数", "function")]).In("这个函数是连续的").Count);
+        Assert.AreEqual(1, new DocumentGlossary([("ฟังก์ชัน", "function")]).In("นี่คือฟังก์ชันต่อเนื่อง").Count, "and Thai");
+    }
+
+    [TestMethod]
+    public async Task ATermFoundOnlyInsideLongerWords_IsNoTerm_AndBothAsksWantTheMiddleOfASentence()
+    {
+        // "and" is inside behandeln and andere, never a word of its own; Bild is a word, twice, as well as inside Abbildung.
+        var model = new ScriptedModel((instructions, _) => new(
+            instructions.StartsWith(ScriptedModel.Glossary, StringComparison.Ordinal) ? "- And\n- Bild"
+          : instructions.StartsWith(ScriptedModel.GlossaryTranslation, StringComparison.Ordinal) ? "And => And\nBild => picture"
+          : string.Empty, DocumentReplyEnd.Finished));
+
+        var glossary = await new DocumentGlossaryPass(model, new MemoryNotes()).GatherAsync(
+            DocumentReading.Of("Wir behandeln andere Fälle. Das Bild zeigt die Abbildung. Ein Bild ist hier.\n"), Gist, "English", CancellationToken.None);
+
+        CollectionAssert.AreEqual(new[] { ("Bild", "picture") }, glossary.Entries.ToArray());
+        Assert.IsTrue(model.Asked.Where(question => question.Instructions.StartsWith("You", StringComparison.Ordinal))
+                                 .All(question => question.Instructions.Contains("middle of a sentence", StringComparison.Ordinal)),
+            "terms listed and translations given as written mid-sentence, not with a capital the start of one gave them");
+    }
+
+    [TestMethod]
     public async Task ATermTheModelWrapsInATagOfItsOwn_IsAskedForAgain_AndNeverWrittenIntoTheDocument()
     {
         var tagged = true;

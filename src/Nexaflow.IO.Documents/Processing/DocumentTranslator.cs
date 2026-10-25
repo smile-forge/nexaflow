@@ -193,7 +193,8 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
     private async Task<IReadOnlyList<string>> UnitAsync(Job job, IReadOnlyList<Piece> unit, (string Source, string Target)? before, string? hint,
                                                         CancellationToken ct, bool fresh = false)
     {
-        var hits = job.Glossary.In(string.Concat(unit.Select(piece => piece.Text)));
+        // Each piece its own text: run together, the last word of one and the first of the next would read as one word.
+        var hits = job.Glossary.In(string.Join('\n', unit.Select(piece => piece.Text)));
         var key = DocumentKeys.Of(Version, model.Key, job.Gist.Key, job.Language, DocumentGlossary.Said(hits), string.Join(Apart, unit.Select(piece => piece.Text)));
 
         if (!fresh && await notes.ReadAsync(job.Shelf, key, ct) is { } kept
