@@ -100,8 +100,8 @@ public sealed class AIService : IAIService
             : new(PictureChoicesOf(ImageGenerator, AllowsAdultContent), PictureChoicesOf(HighQualityImageGenerator, AllowsAdultContent));
 
         /// <summary>Whether the app allows adult content: not while Enhanced AI Protection Mode is on, as it is by default
-        /// (<see cref="ShellConfig.EnhancedAiProtection"/>). Read where it is offered, so a change applies to the next choice made.</summary>
-        private static bool AllowsAdultContent => !(ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault()?.EnhancedAiProtection ?? true);
+        /// (<see cref="ProtectedAudience"/>). Read where it is offered, so a change applies to the next choice made.</summary>
+        private static bool AllowsAdultContent => !ProtectedAudience.IsOn;
 
     /// <summary>What <paramref name="model"/> lets a picture be asked for with, as <c>generate_image</c> names it.</summary>
     private static PictureChoices? PictureChoicesOf(IImageGenerationProvider? model, bool allowsAdultContent)
@@ -707,7 +707,7 @@ public sealed class AIService : IAIService
 
         // Nobody is watching an analysis: on a GPU shared with a reply, it waits its turn behind each token.
         var response = await provider.CompleteAsync(
-            [new(LlmRole.System, systemPrompt), new(LlmRole.User, userPrompt)], LlmUrgency.Background, ct);
+            [new(LlmRole.System, ProtectedAudience.Framed(systemPrompt)), new(LlmRole.User, userPrompt)], LlmUrgency.Background, ct);
         return response?.RawText;
     }
 
@@ -845,7 +845,7 @@ public sealed class AIService : IAIService
         }
 
         var response = await provider.CompleteAsync(
-            [new(LlmRole.System, systemPrompt), new(LlmRole.User, userPrompt)], ct);
+            [new(LlmRole.System, ProtectedAudience.Framed(systemPrompt)), new(LlmRole.User, userPrompt)], ct);
         return response?.RawText;
     }
 
@@ -1384,7 +1384,7 @@ public sealed class AIService : IAIService
         try
         {
             var resp = await imageProvider.CompleteAsync(
-                [new(LlmRole.System, system),
+                [new(LlmRole.System, ProtectedAudience.Framed(system)),
                  new(LlmRole.User, "Describe this image.") { Attachments = [image] }],
                 ct);
             return resp?.RawText;
@@ -1439,6 +1439,7 @@ public sealed class AIService : IAIService
 
         // How to act — only for a model with no tool calling of its own; any other is offered its tools in it.
         if (acting is { Length: > 0 }) sb.Append(acting);
-        return sb.ToString().TrimEnd();
+        // Enhanced AI Protection Mode, while on, frames all of it: ahead of the persona, which cannot set it aside.
+        return ProtectedAudience.Framed(sb.ToString().TrimEnd());
     }
 }

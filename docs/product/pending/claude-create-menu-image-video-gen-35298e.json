@@ -379,6 +379,28 @@
       }
     },
     "opt-shell-ai-protection": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ShellConfig.cs",
+          "class": "ShellConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Generation/GenerateImageTool.cs",
+          "class": "GenerateImageTool",
+          "method": "Offerable"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/ShellConfigControl.xaml"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/ProtectedAudience.cs",
+          "class": "ProtectedAudience"
+        }
+      ],
       "concerns": {
         "tests": [
           {
@@ -392,13 +414,18 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Generation/GenerationToolsTests.cs",
             "class": "GenerationToolsTests",
             "method": "TheLorasAModelDrawsWith_AreOffered_OneMeantForAdultsOnly_OnlyWhileProtectionIsOff"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ProtectedAudienceTests.cs",
+            "class": "ProtectedAudienceTests"
           }
         ]
       }
     }
   },
   "is_empty": false,
-  "changed_sets": 21,
+  "changed_sets": 22,
   "touched_nodes": [
     "agent-generation-tools",
     "images-gen-image",

@@ -724,7 +724,10 @@ sees what it drew; the existing loop, approvals and context handling apply uncha
 - **Enhanced AI Protection Mode keeps adult content out.** A LoRA meant for adults only (`ImageLora.Adult`) is offered —
   in the New picker and to `generate_image` alike — only while Options → Shell's Enhanced AI Protection Mode is off
   (`ShellConfig.EnhancedAiProtection`, on by default); on, it is not even named to the assistant. Core reads the setting
-  where a choice is offered (`GenerateImageTool.Offerable`), so no feature needs to know Core holds it.
+  where a choice is offered (`GenerateImageTool.Offerable`), so no feature needs to know Core holds it. While it is on,
+  every system prompt behind something the user reads — the conversation's, an analysis's, a problem solved, a picture
+  described for a model that cannot see, an answer about a document — opens with the protected-audience policy
+  (`ProtectedAudience.Framed`), ahead of the persona, which cannot set it aside.
 - **Two qualities of picture.** Every backend sells a fast image model and a better one — Z-Image Turbo and HiDream-O1
   or MOSS-Image here, gpt-image-1-mini and gpt-image-1, Gemini 2.5 Flash Image and Gemini 3 Pro Image — so the grid has an Image
   Generation row and an Image Generation (HQ) row of the same kind. With a model in both, `generate_image` takes a
