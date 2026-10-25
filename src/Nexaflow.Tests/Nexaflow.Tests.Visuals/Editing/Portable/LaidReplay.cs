@@ -130,8 +130,8 @@ internal sealed class LaidReplay
         var step = _steps[at];
         var paint = step.Paint?.Portable(medium);
 
-        build.Open(step.Kind, step.Part, new LayoutPoint(step.At.X, step.At.Y), (PortableStops)step.Stops,
-                   gathers: paint is not { Applies: true }, paints: paint);
+        // The piece reaches exactly as far as it did — not as far as its marks' ink, which a typesetter's box need not follow.
+        build.Open(step.Kind, step.Part, new LayoutPoint(step.At.X, step.At.Y), (PortableStops)step.Stops, gathers: false, paints: paint);
         build.Covers(step.Box.ToLayout());
 
         foreach (var mark in step.Marks) build.Draw(mark.Portable(medium, texts));

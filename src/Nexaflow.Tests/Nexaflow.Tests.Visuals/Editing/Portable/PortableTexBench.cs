@@ -303,7 +303,8 @@ public class PortableTexBench
                     case PortableGeometryMark { Shape: WpfShape { Geometry: var outline } } shape:
                         into.Append("outline ").Append(N(outline.Bounds)).Append(' ').Append(Ink(((WpfInk?)shape.Fill)?.Brush)).Append(' ')
                             .Append(Ink(((WpfInk?)shape.Stroke?.Ink)?.Brush)).Append(' ').Append(N(shape.Stroke?.Thickness ?? 0))
-                            .Append(" dashes - path ").Append(PathHash(outline));
+                            .Append(" dashes ").Append((shape.Stroke as WpfStroke)?.Dashes is { } dashes ? string.Join(";", dashes.Select(N)) : "-")
+                                                        .Append(" path ").Append(PathHash(outline));
                         break;
                     case PortableTextMark text:
                         into.Append("text ").Append(text.Glyphs.Text).Append(" at ").Append(N(text.At.X)).Append(',').Append(N(text.At.Y))
@@ -386,10 +387,14 @@ public class PortableTexBench
     private static string Ink(Brush? brush) => brush switch
     {
         SolidColorBrush { Color.A: 0 } => "transparent",
-        SolidColorBrush { Color: var colour } => colour.ToString(),
+        SolidColorBrush { Color: var colour } => colour + Faded(brush),
+        LinearGradientBrush gradient => $"linear {gradient.StartPoint}>{gradient.EndPoint} {string.Join(";", gradient.GradientStops.Select(stop => $"{stop.Color}@{N(stop.Offset)}"))}{Faded(brush)}",
         null => "-",
         _ => brush.GetType().Name,
     };
+
+    /// <summary>How faded a brush is drawn, where it is drawn faded at all.</summary>
+    private static string Faded(Brush brush) => brush.Opacity == 1 ? "" : "@" + N(brush.Opacity);
 
     /// <summary>A laid tree, written down to the last coordinate of the last glyph.</summary>
     internal static void Digest(Laid laid, StringBuilder into, bool advances = true)
@@ -462,11 +467,49 @@ public class PortableTexBench
         }
     }
 
-    /// <summary>An outline's exact path, as a short stable hash: the same figures and points to the last digit give the same.</summary>
+    /// <summary>
+    /// A hash of exactly what an outline is: its fill rule, each figure's start and whether it is filled and closed, and each segment's
+    /// points and whether a pen draws it and turns smoothly into it — written one segment at a time, so a polyline and the lines it is
+    /// made of come to the same thing, and a segment no pen draws is told from one a pen does.
+    /// </summary>
     internal static string PathHash(Geometry shape)
     {
-        var path = PathGeometry.CreateFromGeometry(shape).ToString(CultureInfo.InvariantCulture);
-        return Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(Encoding.UTF8.GetBytes(path)))[..12];
+        var path = PathGeometry.CreateFromGeometry(shape);
+        var said = new StringBuilder().Append(path.FillRule);
+        if (path.Transform is { Value.IsIdentity: false } turn) said.Append(" T").Append(turn.Value.ToString(CultureInfo.InvariantCulture));
+
+        foreach (var figure in path.Figures)
+        {
+            said.Append(" M").Append(P(figure.StartPoint)).Append(figure.IsFilled ? 'f' : '-').Append(figure.IsClosed ? 'z' : '-');
+
+            foreach (var segment in figure.Segments)
+            {
+                var pen = (segment.IsStroked ? "s" : "-") + (segment.IsSmoothJoin ? "j" : "-");
+                switch (segment)
+                {
+                    case LineSegment line: said.Append(" L").Append(pen).Append(P(line.Point)); break;
+                    case PolyLineSegment lines: foreach (var point in lines.Points) said.Append(" L").Append(pen).Append(P(point)); break;
+                    case BezierSegment curve: said.Append(" C").Append(pen).Append(P(curve.Point1)).Append(P(curve.Point2)).Append(P(curve.Point3)); break;
+                    case PolyBezierSegment curves:
+                        for (var at = 0; at + 2 < curves.Points.Count; at += 3)
+                            said.Append(" C").Append(pen).Append(P(curves.Points[at])).Append(P(curves.Points[at + 1])).Append(P(curves.Points[at + 2]));
+                        break;
+                    case QuadraticBezierSegment bow: said.Append(" Q").Append(pen).Append(P(bow.Point1)).Append(P(bow.Point2)); break;
+                    case PolyQuadraticBezierSegment bows:
+                        for (var at = 0; at + 1 < bows.Points.Count; at += 2)
+                            said.Append(" Q").Append(pen).Append(P(bows.Points[at])).Append(P(bows.Points[at + 1]));
+                        break;
+                    case ArcSegment arc:
+                        said.Append(" A").Append(pen).Append(N(arc.Size.Width)).Append(',').Append(N(arc.Size.Height)).Append(',').Append(N(arc.RotationAngle))
+                            .Append(arc.IsLargeArc ? 'L' : 'l').Append(arc.SweepDirection == SweepDirection.Clockwise ? 'c' : 'a').Append(P(arc.Point));
+                        break;
+                }
+            }
+        }
+
+        return Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(Encoding.UTF8.GetBytes(said.ToString())))[..12];
+
+        static string P(Point point) => $"{point.X.ToString("R", CultureInfo.InvariantCulture)},{point.Y.ToString("R", CultureInfo.InvariantCulture)};";
     }
 
     internal static byte[] Pixels(Action<DrawingContext> paint, Size size)

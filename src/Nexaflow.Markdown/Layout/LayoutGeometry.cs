@@ -13,6 +13,38 @@ public readonly record struct LayoutPoint(double X, double Y)
     public static LayoutVector operator -(LayoutPoint to, LayoutPoint from) => new(to.X - from.X, to.Y - from.Y);
 
     public static explicit operator LayoutVector(LayoutPoint point) => new(point.X, point.Y);
+
+    public static LayoutPoint operator *(LayoutPoint point, LayoutMatrix matrix) => matrix.Transform(point);
+}
+
+/// <summary>
+/// How big something is, in a layout's own units, with WPF's meaning: never less than nothing across or down — asking for that is a
+/// mistake, and says so — and empty as no size at all, which is what a rectangle that is nowhere is the size of.
+/// </summary>
+public readonly record struct LayoutSize
+{
+    public LayoutSize(double width, double height)
+    {
+        if (width < 0 || height < 0) throw new ArgumentException("A size is never less than nothing across or down.");
+
+        Width = width;
+        Height = height;
+    }
+
+    private LayoutSize(double width, double height, bool asIs)
+    {
+        Width = width;
+        Height = height;
+    }
+
+    public double Width { get; }
+
+    public double Height { get; }
+
+    /// <summary>No size at all.</summary>
+    public static LayoutSize Empty { get; } = new(double.NegativeInfinity, double.NegativeInfinity, asIs: true);
+
+    public bool IsEmpty => Width < 0;
 }
 
 /// <summary>How far one place is from another, in a layout's own units.</summary>
@@ -31,7 +63,32 @@ public readonly record struct LayoutVector(double X, double Y)
     /// <summary>Divided as WPF's vector is, by multiplying by the reciprocal, so the two agree to the last bit.</summary>
     public static LayoutVector operator /(LayoutVector vector, double scalar) => vector * (1.0 / scalar);
 
+    public static LayoutPoint operator +(LayoutVector vector, LayoutPoint point) => new(point.X + vector.X, point.Y + vector.Y);
+
+    /// <summary>The dot product, as WPF's vector times a vector is.</summary>
+    public static double operator *(LayoutVector a, LayoutVector b) => (a.X * b.X) + (a.Y * b.Y);
+
     public double Length => Math.Sqrt((X * X) + (Y * Y));
+
+    public double LengthSquared => (X * X) + (Y * Y);
+
+    /// <summary>The same way, a length of one — scaled down by its larger part first, as WPF's is, so the two agree to the last bit.</summary>
+    public LayoutVector Normalized()
+    {
+        var scaled = this / Math.Max(Math.Abs(X), Math.Abs(Y));
+        return scaled / scaled.Length;
+    }
+
+    public static double CrossProduct(LayoutVector a, LayoutVector b) => (a.X * b.Y) - (a.Y * b.X);
+
+    /// <summary>How far <paramref name="a"/> turns to reach <paramref name="b"/>, in degrees, as WPF's says it.</summary>
+    public static double AngleBetween(LayoutVector a, LayoutVector b)
+    {
+        var sin = (a.X * b.Y) - (b.X * a.Y);
+        var cos = (a.X * b.X) + (a.Y * b.Y);
+
+        return Math.Atan2(sin, cos) * (180 / Math.PI);
+    }
 }
 
 /// <summary>
@@ -56,6 +113,31 @@ public readonly record struct LayoutRect
         Height = Math.Max(Math.Max(a.Y, b.Y) - Y, 0);
     }
 
+    /// <summary>A rectangle of <paramref name="size"/> with its top left at <paramref name="at"/> — empty where the size is.</summary>
+    public LayoutRect(LayoutPoint at, LayoutSize size)
+    {
+        if (size.IsEmpty)
+        {
+            this = Empty;
+            return;
+        }
+
+        X = at.X;
+        Y = at.Y;
+        Width = size.Width;
+        Height = size.Height;
+    }
+
+    /// <summary>A rectangle of <paramref name="size"/> at the origin — empty where the size is.</summary>
+    public LayoutRect(LayoutSize size) : this(default, size)
+    {
+    }
+
+    /// <summary>The rectangle from <paramref name="at"/> to where <paramref name="reach"/> takes it.</summary>
+    public LayoutRect(LayoutPoint at, LayoutVector reach) : this(at, at + reach)
+    {
+    }
+
     public double X { get; }
 
     public double Y { get; }
@@ -78,6 +160,38 @@ public readonly record struct LayoutRect
     public double Bottom => IsEmpty ? double.NegativeInfinity : Y + Height;
 
     public LayoutPoint TopLeft => new(X, Y);
+
+    public LayoutPoint TopRight => new(Right, Top);
+
+    public LayoutPoint BottomLeft => new(Left, Bottom);
+
+    public LayoutPoint BottomRight => new(Right, Bottom);
+
+    public LayoutPoint Location => new(X, Y);
+
+    public LayoutSize Size => IsEmpty ? LayoutSize.Empty : new LayoutSize(Width, Height);
+
+    /// <summary>The rectangle round <paramref name="rect"/> and <paramref name="point"/>.</summary>
+    public static LayoutRect Union(LayoutRect rect, LayoutPoint point) => Union(rect, new LayoutRect(point, point));
+
+    /// <summary>Where the two overlap — empty where they do not.</summary>
+    public static LayoutRect Intersect(LayoutRect a, LayoutRect b)
+    {
+        if (!a.IntersectsWith(b)) return Empty;
+
+        var left = Math.Max(a.Left, b.Left);
+        var top = Math.Max(a.Top, b.Top);
+
+        return new LayoutRect(left, top, Math.Max(Math.Min(a.Right, b.Right) - left, 0), Math.Max(Math.Min(a.Bottom, b.Bottom) - top, 0));
+    }
+
+    public static LayoutRect Offset(LayoutRect rect, double x, double y) => Offset(rect, new LayoutVector(x, y));
+
+    public static LayoutRect Inflate(LayoutRect rect, LayoutSize size) => Inflate(rect, size.Width, size.Height);
+
+    /// <summary>Whether all of <paramref name="rect"/> is inside this one.</summary>
+    public bool Contains(LayoutRect rect) =>
+        !IsEmpty && !rect.IsEmpty && X <= rect.X && Y <= rect.Y && X + Width >= rect.X + rect.Width && Y + Height >= rect.Y + rect.Height;
 
     /// <summary>The rectangle round both. Either being empty gives the other.</summary>
     public static LayoutRect Union(LayoutRect a, LayoutRect b)

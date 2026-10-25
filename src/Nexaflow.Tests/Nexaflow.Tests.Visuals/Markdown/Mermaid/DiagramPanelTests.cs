@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Linq;
 using System.Windows;
+using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;

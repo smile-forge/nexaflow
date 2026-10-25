@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
+using Nexaflow.Markdown.Mermaid;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 

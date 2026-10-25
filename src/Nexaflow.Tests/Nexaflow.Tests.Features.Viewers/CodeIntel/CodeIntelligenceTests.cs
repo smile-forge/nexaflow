@@ -12,6 +12,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Mermaid.Class;
 
 namespace Nexaflow.Tests.Features.CodeIntel;
 

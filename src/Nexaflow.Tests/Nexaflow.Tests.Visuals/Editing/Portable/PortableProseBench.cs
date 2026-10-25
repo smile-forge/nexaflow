@@ -18,6 +18,7 @@ using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 using Nexaflow.Visuals.Text.Markdown.Stages;
 using Nexaflow.Visuals.Text.Editor.Highlighting;
+using Nexaflow.Visuals.Icons;
 
 namespace Nexaflow.Tests.Visuals.Editing.Portable;
 
@@ -230,10 +231,6 @@ public class PortableProseBench
 
             return _pictures[picture] = _medium.Picture(picture);
         }
-
-        private static PortableInset Made(ContentInset inset, WpfMedium medium) =>
-            new(new PortableLaid(LaidReplay.Of(inset.Laid.Tree, medium).Portable(), inset.Width, inset.Height,
-                                 [.. inset.Laid.Trouble.Select(said => new PortableDiagnostic(said.Start, said.Length, said.Message) { Part = said.Part })]));
     }
 
     /// <summary>The style in the medium's handles — the same brushes and the same typefaces, so what is measured and drawn is the same.</summary>
@@ -245,11 +242,11 @@ public class PortableProseBench
             [style.MonoFont.Source] = style.MonoFont,
         };
 
-        LayoutFace Faced(string family, bool bold, bool italic)
+        LayoutFace Faced(string family, int weight, bool italic)
         {
             if (!families.TryGetValue(family, out var named)) families[family] = named = new FontFamily(family);
 
-            return medium.Face(style.Face(named, bold ? FontWeights.Bold : FontWeights.Normal, italic ? FontStyles.Italic : FontStyles.Normal));
+            return medium.Face(style.Face(named, FontWeight.FromOpenTypeWeight(weight), italic ? FontStyles.Italic : FontStyles.Normal));
         }
 
         return new PortableStyle(Faced)
@@ -281,11 +278,19 @@ public class PortableProseBench
             BarcodeLight = medium.Ink(style.BarcodeLight),
             Series = [.. style.Series.Select(brush => (LayoutInk)medium.Ink(brush))],
             Elements = style.Elements.ToDictionary(element => element.Key, element => (LayoutInk)medium.Ink(element.Value)),
+            C4Person = style.C4Person is { } person ? medium.Ink(person) : null,
+            C4System = style.C4System is { } system ? medium.Ink(system) : null,
+            C4Container = style.C4Container is { } container ? medium.Ink(container) : null,
+            C4Component = style.C4Component is { } component ? medium.Ink(component) : null,
+            C4DeploymentNode = style.C4DeploymentNode is { } node ? medium.Ink(node) : null,
+            C4External = style.C4External is { } external ? medium.Ink(external) : null,
+            C4Boundary = style.C4Boundary is { } boundary ? medium.Ink(boundary) : null,
             Syntax = kind => SyntaxTokenMap.ResourceKey(kind) is { } key && Application.Current?.TryFindResource(key) is Brush brush
                 ? medium.Ink(brush)
                 : null,
             TextFont = style.TextFont.Source,
             MonoFont = style.MonoFont.Source,
+            IconFace = medium.Face(new Typeface(IconCatalog.FluentFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal)),
             TextSize = style.TextSize,
             Expansion = style.Expansion?.Expansion,
             Says = Str.Get,
@@ -454,4 +459,9 @@ public class PortableProseBench
 
         return clock.Elapsed.TotalMilliseconds;
     }
+
+    /// <summary>What another language laid for a WPF builder, replayed in the medium — so a renderer-free builder sets down the very same inset.</summary>
+    internal static PortableInset Made(ContentInset inset, WpfMedium medium) =>
+        new(new PortableLaid(LaidReplay.Of(inset.Laid.Tree, medium).Portable(), inset.Width, inset.Height,
+                             [.. inset.Laid.Trouble.Select(said => new PortableDiagnostic(said.Start, said.Length, said.Message) { Part = said.Part })]));
 }

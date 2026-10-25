@@ -14,6 +14,7 @@ using Nexaflow.Markdown.Layout.Barcode;
 using Nexaflow.Markdown.Layout.Chemistry;
 using Nexaflow.Markdown.Layout.Code;
 using Nexaflow.Markdown.Layout.Matrix;
+using Nexaflow.Markdown.Layout.Plot;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Markdown.Layout.WordCloud;
 using Nexaflow.Markdown.Pipeline;
@@ -25,6 +26,7 @@ using Nexaflow.Visuals.Text.Markdown.Barcode;
 using Nexaflow.Visuals.Text.Markdown.Chemistry;
 using Nexaflow.Visuals.Text.Markdown.Code;
 using Nexaflow.Visuals.Text.Markdown.Matrix;
+using Nexaflow.Visuals.Text.Markdown.Plot;
 using Nexaflow.Visuals.Text.Markdown.WordCloud;
 using Nexaflow.Visuals.Text.Markdown.WordCloud.Stages;
 
@@ -181,7 +183,7 @@ public class PortableBlocksBench
 
     /// <summary>The kinds of block measured here, by the WPF builder that lays each.</summary>
     private static readonly HashSet<Type> Measured =
-        [typeof(CodeBuilder), typeof(MatrixBuilder), typeof(BarcodeBuilder), typeof(WordCloudBuilder), typeof(SmilesBuilder)];
+        [typeof(CodeBuilder), typeof(MatrixBuilder), typeof(BarcodeBuilder), typeof(WordCloudBuilder), typeof(SmilesBuilder), typeof(PlotBuilder)];
 
     /// <summary>
     /// Every block written in the sample documents and the help's own page that one of the measured builders lays, each once, read as a
@@ -241,6 +243,7 @@ public class PortableBlocksBench
                 nameof(BarcodeBuilder) => new PortableBarcodeBuilder(reading, state, _style, false, _medium, NestingNothing),
                 nameof(WordCloudBuilder) => new PortableWordCloudBuilder(reading, state, _style, false, _medium, NestingNothing, Pictured),
                 nameof(SmilesBuilder) => new PortableSmilesBuilder(reading, state, _style, false, _medium, NestingNothing),
+                nameof(PlotBuilder) => new PortablePlotBuilder(reading, state, _style, false, _medium, NestingNothing),
                 nameof(UnreadBuilder) => new PortableUnreadBuilder(reading, state, _style, false, _medium, NestingNothing),
                 _ => throw new InvalidOperationException($"no renderer-free builder for {subject.Builder.Name}"),
             };

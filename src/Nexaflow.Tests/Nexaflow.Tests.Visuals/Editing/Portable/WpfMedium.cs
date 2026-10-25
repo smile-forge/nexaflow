@@ -194,6 +194,49 @@ internal sealed class WpfMedium : ILayoutMedium
     public LayoutShape Ellipse(LayoutPoint centre, double radiusX, double radiusY) =>
         WpfShape.Of(new EllipseGeometry(new Point(centre.X, centre.Y), radiusX, radiusY));
 
+    public LayoutShape Ellipse(LayoutRect box) => WpfShape.Of(new EllipseGeometry(box.ToWpf()));
+
+    public LayoutShape Line(LayoutPoint from, LayoutPoint to) => WpfShape.Of(new LineGeometry(from.ToWpf(), to.ToWpf()));
+
+    public LayoutShape Group(IReadOnlyList<LayoutShape> shapes, bool evenOdd = true)
+    {
+        var group = new GeometryGroup { FillRule = evenOdd ? FillRule.EvenOdd : FillRule.Nonzero };
+        foreach (var shape in shapes) group.Children.Add(((WpfShape)shape).Geometry);
+
+        return WpfShape.Of(group);
+    }
+
+    /// <summary>
+    /// The shape carried by the matrix — the shape itself with a transform of its own where it has none yet, as WPF code turns one, and
+    /// otherwise a group round it carrying the transform.
+    /// </summary>
+    public LayoutShape Transformed(LayoutShape shape, LayoutMatrix matrix)
+    {
+        var geometry = ((WpfShape)shape).Geometry;
+        var transform = new MatrixTransform(matrix.M11, matrix.M12, matrix.M21, matrix.M22, matrix.OffsetX, matrix.OffsetY);
+
+        if (geometry.Transform is null || geometry.Transform.Value.IsIdentity)
+        {
+            var moved = geometry.Clone();
+            moved.Transform = transform;
+            return WpfShape.Of(moved);
+        }
+
+        var group = new GeometryGroup { Transform = transform };
+        group.Children.Add(geometry);
+
+        return WpfShape.Of(group);
+    }
+
+    public LayoutInk Gradient(IReadOnlyList<(LayoutColor Color, double At)> stops, LayoutPoint from, LayoutPoint to)
+    {
+        var ink = new LinearGradientBrush { StartPoint = from.ToWpf(), EndPoint = to.ToWpf() };
+        foreach (var (color, at) in stops) ink.GradientStops.Add(new GradientStop(Color.FromArgb(color.A, color.R, color.G, color.B), at));
+
+        ink.Freeze();
+        return new WpfInk(ink);
+    }
+
     public LayoutShape Combine(LayoutShape a, LayoutShape b, ShapeCombine combine) =>
         WpfShape.Of(new CombinedGeometry(combine switch
         {
@@ -302,6 +345,8 @@ internal sealed class WpfInk(Brush brush) : LayoutInk
     public override LayoutColor Color => Brush is SolidColorBrush { Color: var color }
         ? new LayoutColor(color.A, color.R, color.G, color.B)
         : default;
+
+    public override bool Solid => Brush is SolidColorBrush;
 }
 
 internal sealed class WpfFace : LayoutFace
@@ -421,16 +466,21 @@ internal sealed class WpfShapeBuilder : ShapeBuilder
         _into.BeginFigure(at.ToWpf(), filled, closed);
     }
 
-    public override void LineTo(LayoutPoint to) => _into.LineTo(to.ToWpf(), _stroked, false);
+    public override void LineTo(LayoutPoint to, bool? stroked = null, bool smooth = false) => _into.LineTo(to.ToWpf(), stroked ?? _stroked, smooth);
 
-    public override void BezierTo(LayoutPoint first, LayoutPoint second, LayoutPoint to) =>
-        _into.BezierTo(first.ToWpf(), second.ToWpf(), to.ToWpf(), _stroked, false);
+    public override void PolyLineTo(IReadOnlyList<LayoutPoint> points, bool? stroked = null, bool smooth = false) =>
+        _into.PolyLineTo([.. points.Select(point => point.ToWpf())], stroked ?? _stroked, smooth);
 
-    public override void QuadraticTo(LayoutPoint control, LayoutPoint to) => _into.QuadraticBezierTo(control.ToWpf(), to.ToWpf(), _stroked, false);
+    public override void BezierTo(LayoutPoint first, LayoutPoint second, LayoutPoint to, bool? stroked = null, bool smooth = false) =>
+        _into.BezierTo(first.ToWpf(), second.ToWpf(), to.ToWpf(), stroked ?? _stroked, smooth);
 
-    public override void ArcTo(LayoutPoint to, double radiusX, double radiusY, double rotation, bool large, bool clockwise) =>
+    public override void QuadraticTo(LayoutPoint control, LayoutPoint to, bool? stroked = null, bool smooth = false) =>
+        _into.QuadraticBezierTo(control.ToWpf(), to.ToWpf(), stroked ?? _stroked, smooth);
+
+    public override void ArcTo(LayoutPoint to, double radiusX, double radiusY, double rotation, bool large, bool clockwise,
+                               bool? stroked = null, bool smooth = false) =>
         _into.ArcTo(to.ToWpf(), new Size(radiusX, radiusY), rotation, large,
-                    clockwise ? SweepDirection.Clockwise : SweepDirection.Counterclockwise, _stroked, false);
+                    clockwise ? SweepDirection.Clockwise : SweepDirection.Counterclockwise, stroked ?? _stroked, smooth);
 
     public override LayoutShape Close()
     {
@@ -514,6 +564,9 @@ internal sealed class WpfStroke : LayoutStroke
     public override LayoutInk? Ink => _ink;
 
     public override double Thickness => _thickness;
+
+    /// <summary>The dashes it is broken into, or null for a solid line.</summary>
+    public DoubleCollection? Dashes => _dashes;
 
     /// <summary>The pen it strokes with where it is handed <paramref name="fallback"/> for an ink it has none of.</summary>
     public Pen PenFor(Brush fallback)

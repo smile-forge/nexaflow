@@ -9,6 +9,7 @@ using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Pie;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Pie;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 

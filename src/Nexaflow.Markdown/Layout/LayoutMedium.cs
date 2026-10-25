@@ -86,6 +86,27 @@ public interface ILayoutMedium
 
     LayoutShape Ellipse(LayoutPoint centre, double radiusX, double radiusY);
 
+    /// <summary>The ellipse filling <paramref name="box"/>.</summary>
+    LayoutShape Ellipse(LayoutRect box);
+
+    /// <summary>The straight line from <paramref name="from"/> to <paramref name="to"/>, as an outline of its own.</summary>
+    LayoutShape Line(LayoutPoint from, LayoutPoint to);
+
+    /// <summary>
+    /// Several outlines held as one, each kept as it is — filled by <paramref name="evenOdd"/>'s rule where they overlap, rather than
+    /// made one by a boolean, so a set of lines strokes as a set of lines.
+    /// </summary>
+    LayoutShape Group(IReadOnlyList<LayoutShape> shapes, bool evenOdd = true);
+
+    /// <summary><paramref name="shape"/> carried by <paramref name="matrix"/> — moved, turned or scaled as a whole.</summary>
+    LayoutShape Transformed(LayoutShape shape, LayoutMatrix matrix);
+
+    /// <summary>
+    /// An ink running through <paramref name="stops"/> along the line from <paramref name="from"/> to <paramref name="to"/>, both measured
+    /// in the box of whatever it fills — nought to one across and down it.
+    /// </summary>
+    LayoutInk Gradient(IReadOnlyList<(LayoutColor Color, double At)> stops, LayoutPoint from, LayoutPoint to);
+
     /// <summary>Two outlines made one by <paramref name="combine"/>.</summary>
     LayoutShape Combine(LayoutShape a, LayoutShape b, ShapeCombine combine);
 
@@ -165,6 +186,9 @@ public readonly record struct LayoutColor(byte A, byte R, byte G, byte B)
 public abstract class LayoutInk
 {
     public abstract LayoutColor Color { get; }
+
+    /// <summary>Whether it is one colour all over — false for one running through several, whose <see cref="Color"/> says nothing.</summary>
+    public virtual bool Solid => true;
 }
 
 /// <summary>A face words are set in, as a medium found it.</summary>
@@ -304,13 +328,23 @@ public abstract class ShapeBuilder
     /// </param>
     public abstract void Begin(LayoutPoint at, bool filled = true, bool closed = true, bool stroked = true);
 
-    public abstract void LineTo(LayoutPoint to);
+    /// <param name="stroked">Whether a pen tracing the outline draws this segment — null for whatever its figure says.</param>
+    /// <param name="smooth">Whether the corner the segment starts at is drawn as a curve rather than as a corner a pen turns.</param>
+    public abstract void LineTo(LayoutPoint to, bool? stroked = null, bool smooth = false);
 
-    public abstract void BezierTo(LayoutPoint first, LayoutPoint second, LayoutPoint to);
+    /// <summary>Straight lines through each of <paramref name="points"/> in turn, as one segment.</summary>
+    /// <inheritdoc cref="LineTo"/>
+    public abstract void PolyLineTo(IReadOnlyList<LayoutPoint> points, bool? stroked = null, bool smooth = false);
 
-    public abstract void QuadraticTo(LayoutPoint control, LayoutPoint to);
+    /// <inheritdoc cref="LineTo"/>
+    public abstract void BezierTo(LayoutPoint first, LayoutPoint second, LayoutPoint to, bool? stroked = null, bool smooth = false);
 
-    public abstract void ArcTo(LayoutPoint to, double radiusX, double radiusY, double rotation, bool large, bool clockwise);
+    /// <inheritdoc cref="LineTo"/>
+    public abstract void QuadraticTo(LayoutPoint control, LayoutPoint to, bool? stroked = null, bool smooth = false);
+
+    /// <inheritdoc cref="LineTo"/>
+    public abstract void ArcTo(LayoutPoint to, double radiusX, double radiusY, double rotation, bool large, bool clockwise,
+                               bool? stroked = null, bool smooth = false);
 
     /// <summary>The outline, finished. Nothing may be added afterwards.</summary>
     public abstract LayoutShape Close();

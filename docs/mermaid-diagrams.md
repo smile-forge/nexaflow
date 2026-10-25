@@ -27,7 +27,9 @@ lines list items with values and whose options share a line, xychart one with ax
 | `…/<Type>/Stages/*.cs` | `IAstStage`s: what lines mean together that the order they are written in does not already say, worked out and said in the diagram's own nodes — `PieSliceNode` — or, where it is only a word, hung underneath as a fact, as a message's `autonumber` number is; and what is wrong that only the whole block shows. The front matter goes on the block through `WithConfig` | `ResolveSlices`, `ResolveShares`; `GroupRegions`, `ResolveRegions`; `ResolveCurves`, `ResolveOptions` |
 | `…/<Type>/<Type>Config.cs` | The front matter's options, from `MermaidConfig.Diagram(name)`, `Theme`, `DiagramTheme(name)` and `Shared` | `PieConfig`, `VennConfig`, `RadarConfig` |
 | `…/<Type>/<Type>Nodes.cs` | What the stages say lines mean where it is more than a word, as the diagram's own nodes — internal, and printing as what was written. A diagram with nothing of the kind to say has none | `PieNodes`, `RadarNodes`, `GanttNodes` |
-| `src/Nexaflow.Visuals.Text/Markdown/Mermaid/<Type>/<Type>Builder.cs` | `MermaidBuilder`: `Draw` lays the tree out at the origin, reading the lines in the order they are written and what its stages wrote, with the front matter from `Configured`; a `<Type>Piece` class names its pieces | `PieBuilder`, `SankeyBuilder`, `RadarBuilder` |
+| `src/Nexaflow.Visuals.Text/Markdown/Mermaid/<Type>/<Type>Builder.cs` | `MermaidBuilder`: `Draw` lays the tree out at the origin, reading the lines in the order they are written and what its stages wrote, with the front matter from `Configured` | `PieBuilder`, `SankeyBuilder`, `RadarBuilder` |
+| `src/Nexaflow.Markdown/Mermaid/<Type>/<Type>Piece.cs` | The names of the pieces the diagram lays, shared by both its builders | `PiePiece`, `SankeyPiece`, `RadarPiece` |
+| `src/Nexaflow.Markdown/Layout/Mermaid/<Type>/Portable<Type>Builder.cs` | The same diagram laid on the renderer-free layout tree — see [The renderer-free builders](#the-renderer-free-builders) | `PortablePieBuilder`, `PortableSankeyBuilder` |
 | `MermaidDiagrams.Grammar` · `MermaidBuilders.For` | Where the diagram is named — both, or neither. The second names the builder's type, which makes the diagram a language of its own (`Shipped.Diagrams`) | |
 
 **A language of its own is read as one, and its diagrams share it.** C4 is not a Mermaid dialect — it is C4-PlantUML's
@@ -160,6 +162,35 @@ stands for a stretch of what the lane itself stands for. Where shapes overlap, a
 stands only in what the shapes drawn over it leave uncovered (a Venn circle less its unions' lenses, a radar curve less
 the curves after it). A piece standing for a stretch nothing is written in yet stands for nothing — only its hole does.
 
+## The renderer-free builders
+
+Every diagram is also laid on the renderer-free layout tree (`PortableTree`, in `src/Nexaflow.Markdown/Layout/`), by a builder of
+its own in `src/Nexaflow.Markdown/Layout/Mermaid/<Type>/`, made from the renderer-free kit beside it: the same pieces as the kit
+above, each `Portable` before its name — `PortableDiagramShapes`, `PortableDiagramConnector`, `PortableDiagramLayers` — with every
+outline, ink and run of words asked of the medium the block is laid out in (`ILayoutMedium`) rather than made.
+
+**A builder uses the kit; nothing drives the builder.** Each is a `PortableContentBuilder` that makes the pieces it draws with — its
+ink (`PortableDiagramInk`), its words (`PortableDiagramText`: `Written`, `Worked`, `Wrapped`, `Iconed`), the sheet it is drawn on
+(`PortableDiagramSheet`), and where the diagram folds, its folding (`PortableDiagramFolding`) — and in `Build` starts the sheet for
+the room it is given, draws its diagram at the origin into a tree of its own, and hands the sheet the drawing to set under its title,
+on its card, with what could not be read beneath (`Laid`). The sheet fits the drawing (`Space`, `LaidNarrower`, `Reduced`), takes
+what goes under it (`Beneath`), and shows the block as written where the diagram asks (`AsWritten`). So what one diagram does is in
+that diagram's builder, and a change to it is a change to it alone.
+
+**Two diagrams drawn alike share a drawing, not a base.** A drawing class in the folder of the diagram it draws holds the drawing,
+handed the kit's pieces and whatever the diagrams sharing it draw differently, and each builder composes it:
+
+| Drawing | Drawn by | What differs |
+|---|---|---|
+| `PortableFlowchartDrawing` | `PortableFlowchartBuilder`, `PortableSwimlaneBuilder` | whether the outermost subgraphs are lanes, and the chart's config inside the lanes' |
+| `PortableSequenceDrawing` | `PortableSequenceBuilder`, `PortableC4SequenceBuilder` | its `Dialect`: how the lines are read, and how cards and the key are painted — C4's macros and grading |
+| `PortableClassDrawing` | `PortableClassBuilder`, `PortableNomnomlBuilder` | how the lines are read into classes, relations and spaces — nomnoml's tree |
+
+A diagram's two builders lay the same pieces: a change to a builder or a kit piece is made to its twin as well.
+`PortableDiagramsBench` (Tests.Visuals) lays every diagram the samples, the help page and the diagrams' own builder tests write, both
+ways — wide, narrow and only looked at — and names each block whose pieces or pixels differ; set `NEXAFLOW_PORTABLE_BENCH` to a folder
+to run it.
+
 ## Adding a diagram
 
 1. **Read Mermaid's syntax page for it** (`https://mermaid.ai/open-source/syntax/<type>.html`) and support all of it.
@@ -172,7 +203,9 @@ the curves after it). A piece standing for a stretch nothing is written in yet s
 4. **The config**, hung on the block by a stage, and **stages writing the rest** of what the builder needs — a share, a
    place in the order, whether something is listed — so the builder only lays out.
 5. **The builder**, named in `MermaidBuilders.For`: layers by how the diagram looks, each piece standing for the part it
-   was drawn from. Its tests derive from `MermaidBuilderContract` and list what it draws in `Drawn`.
+   was drawn from, its pieces named in `<Type>Piece` beside the grammar. Its tests derive from `MermaidBuilderContract` and
+   list what it draws in `Drawn`. And its renderer-free twin, `Portable<Type>Builder`, named in `PortableDiagramsBench`'s
+   `Ports`, laying the same pieces — the bench says where it does not.
 6. **Writing in place**: the diagram's edit handler, `<Type>Edits`, named in `DiagramEdits.For` — its `Escaping`, and what
    any key means in it that is its own — with editing tests like `PieEditingTests` and `VennEditingTests`.
 7. **The rest of the product**: a section in `MarkdownSamples`, the help page's example and its figure

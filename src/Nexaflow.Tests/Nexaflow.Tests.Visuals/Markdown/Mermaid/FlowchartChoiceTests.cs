@@ -8,6 +8,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Flowchart;
+using Nexaflow.Markdown.Mermaid.Flowchart;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 

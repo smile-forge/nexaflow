@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Venn;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;

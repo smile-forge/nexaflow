@@ -5,6 +5,8 @@ using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using System.Linq;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Pie;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Sequence;
+using Nexaflow.Markdown.Mermaid.Pie;
+using Nexaflow.Markdown.Mermaid.Sequence;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 

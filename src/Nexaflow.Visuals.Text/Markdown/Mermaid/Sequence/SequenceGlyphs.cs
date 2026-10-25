@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Sequence;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Sequence;

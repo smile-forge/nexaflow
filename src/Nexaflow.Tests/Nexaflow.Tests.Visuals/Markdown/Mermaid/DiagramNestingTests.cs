@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+using Nexaflow.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 

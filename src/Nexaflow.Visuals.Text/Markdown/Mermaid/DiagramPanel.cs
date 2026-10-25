@@ -2,16 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
+using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
-
-/// <summary>The room a panel's furniture takes on each of its four sides.</summary>
-internal readonly record struct DiagramEdges(double Left, double Top, double Right, double Bottom)
-{
-    public static DiagramEdges operator +(DiagramEdges room, DiagramEdges beyond) =>
-        new(room.Left + beyond.Left, room.Top + beyond.Top, room.Right + beyond.Right, room.Bottom + beyond.Bottom);
-}
 
 /// <summary>
 /// The panel a two-axis diagram is drawn inside, and what the whole of it takes up: the upright axis's numbers on the

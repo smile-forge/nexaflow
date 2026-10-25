@@ -227,7 +227,7 @@ public class LaidBlocksTests
 
             Assert.AreEqual(a.Kind, b.Kind, $"{what}: piece {at}");
             // Except the line at today, drawn from the clock: two layouts made a moment apart need not agree on the moment.
-            if (a.Kind != Nexaflow.Visuals.Text.Markdown.Mermaid.Gantt.GanttPiece.Today)
+            if (a.Kind != Nexaflow.Markdown.Mermaid.Gantt.GanttPiece.Today)
                 Assert.AreEqual(a.Bounds, b.Bounds, $"{what}: where piece {at} ({a.Kind}) stands");
             Assert.AreEqual(Span(a.Part), Span(b.Part), $"{what}: what piece {at} ({a.Kind}) stands for");
             Assert.AreEqual(a.Part?.GetType(), b.Part?.GetType(), $"{what}: piece {at} ({a.Kind})");

@@ -1,0 +1,626 @@
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Git;
+using Nexaflow.Markdown.Layout.Prose;
+
+namespace Nexaflow.Markdown.Layout.Mermaid.Git;
+
+/// <summary>
+/// Draws a <c>gitGraph</c> block: a lane per branch, a commit where each one is made, and a line from every commit to
+/// what it follows — the branch it is made on, the branch a merge brings in, and the commit a cherry-pick takes.
+///
+/// <para>
+/// <strong>Everything drawn stands for what was written.</strong> A commit stands for its line, a branch's label for the
+/// line making it — with its name typed into where it is drawn — and a tag or an id for the option writing it. A merge is
+/// drawn as a ring, a cherry-pick as a cherry, a reversed commit crossed through and a highlighted one squared off, as
+/// Mermaid draws them; the front matter's <c>rotateCommitLabel</c> turns an id where it is written, which a press and a
+/// caret follow round.
+/// </para>
+/// <para>
+/// <strong>The lanes are a grid the lines run on.</strong> Each lane is a faint dashed line from its label, which stands
+/// right against where the lane starts, to past its last commit, and the lanes stand as far apart as what their commits
+/// write needs. A line between lanes runs along them through the columns: out of a branch it turns at the commit it leaves,
+/// into a merge at the merge, and where a commit stands in that way it takes whichever turn is clear — or, where neither
+/// is, a track of its own between the lanes, as Mermaid reroutes one.
+/// </para>
+/// </summary>
+internal sealed class PortableGitBuilder : PortableContentBuilder
+{
+    /// <summary>How far one commit is from the next, and the least one lane is from the next.</summary>
+    private const double Along = 54;
+    private const double Across = 50;
+
+    /// <summary>How big a commit is drawn, and how far a highlighted one's square reaches round it.</summary>
+    private const double Node = 9;
+    private const double Raised = 1.15;
+
+    private const double Gap = 6;
+    private const double Pad = 5;
+
+    /// <summary>The air between what one lane writes and what the next one does, and between a branch's label and its lane.</summary>
+    private const double Air = 8;
+    private const double Beside = 14;
+
+    /// <summary>How far a lane's line runs on past its last commit.</summary>
+    private const double Tail = 22;
+
+    /// <summary>How round a line's corners are, and how far a track round what is in the way keeps from lanes and other tracks.</summary>
+    private const double Round = 14;
+    private const double Clear = 10;
+
+    private const double IdSize = 10;
+    private const double TagSize = 10;
+    private const double LabelSize = 11;
+
+    /// <summary>How far an id is turned where the front matter asks for it, as Mermaid turns one.</summary>
+    private const double Turned = 45;
+    private static readonly double Slant = Math.Sqrt(0.5);
+
+    /// <summary>How faint a lane's line is drawn, and a commit's id's backing.</summary>
+    private const double LaneWash = 0.4;
+    private const double Backing = 0.6;
+
+    private static readonly double[] Dotted = [3, 3];
+
+    internal PortableGitBuilder(ContentReading reading, EditState state, PortableStyle style, bool isReadOnly, ILayoutMedium medium,
+                                PortableNesting nesting) : base(reading, state, style, isReadOnly, medium, nesting)
+    {
+        Ink = new PortableDiagramInk(style, medium);
+        Words = new PortableDiagramText(reading, state, style, medium, part => Nested(part, double.PositiveInfinity, PortableStanding.Inline));
+        Sheet = new PortableDiagramSheet(state, style, medium, isReadOnly, Words, AsSource);
+    }
+
+    /// <summary>What the diagram is drawn in: the colours its source and front matter write, and the theme's where they write none.</summary>
+    private PortableDiagramInk Ink { get; }
+
+    /// <summary>What every word the diagram draws is made from.</summary>
+    private PortableDiagramText Words { get; }
+
+    /// <summary>The sheet the diagram is drawn on: its title, what goes under it, what could not be read, and its card.</summary>
+    private PortableDiagramSheet Sheet { get; }
+
+    protected override PortableLaid? Build()
+    {
+        Sheet.Start(Room);
+
+        var block = MermaidBlock.Of(Reading);
+        var drawing = new PortableBuilder(Medium);
+        var body = Draw(block, drawing);
+
+        return Sheet.Laid(block, drawing, body, (block.Title, block.TitleSays, block.TitleAsWritten), null, null);
+    }
+
+    protected override PortableCharacters Characters => PortableDiagramSheet.Characters(Style);
+
+    // ── What is written ───────────────────────────────────────────────────────
+
+    /// <summary>Which way a git graph runs: its commits across the page, down it, or up it.</summary>
+    private enum Way { LeftRight, TopBottom, BottomTop }
+
+    /// <summary>How a commit is kept: an ordinary one, one undoing what came before, or one drawn to stand out.</summary>
+    private enum Kept { Normal, Reverse, Highlight }
+
+    /// <summary>What an option says, without the quotes it is written in, and the piece it was written as — what pressing it means.</summary>
+    private sealed record Said(ContentPart Part, string Says);
+
+    /// <summary>One branch: the line making it — null for the branch everything starts on, which nothing makes — its name as written, and its lane.</summary>
+    private sealed record Branch(ContentPart? Part, ContentPart? Named, int Lane);
+
+    /// <summary>
+    /// One commit: the line it is written on — what pressing it means — where its stage placed it, the id written for it, its
+    /// tags, how it is kept, and whether it merges or is picked.
+    /// </summary>
+    private sealed record Commit(ContentPart Part, GitCommitNode Placed, Said? Said, IReadOnlyList<Said> Tags, Kept Kept, bool Merge, bool Picked)
+    {
+        public int Lane => Placed.Lane;
+
+        public int Position => Placed.Position;
+
+        public IReadOnlyList<int> Follows => Placed.Follows;
+    }
+
+    /// <summary>The graph as written and as its stage placed it: which way it runs, its branches in the order they are made, and its commits.</summary>
+    private sealed class Graph(GitConfig config, Way way, IReadOnlyList<Branch> branches, IReadOnlyList<Commit> commits)
+    {
+        public GitConfig Config { get; } = config;
+
+        public Way Way { get; } = way;
+
+        /// <summary>The branches, in the order they are made — the branch everything starts on first.</summary>
+        public IReadOnlyList<Branch> Branches { get; } = branches;
+
+        /// <summary>The commits, in the order they are written.</summary>
+        public IReadOnlyList<Commit> Commits { get; } = commits;
+
+        /// <summary>How far along the last commit is, which is how long the history runs.</summary>
+        public int Length => Commits.Count == 0 ? 0 : Commits.Max(commit => commit.Position);
+
+        /// <summary>How many lanes there are, which is how wide the graph is across the branches.</summary>
+        public int Across => Branches.Max(branch => branch.Lane);
+    }
+
+    private Graph Read()
+    {
+        var block = Reading.Root.Node as GitBlockNode;
+        var config = block?.Config ?? GitConfig.Default;
+        var way = Way.LeftRight;
+        var branches = new List<Branch> { new(null, null, block?.Main ?? 0) };
+        var commits = new List<Commit>();
+
+        foreach (var part in Reading.Root.SelfAndDescendants())
+        {
+            switch (part.Node)
+            {
+                case { Kind: GitKinds.Direction } when Running(part) is { } running:
+                    way = running;
+                    break;
+
+                case GitBranchNode made:
+                    branches.Add(new Branch(part, part.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name), made.Lane));
+                    break;
+
+                case GitCommitNode placed:
+                    commits.Add(Committed(part, placed, commits));
+                    break;
+            }
+        }
+
+        return new Graph(config, way, branches, commits);
+    }
+
+    /// <summary>
+    /// A commit as written: its id, its tags — or, for a cherry-pick nothing tags, what it takes, as Mermaid tags one, and
+    /// taking a merge, which of the merge's parents it takes it against — and how it is kept.
+    /// </summary>
+    private static Commit Committed(ContentPart part, GitCommitNode placed, IReadOnlyList<Commit> above)
+    {
+        var picked = part.Kind == GitKinds.Pick;
+        var written = Option(part, "id");
+        var tags = Options(part, "tag");
+
+        if (picked && tags.Count == 0 && written is { Says.Length: > 0 })
+        {
+            var against = placed.Takes >= 0 && above[placed.Takes].Merge && Option(part, "parent") is { Says.Length: > 0 } of ? $"|parent:{of.Says}" : "";
+            tags = [new Said(written.Part, $"cherry-pick:{written.Says}{against}")];
+        }
+
+        return new Commit(part, placed, picked ? null : written, tags, Keeping(part), part.Kind == GitKinds.Merge, picked);
+    }
+
+    private static Way? Running(ContentPart line)
+    {
+        if (line.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Setting) is not { } way) return null;
+
+        var said = way.Text.AsSpan().Trim();
+        return said.Equals("LR", StringComparison.OrdinalIgnoreCase) ? Way.LeftRight
+             : said.Equals("TB", StringComparison.OrdinalIgnoreCase) ? Way.TopBottom
+             : said.Equals("BT", StringComparison.OrdinalIgnoreCase) ? Way.BottomTop
+             : null;
+    }
+
+    private static Kept Keeping(ContentPart line) =>
+        Option(line, "type")?.Says is { } kept
+            ? kept.Equals("REVERSE", StringComparison.OrdinalIgnoreCase) ? Kept.Reverse
+            : kept.Equals("HIGHLIGHT", StringComparison.OrdinalIgnoreCase) ? Kept.Highlight
+            : Kept.Normal
+            : Kept.Normal;
+
+    /// <summary>What a line's option says, and the piece saying it — or null where the line does not set it.</summary>
+    private static Said? Option(ContentPart line, string key) => Options(line, key).FirstOrDefault();
+
+    /// <summary>Everything a line's option says, each time the line sets it — a commit may be tagged more than once.</summary>
+    private static IReadOnlyList<Said> Options(ContentPart line, string key) =>
+        line.Inner(MermaidKinds.Properties)?.Children
+            .Where(property => property.Kind == MermaidKinds.Property)
+            .Where(property => property.Children.Any(child => child.Kind == MermaidKinds.Key && child.Text.Equals(key, StringComparison.OrdinalIgnoreCase)))
+            .Select(property => property.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Setting))
+            .OfType<ContentPart>()
+            .Select(setting => new Said(setting, MermaidText.Bare(setting.Text)))
+            .ToList() ?? [];
+
+    // ── Laying it out ─────────────────────────────────────────────────────────
+
+    private LayoutSize Draw(MermaidBlock block, PortableBuilder build)
+    {
+        var graph = Read();
+
+        // A graph with no commits written in it is the source.
+        if (graph.Commits.Count == 0) return Sheet.AsWritten();
+
+        var config = graph.Config;
+        var down = graph.Way != Way.LeftRight;
+        var turn = !down && config.RotateCommitLabel ? Turned : 0;
+
+        // What every commit writes and every branch is called first, since that is what says how far apart the lanes stand.
+        var writing = graph.Commits.ToDictionary(commit => commit, commit => Writes(graph, commit));
+        var labels = config.ShowBranches ? Labels(graph) : [];
+
+        var lanes = new double[graph.Across + 1];
+        for (var lane = 1; lane < lanes.Length; lane++)
+            lanes[lane] = lanes[lane - 1] + Math.Max(Across, Apart(graph, writing, labels, lane - 1, down, turn));
+
+        var length = graph.Length * Along;
+        LayoutPoint Where(int position, int lane)
+        {
+            var along = graph.Way == Way.BottomTop ? length - (position * Along) : position * Along;
+            return down ? new LayoutPoint(lanes[lane], along) : new LayoutPoint(along, lanes[lane]);
+        }
+
+        var layout = new Layout();
+        var room = new PortableDiagramRoom(Pad);
+
+        foreach (var commit in graph.Commits)
+        {
+            var at = Where(commit.Position, commit.Lane);
+            room.Reach(new LayoutRect(at.X - (Node * Raised), at.Y - (Node * Raised), Node * Raised * 2, Node * Raised * 2));
+            Written(layout, commit, writing[commit], at, down, turn, room);
+        }
+
+        foreach (var branch in graph.Branches)
+        {
+            if (!labels.TryGetValue(branch.Lane, out var name)) continue;
+            Laned(layout, graph, branch, name, Where, lanes[branch.Lane], length, down, room);
+        }
+
+        Routed(layout, graph, Where, lanes, down);
+
+        var shift = room.Shift;
+        Lanes(build, graph, layout, shift);
+        Follows(build, graph, layout, shift);
+        Commits(build, graph, layout, shift);
+        Branches(build, graph, layout, shift);
+
+        // A branch is as long as its commits, so there is nothing to reshape: a graph wider than the room is drawn smaller.
+        return Sheet.Reduced(room.Size);
+    }
+
+    // ── What is laid out before it is drawn ────────────────────────────────────
+
+    /// <summary>What a commit writes: its tags and its id.</summary>
+    private sealed record Inscribed(IReadOnlyList<(PortableDiagramWords Words, ContentPart Part)> Tags, PortableDiagramWords? Id, Said? Said);
+
+    /// <summary>Everything drawn, where it goes before it is moved clear of the edges.</summary>
+    private sealed class Layout
+    {
+        public List<(Commit Commit, LayoutPoint At)> Commits { get; } = [];
+        public List<(Commit Commit, PortableDiagramWords Words, ContentPart Part, LayoutRect Box)> Tags { get; } = [];
+        public List<(PortableDiagramWords Words, Said Said, LayoutPoint Place, LayoutRect Box)> Ids { get; } = [];
+        public List<(Branch Branch, PortableDiagramWords Name, LayoutRect Box, LayoutPoint From, LayoutPoint To)> Lanes { get; } = [];
+        public List<(Commit Commit, IReadOnlyList<LayoutPoint> Route, int Lane, bool Taken)> Follows { get; } = [];
+    }
+
+    private Inscribed Writes(Graph graph, Commit commit)
+    {
+        var config = graph.Config;
+        var size = config.TagLabelFontSize ?? TagSize;
+        var ink = Ink.Written(config.TagLabelColour) ?? Style.Text;
+
+        var tags = commit.Tags.Where(tag => tag.Says.Length > 0).Select(tag => (Words.Worked(tag.Says, tag.Part, size, ink), tag.Part)).ToList();
+        var id = config.ShowCommitLabel && commit.Said is { Says.Length: > 0 } said
+            ? Words.Worked(said.Says, said.Part, config.CommitLabelFontSize ?? IdSize, Ink.Written(config.CommitLabelColour) ?? Style.TextMuted)
+            : null;
+
+        return new Inscribed(tags, id, id is null ? null : commit.Said);
+    }
+
+    /// <summary>
+    /// How far a lane must stand from the one after it for nothing either writes to meet: running across the page, the ids
+    /// under one lane's commits and the tags over the next's; running down it, the tags beside one lane's commits and the ids
+    /// on the far side of the next's, and the branches' labels over them.
+    /// </summary>
+    private static double Apart(Graph graph, IReadOnlyDictionary<Commit, Inscribed> writing, IReadOnlyDictionary<int, PortableDiagramWords> labels,
+                                int lane, bool down, double turn)
+    {
+        double Most(int of, Func<Inscribed, double> reach) =>
+            graph.Commits.Where(commit => commit.Lane == of).Select(commit => reach(writing[commit])).DefaultIfEmpty(0).Max();
+
+        double Stacked(Inscribed said) => said.Tags.Sum(tag => tag.Words.Height + Pad + 2);
+
+        if (!down)
+        {
+            var under = Most(lane, said => said.Id is not { } id ? 0 : Gap + (turn > 0 ? (id.Width + id.Height) * Slant : id.Height));
+            var over = Most(lane + 1, said => said.Tags.Count == 0 ? 0 : Gap + Stacked(said));
+            return (Node * 2) + under + over + Air;
+        }
+
+        var beside = Most(lane, said => said.Tags.Count == 0 ? 0 : Gap + said.Tags.Max(tag => tag.Words.Width + (Pad * 2)));
+        var far = Most(lane + 1, said => said.Id is not { } id ? 0 : Gap + id.Width);
+        var named = (labels.TryGetValue(lane, out var one) ? (one.Width / 2) + Pad : 0) + (labels.TryGetValue(lane + 1, out var next) ? (next.Width / 2) + Pad : 0);
+
+        return Math.Max((Node * 2) + beside + far + Air, named + Air);
+    }
+
+    /// <summary>Where a commit's tags and id go: running across the page, the tags stacked over it and the id under it; running down it, the tags beside it and the id on its other side.</summary>
+    private static void Written(Layout layout, Commit commit, Inscribed said, LayoutPoint at, bool down, double turn, PortableDiagramRoom room)
+    {
+        layout.Commits.Add((commit, at));
+
+        var reach = Node + Gap;
+        foreach (var (words, part) in said.Tags)
+        {
+            var size = new LayoutSize(words.Width + (Pad * 2), words.Height + Pad);
+            var box = down
+                ? new LayoutRect(at.X + Node + Gap, at.Y - (size.Height / 2) + (reach - Node - Gap), size.Width, size.Height)
+                : new LayoutRect(at.X - (size.Width / 2), at.Y - reach - size.Height, size.Width, size.Height);
+
+            layout.Tags.Add((commit, words, part, box));
+            room.Reach(box);
+            reach += size.Height + 2;
+        }
+
+        if (said.Id is not { } id) return;
+
+        var place = down
+            ? new LayoutPoint(at.X - Node - Gap - id.Width, at.Y - (id.Height / 2))
+            : new LayoutPoint(at.X - (turn > 0 ? 0 : id.Width / 2), at.Y + Node + Gap);
+        var taken = turn > 0
+            ? new LayoutRect(place.X - (id.Height * Slant), place.Y, (id.Width + id.Height) * Slant, (id.Width + id.Height) * Slant)
+            : new LayoutRect(place, new LayoutSize(id.Width, id.Height));
+
+        layout.Ids.Add((id, said.Said!, place, taken));
+        room.Reach(taken);
+    }
+
+    /// <summary>
+    /// Where a branch's label goes — right against where its lane starts, or over it running down the page, under it running
+    /// up — and the faint line of its lane, from its label to past the last commit.
+    /// </summary>
+    private static void Laned(Layout layout, Graph graph, Branch branch, PortableDiagramWords name, Func<int, int, LayoutPoint> where, double across,
+                              double length, bool down, PortableDiagramRoom room)
+    {
+        var size = new LayoutSize(name.Width + (Pad * 2), name.Height + Pad);
+        var (first, last) = (-Node - Beside, length + Node + Tail);
+
+        (LayoutRect Box, LayoutPoint From, LayoutPoint To) placed = graph.Way switch
+        {
+            Way.LeftRight => (new LayoutRect(first - size.Width, across - (size.Height / 2), size.Width, size.Height),
+                                 new LayoutPoint(first, across), new LayoutPoint(last, across)),
+            Way.TopBottom => (new LayoutRect(across - (size.Width / 2), first - size.Height, size.Width, size.Height),
+                                 new LayoutPoint(across, first), new LayoutPoint(across, last)),
+            _ => (new LayoutRect(across - (size.Width / 2), length + Node + Beside, size.Width, size.Height),
+                  new LayoutPoint(across, length + Node + Beside), new LayoutPoint(across, -Node - Tail)),
+        };
+
+        layout.Lanes.Add((branch, name, placed.Box, placed.From, placed.To));
+        room.Reach(placed.Box);
+        room.Reach(placed.From, placed.To);
+    }
+
+    /// <summary>
+    /// The line from every commit to what it follows. Within a lane it runs straight. Between lanes it runs along them: out
+    /// of a branch it turns across at the commit it leaves and runs along the new lane; into a merge or a cherry-pick it runs
+    /// along the lane it comes from and turns across at the commit taking it. Where a commit stands in the way it takes the
+    /// other turn, and where both are
+    /// in the way, a track of its own between the lanes, clear of them and of every other track.
+    /// </summary>
+    private static void Routed(Layout layout, Graph graph, Func<int, int, LayoutPoint> where, IReadOnlyList<double> lanes, bool down)
+    {
+        var tracks = new List<double>();
+
+        bool Along(int lane, int from, int to) =>
+            !graph.Commits.Any(commit => commit.Lane == lane && commit.Position > Math.Min(from, to) && commit.Position < Math.Max(from, to));
+
+        bool Over(int position, int from, int to) =>
+            !graph.Commits.Any(commit => commit.Position == position && commit.Lane > Math.Min(from, to) && commit.Lane < Math.Max(from, to));
+
+        foreach (var commit in graph.Commits)
+            for (var at = 0; at < commit.Follows.Count; at++)
+            {
+                var parent = graph.Commits[commit.Follows[at]];
+
+                var (from, to) = (where(parent.Position, parent.Lane), where(commit.Position, commit.Lane));
+                var (a1, l1, a2, l2) = (parent.Position, parent.Lane, commit.Position, commit.Lane);
+    // What a merge brings in, or a cherry-pick takes, comes along its own lane and turns in at the commit taking it.
+                var merged = at > 0;
+                IReadOnlyList<LayoutPoint> corners;
+
+                if (l1 == l2) corners = [from, to];
+                else
+                {
+                    // Turning early runs across at the commit left, then along the lane come to; turning late the other way round.
+                    var early = Over(a1, l1, l2) && Along(l2, a1, a2);
+                    var late = Along(l1, a1, a2) && Over(a2, l1, l2);
+                    LayoutPoint Corner(bool first) => first ? (down ? new LayoutPoint(to.X, from.Y) : new LayoutPoint(from.X, to.Y))
+                                                      : (down ? new LayoutPoint(from.X, to.Y) : new LayoutPoint(to.X, from.Y));
+
+                    if (merged ? late : early) corners = [from, Corner(!merged), to];
+                    else if (merged ? early : late) corners = [from, Corner(merged), to];
+                    else
+                    {
+                        var track = Track(lanes, tracks, lanes[l1], lanes[l2]);
+                        corners = down
+                            ? [from, new LayoutPoint(track, from.Y), new LayoutPoint(track, to.Y), to]
+                            : [from, new LayoutPoint(from.X, track), new LayoutPoint(to.X, track), to];
+                    }
+                }
+
+                layout.Follows.Add((commit, Rounded(corners), at > 0 ? parent.Lane : commit.Lane, at > 0 && commit.Picked));
+            }
+    }
+
+    /// <summary>A track between two lanes for a line to go round what is in its way: halfway between, or as near it as keeps clear.</summary>
+    private static double Track(IReadOnlyList<double> lanes, List<double> tracks, double from, double to)
+    {
+        foreach (var share in new[] { 0.5, 0.35, 0.65, 0.2, 0.8 })
+        {
+            var track = from + ((to - from) * share);
+            if (lanes.Concat(tracks).All(taken => Math.Abs(taken - track) >= Clear))
+            {
+                tracks.Add(track);
+                return track;
+            }
+        }
+
+        return (from + to) / 2;
+    }
+
+    /// <summary>A route through its corners, each corner rounded off.</summary>
+    private static IReadOnlyList<LayoutPoint> Rounded(IReadOnlyList<LayoutPoint> corners)
+    {
+        var through = corners.Where((point, at) => at == 0 || (point - corners[at - 1]).Length > 0.5).ToList();
+        var points = new List<LayoutPoint> { through[0] };
+
+        for (var at = 1; at < through.Count - 1; at++)
+        {
+            var (before, corner, after) = (through[at - 1], through[at], through[at + 1]);
+            var round = Math.Min(Round, Math.Min((corner - before).Length, (after - corner).Length) / 2);
+            var (inward, outward) = (corner - before, after - corner);
+            inward = inward.Normalized();
+            outward = outward.Normalized();
+
+            points.AddRange(PortableDiagramConnector.Curving(corner - (inward * round), corner, corner, corner + (outward * round), 8));
+        }
+
+        if (through.Count > 1) points.Add(through[^1]);
+        return points;
+    }
+
+    // ── Drawing it ────────────────────────────────────────────────────────────
+
+    private void Lanes(PortableBuilder build, Graph graph, Layout layout, LayoutVector shift)
+    {
+        if (layout.Lanes.Count == 0) return;
+
+        build.Open(GitPiece.Lanes, part: null, stops: PortableStops.None);
+        foreach (var (branch, _, _, from, to) in layout.Lanes)
+            PortableDiagramConnector.Draw(build, GitPiece.Lane, branch.Part, [from + shift, to + shift],
+                                          new PortableDiagramStroke(PortableDiagramInk.Faded(build.Medium, Lane(graph, branch.Lane), LaneWash), 1, Dotted), end: DiagramHead.None);
+        build.Close();
+    }
+
+    private void Follows(PortableBuilder build, Graph graph, Layout layout, LayoutVector shift)
+    {
+        build.Open(GitPiece.Follows, part: null, stops: PortableStops.None);
+        foreach (var (commit, route, lane, taken) in layout.Follows)
+            PortableDiagramConnector.Draw(build, GitPiece.Follow, commit.Part, [.. route.Select(point => point + shift)],
+                                          new PortableDiagramStroke(Lane(graph, lane), 2, taken ? PortableDiagramStroke.Dashed : null), end: DiagramHead.None);
+        build.Close();
+    }
+
+    private void Commits(PortableBuilder build, Graph graph, Layout layout, LayoutVector shift)
+    {
+        var config = graph.Config;
+
+        build.Open(GitPiece.Commits, part: null, stops: PortableStops.None);
+
+        foreach (var (commit, at) in layout.Commits) Drawn(build, graph, commit, at + shift);
+
+        foreach (var (commit, words, part, box) in layout.Tags)
+            PortableDiagramShapes.Draw(build, GitPiece.Tag, part, DiagramShape.Rounded, LayoutRect.Offset(box, shift),
+                                       Ink.Written(config.TagLabelBackground) ?? Style.CodeBg,
+                                       new PortableDiagramStroke(Ink.Written(config.TagLabelBorder) ?? Lane(graph, commit.Lane), 1.2),
+                                       words, MermaidPiece.Words);
+
+        // An id is written on a faint backing of its own, so a line running under it does not strike it through.
+        var turn = graph.Way == Way.LeftRight && config.RotateCommitLabel ? Turned : 0;
+        foreach (var (id, said, place, _) in layout.Ids)
+        {
+            var at = place + shift;
+            var backing = build.Medium.Rectangle(new LayoutRect(at.X - 2, at.Y, id.Width + 4, id.Height), 2, 2);
+            if (turn > 0) backing = build.Medium.Transformed(backing, LayoutMatrix.Rotation(turn, at.X, at.Y));
+
+            build.Open(GitPiece.Id, said.Part, stops: PortableStops.None);
+            build.Draw(PortableDiagramMarks.Outlined(build.Medium, backing, PortableDiagramInk.Faded(build.Medium, Ink.Written(config.CommitLabelBackground) ?? Ink.Surface, Backing), null, 0));
+            id.Set(build, at, MermaidPiece.Words, turn);
+            build.Close();
+        }
+
+        build.Close();
+    }
+
+    private void Branches(PortableBuilder build, Graph graph, Layout layout, LayoutVector shift)
+    {
+        if (layout.Lanes.Count == 0) return;
+
+        build.Open(GitPiece.Branches, part: null, stops: PortableStops.None);
+        foreach (var (branch, name, box, _, _) in layout.Lanes)
+            PortableDiagramShapes.Draw(build, GitPiece.Branch, branch.Part, DiagramShape.Stadium, LayoutRect.Offset(box, shift), Lane(graph, branch.Lane), stroke: null,
+                                       name, GitPiece.Name);
+        build.Close();
+    }
+
+    /// <summary>Each branch's label, by its lane — the name as written, where anything writes it.</summary>
+    private Dictionary<int, PortableDiagramWords> Labels(Graph graph)
+    {
+        var labels = new Dictionary<int, PortableDiagramWords>();
+
+        foreach (var branch in graph.Branches)
+        {
+            var ink = Ink.Written(graph.Config.LaneLabelAt(branch.Lane)) ?? Ink.Over(Lane(graph, branch.Lane));
+
+            labels[branch.Lane] = branch.Named is { } named
+                ? Words.Written(named.Words(), named.Hole(), LabelSize, ink, 600)
+                : Words.Worked(graph.Config.MainBranchName, branch.Part, LabelSize, ink, 600);
+        }
+
+        return labels;
+    }
+
+    /// <summary>
+    /// One commit: a circle on its lane — ringed where it merges, a cherry where it is picked, crossed where it reverses, and
+    /// squared where it stands out, its square set in a wider one of the lane's <c>gitInv</c> colour.
+    /// </summary>
+    private void Drawn(PortableBuilder build, Graph graph, Commit commit, LayoutPoint at)
+    {
+        var ink = Lane(graph, commit.Lane);
+        var under = Ink.Surface;
+
+        build.Open(GitPiece.Commit, commit.Part, stops: PortableStops.None);
+
+        if (commit.Kept == Kept.Highlight)
+        {
+            var outer = Square(build.Medium, at, Node * Raised);
+            build.Draw(PortableDiagramMarks.Outlined(build.Medium, outer, Ink.Written(graph.Config.InverseAt(commit.Lane)) ?? PortableDiagramInk.Faded(build.Medium, ink, LaneWash), null, 0));
+            build.Draw(PortableDiagramMarks.Outlined(build.Medium, Square(build.Medium, at, Node * 0.65), ink, null, 0));
+            build.Occupies(outer);
+            build.Close();
+            return;
+        }
+
+        var circle = Circle(build.Medium, at, Node);
+        build.Draw(PortableDiagramMarks.Outlined(build.Medium, circle, ink, under, 1.5));
+
+        if (commit.Kept == Kept.Reverse)
+        {
+            var cross = new List<LayoutShape>
+            {
+                build.Medium.Line(new LayoutPoint(at.X - 4.5, at.Y - 4.5), new LayoutPoint(at.X + 4.5, at.Y + 4.5)),
+                build.Medium.Line(new LayoutPoint(at.X - 4.5, at.Y + 4.5), new LayoutPoint(at.X + 4.5, at.Y - 4.5)),
+            };
+            build.Draw(PortableDiagramMarks.Outlined(build.Medium, build.Medium.Group(cross), null, under, 1.8));
+        }
+        else if (commit.Merge) build.Draw(PortableDiagramMarks.Outlined(build.Medium, Circle(build.Medium, at, Node * 0.55), under, null, 0));
+        else if (commit.Picked)
+        {
+            // A cherry, as Mermaid draws one: two small fruit hanging from their stalks.
+            var stalks = new List<LayoutShape>
+            {
+                build.Medium.Line(new LayoutPoint(at.X + 2.7, at.Y + 1), new LayoutPoint(at.X, at.Y - 4.5)),
+                build.Medium.Line(new LayoutPoint(at.X - 2.7, at.Y + 1), new LayoutPoint(at.X, at.Y - 4.5)),
+            };
+            build.Draw(PortableDiagramMarks.Outlined(build.Medium, build.Medium.Group(stalks), null, under, 1));
+            build.Draw(PortableDiagramMarks.Outlined(build.Medium, Circle(build.Medium, new LayoutPoint(at.X - 2.7, at.Y + 2), 2.5), under, null, 0));
+            build.Draw(PortableDiagramMarks.Outlined(build.Medium, Circle(build.Medium, new LayoutPoint(at.X + 2.7, at.Y + 2), 2.5), under, null, 0));
+        }
+
+        build.Occupies(circle);
+        build.Close();
+    }
+
+    private static LayoutShape Circle(ILayoutMedium medium, LayoutPoint at, double radius)
+    {
+        var circle = medium.Ellipse(at, radius, radius);
+        return circle;
+    }
+
+    private static LayoutShape Square(ILayoutMedium medium, LayoutPoint at, double half)
+    {
+        var square = medium.Rectangle(new LayoutRect(at.X - half, at.Y - half, half * 2, half * 2), 2, 2);
+        return square;
+    }
+
+
+    /// <summary>What a lane is drawn in: the colour its <c>git</c> slot writes, or one of the theme's — the ninth lane taking the first's.</summary>
+    private LayoutInk Lane(Graph graph, int lane) => Ink.Series(lane % GitConfig.Lanes, graph.Config.LaneAt(lane));
+}

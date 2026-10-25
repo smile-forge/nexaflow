@@ -11,19 +11,6 @@ using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Mindmap;
 
-/// <summary>The pieces a mindmap's layout is made of — its layers, and what is in them.</summary>
-public static class MindmapPiece
-{
-    /// <summary>The lines from each node to its children, one standing for the child it reaches.</summary>
-    public const string Branches = "Branches";
-    public const string Branch = "Branch";
-
-    /// <summary>The nodes, each standing for its line, with what it says in it.</summary>
-    public const string Nodes = "Nodes";
-    public const string Node = "Node";
-    public const string Title = "Title";
-}
-
 /// <summary>
 /// Draws a <c>mindmap</c> block as a tidy tree: the root in the middle, its children taking turns either side of it, and every
 /// node beside its parent with its own subtree given the room it needs (<see cref="DiagramTree"/>). Each node takes the shape its

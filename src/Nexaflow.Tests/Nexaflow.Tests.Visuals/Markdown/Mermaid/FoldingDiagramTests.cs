@@ -13,6 +13,8 @@ using System.Threading.Tasks;
 using System.Windows.Threading;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 using System.Text;
+using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Flowchart;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 

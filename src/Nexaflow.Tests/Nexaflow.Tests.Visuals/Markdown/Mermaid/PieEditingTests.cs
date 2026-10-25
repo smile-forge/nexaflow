@@ -10,6 +10,8 @@ using System.Windows.Input;
 using System.Windows.Controls;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Pie;
+using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Pie;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 

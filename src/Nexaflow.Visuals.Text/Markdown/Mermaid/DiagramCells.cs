@@ -2,17 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
+using Nexaflow.Markdown.Mermaid;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
-
-/// <summary>Which way a layered layout runs: where a line drawn from one cell to the next points.</summary>
-internal enum DiagramWay
-{
-    Down,
-    Up,
-    Right,
-    Left,
-}
 
 /// <summary>A node, or a box holding other cells. A box is laid out in its own space first, then sized to what it holds and its cells moved into place.</summary>
 internal sealed class DiagramCell(Size size)

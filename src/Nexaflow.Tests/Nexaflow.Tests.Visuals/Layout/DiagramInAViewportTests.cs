@@ -1,4 +1,6 @@
 using Nexaflow.Markdown.Binding;
+using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Flowchart;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Common.Layout;
 using Nexaflow.Visuals.Text.Markdown;

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Markdown.Mermaid;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 

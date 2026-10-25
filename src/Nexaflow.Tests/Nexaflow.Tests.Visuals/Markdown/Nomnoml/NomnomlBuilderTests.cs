@@ -1,5 +1,6 @@
 using Nexaflow.Markdown.Mermaid;
 
+using Nexaflow.Markdown.Mermaid.Class;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.Visuals.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Editing;

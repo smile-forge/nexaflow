@@ -8,11 +8,11 @@ namespace Nexaflow.Markdown.Layout.Prose;
 /// </summary>
 public sealed class PortableStyle
 {
-    private readonly Func<string, bool, bool, LayoutFace> _faces;
-    private readonly Dictionary<(string Family, bool Bold, bool Italic), LayoutFace> _known = [];
+    private readonly Func<string, int, bool, LayoutFace> _faces;
+    private readonly Dictionary<(string Family, int Weight, bool Italic), LayoutFace> _known = [];
 
-    /// <param name="faces">The face for a family, bold or not and slanted or not — asked once for each, and kept.</param>
-    public PortableStyle(Func<string, bool, bool, LayoutFace> faces) => _faces = faces;
+    /// <param name="faces">The face for a family at a weight — 400 regular, 700 bold — slanted or not: asked once for each, and kept.</param>
+    public PortableStyle(Func<string, int, bool, LayoutFace> faces) => _faces = faces;
 
     public required LayoutInk Text { get; init; }
     public required LayoutInk TextMuted { get; init; }
@@ -58,6 +58,24 @@ public sealed class PortableStyle
     /// </summary>
     public required IReadOnlyDictionary<string, LayoutInk> Elements { get; init; }
 
+    /// <summary>
+    /// The colours a theme names for C4's levels — a person, a system, a container, a component, a deployment node, something somebody
+    /// else's — and its boundaries, each null where the theme names none and C4 grades from the accent instead.
+    /// </summary>
+    public LayoutInk? C4Person { get; init; }
+
+    public LayoutInk? C4System { get; init; }
+
+    public LayoutInk? C4Container { get; init; }
+
+    public LayoutInk? C4Component { get; init; }
+
+    public LayoutInk? C4DeploymentNode { get; init; }
+
+    public LayoutInk? C4External { get; init; }
+
+    public LayoutInk? C4Boundary { get; init; }
+
     /// <summary>What a kind of code token is drawn in, or null where the theme says nothing about it — asked once a kind.</summary>
     public Func<string, LayoutInk?> Syntax { get; init; } = static _ => null;
 
@@ -67,7 +85,13 @@ public sealed class PortableStyle
     /// <summary>The family code, and source shown as written, is set in.</summary>
     public required string MonoFont { get; init; }
 
-    public double TextSize { get; init; } = 13.5;
+    /// <summary>The face an icon content names is drawn in — the host's icon font, whose glyphs the names are read into.</summary>
+    public required LayoutFace IconFace { get; init; }
+
+    /// <summary>The size text is set at where nothing sets another — what a diagram's page is measured against.</summary>
+    public const double DefaultTextSize = 13.5;
+
+    public double TextSize { get; init; } = DefaultTextSize;
 
     /// <summary>What the reader has opened and folded, by the name each is kept by — null where nothing is kept.</summary>
     public IReadOnlyDictionary<string, bool>? Expansion { get; init; }
@@ -76,11 +100,14 @@ public sealed class PortableStyle
     public required Func<string, string> Says { get; init; }
 
     /// <summary>The face for <paramref name="family"/>, found once and kept.</summary>
-    public LayoutFace Face(string family, bool bold = false, bool italic = false)
-    {
-        if (_known.TryGetValue((family, bold, italic), out var known)) return known;
+    public LayoutFace Face(string family, bool bold = false, bool italic = false) => Face(family, bold ? 700 : 400, italic);
 
-        return _known[(family, bold, italic)] = _faces(family, bold, italic);
+    /// <summary>The face for <paramref name="family"/> at <paramref name="weight"/> — what a diagram's semibold heading is set in — found once and kept.</summary>
+    public LayoutFace Face(string family, int weight, bool italic = false)
+    {
+        if (_known.TryGetValue((family, weight, italic), out var known)) return known;
+
+        return _known[(family, weight, italic)] = _faces(family, weight, italic);
     }
 }
 
