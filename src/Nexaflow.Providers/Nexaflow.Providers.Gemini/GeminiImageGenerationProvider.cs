@@ -5,8 +5,9 @@ using Nexaflow.Providers.Common;
 namespace Nexaflow.Providers.Gemini;
 
 /// <summary>
-/// Google's image models. Gemini's own (gemini-…-image) draw from a prompt or work from up to three pictures, and may
-/// say something about what they drew; Imagen draws from a prompt only.
+/// Google's image models. Gemini's own (gemini-…-image) draw from a prompt or work from up to three pictures in ten
+/// proportions — from Gemini 3 at 1K, 2K or 4K, but for the Lite ones — and may say something about what they drew;
+/// Imagen draws from a prompt only, in five.
 /// </summary>
 public sealed class GeminiImageGenerationProvider : IImageGenerationProvider
 {
@@ -39,6 +40,18 @@ public sealed class GeminiImageGenerationProvider : IImageGenerationProvider
 
     public bool Masks => false;
 
+    public ImageSettings Settings => SettingsOf(_model);
+
+    /// <summary>What each model draws with; the first of each shape is the one it was drawn in before any other was offered.</summary>
+    internal static ImageSettings SettingsOf(string model) => IsImagen(model)
+        ? new([new(1, 1), new(16, 9), new(9, 16), new(4, 3), new(3, 4)])
+        : new([new(1, 1), new(16, 9), new(9, 16), new(3, 2), new(2, 3), new(4, 3), new(3, 4), new(5, 4), new(4, 5), new(21, 9)])
+        {
+            Resolutions = model.StartsWith("gemini-2", StringComparison.OrdinalIgnoreCase) || model.Contains("lite", StringComparison.OrdinalIgnoreCase)
+                ? []
+                : ["1K", "2K", "4K"],
+        };
+
     public async Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
     {
         try
@@ -59,19 +72,13 @@ public sealed class GeminiImageGenerationProvider : IImageGenerationProvider
 
     internal static bool IsImagen(string model) => model.StartsWith("imagen", StringComparison.OrdinalIgnoreCase);
 
-    internal static string AspectRatio(MediaShape shape) => shape switch
-    {
-        MediaShape.Landscape => "16:9",
-        MediaShape.Portrait  => "9:16",
-        _                    => "1:1",
-    };
-
     public async Task<GeneratedMedia> GenerateImageAsync(ImageGenerationRequest request, CancellationToken ct = default)
     {
         if (request.Sources.Count > MaxSources)
             throw new ArgumentException($"{_model} works from at most {MaxSources} picture(s).", nameof(request));
         if (request.Mask is not null)
-            throw new ArgumentException($"{_model} takes no mask.", nameof(request));
+                throw new ArgumentException($"{_model} takes no mask.", nameof(request));
+            if (Settings.Refusal(request) is { } refused) throw new ArgumentException($"{_model}: {refused}", nameof(request));
 
         var activity = _activityManager.StartActivity($"Gemini image ({_model})…");
         try
@@ -94,7 +101,7 @@ public sealed class GeminiImageGenerationProvider : IImageGenerationProvider
 
     private async Task<GeneratedMedia> DrawAsync(ImageGenerationRequest request, CancellationToken ct)
     {
-        var config   = new GenerateImagesConfig { NumberOfImages = 1, AspectRatio = AspectRatio(request.Shape) };
+        var config   = new GenerateImagesConfig { NumberOfImages = 1, AspectRatio = request.Aspect.ToString() };
         var response = await Client.Models.GenerateImagesAsync(_model, request.Prompt, config, ct);
         var made     = response.GeneratedImages?.FirstOrDefault();
         if (made?.Image?.ImageBytes is not { Length: > 0 } bytes)
@@ -107,7 +114,7 @@ public sealed class GeminiImageGenerationProvider : IImageGenerationProvider
         var config = new GenerateContentConfig
         {
             ResponseModalities = ["TEXT", "IMAGE"],
-            ImageConfig        = new ImageConfig { AspectRatio = AspectRatio(request.Shape) },
+            ImageConfig        = new ImageConfig { AspectRatio = request.Aspect.ToString(), ImageSize = request.Resolution?.ToUpperInvariant() },
         };
         var response = await Client.Models.GenerateContentAsync(_model, Ask(request), config, ct);
         return Read(response);

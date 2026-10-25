@@ -220,7 +220,7 @@ add it to the first-run wizard. Implement `IConfigMigration` to fix shape change
 
 ---
 
-## File browser actions — `IFileAction` / `IFolderAction` / `IFileCreateAction`
+## File browser actions — `IFileAction` / `IFolderAction` / `IFileCreateAction` / `IFileCreateWithOptions`
 
 Context actions discovered by `FileSystemFeatureRegistry` (in Core, **not** `FeatureManager`) across Core and
 every feature. Viewer-opener actions live in the owning feature; system actions (copy/rename…) live in
@@ -372,7 +372,8 @@ doc-comment is the authoritative, fuller description. Most are discovered by ref
 |---|---|
 | `IFileAction` | Context action on file(s); matched by hierarchical `ExperienceId` via `FileMapManager`. |
 | `IFolderAction` | Context action on folder(s); matched **structurally** (name / contents globs), not by experience id. |
-| `IFileCreateAction` | A "new file/folder of type X" action for the current folder. |
+| `IFileCreateAction` | A "new file/folder of type X" action for the current folder, made from its name alone. |
+| `IFileCreateWithOptions` | A kind of new item that asks for more than a name first — Gen Image, Gen Video. Offered while `IsOffered`; chosen, `OpenOptions` gives the `IFileCreateOptions` the picker shows beneath the kinds, and Create waits on their `CanCreate` and makes the item through them. Both share `IFileCreateEntry`, what the picker shows. |
 | `ICacheable` | Marker: the action has exactly one instance per `WorkspaceRuntime`, so it's cached + auto-listed. Non-cacheable actions are rehydrated instead. |
 
 ### Folder viewlets (`Viewlets/`)

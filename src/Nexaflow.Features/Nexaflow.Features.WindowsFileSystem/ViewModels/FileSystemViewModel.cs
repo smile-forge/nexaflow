@@ -120,12 +120,17 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     // ── Create overlay (the "New" button) ──────────────────────────────────────
     // A single pane: pick a file type from the icon list, name it below. The name is
     // prefilled per type, its extension follows the selected type, and a live warning
-    // shows when the resolved name already exists in the current folder.
+    // shows when the resolved name already exists in the current folder. A type that asks
+    // for options first (IFileCreateWithOptions) shows them between the two while chosen.
 
     [ObservableProperty] private bool _createOverlayVisible;
     [ObservableProperty] private CreateActionViewModel? _selectedCreateAction;
     [ObservableProperty] private string _createFileName = string.Empty;
     [ObservableProperty] private bool _createNameExists;
+
+    /// <summary>The options the chosen type asks for, opened on the current folder while it is chosen; null for a type a
+    /// name is enough for.</summary>
+    [ObservableProperty] private IFileCreateOptions? _selectedCreateOptions;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CreateCommand))]
@@ -141,7 +146,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     }
 
     /// <summary>Populates and shows the overlay for a given action set (also the unit-test seam).</summary>
-    internal void OpenCreateOverlayWith(IReadOnlyList<IFileCreateAction> actions)
+    internal void OpenCreateOverlayWith(IReadOnlyList<IFileCreateEntry> actions)
     {
         CreateActions.Clear();
         foreach (var action in actions)
@@ -158,7 +163,31 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     {
         foreach (var a in CreateActions)
             a.IsSelected = ReferenceEquals(a, value);
+        SelectedCreateOptions = value?.Action is IFileCreateWithOptions asks ? asks.OpenOptions(RealFolder(CurrentPath)) : null;
         CreateFileName = DefaultNameFor(value);   // triggers RecomputeCreateState via OnCreateFileNameChanged
+    }
+
+    /// <summary>Options left behind are closed; those now shown are followed, so Create waits on them.</summary>
+    partial void OnSelectedCreateOptionsChanged(IFileCreateOptions? oldValue, IFileCreateOptions? newValue)
+    {
+        if (oldValue is not null)
+        {
+            oldValue.PropertyChanged -= OnCreateOptionsChanged;
+            oldValue.Dispose();
+        }
+    if (newValue is not null) newValue.PropertyChanged += OnCreateOptionsChanged;
+    ApplyCreateGate();
+    }
+
+    private void OnCreateOptionsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+    if (e.PropertyName is nameof(IFileCreateOptions.CanCreate) or null) ApplyCreateGate();
+    }
+
+    /// <summary>The picker closed: the options it showed are closed with it.</summary>
+    partial void OnCreateOverlayVisibleChanged(bool value)
+    {
+        if (!value) SelectedCreateOptions = null;
     }
 
     partial void OnCreateFileNameChanged(string value) => RecomputeCreateState();
@@ -187,18 +216,29 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
                      && name.Length > 0
                      && name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
 
-        _createNameCheck?.Cancel();
-        if (!valid || string.IsNullOrEmpty(CurrentPath))
-        {
-            CreateNameExists = false;
-            CanCreate        = valid;
-            return;
-        }
+_createNameCheck?.Cancel();
+if (!valid || string.IsNullOrEmpty(CurrentPath))
+{
+CreateNameExists = false;
+_createNameFree  = valid;
+ApplyCreateGate();
+return;
+}
 
-        CanCreate = false;   // until the folder says the name is free
-        var check = _createNameCheck = new CancellationTokenSource();
-        CreateNameChecked = CheckCreateNameAsync(Path.Combine(RealFolder(CurrentPath), name), check.Token);
-    }
+_createNameFree = false;   // until the folder says the name is free
+ApplyCreateGate();
+var check = _createNameCheck = new CancellationTokenSource();
+CreateNameChecked = CheckCreateNameAsync(Path.Combine(RealFolder(CurrentPath), name), check.Token);
+}
+
+/// <summary>Whether the folder last said the name typed is valid and free; the options the kind asks for are the
+/// other half of <see cref="CanCreate"/>.</summary>
+private bool _createNameFree;
+
+/// <summary>Create waits on both halves: a free name, and options that say enough. Either changing re-gates it without
+/// asking the folder again.</summary>
+private void ApplyCreateGate() =>
+CanCreate = _createNameFree && (SelectedCreateOptions?.CanCreate ?? true);
 
     /// <summary>The newest name-taken question; an older one still waiting is cancelled.</summary>
     private CancellationTokenSource? _createNameCheck;
@@ -224,30 +264,33 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         {
             exists = false;
         }
-        if (ct.IsCancellationRequested) return;
+if (ct.IsCancellationRequested) return;
 
-        CreateNameExists = exists;
-        CanCreate        = !exists;
-    }
+CreateNameExists = exists;
+_createNameFree  = !exists;
+ApplyCreateGate();
+}
 
     [RelayCommand(CanExecute = nameof(CanCreate))]
     private async Task Create()
     {
-        var action = SelectedCreateAction?.Action;
-        if (action is null) return;
+        var entry = SelectedCreateAction?.Action;
+        if (entry is null) return;
 
         var name = ResolveCreateName();
         if (name.Length == 0) return;
 
-        CreateOverlayVisible = false;
+        // Made before the picker closes: closing it closes the options the item is made through.
         try
         {
-            await action.CreateItemAsync(RealFolder(CurrentPath), name);
+if (SelectedCreateOptions is { } options) options.Create(name);
+else if (entry is IFileCreateAction action) await action.CreateItemAsync(RealFolder(CurrentPath), name);
         }
         catch (Exception ex)
         {
             _shell.ShowError(Str.Format("WindowsFileSystem.Create.FailedFormat", name, ex.Message));
         }
+        CreateOverlayVisible = false;
         Refresh();
     }
 

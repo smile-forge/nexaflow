@@ -209,7 +209,7 @@ internal sealed class LocalAiChecker(HostModelSetup setup, IReadOnlyList<OwnedMo
         var watch = Stopwatch.StartNew();
         try
         {
-            var made = await painter.GenerateImageAsync(new ImageGenerationRequest(Picture), ct);
+            var made = await painter.GenerateImageAsync(new ImageGenerationRequest(Picture, painter.Settings.AspectFor(MediaShape.Square)), ct);
             await File.WriteAllBytesAsync(path, made.Media.Bytes, ct);
         }
         catch (LlmProviderException ex) { return new Step("Picture", false, ex.Message); }
@@ -222,7 +222,7 @@ internal sealed class LocalAiChecker(HostModelSetup setup, IReadOnlyList<OwnedMo
         var watch = Stopwatch.StartNew();
         try
         {
-            var made = await filmer.GenerateVideoAsync(new VideoGenerationRequest(Clip, MediaShape.Landscape, filmer.Lengths[0]), ct);
+            var made = await filmer.GenerateVideoAsync(new VideoGenerationRequest(Clip, filmer.Settings.AspectFor(MediaShape.Landscape), filmer.Lengths[0]), ct);
             await File.WriteAllBytesAsync(path, made.Media.Bytes, ct);
         }
         catch (LlmProviderException ex) { return new Step("Clip", false, ex.Message); }

@@ -411,7 +411,15 @@ folder is held only by a live host. `TempHygieneRulesTests` (Architecture) fails
     They assert its fifty steps, its size, a picture rather than a flat field, a stop between steps, a size it was not
     trained on refused, and the prompt read as HiDream's processor reads it; the fox it draws is attached to the run's
     results. Unset, each is **inconclusive**. How the build compares with PyTorch is
-        `tools/ai-models/hidream-o1/check_hidream_o1.py`; the sampler's port is held to HiDream's own by `HiDreamSamplerTests`.
+              `tools/ai-models/hidream-o1/check_hidream_o1.py`; the sampler's port is held to HiDream's own by `HiDreamSamplerTests`.
+  - **`MossImageModelTests`** *(`Tests.AiHost`, `TestCategory("OwnedModel")`)* — the same for MOSS-Image's parts:
+    `NEXAFLOW_TEST_MOSS` names a folder holding the build as the catalog lays it out (`encoder\Qwen3.5-9B-Q8_0.gguf`,
+    `denoiser\`, `decoder\`, `loras\`), with `NEXAFLOW_TEST_RUNTIME_PACK`. They assert its fifty guided steps, the same
+    picture from the same seed, a negative prompt and a style LoRA each changing the picture, the distillation's own
+    eight steps, and what a model takes not refused before anything loads; the pictures are attached to the run's
+    results. Unset, each is **inconclusive**. How the build and each LoRA compare with PyTorch is
+    `tools/ai-models/moss-image/check_moss_image.py` and `check_moss_loras.py`; the sampler's port is held to the
+    recipe's loop by `MossSamplerTests`.
     - **`VideoModelTests`** *(`Tests.AiHost`, `TestCategory("OwnedModel")`)* — the host filming with Wan2.2-TI2V's real
       graphs: `NEXAFLOW_TEST_VIDEO` names a folder holding the published build (`prompt-encoder\`, `denoiser\`,
       `denoiser-fast\`, `decoder\`, `frame-encoder\`) and `NEXAFLOW_TEST_RUNTIME_PACK` the CUDA pack. They assert a clip's

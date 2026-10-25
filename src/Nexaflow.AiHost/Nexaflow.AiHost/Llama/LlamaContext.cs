@@ -121,7 +121,7 @@ internal sealed unsafe class LlamaContext : IDisposable
 
     private IntPtr Handle => _context != IntPtr.Zero ? _context : throw new ObjectDisposedException(nameof(LlamaContext));
 
-    private static void Check(int result)
+    internal static void Check(int result)
     {
         switch (result)
         {

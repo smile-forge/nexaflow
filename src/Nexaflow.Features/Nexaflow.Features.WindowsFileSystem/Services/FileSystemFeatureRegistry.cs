@@ -14,7 +14,7 @@ namespace Nexaflow.Features.WindowsFileSystem.Services;
 /// <summary>
 /// Owns discovery, construction and caching of the file-system feature
 /// contracts: <see cref="IFileAction"/>, <see cref="IFolderAction"/>,
-/// <see cref="IFileCreateAction"/> and <see cref="IFolderViewlet"/>.
+/// <see cref="IFileCreateAction"/>, <see cref="IFileCreateWithOptions"/> and <see cref="IFolderViewlet"/>.
 /// </summary>
 public sealed class FileSystemFeatureRegistry
 {
@@ -47,6 +47,7 @@ public sealed class FileSystemFeatureRegistry
     private readonly List<Type> _fileActionTypes       = [];
     private readonly List<Type> _folderActionTypes     = [];
     private readonly List<Type> _fileCreateActionTypes = [];
+    private readonly List<Type> _fileCreateWithOptionsTypes = [];
     private readonly List<Type> _folderViewletTypes    = [];
     private readonly List<Type> _thisPcProviderTypes   = [];
 
@@ -87,6 +88,9 @@ public sealed class FileSystemFeatureRegistry
         foreach (var t in shell.DiscoverImplementations<IFileCreateAction>())
             if (typeof(ICacheable).IsAssignableFrom(t)) _fileCreateActionTypes.Add(t);
 
+        foreach (var t in shell.DiscoverImplementations<IFileCreateWithOptions>())
+            if (typeof(ICacheable).IsAssignableFrom(t)) _fileCreateWithOptionsTypes.Add(t);
+
         // No ICacheable filter: a provider is inherently one-per-shell, and the SAME instance must be
         // handed out every time or the Changed subscription the browser holds would be on a dead object.
         // The volumes are This PC's own rows, offered whatever the catalog holds; every other provider is discovered.
@@ -113,6 +117,7 @@ public sealed class FileSystemFeatureRegistry
     public IReadOnlyList<IFileAction>       FileActions       => Materialize<IFileAction>(_fileActionTypes);
     public IReadOnlyList<IFolderAction>     FolderActions     => Materialize<IFolderAction>(_folderActionTypes);
     public IReadOnlyList<IFileCreateAction> FileCreateActions => Materialize<IFileCreateAction>(_fileCreateActionTypes);
+    public IReadOnlyList<IFileCreateWithOptions> FileCreateWithOptions => Materialize<IFileCreateWithOptions>(_fileCreateWithOptionsTypes);
     public IReadOnlyList<IFolderViewlet>    FolderViewlets    => Materialize<IFolderViewlet>(_folderViewletTypes);
 
     /// <summary>The This PC row contributors. Instances are cached, so the object returned here is the

@@ -1,0 +1,492 @@
+{
+  "branch": "claude/create-menu-image-video-gen-35298e",
+  "nodes": {
+    "winfs-create-options": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/FileActions/IFileCreateWithOptions.cs",
+          "class": "IFileCreateWithOptions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/FileActions/IFileCreateWithOptions.cs",
+          "class": "IFileCreateOptions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ViewModels/FileSystemViewModel.cs",
+          "class": "FileSystemViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Services/FileActionManager.cs",
+          "class": "FileActionManager"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemViewModelCreateTests.cs",
+            "class": "FileSystemViewModelCreateTests"
+          }
+        ]
+      }
+    },
+    "images-gen-image": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/FileActions/GenerateImageCreateAction.cs",
+          "class": "GenerateImageCreateAction"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/GenerateImageOptions.cs",
+          "class": "GenerateImageOptions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/GenerateImageOptionsView.xaml"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Generation/GenerationChoices.cs",
+          "class": "GenerationChoices"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/GenerateImageOptionsTests.cs",
+            "class": "GenerateImageOptionsTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesGenerateJourneyTests.cs",
+            "class": "ImagesGenerateJourneyTests"
+          }
+        ],
+        "theming": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/GenerateImageOptionsView.xaml"
+          }
+        ]
+      }
+    },
+    "video-gen-video": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Video/FileActions/GenerateVideoCreateAction.cs",
+          "class": "GenerateVideoCreateAction"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Video/ViewModels/GenerateVideoOptions.cs",
+          "class": "GenerateVideoOptions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Video/Views/GenerateVideoOptionsView.xaml"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Generation/GenerationChoices.cs",
+          "class": "GenerationChoices"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Video/GenerateVideoOptionsTests.cs",
+            "class": "GenerateVideoOptionsTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Video/VideoGenerateJourneyTests.cs",
+            "class": "VideoGenerateJourneyTests"
+          }
+        ],
+        "theming": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Video/Views/GenerateVideoOptionsView.xaml"
+          }
+        ]
+      }
+    },
+    "agent-generation-tools": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Generation/GenerationTools.cs",
+          "class": "GenerationTools"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Generation/GenerateImageTool.cs",
+          "class": "GenerateImageTool"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Generation/GenerateSpeechTool.cs",
+          "class": "GenerateSpeechTool"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Generation/GenerateVideoTool.cs",
+          "class": "GenerateVideoTool"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Generation/GeneratedFiles.cs",
+          "class": "GeneratedFiles"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/MediaMaking.cs",
+          "class": "PictureMaking"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/AIService.cs",
+          "class": "AIService"
+        }
+      ]
+    },
+    "providers-image-generation": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Common/IImageGenerationProvider.cs",
+          "class": "IImageGenerationProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.OpenAI/OpenAIImageGenerationProvider.cs",
+          "class": "OpenAIImageGenerationProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Gemini/GeminiImageGenerationProvider.cs",
+          "class": "GeminiImageGenerationProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Common/Nexaflow.Providers.Common.csproj"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Common/GenerationSettings.cs",
+          "class": "ImageSettings"
+        }
+      ]
+    },
+    "providers-video-generation": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Common/IVideoGenerationProvider.cs",
+          "class": "IVideoGenerationProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.OpenAI/OpenAIVideoGenerationProvider.cs",
+          "class": "OpenAIVideoGenerationProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Gemini/GeminiVideoGenerationProvider.cs",
+          "class": "GeminiVideoGenerationProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Common/Nexaflow.Providers.Common.csproj"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Common/GenerationSettings.cs",
+          "class": "VideoSettings"
+        }
+      ]
+    },
+    "owned-images-moss": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/moss-image/README.md"
+        },
+        {
+          "type": "code",
+          "doc": "tools/ai-models/moss-image/build_moss_image.py"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/MossDrawing.cs",
+          "class": "MossDrawing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/MossSampler.cs",
+          "class": "MossSampler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/MossDenoiser.cs",
+          "class": "MossDenoiser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/MossDecoder.cs",
+          "class": "MossDecoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/owned-models.json"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/local-ai.md"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/MossSamplerTests.cs",
+            "class": "MossSamplerTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/MossImageModelTests.cs",
+            "class": "MossImageModelTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedModelsTests.cs",
+            "class": "OwnedModelsTests"
+          }
+        ]
+      }
+    },
+    "opt-shell-adult-content": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ShellConfig.cs",
+          "class": "ShellConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Generation/GenerateImageTool.cs",
+          "class": "GenerateImageTool",
+          "method": "Offerable"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/ShellConfigControl.xaml"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Generation/GenerationToolsTests.cs",
+            "class": "GenerationToolsTests",
+            "method": "TheLorasAModelDrawsWith_AreOffered_OneMeantForAdultsOnly_OnlyWhileTheAppAllowsIt"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/OptionsJourneyTests.cs",
+            "class": "OptionsJourneyTests",
+            "method": "DriveShell"
+          }
+        ],
+        "theming": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Controls/ShellConfigControl.xaml"
+          }
+        ]
+      }
+    },
+    "owned-images-moss-encoder": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/MossPromptEncoder.cs",
+          "class": "MossPromptEncoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Llama/LlamaHiddenStates.cs",
+          "class": "LlamaHiddenStates"
+        },
+        {
+          "type": "code",
+          "doc": "tools/ai-models/moss-image/compare_moss_encoder.py"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/MossImageModelTests.cs",
+            "class": "MossImageModelTests"
+          }
+        ]
+      }
+    },
+    "owned-images-moss-loras": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/DataSpaceSampler.cs",
+          "class": "DataSpaceSampler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedModels.cs",
+          "class": "OwnedLora"
+        },
+        {
+          "type": "code",
+          "doc": "tools/ai-models/moss-image/convert_moss_loras.py"
+        },
+        {
+          "type": "code",
+          "doc": "tools/ai-models/moss-image/check_moss_loras.py"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedImageGenerationProviderTests.cs",
+            "class": "OwnedImageGenerationProviderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesMossJourneyTests.cs",
+            "class": "ImagesMossJourneyTests"
+          }
+        ]
+      }
+    },
+    "opt-shell-ai-protection": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ShellConfig.cs",
+          "class": "ShellConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Generation/GenerateImageTool.cs",
+          "class": "GenerateImageTool",
+          "method": "Offerable"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/ShellConfigControl.xaml"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/ProtectedAudience.cs",
+          "class": "ProtectedAudience"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/PictureChecking.cs",
+          "class": "PictureChecking"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/OptionsJourneyTests.cs",
+            "class": "OptionsJourneyTests",
+            "method": "DriveShell"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Generation/GenerationToolsTests.cs",
+            "class": "GenerationToolsTests",
+            "method": "TheLorasAModelDrawsWith_AreOffered_OneMeantForAdultsOnly_OnlyWhileProtectionIsOff"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ProtectedAudienceTests.cs",
+            "class": "ProtectedAudienceTests"
+          }
+        ]
+      }
+    },
+    "picture-checking": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Checking/PictureSafetyClassifier.cs",
+          "class": "PictureSafetyClassifier"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Checking/CheckPictureHandler.cs",
+          "class": "CheckPictureHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedPictureChecking.cs",
+          "class": "OwnedPictureChecking"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/PictureChecking.cs",
+          "class": "PictureChecking"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/PictureCheckingTests.cs",
+            "class": "PictureCheckingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedPictureCheckingTests.cs",
+            "class": "OwnedPictureCheckingTests"
+          }
+        ],
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "docs/ai-tools.md"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 25,
+  "touched_nodes": [
+    "agent-generation-tools",
+    "images-gen-image",
+    "opt-shell-adult-content",
+    "opt-shell-ai-protection",
+    "owned-images-moss",
+    "owned-images-moss-encoder",
+    "owned-images-moss-loras",
+    "picture-checking",
+    "providers-image-generation",
+    "providers-video-generation",
+    "video-gen-video",
+    "winfs-create-options"
+  ]
+}

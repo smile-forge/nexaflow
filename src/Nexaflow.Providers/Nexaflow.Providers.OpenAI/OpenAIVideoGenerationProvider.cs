@@ -11,9 +11,9 @@ namespace Nexaflow.Providers.OpenAI;
 #pragma warning disable OPENAI001 // the videos client is marked for evaluation in the SDK
 
 /// <summary>
-/// OpenAI's Sora models: a clip of 4, 8 or 12 seconds at 720p, landscape or portrait, optionally starting from a
-/// picture of exactly that size. The job is created, watched until it finishes — its progress shown on the activity —
-/// and the MP4 downloaded.
+/// OpenAI's Sora models: a clip of 4, 8 or 12 seconds at 720p, landscape or portrait — sora-2-pro also at 1792 by 1024
+/// either way up — optionally starting from a picture of exactly that size. The job is created, watched until it
+/// finishes — its progress shown on the activity — and the MP4 downloaded.
 /// </summary>
 public sealed class OpenAIVideoGenerationProvider : IVideoGenerationProvider
 {
@@ -46,7 +46,14 @@ public sealed class OpenAIVideoGenerationProvider : IVideoGenerationProvider
 
     public bool StartsFromImages => true;
 
-    public (int Width, int Height)? FirstFrameSize(MediaShape shape) => Frame(shape);
+    public VideoSettings Settings => SettingsOf(_model);
+
+    /// <summary>The proportions each model makes clips in; neither takes a seed or a size beyond its proportions.</summary>
+    internal static VideoSettings SettingsOf(string model) => model.StartsWith("sora-2-pro", StringComparison.OrdinalIgnoreCase)
+        ? new([new(16, 9), new(9, 16), new(7, 4), new(4, 7)])
+        : new([new(16, 9), new(9, 16)]);
+
+    public (int Width, int Height)? FirstFrameSize(MediaAspect aspect, string? resolution) => Frame(aspect);
 
     public async Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
     {
@@ -65,18 +72,21 @@ public sealed class OpenAIVideoGenerationProvider : IVideoGenerationProvider
 
     internal static bool IsVideoModel(string model) => model.StartsWith("sora", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>The 720p frame each shape is made at.</summary>
-    internal static (int Width, int Height) Frame(MediaShape shape) => shape switch
+    /// <summary>The frame each of its proportions is made at.</summary>
+    internal static (int Width, int Height) Frame(MediaAspect aspect) => (aspect.Width, aspect.Height) switch
     {
-        MediaShape.Landscape => (1280, 720),
-        MediaShape.Portrait  => (720, 1280),
-        _ => throw new ArgumentOutOfRangeException(nameof(shape), shape, "Sora makes no square clips."),
+        (16, 9) => (1280, 720),
+        (9, 16) => (720, 1280),
+        (7, 4)  => (1792, 1024),
+        (4, 7)  => (1024, 1792),
+        _ => throw new ArgumentOutOfRangeException(nameof(aspect), aspect, "Sora makes no clips in those proportions."),
     };
 
     public async Task<GeneratedMedia> GenerateVideoAsync(VideoGenerationRequest request, CancellationToken ct = default)
     {
         if (!Lengths.Contains(request.Seconds))
-            throw new ArgumentException($"{_model} makes clips of {string.Join(", ", Lengths)} seconds.", nameof(request));
+                throw new ArgumentException($"{_model} makes clips of {string.Join(", ", Lengths)} seconds.", nameof(request));
+            if (Settings.Refusal(request) is { } refused) throw new ArgumentException($"{_model}: {refused}", nameof(request));
 
         var label    = $"OpenAI video ({_model})";
         var activity = _activityManager.StartActivity(label + "…");
@@ -114,7 +124,7 @@ public sealed class OpenAIVideoGenerationProvider : IVideoGenerationProvider
     /// <summary>The job as a form — the one encoding that also carries the picture to start from.</summary>
     internal static async Task<(BinaryData Body, string ContentType)> RequestBodyAsync(string model, VideoGenerationRequest request, CancellationToken ct)
     {
-        var (width, height) = Frame(request.Shape);
+        var (width, height) = Frame(request.Aspect);
         using var form = new MultipartFormDataContent
         {
             { new StringContent(model), "model" },

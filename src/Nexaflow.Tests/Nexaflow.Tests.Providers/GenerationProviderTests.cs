@@ -81,14 +81,14 @@ public class GenerationProviderTests
         var activities = new FakeActivityManager();
         var dall = new OpenAIImageGenerationProvider(activities, new OpenAIConfig { ApiKey = "unused" }, new ProviderModel("dall-e-3"));
 
-        await Assert.ThrowsExactlyAsync<ArgumentException>(() => dall.GenerateImageAsync(new ImageGenerationRequest("a fox") { Sources = [Png] }));
+        await Assert.ThrowsExactlyAsync<ArgumentException>(() => dall.GenerateImageAsync(new ImageGenerationRequest("a fox", new(1, 1)) { Sources = [Png] }));
         Assert.AreEqual(0, activities.StartedCount);
     }
 
     [TestMethod]
     public async Task Sora_IsAskedInAForm_CarryingThePictureToStartFrom()
     {
-        var request = new VideoGenerationRequest("a fox runs", MediaShape.Portrait, 8) { FirstFrame = Png };
+        var request = new VideoGenerationRequest("a fox runs", new MediaAspect(9, 16), 8) { FirstFrame = Png };
 
         var (body, contentType) = await OpenAIVideoGenerationProvider.RequestBodyAsync("sora-2", request, default);
         var form = Encoding.UTF8.GetString(body.ToArray());
@@ -105,9 +105,10 @@ public class GenerationProviderTests
         var sora = new OpenAIVideoGenerationProvider(new FakeActivityManager(), new OpenAIConfig(), new ProviderModel("sora-2"));
 
         CollectionAssert.AreEqual(new[] { 4, 8, 12 }, sora.Lengths.ToArray());
-        Assert.AreEqual((1280, 720), sora.FirstFrameSize(MediaShape.Landscape));
-        Assert.AreEqual((720, 1280), sora.FirstFrameSize(MediaShape.Portrait));
-        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => sora.FirstFrameSize(MediaShape.Square));
+        CollectionAssert.AreEqual(new[] { "16:9", "9:16" }, sora.Settings.Aspects.Select(a => a.ToString()).ToArray());
+        Assert.AreEqual((1280, 720), sora.FirstFrameSize(new MediaAspect(16, 9), null));
+        Assert.AreEqual((720, 1280), sora.FirstFrameSize(new MediaAspect(9, 16), null));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => sora.FirstFrameSize(new MediaAspect(1, 1), null));
     }
 
     [TestMethod]
@@ -144,7 +145,7 @@ public class GenerationProviderTests
     [TestMethod]
     public void Gemini_IsAskedWithThePromptThenThePicturesItSpeaksOf()
     {
-        var ask = GeminiImageGenerationProvider.Ask(new ImageGenerationRequest("make it night") { Sources = [Png] });
+        var ask = GeminiImageGenerationProvider.Ask(new ImageGenerationRequest("make it night", new(1, 1)) { Sources = [Png] });
 
         Assert.AreEqual("user", ask.Role);
         Assert.AreEqual("make it night", ask.Parts![0].Text);
@@ -177,10 +178,95 @@ public class GenerationProviderTests
     {
         CollectionAssert.AreEqual(new[] { 4, 6, 8 }, GeminiVideoGenerationProvider.LengthsOf("veo-3.0-generate-001").ToArray());
         CollectionAssert.AreEqual(new[] { 5, 6, 7, 8 }, GeminiVideoGenerationProvider.LengthsOf("veo-2.0-generate-001").ToArray());
-        Assert.AreEqual("9:16", GeminiVideoGenerationProvider.AspectRatio(MediaShape.Portrait));
-        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => GeminiVideoGenerationProvider.AspectRatio(MediaShape.Square));
+        var veo = GeminiVideoGenerationProvider.SettingsOf("veo-3.0-generate-001");
+        CollectionAssert.AreEqual(new[] { "16:9", "9:16" }, veo.Aspects.Select(a => a.ToString()).ToArray(), "no square clip among them");
+        Assert.AreEqual(new MediaAspect(16, 9), veo.AspectFor(MediaShape.Square), "a square one asked for is made landscape");
         Assert.IsNull(new GeminiVideoGenerationProvider(new FakeActivityManager(), new GeminiConfig(), new ProviderModel("veo-3.0-generate-001"))
-                          .FirstFrameSize(MediaShape.Landscape), "Veo takes a first frame of any size");
+                          .FirstFrameSize(new MediaAspect(16, 9), null), "Veo takes a first frame of any size");
+    }
+
+    [TestMethod]
+    public void Veo_OffersTheSizesAndSeedEachGenerationTakes_ItsLargerSizesAtEightSecondsOnly()
+    {
+        static string Sizes(VideoSettings settings) =>
+            string.Join(", ", settings.Resolutions.Select(r => r.OnlyLengths.Count == 0 ? r.Name : $"{r.Name}@{string.Join("/", r.OnlyLengths)}"));
+
+        var three = GeminiVideoGenerationProvider.SettingsOf("veo-3.0-generate-001");
+        Assert.AreEqual("720p, 1080p@8, 4k@8", Sizes(three));
+        Assert.IsTrue(three.Seeds, "Veo 3.0 takes a seed");
+        Assert.AreEqual("720p, 1080p@8", Sizes(GeminiVideoGenerationProvider.SettingsOf("veo-3.1-lite-generate-preview")), "Lite makes no 4k");
+        Assert.IsFalse(GeminiVideoGenerationProvider.SettingsOf("veo-3.1-generate-preview").Seeds);
+        Assert.AreEqual("", Sizes(GeminiVideoGenerationProvider.SettingsOf("veo-2.0-generate-001")), "Veo 2 makes one size");
+
+        Assert.AreEqual("At 1080p it makes clips of 8 seconds only.",
+                        three.Refusal(new VideoGenerationRequest("rain", new MediaAspect(16, 9), 4) { Resolution = "1080p" }));
+        Assert.IsNull(three.Refusal(new VideoGenerationRequest("rain", new MediaAspect(16, 9), 8) { Resolution = "1080P", Seed = 1 }));
+    }
+
+    [TestMethod]
+    public void Sora2Pro_AlsoMakesItsLargerFrame_EitherWayUp()
+    {
+        var pro = OpenAIVideoGenerationProvider.SettingsOf("sora-2-pro");
+        CollectionAssert.AreEqual(new[] { "16:9", "9:16", "7:4", "4:7" }, pro.Aspects.Select(a => a.ToString()).ToArray());
+        Assert.AreEqual((1792, 1024), OpenAIVideoGenerationProvider.Frame(new MediaAspect(7, 4)));
+        Assert.IsFalse(pro.Seeds, "Sora takes no seed");
+    }
+
+    [TestMethod]
+    public void OpenAI_OffersEachModelsDetail_AndTransparencyOnlyForGptImage()
+    {
+        var gpt = OpenAIImageGenerationProvider.SettingsOf("gpt-image-1");
+        CollectionAssert.AreEqual(new[] { ImageDetail.Low, ImageDetail.Medium, ImageDetail.High }, gpt.Details.ToArray());
+        Assert.IsTrue(gpt.TransparentBackgrounds);
+        Assert.AreEqual("high", OpenAIImageGenerationProvider.Quality("gpt-image-1", ImageDetail.High).ToString());
+
+        var dall = OpenAIImageGenerationProvider.SettingsOf("dall-e-3");
+        CollectionAssert.AreEqual(new[] { "1:1", "7:4", "4:7" }, dall.Aspects.Select(a => a.ToString()).ToArray(), "its 1792 by 1024 frames");
+        Assert.IsFalse(dall.TransparentBackgrounds);
+        Assert.AreEqual("hd", OpenAIImageGenerationProvider.Quality("dall-e-3", ImageDetail.High).ToString());
+    }
+
+    [TestMethod]
+    public void Gemini_OffersTenProportions_AndLargerSizesFromGemini3_ImagenFive()
+    {
+        var three = GeminiImageGenerationProvider.SettingsOf("gemini-3-pro-image-preview");
+        Assert.AreEqual(10, three.Aspects.Count);
+        Assert.AreEqual(new MediaAspect(16, 9), three.AspectFor(MediaShape.Landscape), "a landscape asked for by shape alone is 16:9");
+        CollectionAssert.AreEqual(new[] { "1K", "2K", "4K" }, three.Resolutions.ToArray());
+        Assert.AreEqual(0, GeminiImageGenerationProvider.SettingsOf("gemini-2.5-flash-image").Resolutions.Count, "Gemini 2.5 draws at one size");
+        Assert.AreEqual(0, GeminiImageGenerationProvider.SettingsOf("gemini-3.1-flash-lite-image").Resolutions.Count, "and the Lite ones");
+
+        var imagen = GeminiImageGenerationProvider.SettingsOf("imagen-4.0-generate-001");
+        Assert.AreEqual("1:1, 16:9, 9:16, 4:3, 3:4", string.Join(", ", imagen.Aspects));
+        Assert.IsFalse(imagen.Seeds);
+    }
+
+    [TestMethod]
+    public void AnAspect_KeepsTheTermsItIsNamedIn_EqualsTheSameProportions_AndIsReadOnlyFromTwoPositiveNumbers()
+    {
+        Assert.AreEqual(new MediaAspect(7, 4), new MediaAspect(1344, 768), "equal proportions, whatever their terms");
+        Assert.AreEqual(new MediaAspect(7, 4).GetHashCode(), new MediaAspect(1344, 768).GetHashCode());
+        Assert.AreEqual("21:9", new MediaAspect(21, 9).ToString(), "in the terms a model names it");
+        Assert.AreEqual("16:9", MediaAspect.Of(2560, 1440).ToString(), "a frame's, in lowest terms");
+        Assert.AreEqual(MediaShape.Portrait, new MediaAspect(9, 16).Shape);
+        Assert.AreEqual(new MediaAspect(21, 9), MediaAspect.Parse(" 21 : 9 "));
+        Assert.IsNull(MediaAspect.Parse("16x9"));
+        Assert.IsNull(MediaAspect.Parse("0:9"));
+        Assert.IsNull(MediaAspect.Parse("-4:3"));
+    }
+
+    [TestMethod]
+    public void ImageSettings_RefuseWhatTheModelDoesNotDo_NamingWhatItDoes()
+    {
+        var settings = new ImageSettings([new(1, 1), new(3, 2)]) { Resolutions = ["1K", "2K"], Seeds = true };
+
+        Assert.IsNull(settings.Refusal(new ImageGenerationRequest("a fox", new(3, 2)) { Resolution = "2k", Seed = 0 }));
+        Assert.AreEqual("It draws at 1:1, 3:2, not 16:9.", settings.Refusal(new ImageGenerationRequest("a fox", new(16, 9))));
+        Assert.AreEqual("It draws at 1K, 2K, not 4K.", settings.Refusal(new ImageGenerationRequest("a fox", new(1, 1)) { Resolution = "4K" }));
+        Assert.AreEqual("A seed is 0 or more.", settings.Refusal(new ImageGenerationRequest("a fox", new(1, 1)) { Seed = -1 }));
+        Assert.AreEqual("It takes no level of detail.", settings.Refusal(new ImageGenerationRequest("a fox", new(1, 1)) { Detail = ImageDetail.High }));
+        Assert.AreEqual("It is told nothing to keep out.", settings.Refusal(new ImageGenerationRequest("a fox", new(1, 1)) { NegativePrompt = "boats" }));
+        Assert.AreEqual("It draws no transparent background.", settings.Refusal(new ImageGenerationRequest("a fox", new(1, 1)) { TransparentBackground = true }));
     }
 
     [TestMethod]

@@ -15,13 +15,33 @@ public interface IImageGenerationProvider : IAiProvider
     /// <summary>Whether it takes a <see cref="ImageGenerationRequest.Mask"/> over the first source.</summary>
     bool Masks { get; }
 
+    /// <summary>What a picture may be asked for with besides its prompt and sources.</summary>
+    ImageSettings Settings { get; }
+
     Task<GeneratedMedia> GenerateImageAsync(ImageGenerationRequest request, CancellationToken ct = default);
 }
 
 /// <param name="Prompt">What to draw, or what to change in the sources.</param>
-/// <param name="Shape">The picture's proportions.</param>
-public sealed record ImageGenerationRequest(string Prompt, MediaShape Shape = MediaShape.Square)
+/// <param name="Aspect">The picture's proportions: one of the model's <see cref="ImageSettings.Aspects"/>.</param>
+public sealed record ImageGenerationRequest(string Prompt, MediaAspect Aspect)
 {
+    /// <summary>One of the model's <see cref="ImageSettings.Resolutions"/>; null for its own.</summary>
+    public string? Resolution { get; init; }
+
+    /// <summary>One of the model's <see cref="ImageSettings.Details"/>; null for its own.</summary>
+    public ImageDetail? Detail { get; init; }
+
+    /// <summary>The seed it draws from, 0 or more, for a model that <see cref="ImageSettings.Seeds"/>; null for one of its choosing.</summary>
+    public int? Seed { get; init; }
+
+    /// <summary>What to keep out of the picture, for a model that takes <see cref="ImageSettings.NegativePrompts"/>.</summary>
+    public string? NegativePrompt { get; init; }
+
+    /// <summary>Drawn on a transparent background, by a model that <see cref="ImageSettings.TransparentBackgrounds"/>.</summary>
+    public bool TransparentBackground { get; init; }
+
+    /// <summary>One of the model's <see cref="ImageSettings.Loras"/>, by its id; null for none.</summary>
+    public string? Lora { get; init; }
     /// <summary>Images to work from, at most <see cref="IImageGenerationProvider.MaxSources"/>.</summary>
     public IReadOnlyList<MediaBytes> Sources { get; init; } = [];
 
