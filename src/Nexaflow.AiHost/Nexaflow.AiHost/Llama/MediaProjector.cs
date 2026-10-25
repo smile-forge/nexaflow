@@ -108,7 +108,7 @@ internal sealed unsafe class MediaProjector : IDisposable
         next = context.Read(handle =>
         {
             int past;
-            int result = MtmdNative.EvalChunk(Handle, handle, piece.Chunk, position, sequence, LlamaContext.Batch, sample, &past);
+            int result = MtmdNative.EvalChunk(Handle, handle, piece.Chunk, position, sequence, context.Batch, sample, &past);
             after = past;
             return result;
         }, sample, sampler);

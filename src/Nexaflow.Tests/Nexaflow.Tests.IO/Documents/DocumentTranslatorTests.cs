@@ -193,6 +193,23 @@ public class DocumentTranslatorTests
                             .Contains("The passage before"), "a chapter starts afresh");
     }
 
+    [TestMethod]
+    public async Task EachSectionOfAChapter_IsReadThroughOnItsOwn_ItsPassagesLedIntoByTheOneBeforeInIt()
+    {
+        var model = ScriptedModel.Plain(context: 1000);
+        var source = $"# Pets\n\n## Dogs\n\n{Company("Dogs")}\n\n### Hounds\n\n{Company("Hounds")}\n\n{Company("Beagles")}\n\n### Terriers\n\n{Company("Terriers")}\n\n"
+                     + $"## Cats\n\n{Company("Cats")}\n";
+
+        var translated = await Translate(model, new MemoryNotes(), source: source);
+
+        foreach (var name in new[] { "Dogs", "Hounds", "Beagles", "Terriers", "Cats" }) StringAssert.Contains(translated, Company(name).ToUpperInvariant());
+        var asked = model.Of(ScriptedModel.Translation);
+        string Asking(string name) => asked.Single(question => ScriptedModel.Pieces(question).Any(piece => piece.StartsWith($"{name} are", StringComparison.Ordinal)));
+        Assert.IsTrue(Asking("Beagles").Contains("The passage before"), "a passage is led into by the one before it in its section");
+        Assert.IsFalse(Asking("Hounds").Contains("The passage before"), "a section starts afresh, not led into by its chapter's opening");
+        Assert.IsFalse(Asking("Terriers").Contains("The passage before"), "nor by the section before it");
+    }
+
     /// <summary>A document of a paragraph for each of <paramref name="names"/> under one title — one chapter, read straight through.</summary>
     private static string Paragraphs(params string[] names) => "# Pets\n\n" + string.Concat(names.Select(name => $"{Company(name)}\n\n"));
 
@@ -546,5 +563,19 @@ public class DocumentTranslatorTests
             Assert.IsTrue(leftOut.Contains(again.Key), $"only what was left out is asked for again, not '{again.Key}'");
             Assert.AreEqual(2, again.Count(), "and that once more");
         }
+    }
+
+    [TestMethod]
+    public async Task TheLongestChapter_IsStartedFirst_SoItIsNeverReadThroughAloneAtTheEnd()
+    {
+        // A model writing two answers at once is asked one at a time, the other left for whoever else asks it.
+        var model = new ScriptedModel((instructions, asked) => new(ScriptedModel.Answer(instructions, asked), DocumentReplyEnd.Finished), repliesAtOnce: 2);
+        const string source = "# Short\n\nDogs bark.\n\n# Long\n\nCats purr loudly whenever they are fed, and sleep in the sun all afternoon.\n";
+
+        await Translate(model, new MemoryNotes(), source: source);
+
+        var asked = model.Of(ScriptedModel.Translation);
+        StringAssert.Contains(asked[0], "Cats purr", "the longer chapter first");
+        StringAssert.Contains(asked[^1], "Dogs bark", "and the shorter after it");
     }
 }

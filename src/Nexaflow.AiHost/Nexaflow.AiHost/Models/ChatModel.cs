@@ -18,8 +18,9 @@ internal sealed class ChatModel : IHostModel
         Model     = model;
         Projector = projector;
         Template  = template;
-        Context   = new LlamaContext(model, spec.ContextTokens, ConversationLog.Sequences);
-        Rounds    = new TokenRounds(Context);
+        Context   = new LlamaContext(model, spec.ContextTokens, spec.Sequences, spec.BatchTokens, spec.ContextCache);
+        Prompts   = new PromptReads(Context);
+        Rounds    = new TokenRounds(Context, Prompts);
         ToolCalls = ToolCallSyntax.Of(model.SpecialToken, templateSource);
         Thinking  = ThinkingSyntax.Of(model.SpecialToken);
         Conversations = new ConversationLog(this);
@@ -30,6 +31,9 @@ internal sealed class ChatModel : IHostModel
     public LlamaModel Model { get; }
 
     public LlamaContext Context { get; }
+
+    /// <summary>The prompts being read in its conversations, read together.</summary>
+    public PromptReads Prompts { get; }
 
     /// <summary>The replies being written in its conversations, each token of every one read together.</summary>
     public TokenRounds Rounds { get; }
@@ -65,7 +69,7 @@ internal sealed class ChatModel : IHostModel
     {
         if (spec.File is null) throw new HostRequestException(HostErrorKind.Invalid, $"{spec.Id} names no GGUF to load.");
         IntPtr? device = spec.Device is { } number ? LlamaBackends.Gpus[number].Device : null;
-        var model = LlamaModel.Load(Path.Combine(spec.Folder, spec.File), device);
+        var model = LlamaModel.Load(Path.Combine(spec.Folder, spec.File), device, spec.GpuLayers);
         MediaProjector? projector = null;
         try
         {

@@ -111,4 +111,6 @@ public enum LlmUrgency
 /// <summary>Metadata about a specific LLM model.</summary>
 /// <param name="ContextWindowTokens">Maximum prompt + completion tokens the model accepts.</param>
 /// <param name="DisplayName">Optional human-readable name.</param>
-public sealed record ModelInfo(int ContextWindowTokens, string? DisplayName = null);
+/// <param name="RepliesAtOnce">How many replies the model writes at once, sharing <paramref name="ContextWindowTokens"/> between them —
+/// a model run on this machine; null where each reply has the whole window to itself.</param>
+public sealed record ModelInfo(int ContextWindowTokens, string? DisplayName = null, int? RepliesAtOnce = null);

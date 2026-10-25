@@ -26,6 +26,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
         using var lease = await models.AcquireAsync(request.Model, resident: false,
             stage => reply(new Progress(request.RequestId, stage, 0, 0)), ct);
         var model = lease.As<ChatModel>();
+        using var answering = await model.Conversations.AnsweringAsync(ct);
         using var attended = gpu.Engage(request.Priority, model.Spec.Device);   // a young job on its card waits for this reply
 
         LiveConversation? conversation = model.Conversations.TakeContinued(request.Turns);
@@ -73,15 +74,23 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
         => ConversationMatch.Delta(conversation.Read, conversation.Prompt, conversation.StoppedAt, turns,
                                    (t, generationPrompt) => ChatPrompt.Render(model, t, generationPrompt, tools, thinks));
 
-    /// <summary>Reads <paramref name="text"/> into the conversation — its text in slices, each medium whole, a step
-    /// each — and chooses the first token of the reply with the last. Returns the tokens read.</summary>
+    /// <summary>Reads <paramref name="text"/> into the conversation — its text in slices, read with whatever else is being
+    /// read (<see cref="PromptReads"/>), each medium whole in a step of its own — and chooses the first token of the reply with
+    /// the last. A conversation started afresh with a prompt of text alone begins with the opening it shares with prompts read
+    /// lately, where there is one (<see cref="ConversationLog.OpeningFor"/>), and reads only what follows it. Returns the tokens
+    /// read.</summary>
     private async Task<int> ReadAsync(ChatModel model, LiveConversation conversation, string text, IReadOnlyList<ChatMedia> media,
                                       RequestPriority priority, CancellationToken ct)
     {
         using var prompt = model.Prepare(text, [.. media.Select(Bytes)]);
-        model.Conversations.MakeRoom(conversation, prompt.Tokens);
-
         var pieces = prompt.Pieces;
+
+        int opened = 0;
+        if (conversation.Length == 0 && pieces is [{ IsText: true, Tokens: { } all }] && model.Conversations.OpeningFor(all) is { } opening
+            && await OpenedAsync(model, opening, priority, ct) && model.Conversations.Open(conversation, opening))
+            opened = opening.Tokens.Length;
+        await model.Conversations.MakeRoomAsync(conversation, prompt.Tokens - opened, ct);
+
         for (int p = 0; p < pieces.Count; p++)
         {
             var piece = pieces[p];
@@ -96,17 +105,47 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
                 continue;
             }
             var tokens = piece.Tokens!;
-            for (int at = 0; at < tokens.Length; at += LlamaContext.Batch)
-            {
-                int count = Math.Min(LlamaContext.Batch, tokens.Length - at);
-                using (await gpu.NextAsync(priority, model.Spec.Device, ct))
-                {
-                    ct.ThrowIfCancellationRequested();
-                    conversation.ReadTokens(tokens.AsSpan(at, count), sample: lastPiece && at + count == tokens.Length);
-                }
-            }
+            await ReadTextAsync(model, conversation, tokens.AsMemory(p == 0 ? opened : 0), lastPiece, priority, ct);
         }
-        return prompt.Tokens;
+        return prompt.Tokens - opened;
+    }
+
+    /// <summary>Reads <paramref name="tokens"/> into the conversation in slices, read with whatever else is being read, choosing
+    /// the token after the last where <paramref name="sample"/>.</summary>
+    private async Task ReadTextAsync(ChatModel model, LiveConversation conversation, ReadOnlyMemory<int> tokens, bool sample, RequestPriority priority,
+                                     CancellationToken ct)
+    {
+        for (int at = 0; at < tokens.Length; at += model.Context.Batch)
+        {
+            int count = Math.Min(model.Context.Batch, tokens.Length - at);
+            ct.ThrowIfCancellationRequested();
+            await model.Prompts.ReadAsync(conversation, tokens.Slice(at, count), sample && at + count == tokens.Length,
+                                          async () => await gpu.NextAsync(priority, model.Spec.Device, ct));
+        }
+    }
+
+    /// <summary>Whether <paramref name="opening"/> is read and can be begun with: read here by the request that claims it, waited
+    /// for by the rest. One that could not be read is let go, and its prompts read whole.</summary>
+    private async Task<bool> OpenedAsync(ChatModel model, PromptOpening opening, RequestPriority priority, CancellationToken ct)
+    {
+        if (!opening.Claim()) return await opening.Ready.Task.WaitAsync(ct);
+        try
+        {
+            await model.Conversations.MakeRoomAsync(opening.Holder, opening.Tokens.Length, ct);
+            await ReadTextAsync(model, opening.Holder, opening.Tokens, sample: false, priority, ct);
+            opening.Ready.TrySetResult(true);
+            return true;
+        }
+        catch
+        {
+            model.Conversations.Forsake(opening);
+            opening.Ready.TrySetResult(false);
+            throw;
+        }
+        finally
+        {
+            opening.Let();
+        }
     }
 
     /// <summary>A medium's bytes as the projector takes them: an image as its file, a recording as 16 kHz mono WAV.</summary>
@@ -184,7 +223,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
             // Full when its cells fill the cache, when its positions reach what the model was trained to read — which a
             // reply written in a window, holding few cells, can come to first — or when the conversations being answered
             // hold every cell the kept ones could give up.
-            if (conversation.Tokens + 1 >= model.Context.Tokens || conversation.Positions + 1 >= model.Model.TrainedContext
+            if (conversation.Length + 1 >= model.Context.Tokens || conversation.Positions + 1 >= model.Model.TrainedContext
                 || !model.Conversations.MakeRoomForNext())
                 return Stop(StopReason.ContextFull, continuable: false, token);
             await rounds.AdvanceAsync(token, ct);

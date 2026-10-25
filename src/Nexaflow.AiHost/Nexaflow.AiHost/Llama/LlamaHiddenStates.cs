@@ -21,8 +21,8 @@ internal sealed unsafe class LlamaHiddenStates : IDisposable
     {
         var parameters = LlamaNative.ContextDefaults();
         parameters.Context = (uint)longest;
-        parameters.Batch = LlamaContext.Batch;
-        parameters.MicroBatch = LlamaContext.Batch;
+        parameters.Batch = LlamaContext.DefaultBatch;
+        parameters.MicroBatch = LlamaContext.DefaultBatch;
         parameters.MaxSequences = 1;
         parameters.Embeddings = 1;
         parameters.PoolingType = LlamaNative.NoPooling;
@@ -31,7 +31,7 @@ internal sealed unsafe class LlamaHiddenStates : IDisposable
         if (_context == IntPtr.Zero)
             throw new HostRequestException(HostErrorKind.Runtime, $"llama.cpp could not make a context of {longest} tokens; see the host's log.");
         _memory = LlamaNative.ContextMemory(_context);
-        _batch = LlamaNative.BatchInit(LlamaContext.Batch, 0, 1);
+        _batch = LlamaNative.BatchInit(LlamaContext.DefaultBatch, 0, 1);
         Width = LlamaNative.ModelWidth(model.Handle);
         Longest = (int)LlamaNative.ContextSize(_context);
     }
@@ -53,9 +53,9 @@ internal sealed unsafe class LlamaHiddenStates : IDisposable
             var context = _context != IntPtr.Zero ? _context : throw new ObjectDisposedException(nameof(LlamaHiddenStates));
             LlamaNative.MemoryClear(_memory, data: true);
             var batch = _batch;
-            for (int start = 0; start < tokens.Length; start += LlamaContext.Batch)
+            for (int start = 0; start < tokens.Length; start += LlamaContext.DefaultBatch)
             {
-                int count = Math.Min(LlamaContext.Batch, tokens.Length - start);
+                int count = Math.Min(LlamaContext.DefaultBatch, tokens.Length - start);
                 batch.TokenCount = count;
                 for (int i = 0; i < count; i++)
                 {

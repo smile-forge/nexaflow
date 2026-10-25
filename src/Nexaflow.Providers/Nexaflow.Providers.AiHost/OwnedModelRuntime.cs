@@ -236,6 +236,14 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
         return model.PartNamed(partName, ExecutionProvider).ContextTokens;
     }
 
+    /// <summary>How many replies a language model's part writes at once, as it is held; as many as it holds where nothing gives it
+    /// room for more until it is placed.</summary>
+    public int RepliesOf(OwnedModel model, string partName)
+    {
+        lock (_gate)
+            return _placed.TryGetValue($"{model.Id}/{partName}", out var placed) ? placed.Sequences : ModelSpec.DefaultSequences;
+    }
+
     /// <summary>Where a part loaded on demand — a picture's or a clip's — runs beside the models held now.</summary>
     /// <exception cref="LlmProviderException">No GPU here has room for it, and it has no CPU build.</exception>
     public async Task<ModelSpec> PlacedOnDemandAsync(OwnedEntry model, string partName, CancellationToken ct)
@@ -248,14 +256,21 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
     }
 
     /// <summary>What the setup needs to place a part: how it runs on a GPU and on the CPU — the same part where it runs
-    /// on either, its CPU build where it has one — and what its context costs.</summary>
+    /// on either, its CPU build where it has one — what its context costs, held in 8 bits (<see cref="ContextCache.Q8"/>), and
+    /// what it takes to read in longer steps or to be cut between a GPU and the CPU.</summary>
     private PlacementNeed Need(OwnedEntry model, OwnedPart part)
     {
         var onCpu = part.ExecutionProvider is null ? part
                   : model.Parts.FirstOrDefault(p => p.Name == part.Name && p.ExecutionProvider == OwnedModels.Cpu);
+        bool language = part.BytesPerToken > 0;
         return new PlacementNeed(Unresolved(model, part), onCpu is null ? null : Unresolved(model, onCpu) with { MemoryBytes = FilesBytes(model, onCpu) },
-                                 part.BytesPerToken, part.BytesPerToken > 0 ? OwnedModels.ShortestContext : 0);
+                                 language ? ContextCache.Q8.BytesPerToken(part.BytesPerToken) : 0, language ? OwnedModels.ShortestContext : 0,
+                                 part.Layers, language ? WeightsBytes(model, part) : 0, part.BatchBytesPerToken, ContextCache.Q8.BytesPerToken(part.BytesPerSequence));
     }
+
+    /// <summary>What <paramref name="part"/>'s own file holds — a language model's weights, its GGUF — read whole.</summary>
+    private static long WeightsBytes(OwnedEntry model, OwnedPart part)
+        => model.Catalog.Files.FirstOrDefault(f => f.RelativePath == $"{part.Folder}/{part.File}")?.Size ?? 0;
 
     /// <summary>What <paramref name="part"/> holds in memory on the CPU, with no context: its files, read whole — the
     /// catalog's footprints are its GPU's.</summary>
@@ -265,7 +280,7 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
     /// <summary>A part as the setup plans it: its folder still the catalog's, relative to the asset store.</summary>
     private static ModelSpec Unresolved(OwnedEntry model, OwnedPart part)
         => new(PartId(model, part), part.Runner, part.Folder, part.File, part.Adapter, part.MemoryBytes, part.ContextTokens, part.CudaOptions,
-               part.Projector);
+               part.Projector, ContextCache: part.BytesPerToken > 0 ? ContextCache.Q8 : ContextCache.F16);
 
     /// <summary>A placed spec with its folder where the build it was placed as is on this machine — fetched, if it is another
     /// build of a model that is here, one this machine has not needed before. A model that is not here is never fetched: its

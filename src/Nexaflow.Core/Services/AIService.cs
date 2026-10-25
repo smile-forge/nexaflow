@@ -242,7 +242,9 @@ public sealed class AIService : IAIService
     {
         if (CandidateColumns<ILlmProvider>(AiAbility.Documents).FirstOrDefault() is not ({ } column, { } provider)) return null;
 
-        return new Documents.WorkspaceDocumentModel(provider, $"{column.ProviderName}/{column.Model}", await ContextOfAsync(provider, ct) ?? OwnedFallbackContext);
+        var info = await InfoOfAsync(provider, ct);
+        return new Documents.WorkspaceDocumentModel(provider, $"{column.ProviderName}/{column.Model}",
+                                                    info?.ContextWindowTokens is > 0 and var tokens ? tokens : OwnedFallbackContext, info?.RepliesAtOnce);
     }
 
     /// <summary>
@@ -786,8 +788,12 @@ public sealed class AIService : IAIService
 
     /// <summary>What a model reads, in tokens, as it says; null when it does not.</summary>
     private static async Task<int?> ContextOfAsync(ILlmProvider model, CancellationToken ct)
+        => (await InfoOfAsync(model, ct))?.ContextWindowTokens is > 0 and var tokens ? tokens : null;
+
+    /// <summary>What <paramref name="model"/> says of itself, or null where it says nothing or cannot be asked.</summary>
+    private static async Task<ModelInfo?> InfoOfAsync(ILlmProvider model, CancellationToken ct)
     {
-        try { return (await model.GetModelInfoAsync(ct))?.ContextWindowTokens is > 0 and var tokens ? tokens : null; }
+        try { return await model.GetModelInfoAsync(ct); }
         catch (OperationCanceledException) { throw; }
         catch { return null; }
     }

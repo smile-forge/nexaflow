@@ -41,20 +41,22 @@ internal sealed unsafe class LlamaModel : IDisposable
 
     public string EosText { get; }
 
-    /// <param name="device">The GPU it runs on, every layer, or null for the CPU.</param>
+    /// <param name="device">The GPU it runs on, or null for the CPU.</param>
+    /// <param name="gpuLayers">How many of its layers run on <paramref name="device"/>, the rest on the CPU; null for all of them.</param>
     /// <exception cref="HostRequestException">The file would not load.</exception>
-    public static LlamaModel Load(string path, IntPtr? device)
+    public static LlamaModel Load(string path, IntPtr? device, int? gpuLayers = null)
     {
         var parameters = LlamaNative.ModelDefaults();
         // One GPU, the one whose budget it was admitted against, as for every model the host runs.
         var devices = stackalloc IntPtr[] { device ?? IntPtr.Zero, IntPtr.Zero };
         parameters.Devices = (IntPtr)devices;
-        parameters.GpuLayers = device is null ? 0 : -1;
+        parameters.GpuLayers = device is null ? 0 : gpuLayers ?? -1;
         parameters.Split = LlamaNative.SplitMode.None;
         parameters.MainGpu = 0;
         // A model wholly on a GPU is read into it: mapped, its file would stay in this process's working set long after its
-        // weights are on the device, every gigabyte counted as the host's memory. On the CPU the mapping is the weights.
-        parameters.LoadMode = device is null ? LlamaNative.LoadMode.Auto : LlamaNative.LoadMode.None;
+        // weights are on the device, every gigabyte counted as the host's memory. Where any of it is on the CPU, the mapping is
+        // those weights.
+        parameters.LoadMode = device is not null && gpuLayers is null ? LlamaNative.LoadMode.None : LlamaNative.LoadMode.Auto;
         IntPtr model = LlamaNative.ModelLoad(path, parameters);
         return model == IntPtr.Zero
             ? throw new HostRequestException(HostErrorKind.Runtime, $"llama.cpp could not load {path}; see the host's log.")

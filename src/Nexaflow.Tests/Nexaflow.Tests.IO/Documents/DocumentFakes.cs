@@ -9,7 +9,7 @@ namespace Nexaflow.Tests.IO.Documents;
 /// A model that answers as it is told to, writing down everything it was asked — the tests' stand-in for one that reads a
 /// few pages at once.
 /// </summary>
-internal sealed class ScriptedModel(Func<string, string, DocumentReply> answer, int context = 8192) : IDocumentModel
+internal sealed class ScriptedModel(Func<string, string, DocumentReply> answer, int context = 8192, int? repliesAtOnce = null) : IDocumentModel
 {
     public List<(string Instructions, string Asked)> Asked { get; } = [];
 
@@ -18,6 +18,8 @@ internal sealed class ScriptedModel(Func<string, string, DocumentReply> answer, 
     public int ContextTokens => context;
 
     public int CharsPerToken => 3;
+
+    public int? RepliesAtOnce => repliesAtOnce;
 
     /// <summary>The most each question let its answer run to, in the order asked.</summary>
     public List<int> Longest { get; } = [];
@@ -37,7 +39,8 @@ internal sealed class ScriptedModel(Func<string, string, DocumentReply> answer, 
     public List<string> Of(string lead) => [.. Asked.Where(question => question.Instructions.StartsWith(lead, StringComparison.Ordinal)).Select(question => question.Asked)];
 
     /// <summary>A model that says every document is the same one, summarises a part as "S(where)", lists no names, and translates by shouting.</summary>
-    public static ScriptedModel Plain(int context = 8192) => new((instructions, asked) => new(Answer(instructions, asked), DocumentReplyEnd.Finished), context);
+    public static ScriptedModel Plain(int context = 8192, int? repliesAtOnce = null)
+        => new((instructions, asked) => new(Answer(instructions, asked), DocumentReplyEnd.Finished), context, repliesAtOnce);
 
     /// <summary>What the plain model answers.</summary>
     public static string Answer(string instructions, string asked) =>
