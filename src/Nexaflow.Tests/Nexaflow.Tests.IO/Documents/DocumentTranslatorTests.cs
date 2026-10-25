@@ -350,6 +350,67 @@ public class DocumentTranslatorTests
         Assert.IsTrue(model.Of(ScriptedModel.Translation).Count > 1, "asked again");
     }
 
+    // ── Answers taken piece by piece ─────────────────────────────────────────
+
+    private const string ThreeParagraphs = "Dogs bark.\n\nCats purr.\n\nBirds sing.\n";
+
+    [TestMethod]
+    public async Task ATranslationWrittenOnTheSameLineAsItsNumber_IsTakenAsIt()
+    {
+        // How a model as often writes it: "@@ 1 DOGS BARK." rather than the number on a line of its own.
+        var model = new ScriptedModel((instructions, asked) => new(
+            instructions.StartsWith(ScriptedModel.Translation, StringComparison.Ordinal)
+                ? string.Concat(ScriptedModel.Pieces(asked).Select((piece, at) => $"@@ {at + 1} {ScriptedModel.Shout(piece)}\n"))
+                : ScriptedModel.Answer(instructions, asked), DocumentReplyEnd.Finished));
+
+        var translated = await Translate(model, new MemoryNotes(), source: ThreeParagraphs);
+
+        Assert.AreEqual("DOGS BARK.\n\nCATS PURR.\n\nBIRDS SING.", translated.Trim());
+        Assert.AreEqual(1, model.Of(ScriptedModel.Translation).Count, "asked once, and taken");
+    }
+
+    [TestMethod]
+    public async Task APieceLeftOutOfAnAnswer_IsAskedForAgainOnItsOwn_TheRestKept()
+    {
+        var asks = 0;
+        var model = new ScriptedModel((instructions, asked) => new(
+            instructions.StartsWith(ScriptedModel.Translation, StringComparison.Ordinal)
+                ? asks++ == 0
+                    ? Answered(ScriptedModel.Pieces(asked), skip: 1)
+                    : ScriptedModel.Translated(asked, ScriptedModel.Shout)
+                : ScriptedModel.Answer(instructions, asked), DocumentReplyEnd.Finished));
+
+        var translated = await Translate(model, new MemoryNotes(), source: ThreeParagraphs);
+
+        Assert.AreEqual("DOGS BARK.\n\nCATS PURR.\n\nBIRDS SING.", translated.Trim());
+
+        var asked = model.Of(ScriptedModel.Translation);
+        Assert.AreEqual(2, asked.Count);
+        CollectionAssert.AreEqual(new[] { "Cats purr." }, ScriptedModel.Pieces(asked[1]), "only the piece it left out, asked for again");
+    }
+
+    [TestMethod]
+    public async Task APieceAnsweredTwice_IsAnsweredNeither_AndAskedForAgain()
+    {
+        var asks = 0;
+        var model = new ScriptedModel((instructions, asked) => new(
+            instructions.StartsWith(ScriptedModel.Translation, StringComparison.Ordinal)
+                ? asks++ == 0
+                    ? ScriptedModel.Translated(asked, ScriptedModel.Shout) + "@@ 1\nSOMETHING ELSE\n"
+                    : ScriptedModel.Translated(asked, ScriptedModel.Shout)
+                : ScriptedModel.Answer(instructions, asked), DocumentReplyEnd.Finished));
+
+        var translated = await Translate(model, new MemoryNotes(), source: ThreeParagraphs);
+
+        StringAssert.StartsWith(translated, "DOGS BARK.", "which of the two was meant is not guessed");
+        Assert.IsFalse(translated.Contains("SOMETHING ELSE", StringComparison.Ordinal));
+        CollectionAssert.AreEqual(new[] { "Dogs bark." }, ScriptedModel.Pieces(model.Of(ScriptedModel.Translation)[1]));
+    }
+
+    /// <summary>An answer to every piece but the one at <paramref name="skip"/>, shouted, numbered as asked.</summary>
+    private static string Answered(IReadOnlyList<string> pieces, int skip) =>
+        string.Concat(pieces.Select((piece, at) => at == skip ? string.Empty : $"@@ {at + 1}\n{ScriptedModel.Shout(piece)}\n\n"));
+
     [TestMethod]
     public async Task ALinkIntoTheDocument_LeadsToItsHeadingByTheNameItHasNow()
     {
@@ -384,7 +445,7 @@ public class DocumentTranslatorTests
     }
 
     [TestMethod]
-    public async Task PassagesAnsweredShortTogether_AreAskedForInHalves_NotEachOnItsOwn()
+    public async Task WhatAModelAnsweredOfAPassage_IsNeverAskedForAgain()
     {
         // Asked more than two at once, the model leaves the last out.
         var model = new ScriptedModel((instructions, asked) =>
@@ -397,10 +458,14 @@ public class DocumentTranslatorTests
         });
 
         var translation = await Translation(model, new MemoryNotes());
-        var asked = model.Of(ScriptedModel.Translation);
+        var asks = model.Of(ScriptedModel.Translation).Select(ScriptedModel.Pieces).ToList();
+        var leftOut = asks.Where(pieces => pieces.Count > 2).Select(pieces => pieces[^1]).ToHashSet();
 
-        Assert.AreEqual(0, translation.Untranslated.Count);
-        Assert.IsTrue(asked.Any(question => ScriptedModel.Pieces(question).Count == 2), "halves are asked for");
-        Assert.IsFalse(asked.Skip(2).All(question => ScriptedModel.Pieces(question).Count == 1), "not every piece on its own");
+        Assert.AreEqual(0, translation.Untranslated.Count, "everything translated");
+        foreach (var again in asks.SelectMany(pieces => pieces).GroupBy(piece => piece).Where(piece => piece.Count() > 1))
+        {
+            Assert.IsTrue(leftOut.Contains(again.Key), $"only what was left out is asked for again, not '{again.Key}'");
+            Assert.AreEqual(2, again.Count(), "and that once more");
+        }
     }
 }

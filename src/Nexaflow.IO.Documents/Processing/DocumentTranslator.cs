@@ -25,9 +25,11 @@ public sealed record DocumentTranslation(string Text, IReadOnlyList<string> Untr
 /// at its sentences, and never across a chapter — the document's outermost sections, which are translated side by side, each
 /// read through in order. Every passage is handed the document's gist (<see cref="DocumentGist"/>), the glossary entries it
 /// uses (<see cref="DocumentGlossary"/>) and the passage before it in its chapter with its translation, so the passages read as
-/// one text. An answer is held to twice the length of what it translates. One with a mark doubled or missing has just the
-/// sentences round it asked for again and put back (<see cref="ProtectedText.Wrong"/>); one still wrong is asked for again,
-/// saying what was wrong, then in halves; one that ran out of room, or ran on past its length, is asked for in halves. A block whose
+/// one text. An answer is held to twice the length of what it translates, and taken piece by piece: what it answers right is
+/// kept, and only a piece it leaves out or gets wrong is asked for again, so one piece costs only itself. A piece with a mark
+/// doubled or missing has just the sentences round it asked for again and put back (<see cref="ProtectedText.Wrong"/>); one
+/// still wrong is asked for again, saying what was wrong, then in halves; one that ran out of room, or ran on past its length,
+/// is asked for in halves. A block whose
 /// markup still does not read as it did once its words are put back is asked for again on its own. One that cannot be
 /// translated keeping its markup, or for which no reply could be had, is kept as the document writes it, a note before it
 /// saying so, and named in what the translation comes to (<see cref="DocumentTranslation"/>) — the rest of the document is
@@ -38,7 +40,7 @@ public sealed record DocumentTranslation(string Text, IReadOnlyList<string> Untr
 public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNotes notes, IProgress<DocumentProgress>? progress = null)
 {
     /// <summary>Changed whenever what it asks changes, so nothing asked another way is taken for its answer.</summary>
-    private const string Version = "translation-5";
+    private const string Version = "translation-6";
 
     /// <summary>What a kept answer's pieces are kept apart by.</summary>
     private const char Apart = '\u0002';
@@ -239,16 +241,27 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
             if (reply.RanOut) return await HalvesAsync(job, unit, before, hint, ct);
 
             // A mark the model made up is taken out rather than its whole answer turned away.
-            var answers = Split(reply.Text, unit.Count) is { } split ? split.Select((answer, at) => ProtectedText.Mended(unit[at].Text, answer)).ToList() : null;
-            wrong = answers is null
-                ? $"answer with exactly {unit.Count} @@ line{(unit.Count == 1 ? "" : "s")}, numbered from 1, each followed by its translation"
-                : unit.Select((piece, at) => ProtectedText.Problem(piece.Text, answers[at]) is { } problem ? $"in @@ {at + 1}, {problem}" : null)
-                      .FirstOrDefault(problem => problem is not null);
+            var answers = AnswersByNumber(reply.Text, unit.Count)
+                .Select((answer, at) => answer is null ? null : ProtectedText.Mended(unit[at].Text, answer)).ToList();
+            var right = answers.Select((answer, at) => answer is not null && ProtectedText.Problem(unit[at].Text, answer) is null).ToList();
 
-            if (wrong is null) return answers!;
+            if (answers.All(answer => answer is not null))
+            {
+                var whole = answers.Select(answer => answer!).ToList();
+                if (right.All(piece => piece)) return whole;
 
-            // A mark or two wrong in an answer otherwise right: just the sentences round them asked for again.
-            if (answers is not null && await RepairedAsync(job, unit, [.. answers], hits, hint, ct) is { } repaired) return repaired;
+                // A mark or two wrong in an answer otherwise whole: just the sentences round them asked for again.
+                if (await RepairedAsync(job, unit, whole, hits, hint, ct) is { } repaired) return repaired;
+            }
+
+            // Some of it right: that is kept, and only what is missing or still wrong is asked for again — on its own, with all the
+            // asking again a passage gets — so a piece left out, or one the model cannot get right, costs only itself.
+            if (right.Any(piece => piece)) return await KeptAndRestAskedAsync(job, unit, answers, right, before, hint, ct, fresh);
+
+            wrong = answers.All(answer => answer is null)
+                ? $"answer with exactly {unit.Count} @@ line{(unit.Count == 1 ? "" : "s")}, numbered from 1, each on a line of its own and followed by its translation"
+                : answers.Select((answer, at) => answer is not null && ProtectedText.Problem(unit[at].Text, answer) is { } problem ? $"in @@ {at + 1}, {problem}" : null)
+                         .FirstOrDefault(problem => problem is not null);
         }
 
         // No reply to be had for it: kept as written, since asking for less of it is no likelier to be answered.
@@ -265,6 +278,31 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
         // One piece still wrong: its halves, cut at a sentence, each with fewer marks to keep — but not one already short, where
         // what makes it hard is its marks, not its length: its passage is kept as written.
         return unit[0].Text.Length < ShortestCut ? Untranslatable(job, unit) : await HalvesAsync(job, unit, before, hint, ct);
+    }
+
+    /// <summary>
+    /// The pieces of <paramref name="unit"/> answered <paramref name="right"/> kept as answered, and the rest asked for again as a
+    /// passage of their own — fewer, so this always comes to an end — each put back where it stood. A piece answered wrong is asked
+    /// for saying what was wrong with it, numbered as it is asked now; one left out is simply asked for.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> KeptAndRestAskedAsync(Job job, IReadOnlyList<Piece> unit, IReadOnlyList<string?> answers, IReadOnlyList<bool> right,
+                                                                     (string Source, string Target)? before, string? hint, CancellationToken ct, bool fresh)
+    {
+        var again = Enumerable.Range(0, unit.Count).Where(at => !right[at]).ToList();
+
+        var wrong = again.Select((at, asked) => answers[at] is { } answer && ProtectedText.Problem(unit[at].Text, answer) is { } problem
+                                                    ? $"in @@ {asked + 1}, {problem}" : null)
+                         .OfType<string>().ToList();
+        var said = wrong.Count == 0 ? hint : $"{hint} Your last answer was wrong: {string.Join("; ", wrong)}.".Trim();
+
+        var answered = await UnitAsync(job, [.. again.Select(at => unit[at])], before, said, ct, fresh);
+
+        var whole = new string[unit.Count];
+        var next = 0;
+
+        for (var at = 0; at < unit.Count; at++) whole[at] = right[at] ? answers[at]! : answered[next++];
+
+        return whole;
     }
 
     /// <summary>
@@ -289,7 +327,7 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
                 (string Source, string Target)? before = wrong.SourceFrom > 0 ? (source[..wrong.SourceFrom], answer[..wrong.AnswerFrom]) : null;
 
                 var reply = await model.AnswerAsync(Instructions(job, hits), Asked(job, [stretch], before, hint, problem), Longest([stretch]), ct);
-                if (reply.Ended == DocumentReplyEnd.Failed || reply.RanOut || Split(reply.Text, 1) is not [var given]) return null;
+                if (reply.Ended == DocumentReplyEnd.Failed || reply.RanOut || AnswersByNumber(reply.Text, 1) is not [{ } given]) return null;
 
                 var again = ProtectedText.Mended(stretch.Text, given);
                 if (ProtectedText.Problem(stretch.Text, again) is not null) return null;
@@ -440,7 +478,7 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
         asked.Append($"Translate each of these into {job.Language}:\n\n");
         for (var at = 0; at < unit.Count; at++) asked.Append("@@ ").Append(at + 1).Append('\n').Append(unit[at].Text.Trim()).Append("\n\n");
 
-        asked.Append("Answer with the same @@ lines, each followed by its translation, and nothing else.");
+        asked.Append("Answer with the same @@ lines, each on a line of its own and followed by its translation on the lines after it, and nothing else.");
         if (hint is not null) asked.Append(' ').Append(hint);
         if (wrong is not null) asked.Append($"\n\nYour last answer was wrong: {wrong}. Answer again.");
 
@@ -465,29 +503,44 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
                    .ToString();
     }
 
-    /// <summary>The answer's pieces, in order — null where it does not have exactly <paramref name="count"/>, numbered from one.</summary>
-    private static IReadOnlyList<string>? Split(string reply, int count)
+    /// <summary>
+    /// Each piece's answer in <paramref name="reply"/>, by the number its @@ line gives it — the answer on the lines after that line,
+    /// or on the same line after the number, as a model writes it either way — and null for a piece it gives no answer, or more than
+    /// one: what came back is taken piece by piece, so one piece left out costs only itself. Numbers past the pieces asked, and
+    /// anything before the first @@ line, are nobody's. A reply to one piece with no @@ line at all is that piece's answer.
+    /// </summary>
+    private static string?[] AnswersByNumber(string reply, int count)
     {
+        var answers = new string?[count];
         var marks = Opens().Matches(reply);
 
-        if (marks.Count == 0) return count == 1 && reply.Trim().Length > 0 ? [reply.Trim()] : null;
-        if (marks.Count != count) return null;
-
-        var answers = new string[count];
-
-        for (var at = 0; at < count; at++)
+        if (marks.Count == 0)
         {
-            if (!int.TryParse(marks[at].Groups[1].Value, out var numbered) || numbered != at + 1) return null;
+            if (count == 1 && reply.Trim() is { Length: > 0 } whole) answers[0] = whole;
+            return answers;
+        }
+
+        var given = new int[count];
+
+        for (var at = 0; at < marks.Count; at++)
+        {
+            if (!int.TryParse(marks[at].Groups[1].Value, out var numbered) || numbered < 1 || numbered > count) continue;
 
             var from = marks[at].Index + marks[at].Length;
-            var to = at + 1 < count ? marks[at + 1].Index : reply.Length;
-            answers[at] = reply[from..to].Trim();
+            var to = at + 1 < marks.Count ? marks[at + 1].Index : reply.Length;
+
+            given[numbered - 1]++;
+            answers[numbered - 1] = reply[from..to].Trim() is { Length: > 0 } said ? said : null;
         }
+
+        // Answered twice is not answered: which of the two was meant is not the reader's to guess.
+        for (var piece = 0; piece < count; piece++)
+            if (given[piece] > 1) answers[piece] = null;
 
         return answers;
     }
 
-    [GeneratedRegex(@"^[ \t]*@@[ \t]*(\d+)[ \t]*\r?$", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^[ \t]*@@[ \t]*(\d+)\b[ \t]*", RegexOptions.Multiline)]
     private static partial Regex Opens();
 
     /// <summary>
