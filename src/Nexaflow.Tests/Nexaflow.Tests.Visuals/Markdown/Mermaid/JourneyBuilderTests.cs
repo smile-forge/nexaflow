@@ -45,7 +45,7 @@ public class JourneyBuilderTests : MermaidBuilderContract
         ("nothing to draw", "journey"),
     ];
 
-    private static PortableLaid Build(string source, double room = 900) =>
+    private static Laid Build(string source, double room = 900) =>
         Laying.Lay("mermaid", source, room);
 
     [TestMethod]

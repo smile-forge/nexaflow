@@ -25,12 +25,12 @@ public sealed class MarkdownPaginator : DocumentPaginator
     public const double Margin = 48;
 
     private readonly string _markdown;
-    private readonly PortableStyle _style;
+    private readonly LayoutStyle _style;
     private readonly ContentInputs _inputs;
     private readonly string? _language;
 
     private Size _sheet;
-    private PortableLaid _laid = PortableLaid.Nothing(WpfMedium.OnThisThread);
+    private Laid _laid = Laid.Nothing(WpfMedium.OnThisThread);
     private IReadOnlyList<PaperPage> _pages = [];
 
     /// <param name="markdown">What is printed.</param>
@@ -38,7 +38,7 @@ public sealed class MarkdownPaginator : DocumentPaginator
     /// <param name="style">The palette and faces it is printed in.</param>
     /// <param name="inputs">Where its pictures, links and data come from.</param>
     /// <param name="language">The one language it is written in, where it is content in one language rather than a document.</param>
-    public MarkdownPaginator(string markdown, Size sheet, PortableStyle style, ContentInputs? inputs = null, string? language = null)
+    public MarkdownPaginator(string markdown, Size sheet, LayoutStyle style, ContentInputs? inputs = null, string? language = null)
     {
         _markdown = markdown;
         _style = style;

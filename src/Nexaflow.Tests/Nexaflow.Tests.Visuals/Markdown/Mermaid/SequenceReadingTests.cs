@@ -22,10 +22,10 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 public class SequenceReadingTests
 {
     /// <summary>What a sequence diagram's own reader makes of a block, configured as its front matter says.</summary>
-    private static PortableSequenceDrawing.Diagram Read(string source, bool writing = false)
+    private static SequenceDrawing.Diagram Read(string source, bool writing = false)
     {
         var reading = Laying.Read("sequenceDiagram", source, writing);
-        return new PortableSequenceDrawing.Dialect().Read(reading.Root, PortableDiagramConfig.Of(reading, SequenceConfig.Default));
+        return new SequenceDrawing.Dialect().Read(reading.Root, DiagramConfig.Of(reading, SequenceConfig.Default));
     }
 
     private static string Said(string source, Nexaflow.Markdown.Ast.ISourcePart part) => source.Substring(part.Start, part.Length);
@@ -58,8 +58,8 @@ public class SequenceReadingTests
     {
         var diagram = Read("sequenceDiagram\n  actor Alice\n  participant Bob");
 
-        Assert.AreEqual(PortableSequenceDrawing.Kind.Actor, diagram.Find("Alice")?.Kind);
-        Assert.AreEqual(PortableSequenceDrawing.Kind.Participant, diagram.Find("Bob")?.Kind);
+        Assert.AreEqual(SequenceDrawing.Kind.Actor, diagram.Find("Alice")?.Kind);
+        Assert.AreEqual(SequenceDrawing.Kind.Participant, diagram.Find("Bob")?.Kind);
     }
 
     [TestMethod]
@@ -75,7 +75,7 @@ public class SequenceReadingTests
     [TestMethod]
     public void MetadataSaysWhatOneIsDrawnAs()
     {
-        Assert.AreEqual(PortableSequenceDrawing.Kind.Database, Read("sequenceDiagram\n  participant DB@{ \"type\": \"database\" }\n  DB->>DB: x").Find("DB")?.Kind);
+        Assert.AreEqual(SequenceDrawing.Kind.Database, Read("sequenceDiagram\n  participant DB@{ \"type\": \"database\" }\n  DB->>DB: x").Find("DB")?.Kind);
     }
 
     [TestMethod]
@@ -99,25 +99,25 @@ public class SequenceReadingTests
         Assert.AreEqual("John", message.To);
         Assert.AreEqual("Great!", message.Said?.Text);
         Assert.IsTrue(message.Dotted);
-        Assert.AreEqual(PortableSequenceDrawing.Tip.Arrow, message.Far);
-        Assert.AreEqual(PortableSequenceDrawing.Tip.None, message.Near);
+        Assert.AreEqual(SequenceDrawing.Tip.Arrow, message.Far);
+        Assert.AreEqual(SequenceDrawing.Tip.None, message.Near);
     }
 
     [TestMethod]
     public void EveryArrowSaysItsOwnHeads()
     {
-        foreach (var (arrow, dotted, near, far) in new (string, bool, PortableSequenceDrawing.Tip, PortableSequenceDrawing.Tip)[]
+        foreach (var (arrow, dotted, near, far) in new (string, bool, SequenceDrawing.Tip, SequenceDrawing.Tip)[]
                  {
-                     ("->", false, PortableSequenceDrawing.Tip.None, PortableSequenceDrawing.Tip.None),
-                     ("-->>", true, PortableSequenceDrawing.Tip.None, PortableSequenceDrawing.Tip.Arrow),
-                     ("-x", false, PortableSequenceDrawing.Tip.None, PortableSequenceDrawing.Tip.Cross),
-                     ("--)", true, PortableSequenceDrawing.Tip.None, PortableSequenceDrawing.Tip.Open),
-                     ("<<->>", false, PortableSequenceDrawing.Tip.Arrow, PortableSequenceDrawing.Tip.Arrow),
-                     ("-|\\", false, PortableSequenceDrawing.Tip.None, PortableSequenceDrawing.Tip.HalfTop),
-                     ("--|/", true, PortableSequenceDrawing.Tip.None, PortableSequenceDrawing.Tip.HalfBottom),
-                     ("/|-", false, PortableSequenceDrawing.Tip.HalfTop, PortableSequenceDrawing.Tip.None),
-                     ("-\\\\", false, PortableSequenceDrawing.Tip.None, PortableSequenceDrawing.Tip.StickTop),
-                     ("\\\\-", false, PortableSequenceDrawing.Tip.StickBottom, PortableSequenceDrawing.Tip.None),
+                     ("->", false, SequenceDrawing.Tip.None, SequenceDrawing.Tip.None),
+                     ("-->>", true, SequenceDrawing.Tip.None, SequenceDrawing.Tip.Arrow),
+                     ("-x", false, SequenceDrawing.Tip.None, SequenceDrawing.Tip.Cross),
+                     ("--)", true, SequenceDrawing.Tip.None, SequenceDrawing.Tip.Open),
+                     ("<<->>", false, SequenceDrawing.Tip.Arrow, SequenceDrawing.Tip.Arrow),
+                     ("-|\\", false, SequenceDrawing.Tip.None, SequenceDrawing.Tip.HalfTop),
+                     ("--|/", true, SequenceDrawing.Tip.None, SequenceDrawing.Tip.HalfBottom),
+                     ("/|-", false, SequenceDrawing.Tip.HalfTop, SequenceDrawing.Tip.None),
+                     ("-\\\\", false, SequenceDrawing.Tip.None, SequenceDrawing.Tip.StickTop),
+                     ("\\\\-", false, SequenceDrawing.Tip.StickBottom, SequenceDrawing.Tip.None),
                  })
         {
             var message = Read($"sequenceDiagram\n  A{arrow}B: x").Messages.Single();
@@ -153,20 +153,20 @@ public class SequenceReadingTests
     [TestMethod]
     public void ANoteSaysWhereItSitsAndWhatItIsOver()
     {
-        var note = Read("sequenceDiagram\n  Note over Alice,John: A typical interaction").Items.OfType<PortableSequenceDrawing.Note>().Single();
+        var note = Read("sequenceDiagram\n  Note over Alice,John: A typical interaction").Items.OfType<SequenceDrawing.Note>().Single();
 
-        Assert.AreEqual(PortableSequenceDrawing.Place.Over, note.Place);
+        Assert.AreEqual(SequenceDrawing.Place.Over, note.Place);
         CollectionAssert.AreEqual(new[] { "Alice", "John" }, note.Over.ToList());
         Assert.AreEqual("A typical interaction", note.Said?.Text);
 
-        Assert.AreEqual(PortableSequenceDrawing.Place.LeftOf, Read("sequenceDiagram\n  Note left of A: x").Items.OfType<PortableSequenceDrawing.Note>().Single().Place);
-        Assert.AreEqual(PortableSequenceDrawing.Place.RightOf, Read("sequenceDiagram\n  Note right of A: x").Items.OfType<PortableSequenceDrawing.Note>().Single().Place);
+        Assert.AreEqual(SequenceDrawing.Place.LeftOf, Read("sequenceDiagram\n  Note left of A: x").Items.OfType<SequenceDrawing.Note>().Single().Place);
+        Assert.AreEqual(SequenceDrawing.Place.RightOf, Read("sequenceDiagram\n  Note right of A: x").Items.OfType<SequenceDrawing.Note>().Single().Place);
     }
 
     [TestMethod]
     public void ABarIsStartedAndEndedInOrder()
     {
-        var turns = Read("sequenceDiagram\n  activate A\n  A->>B: x\n  deactivate A").Items.OfType<PortableSequenceDrawing.Turn>().ToList();
+        var turns = Read("sequenceDiagram\n  activate A\n  A->>B: x\n  deactivate A").Items.OfType<SequenceDrawing.Turn>().ToList();
 
         Assert.AreEqual(2, turns.Count);
         Assert.IsTrue(turns[0].On);
@@ -180,7 +180,7 @@ public class SequenceReadingTests
 
         Assert.IsTrue(diagram.Find("C")?.Created);
         Assert.IsTrue(diagram.Find("C")?.Destroyed);
-        Assert.AreEqual("C", diagram.Items.OfType<PortableSequenceDrawing.Gone>().Single().Id);
+        Assert.AreEqual("C", diagram.Items.OfType<SequenceDrawing.Gone>().Single().Id);
     }
 
     [TestMethod]
@@ -188,11 +188,11 @@ public class SequenceReadingTests
     {
         var diagram = Read("sequenceDiagram\n  alt is sick\n    A->>B: x\n  else is well\n    A->>B: y\n  end");
 
-        var opening = diagram.Items.OfType<PortableSequenceDrawing.Opening>().Single();
-        var divider = diagram.Items.OfType<PortableSequenceDrawing.Divider>().Single();
-        var closing = diagram.Items.OfType<PortableSequenceDrawing.Closing>().Single();
+        var opening = diagram.Items.OfType<SequenceDrawing.Opening>().Single();
+        var divider = diagram.Items.OfType<SequenceDrawing.Divider>().Single();
+        var closing = diagram.Items.OfType<SequenceDrawing.Closing>().Single();
 
-        Assert.AreEqual(PortableSequenceDrawing.Frame.Alt, opening.Kind);
+        Assert.AreEqual(SequenceDrawing.Frame.Alt, opening.Kind);
         Assert.AreEqual("is sick", opening.Said?.Text);
         Assert.AreEqual("is well", divider.Said?.Text);
         Assert.AreEqual(opening.Key, divider.Key);
@@ -205,7 +205,7 @@ public class SequenceReadingTests
     {
         const string source = "sequenceDiagram\n  loop every day\n    A->>B: x\n  end";
 
-        Assert.AreEqual("loop every day\n    A->>B: x\n  end", Said(source, Read(source).Items.OfType<PortableSequenceDrawing.Opening>().Single().Whole));
+        Assert.AreEqual("loop every day\n    A->>B: x\n  end", Said(source, Read(source).Items.OfType<SequenceDrawing.Opening>().Single().Whole));
     }
 
     [TestMethod]
@@ -214,8 +214,8 @@ public class SequenceReadingTests
         const string source = "sequenceDiagram\n  loop every day\n    A->>B: x";
         var diagram = Read(source);
 
-        Assert.AreEqual("loop every day", Said(source, diagram.Items.OfType<PortableSequenceDrawing.Opening>().Single().Whole));
-        Assert.AreEqual(0, diagram.Items.OfType<PortableSequenceDrawing.Closing>().Count());
+        Assert.AreEqual("loop every day", Said(source, diagram.Items.OfType<SequenceDrawing.Opening>().Single().Whole));
+        Assert.AreEqual(0, diagram.Items.OfType<SequenceDrawing.Closing>().Count());
     }
 
     [TestMethod]
@@ -227,16 +227,16 @@ public class SequenceReadingTests
         CollectionAssert.AreEqual(
             new[]
             {
-                PortableSequenceDrawing.Frame.Alt, PortableSequenceDrawing.Frame.Opt, PortableSequenceDrawing.Frame.Loop, PortableSequenceDrawing.Frame.Par,
-                PortableSequenceDrawing.Frame.Critical, PortableSequenceDrawing.Frame.Break, PortableSequenceDrawing.Frame.Rect,
+                SequenceDrawing.Frame.Alt, SequenceDrawing.Frame.Opt, SequenceDrawing.Frame.Loop, SequenceDrawing.Frame.Par,
+                SequenceDrawing.Frame.Critical, SequenceDrawing.Frame.Break, SequenceDrawing.Frame.Rect,
             },
-            diagram.Items.OfType<PortableSequenceDrawing.Opening>().Select(frame => frame.Kind).ToList());
+            diagram.Items.OfType<SequenceDrawing.Opening>().Select(frame => frame.Kind).ToList());
     }
 
     [TestMethod]
     public void AFrameInsideOneSaysWhichItIsIn()
     {
-        var frames = Read("sequenceDiagram\n  loop a\n    alt b\n      A->>B: x\n    end\n  end").Items.OfType<PortableSequenceDrawing.Opening>().ToList();
+        var frames = Read("sequenceDiagram\n  loop a\n    alt b\n      A->>B: x\n    end\n  end").Items.OfType<SequenceDrawing.Opening>().ToList();
 
         Assert.IsNull(frames[0].Parent);
         Assert.AreEqual(frames[0].Key, frames[1].Parent);
@@ -253,7 +253,7 @@ public class SequenceReadingTests
         Assert.AreEqual(box.Key, diagram.Find("A")?.Box);
         Assert.AreEqual(box.Key, diagram.Find("J")?.Box);
         Assert.IsNull(diagram.Find("B")?.Box);
-        Assert.AreEqual(0, diagram.Items.OfType<PortableSequenceDrawing.Closing>().Count(), "a box closes nothing on the timeline");
+        Assert.AreEqual(0, diagram.Items.OfType<SequenceDrawing.Closing>().Count(), "a box closes nothing on the timeline");
     }
 
     [TestMethod]
@@ -268,9 +268,9 @@ public class SequenceReadingTests
     [TestMethod]
     public void AWashIsTheColourWrittenAfterRect()
     {
-        var opening = Read("sequenceDiagram\n  rect rgb(191, 223, 255)\n  A->>B: x\n  end").Items.OfType<PortableSequenceDrawing.Opening>().Single();
+        var opening = Read("sequenceDiagram\n  rect rgb(191, 223, 255)\n  A->>B: x\n  end").Items.OfType<SequenceDrawing.Opening>().Single();
 
-        Assert.AreEqual(PortableSequenceDrawing.Frame.Rect, opening.Kind);
+        Assert.AreEqual(SequenceDrawing.Frame.Rect, opening.Kind);
         Assert.AreEqual("rgb(191, 223, 255)", opening.Colour);
     }
 

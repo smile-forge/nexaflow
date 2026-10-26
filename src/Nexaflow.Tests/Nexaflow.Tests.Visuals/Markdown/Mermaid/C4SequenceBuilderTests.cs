@@ -126,7 +126,7 @@ public class C4SequenceBuilderTests : MermaidBuilderContract
 
         Assert.AreEqual(2, rows.Count);
         Assert.AreEqual(rows[0].Top, rows[1].Top, 1, "the rows stand side by side");
-        Assert.IsTrue(key.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Swatch).All(swatch => swatch.Marks.ToArray().OfType<PortableRuleMark>().Any()),
+        Assert.IsTrue(key.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Swatch).All(swatch => swatch.Marks.ToArray().OfType<RuleMark>().Any()),
                       "and every swatch is filled with the colour the cards it names are painted, though nothing wrote one");
     });
 
@@ -140,7 +140,7 @@ public class C4SequenceBuilderTests : MermaidBuilderContract
         Assert.AreEqual(1, Pieces(laid, SequencePiece.Line).Count);
     });
 
-    private static IEnumerable<PortablePiece> Said(PortablePiece piece) =>
+    private static IEnumerable<LayoutPiece> Said(LayoutPiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Words && part.Words is not null);
 
     private static bool Holds(LayoutRect over, LayoutRect inner) =>

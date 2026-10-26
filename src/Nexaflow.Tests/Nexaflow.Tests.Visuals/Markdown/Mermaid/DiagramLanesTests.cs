@@ -26,7 +26,7 @@ public class DiagramLanesTests
     public void ALanesCellsComeOneToARank()
     {
         var (one, two) = (Cell(1), Cell(1));
-        PortableDiagramLayers.Lay([one, two], [], DiagramWay.Down, 10, 30, Lanes(Lane(), Lane()));
+        DiagramLayers.Lay([one, two], [], DiagramWay.Down, 10, 30, Lanes(Lane(), Lane()));
 
         Assert.AreNotEqual(one.Bounds.Top, two.Bounds.Top,
                            "two cells of one lane never share a rank: every step of a lane's own work is a rank of its own");
@@ -37,7 +37,7 @@ public class DiagramLanesTests
     public void AHandoffBetweenLanesGoesAcrossRatherThanOn()
     {
         var (one, two) = (Cell(1), Cell(2));
-        PortableDiagramLayers.Lay([one, two], [Join(one, two)], DiagramWay.Down, 10, 30, Lanes(Lane(), Lane()));
+        DiagramLayers.Lay([one, two], [Join(one, two)], DiagramWay.Down, 10, 30, Lanes(Lane(), Lane()));
 
         Assert.AreEqual(one.Bounds.Top, two.Bounds.Top, 0.01,
                         "the lane it is handed to carries on where its own work has got to, which is the first rank");
@@ -49,7 +49,7 @@ public class DiagramLanesTests
     {
         var (one, two) = (Cell(1), Cell(2));
         var join = Join(one, two);
-        PortableDiagramLayers.Lay([one, two], [join], DiagramWay.Down, 10, 30, Lanes(Lane(), Lane()));
+        DiagramLayers.Lay([one, two], [join], DiagramWay.Down, 10, 30, Lanes(Lane(), Lane()));
 
         CollectionAssert.AreEqual(new[] { Middle(one.Bounds), Middle(two.Bounds) }, join.Route.ToArray(),
                                   "side by side in the same rank, there is no rank between them to bend in — so it runs straight across, "
@@ -62,7 +62,7 @@ public class DiagramLanesTests
     public void AHandoffHoldsWhatItReachesOnWhereItIsAskedTo()
     {
         var (one, two) = (Cell(1), Cell(2));
-        PortableDiagramLayers.Lay([one, two], [Join(one, two)], DiagramWay.Down, 10, 30, Lanes([Lane(), Lane()], across: true));
+        DiagramLayers.Lay([one, two], [Join(one, two)], DiagramWay.Down, 10, 30, Lanes([Lane(), Lane()], across: true));
 
         Assert.AreEqual(50, two.Bounds.Top - one.Bounds.Top, 0.01, "asked to count like any other link, it moves it a rank on");
     }
@@ -72,7 +72,7 @@ public class DiagramLanesTests
     {
         var (first, second) = (Lane(), Lane());
         var cells = new[] { Cell(1), Cell(1), Cell(2) };
-        PortableDiagramLayers.Lay(cells, [], DiagramWay.Down, 10, 30, Lanes(first, second));
+        DiagramLayers.Lay(cells, [], DiagramWay.Down, 10, 30, Lanes(first, second));
 
         foreach (var cell in cells.Take(2))
             Assert.IsTrue(first.Bounds.Left <= cell.Bounds.Left && cell.Bounds.Right <= first.Bounds.Right,
@@ -87,7 +87,7 @@ public class DiagramLanesTests
     public void ALaneRunsTheWholeLengthOfTheLayout()
     {
         var lane = Lane();
-        var whole = PortableDiagramLayers.Lay([Cell(1), Cell(1)], [], DiagramWay.Down, 10, 30, Lanes(lane));
+        var whole = DiagramLayers.Lay([Cell(1), Cell(1)], [], DiagramWay.Down, 10, 30, Lanes(lane));
 
         Assert.AreEqual(0, lane.Bounds.Top, 0.01);
         Assert.AreEqual(whole.Height, lane.Bounds.Height, 0.01, "a lane is the whole length of the layout, not the size of its work");
@@ -98,7 +98,7 @@ public class DiagramLanesTests
     {
         var lane = Lane(heading: 18);
         var one = Cell(1);
-        PortableDiagramLayers.Lay([one], [], DiagramWay.Down, 10, 30, Lanes(lane));
+        DiagramLayers.Lay([one], [], DiagramWay.Down, 10, 30, Lanes(lane));
 
         Assert.AreEqual(18, one.Bounds.Top, 0.01, "the first rank starts past the room the lanes keep for their names");
         Assert.AreEqual(new LayoutRect(lane.Bounds.X, 0, lane.Bounds.Width, 18), lane.Strip,
@@ -110,7 +110,7 @@ public class DiagramLanesTests
     {
         var lane = Lane(pad: 6, heading: 18);
         var one = Cell(1);
-        PortableDiagramLayers.Lay([one], [], DiagramWay.Down, 10, 30, Lanes(lane));
+        DiagramLayers.Lay([one], [], DiagramWay.Down, 10, 30, Lanes(lane));
 
         Assert.AreEqual(18, lane.Strip.Height, 0.01, "the strip is the room kept for the name");
         Assert.AreEqual(18 + 6, one.Bounds.Top, 0.01, "and the first rank starts the lane's own clear air past it");
@@ -122,7 +122,7 @@ public class DiagramLanesTests
         foreach (var way in new[] { DiagramWay.Down, DiagramWay.Up, DiagramWay.Right, DiagramWay.Left })
         {
             var lane = Lane(heading: 18);
-            PortableDiagramLayers.Lay([Cell(1), Cell(1)], [], way, 10, 30, Lanes(lane));
+            DiagramLayers.Lay([Cell(1), Cell(1)], [], way, 10, 30, Lanes(lane));
 
             var near = way switch
             {
@@ -142,7 +142,7 @@ public class DiagramLanesTests
     public void ALaneWithNothingInItIsStillABand()
     {
         var (empty, held) = (Lane(least: 30), Lane());
-        var whole = PortableDiagramLayers.Lay([Cell(2)], [], DiagramWay.Down, 10, 30, Lanes(empty, held));
+        var whole = DiagramLayers.Lay([Cell(2)], [], DiagramWay.Down, 10, 30, Lanes(empty, held));
 
         Assert.AreEqual(30, empty.Bounds.Width, 0.01, "a lane nobody has written anything in yet is as wide as its own name");
         Assert.IsTrue(whole.Width >= empty.Bounds.Width + held.Bounds.Width, "and the layout is wide enough to hold it");
@@ -152,7 +152,7 @@ public class DiagramLanesTests
     public void ALaneOfNothingAtAllIsStillDrawn()
     {
         var lane = Lane(least: 30, heading: 18);
-        var whole = PortableDiagramLayers.Lay([], [], DiagramWay.Down, 10, 30, Lanes(lane));
+        var whole = DiagramLayers.Lay([], [], DiagramWay.Down, 10, 30, Lanes(lane));
 
         Assert.AreEqual(new LayoutRect(0, 0, 30, 18), lane.Bounds, "a swimlane of empty lanes is still lanes to draw");
         Assert.AreEqual(new LayoutSize(30, 18), whole);
@@ -163,7 +163,7 @@ public class DiagramLanesTests
     {
         var lane = Lane(least: 200);
         var one = Cell(1);
-        PortableDiagramLayers.Lay([one], [], DiagramWay.Down, 10, 30, Lanes(lane));
+        DiagramLayers.Lay([one], [], DiagramWay.Down, 10, 30, Lanes(lane));
 
         Assert.AreEqual(200, lane.Bounds.Width, 0.01, "a lane is as wide as its own name where its work is narrower");
         Assert.AreEqual(lane.Bounds.Left + (lane.Bounds.Width / 2), one.Bounds.Left + (one.Bounds.Width / 2), 0.01,
@@ -175,7 +175,7 @@ public class DiagramLanesTests
     {
         var lane = Lane();
         var (loose, held) = (Cell(0), Cell(1));
-        PortableDiagramLayers.Lay([loose, held], [], DiagramWay.Down, 10, 30, Lanes(lane));
+        DiagramLayers.Lay([loose, held], [], DiagramWay.Down, 10, 30, Lanes(lane));
 
         Assert.IsFalse(lane.Bounds.IntersectsWith(loose.Bounds), "a cell in no lane is in a band of its own before them all");
         Assert.IsTrue(lane.Bounds.Contains(held.Bounds));
@@ -185,11 +185,11 @@ public class DiagramLanesTests
     public void ACellInsideASubgraphInsideALaneIsStillHeldToTheBand()
     {
         var lane = Lane();
-        var box = new PortableDiagramCell(new LayoutSize(0, 0)) { Lane = 1, Pad = 6 };
-        var inner = new PortableDiagramCell(Box) { Inside = box };
+        var box = new DiagramCell(new LayoutSize(0, 0)) { Lane = 1, Pad = 6 };
+        var inner = new DiagramCell(Box) { Inside = box };
         var beside = Cell(2);
 
-        PortableDiagramLayers.Lay([box, inner, beside], [], DiagramWay.Down, 10, 30, Lanes(lane, Lane()));
+        DiagramLayers.Lay([box, inner, beside], [], DiagramWay.Down, 10, 30, Lanes(lane, Lane()));
 
         Assert.IsTrue(lane.Bounds.Contains(box.Bounds), $"the box {box.Bounds} is inside the band {lane.Bounds}");
         Assert.IsTrue(box.Bounds.Contains(inner.Bounds), "and what the box holds is inside the box");
@@ -197,13 +197,13 @@ public class DiagramLanesTests
 
     // ── What it works with ──────────────────────────────────────────────────
 
-    private static PortableDiagramCell Cell(int lane) => new(Box) { Lane = lane };
+    private static DiagramCell Cell(int lane) => new(Box) { Lane = lane };
 
-    private static PortableDiagramLane Lane(double least = 0, double pad = 0, double heading = 0) => new(least, pad, heading);
+    private static DiagramLane Lane(double least = 0, double pad = 0, double heading = 0) => new(least, pad, heading);
 
-    private static PortableDiagramLanes Lanes(params PortableDiagramLane[] lanes) => new(lanes);
+    private static DiagramLanes Lanes(params DiagramLane[] lanes) => new(lanes);
 
-    private static PortableDiagramLanes Lanes(IReadOnlyList<PortableDiagramLane> lanes, bool across) => new(lanes, across);
+    private static DiagramLanes Lanes(IReadOnlyList<DiagramLane> lanes, bool across) => new(lanes, across);
 
-    private static PortableDiagramJoin Join(PortableDiagramCell from, PortableDiagramCell to, int span = 1) => new(from, to, span);
+    private static DiagramJoin Join(DiagramCell from, DiagramCell to, int span = 1) => new(from, to, span);
 }

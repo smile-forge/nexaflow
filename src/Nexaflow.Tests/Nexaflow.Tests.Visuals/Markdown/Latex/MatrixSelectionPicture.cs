@@ -103,10 +103,10 @@ public class MatrixSelectionPicture
         return shot;
     }
 
-    private static PortablePiece Cell(ContentElement formula, string digit) =>
+    private static LayoutPiece Cell(ContentElement formula, string digit) =>
         formula.Laid.Root.Leaves()
             .Single(n => n.Sits() is { Length: > 0 } at && Latex.Substring(at.Start, at.Length) == digit);
 
-    private static Point Middle(PortablePiece node) =>
+    private static Point Middle(LayoutPiece node) =>
         new(node.Bounds.X + (node.Bounds.Width / 2), node.Bounds.Y + (node.Bounds.Height / 2));
 }

@@ -193,7 +193,7 @@ public class VennEditingTests
         }));
 
     /// <summary>The piece drawing a run of words that starts where <paramref name="words"/> is written.</summary>
-    private static PortablePiece Words(DocumentBlock venn, string words) =>
+    private static LayoutPiece Words(DocumentBlock venn, string words) =>
         venn.Laid.Root.SelfAndDescendants()
             .First(piece => piece.Words is not null && piece.Sits().Start == venn.Source.IndexOf(words, venn.Start, System.StringComparison.Ordinal));
 

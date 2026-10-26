@@ -102,7 +102,7 @@ public sealed partial class ContentEngine
     /// taking a stretch at a time into the reading that is laid, reading it first where it has not been read, and starting the
     /// rest reading in the background.
     /// </summary>
-    private PortableLaid Windowed(ContentLanguage language, EditState state, PortableStyle style, double room, bool readOnly)
+    private Laid Windowed(ContentLanguage language, EditState state, LayoutStyle style, double room, bool readOnly)
     {
         Interlocked.Exchange(ref _growing, 0);
 
@@ -114,7 +114,7 @@ public sealed partial class ContentEngine
         var spent = Stopwatch.StartNew();
         var reach = Reach();
         var needed = _reveal ?? -1;
-        PortableLaid laid;
+        Laid laid;
 
         // Short of where it has to reach when last laid: more is taken before anything is laid, so every laying out goes further,
         // however long laying what is taken already takes.
@@ -366,7 +366,7 @@ public sealed partial class ContentEngine
     /// read over with them: each time as much again has been read, so what the first stretches define is known early and all of
     /// it costs no more than working the whole over twice, and once it is all read. Says so when it is done.
     /// </summary>
-    private void Background(ContentWindow window, PortableStyle style)
+    private void Background(ContentWindow window, LayoutStyle style)
     {
         var cancel = new CancellationTokenSource();
         window.Reading = cancel;

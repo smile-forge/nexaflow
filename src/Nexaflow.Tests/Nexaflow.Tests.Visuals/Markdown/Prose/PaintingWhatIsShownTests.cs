@@ -56,13 +56,13 @@ public class PaintingWhatIsShownTests
         Assert.IsTrue(Blocks(laid).All(block => block.Holds));
     });
 
-    private static PortableLaid Long() =>
+    private static Laid Long() =>
         Laying.Lay(null, string.Join("\n\n", Enumerable.Range(1, 200).Select(n => $"Paragraph {n} says something.")), 480);
 
-    private static List<PortableKept> Blocks(PortableLaid laid) =>
-        [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == PortablePieces.Whole).Select(piece => piece.Painting!.Kept!)];
+    private static List<LayoutKept> Blocks(Laid laid) =>
+        [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == LayoutPieces.Whole).Select(piece => piece.Painting!.Kept!)];
 
-    private static void Paint(PortableLaid laid, Rect? showing)
+    private static void Paint(Laid laid, Rect? showing)
     {
         var visual = new DrawingVisual();
         using var dc = visual.RenderOpen();

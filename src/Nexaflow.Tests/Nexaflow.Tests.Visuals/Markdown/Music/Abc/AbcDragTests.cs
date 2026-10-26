@@ -316,22 +316,22 @@ public class AbcDragTests
     });
 
     /// <summary>The deepest piece naming the first <paramref name="written"/> after <paramref name="after"/>.</summary>
-    private static PortablePiece At(PortableLaid layout, string tune, string written, string after = "")
+    private static LayoutPiece At(Laid layout, string tune, string written, string after = "")
     {
         var offset = tune.IndexOf(written, tune.IndexOf(after, StringComparison.Ordinal), StringComparison.Ordinal);
         return layout.Root.SelfAndDescendants().Last(p => p.Stands() && p.Sits().Start <= offset && offset < p.Sits().End);
     }
 
-    private static List<PortablePiece> Of(PortableLaid layout, string kind) =>
+    private static List<LayoutPiece> Of(Laid layout, string kind) =>
         [.. layout.Root.SelfAndDescendants().Where(n => Kind(n) == kind)];
 
-    private static bool Taken(ContentSelection chosen, PortablePiece piece) =>
+    private static bool Taken(ContentSelection chosen, LayoutPiece piece) =>
         chosen.Ranges.Any(r => piece.Sits().Start >= r.Start && piece.Sits().End <= r.Start + r.Length);
 
-    private static Geometry Washed(PortableLaid layout, ContentSelection chosen) =>
+    private static Geometry Washed(Laid layout, ContentSelection chosen) =>
         layout.Root.Wash([.. chosen.Ranges.Select(r => new EditRange(r.Start, r.Length))], 1.5)?.Geometry() ?? Geometry.Empty;
 
-    private static string Written(string tune, PortablePiece piece) => $"'{tune.Substring(piece.Sits().Start, piece.Sits().Length)}'";
+    private static string Written(string tune, LayoutPiece piece) => $"'{tune.Substring(piece.Sits().Start, piece.Sits().Length)}'";
 
     /// <summary>A point in the space between two things — side by side, or one over the other.</summary>
     private static System.Windows.Point Gap(LayoutRect one, LayoutRect other, bool across) =>
@@ -341,8 +341,8 @@ public class AbcDragTests
 
     private static System.Windows.Point Centre(LayoutRect box) => new(box.X + (box.Width / 2), box.Y + (box.Height / 2));
 
-    private static System.Windows.Point Middle(PortablePiece node) =>
+    private static System.Windows.Point Middle(LayoutPiece node) =>
         new(node.Bounds.X + (node.Bounds.Width / 2), node.Bounds.Y + (node.Bounds.Height / 2));
 
-    private static string Kind(PortablePiece node) => node.Exists ? node.Kind : "?";
+    private static string Kind(LayoutPiece node) => node.Exists ? node.Kind : "?";
 }

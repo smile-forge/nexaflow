@@ -48,10 +48,10 @@ public class GanttBuilderTests : MermaidBuilderContract
         ("nothing to draw", "gantt"),
     ];
 
-    private static PortableLaid Build(string source, double room = 700) =>
+    private static Laid Build(string source, double room = 700) =>
         Laying.Lay("mermaid", source, room);
 
-    private static string Task(string source, PortablePiece piece) => Written(source, piece.Part).Split(':')[0].Trim();
+    private static string Task(string source, LayoutPiece piece) => Written(source, piece.Part).Split(':')[0].Trim();
 
     [TestMethod]
     public void EveryTaskStandsForItsLine_InTheRowItIsWrittenIn() => UiThread.Run(() =>
@@ -82,9 +82,9 @@ public class GanttBuilderTests : MermaidBuilderContract
         Assert.AreEqual(30, Pieces(Build(tall), GanttPiece.Task).Single().Bounds.Height, 1);
 
         var laid = Build("gantt\n  A : 2014-01-01, 3d");
-        var row = Pieces(laid, GanttPiece.Rows).Single().Marks.ToArray().OfType<PortableGeometryMark>().First(mark => mark.Fill is not null).Shape.Bounds;
+        var row = Pieces(laid, GanttPiece.Rows).Single().Marks.ToArray().OfType<GeometryMark>().First(mark => mark.Fill is not null).Shape.Bounds;
         var bar = Pieces(laid, GanttPiece.Task).Single().SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray())
-            .OfType<PortableGeometryMark>().First(mark => mark.Fill is not null).Shape.Bounds;
+            .OfType<GeometryMark>().First(mark => mark.Fill is not null).Shape.Bounds;
         Assert.AreEqual(row.Top + (row.Height / 2), bar.Top + (bar.Height / 2), 1, "in the middle of its band");
     });
 
@@ -98,7 +98,7 @@ public class GanttBuilderTests : MermaidBuilderContract
         Assert.AreEqual(names[0].Right, names[^1].Right, 0.5, "every name set right");
         Assert.IsTrue(names.All(name => name.Right <= bars.Min(bar => bar.Left) - 8), "clear of where the dates start");
 
-        var lines = Pieces(laid, GanttPiece.Rows).Single().Marks.ToArray().OfType<PortableGeometryMark>().Single(mark => (mark.Stroke as WpfStroke)?.Dashes is not null);
+        var lines = Pieces(laid, GanttPiece.Rows).Single().Marks.ToArray().OfType<GeometryMark>().Single(mark => (mark.Stroke as WpfStroke)?.Dashes is not null);
         Assert.AreEqual(4, ((GeometryGroup)lines.Shape.Geometry()).Children.Count, "one along each of the four rows");
     });
 
@@ -172,12 +172,12 @@ public class GanttBuilderTests : MermaidBuilderContract
     /// <paramref name="source"/> read by its stages and laid as though read at <paramref name="now"/>: the stages say when a chart was
     /// read in its own node, so saying it again there is all a test needs to fix the clock.
     /// </summary>
-    private static PortableLaid ReadAt(string source, DateTime now)
+    private static Laid ReadAt(string source, DateTime now)
     {
         var read = AstRewrite.Each(Laying.Read("gantt", source).Root.Node, node => node is GanttBlockNode chart
             ? new GanttBlockNode(chart, chart.Config, chart.Days, now, chart.AxisFormat, chart.Tick, chart.Marker, chart.Weekday, chart.TopAxis)
             : node);
 
-        return new PortableGanttBuilder(ContentReading.Of(read), EditState.For(source), WpfStyles.Dark, true, WpfHandles.Medium, Laying.Hosting).Lay(700);
+        return new GanttBuilder(ContentReading.Of(read), EditState.For(source), WpfStyles.Dark, true, WpfHandles.Medium, Laying.Hosting).Lay(700);
     }
 }

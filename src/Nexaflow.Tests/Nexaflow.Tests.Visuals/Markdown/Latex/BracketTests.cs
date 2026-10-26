@@ -60,6 +60,6 @@ public class BracketTests
         Assert.AreEqual(1, layout.Trouble.Count, "and says so");
     });
 
-    private static string Text(string latex, PortablePiece node) =>
+    private static string Text(string latex, LayoutPiece node) =>
         latex.Substring(node.Sits().Start, node.Sits().Length);
 }

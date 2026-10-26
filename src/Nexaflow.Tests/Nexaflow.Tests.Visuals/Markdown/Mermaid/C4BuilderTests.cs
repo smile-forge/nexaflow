@@ -179,9 +179,9 @@ public class C4BuilderTests : MermaidBuilderContract
     [CoversNode("c4-elements")]
     public void TheAbstractionLevelsAreGradedFromTheThemesOwnAccent()
     {
-        var ink = PortableC4Grading.Of(WpfHandles.Medium, WpfStyles.Dark);
+        var ink = C4Grading.Of(WpfHandles.Medium, WpfStyles.Dark);
 
-        double Lit(int tone) => PortableDiagramColour.Luminance(PortableDiagramColour.ColorOf(ink.Band(tone), LayoutColors.Black));
+        double Lit(int tone) => DiagramColour.Luminance(DiagramColour.ColorOf(ink.Band(tone), LayoutColors.Black));
 
         // C4's information is the grading: deeper for the outer abstraction, lighter as you go in.
         Assert.IsTrue(Lit((int)C4Level.Person) < Lit((int)C4Level.System), "a person is deeper than a system");
@@ -193,10 +193,10 @@ public class C4BuilderTests : MermaidBuilderContract
     [CoversNode("c4-elements")]
     public void TheGradingIsMadeFromTheThemeRatherThanFixedHex()
     {
-        var dark = PortableC4Grading.Of(WpfHandles.Medium, WpfStyles.Dark).Band((int)C4Level.Container);
-        var light = PortableC4Grading.Of(WpfHandles.Medium, WpfStyles.Light).Band((int)C4Level.Container);
+        var dark = C4Grading.Of(WpfHandles.Medium, WpfStyles.Dark).Band((int)C4Level.Container);
+        var light = C4Grading.Of(WpfHandles.Medium, WpfStyles.Light).Band((int)C4Level.Container);
 
-        Assert.AreNotEqual(PortableDiagramColour.ColorOf(dark, LayoutColors.Black), PortableDiagramColour.ColorOf(light, LayoutColors.Black),
+        Assert.AreNotEqual(DiagramColour.ColorOf(dark, LayoutColors.Black), DiagramColour.ColorOf(light, LayoutColors.Black),
                            "a retheme retunes a C4 diagram rather than leaving one region stubbornly cornflower blue");
     }
 
@@ -204,27 +204,27 @@ public class C4BuilderTests : MermaidBuilderContract
     [CoversNode("c4-elements")]
     public void WhatIsWrittenWinsOverTheGrading_AndTheInkIsChosenToReadOnIt()
     {
-        var ink = PortableC4Grading.Of(WpfHandles.Medium, WpfStyles.Dark);
+        var ink = C4Grading.Of(WpfHandles.Medium, WpfStyles.Dark);
 
         var (fill, stroke, text) = ink.Card((int)C4Level.Container, "#969", "#333", "#fff");
-        Assert.AreEqual(LayoutColor.Of(0x99, 0x66, 0x99), PortableDiagramColour.ColorOf(fill, LayoutColors.Black));
-        Assert.AreEqual(LayoutColor.Of(0x33, 0x33, 0x33), PortableDiagramColour.ColorOf(stroke, LayoutColors.Black));
-        Assert.AreEqual(LayoutColors.White, PortableDiagramColour.ColorOf(text, LayoutColors.Black));
+        Assert.AreEqual(LayoutColor.Of(0x99, 0x66, 0x99), DiagramColour.ColorOf(fill, LayoutColors.Black));
+        Assert.AreEqual(LayoutColor.Of(0x33, 0x33, 0x33), DiagramColour.ColorOf(stroke, LayoutColors.Black));
+        Assert.AreEqual(LayoutColors.White, DiagramColour.ColorOf(text, LayoutColors.Black));
 
         // On both palettes, because the trap is a theme whose text brush matches the fill's own darkness.
         foreach (var palette in new[] { WpfStyles.Dark, WpfStyles.Light })
         {
-            var on = PortableC4Grading.Of(WpfHandles.Medium, palette);
+            var on = C4Grading.Of(WpfHandles.Medium, palette);
 
-            var onWhite = PortableDiagramColour.Luminance(PortableDiagramColour.ColorOf(on.Card(0, "#ffffff", null, null).Ink, LayoutColors.Red));
+            var onWhite = DiagramColour.Luminance(DiagramColour.ColorOf(on.Card(0, "#ffffff", null, null).Ink, LayoutColors.Red));
             Assert.IsTrue(onWhite < 100, $"a white card takes dark ink (luminance {onWhite})");
 
-            var onBlack = PortableDiagramColour.Luminance(PortableDiagramColour.ColorOf(on.Card(0, "#000000", null, null).Ink, LayoutColors.Red));
+            var onBlack = DiagramColour.Luminance(DiagramColour.ColorOf(on.Card(0, "#000000", null, null).Ink, LayoutColors.Red));
             Assert.IsTrue(onBlack > 180, $"a black card takes light ink (luminance {onBlack})");
 
             var (person, _, reading) = on.Card((int)C4Level.Person, null, null, null);
-            var gap = Math.Abs(PortableDiagramColour.Luminance(PortableDiagramColour.ColorOf(reading, LayoutColors.Red))
-                               - PortableDiagramColour.Luminance(PortableDiagramColour.ColorOf(person, LayoutColors.Red)));
+            var gap = Math.Abs(DiagramColour.Luminance(DiagramColour.ColorOf(reading, LayoutColors.Red))
+                               - DiagramColour.Luminance(DiagramColour.ColorOf(person, LayoutColors.Red)));
             Assert.IsTrue(gap > 90, $"and the deepest of the grading is legible too (gap {gap})");
         }
     }
@@ -241,10 +241,10 @@ public class C4BuilderTests : MermaidBuilderContract
         C4Container = WpfHandles.Medium.Ink(pinned),
         };
 
-        var ink = PortableC4Grading.Of(WpfHandles.Medium, palette);
+        var ink = C4Grading.Of(WpfHandles.Medium, palette);
 
-        Assert.AreEqual(pinned, PortableDiagramColour.ColorOf(ink.Band((int)C4Level.Container), LayoutColors.Black));
-        Assert.AreNotEqual(pinned, PortableDiagramColour.ColorOf(ink.Band((int)C4Level.Component), LayoutColors.Black),
+        Assert.AreEqual(pinned, DiagramColour.ColorOf(ink.Band((int)C4Level.Container), LayoutColors.Black));
+        Assert.AreNotEqual(pinned, DiagramColour.ColorOf(ink.Band((int)C4Level.Component), LayoutColors.Black),
                            "and the levels it did not pin still derive");
     }
 
@@ -252,15 +252,15 @@ public class C4BuilderTests : MermaidBuilderContract
     [CoversNode("c4-elements")]
     public void SomebodyElsesIsTheOneMutedColourWhateverLevelItSitsAt() => UiThread.Run(() =>
     {
-        var ink = PortableC4Grading.Of(WpfHandles.Medium, WpfStyles.Dark);
-        var muted = PortableDiagramColour.ColorOf(ink.Band(C4Elements.External), LayoutColors.Black);
+        var ink = C4Grading.Of(WpfHandles.Medium, WpfStyles.Dark);
+        var muted = DiagramColour.ColorOf(ink.Band(C4Elements.External), LayoutColors.Black);
 
         foreach (var level in new[] { C4Level.Person, C4Level.System, C4Level.Container, C4Level.Component })
-            Assert.AreEqual(muted, PortableDiagramColour.ColorOf(ink.Band(C4Elements.Banded(level, external: true)), LayoutColors.Black),
+            Assert.AreEqual(muted, DiagramColour.ColorOf(ink.Band(C4Elements.Banded(level, external: true)), LayoutColors.Black),
                             $"{level}");
     });
 
-    private static IEnumerable<PortablePiece> Words(PortablePiece piece) =>
+    private static IEnumerable<LayoutPiece> Words(LayoutPiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Words is not null);
 
     [TestMethod]

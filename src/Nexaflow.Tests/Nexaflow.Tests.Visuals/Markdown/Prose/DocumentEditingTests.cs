@@ -187,5 +187,5 @@ public class DocumentEditingTests
     private static void Settle(MarkdownElement element, string separator) => element.Settle(separator);
 
     private static bool Sourced(MarkdownElement element) =>
-        element.Laid.Root.SelfAndDescendants().Any(piece => piece.Kind == PortableText.SourceKind);
+        element.Laid.Root.SelfAndDescendants().Any(piece => piece.Kind == LayoutText.SourceKind);
 }

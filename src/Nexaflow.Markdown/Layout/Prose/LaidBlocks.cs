@@ -55,8 +55,8 @@ internal sealed class LaidBlock
 /// what the languages inside it could not read, and what it was laid for.
 /// </summary>
 /// <param name="Part">The block as the reading it was laid from had it — what every piece's part is found again from.</param>
-internal sealed record KeptLaying(ContentPart Part, PortableTree Tree, double Height, double Reach,
-                              IReadOnlyList<PortableDiagnostic> Trouble, double Room, bool IsReadOnly)
+internal sealed record KeptLaying(ContentPart Part, LayoutTree Tree, double Height, double Reach,
+                              IReadOnlyList<LayoutDiagnostic> Trouble, double Room, bool IsReadOnly)
 {
     /// <summary>
     /// What every piece stands for, and what the languages inside said, as the block reads now — <paramref name="now"/>
@@ -69,7 +69,7 @@ internal sealed record KeptLaying(ContentPart Part, PortableTree Tree, double He
     /// that language read when the block was laid, is that reading again, set that much further along.
     /// </para>
     /// </summary>
-    public (ISourcePart?[] Parts, List<PortableDiagnostic> Trouble)? At(ContentPart now)
+    public (ISourcePart?[] Parts, List<LayoutDiagnostic> Trouble)? At(ContentPart now)
     {
         var moved = new Moved(Part, now);
 
@@ -77,7 +77,7 @@ internal sealed record KeptLaying(ContentPart Part, PortableTree Tree, double He
         for (var piece = 0; piece < Tree.Count; piece++)
             if (!moved.Try(Tree.PartOf(piece), out parts[piece])) return null;
 
-        var trouble = new List<PortableDiagnostic>(Trouble.Count);
+        var trouble = new List<LayoutDiagnostic>(Trouble.Count);
         foreach (var said in Trouble)
         {
             if (!moved.Try(said.Part, out var part)) return null;
@@ -111,7 +111,7 @@ internal sealed record KeptLaying(ContentPart Part, PortableTree Tree, double He
             {
                 null => null,
                 ContentPart written => Found(written),
-                PortableTexPart named => Found(named),
+                TexPart named => Found(named),
                 PartRun run => Found(run),
                 PartSlice slice => Found(slice),
                 SourceSpan span => span with { Start = span.Start + By },
@@ -170,13 +170,13 @@ internal sealed record KeptLaying(ContentPart Part, PortableTree Tree, double He
             return from;
         }
 
-        private PortableTexPart? Found(PortableTexPart named)
+        private TexPart? Found(TexPart named)
         {
             _made ??= [];
-            if (_made.TryGetValue(named, out var found)) return (PortableTexPart)found;
+            if (_made.TryGetValue(named, out var found)) return (TexPart)found;
             if (Found(named.Of) is not { } of) return null;
 
-            var moved = ReferenceEquals(of, named.Of) ? named : new PortableTexPart(of);
+            var moved = ReferenceEquals(of, named.Of) ? named : new TexPart(of);
             _made[named] = moved;
             return moved;
         }

@@ -43,14 +43,14 @@ public class MarkdownTableRulesTests
         var (_, down, table) = Rules(laid);
 
         var inner = down.Where(rule => rule.X > table.Left + 1 && rule.X < table.Right - 2).ToList();
-        var big = laid.Root.SelfAndDescendants().First(piece => piece.Kind == PortablePieces.Cell).Bounds;
+        var big = laid.Root.SelfAndDescendants().First(piece => piece.Kind == LayoutPieces.Cell).Bounds;
 
         Assert.IsTrue(inner.Count > 0, "the columns are ruled apart where they are two");
         Assert.IsFalse(inner.Any(rule => rule.Top < big.Bottom - 0.5), "but not through the cell covering both");
     }
 
     /// <summary>Every rule of the one table laid, where it is on the page, split into those across and those down, and where the table is.</summary>
-    private static (List<LayoutRect> Across, List<LayoutRect> Down, LayoutRect Table) Rules(PortableLaid laid)
+    private static (List<LayoutRect> Across, List<LayoutRect> Down, LayoutRect Table) Rules(Laid laid)
     {
         var rules = new List<LayoutRect>();
 
@@ -60,7 +60,7 @@ public class MarkdownTableRulesTests
             foreach (var up in piece.Ancestors()) origin += up.Offset;
 
             foreach (var mark in piece.Marks)
-                if (mark is PortableRuleMark rule) rules.Add(LayoutRect.Offset(rule.Bounds, origin));
+                if (mark is RuleMark rule) rules.Add(LayoutRect.Offset(rule.Bounds, origin));
         }
 
         List<LayoutRect> across = [.. rules.Where(rule => rule.Width > rule.Height)];

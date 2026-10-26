@@ -39,10 +39,10 @@ public sealed record LaidLink
     internal LayoutIntent Intent { get; init; }
 
     /// <summary>The piece a press on <see cref="At"/> lands on.</summary>
-    internal PortablePiece Piece { get; init; }
+    internal LayoutPiece Piece { get; init; }
 
     /// <summary>The layout it was read from.</summary>
-    internal PortableLaid? From { get; init; }
+    internal Laid? From { get; init; }
 }
 
 public sealed partial class ContentEngine
@@ -60,7 +60,7 @@ public sealed partial class ContentEngine
         var links = new List<LaidLink>();
         var text = new StringBuilder();
 
-        PortablePiece first = default;
+        LayoutPiece first = default;
         LayoutRect start = LayoutRect.Empty, covers = LayoutRect.Empty;
         LayoutIntent intent = default;
         var open = false;

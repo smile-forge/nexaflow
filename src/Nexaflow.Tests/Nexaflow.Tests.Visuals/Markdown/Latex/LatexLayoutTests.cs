@@ -34,7 +34,7 @@ public class LatexLayoutTests
     private const double Scale = 20;
     private const string Fraction = @"\frac{x^2}{2}+\sqrt{y}";
 
-    private static PortableLaid Build(string latex)
+    private static Laid Build(string latex)
     {
         var layout = Laying.Formula(latex, Scale);
         Assert.IsNotNull(layout, $"expected {latex} to typeset");
@@ -112,11 +112,11 @@ public class LatexLayoutTests
     });
 
     /// <summary>The equation: the piece standing for the whole formula, which the number is set beside.</summary>
-    private static PortablePiece Equation(PortableLaid laid) =>
+    private static LayoutPiece Equation(Laid laid) =>
         laid.Root.SelfAndDescendants().First(p => p.Stands() && p.Sits().Start == 0);
 
     /// <summary>The number: the piece standing for the <c>\tag</c>.</summary>
-    private static PortablePiece Number(PortableLaid laid, string latex) =>
+    private static LayoutPiece Number(Laid laid, string latex) =>
         laid.Root.SelfAndDescendants().First(p => p.Stands() && p.Sits().Start == latex.IndexOf(@"\tag", StringComparison.Ordinal));
 
     [TestMethod]
@@ -317,7 +317,7 @@ public class LatexLayoutTests
     });
 
     private static Nexaflow.Markdown.Typesetting.Tex.TexEnvironment Environment() =>
-        PortableTexFonts.Of(WpfHandles.Medium, "Arial").Environment(TexStyle.Display, Scale);
+        TexFonts.Of(WpfHandles.Medium, "Arial").Environment(TexStyle.Display, Scale);
 
     [TestMethod]
     [CoversNode("latex-source-map")]
@@ -402,7 +402,7 @@ public class LatexLayoutTests
         var unknown = Laying.Formula(@"x + \nosuchcommand", Scale);
         Assert.IsNotNull(unknown);
         CollectionAssert.AreEqual(
-            new[] { PortableSeverity.Error },
+            new[] { LayoutSeverity.Error },
             unknown.Trouble.Select(d => d.Severity).ToArray(),
             "a name nothing has heard of is a reading failure, reported once: " + Said(unknown));
 
@@ -412,12 +412,12 @@ public class LatexLayoutTests
         var undrawn = Laying.Formula(@"\shoveleft{x}", Scale);
         Assert.IsNotNull(undrawn);
         CollectionAssert.AreEqual(
-            new[] { PortableSeverity.Warning },
+            new[] { LayoutSeverity.Warning },
             undrawn.Trouble.Select(d => d.Severity).ToArray(),
             "something we read and cannot draw is ours, not the writer's: " + Said(undrawn));
     });
 
-    private static string Said(PortableLaid tree) =>
+    private static string Said(Laid tree) =>
         tree.Trouble.Count == 0
             ? "nothing was reported at all"
             : string.Join("; ", tree.Trouble.Select(d => $"{d.Severity} @{d.Start}+{d.Length} {d.Message}"));

@@ -95,13 +95,13 @@ public class LayoutSnapshotTests
     });
 
     /// <summary>The document laid out the way a surface lays it — the one line to change when that way changes.</summary>
-    private static PortableLaid Lay(string text, bool readOnly)
+    private static Laid Lay(string text, bool readOnly)
     {
         var style = WpfStyles.Dark;
         return new ContentEngine().Lay(null, EditState.For(text), style, Room, readOnly);
     }
 
-    private static string Dump(PortableLaid laid)
+    private static string Dump(Laid laid)
     {
         var text = new StringBuilder();
         text.Append("size ").Append(Size(laid.Size)).Append('\n');
@@ -129,7 +129,7 @@ public class LayoutSnapshotTests
     }
 
     /// <summary>A mark as what it is, where it covers, and what it is drawn with.</summary>
-    private static string Mark(PortableMark mark)
+    private static string Mark(LayoutMark mark)
     {
         var said = new StringBuilder(mark.GetType().Name).Append(' ').Append(Rect(mark.Covers));
 

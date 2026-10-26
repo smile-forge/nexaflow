@@ -159,7 +159,7 @@ public class BlockCornerTests
         // A barcode's bars stand for no characters, so a block found only by where its characters were drawn would be no
         // taller than the value printed under it — and the corner, at the block's top, would be off the block.
         var engine = LaidOut("Before.\n\n```barcode\nformat: CODE128\nvalue: 12345\n```\n");
-        var symbol = engine.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == PortablePieces.Block && piece.Part is { Length: > 30 });
+        var symbol = engine.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == LayoutPieces.Block && piece.Part is { Length: > 30 });
 
         CollectionAssert.Contains(Verbs(engine, new LayoutPoint(engine.Laid.Size.Width - 2, symbol.Bounds.Top + 2)), LayoutVerbs.Copy);
     });
@@ -375,7 +375,7 @@ public class BlockCornerTests
     }
 
     /// <summary>The corner's buttons, in the order they stand.</summary>
-    private static List<PortablePiece> Buttons(ContentEngine engine) =>
+    private static List<LayoutPiece> Buttons(ContentEngine engine) =>
         [.. engine.Corner!.Root.SelfAndDescendants().Where(piece => piece.Acts is not null)];
 
     /// <summary>A document laid out as a reader is shown it, with the engine that laid it ready to be pointed at.</summary>
@@ -406,8 +406,8 @@ public class BlockCornerTests
         engine.Where(engine.Blocked(document.IndexOf(written, StringComparison.Ordinal))!);
 
     /// <summary>Whether a button is drawn as the one a press would answer.</summary>
-    private static bool Outlined(PortablePiece button) =>
-        button.Marks.ToArray().OfType<PortableGeometryMark>().Any(mark => mark.Stroke is not null);
+    private static bool Outlined(LayoutPiece button) =>
+        button.Marks.ToArray().OfType<GeometryMark>().Any(mark => mark.Stroke is not null);
 
     /// <summary>A host that answers every verb it is asked, and remembers them.</summary>
     private sealed class Keeper(List<LayoutAct> asked) : ILayoutActions
@@ -423,15 +423,15 @@ public class BlockCornerTests
     }
 
     /// <summary>Content that draws a block for everybody, and a second only where somebody can write in it.</summary>
-    private static PortableLaid Marked(EditState state, bool readOnly)
+    private static Laid Marked(EditState state, bool readOnly)
     {
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("content");
-        build.Draw(new PortableRuleMark(new LayoutRect(0, 0, 40, 20), Brushes.Blue.Ink()));
-        if (!readOnly) build.Draw(new PortableRuleMark(new LayoutRect(50, 0, 20, 20), Brushes.Red.Ink()));
+        build.Draw(new RuleMark(new LayoutRect(0, 0, 40, 20), Brushes.Blue.Ink()));
+        if (!readOnly) build.Draw(new RuleMark(new LayoutRect(50, 0, 20, 20), Brushes.Red.Ink()));
         build.Close();
 
-        return new PortableLaid(build.Seal(), 80, 20, []);
+        return new Laid(build.Seal(), 80, 20, []);
     }
 
     /// <summary>An element measured and arranged, as it would be on a page.</summary>

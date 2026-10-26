@@ -50,7 +50,7 @@ public class AbcEditsTests
             .OrderBy(part => part.Length)
             .FirstOrDefault() ?? tune;
 
-        return AbcEdits.Instance.Edit(new ContentEdit(kind, text, new Landing(state, PortableLaid.Nothing(WpfHandles.Medium), -1), default, at, tune));
+        return AbcEdits.Instance.Edit(new ContentEdit(kind, text, new Landing(state, Laid.Nothing(WpfHandles.Medium), -1), default, at, tune));
     }
 
     /// <summary>

@@ -218,20 +218,20 @@ public class BlockBuilderTests : MermaidBuilderContract
     });
 
     /// <summary>What a block's shape comes to as a path, which is the only thing that tells two shapes of the same size apart.</summary>
-    private static string Outlined(PortablePiece piece) =>
+    private static string Outlined(LayoutPiece piece) =>
         string.Join("|", Marks(piece).Select(mark => PathGeometry.CreateFromGeometry(mark.Shape.Geometry()).ToString(CultureInfo.InvariantCulture)));
 
-    private static PortableLaid Build(string source, double room = 900) =>
+    private static Laid Build(string source, double room = 900) =>
         Laying.Lay("mermaid", source, room);
 
     /// <summary>The words drawn under a piece, in the order they were drawn.</summary>
-    private static IEnumerable<PortablePiece> Said(PortablePiece piece) =>
+    private static IEnumerable<LayoutPiece> Said(LayoutPiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Words && part.Words is not null);
 
-    private static IReadOnlyList<PortableGeometryMark> Marks(PortablePiece piece) =>
-        [.. piece.SelfAndDescendants().First(part => part.Kind == MermaidPiece.Shape).Marks.ToArray().OfType<PortableGeometryMark>()];
+    private static IReadOnlyList<GeometryMark> Marks(LayoutPiece piece) =>
+        [.. piece.SelfAndDescendants().First(part => part.Kind == MermaidPiece.Shape).Marks.ToArray().OfType<GeometryMark>()];
 
-    private static Color? Filled(PortablePiece piece) => Fill(piece.SelfAndDescendants().First(part => part.Kind == MermaidPiece.Shape));
+    private static Color? Filled(LayoutPiece piece) => Fill(piece.SelfAndDescendants().First(part => part.Kind == MermaidPiece.Shape));
 
     private static LayoutRect Drawing(string source) => Marks(Pieces(Build(source), BlockPiece.Arrow).Single())[0].Shape.Bounds;
 
@@ -251,7 +251,7 @@ public class BlockBuilderTests : MermaidBuilderContract
     });
 
     /// <summary>Whether a piece's shape stands at a point, which is where a press on it lands rather than on what is under it.</summary>
-    private static bool Stands(PortablePiece piece, LayoutPoint at)
+    private static bool Stands(LayoutPiece piece, LayoutPoint at)
     {
         var shift = piece.Offset;
         foreach (var over in piece.Ancestors()) shift += over.Offset;
@@ -262,7 +262,7 @@ public class BlockBuilderTests : MermaidBuilderContract
     // ── What is read from the lines as written ──────────────────────────────
 
     /// <summary>The blocks drawn, each by what is written on it.</summary>
-    private static Dictionary<string, LayoutRect> Blocks(PortableLaid laid) =>
+    private static Dictionary<string, LayoutRect> Blocks(Laid laid) =>
         Pieces(laid, BlockPiece.Block).ToDictionary(block => string.Concat(Said(block).Select(words => words.Words!.Glyphs.Text)), block => block.Bounds);
 
     [TestMethod]
@@ -312,7 +312,7 @@ public class BlockBuilderTests : MermaidBuilderContract
     {
         const string source = "block-beta\n  block:one\n    block:two\n      a\n    end\n  end\n  block:three\n    b\n  end";
         var laid = Build(source);
-        string[] Holding(PortablePiece piece) =>
+        string[] Holding(LayoutPiece piece) =>
             [.. piece.Ancestors().Where(over => over.Kind == BlockPiece.Composite).Select(over => Written(source, over.Part))];
 
         var composites = Pieces(laid, BlockPiece.Composite).ToDictionary(piece => Written(source, piece.Part), Holding);
@@ -326,9 +326,9 @@ public class BlockBuilderTests : MermaidBuilderContract
     [TestMethod]
     public void ALinkIsDrawnAsItsArrowSays() => UiThread.Run(() =>
     {
-        IReadOnlyList<PortableGeometryMark> Link(string arrow) =>
+        IReadOnlyList<GeometryMark> Link(string arrow) =>
             [.. Pieces(Build($"block-beta\n  a space b\n  a {arrow} b"), BlockPiece.Link).Single()
-                .SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<PortableGeometryMark>()];
+                .SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>()];
 
         Assert.IsTrue(Link("-->").Count > Link("---").Count, "an arrow draws a head where it points");
         Assert.AreNotEqual(Outline(Link("<-->")), Outline(Link("-->")), "and one at each end where it points both ways");
@@ -345,6 +345,6 @@ public class BlockBuilderTests : MermaidBuilderContract
                                        "Mermaid's block diagram has no title line of its own");
     });
 
-    private static string Outline(IReadOnlyList<PortableGeometryMark> marks) =>
+    private static string Outline(IReadOnlyList<GeometryMark> marks) =>
         string.Join("|", marks.Select(mark => PathGeometry.CreateFromGeometry(mark.Shape.Geometry()).ToString(CultureInfo.InvariantCulture)));
 }

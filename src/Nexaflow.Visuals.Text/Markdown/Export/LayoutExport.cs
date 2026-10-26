@@ -27,7 +27,7 @@ public sealed record ExportOccasion
     public double Width { get; init; } = 640;
 
     /// <summary>The palette it is drawn in: a page is white unless somebody says otherwise.</summary>
-    public PortableStyle Style { get; init; } = WpfStyles.Light;
+    public LayoutStyle Style { get; init; } = WpfStyles.Light;
 
     /// <summary>Whether what another language draws is painted, so a format that cannot draw the language puts the picture in.</summary>
     public bool Pictures { get; init; }
@@ -59,7 +59,7 @@ public static class LayoutExport
     }
 
     /// <summary>A document already laid out, walked.</summary>
-    public static ExportDocument Exported(PortableLaid laid, ExportOccasion occasion) =>
+    public static ExportDocument Exported(Laid laid, ExportOccasion occasion) =>
         laid.Root.Part is ContentPart document ? new Walk(laid, occasion).Document(document) : new ExportDocument([]);
 
     /// <summary>
@@ -67,22 +67,22 @@ public static class LayoutExport
     /// there rather than the characters written — what an export puts in as a picture where its format cannot draw the
     /// language, and what a sheet of paper holds all of or none of.
     /// </summary>
-    internal static bool IsPicture(ContentPart part, PortablePiece drawn) =>
+    internal static bool IsPicture(ContentPart part, LayoutPiece drawn) =>
         ContentNested.Language(part) is { } named && part.Part(Roles.Body) is not null
         && ContentLanguages.For(named) is { } language && !language.Editing.ShowsWhatWasWritten && !Shown(drawn);
 
     /// <summary>Whether what was laid shows the characters written — code, or source shown because nothing could draw it.</summary>
-    private static bool Shown(PortablePiece drawn) =>
-        drawn.SelfAndDescendants().Any(piece => piece.Kind is PortablePieces.Verbatim or PortableText.SourceKind or PortableSourceShown.Block);
+    private static bool Shown(LayoutPiece drawn) =>
+        drawn.SelfAndDescendants().Any(piece => piece.Kind is LayoutPieces.Verbatim or LayoutText.SourceKind or SourceShown.Block);
 
     /// <summary>One walk over one layout: the reading in order, and for each part, the pieces laid from it.</summary>
     private sealed class Walk
     {
-        private readonly PortableLaid _laid;
+        private readonly Laid _laid;
         private readonly ExportOccasion _occasion;
-        private readonly Dictionary<ContentPart, List<PortablePiece>> _pieces = new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<ContentPart, List<LayoutPiece>> _pieces = new(ReferenceEqualityComparer.Instance);
 
-        public Walk(PortableLaid laid, ExportOccasion occasion)
+        public Walk(Laid laid, ExportOccasion occasion)
         {
             _laid = laid;
             _occasion = occasion;
@@ -187,7 +187,7 @@ public static class LayoutExport
         }
 
         /// <summary>What a piece paints, as a picture of its own: as much of the page as it was laid over.</summary>
-        private ExportPicture? Picture(PortablePiece drawn)
+        private ExportPicture? Picture(LayoutPiece drawn)
         {
             var box = drawn.Bounds;
 
@@ -201,8 +201,8 @@ public static class LayoutExport
         {
             var marker = Body(alert).Children.FirstOrDefault(child => child.Kind == MarkdownKinds.Marker);
             var name = marker?.Part(Roles.Name)?.Text ?? string.Empty;
-            var label = marker is null ? null : this.Drawn(marker, PortablePieces.Words);
-            var bar = this.Laid(alert) is { } drawn ? drawn.Marks.ToArray().OfType<PortableRuleMark>().FirstOrDefault()?.Ink : null;
+            var label = marker is null ? null : this.Drawn(marker, LayoutPieces.Words);
+            var bar = this.Laid(alert) is { } drawn ? drawn.Marks.ToArray().OfType<RuleMark>().FirstOrDefault()?.Ink : null;
 
             return new ExportCallout(name, label ?? name, Argb(bar ?? _occasion.Style.Accent));
         }
@@ -222,7 +222,7 @@ public static class LayoutExport
         private ExportItem Item(ContentPart item)
         {
             var written = item.Children.FirstOrDefault(child => child.Role == Roles.Trivia && !child.Derived);
-            var marker = (written is null ? null : this.Drawn(written, PortablePieces.Marker)) ?? this.Drawn(item, PortablePieces.Marker) ?? "•";
+            var marker = (written is null ? null : this.Drawn(written, LayoutPieces.Marker)) ?? this.Drawn(item, LayoutPieces.Marker) ?? "•";
             var tick = item.Children.FirstOrDefault(child => child.Kind == MarkdownKinds.Task);
 
             return new ExportItem(this.Blocks(item), marker, tick is null ? null : tick.Part(MarkdownRoles.Done) is not null);
@@ -405,7 +405,7 @@ public static class LayoutExport
         // ── What the layout says ────────────────────────────────────────────
 
         /// <summary>The first piece laid from <paramref name="part"/>, or null where nothing was.</summary>
-        private PortablePiece? Laid(ContentPart part) => _pieces.TryGetValue(part, out var laid) && laid.Count > 0 ? laid[0] : null;
+        private LayoutPiece? Laid(ContentPart part) => _pieces.TryGetValue(part, out var laid) && laid.Count > 0 ? laid[0] : null;
 
         /// <summary>The words a piece of <paramref name="kind"/> laid from <paramref name="part"/> draws — drawn, not written: a marker's number, an alert's word.</summary>
         private string? Drawn(ContentPart part, string kind)

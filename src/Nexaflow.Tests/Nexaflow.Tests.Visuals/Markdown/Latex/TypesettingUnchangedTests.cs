@@ -162,7 +162,7 @@ public class TypesettingUnchangedTests
     /// the same line the corpus sweep draws between a picture and a tree.
     /// </para>
     /// </summary>
-    private static string Shape(PortableLaid layout)
+    private static string Shape(Laid layout)
     {
         var text = new StringBuilder();
         text.Append(Number(layout.Size.Width)).Append('x').Append(Number(layout.Size.Height)).Append('\n');

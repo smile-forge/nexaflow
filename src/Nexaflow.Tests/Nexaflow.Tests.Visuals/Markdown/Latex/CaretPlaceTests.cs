@@ -147,7 +147,7 @@ public class CaretPlaceTests
             var laid = Laid(latex);
             var forwards = Walk(laid);
 
-            var backwards = new List<PortableCaretPlace> { forwards[^1] };
+            var backwards = new List<CaretPlace> { forwards[^1] };
             for (var at = laid.Places.Count - 1; laid.Step(at, forward: false) is { } previous; at = previous)
                 backwards.Add(laid.Places[previous]);
 
@@ -156,7 +156,7 @@ public class CaretPlaceTests
         }
     });
 
-    private static PortableLaid Laid(string latex)
+    private static Laid Laid(string latex)
     {
         var laid = Laying.Formula(latex, 22);
         Assert.IsNotNull(laid, latex);
@@ -165,10 +165,10 @@ public class CaretPlaceTests
     }
 
     /// <summary>Every place in a formula, in the order the right arrow visits them.</summary>
-    private static List<PortableCaretPlace> Walk(PortableLaid laid)
+    private static List<CaretPlace> Walk(Laid laid)
     {
 
-        var places = new List<PortableCaretPlace> { laid.Places[0] };
+        var places = new List<CaretPlace> { laid.Places[0] };
         for (var at = 0; laid.Step(at, forward: true) is { } next; at = next)
         {
             places.Add(laid.Places[next]);

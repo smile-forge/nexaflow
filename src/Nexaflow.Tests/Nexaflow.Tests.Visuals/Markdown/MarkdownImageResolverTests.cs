@@ -38,7 +38,7 @@ public class MarkdownImageResolverTests
 
         foreach (var piece in shown.Laid.Root.SelfAndDescendants())
             foreach (var mark in piece.Marks)
-                if (mark is Nexaflow.Markdown.Layout.PortablePictureMark picture) drawn.Add(((Nexaflow.Visuals.Text.Painting.WpfPicture)picture.Picture).Source);
+                if (mark is Nexaflow.Markdown.Layout.PictureMark picture) drawn.Add(((Nexaflow.Visuals.Text.Painting.WpfPicture)picture.Picture).Source);
 
         Assert.AreSame(pixel, drawn.Single());
     });

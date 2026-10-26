@@ -117,12 +117,12 @@ public class DataMatrixBuilderTests
 
         StringAssert.Contains(laid.Trouble.Single().Message, "PZN");
         Assert.IsTrue(laid.ShowsSource, "a code is only read, so what will not read is put right in its source");
-        Assert.AreEqual(1, MatrixLayouts.Of(laid, PortableSourceShown.Reason).Length, "with why, under it");
+        Assert.AreEqual(1, MatrixLayouts.Of(laid, SourceShown.Reason).Length, "with why, under it");
     });
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static PortableLaid Build(string source) => Laying.Lay("datamatrix", source, style: WpfStyles.Dark);
+    private static Laid Build(string source) => Laying.Lay("datamatrix", source, style: WpfStyles.Dark);
 
     private static DataMatrixBlock Read(string source)
     {

@@ -424,7 +424,7 @@ public class PlotFigureWriter
         });
     }
 
-    private static void Write(string path, string source, PlotFence fence, PortableStyle palette,
+    private static void Write(string path, string source, PlotFence fence, LayoutStyle palette,
                               Brush ground, double width)
     {
         var host = new Border

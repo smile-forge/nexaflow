@@ -11,8 +11,8 @@ using Nexaflow.Visuals.Text.Painting;
 namespace Nexaflow.Tests.Visuals.Editing;
 
 /// <summary>
-/// How much of a piece shows (<see cref="PortablePaint.Clip"/>, <see cref="PortablePaint.Opacity"/>,
-/// <see cref="PortablePaint.Mask"/>) and how an outline's pen is shaped (<see cref="StrokeEnds"/>): painted into a picture the
+/// How much of a piece shows (<see cref="LayoutPaint.Clip"/>, <see cref="LayoutPaint.Opacity"/>,
+/// <see cref="LayoutPaint.Mask"/>) and how an outline's pen is shaped (<see cref="StrokeEnds"/>): painted into a picture the
 /// way a document's picture is saved, and read back a pixel at a time; and pressed, where what a clip cuts away is not
 /// there to be pressed.
 ///
@@ -37,7 +37,7 @@ public class LayoutPaintTests
     public void AClippedPieceIsPaintedOnlyInsideItsClip_WhereverItStands() => UiThread.Run(() =>
     {
         // The bar runs from 20 to 100 across the page; its clip keeps its first 30, which is 20 to 50 on the page.
-        var picture = Read(Painted(Bar(new PortablePaint(Clip: Clip(new Rect(0, 0, 30, 20)))), Brushes.White));
+        var picture = Read(Painted(Bar(new LayoutPaint(Clip: Clip(new Rect(0, 0, 30, 20)))), Brushes.White));
 
         Assert.IsTrue(IsRed(picture.At(35, 20)), "inside the clip, where the piece stands");
         Assert.IsTrue(IsWhite(picture.At(60, 20)), "past the clip, though the bar runs on there");
@@ -47,8 +47,8 @@ public class LayoutPaintTests
     [TestMethod]
     public void AClippedPieceKeepingItsPictureIsClippedJustTheSame() => UiThread.Run(() =>
     {
-        var kept = new PortableKept();
-        var bar = Bar(new PortablePaint(Kept: kept, Clip: Clip(new Rect(0, 0, 30, 20))));
+        var kept = new LayoutKept();
+        var bar = Bar(new LayoutPaint(Kept: kept, Clip: Clip(new Rect(0, 0, 30, 20))));
 
         var first = Read(Painted(bar, Brushes.White));
         Assert.IsTrue(kept.Holds, "the picture was kept");
@@ -65,12 +65,12 @@ public class LayoutPaintTests
     [TestMethod]
     public void AFadedPieceShowsAtTheStrengthItAsksFor() => UiThread.Run(() =>
     {
-        var half = Read(Painted(Bar(new PortablePaint(Opacity: 0.5)), ground: null)).At(50, 20);
+        var half = Read(Painted(Bar(new LayoutPaint(Opacity: 0.5)), ground: null)).At(50, 20);
 
         Assert.AreEqual(128, half.A, 2, "half its alpha");
         Assert.IsTrue(half.R > 240 && half.G < 15, "and still its own colour");
 
-        var none = Read(Painted(Bar(new PortablePaint(Opacity: 0)), ground: null)).At(50, 20);
+        var none = Read(Painted(Bar(new LayoutPaint(Opacity: 0)), ground: null)).At(50, 20);
         Assert.AreEqual(0, none.A, "a piece that does not show at all is not there");
     });
 
@@ -92,7 +92,7 @@ public class LayoutPaintTests
             },
         };
 
-        var picture = Read(Painted(Bar(new PortablePaint(Mask: Medium.Ink(Frozen(mask)))), ground: null));
+        var picture = Read(Painted(Bar(new LayoutPaint(Mask: Medium.Ink(Frozen(mask)))), ground: null));
 
         Assert.AreEqual(255, picture.At(40, 20).A, "where the mask is opaque");
         Assert.AreEqual(0, picture.At(85, 20).A, "and nothing where it is clear");
@@ -103,17 +103,17 @@ public class LayoutPaintTests
     {
         // A clip puts the painter in the piece's own frame. What is near the screen has to move with it, or every block inside
         // a clipped piece is painted and kept however far down the page it is.
-        var near = new PortableKept();
-        var far = new PortableKept();
+        var near = new LayoutKept();
+        var far = new LayoutKept();
 
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("page");
-        build.Open("cut", at: new LayoutPoint(0, 1000), paints: new PortablePaint(Clip: Clip(new Rect(0, 0, 100, 6000))));
+        build.Open("cut", at: new LayoutPoint(0, 1000), paints: new LayoutPaint(Clip: Clip(new Rect(0, 0, 100, 6000))));
 
         foreach (var (kept, y) in new[] { (near, 0d), (far, 5000d) })
         {
-            build.Open("block", at: new LayoutPoint(0, y), paints: new PortablePaint(Kept: kept));
-            build.Draw(new PortableRuleMark(new LayoutRect(0, 0, 50, 50), Medium.Ink(Brushes.Red)));
+            build.Open("block", at: new LayoutPoint(0, y), paints: new LayoutPaint(Kept: kept));
+            build.Draw(new RuleMark(new LayoutRect(0, 0, 50, 50), Medium.Ink(Brushes.Red)));
             build.Close();
         }
 
@@ -175,7 +175,7 @@ public class LayoutPaintTests
     {
         var shape = Medium.Line(new LayoutPoint(0, 0), new LayoutPoint(10, 10));
         var bevelled = Medium.Stroke(null, 1, ends: new StrokeEnds(Join: StrokeJoin.Bevel));
-        var mark = new PortableGeometryMark(shape, null, bevelled);
+        var mark = new GeometryMark(shape, null, bevelled);
 
         Assert.AreSame(Brushes.Black, ((WpfStroke)mark.Stroke!).PenFor(Brushes.Black).Brush);
         Assert.AreSame(Brushes.White, ((WpfStroke)mark.Stroke!).PenFor(Brushes.White).Brush, "a theme changing is a pen of the new colour");
@@ -184,7 +184,7 @@ public class LayoutPaintTests
         Assert.AreEqual(PenLineJoin.Round, ((WpfStroke)rounded.Stroke!).PenFor(Brushes.White).LineJoin, "a copy is drawn with its own pen");
         Assert.AreEqual(PenLineJoin.Bevel, ((WpfStroke)mark.Stroke!).PenFor(Brushes.White).LineJoin, "and the original keeps its");
 
-        Assert.AreEqual(new PortableGeometryMark(shape, null, bevelled), mark, "a mark painted is still equal to the same mark never painted");
+        Assert.AreEqual(new GeometryMark(shape, null, bevelled), mark, "a mark painted is still equal to the same mark never painted");
     });
     [TestMethod]
     public void APressOutsideAClipIsNotOnWhatItCuts()
@@ -215,9 +215,9 @@ public class LayoutPaintTests
                 squares[(y * Side) + x] = (byte)((x + y) % 2 == 0 ? 0 : 255);
         var board = Frozen(BitmapSource.Create(Side, Side, 96, 96, PixelFormats.Gray8, null, squares, Side));
 
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("page");
-        build.Draw(new PortablePictureMark(Medium.Picture(board), new LayoutRect(10, 5, 25, 25)));
+        build.Draw(new PictureMark(Medium.Picture(board), new LayoutRect(10, 5, 25, 25)));
         build.Close();
         var picture = Read(Painted(build.Seal(), Brushes.White));
 
@@ -230,24 +230,24 @@ public class LayoutPaintTests
     /// A bar 100 wide, cut by the frame holding it to the 40 from 10 to 50 on the page; beside it at 130, an uncut box; and
     /// at 200, a box its own clip cuts away entirely.
     /// </summary>
-    private static PortableTree Pressed()
+    private static LayoutTree Pressed()
     {
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("page");
 
-        build.Open("cut", at: new LayoutPoint(10, 0), paints: new PortablePaint(Clip: Clip(new Rect(0, 0, 40, 20))));
+        build.Open("cut", at: new LayoutPoint(10, 0), paints: new LayoutPaint(Clip: Clip(new Rect(0, 0, 40, 20))));
         build.Open("bar", CutPart);
-        build.Draw(new PortableRuleMark(new LayoutRect(0, 0, 100, 20), null));
+        build.Draw(new RuleMark(new LayoutRect(0, 0, 100, 20), null));
         build.Close();
         build.Close();
 
         build.Open("beside", BesidePart, at: new LayoutPoint(130, 0));
-        build.Draw(new PortableRuleMark(new LayoutRect(0, 0, 40, 20), null));
+        build.Draw(new RuleMark(new LayoutRect(0, 0, 40, 20), null));
         build.Close();
 
         build.Open("hidden", HiddenPart, at: new LayoutPoint(200, 0),
-                   paints: new PortablePaint(Clip: Clip(new Rect(100, 100, 5, 5))));
-        build.Draw(new PortableRuleMark(new LayoutRect(0, 0, 20, 20), null));
+                   paints: new LayoutPaint(Clip: Clip(new Rect(100, 100, 5, 5))));
+        build.Draw(new RuleMark(new LayoutRect(0, 0, 20, 20), null));
         build.Close();
 
         build.Close();
@@ -255,19 +255,19 @@ public class LayoutPaintTests
     }
 
     /// <summary>A page holding one red bar 80 by 20, standing at (20, 10) and painted as <paramref name="paints"/> says.</summary>
-    private static PortableTree Bar(PortablePaint paints)
+    private static LayoutTree Bar(LayoutPaint paints)
     {
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("page");
         build.Open("bar", at: new LayoutPoint(20, 10), paints: paints);
-        build.Draw(new PortableRuleMark(new LayoutRect(0, 0, 80, 20), Medium.Ink(Brushes.Red)));
+        build.Draw(new RuleMark(new LayoutRect(0, 0, 80, 20), Medium.Ink(Brushes.Red)));
         build.Close();
         build.Close();
         return build.Seal();
     }
 
     /// <summary>The page of <paramref name="tree"/> painted into a picture, on <paramref name="ground"/> or on nothing.</summary>
-    private static BitmapSource Painted(PortableTree tree, Brush? ground) =>
+    private static BitmapSource Painted(LayoutTree tree, Brush? ground) =>
         WpfPainter.Painted(tree.Root, Page, 1, Brushes.Black, ground)!;
 
     /// <summary>What the pieces here are laid out in.</summary>

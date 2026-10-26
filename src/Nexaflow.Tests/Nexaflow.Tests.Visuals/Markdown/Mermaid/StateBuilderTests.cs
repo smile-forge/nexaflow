@@ -105,7 +105,7 @@ public class StateBuilderTests : MermaidBuilderContract
         var standing = Fork(across).Bounds;
         Assert.IsTrue(standing.Height > standing.Width * 3, $"and running across the page it stands up: {standing}");
 
-        static PortablePiece Fork(string source) =>
+        static LayoutPiece Fork(string source) =>
             Pieces(Build(source), StatePiece.State).Single(piece => Written(source, piece.Part) == "f");
     });
 
@@ -126,8 +126,8 @@ public class StateBuilderTests : MermaidBuilderContract
         var step = Pieces(laid, StatePiece.Step).Single(piece => Written(Intro, piece.Part).Trim() == "Still --> [*]");
         var moving = Pieces(laid, StatePiece.State).Single(piece => Said(piece).Any(said => said.Words!.Glyphs.Text == "Moving"));
 
-        var outline = moving.Children.First(piece => piece.Kind == MermaidPiece.Shape).Marks.ToArray().OfType<PortableGeometryMark>().First().Shape;
-        var line = PathGeometry.CreateFromGeometry(step.Marks.ToArray().OfType<PortableGeometryMark>().First().Shape.Geometry()).GetFlattenedPathGeometry();
+        var outline = moving.Children.First(piece => piece.Kind == MermaidPiece.Shape).Marks.ToArray().OfType<GeometryMark>().First().Shape;
+        var line = PathGeometry.CreateFromGeometry(step.Marks.ToArray().OfType<GeometryMark>().First().Shape.Geometry()).GetFlattenedPathGeometry();
         var points = line.Figures.SelectMany(figure => figure.Segments.OfType<PolyLineSegment>().SelectMany(segment => segment.Points));
 
         Assert.IsFalse(points.Any(outline.Geometry().FillContains), "the line from Still to where the diagram stops passes Moving by rather than through it");
@@ -138,7 +138,7 @@ public class StateBuilderTests : MermaidBuilderContract
     {
         const string source = "stateDiagram-v2\n  one --> [*]";
         var stop = Pieces(Build(source), StatePiece.State).Single(piece => !Said(piece).Any());
-        var marks = stop.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<PortableGeometryMark>().ToList();
+        var marks = stop.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>().ToList();
 
         Assert.AreEqual(2, marks.Count, "a ring, and a dot inside it");
         Assert.IsNotNull(marks[0].Stroke, "the ring is drawn round");
@@ -248,13 +248,13 @@ public class StateBuilderTests : MermaidBuilderContract
 
     // ── What it works with ──────────────────────────────────────────────────
 
-    private static PortableLaid Build(string source, double room = 900) =>
+    private static Laid Build(string source, double room = 900) =>
         Laying.Lay("mermaid", source, room);
 
     /// <summary>Every state drawn, by what is written on it.</summary>
     private static Dictionary<string, LayoutRect> Nodes(string source) => Nodes(Build(source));
 
-    private static Dictionary<string, LayoutRect> Nodes(PortableLaid laid)
+    private static Dictionary<string, LayoutRect> Nodes(Laid laid)
     {
         var nodes = new Dictionary<string, LayoutRect>();
 
@@ -265,13 +265,13 @@ public class StateBuilderTests : MermaidBuilderContract
     }
 
     /// <summary>Where the state written with these words was drawn.</summary>
-    private static LayoutRect Shape(PortableLaid laid, string said) => Nodes(laid)[said];
+    private static LayoutRect Shape(Laid laid, string said) => Nodes(laid)[said];
 
     /// <summary>The words drawn under a piece, in the order they were drawn.</summary>
-    private static IEnumerable<PortablePiece> Said(PortablePiece piece) =>
+    private static IEnumerable<LayoutPiece> Said(LayoutPiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Words && part.Words is not null);
 
-    private static Color? Filled(PortablePiece piece) =>
+    private static Color? Filled(LayoutPiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Shape).Select(Fill).FirstOrDefault();
 
     private static bool Holds(LayoutRect over, LayoutRect inner) =>
@@ -280,7 +280,7 @@ public class StateBuilderTests : MermaidBuilderContract
     // ── What is read from the lines as written ──────────────────────────────
 
     /// <summary>The dots drawn, which are the states with nothing written on them.</summary>
-    private static List<PortablePiece> Dots(PortableLaid laid) => [.. Pieces(laid, StatePiece.State).Where(piece => !Said(piece).Any())];
+    private static List<LayoutPiece> Dots(Laid laid) => [.. Pieces(laid, StatePiece.State).Where(piece => !Said(piece).Any())];
 
     [TestMethod]
     public void AStateIsWrittenWhereItIsFirstNamed_AndSaidAgainAfter() => UiThread.Run(() =>

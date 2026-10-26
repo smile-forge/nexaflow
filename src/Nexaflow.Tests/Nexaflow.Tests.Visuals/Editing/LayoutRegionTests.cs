@@ -11,7 +11,7 @@ using Nexaflow.Visuals.Text.Painting;
 namespace Nexaflow.Tests.Visuals.Editing;
 
 /// <summary>
-/// Pieces that stand in a shape rather than a box (<see cref="PortableBuilder.Occupies"/>): a press means the shape it
+/// Pieces that stand in a shape rather than a box (<see cref="LayoutBuilder.Occupies"/>): a press means the shape it
 /// lands in, a press between shapes means the nearer one, a marquee takes what its shapes reach, and a selection is
 /// washed as the shapes it holds.
 ///
@@ -34,16 +34,16 @@ public class LayoutRegionTests
     /// <summary>The lower-right triangle, short of the diagonal from the other side.</summary>
     private static readonly Geometry Lower = Geometry.Parse("M100,10 L100,100 L10,100 Z");
 
-    private static PortableTree Wedges(bool shaped = true, TestPart? label = null)
+    private static LayoutTree Wedges(bool shaped = true, TestPart? label = null)
     {
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("pie", new TestPart(0, 11));
 
         foreach (var (part, shape) in new[] { (UpperPart, Upper), (LowerPart, Lower) })
         {
             build.Open("wedge", part);
             var region = shape.Shape();
-            build.Draw(new PortableGeometryMark(region, null, null));
+            build.Draw(new GeometryMark(region, null, null));
             if (shaped) build.Occupies(region);
             build.Close();
         }
@@ -118,7 +118,7 @@ public class LayoutRegionTests
     [TestMethod]
     public void AShapeGoesWhereverItsTreeIsPutDown()
     {
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("page");
         build.Graft(Wedges(), new LayoutPoint(200, 40));
         build.Close();

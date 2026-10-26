@@ -46,7 +46,7 @@ public class IshikawaBuilderTests : MermaidBuilderContract
         ("nothing to draw", "ishikawa-beta"),
     ];
 
-    private static PortableLaid Build(string source, double room = 700) =>
+    private static Laid Build(string source, double room = 700) =>
         Laying.Lay("mermaid", source, room);
 
     [TestMethod]
@@ -88,7 +88,7 @@ public class IshikawaBuilderTests : MermaidBuilderContract
         var causes = Pieces(laid, IshikawaPiece.Cause).Select(cause => Middle(cause.Bounds.ToWpf())).ToList();
         var spineAt = Middle(spine.ToWpf()).Y;
 
-        Assert.IsTrue(head.Left >= spine.Right - PortableDiagramConnector.Reach, "the head at the spine's end");
+        Assert.IsTrue(head.Left >= spine.Right - DiagramConnector.Reach, "the head at the spine's end");
         Assert.IsTrue(causes[0].Y < spineAt && causes[2].Y < spineAt, "the first and third above");
         Assert.IsTrue(causes[1].Y > spineAt && causes[3].Y > spineAt, "the second and fourth below");
         Assert.IsTrue(causes[2].X < causes[0].X, "each pair further from the head");
@@ -130,7 +130,7 @@ public class IshikawaBuilderTests : MermaidBuilderContract
     });
 
     /// <summary>Single bones, which chip the event's own causes and list everything under them.</summary>
-    private static (List<string> Chips, List<PortablePiece> Listed, string Source) Chipped(string source)
+    private static (List<string> Chips, List<LayoutPiece> Listed, string Source) Chipped(string source)
     {
         var chipped = "---\nconfig:\n  ishikawa:\n    singleBone: true\n---\n" + source;
         var laid = Build(chipped);

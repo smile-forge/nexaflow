@@ -30,12 +30,12 @@ public sealed partial class ContentEngine
     private const double UnsaidRoom = 680;
 
     private string? _named;
-    private PortableStyle _style = WpfStyles.Dark;
+    private LayoutStyle _style = WpfStyles.Dark;
     private bool _readOnly;
     private double _laidFor;
 
     private EditState _state = EditState.For(string.Empty);
-    private PortableLaid _laid = PortableLaid.Nothing(WpfMedium.OnThisThread);
+    private Laid _laid = Laid.Nothing(WpfMedium.OnThisThread);
 
     /// <summary>
     /// What the caret is standing at: an index into the layout's places, or -1 for a caret standing somewhere none of them
@@ -59,7 +59,7 @@ public sealed partial class ContentEngine
 
     /// <summary>Says what the content being written is written in, what it is drawn in, and whether anybody may write in it.</summary>
     /// <param name="named">The language, or null for markdown.</param>
-    internal void Show(string? named, PortableStyle style)
+    internal void Show(string? named, LayoutStyle style)
     {
         _named = named;
         _style = style;
@@ -85,7 +85,7 @@ public sealed partial class ContentEngine
     internal EditState State => _state;
 
     /// <summary>What the content is laid out as. Always something: a builder always makes a layout.</summary>
-    internal PortableLaid Laid => _laid;
+    internal Laid Laid => _laid;
 
     /// <summary>The place the caret stands at, or -1 where it stands at none of them.</summary>
     internal int At => _at;
@@ -138,7 +138,7 @@ public sealed partial class ContentEngine
     /// way, by the builder that does nothing else (<see cref="UnreadBuilder"/>).
     /// </para>
     /// </summary>
-    internal PortableLaid LaidOut(EditState state, bool? readOnly = null)
+    internal Laid LaidOut(EditState state, bool? readOnly = null)
     {
         var only = readOnly ?? _readOnly;
 

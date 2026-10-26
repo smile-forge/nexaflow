@@ -96,7 +96,7 @@ public class SmilesBuilderTests
         var laid = Build("CO");
         var oxygen = Pieces(laid, MoleculePiece.Atom).Last();
 
-        var ink = oxygen.Marks.ToArray().OfType<PortableTextMark>().First().Ink;
+        var ink = oxygen.Marks.ToArray().OfType<TextMark>().First().Ink;
         Assert.AreEqual(((SolidColorBrush)WpfStyles.Light.Elements["O"].Brush()).Color, ((SolidColorBrush)ink!.Brush()).Color);
     });
 
@@ -124,8 +124,8 @@ public class SmilesBuilderTests
 
         // A structure is only read, never typed into where it is drawn, so what is wrong is put right in its source.
         Assert.IsTrue(laid.ShowsSource, "shown as it is written");
-        Assert.AreEqual(1, Pieces(laid, PortableSourceShown.Unread).Count(), "the carbon marked where it is written");
-        Assert.AreEqual(1, Pieces(laid, PortableSourceShown.Reason).Count(), "and why, under it");
+        Assert.AreEqual(1, Pieces(laid, SourceShown.Unread).Count(), "the carbon marked where it is written");
+        Assert.AreEqual(1, Pieces(laid, SourceShown.Reason).Count(), "and why, under it");
     });
 
     [TestMethod]
@@ -136,7 +136,7 @@ public class SmilesBuilderTests
         Assert.IsTrue(laid.ShowsSource, "no molecule to draw: the block is shown as it is written");
         Assert.AreEqual(0, Pieces(laid, MoleculePiece.Molecule).Count());
         Assert.IsTrue(laid.Trouble.Count > 0);
-        Assert.AreEqual(1, Pieces(laid, PortableSourceShown.Reason).Count(), "and why, under it");
+        Assert.AreEqual(1, Pieces(laid, SourceShown.Reason).Count(), "and why, under it");
     });
 
     [TestMethod]
@@ -145,10 +145,10 @@ public class SmilesBuilderTests
         Assert.IsTrue(Build("chemistry").ShowsSource);
     });
 
-    private static PortableLaid Build(string source, double room = double.PositiveInfinity) =>
+    private static Laid Build(string source, double room = double.PositiveInfinity) =>
         Laying.Lay("smiles", source, room, WpfStyles.Light);
 
-    private static IEnumerable<PortablePiece> Pieces(PortableLaid laid, string kind) =>
+    private static IEnumerable<LayoutPiece> Pieces(Laid laid, string kind) =>
         laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind).ToList();
 
     private static string Text(string source, ISourcePart? part) =>

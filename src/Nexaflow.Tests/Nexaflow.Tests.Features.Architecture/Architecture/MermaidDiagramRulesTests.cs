@@ -20,7 +20,7 @@ namespace Nexaflow.Tests.Features.Architecture;
 /// <item><b>Code on the shared tree never reaches into it.</b> A layout the legacy code has that a diagram needs is moved into
 /// the kit and made to take the kit's own input.</item>
 /// <item><b>A diagram's own code goes through the kit</b> — its grammar through <c>MermaidLine</c>, its builder through
-/// <c>PortableDiagramWords</c>, <c>PortableDiagramInk</c> and the kit's shapes — so what the kit decides once is not decided again, differently,
+/// <c>DiagramWords</c>, <c>DiagramInk</c> and the kit's shapes — so what the kit decides once is not decided again, differently,
 /// per diagram. The kit's own files, directly in the <c>Mermaid</c> folders, are what these rules send everything else to.</item>
 /// </list>
 /// </summary>
@@ -56,12 +56,12 @@ public class MermaidDiagramRulesTests
     /// <summary>What a diagram's own drawing does through the kit.</summary>
     private static readonly Rule[] Drawing =
     [
-        new(new(@"\bPortableDiagramColour\b"), "PortableDiagramInk — a builder asks for an ink that follows the theme, not for colour arithmetic"),
-        new(new(@"\b[Mm]edium\.Shape\("), "PortableDiagramText.Written and Worked — every word a diagram sets is PortableDiagramWords"),
-        new(new(@"PortableText\.(Words|Hole|Place)\("), "PortableDiagramWords.Set"),
-        new(new(@"\bLayoutColors?\b|\b[Mm]edium\.Ink\(|""#[0-9A-Fa-f]{3,8}"""), "PortableDiagramInk and the palette — a colour nobody wrote is the theme's"),
-        new(new(@"\b[Mm]edium\.Faded\("), "PortableDiagramInk.Faded"),
-        new(new(@"\bStyle\.Series\s*\["), "PortableDiagramInk.Series"),
+        new(new(@"\bPortableDiagramColour\b"), "DiagramInk — a builder asks for an ink that follows the theme, not for colour arithmetic"),
+        new(new(@"\b[Mm]edium\.Shape\("), "DiagramText.Written and Worked — every word a diagram sets is DiagramWords"),
+        new(new(@"LayoutText\.(Words|Hole|Place)\("), "DiagramWords.Set"),
+        new(new(@"\bLayoutColors?\b|\b[Mm]edium\.Ink\(|""#[0-9A-Fa-f]{3,8}"""), "DiagramInk and the palette — a colour nobody wrote is the theme's"),
+        new(new(@"\b[Mm]edium\.Faded\("), "DiagramInk.Faded"),
+        new(new(@"\bStyle\.Series\s*\["), "DiagramInk.Series"),
         new(new(@"System\.Windows\b"), "the layout tree — a diagram is pieces and marks, drawn by whatever medium it is handed"),
     ];
 

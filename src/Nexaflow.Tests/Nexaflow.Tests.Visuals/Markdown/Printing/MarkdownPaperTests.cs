@@ -190,22 +190,22 @@ public class MarkdownPaperTests
 
     private static string Prose(int paragraphs) => string.Concat(Enumerable.Range(0, paragraphs).Select(n => $"Paragraph {n}: {Paragraph}\n\n"));
 
-    private static PortableLaid Laid(string markdown) =>
+    private static Laid Laid(string markdown) =>
         new ContentEngine().Lay(null, EditState.For(markdown), WpfStyles.Light, Room.Width, readOnly: true);
 
     /// <summary>Every line of words, where it is on the page.</summary>
-    private static IEnumerable<LayoutRect> Words(PortableLaid laid) =>
+    private static IEnumerable<LayoutRect> Words(Laid laid) =>
         laid.Root.Placed().Where(placed => placed.Piece.Words is not null && !placed.Where.IsEmpty).Select(placed => placed.Where);
 
     /// <summary>The lines of words drawn from a heading.</summary>
-    private static IEnumerable<LayoutRect> HeadingLines(PortableLaid laid) =>
+    private static IEnumerable<LayoutRect> HeadingLines(Laid laid) =>
         laid.Root.Placed()
             .Where(placed => placed.Piece.Words is not null && placed.Piece.Naming() is ContentPart part
                              && (part.Kind == MarkdownKinds.Heading || part.Ancestors().Any(holder => holder.Kind == MarkdownKinds.Heading)))
             .Select(placed => placed.Where);
 
     /// <summary>Where the one piece of <paramref name="kind"/> is drawn.</summary>
-    private static LayoutRect Drawn(PortableLaid laid, string kind) => laid.Root.Placed().Single(placed => placed.Piece.Kind == kind).Where;
+    private static LayoutRect Drawn(Laid laid, string kind) => laid.Root.Placed().Single(placed => placed.Piece.Kind == kind).Where;
 
     /// <summary>Whether any band starts part-way through <paramref name="drawn"/>.</summary>
     private static bool Cuts(IReadOnlyList<PaperPage> pages, LayoutRect drawn) =>

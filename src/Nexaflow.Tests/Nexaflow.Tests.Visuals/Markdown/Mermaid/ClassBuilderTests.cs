@@ -109,13 +109,13 @@ public class ClassBuilderTests : MermaidBuilderContract
     });
 
     /// <summary>How many lines are drawn inside the class — the rules dividing it, and any member underlined.</summary>
-    private static int Rules(PortableLaid laid) =>
+    private static int Rules(Laid laid) =>
         Pieces(laid, ClassPiece.Class).Single().SelfAndDescendants().Sum(piece => piece.Marks.Length is var _ ? Lines(piece) : 0);
 
-    private static int Lines(PortablePiece piece)
+    private static int Lines(LayoutPiece piece)
     {
         var lines = 0;
-        foreach (var mark in piece.Marks) if (mark is PortableLineMark) lines++;
+        foreach (var mark in piece.Marks) if (mark is LineMark) lines++;
 
         return lines;
     }
@@ -202,13 +202,13 @@ public class ClassBuilderTests : MermaidBuilderContract
 
     // ── What it works with ──────────────────────────────────────────────────
 
-    private static PortableLaid Build(string source, double room = 900) =>
+    private static Laid Build(string source, double room = 900) =>
         Laying.Lay("mermaid", source, room);
 
     /// <summary>Every class drawn, by what its name says.</summary>
     private static Dictionary<string, LayoutRect> Boxes(string source) => Boxes(Build(source));
 
-    private static Dictionary<string, LayoutRect> Boxes(PortableLaid laid)
+    private static Dictionary<string, LayoutRect> Boxes(Laid laid)
     {
         var boxes = new Dictionary<string, LayoutRect>();
 
@@ -220,15 +220,15 @@ public class ClassBuilderTests : MermaidBuilderContract
     }
 
     /// <summary>Where the words saying this were drawn inside a piece.</summary>
-    private static LayoutRect Words(PortablePiece piece, string said) =>
+    private static LayoutRect Words(LayoutPiece piece, string said) =>
         Said(piece).First(words => words.Words!.Glyphs.Text == said).Bounds;
 
     /// <summary>The words drawn under a piece, in the order they were drawn.</summary>
-    private static IEnumerable<PortablePiece> Said(PortablePiece piece) =>
+    private static IEnumerable<LayoutPiece> Said(LayoutPiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Words && part.Words is not null);
 
     /// <summary>What each run of words under a piece says, in the order they were drawn.</summary>
-    private static IReadOnlyList<string> Saying(PortablePiece piece) => [.. Said(piece).Select(words => words.Words!.Glyphs.Text)];
+    private static IReadOnlyList<string> Saying(LayoutPiece piece) => [.. Said(piece).Select(words => words.Words!.Glyphs.Text)];
 
     private static bool Holds(LayoutRect over, LayoutRect inner) =>
         inner.Left >= over.Left - 1 && inner.Right <= over.Right + 1 && inner.Top >= over.Top - 1 && inner.Bottom <= over.Bottom + 1;
@@ -291,9 +291,9 @@ public class ClassBuilderTests : MermaidBuilderContract
     [TestMethod]
     public void EachRelationDrawsWhatItsEndsSay_AndADottedLineWhereItsLineIsDotted() => UiThread.Run(() =>
     {
-        IReadOnlyList<PortableGeometryMark> Marks(string relation) =>
+        IReadOnlyList<GeometryMark> Marks(string relation) =>
             [.. Pieces(Build($"classDiagram\n  {relation}"), ClassPiece.Relation).Single()
-                .SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<PortableGeometryMark>()];
+                .SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>()];
 
         string Outline(string relation) => string.Join("|", Marks(relation).Select(mark => $"{PathGeometry.CreateFromGeometry(mark.Shape.Geometry()).ToString(CultureInfo.InvariantCulture)} {mark.Fill?.Color}"));
 

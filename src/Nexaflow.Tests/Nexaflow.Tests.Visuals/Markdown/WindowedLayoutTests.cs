@@ -29,7 +29,7 @@ public class WindowedLayoutTests
 {
     private const double Room = 640;
 
-    private static readonly PortableStyle Style = WpfStyles.Dark;
+    private static readonly LayoutStyle Style = WpfStyles.Dark;
 
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(20);
 
@@ -223,7 +223,7 @@ public class WindowedLayoutTests
     }
 
     /// <summary><paramref name="text"/> laid whole, with every slower reading of it landed.</summary>
-    private static PortableLaid Whole(string text, string? named)
+    private static Laid Whole(string text, string? named)
     {
         var engine = new ContentEngine();
         using var landed = new ManualResetEventSlim();
@@ -244,7 +244,7 @@ public class WindowedLayoutTests
     }
 
     /// <summary><paramref name="text"/> shown a stretch at a time, however short — stretches about <paramref name="length"/> long — and laid to its end.</summary>
-    private static PortableLaid Stretched(string text, string? named, int length) =>
+    private static Laid Stretched(string text, string? named, int length) =>
         ToTheEnd(Shown(text, named, new ContentEngine { WindowedFrom = 0, StretchLength = length }));
 
     /// <summary><paramref name="engine"/> showing <paramref name="text"/> at the room, as an element showing it does.</summary>
@@ -258,7 +258,7 @@ public class WindowedLayoutTests
     }
 
     /// <summary>What <paramref name="engine"/> lays with the reader looking at all of it, once the reading of the rest has landed.</summary>
-    private static PortableLaid ToTheEnd(ContentEngine engine)
+    private static Laid ToTheEnd(ContentEngine engine)
     {
         engine.OnScreen = new LayoutRect(0, 0, Room, 1e12);
 
@@ -294,7 +294,7 @@ public class WindowedLayoutTests
     /// around them. Where is within a hair: a stretch is moved down to where it stands, which adds the same distances in another
     /// order than laying it all at once does.
     /// </summary>
-    private static void Same(PortableLaid expected, PortableLaid actual, string what)
+    private static void Same(Laid expected, Laid actual, string what)
     {
         var want = expected.Root.SelfAndDescendants().ToList();
         var got = actual.Root.SelfAndDescendants().ToList();
@@ -325,7 +325,7 @@ public class WindowedLayoutTests
           && Math.Abs(want.Width - got.Width) < 1e-6 && Math.Abs(want.Height - got.Height) < 1e-6;
 
     /// <summary>Where two layouts of the same content stop agreeing, for a count that does not match.</summary>
-    private static string Diverged(IReadOnlyList<PortablePiece> want, IReadOnlyList<PortablePiece> got)
+    private static string Diverged(IReadOnlyList<LayoutPiece> want, IReadOnlyList<LayoutPiece> got)
     {
         for (var at = 0; at < Math.Min(want.Count, got.Count); at++)
         {
@@ -341,5 +341,5 @@ public class WindowedLayoutTests
 
     private static (int, int)? Span(ISourcePart? part) => part is null ? null : (part.Start, part.Length);
 
-    private static string Said(PortableDiagnostic trouble) => $"{trouble.Start}+{trouble.Length} {trouble.Message} {Span(trouble.Part)}";
+    private static string Said(LayoutDiagnostic trouble) => $"{trouble.Start}+{trouble.Length} {trouble.Message} {Span(trouble.Part)}";
 }

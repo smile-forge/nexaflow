@@ -15,7 +15,7 @@ using Nexaflow.Visuals.Text.Painting;
 namespace Nexaflow.Tests.Visuals.Editing;
 
 /// <summary>
-/// Writing in a run of text (<see cref="PortableWords"/>) through the element that hosts it: a press puts the caret
+/// Writing in a run of text (<see cref="LayoutWords"/>) through the element that hosts it: a press puts the caret
 /// between two letters, the arrows step through them, and a run showing a value worked out is shown as written for
 /// as long as the caret is in it.
 ///
@@ -39,24 +39,24 @@ public class ContentWordsTests
     /// The number set to two decimal places, unless it is being shown as written — which is the whole of what a
     /// formatter is — and a letter beside it that always reads as itself.
     /// </summary>
-    private static PortableLaid Lay(EditState state)
+    private static Laid Lay(EditState state)
     {
         var written = state.Raw is { } zone && zone.Start == Number.Start && zone.End == Number.End();
         var number = written
             ? state.Source[Number.Start..Number.End()]
             : double.Parse(state.Source[Number.Start..Number.End()], CultureInfo.InvariantCulture).ToString("0.00", CultureInfo.InvariantCulture);
 
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("row", new SourceSpan(0, state.Source.Length));
 
         // A formatted view of its own source: pressing it shows what was written, which is what `writes` says.
-        PortableText.Words(build, Set(number), default, 400, LayoutAlign.Left, Number, "value", written, writes: true);
-        PortableText.Words(build, Set("x"), new LayoutPoint(200, 0), 400, LayoutAlign.Left, Letter, "letter");
+        LayoutText.Words(build, Set(number), default, 400, LayoutAlign.Left, Number, "value", written, writes: true);
+        LayoutText.Words(build, Set("x"), new LayoutPoint(200, 0), 400, LayoutAlign.Left, Letter, "letter");
 
         build.Close();
 
         var tree = build.Seal();
-        return new PortableLaid(tree, tree.Root.Bounds.Width, tree.Root.Bounds.Height, []);
+        return new Laid(tree, tree.Root.Bounds.Width, tree.Root.Bounds.Height, []);
     }
 
     private static IShapedText Set(string text) =>
@@ -71,11 +71,11 @@ public class ContentWordsTests
         return element;
     }
 
-    private static PortablePiece Run(ContentElement element, string kind) =>
+    private static LayoutPiece Run(ContentElement element, string kind) =>
         element.Laid.Root.SelfAndDescendants().Single(piece => piece.Kind == kind);
 
     /// <summary>Where the middle of a letter of a run is, in the element's own coordinates.</summary>
-    private static Point Middle(PortablePiece run, int index)
+    private static Point Middle(LayoutPiece run, int index)
     {
         var letter = run.Words!.Covers(index, index + 1);
         return new Point(run.Anchor.X + letter.X + (letter.Width / 2), run.Anchor.Y + letter.Y + (letter.Height / 2));

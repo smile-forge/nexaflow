@@ -61,7 +61,7 @@ public class ContentElement : FrameworkElement
     /// <param name="engine">What lays the content out, and holds it as it is being written.</param>
     /// <param name="language">What the content is written in — markdown, where nothing names a language.</param>
     /// <param name="actions">What answers what the content's pieces mean by a gesture — null where nothing here answers one.</param>
-    public ContentElement(string source, PortableStyle palette, ContentEngine engine, string? language = null, ILayoutActions? actions = null)
+    public ContentElement(string source, LayoutStyle palette, ContentEngine engine, string? language = null, ILayoutActions? actions = null)
     {
         Palette = palette;
         _engine = engine;
@@ -171,10 +171,10 @@ public class ContentElement : FrameworkElement
         BringIntoView(new Rect(shown.X * Zoom, shown.Y * Zoom, Math.Max(shown.Width * Zoom, 1), Math.Max(shown.Height * Zoom, 1)));
 
     /// <summary>The theme, for the ink, the accent and the two colours trouble is drawn in.</summary>
-    protected PortableStyle Palette { get; }
+    protected LayoutStyle Palette { get; }
 
     /// <summary>What is laid out. Always something: a builder always makes a layout.</summary>
-    public PortableLaid Laid => _engine.Laid;
+    public Laid Laid => _engine.Laid;
 
     /// <summary>What the content's links are to UI Automation — see <see cref="ContentElementAutomationPeer"/>.</summary>
     protected override AutomationPeer OnCreateAutomationPeer() => new ContentElementAutomationPeer(this);
@@ -224,7 +224,7 @@ public class ContentElement : FrameworkElement
     /// by the fence that holds it and cannot be selected alone — a bracket without its partner can't be read —
     /// so pointing at one selects the thing it belongs to.
     /// </summary>
-    protected static PortablePiece Pointing(PortablePiece piece) => piece.Selectable();
+    protected static LayoutPiece Pointing(LayoutPiece piece) => piece.Selectable();
 
     // ── Shape and colour ────────────────────────────────────────────────────
 
@@ -300,10 +300,10 @@ public class ContentElement : FrameworkElement
 
     /// <summary>Whether the caret belongs in this content at all. Asked of the tree rather than declared, since a piece naming a stretch of source is one somebody typed — a barcode that only prints a worked-out number has none.</summary>
     public bool AcceptsCaret =>
-            State.Source.Length == 0 || Laid.Root.SelfAndDescendants().Any(piece => piece.Part is { Length: > 0 } || (piece.Part is not null && piece.Kind == PortableText.HoleKind));
+            State.Source.Length == 0 || Laid.Root.SelfAndDescendants().Any(piece => piece.Part is { Length: > 0 } || (piece.Part is not null && piece.Kind == LayoutText.HoleKind));
 
     /// <summary>A translucent wash from the theme accent, falling back to the highlight token.</summary>
-    private static Brush Wash(PortableStyle palette)
+    private static Brush Wash(LayoutStyle palette)
     {
         if (palette.Accent.Brush() is not SolidColorBrush accent) return palette.Marked.Brush();
 
@@ -318,14 +318,14 @@ public class ContentElement : FrameworkElement
     public string Source => State.Source;
 
     /// <inheritdoc />
-    public PortablePiece Root => Laid.Root;
+    public LayoutPiece Root => Laid.Root;
 
     /// <inheritdoc />
     public IReadOnlyList<(int Start, int Length)> Selection =>
         [.. State.Selection.Select(range => (range.Start, range.Length))];
 
     /// <inheritdoc />
-    public IReadOnlyList<PortableDiagnostic> Diagnostics => Laid.Trouble;
+    public IReadOnlyList<LayoutDiagnostic> Diagnostics => Laid.Trouble;
 
     // ── The caret ───────────────────────────────────────────────────────────
 
@@ -497,7 +497,7 @@ public class ContentElement : FrameworkElement
     /// What <paramref name="piece"/> says while pointed at: the tip hung on the part of the source it was drawn from, or on
     /// what holds that part. Asked of the tree when the pointer arrives — nothing of it is laid out.
     /// </summary>
-    private static string? Says(PortablePiece piece)
+    private static string? Says(LayoutPiece piece)
     {
         if (!piece.Exists || piece.Naming() is not ContentPart named) return null;
 
@@ -568,7 +568,7 @@ public class ContentElement : FrameworkElement
     /// The pieces that answer to a gesture and are covered by what is picked out — empty where nothing is, which is
     /// what makes "for one item" and "for a selection of them" the same question asked twice.
     /// </summary>
-    protected IReadOnlyList<PortablePiece> Selected() =>
+    protected IReadOnlyList<LayoutPiece> Selected() =>
         [.. Laid.Root.SelfAndDescendants()
                  .Where(piece => piece.Acts is not null && piece.Sits() is { Length: > 0 } sits && _engine.Covers(sits.Start))];
 
@@ -814,7 +814,7 @@ public class ContentElement : FrameworkElement
     /// still worth looking at, and the reader needs to see which part is not. Only the waves near <paramref name="near"/> are
     /// drawn, where something says what is on screen — all of them where nothing does.
     /// </summary>
-    private void Waves(DrawingContext dc, PortableLaid laid, LayoutRect? near)
+    private void Waves(DrawingContext dc, Laid laid, LayoutRect? near)
     {
         if (!ReferenceEquals(_squiggledIn, laid))
             (_squiggles, _squiggledIn) = (new Squiggled?[laid.Trouble.Count], laid);
@@ -826,20 +826,20 @@ public class ContentElement : FrameworkElement
             // Worked out the first time anything it was drawn under comes near the screen, and kept from then on.
             if (_squiggles[at] is not { } squiggled)
             {
-                if (near is { } area && !PortableQuery.SittingIn(laid.Root, trouble.Start, trouble.Start + trouble.Length, area).Any()) continue;
+                if (near is { } area && !LayoutQuery.SittingIn(laid.Root, trouble.Start, trouble.Start + trouble.Length, area).Any()) continue;
 
                 _squiggles[at] = squiggled = WaveUnder(laid, trouble);
             }
 
             if (squiggled.Wave is { } wave && (near is not { } painted || painted.IntersectsWith(squiggled.Under)))
-                dc.DrawGeometry(null, trouble.Severity == PortableSeverity.Error ? ErrorWave : WarningWave, wave);
+                dc.DrawGeometry(null, trouble.Severity == LayoutSeverity.Error ? ErrorWave : WarningWave, wave);
         }
     }
 
     /// <summary>The wave under what <paramref name="trouble"/> blames, and what it is drawn under — nothing, where that drew nothing.</summary>
-    private static Squiggled WaveUnder(PortableLaid laid, PortableDiagnostic trouble)
+    private static Squiggled WaveUnder(Laid laid, LayoutDiagnostic trouble)
     {
-        var runs = PortableQuery.Clusters(laid.Root.RangeRects(trouble.Start, trouble.Length), 0);
+        var runs = LayoutQuery.Clusters(laid.Root.RangeRects(trouble.Start, trouble.Length), 0);
         if (runs.Count == 0) return new Squiggled(LayoutRect.Empty, null);
 
         var wave = Squiggle.Under(runs.Select(run => run.ToWpf()));
@@ -852,7 +852,7 @@ public class ContentElement : FrameworkElement
     /// painted again every time it is scrolled a screen, and the waves are the same until it is laid again.
     /// </summary>
     private Squiggled?[] _squiggles = [];
-    private PortableLaid? _squiggledIn;
+    private Laid? _squiggledIn;
 
     /// <summary>What a wave is drawn with, in the colour of what it is under.</summary>
     private Pen ErrorWave => _errorPen ??= Frozen(new Pen(Palette.Danger.Brush(), 1.0));
@@ -900,7 +900,7 @@ public class ContentElement : FrameworkElement
     protected virtual void PaintOver(DrawingContext dc) { }
 
     /// <summary>Draws the content as it would read after the drop, with the carried part in the accent colour — once it's merged in (braces, spacing and all) nothing else would distinguish it.</summary>
-    private void PaintPreview(DrawingContext dc, PortableLaid preview, (int Start, int End) moved)
+    private void PaintPreview(DrawingContext dc, Laid preview, (int Start, int End) moved)
     {
         WpfPainter.Paint(dc, preview.Root, Palette.Text.Brush());
 
@@ -911,12 +911,12 @@ public class ContentElement : FrameworkElement
     }
 
     /// <summary>The outermost pieces of <paramref name="preview"/> lying wholly inside what is carried — outermost so a piece and its children aren't painted twice.</summary>
-    private static IEnumerable<PortablePiece> Carried(PortableLaid preview, (int Start, int End) moved)
+    private static IEnumerable<LayoutPiece> Carried(Laid preview, (int Start, int End) moved)
     {
         var (start, end) = moved;
         if (end <= start) yield break;
 
-        var taken = new List<PortablePiece>();
+        var taken = new List<LayoutPiece>();
         foreach (var piece in preview.Root.SelfAndDescendants())
         {
             if (piece.Sits() is not { Length: > 0 } at || at.Start < start || at.End > end) continue;

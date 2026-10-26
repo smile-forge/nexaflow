@@ -32,9 +32,9 @@ public class LayoutArenaTests
     /// reaching back before its own anchor (an accidental sits before the note head it belongs to), and
     /// a piece holding nothing at all.
     /// </summary>
-    private static PortableTree Built()
+    private static LayoutTree Built()
     {
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
 
         build.Open("page", new Span(0, 10));
         {
@@ -43,17 +43,17 @@ public class LayoutArenaTests
                 build.Open("note", new Span(0, 1), new LayoutPoint(10, 0));
                 {
                     build.Open("accidental", null, new LayoutPoint(-6, 0));
-                    build.Draw(new PortableRuleMark(new LayoutRect(0, 0, 4, 8), null));
+                    build.Draw(new RuleMark(new LayoutRect(0, 0, 4, 8), null));
                     build.Close();
 
                     build.Open("head", null);
-                    build.Draw(new PortableRuleMark(new LayoutRect(0, 0, 9, 6), null));
+                    build.Draw(new RuleMark(new LayoutRect(0, 0, 9, 6), null));
                     build.Close();
                 }
                 build.Close();
 
                 build.Open("rest", new Span(2, 1), new LayoutPoint(40, 0));
-                build.Draw(new PortableRuleMark(new LayoutRect(0, 0, 5, 5), null));
+                build.Draw(new RuleMark(new LayoutRect(0, 0, 5, 5), null));
                 build.Close();
             }
             build.Close();
@@ -63,7 +63,7 @@ public class LayoutArenaTests
         return build.Seal();
     }
 
-    private static PortablePiece Find(PortableTree tree, string kind) =>
+    private static LayoutPiece Find(LayoutTree tree, string kind) =>
         tree.Root.SelfAndDescendants().Single(p => p.Kind == kind);
 
     [TestMethod]
@@ -144,14 +144,14 @@ public class LayoutArenaTests
     [TestMethod]
     public void ARunIsWalkedOneStepAtATime()
     {
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         var notes = new System.Collections.Generic.List<int>();
 
         build.Open("page", new Span(0, 9));
         for (var at = 0; at < 3; at++)
         {
             notes.Add(build.Open("note", new Span(at, 1), new LayoutPoint(at * 10, 0)));
-            build.Draw(new PortableRuleMark(new LayoutRect(0, 0, 5, 5), null));
+            build.Draw(new RuleMark(new LayoutRect(0, 0, 5, 5), null));
             build.Close();
         }
         build.Close();
@@ -178,9 +178,9 @@ public class LayoutArenaTests
         Assert.AreNotEqual(held, Find(Built(), "note"), "…and a piece of one is not a piece of the other");
     }
 
-    private static PortableTree Shifted(LayoutVector by)
+    private static LayoutTree Shifted(LayoutVector by)
     {
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
 
         build.Open("page", new Span(0, 10), new LayoutPoint(by.X, by.Y));
         {
@@ -189,17 +189,17 @@ public class LayoutArenaTests
                 build.Open("note", new Span(0, 1), new LayoutPoint(10, 0));
                 {
                     build.Open("accidental", null, new LayoutPoint(-6, 0));
-                    build.Draw(new PortableRuleMark(new LayoutRect(0, 0, 4, 8), null));
+                    build.Draw(new RuleMark(new LayoutRect(0, 0, 4, 8), null));
                     build.Close();
 
                     build.Open("head", null);
-                    build.Draw(new PortableRuleMark(new LayoutRect(0, 0, 9, 6), null));
+                    build.Draw(new RuleMark(new LayoutRect(0, 0, 9, 6), null));
                     build.Close();
                 }
                 build.Close();
 
                 build.Open("rest", new Span(2, 1), new LayoutPoint(40, 0));
-                build.Draw(new PortableRuleMark(new LayoutRect(0, 0, 5, 5), null));
+                build.Draw(new RuleMark(new LayoutRect(0, 0, 5, 5), null));
                 build.Close();
             }
             build.Close();

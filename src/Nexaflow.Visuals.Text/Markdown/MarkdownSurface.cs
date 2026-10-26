@@ -49,7 +49,7 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
 
     private MarkdownElement _shown;
     /// <summary>What the element now on the page is drawn in.</summary>
-    private PortableStyle? _drawnIn;
+    private LayoutStyle? _drawnIn;
 
     /// <summary>
     /// What lays the document out, for as long as this shows one: what it read, the blocks that read as they did, and what the
@@ -193,12 +193,12 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     /// surface — a post-it — says <see cref="WpfStyles.Light"/>.
     /// </summary>
     public static readonly DependencyProperty PaletteProperty = DependencyProperty.Register(
-        nameof(Palette), typeof(PortableStyle), typeof(MarkdownSurface),
+        nameof(Palette), typeof(LayoutStyle), typeof(MarkdownSurface),
         new PropertyMetadata(null, (surface, _) => ((MarkdownSurface)surface).Remake()));
 
-    public PortableStyle? Palette
+    public LayoutStyle? Palette
     {
-        get => (PortableStyle?)GetValue(PaletteProperty);
+        get => (LayoutStyle?)GetValue(PaletteProperty);
         set => SetValue(PaletteProperty, value);
     }
 
@@ -328,7 +328,7 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     // ── Showing it ──────────────────────────────────────────────────────────
 
     /// <summary>The colours and size it is drawn at, as they stand: the size the host gave, or the shell's where it gave none.</summary>
-    private PortableStyle Drawn =>
+    private LayoutStyle Drawn =>
         (Palette ?? WpfStyles.FromTheme()) with
         {
             TextSize = double.IsNaN(BaseFontSize) || BaseFontSize <= 0 ? TextTypography.BaseFontSize : BaseFontSize,

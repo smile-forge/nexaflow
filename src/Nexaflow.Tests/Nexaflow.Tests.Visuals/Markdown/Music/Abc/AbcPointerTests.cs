@@ -54,11 +54,11 @@ public class AbcPointerTests
             }
     });
 
-    private static System.Collections.Generic.List<PortablePiece> Every(PortableLaid layout, string kind) =>
+    private static System.Collections.Generic.List<LayoutPiece> Every(Laid layout, string kind) =>
         [.. layout.Root.SelfAndDescendants().Where(n => Kind(n) == kind)];
 
-    private static LayoutPoint Middle(PortablePiece node) =>
+    private static LayoutPoint Middle(LayoutPiece node) =>
         new(node.Bounds.X + (node.Bounds.Width / 2), node.Bounds.Y + (node.Bounds.Height / 2));
 
-    private static string Kind(PortablePiece node) => node.Exists ? node.Kind : "nothing";
+    private static string Kind(LayoutPiece node) => node.Exists ? node.Kind : "nothing";
 }

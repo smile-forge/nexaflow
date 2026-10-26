@@ -39,7 +39,7 @@ public class MarkdownDocumentTests
         var state = Erase("# Title\n\nwords\n", caret: 7)!;
         var laid = Laying.Lay(null, state.Source, 480, shown: state.Raw);
 
-        var source = laid.Root.SelfAndDescendants().Where(piece => piece.Kind == PortableText.SourceKind).ToList();
+        var source = laid.Root.SelfAndDescendants().Where(piece => piece.Kind == LayoutText.SourceKind).ToList();
 
         Assert.AreEqual(1, source.Count);
         Assert.AreEqual("# Title", source[0].Words!.Glyphs.Text);
@@ -192,7 +192,7 @@ public class MarkdownDocumentTests
         return element;
     }
 
-    private static System.Windows.Point Middle(PortablePiece piece) =>
+    private static System.Windows.Point Middle(LayoutPiece piece) =>
         new(piece.Bounds.X + (piece.Bounds.Width / 2), piece.Bounds.Y + (piece.Bounds.Height / 2));
 
     /// <summary>A document laid out, and its <paramref name="box"/>th task box pressed as a reader presses it.</summary>
@@ -203,7 +203,7 @@ public class MarkdownDocumentTests
         element.Arrange(new System.Windows.Rect(0, 0, 480, 2000));
         before?.Invoke(element);
 
-        var tick = element.Laid.Root.SelfAndDescendants().Where(piece => piece.Kind == PortablePieces.Tick).ElementAt(box);
+        var tick = element.Laid.Root.SelfAndDescendants().Where(piece => piece.Kind == LayoutPieces.Tick).ElementAt(box);
 
         element.BeginPointerSelect(new System.Windows.Point(tick.Bounds.X + (tick.Bounds.Width / 2), tick.Bounds.Y + (tick.Bounds.Height / 2)));
         element.EndPointerSelect();

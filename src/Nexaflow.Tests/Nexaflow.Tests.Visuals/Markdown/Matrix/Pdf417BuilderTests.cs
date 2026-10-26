@@ -115,7 +115,7 @@ public class Pdf417BuilderTests
         Assert.AreEqual(34 + 17 * 3, Left(truncated, EncodePdf417.Stop));
         Assert.AreEqual(1, MatrixLayouts.Of(truncated, EncodePdf417.Stop).Single().Bounds.Width, 0.001);
 
-        static double Left(PortableLaid laid, string kind) => MatrixLayouts.Of(laid, kind).Single().Bounds.X;
+        static double Left(Laid laid, string kind) => MatrixLayouts.Of(laid, kind).Single().Bounds.X;
     });
 
     [TestMethod]
@@ -143,12 +143,12 @@ public class Pdf417BuilderTests
 
         StringAssert.Contains(laid.Trouble.Single().Message, "30");
         Assert.IsTrue(laid.ShowsSource, "a code is only read, so what will not read is put right in its source");
-        Assert.AreEqual(1, MatrixLayouts.Of(laid, PortableSourceShown.Reason).Length, "with why, under it");
+        Assert.AreEqual(1, MatrixLayouts.Of(laid, SourceShown.Reason).Length, "with why, under it");
     });
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static PortableLaid Build(string source) => Laying.Lay("pdf417", source, style: WpfStyles.Dark);
+    private static Laid Build(string source) => Laying.Lay("pdf417", source, style: WpfStyles.Dark);
 
     private static Pdf417Block Read(string source)
     {

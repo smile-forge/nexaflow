@@ -148,7 +148,7 @@ public class CorpusGapTests
         // OT1 has no underscore, so LaTeX draws a short rule under the baseline; so does this.
         var marks = Marks(@"\_");
         Assert.AreEqual(1, marks.Count);
-        Assert.IsInstanceOfType<PortableRuleMark>(marks.Single().Mark);
+        Assert.IsInstanceOfType<RuleMark>(marks.Single().Mark);
         Assert.IsTrue(Width(@"\_") > 0.0);
     });
 }

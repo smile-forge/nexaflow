@@ -28,18 +28,18 @@ public class ContentBuilderAnalyzerTests
         {
             public sealed class ContentReading { }
             public sealed class EditState { }
-            public sealed class PortableStyle { }
+            public sealed class LayoutStyle { }
             public interface ILayoutMedium { }
             public sealed class Medium : ILayoutMedium { }
-            public sealed class PortableHost { }
-            public sealed class PortableLaid { }
+            public sealed class LayoutHost { }
+            public sealed class Laid { }
 
-            public abstract class PortableContentBuilder
+            public abstract class ContentBuilder
             {
-                protected PortableContentBuilder(ContentReading reading, EditState state, PortableStyle style, bool isReadOnly, ILayoutMedium medium, PortableHost host) { }
+                protected ContentBuilder(ContentReading reading, EditState state, LayoutStyle style, bool isReadOnly, ILayoutMedium medium, LayoutHost host) { }
                 public string Source => "";
-                public PortableLaid Lay(double room = double.PositiveInfinity) => new PortableLaid();
-                protected abstract PortableLaid Build();
+                public Laid Lay(double room = double.PositiveInfinity) => new Laid();
+                protected abstract Laid Build();
             }
         }
         """;
@@ -48,9 +48,9 @@ public class ContentBuilderAnalyzerTests
 
     /// <summary>A builder in the one shape.</summary>
     private const string Shaped = """
-        sealed class Pie(ContentReading r, EditState s, PortableStyle f, bool o, ILayoutMedium m, PortableHost h) : PortableContentBuilder(r, s, f, o, m, h)
+        sealed class Pie(ContentReading r, EditState s, LayoutStyle f, bool o, ILayoutMedium m, LayoutHost h) : ContentBuilder(r, s, f, o, m, h)
         {
-            protected override PortableLaid Build() => new PortableLaid();
+            protected override Laid Build() => new Laid();
         }
         """;
 
@@ -83,9 +83,9 @@ public class ContentBuilderAnalyzerTests
     [TestCategory("Unit")]
     public void ABuilderToldASeventhThingIsNotTheShape() =>
         CollectionAssert.AreEqual(new[] { "NXCB001" }, Found("""
-            sealed class Pie(ContentReading r, EditState s, PortableStyle f, bool o, ILayoutMedium m, PortableHost h, int slices) : PortableContentBuilder(r, s, f, o, m, h)
+            sealed class Pie(ContentReading r, EditState s, LayoutStyle f, bool o, ILayoutMedium m, LayoutHost h, int slices) : ContentBuilder(r, s, f, o, m, h)
             {
-                protected override PortableLaid Build() => new PortableLaid();
+                protected override Laid Build() => new Laid();
             }
             """).ToList());
 
@@ -93,11 +93,11 @@ public class ContentBuilderAnalyzerTests
     [TestCategory("Unit")]
     public void ABuilderMadeTwoWaysIsNotTheShape() =>
         CollectionAssert.AreEqual(new[] { "NXCB001" }, Found("""
-            sealed class Pie : PortableContentBuilder
+            sealed class Pie : ContentBuilder
             {
-                public Pie(ContentReading r, EditState s, PortableStyle f, bool o, ILayoutMedium m, PortableHost h) : base(r, s, f, o, m, h) { }
-                public Pie(ContentReading r, EditState s, PortableStyle f, ILayoutMedium m, PortableHost h) : base(r, s, f, true, m, h) { }
-                protected override PortableLaid Build() => new PortableLaid();
+                public Pie(ContentReading r, EditState s, LayoutStyle f, bool o, ILayoutMedium m, LayoutHost h) : base(r, s, f, o, m, h) { }
+                public Pie(ContentReading r, EditState s, LayoutStyle f, ILayoutMedium m, LayoutHost h) : base(r, s, f, true, m, h) { }
+                protected override Laid Build() => new Laid();
             }
             """).ToList());
 
@@ -105,10 +105,10 @@ public class ContentBuilderAnalyzerTests
     [TestCategory("Unit")]
     public void ABuilderToldSomethingAfterItIsMadeIsSaidToBe() =>
         CollectionAssert.AreEqual(new[] { "NXCB002" }, Found("""
-            sealed class Pie(ContentReading r, EditState s, PortableStyle f, bool o, ILayoutMedium m, PortableHost h) : PortableContentBuilder(r, s, f, o, m, h)
+            sealed class Pie(ContentReading r, EditState s, LayoutStyle f, bool o, ILayoutMedium m, LayoutHost h) : ContentBuilder(r, s, f, o, m, h)
             {
                 internal int Slices { get; set; }
-                protected override PortableLaid Build() => new PortableLaid();
+                protected override Laid Build() => new Laid();
             }
             """).ToList());
 
@@ -116,11 +116,11 @@ public class ContentBuilderAnalyzerTests
     [TestCategory("Unit")]
     public void ABuilderOfferingANameOfItsOwnIsSaidToBe_WhileWhatTheBaseNamesIsItsToOffer() =>
         CollectionAssert.AreEqual(new[] { "NXCB003" }, Found("""
-            sealed class Pie(ContentReading r, EditState s, PortableStyle f, bool o, ILayoutMedium m, PortableHost h) : PortableContentBuilder(r, s, f, o, m, h)
+            sealed class Pie(ContentReading r, EditState s, LayoutStyle f, bool o, ILayoutMedium m, LayoutHost h) : ContentBuilder(r, s, f, o, m, h)
             {
-                public static PortableLaid Draws(string source) => new PortableLaid();
+                public static Laid Draws(string source) => new Laid();
                 public new string Source => "pie";
-                protected override PortableLaid Build() => new PortableLaid();
+                protected override Laid Build() => new Laid();
             }
             """).ToList());
 
@@ -130,7 +130,7 @@ public class ContentBuilderAnalyzerTests
         CollectionAssert.AreEqual(new[] { "NXCB004" }, Found(Shaped, """
             static class Somewhere
             {
-                public static PortableLaid Draw(ContentReading r) => new Pie(r, new EditState(), new PortableStyle(), true, new Medium(), new PortableHost()).Lay();
+                public static Laid Draw(ContentReading r) => new Pie(r, new EditState(), new LayoutStyle(), true, new Medium(), new LayoutHost()).Lay();
             }
             """).ToList());
 
@@ -140,10 +140,10 @@ public class ContentBuilderAnalyzerTests
         CollectionAssert.AreEqual(Array.Empty<string>(), Found("""
             namespace Microsoft.VisualStudio.TestTools.UnitTesting { public sealed class TestClassAttribute : System.Attribute { } }
 
-            sealed class Box(ContentReading r, bool fail) : PortableContentBuilder(r, new EditState(), new PortableStyle(), true, new Medium(), new PortableHost())
+            sealed class Box(ContentReading r, bool fail) : ContentBuilder(r, new EditState(), new LayoutStyle(), true, new Medium(), new LayoutHost())
             {
-                public static PortableLaid Built(ContentReading r) => new Box(r, fail: true).Lay();
-                protected override PortableLaid Build() => new PortableLaid();
+                public static Laid Built(ContentReading r) => new Box(r, fail: true).Lay();
+                protected override Laid Build() => new Laid();
             }
             """).ToList());
 

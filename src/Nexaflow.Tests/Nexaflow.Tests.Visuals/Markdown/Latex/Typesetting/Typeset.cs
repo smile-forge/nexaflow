@@ -38,7 +38,7 @@ internal static class Typeset
     {
         _environments ??= new Dictionary<TexStyle, TexEnvironment>();
         if (!_environments.TryGetValue(style, out var environment))
-            _environments[style] = environment = PortableTexFonts.Of(WpfHandles.Medium, "Arial").Environment(style, 20.0);
+            _environments[style] = environment = TexFonts.Of(WpfHandles.Medium, "Arial").Environment(style, 20.0);
 
         return environment;
     }
@@ -97,19 +97,19 @@ internal static class Typeset
 
     /// <summary>The stretches that were read but have no drawing, and so are set as the characters written — which the layout says, each with a warning.</summary>
     public static IReadOnlyList<string> Undrawn(string markup) =>
-        Laid(markup).Trouble.Where(said => said.Severity == PortableSeverity.Warning)
+        Laid(markup).Trouble.Where(said => said.Severity == LayoutSeverity.Warning)
                             .Select(said => markup.Substring(said.Start, said.Length))
                             .Distinct()
                             .ToList();
 
     /// <summary>The formula laid out at unit scale, which is settled onto its ink.</summary>
-    public static PortableLaid Laid(string markup) => Laying.Formula(markup, 1.0);
+    public static Laid Laid(string markup) => Laying.Formula(markup, 1.0);
 
     /// <summary>Every mark the formula draws, with the x its piece lands at measured from the formula's left edge.</summary>
-    public static IReadOnlyList<(PortableMark Mark, double X)> Marks(string markup)
+    public static IReadOnlyList<(LayoutMark Mark, double X)> Marks(string markup)
     {
         // A formula that sets nothing — a space, a phantom — is shown as the characters written, which is no ink of the formula's.
-        var marks = new List<(PortableMark, double)>();
+        var marks = new List<(LayoutMark, double)>();
         if (Laid(markup) is not { ShowsSource: false, Tree: var tree }) return marks;
 
         var left = tree.AnchorOf(0).X;

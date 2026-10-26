@@ -25,7 +25,7 @@ copied in as test data (`Tests.Markdown/Prose/Corpus/Specs`), each extension's a
   block's words read beside those definitions), pairs definition lists, and names the language every fence and formula
   is written in. The engine ([`ContentEngine`](../src/Nexaflow.Visuals.Text/Markdown/ContentEngine.cs)) has that
   language's parser read each one, then runs the stages (`WithImages`, `WithLinks`).
-- **Drawing:** one builder, [`PortableMarkdownBuilder`](../src/Nexaflow.Markdown/Layout/Prose/PortableMarkdownBuilder.cs), turns
+- **Drawing:** one builder, [`MarkdownBuilder`](../src/Nexaflow.Markdown/Layout/Prose/MarkdownBuilder.cs), turns
   the tree into the shared layout tree; another language's content is laid by that language's builder when the
   markdown builder asks for it, and grafted in where its fence was, so its pieces are selectable in the document that
   holds them.
@@ -177,12 +177,12 @@ its stages [`ResolveSubgraphs`](../src/Nexaflow.Markdown/Mermaid/Flowchart/Stage
 [`ResolveMetadata`](../src/Nexaflow.Markdown/Mermaid/Flowchart/Stages/ResolveMetadata.cs),
 [`ResolveStyles`](../src/Nexaflow.Markdown/Mermaid/Flowchart/Stages/ResolveStyles.cs) and
 [`ResolveShapes`](../src/Nexaflow.Markdown/Mermaid/Flowchart/Stages/ResolveShapes.cs) →
-[`PortableFlowchartBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Flowchart/PortableFlowchartBuilder.cs)). The stages gather each
+[`FlowchartBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Flowchart/FlowchartBuilder.cs)). The stages gather each
 subgraph with the lines written in it and say what the whole block means where no line says it alone — what each link joins
 and how a `linkStyle` numbering it styles it, which names are a subgraph's, what each `id@{ … }` line is about and says, and
 what styles each node and subgraph; the builder reads the rest down the tree in the order it is written.
 Nodes joined by links, laid out in ranks by how far along the links reach them
-([`PortableDiagramLayers`](../src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramLayers.cs) — Sugiyama's: ranks, then an order that keeps
+([`DiagramLayers`](../src/Nexaflow.Markdown/Layout/Mermaid/DiagramLayers.cs) — Sugiyama's: ranks, then an order that keeps
 as few lines crossing as can be managed, then each node set across its rank beside the ones it joins). A node is an id with a
 label in the brackets that say its shape — all fourteen Mermaid writes — or one named by `@{ shape: … }`, every one of Mermaid's
 fifty-odd names drawn as its own shape: its markers (a start, a stop, a junction, a fork, a collate, a communication link, a
@@ -221,7 +221,7 @@ instead (below), which is the one thing the shared layout tree cannot do yet.
 
 **Pie sub-features** ([`PieGrammar`](../src/Nexaflow.Markdown/Mermaid/Pie/PieGrammar.cs) →
 [`PieChart`](../src/Nexaflow.Markdown/Mermaid/Pie/PieChart.cs) →
-[`PortablePieBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Pie/PortablePieBuilder.cs)).
+[`PieBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Pie/PieBuilder.cs)).
 A pie is the first diagram drawn on the **shared layout tree** rather than by a renderer of its own, so it is selectable
 and its values are the numbers themselves. Supported: `pie`, `showData`, a `title` after the keyword or on a line of its
 own, `"label" : value` slices in clockwise order, `%%` comments and `accTitle`/`accDescr`. A slice worth `0` has its
@@ -247,7 +247,7 @@ the block editable.
 
 **State-diagram sub-features** ([`StateGrammar`](../src/Nexaflow.Markdown/Mermaid/State/StateGrammar.cs) →
 its stages [`ResolveComposites`](../src/Nexaflow.Markdown/Mermaid/State/Stages/ResolveComposites.cs) and [`ResolveStates`](../src/Nexaflow.Markdown/Mermaid/State/Stages/ResolveStates.cs) →
-[`PortableStateBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/State/PortableStateBuilder.cs)).
+[`StateBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/State/StateBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every word is the characters it was written as.
 Supported: `stateDiagram` and `stateDiagram-v2`; a state written as an id, as `id : what it says`, or as
 `state "what it says" as id`; transitions `a --> b`, with `: what it says` on them; `[*]`, which is **the one dot each
@@ -274,7 +274,7 @@ renderer, a drawing style, a layout engine, or sizes for a drawing made of SVG t
 
 **Class-diagram sub-features** ([`ClassGrammar`](../src/Nexaflow.Markdown/Mermaid/Class/ClassGrammar.cs),
 its stages [`ResolveNamespaces`](../src/Nexaflow.Markdown/Mermaid/Class/Stages/ResolveNamespaces.cs) and [`ResolveMembers`](../src/Nexaflow.Markdown/Mermaid/Class/Stages/ResolveMembers.cs),
-[`PortableClassBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Class/PortableClassBuilder.cs)).
+[`ClassBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Class/ClassBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every word is the characters it was written as.
 Supported: `classDiagram` and `classDiagram-v2`; a class declared `class A`, `class A { … }` or `class A{}`, given a
 label `class A["Shown instead"]`, named in backticks `` class `Car Class!` ``, given type parameters `A~T~` — drawn
@@ -297,7 +297,7 @@ name, its fields, then its methods — with a rule the width of the box between 
 in the layout**, so pressing a class means that class and pressing the room round it means the namespace, which stands
 for the whole `namespace … }` it was written as. **A member may lead somewhere**: a trailing ` @@<url>`, which nothing
 in Mermaid writes and the Code feature's *As Code* writes, draws the row as a link and a press on it opens the
-declaration ([`PortableActions`](../src/Nexaflow.Markdown/Layout/PortableActions.cs)) — as does a class a `click` line points
+declaration ([`LayoutActions`](../src/Nexaflow.Markdown/Layout/LayoutActions.cs)) — as does a class a `click` line points
 somewhere. **The front matter is applied** ([`ClassConfig`](../src/Nexaflow.Markdown/Mermaid/Class/ClassConfig.cs)):
 `config: class:` `nodeSpacing`, `rankSpacing`, `diagramPadding`, `dividerMargin`, `titleTopMargin`, `wrappingWidth`,
 `hideEmptyMembersBox` and `hierarchicalNamespaces`, and the shared `markdownAutoWrap`. **Divergences from Mermaid:** an
@@ -312,7 +312,7 @@ name a renderer, a drawing style, a layout engine, or sizes for a drawing made o
 
 **Requirement-diagram sub-features** ([`RequirementGrammar`](../src/Nexaflow.Markdown/Mermaid/Requirement/RequirementGrammar.cs),
 its stage [`ResolveStyles`](../src/Nexaflow.Markdown/Mermaid/Requirement/Stages/ResolveStyles.cs),
-[`PortableRequirementBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Requirement/PortableRequirementBuilder.cs)).
+[`RequirementBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Requirement/RequirementBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every word is the characters it was written as.
 Supported: every kind of requirement SysML names — `requirement`, `functionalRequirement`, `interfaceRequirement`,
 `performanceRequirement`, `physicalRequirement` and `designConstraint` — and the `element`s that meet them, named bare or in
@@ -339,7 +339,7 @@ read, only `%%`; and `rect_fill`, `text_color`, `rect_border_size`, `rect_border
 **Sequence-diagram sub-features** ([`SequenceGrammar`](../src/Nexaflow.Markdown/Mermaid/Sequence/SequenceGrammar.cs) →
 its stages [`ResolveFrames`](../src/Nexaflow.Markdown/Mermaid/Sequence/Stages/ResolveFrames.cs), which gathers each box and
 frame with the lines written in it, and [`ResolveNumbers`](../src/Nexaflow.Markdown/Mermaid/Sequence/Stages/ResolveNumbers.cs) →
-[`PortableSequenceBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Sequence/PortableSequenceBuilder.cs), which reads the timeline down
+[`SequenceBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Sequence/SequenceBuilder.cs), which reads the timeline down
 the tree in the order it is written).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every word is the characters it was written as.
 Supported: participants written where they are used or declared `participant A` / `actor A` to fix the order they stand
@@ -358,7 +358,7 @@ the front matter. **The drawing nests where the source does not**: the lines of 
 a frame holding the messages written inside it, holding the frames written inside those — so a frame stands for the
 whole of what was written from the word that opened it through its `end`, and a press on the room round a message means
 the `alt` it is under. **A participant may lead somewhere**: a `link` line draws its label under the lifeline and a
-press on it follows the url ([`PortableActions`](../src/Nexaflow.Markdown/Layout/PortableActions.cs)). **The front matter is
+press on it follows the url ([`LayoutActions`](../src/Nexaflow.Markdown/Layout/LayoutActions.cs)). **The front matter is
 applied** ([`SequenceConfig`](../src/Nexaflow.Markdown/Mermaid/Sequence/SequenceConfig.cs)): `config: sequence:`
 `activationWidth`, `diagramMarginX`, `diagramMarginY`, `actorMargin`, `width`, `height`, `boxMargin`, `boxTextMargin`,
 `noteMargin`, `messageMargin`, `messageAlign`, `noteAlign`, `mirrorActors`, `bottomMarginAdj`, `rightAngles`,
@@ -377,7 +377,7 @@ drawing style and fonts a page has.
 
 **Git-graph sub-features** ([`GitGrammar`](../src/Nexaflow.Markdown/Mermaid/Git/GitGrammar.cs) →
 its stage [`ResolveGraph`](../src/Nexaflow.Markdown/Mermaid/Git/Stages/ResolveGraph.cs), writing [its own nodes](../src/Nexaflow.Markdown/Mermaid/Git/GitNodes.cs) →
-[`PortableGitBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Git/PortableGitBuilder.cs)).
+[`GitBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Git/GitBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every branch name is the characters it was written
 as. Supported: the way it runs after the keyword (`gitGraph LR:`, `TB:`, `BT:`, and the bare `gitGraph:`); `title`;
 `commit` with `id:`, `tag:` and `type: NORMAL|REVERSE|HIGHLIGHT`, written one after another with only space between them;
@@ -413,7 +413,7 @@ pressed rather than typed into.
 
 **Mindmap sub-features** ([`MindmapGrammar`](../src/Nexaflow.Markdown/Mermaid/Mindmap/MindmapGrammar.cs) →
 its stage [`ResolveRoot`](../src/Nexaflow.Markdown/Mermaid/Mindmap/Stages/ResolveRoot.cs) →
-[`PortableMindmapBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Mindmap/PortableMindmapBuilder.cs)).
+[`MindmapBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Mindmap/MindmapBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every title is the characters it was written as.
 Supported, as Mermaid documents it: `mindmap`; a node as `id[Title]`, `[Title]` or a bare `Title`, read as every outline
 diagram's is ([`MermaidOutline`](../src/Nexaflow.Markdown/Mermaid/MermaidOutline.cs)); each pair of brackets its own shape —
@@ -422,7 +422,7 @@ rounded box; the first node is the root and every later node hangs off the neare
 less, so unclear indentation — deeper than an uncle, shallower than a sibling — still nests as Mermaid nests it, and a second
 root is said to be wrong; `<br>` breaks a title's line; an `::icon(…)` line, drawn over the title of the node above it as the
 Fluent UI icon it names ([`MermaidIcons`](../src/Nexaflow.Markdown/Mermaid/MermaidIcons.cs)); `:::class` lines (read); and `%%` comments.
-**Drawn as a tidy tree** ([`PortableDiagramTree`](../src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramTree.cs)): the root in the
+**Drawn as a tidy tree** ([`DiagramTree`](../src/Nexaflow.Markdown/Layout/Mermaid/DiagramTree.cs)): the root in the
 middle, its children taking turns either side of it, each node beside its parent with its subtree given the room it needs;
 every node washed and edged in its branch's colour, and each branch sweeping in that colour from its parent's side into the
 middle of its child's, thinning as it goes further out. Where the theme's `cScale` colours a branch, its nodes are filled solid. Mermaid's own mindmap layout is a force
@@ -442,7 +442,7 @@ quotes; Enter on a node starts another as far in as it.
 **Kanban-board sub-features** ([`KanbanGrammar`](../src/Nexaflow.Markdown/Mermaid/Kanban/KanbanGrammar.cs) →
 its stage [`ResolveColumns`](../src/Nexaflow.Markdown/Mermaid/Kanban/Stages/ResolveColumns.cs), which says it in
 [its own nodes](../src/Nexaflow.Markdown/Mermaid/Kanban/KanbanNodes.cs) →
-[`PortableKanbanBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Kanban/PortableKanbanBuilder.cs)).
+[`KanbanBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Kanban/KanbanBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every title is the characters it was written as.
 Supported, as Mermaid documents it: `kanban`; a node as `id[Title]`, `[Title]` or a bare `Title`, read as every outline
 diagram's is ([`MermaidOutline`](../src/Nexaflow.Markdown/Mermaid/MermaidOutline.cs)), its title in any of Mermaid's brackets
@@ -455,7 +455,7 @@ line under the card, drawn before its title as the Fluent UI icon it names; `:::
 washed in the column's colour under a deeper heading holding its title and how many cards it has; each card a raised box in
 its lane, its title wrapped at its top, a chip each for its ticket, its priority and its assignee under the title, and a
 stripe down its left edge in its priority's colour (Very High → `Danger`, High → `Warning`, Low → `Accent`, Very Low → a
-faded `Accent`) or, with no priority, its column's. A title is wrapped by the kit ([`PortableDiagramText.Wrapped`](../src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramText.cs)),
+faded `Accent`) or, with no priority, its column's. A title is wrapped by the kit ([`DiagramText.Wrapped`](../src/Nexaflow.Markdown/Layout/Mermaid/DiagramText.cs)),
 each line standing for the characters it holds.
 **The front matter is applied** ([`KanbanConfig`](../src/Nexaflow.Markdown/Mermaid/Kanban/KanbanConfig.cs)): `config: kanban:`
 `ticketBaseUrl` (a linked ticket drawn in the accent), `sectionWidth`, and `padding` and `useMaxWidth` (read); and the
@@ -470,7 +470,7 @@ makes it a title in quotes; Enter on a column starts a card under it with its ti
 **Gantt-chart sub-features** ([`GanttGrammar`](../src/Nexaflow.Markdown/Mermaid/Gantt/GanttGrammar.cs) →
 its stages [`ResolveSchedule`](../src/Nexaflow.Markdown/Mermaid/Gantt/Stages/ResolveSchedule.cs) and
 [`ResolveTasks`](../src/Nexaflow.Markdown/Mermaid/Gantt/Stages/ResolveTasks.cs) →
-[`PortableGanttBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Gantt/PortableGanttBuilder.cs)). What a task's schedule means depends on
+[`GanttBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Gantt/GanttBuilder.cs)). What a task's schedule means depends on
 the rest of the chart and on the day, so the stages say when each task runs and what the chart's settings mean, today being
 the day the block is read; the builder gives each task its row.
 Drawn on the **shared layout tree**, so what is drawn is selectable and every task's and section's name is the characters it
@@ -515,7 +515,7 @@ task's name is not written, since a name runs to its colon; an id renamed where 
 **Quadrant-chart sub-features** ([`QuadrantGrammar`](../src/Nexaflow.Markdown/Mermaid/Quadrant/QuadrantGrammar.cs) →
 its stage [`ResolvePoints`](../src/Nexaflow.Markdown/Mermaid/Quadrant/Stages/ResolvePoints.cs), which says it in
 [its own nodes](../src/Nexaflow.Markdown/Mermaid/Quadrant/QuadrantNodes.cs) →
-[`PortableQuadrantBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Quadrant/PortableQuadrantBuilder.cs)).
+[`QuadrantBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Quadrant/QuadrantBuilder.cs)).
 Drawn on the **shared layout tree**. Supported, as Mermaid documents it: `quadrantChart`; a `title`; `x-axis Low --> High`
 and `y-axis Low --> High`, the high end optional and either end in quotes; `quadrant-1`…`quadrant-4` captions (the first top
 right, then anticlockwise); points as `Name: [x, y]` from 0 to 1, a class after `:::` and a style after the position —
@@ -536,7 +536,7 @@ typed into bare text puts it in quotes; a class renamed in its `classDef` is ren
 caption starts the next quadrant's and elsewhere a point with its name still to write.
 
 **XY-chart sub-features** ([`XyGrammar`](../src/Nexaflow.Markdown/Mermaid/Xy/XyGrammar.cs) →
-[`PortableXyBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Xy/PortableXyBuilder.cs)).
+[`XyBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Xy/XyBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and each category, title and name is the characters it
 was written as. Supported, as Mermaid documents it: `xychart` / `xychart-beta`, **vertical** (default) or **`horizontal`**;
 a `title`; a categorical x-axis (`x-axis "Month" [jan, "feb 2"]`) or a numeric range (`x-axis title 0 --> 100`); a y-axis
@@ -554,7 +554,7 @@ Mermaid would refuse is held with the reason beneath — categories on a y-axis,
 `xAxis…Color`/`yAxis…Color` keys and `plotColorPalette`. A size nobody wrote is the app's own, and a colour the theme's.
 The upright axis's title is **turned a quarter turn** to read up the axis, as Mermaid sets it, and it is still typed into where
 it is drawn: a press in turned words means the letter under the pointer, and the caret and the wash over a stretch of them are
-turned with them (`PortablePiece.Turned`).
+turned with them (`LayoutPiece.Turned`).
 **Not applied:** each axis's `labelRotation`, which would turn its tick words as well — the turning is there, but the room an
 axis leaves for its words is worked out square, so turned tick words would want that worked out again. And
 `plotReservedSpacePercent`, `titlePadding`, `labelPadding` and `tickWidth`, which size Mermaid's own layout.
@@ -564,7 +564,7 @@ on a series starts another of its kind with its values still to write.**Radar-ch
 its stages [`ResolveCurves`](../src/Nexaflow.Markdown/Mermaid/Radar/Stages/ResolveCurves.cs) and
 [`ResolveOptions`](../src/Nexaflow.Markdown/Mermaid/Radar/Stages/ResolveOptions.cs), which say it in
 [its own nodes](../src/Nexaflow.Markdown/Mermaid/Radar/RadarNodes.cs) →
-[`PortableRadarBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Radar/PortableRadarBuilder.cs)).
+[`RadarBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Radar/RadarBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and each label is the characters it was written as.
 Supported, as Mermaid documents it: `radar-beta` (with or without a colon); a `title`, on its own line or in the front
 matter; `axis` lines naming axes as bare ids (`axis A, B, C`) or `id["Label"]`, several to a line; `curve` lines naming
@@ -587,7 +587,7 @@ the theme's.
 row; an axis renamed is renamed in every value naming it, bare or in quotes; Enter on a curve starts another curve with a
 hole for its name, on an axis another axis, and on an option nothing; a label deleted to nothing leaves a hole.
 **Ishikawa-chart sub-features** ([`IshikawaGrammar`](../src/Nexaflow.Markdown/Mermaid/Ishikawa/IshikawaGrammar.cs) →
-[`PortableIshikawaBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Ishikawa/PortableIshikawaBuilder.cs)).
+[`IshikawaBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Ishikawa/IshikawaBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every cause is the characters it was written as.
 Supported, as Mermaid documents it: `ishikawa-beta` (alias `ishikawa`); the **first line is the event** (the fish's head),
 on the header line or its own; every later line is a cause, nested by indentation as Mermaid nests it — the first cause's
@@ -608,7 +608,7 @@ cause's at fifteen — each line typed into as the characters it holds.
 **Not applied:** the `handDrawn` look, which is a look for every Mermaid diagram rather than this one.
 **Written in place:** the event is typed into in the head, a cause in its box or beside its bone.
 **Sankey sub-features** ([`SankeyGrammar`](../src/Nexaflow.Markdown/Mermaid/Sankey/SankeyGrammar.cs) →
-[`PortableSankeyBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Sankey/PortableSankeyBuilder.cs)).
+[`SankeyBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Sankey/SankeyBuilder.cs)).
 A flow to a line, written as the three columns of a CSV row — where it comes from, where it goes, and what it is worth.
 **Nothing declares a node**: the nodes are the names the flows are written between, in the order they are first written,
 which is the order they are stacked in and the colour each takes. A field holds anything but a comma and a quote as it is;
@@ -629,7 +629,7 @@ reads three and stops; and `%%` comments are skipped here, which Mermaid's sanke
 
 **ER-diagram sub-features** ([`ErGrammar`](../src/Nexaflow.Markdown/Mermaid/Er/ErGrammar.cs),
 its stages [`ResolveGroups`](../src/Nexaflow.Markdown/Mermaid/Er/Stages/ResolveGroups.cs) and [`ResolveJoins`](../src/Nexaflow.Markdown/Mermaid/Er/Stages/ResolveJoins.cs),
-[`PortableErBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Er/PortableErBuilder.cs)).
+[`ErBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Er/ErBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every word is the characters it was written as.
 Supported: entities — bare `NAME`, quoted `"name with space"`, named in any alphabet, or aliased `id[Alias]` /
 `id["Multi word"]` — each with an optional `{ … }` block of attributes, read as what it holds, what it is called, the keys it
@@ -657,7 +657,7 @@ renderer, a drawing style and a layout engine.
 
 **Venn sub-features** ([`VennGrammar`](../src/Nexaflow.Markdown/Mermaid/Venn/VennGrammar.cs) →
 its stages [`GroupRegions`](../src/Nexaflow.Markdown/Mermaid/Venn/Stages/GroupRegions.cs), [`ResolveRegions`](../src/Nexaflow.Markdown/Mermaid/Venn/Stages/ResolveRegions.cs) and [`ResolveStyles`](../src/Nexaflow.Markdown/Mermaid/Venn/Stages/ResolveStyles.cs) →
-[`PortableVennBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Venn/PortableVennBuilder.cs)).
+[`VennBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Venn/VennBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and each label is the characters it was written as.
 Supported, as Mermaid documents it: `venn-beta`; a `title`, quoted or not; `set id["Label"]:size`, a name bare or in
 quotes and a label as `["Label"]` or `[Label]`; `union A,B["Label"]:size` over two sets or more, each written above it;
@@ -689,7 +689,7 @@ theme, so Mermaid's `redux-color` theme, `neo` look and hand-drawn look are not.
 
 **Architecture sub-features** ([`ArchitectureGrammar`](../src/Nexaflow.Markdown/Mermaid/Architecture/ArchitectureGrammar.cs) →
 its stage [`ResolveArchitecture`](../src/Nexaflow.Markdown/Mermaid/Architecture/Stages/ResolveArchitecture.cs) →
-[`PortableArchitectureBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Architecture/PortableArchitectureBuilder.cs)).
+[`ArchitectureBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Architecture/ArchitectureBuilder.cs)).
 **The sides an edge leaves by are what say where things sit**: `db:R -- L:server` puts the server to the right of the
 database, and walking the edges out from each service in turn lays the whole diagram on a grid — which is where Mermaid
 starts too, before handing the result to a force-directed solver to settle. Here the walk is the answer, so the same
@@ -715,7 +715,7 @@ puts that end above rather than below, where here all four read the same way; an
 `edgeElasticity` steer a solver this does not run.
 
 **Swimlane sub-features** ([`FlowchartGrammar`](../src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartGrammar.cs) and its stages →
-[`PortableSwimlaneBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Swimlane/PortableSwimlaneBuilder.cs)).
+[`SwimlaneBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Swimlane/SwimlaneBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every word is the characters it was written as.
 **A swimlane is a flowchart**, read by the flowchart's own grammar and stages and drawn by the flowchart's own drawing — which
 is how Mermaid reads and draws it too, one parser and one renderer differing only in the layout — so everything in the flowchart section
@@ -747,7 +747,7 @@ engine, a drawing style, a palette and a knob on a layering pass none of which i
 
 **Cynefin sub-features** ([`CynefinGrammar`](../src/Nexaflow.Markdown/Mermaid/Cynefin/CynefinGrammar.cs) →
 [`ResolveDomains`](../src/Nexaflow.Markdown/Mermaid/Cynefin/Stages/ResolveDomains.cs) →
-[`PortableCynefinBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Cynefin/PortableCynefinBuilder.cs)).
+[`CynefinBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Cynefin/CynefinBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every item is the characters it was written as.
 Supported: `cynefin-beta`; optional `title`; the five domain words — `clear`, `complicated`, `complex`, `chaotic` and
 `confusion` — each opening its domain where it is a line of its own, and every line after it an item in that domain,
@@ -776,7 +776,7 @@ or a comment is put in quotes.
 
 **Timeline sub-features** ([`TimelineGrammar`](../src/Nexaflow.Markdown/Mermaid/Timeline/TimelineGrammar.cs) →
 [`ResolveEvents`](../src/Nexaflow.Markdown/Mermaid/Timeline/Stages/ResolveEvents.cs) →
-[`PortableTimelineBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Timeline/PortableTimelineBuilder.cs)).
+[`TimelineBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Timeline/TimelineBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every period and event is the characters it was
 written as. Supported: `title`; `section`; `period : event : event`, with further events on lines starting with `:`;
 `<br>` line breaks; `#colon;` and Mermaid's other entity codes ([`MermaidText`](../src/Nexaflow.Markdown/Mermaid/MermaidText.cs));
@@ -794,7 +794,7 @@ colon splits, exactly as in Mermaid, so a
 colon inside an event needs `#colon;`; labels wrap at a fixed column width rather than Mermaid's `useMaxWidth` fit.
 
 **Journey sub-features** ([`JourneyGrammar`](../src/Nexaflow.Markdown/Mermaid/Journey/JourneyGrammar.cs) →
-[`PortableJourneyBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Journey/PortableJourneyBuilder.cs)).
+[`JourneyBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Journey/JourneyBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every task and actor is the characters it was
 written as. Tasks run left to right under a band per section; over each task a **face** floats as high as it scored
 (drawn from strokes — no emoji font), coloured by mood from the palette's success/warning/danger tokens: 5–4 smile, 3
@@ -815,7 +815,7 @@ being what a line is read by. **Limitations:** actors are matched by name, ignor
 
 **Block sub-features** ([`BlockGrammar`](../src/Nexaflow.Markdown/Mermaid/Block/BlockGrammar.cs) →
 its stage [`ResolveBlocks`](../src/Nexaflow.Markdown/Mermaid/Block/Stages/ResolveBlocks.cs) →
-[`PortableBlockBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Block/PortableBlockBuilder.cs)).
+[`BlockBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/Block/BlockBuilder.cs)).
 **Where a block is drawn is what its author wrote** — the whole point of the type, and why nothing here works out a position.
 A grid is laid out in the `columns N` it is given, or in one row where it is given none or `auto`; blocks fill it left to
 right and wrap as the columns fill; `id:2` takes that many of them; `space` / `space:3` leaves cells empty; and
@@ -845,12 +845,12 @@ written, where Mermaid needs the id; and `useMaxWidth` is not applied, the block
 its stages [`ResolveBoundaries`](../src/Nexaflow.Markdown/Mermaid/C4/Stages/ResolveBoundaries.cs), which gathers each boundary
 with the lines written in it, and [`ResolveMacros`](../src/Nexaflow.Markdown/Mermaid/C4/Stages/ResolveMacros.cs), which says
 what each macro means →
-[`PortableC4Builder`](../src/Nexaflow.Markdown/Layout/Mermaid/C4/PortableC4Builder.cs)).
+[`C4Builder`](../src/Nexaflow.Markdown/Layout/Mermaid/C4/C4Builder.cs)).
 A C4 diagram **is** a graph with richer boxes, so it is drawn on the **shared layout tree** with the same layered layout
-([`PortableDiagramLayers`](../src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramLayers.cs)) a class diagram and a flowchart use,
+([`DiagramLayers`](../src/Nexaflow.Markdown/Layout/Mermaid/DiagramLayers.cs)) a class diagram and a flowchart use,
 rather than getting a layout engine of its own. Every element is a card — its label, the `[Kind: technology]` stereotype
 worked out from what it is, and the sentence under that — drawn as a person, a cylinder, a queue or a box
-([`PortableDiagramCard`](../src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramCard.cs)); boundaries and deployment nodes are
+([`DiagramCard`](../src/Nexaflow.Markdown/Layout/Mermaid/DiagramCard.cs)); boundaries and deployment nodes are
 boxes holding boxes, nested as deep as they are written, each with a `[type]` line under its name; and a relationship is
 a line carrying what it is done with and what it is for under what it says.
 
@@ -873,8 +873,8 @@ default**, since the key then carries what they said; `HIDE_STEREOTYPE`, `LAYOUT
 `SHOW_PERSON_OUTLINE`/`SHOW_PERSON_PORTRAIT` shape variants; `<br/>` and HTML entities in labels; and both `%%` and
 PlantUML `'` comments. **Colours map C4's scheme onto the theme** rather than copying its hex — what carries the meaning
 is the grading (depth tracks abstraction level, grey means external), so it is reproduced from the active accent and a
-theme can retune it ([`PortableC4Grading`](../src/Nexaflow.Markdown/Layout/Mermaid/C4/PortableC4Grading.cs) over the kit's
-[`PortableDiagramTone`](../src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramTone.cs); see [theming.md](theming.md) →
+theme can retune it ([`C4Grading`](../src/Nexaflow.Markdown/Layout/Mermaid/C4/C4Grading.cs) over the kit's
+[`DiagramTone`](../src/Nexaflow.Markdown/Layout/Mermaid/DiagramTone.cs); see [theming.md](theming.md) →
 *Diagram tokens*). **The front-matter `config: c4:` block is applied**
 ([`C4Config`](../src/Nexaflow.Markdown/Mermaid/C4/C4Config.cs)): `wrap`, `width`, `height`, `c4ShapeMargin`,
 `c4ShapePadding`, `boxMargin`, `diagramMarginX` and `diagramMarginY`, on Mermaid's own defaults.
@@ -887,7 +887,7 @@ source rather than in the drawing, where every macro naming it is in view.
 
 **C4 sequence** ([`C4SequenceGrammar`](../src/Nexaflow.Markdown/Mermaid/C4/C4SequenceGrammar.cs) →
 a sequence diagram's stages with [`ResolveMacros`](../src/Nexaflow.Markdown/Mermaid/C4/Stages/ResolveMacros.cs) →
-[`PortableC4SequenceBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/C4/PortableC4SequenceBuilder.cs)).
+[`C4SequenceBuilder`](../src/Nexaflow.Markdown/Layout/Mermaid/C4/C4SequenceBuilder.cs)).
 `C4Sequence` is a **Nexaflow extension** — it mirrors C4-PlantUML's `C4_Sequence.puml`, which Mermaid has no keyword
 for. Drawn on the **shared layout tree**, **by the sequence diagram's own drawing**, read by the sequence diagram's own
 reader with the macro lines taken as its own — only the words a reader wrote to say it differ. Element macros become participant lifelines whose boxes are C4 element cards instead of
@@ -904,7 +904,7 @@ says what each macro comes to.
 
 **Native sequence syntax works inside it.** Any line the C4 grammar does not claim is read by
 [`SequenceGrammar`](../src/Nexaflow.Markdown/Mermaid/Sequence/SequenceGrammar.cs) itself, and any line
-`PortableC4SequenceBuilder` does not claim is read by the sequence diagram's own reader — so `alt`/`else`/`end`, `loop`, `par`,
+`C4SequenceBuilder` does not claim is read by the sequence diagram's own reader — so `alt`/`else`/`end`, `loop`, `par`,
 `critical`, `note over`, `activate` and even a plain `participant` sit alongside C4 macros in one diagram and nest
 around them correctly. It is the native grammar, not a second copy of it. **Divergences from C4-PlantUML:** an element's
 own name is never drawn — its label is — so a rename is made in the source rather than in the drawing, while a
@@ -920,7 +920,7 @@ A `graph`/`flowchart` — and `stateDiagram`, `classDiagram`, `erDiagram`, `requ
 can be drawn with only part of itself showing, which is what a `config: nexaflow:` block asks for.
 
 **A node can hide what is behind it.** A node something spoke about is drawn with a **`[+N]` / `[−]` chip** over its
-top-right corner ([`PortableDiagramChip`](../src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramChip.cs)) — a piece of its own, so
+top-right corner ([`DiagramChip`](../src/Nexaflow.Markdown/Layout/Mermaid/DiagramChip.cs)) — a piece of its own, so
 the node's body goes on meaning whatever its own press meant and folding never has to be smuggled into a label or an
 href. Which nodes those are is declared in a **`config: nexaflow:`** front-matter block, namespaced so it can never
 collide with a key Mermaid reads and so stock Mermaid simply ignores it
@@ -970,14 +970,14 @@ there is to call it.
 
 *Breadth* is the other problem: some nodes have hundreds of children, and all of them at once is a wall rather than a
 picture. `maxFanOut` draws the first of them and hangs one node off the parent offering the rest — `+7 more`
-([`PortableDiagramSpill`](../src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramSpill.cs)). **That node is layout only**: nobody
+([`DiagramSpill`](../src/Nexaflow.Markdown/Layout/Mermaid/DiagramSpill.cs)). **That node is layout only**: nobody
 wrote it, so it stands for no part of the source and is in no diagram's model — it is a cell, a line and a press, and
 the press means the same `expand` every chip means, answered by the same handler. Place decides what stays: the first
 of the children are the ones on the page. A child that holds something still shown is never held back, since that would
 orphan it, and neither is one something else visible also points at, since it is still reached that way.
 
 **A press means what the builder said it means.** A builder declares a verb and its argument
-([`PortableIntent`](../src/Nexaflow.Markdown/Layout/PortableActions.cs)) rather than a handler, since it is a static
+([`LayoutAsk`](../src/Nexaflow.Markdown/Layout/LayoutActions.cs)) rather than a handler, since it is a static
 function and cannot close over a host's state;
 the engine resolves it: a link out of the document is raised to the page as the routed `LinkNavigate`, choosing a node is
 the routed `Selected` that anything picked out raises — under the producer's own name for it — and
@@ -992,7 +992,7 @@ In the document's own words that is Insert, which opens a row of icons, one for 
 each diagram, barcode and QR-style symbol, tune, formula, chemical structure, plot and word cloud — and writes a small block of it that already draws, to start from.
 
 **Layout.** A folding diagram is laid out by the same
-[`PortableDiagramLayers`](../src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramLayers.cs) as every other graph-shaped one:
+[`DiagramLayers`](../src/Nexaflow.Markdown/Layout/Mermaid/DiagramLayers.cs) as every other graph-shaped one:
 ranks, then an ordering that keeps crossings down, then each node pulled toward the middle of its neighbours so a child
 sits under its parent — and a rank too wide for the room wraps onto further rows rather than running off the side.
 
@@ -1139,7 +1139,7 @@ the AST node behind it, and for the formula's pieces that is the *formula's* nod
 The engine has already parsed that content with its own language, and the builder asks for its **layout tree** — `abc`,
 `lilypond`, `latex`, `smiles`, `qr` and `mermaid` itself ([`ContentLanguages`](../src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs)) — sizes its own content
 around it, and grafts the two into one combined layout tree
-([`PortableInset`](../src/Nexaflow.Markdown/Layout/Prose/PortableProse.cs)). A language nothing here draws leaves the
+([`LayoutInset`](../src/Nexaflow.Markdown/Layout/Prose/LayoutProse.cs)). A language nothing here draws leaves the
 label drawn as the words it is.
 
 Every builder knows where it sits (`Reading.Root.Start`), which is the whole of what embedding costs a language:
@@ -1148,12 +1148,12 @@ nought for a block of its own, and the offset of the slice for one written insid
 **Only where the grammar said so.** A run of words is another content because its language declared that it may be
 one, never because of how its characters happen to begin — so a `state` description, which nothing has declared,
 draws a fence as the characters it is. Every Mermaid label has declared it, quoted or not, and every diagram draws
-one without knowing anything about it: a label is `PortableDiagramWords`, and a `PortableDiagramWords` may be a whole layout instead
+one without knowing anything about it: a label is `DiagramWords`, and a `DiagramWords` may be a whole layout instead
 of a row of glyphs. A wide one is never broken into lines, because breaking a tune in half is not a smaller tune.
 
 **Taking it up in another language** is two things: its grammar emits a `Kinds.Nested` node where it allows a block,
 and its layout reserves room for a box where it reserves room for a line of text. The first is a line; the second is
-free for anything already drawing through `PortableDiagramWords` and real work for anything not — a score reserves its lyric
+free for anything already drawing through `DiagramWords` and real work for anything not — a score reserves its lyric
 and annotation rows from text metrics, so a molecule sung under a note needs the engraver to measure it.
 
 **One line, for now.** A label is one row of source, so a block written across several lines is not read as one yet —
@@ -1168,8 +1168,8 @@ read by a parser of its own ([`NomnomlParser`](../src/Nexaflow.Markdown/Nomnoml/
 group written across lines with the lines inside it and reads each association's operator as the end, the line and the
 other end it is built from. What a `nomnoml` block says **is** a class diagram — the same classes with the same
 compartments, the same relations between them, the same boxes round the ones written together — so
-[`PortableNomnomlBuilder`](../src/Nexaflow.Markdown/Layout/Nomnoml/PortableNomnomlBuilder.cs) walks its tree into what the class
-diagram's drawing ([`PortableClassDrawing`](../src/Nexaflow.Markdown/Layout/Mermaid/Class/PortableClassDrawing.cs)) is made from,
+[`NomnomlBuilder`](../src/Nexaflow.Markdown/Layout/Nomnoml/NomnomlBuilder.cs) walks its tree into what the class
+diagram's drawing ([`ClassDrawing`](../src/Nexaflow.Markdown/Layout/Mermaid/Class/ClassDrawing.cs)) is made from,
 and a fix to how a class diagram is laid out is a fix to both. A node's compartments are its bands as written: the first
 past its name above the rule, and every one after it below.
 
@@ -1230,7 +1230,7 @@ nothing would render a plausible-looking code that is not the one the author ask
 | [`QrBlockReader`](../src/Nexaflow.Markdown/Matrix/Qr/QrBlockReader.cs) | the tree → a `QrBlock` (payload + settings), or the line that is wrong and why |
 | [`QrPayload`](../src/Nexaflow.Markdown/Matrix/Qr/QrPayload.cs) | `type:` + fields → the one string that gets encoded, in the convention its scanners expect |
 | [`QrEncoder`](../src/Nexaflow.Markdown/Matrix/Qr/QrEncoder.cs) | string → a `QrMatrix`. WPF-free, so a symbol can be asserted on without a UI thread |
-| [`EncodeQr`](../src/Nexaflow.Markdown/Matrix/Qr/Stages/EncodeQr.cs) | the stage: reads and encodes the block and names the parts the symbol is made of — its three finders and its timing lines — for [`PortableMatrixBuilder`](../src/Nexaflow.Markdown/Layout/Matrix/PortableMatrixBuilder.cs) to lay out on a quiet-zone ground |
+| [`EncodeQr`](../src/Nexaflow.Markdown/Matrix/Qr/Stages/EncodeQr.cs) | the stage: reads and encodes the block and names the parts the symbol is made of — its three finders and its timing lines — for [`MatrixBuilder`](../src/Nexaflow.Markdown/Layout/Matrix/MatrixBuilder.cs) to lay out on a quiet-zone ground |
 
 **The encoder is ours** (ISO/IEC 18004 model 2), not a package: versions 1–40, all four error-correction
 levels, numeric / alphanumeric / byte modes with the narrowest one chosen for the payload, Reed–Solomon
@@ -1255,7 +1255,7 @@ over a byte array — no IO, no platform, nothing to keep current.
 **Settings** (any type): `ec` (`L`/`M`/`Q`/`H`, default `M`), `cellSize` (1–64, default 4), `margin`
 (0–32 modules, default 4), `dark` and `light` (`#RGB`, `#RRGGBB` or `#AARRGGBB`).
 
-**Colour is the one thing the palette does not follow.** `PortableStyle.QrDark` / `QrLight` are their own
+**Colour is the one thing the palette does not follow.** `LayoutStyle.QrDark` / `QrLight` are their own
 pair rather than `Text` over `FigureBg`: a code that inverted with a dark theme would stop scanning. A theme
 can retune them (`QrDarkBrush` / `QrLightBrush`); a block's `dark:` / `light:` win over both.
 
@@ -1330,7 +1330,7 @@ when every module is right, which is exactly what the reference images caught.
 **Editing.** In a document a barcode is pieces of the same laid tree as the words round it, so the caret steps into
 it, selects and types there as it does anywhere else, and a key means what it means to the characters — a barcode
 registers no edit hook of its own.
-It contributes a **layout tree** ([`PortableBarcodeBuilder`](../src/Nexaflow.Markdown/Layout/Barcode/PortableBarcodeBuilder.cs)),
+It contributes a **layout tree** ([`BarcodeBuilder`](../src/Nexaflow.Markdown/Layout/Barcode/BarcodeBuilder.cs)),
 built from what the stage hung under the block ([`BarcodeNodes`](../src/Nexaflow.Markdown/Barcode/BarcodeNodes.cs)) — so
 the shared queries answer where the caret can stand and what a press landed on, exactly as they do for a formula.
 
@@ -1351,7 +1351,7 @@ document it is written in without the builder working out where any of them are.
 (`left`/`center`/`right`), `lineColor`, `background` (`#RGB`, `#RRGGBB`, `#AARRGGBB`), `margin`
 (0–200, default 10).
 
-**Colour follows the same rule as QR**: `PortableStyle.BarcodeDark` / `BarcodeLight` are their own
+**Colour follows the same rule as QR**: `LayoutStyle.BarcodeDark` / `BarcodeLight` are their own
 pair (`BarcodeDarkBrush` / `BarcodeLightBrush` to retune), because bars that inverted with a dark theme
 would stop scanning. A block's `lineColor:` / `background:` win over both.
 
@@ -1381,7 +1381,7 @@ They render the way formulas and scores do — [docs/markdown-ast.md](markdown-a
 reads the fence into a tree, and the code's own stage (`EncodeQr`, `EncodeAztec`, `EncodeDataMatrix`,
 `EncodePdf417`) reads its fields, encodes them and names the parts the symbol is made of, because each
 code reads its own fields, encodes its own way and is made of its own parts. What it leaves is only what a
-picture needs (`MatrixSymbolNode`), so one builder, `PortableMatrixBuilder`, lays out all four. The layout is hosted
+picture needs (`MatrixSymbolNode`), so one builder, `MatrixBuilder`, lays out all four. The layout is hosted
 read-only in the shared `ContentElement`, which the caret arrows over like a word.
 
 | Piece | Does |
@@ -1390,7 +1390,7 @@ read-only in the shared `ContentElement`, which the caret arrows over like a wor
 | [`MatrixParser`](../src/Nexaflow.Markdown/Matrix/MatrixParser.cs) | any 2D block's body → a tree: a line per line, a field its key, colon and value. `Print(Parse(s)) == s` for anything |
 | [`MatrixSettings`](../src/Nexaflow.Markdown/Matrix/MatrixSettings.cs) + [`MatrixBlockReader`](../src/Nexaflow.Markdown/Matrix/MatrixBlockReader.cs) | the drawing settings every 2D block takes, and the fields the parser found; a symbology's reader takes the fields these hand back and adds its own keys, and its stage marks the part at fault where the block will not read |
 | [`MatrixSymbolNode`](../src/Nexaflow.Markdown/Matrix/MatrixNodes.cs) | what a code's stage leaves for drawing: its modules, which of the parts the code is made of each belongs to, the settings and a row-height multiplier for stacked symbologies |
-| [`PortableMatrixBuilder`](../src/Nexaflow.Markdown/Layout/Matrix/PortableMatrixBuilder.cs) | the one builder: the symbol laid as a layout tree of the parts it is made of, each part's module runs merged into one geometry, aliased edges so no seam reads as a light line, and the quiet-zone ground. A block that will not read or encode is only ever read, so it is shown as it is written, with the part at fault marked and the reason beneath |
+| [`MatrixBuilder`](../src/Nexaflow.Markdown/Layout/Matrix/MatrixBuilder.cs) | the one builder: the symbol laid as a layout tree of the parts it is made of, each part's module runs merged into one geometry, aliased edges so no seam reads as a light line, and the quiet-zone ground. A block that will not read or encode is only ever read, so it is shown as it is written, with the part at fault marked and the reason beneath |
 | [`GaloisField` + `ReedSolomon`](../src/Nexaflow.Markdown/Matrix/ReedSolomon.cs) | parity over a field chosen per symbology — `0x11D` for QR, `0x12D` for Data Matrix, the prime field 929 for PDF417, and one of `0x13`/`0x43`/`0x12D`/`0x409`/`0x1069` for Aztec by symbol size — with the generator's first root a parameter, because the standards disagree about it and getting it wrong is silent |
 
 The QR code is re-pointed at all of it; its suite is what proves the shared codec. `QrColor` folded into
@@ -1445,7 +1445,7 @@ digit pairing in one figure.
 A **`pdf417`** fence generates a PDF417 symbol (ISO/IEC 15438), registered as an
 [`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Handlers/Pdf417DiagramHandler.cs)
 beside `qr` and `datamatrix`. It is the first stacked symbology here, and the first user of
-`PortableMatrixBuilder`'s row-height multiplier.
+`MatrixBuilder`'s row-height multiplier.
 
 **The encoder is ours** ([`Pdf417Encoder`](../src/Nexaflow.Markdown/Matrix/Pdf417/Pdf417Encoder.cs)):
 text compaction with all four sub-modes and their latches and shifts, numeric compaction in 44-digit
@@ -1558,7 +1558,7 @@ fourth language on the shared syntax tree ([markdown-ast.md](markdown-ast.md#smi
 | [`SmilesNodes`](../src/Nexaflow.Markdown/Chemistry/SmilesNodes.cs) + [`MoleculeRings`](../src/Nexaflow.Markdown/Chemistry/MoleculeRings.cs) | what the stages say, in the molecule's own nodes: each atom (`AtomNode`), each written bond and ring closure, and the molecule as the graph they make with where its atoms go (`MoleculeNode`); ring bonds, and the smallest set of smallest rings |
 | [`StructureLayout`](../src/Nexaflow.Markdown/Chemistry/Depiction/StructureLayout.cs) | 2D coordinates, which `DepictStructure` hangs on each molecule: ring systems as polygons edge on edge, chains grown as zig-zags with `/` `\` honoured, overlaps untangled across single bonds, the result straightened, and a wedge per `@`/`@@` centre |
 | [`CageLayout`](../src/Nexaflow.Markdown/Chemistry/Depiction/CageLayout.cs) | a cage drawn as the solid it is: built in 3D from its bonds and angles (classical scaling, then stress majorization), seen from whichever of four hundred directions `Readability` scores clearest — its substituents included — and kept only where that reads better than the flat drawing |
-| [`PortableSmilesBuilder`](../src/Nexaflow.Markdown/Layout/Chemistry/PortableSmilesBuilder.cs) | the drawing: carbon as a corner, other elements as symbols with their hydrogens away from the bonds, charges and mass numbers, ring double bonds inside the ring, bonds coloured half and half by `PortableStyle.Elements`, wedges, captions, and entries flowing to the column |
+| [`SmilesBuilder`](../src/Nexaflow.Markdown/Layout/Chemistry/SmilesBuilder.cs) | the drawing: carbon as a corner, other elements as symbols with their hydrogens away from the bonds, charges and mass numbers, ring double bonds inside the ring, bonds coloured half and half by `LayoutStyle.Elements`, wedges, captions, and entries flowing to the column |
 
 **Read-only, but selectable.** Every atom and every written bond is a piece carrying the part it was
 typed as, so a selection across a structure copies its SMILES. A structure is only ever read, so
@@ -1613,8 +1613,8 @@ on the shared syntax tree ([markdown-ast.md](markdown-ast.md#word-clouds)).
 | [`WordCloudStencil`](../src/Nexaflow.Markdown/WordCloud/WordCloudStencil.cs) | the shape a cloud is packed *into* — letters, or a picture's silhouette — as a grid of cells saying where a word may go |
 | [`WordCloudBoard`](../src/Nexaflow.Markdown/WordCloud/WordCloudBoard.cs) | the picture as a grid of free and taken cells, and the search outwards from the middle that finds a word its place |
 | [`WordCloudRandom`](../src/Nexaflow.Markdown/WordCloud/WordCloudRandom.cs) | the throw every choice is made from, taken from the block's `seed:` so the same source always gives the same cloud |
-| [`PortableWordCloudBuilder`](../src/Nexaflow.Markdown/Layout/WordCloud/PortableWordCloudBuilder.cs) | setting each word, asking for its outline, packing it, and laying it out as a run of text where it landed |
-| [`PortableCloudInk`](../src/Nexaflow.Markdown/Layout/WordCloud/PortableCloudInk.cs) | what a word is drawn in: the palette's series colours in turn, colours written out, or a scattered dark or light throw |
+| [`WordCloudBuilder`](../src/Nexaflow.Markdown/Layout/WordCloud/WordCloudBuilder.cs) | setting each word, asking for its outline, packing it, and laying it out as a run of text where it landed |
+| [`CloudInk`](../src/Nexaflow.Markdown/Layout/WordCloud/CloudInk.cs) | what a word is drawn in: the palette's series colours in turn, colours written out, or a scattered dark or light throw |
 
 **The packing is `wordcloud2.js`'s, ported.** Words go down heaviest first; each takes the first place it
 fits, searching outwards from the middle along rings of ever-growing radius; nothing is moved once it is
@@ -1718,11 +1718,11 @@ ABC and LilyPond are two ways of writing the same thing, and one engraver draws 
   [`LilyPondEngraver`](../src/Nexaflow.Markdown/Scores/LilyPond/LilyPondEngraver.cs) — walks that tree,
   each its own way, into rows of bars, and both are an [`Engraver`](../src/Nexaflow.Markdown/Scores/Engraver.cs),
   the one engraver, which lays the rows through a layer onto the layout tree the formulas and barcodes already use —
-  [`PortableMusicBuilder`](../src/Nexaflow.Markdown/Layout/Scores/PortableMusicBuilder.cs) lays it out in whatever medium
+  [`MusicBuilder`](../src/Nexaflow.Markdown/Layout/Scores/MusicBuilder.cs) lays it out in whatever medium
   the block is drawn in. Every
   piece of the picture says which characters it was drawn from, which is what makes a note something a
   reader can click, select and edit in place. Given a page, the music takes 80% of its width and sits in the middle
-  of it — a page decision, made by the builder round the score (`PortableMusicBuilder`) rather than by the engraving, which fills
+  of it — a page decision, made by the builder round the score (`MusicBuilder`) rather than by the engraving, which fills
   whatever width it is handed. Design: [docs/markdown-ast.md](markdown-ast.md).
 
 A notation's builder does only what that notation leaves to it. ABC writes down where its bars and beams
@@ -1781,7 +1781,7 @@ strongest claim available.
 
 **One engraver, two readings.** Both notations are drawn with the bundled **Bravura** SMuFL font (SIL OFL)
 plus WPF geometry — no browser, no JS, matching the diagram engine's native approach. Ink follows the
-`PortableStyle`; the score sizes to **40–80% of the column, centred**, and wraps by width (honouring
+`LayoutStyle`; the score sizes to **40–80% of the column, centred**, and wraps by width (honouring
 notation line breaks first). Where nothing can be drawn the source is shown instead; where part of it
 cannot, the rest is drawn and that part is marked where it was written.
 
@@ -1952,7 +1952,7 @@ Four fences — **`scatter`**, **`bubble`**, **`heatmap`** and **`density2d`** �
 against a pair of axes. They share one grammar
 ([`PlotParser`](../src/Nexaflow.Markdown/Plot/PlotParser.cs) →
 [`PlotPipeline`](../src/Nexaflow.Markdown/Plot/PlotPipeline.cs) →
-[`PortablePlotBuilder`](../src/Nexaflow.Markdown/Layout/Plot/PortablePlotBuilder.cs)), because they differ in what
+[`PlotBuilder`](../src/Nexaflow.Markdown/Layout/Plot/PlotBuilder.cs)), because they differ in what
 is drawn rather than in what is written — the division ggplot2 makes. Registered as an
 [`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Handlers/PlotDiagramHandler.cs), one
 instance per fence, and drawn on the **shared layout tree**
@@ -2021,10 +2021,10 @@ Silverman's rule, and marching squares for the contours) and
 and Pearson, Spearman and Kendall with r², n and p). `PlotFitsTests` checks them against R's published
 values for `mtcars`.
 
-**Drawn out of the Mermaid kit**: marks through `PortableDiagramGlyphs` and `PortableDiagramShapes`, contours and bands
-through `PortableDiagramCurve`, axes through `PortableDiagramAxis` and `DiagramSpan`, gridlines through
-`PortableDiagramGrid`, colour through `PortableDiagramInk` and `PortableDiagramColours`, and the key through
-`PortableDiagramLegend` or `PortableDiagramBar`.
+**Drawn out of the Mermaid kit**: marks through `DiagramGlyphs` and `DiagramShapes`, contours and bands
+through `DiagramCurve`, axes through `DiagramAxis` and `DiagramSpan`, gridlines through
+`DiagramGrid`, colour through `DiagramInk` and `DiagramColours`, and the key through
+`DiagramLegend` or `DiagramBar`.
 
 **A channel is a channel, and a place is a place.** Only `x`, `y`, `fill` and `size` use a column up: a
 column feeding colour, shape, alpha, label or group is still free to be x, and a column may feed several
@@ -2129,5 +2129,5 @@ limitation nothing tracks is indistinguishable from a limitation nobody wants fi
 If any of the extensions not read are wanted, the change is a rule in the reading — a block rule in
 `MarkdownBlockRules`, or a token in `MarkdownTokenizer` matched in `MarkdownDelimiters` — with the extension's
 specification among `MarkdownSpecs`, so the corpus reads its examples and the HTML writer is held to their HTML, **plus**
-a case in `PortableMarkdownBuilder`, in `LayoutExport` and in the writers (and, ideally, a sample + test in
+a case in `MarkdownBuilder`, in `LayoutExport` and in the writers (and, ideally, a sample + test in
 `MarkdownSampleRenderTests`).

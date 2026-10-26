@@ -12,7 +12,7 @@ using Nexaflow.Visuals.Text.Painting;
 namespace Nexaflow.Tests.Visuals.Editing;
 
 /// <summary>
-/// A run of text as one piece (<see cref="PortableWords"/>): a press means the letter it landed on, the caret stands
+/// A run of text as one piece (<see cref="LayoutWords"/>): a press means the letter it landed on, the caret stands
 /// between two letters, and a stretch taking part of a run is washed as those letters — none of which costs a piece
 /// per character.
 /// </summary>
@@ -33,19 +33,19 @@ public class LayoutWordsTests
         WpfMedium.OnThisThread.Shape(text, new Typeface("Segoe UI"), 12, Brushes.Black, null, CultureInfo.InvariantCulture);
 
     /// <summary>A label and a value, each one run of text, inside a piece standing for the whole line.</summary>
-    private static PortableTree Line(bool maps = true)
+    private static LayoutTree Line(bool maps = true)
     {
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("line", new TestPart(0, 14));
 
-        PortableText.Words(build, Set(Label), new LayoutPoint(10, 0), 200, LayoutAlign.Left, LabelPart, "label");
-        PortableText.Words(build, Set(Value), new LayoutPoint(80, 0), 200, LayoutAlign.Left, ValuePart, "value", maps);
+        LayoutText.Words(build, Set(Label), new LayoutPoint(10, 0), 200, LayoutAlign.Left, LabelPart, "label");
+        LayoutText.Words(build, Set(Value), new LayoutPoint(80, 0), 200, LayoutAlign.Left, ValuePart, "value", maps);
 
         build.Close();
         return build.Seal();
     }
 
-    private static PortablePiece Run(PortablePiece root) => root.Children.Single(piece => piece.Kind == "value");
+    private static LayoutPiece Run(LayoutPiece root) => root.Children.Single(piece => piece.Kind == "value");
 
     [TestMethod]
     public void APressMeansTheLetterItLandedOn() => UiThread.Run(() =>
@@ -122,7 +122,7 @@ public class LayoutWordsTests
     [TestMethod]
     public void ARunGoesWhereverItsTreeIsPutDown() => UiThread.Run(() =>
     {
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("page");
         build.Graft(Line(), new LayoutPoint(300, 100));
         build.Close();
@@ -140,7 +140,7 @@ public class LayoutWordsTests
     [TestMethod]
     public void AWordIsLettersAndDigitsTogether() => UiThread.Run(() =>
     {
-        var words = new PortableWords(Set("Dogs 38.6"), default, true);
+        var words = new LayoutWords(Set("Dogs 38.6"), default, true);
 
         Assert.AreEqual((0, 4), words.WordAt(2), "a word of letters");
         Assert.AreEqual((5, 7), words.WordAt(6), "the digits before the point");
@@ -148,7 +148,7 @@ public class LayoutWordsTests
         Assert.AreEqual((8, 9), words.WordAt(8), "and the digit after it is its own word");
 
         // The point is only a word of its own where nothing wordy is written before it.
-        Assert.AreEqual((3, 4), new PortableWords(Set("38 .6"), default, true).WordAt(3));
+        Assert.AreEqual((3, 4), new LayoutWords(Set("38 .6"), default, true).WordAt(3));
     });
 
     [TestMethod]
@@ -158,7 +158,7 @@ public class LayoutWordsTests
         var set = Set(said);
         set.MaxTextWidth = set.Width / 2.5;
 
-        var words = new PortableWords(set, default, Maps: true);
+        var words = new LayoutWords(set, default, Maps: true);
         var first = words.Covers(0, 1);
         var last = words.Covers(said.Length - 1, said.Length);
 

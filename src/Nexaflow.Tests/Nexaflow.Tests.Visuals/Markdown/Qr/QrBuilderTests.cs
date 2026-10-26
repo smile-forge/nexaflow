@@ -115,7 +115,7 @@ public class QrBuilderTests
         StringAssert.Contains(laid.Trouble.Single().Message, "barcode");
         Assert.IsTrue(laid.ShowsSource, "a code is only read, so what will not read is put right in its source");
 
-        var reason = (PortableTextMark)MatrixLayouts.Of(laid, PortableSourceShown.Reason).Single().Marks[0];
+        var reason = (TextMark)MatrixLayouts.Of(laid, SourceShown.Reason).Single().Marks[0];
         StringAssert.Contains(reason.Glyphs.Text, "barcode", "with why, under it");
     });
 
@@ -154,7 +154,7 @@ public class QrBuilderTests
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static PortableLaid Build(string source) => Laying.Lay("qr", source, style: WpfStyles.Dark);
+    private static Laid Build(string source) => Laying.Lay("qr", source, style: WpfStyles.Dark);
 
     private static QrMatrix Encoded(string source)
     {

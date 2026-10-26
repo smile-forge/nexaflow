@@ -151,7 +151,7 @@ public class RequirementBuilderTests : MermaidBuilderContract
     // ── What it works with ──────────────────────────────────────────────────
 
     /// <summary>Every box drawn, by the name it was written with.</summary>
-    private static Dictionary<string, LayoutRect> Boxes(string source, PortableLaid laid)
+    private static Dictionary<string, LayoutRect> Boxes(string source, Laid laid)
     {
         var boxes = new Dictionary<string, LayoutRect>();
 
@@ -163,15 +163,15 @@ public class RequirementBuilderTests : MermaidBuilderContract
     }
 
     /// <summary>Where the words saying this were drawn inside a piece.</summary>
-    private static LayoutRect Words(PortablePiece piece, string said) => Said(piece).First(words => words.Words!.Glyphs.Text == said).Bounds;
+    private static LayoutRect Words(LayoutPiece piece, string said) => Said(piece).First(words => words.Words!.Glyphs.Text == said).Bounds;
 
     /// <summary>The words drawn under a piece, in the order they were drawn.</summary>
-    private static IEnumerable<PortablePiece> Said(PortablePiece piece) =>
+    private static IEnumerable<LayoutPiece> Said(LayoutPiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Words && part.Words is not null);
 
     /// <summary>Whether anything under a piece is drawn with a broken line.</summary>
-    private static bool Dashed(PortablePiece piece) =>
-        piece.SelfAndDescendants().SelectMany(inner => inner.Marks.ToArray()).OfType<PortableGeometryMark>()
+    private static bool Dashed(LayoutPiece piece) =>
+        piece.SelfAndDescendants().SelectMany(inner => inner.Marks.ToArray()).OfType<GeometryMark>()
             .Any(mark => (mark.Stroke as WpfStroke)?.Dashes is not null);
 
     [TestMethod]
@@ -221,7 +221,7 @@ public class RequirementBuilderTests : MermaidBuilderContract
     public void ABoxIsFilledWithWhatStylesIt() => UiThread.Run(() =>
     {
         var box = Pieces(Lay("requirementDiagram\n  A:::blue\n  classDef blue fill:#0000ff"), RequirementPiece.Box).Single();
-        var fills = box.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<PortableGeometryMark>().Select(mark => mark.Fill?.Brush()).OfType<SolidColorBrush>();
+        var fills = box.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>().Select(mark => mark.Fill?.Brush()).OfType<SolidColorBrush>();
 
         Assert.IsTrue(fills.Any(fill => fill.Color == Color.FromRgb(0, 0, 0xFF)), "filled as its class says");
     });

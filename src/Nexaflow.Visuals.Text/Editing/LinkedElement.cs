@@ -12,7 +12,7 @@ using Nexaflow.Visuals.Text.Painting;
 namespace Nexaflow.Visuals.Text.Editing;
 
 /// <summary>
-/// Content whose pieces answer to a gesture (<see cref="PortableActions"/>), and which hands what they mean to whatever
+/// Content whose pieces answer to a gesture (<see cref="LayoutActions"/>), and which hands what they mean to whatever
 /// the host put behind them. A press that is answered means that rather than a place to put the caret, and the pointer
 /// is a hand over one saying what it leads to.
 ///
@@ -22,7 +22,7 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// </para>
 /// </summary>
 /// <param name="actions">What answers a gesture — null where nothing here answers one.</param>
-public class LinkedElement(string source, PortableStyle palette, ContentEngine engine, string? language, ILayoutActions? actions)
+public class LinkedElement(string source, LayoutStyle palette, ContentEngine engine, string? language, ILayoutActions? actions)
     : ContentElement(source, palette, engine, language, actions)
 {
     /// <inheritdoc/>
@@ -77,14 +77,14 @@ public class LinkedElement(string source, PortableStyle palette, ContentEngine e
     protected virtual IEnumerable<LayoutIntent> Offering(LayoutAct act) => [];
 
     /// <summary>What every one of <paramref name="over"/> offers, by verb, in the order the first of them says it.</summary>
-    private static List<LayoutIntent> Shared(IReadOnlyList<PortablePiece> over)
+    private static List<LayoutIntent> Shared(IReadOnlyList<LayoutPiece> over)
     {
         var first = Offers(over[0]);
         return [.. first.Where(offer => over.All(piece => Offers(piece).Any(other => other.Verb == offer.Verb)))];
     }
 
     /// <summary>Everything a piece says can be done to it: what a press on it means.</summary>
-    private static IEnumerable<LayoutIntent> Offers(PortablePiece piece) =>
+    private static IEnumerable<LayoutIntent> Offers(LayoutPiece piece) =>
         LayoutAnswers.Offer(piece.Acts?.Click) is { } press ? [press] : [];
 
     /// <summary>
@@ -92,7 +92,7 @@ public class LinkedElement(string source, PortableStyle palette, ContentEngine e
     /// anything else, to each piece it was offered for, or — where no piece offered it, because the content or the host did —
     /// once, for where the menu was opened.
     /// </summary>
-    private void Invoke(LayoutIntent meant, IReadOnlyList<PortablePiece> over, LayoutPoint where, IReadOnlyList<LayoutIntent> asked)
+    private void Invoke(LayoutIntent meant, IReadOnlyList<LayoutPiece> over, LayoutPoint where, IReadOnlyList<LayoutIntent> asked)
     {
         // Whatever the content itself offered is the content's to do, a paste as much as anything else: what is on the
         // clipboard is the host's, but asking for it is the engine's (ContentChange.Asks).

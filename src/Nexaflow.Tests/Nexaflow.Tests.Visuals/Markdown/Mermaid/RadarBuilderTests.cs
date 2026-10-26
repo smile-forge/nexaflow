@@ -53,7 +53,7 @@ public class RadarBuilderTests : MermaidBuilderContract
         ("nothing to draw", "radar-beta\n  title Empty"),
     ];
 
-    private static PortableLaid Build(string source, double room = 700, bool writing = false) =>
+    private static Laid Build(string source, double room = 700, bool writing = false) =>
         Laying.Lay("mermaid", source, room, writing: writing);
 
     [TestMethod]
@@ -172,10 +172,10 @@ public class RadarBuilderTests : MermaidBuilderContract
     });
 
     /// <summary>The colour a piece's outline is drawn in.</summary>
-    private static Color Stroke(PortablePiece piece)
+    private static Color Stroke(LayoutPiece piece)
     {
         foreach (var mark in piece.Marks)
-            if (mark is PortableGeometryMark { Stroke.Ink: WpfInk { Brush: SolidColorBrush stroke } }) return stroke.Color;
+            if (mark is GeometryMark { Stroke.Ink: WpfInk { Brush: SolidColorBrush stroke } }) return stroke.Color;
 
         throw new AssertFailedException($"a {piece.Kind} with no outline");
     }
@@ -218,7 +218,7 @@ public class RadarBuilderTests : MermaidBuilderContract
     {
         var laid = Build("radar-beta\n  title Empty");
 
-        Assert.IsTrue(Pieces(laid, PortableText.SourceKind).Any(), "the lines are on the page");
+        Assert.IsTrue(Pieces(laid, LayoutText.SourceKind).Any(), "the lines are on the page");
         Assert.AreEqual(0, Pieces(laid, RadarPiece.Spoke).Count);
     });
 

@@ -291,7 +291,7 @@ public class PieEditingTests
         Edited((editor, pie) =>
         {
             var block = pie;
-            PortablePiece First(string kind) => pie.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == kind);
+            LayoutPiece First(string kind) => pie.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == kind);
             static Point Middle(Rect box) => new(box.X + (box.Width / 2), box.Y + (box.Height / 2));
 
             Assert.AreEqual(Cursors.IBeam, block.PointerCursor(Middle(First(PiePiece.Label).Bounds.ToWpf())), "a label is written in");
@@ -336,7 +336,7 @@ public class PieEditingTests
             var shares = pie.Laid.Root.SelfAndDescendants().Where(piece => piece.Kind == PiePiece.Share).ToList();
 
             Assert.IsTrue(shares.Count > 0);
-            Assert.IsTrue(shares.All(share => share.Stops == PortableStops.None),
+            Assert.IsTrue(shares.All(share => share.Stops == LayoutStops.None),
                           "a worked-out share is not a place to stand, so stepping never stops in one");
         }));
 
@@ -704,7 +704,7 @@ public class PieEditingTests
         MarkdownEditorHarness.Clipboard = new DataObject(DataFormats.UnicodeText, words);
 
     /// <summary>The legend's row for the slice labelled <paramref name="name"/>.</summary>
-    private static PortablePiece Row(DocumentBlock pie, string name)
+    private static LayoutPiece Row(DocumentBlock pie, string name)
     {
         var at = pie.Source.IndexOf(name, pie.Start, StringComparison.Ordinal);
         return pie.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == MermaidPiece.Key && piece.Sits().Start <= at && at < piece.Sits().End);

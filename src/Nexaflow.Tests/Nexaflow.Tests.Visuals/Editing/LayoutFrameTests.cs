@@ -11,7 +11,7 @@ using Nexaflow.Visuals.Text.Painting;
 namespace Nexaflow.Tests.Visuals.Editing;
 
 /// <summary>
-/// A piece drawn in a frame of its own — set smaller, or turned (<see cref="PortablePaint"/>): everything it holds is painted,
+/// A piece drawn in a frame of its own — set smaller, or turned (<see cref="LayoutPaint"/>): everything it holds is painted,
 /// pressed, caretted and washed in that frame, however deep inside it, because the painter and every question asked of the
 /// layout go through the same frame.
 /// </summary>
@@ -32,13 +32,13 @@ public class LayoutFrameTests
         WpfMedium.OnThisThread.Shape(text, new Typeface("Segoe UI"), 12, Brushes.Black, null, CultureInfo.InvariantCulture);
 
     /// <summary>A label and a value, each a run of text, and a square standing in its own shape, inside one piece.</summary>
-    private static PortableTree Drawing()
+    private static LayoutTree Drawing()
     {
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
-        build.Open("drawing", new TestPart(0, 14), stops: PortableStops.None);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
+        build.Open("drawing", new TestPart(0, 14), stops: LayoutStops.None);
 
-        PortableText.Words(build, Set("Dogs"), new LayoutPoint(10, 0), 200, LayoutAlign.Left, LabelPart, "label");
-        PortableText.Words(build, Set("386"), new LayoutPoint(80, 0), 200, LayoutAlign.Left, ValuePart, "value");
+        LayoutText.Words(build, Set("Dogs"), new LayoutPoint(10, 0), 200, LayoutAlign.Left, LabelPart, "label");
+        LayoutText.Words(build, Set("386"), new LayoutPoint(80, 0), 200, LayoutAlign.Left, ValuePart, "value");
 
         build.Open("square", new TestPart(0, 3), new LayoutPoint(0, 40), gathers: false);
         build.Covers(new LayoutRect(0, 0, 40, 40));
@@ -50,18 +50,18 @@ public class LayoutFrameTests
     }
 
     /// <summary>The drawing set down at <see cref="At"/> in a piece painted as <paramref name="paints"/> says.</summary>
-    private static PortablePiece Page(PortablePaint paints)
+    private static LayoutPiece Page(LayoutPaint paints)
     {
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
-        build.Open("page", stops: PortableStops.None);
-        build.Open("held", at: At, stops: PortableStops.None, paints: paints);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
+        build.Open("page", stops: LayoutStops.None);
+        build.Open("held", at: At, stops: LayoutStops.None, paints: paints);
         build.Graft(Drawing());
         build.Close();
         build.Close();
         return build.Seal().Root;
     }
 
-    private static PortablePiece Kind(PortablePiece root, string kind) => root.SelfAndDescendants().Single(piece => piece.Kind == kind);
+    private static LayoutPiece Kind(LayoutPiece root, string kind) => root.SelfAndDescendants().Single(piece => piece.Kind == kind);
 
     /// <summary>Where a point of the unscaled drawing lands, the drawing set smaller about its anchor at <see cref="At"/>.</summary>
     private static LayoutPoint Scaled(LayoutPoint inDrawing) => new(At.X + (inDrawing.X * Half), At.Y + (inDrawing.Y * Half));
@@ -70,7 +70,7 @@ public class LayoutFrameTests
     public void APieceSetSmallerReachesAsFarAsWhatItHoldsLands() => UiThread.Run(() =>
     {
         var whole = Drawing().Root.Bounds;
-        var held = Kind(Page(new PortablePaint(Scale: Half)), "held");
+        var held = Kind(Page(new LayoutPaint(Scale: Half)), "held");
 
         Assert.AreEqual(At.X + (whole.X * Half), held.Bounds.X, 0.001);
         Assert.AreEqual(whole.Width * Half, held.Bounds.Width, 0.001, "as wide as what it holds, drawn at its scale");
@@ -81,7 +81,7 @@ public class LayoutFrameTests
     [TestMethod]
     public void WhatItHoldsIsPaintedWhereItIsSaidToBe() => UiThread.Run(() =>
     {
-        var root = Page(new PortablePaint(Scale: Half));
+        var root = Page(new LayoutPaint(Scale: Half));
 
         var painted = new DrawingGroup();
         using (var dc = painted.Open()) WpfPainter.Paint(dc, root, Brushes.Black);
@@ -95,7 +95,7 @@ public class LayoutFrameTests
     [TestMethod]
     public void APressMeansTheLetterItLandedOn_WhereTheLettersAreDrawn() => UiThread.Run(() =>
     {
-        var root = Page(new PortablePaint(Scale: Half));
+        var root = Page(new LayoutPaint(Scale: Half));
         var value = Kind(Drawing().Root, "value");
         var anchor = value.Bounds.TopLeft;
 
@@ -114,7 +114,7 @@ public class LayoutFrameTests
     [TestMethod]
     public void TheCaretAndTheWashAreDrawnAtTheScale() => UiThread.Run(() =>
     {
-        var root = Page(new PortablePaint(Scale: Half));
+        var root = Page(new LayoutPaint(Scale: Half));
         var value = Kind(Drawing().Root, "value");
         var caret = value.Words!.Caret(1);
 
@@ -130,7 +130,7 @@ public class LayoutFrameTests
     [TestMethod]
     public void AShapeIsPressedAndWashedWhereItIsDrawn() => UiThread.Run(() =>
     {
-        var root = Page(new PortablePaint(Scale: Half));
+        var root = Page(new LayoutPaint(Scale: Half));
         var square = Kind(root, "square");
 
         var middle = Scaled(new LayoutPoint(20, 60));
@@ -146,7 +146,7 @@ public class LayoutFrameTests
     [TestMethod]
     public void WhatATurnedPieceHolds_IsPressedWhereItIsDrawn() => UiThread.Run(() =>
     {
-        var root = Page(new PortablePaint([WpfMedium.OnThisThread.Rotation(90, default)]));
+        var root = Page(new LayoutPaint([WpfMedium.OnThisThread.Rotation(90, default)]));
         var value = Kind(Drawing().Root, "value");
         var letter = value.Words!.Covers(1, 2);
 

@@ -36,7 +36,7 @@ public static class WpfPainter
     /// (<see cref="Around"/>), and one far from it lets its picture go — so a long document costs a screen of pictures however long it
     /// is. Null paints everything.
     /// </param>
-    public static void Paint(DrawingContext dc, PortablePiece piece, Brush ink, Rect? showing = null)
+    public static void Paint(DrawingContext dc, LayoutPiece piece, Brush ink, Rect? showing = null)
     {
         if (!piece.Exists) return;
 
@@ -66,12 +66,12 @@ public static class WpfPainter
     /// its own. Everything holding it is entered first and draws nothing, because a piece's place is relative and its frame is
     /// therefore the thing above it.
     /// </summary>
-    public static void PaintOne(DrawingContext dc, PortablePiece piece, Brush ink)
+    public static void PaintOne(DrawingContext dc, LayoutPiece piece, Brush ink)
     {
         if (!piece.Exists) return;
 
         var foreground = WpfMedium.OnThisThread.Ink(ink);
-        var above = new List<PortablePiece>();
+        var above = new List<LayoutPiece>();
         foreach (var up in piece.Ancestors()) above.Add(up);
 
         var offset = default(Vector);
@@ -94,7 +94,7 @@ public static class WpfPainter
     /// <paramref name="root"/> painted into a picture of <paramref name="box"/>, <paramref name="scale"/> times as large, on
     /// <paramref name="ground"/> where one is said — what a figure is exported as, and what a block is copied as.
     /// </summary>
-    public static BitmapSource? Painted(PortablePiece root, Rect box, double scale, Brush ink, Brush? ground, double dpiX = 96, double dpiY = 96)
+    public static BitmapSource? Painted(LayoutPiece root, Rect box, double scale, Brush ink, Brush? ground, double dpiX = 96, double dpiY = 96)
     {
         if (box.IsEmpty || box.Width <= 0 || box.Height <= 0 || scale <= 0) return null;
 
@@ -140,7 +140,7 @@ public static class WpfPainter
     /// <param name="offset">Where the frame <paramref name="piece"/> is measured in stands, against what was last pushed.</param>
     /// <param name="near">What is painted of the pieces keeping pictures, on the page — null for all of them.</param>
     /// <param name="far">Past this, a piece's kept picture is let go.</param>
-    private static void Descend(DrawingContext dc, PortablePiece piece, WpfInk foreground, bool washes, Vector offset,
+    private static void Descend(DrawingContext dc, LayoutPiece piece, WpfInk foreground, bool washes, Vector offset,
                                 Rect? near = null, Rect? far = null)
     {
         var painting = piece.Painting;
@@ -174,7 +174,7 @@ public static class WpfPainter
         else
         {
             foreach (var mark in piece.Marks)
-                if (mark is PortableWashMark == washes) PaintMark(dc, mark, foreground.Brush, offset);
+                if (mark is WashMark == washes) PaintMark(dc, mark, foreground.Brush, offset);
 
             foreach (var child in piece.Children) Descend(dc, child, foreground, washes, offset, near, far);
         }
@@ -183,7 +183,7 @@ public static class WpfPainter
     }
 
     /// <summary>A kept picture, recorded from everything the piece holds.</summary>
-    private static Drawing Record(PortablePiece piece, WpfInk foreground)
+    private static Drawing Record(LayoutPiece piece, WpfInk foreground)
     {
         var recorded = new DrawingGroup();
         using (var dc = recorded.Open()) Inside(dc, piece, foreground);
@@ -193,15 +193,15 @@ public static class WpfPainter
     }
 
     /// <summary>Everything a piece holds, both layers, in the piece's own frame — what a kept picture is recorded from.</summary>
-    private static void Inside(DrawingContext dc, PortablePiece piece, WpfInk foreground)
+    private static void Inside(DrawingContext dc, LayoutPiece piece, WpfInk foreground)
     {
         foreach (var mark in piece.Marks)
-            if (mark is PortableWashMark) PaintMark(dc, mark, foreground.Brush, default);
+            if (mark is WashMark) PaintMark(dc, mark, foreground.Brush, default);
 
         foreach (var child in piece.Children) Descend(dc, child, foreground, washes: true, default);
 
         foreach (var mark in piece.Marks)
-            if (mark is not PortableWashMark) PaintMark(dc, mark, foreground.Brush, default);
+            if (mark is not WashMark) PaintMark(dc, mark, foreground.Brush, default);
 
         foreach (var child in piece.Children) Descend(dc, child, foreground, washes: false, default);
     }
@@ -225,11 +225,11 @@ public static class WpfPainter
     /// One mark, drawn moved along by <paramref name="offset"/>, as the WPF tree's own marks draw themselves: what can be drawn
     /// further along is, and what cannot is moved by a transform of its own.
     /// </summary>
-    private static void PaintMark(DrawingContext dc, PortableMark mark, Brush fallback, Vector offset)
+    private static void PaintMark(DrawingContext dc, LayoutMark mark, Brush fallback, Vector offset)
     {
         switch (mark)
         {
-            case PortableTextMark text:
+            case TextMark text:
             {
                 var glyphs = (WpfText)text.Glyphs;
                 glyphs.SetForegroundBrush(Brush(text.Ink) ?? fallback);
@@ -237,7 +237,7 @@ public static class WpfPainter
                 break;
             }
 
-            case PortableGeometryMark shape:
+            case GeometryMark shape:
             {
                 var pen = shape.Stroke is WpfStroke stroke ? stroke.PenFor(fallback) : null;
                 var fill = shape.Fill is null && pen is not null ? null : Brush(shape.Fill) ?? fallback;
@@ -248,11 +248,11 @@ public static class WpfPainter
                 break;
             }
 
-            case PortableRuleMark rule:
+            case RuleMark rule:
                 dc.DrawRectangle(Brush(rule.Ink) ?? fallback, null, Rect.Offset(rule.Bounds.ToWpf(), offset));
                 break;
 
-            case PortableLineMark line:
+            case LineMark line:
             {
                 var pen = new Pen(Brush(line.Ink) ?? fallback, 1.0);
                 pen.Freeze();
@@ -260,7 +260,7 @@ public static class WpfPainter
                 break;
             }
 
-            case PortableGlyphMark glyphs:
+            case GlyphMark glyphs:
             {
                 var moved = Shifted(dc, offset);
                 dc.DrawGlyphRun(Brush(glyphs.Ink) ?? fallback, (WpfGlyphs)glyphs.Run);
@@ -268,11 +268,11 @@ public static class WpfPainter
                 break;
             }
 
-            case PortableWashMark wash:
+            case WashMark wash:
                 dc.DrawRectangle(((WpfInk)wash.Fill).Brush, null, Rect.Offset(wash.Bounds.ToWpf(), offset));
                 break;
 
-            case PortablePictureMark picture:
+            case PictureMark picture:
             {
                 var drawing = new DrawingGroup();
                 RenderOptions.SetBitmapScalingMode(drawing, BitmapScalingMode.HighQuality);
@@ -303,7 +303,7 @@ public static class WpfPainter
     /// turned inside whatever holds it is turned about its own anchor, and a drawing set smaller is scaled inside the turn. A clip and
     /// a mask are said in the piece's own frame, inside however it is turned and scaled; a fade is the same in any frame.
     /// </summary>
-    private static int Enter(DrawingContext dc, PortablePaint? painting, ref Vector offset)
+    private static int Enter(DrawingContext dc, LayoutPaint? painting, ref Vector offset)
     {
         if (painting is null) return 0;
 
@@ -357,7 +357,7 @@ public static class WpfPainter
     }
 
     /// <summary>Whether what a piece holds is painted measured from its own anchor rather than carried down to it.</summary>
-    private static bool Framed(PortablePaint painting) =>
+    private static bool Framed(LayoutPaint painting) =>
         painting.Applies || painting.Snap is not null || painting.Clip is not null || painting.Mask is not null;
 
     /// <summary>A stretch of the page, said in a frame standing <paramref name="by"/> from the one it was said in.</summary>

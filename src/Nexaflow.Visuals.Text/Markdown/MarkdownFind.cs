@@ -21,7 +21,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// <para>
 /// So there is nothing here for a language to implement. A diagram's own text is in the fence body, which
 /// is in the document, and every piece it was laid out as already carries where in the document it came
-/// from — which is what <see cref="PortableQuery.RangeRects"/> reads.
+/// from — which is what <see cref="LayoutQuery.RangeRects"/> reads.
 /// </para>
 /// </summary>
 public static class MarkdownFind
@@ -80,12 +80,12 @@ public static class MarkdownFind
     /// given back is the source the run stands for, so a hit reads like any other.
     /// </para>
     /// </summary>
-    public static IReadOnlyList<(int Start, int Length)> Shown(PortableLaid? laid, string? term) =>
+    public static IReadOnlyList<(int Start, int Length)> Shown(Laid? laid, string? term) =>
         term is { Length: > 0 } looking ? Shown(laid, Looking(looking)) : [];
 
     /// <summary>The same, for a question more complicated than a word.</summary>
     public static IReadOnlyList<(int Start, int Length)> Shown(
-        PortableLaid? laid, Func<string, IReadOnlyList<(int Index, int Length)>>? occurrences)
+        Laid? laid, Func<string, IReadOnlyList<(int Index, int Length)>>? occurrences)
     {
         if (laid is null || occurrences is null) return [];
 
@@ -107,12 +107,12 @@ public static class MarkdownFind
     /// Everywhere a reader would say <paramref name="term"/> appears: where it is written, and where it is
     /// only drawn. In the order they come to them, each place once.
     /// </summary>
-    public static IReadOnlyList<(int Start, int Length)> In(PortableLaid? laid, string? source, string? term) =>
+    public static IReadOnlyList<(int Start, int Length)> In(Laid? laid, string? source, string? term) =>
         term is { Length: > 0 } looking ? In(laid, source, Looking(looking)) : [];
 
     /// <summary>The same, for a question more complicated than a word.</summary>
     public static IReadOnlyList<(int Start, int Length)> In(
-        PortableLaid? laid, string? source, Func<string, IReadOnlyList<(int Index, int Length)>>? occurrences) =>
+        Laid? laid, string? source, Func<string, IReadOnlyList<(int Index, int Length)>>? occurrences) =>
         [.. Every(source, occurrences).Concat(Shown(laid, occurrences))
                                       .GroupBy(place => place.Start)
                                       .Select(same => same.First())

@@ -19,7 +19,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Nomnoml;
 
 /// <summary>
 /// What a nomnoml block draws. What nomnoml says <em>is</em> a class diagram, so it is drawn by the class diagram's own
-/// drawing from a walk of its own tree (<see cref="PortableNomnomlBuilder"/>) — and what is asked here is that the two agree, and
+/// drawing from a walk of its own tree (<see cref="NomnomlBuilder"/>) — and what is asked here is that the two agree, and
 /// that everything the class drawing draws is reached by writing it nomnoml's way.
 /// </summary>
 [TestClass]
@@ -81,7 +81,7 @@ public class NomnomlBuilderTests : MermaidBuilderContract
     });
 
     /// <summary>What every word drawn inside a piece says, run together.</summary>
-    private static string Saying(PortablePiece piece) =>
+    private static string Saying(LayoutPiece piece) =>
         string.Concat(piece.SelfAndDescendants().Select(part => part.Words?.Glyphs.Text ?? string.Empty));
 
     [TestMethod]
@@ -104,8 +104,8 @@ public class NomnomlBuilderTests : MermaidBuilderContract
     });
 
     /// <summary>What each relation draws at its ends, as the widths and heights of its marks.</summary>
-    private static string[] Heads(PortableLaid laid) =>
+    private static string[] Heads(Laid laid) =>
         [.. Pieces(laid, ClassPiece.Relation).SelectMany(piece => piece.SelfAndDescendants())
-              .SelectMany(piece => piece.Marks.ToArray()).OfType<PortableGeometryMark>().Skip(1)
+              .SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>().Skip(1)
               .Select(mark => $"{Math.Round(mark.Shape.Bounds.Width, 1)}x{Math.Round(mark.Shape.Bounds.Height, 1)}")];
 }

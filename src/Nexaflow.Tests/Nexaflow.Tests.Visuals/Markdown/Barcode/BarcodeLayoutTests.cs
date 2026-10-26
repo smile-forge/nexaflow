@@ -27,17 +27,17 @@ namespace Nexaflow.Tests.Visuals.Markdown.Barcode;
 public class BarcodeLayoutTests
 {
     /// <summary>A block laid out as a document being written lays it: somewhere its value can be put right in place.</summary>
-    private static PortableLaid Written(string source) => Laying.Lay("barcode", source, style: WpfStyles.Dark, writing: true);
+    private static Laid Written(string source) => Laying.Lay("barcode", source, style: WpfStyles.Dark, writing: true);
 
-    private static PortablePiece Root(string source) => Written(source).Root;
+    private static LayoutPiece Root(string source) => Written(source).Root;
 
     /// <summary>Where the value begins in the block — what every place in it is counted from.</summary>
     private static int ValueAt(string source, string value) => source.IndexOf(value, StringComparison.Ordinal);
 
-    private static PortablePiece[] Of(PortablePiece root, string kind) =>
+    private static LayoutPiece[] Of(LayoutPiece root, string kind) =>
         [.. root.SelfAndDescendants().Where(n => n.Kind == kind)];
 
-    private static LayoutPoint Middle(PortablePiece node) =>
+    private static LayoutPoint Middle(LayoutPiece node) =>
         new(node.Bounds.X + node.Bounds.Width / 2, node.Bounds.Y + node.Bounds.Height / 2);
 
     // ── Where a caret may stand ───────────────────────────────────────────
@@ -211,7 +211,7 @@ public class BarcodeLayoutTests
         const string source = "format: CODE128\nvalue:";
 
         var written = Written(source);
-        var hole = written.Root.SelfAndDescendants().Single(piece => piece.Kind == PortableText.HoleKind);
+        var hole = written.Root.SelfAndDescendants().Single(piece => piece.Kind == LayoutText.HoleKind);
 
         Assert.IsFalse(written.ShowsSource, "the barcode stays on the page");
         Assert.AreEqual(0, written.Trouble.Count, "nothing is wrong yet, there is only something still to write");

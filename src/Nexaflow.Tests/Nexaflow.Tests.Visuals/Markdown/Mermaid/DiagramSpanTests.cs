@@ -140,11 +140,11 @@ public class DiagramSpanTests
     public void AGridlineIsDrawnAcrossThePanelAtEachTick() => UiThread.Run(() =>
     {
         var panel = new LayoutRect(20, 10, 200, 100);
-        var ticks = new[] { new PortableDiagramTick(0, null), new PortableDiagramTick(0.5, null), new PortableDiagramTick(1, null) };
+        var ticks = new[] { new DiagramTick(0, null), new DiagramTick(0.5, null), new DiagramTick(1, null) };
 
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("Root");
-        PortableDiagramGrid.Draw(build, "Grid", panel, ticks, upright: true, new PortableDiagramStroke(Brushes.Gray.Ink()));
+        DiagramGrid.Draw(build, "Grid", panel, ticks, upright: true, new DiagramStroke(Brushes.Gray.Ink()));
         build.Close();
 
         var grid = build.Seal().Root.SelfAndDescendants().Single(piece => piece.Kind == "Grid");
@@ -158,25 +158,25 @@ public class DiagramSpanTests
     [TestMethod]
     public void AGridlineStandsForNothingAnybodyWrote() => UiThread.Run(() =>
     {
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("Root");
-        PortableDiagramGrid.Draw(build, "Grid", new LayoutRect(0, 0, 100, 100), [new PortableDiagramTick(0.5, null)],
-                         upright: false, new PortableDiagramStroke(Brushes.Gray.Ink()));
+        DiagramGrid.Draw(build, "Grid", new LayoutRect(0, 0, 100, 100), [new DiagramTick(0.5, null)],
+                         upright: false, new DiagramStroke(Brushes.Gray.Ink()));
         build.Close();
 
         var grid = build.Seal().Root.SelfAndDescendants().Single(piece => piece.Kind == "Grid");
 
         Assert.IsNull(grid.Part, "nobody typed a gridline, so there is nowhere for a press on one to go");
-        Assert.AreEqual(PortableStops.None, grid.Stops);
+        Assert.AreEqual(LayoutStops.None, grid.Stops);
     });
 
     [TestMethod]
     public void NoTicksIsNoGridAtAll() => UiThread.Run(() =>
     {
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("Root");
-        PortableDiagramGrid.Draw(build, "Grid", new LayoutRect(0, 0, 100, 100), [], upright: false,
-                         new PortableDiagramStroke(Brushes.Gray.Ink()));
+        DiagramGrid.Draw(build, "Grid", new LayoutRect(0, 0, 100, 100), [], upright: false,
+                         new DiagramStroke(Brushes.Gray.Ink()));
         build.Close();
 
         Assert.IsFalse(build.Seal().Root.SelfAndDescendants().Any(piece => piece.Kind == "Grid"));

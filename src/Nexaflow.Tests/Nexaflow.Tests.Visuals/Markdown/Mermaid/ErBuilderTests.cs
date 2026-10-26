@@ -173,7 +173,7 @@ public class ErBuilderTests : MermaidBuilderContract
     // ── What it works with ──────────────────────────────────────────────────
 
     /// <summary>Every entity drawn, by the name it was written with.</summary>
-    private static Dictionary<string, LayoutRect> Boxes(string source, PortableLaid laid)
+    private static Dictionary<string, LayoutRect> Boxes(string source, Laid laid)
     {
         var boxes = new Dictionary<string, LayoutRect>();
 
@@ -185,10 +185,10 @@ public class ErBuilderTests : MermaidBuilderContract
     }
 
     /// <summary>Where the words saying this were drawn inside a piece.</summary>
-    private static LayoutRect Words(PortablePiece piece, string said) => Said(piece).First(words => words.Words!.Glyphs.Text == said).Bounds;
+    private static LayoutRect Words(LayoutPiece piece, string said) => Said(piece).First(words => words.Words!.Glyphs.Text == said).Bounds;
 
     /// <summary>The words drawn under a piece, in the order they were drawn.</summary>
-    private static IEnumerable<PortablePiece> Said(PortablePiece piece) =>
+    private static IEnumerable<LayoutPiece> Said(LayoutPiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Words && part.Words is not null);
 
     private static bool Holds(LayoutRect over, LayoutRect inner) =>
@@ -204,7 +204,7 @@ public class ErBuilderTests : MermaidBuilderContract
     private (string[] Shapes, bool Dotted) Line(string relation)
     {
         var marks = Pieces(Lay($"erDiagram\n  {relation}"), ErPiece.Relation).Single()
-            .SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<PortableGeometryMark>().ToList();
+            .SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>().ToList();
 
         return ([.. marks.Select(mark => PathGeometry.CreateFromGeometry(mark.Shape.Geometry()).ToString())], marks.Any(mark => (mark.Stroke as WpfStroke)?.Dashes is not null));
     }

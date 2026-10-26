@@ -182,24 +182,24 @@ public class SankeyBuilderTests : MermaidBuilderContract
     {
         var laid = Build("sankey-beta\na,b,10");
         var ribbon = Marks(laid).Fill!.Brush();
-        var bar = Pieces(laid, SankeyPiece.Node)[0].Marks.ToArray().OfType<PortableGeometryMark>().First().Fill!.Brush();
+        var bar = Pieces(laid, SankeyPiece.Node)[0].Marks.ToArray().OfType<GeometryMark>().First().Fill!.Brush();
 
         Assert.AreEqual(0.5, ribbon.Opacity, 0.01, "the ribbon is the darker body of the flow");
         Assert.AreEqual(1, bar.Opacity, 0.01, "and the bars the light ends of it");
         Assert.IsTrue(((LinearGradientBrush)ribbon).GradientStops.All(stop => stop.Color.A == 255), "faded as a whole, not stop by stop");
     });
 
-    private static PortableLaid Build(string source, double room = 900) =>
+    private static Laid Build(string source, double room = 900) =>
         Laying.Lay("mermaid", source, room);
 
-    private static PortableGeometryMark Marks(PortableLaid laid) =>
-        Pieces(laid, SankeyPiece.Flow).Single().Marks.ToArray().OfType<PortableGeometryMark>().First();
+    private static GeometryMark Marks(Laid laid) =>
+        Pieces(laid, SankeyPiece.Flow).Single().Marks.ToArray().OfType<GeometryMark>().First();
 
     /// <summary>The bars alone, a node's piece holding what is written beside it as well.</summary>
-    private static List<LayoutRect> Bars(PortableLaid laid) =>
+    private static List<LayoutRect> Bars(Laid laid) =>
         [.. Pieces(laid, SankeyPiece.Node).Select(piece =>
         {
-            var bar = piece.Marks.ToArray().OfType<PortableGeometryMark>().First().Shape.Bounds;
+            var bar = piece.Marks.ToArray().OfType<GeometryMark>().First().Shape.Bounds;
             return LayoutRect.Offset(bar, piece.Bounds.X - piece.Box.X, piece.Bounds.Y - piece.Box.Y);
         })];
 

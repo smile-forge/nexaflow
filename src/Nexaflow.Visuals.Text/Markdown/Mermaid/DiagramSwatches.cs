@@ -40,7 +40,7 @@ internal static class DiagramSwatches
 
     /// <summary>What a colour written in a diagram's source comes to, or null where nothing is written or it says no colour.</summary>
     public static Color? Shade(string? written) =>
-        PortableDiagramColour.ParseCss(written) is { } said ? Color.FromArgb(said.A, said.R, said.G, said.B) : null;
+        DiagramColour.ParseCss(written) is { } said ? Color.FromArgb(said.A, said.R, said.G, said.B) : null;
 
     /// <summary>A swatch's name, which is its key without the word every key in the bank starts with.</summary>
     private static string Named(string key) => key[(key.IndexOf('.') + 1)..];

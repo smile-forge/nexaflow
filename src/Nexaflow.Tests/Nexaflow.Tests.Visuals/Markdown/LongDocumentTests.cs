@@ -75,7 +75,7 @@ public class LongDocumentTests
         foreach (var block in engine.ReadRoot.Children.Where(block => !block.Derived && block.Role != Roles.Trivia))
         {
             // The block's own piece: the first of the document's that first names something inside the block.
-            var own = root.Children.FirstOrDefault(whole => whole.Kind == PortablePieces.Whole
+            var own = root.Children.FirstOrDefault(whole => whole.Kind == LayoutPieces.Whole
                                                             && whole.SelfAndDescendants().Select(piece => piece.Part).FirstOrDefault(part => part is { Length: > 0 }) is { } named
                                                             && named.Start >= block.Start && named.Start < block.End);
 

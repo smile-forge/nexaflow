@@ -48,7 +48,7 @@ public class CynefinBuilderTests : MermaidBuilderContract
         ("nothing to draw", "cynefin-beta"),
     ];
 
-    private static PortableLaid Build(string source, double room = 900) =>
+    private static Laid Build(string source, double room = 900) =>
         Laying.Lay("mermaid", source, room);
 
     [TestMethod]
@@ -110,7 +110,7 @@ public class CynefinBuilderTests : MermaidBuilderContract
         Assert.AreEqual("complex --> clear : \"Learned\"", Written(Sense, moves[1].Part));
 
         // complex to clear runs corner to corner, which would take it under the cloud: it bends round instead.
-        var line = moves[1].Marks.ToArray().OfType<PortableGeometryMark>().First().Shape;
+        var line = moves[1].Marks.ToArray().OfType<GeometryMark>().First().Shape;
 
         Assert.IsFalse(line.Geometry().StrokeContains(new Pen(Brushes.Black, 20), (cloud - (LayoutVector)moves[1].Anchor).ToWpf()),
             "the movement keeps clear of the disorder in the middle");
@@ -120,7 +120,7 @@ public class CynefinBuilderTests : MermaidBuilderContract
     public void ADomainTheFrontMatterColoursIsDrawnInThatColour() => UiThread.Run(() =>
     {
         var laid = Build("---\nconfig:\n  themeVariables:\n    cynefin:\n      complexBg: \"#4e79a7\"\n---\ncynefin-beta\n  complex\n    \"One\"");
-        var mark = Pieces(laid, CynefinPiece.Domain)[0].Marks.ToArray().OfType<PortableGeometryMark>().Single();
+        var mark = Pieces(laid, CynefinPiece.Domain)[0].Marks.ToArray().OfType<GeometryMark>().Single();
 
         Assert.AreEqual(Color.FromRgb(0x4E, 0x79, 0xA7), ((SolidColorBrush)mark.Fill!.Brush()).Color);
     });
@@ -146,7 +146,7 @@ public class CynefinBuilderTests : MermaidBuilderContract
     [TestMethod]
     public void TheCliffFromClearIntoChaoticIsDrawnHeavierThanTheOtherBoundaries() => UiThread.Run(() =>
     {
-        var marks = Pieces(Build(Sense), CynefinPiece.Boundaries).Single().Marks.ToArray().OfType<PortableGeometryMark>().ToList();
+        var marks = Pieces(Build(Sense), CynefinPiece.Boundaries).Single().Marks.ToArray().OfType<GeometryMark>().ToList();
 
         Assert.AreEqual(2, marks.Count, "the boundaries, and the cliff");
         Assert.IsTrue(marks[1].Stroke!.Thickness > marks[0].Stroke!.Thickness, $"the cliff is heavier: {marks[1].Stroke!.Thickness} over {marks[0].Stroke!.Thickness}");
@@ -160,8 +160,8 @@ public class CynefinBuilderTests : MermaidBuilderContract
             "---\nconfig:\n  themeVariables:\n    cynefin:\n      cliffColor: \"#ff0000\"\n      cliffWidth: 5\n      arrowColor: \"#00ff00\"\n"
             + "      labelColor: \"#0000ff\"\n---\ncynefin-beta\n  complex\n  clear\n  complex --> clear : \"Learned\"");
 
-        var cliff = Pieces(laid, CynefinPiece.Boundaries).Single().Marks.ToArray().OfType<PortableGeometryMark>().Last();
-        var move = Pieces(laid, CynefinPiece.Move).Single().Marks.ToArray().OfType<PortableGeometryMark>().First();
+        var cliff = Pieces(laid, CynefinPiece.Boundaries).Single().Marks.ToArray().OfType<GeometryMark>().Last();
+        var move = Pieces(laid, CynefinPiece.Move).Single().Marks.ToArray().OfType<GeometryMark>().First();
 
         Assert.AreEqual(Color.FromRgb(0xFF, 0, 0), ((SolidColorBrush)cliff.Stroke!.Ink!.Brush()).Color);
         Assert.AreEqual(5, cliff.Stroke.Thickness);

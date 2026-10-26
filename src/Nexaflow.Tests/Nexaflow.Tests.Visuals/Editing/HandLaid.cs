@@ -46,7 +46,7 @@ internal static class HandLaid
     private const string Unbinding = "hand-unbound";
     private const string Unbuilding = "hand-unbuilt";
 
-    private static readonly ConcurrentDictionary<string, Func<EditState, bool, PortableLaid>> Lays = new();
+    private static readonly ConcurrentDictionary<string, Func<EditState, bool, Laid>> Lays = new();
     private static int _made;
 
     /// <summary>
@@ -104,7 +104,7 @@ internal static class HandLaid
     }
 
     /// <summary>An element showing <paramref name="source"/> as <paramref name="lay"/> lays it, told the state and whether nobody can write in it.</summary>
-    public static ContentElement Element(string source, Func<EditState, bool, PortableLaid> lay, bool readOnly = false)
+    public static ContentElement Element(string source, Func<EditState, bool, Laid> lay, bool readOnly = false)
     {
         var named = Laying + Interlocked.Increment(ref _made).ToString(CultureInfo.InvariantCulture);
         Lays[named] = lay;
@@ -125,14 +125,14 @@ internal static class HandLaid
     public static ContentElement Unbuildable(string source) => new(source, WpfStyles.Dark, new ContentEngine(), Unbuilding);
 
     /// <summary>A fixed box, so a block in a test language is something drawn and something to hover over.</summary>
-    private static PortableLaid Boxed()
+    private static Laid Boxed()
     {
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("hand-boxed");
-        build.Draw(new PortableRuleMark(new LayoutRect(0, 0, 60, 20), WpfMedium.OnThisThread.Ink(Brushes.Blue)));
+        build.Draw(new RuleMark(new LayoutRect(0, 0, 60, 20), WpfMedium.OnThisThread.Ink(Brushes.Blue)));
         build.Close();
 
-        return new PortableLaid(build.Seal(), 60, 20, []);
+        return new Laid(build.Seal(), 60, 20, []);
     }
 
     /// <summary>A language that falls over when asked what its block's corner offers.</summary>
@@ -144,19 +144,19 @@ internal static class HandLaid
     /// <summary>The content, carrying how the test lays it out — hung on it by a stage, as any language's stages hang what they work out.</summary>
     private sealed class Handed : ContentNode
     {
-        public Handed(ContentNode written, Func<EditState, bool, PortableLaid> lay) : base(written) => Lay = lay;
+        public Handed(ContentNode written, Func<EditState, bool, Laid> lay) : base(written) => Lay = lay;
 
-        public Func<EditState, bool, PortableLaid> Lay { get; }
+        public Func<EditState, bool, Laid> Lay { get; }
 
         protected override ContentNode Reshaped(ContentNode shape) => new Handed(shape, Lay);
     }
 
-    private sealed class Builder(ContentReading reading, EditState state, PortableStyle style, bool isReadOnly, ILayoutMedium medium,
-                                 PortableHost host)
-        : PortableContentBuilder(reading, state, style, isReadOnly, medium, host)
+    private sealed class Builder(ContentReading reading, EditState state, LayoutStyle style, bool isReadOnly, ILayoutMedium medium,
+                                 LayoutHost host)
+        : ContentBuilder(reading, state, style, isReadOnly, medium, host)
     {
-        protected override PortableLaid? Build() => ((Handed)Reading.Root.Node).Lay(State, IsReadOnly);
+        protected override Laid? Build() => ((Handed)Reading.Root.Node).Lay(State, IsReadOnly);
 
-        protected override PortableCharacters Characters => new(Medium.Face("Segoe UI"), Style.TextSize, Style.Text);
+        protected override LayoutCharacters Characters => new(Medium.Face("Segoe UI"), Style.TextSize, Style.Text);
     }
 }

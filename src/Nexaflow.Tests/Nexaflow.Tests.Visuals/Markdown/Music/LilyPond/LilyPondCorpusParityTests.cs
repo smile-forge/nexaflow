@@ -104,7 +104,7 @@ public class LilyPondCorpusParityTests
     /// <summary>Where the two engravings first part company, or null where they never do.</summary>
     private static string? Compare(string abc, string ly)
     {
-        PortableLaid one, other;
+        Laid one, other;
         try { one = Laying.Engraved("abc", abc, Width, WpfStyles.Light); }
         catch (Exception e) { return $"abc threw {e.GetType().Name}: {e.Message}"; }
         try { other = Laying.Engraved("lilypond", ly, Width, WpfStyles.Light); }
@@ -129,7 +129,7 @@ public class LilyPondCorpusParityTests
     /// voices are read out one at a time: two engravings that break their lines in different places, which a part
     /// song written a bar to a line always will, still read the same.
     /// </summary>
-    private static (List<string> Notes, int Bars) Read(PortableLaid layout)
+    private static (List<string> Notes, int Bars) Read(Laid layout)
     {
         var systems = All(layout.Root, "system");
         var voices = Voices(layout.Root, systems);
@@ -151,13 +151,13 @@ public class LilyPondCorpusParityTests
     }
 
     /// <summary>How many staves the first bracket joins — one per voice — or one where nothing is bracketed.</summary>
-    private static int Voices(PortablePiece root, List<PortablePiece> systems) =>
+    private static int Voices(LayoutPiece root, List<LayoutPiece> systems) =>
         All(root, "bracket").FirstOrDefault() is { } bracket
             ? Math.Max(1, systems.Count(system => Top(system) >= bracket.Bounds.Top - 1 && Top(system) <= bracket.Bounds.Bottom + 1))
             : 1;
 
     /// <summary>Where a system's staff starts: its top line.</summary>
-    private static double Top(PortablePiece system) => All(system, "staff-line").Select(line => line.Bounds.Top).DefaultIfEmpty(0).Min();
+    private static double Top(LayoutPiece system) => All(system, "staff-line").Select(line => line.Bounds.Top).DefaultIfEmpty(0).Min();
 
     /// <summary>
     /// abc2ly's one systematic slip, undone so the sweep can see past it: a tune whose ABC names its voice
@@ -183,7 +183,7 @@ public class LilyPondCorpusParityTests
         return ly;
     }
 
-    private static List<PortablePiece> All(PortablePiece root, string kind) => [.. root.SelfAndDescendants().Where(p => p.Kind == kind)];
+    private static List<LayoutPiece> All(LayoutPiece root, string kind) => [.. root.SelfAndDescendants().Where(p => p.Kind == kind)];
 
     /// <summary>
     /// One tune's two engravings, the ABC above the LilyPond, written beside the report. A line in the report

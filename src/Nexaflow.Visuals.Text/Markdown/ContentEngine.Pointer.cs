@@ -27,7 +27,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// </summary>
 public sealed partial class ContentEngine
 {
-    private PortablePiece _anchorNode;
+    private LayoutPiece _anchorNode;
     private LayoutPoint _pressedAt;
     private bool _dragging;
 
@@ -35,8 +35,8 @@ public sealed partial class ContentEngine
     private int _dropAt;
 
     /// <summary>The piece what is carried is over, which the language it is written in is told where it is let go.</summary>
-    private PortablePiece _dropOver;
-    private PortableLaid? _preview;
+    private LayoutPiece _dropOver;
+    private Laid? _preview;
     private Moved? _previewOf;
     private (int Start, int End) _previewMoved;
 
@@ -59,7 +59,7 @@ public sealed partial class ContentEngine
     internal event EventHandler<LayoutRect>? Revealing;
 
     /// <summary>The content as it would read if what is being carried were let go where it is now, with what is carried, or null.</summary>
-    internal (PortableLaid Laid, int Start, int End)? Preview => _preview is { } preview ? (preview, _previewMoved.Start, _previewMoved.End) : null;
+    internal (Laid Laid, int Start, int End)? Preview => _preview is { } preview ? (preview, _previewMoved.Start, _previewMoved.End) : null;
 
     /// <summary>Where what is being carried would land, or null where nothing is.</summary>
     internal int? Dropping => _moving ? _dropAt : null;
@@ -217,7 +217,7 @@ public sealed partial class ContentEngine
     /// rounded value, a percentage) has nowhere to put a caret since what is drawn isn't what was written — pressing it reveals
     /// the source first, then re-answers the press against that.
     /// </summary>
-    private bool Writing(PortablePiece piece, LayoutPoint at)
+    private bool Writing(LayoutPiece piece, LayoutPoint at)
     {
         if (piece.Words is not { } words || piece.Part is not { } part) return false;
 
@@ -238,7 +238,7 @@ public sealed partial class ContentEngine
     /// Whether a press lands on <paramref name="piece"/> itself rather than at one of its stops. The reach is capped at a
     /// quarter of the piece's width so a letter as narrow as an "i" still has a place at each side.
     /// </summary>
-    private static bool On(PortablePiece piece, LayoutPoint at)
+    private static bool On(LayoutPiece piece, LayoutPoint at)
     {
         if (!piece.Exists) return false;
 
@@ -313,7 +313,7 @@ public sealed partial class ContentEngine
     /// grow it out to the whole fence. A formula, a score or a diagram draws what its source meant, and half of one of those is
     /// not a smaller selection but one that cannot be read.
     /// </summary>
-    private bool CharactersBetween(PortablePiece from, PortablePiece to)
+    private bool CharactersBetween(LayoutPiece from, LayoutPiece to)
     {
         if (from.Words is not { Maps: true } || to.Words is not { Maps: true }) return false;
         if (from == to) return true;
@@ -431,12 +431,12 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>The innermost piece of <paramref name="laid"/> under a point that means something by <paramref name="gesture"/>, and what.</summary>
-    private static (PortablePiece Piece, LayoutIntent Intent)? Answering(PortableLaid laid, LayoutPoint at, LayoutGesture gesture)
+    private static (LayoutPiece Piece, LayoutIntent Intent)? Answering(Laid laid, LayoutPoint at, LayoutGesture gesture)
     {
-        (PortablePiece, LayoutIntent)? found = null;
+        (LayoutPiece, LayoutIntent)? found = null;
 
         // Only what reaches the point is asked: a link under the pointer is in the block it is over, not anywhere in the document.
-        foreach (var (piece, where) in PortableQuery.PlacedNear(laid.Tree.Root, reach => reach.Contains(at)))
+        foreach (var (piece, where) in LayoutQuery.PlacedNear(laid.Tree.Root, reach => reach.Contains(at)))
             if (where.Contains(at) && piece.Acts?.For(gesture) is { } intent)
                 found = (piece, intent);
 

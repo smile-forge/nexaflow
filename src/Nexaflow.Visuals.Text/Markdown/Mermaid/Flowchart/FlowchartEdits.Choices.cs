@@ -164,7 +164,7 @@ internal sealed partial class FlowchartEdits : IContentLanguage
 
         return kept.TryGetValue(shape, out var already)
             ? already
-            : kept[shape] = ((WpfShape)PortableDiagramShapes.AsPicture(WpfMedium.OnThisThread, PortableDiagramShapes.For(shape), Side)).Geometry;
+            : kept[shape] = ((WpfShape)DiagramShapes.AsPicture(WpfMedium.OnThisThread, DiagramShapes.For(shape), Side)).Geometry;
     }
 
     /// <summary>

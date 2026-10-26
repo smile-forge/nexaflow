@@ -14,7 +14,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 internal static class Formula
 {
     /// <summary>The layout, which is the whole of what a builder returns.</summary>
-    public static PortableLaid Lay(string latex, double scale, bool placeholders = false,
+    public static Laid Lay(string latex, double scale, bool placeholders = false,
                            RawZone? shownAsWritten = null) =>
         Laying.Formula(latex, scale, shownAsWritten: shownAsWritten, placeholders: placeholders);
 

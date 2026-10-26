@@ -29,11 +29,11 @@ public class LayoutQueryTests
     /// <c>\frac{x^2}{2}+y</c>, laid out the way a typesetter would: a numerator above a rule above a
     /// denominator, then a binary operator and a term beside them.
     /// </summary>
-    private static PortablePiece Fraction()
+    private static LayoutPiece Fraction()
     {
         //                    \frac{x^2}{2}+y
         //  offsets            0    6 8  11 13 14
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
 
         build.At(new LayoutRect(0, 0, 100, 44), new TestPart(0, 15), "row");
 
@@ -58,9 +58,9 @@ public class LayoutQueryTests
     }
 
     /// <summary>A 3x3 grid: rows of cells, the shape a matrix lays out as.</summary>
-    private static PortablePiece Matrix()
+    private static LayoutPiece Matrix()
     {
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
 
         build.At(new LayoutRect(0, 0, 70, 60), new TestPart(0, 9), "grid");
 
@@ -135,7 +135,7 @@ public class LayoutQueryTests
         var root = Fraction();
         var exponent = root.Leaves().Single(n => n.Sits().Start == 8);
 
-        var promoted = PortableQuery.Promote([exponent]);
+        var promoted = LayoutQuery.Promote([exponent]);
 
         Assert.AreEqual(1, promoted.Count);
         Assert.AreEqual((8, 1), (promoted[0].Sits().Start, promoted[0].Sits().Length));
@@ -149,7 +149,7 @@ public class LayoutQueryTests
         var frac = root.Children.First();
         var denominator = root.Leaves().Single(n => n.Sits().Start == 11);
 
-        var ranges = PortableQuery.Ranges(PortableQuery.Promote([frac, denominator]));
+        var ranges = LayoutQuery.Ranges(LayoutQuery.Promote([frac, denominator]));
 
         Assert.AreEqual(1, ranges.Count);
         Assert.AreEqual((0, 13), ranges[0]);
@@ -163,7 +163,7 @@ public class LayoutQueryTests
         var root = Matrix();
         var column = root.Leaves().Where(n => n.Sits().Start % 3 == 1).ToList();
 
-        var ranges = PortableQuery.Ranges(PortableQuery.Promote(column));
+        var ranges = LayoutQuery.Ranges(LayoutQuery.Promote(column));
 
         CollectionAssert.AreEqual(new[] { (1, 1), (4, 1), (7, 1) }, ranges.ToArray());
     }
@@ -174,7 +174,7 @@ public class LayoutQueryTests
         var root = Matrix();
         var middleRow = root.Leaves().Where(n => n.Sits().Start is 3 or 4 or 5).ToList();
 
-        var promoted = PortableQuery.Promote(middleRow);
+        var promoted = LayoutQuery.Promote(middleRow);
 
         Assert.AreEqual(1, promoted.Count);
         Assert.AreEqual("row", promoted[0].Kind);
@@ -222,7 +222,7 @@ public class LayoutQueryTests
     [TestMethod]
     public void ThereIsNoVerticalMoveOffASingleRow()
     {
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
 
         build.At(new LayoutRect(0, 0, 30, 13), new TestPart(0, 3), "row");
         build.Leaf(new LayoutRect(0, 0, 10, 13), new TestPart(0, 1), "char");
@@ -253,7 +253,7 @@ public class LayoutQueryTests
     [TestMethod]
     public void AnOrdinaryRunOfTermsIsOneRow()
     {
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
 
         build.At(new LayoutRect(0, 0, 40, 13), new TestPart(0, 4), "row");
         build.Leaf(new LayoutRect(0, 0, 10, 13), new TestPart(0, 1), "char");

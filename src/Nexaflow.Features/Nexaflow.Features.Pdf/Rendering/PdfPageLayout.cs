@@ -13,7 +13,7 @@ using System.Threading;
 namespace Nexaflow.Features.Pdf.Rendering;
 
 /// <summary>
-/// Lays a <see cref="PdfPageNode"/> out as a <see cref="PortableTree"/>: the shared layout tree every document in the app
+/// Lays a <see cref="PdfPageNode"/> out as a <see cref="LayoutTree"/>: the shared layout tree every document in the app
 /// is drawn from, so a PDF page is painted, culled, kept and pressed by the same engine as a markdown page.
 /// <para>
 /// A page is laid once, at <see cref="DipsPerPoint"/> — a point is 1/72 inch and a device-independent pixel 1/96 — and
@@ -31,7 +31,7 @@ internal static class PdfPageLayout
     /// <paramref name="page"/> as a layout tree, its paper painted with <paramref name="paper"/>. Laying is checked against
     /// <paramref name="ct"/> group by group, since a page of many blends composites each of them.
     /// </summary>
-    public static PortableTree Lay(PdfPageNode page, Brush paper, CancellationToken ct = default) =>
+    public static LayoutTree Lay(PdfPageNode page, Brush paper, CancellationToken ct = default) =>
         new PdfLaying(new PdfBrushes(new Rect(0, 0, page.Size.Width * DipsPerPoint, page.Size.Height * DipsPerPoint)), ct).Page(page, paper);
 }
 
@@ -63,7 +63,7 @@ internal sealed class PdfLaying
     /// <summary>What the page is laid out in: the WPF medium, holding the brushes and outlines the page was read into as they are.</summary>
     private readonly WpfMedium _medium = WpfMedium.OnThisThread;
 
-    private readonly PortableBuilder _into;
+    private readonly LayoutBuilder _into;
 
     /// <summary>Whether an ink piece is open, gathering the drawables met one after another.</summary>
     private bool _inking;
@@ -100,7 +100,7 @@ internal sealed class PdfLaying
     /// before it, and the backdrop of a later blend draws that finished picture rather than compositing it again: a page
     /// of many blends costs one composite apiece, not one for every blend beneath every other.
     /// </summary>
-    private readonly Dictionary<PdfGroupNode, PortablePictureMark> _composited;
+    private readonly Dictionary<PdfGroupNode, PictureMark> _composited;
 
     /// <summary>
     /// Whether this laying is the page's own, so that its composites are the page's. A backdrop's are not kept: a
@@ -111,14 +111,14 @@ internal sealed class PdfLaying
     private readonly CancellationToken _cancel;
 
     public PdfLaying(PdfBrushes brushes, CancellationToken cancel = default)
-        : this(brushes, new Dictionary<PdfGroupNode, PortablePictureMark>(ReferenceEqualityComparer.Instance), true, cancel)
+        : this(brushes, new Dictionary<PdfGroupNode, PictureMark>(ReferenceEqualityComparer.Instance), true, cancel)
     {
     }
 
-    private PdfLaying(PdfBrushes brushes, Dictionary<PdfGroupNode, PortablePictureMark> composited, bool keepsComposites,
+    private PdfLaying(PdfBrushes brushes, Dictionary<PdfGroupNode, PictureMark> composited, bool keepsComposites,
         CancellationToken cancel)
     {
-        _into = new PortableBuilder(_medium);
+        _into = new LayoutBuilder(_medium);
         _brushes = brushes;
         _composited = composited;
         _keepsComposites = keepsComposites;
@@ -126,7 +126,7 @@ internal sealed class PdfLaying
     }
 
     /// <summary>The page, its paper first.</summary>
-    public PortableTree Page(PdfPageNode page, Brush paper)
+    public LayoutTree Page(PdfPageNode page, Brush paper)
     {
         _page = page;
         _paper = paper;
@@ -148,14 +148,14 @@ internal sealed class PdfLaying
     private void Paper(PdfPageNode page)
     {
         var size = Unpainted(page);
-        _into.Draw(new PortableWashMark(size.ToLayout(), _medium.Ink(_paper)));
+        _into.Draw(new WashMark(size.ToLayout(), _medium.Ink(_paper)));
     }
 
     /// <summary>Opens the page piece, clipped to the page, with nothing yet painted on it; the page's extent.</summary>
     private Rect Unpainted(PdfPageNode page)
     {
         var size = new Rect(0, 0, page.Size.Width * PdfPageLayout.DipsPerPoint, page.Size.Height * PdfPageLayout.DipsPerPoint);
-        _into.Open(PdfPieces.Page, paints: new PortablePaint(Clip: WpfShape.Of(new RectangleGeometry(size))));
+        _into.Open(PdfPieces.Page, paints: new LayoutPaint(Clip: WpfShape.Of(new RectangleGeometry(size))));
         return size;
     }
 
@@ -165,7 +165,7 @@ internal sealed class PdfLaying
     /// no part of what a blend sees: where the page has painted nothing, nothing lies beneath. A blended group inside it
     /// is drawn as the page composited it.
     /// </summary>
-    private PortableTree Ground(PdfPageNode page, PdfGroupNode content)
+    private LayoutTree Ground(PdfPageNode page, PdfGroupNode content)
     {
         _page = page;
         Unpainted(page);
@@ -178,7 +178,7 @@ internal sealed class PdfLaying
     /// A group laid on its own, on nothing: the source of a blend. A blend inside it is composited over what the group has
     /// painted beneath it, as one on the page is over what the page has.
     /// </summary>
-    private PortableTree Alone(PdfGroupNode group, PdfPageNode page)
+    private LayoutTree Alone(PdfGroupNode group, PdfPageNode page)
     {
         _page = page;
         _into.Open(PdfPieces.Group);
@@ -217,7 +217,7 @@ internal sealed class PdfLaying
     /// none is. A piece paints its own marks before the pieces inside it, so marks and pieces never share a piece: what a
     /// page paints between two groups gathers in an ink piece of its own, and the pieces stand in painting order.
     /// </summary>
-    private void Draw(PortableMark mark)
+    private void Draw(LayoutMark mark)
     {
         if (!_inking)
         {
@@ -229,7 +229,7 @@ internal sealed class PdfLaying
     }
 
     /// <summary>Opens a piece where the page's painting has reached, after the ink before it.</summary>
-    private void Open(string kind, ISourcePart? part = null, PortablePaint? paints = null)
+    private void Open(string kind, ISourcePart? part = null, LayoutPaint? paints = null)
     {
         EndInk();
         _into.Open(kind, part, paints: paints);
@@ -289,7 +289,7 @@ internal sealed class PdfLaying
 
         var clip = group.Clip?.ToGeometry(Scale, group.ClipRule);
         var mask = group.Mask is { } softMask ? _brushes.Mask(softMask) : null;
-        Open(PdfPieces.Group, paints: new PortablePaint(Clip: clip is null ? null : WpfShape.Of(clip), Opacity: group.Opacity,
+        Open(PdfPieces.Group, paints: new LayoutPaint(Clip: clip is null ? null : WpfShape.Of(clip), Opacity: group.Opacity,
                                                      Mask: mask is null ? null : _medium.Ink(mask)));
         Walk(group);
         Close();
@@ -323,7 +323,7 @@ internal sealed class PdfLaying
         var source = WpfPainter.Painted(new PdfLaying(_brushes, _cancel).Alone(alone, page).Root, region, resolution, Brushes.Black, null);
         if (backdrop is null || source is null) return;
 
-        var composite = new PortablePictureMark(_medium.Picture(PdfBlending.Composite(backdrop, source, group.Blend)), region.ToLayout());
+        var composite = new PictureMark(_medium.Picture(PdfBlending.Composite(backdrop, source, group.Blend)), region.ToLayout());
         if (_keepsComposites) _composited[group] = composite;
         Draw(composite);
 
@@ -429,9 +429,9 @@ internal sealed class PdfLaying
     }
 
     /// <summary>An outline filled with a brush, as the medium holds both.</summary>
-    private PortableGeometryMark Filled(Geometry shape, Brush fill) => new(WpfShape.Of(shape), _medium.Ink(fill), null);
+    private GeometryMark Filled(Geometry shape, Brush fill) => new(WpfShape.Of(shape), _medium.Ink(fill), null);
 
-    private PortableGeometryMark Stroked(Geometry shape, Brush stroke, PdfPen pen, double scale)
+    private GeometryMark Stroked(Geometry shape, Brush stroke, PdfPen pen, double scale)
     {
         var thickness = pen.Width * scale;   // never under a device-independent pixel: see Thinnest
         var thicknessInUser = thickness / Math.Max(scale, 1e-9);
@@ -439,7 +439,7 @@ internal sealed class PdfLaying
                                   pen.Dashes.Count > 0 ? pen.DashPhase / thicknessInUser : 0);
         var dashes = Dashes(pen, thicknessInUser) is { } broken ? broken.ToArray() : [];
 
-        return new PortableGeometryMark(WpfShape.Of(shape), null, _medium.Stroke(_medium.Ink(stroke), thickness, dashes, ends));
+        return new GeometryMark(WpfShape.Of(shape), null, _medium.Stroke(_medium.Ink(stroke), thickness, dashes, ends));
     }
 
     /// <summary>
@@ -572,8 +572,8 @@ internal sealed class PdfLaying
         turn.Translate(origin.X, origin.Y);
 
         _into.Open(PdfPieces.Text, new SourceSpan(text.TextStart, text.Text.Length),
-            paints: new PortablePaint(Turn: [_medium.Turn(new MatrixTransform(turn))]));
-        _into.Words(new PortableWords(words, default, Maps: true));
+            paints: new LayoutPaint(Turn: [_medium.Turn(new MatrixTransform(turn))]));
+        _into.Words(new LayoutWords(words, default, Maps: true));
         _into.Covers(new LayoutRect(0, 0, setWidth, words.Height));
         _into.Close();
     }
@@ -620,7 +620,7 @@ internal sealed class PdfLaying
             Transform = new MatrixTransform(placed),
         }.Frozen();
 
-        Open(PdfPieces.Group, paints: new PortablePaint(Opacity: image.Opacity, Mask: _medium.Ink(mask)));
+        Open(PdfPieces.Group, paints: new LayoutPaint(Opacity: image.Opacity, Mask: _medium.Ink(mask)));
         Draw(Filled(area, brush));
         Close();
     }
@@ -632,11 +632,11 @@ internal sealed class PdfLaying
     private void Placed(ImageSource bitmap, Matrix placed, Rect pixels, double opacity)
     {
         var faded = opacity < 1;
-        if (faded) Open(PdfPieces.Group, paints: new PortablePaint(Opacity: opacity));
+        if (faded) Open(PdfPieces.Group, paints: new LayoutPaint(Opacity: opacity));
 
         if (placed.M12 == 0 && placed.M21 == 0 && placed.M11 > 0 && placed.M22 > 0)
         {
-            Draw(new PortablePictureMark(_medium.Picture(bitmap), PdfSpace.Transform(pixels, placed).ToLayout()));
+            Draw(new PictureMark(_medium.Picture(bitmap), PdfSpace.Transform(pixels, placed).ToLayout()));
         }
         else
         {
@@ -699,7 +699,7 @@ internal sealed class PdfLaying
         toPixels.Scale(resolution, resolution);
         if (PdfMeshPictures.Paint(mesh, toPixels, width, height, node.Opacity) is not { } picture) return;
 
-        var placed = new PortablePictureMark(_medium.Picture(picture), new LayoutRect(region.X, region.Y, width / resolution, height / resolution));
+        var placed = new PictureMark(_medium.Picture(picture), new LayoutRect(region.X, region.Y, width / resolution, height / resolution));
         if (node.Shading.Bounds is not { } box)
         {
             Draw(placed);
@@ -707,7 +707,7 @@ internal sealed class PdfLaying
         }
 
         var clipped = new RectangleGeometry(box) { Transform = new MatrixTransform(node.ToPage * Scale) }.Frozen();
-        Open(PdfPieces.Group, paints: new PortablePaint(Clip: WpfShape.Of(clipped)));
+        Open(PdfPieces.Group, paints: new LayoutPaint(Clip: WpfShape.Of(clipped)));
         Draw(placed);
         Close();
     }

@@ -41,7 +41,7 @@ public class PieBuilderTests : MermaidBuilderContract
         ("nothing to draw", "pie\n  \"None\" : lots"),
     ];
 
-    private static PortableLaid Build(string source, double room = 700) =>
+    private static Laid Build(string source, double room = 700) =>
         Laying.Lay("mermaid", source, room);
 
     [TestMethod]
@@ -223,7 +223,7 @@ public class PieBuilderTests : MermaidBuilderContract
 
         Assert.AreEqual(0, Pieces(laid, PiePiece.Wedge).Count());
         Assert.AreEqual(1, Pieces(laid, MermaidPiece.Key).Count(), "a chart with its legend, not its source");
-        Assert.IsFalse(Pieces(laid, PortableText.SourceKind).Any());
+        Assert.IsFalse(Pieces(laid, LayoutText.SourceKind).Any());
     });
 
     [TestMethod]
@@ -232,7 +232,7 @@ public class PieBuilderTests : MermaidBuilderContract
         const string source = "pie\n  \"Dogs\" : lots";
         var laid = Build(source);
 
-        Assert.IsTrue(Pieces(laid, PortableText.SourceKind).Any(), "the lines are on the page");
+        Assert.IsTrue(Pieces(laid, LayoutText.SourceKind).Any(), "the lines are on the page");
         Assert.AreEqual(0, Pieces(laid, PiePiece.Wedge).Count());
         StringAssert.Contains(laid.Trouble.Single().Message, "not a number");
     });

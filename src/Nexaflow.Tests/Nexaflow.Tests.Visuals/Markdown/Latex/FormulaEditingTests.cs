@@ -288,6 +288,6 @@ public class FormulaEditingTests
     private static void Back(MarkdownSurface editor) => MarkdownEditorHarness.RaiseKey(editor, Key.Back);
 
     /// <summary>The one leaf that sits <paramref name="at"/> characters into the formula's LaTeX.</summary>
-    private static PortablePiece Leaf(DocumentBlock formula, int at) =>
+    private static LayoutPiece Leaf(DocumentBlock formula, int at) =>
         formula.Laid.Root.Leaves().Single(leaf => leaf.Sits().Start == formula.Origin + at);
 }

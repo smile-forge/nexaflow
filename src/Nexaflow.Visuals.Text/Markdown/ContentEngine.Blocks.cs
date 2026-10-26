@@ -46,7 +46,7 @@ public sealed partial class ContentEngine
 
     private LayoutPoint? _pointer;
     private ContentPart? _over;
-    private PortableLaid? _corner;
+    private Laid? _corner;
 
     /// <summary>What each button of the corner offers, by the piece it is — what a press on one is taken as meaning.</summary>
     private IReadOnlyDictionary<int, LayoutIntent> _cornerOffers = new Dictionary<int, LayoutIntent>();
@@ -59,7 +59,7 @@ public sealed partial class ContentEngine
     internal ContentPart ReadRoot => Reading?.Root ?? NothingRead;
 
     /// <summary>The buttons in the corner of the block the pointer is over, laid out where they stand — or null where it is over none that offers any.</summary>
-    internal PortableLaid? Corner => _corner;
+    internal Laid? Corner => _corner;
 
     /// <summary>The part of the content on screen, in its own units, which the corner of a block taller than that stays inside — or null where all of it is.</summary>
     internal LayoutRect? OnScreen
@@ -105,7 +105,7 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>Where the button a point is on stands, or nothing where it is on none of them.</summary>
-    private static LayoutRect? ButtonUnder(PortableLaid? corner, LayoutPoint? at) =>
+    private static LayoutRect? ButtonUnder(Laid? corner, LayoutPoint? at) =>
         corner is { } shown && at is { } point
             ? shown.Root.SelfAndDescendants()
                    .Where(piece => piece.Acts is not null && piece.Bounds.Contains(point))
@@ -169,9 +169,9 @@ public sealed partial class ContentEngine
         // Content in one language is one block of it, and the whole of what was laid is that block.
         if (_named is not null) return Holds(new LayoutRect(_laid.Size)) ? ReadRoot : null;
 
-        foreach (var whole in PortableQuery.ChildrenWhere(_laid.Root, (reach, _) => Holds(reach)))
+        foreach (var whole in LayoutQuery.ChildrenWhere(_laid.Root, (reach, _) => Holds(reach)))
         {
-            if (whole.Kind != PortablePieces.Whole || !Holds(whole.Bounds)) continue;
+            if (whole.Kind != LayoutPieces.Whole || !Holds(whole.Bounds)) continue;
 
             if (whole.SelfAndDescendants().Select(inside => inside.Part).FirstOrDefault(part => part is { Length: > 0 }) is { } named)
                 return Blocked(named.Start);
@@ -265,9 +265,9 @@ public sealed partial class ContentEngine
         // Content in one language is one block, and all of what was laid is it.
         if (block.Parent is null) return new LayoutRect(_laid.Size);
 
-        foreach (var whole in PortableQuery.ChildrenWhere(_laid.Root, (_, span) => span.First <= block.End && span.Last >= block.Start))
+        foreach (var whole in LayoutQuery.ChildrenWhere(_laid.Root, (_, span) => span.First <= block.End && span.Last >= block.Start))
         {
-            if (whole.Kind != PortablePieces.Whole) continue;
+            if (whole.Kind != LayoutPieces.Whole) continue;
             if (whole.SelfAndDescendants().Select(piece => piece.Part).FirstOrDefault(part => part is { Length: > 0 }) is not { } named) continue;
 
             if (named.Start >= block.Start && named.Start < block.End) return whole.Bounds;
@@ -381,7 +381,7 @@ public sealed partial class ContentEngine
     /// the fault it reported.
     /// </para>
     /// </summary>
-    private PortableLaid? Cornered(ContentPart block)
+    private Laid? Cornered(ContentPart block)
     {
         try
         {
@@ -402,9 +402,9 @@ public sealed partial class ContentEngine
             // words are still on the block they belong to.
             var x = Math.Max(box.Right, Room) - CornerInset - width;
 
-            var build = new PortableBuilder(medium);
+            var build = new LayoutBuilder(medium);
             var meant = new Dictionary<int, LayoutIntent>();
-            build.Open(CornerPieces.Corner, stops: PortableStops.None);
+            build.Open(CornerPieces.Corner, stops: LayoutStops.None);
 
             foreach (var (offer, face) in faces)
             {
@@ -419,11 +419,11 @@ public sealed partial class ContentEngine
 
                 // What the button means is said to the tree as a builder says it, and kept here as offered — a language's own
                 // offer says more than a press needs to know, and the host answering it is told all of it.
-                meant[build.Open(CornerPieces.Button, stops: PortableStops.None)] = offer;
-                build.Acts(new PortableActions { Click = new PortableIntent(offer.Verb, offer.Target, offer.Tip) });
-                build.Draw(new PortableGeometryMark(shape, _style.QuoteBg, under ? medium.Stroke(_style.Accent, 1) : null));
+                meant[build.Open(CornerPieces.Button, stops: LayoutStops.None)] = offer;
+                build.Acts(new LayoutActions { Click = new LayoutAsk(offer.Verb, offer.Target, offer.Tip) });
+                build.Draw(new GeometryMark(shape, _style.QuoteBg, under ? medium.Stroke(_style.Accent, 1) : null));
                 build.Occupies(shape);
-                build.Draw(new PortableTextMark(face, new LayoutPoint(x + ((wide - face.Width) / 2), top + ((ButtonSize - face.Height) / 2)), _style.Text));
+                build.Draw(new TextMark(face, new LayoutPoint(x + ((wide - face.Width) / 2), top + ((ButtonSize - face.Height) / 2)), _style.Text));
                 build.Close();
 
                 x += wide;
@@ -435,7 +435,7 @@ public sealed partial class ContentEngine
             var bounds = tree.Root.Bounds;
             _cornerOffers = meant;
 
-            return new PortableLaid(tree, bounds.Width, bounds.Height, []);
+            return new Laid(tree, bounds.Width, bounds.Height, []);
         }
         catch
         {

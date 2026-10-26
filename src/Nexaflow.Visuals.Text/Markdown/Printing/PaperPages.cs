@@ -59,7 +59,7 @@ public sealed record PaperPage(IReadOnlyList<PaperBand> Bands)
 public static class PaperPages
 {
     /// <summary><paramref name="laid"/> cut into sheets of <paramref name="room"/>, in device-independent pixels, in reading order — one at least.</summary>
-    public static IReadOnlyList<PaperPage> Cut(PortableLaid laid, Size room)
+    public static IReadOnlyList<PaperPage> Cut(Laid laid, Size room)
     {
         if (!(room.Width > 0) || !(room.Height > 0)) throw new ArgumentOutOfRangeException(nameof(room), room, "A sheet has room on it.");
 
@@ -158,7 +158,7 @@ public static class PaperPages
     /// draws anything but rules and grounds, and of those each rule drawn across the page — each at the size its block is
     /// drawn at on a sheet <paramref name="width"/> wide.
     /// </summary>
-    private static List<Whole> Wholes(PortableLaid laid, double width)
+    private static List<Whole> Wholes(Laid laid, double width)
     {
         var found = new List<(LayoutRect Where, int Block, bool WithNext)>();
         var reach = new Dictionary<int, double>();
@@ -202,11 +202,11 @@ public static class PaperPages
     /// page, which a cut would make two — not one drawn down it, which reads on as one across the cut; and of a ground,
     /// nothing, since a cut leaves it under both halves.
     /// </summary>
-    private static IEnumerable<LayoutRect> Inked(PortablePiece leaf, LayoutRect where)
+    private static IEnumerable<LayoutRect> Inked(LayoutPiece leaf, LayoutRect where)
     {
         var marks = leaf.Marks.ToArray();
 
-        if (marks.Any(mark => mark is not (PortableRuleMark or PortableLineMark or PortableWashMark)))
+        if (marks.Any(mark => mark is not (RuleMark or LineMark or WashMark)))
         {
             yield return where;
             yield break;
@@ -216,12 +216,12 @@ public static class PaperPages
         var anchor = where.Location - leaf.Box.Location;
 
         foreach (var mark in marks)
-            if (mark is PortableRuleMark or PortableLineMark && mark.Covers is { IsEmpty: false } covers && covers.Width >= covers.Height)
+            if (mark is RuleMark or LineMark && mark.Covers is { IsEmpty: false } covers && covers.Width >= covers.Height)
                 yield return LayoutRect.Offset(covers, anchor);
     }
 
     /// <summary>Whether a piece is drawn from a heading, which no sheet ends on.</summary>
-    private static bool Heads(PortablePiece piece) =>
+    private static bool Heads(LayoutPiece piece) =>
         piece.Naming() is ContentPart part
         && (part.Kind == MarkdownKinds.Heading || part.Ancestors().Any(holder => holder.Kind == MarkdownKinds.Heading));
 

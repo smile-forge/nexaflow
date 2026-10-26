@@ -1059,7 +1059,7 @@ public class PdfPageReadingTests
     // ── Pixels ────────────────────────────────────────────────────────────────────
 
     /// <summary>The laid page painted at one pixel to a point, so a pixel's coordinates are the page's own.</summary>
-    private static System.Windows.Media.Imaging.BitmapSource UiThreadPainted(PortableTree tree, PdfPageNode page)
+    private static System.Windows.Media.Imaging.BitmapSource UiThreadPainted(LayoutTree tree, PdfPageNode page)
     {
         System.Windows.Media.Imaging.BitmapSource? picture = null;
         UiThread.Run(() =>

@@ -21,6 +21,6 @@ public sealed partial class MarkdownSurface
         new MarkdownPaginator(Markdown ?? string.Empty, sheet, Paper, Asked, Named);
 
     /// <summary>What paper is printed in: white, in this surface's faces, at the size a document is read at.</summary>
-    private PortableStyle Paper =>
+    private LayoutStyle Paper =>
         WpfStyles.Light with { TextFont = Drawn.TextFont, MonoFont = Drawn.MonoFont, TextSize = TextTypography.BaseFontSize };
 }

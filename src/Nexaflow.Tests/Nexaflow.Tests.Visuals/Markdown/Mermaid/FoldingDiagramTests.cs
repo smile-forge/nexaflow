@@ -305,12 +305,12 @@ public class FoldingDiagramTests
         var surface = new MarkdownSurface { Markdown = "Before it.\n\n```mermaid\n" + Src + "\n```\n\nAfter it.\n" };
         Settled(surface);
 
-        var before = Placed(surface, PortablePieces.Whole)[0];
+        var before = Placed(surface, LayoutPieces.Whole)[0];
 
         Press(surface, Placed(surface, MermaidPiece.Chip)[1]);
 
         Assert.IsTrue(Words(surface).Contains("Hidden"), "the diagram opened");
-        Assert.AreEqual(before, Placed(surface, PortablePieces.Whole)[0],
+        Assert.AreEqual(before, Placed(surface, LayoutPieces.Whole)[0],
                         "and the paragraph above it was not laid out again");
     });
 

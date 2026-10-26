@@ -25,11 +25,11 @@ namespace Nexaflow.Tests.Visuals.Markdown.Music;
 [TestCategory("UI")]
 public class MusicRendererTests
 {
-    private static PortableLaid Lay(string md) => Laying.Lay(null, md, 700, WpfStyles.Dark);
+    private static Laid Lay(string md) => Laying.Lay(null, md, 700, WpfStyles.Dark);
 
-    private static bool Engraved(PortableLaid laid) =>
-        laid.Root.SelfAndDescendants().Any(piece => piece.Kind == PortableMusicBuilder.Page)
-        && !laid.Root.SelfAndDescendants().Any(piece => piece.Kind == PortablePieces.Verbatim);
+    private static bool Engraved(Laid laid) =>
+        laid.Root.SelfAndDescendants().Any(piece => piece.Kind == MusicBuilder.Page)
+        && !laid.Root.SelfAndDescendants().Any(piece => piece.Kind == LayoutPieces.Verbatim);
 
     [TestMethod]
     [CoversNode("abc-layout")]

@@ -37,7 +37,7 @@ public class MusicSampleDocTests
     public void EveryAbcSampleBlock_Engraves() => UiThread.Run(() =>
         AssertDoc("music-abc.md", abc => Laying.Engraved("abc", abc, 900, WpfStyles.Light)));
 
-    private static void AssertDoc(string file, Func<string, PortableLaid> build)
+    private static void AssertDoc(string file, Func<string, Laid> build)
     {
         var blocks = Blocks(File.ReadAllText(Path.Combine(TestSampleData.Root, "markdown", file)));
         Assert.IsTrue(blocks.Count > 10, $"{file} should showcase the notation, not sample it ({blocks.Count} blocks)");

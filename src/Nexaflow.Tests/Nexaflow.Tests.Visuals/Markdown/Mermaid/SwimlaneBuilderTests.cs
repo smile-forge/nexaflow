@@ -280,11 +280,11 @@ public class SwimlaneBuilderTests : MermaidBuilderContract
 
     // ── What it works with ──────────────────────────────────────────────────
 
-    private static PortableLaid Build(string source, double room = 900) =>
+    private static Laid Build(string source, double room = 900) =>
         Laying.Lay("mermaid", source, room);
 
     /// <summary>Every lane drawn, by the name in its strip.</summary>
-    private static Dictionary<string, LayoutRect> Lanes(PortableLaid laid, string source)
+    private static Dictionary<string, LayoutRect> Lanes(Laid laid, string source)
     {
         var lanes = new Dictionary<string, LayoutRect>();
 
@@ -295,11 +295,11 @@ public class SwimlaneBuilderTests : MermaidBuilderContract
     }
 
     /// <summary>The lanes in the order their bands are set across the chart.</summary>
-    private static string[] Across(PortableLaid laid, string source) =>
+    private static string[] Across(Laid laid, string source) =>
         [.. Pieces(laid, FlowchartPiece.Lane).OrderBy(band => band.Bounds.Left).Select(band => Named(laid, source, band))];
 
     /// <summary>What a lane's band is called, which is what is written in the strip drawn over it.</summary>
-    private static string Named(PortableLaid laid, string source, PortablePiece band) =>
+    private static string Named(Laid laid, string source, LayoutPiece band) =>
         Pieces(laid, FlowchartPiece.Title)
             .Where(strip => band.Bounds.Contains(Middle(strip.Bounds.ToWpf()).ToLayout()))
             .SelectMany(Said)
@@ -309,7 +309,7 @@ public class SwimlaneBuilderTests : MermaidBuilderContract
     /// <summary>Every node drawn, by what is written on it.</summary>
     private static Dictionary<string, LayoutRect> Nodes(string source) => Nodes(Build(source));
 
-    private static Dictionary<string, LayoutRect> Nodes(PortableLaid laid)
+    private static Dictionary<string, LayoutRect> Nodes(Laid laid)
     {
         var nodes = new Dictionary<string, LayoutRect>();
 
@@ -320,17 +320,17 @@ public class SwimlaneBuilderTests : MermaidBuilderContract
     }
 
     /// <summary>The words drawn under a piece, in the order they were drawn.</summary>
-    private static IEnumerable<PortablePiece> Said(PortablePiece piece) =>
+    private static IEnumerable<LayoutPiece> Said(LayoutPiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Words && part.Words is not null);
 
-    private static Color? Filled(PortablePiece piece) =>
+    private static Color? Filled(LayoutPiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Shape).Select(Fill).FirstOrDefault();
 
     private static bool Holds(LayoutRect over, LayoutRect inner) =>
         inner.Left >= over.Left - 1 && inner.Right <= over.Right + 1 && inner.Top >= over.Top - 1 && inner.Bottom <= over.Bottom + 1;
 
     /// <summary>Whether a piece's shape stands at a point, which is where a press on it lands rather than on what is under it.</summary>
-    private static bool Stands(PortablePiece piece, LayoutPoint at)
+    private static bool Stands(LayoutPiece piece, LayoutPoint at)
     {
         var shift = piece.Offset;
         foreach (var over in piece.Ancestors()) shift += over.Offset;

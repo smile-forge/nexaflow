@@ -29,7 +29,7 @@ public class PlotBuilderTests
 {
     private const string Cars = "weight  mpg\n3504  18\n2372  24\n1613  35";
 
-    private static PortableLaid Lay(string source, PlotFence fence = PlotFence.Scatter, double room = 560) =>
+    private static Laid Lay(string source, PlotFence fence = PlotFence.Scatter, double room = 560) =>
         Laying.Lay(fence.ToString().ToLowerInvariant(), source, room);
 
     [TestMethod]
@@ -46,10 +46,10 @@ public class PlotBuilderTests
         StringAssert.Contains(laid.Trouble.Single().Message, "jitter");
     });
 
-    private static PortablePiece[] Marks(PortableLaid laid) =>
+    private static LayoutPiece[] Marks(Laid laid) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == PlotPiece.Mark)];
 
-    private static PortablePiece[] Of(PortableLaid laid, string kind) =>
+    private static LayoutPiece[] Of(Laid laid, string kind) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];
 
     // ── The marks ───────────────────────────────────────────────────────────
@@ -232,14 +232,14 @@ public class PlotBuilderTests
         const string source = "width: wide\n\n1 2\n3 4";
         var laid = Lay(source);
 
-        Assert.AreEqual(source, Text(laid, PortableText.SourceKind), "there is no plot to draw: the lines are shown as they are written");
+        Assert.AreEqual(source, Text(laid, LayoutText.SourceKind), "there is no plot to draw: the lines are shown as they are written");
         StringAssert.Contains(laid.Trouble.Single().Message, "width", "this says what is wrong with them");
-        StringAssert.Contains(Text(laid, PortableSourceShown.Reason), "width", "and the reason is written under them");
+        StringAssert.Contains(Text(laid, SourceShown.Reason), "width", "and the reason is written under them");
     });
 
-    private static string Text(PortableLaid laid, string kind) =>
+    private static string Text(Laid laid, string kind) =>
         string.Concat(laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)
-            .SelectMany(piece => piece.Marks.ToArray()).OfType<PortableTextMark>().Select(mark => mark.Glyphs.Text));
+            .SelectMany(piece => piece.Marks.ToArray()).OfType<TextMark>().Select(mark => mark.Glyphs.Text));
 
     [TestMethod]
     [CoversNode("correlation-plots-render")]
@@ -250,7 +250,7 @@ public class PlotBuilderTests
 
         Assert.IsTrue(laid.ShowsSource);
         Assert.AreEqual(1, laid.Trouble.Count);
-        Assert.AreEqual(1, laid.Root.SelfAndDescendants().Count(piece => piece.Kind == PortableSourceShown.Unread), "that row marked");
+        Assert.AreEqual(1, laid.Root.SelfAndDescendants().Count(piece => piece.Kind == SourceShown.Unread), "that row marked");
     });
 
     // ── The way in ──────────────────────────────────────────────────────────
@@ -276,7 +276,7 @@ public class PlotBuilderTests
     // ── Scales ──────────────────────────────────────────────────────────────
 
     /// <summary>The words along one axis, in the order they are drawn.</summary>
-    private static string[] Marks(PortableLaid laid, string axis) =>
+    private static string[] Marks(Laid laid, string axis) =>
         [.. laid.Root.SelfAndDescendants()
                  .First(piece => piece.Kind == axis)
                  .SelfAndDescendants()
@@ -284,7 +284,7 @@ public class PlotBuilderTests
                  .Select(piece => piece.Words?.Glyphs.Text ?? string.Empty)];
 
     /// <summary>Where each of them is across the page.</summary>
-    private static double[] Along(PortableLaid laid, string axis) =>
+    private static double[] Along(Laid laid, string axis) =>
         [.. laid.Root.SelfAndDescendants()
                  .First(piece => piece.Kind == axis)
                  .SelfAndDescendants()
@@ -342,7 +342,7 @@ public class PlotBuilderTests
 
         Assert.IsTrue(laid.ShowsSource);
         Assert.AreEqual(1, laid.Trouble.Count);
-        Assert.AreEqual(1, laid.Root.SelfAndDescendants().Count(piece => piece.Kind == PortableSourceShown.Unread), "that row marked");
+        Assert.AreEqual(1, laid.Root.SelfAndDescendants().Count(piece => piece.Kind == SourceShown.Unread), "that row marked");
     });
 
     // ── Gridlines ───────────────────────────────────────────────────────────
@@ -373,8 +373,8 @@ public class PlotBuilderTests
     });
 
     /// <summary>What a piece was drawn in, which is how two groups are told apart.</summary>
-    private static Color? Fill(PortablePiece piece) =>
-        piece.SelfAndDescendants().SelectMany(inner => inner.Marks.ToArray()).OfType<PortableGeometryMark>()
+    private static Color? Fill(LayoutPiece piece) =>
+        piece.SelfAndDescendants().SelectMany(inner => inner.Marks.ToArray()).OfType<GeometryMark>()
              .Select(mark => mark.Fill?.Brush()).OfType<SolidColorBrush>().Select(brush => (Color?)brush.Color)
              .FirstOrDefault();
 
@@ -763,7 +763,7 @@ public class PlotBuilderTests
         {
             Assert.IsNotNull(label.Part, "a value drawn from nothing could not be typed into");
             Assert.IsNotNull(label.Words, "it is a run of text rather than a picture of one");
-            Assert.AreNotEqual(PortableStops.None, label.Stops, "and a caret can stand between any two of its digits");
+            Assert.AreNotEqual(LayoutStops.None, label.Stops, "and a caret can stand between any two of its digits");
 
             Assert.AreEqual(Source.Substring(label.Part!.Start, label.Part.Length),
                             label.Words!.Glyphs.Text,
@@ -830,8 +830,8 @@ public class PlotBuilderTests
         Assert.AreNotEqual(Clearness(marks[0]), Clearness(marks[1]));
     });
 
-    private static double Clearness(PortablePiece piece) =>
-        piece.SelfAndDescendants().SelectMany(inner => inner.Marks.ToArray()).OfType<PortableGeometryMark>()
+    private static double Clearness(LayoutPiece piece) =>
+        piece.SelfAndDescendants().SelectMany(inner => inner.Marks.ToArray()).OfType<GeometryMark>()
              .Select(mark => mark.Fill?.Brush().Opacity ?? 1).FirstOrDefault();
 
     [TestMethod]
@@ -877,7 +877,7 @@ public class PlotBuilderTests
     });
 
     /// <summary>What is written up the side, which is the axis title drawn turned.</summary>
-    private static string? Upright(PortableLaid laid)
+    private static string? Upright(Laid laid)
     {
         foreach (var piece in Of(laid, PlotPiece.AxisTitle))
             if (piece.Turned is not null) return piece.Words?.Glyphs.Text;
@@ -936,7 +936,7 @@ public class PlotBuilderTests
         Clear(Lay("title: One\nsubtitle: Two\n\n" + Cars, room: 640));
     });
 
-    private static void Clear(PortableLaid laid)
+    private static void Clear(Laid laid)
     {
         var title = Of(laid, PlotPiece.Title)[0].Bounds;
         var panel = Of(laid, PlotPiece.Grid)[0].Bounds;
@@ -952,7 +952,7 @@ public class PlotBuilderTests
     /// How much wider than tall the panel came out. Measured off the gridlines, which span the panel
     /// exactly — an axis piece reaches past it by however far its last number overhangs.
     /// </summary>
-    private static double Shape(PortableLaid laid)
+    private static double Shape(Laid laid)
     {
         var grid = Of(laid, PlotPiece.Grid);
         var panel = grid[0].Bounds;
@@ -1132,7 +1132,7 @@ public class PlotBuilderTests
     });
 
     /// <summary>Each of an axis's ticks: what it says, and where it is along the page.</summary>
-    private static (string Says, double At)[] Ticked(PortableLaid laid, string axis, Func<PortablePiece, double> along) =>
+    private static (string Says, double At)[] Ticked(Laid laid, string axis, Func<LayoutPiece, double> along) =>
         [.. laid.Root.SelfAndDescendants()
                  .First(piece => piece.Kind == axis)
                  .SelfAndDescendants()
@@ -1148,7 +1148,7 @@ public class PlotBuilderTests
 
     private static string ByCylinders(string settings = "facet: cyl") => settings + "\n\n" + Cylinders;
 
-    private static string[] Strips(PortableLaid laid) =>
+    private static string[] Strips(Laid laid) =>
         [.. Of(laid, PlotPiece.Strip).Select(piece => piece.Words?.Glyphs.Text ?? string.Empty)];
 
     [TestMethod]

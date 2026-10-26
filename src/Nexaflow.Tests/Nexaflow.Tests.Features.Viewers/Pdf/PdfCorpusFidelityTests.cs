@@ -298,7 +298,7 @@ public class PdfCorpusFidelityTests
         {
             var number = slot.Number;
             PdfPageNode page;
-            PortableTree tree;
+            LayoutTree tree;
             BitmapSource? ours;
             var clock = Stopwatch.StartNew();
             try

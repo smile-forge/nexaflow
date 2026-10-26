@@ -23,43 +23,6 @@ public enum LayoutGesture
     Select,
 }
 
-/// <summary>The verbs the renderer resolves itself, where the host does not take them on first.</summary>
-public static class LayoutVerbs
-{
-    /// <summary>Go where <see cref="LayoutIntent.Target"/> says.</summary>
-    public const string Navigate = "navigate";
-
-    /// <summary>Show what is folded behind the node <see cref="LayoutIntent.Target"/> names.</summary>
-    public const string Expand = "expand";
-
-    /// <summary>Fold away what is behind the node <see cref="LayoutIntent.Target"/> names.</summary>
-    public const string Collapse = "collapse";
-
-    /// <summary>The node <see cref="LayoutIntent.Target"/> names was chosen.</summary>
-    public const string Select = "select";
-
-    /// <summary>
-    /// Put what is chosen where things are copied to.
-    ///
-    /// <para>
-    /// <strong>The renderer never touches a clipboard.</strong> It knows what was picked out and how to say it
-    /// as markdown, as plain words and as marked-up text; a clipboard is the application's, shared with every
-    /// other thing in the window, and a control that reached for it would be reaching past its host. So this
-    /// is raised and the host does it.
-    /// </para>
-    /// </summary>
-    public const string Copy = "copy";
-
-    /// <summary>
-    /// Put what was copied where the caret is. The host's to do, as copying is — the clipboard is its — and what is on it goes to
-    /// the engine as a paste, for the language the caret is in to say what it comes to there.
-    /// </summary>
-    public const string Paste = "paste";
-
-    /// <summary>Keep a picture of what is under the pointer. The host decides where, and whether at all.</summary>
-    public const string Save = "save";
-}
-
 /// <summary>
 /// One thing that may be done, and what it would be done to.
 /// </summary>
@@ -126,12 +89,12 @@ public enum LayoutOffer
 
 /// <summary>
 /// What the pieces of a layout answer to, read as gestures: what a builder said a press or a choosing means
-/// (<see cref="PortableActions"/>), said as an offer the host answers.
+/// (<see cref="LayoutActions"/>), said as an offer the host answers.
 /// </summary>
 public static class LayoutAnswers
 {
     /// <summary>What <paramref name="gesture"/> means on a piece answering with <paramref name="acts"/>, or null where it means nothing.</summary>
-    public static LayoutIntent? For(this PortableActions? acts, LayoutGesture gesture) => gesture switch
+    public static LayoutIntent? For(this LayoutActions? acts, LayoutGesture gesture) => gesture switch
     {
         LayoutGesture.Click => Offer(acts?.Click),
         LayoutGesture.Select => Offer(acts?.Select),
@@ -139,7 +102,7 @@ public static class LayoutAnswers
     };
 
     /// <summary>What a builder said, as an offer.</summary>
-    public static LayoutIntent? Offer(PortableIntent? intent) =>
+    public static LayoutIntent? Offer(LayoutAsk? intent) =>
         intent is { } said ? new LayoutIntent(said.Verb, said.Target, said.Tip) : null;
 }
 
@@ -149,7 +112,7 @@ public static class LayoutAnswers
 /// </summary>
 /// <param name="Part">
 /// The piece's own part, else the nearest ancestor's: the walk up the tree from what was pressed to the thing it
-/// belongs to. See <see cref="PortablePiece.Naming"/>.
+/// belongs to. See <see cref="LayoutPiece.Naming"/>.
 /// </param>
 /// <param name="Node">The same, as the AST knows it, where it is a node of one — a piece may name a span with no tree behind it.</param>
 /// <param name="Over">What the gesture is about: the piece alone, or the whole selection it was made inside.</param>
@@ -157,10 +120,10 @@ public static class LayoutAnswers
 public readonly record struct LayoutAct(
     LayoutGesture Gesture,
     LayoutIntent Intent,
-    PortablePiece Piece,
+    LayoutPiece Piece,
     ISourcePart? Part,
     ContentPart? Node,
-    IReadOnlyList<PortablePiece> Over,
+    IReadOnlyList<LayoutPiece> Over,
     LayoutPoint At);
 
 /// <summary>

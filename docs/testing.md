@@ -677,16 +677,16 @@ the guard degrades to presence-only).
 
 ### What a builder is (`NXCB001`–`NXCB004`)
 
-A `PortableContentBuilder` is one step of the chain in [markdown-ast.md](markdown-ast.md) — reading in, layout out — and owns
+A `ContentBuilder` is one step of the chain in [markdown-ast.md](markdown-ast.md) — reading in, layout out — and owns
 nothing. A language names its builder's type and the engine makes it, so `Nexaflow.Analyzers.Content` holds, as build
 errors:
 
-- **`NXCB001`** — one constructor, taking exactly what `PortableContentBuilder`'s takes: `(ContentReading, EditState,
-  PortableStyle, bool, ILayoutMedium, PortableHost)`. Anything else a builder was going to be given is a fact about the content or about this
+- **`NXCB001`** — one constructor, taking exactly what `ContentBuilder`'s takes: `(ContentReading, EditState,
+  LayoutStyle, bool, ILayoutMedium, LayoutHost)`. Anything else a builder was going to be given is a fact about the content or about this
   showing of it, and belongs somewhere every builder can be given it the same way — the style, the tree, or a stage that
   puts it there. How wide it may be goes to `Lay(room)`, the one thing that changes without either changing.
 - **`NXCB002`** — nothing told to it after it is made: no property with a setter.
-- **`NXCB003`** — nothing public named that `PortableContentBuilder` does not declare.
+- **`NXCB003`** — nothing public named that `ContentBuilder` does not declare.
 - **`NXCB004`** — nothing makes a builder with `new`: the engine makes each from the type its language names.
 
 `Directory.Build.targets` hands the analyzer to `Nexaflow.Markdown`, where the builders live, and to every WPF project,
@@ -803,7 +803,7 @@ solution — which is why everything that does **not** need Core lives in the su
 ### Visuals (`Nexaflow.Tests.Visuals`)
 
 Covers the `Nexaflow.Visuals.*` libraries, with no reference to Core: markdown parsing and rendering
-(`PortableMarkdownBuilder`, `MarkdownSurface`, extensions, pipeline, every language's builder and the layered layout), the
+(`MarkdownBuilder`, `MarkdownSurface`, extensions, pipeline, every language's builder and the layered layout), the
 LaTeX formula tree/layout/caret model, the music engraver, writing in a document, `Visuals.Text`'s
 editor surface and highlighting, the shared controls and pan/zoom layout, and the WebView2 surface.
 

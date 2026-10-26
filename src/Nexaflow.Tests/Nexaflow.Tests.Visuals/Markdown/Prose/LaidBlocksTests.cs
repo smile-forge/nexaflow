@@ -83,7 +83,7 @@ public class LaidBlocksTests
     /// and waiting for the first of them settles only part of it.
     /// </para>
     /// </summary>
-    private static PortableLaid Settled(ContentEngine engine, string text, PortableStyle style)
+    private static Laid Settled(ContentEngine engine, string text, LayoutStyle style)
     {
         using var landed = new ManualResetEventSlim();
 
@@ -203,10 +203,10 @@ public class LaidBlocksTests
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static List<PortablePiece> Wholes(PortableLaid laid) =>
-        [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == PortablePieces.Whole)];
+    private static List<LayoutPiece> Wholes(Laid laid) =>
+        [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == LayoutPieces.Whole)];
 
-    private static string Written(string source, PortablePiece piece) =>
+    private static string Written(string source, LayoutPiece piece) =>
         piece.Part is { } part ? source.Substring(part.Start, part.Length) : "";
 
     private static int WordStart(string text, int at)
@@ -216,7 +216,7 @@ public class LaidBlocksTests
     }
 
     /// <summary>Two layouts of one source agree about every piece — what it is, where, and what it stands for — and about everything around them.</summary>
-    private static void Same(PortableLaid expected, PortableLaid actual, string what)
+    private static void Same(Laid expected, Laid actual, string what)
     {
         Assert.AreEqual(expected.Size, actual.Size, $"{what}: size");
 
@@ -251,7 +251,7 @@ public class LaidBlocksTests
     /// been.
     /// </para>
     /// </summary>
-    private static string Diverged(IReadOnlyList<PortablePiece> want, IReadOnlyList<PortablePiece> got)
+    private static string Diverged(IReadOnlyList<LayoutPiece> want, IReadOnlyList<LayoutPiece> got)
     {
         for (var at = 0; at < Math.Min(want.Count, got.Count); at++)
         {
@@ -268,7 +268,7 @@ public class LaidBlocksTests
 
     private static (int, int)? Span(ISourcePart? part) => part is null ? null : (part.Start, part.Length);
 
-    private static string Said(PortableDiagnostic trouble) =>
+    private static string Said(LayoutDiagnostic trouble) =>
         $"{trouble.Start}+{trouble.Length} {trouble.Message} {Span(trouble.Part)}";
 
     [TestMethod]

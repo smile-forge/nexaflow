@@ -33,7 +33,7 @@ public class EditStateTests
 
         foreach (var character in text)
         {
-            var edit = new ContentEdit(EditKind.Typing, character.ToString(), new Landing(state, PortableLaid.Nothing(WpfHandles.Medium), -1), default, null, formula);
+            var edit = new ContentEdit(EditKind.Typing, character.ToString(), new Landing(state, Laid.Nothing(WpfHandles.Medium), -1), default, null, formula);
             state = LatexEdits.Instance.Edit(edit) is { } change ? ContentEngine.Made(state, change) : state.Type(character);
         }
 

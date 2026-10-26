@@ -21,8 +21,8 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 [CoversNode("mermaid-diagram-kit")]
 public class DiagramPanelTests
 {
-    private static PortableDiagramTick[] Ticks(params string[] says) =>
-        says.Select((word, index) => new PortableDiagramTick(says.Length == 1 ? 0 : (double)index / (says.Length - 1),
+    private static DiagramTick[] Ticks(params string[] says) =>
+        says.Select((word, index) => new DiagramTick(says.Length == 1 ? 0 : (double)index / (says.Length - 1),
                                                      DiagramShapesTests.Words(word)))
             .ToArray();
 
@@ -33,12 +33,12 @@ public class DiagramPanelTests
         var flat = Ticks("a", "b", "c");
         var title = DiagramShapesTests.Words("Miles per gallon");
 
-        var bare = PortableDiagramPanel.Room(upright, flat, null, null, gap: 6);
-        var titled = PortableDiagramPanel.Room(upright, flat, title, null, gap: 6);
+        var bare = DiagramPanel.Room(upright, flat, null, null, gap: 6);
+        var titled = DiagramPanel.Room(upright, flat, title, null, gap: 6);
 
-        Assert.AreEqual(PortableDiagramAxis.Room(upright, upright: true), bare.Left,
+        Assert.AreEqual(DiagramAxis.Room(upright, upright: true), bare.Left,
                         "the upright axis's numbers are read on the left");
-        Assert.AreEqual(PortableDiagramAxis.Room(flat, upright: false), bare.Bottom,
+        Assert.AreEqual(DiagramAxis.Room(flat, upright: false), bare.Bottom,
                         "and the flat axis's underneath");
         Assert.AreEqual(bare.Left + title.Height + 6, titled.Left,
                         "a title turned to read up the axis takes its own height beyond them");
@@ -59,7 +59,7 @@ public class DiagramPanelTests
     [TestMethod]
     public void ThePanelIsWhatIsLeftInsideTheRoomItIsGiven()
     {
-        var round = PortableDiagramPanel.Round(500, 300, new DiagramEdges(40, 10, 20, 30));
+        var round = DiagramPanel.Round(500, 300, new DiagramEdges(40, 10, 20, 30));
 
         Assert.AreEqual(new LayoutRect(40, 10, 440, 260), round.Plot);
         Assert.AreEqual(500, round.Wide, "and the room offered is what it takes up");
@@ -69,17 +69,17 @@ public class DiagramPanelTests
     [TestMethod]
     public void APanelIsNeverDrawnSmallerThanItsLeast()
     {
-        var round = PortableDiagramPanel.Round(50, 50, new DiagramEdges(40, 10, 20, 30));
+        var round = DiagramPanel.Round(50, 50, new DiagramEdges(40, 10, 20, 30));
 
-        Assert.AreEqual(PortableDiagramPanel.Smallest, round.Plot.Width);
-        Assert.AreEqual(PortableDiagramPanel.Smallest, round.Plot.Height);
+        Assert.AreEqual(DiagramPanel.Smallest, round.Plot.Width);
+        Assert.AreEqual(DiagramPanel.Smallest, round.Plot.Height);
     }
 
     [TestMethod]
     public void APanelGivenAShapeKeepsIt()
     {
-        var wide = PortableDiagramPanel.Round(500, 300, new DiagramEdges(0, 0, 0, 0), aspect: 1);
-        var tall = PortableDiagramPanel.Round(300, 500, new DiagramEdges(0, 0, 0, 0), aspect: 1);
+        var wide = DiagramPanel.Round(500, 300, new DiagramEdges(0, 0, 0, 0), aspect: 1);
+        var tall = DiagramPanel.Round(300, 500, new DiagramEdges(0, 0, 0, 0), aspect: 1);
 
         Assert.AreEqual(300, wide.Plot.Width, "a square panel in a wide room is as tall as the room allows");
         Assert.AreEqual(300, wide.Plot.Height);
@@ -91,7 +91,7 @@ public class DiagramPanelTests
     public void WhatIsGivenBackIsWhatWasDrawnRatherThanTheRoomOffered()
     {
         var edges = new DiagramEdges(40, 10, 20, 30);
-        var round = PortableDiagramPanel.Round(500, 300, edges, aspect: 1, shrink: true);
+        var round = DiagramPanel.Round(500, 300, edges, aspect: 1, shrink: true);
 
         Assert.AreEqual(260, round.Plot.Height, "the shape holds");
         Assert.AreEqual(260, round.Plot.Width);
@@ -102,9 +102,9 @@ public class DiagramPanelTests
     [TestMethod]
     public void TheUprightTitleReadsUpTheAxisAndTheFlatOneSitsUnderItsNumbers() => UiThread.Run(() =>
     {
-        var panel = new PortableDiagramPanel(new LayoutRect(40, 10, 400, 260), 500, 300);
+        var panel = new DiagramPanel(new LayoutRect(40, 10, 400, 260), 500, 300);
 
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("page");
         panel.Titles(build, "AxisTitle", DiagramShapesTests.Words("Miles per gallon"),
                      DiagramShapesTests.Words("Weight"), below: 20);
@@ -128,9 +128,9 @@ public class DiagramPanelTests
     [TestMethod]
     public void ATitleWiderThanThePanelStillStartsInsideIt() => UiThread.Run(() =>
     {
-        var panel = new PortableDiagramPanel(new LayoutRect(40, 10, 30, 260), 500, 300);
+        var panel = new DiagramPanel(new LayoutRect(40, 10, 30, 260), 500, 300);
 
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("page");
         panel.Titles(build, "AxisTitle", null, DiagramShapesTests.Words("A title far wider than its panel"), below: 20);
         build.Close();

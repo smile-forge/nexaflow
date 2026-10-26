@@ -58,7 +58,7 @@ public class SmilesFigureWriter
         });
     }
 
-    private static void Write(string path, string source, PortableStyle palette, Brush ground, double width)
+    private static void Write(string path, string source, LayoutStyle palette, Brush ground, double width)
     {
         var host = new Border
         {

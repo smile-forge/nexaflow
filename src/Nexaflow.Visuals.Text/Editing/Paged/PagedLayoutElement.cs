@@ -807,7 +807,7 @@ public sealed class PagedLayoutElement : FrameworkElement, IScrollInfo
     /// What a press at <paramref name="local"/> follows, when it lands on a link: the last-placed piece there that answers a
     /// click by navigating, as the content engine finds what a press means — the uppermost link wins.
     /// </summary>
-    private static string? Link(PortablePiece root, Point local)
+    private static string? Link(LayoutPiece root, Point local)
     {
         string? found = null;
         foreach (var (piece, where) in root.Placed())

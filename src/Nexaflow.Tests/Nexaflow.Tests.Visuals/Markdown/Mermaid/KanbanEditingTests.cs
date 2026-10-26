@@ -65,7 +65,7 @@ public class KanbanEditingTests : MermaidEditing
         }));
 
     /// <summary>The long card's title, as it is drawn now: one run of words, broken into lines to fit its card.</summary>
-    private static PortablePiece Title(DocumentBlock chart) =>
+    private static LayoutPiece Title(DocumentBlock chart) =>
         chart.Laid.Root.SelfAndDescendants().Single(piece => piece is { Kind: "Title", Words.Maps: true }
                                                             && piece.Part!.Start > chart.Source.IndexOf("id4[", StringComparison.Ordinal)
                                                             && piece.Part.Start < chart.Source.IndexOf("]@{", StringComparison.Ordinal));

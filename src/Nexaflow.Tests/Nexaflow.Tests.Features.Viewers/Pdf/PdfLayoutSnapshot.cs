@@ -28,7 +28,7 @@ internal static class PdfLayoutSnapshot
     /// <summary>Lengths are written to a hundredth of a device-independent pixel: finer than any change a reader sees.</summary>
     private const string Length = "0.##";
 
-    public static string Of(PortableTree tree)
+    public static string Of(LayoutTree tree)
     {
         var text = new StringBuilder();
         foreach (var piece in tree.Root.SelfAndDescendants())
@@ -49,7 +49,7 @@ internal static class PdfLayoutSnapshot
         return text.ToString();
     }
 
-    private static void Painting(PortablePaint paint, StringBuilder text)
+    private static void Painting(LayoutPaint paint, StringBuilder text)
     {
         if (paint.Clip is { } clip) text.Append(" clip ").Append(Hash(clip));
         if (paint.Opacity < 1) text.Append(" opacity ").Append(Number(paint.Opacity));
@@ -58,11 +58,11 @@ internal static class PdfLayoutSnapshot
             foreach (var turn in turns) text.Append(" turn ").Append(MatrixText(turn.Matrix.ToWpf()));
     }
 
-    private static void Mark(PortableMark mark, StringBuilder text)
+    private static void Mark(LayoutMark mark, StringBuilder text)
     {
         switch (mark)
         {
-            case PortableGeometryMark geometry:
+            case GeometryMark geometry:
                 var stroke = geometry.Stroke as WpfStroke;
                 text.Append("geometry ").Append(Box(geometry.Covers))
                     .Append(" fill ").Append(Brush(geometry.Fill?.Brush()))
@@ -75,10 +75,10 @@ internal static class PdfLayoutSnapshot
                         .Append('/').Append(pen.Join).Append('/').Append(Number(pen.MiterLimit)).Append('/').Append(Number(pen.DashOffset));
                 text.Append(" shape ").Append(Hash(geometry.Shape));
                 break;
-            case PortablePictureMark picture:
+            case PictureMark picture:
                 text.Append("picture ").Append(Box(picture.Bounds)).Append(' ').Append(Image(((WpfPicture)picture.Picture).Source));
                 break;
-            case PortableWashMark wash:
+            case WashMark wash:
                 text.Append("wash ").Append(Box(wash.Bounds)).Append(' ').Append(Brush(wash.Fill.Brush()));
                 break;
             default:

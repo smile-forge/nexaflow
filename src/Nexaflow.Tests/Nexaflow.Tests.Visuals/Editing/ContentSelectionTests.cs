@@ -37,9 +37,9 @@ public class ContentSelectionTests
     /// piece stands for a cell is a question about what was drawn.
     /// </para>
     /// </summary>
-    private static PortablePiece Matrix()
+    private static LayoutPiece Matrix()
     {
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         var cells = new int[3, 3];
 
         build.At(new LayoutRect(0, 0, 70, 60), new TestPart(0, 9), "grid");
@@ -74,9 +74,9 @@ public class ContentSelectionTests
     }
 
     /// <summary><c>\frac{x^2}{2}+y</c> — rows without columns, which is not a grid.</summary>
-    private static PortablePiece Fraction()
+    private static LayoutPiece Fraction()
     {
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
 
         build.At(new LayoutRect(0, 0, 100, 44), new TestPart(0, 15), "row");
 
@@ -98,7 +98,7 @@ public class ContentSelectionTests
         return build.Seal().Root;
     }
 
-    private static PortablePiece Cell(PortablePiece grid, int offset) =>
+    private static LayoutPiece Cell(LayoutPiece grid, int offset) =>
         grid.Leaves().Single(n => n.Sits().Start == offset);
 
     // ── A grid selects like a sheet ─────────────────────────────────────────
@@ -208,7 +208,7 @@ public class ContentSelectionTests
         // invent an answer for the cells that are not there. Nothing refuses anything now: a builder that
         // declared no runs gets the behaviour everything had before any of this — the stretch from one
         // piece to the other, grown out to whole constructs.
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
 
         build.At(new LayoutRect(0, 0, 70, 40), new TestPart(0, 5), "rows");
 

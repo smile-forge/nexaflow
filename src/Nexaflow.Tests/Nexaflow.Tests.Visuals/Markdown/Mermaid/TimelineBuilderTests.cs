@@ -68,7 +68,7 @@ public class TimelineBuilderTests : MermaidBuilderContract
         Assert.IsTrue(laid.Size.Width <= 500.01, $"{laid.Size.Width} wide");
     });
 
-    private static PortableLaid Build(string source, double room = 900) =>
+    private static Laid Build(string source, double room = 900) =>
         Laying.Lay("mermaid", source, room);
 
     [TestMethod]
@@ -143,7 +143,7 @@ public class TimelineBuilderTests : MermaidBuilderContract
         for (var at = 0; at < periods.Count; at++)
             Assert.AreEqual(Fill(periods[at]), Fill(dots[at]), "in the period's own colour");
 
-        var name = Pieces(laid, TimelinePiece.Section)[0].SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<PortableTextMark>().First();
+        var name = Pieces(laid, TimelinePiece.Section)[0].SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<TextMark>().First();
         Assert.AreSame(WpfStyles.Dark.Heading, name.Ink, "a section's name heads what it holds, as the title does");
     });
 

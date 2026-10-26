@@ -61,7 +61,7 @@ public class SectionFoldTests
         engine.Input(new ContentPress(Middle(Marker(engine).Bounds)));
 
         Assert.IsTrue(Words(engine).Any(said => said.Contains("Cats purr")), "what was folded is back on the page");
-        Assert.IsFalse(Pieces(engine, PortablePieces.Fold).Any(), "and the marker is gone");
+        Assert.IsFalse(Pieces(engine, LayoutPieces.Fold).Any(), "and the marker is gone");
     });
 
     [TestMethod]
@@ -98,12 +98,12 @@ public class SectionFoldTests
     }
 
     /// <summary>The one fold marker on the page.</summary>
-    private static PortablePiece Marker(ContentEngine engine) => Pieces(engine, PortablePieces.Fold).Single();
+    private static LayoutPiece Marker(ContentEngine engine) => Pieces(engine, LayoutPieces.Fold).Single();
 
     /// <summary>What a marker says, as drawn.</summary>
-    private static string Says(PortablePiece marker) => string.Concat(marker.Marks.ToArray().OfType<PortableTextMark>().Select(mark => mark.Glyphs.Text));
+    private static string Says(LayoutPiece marker) => string.Concat(marker.Marks.ToArray().OfType<TextMark>().Select(mark => mark.Glyphs.Text));
 
-    private static IEnumerable<PortablePiece> Pieces(ContentEngine engine, string kind) =>
+    private static IEnumerable<LayoutPiece> Pieces(ContentEngine engine, string kind) =>
         engine.Laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind);
 
     /// <summary>Every run of words drawn on the page.</summary>
@@ -111,7 +111,7 @@ public class SectionFoldTests
         [.. engine.Laid.Root.SelfAndDescendants().Select(piece => piece.Words?.Glyphs.Text).OfType<string>()];
 
     /// <summary>The corner's buttons, in the order they stand.</summary>
-    private static List<PortablePiece> Buttons(ContentEngine engine) =>
+    private static List<LayoutPiece> Buttons(ContentEngine engine) =>
         engine.Corner is null ? [] : [.. engine.Corner.Root.SelfAndDescendants().Where(piece => piece.Acts is not null)];
 
     private static List<string> Verbs(ContentEngine engine, LayoutPoint at)

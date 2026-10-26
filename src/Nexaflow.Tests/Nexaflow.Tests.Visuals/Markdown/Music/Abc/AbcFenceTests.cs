@@ -46,8 +46,8 @@ public class AbcFenceTests
     {
         var laid = Laying.Lay(null, Document, 700, WpfStyles.Dark);
 
-        Assert.IsTrue(laid.Root.SelfAndDescendants().Any(piece => piece.Kind == PortableMusicBuilder.Page), "no score came out of the fence");
-        Assert.IsFalse(laid.Root.SelfAndDescendants().Any(piece => piece.Kind == PortablePieces.Verbatim),
+        Assert.IsTrue(laid.Root.SelfAndDescendants().Any(piece => piece.Kind == MusicBuilder.Page), "no score came out of the fence");
+        Assert.IsFalse(laid.Root.SelfAndDescendants().Any(piece => piece.Kind == LayoutPieces.Verbatim),
                        "and the fence is not shown as the characters it was written as");
     });
 

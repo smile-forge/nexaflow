@@ -61,9 +61,9 @@ holds a Dark bootstrap merge for the designer; `Apply` rebuilds the list determi
 > same path, for the same reason: UI strings resolve once as the XAML loads (see [localization.md](localization.md)).
 
 > **Markdown follows the theme too.** `WpfStyles.FromTheme()` (in `Nexaflow.Visuals.Text`) reads
-> the active theme's brushes (`TextBrush`, `AccentBrush`, surfaces…) into a `PortableStyle`, so rendered
+> the active theme's brushes (`TextBrush`, `AccentBrush`, surfaces…) into a `LayoutStyle`, so rendered
 > markdown — AI chat, the AI bar's reply card, the editor — gets dark text on light themes and the theme's
-> own accents; the chart/graph builders take the same style, with a shared `PortableStyle.Series`
+> own accents; the chart/graph builders take the same style, with a shared `LayoutStyle.Series`
 > mini-palette for series colours. Fixed-surface callers (scratchpad post-its) pass `WpfStyles.Light`.
 
 ## Token contract
@@ -463,7 +463,7 @@ bind, so a theme can retune it. A view that paints its own scrim around a card i
 
 ### Diagram tokens (markdown)
 
-Markdown diagrams resolve their colours from `PortableStyle` (built by `WpfStyles.FromTheme()`),
+Markdown diagrams resolve their colours from `LayoutStyle` (built by `WpfStyles.FromTheme()`),
 not from `Application.Resources` directly — the builders run against a style so they also work on the
 light scratchpad surface. Four families there answer to the theme by string key:
 
@@ -471,8 +471,8 @@ light scratchpad surface. Four families there answer to the theme by string key:
 |---|---|
 | `QrDarkBrush` / `QrLightBrush`, `BarcodeDarkBrush` / `BarcodeLightBrush` | Fixed dark-on-light. **Not** theme-derived on purpose: a scannable mark stops scanning if a theme inverts it. |
 | `C4PersonBrush`, `C4SystemBrush`, `C4ContainerBrush`, `C4ComponentBrush`, `C4ExternalBrush`, `C4BoundaryBrush`, `C4DeploymentNodeBrush` | **Derived** — a grading of `AccentBrush` (deeper = higher abstraction) plus `TextMutedBrush` for external. |
-| `Swatch.*` → `PortableStyle.Series` | The shared ten-colour categorical bank. |
-| `Element<symbol>Brush` — `ElementNBrush`, `ElementOBrush`, `ElementClBrush`, … → `PortableStyle.Elements` | Fixed mid-tones in the colours chemists read elements by (nitrogen blue, oxygen red, sulfur yellow, halogens green), chosen to read on a light page and a dark one. An element with no entry — carbon among them — draws in `TextBrush`. |
+| `Swatch.*` → `LayoutStyle.Series` | The shared ten-colour categorical bank. |
+| `Element<symbol>Brush` — `ElementNBrush`, `ElementOBrush`, `ElementClBrush`, … → `LayoutStyle.Elements` | Fixed mid-tones in the colours chemists read elements by (nitrogen blue, oxygen red, sulfur yellow, halogens green), chosen to read on a light page and a dark one. An element with no entry — carbon among them — draws in `TextBrush`. |
 
 The C4 family is the one worth understanding, because "map the standard scheme onto the theme" is the
 rule and not a compromise. C4-PlantUML's canonical colours (person `#08427b`, system `#1168bd`,

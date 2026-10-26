@@ -40,7 +40,7 @@ public class RtfDrawingTests
     {
         var laid = Lay(Header + @"\pard plain {\cf1 red}\par}");
         var red = Words(laid).Single(piece => piece.Words!.Glyphs.Text == "red");
-        var ink = (SolidColorBrush)Marks(red).OfType<PortableTextMark>().Single().Ink!.Brush();
+        var ink = (SolidColorBrush)Marks(red).OfType<TextMark>().Single().Ink!.Brush();
 
         Assert.AreEqual(Color.FromRgb(255, 0, 0), ink.Color);
     }
@@ -57,7 +57,7 @@ public class RtfDrawingTests
     public void APageBreakIsTheRoomOfAFewBlankLines_BetweenThePagesWords()
     {
         var laid = Lay(@"{\rtf1\pard Title\page\pard Next\par}");
-        var page = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == PortablePieces.Page).Bounds;
+        var page = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == LayoutPieces.Page).Bounds;
         var words = Words(laid).Select(piece => piece.Bounds).ToList();
 
         Assert.AreEqual(2, words.Count);
@@ -137,7 +137,7 @@ public class RtfDrawingTests
 
         Assert.AreEqual(Em, Gap(spaced) - Gap(tight), 0.5);
 
-        static double Gap(PortableLaid laid) => Words(laid)[1].Bounds.Y - Words(laid)[0].Bounds.Y;
+        static double Gap(Laid laid) => Words(laid)[1].Bounds.Y - Words(laid)[0].Bounds.Y;
     }
 
     [TestMethod]
@@ -198,7 +198,7 @@ public class RtfDrawingTests
         var png = Convert.ToHexString(Convert.FromBase64String(
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="));
         var laid = Lay(@"{\rtf1 before {\pict\pngblip\picwgoal480\pichgoal480 " + png + @"} after\par}");
-        var picture = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == PortablePieces.Picture);
+        var picture = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == LayoutPieces.Picture);
 
         Assert.AreEqual(2 * Em, picture.Bounds.Width, 0.5, "drawn at the size it was asked for");
     }
@@ -208,7 +208,7 @@ public class RtfDrawingTests
     {
         const string source = @"{\rtf1\trowd\cellx1000\cellx2000\pard\intbl A\cell B\cell\row}";
 
-        Assert.AreEqual(2, Lay(source).Root.SelfAndDescendants().Count(piece => piece.Kind == PortablePieces.Cell));
+        Assert.AreEqual(2, Lay(source).Root.SelfAndDescendants().Count(piece => piece.Kind == LayoutPieces.Cell));
         Assert.AreEqual("A\nB", Read(source).Text);
     }
 
@@ -221,19 +221,19 @@ public class RtfDrawingTests
 
     // ── Reading the answers ─────────────────────────────────────────────────
 
-    private static PortableLaid Lay(string source, double room = 480) =>
+    private static Laid Lay(string source, double room = 480) =>
         Laying.Lay(RtfParser.Language, source, room, WpfStyles.Light);
 
     /// <summary>What the document reads as, read from what it read to.</summary>
     private static DrawnText Read(string source) => DrawnText.Of(RtfParser.Parse(source));
 
-    private static List<PortablePiece> Words(PortableLaid laid) =>
+    private static List<LayoutPiece> Words(Laid laid) =>
         [.. laid.Root.SelfAndDescendants()
-            .Where(piece => piece.Kind == PortablePieces.Words && piece.Words!.Glyphs.Text.Trim().Length > 0)];
+            .Where(piece => piece.Kind == LayoutPieces.Words && piece.Words!.Glyphs.Text.Trim().Length > 0)];
 
-    private static List<PortableMark> Marks(PortablePiece piece)
+    private static List<LayoutMark> Marks(LayoutPiece piece)
     {
-        var found = new List<PortableMark>();
+        var found = new List<LayoutMark>();
 
         foreach (var mark in piece.Marks) found.Add(mark);
 

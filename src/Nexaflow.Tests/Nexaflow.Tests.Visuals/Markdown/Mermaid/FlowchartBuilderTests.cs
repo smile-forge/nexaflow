@@ -310,7 +310,7 @@ public class FlowchartBuilderTests : MermaidBuilderContract
 
         Assert.AreEqual(48, shape.Bounds.Height, 0.5, "as tall as it is asked to be");
         Assert.IsTrue(words.Bounds.Bottom <= shape.Bounds.Top + 0.5, "with its label above it, as pos: t asks");
-        Assert.IsTrue(shape.Marks.ToArray().OfType<PortableGeometryMark>().Any(mark => mark.Shape.Geometry() is EllipseGeometry), "standing in its circle");
+        Assert.IsTrue(shape.Marks.ToArray().OfType<GeometryMark>().Any(mark => mark.Shape.Geometry() is EllipseGeometry), "standing in its circle");
     });
 
     [TestMethod]
@@ -323,10 +323,10 @@ public class FlowchartBuilderTests : MermaidBuilderContract
         var laid = Laying.Lay("mermaid", source, 900, inputs: inputs);
         var marks = laid.Root.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).ToList();
 
-        var drawn = marks.OfType<PortablePictureMark>().Single();
+        var drawn = marks.OfType<PictureMark>().Single();
         Assert.AreSame<ImageSource>(picture, ((WpfPicture)drawn.Picture).Source);
         Assert.AreEqual(new LayoutSize(60, 30), drawn.Bounds.Size, "as tall as it is asked to be, and as wide as its own shape makes that");
-        Assert.IsTrue(marks.OfType<PortableGeometryMark>().Any(mark => (mark.Stroke as WpfStroke)?.Dashes is { Count: > 0 } && System.Math.Abs(mark.Shape.Bounds.Width - 50) < 0.5),
+        Assert.IsTrue(marks.OfType<GeometryMark>().Any(mark => (mark.Stroke as WpfStroke)?.Dashes is { Count: > 0 } && System.Math.Abs(mark.Shape.Bounds.Width - 50) < 0.5),
                       "and one nothing was found for is the box it would have filled, dashed");
     });
 
@@ -357,13 +357,13 @@ public class FlowchartBuilderTests : MermaidBuilderContract
         Assert.AreEqual(2, Nodes(laid).Count, "and the chart is the two nodes written, not three");
     });
 
-    private static PortableLaid Build(string source, double room = 900) =>
+    private static Laid Build(string source, double room = 900) =>
         Laying.Lay("mermaid", source, room);
 
     /// <summary>Every node drawn, by what is written on it.</summary>
     private static Dictionary<string, LayoutRect> Nodes(string source) => Nodes(Build(source));
 
-    private static Dictionary<string, LayoutRect> Nodes(PortableLaid laid)
+    private static Dictionary<string, LayoutRect> Nodes(Laid laid)
     {
         var nodes = new Dictionary<string, LayoutRect>();
 
@@ -374,24 +374,24 @@ public class FlowchartBuilderTests : MermaidBuilderContract
     }
 
     /// <summary>What a node's shape comes to as a path, which is the only thing that tells two shapes of the same size apart.</summary>
-    private static string Outlined(PortablePiece piece) =>
+    private static string Outlined(LayoutPiece piece) =>
         string.Join("|", Marks(piece).Select(mark => PathGeometry.CreateFromGeometry(mark.Shape.Geometry()).ToString(CultureInfo.InvariantCulture)));
 
     /// <summary>The words drawn under a piece, in the order they were drawn.</summary>
-    private static IEnumerable<PortablePiece> Said(PortablePiece piece) =>
+    private static IEnumerable<LayoutPiece> Said(LayoutPiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Words && part.Words is not null);
 
-    private static IReadOnlyList<PortableGeometryMark> Marks(PortablePiece piece) =>
-        [.. piece.SelfAndDescendants().First(part => part.Kind == MermaidPiece.Shape).Marks.ToArray().OfType<PortableGeometryMark>()];
+    private static IReadOnlyList<GeometryMark> Marks(LayoutPiece piece) =>
+        [.. piece.SelfAndDescendants().First(part => part.Kind == MermaidPiece.Shape).Marks.ToArray().OfType<GeometryMark>()];
 
-    private static Color? Filled(PortablePiece piece) =>
+    private static Color? Filled(LayoutPiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Shape).Select(Fill).FirstOrDefault();
 
     private static bool Holds(LayoutRect over, LayoutRect inner) =>
         inner.Left >= over.Left - 1 && inner.Right <= over.Right + 1 && inner.Top >= over.Top - 1 && inner.Bottom <= over.Bottom + 1;
 
     /// <summary>Whether a piece's shape stands at a point, which is where a press on it lands rather than on what is under it.</summary>
-    private static bool Stands(PortablePiece piece, LayoutPoint at)
+    private static bool Stands(LayoutPiece piece, LayoutPoint at)
     {
         var shift = piece.Offset;
         foreach (var over in piece.Ancestors()) shift += over.Offset;
@@ -540,13 +540,13 @@ public class FlowchartBuilderTests : MermaidBuilderContract
     });
 
     /// <summary>What is written on the subgraph a piece is drawn in, or null where it is drawn in none.</summary>
-    private static string? HeldIn(PortablePiece piece) =>
+    private static string? HeldIn(LayoutPiece piece) =>
         piece.Ancestors().FirstOrDefault(over => over.Kind == FlowchartPiece.Group) is { } group
             ? group.SelfAndDescendants().Where(part => part.Kind == FlowchartPiece.Holding).SelectMany(Said).Select(said => said.Words!.Glyphs.Text).FirstOrDefault()
             : null;
 
     /// <summary>The colour a link's line is drawn in.</summary>
-    private static Color? Stroked(PortablePiece link) =>
-        link.SelfAndDescendants().SelectMany(part => part.Marks.ToArray()).OfType<PortableGeometryMark>()
+    private static Color? Stroked(LayoutPiece link) =>
+        link.SelfAndDescendants().SelectMany(part => part.Marks.ToArray()).OfType<GeometryMark>()
             .Select(mark => (mark.Stroke?.Ink?.Brush() as SolidColorBrush)?.Color).FirstOrDefault(colour => colour is not null);
 }

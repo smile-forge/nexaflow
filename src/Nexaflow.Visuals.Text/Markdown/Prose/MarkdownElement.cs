@@ -34,13 +34,13 @@ public sealed class MarkdownElement : LinkedElement
     /// <param name="host">What the host answers, for the verbs this document does not answer itself.</param>
     /// <param name="engine">What lays it out — the host's, where the host keeps one for longer than an element lasts.</param>
     /// <param name="language">What it is written in, where that is one language rather than a markdown document.</param>
-    public MarkdownElement(string source, PortableStyle palette, ILayoutActions? host = null, ContentEngine? engine = null,
+    public MarkdownElement(string source, LayoutStyle palette, ILayoutActions? host = null, ContentEngine? engine = null,
                            string? language = null)
         : this(engine ?? new ContentEngine(), source, palette, host, language)
     {
     }
 
-    private MarkdownElement(ContentEngine engine, string source, PortableStyle palette, ILayoutActions? host, string? language)
+    private MarkdownElement(ContentEngine engine, string source, LayoutStyle palette, ILayoutActions? host, string? language)
         : base(source ?? string.Empty, palette, engine, language, host)
     {
     }
@@ -99,7 +99,7 @@ public sealed class MarkdownElement : LinkedElement
         for (var at = 0; at < _showing.Places.Count; at++)
         {
             var (start, length) = _showing.Places[at];
-            var runs = PortableQuery.Clusters(Laid.Root.RangeRects(start, length), 0);
+            var runs = LayoutQuery.Clusters(Laid.Root.RangeRects(start, length), 0);
 
             foreach (var run in runs)
                 dc.DrawRectangle(at == _showing.At ? Palette.Marked.Brush() : Palette.QuoteBg.Brush(), Edge(at == _showing.At), run.ToWpf());

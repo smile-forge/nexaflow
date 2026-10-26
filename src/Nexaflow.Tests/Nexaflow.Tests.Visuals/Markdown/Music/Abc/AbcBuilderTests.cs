@@ -273,7 +273,7 @@ public class AbcBuilderTests
         Assert.AreEqual(top.Top, brackets[0].Bounds.Top, 1.0, "it starts at the top staff");
         Assert.AreEqual(bottom.Bottom, brackets[0].Bounds.Bottom, 1.0, "and finishes at the bottom one");
 
-        static LayoutRect Staff(PortablePiece system)
+        static LayoutRect Staff(LayoutPiece system)
         {
             var lines = system.SelfAndDescendants().Where(n => n.Kind == "staff-line").ToList();
             return new LayoutRect(lines[0].Bounds.TopLeft, lines[^1].Bounds.BottomRight);
@@ -405,11 +405,11 @@ public class AbcBuilderTests
     }
 
     /// <summary>The first note in a tune.</summary>
-    private static PortablePiece Note(PortableLaid layout) =>
+    private static LayoutPiece Note(Laid layout) =>
         layout.Root.SelfAndDescendants().First(n => n.Kind == "note");
 
     /// <summary>How many things a piece of layout drew — the cheap way to ask whether a mark landed.</summary>
-    private static int Marks(PortablePiece node)
+    private static int Marks(LayoutPiece node)
     {
         // Counted rather than summed: a piece's marks are a span over the tree's own array, and a span
         // cannot be captured by a lambda.

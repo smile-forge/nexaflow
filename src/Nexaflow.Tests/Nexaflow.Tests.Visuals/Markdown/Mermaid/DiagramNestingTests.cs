@@ -37,7 +37,7 @@ public class DiagramNestingTests
         return element;
     }
 
-    private static List<PortablePiece> Pieces(ContentElement element, string kind) =>
+    private static List<LayoutPiece> Pieces(ContentElement element, string kind) =>
         [.. element.Laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];
 
     private static List<string> Words(ContentElement element) =>

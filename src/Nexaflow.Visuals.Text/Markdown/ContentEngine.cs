@@ -98,7 +98,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// <paramref name="state"/>'s source laid out at <paramref name="room"/>, written in the language called
     /// <paramref name="named"/> — or in markdown, where nothing names one.
     /// </summary>
-    public PortableLaid Lay(string? named, EditState state, PortableStyle style, double room, bool readOnly)
+    public Laid Lay(string? named, EditState state, LayoutStyle style, double room, bool readOnly)
     {
         var language = Language(named);
 
@@ -111,7 +111,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// What <paramref name="top"/> — <paramref name="state"/>'s source as its language read it — comes to laid out at
     /// <paramref name="room"/>: worked over by the language's stages and laid by its builder, as any content is.
     /// </summary>
-    private PortableLaid LaidFrom(ContentLanguage language, string? named, Parsed top, EditState state, PortableStyle style, double room, bool readOnly)
+    private Laid LaidFrom(ContentLanguage language, string? named, Parsed top, EditState state, LayoutStyle style, double room, bool readOnly)
     {
         Views(top);
         // What the reader opened in a diagram, or folded away of a document.
@@ -122,7 +122,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
 
         Reading = ContentReading.Of(staged, 0, state.Source);
 
-        return Builder(language, Reading, showing, PortableStanding.Alone).Lay(room);
+        return Builder(language, Reading, showing, LayoutStanding.Alone).Lay(room);
     }
 
 
@@ -216,7 +216,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         return read;
     }
 
-    private ContentShowing Showing(string named, PortableStyle style, bool writing, RawZone? shown, int at) =>
+    private ContentShowing Showing(string named, LayoutStyle style, bool writing, RawZone? shown, int at) =>
         new(named, style, writing, shown, at, _inputs) { Reads = ContentLanguages.Reads };
 
     /// <summary>
@@ -224,7 +224,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// its builder, and every builder is made from the same six things: what was read, what is being written, what it is drawn in,
     /// whether it is only looked at, what it is laid out in, and what hosts it.
     /// </summary>
-    private PortableContentBuilder Builder(ContentLanguage language, ContentReading reading, ContentShowing showing, PortableStanding standing)
+    private ContentBuilder Builder(ContentLanguage language, ContentReading reading, ContentShowing showing, LayoutStanding standing)
     {
         var readOnly = !(language.Writable && showing.Writing);
 
@@ -237,7 +237,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// What hosts content laid for <paramref name="showing"/>: where it stands, the engine laying out whatever it holds in another
     /// language — shown as written where this showing is, and written in where it is — and what the stages found its parts to name.
     /// </summary>
-    private PortableHost Hosting(ContentShowing showing, PortableStanding standing, bool writing) =>
+    private LayoutHost Hosting(ContentShowing showing, LayoutStanding standing, bool writing) =>
         new(standing, (holder, room, asked) => Nested(holder, room, asked, showing.Style, showing.Shown, writing))
         {
             Pictures = Pictured,
@@ -251,13 +251,13 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
             : null;
 
     /// <summary>How the host wants a link to look, as its stage settled it, in the medium's inks.</summary>
-    private static PortableLinkLook? Linked(ContentPart part) =>
+    private static LayoutLinkLook? Linked(ContentPart part) =>
         WithLinks.Of(part) is { } look ? Looks.GetValue(look, Look) : null;
 
     /// <summary>Each look a host gave, said in the medium's terms once.</summary>
-    private static readonly ConditionalWeakTable<LinkLook, PortableLinkLook> Looks = new();
+    private static readonly ConditionalWeakTable<LinkLook, LayoutLinkLook> Looks = new();
 
-    private static PortableLinkLook Look(LinkLook look) =>
+    private static LayoutLinkLook Look(LinkLook look) =>
         new(look.Ink is { } ink ? WpfMedium.OnThisThread.Ink(ink) : null, look.Underline, look.Before, look.After, look.Says)
         {
             MarkFont = look.MarkFont?.Source,
@@ -273,14 +273,14 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// </para>
     /// </summary>
     /// <param name="at">Where <paramref name="source"/> begins in the document holding it, so what is said of it is said where it is.</param>
-    private PortableLaid Unreadable(string source, int at, string why, PortableStyle style, bool readOnly, double room) =>
-        Makers.GetOrAdd(typeof(PortableUnreadBuilder), Maker)(
+    private Laid Unreadable(string source, int at, string why, LayoutStyle style, bool readOnly, double room) =>
+        Makers.GetOrAdd(typeof(UnreadBuilder), Maker)(
             ContentReading.Of(ContentNode.Shown(source, why), at, source), EditState.For(source), style, readOnly, WpfMedium.OnThisThread,
-            new PortableHost(PortableStanding.Alone, static (_, _, _) => null)).Lay(room);
+            new LayoutHost(LayoutStanding.Alone, static (_, _, _) => null)).Lay(room);
 
     /// <summary>Makes a builder from the six things every builder is made from.</summary>
-    private delegate PortableContentBuilder Make(ContentReading reading, EditState state, PortableStyle style, bool isReadOnly,
-                                                 ILayoutMedium medium, PortableHost host);
+    private delegate ContentBuilder Make(ContentReading reading, EditState state, LayoutStyle style, bool isReadOnly,
+                                                 ILayoutMedium medium, LayoutHost host);
 
     /// <summary>What makes each builder a language names, found once.</summary>
     private static readonly ConcurrentDictionary<Type, Make> Makers = new();
@@ -288,9 +288,9 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// <summary>What makes a <paramref name="builder"/>: its one constructor, taking the six things every builder is made from.</summary>
     private static Make Maker(Type builder)
     {
-        Type[] shape = [typeof(ContentReading), typeof(EditState), typeof(PortableStyle), typeof(bool), typeof(ILayoutMedium), typeof(PortableHost)];
+        Type[] shape = [typeof(ContentReading), typeof(EditState), typeof(LayoutStyle), typeof(bool), typeof(ILayoutMedium), typeof(LayoutHost)];
 
-        if (builder.IsAbstract || !typeof(PortableContentBuilder).IsAssignableFrom(builder)
+        if (builder.IsAbstract || !typeof(ContentBuilder).IsAssignableFrom(builder)
             || builder.GetConstructor(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, shape) is not { } made)
             throw new InvalidOperationException(
                 $"{builder.FullName} is not a builder made from ({string.Join(", ", shape.Select(type => type.Name))}).");
@@ -371,7 +371,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// already does with a block it cannot draw. Null keeps its own meaning: nothing is nested here.
     /// </para>
     /// </summary>
-    internal PortableInset? Nested(ContentPart holder, double room, PortableStanding standing, PortableStyle style, RawZone? shown, bool writing)
+    internal LayoutInset? Nested(ContentPart holder, double room, LayoutStanding standing, LayoutStyle style, RawZone? shown, bool writing)
     {
         if (ContentNested.Language(holder) is not { } named || holder.Part(Roles.Body) is not { } body
             || ContentLanguages.For(named) is not { } language) return null;
@@ -397,13 +397,13 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
 
             // And what it read is given those marks back where they stand, so every part names its characters in the document.
             var reading = ContentReading.Of(ContentNested.Spliced(Staged(read, showing), body.Node), body.Start, Stretch(body, text));
-            return new PortableInset(Builder(language, reading, showing, standing).Lay(room));
+            return new LayoutInset(Builder(language, reading, showing, standing).Lay(room));
         }
         catch (Exception error)
         {
             var written = Stretch(body, text);
 
-            return new PortableInset(Unreadable(written, body.Start, Str.Format("Text.Content.CouldNotRead", error.Message),
+            return new LayoutInset(Unreadable(written, body.Start, Str.Format("Text.Content.CouldNotRead", error.Message),
                                                style, !(language.Writable && writing), room));
         }
     }

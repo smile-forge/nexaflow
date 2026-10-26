@@ -49,7 +49,7 @@ public class XyBuilderTests : MermaidBuilderContract
         ("nothing to draw", "xychart"),
     ];
 
-    private static PortableLaid Build(string source, double room = 700, bool writing = false) =>
+    private static Laid Build(string source, double room = 700, bool writing = false) =>
         Laying.Lay("mermaid", source, room, writing: writing);
 
     [TestMethod]
@@ -150,7 +150,7 @@ public class XyBuilderTests : MermaidBuilderContract
     public void ThePalettesColoursAreWhatTheSeriesAreDrawnIn() => UiThread.Run(() =>
     {
         var bar = Pieces(Build("---\nconfig:\n  themeVariables:\n    xyChart:\n      plotColorPalette: \"#ff0000\"\n---\nxychart\n  bar [1]"), XyPiece.Bar).Single();
-        Assert.IsTrue(bar.Marks.ToArray().OfType<PortableGeometryMark>().Any(mark => mark.Fill?.Brush() is SolidColorBrush { Color: var colour } && colour == Color.FromRgb(0xFF, 0, 0)));
+        Assert.IsTrue(bar.Marks.ToArray().OfType<GeometryMark>().Any(mark => mark.Fill?.Brush() is SolidColorBrush { Color: var colour } && colour == Color.FromRgb(0xFF, 0, 0)));
     });
 
     [TestMethod]
@@ -166,7 +166,7 @@ public class XyBuilderTests : MermaidBuilderContract
 
     [TestMethod]
     public void AChartOfNothingIsShownAsItWasWritten() => UiThread.Run(() =>
-        Assert.IsTrue(Pieces(Build("xychart"), PortableText.SourceKind).Any()));
+        Assert.IsTrue(Pieces(Build("xychart"), LayoutText.SourceKind).Any()));
 
     [TestMethod]
     public void TheUprightAxissTitleIsTurnedToReadUpIt_AndAPressInItMeansTheLetterUnderThePointer() => UiThread.Run(() =>
@@ -248,7 +248,7 @@ public class XyBuilderTests : MermaidBuilderContract
     public void ThePalettesColoursComeRoundAgainForTheSeriesPastIt() => UiThread.Run(() =>
     {
         var bars = Pieces(Build("---\nconfig:\n  themeVariables:\n    xyChart:\n      plotColorPalette: \"#ff0000, #00ff00\"\n---\nxychart\n  x-axis [a]\n  bar [1]\n  bar [2]\n  bar [3]"), XyPiece.Bar)
-            .Select(bar => bar.Marks.ToArray().OfType<PortableGeometryMark>().Select(mark => mark.Fill?.Brush()).OfType<SolidColorBrush>().First().Color).ToList();
+            .Select(bar => bar.Marks.ToArray().OfType<GeometryMark>().Select(mark => mark.Fill?.Brush()).OfType<SolidColorBrush>().First().Color).ToList();
 
         CollectionAssert.AreEqual(new[] { Color.FromRgb(0xFF, 0, 0), Color.FromRgb(0, 0xFF, 0), Color.FromRgb(0xFF, 0, 0) }, bars);
     });

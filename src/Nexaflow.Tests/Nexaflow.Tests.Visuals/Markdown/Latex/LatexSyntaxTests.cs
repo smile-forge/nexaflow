@@ -33,7 +33,7 @@ public class LatexSyntaxTests
 
             // Placeholders on, because the check asks for holes: an empty argument is unfinished to both.
             var drawn = Laying.Formula(latex, Scale, placeholders: true).Trouble
-                .Where(d => d.Severity == PortableSeverity.Error)
+                .Where(d => d.Severity == LayoutSeverity.Error)
                 .Select(Said).OrderBy(s => s).ToList();
             var checkedOut = LatexSyntax.Check(latex).Select(Said).OrderBy(s => s).ToList();
 
@@ -53,5 +53,5 @@ public class LatexSyntaxTests
         Assert.IsTrue(LatexSyntax.IsWellFormed(latex),
             $"{latex}: {string.Join("; ", LatexSyntax.Check(latex).Select(Said))}"));
 
-    private static string Said(PortableDiagnostic d) => $"{d.Start}+{d.Length} {d.Message}";
+    private static string Said(LayoutDiagnostic d) => $"{d.Start}+{d.Length} {d.Message}";
 }

@@ -132,7 +132,7 @@ public class MarkdownImageTests
         var laid = Lay("Before ![pic alt](pic.png) after.\n", _ => Blank(20, 10));
 
         var words = laid.Root.SelfAndDescendants()
-            .Where(piece => piece.Kind == PortablePieces.Words)
+            .Where(piece => piece.Kind == LayoutPieces.Words)
             .Select(piece => Math.Round(piece.Bounds.Y))
             .Distinct()
             .ToList();
@@ -144,7 +144,7 @@ public class MarkdownImageTests
     [TestMethod]
     public void AndItStandsForTheCharactersItWasWrittenAs() => UiThread.Run(() =>
     {
-        var picture = Pieces(Lay(Doc, _ => Blank(20, 10)), PortablePieces.Picture).Single();
+        var picture = Pieces(Lay(Doc, _ => Blank(20, 10)), LayoutPieces.Picture).Single();
 
         Assert.IsNotNull(picture.Part, "a press on the picture has to mean the ![…](…) somebody typed");
         Assert.AreEqual(Doc.IndexOf('!'), picture.Part!.Start);
@@ -162,29 +162,29 @@ public class MarkdownImageTests
 
     // ── Reading the answers ─────────────────────────────────────────────────
 
-    private static PortableLaid Lay(string source, Func<string, ImageSource?>? asked, string? folder = null) =>
+    private static Laid Lay(string source, Func<string, ImageSource?>? asked, string? folder = null) =>
         Laying.Lay(null, source, 480,
                    inputs: new ContentInputs(Pictures: MarkdownPictures.Found(asked, folder)));
 
-    private static List<PortablePictureMark> Marks(PortableLaid laid)
+    private static List<PictureMark> Marks(Laid laid)
     {
-        var found = new List<PortablePictureMark>();
+        var found = new List<PictureMark>();
 
         foreach (var piece in laid.Root.SelfAndDescendants())
             foreach (var mark in piece.Marks)
-                if (mark is PortablePictureMark picture) found.Add(picture);
+                if (mark is PictureMark picture) found.Add(picture);
 
         return found;
     }
 
-    private static List<ImageSource> Pictures(PortableLaid laid) => [.. Marks(laid).Select(mark => ((WpfPicture)mark.Picture).Source)];
+    private static List<ImageSource> Pictures(Laid laid) => [.. Marks(laid).Select(mark => ((WpfPicture)mark.Picture).Source)];
 
-    private static LayoutRect Box(PortableLaid laid) => Marks(laid).Single().Bounds;
+    private static LayoutRect Box(Laid laid) => Marks(laid).Single().Bounds;
 
-    private static List<PortablePiece> Pieces(PortableLaid laid, string kind) =>
+    private static List<LayoutPiece> Pieces(Laid laid, string kind) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];
 
-    private static string Drawn(PortableLaid laid) =>
+    private static string Drawn(Laid laid) =>
         string.Concat(laid.Root.SelfAndDescendants()
                           .Where(piece => piece.Words is not null)
                           .Select(piece => piece.Words!.Glyphs.Text));

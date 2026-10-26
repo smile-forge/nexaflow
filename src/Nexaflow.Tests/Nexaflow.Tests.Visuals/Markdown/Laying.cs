@@ -21,7 +21,7 @@ internal static class Laying
     /// </summary>
     /// <param name="writing">Whether somebody is writing in it, which draws a hole wherever something is still to be written.</param>
     /// <param name="shown">The stretch shown as typed rather than as what it says.</param>
-    public static PortableLaid Lay(string? language, string source, double room = double.PositiveInfinity, PortableStyle? style = null,
+    public static Laid Lay(string? language, string source, double room = double.PositiveInfinity, LayoutStyle? style = null,
                            bool writing = false, RawZone? shown = null, ContentInputs? inputs = null) =>
         new ContentEngine(inputs).Lay(language, EditState.For(source) with { Raw = shown }, style ?? WpfStyles.Dark, room, readOnly: !writing);
 
@@ -32,17 +32,17 @@ internal static class Laying
     /// <summary>A formula set at <paramref name="scale"/> — its body size — as a formula on its own is set.</summary>
     /// <param name="placeholders">Whether somebody is writing in it, which shows a hole where an argument is still to be written.</param>
     /// <param name="block">How wide the display is, for a formula carrying a number; nothing says, where it is nought.</param>
-    public static PortableLaid Formula(string latex, double scale, bool placeholders = false, RawZone? shownAsWritten = null, double block = 0) =>
+    public static Laid Formula(string latex, double scale, bool placeholders = false, RawZone? shownAsWritten = null, double block = 0) =>
         Lay("latex", latex, block > 0 ? block : double.PositiveInfinity, WpfStyles.Dark with { TextSize = scale },
             writing: placeholders, shown: shownAsWritten);
 
     /// <summary>A tune laid out on a page <paramref name="width"/> wide, as a document lays one out.</summary>
-    public static PortableLaid Engraved(string dialect, string source, double width, PortableStyle? style = null, RawZone? shown = null) =>
+    public static Laid Engraved(string dialect, string source, double width, LayoutStyle? style = null, RawZone? shown = null) =>
         Lay(dialect, source, width, style, shown: shown);
 
     /// <summary>
     /// What hosts a builder a test makes for itself — standing alone, with nothing in another language to lay out and nothing
     /// found for it: for a test of what every builder of a kind shares.
     /// </summary>
-    public static PortableHost Hosting => new(PortableStanding.Alone, static (_, _, _) => null);
+    public static LayoutHost Hosting => new(LayoutStanding.Alone, static (_, _, _) => null);
 }

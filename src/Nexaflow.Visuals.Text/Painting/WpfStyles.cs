@@ -13,7 +13,7 @@ namespace Nexaflow.Visuals.Text.Painting;
 
 /// <summary>
 /// What content is drawn in on a WPF surface, said in the medium's own handles: the theme's brushes as inks, its typefaces as faces,
-/// and the window's language for what a layout says — one <see cref="PortableStyle"/> a showing hands every builder.
+/// and the window's language for what a layout says — one <see cref="LayoutStyle"/> a showing hands every builder.
 ///
 /// <para>
 /// The same builders serve dark surfaces (the AI overlay, a chat, the markdown page) and light ones (a scratchpad post-it) by being
@@ -30,20 +30,20 @@ public static class WpfStyles
     public const string MonoFont = "Consolas, Courier New";
 
     /// <summary>Light text on dark surfaces — the app's own theme, and the default everywhere.</summary>
-    public static PortableStyle Dark => _dark ??= Made(DarkInks);
+    public static LayoutStyle Dark => _dark ??= Made(DarkInks);
 
     /// <summary>Dark text on light surfaces — for the coloured scratchpad post-its.</summary>
-    public static PortableStyle Light => _light ??= Made(LightInks);
+    public static LayoutStyle Light => _light ??= Made(LightInks);
 
-    private static PortableStyle? _dark;
-    private static PortableStyle? _light;
+    private static LayoutStyle? _dark;
+    private static LayoutStyle? _light;
 
     /// <summary>
     /// The active theme's brushes (TextBrush, AccentBrush, the surfaces…), so content matches whatever theme is loaded — light themes
     /// get dark text, dark ones their own accents. Any key the theme lacks, and all of them where there is no application, is
     /// <see cref="Dark"/>'s.
     /// </summary>
-    public static PortableStyle FromTheme()
+    public static LayoutStyle FromTheme()
     {
         var resources = Application.Current?.Resources;
         Brush Themed(string key, Brush fallback) => resources?[key] as Brush ?? fallback;
@@ -235,12 +235,12 @@ public static class WpfStyles
     };
 
     /// <summary>A style of <paramref name="inks"/>, in the medium of the thread that asks — whose inks and faces any thread may draw.</summary>
-    private static PortableStyle Made(Inks inks)
+    private static LayoutStyle Made(Inks inks)
     {
         var medium = WpfMedium.OnThisThread;
         LayoutInk Ink(Brush brush) => medium.Ink(brush);
 
-        return new PortableStyle((family, weight, italic) =>
+        return new LayoutStyle((family, weight, italic) =>
             medium.Face(Typefaces.Of(Typefaces.Family(family), FontWeight.FromOpenTypeWeight(weight), italic ? FontStyles.Italic : FontStyles.Normal)))
         {
             Text = Ink(inks.Text),

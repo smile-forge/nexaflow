@@ -35,7 +35,7 @@ public static class MarkdownAnchors
     /// The piece a <c>#id</c> points at, on a laid-out document — the heading the reader wrote that name on,
     /// or nothing where the document has no such heading.
     /// </summary>
-    public static PortablePiece Sought(PortableLaid laid, string anchor)
+    public static LayoutPiece Sought(Laid laid, string anchor)
     {
         foreach (var piece in laid.Root.SelfAndDescendants())
             if (piece.Part is ContentPart part && Named(part) is { } id

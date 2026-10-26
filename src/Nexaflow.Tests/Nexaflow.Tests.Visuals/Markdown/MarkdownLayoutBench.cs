@@ -131,7 +131,7 @@ public partial class MarkdownLayoutBench
     });
 
     /// <summary>One document, step by step.</summary>
-    private static Dictionary<string, object> Document(string name, string text, string? language, PortableStyle style, ContentInputs inputs,
+    private static Dictionary<string, object> Document(string name, string text, string? language, LayoutStyle style, ContentInputs inputs,
                                                        Dictionary<string, (int Count, double Ms, double Kb)> languages,
                                                        Dictionary<string, (int Count, double Ms, double Kb)> stages,
                                                        Dictionary<string, (int Count, double Ms, double Kb)> kinds)
@@ -186,7 +186,7 @@ public partial class MarkdownLayoutBench
 
         // Laying out is the engine's, parse and all: what building costs is what is left of laying it out once reading it and
         // working it over are taken away.
-        PortableLaid laid = null!;
+        Laid laid = null!;
         var whole = Median(() => laid = Laying.Lay(language, text, Room, style, writing: true, inputs: inputs));
         var build = Math.Max(0, whole - tRead - staged.Values.Sum(Convert.ToDouble));
 
@@ -290,7 +290,7 @@ public partial class MarkdownLayoutBench
     }
 
     /// <summary>A nested language's own parse and each of its stages, and what laying it out costs whole.</summary>
-    private static void Language(string language, string source, PortableStyle style, ContentInputs inputs,
+    private static void Language(string language, string source, LayoutStyle style, ContentInputs inputs,
                                  Dictionary<string, (int Count, double Ms, double Kb)> stages)
     {
         try
@@ -335,7 +335,7 @@ public partial class MarkdownLayoutBench
     /// <paramref name="text"/> opened as a page opens it: an engine showing it, a screen of it on screen, laid at the room — with
     /// whatever it reads in the background read, so what it holds is what an open page holds once that is done.
     /// </summary>
-    private static ContentEngine Opened(string text, string? language, PortableStyle style, ContentInputs inputs)
+    private static ContentEngine Opened(string text, string? language, LayoutStyle style, ContentInputs inputs)
     {
         var engine = Shown(text, language, style, inputs);
         engine.ReadingRest.Wait();
@@ -343,7 +343,7 @@ public partial class MarkdownLayoutBench
         return engine;
     }
 
-    private static ContentEngine Shown(string text, string? language, PortableStyle style, ContentInputs inputs)
+    private static ContentEngine Shown(string text, string? language, LayoutStyle style, ContentInputs inputs)
     {
         var engine = new ContentEngine(inputs);
         engine.Show(language, style);
@@ -358,7 +358,7 @@ public partial class MarkdownLayoutBench
     /// The medians of <see cref="Runs"/> openings, after one to warm up: how long the page took to show, and how much that
     /// allocated — the reading of the rest behind it waited for between runs, untimed, so no run is slowed by the last.
     /// </summary>
-    private static (double Ms, double Kb) Opening(string text, string? language, PortableStyle style, ContentInputs inputs)
+    private static (double Ms, double Kb) Opening(string text, string? language, LayoutStyle style, ContentInputs inputs)
     {
         Opened(text, language, style, inputs);
 
@@ -485,7 +485,7 @@ public partial class MarkdownLayoutBench
     private static double Round(double ms) => Math.Round(ms, 3);
 
     /// <summary>Paints a laid tree as the element does, and says how long that took — all of it, or what is near <paramref name="showing"/>.</summary>
-    private static double Painted(PortableLaid laid, PortableStyle style, Rect? showing = null)
+    private static double Painted(Laid laid, LayoutStyle style, Rect? showing = null)
     {
         var clock = Stopwatch.StartNew();
         var visual = new DrawingVisual();
@@ -571,9 +571,9 @@ public partial class MarkdownLayoutBench
     /// reading, the laid tree, the pictures kept of its blocks, and all of it as an open document holds it — and what opening
     /// it and typing in it allocate, by type, sampled by the runtime about every hundred KB.
     /// </summary>
-    private static Dictionary<string, object> Memory(string text, PortableStyle style, ContentInputs inputs)
+    private static Dictionary<string, object> Memory(string text, LayoutStyle style, ContentInputs inputs)
     {
-        void Paint(PortableLaid laid)
+        void Paint(Laid laid)
         {
             var visual = new DrawingVisual();
             using var dc = visual.RenderOpen();

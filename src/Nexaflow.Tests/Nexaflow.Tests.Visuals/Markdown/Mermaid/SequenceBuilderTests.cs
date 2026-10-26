@@ -148,8 +148,8 @@ public class SequenceBuilderTests : MermaidBuilderContract
         Assert.IsFalse(Bowed(Lay(source)), "the loop turns square corners");
         Assert.IsTrue(Bowed(Lay("---\nconfig:\n  sequence:\n    rightAngles: false\n---\n" + source)), "and bows where rightAngles says not to");
 
-        static bool Bowed(PortableLaid laid) =>
-            Pieces(laid, SequencePiece.Line).Single().SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<PortableGeometryMark>()
+        static bool Bowed(Laid laid) =>
+            Pieces(laid, SequencePiece.Line).Single().SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>()
                 .SelectMany(mark => PathGeometry.CreateFromGeometry(mark.Shape.Geometry()).Figures)
                 .SelectMany(figure => figure.Segments)
                 .Any(segment => segment is BezierSegment or PolyBezierSegment);
@@ -345,8 +345,8 @@ public class SequenceBuilderTests : MermaidBuilderContract
         Assert.IsTrue(database[1].Shape.Bounds.Right < Middle(database[0].Shape.Bounds.ToWpf()).X, "the mark set before the name, at the left of the box");
         Assert.AreEqual(1, actor.Count, "an actor is the figure alone, with its name under it");
 
-        static List<PortableGeometryMark> Drawing(PortablePiece head) =>
-            [.. head.Children.First(piece => piece.Kind == MermaidPiece.Shape).Marks.ToArray().OfType<PortableGeometryMark>()];
+        static List<GeometryMark> Drawing(LayoutPiece head) =>
+            [.. head.Children.First(piece => piece.Kind == MermaidPiece.Shape).Marks.ToArray().OfType<GeometryMark>()];
     });
 
     [TestMethod]
@@ -384,14 +384,14 @@ public class SequenceBuilderTests : MermaidBuilderContract
     // ── Reading what was drawn ──────────────────────────────────────────────
 
     /// <summary>Where each participant's own box stands at the top of its lifeline, in the order they stand.</summary>
-    private static List<LayoutRect> Standing(PortableLaid laid) =>
+    private static List<LayoutRect> Standing(Laid laid) =>
         [.. Pieces(laid, SequencePiece.Lifeline)
               .Select(piece => piece.SelfAndDescendants().First(part => part.Kind == SequencePiece.Head).Bounds)
               .OrderBy(bounds => bounds.Left)];
 
-    private static LayoutRect Words(PortablePiece piece, string said) => Said(piece).First(words => words.Words!.Glyphs.Text == said).Bounds;
+    private static LayoutRect Words(LayoutPiece piece, string said) => Said(piece).First(words => words.Words!.Glyphs.Text == said).Bounds;
 
-    private static IEnumerable<PortablePiece> Said(PortablePiece piece) =>
+    private static IEnumerable<LayoutPiece> Said(LayoutPiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Words && part.Words is not null);
 
     private static bool Holds(LayoutRect over, LayoutRect inner) =>
@@ -440,9 +440,9 @@ public class SequenceBuilderTests : MermaidBuilderContract
     {
         // Room enough that nothing is fitted into it, so the only thing moving is how big the page sets its words.
         var ordinary = Laying.Lay(Language, Intro, double.PositiveInfinity,
-                                  WpfStyles.Dark with { TextSize = PortableStyle.DefaultTextSize });
+                                  WpfStyles.Dark with { TextSize = LayoutStyle.DefaultTextSize });
         var zoomed = Laying.Lay(Language, Intro, double.PositiveInfinity,
-                                WpfStyles.Dark with { TextSize = PortableStyle.DefaultTextSize * 2 });
+                                WpfStyles.Dark with { TextSize = LayoutStyle.DefaultTextSize * 2 });
 
         Assert.IsTrue(zoomed.Size.Width > ordinary.Size.Width * 1.7 && zoomed.Size.Width < ordinary.Size.Width * 2.3,
                       $"body text at twice the size draws the diagram about twice as wide: {ordinary.Size.Width:0.#} "
@@ -456,7 +456,7 @@ public class SequenceBuilderTests : MermaidBuilderContract
     public void APageSetLargerStillFitsItsDiagramToTheRoom() => UiThread.Run(() =>
     {
         // The two scales multiply rather than fight: the page sets it larger, and the room takes it back down.
-        var zoomed = Laying.Lay(Language, Crowded, 520, WpfStyles.Dark with { TextSize = PortableStyle.DefaultTextSize * 2 });
+        var zoomed = Laying.Lay(Language, Crowded, 520, WpfStyles.Dark with { TextSize = LayoutStyle.DefaultTextSize * 2 });
 
         Assert.IsTrue(zoomed.Size.Width <= 520, $"drawn inside the room it has: {zoomed.Size.Width:0.#} of 520");
     });

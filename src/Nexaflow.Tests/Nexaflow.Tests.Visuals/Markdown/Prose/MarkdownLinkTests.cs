@@ -190,16 +190,16 @@ public class MarkdownLinkTests
 
     // ── Reading the answers ─────────────────────────────────────────────────
 
-    private static PortableLaid Lay(string source, System.Func<string, string, LinkLook?>? asked = null) =>
+    private static Laid Lay(string source, System.Func<string, string, LinkLook?>? asked = null) =>
         Laying.Lay(null, source, 480, inputs: new ContentInputs(Links: asked));
 
-    private static List<PortablePiece> Words(PortableLaid laid) =>
+    private static List<LayoutPiece> Words(Laid laid) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Words is not null)];
 
-    private static List<PortableIntent> Acts(PortableLaid laid) =>
+    private static List<LayoutAsk> Acts(Laid laid) =>
         [.. laid.Root.SelfAndDescendants()
                  .Select(piece => piece.Acts?.Click)
-                 .OfType<PortableIntent>()
+                 .OfType<LayoutAsk>()
                  .Distinct()];
 
     private static MarkdownElement Element(string source, List<string> asked) =>

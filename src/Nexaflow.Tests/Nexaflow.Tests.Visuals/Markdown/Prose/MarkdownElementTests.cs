@@ -78,7 +78,7 @@ public class MarkdownElementTests
         // deliberate.
         var element = Element();
         var words = element.Laid.Root.SelfAndDescendants()
-            .First(piece => piece.Kind == PortablePieces.Words && piece.Words!.Glyphs.Text.Contains("do"));
+            .First(piece => piece.Kind == LayoutPieces.Words && piece.Words!.Glyphs.Text.Contains("do"));
 
         element.BeginPointerSelect(Middle(words));
 
@@ -98,9 +98,9 @@ public class MarkdownElementTests
         return element;
     }
 
-    private static List<PortablePiece> Ticks(MarkdownElement element) =>
-        [.. element.Laid.Root.SelfAndDescendants().Where(piece => piece.Kind == PortablePieces.Tick)];
+    private static List<LayoutPiece> Ticks(MarkdownElement element) =>
+        [.. element.Laid.Root.SelfAndDescendants().Where(piece => piece.Kind == LayoutPieces.Tick)];
 
-    private static Point Middle(PortablePiece piece) =>
+    private static Point Middle(LayoutPiece piece) =>
         new(piece.Bounds.X + (piece.Bounds.Width / 2), piece.Bounds.Y + (piece.Bounds.Height / 2));
 }

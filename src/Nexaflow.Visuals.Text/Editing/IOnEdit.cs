@@ -31,13 +31,13 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// <param name="Piece">The piece of layout the edit applied to.</param>
 /// <param name="Part">The part of the syntax tree that piece was drawn from — or null, where nothing on the way up names one.</param>
 /// <param name="Root">The root of that part's tree: the language's own source, all of it.</param>
-public sealed record ContentEdit(EditKind Kind, string Text, Landing Landing, PortablePiece Piece, ContentPart? Part, ContentPart Root)
+public sealed record ContentEdit(EditKind Kind, string Text, Landing Landing, LayoutPiece Piece, ContentPart? Part, ContentPart Root)
 {
     /// <summary>Everything being edited, not only this language's part of it.</summary>
     public EditState State => this.Landing.State;
 
     /// <summary>What was drawn of it.</summary>
-    public PortableLaid Laid => this.Landing.Laid;
+    public Laid Laid => this.Landing.Laid;
 
     /// <summary>Where the language's own source begins in the document.</summary>
     public int Start => this.Root.Start;

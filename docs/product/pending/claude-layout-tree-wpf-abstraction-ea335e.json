@@ -58,8 +58,8 @@
         "theming": [
           {
             "type": "code",
-            "doc": "src/Nexaflow.Markdown/Layout/Prose/PortableProse.cs",
-            "class": "PortableStyle"
+            "doc": "src/Nexaflow.Markdown/Layout/Prose/LayoutProse.cs",
+            "class": "LayoutStyle"
           }
         ]
       }
@@ -105,8 +105,8 @@
         "theming": [
           {
             "type": "code",
-            "doc": "src/Nexaflow.Markdown/Layout/Prose/PortableProse.cs",
-            "class": "PortableStyle"
+            "doc": "src/Nexaflow.Markdown/Layout/Prose/LayoutProse.cs",
+            "class": "LayoutStyle"
           }
         ]
       }
@@ -134,31 +134,6 @@
           "class": "MermaidStyle"
         },
         {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramWords.cs",
-          "class": "PortableDiagramWords"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramLegend.cs",
-          "class": "PortableDiagramLegend"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramShapes.cs",
-          "class": "PortableDiagramShapes"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramConnector.cs",
-          "class": "PortableDiagramConnector"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableLayouts.cs",
-          "class": "PortableLayouts"
-        },
-        {
           "type": "markdown",
           "doc": "docs/mermaid-diagrams.md",
           "title_path": [
@@ -167,38 +142,8 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramCurve.cs",
-          "class": "PortableDiagramCurve"
-        },
-        {
-          "type": "code",
           "doc": "src/Nexaflow.Markdown/Mermaid/DiagramSpan.cs",
           "class": "DiagramSpan"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramGlyph.cs",
-          "class": "PortableDiagramGlyphs"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramColours.cs",
-          "class": "PortableDiagramColours"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramBar.cs",
-          "class": "PortableDiagramBar"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramLayers.cs",
-          "class": "PortableDiagramLayers"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramLanes.cs",
-          "class": "PortableDiagramLanes"
         },
         {
           "type": "code",
@@ -209,21 +154,6 @@
           "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Editing/LinkedElement.cs",
           "class": "LinkedElement"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramBox.cs",
-          "class": "PortableDiagramBox"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramAlignment.cs",
-          "class": "PortableDiagramAlignment"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramShapes.cs",
-          "class": "PortableDiagramShapes"
         },
         {
           "type": "code",
@@ -242,26 +172,96 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramAxis.cs",
-          "class": "PortableDiagramAxis"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramAxis.cs",
-          "class": "PortableDiagramGrid"
-        },
-        {
-          "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutAction.cs",
           "class": "LayoutAnswers"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramAlignment.cs",
+          "class": "DiagramAlignment"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramAxis.cs",
+          "class": "DiagramAxis"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramAxis.cs",
+          "class": "DiagramGrid"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramBar.cs",
+          "class": "DiagramBar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramBox.cs",
+          "class": "DiagramBox"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramColours.cs",
+          "class": "DiagramColours"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramConnector.cs",
+          "class": "DiagramConnector"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramCurve.cs",
+          "class": "DiagramCurve"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramGlyph.cs",
+          "class": "DiagramGlyphs"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramLanes.cs",
+          "class": "DiagramLanes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramLayers.cs",
+          "class": "DiagramLayers"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramLegend.cs",
+          "class": "DiagramLegend"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramShapes.cs",
+          "class": "DiagramShapes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramShapes.cs",
+          "class": "DiagramShapes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramWords.cs",
+          "class": "DiagramWords"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/ContentLayouts.cs",
+          "class": "ContentLayouts"
         }
       ],
       "concerns": {
         "theming": [
           {
             "type": "code",
-            "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramInk.cs",
-            "class": "PortableDiagramInk"
+            "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramInk.cs",
+            "class": "DiagramInk"
           }
         ]
       }
@@ -270,14 +270,14 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableQuery.cs",
-          "class": "PortableQuery",
-          "method": "PlacesIn"
+          "doc": "src/Nexaflow.Markdown/Layout/CaretPlace.cs",
+          "class": "CaretPlace"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableCaretPlace.cs",
-          "class": "PortableCaretPlace"
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutQuery.cs",
+          "class": "LayoutQuery",
+          "method": "PlacesIn"
         }
       ]
     },
@@ -285,14 +285,14 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Prose/PortableText.cs",
-          "class": "PortableText",
-          "method": "Lined"
+          "doc": "src/Nexaflow.Visuals.Text/Painting/WpfMedium.cs",
+          "class": "RunSetting"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Painting/WpfMedium.cs",
-          "class": "RunSetting"
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/LayoutText.cs",
+          "class": "LayoutText",
+          "method": "Lined"
         }
       ]
     },
@@ -300,24 +300,18 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Prose/PortableProse.cs",
-          "class": "PortableDiagnostic"
+          "doc": "src/Nexaflow.Visuals.Text/Painting/Squiggle.cs",
+          "class": "Squiggle"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Painting/Squiggle.cs",
-          "class": "Squiggle"
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/LayoutProse.cs",
+          "class": "LayoutDiagnostic"
         }
       ]
     },
     "markdown-always-drawn": {
       "links": [
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableLaid.cs",
-          "class": "PortableLaid",
-          "method": "Drew"
-        },
         {
           "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.cs",
@@ -326,8 +320,14 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Prose/PortableMarkdownBuilder.cs",
-          "class": "PortableMarkdownBuilder",
+          "doc": "src/Nexaflow.Markdown/Layout/Laid.cs",
+          "class": "Laid",
+          "method": "Drew"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
           "method": "AsWritten"
         }
       ]
@@ -336,26 +336,26 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableBuilder.cs",
-          "class": "PortableBuilder",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutBuilder.cs",
+          "class": "LayoutBuilder",
           "method": "Occupies"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableQuery.cs",
-          "class": "PortableQuery",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutQuery.cs",
+          "class": "LayoutQuery",
           "method": "RangeRegions"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableQuery.cs",
-          "class": "PortableQuery",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutQuery.cs",
+          "class": "LayoutQuery",
           "method": "Squarely"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableQuery.cs",
-          "class": "PortableQuery",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutQuery.cs",
+          "class": "LayoutQuery",
           "method": "OnPage"
         }
       ]
@@ -364,42 +364,25 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableTree.cs",
-          "class": "PortableFrame"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortablePaint.cs",
-          "class": "PortablePaint",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutPaint.cs",
+          "class": "LayoutPaint",
           "method": "Applied"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableTree.cs",
-          "class": "PortableTree",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutTree.cs",
+          "class": "LayoutFrame"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutTree.cs",
+          "class": "LayoutTree",
           "method": "FrameOf"
         }
       ]
     },
     "markdown-long-reading": {
       "links": [
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableIndex.cs",
-          "class": "PortableIndex"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableQuery.cs",
-          "class": "PortableQuery",
-          "method": "PlacedNear"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableQuery.cs",
-          "class": "PortableQuery",
-          "method": "SittingIn"
-        },
         {
           "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Editing/ContentElement.cs",
@@ -417,6 +400,23 @@
           "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownLayoutBench.Reading.cs",
           "class": "MarkdownLayoutBench",
           "method": "Reading"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutIndex.cs",
+          "class": "LayoutIndex"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutQuery.cs",
+          "class": "LayoutQuery",
+          "method": "PlacedNear"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutQuery.cs",
+          "class": "LayoutQuery",
+          "method": "SittingIn"
         }
       ]
     },
@@ -435,17 +435,6 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Prose/PortableMarkdownBuilder.cs",
-          "class": "PortableMarkdownBuilder",
-          "method": "Whole"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortablePaint.cs",
-          "class": "PortableKept"
-        },
-        {
-          "type": "code",
           "doc": "src/Nexaflow.Markdown/Prose/MarkdownBlocks.cs",
           "class": "MarkdownBlocks",
           "method": "Read"
@@ -455,22 +444,22 @@
           "doc": "src/Nexaflow.Markdown/Ast/ContentNode.cs",
           "class": "ContentNode",
           "method": "FurtherOn"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutPaint.cs",
+          "class": "LayoutKept"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Whole"
         }
       ]
     },
     "markdown-pictures": {
       "links": [
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableMark.cs",
-          "class": "PortablePictureMark"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Prose/PortableMarkdownBuilder.Words.cs",
-          "class": "PortableMarkdownBuilder",
-          "method": "Pictured"
-        },
         {
           "type": "node",
           "target": "md-image-resolver"
@@ -479,16 +468,22 @@
           "type": "code",
           "doc": "src/Nexaflow.Markdown/Prose/MarkdownPictureSize.cs",
           "class": "MarkdownPictureSize"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutMark.cs",
+          "class": "PictureMark"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/MarkdownBuilder.Words.cs",
+          "class": "MarkdownBuilder",
+          "method": "Pictured"
         }
       ]
     },
     "layout-paint": {
       "links": [
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortablePaint.cs",
-          "class": "PortablePaint"
-        },
         {
           "type": "code",
           "doc": "src/Nexaflow.Markdown/Layout/LayoutMedium.cs",
@@ -502,8 +497,13 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableQuery.cs",
-          "class": "PortableQuery",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutPaint.cs",
+          "class": "LayoutPaint"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutQuery.cs",
+          "class": "LayoutQuery",
           "method": "Uncut"
         }
       ]
@@ -513,15 +513,14 @@
         {
           "type": "code",
           "status": "done",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableTree.cs",
-          "class": "PortableTree"
-        },
-        {
-          "type": "code",
-          "status": "done",
           "doc": "src/Nexaflow.Visuals.Text/Painting/WpfPainter.cs",
           "class": "WpfPainter",
           "method": "Paint"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutTree.cs",
+          "class": "LayoutTree"
         }
       ]
     },
@@ -529,43 +528,38 @@
       "links": [
         {
           "type": "code",
-          "status": "done",
-          "doc": "src/Nexaflow.Markdown/Layout/Maths/PortableLatexBuilder.cs",
-          "class": "PortableLatexBuilder"
-        },
-        {
-          "type": "code",
-          "status": "done",
-          "doc": "src/Nexaflow.Markdown/Layout/Maths/PortableLatexBuilder.cs",
-          "class": "PortableLatexBuilder"
-        },
-        {
-          "type": "code",
-          "status": "done",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableTree.cs",
-          "class": "PortableTree"
-        },
-        {
-          "type": "code",
-          "status": "done",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableTree.cs",
-          "class": "PortablePiece"
-        },
-        {
-          "type": "code",
-          "status": "done",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableQuery.cs",
-          "class": "PortableQuery"
-        },
-        {
-          "type": "code",
           "doc": "src/Nexaflow.Markdown/Ast/ISourcePart.cs",
           "class": "ISourcePart"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Maths/PortableLatexBuilder.cs",
-          "class": "PortableTexPart"
+          "doc": "src/Nexaflow.Markdown/Layout/Maths/LatexBuilder.cs",
+          "class": "LatexBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Maths/LatexBuilder.cs",
+          "class": "LatexBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Maths/LatexBuilder.cs",
+          "class": "TexPart"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutQuery.cs",
+          "class": "LayoutQuery"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutTree.cs",
+          "class": "LayoutPiece"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutTree.cs",
+          "class": "LayoutTree"
         }
       ]
     },
@@ -573,8 +567,8 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableQuery.cs",
-          "class": "PortableQuery",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutQuery.cs",
+          "class": "LayoutQuery",
           "method": "Wash"
         }
       ]
@@ -594,15 +588,15 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableQuery.cs",
-          "class": "PortableQuery",
-          "method": "Squarely"
-        },
-        {
-          "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs",
           "class": "MarkdownSurface",
           "method": "UnlimitedWidth"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutQuery.cs",
+          "class": "LayoutQuery",
+          "method": "Squarely"
         }
       ]
     },
@@ -610,30 +604,19 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortablePaint.cs",
-          "class": "PortableWords"
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutPaint.cs",
+          "class": "LayoutWords"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Prose/PortableText.cs",
-          "class": "PortableText",
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/LayoutText.cs",
+          "class": "LayoutText",
           "method": "Words"
         }
       ]
     },
     "gitgraph": {
       "links": [
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Git/PortableGitBuilder.cs",
-          "class": "PortableGitBuilder"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableTree.cs",
-          "class": "PortablePiece",
-          "method": "Turned"
-        },
         {
           "type": "markdown",
           "doc": "docs/MarkdownSupport.md",
@@ -645,6 +628,17 @@
         {
           "type": "url",
           "target": "https://mermaid.js.org/syntax/gitgraph.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Git/GitBuilder.cs",
+          "class": "GitBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutTree.cs",
+          "class": "LayoutPiece",
+          "method": "Turned"
         }
       ]
     },
@@ -652,28 +646,23 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Prose/PortableText.cs",
-          "class": "PortableSourceShown"
+          "doc": "src/Nexaflow.Markdown/Layout/UnreadBuilder.cs",
+          "class": "UnreadBuilder"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Prose/PortableText.cs",
-          "class": "PortableSourceShown"
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/LayoutText.cs",
+          "class": "SourceShown"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableUnreadBuilder.cs",
-          "class": "PortableUnreadBuilder"
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/LayoutText.cs",
+          "class": "SourceShown"
         }
       ]
     },
     "barcode-render": {
       "links": [
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Barcode/PortableBarcodeBuilder.cs",
-          "class": "PortableBarcodeBuilder"
-        },
         {
           "type": "code",
           "doc": "src/Nexaflow.Markdown/Barcode/BarcodeTextLayout.cs",
@@ -688,6 +677,11 @@
           "type": "code",
           "doc": "src/Nexaflow.Markdown/Barcode/BarcodeNodes.cs",
           "class": "BarcodeBarsNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Barcode/BarcodeBuilder.cs",
+          "class": "BarcodeBuilder"
         }
       ]
     },
@@ -706,8 +700,8 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Barcode/PortableBarcodeBuilder.cs",
-          "class": "PortableBarcodeBuilder",
+          "doc": "src/Nexaflow.Markdown/Layout/Barcode/BarcodeBuilder.cs",
+          "class": "BarcodeBuilder",
           "method": "LayPieces"
         }
       ]
@@ -721,13 +715,13 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Prose/PortableProse.cs",
-          "class": "PortableInset"
+          "doc": "src/Nexaflow.Markdown/Ast/ContentLink.cs",
+          "class": "ContentLink"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Ast/ContentLink.cs",
-          "class": "ContentLink"
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/LayoutProse.cs",
+          "class": "LayoutInset"
         }
       ]
     },
@@ -736,9 +730,8 @@
         "theming": [
           {
             "type": "code",
-            "status": "done",
-            "doc": "src/Nexaflow.Markdown/Layout/Maths/PortableLatexBuilder.cs",
-            "class": "PortableLatexBuilder"
+            "doc": "src/Nexaflow.Markdown/Layout/Maths/LatexBuilder.cs",
+            "class": "LatexBuilder"
           }
         ]
       }
@@ -753,9 +746,8 @@
         },
         {
           "type": "code",
-          "status": "done",
-          "doc": "src/Nexaflow.Markdown/Layout/Maths/PortableLatexBuilder.cs",
-          "class": "PortableLatexBuilder",
+          "doc": "src/Nexaflow.Markdown/Layout/Maths/LatexBuilder.cs",
+          "class": "LatexBuilder",
           "method": "Order"
         }
       ]
@@ -776,21 +768,21 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Prose/PortableMarkdownBuilder.Words.cs",
-          "class": "PortableMarkdownBuilder",
-          "method": "Formula"
-        },
-        {
-          "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.cs",
           "class": "ContentEngine",
           "method": "Nested"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Maths/PortableLatexBuilder.cs",
-          "class": "PortableLatexBuilder",
+          "doc": "src/Nexaflow.Markdown/Layout/Maths/LatexBuilder.cs",
+          "class": "LatexBuilder",
           "method": "Build"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/MarkdownBuilder.Words.cs",
+          "class": "MarkdownBuilder",
+          "method": "Formula"
         }
       ]
     },
@@ -798,9 +790,8 @@
       "links": [
         {
           "type": "code",
-          "status": "done",
-          "doc": "src/Nexaflow.Markdown/Layout/Maths/PortableLatexBuilder.cs",
-          "class": "PortableLatexBuilder",
+          "doc": "src/Nexaflow.Markdown/Layout/Maths/LatexBuilder.cs",
+          "class": "LatexBuilder",
           "method": "IsPlace"
         }
       ]
@@ -874,24 +865,19 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Block/PortableBlockBuilder.cs",
-          "class": "PortableBlockBuilder"
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Block/BlockBuilder.cs",
+          "class": "BlockBuilder"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramShapes.cs",
-          "class": "PortableDiagramShapes",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramShapes.cs",
+          "class": "DiagramShapes",
           "method": "For"
         }
       ]
     },
     "c4-diagram": {
       "links": [
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/C4/PortableC4Builder.cs",
-          "class": "PortableC4Builder"
-        },
         {
           "type": "code",
           "doc": "src/Nexaflow.Markdown/Mermaid/C4/C4Piece.cs",
@@ -904,6 +890,11 @@
             "Markdown Support",
             "Diagrams \u2014 sub-support"
           ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/C4/C4Builder.cs",
+          "class": "C4Builder"
         }
       ]
     },
@@ -915,11 +906,6 @@
           "class": "C4Elements"
         },
         {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramCard.cs",
-          "class": "PortableDiagramCard"
-        },
-        {
           "type": "markdown",
           "doc": "docs/theming.md",
           "title_path": [
@@ -927,19 +913,24 @@
             "Rule: a feature never hard-codes a colour",
             "Diagram tokens (markdown)"
           ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramCard.cs",
+          "class": "DiagramCard"
         }
       ],
       "concerns": {
         "theming": [
           {
             "type": "code",
-            "doc": "src/Nexaflow.Markdown/Layout/Mermaid/C4/PortableC4Grading.cs",
-            "class": "PortableC4Grading"
+            "doc": "src/Nexaflow.Markdown/Layout/Mermaid/C4/C4Grading.cs",
+            "class": "C4Grading"
           },
           {
             "type": "code",
-            "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramTone.cs",
-            "class": "PortableDiagramTone"
+            "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramTone.cs",
+            "class": "DiagramTone"
           }
         ]
       }
@@ -952,11 +943,6 @@
           "class": "ResolveFootBoxes"
         },
         {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/C4/PortableC4SequenceBuilder.cs",
-          "class": "PortableC4SequenceBuilder"
-        },
-        {
           "type": "url",
           "target": "https://github.com/plantuml-stdlib/C4-PlantUML"
         },
@@ -967,6 +953,11 @@
             "Markdown Support",
             "Diagrams \u2014 sub-support"
           ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/C4/C4SequenceBuilder.cs",
+          "class": "C4SequenceBuilder"
         }
       ]
     },
@@ -976,16 +967,6 @@
           "type": "code",
           "doc": "src/Nexaflow.Markdown/Nomnoml/NomnomlParser.cs",
           "class": "NomnomlParser"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Class/PortableClassBuilder.cs",
-          "class": "PortableClassBuilder"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Nomnoml/PortableNomnomlBuilder.cs",
-          "class": "PortableNomnomlBuilder"
         },
         {
           "type": "code",
@@ -1003,6 +984,16 @@
             "Markdown Support",
             "nomnoml \u2014 sub-support"
           ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Class/ClassBuilder.cs",
+          "class": "ClassBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Nomnoml/NomnomlBuilder.cs",
+          "class": "NomnomlBuilder"
         }
       ]
     },
@@ -1022,11 +1013,6 @@
           "type": "code",
           "doc": "src/Nexaflow.Markdown/Mermaid/Class/ClassConfig.cs",
           "class": "ClassConfig"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Class/PortableClassBuilder.cs",
-          "class": "PortableClassBuilder"
         },
         {
           "type": "code",
@@ -1050,6 +1036,11 @@
             "Markdown Support",
             "Diagrams \u2014 sub-support"
           ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Class/ClassBuilder.cs",
+          "class": "ClassBuilder"
         }
       ]
     },
@@ -1071,20 +1062,20 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Cynefin/PortableCynefinBuilder.cs",
-          "class": "PortableCynefinBuilder"
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Cynefin/CynefinBuilder.cs",
+          "class": "CynefinBuilder"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramCurve.cs",
-          "class": "PortableDiagramCurve",
-          "method": "Bowed"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramConnector.cs",
-          "class": "PortableDiagramConnector",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramConnector.cs",
+          "class": "DiagramConnector",
           "method": "Band"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramCurve.cs",
+          "class": "DiagramCurve",
+          "method": "Bowed"
         }
       ]
     },
@@ -1101,11 +1092,6 @@
           "class": "NexaflowConfig"
         },
         {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramChip.cs",
-          "class": "PortableDiagramChip"
-        },
-        {
           "type": "markdown",
           "doc": "docs/MarkdownSupport.md",
           "title_path": [
@@ -1113,11 +1099,6 @@
             "Diagrams \u2014 sub-support",
             "Nodes that fold (graph-family diagrams)"
           ]
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramSpill.cs",
-          "class": "PortableDiagramSpill"
         },
         {
           "type": "code",
@@ -1140,6 +1121,16 @@
           "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutAction.cs",
           "class": "LayoutAnswers"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramChip.cs",
+          "class": "DiagramChip"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramSpill.cs",
+          "class": "DiagramSpill"
         }
       ]
     },
@@ -1161,22 +1152,22 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Swimlane/PortableSwimlaneBuilder.cs",
-          "class": "PortableSwimlaneBuilder"
-        },
-        {
-          "type": "code",
           "doc": "src/Nexaflow.Markdown/Mermaid/Swimlane/SwimlaneConfig.cs",
           "class": "SwimlaneConfig"
         },
         {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramLanes.cs",
-          "class": "PortableDiagramLanes"
-        },
-        {
           "type": "node",
           "target": "graph-flowchart"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramLanes.cs",
+          "class": "DiagramLanes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Swimlane/SwimlaneBuilder.cs",
+          "class": "SwimlaneBuilder"
         }
       ]
     },
@@ -1196,13 +1187,13 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Journey/PortableJourneyBuilder.cs",
-          "class": "PortableJourneyBuilder"
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Journey/JourneyBuilder.cs",
+          "class": "JourneyBuilder"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramLegend.cs",
-          "class": "PortableDiagramLegend"
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramLegend.cs",
+          "class": "DiagramLegend"
         }
       ]
     },
@@ -1218,18 +1209,18 @@
           ]
         },
         {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Ishikawa/PortableIshikawaBuilder.cs",
-          "class": "PortableIshikawaBuilder"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramRoom.cs",
-          "class": "PortableDiagramRoom"
-        },
-        {
           "type": "url",
           "target": "https://mermaid.js.org/syntax/ishikawa.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Ishikawa/IshikawaBuilder.cs",
+          "class": "IshikawaBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramRoom.cs",
+          "class": "DiagramRoom"
         }
       ]
     },
@@ -1237,8 +1228,8 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramShapes.cs",
-          "class": "PortableDiagramShapes",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramShapes.cs",
+          "class": "DiagramShapes",
           "method": "Clear"
         }
       ]
@@ -1246,47 +1237,41 @@
     "gantt": {
       "links": [
         {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Gantt/PortableGanttBuilder.cs",
-          "class": "PortableGanttBuilder"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramTime.cs",
-          "class": "PortableDiagramTime"
-        },
-        {
           "type": "url",
           "target": "https://mermaid.js.org/syntax/gantt.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Gantt/GanttBuilder.cs",
+          "class": "GanttBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramTime.cs",
+          "class": "DiagramTime"
         }
       ]
     },
     "mindmap": {
       "links": [
         {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Mindmap/PortableMindmapBuilder.cs",
-          "class": "PortableMindmapBuilder"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramTree.cs",
-          "class": "PortableDiagramTree"
-        },
-        {
           "type": "url",
           "target": "https://mermaid.js.org/syntax/mindmap.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Mindmap/MindmapBuilder.cs",
+          "class": "MindmapBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramTree.cs",
+          "class": "DiagramTree"
         }
       ]
     },
     "kanban-writing": {
       "links": [
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramWords.cs",
-          "class": "PortableDiagramWords",
-          "method": "Stack"
-        },
         {
           "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Kanban/KanbanEdits.cs",
@@ -1295,9 +1280,15 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramText.cs",
-          "class": "PortableDiagramText",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramText.cs",
+          "class": "DiagramText",
           "method": "Wrapped"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramWords.cs",
+          "class": "DiagramWords",
+          "method": "Stack"
         }
       ]
     },
@@ -1328,23 +1319,18 @@
           "class": "ErConfig"
         },
         {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Er/PortableErBuilder.cs",
-          "class": "PortableErBuilder"
-        },
-        {
           "type": "url",
           "target": "https://mermaid.js.org/syntax/entityRelationshipDiagram.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Er/ErBuilder.cs",
+          "class": "ErBuilder"
         }
       ]
     },
     "graph-flowchart": {
       "links": [
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Flowchart/PortableFlowchartBuilder.cs",
-          "class": "PortableFlowchartBuilder"
-        },
         {
           "type": "node",
           "target": "graph-expandable-nodes"
@@ -1370,19 +1356,24 @@
             "Markdown Support",
             "Diagrams \u2014 sub-support"
           ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Flowchart/FlowchartBuilder.cs",
+          "class": "FlowchartBuilder"
         }
       ]
     },
     "kanban": {
       "links": [
         {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Kanban/PortableKanbanBuilder.cs",
-          "class": "PortableKanbanBuilder"
-        },
-        {
           "type": "url",
           "target": "https://mermaid.js.org/syntax/kanban.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Kanban/KanbanBuilder.cs",
+          "class": "KanbanBuilder"
         }
       ]
     },
@@ -1390,23 +1381,23 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/PortableLayouts.cs",
-          "class": "PortableLayouts"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableMermaidFenceBuilder.cs",
-          "class": "PortableMermaidFenceBuilder"
-        },
-        {
-          "type": "code",
           "doc": "src/Nexaflow.Markdown/Mermaid/MermaidFenceParser.cs",
           "class": "MermaidFenceParser"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramSheet.cs",
-          "class": "PortableDiagramSheet"
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramSheet.cs",
+          "class": "DiagramSheet"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/MermaidFenceBuilder.cs",
+          "class": "MermaidFenceBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/ContentLayouts.cs",
+          "class": "ContentLayouts"
         }
       ]
     },
@@ -1421,14 +1412,14 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramSheet.cs",
-          "class": "PortableDiagramSheet",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramSheet.cs",
+          "class": "DiagramSheet",
           "method": "Reduced"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/PortableDiagramSheet.cs",
-          "class": "PortableDiagramSheet",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramSheet.cs",
+          "class": "DiagramSheet",
           "method": "LaidNarrower"
         }
       ]
@@ -1436,26 +1427,26 @@
     "pie": {
       "links": [
         {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Pie/PortablePieBuilder.cs",
-          "class": "PortablePieBuilder"
-        },
-        {
           "type": "url",
           "target": "https://mermaid.js.org/syntax/pie.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Pie/PieBuilder.cs",
+          "class": "PieBuilder"
         }
       ]
     },
     "quadrant-graph": {
       "links": [
         {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Quadrant/PortableQuadrantBuilder.cs",
-          "class": "PortableQuadrantBuilder"
-        },
-        {
           "type": "url",
           "target": "https://mermaid.js.org/syntax/quadrantChart.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Quadrant/QuadrantBuilder.cs",
+          "class": "QuadrantBuilder"
         }
       ]
     },
@@ -1471,13 +1462,13 @@
           ]
         },
         {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Radar/PortableRadarBuilder.cs",
-          "class": "PortableRadarBuilder"
-        },
-        {
           "type": "url",
           "target": "https://mermaid.js.org/syntax/radar.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Radar/RadarBuilder.cs",
+          "class": "RadarBuilder"
         }
       ]
     },
@@ -1499,11 +1490,6 @@
           "class": "RequirementConfig"
         },
         {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Requirement/PortableRequirementBuilder.cs",
-          "class": "PortableRequirementBuilder"
-        },
-        {
           "type": "url",
           "target": "https://mermaid.js.org/syntax/requirementDiagram.html"
         },
@@ -1514,6 +1500,11 @@
             "Markdown Support",
             "Diagrams \u2014 sub-support"
           ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Requirement/RequirementBuilder.cs",
+          "class": "RequirementBuilder"
         }
       ]
     },
@@ -1530,11 +1521,6 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Sankey/PortableSankeyBuilder.cs",
-          "class": "PortableSankeyBuilder"
-        },
-        {
-          "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Sankey/SankeyEdits.cs",
           "class": "SankeyEdits",
           "method": "Renamed"
@@ -1542,6 +1528,11 @@
         {
           "type": "url",
           "target": "https://mermaid.js.org/syntax/sankey.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Sankey/SankeyBuilder.cs",
+          "class": "SankeyBuilder"
         }
       ]
     },
@@ -1564,11 +1555,6 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Sequence/PortableSequenceBuilder.cs",
-          "class": "PortableSequenceBuilder"
-        },
-        {
-          "type": "code",
           "doc": "src/Nexaflow.Markdown/Mermaid/Sequence/SequenceParser.cs",
           "class": "SequenceParser"
         },
@@ -1583,6 +1569,11 @@
             "Markdown Support",
             "Diagrams \u2014 sub-support"
           ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Sequence/SequenceBuilder.cs",
+          "class": "SequenceBuilder"
         }
       ]
     },
@@ -1604,11 +1595,6 @@
           "class": "StateConfig"
         },
         {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/State/PortableStateBuilder.cs",
-          "class": "PortableStateBuilder"
-        },
-        {
           "type": "url",
           "target": "https://mermaid.js.org/syntax/stateDiagram.html"
         },
@@ -1622,6 +1608,11 @@
           "doc": "src/Nexaflow.Markdown/Mermaid/MermaidDiagram.cs",
           "class": "MermaidDiagrams",
           "method": "TranspilerFor"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/State/StateBuilder.cs",
+          "class": "StateBuilder"
         }
       ]
     },
@@ -1641,8 +1632,8 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Timeline/PortableTimelineBuilder.cs",
-          "class": "PortableTimelineBuilder"
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Timeline/TimelineBuilder.cs",
+          "class": "TimelineBuilder"
         }
       ]
     },
@@ -1658,18 +1649,18 @@
           ]
         },
         {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Venn/PortableVennBuilder.cs",
-          "class": "PortableVennBuilder"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Venn/PortableVennLayout.cs",
-          "class": "PortableVennLayout"
-        },
-        {
           "type": "url",
           "target": "https://mermaid.js.org/syntax/venn.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Venn/VennBuilder.cs",
+          "class": "VennBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Venn/VennLayout.cs",
+          "class": "VennLayout"
         }
       ]
     },
@@ -1685,13 +1676,13 @@
           ]
         },
         {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Xy/PortableXyBuilder.cs",
-          "class": "PortableXyBuilder"
-        },
-        {
           "type": "url",
           "target": "https://mermaid.js.org/syntax/xyChart.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Xy/XyBuilder.cs",
+          "class": "XyBuilder"
         }
       ]
     },
@@ -1770,13 +1761,13 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Scores/PortableMusicBuilder.cs",
-          "class": "PortableMusicBuilder"
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
+          "class": "Shipped"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
-          "class": "Shipped"
+          "doc": "src/Nexaflow.Markdown/Layout/Scores/MusicBuilder.cs",
+          "class": "MusicBuilder"
         }
       ]
     },
@@ -1896,18 +1887,18 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Plot/PortablePlotBuilder.cs",
-          "class": "PortablePlotBuilder"
-        },
-        {
-          "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
           "class": "Shipped"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Plot/PortablePlotBuilder.cs",
-          "class": "PortablePlotBuilder"
+          "doc": "src/Nexaflow.Markdown/Layout/Plot/PlotBuilder.cs",
+          "class": "PlotBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Plot/PlotBuilder.cs",
+          "class": "PlotBuilder"
         }
       ]
     },
@@ -1915,32 +1906,32 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Prose/PortableMarkdownBuilder.cs",
-          "class": "PortableMarkdownBuilder",
-          "method": "Calls"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Prose/PortableMarkdownBuilder.cs",
-          "class": "PortableMarkdownBuilder",
-          "method": "Numbered"
-        },
-        {
-          "type": "code",
           "doc": "src/Nexaflow.Markdown/Prose/MarkdownGroups.cs",
           "class": "MarkdownGroups"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Prose/PortableMarkdownBuilder.cs",
-          "class": "PortableMarkdownBuilder",
-          "method": "Figured"
         },
         {
           "type": "code",
           "doc": "src/Nexaflow.Markdown/Prose/MarkdownTokenizer.cs",
           "class": "MarkdownTokenizer",
           "method": "Escaped"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Calls"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Numbered"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Figured"
         }
       ]
     },
@@ -1948,8 +1939,8 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Prose/PortableMarkdownBuilder.cs",
-          "class": "PortableMarkdownBuilder",
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
           "method": "Folded"
         }
       ]
@@ -1964,32 +1955,26 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Prose/PortableMarkdownBuilder.Table.cs",
-          "class": "PortableMarkdownBuilder",
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/MarkdownBuilder.Table.cs",
+          "class": "MarkdownBuilder",
           "method": "Placed"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Prose/PortableMarkdownBuilder.Table.cs",
-          "class": "PortableMarkdownBuilder",
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/MarkdownBuilder.Table.cs",
+          "class": "MarkdownBuilder",
           "method": "Heights"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Prose/PortableMarkdownBuilder.Table.cs",
-          "class": "PortableMarkdownBuilder",
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/MarkdownBuilder.Table.cs",
+          "class": "MarkdownBuilder",
           "method": "Owners"
         }
       ]
     },
     "rtf-drawing": {
       "links": [
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Prose/PortableMarkdownBuilder.Words.cs",
-          "class": "PortableMarkdownBuilder",
-          "method": "Typeset"
-        },
         {
           "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Markdown/DrawnText.cs",
@@ -2004,21 +1989,17 @@
           "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/WithEmbeddedPictures.cs",
           "class": "WithEmbeddedPictures"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/MarkdownBuilder.Words.cs",
+          "class": "MarkdownBuilder",
+          "method": "Typeset"
         }
       ]
     },
     "wordcloud-render": {
       "links": [
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/WordCloud/PortableWordCloudBuilder.cs",
-          "class": "PortableWordCloudBuilder"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/WordCloud/PortableCloudInk.cs",
-          "class": "PortableCloudInk"
-        },
         {
           "type": "code",
           "doc": "src/Nexaflow.Markdown/WordCloud/Stages/ResolveWords.cs",
@@ -2029,6 +2010,16 @@
           "type": "code",
           "doc": "src/Nexaflow.Markdown/WordCloud/WordCloudNodes.cs",
           "class": "WordCloudWordNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/WordCloud/CloudInk.cs",
+          "class": "CloudInk"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/WordCloud/WordCloudBuilder.cs",
+          "class": "WordCloudBuilder"
         }
       ]
     },
@@ -2036,8 +2027,8 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/WordCloud/PortableWordCloudBuilder.cs",
-          "class": "PortableWordCloudBuilder",
+          "doc": "src/Nexaflow.Markdown/Layout/WordCloud/WordCloudBuilder.cs",
+          "class": "WordCloudBuilder",
           "method": "Place"
         }
       ]
@@ -2051,20 +2042,20 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/WordCloud/PortableWordCloudBuilder.cs",
-          "class": "PortableWordCloudBuilder",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/WordCloud/Stages/WithPictures.cs",
+          "class": "WithPictures"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/WordCloud/WordCloudBuilder.cs",
+          "class": "WordCloudBuilder",
           "method": "FromLetters"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/WordCloud/PortableWordCloudBuilder.cs",
-          "class": "PortableWordCloudBuilder",
+          "doc": "src/Nexaflow.Markdown/Layout/WordCloud/WordCloudBuilder.cs",
+          "class": "WordCloudBuilder",
           "method": "FromPicture"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/WordCloud/Stages/WithPictures.cs",
-          "class": "WithPictures"
         }
       ]
     }

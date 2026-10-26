@@ -42,7 +42,7 @@ public class KanbanBuilderTests : MermaidBuilderContract
         ("nothing to draw", "kanban"),
     ];
 
-    private static PortableLaid Build(string source, double room = 700) =>
+    private static Laid Build(string source, double room = 700) =>
         Laying.Lay("mermaid", source, room);
 
     [TestMethod]
@@ -111,7 +111,7 @@ public class KanbanBuilderTests : MermaidBuilderContract
         Assert.AreEqual(ticket.Bounds.Top, priority.Bounds.Top, 0.5, "on the ticket's row");
         Assert.IsTrue(priority.Bounds.Left > ticket.Bounds.Right, "after it");
 
-        var plain = Pieces(laid, KanbanPiece.Card)[0].SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<PortableGeometryMark>()
+        var plain = Pieces(laid, KanbanPiece.Card)[0].SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>()
             .Where(mark => mark.Stroke is null && mark.Fill is not null).ToList();
         Assert.AreEqual(1, plain.Count, "a card with no priority still has its stripe");
         Assert.IsTrue(plain[0].Shape.Bounds.Width < 5, "down its left edge");

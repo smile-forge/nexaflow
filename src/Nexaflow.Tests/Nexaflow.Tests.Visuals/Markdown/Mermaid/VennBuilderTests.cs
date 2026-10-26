@@ -46,24 +46,24 @@ public class VennBuilderTests : MermaidBuilderContract
         ("no sets at all", "venn-beta\n  title Nothing"),
     ];
 
-    private static PortableLaid Build(string source, double room = 700) =>
+    private static Laid Build(string source, double room = 700) =>
         Laying.Lay("mermaid", source, room);
 
     /// <summary>A circle's centre and radius, from the circle it is drawn as.</summary>
-    private static (Point Centre, double Radius) Round(PortablePiece circle)
+    private static (Point Centre, double Radius) Round(LayoutPiece circle)
     {
         foreach (var mark in circle.Marks)
-            if (mark is PortableGeometryMark { Shape: WpfShape { Geometry: EllipseGeometry shape } })
+            if (mark is GeometryMark { Shape: WpfShape { Geometry: EllipseGeometry shape } })
                 return (shape.Center + new Vector(circle.Anchor.X, circle.Anchor.Y), shape.RadiusX);
 
         Assert.Fail("a circle is drawn as a circle");
         return default;
     }
 
-    private static Brush? Paint(PortablePiece piece)
+    private static Brush? Paint(LayoutPiece piece)
     {
         foreach (var mark in piece.Marks)
-            if (mark is PortableGeometryMark { Fill: { } fill }) return fill.Brush();
+            if (mark is GeometryMark { Fill: { } fill }) return fill.Brush();
 
         return null;
     }
@@ -94,7 +94,7 @@ public class VennBuilderTests : MermaidBuilderContract
         var circles = Pieces(Build(Sized), VennPiece.Circle).Select(Round).ToList();
         var (a, b) = (circles[0], circles[1]);
 
-        var shared = PortableVennLayout.Lens(a.Radius, b.Radius, (a.Centre - b.Centre).Length);
+        var shared = VennLayout.Lens(a.Radius, b.Radius, (a.Centre - b.Centre).Length);
         Assert.AreEqual(3.0 / 20, shared / (Math.PI * a.Radius * a.Radius), 0.005, "three twentieths of Alpha is shared with Beta");
     });
 
@@ -229,7 +229,7 @@ public class VennBuilderTests : MermaidBuilderContract
     {
         var laid = Build("venn-beta\n  circle A");
 
-        Assert.IsTrue(Pieces(laid, PortableText.SourceKind).Any(), "the lines are on the page");
+        Assert.IsTrue(Pieces(laid, LayoutText.SourceKind).Any(), "the lines are on the page");
         Assert.AreEqual(0, Pieces(laid, VennPiece.Circle).Count());
         StringAssert.Contains(laid.Trouble.Single().Message, "a set, a union");
     });
@@ -248,7 +248,7 @@ public class VennBuilderTests : MermaidBuilderContract
     // ── What is read from the lines as written ──────────────────────────────
 
     /// <summary>Where the words drawn for each label and item are, by what they say.</summary>
-    private static Dictionary<string, Point> Said(PortableLaid laid) =>
+    private static Dictionary<string, Point> Said(Laid laid) =>
         laid.Root.SelfAndDescendants().Where(piece => piece.Words is not null)
             .GroupBy(piece => piece.Words!.Glyphs.Text)
             .ToDictionary(same => same.Key, same => same.First().Bounds is var box ? new Point(box.X + (box.Width / 2), box.Y + (box.Height / 2)) : default);
@@ -322,7 +322,7 @@ public class VennBuilderTests : MermaidBuilderContract
     {
         const string source = "venn-beta\n  set A[\"\"]\n    text \"\"";
 
-        bool Holds(PortableLaid laid, int at) => laid.Root.SelfAndDescendants().Any(piece => piece.Part?.Start == at && piece.Part.Length == 0);
+        bool Holds(Laid laid, int at) => laid.Root.SelfAndDescendants().Any(piece => piece.Part?.Start == at && piece.Part.Length == 0);
         var writing = Laying.Lay("mermaid", source, 700, writing: true);
 
         Assert.IsTrue(Holds(writing, source.IndexOf("[\"", StringComparison.Ordinal) + 2), "between the label's quotes");

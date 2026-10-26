@@ -55,7 +55,7 @@ public class AbcCorpusRenderTests
         {
             var abc = Text(file);
 
-            PortableLaid layout;
+            Laid layout;
             try
             {
                 layout = Laying.Engraved("abc", abc, 700, WpfStyles.Light);

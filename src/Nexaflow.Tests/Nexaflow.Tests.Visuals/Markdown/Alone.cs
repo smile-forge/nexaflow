@@ -30,7 +30,7 @@ namespace Nexaflow.Tests.Visuals.Markdown;
 internal static class Alone
 {
     /// <summary><paramref name="source"/> as the language <paramref name="language"/> names draws it, in <paramref name="palette"/>, told what the host says.</summary>
-    public static ContentElement Drawn(string language, string source, PortableStyle? palette = null, ContentInputs? inputs = null)
+    public static ContentElement Drawn(string language, string source, LayoutStyle? palette = null, ContentInputs? inputs = null)
     {
         if (!ContentLanguages.Reads(language)) throw new ArgumentException($"no language reads '{language}'", nameof(language));
 
@@ -44,7 +44,7 @@ internal static class Alone
     }
 
     /// <summary>A score on an element of its own, written in to by nobody.</summary>
-    public static ContentElement Engraved(MusicDialect dialect, string source, PortableStyle palette, double zoom = 1)
+    public static ContentElement Engraved(MusicDialect dialect, string source, LayoutStyle palette, double zoom = 1)
     {
         var named = dialect == MusicDialect.LilyPond ? "lilypond" : "abc";
 

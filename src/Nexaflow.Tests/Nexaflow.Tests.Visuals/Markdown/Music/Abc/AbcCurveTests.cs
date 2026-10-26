@@ -96,7 +96,7 @@ public class AbcCurveTests
         foreach (var (what, abc) in AbcConstructs.Everything)
         {
             var layout = Laying.Engraved("abc", abc, 700, WpfStyles.Light);
-            var seen = new HashSet<PortablePiece>();
+            var seen = new HashSet<LayoutPiece>();
 
             foreach (var node in layout.Root.SelfAndDescendants())
             {
@@ -109,12 +109,12 @@ public class AbcCurveTests
         }
     });
 
-    private static PortablePiece Only(PortableLaid layout, string kind)
+    private static LayoutPiece Only(Laid layout, string kind)
     {
         var found = layout.Root.SelfAndDescendants().Where(n => Kind(n) == kind).ToList();
         Assert.AreEqual(1, found.Count, $"expected one {kind}, found {found.Count}");
         return found[0];
     }
 
-    private static string Kind(PortablePiece node) => node.Exists ? node.Kind : "nothing";
+    private static string Kind(LayoutPiece node) => node.Exists ? node.Kind : "nothing";
 }

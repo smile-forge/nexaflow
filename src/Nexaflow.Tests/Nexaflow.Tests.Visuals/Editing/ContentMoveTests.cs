@@ -122,7 +122,7 @@ public class ContentMoveTests
     {
         var root = ContentPart.Of(MarkdownParser.Parsing()(source).Tree);
 
-        return new ContentMove(carried, to, new Landing(new EditState(source, to), PortableLaid.Nothing(WpfMedium.OnThisThread), -1), default, root, root);
+        return new ContentMove(carried, to, new Landing(new EditState(source, to), Laid.Nothing(WpfMedium.OnThisThread), -1), default, root, root);
     }
 
     private static MarkdownElement Element(bool readOnly = false)
@@ -137,7 +137,7 @@ public class ContentMoveTests
     }
 
     /// <summary>The piece the words of the one paragraph were drawn as.</summary>
-    private static PortablePiece Words(MarkdownElement element) =>
+    private static LayoutPiece Words(MarkdownElement element) =>
         element.Laid.Root.SelfAndDescendants().First(piece => piece.Words is { Maps: true });
 
     /// <summary>A press, a drag and a release, which is one gesture whether it picks out or carries.</summary>
@@ -151,13 +151,13 @@ public class ContentMoveTests
 
     private static string Picked(MarkdownElement element) => element.SelectedText;
 
-    private static Point Left(PortablePiece piece) => new(piece.Bounds.X + 1, piece.Bounds.Y + (piece.Bounds.Height / 2));
+    private static Point Left(LayoutPiece piece) => new(piece.Bounds.X + 1, piece.Bounds.Y + (piece.Bounds.Height / 2));
 
-    private static Point Right(PortablePiece piece) =>
+    private static Point Right(LayoutPiece piece) =>
         new(piece.Bounds.Right - 1, piece.Bounds.Y + (piece.Bounds.Height / 2));
 
     /// <summary>A point about <paramref name="letters"/> letters along the run, which is enough to land inside a word.</summary>
-    private static Point Middle(PortablePiece piece, int letters) =>
+    private static Point Middle(LayoutPiece piece, int letters) =>
         new(piece.Bounds.X + (piece.Bounds.Width * letters / Source.TrimEnd('\n').Length),
             piece.Bounds.Y + (piece.Bounds.Height / 2));
 

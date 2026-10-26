@@ -46,7 +46,7 @@ public class QuadrantBuilderTests : MermaidBuilderContract
         ("nothing to draw", "quadrantChart"),
     ];
 
-    private static PortableLaid Build(string source, double room = 700) =>
+    private static Laid Build(string source, double room = 700) =>
         Laying.Lay("mermaid", source, room);
 
     [TestMethod]
@@ -100,7 +100,7 @@ public class QuadrantBuilderTests : MermaidBuilderContract
         var dot = Pieces(laid, QuadrantPiece.Point).Single();
 
         Assert.AreEqual(24, dot.Bounds.Width, 1, "its own radius over its class's");
-        var mark = dot.Marks.ToArray().OfType<PortableGeometryMark>().Single();
+        var mark = dot.Marks.ToArray().OfType<GeometryMark>().Single();
         Assert.AreEqual(Color.FromRgb(0xFF, 0, 0), ((SolidColorBrush)mark.Fill!.Brush()).Color, "its class's colour");
     });
 
@@ -177,8 +177,8 @@ public class QuadrantBuilderTests : MermaidBuilderContract
         Assert.IsFalse(taken.Any(what => what.IntersectsWith(captions["Expand"])), "clear of the point in its middle, and its name");
     });
 
-    private static Brush? Ink(PortablePiece words) =>
-        words.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<PortableTextMark>().First().Ink?.Brush();
+    private static Brush? Ink(LayoutPiece words) =>
+        words.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<TextMark>().First().Ink?.Brush();
 
     [TestMethod]
     public void TheChartIsFittedIntoTheRoomItIsGiven() => UiThread.Run(() =>

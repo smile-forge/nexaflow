@@ -30,17 +30,17 @@ public class DiagramShapesTests
     [TestMethod]
     public void EveryShapeHoldsTheWordsItIsMadeToTheSizeOf() => UiThread.Run(() =>
     {
-        foreach (var shape in Shapes.Where(PortableDiagramShapes.Worded))
+        foreach (var shape in Shapes.Where(DiagramShapes.Worded))
             foreach (var words in new[] { new LayoutSize(60, 14), new LayoutSize(12, 30), new LayoutSize(220, 16) })
             {
-            var size = PortableDiagramShapes.Around(shape, words, pad: 6);
+            var size = DiagramShapes.Around(shape, words, pad: 6);
             var bounds = new LayoutRect(new LayoutPoint(10, 20), size);
-                var inside = PortableDiagramShapes.Inside(shape, bounds);
+                var inside = DiagramShapes.Inside(shape, bounds);
 
                 Assert.IsTrue(inside.Width >= words.Width - 1e-6 && inside.Height >= words.Height - 1e-6,
                               $"{shape}: {words} fits in {inside}");
 
-                var outline = PortableDiagramShapes.Outline(WpfHandles.Medium, shape, bounds);
+                var outline = DiagramShapes.Outline(WpfHandles.Medium, shape, bounds);
                 var room = new LayoutRect(inside.X + (inside.Width / 2) - (words.Width / 2) + 0.5, inside.Y + (inside.Height / 2) - (words.Height / 2) + 0.5,
                                     Math.Max(0, words.Width - 1), Math.Max(0, words.Height - 1));
 
@@ -56,7 +56,7 @@ public class DiagramShapesTests
 
         foreach (var shape in Shapes)
         {
-            var outline = PortableDiagramShapes.Outline(WpfHandles.Medium, shape, bounds);
+            var outline = DiagramShapes.Outline(WpfHandles.Medium, shape, bounds);
             Assert.IsTrue(outline.Geometry().IsFrozen, $"{shape} is frozen, so it can be drawn from any thread");
             Assert.AreEqual(bounds.Width, outline.Bounds.Width, 1, $"{shape}: as wide as its bounds");
             Assert.AreEqual(bounds.Height, outline.Bounds.Height, 1.5, $"{shape}: as tall as its bounds");
@@ -77,13 +77,13 @@ public class DiagramShapesTests
                      DiagramShape.SmallCircle, DiagramShape.CrossedCircle,
                  })
         {
-            var outline = PortableDiagramShapes.Outline(WpfHandles.Medium, shape, bounds).Geometry();
+            var outline = DiagramShapes.Outline(WpfHandles.Medium, shape, bounds).Geometry();
 
             for (var turn = 0; turn < 16; turn++)
             {
                 var angle = turn * Math.PI / 8;
                 var toward = new LayoutPoint(60 + (500 * Math.Cos(angle)), 30 + (500 * Math.Sin(angle)));
-                var met = PortableDiagramShapes.Edge(shape, bounds, toward);
+                var met = DiagramShapes.Edge(shape, bounds, toward);
 
                 Assert.IsTrue(outline.StrokeContains(edge, met.ToWpf()), $"{shape}: a line toward {toward.ToWpf().ToString(CultureInfo.InvariantCulture)} meets it at {met}, on its outline");
             }
@@ -94,17 +94,17 @@ public class DiagramShapesTests
     public void AShapeStandsInItsOutline_WithItsWordsInTheMiddle() => UiThread.Run(() =>
     {
         var words = Words("Decide", new TestPart(0, 6));
-        var bounds = new LayoutRect(new LayoutPoint(40, 30), PortableDiagramShapes.Around(DiagramShape.Diamond, new LayoutSize(words.Width, words.Height), pad: 6));
+        var bounds = new LayoutRect(new LayoutPoint(40, 30), DiagramShapes.Around(DiagramShape.Diamond, new LayoutSize(words.Width, words.Height), pad: 6));
 
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("page");
 
         // Something under it, so a press that misses the diamond has something else to mean.
-        build.Open("Page", new TestPart(20, 1), stops: PortableStops.None);
-        build.Draw(new PortableRuleMark(new LayoutRect(0, 0, 400, 300), Brushes.White.Ink()));
+        build.Open("Page", new TestPart(20, 1), stops: LayoutStops.None);
+        build.Draw(new RuleMark(new LayoutRect(0, 0, 400, 300), Brushes.White.Ink()));
         build.Close();
 
-        PortableDiagramShapes.Draw(build, "Node", new TestPart(0, 6), DiagramShape.Diamond, bounds, Brushes.White.Ink(), new PortableDiagramStroke(Brushes.Black.Ink()), words);
+        DiagramShapes.Draw(build, "Node", new TestPart(0, 6), DiagramShape.Diamond, bounds, Brushes.White.Ink(), new DiagramStroke(Brushes.Black.Ink()), words);
         build.Close();
 
         var root = build.Seal().Root;
@@ -119,11 +119,11 @@ public class DiagramShapesTests
     });
 
     /// <summary>Words worked out, which stand for nothing.</summary>
-    internal static PortableDiagramWords Words(string text, ISourcePart? part = null)
+    internal static DiagramWords Words(string text, ISourcePart? part = null)
     {
         var set = WpfHandles.Medium.Shape(text, new Typeface("Segoe UI"), 12, Brushes.Black, null, CultureInfo.InvariantCulture);
         var letter = WpfHandles.Medium.Shape("x", new Typeface("Segoe UI"), 12, Brushes.Black, null, CultureInfo.InvariantCulture);
-        return new PortableDiagramWords(set, part, hole: null, letter, Brushes.Black.Ink(), maps: part is not null, writes: part is not null);
+        return new DiagramWords(set, part, hole: null, letter, Brushes.Black.Ink(), maps: part is not null, writes: part is not null);
     }
 
     [TestMethod]
@@ -133,15 +133,15 @@ public class DiagramShapesTests
         var title = Words("Title", new TestPart(0, 5));
         var covered = new RectangleGeometry(new Rect(20, 60, 160, 40)).Shape();
 
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("page");
-        PortableDiagramShapes.Draw(build, "Column", new TestPart(10, 3), DiagramShape.Rectangle, bounds, Brushes.White.Ink(), new PortableDiagramStroke(Brushes.Black.Ink()),
+        DiagramShapes.Draw(build, "Column", new TestPart(10, 3), DiagramShape.Rectangle, bounds, Brushes.White.Ink(), new DiagramStroke(Brushes.Black.Ink()),
                            [(title, new LayoutPoint(10, 10), "Title")], covered);
 
         // A card drawn after the column, where the column was told something is drawn over it: a press there is the card's,
         // though the column came first.
-        build.Open("Card", new TestPart(20, 2), stops: PortableStops.None);
-        build.Draw(new PortableGeometryMark(covered, Brushes.Gray.Ink(), null));
+        build.Open("Card", new TestPart(20, 2), stops: LayoutStops.None);
+        build.Draw(new GeometryMark(covered, Brushes.Gray.Ink(), null));
         build.Occupies(covered);
         build.Close();
         build.Close();
@@ -159,15 +159,15 @@ public class DiagramShapesTests
         var bounds = new LayoutRect(0, 0, 200, 120);
         var title = Words("Title", new TestPart(0, 5));
 
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("page");
-        PortableDiagramShapes.Draw(build, "Group", new TestPart(10, 3), DiagramShape.Rounded, bounds, Brushes.White.Ink(), new PortableDiagramStroke(Brushes.Black.Ink()),
+        DiagramShapes.Draw(build, "Group", new TestPart(10, 3), DiagramShape.Rounded, bounds, Brushes.White.Ink(), new DiagramStroke(Brushes.Black.Ink()),
                            [(title, new LayoutPoint(10, 6), "Title")], band: Brushes.Navy.Ink());
         build.Close();
 
         var root = build.Seal().Root;
         var shape = root.SelfAndDescendants().Single(piece => piece.Kind == MermaidPiece.Shape);
-        var marks = shape.Marks.ToArray().OfType<PortableGeometryMark>().ToList();
+        var marks = shape.Marks.ToArray().OfType<GeometryMark>().ToList();
         var band = marks.Single(mark => mark.Fill == Brushes.Navy.Ink()).Shape.Bounds;
 
         Assert.AreEqual(bounds.Top, band.Top, 0.5, "the band runs from the top of the shape");
@@ -183,10 +183,10 @@ public class DiagramShapesTests
     public void EveryShapeMermaidNamesIsDrawnAsOneOfItsOwn()
     {
         var named = Enum.GetValues<MermaidShape>().Except([MermaidShape.None, MermaidShape.Text]).ToList();
-        var drawn = named.Select(PortableDiagramShapes.For).ToList();
+        var drawn = named.Select(DiagramShapes.For).ToList();
 
         Assert.AreEqual(named.Count, drawn.Distinct().Count(), "no two shapes are drawn the same");
-        Assert.AreEqual(DiagramShape.Rectangle, PortableDiagramShapes.For(MermaidShape.None), "and brackets that say no shape are a plain box");
+        Assert.AreEqual(DiagramShape.Rectangle, DiagramShapes.For(MermaidShape.None), "and brackets that say no shape are a plain box");
     }
 
     /// <summary>Mermaid's small markers are drawn at a size of their own without their words, and the solid ones filled in their ink.</summary>
@@ -195,19 +195,19 @@ public class DiagramShapesTests
     {
         foreach (var shape in new[] { DiagramShape.SmallCircle, DiagramShape.FilledCircle, DiagramShape.Fork, DiagramShape.Bolt, DiagramShape.Hourglass })
         {
-            var size = PortableDiagramShapes.Around(shape, new LayoutSize(200, 40), pad: 6);
+            var size = DiagramShapes.Around(shape, new LayoutSize(200, 40), pad: 6);
             Assert.IsTrue(size.Width < 70 && size.Height < 70, $"{shape} is its own size, {size}, whatever its words");
 
-            var build = new PortableBuilder(WpfMedium.OnThisThread);
+            var build = new LayoutBuilder(WpfMedium.OnThisThread);
             build.Open("page");
-            PortableDiagramShapes.Draw(build, "Node", new TestPart(0, 6), shape, new LayoutRect(new LayoutPoint(10, 10), size), Brushes.White.Ink(),
-                               new PortableDiagramStroke(Brushes.Navy.Ink()), Words("Unseen", new TestPart(0, 6)));
+            DiagramShapes.Draw(build, "Node", new TestPart(0, 6), shape, new LayoutRect(new LayoutPoint(10, 10), size), Brushes.White.Ink(),
+                               new DiagramStroke(Brushes.Navy.Ink()), Words("Unseen", new TestPart(0, 6)));
             build.Close();
 
             var root = build.Seal().Root;
             Assert.IsFalse(root.SelfAndDescendants().Any(piece => piece.Kind == MermaidPiece.Words), $"{shape} draws no words");
 
-            var fill = root.SelfAndDescendants().Single(piece => piece.Kind == MermaidPiece.Shape).Marks.ToArray().OfType<PortableGeometryMark>().First().Fill;
+            var fill = root.SelfAndDescendants().Single(piece => piece.Kind == MermaidPiece.Shape).Marks.ToArray().OfType<GeometryMark>().First().Fill;
             Assert.AreEqual(shape is DiagramShape.FilledCircle or DiagramShape.Fork ? Brushes.Navy.Ink() : Brushes.White.Ink(), fill, $"{shape}'s fill");
         }
     });
@@ -218,15 +218,15 @@ public class DiagramShapesTests
     {
         var bounds = new LayoutRect(0, 0, 120, 40);
 
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("page");
-        PortableDiagramShapes.Draw(build, "Node", new TestPart(0, 6), DiagramShape.Braces, bounds, Brushes.White.Ink(), new PortableDiagramStroke(Brushes.Black.Ink()));
+        DiagramShapes.Draw(build, "Node", new TestPart(0, 6), DiagramShape.Braces, bounds, Brushes.White.Ink(), new DiagramStroke(Brushes.Black.Ink()));
         build.Close();
 
         var root = build.Seal().Root;
         var shape = root.SelfAndDescendants().Single(piece => piece.Kind == MermaidPiece.Shape);
 
-        Assert.IsNull(shape.Marks.ToArray().OfType<PortableGeometryMark>().First().Fill, "no fill behind the words");
+        Assert.IsNull(shape.Marks.ToArray().OfType<GeometryMark>().First().Fill, "no fill behind the words");
         Assert.AreEqual(MermaidPiece.Shape, root.PieceAt(new LayoutPoint(60, 20)).Kind, "and a press between the braces means the shape");
     });
 }

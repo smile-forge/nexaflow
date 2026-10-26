@@ -210,8 +210,8 @@ nothing, and hands the AST back as it was.
 ## 5. The builder
 
 A builder is made by the engine and by nothing else, always the same way — what was read, what is being written, what
-it is drawn in, whether it is read-only, what it is laid out in, and what hosts it (`PortableHost`) — and gives back a
-`PortableLaid` from `Build`. It exposes nothing else.
+it is drawn in, whether it is read-only, what it is laid out in, and what hosts it (`LayoutHost`) — and gives back a
+`Laid` from `Build`. It exposes nothing else.
 `Nexaflow.Analyzers.Content` holds that as build errors (see [testing.md](testing.md)); `MermaidDiagramRulesTests`
 holds that no builder names the table of languages.
 
@@ -226,7 +226,7 @@ belongs in a stage, which can say it in the language's own node.
 to a panel a reader can take in, a symbol is drawn at the size its modules say, and a score takes four fifths of a page
 and sits in the middle of it.
 
-**Where a box badly overstates the drawing, the builder says the shape** (`PortableBuilder.Occupies`) — a pie's wedges
+**Where a box badly overstates the drawing, the builder says the shape** (`LayoutBuilder.Occupies`) — a pie's wedges
 share a square, so a press must mean the wedge it landed in.
 
 ## 6. Content in another language
@@ -253,7 +253,7 @@ language's own characters, and back, by `OwnAt` and `DocumentAt`.
 **R14 — A builder knows nothing about what it nests.** Meeting a piece in another language it calls
 `Nested(part, room, standing)` — the one thing a builder may ask the engine for. The engine works that piece's AST over
 with its own language's stages, lays it out with its own language's builder, at the room and standing the asking
-builder chose, and hands back a `PortableInset`: a layout tree and its size. The asking builder places it wherever its
+builder chose, and hands back a `LayoutInset`: a layout tree and its size. The asking builder places it wherever its
 own layout makes sense, based on where the part sits in the AST it is walking. It never learns what the language was.
 
 So anything can be nested inside anything the engine knows about — **but only where the builder looks for nested
@@ -267,14 +267,14 @@ stay with the builder drawing the thing that holds them.
 ## 7. Nothing ever fails to draw
 
 **R15 — The pipeline always produces a layout.** A builder is handed half-typed content all day, and "the content
-vanished" is never the way to say so. The seam asks `PortableLaid.Draws` rather than whether a tree exists, because a tree can
+vanished" is never the way to say so. The seam asks `Laid.Draws` rather than whether a tree exists, because a tree can
 hold nothing visible. `ContentLanguageDrawingTests` sweeps every language against content written right and written
 wrong.
 
 **The good answer is a diagnosis.** The parser, a stage or the builder notices what is wrong and says something the
 reader can act on. The most a builder can say about something it cannot draw is which part it was given and why —
-`AsSource(parts, reason)`, or `PortableDiagnostic.Of(part, reason)` for something wrong in what it did draw. Showing content
-as written is one helper's (`PortableSourceShown`): it prints the AST back, puts a piece standing for each blamed part over
+`AsSource(parts, reason)`, or `LayoutDiagnostic.Of(part, reason)` for something wrong in what it did draw. Showing content
+as written is one helper's (`SourceShown`): it prints the AST back, puts a piece standing for each blamed part over
 its characters, and writes each reason beneath.
 
 **The stopgap is the engine's.** The engine wraps parsing, the stages and building in a catch. If anything throws, it
@@ -288,7 +288,7 @@ throw let out would be blamed on the only tree that builder has — all of it �
 document as written. The catch belongs at the block, which then shows as written with why inside a document that still
 draws as a document.
 
-So there are three answers, all a `PortableLaid`:
+So there are three answers, all a `Laid`:
 
 1. **The reading makes no sense** — it is not the language: shown as written, the error marked.
 2. **Something is missing** — not yet written: a hole where it goes, while the content is being written only.
@@ -321,7 +321,7 @@ It lays content out in four steps, and nothing else does:
    language and put the AST in the piece's body, then the same inside that tree, until nothing is left unread.
 3. **Stages.** Run the language's stages.
 4. **Build.** Make the builder the language names — from the worked-over reading, what is being written, what it is
-   drawn in, whether it is only looked at, what it is laid out in, and what hosts it (`PortableHost`) — and lay it out
+   drawn in, whether it is only looked at, what it is laid out in, and what hosts it (`LayoutHost`) — and lay it out
    at the room it was given.
 
 `ContentEngine.Read` does the first three steps and lays nothing out, for whatever wants to know what content says
@@ -417,9 +417,9 @@ stays one (`EditKind.Dropping`, `ContentEngine.Brought`).
 
 **The rest is shared and comes with the element.** Shift chooses from where the choosing started and Ctrl adds or takes
 back what is pressed (`ContentElement.BeginPointerSelect`); up and down go to the nearest line with somewhere to stand,
-at the place nearest the column (`PortableQuery.StepVertical`); undo takes back a stretch of writing, each step the whole
+at the place nearest the column (`LayoutQuery.StepVertical`); undo takes back a stretch of writing, each step the whole
 document as it stood (`EditHistory`); the pointer is a bar only over what can be written in
-(`PortableQuery.Writable`). A block's corner offers what its language says (`Editing.Corner`, `Editing.Offers`): code no
+(`LayoutQuery.Writable`). A block's corner offers what its language says (`Editing.Corner`, `Editing.Offers`): code no
 picture of itself, prose no corner at all. A language that implements any of these itself is off-spec.
 
 ## 10. The element and the surface
@@ -450,7 +450,7 @@ to select and twice to open needs no say from the renderer at all.
 **A whole document is one element** — the prose, the diagrams and the tunes are pieces of one layout tree, so a drag
 runs from a word into a chart with nothing forwarding gestures between controls.
 
-**A run of text is one piece with a place between any two of its letters** (`PortableWords`): it answers which letter a
+**A run of text is one piece with a place between any two of its letters** (`LayoutWords`): it answers which letter a
 press landed on, where the caret stands and what a selection covers, from the text it was set with. A run says whether
 what is drawn is what was written, which is what makes a caret possible in it, and whether pressing it shows what was
 written — a number set to two places, a title without its quotes. A run saying something *about* the source without
@@ -611,7 +611,7 @@ the code; Word, when it is wanted, knows no diagrams and takes pictures. Copying
 no pictures, so a diagram goes as its code; the published site writes every help page this way. The help's search text
 and its list of sections are a question about words, not looks, and read the reading (`MarkdownParser.Worked`).
 
-**Finding a place asks the source**, where the words are whole: a search reads the source and `PortableQuery.RangeRects`
+**Finding a place asks the source**, where the words are whole: a search reads the source and `LayoutQuery.RangeRects`
 turns its offsets into places on the page, through every nested language, since each is laid at the offset its body
 starts at. What is drawn as other than what was typed — an entity, a renumbered marker — says so on its run and is
 found the same way. **A saved reference says what a thing is, not where it sits**
@@ -624,7 +624,7 @@ never handed to the host.
 Its own document: [latex-parse-tree.md](latex-parse-tree.md). Its parser hangs what each shorthand name stands for
 beneath it as it reads (`TexMacros`); its stages gather a sign written as several things (`GatherSigns`), read the
 values written with a command (`SpanColumns`, `ReadValues`) and then say what every name means (`ResolveCommands`:
-`TexCommandNode`, `TexGridNode`, `TexCharNode`), so `PortableLatexBuilder` sets a formula with `TexTypesetter` from meanings
+`TexCommandNode`, `TexGridNode`, `TexCharNode`), so `LatexBuilder` sets a formula with `TexTypesetter` from meanings
 alone.
 
 ### Mermaid
@@ -676,24 +676,24 @@ one: `A`–`G` writes a note in the octave of the one before, Page Up and Down m
 halve the length, and `#` and `_` move a semitone **from what the note sounds**, so flattening a bare `F` in G major
 writes `=F`. Each stage says its answer in the tune's own nodes (`AbcFieldNode`, `AbcLineNode`, `AbcTupletNode`,
 `AbcBarlineNode`, `AbcEventNode`), and a mark or words written against a note in the ones every notation shares
-(`MusicMarkNode`, `MusicAnnotationNode`), so `PortableAbcBuilder` only walks the tune.
+(`MusicMarkNode`, `MusicAnnotationNode`), so `AbcBuilder` only walks the tune.
 
 ### LilyPond
 
 The same engraving, walked by a builder of its own: the two notations think about music differently, and share
-`PortableMusicBuilder` for what a score is drawn with. What is true of a note or a command wherever it is played is its stages'
+`MusicBuilder` for what a score is drawn with. What is true of a note or a command wherever it is played is its stages'
 — how long it is written and lasts (`ResolveDurations`), what it sounds (`ResolvePitches`), what a command's arguments
 set (`ResolveCommands`), what a mark or a script's words are (`ResolveMarks`), how a chord's name is spelled
 (`SpellChords`) — said in `LilyPondEventNode`, `LilyPondCommandNode` and the shared mark and word nodes. Where the bars
 fall, how notes beam and which accidentals print depend on where a note is played, since a definition is played
-wherever it is used; so `PortableLilyPondBuilder` walks the music through to find them.
+wherever it is used; so `LilyPondBuilder` walks the music through to find them.
 
 ### 2D codes
 
 `MatrixParser` reads a `qr`, `aztec`, `pdf417` or `datamatrix` body into lines of fields, one grammar for all four.
 Each code's own stage (`EncodeQr`, `EncodeAztec`, `EncodeDataMatrix`, `EncodePdf417`) reads its fields, encodes them
 and names the parts the symbol is made of (finders, timing lines, a bullseye, row indicators), leaving on the block
-only what a picture needs (`MatrixSymbolNode`) — or the part at fault saying why. So one builder, `PortableMatrixBuilder`, lays
+only what a picture needs (`MatrixSymbolNode`) — or the part at fault saying why. So one builder, `MatrixBuilder`, lays
 out all four. No piece carries a part, because nothing drawn was typed.
 
 ### Barcodes

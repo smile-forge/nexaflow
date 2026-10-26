@@ -21,7 +21,7 @@ public class DiagramCurveTests
     [TestMethod]
     public void StraightItIsThePolygonThroughItsPoints() => UiThread.Run(() =>
     {
-        var shape = PortableDiagramCurve.Closed(WpfHandles.Medium, Diamond);
+        var shape = DiagramCurve.Closed(WpfHandles.Medium, Diamond);
 
         Assert.AreEqual(new LayoutRect(-50, -50, 100, 100), shape.Bounds);
         Assert.IsTrue(shape.Contains(new LayoutPoint(0, 0)));
@@ -31,7 +31,7 @@ public class DiagramCurveTests
     [TestMethod]
     public void RoundedItStillMeetsEveryPoint_AndBulgesPastTheStraightLinesBetweenThem() => UiThread.Run(() =>
     {
-        var shape = PortableDiagramCurve.Closed(WpfHandles.Medium, Diamond, tension: 0.17);
+        var shape = DiagramCurve.Closed(WpfHandles.Medium, Diamond, tension: 0.17);
         var hairline = new Pen(Brushes.Black, 1);
 
         foreach (var point in Diamond)
@@ -43,14 +43,14 @@ public class DiagramCurveTests
     [TestMethod]
     public void FewerThanThreePointsAreJoinedStraight_AndNoneAreNoShape() => UiThread.Run(() =>
     {
-        Assert.AreEqual(new LayoutRect(0, 0, 40, 30), PortableDiagramCurve.Closed(WpfHandles.Medium, [new LayoutPoint(0, 0), new LayoutPoint(40, 30)], tension: 0.17).Bounds);
-        Assert.IsTrue(PortableDiagramCurve.Closed(WpfHandles.Medium, []).Geometry().IsEmpty());
+        Assert.AreEqual(new LayoutRect(0, 0, 40, 30), DiagramCurve.Closed(WpfHandles.Medium, [new LayoutPoint(0, 0), new LayoutPoint(40, 30)], tension: 0.17).Bounds);
+        Assert.IsTrue(DiagramCurve.Closed(WpfHandles.Medium, []).Geometry().IsEmpty());
     });
 
     [TestMethod]
     public void BowedItRunsFromOnePointToAnother_OutTowardTheOneBetween() => UiThread.Run(() =>
     {
-        var shape = PortableDiagramCurve.Bowed(WpfHandles.Medium, new LayoutPoint(0, 0), new LayoutPoint(50, -40), new LayoutPoint(100, 0));
+        var shape = DiagramCurve.Bowed(WpfHandles.Medium, new LayoutPoint(0, 0), new LayoutPoint(50, -40), new LayoutPoint(100, 0));
         var hairline = new Pen(Brushes.Black, 1);
 
         Assert.IsTrue(shape.Geometry().StrokeContains(hairline, new Point(0, 0)), "from where it starts");

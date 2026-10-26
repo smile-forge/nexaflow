@@ -139,7 +139,7 @@ public class DiagramKeyTests
     /// What the caret at <paramref name="offset"/> stands against, found the way the engine finds it — so a count that has
     /// risen says which parts to look at rather than only which lines broke.
     /// </summary>
-    private static string Standing(PortableLaid laid, int offset)
+    private static string Standing(Laid laid, int offset)
     {
         var piece = laid.Root.WordsAt(offset);
         var words = piece.Exists;

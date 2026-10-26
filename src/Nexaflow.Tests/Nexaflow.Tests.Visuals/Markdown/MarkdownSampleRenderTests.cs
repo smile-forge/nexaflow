@@ -17,7 +17,7 @@ namespace Nexaflow.Tests.Visuals.Markdown;
 
 /// <summary>
 /// End-to-end check that every diagram in the sample markdown dataset parses and renders
-/// through the real markdown pipeline — read, its stages run, and laid by <see cref="PortableMarkdownBuilder"/> with every fence laid by its language.
+/// through the real markdown pipeline — read, its stages run, and laid by <see cref="MarkdownBuilder"/> with every fence laid by its language.
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
@@ -120,7 +120,7 @@ public class MarkdownSampleRenderTests
 
                 var layout = Laying.Formula(latex, 20);
                 var ok = layout is not null
-                         && !layout.Trouble.Any(d => d.Severity == PortableSeverity.Error);
+                         && !layout.Trouble.Any(d => d.Severity == LayoutSeverity.Error);
 
                 if (known.Any(gap => latex.Contains(gap, StringComparison.Ordinal)))
                 {

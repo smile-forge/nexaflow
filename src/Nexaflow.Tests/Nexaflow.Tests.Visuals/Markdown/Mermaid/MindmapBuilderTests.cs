@@ -65,10 +65,10 @@ public class MindmapBuilderTests : MermaidBuilderContract
         Assert.IsTrue(narrowest.Size.Width <= 240.01, $"{narrowest.Size.Width} wide");
     });
 
-    private static PortableLaid Build(string source, double room = 700) =>
+    private static Laid Build(string source, double room = 700) =>
         Laying.Lay("mermaid", source, room);
 
-    private static PortablePiece Node(PortableLaid laid, string source, string title) =>
+    private static LayoutPiece Node(Laid laid, string source, string title) =>
         Pieces(laid, MindmapPiece.Node).Single(node => Written(source, node.Part).Contains(title, System.StringComparison.Ordinal));
 
     [TestMethod]
@@ -110,10 +110,10 @@ public class MindmapBuilderTests : MermaidBuilderContract
     {
         var laid = Build(Map);
         var node = Node(laid, Map, "CommonMark");
-        var shape = node.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<PortableGeometryMark>().First(mark => mark.Fill is not null);
+        var shape = node.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>().First(mark => mark.Fill is not null);
         var line = Pieces(laid, MindmapPiece.Branch).Single(one => Written(Map, one.Part).Trim() == "CommonMark")
-            .SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<PortableGeometryMark>().First(mark => mark.Stroke is not null);
-        var words = node.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<PortableTextMark>().First();
+            .SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>().First(mark => mark.Stroke is not null);
+        var words = node.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<TextMark>().First();
 
         Assert.AreEqual(((SolidColorBrush)line.Stroke!.Ink!.Brush()).Color, ((SolidColorBrush)shape.Stroke!.Ink!.Brush()).Color, "edged in its branch's colour");
         Assert.AreEqual(((SolidColorBrush)shape.Stroke.Ink!.Brush()).Color, ((SolidColorBrush)shape.Fill!.Brush()).Color, "washed in it");
@@ -144,9 +144,9 @@ public class MindmapBuilderTests : MermaidBuilderContract
     });
 
     /// <summary>What a branch is drawn in, by the node it reaches.</summary>
-    private static Color Stroke(PortableLaid laid, string source, string reaches) =>
+    private static Color Stroke(Laid laid, string source, string reaches) =>
         ((SolidColorBrush)Pieces(laid, MindmapPiece.Branch).Single(one => Written(source, one.Part).Trim() == reaches)
-            .SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<PortableGeometryMark>().First(mark => mark.Stroke is not null).Stroke!.Ink!.Brush()).Color;
+            .SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>().First(mark => mark.Stroke is not null).Stroke!.Ink!.Brush()).Color;
 
     [TestMethod]
     public void UnclearIndentationHangsANodeOffTheNearestNodeIndentedLess() => UiThread.Run(() =>

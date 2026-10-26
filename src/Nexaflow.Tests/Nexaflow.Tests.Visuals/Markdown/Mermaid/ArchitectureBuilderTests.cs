@@ -189,10 +189,10 @@ public class ArchitectureBuilderTests : MermaidBuilderContract
         Assert.IsTrue(boxes[1].Top >= boxes[0].Bottom, "and no two of them overlap");
     });
 
-    private static PortableLaid Build(string source, double room = 900) =>
+    private static Laid Build(string source, double room = 900) =>
         Laying.Lay("mermaid", source, room);
 
-    private static IEnumerable<PortablePiece> Said(PortablePiece piece) =>
+    private static IEnumerable<LayoutPiece> Said(LayoutPiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Words && part.Words is not null);
 
     [TestMethod]

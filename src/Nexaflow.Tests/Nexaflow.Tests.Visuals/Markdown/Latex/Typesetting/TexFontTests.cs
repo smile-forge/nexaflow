@@ -65,8 +65,8 @@ public class TexFontTests
     [CoversNode("latex-fonts-read-once")]
     public void EveryFormulaDrawsFromTheFacesReadOnce_AtItsOwnSize() => UiThread.Run(() =>
     {
-        var small = PortableTexFonts.Of(WpfHandles.Medium, "Arial").Environment(TexStyle.Display, 10.0).MathFont;
-        var large = PortableTexFonts.Of(WpfHandles.Medium, "Arial").Environment(TexStyle.Display, 30.0).MathFont;
+        var small = TexFonts.Of(WpfHandles.Medium, "Arial").Environment(TexStyle.Display, 10.0).MathFont;
+        var large = TexFonts.Of(WpfHandles.Medium, "Arial").Environment(TexStyle.Display, 30.0).MathFont;
 
         Assert.AreSame(small.GetCharInfo('x', "text", TexStyle.Text).Value.Font, large.GetCharInfo('x', "text", TexStyle.Text).Value.Font,
                        "the second formula opened the faces again");

@@ -48,7 +48,7 @@ public abstract class MermaidBuilderContract
         Laying.Read(Language, source, writing);
 
     /// <summary>Lays a block out as the shared renderer would.</summary>
-    protected PortableLaid Lay(string source, double room = 700, bool writing = false) =>
+    protected Laid Lay(string source, double room = 700, bool writing = false) =>
         Laying.Lay(Language, source, room, writing: writing);
 
     [TestMethod]
@@ -141,7 +141,7 @@ public abstract class MermaidBuilderContract
     // ── What a diagram's own tests ask of what it drew ──────────────────────
 
     /// <summary>Every piece of a kind that was drawn, in the order it was drawn.</summary>
-    protected static List<PortablePiece> Pieces(PortableLaid laid, string kind) => [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];
+    protected static List<LayoutPiece> Pieces(Laid laid, string kind) => [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];
 
     /// <summary>What a piece stands for, as it was written — empty for a piece standing for nothing.</summary>
     protected static string Written(string source, ISourcePart? part) => part is null ? "" : source.Substring(part.Start, part.Length);
@@ -150,7 +150,7 @@ public abstract class MermaidBuilderContract
     protected static Point Middle(Rect rect) => new(rect.X + (rect.Width / 2), rect.Y + (rect.Height / 2));
 
     /// <summary>The colour a piece is drawn in — the first fill under it — or null where nothing under it is filled.</summary>
-    protected static Color? Fill(PortablePiece piece) =>
-        piece.SelfAndDescendants().SelectMany(inner => inner.Marks.ToArray()).OfType<PortableGeometryMark>()
+    protected static Color? Fill(LayoutPiece piece) =>
+        piece.SelfAndDescendants().SelectMany(inner => inner.Marks.ToArray()).OfType<GeometryMark>()
             .Select(mark => mark.Fill?.Brush()).OfType<SolidColorBrush>().Select(brush => (Color?)brush.Color).FirstOrDefault();
 }

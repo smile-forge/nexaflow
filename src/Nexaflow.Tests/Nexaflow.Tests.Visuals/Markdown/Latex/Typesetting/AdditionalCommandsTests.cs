@@ -73,7 +73,7 @@ public class AdditionalCommandsTests
     {
         // The ink each glyph chose, in the order drawn — null where it chose none and takes the theme's.
         System.Windows.Media.Color? Ink(string markup, int glyph) =>
-            (Marks(markup).Select(one => one.Mark).OfType<PortableGlyphMark>().ElementAt(glyph).Ink?.Brush()
+            (Marks(markup).Select(one => one.Mark).OfType<GlyphMark>().ElementAt(glyph).Ink?.Brush()
                 as System.Windows.Media.SolidColorBrush)?.Color;
 
         Assert.AreEqual(System.Windows.Media.Colors.Red, Ink(@"\textcolor{red}{a} b", 0));
@@ -101,7 +101,7 @@ public class AdditionalCommandsTests
 
         Assert.AreEqual(Width(@"\begin{matrix} aaa & bbb & ccc \end{matrix}"), Width(full), 0.01, "the table is as wide as its entries");
 
-        var dots = Marks(full).Count(one => one.Mark is PortableGlyphMark) - 9;
+        var dots = Marks(full).Count(one => one.Mark is GlyphMark) - 9;
         Assert.IsTrue(dots > 6, $"the dots run the width of three columns, not one ({dots} of them)");
     });
 

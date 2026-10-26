@@ -188,7 +188,7 @@ internal static class MarkdownEditorHarness
     /// <summary>How tall a line of the document's body text is drawn — what a change of text size shows up as.</summary>
     public static double BodyHeight(MarkdownSurface editor) =>
         editor.Shown.Laid.Root.SelfAndDescendants()
-            .First(piece => piece.Kind == PortablePieces.Words && piece.Words is { Maps: true })
+            .First(piece => piece.Kind == LayoutPieces.Words && piece.Words is { Maps: true })
             .Bounds.Height * editor.Shown.Zoom;
 
     /// <summary>Sweeps a selection over everything the editor is showing.</summary>
@@ -216,7 +216,7 @@ internal static class MarkdownEditorHarness
     internal static IReadOnlyList<ContentPart> Blocks(MarkdownSurface editor)
     {
         var drawn = editor.Shown.Laid.Root.SelfAndDescendants()
-            .Select(piece => piece.Part switch { ContentPart part => part, PortableTexPart tex => tex.Of, _ => null })
+            .Select(piece => piece.Part switch { ContentPart part => part, TexPart tex => tex.Of, _ => null })
             .OfType<ContentPart>()
             .ToList();
 
@@ -289,10 +289,10 @@ internal sealed class DocumentBlock(MarkdownSurface editor, int index)
     public string Latex => string.IsNullOrEmpty(editor.WrittenIn) ? Element.Markdown.Substring(Start, End - Start) : editor.Markdown;
 
     /// <summary>What is laid, which a block is pieces of.</summary>
-    public PortableLaid Laid => Element.Laid;
+    public Laid Laid => Element.Laid;
 
     /// <summary>What the block could not read.</summary>
-    public IReadOnlyList<PortableDiagnostic> Diagnostics
+    public IReadOnlyList<LayoutDiagnostic> Diagnostics
     {
         get
         {

@@ -216,12 +216,12 @@ public class PagedLayoutElementTests
             var text = $"page {index}";
             var laidSize = Actual?.Invoke(index) ?? size;
 
-            var into = new PortableBuilder(WpfMedium.OnThisThread);
+            var into = new LayoutBuilder(WpfMedium.OnThisThread);
             into.Open("page");
-            into.Draw(new PortableWashMark(new Rect(laidSize).ToLayout(), Brushes.White.Ink()));
+            into.Draw(new WashMark(new Rect(laidSize).ToLayout(), Brushes.White.Ink()));
             var words = WpfMedium.OnThisThread.Shape(text, new Typeface("Arial"), 12, Brushes.Black, null, CultureInfo.InvariantCulture);
             into.Open("text", new SourceSpan(0, text.Length), new LayoutPoint(20, 20));
-            into.Words(new PortableWords(words, default, Maps: true));
+            into.Words(new LayoutWords(words, default, Maps: true));
             into.Covers(new LayoutRect(0, 0, words.WidthWithSpace, words.Height));
             into.Close();
             into.Close();
@@ -269,9 +269,9 @@ public class PagedLayoutElementTests
         public Task<LaidPage> LayAsync(int index, CancellationToken ct)
         {
             Laid.Add(index);
-            var into = new PortableBuilder(WpfMedium.OnThisThread);
+            var into = new LayoutBuilder(WpfMedium.OnThisThread);
             into.Open("page");
-            into.Draw(new PortableWashMark(new Rect(size).ToLayout(), Brushes.White.Ink()));
+            into.Draw(new WashMark(new Rect(size).ToLayout(), Brushes.White.Ink()));
             into.Close();
             return Task.FromResult(new LaidPage(into.Seal(), size, $"page {_order[index]}"));
         }

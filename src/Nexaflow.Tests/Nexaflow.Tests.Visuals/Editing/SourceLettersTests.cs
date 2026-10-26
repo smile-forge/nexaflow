@@ -51,11 +51,11 @@ public class SourceLettersTests
         {
             var tree = ContentPart.Of(ContentNode.Leaf("source", written));
             var medium = WpfMedium.OnThisThread;
-            var laid = PortableSourceShown.Lay(tree, [(tree, "Not read.")], medium, medium.Face(setting.Face), setting.Size, WpfStyles.Dark.Text,
+            var laid = SourceShown.Lay(tree, [(tree, "Not read.")], medium, medium.Face(setting.Face), setting.Size, WpfStyles.Dark.Text,
                                                WpfStyles.Dark);
 
             var letters = laid.Root.SelfAndDescendants()
-                .Where(piece => piece.Kind == PortableText.SourceKind + "-letter")
+                .Where(piece => piece.Kind == LayoutText.SourceKind + "-letter")
                 .ToDictionary(piece => piece.Part!.Start, piece => piece.Bounds.ToWpf());
             var drawn = Drawn(written, setting);
 

@@ -13,10 +13,10 @@ namespace Nexaflow.Analyzers.Content;
 /// the same six things every time.
 ///
 /// <para>
-/// <b>NXCB001</b> — one constructor, taking exactly what <c>PortableContentBuilder</c>'s own takes. Anything else a builder was going to be
+/// <b>NXCB001</b> — one constructor, taking exactly what <c>ContentBuilder</c>'s own takes. Anything else a builder was going to be
 /// told is a fact about the content or the showing of it, and belongs in what every builder is given the same way.
 /// <b>NXCB002</b> — nothing told to it after it is made: a property with a setter is a second constructor written the long way
-/// round. <b>NXCB003</b> — nothing offered under a name <c>PortableContentBuilder</c> does not declare, so there is one place that says
+/// round. <b>NXCB003</b> — nothing offered under a name <c>ContentBuilder</c> does not declare, so there is one place that says
 /// what a builder is. <b>NXCB004</b> — nothing makes a builder: the engine does, from the type a language names, and a builder
 /// made anywhere else is a builder somebody is using as a library.
 /// </para>
@@ -31,7 +31,7 @@ public sealed class ContentBuilderAnalyzer : DiagnosticAnalyzer
     private const string Category = "Content";
 
     /// <summary>What every builder derives from.</summary>
-    private const string Builder = "Nexaflow.Markdown.Layout.PortableContentBuilder";
+    private const string Builder = "Nexaflow.Markdown.Layout.ContentBuilder";
 
     /// <summary>What marks an assembly as tests, which may make builders of their own.</summary>
     private const string TestClass = "Microsoft.VisualStudio.TestTools.UnitTesting.TestClassAttribute";
@@ -52,8 +52,8 @@ public sealed class ContentBuilderAnalyzer : DiagnosticAnalyzer
 
     private static readonly DiagnosticDescriptor OffersMore = new(
         "NXCB003",
-        "A builder offers nothing PortableContentBuilder does not declare",
-        "{0} offers {1}, which PortableContentBuilder does not",
+        "A builder offers nothing ContentBuilder does not declare",
+        "{0} offers {1}, which ContentBuilder does not",
         Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
         description: "What a builder is, is decided in one place. A name of its own on a builder is a second door into the same room, which something then starts using.");
 
@@ -135,5 +135,5 @@ public sealed class ContentBuilderAnalyzer : DiagnosticAnalyzer
     };
 
     private static string Readable(ImmutableArray<IParameterSymbol> parameters) =>
-        parameters.IsDefault ? "what PortableContentBuilder's constructor takes" : string.Join(", ", parameters.Select(parameter => parameter.Type.Name));
+        parameters.IsDefault ? "what ContentBuilder's constructor takes" : string.Join(", ", parameters.Select(parameter => parameter.Type.Name));
 }

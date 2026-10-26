@@ -21,15 +21,15 @@ public class DiagramLegendTests
 {
     private static readonly string[] Columns = ["Label", "Value"];
 
-    private static PortablePiece Drawn(bool across, out PortableDiagramLegend legend)
+    private static LayoutPiece Drawn(bool across, out DiagramLegend legend)
     {
-        legend = new PortableDiagramLegend(
+        legend = new DiagramLegend(
         [
-            new PortableDiagramKey(new TestPart(0, 5), Brushes.Red.Ink(), [DiagramShapesTests.Words("Dogs"), DiagramShapesTests.Words("386")]),
-            new PortableDiagramKey(new TestPart(6, 5), null, [DiagramShapesTests.Words("Hamsters and gerbils"), DiagramShapesTests.Words("15")]),
+            new DiagramKey(new TestPart(0, 5), Brushes.Red.Ink(), [DiagramShapesTests.Words("Dogs"), DiagramShapesTests.Words("386")]),
+            new DiagramKey(new TestPart(6, 5), null, [DiagramShapesTests.Words("Hamsters and gerbils"), DiagramShapesTests.Words("15")]),
         ], Columns, across, Brushes.Gray.Ink());
 
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("page");
         legend.Draw(build, new LayoutPoint(10, 10));
         build.Close();
@@ -56,7 +56,7 @@ public class DiagramLegendTests
         var keys = root.SelfAndDescendants().Where(piece => piece.Kind == MermaidPiece.Key).ToList();
 
         Assert.AreEqual(keys[0].Bounds.Top, keys[1].Bounds.Top, 0.5, "on one line");
-        Assert.IsTrue(keys[1].Bounds.Left >= keys[0].Bounds.Right + PortableDiagramLegend.Apart - 0.5, "the second after the first");
+        Assert.IsTrue(keys[1].Bounds.Left >= keys[0].Bounds.Right + DiagramLegend.Apart - 0.5, "the second after the first");
     });
 
     [TestMethod]
@@ -67,19 +67,19 @@ public class DiagramLegendTests
         var swatches = root.SelfAndDescendants().Where(piece => piece.Kind == MermaidPiece.Swatch).ToList();
 
         Assert.AreEqual(0, keys[0].Part!.Start);
-        Assert.IsInstanceOfType<PortableRuleMark>(swatches[0].Marks[0], "a colour is a square of it");
-        Assert.IsInstanceOfType<PortableGeometryMark>(swatches[1].Marks[0], "and no colour yet is the square's outline");
+        Assert.IsInstanceOfType<RuleMark>(swatches[0].Marks[0], "a colour is a square of it");
+        Assert.IsInstanceOfType<GeometryMark>(swatches[1].Marks[0], "and no colour yet is the square's outline");
     });
 
     [TestMethod]
     public void ASwatchIsDrawnAtTheSizeItIsAskedFor() => UiThread.Run(() =>
     {
-        var legend = new PortableDiagramLegend([new PortableDiagramKey(new TestPart(0, 5), Brushes.Red.Ink(), [DiagramShapesTests.Words("Dogs")])], Columns, across: false, Brushes.Gray.Ink())
+        var legend = new DiagramLegend([new DiagramKey(new TestPart(0, 5), Brushes.Red.Ink(), [DiagramShapesTests.Words("Dogs")])], Columns, across: false, Brushes.Gray.Ink())
         {
             Square = 30,
         };
 
-        var build = new PortableBuilder(WpfMedium.OnThisThread);
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("page");
         legend.Draw(build, default);
         build.Close();

@@ -7,8 +7,8 @@ own, planned in detail then, and finished before the next one starts.
 ## A class and a state diagram keep an address off the thing it applies to
 
 Every language that lets a reader write an address marks it `Roles.Destination`, and what leads somewhere is a `Kinds.Link`
-holding it — the shape prose writes a link in. Whoever draws one reads it off the tree and puts a `PortableIntent` on what it drew
-(`PortableMarkdownBuilder.Linked`, `PortableFlowchartDrawing.Answers`), so a press is answered by what it landed on rather than by walking the
+holding it — the shape prose writes a link in. Whoever draws one reads it off the tree and puts a `LayoutAsk` on what it drew
+(`MarkdownBuilder.Linked`, `FlowchartDrawing.Answers`), so a press is answered by what it landed on rather than by walking the
 tree again. Markdown answers because a link node holds its destination, and a reference-style link holds what the definition
 said as a derived `Held` string. A flowchart answers because `ResolveChart` puts a `click` line's address on the node of the
 graph it names.
@@ -23,8 +23,8 @@ carry the role.
 
 ## A fold is answered by the engine
 
-A chip drawn over what is past a diagram's frontier (`PortableDiagramChip`, `PortableDiagramSpill`) pins `PortableVerbs.Expand` or
-`PortableVerbs.Collapse` to itself, and `ContentEngine.Folded` answers it: the opening goes into the block's view state
+A chip drawn over what is past a diagram's frontier (`DiagramChip`, `DiagramSpill`) pins `LayoutVerbs.Expand` or
+`LayoutVerbs.Collapse` to itself, and `ContentEngine.Folded` answers it: the opening goes into the block's view state
 (`Opened`) first, because whatever supplied the diagram answers by handing back a larger graph that is read into the
 block again, and an opening recorded after that would be recorded against a reading already thrown away. Then whatever
 supplied it is told (`Expand`), found from the piece pressed upwards — a diagram in a fence is a tree of its own, and
@@ -35,7 +35,7 @@ again and the diagram opens the node out of its own source, which is what makes 
 **What a press names is the producer's own name for a node, never the diagram's id.** An id is positional: a host
 re-emitting its graph with one more node in it renumbers every one of them, so an opening or a selection remembered by
 id would land on whatever moved into that slot. `DiagramExpansion.KeyOf` is the one translation, and the chip, the node
-offering what is left of an over-wide set of children, and the `PortableVerbs.Select` a node body carries all go through
+offering what is left of an over-wide set of children, and the `LayoutVerbs.Select` a node body carries all go through
 it. The node offering leftovers is the drawing's own invention — nobody wrote it, so no producer has a name for it and
 none is told.
 
@@ -67,8 +67,8 @@ Named first, because the list below is otherwise easy to read as "everything is 
 failed.
 
 **Where it stands.** Held. `ContentEngine.LaidOut` wraps the whole of `Lay`, and what nothing could read is laid by
-`PortableUnreadBuilder` over a one-node error AST holding the source, with the reason as that node's trouble — a builder rather
-than a call to `PortableSourceShown`, so that the fallback's own failure lands in the catch every builder already has, over the
+`UnreadBuilder` over a one-node error AST holding the source, with the reason as that node's trouble — a builder rather
+than a call to `SourceShown`, so that the fallback's own failure lands in the catch every builder already has, over the
 simplest tree there is. Every path into the pipeline goes through it, the picture included. Nested content is caught at
 the block it is in, so a fence in a language that falls over is shown as written with why inside a document that still
 draws as a document. The three places the engine asks a language something outside that catch — a block's corner, a
@@ -94,9 +94,9 @@ stage. A builder walks a finished reading and decides only where things go. R12 
 enforceable.
 
 **Where it stands.** This is the deepest divergence, and it is a pattern rather than a set of slips. Nine diagram
-builders still carry a private reader model of their own — `PortableArchitectureBuilder`, `PortableBlockBuilder`,
-`PortableC4Builder`, `PortableClassDrawing`, `PortableErBuilder`, `PortableRequirementBuilder`, `PortableSequenceDrawing`,
-`PortableStateBuilder`, `PortableVennBuilder` — three of them in a `.Reading.cs` partial whose name says what it is doing. Those models are
+builders still carry a private reader model of their own — `ArchitectureBuilder`, `BlockBuilder`,
+`C4Builder`, `ClassDrawing`, `ErBuilder`, `RequirementBuilder`, `SequenceDrawing`,
+`StateBuilder`, `VennBuilder` — three of them in a `.Reading.cs` partial whose name says what it is doing. Those models are
 built by walking the AST and working out what it means, which is stage work sitting in the wrong component. It shows
 up in three concrete ways:
 
@@ -104,17 +104,17 @@ up in three concrete ways:
   opening.Start)` and its variants, while `Nexaflow.Markdown` — where spans belong — mentions `SourceSpan` three
   times in total. The builders are reconstructing which characters a construct covers because nothing gives it to
   them.
-- **Identity derived from an offset.** `PortableErBuilder`, `PortableRequirementBuilder` and `PortableSequenceDrawing` name an unwritten thing
+- **Identity derived from an offset.** `ErBuilder`, `RequirementBuilder` and `SequenceDrawing` name an unwritten thing
   by appending a source offset to a prefix, so a node's identity moves when text above it changes.
 - **Relationships decided by comparing offsets.** Which side of a boundary a group marker was written
-  (`PortableArchitectureBuilder`), whether a centre marker came before or after an arrow (`PortableSequenceDrawing`),
-  whether a part falls inside a cell (`PortableLatexBuilder`), whether a part is inside the stretch shown as typed
-  (`PortableDiagramText`) — all
+  (`ArchitectureBuilder`), whether a centre marker came before or after an arrow (`SequenceDrawing`),
+  whether a part falls inside a cell (`LatexBuilder`), whether a part is inside the stretch shown as typed
+  (`DiagramText`) — all
   answered with `<` and `>` on offsets.
 
 **The flowchart is done, and says what the shape of the rest is.** `ResolveChart` reads the chart as the graph it is —
 every node once, what it says, the shape it is drawn as, the subgraph it belongs to, where it leads, and every
-connection by the names of its two ends. `PortableFlowchartDrawing` walks that reading: it keeps no index of its own, works
+connection by the names of its two ends. `FlowchartDrawing` walks that reading: it keeps no index of its own, works
 nothing out from a `click` line or an `id@{ … }` line, and decides nothing about what the chart holds.
 
 What that taught, and what the shape of this section has to account for: **a stage has no positions**, because a
@@ -122,7 +122,7 @@ derived part stands for no characters at all. So "delete the `.Reading` partial"
 stage can say is what exists, what it is called, what it says, what it amounts to and what joins what; what is left is
 finding the characters each of those was written as — the mentions of a node by its id, the links in the order they are
 written, the metadata about each. That is position work and not semantics, and it is all that
-`PortableFlowchartDrawing.Reading.cs` still does. The target for each of the remaining nine is the same: a `.Reading` partial
+`FlowchartDrawing.Reading.cs` still does. The target for each of the remaining nine is the same: a `.Reading` partial
 that resolves positions and decides nothing. Giving a reading a way to name written parts directly would close even
 that, and wants its own section.
 
@@ -140,7 +140,7 @@ that, and wants its own section.
 
 **Shape.** One diagram at a time, each a self-contained change: name the facts its reader model works out, move them
 into stages saying them in that diagram's own nodes, reduce the builder to resolving positions. Nine of these left,
-plus `PortableLatexBuilder`'s cell containment and `PortableDiagramText`'s raw-zone test, which is shared by every diagram and so
+plus `LatexBuilder`'s cell containment and `DiagramText`'s raw-zone test, which is shared by every diagram and so
 should come before the rest.
 
 **Depends on.** Section 1, so that a part-migrated language still draws something.
@@ -301,7 +301,7 @@ the staff are the default's, the staff is the handler's, and neither needs to kn
 
 1. **§1, the engine's stopgap** — held. Nothing waited on it, and everything else is safer for it.
 2. **§2, reading out of the builders** — the deepest, and everything except §3 waits on it. The flowchart is done;
-   `PortableDiagramText`'s shared raw-zone test next, then one diagram at a time; §4 rides along with Pie.
+   `DiagramText`'s shared raw-zone test next, then one diagram at a time; §4 rides along with Pie.
 3. **§3, the parser's write half** — the splice interface is designed and proved against two languages, so this can
    run beside §2 now. What is left is the handlers, one language at a time.
 4. **§6's R13 analyzer** — as soon as §2 makes it true for a language, so the next language cannot regress.
