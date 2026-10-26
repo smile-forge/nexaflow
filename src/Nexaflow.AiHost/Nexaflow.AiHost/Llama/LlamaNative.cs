@@ -65,6 +65,13 @@ internal static unsafe partial class LlamaNative
         Enabled = 1,
     }
 
+    /// <summary>The <c>ggml_type</c>s a context's cache is held as.</summary>
+    public enum GgmlType
+    {
+        F16 = 1,
+        Q8_0 = 8,
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     public struct ContextParams
     {
@@ -228,6 +235,11 @@ internal static unsafe partial class LlamaNative
 
     [LibraryImport(Llama, EntryPoint = "llama_memory_seq_pos_max")]
     public static partial int MemoryLastPosition(IntPtr memory, int sequence);
+
+    /// <summary>Has sequence <paramref name="to"/> hold what <paramref name="from"/> holds at positions from <paramref name="first"/>
+    /// up to <paramref name="past"/> — the same cells, where the cache is unified, not a copy of them.</summary>
+    [LibraryImport(Llama, EntryPoint = "llama_memory_seq_cp")]
+    public static partial void MemoryShare(IntPtr memory, int from, int to, int first, int past);
 
     /// <summary>Forgets everything the context has read, every sequence — a recurrent model's state with it.</summary>
     [LibraryImport(Llama, EntryPoint = "llama_memory_clear")]

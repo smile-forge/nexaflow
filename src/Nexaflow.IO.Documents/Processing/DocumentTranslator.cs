@@ -22,10 +22,10 @@ public sealed record DocumentTranslation(string Text, IReadOnlyList<string> Untr
 /// <para>
 /// Each block's words are handed over with everything else held back (<see cref="ProtectedText"/>); blocks are gathered into
 /// passages of a working size, smaller where the model reads less (<see cref="DocumentBudget"/>), a block too long for one cut
-/// at its sentences, and never across a chapter — the document's outermost sections, which are translated side by side, each
-/// read through in order. Every passage is handed the document's gist (<see cref="DocumentGist"/>), the glossary entries it
-/// uses (<see cref="DocumentGlossary"/>) and the passage before it in its chapter with its translation, so the passages read as
-/// one text. An answer is held to twice the length of what it translates, and taken piece by piece: what it answers right is
+/// at its sentences, and never across a run — a chapter's opening, or one of its sections, the chapters being the document's
+/// outermost sections. Runs are translated side by side, each read through in order. Every passage is handed the document's
+/// gist (<see cref="DocumentGist"/>), the glossary entries it uses (<see cref="DocumentGlossary"/>) and the passage before it in
+/// its run with its translation, so the passages read as one text. An answer is held to twice the length of what it translates, and taken piece by piece: what it answers right is
 /// kept, and only a piece it leaves out or gets wrong is asked for again, so one piece costs only itself. A piece with a mark
 /// doubled or missing has just the sentences round it asked for again and put back (<see cref="ProtectedText.Wrong"/>); one
 /// still wrong is asked for again, saying what was wrong, then in halves; one that ran out of room, or ran on past its length,
@@ -52,7 +52,7 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
     private const int Attempts = 2;
 
     /// <summary>
-    /// The most replies in a row one chapter may have fail — two passages', each asked twice — before the model is taken for gone.
+    /// The most replies in a row one run may have fail — two passages', each asked twice — before the model is taken for gone.
     /// </summary>
     private const int FailuresInARow = 2 * Attempts;
 
@@ -61,9 +61,6 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
     /// its answer will not do, and one this size costs seconds, while the instructions it is handed with stay a small share.
     /// </summary>
     private const int MostTranslated = 4000;
-
-    /// <summary>How many chapters are translated side by side — a model serving several replies at once writes them together.</summary>
-    private const int ChaptersAtOnce = 4;
 
     /// <summary>How many times a unit's answer is mended a stretch at a time before it is asked for whole.</summary>
     private const int MostRepairs = 3;
@@ -79,22 +76,24 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
         var job = new Job(reading, gist, glossary, language, ShelfFor(language), DocumentBudget.Of(model), new Shared());
         var passages = Passages(reading);
 
-        // Each block's words cut where they are too long to hand over at once, then gathered into what can be — within a chapter,
+        // Each block's words cut where they are too long to hand over at once, then gathered into what can be — within a run,
         // never across one.
         var room = Math.Min(job.Budget.Share(0.3), MostTranslated);
-        var chapters = passages.GroupBy(passage => passage.Chapter)
-                               .Select(chapter => Units([.. chapter.SelectMany(passage => passage.Text.Cut(room).Select(text => new Piece(passage, text)))], room))
-                               .ToList();
-        var pieces = chapters.SelectMany(units => units).SelectMany(unit => unit).ToList();
-        var count = chapters.Sum(units => units.Count);
+        var runs = passages.GroupBy(passage => passage.Run)
+                           .Select(run => Units([.. run.SelectMany(passage => passage.Text.Cut(room).Select(text => new Piece(passage, text)))], room))
+                           .ToList();
+        var pieces = runs.SelectMany(units => units).SelectMany(unit => unit).ToList();
+        var count = runs.Sum(units => units.Count);
 
         var answers = new ConcurrentDictionary<Piece, string>();
         var done = 0;
         progress?.Report(new(DocumentStep.Translation, 0, count));
 
-        // Chapters side by side, each read through in order as a reader goes through it, its passages each led into by the one
-        // before and its translation; a chapter's failures in a row are its own, so one reply lost by them all is no streak.
-        await Parallel.ForEachAsync(chapters, new ParallelOptions { MaxDegreeOfParallelism = ChaptersAtOnce, CancellationToken = ct }, async (units, token) =>
+        // Runs side by side, each read through in order as a reader goes through it, its passages each led into by the one
+        // before and its translation; a run's failures in a row are its own, so one reply lost by them all is no streak. The
+        // longest are started first: started last, one would be read through alone after all the others were done.
+        var longestFirst = runs.OrderByDescending(units => units.Sum(unit => unit.Sum(piece => piece.Text.Length)));
+        await Parallel.ForEachAsync(longestFirst, new ParallelOptions { MaxDegreeOfParallelism = job.Budget.AtOnce, CancellationToken = ct }, async (units, token) =>
         {
             var run = job with { FailedInARow = 0 };
             (string Source, string Target)? before = null;
@@ -429,11 +428,22 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
         Name(reading.Sections.Sections, null);
 
         // Its chapters: the outermost level where it has more than one section — under a title of its own, the sections under it.
-        var chapter = new int[reading.Root.Children.Count];
+        // Each chapter's opening is a run, and each of its sections another: a chapter is read through as several readers would
+        // read it, side by side, each section from its start.
+        var run = new int[reading.Root.Children.Count];
         var outermost = reading.Sections.Sections;
         while (outermost is [{ Sections.Count: > 0 } only]) outermost = only.Sections;
-        for (var at = 0; at < outermost.Count; at++)
-            for (var block = outermost[at].Heading; block < outermost[at].End; block++) chapter[block] = at + 1;
+        var runs = 0;
+        foreach (var chapter in outermost)
+        {
+            runs++;
+            for (var block = chapter.Heading; block < chapter.End; block++) run[block] = runs;
+            foreach (var section in chapter.Sections)
+            {
+                runs++;
+                for (var block = section.Heading; block < section.End; block++) run[block] = runs;
+            }
+        }
 
         var passages = new List<Passage>();
 
@@ -445,7 +455,7 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
                 or MarkdownKinds.Reference or MarkdownKinds.Rule or MarkdownKinds.Page) continue;
 
             var text = ProtectedText.Of(block);
-            if (text.HasWords) passages.Add(new Passage(block, text, where[at] ?? reading.Title ?? "the opening", chapter[at]));
+            if (text.HasWords) passages.Add(new Passage(block, text, where[at] ?? reading.Title ?? "the opening", run[at]));
         }
 
         return passages;
@@ -504,22 +514,27 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
         return asked.Length > 0 && given.Length > asked.Length && given.StartsWith(asked, StringComparison.Ordinal) && char.IsWhiteSpace(given[asked.Length]);
     }
 
+    /// <summary>
+    /// What every passage is told before it is handed over: what is the same for every passage of the document first — the
+    /// document as a whole, how to translate it, how to treat its marks — and the glossary entries the passage uses last, so a
+    /// model that reads the start two prompts share once (an owned model does) reads only what is each passage's own.
+    /// </summary>
     private static string Instructions(Job job, IReadOnlyList<(string Source, string Target)> hits)
     {
         var said = new StringBuilder()
             .Append($"You translate a document into {job.Language} a passage at a time. The whole document is:\n{job.Gist.Said}\n\n")
             .Append($"Translate as its author would have written it in {job.Language}: keep its register, tone, voice and tense, for the ")
-            .Append("same audience, so that the passages read as one text. ");
+            .Append("same audience, so that the passages read as one text. ")
+            .Append("Each <n>…</n> pair marks the words between its tags — a link, emphasis: keep every pair round the translation of ")
+            .Append($"those words, wherever they go in natural {job.Language}, one inside another as they were. Each ⟦n …⟧ is code or a ")
+            .Append("formula, shown after its number: do not translate it, and place it where it belongs in the sentence. Each ⟦n⟧ alone ")
+            .Append("stands for something you cannot see — a picture, longer code: keep it with the words it belongs to. Keep every tag ")
+            .Append("and every ⟦n⟧ exactly once, and add none: a tag is only ever a number, so put none of your own round a name, a ")
+            .Append("term or a formula. Translate everything else. Add nothing, explain nothing.");
 
-        if (hits.Count > 0) said.Append("Give these words this way wherever they occur:\n").Append(DocumentGlossary.Said(hits)).Append("\n\n");
+        if (hits.Count > 0) said.Append("\n\nGive these words this way wherever they occur:\n").Append(DocumentGlossary.Said(hits));
 
-        return said.Append("Each <n>…</n> pair marks the words between its tags — a link, emphasis: keep every pair round the translation of ")
-                   .Append($"those words, wherever they go in natural {job.Language}, one inside another as they were. Each ⟦n …⟧ is code or a ")
-                   .Append("formula, shown after its number: do not translate it, and place it where it belongs in the sentence. Each ⟦n⟧ alone ")
-                   .Append("stands for something you cannot see — a picture, longer code: keep it with the words it belongs to. Keep every tag ")
-                   .Append("and every ⟦n⟧ exactly once, and add none: a tag is only ever a number, so put none of your own round a name, a ")
-                   .Append("term or a formula. Translate everything else. Add nothing, explain nothing.")
-                   .ToString();
+        return said.ToString();
     }
 
     /// <summary>
@@ -563,7 +578,7 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
     private static partial Regex Opens();
 
     /// <summary>
-    /// What every question of one translation shares, and what one chapter's run of it keeps to itself: how many of its replies
+    /// What every question of one translation shares, and what one run of it keeps to itself: how many of its replies
     /// have failed since the last that was had.
     /// </summary>
     private sealed record Job(DocumentReading Reading, DocumentGist Gist, DocumentGlossary Glossary, string Language, string Shelf, DocumentBudget Budget,
@@ -573,7 +588,7 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
     }
 
     /// <summary>
-    /// What the chapters translated side by side share: the passages kept as written, those no answer that kept their markup
+    /// What the runs translated side by side share: the passages kept as written, those no answer that kept their markup
     /// was had for; and whether the model has answered at all, with the first reply that failed while it has not.
     /// </summary>
     private sealed class Shared
@@ -611,10 +626,12 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
     }
 
     /// <summary>
-    /// A block with words to translate: the block, its words with the rest held back, the section it stands in, and the chapter
-    /// — which of the document's outermost sections, 0 for none — it is translated in turn with.
+    /// A block with words to translate: the block, its words with the rest held back, the section it stands in, and the run it is
+    /// translated in turn with — 0 for what stands before the document's first chapter.
     /// </summary>
-    private sealed record Passage(ContentPart Block, ProtectedText Text, string Where, int Chapter);
+    /// <param name="Run">The stretch of the document it is read through in, in order, led into by the passage before it: a chapter's
+    /// opening — its heading and what comes before its first section — or one of its sections. Runs are translated side by side.</param>
+    private sealed record Passage(ContentPart Block, ProtectedText Text, string Where, int Run);
 
     /// <summary>
     /// A passage's words, or as much of them as is handed over at once — itself, not what it says: two pieces saying the same

@@ -11,7 +11,7 @@ namespace Nexaflow.IO.Documents.Processing;
 /// own piece. Its notes are kept a piece at a time, so asking again goes on from the piece that failed.
 /// </para>
 /// </summary>
-public readonly record struct DocumentBudget(int Characters)
+public readonly record struct DocumentBudget(int Characters, int AtOnce)
 {
     /// <summary>The least any model is taken to read: a page, and the instructions round it.</summary>
     private const int Least = 4096;
@@ -19,9 +19,28 @@ public readonly record struct DocumentBudget(int Characters)
     /// <summary>The most a question is sized to, in tokens, however much more the model reads.</summary>
     public const int MostTokens = 16_384;
 
-    /// <summary>What <paramref name="model"/> is handed at once.</summary>
-    public static DocumentBudget Of(IDocumentModel model) =>
-        new(Math.Max(Least, (int)((long)Math.Min(model.ContextTokens, MostTokens) * model.CharsPerToken * 9 / 10)));
+    /// <summary>How many questions are asked at once of a model each of whose answers has its context to itself.</summary>
+    public const int Separately = 4;
+
+    /// <summary>The share of a context its answers share that one question may fill: the rest is left for the others.</summary>
+    private const double Filled = 0.75;
+
+    /// <summary>
+    /// What <paramref name="model"/> is handed at once, and how many such questions it is asked at once. Where its answers share
+    /// one context, a question is never larger than fits in most of it, and as many are asked at once as it writes answers, less
+    /// one left for anyone else: the model fits them in its context as their real sizes allow, the rest waiting for room. Where
+    /// each answer has a context of its own, a question may fill it.
+    /// </summary>
+    public static DocumentBudget Of(IDocumentModel model)
+    {
+        if (model.RepliesAtOnce is not { } replies) return new(CharactersOf(model, Math.Min(model.ContextTokens, MostTokens)), Separately);
+
+        var each = model.SharesContext ? Math.Min((int)(model.ContextTokens * Filled), MostTokens) : Math.Min(model.ContextTokens, MostTokens);
+        return new(CharactersOf(model, Math.Max(1, each)), Math.Max(1, replies - 1));
+    }
+
+    /// <summary>What <paramref name="tokens"/> of <paramref name="model"/>'s come to in characters, less a tenth for what is not words.</summary>
+    private static int CharactersOf(IDocumentModel model, int tokens) => Math.Max(Least, (int)((long)tokens * model.CharsPerToken * 9 / 10));
 
     /// <summary><paramref name="part"/> of it, as characters.</summary>
     public int Share(double part) => (int)(Characters * part);

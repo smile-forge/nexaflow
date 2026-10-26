@@ -351,8 +351,14 @@ reports. Language models are placed first, then the rest from the largest down, 
 so a GPU stays as whole as it can for a picture. A language model gets its catalog's context — all it was trained for,
 read from its GGUF header: 256k for most, 128k for Gemma 4 E4B, 16k for Phi-4 — where there is room, and a shorter one
 where there is not, in steps of 1,024 tokens down to 8k; its catalog entry gives what it
-holds with no context and what each token adds. A model short of room takes it from those contexts before it runs on
-its CPU build, and one with no CPU build is left out. On the CPU, the other models hold what their builds' files hold,
+holds with no context and what each token adds, measured as 16-bit values and held in 8 (34 bytes for every 64, which on
+Gemma 4 26B is 3 GB less at 256k, with nothing a reply shows). A model short of room takes it from those contexts; a language
+model that still has none runs cut between the GPU with the most room and the CPU — its layers' share of its weights and
+context on the GPU, everything else whole there, its context 32k — where at least half of its layers fit there: Gemma 4 26B
+writes 33 tokens/s with 20 of its 30 layers on a GPU, against 204 with all of them. Only then does it run on its CPU build,
+and one with no CPU build is left out. Once everything is placed, a language model wholly on a GPU reads its prompts in
+steps of 2,048 tokens where what is left there holds them, and its catalog says what they cost — on Gemma 4 26B, 13,700
+tokens/s against 9,400 in steps of 512, for 2 GB; steps of 4,096 read no faster. On the CPU, the other models hold what their builds' files hold,
 and a language model is given the longest context the host's memory share leaves it, never under 8k. When a workspace takes models on, the plan is redone and each
 model it moves is loaded again where it now runs; letting models go moves nothing. A picture's parts are placed each
 time: on a GPU where they fit beside the residents, else on the one with the most room, where the residents make way.
@@ -403,8 +409,47 @@ drifts from a re-read, it is greedy decoding branching on that rounding.
 - **The window ends in a summary**: when the log reaches the model's budget, older turns are summarised and the
   cache is rebuilt once from the summary.
 
-The cache is allocated once per model, as long as its context, and its conversations share it — eight sequences in
-one cache, the oldest kept conversation dropped when a new read needs its room. For E4B a 16k cache is under a gigabyte.
+The cache is allocated once per model, as long as its context, and its conversations share it, each a sequence in one
+cache: 8 of them, as the catalog's figures were measured holding, or 16 where a model's catalog says what each more costs
+and its GPU has the room left (Gemma 4 26B: 204 MB each in 16 bits, 110 MB in 8). As many replies are written at once as
+the cache has sequences; the conversations kept between requests and the openings below take the rest, and are let go when
+a reply needs their sequence. A request past them waits for a reply to end, and one whose prompt finds no room waits for room
+rather than being turned away; its room is held for it from the moment it is let in, so prompts arriving together are never
+let into the same room. The kept conversations go first, oldest first, when room is needed. For E4B a 16k cache is under a
+gigabyte.
+
+Every step reads one token of every reply being written, and with them the prompts waiting to be read as far as the step
+has room — so a prompt that arrives while replies are written is read alongside them, not between their tokens. Each
+reply's next token is chosen side by side with the others', on as many cores as there are replies: chosen one after
+another, the choosing took longer than the step once several were written together. Every step runs as a CUDA graph, one
+reply's or several's — without them a reply is written at a third of the speed.
+
+What a step costs is mostly how much cache it reads. One sequence's cells sit among the others', every reply growing by a
+cell each step, and each token is read against every cell in use, the others' masked out — every sequence's window of
+what it read too, used or not. So on Gemma 4 26B short replies write about 200 tokens/s alone and 1,100 sixteen at once,
+but replies each the length of a passage of a document — a 1,700-token prompt — write 530 tokens/s eight at once, 580
+sixteen and 530 thirty-two: the total is set by the cells read, not by how many replies there are. llama.cpp's cache cut
+into a slice per conversation reads only a reply's own: llama.cpp reads in one step only sequences whose numbers follow one
+another, each with as many tokens as the rest, so one fed as the shared cache is — replies in the order they came, prompts
+read beside them — reads a step in several and is slower still. Choosing tokens is a few percent of a step.
+
+So a language model whose catalog says what it costs, wholly on a GPU with that room left once everything else is placed,
+has a second lane for work nobody is watching (`ChatLane`): a context of its own on the same weights, 32 conversations of
+8,192 tokens each with a slice of the cache to itself. It is made when such work comes — a request of background priority
+whose prompt of text alone leaves a quarter of a slice for its reply — and only where its GPU has what it holds free then
+(Gemma 4 26B: 9 GB), and let go 30 seconds after the last of it; a GPU without the room does the work in the model's own
+lane, more slowly. Its replies are kept numbered without gaps: a conversation starts in the highest free sequence, out of the
+way while it reads its prompt, each round moves any reply standing above a free sequence down into it (`llama_memory_seq_cp`
+copies the slice), and nothing is kept there for a follow-up. Thirty-two passage-length replies write 800 tokens/s there,
+against 580 for sixteen in the model's own lane; forty-eight write no more. A document's passages are asked there, as many at
+once as it writes less one, each filling its slice (`ModelInfo.Background`), and six chapters of a lecture script translate
+in 43 s where the shared lane takes 56.
+
+A prompt that begins as one read lately began — the same instructions, a different question — begins with the cells that
+start already holds: where two prompts share 256 tokens or more, the start they share is read once into a sequence of
+its own, an opening, and every conversation that begins with it shares its cells rather than reading them again. Two
+openings are kept, the least used let go once no conversation holds its cells. A document's passages, each asked with the
+same instructions, read only what is their own: 14 tokens rather than 2,369.
 
 ## Routing
 

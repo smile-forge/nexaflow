@@ -145,7 +145,8 @@ public class OwnedLlmProviderTests
         Assert.IsNotNull(host.Environment.RuntimePack, "the host runs from the pack");
         var load = (LoadModel)host.Requests.Single();
         Assert.AreEqual((0, 131072), (load.Model.Device, load.Model.ContextTokens), "on the GPU, with all the context it was trained for where there is room");
-        Assert.AreEqual(5905580032L + 17920L * 131072, load.Model.MemoryBytes, "what it holds there, context and all");
+        Assert.AreEqual(5905580032L + ContextCache.Q8.BytesPerToken(17920L) * 131072, load.Model.MemoryBytes, "what it holds there, context and all");
+        Assert.AreEqual(ContextCache.Q8, load.Model.ContextCache, "its context held in 8 bits");
     }
 
     [TestMethod]
@@ -172,7 +173,7 @@ public class OwnedLlmProviderTests
         Assert.AreEqual(AiHostEnvironment.Cpu, host.Environment);
         var model = ((LoadModel)host.Requests.Single()).Model;
         var part = OwnedModels.OfKind(ModelKind.Language).Single(m => m.Id == Gemma.Id).PartsFor(OwnedModels.Cpu).Single();
-        Assert.AreEqual((null, Gemma.Files.Sum(f => f.Size) + part.BytesPerToken * model.ContextTokens), (model.Device, model.MemoryBytes),
+        Assert.AreEqual((null, Gemma.Files.Sum(f => f.Size) + ContextCache.Q8.BytesPerToken(part.BytesPerToken) * model.ContextTokens), (model.Device, model.MemoryBytes),
                         "on the CPU it holds its files, read whole, and its context");
     }
 
@@ -185,14 +186,16 @@ public class OwnedLlmProviderTests
         await provider.WarmupAsync();
 
         int context = ((LoadModel)host.Requests.Single()).Model.ContextTokens;
-        Assert.AreEqual(14336, context, "a quarter of a gigabyte past its weights is fourteen thousand-token steps of context");
+        Assert.AreEqual(27648, context, "a quarter of a gigabyte past its weights, its context held in 8 bits, is twenty-seven thousand-token steps of it");
         Assert.AreEqual(context, (await provider.GetModelInfoAsync())!.ContextWindowTokens, "and the app is told the context it has");
     }
 
     [TestMethod]
-    [DataRow(11, new[] { "gemma-4-e4b-it", "qwen-3.5-9b", "mimo-v2.6-9b" })]
-    [DataRow(16, new[] { "gemma-4-e4b-it", "qwen-3.5-9b", "mimo-v2.6-9b", "phi-4" })]
-    [DataRow(24, new[] { "gemma-4-e4b-it", "qwen-3.5-9b", "mimo-v2.6-9b", "phi-4", "gemma-4-26b-a4b-it", "qwen-3.8-27b" })]
+    // Wholly on the card, or cut between it and the CPU where at least half its layers fit there — Phi 4's 31 of 40 on 11 GB,
+    // Gemma 4 26B's 20 of 30 on 16 GB, Gemma 4 31B's 42 of 60 on 24 GB.
+    [DataRow(11, new[] { "gemma-4-e4b-it", "qwen-3.5-9b", "mimo-v2.6-9b", "phi-4" })]
+    [DataRow(16, new[] { "gemma-4-e4b-it", "qwen-3.5-9b", "mimo-v2.6-9b", "phi-4", "gemma-4-26b-a4b-it", "qwen-3.6-35b-a3b", "qwen-3.8-27b" })]
+    [DataRow(24, new[] { "gemma-4-e4b-it", "qwen-3.5-9b", "mimo-v2.6-9b", "phi-4", "gemma-4-26b-a4b-it", "qwen-3.6-35b-a3b", "qwen-3.8-27b", "gemma-4-31b-it" })]
     [DataRow(32, new[] { "gemma-4-e4b-it", "qwen-3.5-9b", "mimo-v2.6-9b", "phi-4", "gemma-4-26b-a4b-it", "qwen-3.6-35b-a3b", "qwen-3.8-27b", "gemma-4-31b-it" })]
     public void EachCard_ListsTheLanguageModelsItFits(int gigabytes, string[] listed)
     {

@@ -160,4 +160,80 @@ public class ModelPlacementTests
         Assert.AreEqual(16 * GB - ModelPlacement.DesktopBytes - HostGpu.ReservedBytes, gpu.BudgetBytes);
         Assert.AreEqual(0, ModelPlacement.Expected(hardware with { CudaDriver = null }).Count, "without a CUDA driver the host runs on the CPU");
     }
+
+    /// <summary>Gemma 4 26B A4B as the catalog has it: 18.8 GB with no context, 14.4 GB of it its 30 layers' weights; 13.6 KB a token
+    /// of context held in 8 bits, 262k of it where there is room; and what reading in longer steps, and holding more sequences, cost it.</summary>
+    private static PlacementNeed Large()
+        => new(Spec("large", 18_790_481_920L, 262_144), Spec("large", 18_790_481_920L, 262_144), BytesPerToken: 13_600, ShortestContext: 8192,
+               Layers: 30, WeightsBytes: 14_439_363_584L, BatchBytesPerToken: 1_376_256, BytesPerSequence: 113_639_424, BackgroundBytes: 9_428_795_392L);
+
+    [TestMethod]
+    public void ALanguageModelNoCardHasRoomFor_IsCutBetweenTheCardAndTheCpu_AsManyOfItsLayersOnTheCardAsFit()
+    {
+        var placement = ModelPlacement.Plan([Gpu(0, 14)], [Large()]);
+        var large = Placed(placement, "large");
+
+        Assert.AreEqual(0, large.Device, "it runs on the card");
+        Assert.AreEqual(21, large.GpuLayers, "21 of its 30 layers there, the rest on the CPU");
+        Assert.AreEqual(ModelPlacement.CutContext, large.ContextTokens, "its layers come before its length");
+        Assert.AreEqual(Large().BytesAt(large.ContextTokens, 21), large.MemoryBytes, "what it holds on the card: its layers' share, and the rest whole");
+        Assert.IsTrue(placement.FreeOn(placement.Gpus[0]) >= 0, "within the card's budget");
+        Assert.IsTrue(Large().BytesAt(large.ContextTokens, 22) > placement.Gpus[0].BudgetBytes, "and one layer more would not be");
+    }
+
+    [TestMethod]
+    public void ButWhereFewerThanHalfItsLayersFitOnTheCard_ItRunsOnTheCpu()
+    {
+        var large = Placed(ModelPlacement.Plan([Gpu(0, 9)], [Large()]), "large");
+
+        Assert.AreEqual((null, null), (large.Device, large.GpuLayers));
+    }
+
+    [TestMethod]
+    public void ACardWithRoomLeftOver_HasItsLanguageModelReadInLongerSteps_OnlyOnceItHasItsWholeContext()
+    {
+        var roomy = Placed(ModelPlacement.Plan([Gpu(0, 40)], [Large()]), "large");
+        Assert.AreEqual((262_144, ModelPlacement.LongestBatch), (roomy.ContextTokens, roomy.BatchTokens));
+    Assert.AreEqual(Large().BytesAt(262_144, batch: ModelPlacement.LongestBatch, sequences: roomy.Sequences), roomy.MemoryBytes,
+                        "what the longer steps hold counted with the rest");
+
+        var snug = Placed(ModelPlacement.Plan([Gpu(0, 22.5)], [Large()]), "large");
+        Assert.AreEqual((262_144, ModelSpec.DefaultBatch), (snug.ContextTokens, snug.BatchTokens), "its whole context fits, and longer steps beside it do not");
+    }
+
+    [TestMethod]
+    public void AContextHeldIn8Bits_TakesALittleOverHalfWhatItTakesIn16()
+    {
+        Assert.AreEqual(34, ContextCache.Q8.BytesPerToken(64), "32 values of 8 bits and a 16-bit scale, where 16 bits each take 64 bytes");
+        Assert.AreEqual(64, ContextCache.F16.BytesPerToken(64));
+    }
+
+    [TestMethod]
+    public void ACardWithRoomLeftOver_HasItsLanguageModelWriteMoreRepliesAtOnce_EachSequenceCounted()
+    {
+        var roomy = Placed(ModelPlacement.Plan([Gpu(0, 40)], [Large()]), "large");
+        Assert.AreEqual(ModelPlacement.MostSequences, roomy.Sequences);
+        Assert.AreEqual(Large().BytesAt(262_144, batch: ModelPlacement.LongestBatch, sequences: ModelPlacement.MostSequences), roomy.MemoryBytes,
+                        "what each sequence past the catalog's holds counted with the rest");
+
+        var snug = Placed(ModelPlacement.Plan([Gpu(0, 21.5)], [Large()]), "large");
+        Assert.AreEqual((262_144, ModelSpec.DefaultSequences), (snug.ContextTokens, snug.Sequences),
+                        "its whole context fits, 0.7 GB left beside it, too little for 8 more sequences: the ones its catalog was measured with");
+
+        var cut = Placed(ModelPlacement.Plan([Gpu(0, 14)], [Large()]), "large");
+        Assert.AreEqual(ModelSpec.DefaultSequences, cut.Sequences, "and a model cut between a card and the CPU has no room to spare");
+    }
+
+    [TestMethod]
+    public void ACardWithRoomForIt_LetsItsLanguageModelMakeAContextForWorkNobodyIsWatching_WithoutCountingItAsHeld()
+    {
+        var roomy = Placed(ModelPlacement.Plan([Gpu(0, 40)], [Large()]), "large");
+        Assert.AreEqual((ModelPlacement.BackgroundSequences, ModelPlacement.BackgroundTokens, Large().BackgroundBytes),
+                        (roomy.BackgroundSequences, roomy.BackgroundTokens, roomy.BackgroundBytes));
+        Assert.AreEqual(Large().BytesAt(262_144, batch: roomy.BatchTokens, sequences: roomy.Sequences), roomy.MemoryBytes,
+                        "made only while there is such work, it is not what the model holds");
+
+        var short_ = Placed(ModelPlacement.Plan([Gpu(0, 28)], [Large()]), "large");
+        Assert.AreEqual(0, short_.BackgroundSequences, "what is left once the model is placed, 2 GB longer steps and 1 GB more sequences in, holds no 9 GB context");
+    }
 }

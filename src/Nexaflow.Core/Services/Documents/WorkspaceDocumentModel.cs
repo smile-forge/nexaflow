@@ -15,11 +15,15 @@ namespace Nexaflow.Core.Services.Documents;
 /// <param name="provider">The model.</param>
 /// <param name="key">Which model it is: its provider and its name.</param>
 /// <param name="context">How many tokens it reads at once, as it said or as Nexaflow's own models are taken to.</param>
-internal sealed class WorkspaceDocumentModel(ILlmProvider provider, string key, int context) : IDocumentModel
+internal sealed class WorkspaceDocumentModel(ILlmProvider provider, string key, int context, int? repliesAtOnce = null, bool sharesContext = true) : IDocumentModel
 {
     public string Key => key;
 
     public int ContextTokens => context;
+
+    public int? RepliesAtOnce => repliesAtOnce;
+
+    public bool SharesContext => sharesContext;
 
     public int CharsPerToken => RequestTriage.CharsPerToken;
 

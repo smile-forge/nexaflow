@@ -4,16 +4,16 @@ namespace Nexaflow.AiHost.Llama;
 
 /// <summary>
 /// One KV cache for a model's open conversations, each a sequence of its own in one unified cache: the cache is
-/// allocated once, as long as the model's context, and conversations share it. Reading appends a sequence's tokens at
-/// its next positions; the next token is chosen by the reader's sampler — the likeliest, when it gives none — from the
-/// logits the last read left, so a read and the sample after it happen together, before another conversation's read can
-/// replace them. Every call takes the context's lock: llama.cpp
-/// serves one caller at a time.
+/// allocated once, as long as the model's context, and conversations share it. A read appends tokens to each of several
+/// sequences at their next positions, all in one llama.cpp call; the token after a sequence's last is chosen, where asked, by
+/// its reader's sampler — the likeliest, when it gives none — from the logits the read left, so a read and the samples after it
+/// happen together, before another read can replace them. Every call takes the context's lock: llama.cpp serves one caller at a
+/// time.
 /// </summary>
 internal sealed unsafe class LlamaContext : IDisposable
 {
-    /// <summary>Tokens read per call — llama.cpp's batch — and so the slice a prompt is read in.</summary>
-    public const int Batch = 512;
+    /// <summary>Tokens read per call where the model's spec gives no more room.</summary>
+    public const int DefaultBatch = ModelSpec.DefaultBatch;
 
     private readonly object _gate = new();
     private readonly IntPtr _memory;
@@ -21,26 +21,35 @@ internal sealed unsafe class LlamaContext : IDisposable
     private readonly int _vocabulary;
     private LlamaNative.Batch _batch;
 
-    public LlamaContext(LlamaModel model, int contextTokens, int sequences)
+    /// <param name="batch">The tokens read per call, every sequence's together.</param>
+    /// <param name="cache">How the cache holds each token. Held in 8 bits, flash attention reads it: llama.cpp reads quantized
+    /// values no other way.</param>
+    /// <param name="perConversation">Whether each sequence has a slice of the cache of its own — a step reading each token against its
+    /// own sequence's cells alone — rather than all of them sharing one, every token read against every cell in use.</param>
+    public LlamaContext(LlamaModel model, int contextTokens, int sequences, int batch = DefaultBatch, ContextCache cache = ContextCache.F16,
+                        bool perConversation = false)
     {
         var parameters = LlamaNative.ContextDefaults();
         parameters.Context = (uint)contextTokens;
-        parameters.Batch = Batch;
-        parameters.MicroBatch = Batch;
+        parameters.Batch = (uint)batch;
+        parameters.MicroBatch = (uint)batch;
         parameters.MaxSequences = (uint)sequences;
-        parameters.KvUnified = 1;
+        parameters.KvUnified = (byte)(perConversation ? 0 : 1);
         // Sliding-window layers keep their window alone: a conversation is appended to or forgotten whole, never cut
         // back, so nothing older than the window is read again — and a large Gemma 4 holds half the memory.
         parameters.SwaFull = 0;
-        parameters.FlashAttention = LlamaNative.FlashAttention.Auto;
+        parameters.FlashAttention = cache == ContextCache.Q8 ? LlamaNative.FlashAttention.Enabled : LlamaNative.FlashAttention.Auto;
+        if (cache == ContextCache.Q8) parameters.KeyType = parameters.ValueType = (int)LlamaNative.GgmlType.Q8_0;
         _context = LlamaNative.ContextInit(model.Handle, parameters);
         if (_context == IntPtr.Zero)
             throw new HostRequestException(HostErrorKind.Runtime, $"llama.cpp could not make a context of {contextTokens} tokens; see the host's log.");
         _memory = LlamaNative.ContextMemory(_context);
         _vocabulary = model.VocabSize;
-        _batch = LlamaNative.BatchInit(Batch, 0, 1);
+        _batch = LlamaNative.BatchInit(batch, 0, 1);
         Tokens = (int)LlamaNative.ContextSize(_context);
         Sequences = sequences;
+        Batch = batch;
+        PerConversation = perConversation;
     }
 
     /// <summary>The tokens the cache holds, all sequences together.</summary>
@@ -48,49 +57,58 @@ internal sealed unsafe class LlamaContext : IDisposable
 
     public int Sequences { get; }
 
-    /// <summary>Reads <paramref name="tokens"/> into a sequence from <paramref name="position"/>, at most
-    /// <see cref="Batch"/> of them; with <paramref name="sample"/>, the next token is chosen from the last one's
-    /// logits and returned.</summary>
-    public int? Read(int sequence, int position, ReadOnlySpan<int> tokens, bool sample, LlamaSampler? sampler = null)
-    {
-        if (tokens.Length is 0 or > Batch) throw new ArgumentOutOfRangeException(nameof(tokens), tokens.Length, $"1 to {Batch} tokens per read.");
-        lock (_gate)
-        {
-            var batch = _batch;
-            batch.TokenCount = tokens.Length;
-            for (int i = 0; i < tokens.Length; i++)
-            {
-                batch.Token[i] = tokens[i];
-                batch.Position[i] = position + i;
-                batch.SequenceIdCount[i] = 1;
-                batch.SequenceId[i][0] = sequence;
-                batch.Logits[i] = (sbyte)(sample && i == tokens.Length - 1 ? 1 : 0);
-            }
-            Check(LlamaNative.Decode(Handle, batch));
-            return sample ? Sample(sampler) : null;
-        }
-    }
+    /// <summary>The tokens one call reads, every sequence's together.</summary>
+    public int Batch { get; }
 
-    /// <summary>Reads one token into each of several sequences in one call, each at the position given, and chooses each
-    /// sequence's next token from its own scores by its own sampler — the likeliest where it has none — into
-    /// <paramref name="chosen"/>, in the same order.</summary>
-    public void Step(ReadOnlySpan<SequenceToken> reads, ReadOnlySpan<LlamaSampler?> samplers, Span<int> chosen)
+    /// <summary>
+    /// Whether each sequence has a slice of the cache of its own. llama.cpp then reads a step's sequences together only where their
+    /// numbers follow one another in the step, each with as many tokens as the others: a step that breaks that is read in several.
+    /// </summary>
+    public bool PerConversation { get; }
+
+    /// <summary>Reads each of <paramref name="reads"/> into its sequence, all in one call — <see cref="Batch"/> tokens at most — and
+    /// chooses, for each that asks, the token after its last by its sampler, into <paramref name="chosen"/> in the same order;
+    /// -1 for one that does not ask.</summary>
+    /// <remarks>
+    /// Each choice is made over the whole vocabulary — a quarter of a million scores for a Gemma — and on the CPU, so a step's
+    /// choices, made one after another, would take longer than the step itself once several replies are written together, the
+    /// GPU waiting on them. They are made side by side instead: each reply has its own sampler and its own row of scores, and
+    /// what llama.cpp settles the first time scores are read — the order of its outputs — is settled before any is chosen.
+    /// </remarks>
+    public void Read(SequenceRead[] reads, int[] chosen)
     {
-        if (reads.Length is 0 or > Batch) throw new ArgumentOutOfRangeException(nameof(reads), reads.Length, $"1 to {Batch} sequences per step.");
+        int count = 0;
+        foreach (var read in reads) count += read.Tokens.Length;
+        if (reads.Length == 0 || count > Batch) throw new ArgumentOutOfRangeException(nameof(reads), count, $"1 to {Batch} tokens per read.");
         lock (_gate)
         {
             var batch = _batch;
-            batch.TokenCount = reads.Length;
-            for (int i = 0; i < reads.Length; i++)
+            batch.TokenCount = count;
+            var last = new int[reads.Length];
+            int at = 0, asking = 0;
+            for (int r = 0; r < reads.Length; r++)
             {
-                batch.Token[i] = reads[i].Token;
-                batch.Position[i] = reads[i].Position;
-                batch.SequenceIdCount[i] = 1;
-                batch.SequenceId[i][0] = reads[i].Sequence;
-                batch.Logits[i] = 1;
+                var tokens = reads[r].Tokens.Span;
+                for (int i = 0; i < tokens.Length; i++, at++)
+                {
+                    batch.Token[at] = tokens[i];
+                    batch.Position[at] = reads[r].Position + i;
+                    batch.SequenceIdCount[at] = 1;
+                    batch.SequenceId[at][0] = reads[r].Sequence;
+                    batch.Logits[at] = (sbyte)(reads[r].Sample && i == tokens.Length - 1 ? 1 : 0);
+                }
+                last[r] = at - 1;
+                if (reads[r].Sample) asking++;
             }
-    Check(LlamaNative.Decode(Handle, batch));
-    for (int i = 0; i < reads.Length; i++) chosen[i] = Sample(samplers[i], i);
+        Check(LlamaNative.Decode(Handle, batch));
+
+            if (asking > 1)
+            {
+                LlamaNative.Logits(Handle, last[Array.FindIndex(reads, read => read.Sample)]);   // its outputs put in order, once
+                Parallel.For(0, reads.Length, r => chosen[r] = reads[r].Sample ? Sample(reads[r].Sampler, last[r]) : -1);
+            }
+            else
+            for (int r = 0; r < reads.Length; r++) chosen[r] = reads[r].Sample ? Sample(reads[r].Sampler, last[r]) : -1;
         }
     }
 
@@ -111,6 +129,25 @@ internal sealed unsafe class LlamaContext : IDisposable
     {
         lock (_gate)
             if (_context != IntPtr.Zero) LlamaNative.MemoryRemove(_memory, sequence, from, to);
+    }
+
+    /// <summary>Has sequence <paramref name="to"/> hold the first <paramref name="tokens"/> of what <paramref name="from"/> has read, as
+    /// it holds them: the same cells, which the two then share.</summary>
+    public void Share(int from, int to, int tokens)
+    {
+        lock (_gate)
+            LlamaNative.MemoryShare(_memory, from, to, 0, tokens);
+    }
+
+    /// <summary>Moves what sequence <paramref name="from"/> holds to <paramref name="to"/>, which holds nothing — where each sequence has
+    /// a slice of its own, its slice is copied as the next read begins, before anything is read into either.</summary>
+    public void Move(int from, int to)
+    {
+        lock (_gate)
+        {
+            LlamaNative.MemoryShare(_memory, from, to, -1, -1);
+            LlamaNative.MemoryRemove(_memory, from, -1, -1);
+        }
     }
 
     /// <summary>The next token, from the scores the last read left for its <paramref name="index"/>-th output — -1 the last:
@@ -142,13 +179,14 @@ internal sealed unsafe class LlamaContext : IDisposable
         {
             if (_context == IntPtr.Zero) return;
             LlamaNative.BatchFree(_batch);
-    
+
             LlamaNative.ContextFree(_context);
-    
+
             _context = IntPtr.Zero;
         }
     }
 }
 
-/// <summary>A token to read into a sequence at a position: one sequence's share of a <see cref="LlamaContext.Step"/>.</summary>
-internal readonly record struct SequenceToken(int Sequence, int Position, int Token);
+/// <summary>Tokens to read into a sequence from a position — one sequence's share of a <see cref="LlamaContext.Read(ReadOnlySpan{SequenceRead}, Span{int})"/>
+/// — and whether the token after its last is chosen, by what sampler: null for the likeliest.</summary>
+internal readonly record struct SequenceRead(int Sequence, int Position, ReadOnlyMemory<int> Tokens, bool Sample, LlamaSampler? Sampler);

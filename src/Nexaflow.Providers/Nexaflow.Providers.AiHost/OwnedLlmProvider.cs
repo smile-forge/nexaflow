@@ -66,7 +66,8 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
 
     /// <summary>The model, with the context its GPU gives it once it is placed.</summary>
     public Task<ModelInfo?> GetModelInfoAsync(CancellationToken ct = default)
-        => Task.FromResult(_model is null ? null : new ModelInfo(_runtime.ContextOf(_model, OwnedRoles.Chat), _model.Catalog.DisplayName));
+        => Task.FromResult(_model is null ? null : new ModelInfo(_runtime.ContextOf(_model, OwnedRoles.Chat), _model.Catalog.DisplayName, _runtime.RepliesOf(_model, OwnedRoles.Chat),
+                                                                _runtime.BackgroundOf(_model, OwnedRoles.Chat)));
 
     /// <summary>Fetches what is missing, then has the host load the model and keep it. Never throws: a model that will
     /// not come is unavailable, and its chain moves on.</summary>
