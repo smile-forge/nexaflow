@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing;
@@ -72,7 +73,7 @@ public class ImageRestoreTests
     private ImageViewModel Editing(Opposites tools, IShellServices? shell = null)
     {
         var vm = new ImageViewModel([_photo], shell ?? Shell(), ImageViewMode.Edit,
-                                    new ImageEditingServices(new ImageRecipeStore(TimeSpan.FromHours(1)), _restored), pictures: tools);
+                                    new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1)), _restored), pictures: tools);
         Until(() => vm.Canvas is not null);
         Assert.IsNotNull(vm.Canvas, "the photo was never decoded and presented");
         return vm;
@@ -209,7 +210,7 @@ public class ImageRestoreTests
     public async Task ARestoration_IsKept_AndMadeOnceForThePhoto()
     {
         var tools = new Opposites();
-        var services = new ImageEditingServices(new ImageRecipeStore(TimeSpan.FromHours(1)), _restored);
+        var services = new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1)), _restored);
         var restore = new RecipeRestore { Scale = 2 };
 
         var first = await _restored.MakeAsync(services, _photo, restore, tools, null, CancellationToken.None);
@@ -226,7 +227,7 @@ public class ImageRestoreTests
     {
         var tools = new Opposites();
         var store = new ImageRecipeStore(TimeSpan.FromHours(1));
-        var services = new ImageEditingServices(store, _restored);
+        var services = new ImageEditingServices(VirtualFileSystem.Instance, store, _restored);
         var restore = new RecipeRestore();
         store.SaveDebounced(_photo, ImageRecipe.Identity with { Restore = restore });
         store.Flush(_photo);

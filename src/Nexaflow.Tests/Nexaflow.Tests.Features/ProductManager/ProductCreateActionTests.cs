@@ -26,9 +26,9 @@ public class ProductCreateActionTests
     }
 
     [TestMethod]
-    public void Create_InitializesProductInCurrentFolder_NamedByInput()
+    public async Task Create_InitializesProductInCurrentFolder_NamedByInput()
     {
-        var path = new ProductCreateAction().Create(_root, "My App");
+        var path = await new ProductCreateAction().CreateItemAsync(_root, "My App");
 
         Assert.AreEqual(ProductStore.DotProductDir(_root), path);  // .product/ in the current folder
         Assert.IsTrue(ProductStore.Exists(_root));
@@ -36,13 +36,13 @@ public class ProductCreateActionTests
     }
 
     [TestMethod]
-    public void Create_RejectsBlankName()
-        => Assert.IsNull(new ProductCreateAction().Create(_root, "   "));
+    public async Task Create_RejectsBlankName()
+        => Assert.IsNull(await new ProductCreateAction().CreateItemAsync(_root, "   "));
 
     [TestMethod]
-    public void Create_OnExistingProduct_Throws()
+    public async Task Create_OnExistingProduct_Throws()
     {
-        new ProductCreateAction().Create(_root, "First");
-        Assert.ThrowsExactly<InvalidOperationException>(() => new ProductCreateAction().Create(_root, "Second"));
+        await new ProductCreateAction().CreateItemAsync(_root, "First");
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => new ProductCreateAction().CreateItemAsync(_root, "Second"));
     }
 }

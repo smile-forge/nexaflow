@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -29,7 +30,7 @@ public class SvgSurfaceTests
 
     private static async Task<SvgViewModel> LoadedAsync(string name = "sample.svg")
     {
-        var vm = new SvgViewModel(Sample(name));
+        var vm = new SvgViewModel(Sample(name), VirtualFileSystem.Instance);
         await vm.LoadAsync();
         return vm;
     }
@@ -59,7 +60,7 @@ public class SvgSurfaceTests
             """<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect width="40" height="20"/></svg>""");
         try
         {
-            var vm = new SvgViewModel(path);
+            var vm = new SvgViewModel(path, VirtualFileSystem.Instance);
             await vm.LoadAsync();
 
             Assert.IsFalse(vm.HasViewBox);
@@ -92,7 +93,7 @@ public class SvgSurfaceTests
     [CoversNode("svg-error-overlay")]
     public async Task AFileThatCannotBeReadShowsWhy_RatherThanAnEmptyCanvas()
     {
-        var vm = new SvgViewModel(Sample("does-not-exist.svg"));
+        var vm = new SvgViewModel(Sample("does-not-exist.svg"), VirtualFileSystem.Instance);
 
         await vm.LoadAsync();
 
@@ -111,7 +112,7 @@ public class SvgSurfaceTests
         File.WriteAllText(path, """<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0"></svg>""");
         try
         {
-            var vm = new SvgViewModel(path);
+            var vm = new SvgViewModel(path, VirtualFileSystem.Instance);
             await vm.LoadAsync();
 
             Assert.IsTrue(vm.HasError);
@@ -124,7 +125,7 @@ public class SvgSurfaceTests
     [CoversNode("svg-load-gate")]
     public void TheAiIsHeldBackUntilTheFileHasLoaded()
     {
-        var vm = new SvgViewModel(Sample("sample.svg"));
+        var vm = new SvgViewModel(Sample("sample.svg"), VirtualFileSystem.Instance);
 
         Assert.IsFalse(vm.IsContextReady, "pinning the tab the instant it opens must not send an empty page");
         StringAssert.Contains(vm.GetContext(), "still loading");
@@ -135,7 +136,7 @@ public class SvgSurfaceTests
     public async Task TheGateIsReleasedEvenWhenTheLoadFails()
     {
         // Otherwise a broken file leaves the conversation waiting forever for a page that will never load.
-        var vm = new SvgViewModel(Sample("does-not-exist.svg"));
+        var vm = new SvgViewModel(Sample("does-not-exist.svg"), VirtualFileSystem.Instance);
 
         await vm.LoadAsync();
 
@@ -160,7 +161,7 @@ public class SvgSurfaceTests
     [CoversNode("svg-ai-preview")]
     public async Task ThePreview_RemindsOfTheArtwork_AndIsFreshEachTime()
     {
-        var loading = new SvgViewModel(Sample("sample.svg"));
+        var loading = new SvgViewModel(Sample("sample.svg"), VirtualFileSystem.Instance);
         var loaded  = await LoadedAsync();
 
         UiThread.Run(() =>

@@ -32,27 +32,27 @@ public class DicomVfsTests
     }
 
     [TestMethod]
-    public void Load_ZipOfInstances_EnumeratesImages()
+    public async Task Load_ZipOfInstances_EnumeratesImages()
     {
         var zip = DicomTestFiles.WriteZip(_tmp, "study.zip", instanceCount: 3);
 
         // Opening the .zip as a DICOM container browses its entries through the VFS.
-        var container = DicomContainerLoader.Load([zip]);
+        var container = await DicomContainerLoader.LoadAsync(new DicomIo(VirtualFileSystem.Instance), [zip]);
 
         Assert.AreEqual(3, container.Images.Count, "all three zipped instances load as images");
         Assert.AreEqual(0, container.Reports.Count);
     }
 
     [TestMethod]
-    public void Render_ImageFromInsideZip_ProducesBitmap()
+    public async Task Render_ImageFromInsideZip_ProducesBitmap()
     {
         var zip = DicomTestFiles.WriteZip(_tmp, "study.zip", instanceCount: 1);
-        var container = DicomContainerLoader.Load([zip]);
+        var container = await DicomContainerLoader.LoadAsync(new DicomIo(VirtualFileSystem.Instance), [zip]);
         var virtualPath = container.Images[0].FilePath!;
 
         Assert.IsFalse(File.Exists(virtualPath), "the instance path is virtual (inside the zip), not on disk");
 
-        var renderer = new DicomRenderer(virtualPath);
+        var renderer = await DicomRenderer.OpenAsync(new DicomIo(VirtualFileSystem.Instance), virtualPath);
         var bmp = renderer.Render(0);
         Assert.AreEqual(8, bmp.PixelWidth);
         Assert.AreEqual(8, bmp.PixelHeight);

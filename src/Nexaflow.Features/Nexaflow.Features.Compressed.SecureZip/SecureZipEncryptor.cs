@@ -14,20 +14,20 @@ public sealed class SecureZipEncryptor : IArchiveEncryptor
     public bool CanEncrypt(string fileName)
         => Path.GetExtension(fileName).Equals(".zip", StringComparison.OrdinalIgnoreCase);
 
-    public void Encrypt(string sourcePath, string destPath, string password)
-        => Copy(sourcePath, sourcePassword: null, destPath, destPassword: password);
+    public void Encrypt(Stream source, Stream destination, string password)
+        => Copy(source, sourcePassword: null, destination, destPassword: password);
 
-    public void Decrypt(string sourcePath, string destPath, string password)
-        => Copy(sourcePath, sourcePassword: password, destPath, destPassword: null);
+    public void Decrypt(Stream source, Stream destination, string password)
+        => Copy(source, sourcePassword: password, destination, destPassword: null);
 
-    /// <summary>Streams every file entry from one zip to another, applying or removing AES encryption.</summary>
-    private static void Copy(string sourcePath, string? sourcePassword, string destPath, string? destPassword)
+    /// <summary>Streams every file entry from one zip to another, applying or removing AES encryption. Both streams stay
+    /// the caller's: neither is closed here.</summary>
+    private static void Copy(Stream sourceStream, string? sourcePassword, Stream destination, string? destPassword)
     {
-        using var source = new ZipFile(sourcePath);
+        using var source = new ZipFile(sourceStream, leaveOpen: true);
         if (sourcePassword is not null) source.Password = sourcePassword;
 
-        using var outStream = File.Create(destPath);
-        using var zos = new ZipOutputStream(outStream);
+        using var zos = new ZipOutputStream(destination) { IsStreamOwner = false };
         if (destPassword is not null) zos.Password = destPassword;
         zos.SetLevel(6);
 

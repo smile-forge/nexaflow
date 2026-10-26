@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Images.Editing.Recipe;
 
@@ -39,6 +40,7 @@ public readonly record struct RecipeLoadResult(RecipeLoadStatus Status, ImageRec
 /// Pending writes are keyed by photo, so the latest recipe for a photo always wins whatever order the timers fire in,
 /// and <see cref="Flush"/> writes them out at once — when the viewer moves to another photo or closes.
 /// </remarks>
+[LocalDiskOnly("recipe sidecars, which sit only beside a photo that is a file on this disk")]
 public sealed class ImageRecipeStore : IDisposable
 {
     public const string Extension = ".nfedit";

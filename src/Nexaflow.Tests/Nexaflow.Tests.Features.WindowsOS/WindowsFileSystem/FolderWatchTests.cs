@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using NSubstitute;
 using Nexaflow.Features.Common;
@@ -80,7 +81,7 @@ public class FolderWatchTests
         vm.AttachFolderWatching();
 
         var sub = Path.Combine(_scratch, "sub");
-        vm.NavigateTo(sub);
+        await vm.BrowseToAsync(sub);
 
         Assert.AreEqual(2, _watches.Count);
         _watches[0].Handle.Received(1).Dispose();
@@ -111,7 +112,7 @@ public class FolderWatchTests
 
     private async Task<FileSystemViewModel> OpenAsync()
     {
-        var vm = new FileSystemViewModel(_scratch, _shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>());
+        var vm = new FileSystemViewModel(_scratch, _shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
         await UntilAsync(() => !vm.IsLoadingEntries && vm.Entries.Count > 0);
         return vm;
     }

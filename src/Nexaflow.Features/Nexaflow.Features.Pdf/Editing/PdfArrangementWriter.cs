@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows.Media;
 using Nexaflow.Features.Pdf.Document;
 using Nexaflow.Features.Pdf.Reading;
+using Nexaflow.IO.Common;
 using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.Writer;
 
@@ -27,7 +28,8 @@ internal static class PdfArrangementWriter
     /// <param name="output">Where the document is written; left open.</param>
     /// <exception cref="IOException">A source cannot be read.</exception>
     /// <exception cref="AssemblyRefusedException">A source cannot be assembled from.</exception>
-    public static void Write(
+    public static async Task WriteAsync(
+        IVirtualFileSystem vfs,
         PdfPageArrangement arrangement,
         IReadOnlyDictionary<PdfSourceId, PdfSourceFile> sources,
         PdfSourceId primary,
@@ -39,7 +41,7 @@ internal static class PdfArrangementWriter
         {
             foreach (var id in arrangement.Pages.SelectMany(page => page.Sheet.Pieces).Select(piece => piece.Source).Prepend(primary).Distinct())
             {
-                opened[id] = PdfDocumentScope.TryOpen(sources[id].Path, ct)
+                opened[id] = await PdfDocumentScope.TryOpenAsync(vfs, sources[id].Path, ct).ConfigureAwait(false)
                              ?? throw new IOException($"'{sources[id].Path}' could not be read.");
             }
 

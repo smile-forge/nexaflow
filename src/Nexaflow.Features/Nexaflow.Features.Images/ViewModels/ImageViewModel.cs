@@ -57,7 +57,6 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     // ── Editing ───────────────────────────────────────────────────────────
 
     private readonly ImageEditingServices _editing;
-    private readonly bool _ownsEditing;
     private readonly ImageSessionCache _sessions;
     private readonly ImageDisplay _display;
     private readonly DispatcherTimer _thumbRefresh;
@@ -418,6 +417,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
 
     /// <summary>Right-click → Delete: confirms, sends the image (and its edits) to the Recycle Bin, drops it from the view.</summary>
     [RelayCommand]
+    [LocalDiskOnly("the Recycle Bin takes only a file on this disk, with the recipe sidecar beside it")]
     private async Task Delete(int index)
     {
         if (_shell is null || index < 0 || index >= _paths.Count) return;
@@ -457,7 +457,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
                 : (ImageRecipe.Identity, MadeByTools.None);
         try
         {
-            var png = await Task.Run(() => _editing.Exporter.Export(path, recipe, ImageContainer.Png, _cts.Token, made), _cts.Token);
+            var png = await Task.Run(() => _editing.Exporter.ExportAsync(path, recipe, ImageContainer.Png, _cts.Token, made), _cts.Token);
             PictureClipboard.CopyPng(png);
             _shell?.ShowNotification(Str.Get("Images.Copy.Done"));
         }
@@ -533,15 +533,15 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     /// <param name="ai">The workspace's AI, through which the user makes a video from the picture on screen; none, none made.</param>
     /// <param name="pictures">The picture tools, where the app has them: what restores a photo whose recipe asks for it.</param>
     /// <param name="selection">Picture selection, where the app has it: what the editor's cut-out tool picks things out with.</param>
-    public ImageViewModel(IReadOnlyList<string> paths, IShellServices? shell = null,
-                          ImageViewMode initialMode = ImageViewMode.Carousel, ImageEditingServices? editing = null, IAIService? ai = null,
-                          IPictureTools? pictures = null, IPictureSelection? selection = null, IPageReading? reading = null, IPictureErasing? erasing = null)
+    /// <param name="editing">The editing engine the registration shares across its tabs; the viewer does not own it.</param>
+    public ImageViewModel(IReadOnlyList<string> paths, IShellServices? shell, ImageViewMode initialMode, ImageEditingServices editing,
+                          IAIService? ai = null, IPictureTools? pictures = null, IPictureSelection? selection = null,
+                          IPageReading? reading = null, IPictureErasing? erasing = null)
     {
-        _paths       = [.. paths];   // mutable copy — images can be deleted from the viewer
-        _shell       = shell;
-        _editing     = editing ?? new ImageEditingServices();
-        _ownsEditing = editing is null;
-        TotalImages  = _paths.Count;
+        _paths      = [.. paths];   // mutable copy — images can be deleted from the viewer
+        _shell      = shell;
+        _editing    = editing;
+        TotalImages = _paths.Count;
 
         _sessions = new ImageSessionCache(_editing);
         Func<Action, Task> runOnUi = action => _shell is null ? RunHere(action) : _shell.RunOnUiAsync(action);
@@ -584,7 +584,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
             () => CurrentSession is { } session && session.OutputSize(session.Recipe) is { } size && size.Height > size.Width,
                 EncodeCurrentPng);
             ReadPage = new ReadPageViewModel(reading, ai, shell, _editing, runOnUi, KeptByTools, () => Host);
-            Details = new ImageDetailsViewModel(new PhotoDetailsReader(_editing.Metadata), runOnUi);
+            Details = new ImageDetailsViewModel(new PhotoDetailsReader(_editing.Metadata, _editing.FileSystem), runOnUi);
 
         for (int i = 0; i < paths.Count; i++)
         {
@@ -1249,7 +1249,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         // A draft: the picture's tab gives the assistant the picture, never its folder, so nothing is written beside it. The user
         // keeps the cut-out where they choose, Save as starting beside the picture.
         var saved = DraftLocation.NewFile(Path.GetFileNameWithoutExtension(photo) + Str.Get("Images.CutOut.FileSuffix") + ".png");
-        await File.WriteAllBytesAsync(saved, png, ct);
+        await _editing.FileSystem.WriteAllBytesAsync(saved, png, ct);
         _shell?.OpenTab(ImageTabRegistration.StaticPageKind, new Dictionary<string, string>
         {
             ["paths"]                     = saved,
@@ -1299,6 +1299,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         => CurrentIndex >= 0 && CurrentIndex < _paths.Count ? _paths[CurrentIndex] : null;
 
     /// <summary>On-disk size of the current image in bytes, or -1 when it can't be determined (e.g. in-archive).</summary>
+    [LocalDiskOnly("the size of a picture on this disk, for the assistant; none for one anywhere else")]
     private long CurrentFileSize()
     {
         var path = CurrentPath;
@@ -1331,7 +1332,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         _sessions.Dispose();
         _display.Dispose();
         MakeVideo.Dispose();
-        if (_ownsEditing) _editing.Dispose();
+
         _cts.Dispose();
     }
 

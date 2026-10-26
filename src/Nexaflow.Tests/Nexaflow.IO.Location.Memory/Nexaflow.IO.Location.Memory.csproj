@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- A location backend over an in-memory host: what the location contract suite, the session pool's tests and the
+       catalog's discovery test run against, with no network. Shaped as every backend is — Nexaflow.IO.Location.<Kind>,
+       referencing IO.Common only — so the app's own discovery and the architecture rule hold it like a real one. It
+       ships in no app build: only the test suites reference it. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+  </ItemGroup>
+
+</Project>

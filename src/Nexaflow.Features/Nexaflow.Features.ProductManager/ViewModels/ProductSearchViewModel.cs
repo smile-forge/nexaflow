@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.ProductManager.Services;
+using Nexaflow.IO.Common;
 using Nexaflow.Search;
 using Nexaflow.Services.Initiatives.Graph;
 using Nexaflow.Services.Initiatives.Graph.Model;
@@ -246,6 +247,7 @@ public sealed partial class ProductSearchViewModel : ObservableObject, IPageView
 
     /// <summary>Source is read from the product root — the same reader the assistant's graph tools use, so
     /// a line shown here is the line they would quote.</summary>
+    [LocalDiskOnly("the product's repository, a checkout on this disk, which the product graph reads")]
     private static GraphQuery.ReadLines Reader(string root) => rel =>
     {
         try

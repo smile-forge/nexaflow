@@ -15,6 +15,10 @@ internal sealed class ZImageDrawing(ModelRegistry models, GpuScheduler gpu) : ID
 
     public bool Draws(int width, int height) => ZImageSampler.Draws(width, height);
 
+    public bool TakesNegativePrompts => false;
+
+    public bool TakesLoras => false;
+
     public async Task<byte[]> DrawAsync(Draw request, Func<string, Task> stage, Func<int, int, Task> stepped, ModelRegistry.Room room, CancellationToken ct)
     {
         var model = request.Model;
@@ -61,6 +65,6 @@ internal sealed class ZImageDrawing(ModelRegistry models, GpuScheduler gpu) : ID
             ct.ThrowIfCancellationRequested();
             pixels = lease.As<ZImageDecoder>().Decode(latents, h, w);
         }
-        return ZImageSampler.Rgb(pixels, request.Height, request.Width);
+        return DecodedPixels.Rgb(pixels, request.Height, request.Width);
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using Nexaflow.IO.Common;
 using Nexaflow.Services.Initiatives.Graph.Model;
 using Nexaflow.Services.Initiatives.Graph.Store;
 
@@ -45,7 +46,7 @@ public static class GraphFreshness
     /// project directories walked for code it does not.</summary>
     public static Drift Scan(GraphSnapshot snapshot, string codeRoot)
     {
-        var known = Known(snapshot);
+        var known = snapshot.KnownFiles;
         var found = new Found(snapshot, codeRoot);
         foreach (var rel in known) found.Judge(rel);
 
@@ -61,9 +62,22 @@ public static class GraphFreshness
     /// A directory stands for everything the graph knows beneath it and every code file now in it, which is how a
     /// folder renamed or deleted whole is told about by one notification.
     /// </summary>
-    public static Drift Of(GraphSnapshot snapshot, string codeRoot, IEnumerable<string> changed)
+    public static Drift Of(GraphSnapshot snapshot, string codeRoot, IEnumerable<string> changed) =>
+        OfReported(snapshot, codeRoot, changed, _ => true);
+
+    /// <summary>
+    /// Only what a watcher's <paramref name="batch"/> reported, as <see cref="Of(GraphSnapshot, string, IEnumerable{string})"/>
+    /// — except that a directory only written to stands for nothing. Its entries changed, and each of them is in the batch
+    /// by its own name; walking it again for every file saved in it is what made the graph's own writes cost a look at
+    /// their whole folder.
+    /// </summary>
+    public static Drift Of(GraphSnapshot snapshot, string codeRoot, TreeChangeBatch batch) =>
+        OfReported(snapshot, codeRoot, batch.Paths ?? [], full => batch.Moved?.Contains(full) ?? true);
+
+    private static Drift OfReported(GraphSnapshot snapshot, string codeRoot, IEnumerable<string> changed,
+                                    Func<string, bool> cameOrWent)
     {
-        var known = Known(snapshot);
+        var known = snapshot.KnownFiles;
         var found = new Found(snapshot, codeRoot);
         var fresh = new List<string>();
 
@@ -74,6 +88,7 @@ public static class GraphFreshness
 
             if (Directory.Exists(full))
             {
+                if (!cameOrWent(full)) continue;
                 foreach (var within in Beneath(known, rel)) found.Judge(within);
                 foreach (var file in RepoFiles.EnumerateSource(full, 100_000)) found.Consider(file, known);
             }
@@ -117,21 +132,6 @@ public static class GraphFreshness
         public Drift Result() => _stale.Count == 0 && _added.Count == 0 && _absent.Count == 0
             ? GraphFreshness.Drift.None
             : new Drift(_stale, [.. _added.Order(StringComparer.Ordinal)], [.. _absent.Order(StringComparer.Ordinal)]);
-    }
-
-    /// <summary>
-    /// Every file the graph read or listed: those it holds material for, and the file nodes that name themselves as
-    /// their own source. A file node is also synthesized for an import target that never resolved, and those carry the
-    /// REFERRING file as their source — counting them made a clean main checkout report hundreds of files absent.
-    /// </summary>
-    private static HashSet<string> Known(GraphSnapshot snapshot)
-    {
-        var known = new HashSet<string>(snapshot.Cache.Files.Keys, StringComparer.OrdinalIgnoreCase);
-        foreach (var node in snapshot.Graph.Nodes)
-            if (node.Type == NodeType.File && node.FilePath is { Length: > 0 } path
-                && string.Equals(node.Source, path, StringComparison.OrdinalIgnoreCase))
-                known.Add(path);
-        return known;
     }
 
     private static IEnumerable<string> Beneath(IReadOnlySet<string> known, string dir)

@@ -7,20 +7,20 @@ using System.Windows.Media;
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 
 /// <summary>
-/// Wraps an <see cref="IFileCreateAction"/> for the new-file picker overlay: an icon
+/// Wraps an <see cref="IFileCreateEntry"/> for the new-file picker overlay: an icon
 /// (glyph or shell image), a label, a radio-style selected state, and a select command.
 /// </summary>
 public partial class CreateActionViewModel : ObservableObject
 {
     private readonly Action<CreateActionViewModel> _onSelect;
 
-    public CreateActionViewModel(IFileCreateAction action, Action<CreateActionViewModel> onSelect)
+    public CreateActionViewModel(IFileCreateEntry action, Action<CreateActionViewModel> onSelect)
     {
         Action    = action;
         _onSelect = onSelect;
     }
 
-    public IFileCreateAction Action { get; }
+    public IFileCreateEntry Action { get; }
 
     public string       Icon          => Action.Icon;
     public ImageSource? IconImage     => Action.IconImage;

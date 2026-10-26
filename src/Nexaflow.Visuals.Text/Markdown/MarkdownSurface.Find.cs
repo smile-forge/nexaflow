@@ -19,7 +19,8 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// <strong>Looking is done in the source and never in the drawing.</strong> The parser only ever copies, so the source is
 /// the one place the words are whole; the offsets come back out of it and the laid tree turns them into places on the
 /// page (<see cref="MarkdownFind"/>). Nothing in the tree is changed to mark what was found — it is washed at paint time —
-/// so a search survives the document being written in and stopping one is a repaint.
+/// so stopping a search is a repaint; and what was looked for is asked again of the document each time it is written in, so a
+/// search survives that too (<see cref="Refound"/>).
 /// </para>
 /// </summary>
 public sealed partial class MarkdownSurface
@@ -34,37 +35,89 @@ public sealed partial class MarkdownSurface
     /// Looks for <paramref name="term"/> and goes to the first place it is — both where it is written and where it is only
     /// drawn, which is what a reader means by what the page says.
     /// </summary>
-    public int Find(string? term) => Looked(_engine.ReadsAsDrawn
+    public int Find(string? term) => Looked(() => _engine.ReadsAsDrawn
         ? MarkdownFind.Drawn(_engine.DrawnWords, term)
         : MarkdownFind.In(_shown.Laid, _shown.Markdown, term));
 
-    /// <summary>The same, for a question more complicated than a word — what a search box worked out.</summary>
-    public int Find(Func<string, IReadOnlyList<(int Index, int Length)>>? occurrences) =>
-        Looked(_engine.ReadsAsDrawn
+    /// <summary>
+    /// The same, for a question more complicated than a word — what a search box worked out — going to the first place at or
+    /// after <paramref name="from"/> in the source, and round to the first where none is.
+    /// </summary>
+    public int Find(Func<string, IReadOnlyList<(int Index, int Length)>>? occurrences, int from = 0) =>
+        Looked(() => _engine.ReadsAsDrawn
             ? _engine.DrawnWords.Every(occurrences)
-            : MarkdownFind.In(_shown.Laid, _shown.Markdown, occurrences));
+            : MarkdownFind.In(_shown.Laid, _shown.Markdown, occurrences), from);
 
     /// <summary>
     /// Shows every place <paramref name="matcher"/> finds and goes to the first, handing back what was found so the host
     /// can count them or say what each one reads.
     /// </summary>
-    public IReadOnlyList<RenderedMatch> FindInRendered(TextSearchMatcher matcher)
+    public IReadOnlyList<RenderedMatch> FindInRendered(TextSearchMatcher matcher) => FindInRendered(matcher, from: 0);
+
+    /// <summary>
+    /// The same, going to the first place at or after <paramref name="from"/> in the source — for a search taken up again, so it
+    /// goes on from the match the reader was on rather than starting over.
+    /// </summary>
+    public IReadOnlyList<RenderedMatch> FindInRendered(TextSearchMatcher matcher, int from)
     {
-        Find(matcher.Occurrences);
+        Find(matcher.Occurrences, from);
 
         return [.. Enumerable.Range(0, Found.Count).Select(at => new RenderedMatch(at, Preview(at)))];
     }
 
-    private int Looked(IReadOnlyList<(int Start, int Length)> found)
+    private int Looked(Func<IReadOnlyList<(int Start, int Length)>> looking, int from = 0)
     {
-        Found = found;
+        _lookedFor = looking;
+        _foundIn = _shown.Markdown;
+
+        Found = looking();
         At = -1;
 
         _shown.Showing = (Found, At);
 
-        if (Found.Count > 0) Next();
+        if (Found.Count > 0) Goes(FirstAtOrAfter(from));
 
         return Found.Count;
+    }
+
+    /// <summary>
+    /// What was looked for, to be asked again of the document as it comes to read; null where nothing is being looked for, or a
+    /// host has narrowed what was found to a list of its own (<see cref="Restrict"/>), which asking again would undo.
+    /// </summary>
+    private Func<IReadOnlyList<(int Start, int Length)>>? _lookedFor;
+
+    /// <summary>The document as it read when <see cref="Found"/> was found in it.</summary>
+    private string _foundIn = string.Empty;
+
+    /// <summary>
+    /// What was found, found again in the document as it now reads — written in here, written in somewhere else, taken back — with
+    /// the one being looked at kept to where its place went. Nothing is scrolled to or picked out: the reader is writing, not
+    /// looking. Done before the page says it was laid out (<see cref="PreRender"/>), so whoever reads what was found then reads it
+    /// as it is.
+    /// </summary>
+    private void Refound()
+    {
+        if (_lookedFor is not { } looking) return;
+
+        var now = _shown.Markdown;
+        if (ReferenceEquals(_foundIn, now) || string.Equals(_foundIn, now, StringComparison.Ordinal)) return;
+
+        var was = At >= 0 ? SourceDifference.Between(_foundIn, now).Moved(Found[At].Start) : 0;
+
+        _foundIn = now;
+        Found = looking();
+        At = Found.Count == 0 ? -1 : FirstAtOrAfter(was);
+
+        _shown.Showing = (Found, At);
+    }
+
+    /// <summary>The first place found at or after <paramref name="from"/> in the source, or the first of them all where none is.</summary>
+    private int FirstAtOrAfter(int from)
+    {
+        for (var at = 0; at < Found.Count; at++)
+            if (Found[at].Start >= from) return at;
+
+        return 0;
     }
 
     /// <summary>
@@ -75,6 +128,7 @@ public sealed partial class MarkdownSurface
     {
         var kept = Found.Where((_, at) => keep.Contains(at)).ToList();
 
+        _lookedFor = null;
         Found = kept;
         At = kept.Count > 0 ? 0 : -1;
 
@@ -101,18 +155,39 @@ public sealed partial class MarkdownSurface
 
     /// <summary>
     /// How far down the document each place found is, from nought at the top to one at the bottom — for a strip beside the
-    /// scrollbar marking where they are. A place a long document has not laid yet is marked where it would come, going by what
-    /// is laid.
+    /// scrollbar marking where they are. Every place has its mark, since the reader is told how many were found and each of them
+    /// is somewhere (<see cref="Standing"/>).
     /// </summary>
     public IReadOnlyList<double> SearchMarkPositions()
     {
-        var height = _shown.Laid.Size.Height;
+        var laid = _shown.Laid;
+        var height = laid.Size.Height;
         if (height <= 0) return [];
 
-        return [.. Found
-            .Select(place => _shown.Laid.Root.RangeRects(place.Start, place.Length) is { Count: > 0 } rects ? rects[0].Y : _engine.UnlaidTop(place.Start))
-            .OfType<double>()
-            .Select(top => Math.Clamp(top / height, 0, 1))];
+        return [.. Found.Select(place => Math.Clamp(Standing(laid, place) / height, 0, 1))];
+    }
+
+    /// <summary>
+    /// How far down the page <paramref name="place"/> stands: where it is drawn; where it would come, in a long document not laid
+    /// that far yet, going by what is laid; and where nothing on the page draws it — inside a section the reader folded — where
+    /// what holds it is drawn, at the last place a caret can stand before it.
+    /// </summary>
+    private double Standing(Laid laid, (int Start, int Length) place)
+    {
+        if (laid.Root.RangeRects(place.Start, place.Length) is { Count: > 0 } rects) return rects[0].Y;
+        if (_engine.UnlaidTop(place.Start) is { } unlaid) return unlaid;
+
+        var stops = laid.Stops;
+        var (low, high, held) = (0, stops.Count - 1, -1);
+
+        while (low <= high)
+        {
+            var middle = (low + high) / 2;
+            if (stops[middle] <= place.Start) (held, low) = (stops[middle], middle + 1);
+            else high = middle - 1;
+        }
+
+        return held >= 0 && laid.Root.CaretRect(held) is { IsEmpty: false } at ? at.Y : 0;
     }
 
     /// <summary>The next place, coming back round to the first.</summary>
@@ -131,6 +206,7 @@ public sealed partial class MarkdownSurface
     /// <summary>Stops looking, which is a repaint and nothing else.</summary>
     public void Stop()
     {
+        _lookedFor = null;
         Found = [];
         At = -1;
 
@@ -175,7 +251,7 @@ public sealed partial class MarkdownSurface
 
     /// <summary>How to find what is in the middle of the page again later, after the document has been written in.</summary>
     public ContentPath Reference() =>
-        ContentPath.Of(_shown.Laid.Root.PieceAt(Middle().ToLayout()).Part as ContentPart);
+        ContentPath.Of(_shown.Laid.Root.PieceAt(Middle().ToLayout()).Part.TreePart());
 
     /// <summary>
     /// Scrolls the heading whose headings above it say <paramref name="titlePath"/> to the top — matched on the whole path,

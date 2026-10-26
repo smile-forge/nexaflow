@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -38,7 +39,7 @@ public class FontViewModelTests
     private static FontViewModel Vm(out IShellServices shell)
     {
         shell = Substitute.For<IShellServices>();
-        return new FontViewModel(null, shell);
+        return new FontViewModel(null, shell, VirtualFileSystem.Instance);
     }
 
     private static FontItemViewModel Item(FontPreviewOptions? options = null)

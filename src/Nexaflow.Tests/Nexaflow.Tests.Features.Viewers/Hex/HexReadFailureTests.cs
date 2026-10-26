@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -25,23 +26,23 @@ public sealed class HexReadFailureTests
     private static string TempPath() => Path.Combine(TestTemp.Root, $"hexfail_{Guid.NewGuid():N}.bin");
 
     [TestMethod, TestCategory("Unit")]
-    public void No_file_is_not_a_failure()
+    public async Task No_file_is_not_a_failure()
     {
         // The empty-path buffer is a legitimate empty editor, not something to prompt about.
-        using var buffer = new HexBuffer(string.Empty);
+        using var buffer = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, string.Empty);
 
         Assert.IsNull(buffer.Failure);
         Assert.AreEqual(0, buffer.FileLength);
     }
 
     [TestMethod, TestCategory("Unit")]
-    public void A_readable_file_reports_no_failure()
+    public async Task A_readable_file_reports_no_failure()
     {
         var path = TempPath();
         File.WriteAllBytes(path, [1, 2, 3, 4]);
         try
         {
-            using var buffer = new HexBuffer(path);
+            using var buffer = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
 
             Assert.IsNull(buffer.Failure);
             Assert.AreEqual(4, buffer.FileLength);
@@ -51,9 +52,9 @@ public sealed class HexReadFailureTests
     }
 
     [TestMethod, TestCategory("Unit")]
-    public void A_missing_file_is_reported_as_missing()
+    public async Task A_missing_file_is_reported_as_missing()
     {
-        using var buffer = new HexBuffer(TempPath());
+        using var buffer = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, TempPath());
 
         Assert.IsNotNull(buffer.Failure);
         Assert.AreEqual(HexReadFault.Missing, buffer.Failure!.Fault);
@@ -61,7 +62,7 @@ public sealed class HexReadFailureTests
     }
 
     [TestMethod, TestCategory("Unit")]
-    public void A_file_another_program_holds_exclusively_is_reported_as_locked()
+    public async Task A_file_another_program_holds_exclusively_is_reported_as_locked()
     {
         var path = TempPath();
         File.WriteAllBytes(path, [1, 2, 3, 4]);
@@ -70,7 +71,7 @@ public sealed class HexReadFailureTests
             // FileShare.None is what a program that refuses to share looks like from the outside.
             using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None))
             {
-                using var buffer = new HexBuffer(path);
+                using var buffer = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
 
                 Assert.IsNotNull(buffer.Failure);
                 Assert.AreEqual(HexReadFault.Locked, buffer.Failure!.Fault);
@@ -81,9 +82,9 @@ public sealed class HexReadFailureTests
     }
 
     [TestMethod, TestCategory("Unit")]
-    public void A_failed_open_leaves_the_buffer_empty_rather_than_full_of_zeroes()
+    public async Task A_failed_open_leaves_the_buffer_empty_rather_than_full_of_zeroes()
     {
-        using var buffer = new HexBuffer(TempPath());
+        using var buffer = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, TempPath());
 
         // The distinction that matters: no rows at all, not a screen of 00 bytes claiming to be the file.
         Assert.AreEqual(0, buffer.FileLength);
@@ -92,7 +93,7 @@ public sealed class HexReadFailureTests
     }
 
     [TestMethod, TestCategory("Unit")]
-    public void Reload_clears_the_failure_once_the_file_can_be_read()
+    public async Task Reload_clears_the_failure_once_the_file_can_be_read()
     {
         var path = TempPath();
         File.WriteAllBytes(path, [0xAA, 0xBB]);
@@ -101,11 +102,11 @@ public sealed class HexReadFailureTests
             HexBuffer buffer;
             using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None))
             {
-                buffer = new HexBuffer(path);
+                buffer = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
                 Assert.IsNotNull(buffer.Failure, "locked while the exclusive handle is open");
             }
 
-            buffer.Reload();   // the other program let go — this is what Retry does
+            await buffer.ReloadAsync();   // the other program let go — this is what Retry does
 
             Assert.IsNull(buffer.Failure);
             Assert.AreEqual(2, buffer.FileLength);
@@ -116,7 +117,7 @@ public sealed class HexReadFailureTests
     }
 
     [TestMethod, TestCategory("Unit")]
-    public void Reload_keeps_the_failure_when_the_file_still_cannot_be_read()
+    public async Task Reload_keeps_the_failure_when_the_file_still_cannot_be_read()
     {
         var path = TempPath();
         File.WriteAllBytes(path, [1]);
@@ -124,8 +125,8 @@ public sealed class HexReadFailureTests
         {
             using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None))
             {
-                using var buffer = new HexBuffer(path);
-                buffer.Reload();
+                using var buffer = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
+                await buffer.ReloadAsync();
 
                 Assert.IsNotNull(buffer.Failure);
                 Assert.AreEqual(HexReadFault.Locked, buffer.Failure!.Fault);
@@ -135,7 +136,7 @@ public sealed class HexReadFailureTests
     }
 
     [TestMethod, TestCategory("Unit")]
-    public void A_file_that_stops_delivering_bytes_is_reported_rather_than_painted_as_zeroes()
+    public async Task A_file_that_stops_delivering_bytes_is_reported_rather_than_painted_as_zeroes()
     {
         // The symptom this whole path exists for: the header and size are right, every byte reads 00.
         // Reproduced by emptying the file under the buffer's open handle — the same shape as a share
@@ -144,7 +145,7 @@ public sealed class HexReadFailureTests
         File.WriteAllBytes(path, new byte[1024]);
         try
         {
-            using var buffer = new HexBuffer(path);
+            using var buffer = await HexBuffer.OpenAsync(VirtualFileSystem.Instance, path);
             Assert.IsNull(buffer.Failure, "opened cleanly");
             Assert.AreEqual(1024, buffer.FileLength);
 
@@ -163,9 +164,10 @@ public sealed class HexReadFailureTests
     // ── The view-model surface the tab prompt is driven from ──────────────────
 
     [TestMethod, TestCategory("Unit")]
-    public void The_view_model_reports_an_unreadable_file_once()
+    public async Task The_view_model_reports_an_unreadable_file_once()
     {
-        using var vm = new HexViewModel(TempPath(), _shell);
+        using var vm = new HexViewModel(TempPath(), _shell, VirtualFileSystem.Instance);
+        await vm.Loaded;
         var reported = new List<HexReadFailure>();
         vm.ReadFailed += reported.Add;
 
@@ -178,13 +180,14 @@ public sealed class HexReadFailureTests
     }
 
     [TestMethod, TestCategory("Unit")]
-    public void The_view_model_stays_quiet_for_a_readable_file()
+    public async Task The_view_model_stays_quiet_for_a_readable_file()
     {
         var path = TempPath();
         File.WriteAllBytes(path, [1, 2, 3]);
         try
         {
-            using var vm = new HexViewModel(path, _shell);
+            using var vm = new HexViewModel(path, _shell, VirtualFileSystem.Instance);
+            await vm.Loaded;
             var reported = new List<HexReadFailure>();
             vm.ReadFailed += reported.Add;
 
@@ -197,7 +200,7 @@ public sealed class HexReadFailureTests
     }
 
     [TestMethod, TestCategory("Unit")]
-    public void Retry_reloads_the_file_and_reports_success()
+    public async Task Retry_reloads_the_file_and_reports_success()
     {
         var path = TempPath();
         File.WriteAllBytes(path, new byte[64]);
@@ -206,12 +209,13 @@ public sealed class HexReadFailureTests
             HexViewModel vm;
             using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None))
             {
-                vm = new HexViewModel(path, _shell);
+                vm = new HexViewModel(path, _shell, VirtualFileSystem.Instance);
+                await vm.Loaded;
                 Assert.IsNotNull(vm.LoadFailure);
                 Assert.AreEqual(0, vm.TotalRows);
             }
 
-            Assert.IsTrue(vm.Retry(), "the lock is gone, so the retry should succeed");
+            Assert.IsTrue(await vm.RetryAsync(), "the lock is gone, so the retry should succeed");
             Assert.IsNull(vm.LoadFailure);
             Assert.AreEqual(4, vm.TotalRows, "64 bytes = 4 rows of 16");
             vm.Dispose();
@@ -220,7 +224,7 @@ public sealed class HexReadFailureTests
     }
 
     [TestMethod, TestCategory("Unit")]
-    public void A_failed_retry_reports_failure_without_re_raising()
+    public async Task A_failed_retry_reports_failure_without_re_raising()
     {
         var path = TempPath();
         File.WriteAllBytes(path, [1]);
@@ -228,12 +232,13 @@ public sealed class HexReadFailureTests
         {
             using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None))
             {
-                using var vm = new HexViewModel(path, _shell);
+                using var vm = new HexViewModel(path, _shell, VirtualFileSystem.Instance);
+                await vm.Loaded;
                 var reported = new List<HexReadFailure>();
                 vm.ReadFailed += reported.Add;
                 vm.CheckReadable();
 
-                Assert.IsFalse(vm.Retry(), "still locked");
+                Assert.IsFalse(await vm.RetryAsync(), "still locked");
 
                 // The caller is mid-prompt and drives the next round itself; a second event here would
                 // stack a duplicate dialog behind the one already on screen.

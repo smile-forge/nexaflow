@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using Nexaflow.IO.Common;
 using Nexaflow.IO.Pe;
 
 namespace Nexaflow.Features.Executable.Services;
@@ -215,6 +216,7 @@ public sealed class DependencyWalker
     /// actually load from?" must not have two implementations that can disagree.
     /// </para>
     /// </summary>
+    [LocalDiskOnly("the Windows loader's search order, through this machine's own folders")]
     public static string? Resolve(string name, string? applicationDirectory)
     {
         if (!OperatingSystem.IsWindows()) return null;

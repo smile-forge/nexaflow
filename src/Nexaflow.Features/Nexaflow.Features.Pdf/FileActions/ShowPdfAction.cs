@@ -2,6 +2,8 @@ using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Features.Pdf.FileActions;
 
@@ -34,12 +36,11 @@ public sealed class ShowPdfAction(IShellServices shell) : IFileAction, ICacheabl
     /// <summary>Opens an internal viewer tab, so the "Define New" wizard lists it as a viewer target.</summary>
     public bool OpensViewer => true;
 
-    public bool PerformAction(string filePath)
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default)
     {
         shell.OpenTab(PdfTabRegistration.StaticPageKind, new Dictionary<string, string> { ["path"] = filePath });
-        return true;
+        return Task.FromResult(true);
     }
 
-    public bool PerformAction(IEnumerable<string> filePaths)
-        => filePaths.FirstOrDefault() is { } path && PerformAction(path);
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default) => filePaths.FirstOrDefault() is { } path ? PerformActionAsync(path, ct) : Task.FromResult(false);
 }

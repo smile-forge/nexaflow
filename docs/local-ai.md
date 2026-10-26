@@ -11,7 +11,7 @@ agent loop on it. Every model calls tools in its own protocol, prompted by its o
 A voice conversation runs from the AI bar — listening in the host (Silero, Nemotron, Whisper large-v3-turbo, small or
 small.en, Smart Turn), Kokoro speaking English, French and German, barge-in, and actions announced before they are done. The assistant
 makes pictures, speech and video clips with the workspace's models (phase 4) — through OpenAI and Gemini, and on this
-machine pictures with Z-Image Turbo, and at high quality with HiDream-O1, and clips with Wan2.2-TI2V-5B — distilled to
+machine pictures with Z-Image Turbo, and at high quality with HiDream-O1 or MOSS-Image and its LoRAs, and clips with Wan2.2-TI2V-5B — distilled to
 three steps (FastWan) for clips from a description, and its fifty guided steps for clips from a picture; music on this
 machine is still to come. This
 records what was measured, the decisions taken, the design that follows, and the order to build it in. Where it names a type, check for collisions before introducing it.
@@ -351,8 +351,14 @@ reports. Language models are placed first, then the rest from the largest down, 
 so a GPU stays as whole as it can for a picture. A language model gets its catalog's context — all it was trained for,
 read from its GGUF header: 256k for most, 128k for Gemma 4 E4B, 16k for Phi-4 — where there is room, and a shorter one
 where there is not, in steps of 1,024 tokens down to 8k; its catalog entry gives what it
-holds with no context and what each token adds. A model short of room takes it from those contexts before it runs on
-its CPU build, and one with no CPU build is left out. On the CPU, the other models hold what their builds' files hold,
+holds with no context and what each token adds, measured as 16-bit values and held in 8 (34 bytes for every 64, which on
+Gemma 4 26B is 3 GB less at 256k, with nothing a reply shows). A model short of room takes it from those contexts; a language
+model that still has none runs cut between the GPU with the most room and the CPU — its layers' share of its weights and
+context on the GPU, everything else whole there, its context 32k — where at least half of its layers fit there: Gemma 4 26B
+writes 33 tokens/s with 20 of its 30 layers on a GPU, against 204 with all of them. Only then does it run on its CPU build,
+and one with no CPU build is left out. Once everything is placed, a language model wholly on a GPU reads its prompts in
+steps of 2,048 tokens where what is left there holds them, and its catalog says what they cost — on Gemma 4 26B, 13,700
+tokens/s against 9,400 in steps of 512, for 2 GB; steps of 4,096 read no faster. On the CPU, the other models hold what their builds' files hold,
 and a language model is given the longest context the host's memory share leaves it, never under 8k. When a workspace takes models on, the plan is redone and each
 model it moves is loaded again where it now runs; letting models go moves nothing. A picture's parts are placed each
 time: on a GPU where they fit beside the residents, else on the one with the most room, where the residents make way.
@@ -403,8 +409,47 @@ drifts from a re-read, it is greedy decoding branching on that rounding.
 - **The window ends in a summary**: when the log reaches the model's budget, older turns are summarised and the
   cache is rebuilt once from the summary.
 
-The cache is allocated once per model, as long as its context, and its conversations share it — eight sequences in
-one cache, the oldest kept conversation dropped when a new read needs its room. For E4B a 16k cache is under a gigabyte.
+The cache is allocated once per model, as long as its context, and its conversations share it, each a sequence in one
+cache: 8 of them, as the catalog's figures were measured holding, or 16 where a model's catalog says what each more costs
+and its GPU has the room left (Gemma 4 26B: 204 MB each in 16 bits, 110 MB in 8). As many replies are written at once as
+the cache has sequences; the conversations kept between requests and the openings below take the rest, and are let go when
+a reply needs their sequence. A request past them waits for a reply to end, and one whose prompt finds no room waits for room
+rather than being turned away; its room is held for it from the moment it is let in, so prompts arriving together are never
+let into the same room. The kept conversations go first, oldest first, when room is needed. For E4B a 16k cache is under a
+gigabyte.
+
+Every step reads one token of every reply being written, and with them the prompts waiting to be read as far as the step
+has room — so a prompt that arrives while replies are written is read alongside them, not between their tokens. Each
+reply's next token is chosen side by side with the others', on as many cores as there are replies: chosen one after
+another, the choosing took longer than the step once several were written together. Every step runs as a CUDA graph, one
+reply's or several's — without them a reply is written at a third of the speed.
+
+What a step costs is mostly how much cache it reads. One sequence's cells sit among the others', every reply growing by a
+cell each step, and each token is read against every cell in use, the others' masked out — every sequence's window of
+what it read too, used or not. So on Gemma 4 26B short replies write about 200 tokens/s alone and 1,100 sixteen at once,
+but replies each the length of a passage of a document — a 1,700-token prompt — write 530 tokens/s eight at once, 580
+sixteen and 530 thirty-two: the total is set by the cells read, not by how many replies there are. llama.cpp's cache cut
+into a slice per conversation reads only a reply's own: llama.cpp reads in one step only sequences whose numbers follow one
+another, each with as many tokens as the rest, so one fed as the shared cache is — replies in the order they came, prompts
+read beside them — reads a step in several and is slower still. Choosing tokens is a few percent of a step.
+
+So a language model whose catalog says what it costs, wholly on a GPU with that room left once everything else is placed,
+has a second lane for work nobody is watching (`ChatLane`): a context of its own on the same weights, 32 conversations of
+8,192 tokens each with a slice of the cache to itself. It is made when such work comes — a request of background priority
+whose prompt of text alone leaves a quarter of a slice for its reply — and only where its GPU has what it holds free then
+(Gemma 4 26B: 9 GB), and let go 30 seconds after the last of it; a GPU without the room does the work in the model's own
+lane, more slowly. Its replies are kept numbered without gaps: a conversation starts in the highest free sequence, out of the
+way while it reads its prompt, each round moves any reply standing above a free sequence down into it (`llama_memory_seq_cp`
+copies the slice), and nothing is kept there for a follow-up. Thirty-two passage-length replies write 800 tokens/s there,
+against 580 for sixteen in the model's own lane; forty-eight write no more. A document's passages are asked there, as many at
+once as it writes less one, each filling its slice (`ModelInfo.Background`), and six chapters of a lecture script translate
+in 43 s where the shared lane takes 56.
+
+A prompt that begins as one read lately began — the same instructions, a different question — begins with the cells that
+start already holds: where two prompts share 256 tokens or more, the start they share is read once into a sequence of
+its own, an opening, and every conversation that begins with it shares its cells rather than reading them again. Two
+openings are kept, the least used let go once no conversation holds its cells. A document's passages, each asked with the
+same instructions, read only what is their own: 14 tokens rather than 2,369.
 
 ## Routing
 
@@ -711,8 +756,27 @@ sees what it drew; the existing loop, approvals and context handling apply uncha
 - **What a model cannot use is not offered.** Pictures to work from go only to a model that takes them, a mask only
   to one that masks, a first frame only to a video model that starts from one. A parameter of a few values names them
   (`ClientToolParameter.Choices`), declared natively as a JSON Schema `enum`.
+- **Each model says what it is asked with.** Beside its prompt, a picture or a clip is asked for with what its model's
+  `ImageSettings` / `VideoSettings` declare: its exact proportions (`MediaAspect` — `shape` takes square, landscape or
+  portrait, drawn at the model's own proportions for each, or width:height), the sizes it makes at, its levels of
+  detail, a seed, what to keep out, a transparent background; a video size can make only some lengths (Veo's 1080p and
+  4k, eight seconds). The tools build their parameters from the settings — where the two qualities differ, the
+  description says which offers what — and `Refusal` turns away anything a model does not do before it is asked.
+- **The user asks the same way.** `IAIService.MakesPictures` / `MakesClips` give a page the same settings, and
+  `MakePicture` / `MakeClip` run the very call the tool would be given as one of the workspace's background jobs —
+  nothing asked first, the file saved as the name the user gave in a folder they chose. The file view's New picker
+  offers them as Gen Image and Gen Video (`IFileCreateWithOptions`).
+- **Enhanced AI Protection Mode keeps adult content out.** A LoRA meant for adults only (`ImageLora.Adult`) is offered —
+  in the New picker and to `generate_image` alike — only while Options → Shell's Enhanced AI Protection Mode is off
+  (`ShellConfig.EnhancedAiProtection`, on by default); on, it is not even named to the assistant. Core reads the setting
+  where a choice is offered (`GenerateImageTool.Offerable`), so no feature needs to know Core holds it. While it is on,
+  every system prompt behind something the user reads — the conversation's, an analysis's, a problem solved, a picture
+  described for a model that cannot see, an answer about a document — opens with the protected-audience policy
+  (`ProtectedAudience.Framed`), ahead of the persona, which cannot set it aside; and every picture made, by any model,
+  passes the picture check before it is saved or shown — withheld where it is unfit for a general audience, or where the
+  check could not run ([ai-tools.md → Picture checking](ai-tools.md#picture-checking)).
 - **Two qualities of picture.** Every backend sells a fast image model and a better one — Z-Image Turbo and HiDream-O1
-  here, gpt-image-1-mini and gpt-image-1, Gemini 2.5 Flash Image and Gemini 3 Pro Image — so the grid has an Image
+  or MOSS-Image here, gpt-image-1-mini and gpt-image-1, Gemini 2.5 Flash Image and Gemini 3 Pro Image — so the grid has an Image
   Generation row and an Image Generation (HQ) row of the same kind. With a model in both, `generate_image` takes a
   `quality`, standard unless a finished, polished picture is asked for; a high-quality picture is slow and dearer, so
   that one call is approved first and announced in a voice conversation (`IClientTool.SafetyOf`, safety by call).
@@ -728,7 +792,7 @@ sees what it drew; the existing loop, approvals and context handling apply uncha
 | | Cloud | On this machine | Status |
 |---|---|---|---|
 | Speech | OpenAI's speech models | Kokoro | built |
-| Images | OpenAI gpt-image (one picture to work from, a mask) and dall-e-3; Gemini's image models (up to three pictures) and Imagen | Z-Image Turbo and, for high quality, HiDream-O1 — our ONNX builds, sampled by the host | built |
+| Images | OpenAI gpt-image (one picture to work from, a mask) and dall-e-3; Gemini's image models (up to three pictures) and Imagen | Z-Image Turbo and, for high quality, HiDream-O1 and MOSS-Image with its LoRAs — our ONNX builds, sampled by the host | built |
 | Music | neither SDK offers it | ACE-Step 1.5 (community ONNX), custom pipeline | possible, medium effort; brings the audio generation contract |
 | Sound effects | — | no maintained ONNX model; Stable Audio Open would need exporting | gap |
 | Video | OpenAI Sora (4, 8 or 12 s at 720p), Gemini Veo (4 to 8 s) | Wan2.2-TI2V-5B — FastWan's three steps from a description, the full model's fifty from a description or a picture — our ONNX builds, sampled by the host | built |
@@ -788,6 +852,34 @@ shapes — in 35 s on an RTX PRO 6000 (PyTorch: 95 s); twelve prompts drawn with
 HiDream's PyTorch pipeline from the same noise are the same pictures, with the same text in them. Each model's catalog
 entry names its drawing method — the parts it has and the sampler that drives them — and its sizes, so the host draws
 with whichever a picture asks for; the Local page's high-quality job starts on the model made for it.
+
+MOSS-Image-SFT (OpenMOSS, Apache-2.0) is the other high-quality one, and the one that takes a negative prompt and
+LoRAs: a 5B single-stream DiT reading the prompt with Qwen3.5-9B unchanged, decoded by the FLUX.2 small VAE. Its
+denoiser and decoder are ONNX graphs Nexaflow builds and publishes (`tools/ai-models/moss-image`,
+huggingface.co/smile-forge/moss-image-onnx); its prompt encoder is an existing GGUF.
+
+- **The prompt read on llama.cpp.** Qwen3.5-9B's last hidden state is what MOSS-Image reads, so the host reads the
+  prompt — in Qwen3.5's chat template, thinking on — with the GGUF on llama.cpp and keeps every token's row
+  (`LlamaHiddenStates`: a context of its own with embeddings on and no pooling). `Compare-MossEncoder.ps1` chose
+  Q8_0: 2.8 % from fp32 and as close as PyTorch's own bf16 in the pictures, in 8.5 GiB; Q4_K_M misspelt.
+- **8-bit weights, fp16 branches on fp32 streams.** As HiDream's, the residual streams stay fp32 and each branch runs in
+  fp16. Against PyTorch from the same noise the build draws at a median of 23.8 dB — every text asked for right, the
+  same picture with details moved — in 22.9 s a 1024² picture on an RTX PRO 6000 (PyTorch: 27.7 s).
+- **Its own sampler, in C#.** Fifty Euler steps over MOSSImageScheduler's levels — shifted by 5 and snapped to the
+  thousand it was trained on — each asking with the prompt and, block 22 left out as the pipeline leaves it, with the
+  negative prompt, steering by 3 (`MossSampler`, held to the recipe's loop by `MossSamplerTests`).
+- **LoRAs, curated, one at a time.** Eight are offered (`loras.json` in the recipe): Fast, the 8-step distillation, and
+  styles — Anime, Gouache, Psychedelic, Beauty, Animated, Impressionism, and Uncensored, which is meant for adults
+  only. Each is an ONNX Runtime adapter applied unmerged (`OrtLoraAdapter`, its weights copied to the GPU once a
+  picture), its trigger leading the prompt; the graph runs its LoRA branches only while one is active, so a picture
+  without one pays nothing for them. A style draws in the model's own fifty steps and follows PyTorch with it as
+  closely as the build does without, in about 28 s a 1024² picture against 23 s with none; Fast brings its own
+  sampler — eight data-space steps, no negative prompt (`DataSpaceSampler`) — and draws one in 3.5 s. A LoRA's files are fetched the first time a picture asks
+  for it (`OwnedModelRuntime.FetchedAsync`), not with the model.
+
+It draws each shape at about a megapixel — 1024×1024, 1344×768, 768×1344. Loaded part by part, its largest is the
+denoiser: 7.8 GiB at 1024² without a LoRA, 8.5 GiB with a style's and 9.1 GiB with the distillation's — each LoRA branch
+added in fp16 where its projection stays fp16 — so a picture needs a card that holds that.
 
 ### Making clips on this machine
 

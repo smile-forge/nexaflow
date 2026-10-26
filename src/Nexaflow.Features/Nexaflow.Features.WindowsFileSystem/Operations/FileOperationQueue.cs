@@ -36,13 +36,14 @@ public sealed class FileOperationQueue : IFileOperationHost
     private static readonly ConditionalWeakTable<IShellServices, FileOperationQueue> _instances = new();
     private static readonly object _instancesLock = new();
 
-    /// <summary>The queue for <paramref name="shell"/>, made on first ask.</summary>
-    public static FileOperationQueue For(IShellServices shell)
+    /// <summary>The queue for <paramref name="shell"/>, made on first ask, running its work through
+    /// <paramref name="vfs"/> — the same runtime's file system.</summary>
+    public static FileOperationQueue For(IShellServices shell, IVirtualFileSystem vfs)
     {
         lock (_instancesLock)
         {
             if (!_instances.TryGetValue(shell, out var q))
-                _instances.Add(shell, q = new FileOperationQueue(shell));
+                _instances.Add(shell, q = new FileOperationQueue(shell, vfs));
             return q;
         }
     }
@@ -50,7 +51,15 @@ public sealed class FileOperationQueue : IFileOperationHost
     private readonly IShellServices _shell;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _volumeGates = new(StringComparer.OrdinalIgnoreCase);
 
-    private FileOperationQueue(IShellServices shell) => _shell = shell;
+    private FileOperationQueue(IShellServices shell, IVirtualFileSystem vfs)
+    {
+        _shell     = shell;
+        FileSystem = vfs;
+    }
+
+    /// <summary>The runtime's file system every transfer and delete goes through where the disk cannot reach — under a
+    /// mount, inside an archive, on a location (<see cref="FileTransferRequest.FileSystem"/>).</summary>
+    public IVirtualFileSystem FileSystem { get; }
 
     /// <summary>Live and recently-finished operations, newest last. Only ever touched on the UI thread.</summary>
     public ObservableCollection<FileOperation> Operations { get; } = [];
@@ -89,7 +98,7 @@ public sealed class FileOperationQueue : IFileOperationHost
         }
 
         var request = new FileTransferRequest(
-            move ? TransferKind.Move : TransferKind.Copy, items, ConflictPolicy.AutoRename);
+            move ? TransferKind.Move : TransferKind.Copy, items, ConflictPolicy.AutoRename) { FileSystem = FileSystem };
 
         var op = new FileOperation(
             move ? Str.Get("WindowsFileSystem.Operations.Moving") : Str.Get("WindowsFileSystem.Operations.Copying"),
@@ -103,23 +112,28 @@ public sealed class FileOperationQueue : IFileOperationHost
 
     /// <summary>A delete. <paramref name="permanent"/> false goes to the Recycle Bin, which only
     /// shell32 can do — that path still runs here so it stops blocking the UI thread and shows up in
-    /// the panel like everything else.</summary>
+    /// the panel like everything else. The Recycle Bin is this machine's: a path it cannot hold — inside an
+    /// archive, on a location — is deleted for good, which the caller asks about first.</summary>
     public FileOperation? EnqueueDelete(IReadOnlyList<string> paths, bool permanent)
     {
         var real = Services.ShellPath.RealForMutation(paths);
         if (real.Length == 0) return null;
 
         var request = new FileTransferRequest(
-            TransferKind.Delete, Services.FileCompanions.For(_shell).Attach([.. real.Select(p => new TransferItem(p, p))]), ConflictPolicy.Fail);
+            TransferKind.Delete, Services.FileCompanions.For(_shell).Attach([.. real.Select(p => new TransferItem(p, p))]), ConflictPolicy.Fail)
+            { FileSystem = FileSystem };
 
         // A delete says nothing when it works: the files being gone is its own confirmation.
         var op = new FileOperation(
             permanent ? Str.Get("WindowsFileSystem.Operations.Deleting") : Str.Get("WindowsFileSystem.Operations.Recycling"),
             Describe(request.Items), targetLabel: string.Empty, request.Items.Count, announceOnSuccess: false);
-        Start(op, new FileTransferTask(op, this, request, recycle: !permanent, VolumeKey(real[0])),
+        Start(op, new FileTransferTask(op, this, request, recycle: !permanent && real.All(IsRecyclable), VolumeKey(real[0])),
               onSucceeded: null);
         return op;
     }
+
+    /// <summary>Whether the Recycle Bin can take <paramref name="path"/>: only a real path on this disk can be recycled.</summary>
+    public bool IsRecyclable(string path) => FileSystem.GetBacking(path).IsFullyOnDisk();
 
     private void Start(FileOperation op, IBackgroundTask task, Action? onSucceeded)
     {

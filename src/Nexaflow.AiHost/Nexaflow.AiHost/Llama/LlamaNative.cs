@@ -65,6 +65,13 @@ internal static unsafe partial class LlamaNative
         Enabled = 1,
     }
 
+    /// <summary>The <c>ggml_type</c>s a context's cache is held as.</summary>
+    public enum GgmlType
+    {
+        F16 = 1,
+        Q8_0 = 8,
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     public struct ContextParams
     {
@@ -206,6 +213,10 @@ internal static unsafe partial class LlamaNative
     [LibraryImport(Llama, EntryPoint = "llama_model_n_ctx_train")]
     public static partial int ModelTrainedContext(IntPtr model);
 
+    /// <summary>The width of the model's hidden state: what each token's row of it holds.</summary>
+    [LibraryImport(Llama, EntryPoint = "llama_model_n_embd")]
+    public static partial int ModelWidth(IntPtr model);
+
     [LibraryImport(Llama, EntryPoint = "llama_init_from_model")]
     public static partial IntPtr ContextInit(IntPtr model, ContextParams parameters);
 
@@ -224,6 +235,15 @@ internal static unsafe partial class LlamaNative
 
     [LibraryImport(Llama, EntryPoint = "llama_memory_seq_pos_max")]
     public static partial int MemoryLastPosition(IntPtr memory, int sequence);
+
+    /// <summary>Has sequence <paramref name="to"/> hold what <paramref name="from"/> holds at positions from <paramref name="first"/>
+    /// up to <paramref name="past"/> — the same cells, where the cache is unified, not a copy of them.</summary>
+    [LibraryImport(Llama, EntryPoint = "llama_memory_seq_cp")]
+    public static partial void MemoryShare(IntPtr memory, int from, int to, int first, int past);
+
+    /// <summary>Forgets everything the context has read, every sequence — a recurrent model's state with it.</summary>
+    [LibraryImport(Llama, EntryPoint = "llama_memory_clear")]
+    public static partial void MemoryClear(IntPtr memory, [MarshalAs(UnmanagedType.U1)] bool data);
 
     [LibraryImport(Llama, EntryPoint = "llama_vocab_n_tokens")]
     public static partial int VocabSize(IntPtr vocab);
@@ -265,6 +285,15 @@ internal static unsafe partial class LlamaNative
     /// the vocabulary, written in place to steer the sample that follows.</summary>
     [LibraryImport(Llama, EntryPoint = "llama_get_logits_ith")]
     public static partial float* Logits(IntPtr context, int index);
+
+    /// <summary>The last hidden state the last read left for its <paramref name="index"/>-th output, in a context that
+    /// keeps them (<see cref="ContextParams.Embeddings"/>, no pooling): <see cref="ModelWidth"/> values; null for no such
+    /// output.</summary>
+    [LibraryImport(Llama, EntryPoint = "llama_get_embeddings_ith")]
+    public static partial float* HiddenState(IntPtr context, int index);
+
+    /// <summary><c>LLAMA_POOLING_TYPE_NONE</c>: a context that keeps hidden states keeps every token's.</summary>
+    public const int NoPooling = 0;
 
     /// <summary>llama.cpp's <c>llama_sampler_chain_params</c>.</summary>
     [StructLayout(LayoutKind.Sequential)]

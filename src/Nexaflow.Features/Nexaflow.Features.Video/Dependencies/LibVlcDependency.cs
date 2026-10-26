@@ -1,5 +1,6 @@
 using System.IO;
 using Nexaflow.Features.Common.Dependencies;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Video.Dependencies;
@@ -27,6 +28,7 @@ public sealed class LibVlcDependency : IExternalDependency
     /// <summary>No install link: this ships with the app, so the fix is to repair the installation.</summary>
     public string? InstallUrl => null;
 
+    [LocalDiskOnly("libVLC, shipped beside the app")]
     public ExternalDependencyStatus Probe()
     {
         var dir = NativeDir;

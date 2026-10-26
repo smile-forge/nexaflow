@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -25,7 +26,7 @@ namespace Nexaflow.Tests.Features.Model3D;
 [TestClass]
 public class Model3DViewModelTests
 {
-    private static Model3DViewModel Make() => new("model.stl", new ModelLoaderRegistry());
+    private static Model3DViewModel Make() => new("model.stl", VirtualFileSystem.Instance, new ModelLoaderRegistry());
 
     [TestMethod]
     [CoversNode("model3d-wireframe")]
@@ -114,7 +115,7 @@ public class Model3DViewModelTests
         // Mesh parsing needs no viewport, so a real sample loads headlessly and the tool can
         // report exact facts instead of the empty pre-load state.
         var vm = new Model3DViewModel(
-            Path.Combine(TestSampleData.Path("model3d"), "tetra.stl"),
+            Path.Combine(TestSampleData.Path("model3d"), "tetra.stl"), VirtualFileSystem.Instance,
             new ModelLoaderRegistry());
         await vm.LoadAsync();
         Assert.IsFalse(vm.HasError, vm.ErrorMessage);
@@ -151,7 +152,7 @@ public class Model3DViewModelTests
 
     private static async Task<Model3DViewModel> TetraAsync()
     {
-        var vm = new Model3DViewModel(Path.Combine(TestSampleData.Path("model3d"), "tetra.stl"), new ModelLoaderRegistry());
+        var vm = new Model3DViewModel(Path.Combine(TestSampleData.Path("model3d"), "tetra.stl"), VirtualFileSystem.Instance, new ModelLoaderRegistry());
         await vm.LoadAsync();
         Assert.IsFalse(vm.HasError, vm.ErrorMessage);
         return vm;

@@ -356,6 +356,37 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
         Settled();
     }
 
+    /// <summary>
+    /// What the document now says, written somewhere else — in the raw half of a page showing it twice. Taken as an edit of this
+    /// document rather than as another one (<see cref="Markdown"/>, which is how a host shows a different document): the stretch
+    /// that differs is written over as it was written there, a step the reader can take back here like any other, and what was
+    /// being looked for goes on being found.
+    /// </summary>
+    public void TakeEdit(string markdown)
+    {
+        var change = SourceDifference.Between(_shown.Markdown, markdown);
+        if (change.None) return;
+
+        // The caret goes to the end of it, so the next one written there is the same step; the page stays where it is, since the
+        // reader is looking at the half it was written in.
+        _takingEdit = true;
+        try
+        {
+            _engine.WriteAsGiven(change.Start, change.Removed, markdown.Substring(change.Start, change.Added));
+        }
+        finally
+        {
+            _takingEdit = false;
+        }
+
+        // Refused by a host that owns what is written here: this half still shows what the document now says, as another one,
+        // rather than disagreeing with the half it was written in.
+        if (!string.Equals(_shown.Markdown, markdown, StringComparison.Ordinal)) Shows(markdown);
+    }
+
+    /// <summary>Whether an edit written somewhere else is being taken, so the caret it moves does not move the page (<see cref="Reveal"/>).</summary>
+    private bool _takingEdit;
+
     /// <summary>After a different document is shown: nothing of the last one can be taken back, found or held open.</summary>
     private void Settled()
     {

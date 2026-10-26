@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -263,7 +264,7 @@ public class PdfCorpusFidelityTests
             try
             {
                 using var open = new CancellationTokenSource(PageBudget);
-                using var scope = PdfDocumentScope.TryOpen(file, open.Token);
+                using var scope = PdfDocumentScope.TryOpen(File.OpenRead(file), open.Token);
                 if (scope is null)
                 {
                     rows.Add(Row(relative, 0, default, null, 0, 0, "unopenable", null));

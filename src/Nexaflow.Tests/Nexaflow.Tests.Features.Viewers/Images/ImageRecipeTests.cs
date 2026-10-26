@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Tests.Fixtures;
@@ -183,7 +184,7 @@ public class ImageRecipeTests
             var newer = $"{{\"version\": {ImageRecipe.CurrentVersion + 1}, \"somethingNew\": true}}";
             File.WriteAllText(sidecar, newer);
 
-            using var services = new ImageEditingServices(new ImageRecipeStore(TimeSpan.FromMilliseconds(1)));
+            using var services = new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromMilliseconds(1)));
             using (var session = new ImageEditSession(photo, services))
             {
                 Assert.AreEqual(RecipeLoadStatus.Newer, session.LoadStatus);
@@ -219,7 +220,7 @@ public class ImageRecipeTests
         try
         {
             var photo = PhotoIn(dir);
-            using var services = new ImageEditingServices(new ImageRecipeStore(TimeSpan.FromHours(1)));
+            using var services = new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1)));
 
             using (var session = new ImageEditSession(photo, services))
             {
@@ -248,7 +249,7 @@ public class ImageRecipeTests
         try
         {
             var photo = PhotoIn(dir);
-            using var services = new ImageEditingServices(new ImageRecipeStore(TimeSpan.FromHours(1)));
+            using var services = new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1)));
             services.Recipes.Save(photo, Edited);
             File.WriteAllBytes(photo, EncodePng(Flat(16, 16, SkiaSharp.SKColors.Black)));
 
@@ -266,7 +267,7 @@ public class ImageRecipeTests
     [CoversNode("images-recipe")]
     public void AnArchivedPhoto_IsEditedForTheSessionOnly()
     {
-        using var services = new ImageEditingServices();
+        using var services = new ImageEditingServices(VirtualFileSystem.Instance);
         using var session = new ImageEditSession(@"C:\no\such\archive.zip\inner\photo.jpg", services);
         Assert.IsFalse(session.IsFileBacked);
         Assert.IsFalse(session.CanPersist);

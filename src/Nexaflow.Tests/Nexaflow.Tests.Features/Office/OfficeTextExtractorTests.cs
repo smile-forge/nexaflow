@@ -1,5 +1,6 @@
 using System.IO;
 using Nexaflow.Features.Office.Search;
+using Nexaflow.IO.Common;
 using Nexaflow.Search;
 using Nexaflow.Tests.Fixtures;
 
@@ -17,7 +18,7 @@ public class OfficeTextExtractorTests
 {
     private const long Budget = 4 * 1024 * 1024;
 
-    private static OfficeTextExtractor NewExtractor() => new();
+    private static OfficeTextExtractor NewExtractor() => new(VirtualFileSystem.Instance);
 
     private static string Sample(string name) => TestSampleData.Path("office", name);
 

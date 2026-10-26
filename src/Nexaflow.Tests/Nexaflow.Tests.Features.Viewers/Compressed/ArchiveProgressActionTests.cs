@@ -68,9 +68,9 @@ public class ArchiveProgressActionTests
     {
         var archive = Archive("photos", "a.txt", "b.txt");
         var host    = new RecordingHost();
-        var action  = new UnzipHereAction(Substitute.For<IShellServices>(), host);
+        var action  = new UnzipHereAction(Substitute.For<IShellServices>(), VirtualFileSystem.Instance, host);
 
-        Assert.IsTrue(action.PerformAction(archive), "the action reports that it started, not that it finished");
+        Assert.IsTrue(await action.PerformActionAsync(archive), "the action reports that it started, not that it finished");
         Assert.AreEqual(1, host.Requests.Count);
         Assert.AreEqual("Extracting", host.Requests[0].Verb);
         Assert.AreEqual("photos.zip", host.Requests[0].Subject);
@@ -90,12 +90,12 @@ public class ArchiveProgressActionTests
     /// </summary>
     [TestMethod]
     [CoversNode("compressed-unzip-here")]
-    public void UnzipHereNamesTheDestinationItWillWriteTo()
+    public async Task UnzipHereNamesTheDestinationItWillWriteTo()
     {
         var archive = Archive("docs", "a.txt");
         var host    = new RecordingHost();
 
-        new UnzipHereAction(Substitute.For<IShellServices>(), host).PerformAction(archive);
+        await new UnzipHereAction(Substitute.For<IShellServices>(), VirtualFileSystem.Instance, host).PerformActionAsync(archive);
 
         Assert.AreEqual(Path.Combine(_root, "docs"), host.Requests[0].DestinationPath);
     }
@@ -106,10 +106,8 @@ public class ArchiveProgressActionTests
     {
         var archive = Archive("plain", "a.txt");
 
-        Assert.IsTrue(new UnzipHereAction(Substitute.For<IShellServices>()).PerformAction(archive));
-
-        // Nothing to await — with no host the work is already done by the time it returns.
-        await Task.CompletedTask;
+        // With no host the work is done by the time the action answers.
+        Assert.IsTrue(await new UnzipHereAction(Substitute.For<IShellServices>(), VirtualFileSystem.Instance).PerformActionAsync(archive));
         Assert.IsTrue(File.Exists(Path.Combine(_root, "plain", "a.txt")));
     }
 
@@ -117,14 +115,14 @@ public class ArchiveProgressActionTests
     /// dropping several folders.</summary>
     [TestMethod]
     [CoversNode("compressed-unzip-here")]
-    public void UnzipHereGivesEachArchiveItsOwnRow()
+    public async Task UnzipHereGivesEachArchiveItsOwnRow()
     {
         var first  = Archive("one", "a.txt");
         var second = Archive("two", "b.txt");
         var host   = new RecordingHost();
 
-        new UnzipHereAction(Substitute.For<IShellServices>(), host)
-            .PerformAction(new[] { first, second });
+        await new UnzipHereAction(Substitute.For<IShellServices>(), VirtualFileSystem.Instance, host)
+            .PerformActionAsync(new[] { first, second });
 
         Assert.AreEqual(2, host.Requests.Count);
     }
@@ -144,8 +142,8 @@ public class ArchiveProgressActionTests
         var host   = new RecordingHost();
         var dest   = Path.Combine(_root, "reports.zip");
 
-        Assert.IsTrue(new ZipItAction(Substitute.For<IShellServices>(), new CompressedConfig(), host)
-            .PerformAction(folder));
+        Assert.IsTrue(await new ZipItAction(Substitute.For<IShellServices>(), new CompressedConfig(), VirtualFileSystem.Instance, host)
+            .PerformActionAsync(folder));
 
         Assert.IsTrue(File.Exists(dest), "the name is taken the moment the action returns");
         Assert.AreEqual("Compressing", host.Requests[0].Verb);
@@ -167,8 +165,8 @@ public class ArchiveProgressActionTests
         var host   = new RecordingHost();
         host.Cts.Cancel();
 
-        Assert.IsTrue(new ZipItAction(Substitute.For<IShellServices>(), new CompressedConfig(), host)
-            .PerformAction(folder));
+        Assert.IsTrue(await new ZipItAction(Substitute.For<IShellServices>(), new CompressedConfig(), VirtualFileSystem.Instance, host)
+            .PerformActionAsync(folder));
 
         await host.Completion;
 
@@ -180,12 +178,12 @@ public class ArchiveProgressActionTests
 
     [TestMethod]
     [CoversNode("compressed-zip-it")]
-    public void ZipItWithNoHostStillZipsThereAndThen()
+    public async Task ZipItWithNoHostStillZipsThereAndThen()
     {
         var folder = Folder("sync", "one.txt");
 
-        Assert.IsTrue(new ZipItAction(Substitute.For<IShellServices>(), new CompressedConfig())
-            .PerformAction(folder));
+        Assert.IsTrue(await new ZipItAction(Substitute.For<IShellServices>(), new CompressedConfig(), VirtualFileSystem.Instance)
+            .PerformActionAsync(folder));
 
         Assert.IsTrue(File.Exists(Path.Combine(_root, "sync.zip")));
     }
@@ -198,11 +196,11 @@ public class ArchiveProgressActionTests
     [TestMethod]
     [CoversNode("compressed-zip-it")]
     [CoversNode("compressed-unzip-here")]
-    public void NeitherActionAsksForARefreshItCannotHaveEarned()
+    public async Task NeitherActionAsksForARefreshItCannotHaveEarned()
     {
         var shell = Substitute.For<IShellServices>();
-        Assert.IsFalse(new ZipItAction(shell, new CompressedConfig()).RequiresRefresh);
-        Assert.IsFalse(new UnzipHereAction(shell).RequiresRefresh);
+        Assert.IsFalse(new ZipItAction(shell, new CompressedConfig(), VirtualFileSystem.Instance).RequiresRefresh);
+        Assert.IsFalse(new UnzipHereAction(shell, VirtualFileSystem.Instance).RequiresRefresh);
     }
 
     /// <summary>Runs the work as soon as it is handed over and keeps what it said, so a test can await

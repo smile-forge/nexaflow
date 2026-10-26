@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using Nexaflow.Features.Pdf;
 using Nexaflow.Features.Pdf.Search;
@@ -16,7 +17,7 @@ public class PdfTextExtractorTests
 {
     private const long Budget = 4 * 1024 * 1024;
 
-    private static PdfTextExtractor NewExtractor(PdfConfig? config = null) => new(config ?? new PdfConfig());
+    private static PdfTextExtractor NewExtractor(PdfConfig? config = null) => new(config ?? new PdfConfig(), VirtualFileSystem.Instance);
 
     private static string Sample(string name) => TestSampleData.Path("pdf", name);
 

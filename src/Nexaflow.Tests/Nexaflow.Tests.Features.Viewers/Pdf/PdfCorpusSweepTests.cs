@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -69,7 +70,7 @@ public class PdfCorpusSweepTests
         using var budget = new CancellationTokenSource(FileBudget);
         try
         {
-            using var scope = PdfDocumentScope.TryOpen(path, budget.Token);
+            using var scope = PdfDocumentScope.TryOpen(File.OpenRead(path), budget.Token);
             if (scope is null)
             {
                 result.Unopenable = true;

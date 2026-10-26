@@ -32,15 +32,15 @@ public class CompoundExtensionMatchTests
     [TestMethod]
     public void CompoundExtension_Matches()
     {
-        var ids = FileMapManager.Instance.GetExperiencesForFile(new FileInfo(@"C:\x\backup.tar.gz"));
+        var ids = FileMapManager.Instance.GetExperiencesForFile(FileSubject.ByName(@"C:\x\backup.tar.gz"));
         Assert.IsTrue(ids.Contains(Exp), "*.tar.gz should match backup.tar.gz");
-        Assert.AreEqual(4, FileMapManager.Instance.GetMatchSpecificity(new FileInfo(@"C:\x\backup.tar.gz"), Exp));
+        Assert.AreEqual(4, FileMapManager.Instance.GetMatchSpecificity(FileSubject.ByName(@"C:\x\backup.tar.gz"), Exp));
     }
 
     [TestMethod]
     public void BareExtension_DoesNotMatchCompound()
     {
-        var ids = FileMapManager.Instance.GetExperiencesForFile(new FileInfo(@"C:\x\plain.gz"));
+        var ids = FileMapManager.Instance.GetExperiencesForFile(FileSubject.ByName(@"C:\x\plain.gz"));
         Assert.IsFalse(ids.Contains(Exp), "*.tar.gz must not match a plain .gz");
     }
 }

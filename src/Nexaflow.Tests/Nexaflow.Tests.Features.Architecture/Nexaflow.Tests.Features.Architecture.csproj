@@ -29,8 +29,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Referenced as a library, not run as an analyzer: its tests hand it compilations of their own. -->
+    <!-- Referenced as libraries, not run as analyzers: their tests hand them compilations of their own. -->
     <ProjectReference Include="..\..\Nexaflow.Analyzers\Nexaflow.Analyzers.Content\Nexaflow.Analyzers.Content.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Analyzers\Nexaflow.Analyzers.Io\Nexaflow.Analyzers.Io.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -58,6 +59,7 @@
 
     <ProjectReference Include="..\Nexaflow.Tests.Features.Common\Nexaflow.Tests.Features.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
+    <ProjectReference Include="..\Nexaflow.IO.Location.Memory\Nexaflow.IO.Location.Memory.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Plugins.Contracts\Nexaflow.Plugins.Contracts.csproj" />
     <!-- TestCoverageCollector, for the guard that every [CoversNode] resolves a source file. -->

@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using Nexaflow.Features.Common;
@@ -21,9 +22,9 @@ public class EmailRichTextTests
 
     [TestMethod]
     [CoversNode("email-body")]
-    public void ARichTextBodyIsDrawnAsRtf()
+    public async Task ARichTextBodyIsDrawnAsRtf()
     {
-        Opened(new MsgBuilder().String(0x0037, "Figures").Binary(0x1009, MsgBuilder.Stored(Rtf)), vm =>
+        await OpenedAsync(new MsgBuilder().String(0x0037, "Figures").Binary(0x1009, MsgBuilder.Stored(Rtf)), vm =>
         {
             Assert.AreEqual(RtfParser.Language, vm.RenderedLanguage);
             Assert.AreEqual(Rtf, vm.RenderedMarkdown, "drawn from the RTF itself, not from anything made of it");
@@ -34,9 +35,9 @@ public class EmailRichTextTests
 
     [TestMethod]
     [CoversNode("email-body")]
-    public void WithNoPlainTextOfItsOwn_ItReadsAsTheWordsItsRtfDraws()
+    public async Task WithNoPlainTextOfItsOwn_ItReadsAsTheWordsItsRtfDraws()
     {
-        Opened(new MsgBuilder().Binary(0x1009, MsgBuilder.Stored(Rtf)), vm =>
+        await OpenedAsync(new MsgBuilder().Binary(0x1009, MsgBuilder.Stored(Rtf)), vm =>
         {
             Assert.AreEqual("Hello Bob,\nSee the figures.", vm.PlainText);
             StringAssert.Contains(vm.GetContext(), "See the figures.");
@@ -46,9 +47,9 @@ public class EmailRichTextTests
 
     [TestMethod]
     [CoversNode("email-body")]
-    public void AnHtmlBodyIsDrawnAsMarkdown()
+    public async Task AnHtmlBodyIsDrawnAsMarkdown()
     {
-        Opened(new MsgBuilder().Binary(0x1013, System.Text.Encoding.UTF8.GetBytes("<p>Hello</p>")), vm =>
+        await OpenedAsync(new MsgBuilder().Binary(0x1013, System.Text.Encoding.UTF8.GetBytes("<p>Hello</p>")), vm =>
         {
             Assert.IsNull(vm.RenderedLanguage);
             Assert.IsFalse(vm.IsRichText);
@@ -57,9 +58,9 @@ public class EmailRichTextTests
 
     [TestMethod]
     [CoversNode("email-find")]
-    public void ARichTextBodyIsSearchedInTheWordsItDraws_NeverItsRtf()
+    public async Task ARichTextBodyIsSearchedInTheWordsItDraws_NeverItsRtf()
     {
-        Opened(new MsgBuilder().Binary(0x1009, MsgBuilder.Stored(Rtf)), vm =>
+        await OpenedAsync(new MsgBuilder().Binary(0x1009, MsgBuilder.Stored(Rtf)), vm =>
         {
             var words = vm.SearchAsync(new SearchRequest("figures"), display: false, CancellationToken.None).GetAwaiter().GetResult();
             var control = vm.SearchAsync(new SearchRequest("cf1"), display: false, CancellationToken.None).GetAwaiter().GetResult();
@@ -69,12 +70,13 @@ public class EmailRichTextTests
         });
     }
 
-    private static void Opened(MsgBuilder message, Action<EmailViewModel> check)
+    private static async Task OpenedAsync(MsgBuilder message, Action<EmailViewModel> check)
     {
         var path = Path.Combine(TestTemp.Root, $"nexaflow-{Guid.NewGuid():N}.msg");
         File.WriteAllBytes(path, message.Build());
 
-        var vm = new EmailViewModel(path, Substitute.For<IShellServices>());
+        var vm = new EmailViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
+        await vm.Loaded;
 
         try
         {

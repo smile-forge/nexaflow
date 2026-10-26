@@ -678,6 +678,9 @@ internal sealed class ReadAsDrawn : IContentLanguage
 {
     /// <inheritdoc/>
     public bool ReadsAsDrawn => true;
+
+    /// <summary>What is drawn is prose, and prose is chosen by the letter.</summary>
+    public bool ChosenByLetter => true;
 }
 
 /// <summary>What code shows and offers: every character a writer typed, and no picture of it.</summary>

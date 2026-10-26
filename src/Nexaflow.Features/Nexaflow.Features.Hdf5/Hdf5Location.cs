@@ -16,8 +16,9 @@ internal static class Hdf5Location
 
     /// <summary>
     /// The file and the object path inside it (null when the path is the file itself). The first segment named
-    /// like an HDF5 file that is a file — on disk or inside an archive — is the boundary, so a group that happens
-    /// to be called <c>x.h5</c> stays inside its file.
+    /// like an HDF5 file is the boundary, so a group that happens to be called <c>x.h5</c> stays inside its file —
+    /// unless it is a folder on this disk, which is passed over. Inside an archive or on a location a segment so
+    /// named is taken to be the file, as the file system takes it, so a tab is defined without a round trip.
     /// </summary>
     public static (string File, string? Object) Split(string path, IVirtualFileSystem vfs)
     {
@@ -28,16 +29,12 @@ internal static class Hdf5Location
             if (!HasHdf5Extension(parts[i])) continue;
             if (i == parts.Length - 1) return (path, null);
             var file = string.Join('\\', parts[..(i + 1)]);
-            if (IsFile(file, vfs)) return (file, "/" + string.Join('/', parts[(i + 1)..].Where(p => p.Length > 0)));
+            if (!IsFolderOnThisDisk(file, vfs)) return (file, "/" + string.Join('/', parts[(i + 1)..].Where(p => p.Length > 0)));
         }
         return (path, null);
     }
 
-    private static bool IsFile(string path, IVirtualFileSystem vfs)
-    {
-        if (File.Exists(path)) return true;
-        if (Directory.Exists(path)) return false;
-        try { return vfs.GetEntryInfo(path) is { IsDirectory: false }; }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException) { return false; }
-    }
+    [LocalDiskOnly("a path the file system resolved to this disk")]
+    private static bool IsFolderOnThisDisk(string path, IVirtualFileSystem vfs)
+        => vfs.ResolveOnDisk(path) is { } real && Directory.Exists(real);
 }

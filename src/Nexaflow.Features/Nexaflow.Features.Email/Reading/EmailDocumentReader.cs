@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using Nexaflow.Features.Email.Model;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Email.Reading;
 
@@ -40,6 +41,7 @@ internal sealed class EmailDocumentReader
     private EmailDocument Parse(Stream stream, string fileName)
         => (EmailFileTypes.IsMsg(fileName) ? _msg : _eml).Read(stream, fileName);
 
+    [LocalDiskOnly("the file a FileStream has open, which is on this disk by being one")]
     private static bool TryKey(FileStream fs, out string key)
     {
         key = string.Empty;

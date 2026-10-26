@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Projects.Model;
@@ -12,6 +13,7 @@ namespace Nexaflow.Features.Projects.Model;
 /// MCP server. Per-project methods take a folder name relative to <see cref="RootPath"/>; the UI supplies
 /// a <c>rootOverride</c> so the same code drives projects in any bucket (active / shelf / archive).
 /// </summary>
+[LocalDiskOnly("the projects folder chosen in the Projects settings, on this disk, which the Projects MCP server shares")]
 public class ProjectOperations : IProjectTools
 {
     private readonly ProjectsConfig _config;

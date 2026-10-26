@@ -14,6 +14,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.AIChat.ViewModels;
 
@@ -1034,6 +1035,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         return baseText;
     }
 
+    [LocalDiskOnly("a pinned folder listed for the context when it is on this disk; the context is built synchronously, so one anywhere else is given by its path")]
     private static string BuildFolderListing(string folderPath)
     {
         try
@@ -1286,6 +1288,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     /// Reads an attached file's text (capped, binary-guarded) for inclusion in context, so the AI
     /// can actually see the file's content. Returns null when missing, binary, too unwieldy, or unreadable.
     /// </summary>
+    [LocalDiskOnly("a pinned file read for the context when it is on this disk; the context is built synchronously, so one anywhere else is given by its path")]
     private static string? TryReadText(string path, int capBytes = 32 * 1024)
     {
         try

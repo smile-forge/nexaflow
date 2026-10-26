@@ -20,7 +20,7 @@ public class DefaultActionRegistryTests
         => DefaultActionRegistry.Instance.Update(new DefaultActionsConfig { Overrides = overrides.ToList() });
 
     private static DefaultActionOverride? Resolve(string fileName)
-        => DefaultActionRegistry.Instance.Resolve(new FileInfo(fileName));
+        => DefaultActionRegistry.Instance.Resolve(fileName);
 
     private static DefaultActionOverride Verb(string ext, string verb) =>
         new() { Extension = ext, Kind = DefaultActionKind.WindowsVerb, TargetId = verb };

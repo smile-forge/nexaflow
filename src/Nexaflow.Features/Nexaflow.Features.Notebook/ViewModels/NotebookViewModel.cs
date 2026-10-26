@@ -25,11 +25,15 @@ public sealed partial class NotebookViewModel : ObservableObject, IPageViewModel
     private string _grammarId = "python";
     private int _codeCells, _markdownCells;
 
-    public NotebookViewModel(string filePath, IShellServices shell)
+    public NotebookViewModel(string filePath, IShellServices shell, IVirtualFileSystem vfs)
     {
         FilePath = filePath;
         _shell   = shell;
+        _vfs     = vfs;
     }
+
+    /// <summary>The runtime's file system the notebook is read through — on disk, in an archive or on a location.</summary>
+    private readonly IVirtualFileSystem _vfs;
 
     public string FilePath { get; }
     public string FileName => Path.GetFileName(FilePath);
@@ -45,8 +49,8 @@ public sealed partial class NotebookViewModel : ObservableObject, IPageViewModel
     public async Task LoadAsync()
     {
         string text;
-        // Read through the VFS (off the UI thread) so an .ipynb inside a disk image / archive resolves.
-        try { text = await Task.Run(() => VirtualFileSystem.Instance.ReadAllText(FilePath)).ConfigureAwait(true); }
+        // Read through the runtime's file system, so an .ipynb inside a disk image, an archive or on a location resolves.
+        try { text = await _vfs.ReadAllTextAsync(FilePath).ConfigureAwait(true); }
         catch { IsLoaded = true; return; }
 
         var notebook = NotebookDocument.Parse(text);

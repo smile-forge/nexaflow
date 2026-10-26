@@ -89,7 +89,7 @@ public static class LayoutExport
 
             foreach (var piece in laid.Root.SelfAndDescendants())
             {
-                if (piece.Part is not ContentPart part) continue;
+                if (piece.Part.TreePart() is not { } part) continue;
 
                 if (!_pieces.TryGetValue(part, out var laidFrom)) _pieces[part] = laidFrom = [];
                 laidFrom.Add(piece);

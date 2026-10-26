@@ -13,6 +13,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Dicom.Models;
 using Nexaflow.Features.Dicom.Services;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Dicom.ViewModels;
@@ -28,6 +29,9 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
 {
     private readonly IReadOnlyList<string> _paths;
     private readonly IShellServices _shell;
+
+    /// <summary>How the instances are read — through the runtime's file system, on disk, in an archive or on a location.</summary>
+    private readonly DicomIo _io;
     private readonly Dictionary<string, string> _originParams;   // params that re-open THIS tab
     private readonly DispatcherTimer _cineTimer;
     private readonly List<string> _tempReports = [];             // extracted report temp files, cleaned on dispose
@@ -91,10 +95,11 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
 
     public bool MultiFrame => FrameCount > 1;
 
-    public DicomViewModel(IReadOnlyList<string> paths, IShellServices shell, Dictionary<string, string> originParams)
+    public DicomViewModel(IReadOnlyList<string> paths, IShellServices shell, IVirtualFileSystem vfs, Dictionary<string, string> originParams)
     {
         _paths = paths;
         _shell = shell;
+        _io    = new DicomIo(vfs);
         _originParams = originParams;
 
         _cineTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(100) };
@@ -110,7 +115,7 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
         DicomContainer container;
         try
         {
-            container = await Task.Run(() => DicomContainerLoader.Load(_paths, _cts.Token), _cts.Token);
+            container = await Task.Run(() => DicomContainerLoader.LoadAsync(_io, _paths, _cts.Token), _cts.Token);
         }
         catch (OperationCanceledException) { return; }
         catch (Exception ex)
@@ -149,7 +154,7 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
                 break;
             case DicomNodeKind.Report when value.FilePath is not null:
                 ClearImage();
-                OpenReport(value);
+                _ = OpenReportAsync(value);
                 LoadTagsIfOpen();
                 break;
             default:
@@ -180,7 +185,7 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
         _currentSeries = node.SeriesImages;
         try
         {
-            var renderer = await Task.Run(() => new DicomRenderer(node.FilePath!), _cts.Token);
+            var renderer = await Task.Run(() => DicomRenderer.OpenAsync(_io, node.FilePath!, _cts.Token), _cts.Token);
             _renderer = renderer;
             FrameCount = Math.Max(1, renderer.Frames);
             FrameIndex = 0;
@@ -195,7 +200,7 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
             }
             OnPropertyChanged(nameof(MultiFrame));
 
-            Measure.SetFrame(node.Instance, 0);
+            Measure.SetFrame(node.Instance, renderer.Dataset, 0);
             UpdateOverlays(node);
             await RenderAsync();
         }
@@ -224,7 +229,7 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
         FrameCount = 1;
         FrameIndex = 0;
         OnPropertyChanged(nameof(MultiFrame));
-        Measure.SetFrame(null, 0);
+        Measure.SetFrame(null, null, 0);
     }
 
     /// <summary>Renders the current frame at the current window/level off the UI thread.</summary>
@@ -274,11 +279,10 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
 
     private string BuildPatientOverlay()
     {
-        // Only reads header PHI when actually shown — and it's never handed to the AI.
-        if (SelectedNode?.FilePath is not { } path) return string.Empty;
+        // Header PHI from the instance the renderer read, already in hand — and it's never handed to the AI.
+        if (_renderer?.Dataset is not { } ds) return string.Empty;
         try
         {
-            var ds = DicomIo.Open(path, FileReadOption.SkipLargeTags).Dataset;
             var name = DicomTags.PersonName(ds, DicomTag.PatientName, _unknownPatientName);
             var id = DicomTags.Str(ds, DicomTag.PatientID, "—");
             var dob = DicomTags.Date(ds, DicomTag.PatientBirthDate);
@@ -343,7 +347,7 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
 
     partial void OnFrameIndexChanged(int value)
     {
-        Measure.SetFrame(SelectedNode?.Instance, value);
+        Measure.SetFrame(SelectedNode?.Instance, _renderer?.Dataset, value);
         _ = RenderAsync();
     }
 
@@ -382,7 +386,7 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
         var wording = DicomTagWording.ForDisplay();   // the drawer's words, in the shown language
         try
         {
-            _allTags = await Task.Run(() => DicomTagReader.Read(path, hide, wording), _cts.Token);
+            _allTags = await Task.Run(() => DicomTagReader.ReadAsync(_io, path, hide, wording, _cts.Token), _cts.Token);
             ApplyTagFilter();
         }
         catch (OperationCanceledException) { }
@@ -412,7 +416,7 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
 
     // ── Reports (open elsewhere, breadcrumb back here) ────────────────────
 
-    private void OpenReport(DicomNode node)
+    private async Task OpenReportAsync(DicomNode node)
     {
         if (node.Instance is not { IsEncapsulatedDocument: true } || node.FilePath is null)
         {
@@ -422,7 +426,7 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
 
         try
         {
-            var temp = ExtractEncapsulatedDocument(node);
+            var temp = await ExtractEncapsulatedDocumentAsync(node);
             if (temp is null) { _shell.ShowError(Str.Get("Dicom.Report.ExtractFailed")); return; }
 
             // Register the temp file as originating from THIS DICOM page so the viewer that opens it shows a
@@ -437,9 +441,9 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
         }
     }
 
-    private string? ExtractEncapsulatedDocument(DicomNode node)
+    private async Task<string?> ExtractEncapsulatedDocumentAsync(DicomNode node)
     {
-        var ds = DicomIo.Open(node.FilePath!, FileReadOption.ReadAll).Dataset;
+        var ds = (await _io.OpenAsync(node.FilePath!, FileReadOption.ReadAll, _cts.Token)).Dataset;
         if (!ds.TryGetValues<byte>(DicomTag.EncapsulatedDocument, out var bytes) || bytes.Length == 0)
             return null;
 
@@ -450,10 +454,20 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
             _ => ".bin",
         };
 
+        var safeTitle = string.Concat((Container?.Title ?? "report").Split(Path.GetInvalidFileNameChars()));
+        return KeepReport(bytes, $"{safeTitle}-{Guid.NewGuid():N}{ext}");
+    }
+
+    /// <summary>Why the reports are on the disk directly: they are the tab's own, extracted to the temp folder.</summary>
+    private const string ReportsHere = "reports extracted to the temp folder for the viewer that opens them";
+
+    /// <summary>A report's bytes written where the viewer that opens it reads them, deleted with the tab.</summary>
+    [LocalDiskOnly(ReportsHere)]
+    private string KeepReport(byte[] bytes, string name)
+    {
         var dir = Path.Combine(Path.GetTempPath(), "nexaflow-dicom");
         Directory.CreateDirectory(dir);
-        var safeTitle = string.Concat((Container?.Title ?? "report").Split(Path.GetInvalidFileNameChars()));
-        var temp = Path.Combine(dir, $"{safeTitle}-{Guid.NewGuid():N}{ext}");
+        var temp = Path.Combine(dir, name);
         File.WriteAllBytes(temp, bytes);
         _tempReports.Add(temp);
         return temp;
@@ -521,7 +535,7 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
         new DelegateClientTool("dicom_read_tags",
             "Read the current image's DICOM tags (de-identified — patient identifiers are masked). Optional 'query' filters by tag id, name or value.",
             [new ClientToolParameter("query", "optional filter over tag id / name / value", Required: false)],
-            ToolSafety.SafeOperation, (args, _) => Task.FromResult(ReadTagsResult(ToolArgs.Str(args, "query")))),
+            ToolSafety.SafeOperation, (args, _) => ReadTagsResultAsync(ToolArgs.Str(args, "query"))),
 
         new DelegateClientTool("dicom_next_frame", "Advance to the next frame of a multi-frame image.",
             [], ToolSafety.SafeOperation, (_, _) => { NextFrame(); return Task.FromResult(CurrentImageInfoResult()); }),
@@ -602,12 +616,12 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
             CurrentImageInfoText());
     }
 
-    private ToolResult ReadTagsResult(string? query)
+    private async Task<ToolResult> ReadTagsResultAsync(string? query)
     {
         if (SelectedNode?.FilePath is not { } path) return ToolResult.Error("No instance is selected.");
 
         // ALWAYS de-identified for the AI, regardless of the UI's Hide-patient toggle.
-        var tags = DicomTagReader.Read(path, hidePatient: true, DicomTagWording.Assistant);
+        var tags = await DicomTagReader.ReadAsync(_io, path, hidePatient: true, DicomTagWording.Assistant, _cts.Token);
         if (!string.IsNullOrEmpty(query))
             tags = tags.Where(t =>
                 t.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
@@ -646,6 +660,12 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
         _cts.Cancel();
         _renderCts?.Cancel();
         _cineTimer.Stop();
+        DeleteReports();
+    }
+
+    [LocalDiskOnly(ReportsHere)]
+    private void DeleteReports()
+    {
         foreach (var t in _tempReports)
         {
             OriginBreadcrumbs.Clear(t);

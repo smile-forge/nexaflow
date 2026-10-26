@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common.Locations;
 using Nexaflow.Providers.Common;
 using System.IO;
 using System.Text.Json.Serialization;
@@ -55,6 +56,15 @@ public sealed partial class Workspace : ObservableObject
     /// </summary>
     public bool SuppressSessionRestore { get; set; }
 
+    /// <summary>
+    /// Where this workspace's last window was meant to be when it closed — its monitor, normal size and position,
+    /// and whether it was maximised — so the next window opens there. It is the placement the user chose, not one
+    /// Windows forced while a monitor was asleep or missing (<see cref="Services.WindowPlacementTracker"/>). Kept
+    /// whatever <see cref="SuppressSessionRestore"/> says: reopening where it was is not an offer. Serialized inline
+    /// in the workspace list.
+    /// </summary>
+    public WindowPlacement? LastWindowPlacement { get; set; }
+
     /// <summary>UI-only, transient: set by the Workspaces editor on each row copy to mark whether the
     /// workspace is currently live (its Delete button is hidden — a running workspace can't be removed).
     /// Never serialised; false on the saved workspaces.</summary>
@@ -73,6 +83,10 @@ public sealed partial class Workspace : ObservableObject
 
     /// <summary>Provider configs (API keys etc.) — one instance per discovered config type.</summary>
     [JsonIgnore] public IReadOnlyList<IProviderConfig> ProviderConfigs { get; private set; } = [];
+
+    /// <summary>The connections this workspace keeps, their secrets in Credential Manager; null until its shared services
+    /// are loaded.</summary>
+    [JsonIgnore] public WorkspaceConnections? Connections { get; private set; }
 
     /// <summary>
     /// Per-workspace feature configs (one instance per <see cref="WorkspaceScopedConfigAttribute"/> type)
@@ -153,6 +167,7 @@ public sealed partial class Workspace : ObservableObject
         ConfigManager.Instance.LoadFrom(Dir, Persona, Persona.ConfigName);
         RibbonService    = new RibbonLayoutService(Dir);
         ProviderConfigs  = ProviderManager.Instance.LoadProviderConfigs(Dir);
+        Connections      = new WorkspaceConnections(Dir, CredentialManagerStore.Default);
         // Scoped feature configs are materialized lazily (see FindWorkspaceConfig) so a feature whose only
         // footprint here is a scoped config isn't force-loaded at startup.
     }

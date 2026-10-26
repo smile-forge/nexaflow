@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
@@ -25,7 +26,7 @@ public class PdfViewModelAiTests
 
     private static PdfViewModel LoadedVm(string sample = "outline.pdf")
     {
-        var vm = new PdfViewModel(Sample(sample), Substitute.For<IShellServices>(), new PdfConfig());
+        var vm = new PdfViewModel(Sample(sample), Substitute.For<IShellServices>(), VirtualFileSystem.Instance, new PdfConfig());
         vm.LoadAsync(System.Windows.Media.Brushes.White).GetAwaiter().GetResult();
         return vm;
     }
@@ -88,8 +89,8 @@ public class PdfViewModelAiTests
     [CoversNode("pdf-scans-notice")]
     public void AScannedDocument_OffersItsScansForReading_WherePageReadingRuns()
     {
-        var offered = new PdfViewModel(Sample("image-only.pdf"), RunningShell(), new PdfConfig(), Reading(ToolModelsState.NotDownloaded));
-        var none = new PdfViewModel(Sample("image-only.pdf"), RunningShell(), new PdfConfig());
+        var offered = new PdfViewModel(Sample("image-only.pdf"), RunningShell(), VirtualFileSystem.Instance, new PdfConfig(), Reading(ToolModelsState.NotDownloaded));
+        var none = new PdfViewModel(Sample("image-only.pdf"), RunningShell(), VirtualFileSystem.Instance, new PdfConfig());
         try
         {
             offered.LoadAsync(System.Windows.Media.Brushes.White).GetAwaiter().GetResult();
@@ -112,7 +113,7 @@ public class PdfViewModelAiTests
     [CoversNode("pdf-scans-notice")]
     public async Task TheScansNotice_GivesWayToTheConversionsBanner()
     {
-        var vm = new PdfViewModel(Sample("image-only.pdf"), RunningShell(), new PdfConfig(), Reading(ToolModelsState.NotDownloaded));
+        var vm = new PdfViewModel(Sample("image-only.pdf"), RunningShell(), VirtualFileSystem.Instance, new PdfConfig(), Reading(ToolModelsState.NotDownloaded));
         try
         {
             await vm.LoadAsync(System.Windows.Media.Brushes.White);
@@ -139,7 +140,7 @@ public class PdfViewModelAiTests
     [CoversNode("pdf-ai-act-read-scans")]
     public async Task ReadScans_ReadsThemWithPageReading_AndReadTextThenIncludesTheirText()
     {
-        var vm = new PdfViewModel(Sample("image-only.pdf"), RunningShell(), new PdfConfig(), Reading(ToolModelsState.Ready));
+        var vm = new PdfViewModel(Sample("image-only.pdf"), RunningShell(), VirtualFileSystem.Instance, new PdfConfig(), Reading(ToolModelsState.Ready));
         try
         {
             await vm.LoadAsync(System.Windows.Media.Brushes.White);
@@ -172,7 +173,7 @@ public class PdfViewModelAiTests
             pictures.Add((frame.PixelWidth, frame.PixelHeight));
             return Task.FromResult<IReadOnlyList<PageBlock>>([new PageBlock(PageBlockKind.Text, 0, 0, 1, 1, "A page of its own.")]);
         });
-        var vm = new PdfViewModel(Sample("outline.pdf"), RunningShell(), new PdfConfig(), reading);
+        var vm = new PdfViewModel(Sample("outline.pdf"), RunningShell(), VirtualFileSystem.Instance, new PdfConfig(), reading);
         try
         {
             await vm.LoadAsync(System.Windows.Media.Brushes.White);
@@ -192,7 +193,7 @@ public class PdfViewModelAiTests
     [CoversNode("pdf-scan-reading")]
     public async Task AScannedDocument_SaysSoAboveIt_UntilTheReaderPutsTheNoticeAway()
     {
-        var vm = new PdfViewModel(Sample("image-only.pdf"), RunningShell(), new PdfConfig(), Reading(ToolModelsState.Ready));
+        var vm = new PdfViewModel(Sample("image-only.pdf"), RunningShell(), VirtualFileSystem.Instance, new PdfConfig(), Reading(ToolModelsState.Ready));
         try
         {
             await vm.LoadAsync(System.Windows.Media.Brushes.White);
@@ -209,7 +210,7 @@ public class PdfViewModelAiTests
     [CoversNode("pdf-scan-reading")]
     public async Task ADocumentWithText_HasNoScansNotice()
     {
-        var vm = new PdfViewModel(Sample("outline.pdf"), RunningShell(), new PdfConfig(), Reading(ToolModelsState.Ready));
+        var vm = new PdfViewModel(Sample("outline.pdf"), RunningShell(), VirtualFileSystem.Instance, new PdfConfig(), Reading(ToolModelsState.Ready));
         try
         {
             await vm.LoadAsync(System.Windows.Media.Brushes.White);
@@ -222,7 +223,7 @@ public class PdfViewModelAiTests
     [CoversNode("pdf-ai-act-read-scans")]
     public async Task ReadScans_OnADocumentWithNone_SaysSo()
     {
-        var vm = new PdfViewModel(Sample("outline.pdf"), RunningShell(), new PdfConfig(), Reading(ToolModelsState.Ready));
+        var vm = new PdfViewModel(Sample("outline.pdf"), RunningShell(), VirtualFileSystem.Instance, new PdfConfig(), Reading(ToolModelsState.Ready));
         try
         {
             await vm.LoadAsync(System.Windows.Media.Brushes.White);

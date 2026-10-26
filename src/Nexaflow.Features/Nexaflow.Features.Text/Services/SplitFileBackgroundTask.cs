@@ -10,12 +10,12 @@ namespace Nexaflow.Features.Text.Services;
 /// area. The result is captured on <see cref="Result"/> so the queueing code can report it once the task
 /// completes (the shell's <c>onComplete</c> callback only carries success/failure).
 /// </summary>
-internal sealed class SplitFileBackgroundTask(string sourcePath, SplitOptions options) : IBackgroundTask
+internal sealed class SplitFileBackgroundTask(IVirtualFileSystem vfs, string sourcePath, SplitOptions options) : IBackgroundTask
 {
     public string Description => Str.Format("Text.Viewer.Split.TaskFormat", Path.GetFileName(sourcePath));
 
     public SplitResult? Result { get; private set; }
 
     public async Task RunAsync(CancellationToken ct)
-        => Result = await FileSplitter.SplitAsync(sourcePath, options, ct);
+        => Result = await FileSplitter.SplitAsync(vfs, sourcePath, options, ct);
 }

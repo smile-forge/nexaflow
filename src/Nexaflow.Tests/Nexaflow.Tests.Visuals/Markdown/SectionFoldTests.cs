@@ -87,6 +87,26 @@ public class SectionFoldTests
         Assert.IsTrue(Words(engine).Any(said => said.Contains("Cats purr")), "because the section holding it was opened");
     });
 
+    [TestMethod]
+    public void AMatchInsideAFoldedSection_IsStillMarkedBesideTheScrollbar() => UiThread.Run(() =>
+    {
+        // Nothing on the page draws it, and a match the strip leaves off is one the reader is told of but never shown.
+        var filler = string.Concat(Enumerable.Repeat("Filler words here.\n\n", 60));
+        var document = "# One\n\nA zebra up top.\n\n" + filler + "# Two\n\n" + filler + "A zebra folded away.\n\n# Three\n\n" + filler;
+
+        MarkdownEditorHarness.Run(document, editor =>
+        {
+            FoldAt(editor.Engine, "# Two");
+            editor.UpdateLayout();
+
+            Assert.AreEqual(2, editor.Find("zebra"), "both are found");
+
+            var marks = editor.SearchMarkPositions();
+            Assert.AreEqual(2, marks.Count, "and both are marked, the folded one too");
+            Assert.IsTrue(marks[1] > marks[0], $"the folded one where its section is, below the first: {string.Join(", ", marks)}");
+        });
+    });
+
     /// <summary>Folds the section under the heading written as <paramref name="heading"/>, through its corner.</summary>
     private static void FoldAt(ContentEngine engine, string heading)
     {
@@ -134,8 +154,8 @@ public class SectionFoldTests
     }
 
     /// <summary>Where the block holding <paramref name="written"/> came out on the page.</summary>
-    private static LayoutRect Where(ContentEngine engine, string written) =>
-        engine.Where(engine.Blocked(Document.IndexOf(written, StringComparison.Ordinal))!);
+private static LayoutRect Where(ContentEngine engine, string written) =>
+    engine.Where(engine.Blocked(engine.State.Source.IndexOf(written, StringComparison.Ordinal))!);
 
     private static LayoutPoint Middle(LayoutRect where) => new(where.X + (where.Width / 2), where.Y + (where.Height / 2));
 }

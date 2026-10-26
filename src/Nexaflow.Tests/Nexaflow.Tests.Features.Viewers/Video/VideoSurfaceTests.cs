@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,7 +26,7 @@ namespace Nexaflow.Tests.Features.Video;
 [TestClass]
 public class VideoSurfaceTests
 {
-    private static VideoViewModel Make() => new("clip.mp4", Substitute.For<IShellServices>());
+    private static VideoViewModel Make() => new("clip.mp4", Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
 
     /// <summary>A 1x1 frozen bitmap — enough to stand in for a decoded poster without a decoder.</summary>
     private static ImageSource Frame() =>
@@ -144,21 +145,21 @@ public class VideoSurfaceTests
 
     [TestMethod]
     [CoversNode("video-open")]
-    public void PlayVideo_OpensTheTabOnTheFileItWasInvokedOn()
+    public async Task PlayVideo_OpensTheTabOnTheFileItWasInvokedOn()
     {
         var shell = Substitute.For<IShellServices>();
         var opened = new List<Dictionary<string, string>>();
         shell.When(s => s.OpenTab("Video", Arg.Any<Dictionary<string, string>>()))
              .Do(ci => opened.Add(ci.Arg<Dictionary<string, string>>()));
 
-        Assert.IsTrue(new ShowVideoAction(shell).PerformAction(@"C:\clips\holiday.mp4"));
+        Assert.IsTrue(await new ShowVideoAction(shell).PerformActionAsync(@"C:\clips\holiday.mp4"));
 
         Assert.AreEqual(@"C:\clips\holiday.mp4", opened.Single()["path"]);
     }
 
     [TestMethod]
     [CoversNode("video-open")]
-    public void PlayVideo_OnASelection_OpensTheFirstRatherThanATabPerFile()
+    public async Task PlayVideo_OnASelection_OpensTheFirstRatherThanATabPerFile()
     {
         var shell = Substitute.For<IShellServices>();
         var opened = new List<Dictionary<string, string>>();
@@ -166,10 +167,10 @@ public class VideoSurfaceTests
              .Do(ci => opened.Add(ci.Arg<Dictionary<string, string>>()));
         var action = new ShowVideoAction(shell);
 
-        Assert.IsTrue(action.PerformAction([@"C:\clips\a.mp4", @"C:\clips\b.mkv"]));
+        Assert.IsTrue(await action.PerformActionAsync([@"C:\clips\a.mp4", @"C:\clips\b.mkv"]));
 
         Assert.AreEqual(1, opened.Count, "two players competing for the audio device helps nobody");
         Assert.IsFalse(action.SupportsMultipleFiles);
-        Assert.IsFalse(action.PerformAction([]));
+        Assert.IsFalse(await action.PerformActionAsync([]));
     }
 }

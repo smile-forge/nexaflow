@@ -54,7 +54,7 @@ public class FileOperationsPanelTests
     private static (FileOperationQueue Queue, FileOperationsPanelViewModel Panel) Panel()
     {
         var shell = Substitute.For<IShellServices>().Runs();
-        var queue = FileOperationQueue.For(shell);
+        var queue = FileOperationQueue.For(shell, VirtualFileSystem.Instance);
         return (queue, new FileOperationsPanelViewModel(queue, shell));
     }
 
@@ -201,7 +201,7 @@ public class FileOperationsPanelTests
         FileTransferEngine.FreeSpaceProbe = _ => 0;   // parks it so both panels have time to notice
 
         var shell = Substitute.For<IShellServices>().Runs();
-        var queue = FileOperationQueue.For(shell);
+        var queue = FileOperationQueue.For(shell, VirtualFileSystem.Instance);
 
         var started = new FileOperationsPanelViewModel(queue, shell);
         started.Attach();
@@ -306,7 +306,7 @@ public class FileOperationsPanelTests
         FileTransferEngine.FreeSpaceProbe = _ => 0;   // parks it so it is still running
 
         var shell = Substitute.For<IShellServices>().Runs();
-        var queue = FileOperationQueue.For(shell);
+        var queue = FileOperationQueue.For(shell, VirtualFileSystem.Instance);
 
         var op = queue.EnqueueDrop([src], dest, move: false);
 

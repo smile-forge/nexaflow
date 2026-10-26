@@ -56,7 +56,7 @@ public class OwnedVideoGenerationProviderTests
         CollectionAssert.AreEqual(new[] { ModelKind.VideoGeneration }, ModelKinds.Of(typeof(OwnedVideoGenerationProvider)).ToArray());
         Assert.AreEqual((false, true), (fast.StartsFromImages, full.StartsFromImages));
         CollectionAssert.AreEqual(new[] { 5 }, fast.Lengths.ToArray());
-        Assert.AreEqual((704, 1280), full.FirstFrameSize(MediaShape.Portrait), "the picture becomes the clip's first frame, at its size");
+        Assert.AreEqual((704, 1280), full.FirstFrameSize(new MediaAspect(704, 1280), null), "the picture becomes the clip's first frame, at its size");
         Assert.IsFalse(fast.IsAvailable, "not until its files are here");
         Assert.IsTrue(Provider(FastWan, new FakeModelStore(Files(FastWan)), new FakeAiHost()).IsAvailable);
         Assert.IsFalse(Provider(Wan, new FakeModelStore(Files(FastWan)), new FakeAiHost()).IsAvailable,
@@ -78,7 +78,7 @@ public class OwnedVideoGenerationProviderTests
     {
         var host = Filming(new Filmed(0, [0x00, 0x00, 0x00, 0x18]));
 
-        var made = await Provider(FastWan, Here(), host).GenerateVideoAsync(new VideoGenerationRequest("a fox in the snow", MediaShape.Landscape, 5));
+        var made = await Provider(FastWan, Here(), host).GenerateVideoAsync(new VideoGenerationRequest("a fox in the snow", new MediaAspect(1280, 704), 5));
 
         var film = (Film)host.Requests.Single();
         Assert.AreEqual((RequestPriority.Job, "a fox in the snow", 1280, 704, 121, 24), (film.Priority, film.Prompt, film.Width, film.Height, film.Frames, film.FramesPerSecond));
@@ -96,7 +96,7 @@ public class OwnedVideoGenerationProviderTests
     public async Task TheFullModel_StartsFromAPicture_ItsFirstFrame_AndSteersFromItsNegativePrompt()
     {
         var host = Filming(new Filmed(0, [1]));
-        var request = new VideoGenerationRequest("the waves roll in", MediaShape.Portrait, 5) { FirstFrame = Picture(704, 1280) };
+        var request = new VideoGenerationRequest("the waves roll in", new MediaAspect(704, 1280), 5) { FirstFrame = Picture(704, 1280) };
 
         await Provider(Wan, Here(), host).GenerateVideoAsync(request);
 
@@ -109,9 +109,36 @@ public class OwnedVideoGenerationProviderTests
     }
 
     [TestMethod]
+    public async Task TheFullModel_KeepsOutWhatItIsTold_AfterItsOwnNegativePrompt_FromTheSeedItIsGiven()
+    {
+        var host = Filming(new Filmed(0, [1]));
+
+        await Provider(Wan, Here(), host).GenerateVideoAsync(new VideoGenerationRequest("the waves roll in", new MediaAspect(1280, 704), 5)
+        {
+            NegativePrompt = " boats ",
+            Seed           = 99,
+        });
+
+        var film = (Film)host.Requests.Single();
+        StringAssert.StartsWith(film.Model.NegativePrompt, "色调艳丽");
+        StringAssert.EndsWith(film.Model.NegativePrompt, ", boats");
+        Assert.AreEqual(99L, film.Seed);
+    }
+
+    [TestMethod]
+    public async Task FastWan_IsToldNothingToKeepOut_ForItIsNotGuided()
+    {
+        var fast = Provider(FastWan, Here(), Filming());
+        Assert.IsFalse(fast.Settings.NegativePrompts);
+
+        await Assert.ThrowsExactlyAsync<ArgumentException>(() =>
+            fast.GenerateVideoAsync(new VideoGenerationRequest("a fox", new MediaAspect(1280, 704), 5) { NegativePrompt = "rain" }));
+    }
+
+    [TestMethod]
     public async Task APicture_IsRefused_ByFastWan_AndAtAnySizeButTheClips()
     {
-        var picture = new VideoGenerationRequest("the waves roll in", MediaShape.Landscape, 5) { FirstFrame = Picture(1280, 704) };
+        var picture = new VideoGenerationRequest("the waves roll in", new MediaAspect(1280, 704), 5) { FirstFrame = Picture(1280, 704) };
         var wrongSize = picture with { FirstFrame = Picture(640, 352) };
 
         var fast = await Assert.ThrowsExactlyAsync<ArgumentException>(() => Provider(FastWan, Here(), Filming()).GenerateVideoAsync(picture));
@@ -125,7 +152,7 @@ public class OwnedVideoGenerationProviderTests
     public async Task AClip_IsMadeOnlyAtALengthTheModelMakes()
     {
         var ex = await Assert.ThrowsExactlyAsync<ArgumentException>(() =>
-            Provider(FastWan, Here(), Filming()).GenerateVideoAsync(new VideoGenerationRequest("a fox", MediaShape.Landscape, 8)));
+            Provider(FastWan, Here(), Filming()).GenerateVideoAsync(new VideoGenerationRequest("a fox", new MediaAspect(1280, 704), 8)));
 
         StringAssert.Contains(ex.Message, "5 seconds");
     }
@@ -136,7 +163,7 @@ public class OwnedVideoGenerationProviderTests
         var activities = new FakeActivityManager();
         var host = Filming(new Progress(0, FilmingStages.Filming, 1, 3), new Progress(0, FilmingStages.Decoding, 16, 31), new Filmed(0, [1]));
 
-        await Provider(FastWan, Here(), host, activities).GenerateVideoAsync(new VideoGenerationRequest("a fox", MediaShape.Landscape, 5));
+        await Provider(FastWan, Here(), host, activities).GenerateVideoAsync(new VideoGenerationRequest("a fox", new MediaAspect(1280, 704), 5));
 
         Assert.AreEqual(1, activities.StartedCount);
         CollectionAssert.AreEqual(new[] { "step 1 of 3", "decoding, 51%" }, activities.Updates.Select(u => u[(u.LastIndexOf('—') + 2)..]).ToArray());
@@ -148,7 +175,7 @@ public class OwnedVideoGenerationProviderTests
         var host = new FakeAiHost { Gpus = [new HostGpu(0, "NVIDIA GeForce RTX 4080", null, 16L << 30, 14L << 30, 15L << 30)] };
 
         var ex = await Assert.ThrowsExactlyAsync<LlmProviderException>(() =>
-            Provider(FastWan, Here(), host).GenerateVideoAsync(new VideoGenerationRequest("a fox", MediaShape.Landscape, 5)));
+            Provider(FastWan, Here(), host).GenerateVideoAsync(new VideoGenerationRequest("a fox", new MediaAspect(1280, 704), 5)));
 
         StringAssert.Contains(ex.Message, "needs a GPU with");
         Assert.AreEqual(0, host.Requests.Count, "nothing is asked of a host that could not hold it");

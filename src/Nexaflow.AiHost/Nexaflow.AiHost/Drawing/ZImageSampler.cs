@@ -1,3 +1,5 @@
+using Nexaflow.AiHost.Sampling;
+
 namespace Nexaflow.AiHost.Drawing;
 
 /// <summary>
@@ -49,19 +51,7 @@ internal static class ZImageSampler
 
     /// <summary>The noise a picture starts from — standard normal, [16, h, w] — the same for the same seed.</summary>
     public static float[] Noise(long seed, int latentHeight, int latentWidth)
-    {
-        var random = new Random(unchecked((int)(seed ^ (seed >> 32))));
-        var noise = new float[Channels * latentHeight * latentWidth];
-        for (int i = 0; i < noise.Length; i += 2)
-        {
-            // Box–Muller: two uniforms in (0, 1] give two independent normals.
-            double u1 = 1.0 - random.NextDouble(), u2 = random.NextDouble();
-            double r = Math.Sqrt(-2.0 * Math.Log(u1));
-            noise[i] = (float)(r * Math.Cos(2 * Math.PI * u2));
-            if (i + 1 < noise.Length) noise[i + 1] = (float)(r * Math.Sin(2 * Math.PI * u2));
-        }
-        return noise;
-    }
+        => new GaussianNoise(seed).Draw(Channels * latentHeight * latentWidth);
 
     /// <summary>[16, h, w] latents as [(h/2)(w/2), 64] tokens: patch by patch, row by row; within a patch, its row, its
     /// column, then the channel.</summary>
@@ -133,16 +123,5 @@ internal static class ZImageSampler
             positions[r * 3] = r + 1;
         }
         return (values, padding, positions);
-    }
-
-    /// <summary>Decoder pixels, [3, h, w] in [0, 1], as interleaved 8-bit RGB.</summary>
-    public static byte[] Rgb(ReadOnlySpan<float> pixels, int height, int width)
-    {
-        int plane = height * width;
-        var rgb = new byte[plane * 3];
-        for (int i = 0; i < plane; i++)
-            for (int c = 0; c < 3; c++)
-                rgb[i * 3 + c] = (byte)Math.Clamp((int)MathF.Round(pixels[c * plane + i] * 255f), 0, 255);
-        return rgb;
     }
 }

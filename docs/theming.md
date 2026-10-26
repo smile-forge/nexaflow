@@ -389,6 +389,30 @@ and the scene registers no clocks (derive from `AnimatedScene` for the build cyc
 just never call `Loop`/`Animate`). The battery policy then leaves it up, which is correct — there is no
 animation to save. Getting this key wrong is invisible on mains and blanks the theme on battery.
 
+## Shared control styles
+
+`Styles.xaml` carries the app's own template for the common controls a view drops in — the combo box, the date
+picker and the calendar it opens, beside the buttons, text boxes, list boxes and scroll bars. Like every shared
+template they bind the palette directly with `{StaticResource}`, so they follow every theme and a theme switch
+rebuilds them with the window. The `Dark` prefix on their keys names the family, not a theme.
+
+Each of these control types also has a **keyless style** based on its keyed one, so a control that names no style
+is themed all the same — `DefaultControlStyleTests` pins them:
+
+```xml
+<Style TargetType="ComboBox" BasedOn="{StaticResource DarkComboBox}"/>
+```
+
+Naming the keyed style (`Style="{StaticResource DarkComboBox}"`) still works and changes nothing, and a view's own
+style for one of these controls is `BasedOn` the keyed one so it keeps the theme's template.
+
+- **`DarkComboBox`** draws the closed box and its drop-down list. An editable combo (`IsEditable="True"`) types
+  into the template's own `PART_EditableTextBox`, and only the arrow opens the list.
+- **`DarkDatePicker`** draws the box, its watermark and the calendar button. The picker builds its calendar itself
+  and styles it with `CalendarStyle` — `DarkDatePickerCalendar`, which is `DarkCalendar` lifted off the page with a
+  shadow. The calendar's page builds its own day and month cells, styled through `DarkCalendarItem`,
+  `DarkCalendarDayButton` and `DarkCalendarButton`.
+
 ## Feature participation
 
 The only coupling between a feature, the shell, and a theme is **string resource keys** — the

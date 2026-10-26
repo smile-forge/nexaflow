@@ -50,10 +50,14 @@ internal sealed class FolderBrowserViewModel
     public ObservableCollection<FolderNodeViewModel> Roots { get; } = [];
 
     public FolderBrowserViewModel(WorkspaceRuntime? workspace = null,
-                                  IReadOnlyList<ThisPcPlace>? places = null)
+                                  IReadOnlyList<ThisPcRow>? rows = null)
     {
-        foreach (var place in places ?? PickerRoots.For(workspace))
-            Roots.Add(new FolderNodeViewModel(place.RealPath, place.Label, PickerRoots.GlyphFor(place.Icon)));
+        foreach (var row in rows ?? PickerRoots.For(workspace))
+        {
+            var root = new FolderNodeViewModel(row.Item.TargetPath, row.Item.Label, PickerRoots.GlyphFor(row.Item.Icon));
+            Roots.Add(root);
+            _ = PickerRoots.SettleAsync(Roots, root, row);
+        }
     }
 }
 
@@ -167,34 +171,41 @@ public partial class FolderBrowserWindow : Window
 // ── Picker roots ─────────────────────────────────────────────────────────────
 
 /// <summary>
-/// The top-level places a picker lists: the ready drives plus any contributed location, from the same
-/// <see cref="ThisPcItemSet.Enumerate"/> the file browser uses — so the two can't drift apart on naming
-/// or iconography, which is what four independent drive loops had already let happen.
+/// The top-level places a picker lists: This PC's rows, from the same <see cref="ThisPcItemSet.Collect"/> the file browser
+/// uses — so the two can't drift apart on naming or iconography.
 /// <para>
 /// Everything is listed by its REAL path under a friendly label: a picker's result is consumed by
 /// ordinary <see cref="System.IO"/> callers, so it must hand back something they can open. Locations a
-/// provider serves itself have no such path and are excluded.
+/// provider serves itself have no such path and are excluded, and a root its provider finds is not there leaves the list.
 /// </para>
 /// </summary>
 internal static class PickerRoots
 {
-    public static IReadOnlyList<ThisPcPlace> For(WorkspaceRuntime? workspace)
+    public static IReadOnlyList<ThisPcRow> For(WorkspaceRuntime? workspace)
     {
         // Providers don't vary by workspace, so any live one will do when the caller has none to hand
         // (the Options browse buttons, the workspace folder picker).
         workspace ??= WorkspaceManager.Instance.FirstActive;
 
-        IEnumerable<IThisPcItemProvider> providers = [];
-        if (workspace is not null)
-        {
-            // No live workspace — tests, early startup — means nothing to build providers from; the
-            // drives are still listed, which is what the picker did before any of this existed.
-            try { providers = FeatureManager.Instance.GetThisPcItemProviders(workspace); }
-            catch { providers = []; }
-        }
+        // No live workspace — tests, early startup — means nothing to build providers from, and so nothing to list:
+        // even the volumes are a provider's rows.
+        if (workspace is null) return [];
 
-        try { return ThisPcItemSet.Enumerate(providers, readyDrivesOnly: true, allowVirtual: false); }
+        try { return ThisPcItemSet.Collect(FeatureManager.Instance.GetThisPcItemProviders(workspace), allowVirtual: false); }
         catch { return []; }
+    }
+
+    /// <summary>Settles a root once its provider has described it: one that is not there — an empty optical bay, a share
+    /// that is down — leaves the list, since a picker cannot open it; one that answered takes its fuller label.</summary>
+    public static async Task SettleAsync<TNode>(ObservableCollection<TNode> roots, TNode root, ThisPcRow row)
+        where TNode : PickerNode<TNode>
+    {
+        ThisPcItemDetail detail;
+        try { detail = await row.DetailAsync(); }
+        catch { detail = new ThisPcItemDetail { Available = false }; }
+
+        if (!detail.Available) roots.Remove(root);
+        else if (detail.Label is { Length: > 0 } label) root.DisplayName = label;
     }
 
     /// <summary>The picker's render vocabulary. It covers every place kind — a USB stick reading as a
@@ -202,11 +213,12 @@ internal static class PickerRoots
     /// half-mappings produced.</summary>
     public static string GlyphFor(ThisPcItemIcon icon) => icon switch
     {
-        ThisPcItemIcon.Disk      => "🖴 ",
-        ThisPcItemIcon.Removable => "🔌 ",
-        ThisPcItemIcon.Optical   => "💿 ",
-        ThisPcItemIcon.Network   => "🖧 ",
-        ThisPcItemIcon.Cloud     => "☁ ",
-        _                        => "📁 ",
+        ThisPcItemIcon.Disk       => "🖴 ",
+        ThisPcItemIcon.SolidState => "🖴 ",
+        ThisPcItemIcon.Removable  => "🔌 ",
+        ThisPcItemIcon.Optical    => "💿 ",
+        ThisPcItemIcon.Network    => "🖧 ",
+        ThisPcItemIcon.Cloud      => "☁ ",
+        _                         => "📁 ",
     };
 }

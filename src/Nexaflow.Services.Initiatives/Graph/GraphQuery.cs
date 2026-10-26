@@ -392,11 +392,12 @@ public static class GraphQuery
     /// its type and of its file, and every total counted it two or three times.
     /// </para>
     /// </summary>
+    /// <exception cref="RegexMatchTimeoutException">A match ran past <see cref="UserPattern.Budget"/>.</exception>
     public static IReadOnlyList<GrepHit> GrepNodes(IEnumerable<GraphNode> nodes, string pattern, ReadLines read,
                                                    int limit = int.MaxValue)
     {
         Regex regex;
-        try { regex = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant); }
+        try { regex = UserPattern.Compile(pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant); }
         catch (ArgumentException) { return []; }
 
         var spans = new SourceSpans();

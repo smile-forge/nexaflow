@@ -25,6 +25,18 @@ public interface IDocumentModel
     /// can say the same thing over and over in ways nothing catches, and an answer longer than its question could need is that.
     /// </summary>
     Task<DocumentReply> AnswerAsync(string instructions, string asked, int longest, CancellationToken ct);
+
+    /// <summary>
+    /// How many answers it writes at once, every one of them in the one <see cref="ContextTokens"/> it shares between them — a model
+    /// run on this machine; null where each answer has the whole of it to itself.
+    /// </summary>
+    int? RepliesAtOnce => null;
+
+    /// <summary>
+    /// Whether the answers it writes at once share <see cref="ContextTokens"/> between them; where they do not, each has as much to
+    /// itself. Asked only where <see cref="RepliesAtOnce"/> says how many it writes.
+    /// </summary>
+    bool SharesContext => true;
 }
 
 /// <summary>Asking a document model where the question sets no length of its own for the answer.</summary>

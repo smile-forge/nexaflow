@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -66,7 +67,7 @@ public class LogSearchableTests : SearchableContentConformanceTests
     // IsMonitoring off before LoadAsync: otherwise a real FileSystemWatcher outlives the test.
     private static async Task<LogViewModel> LoadAsync(string path)
     {
-        var vm = new LogViewModel(path, RunningShell()) { IsMonitoring = false };
+        var vm = new LogViewModel(path, RunningShell(), VirtualFileSystem.Instance) { IsMonitoring = false };
         await vm.LoadAsync(CancellationToken.None);
         return vm;
     }
@@ -255,7 +256,7 @@ public class LogSearchableTests : SearchableContentConformanceTests
         // the file, then fire it — no timing race, no test-only hook on the ViewModel.
         Action? onChanged = null;
         var path = WriteTemp(Sample);
-        var vm = new LogViewModel(path, RunningShell(cb => onChanged = cb));
+        var vm = new LogViewModel(path, RunningShell(cb => onChanged = cb), VirtualFileSystem.Instance);
         try
         {
             await vm.LoadAsync(CancellationToken.None);

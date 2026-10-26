@@ -2,6 +2,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Json.Services;
 using Nexaflow.Features.Json.ViewModels;
 using Nexaflow.Features.Json.Views;
+using Nexaflow.IO.Common;
 using System.IO;
 
 namespace Nexaflow.Features.Json;
@@ -9,8 +10,13 @@ namespace Nexaflow.Features.Json;
 public sealed class JsonTabRegistration : IPageRegistration
 {
     private readonly IShellServices _shellServices;
+    private readonly IVirtualFileSystem _vfs;
 
-    public JsonTabRegistration(IShellServices shellServices) => _shellServices = shellServices;
+    public JsonTabRegistration(IShellServices shellServices, IVirtualFileSystem vfs)
+    {
+        _shellServices = shellServices;
+        _vfs           = vfs;
+    }
 
     public static string StaticPageKind => "Json";
     public string PageKind => StaticPageKind;
@@ -31,7 +37,7 @@ public sealed class JsonTabRegistration : IPageRegistration
             Icon        = "{}",
             ContentFactory = () =>
             {
-                var vm = new JsonViewModel(path, new JsonFileLoader(), new JsonPathEvaluator(), _shellServices);
+                var vm = new JsonViewModel(path, _vfs, new JsonPathEvaluator(), _shellServices);
                 return new JsonView(vm);
             },
         };

@@ -553,7 +553,7 @@ public sealed partial class ContentEngine
         if (act.Intent.Target is not { Length: > 0 } key) return false;
 
         // A section of the document, folded by the name its heading answers to: the document's own, not any block's.
-        if (Sectioned(act.Part as ContentPart) is not null)
+        if (Sectioned(act.Node) is not null)
         {
             _sections.Expansion[key] = open;
             Relay();
@@ -567,7 +567,7 @@ public sealed partial class ContentEngine
         // A diagram written in a fence is a tree of its own, and the block holding it holds only the characters it was
         // written as — so whatever supplied the diagram is reached from the piece pressed upwards, never from the block
         // the press landed in. A node the drawing invented stands for no part at all, and nothing supplied that either.
-        var diagram = act.Part as ContentPart;
+        var diagram = act.Node;
         while (diagram?.Parent is { } holder) diagram = holder;
 
         if (diagram is not null && Expand(diagram, key, open)) return true;

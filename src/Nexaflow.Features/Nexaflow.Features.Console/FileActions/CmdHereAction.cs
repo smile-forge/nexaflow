@@ -1,6 +1,8 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Media;
 
 namespace Nexaflow.Features.Console.FileActions;
@@ -26,17 +28,17 @@ public sealed class CmdHereAction : IFolderAction, ICacheable
     public string?  Tooltip               => Str.Get("Console.Action.CmdHereTip");
     public ImageSource? IconImage         => null;
 
-    public bool PerformAction(string folderPath)
+    public Task<bool> PerformActionAsync(string folderPath, CancellationToken ct = default)
     {
         _shellServices.OpenTab("Console",
             new Dictionary<string, string> { ["path"] = folderPath });
-        return true;
+        return Task.FromResult(true);
     }
 
-    public bool PerformAction(IEnumerable<string> folderPaths)
+    public Task<bool> PerformActionAsync(IEnumerable<string> folderPaths, CancellationToken ct = default)
     {
         foreach (var path in folderPaths)
-            return PerformAction(path);
-        return false;
+            return PerformActionAsync(path, ct);
+        return Task.FromResult(false);
     }
 }

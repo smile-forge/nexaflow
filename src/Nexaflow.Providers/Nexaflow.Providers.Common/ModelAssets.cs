@@ -145,6 +145,12 @@ public static class ModelCatalog
         return [.. (manifest?.Tools ?? []).Select(ToModel)];
     }
 
+    /// <summary>A file an entry lists apart from its own files — fetched only when a request first needs it, as a LoRA is —
+    /// held to the same rules as the files a model lists.</summary>
+    /// <exception cref="InvalidDataException">It does not say where it goes, where it comes from over https, its size or its SHA-256.</exception>
+    public static ModelAsset FileOf(string ownerId, string? path, string? url, long size, string? sha256)
+        => ToAsset(ownerId, new ManifestFile(path, url, size, sha256, null));
+
     private static CatalogModel ToModel(ManifestModel m)
     {
         if (string.IsNullOrWhiteSpace(m.Id)) throw new InvalidDataException("A catalog model has no id.");

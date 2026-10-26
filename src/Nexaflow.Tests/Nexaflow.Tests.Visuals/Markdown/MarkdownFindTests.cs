@@ -114,6 +114,22 @@ public class MarkdownFindTests
             "in the order a reader comes to them");
     });
 
+    [TestMethod]
+    public void AWordThatBeginsInsideAnEscapeIsWashedFromItsFirstLetter() => UiThread.Run(() =>
+    {
+        // \< is drawn as <, and the source a reader's search for <GDG> lands on starts half way into the escape. What
+        // is drawn for the escape is the first letter of what they found, so it is washed with the rest.
+        const string source = "of a \\<GDG>, solution\n";
+        var laid = Laying.Lay(null, source, 480, WpfStyles.Dark);
+
+        var found = MarkdownFind.In(laid, source, "<GDG>").Single();
+        var escape = laid.Root.SelfAndDescendants().Single(piece => piece.Words is { Maps: false } && piece.Sits().Start == source.IndexOf('\\'));
+
+        var washed = laid.Root.RangeRects(found.Start, found.Length).Aggregate(LayoutRect.Empty, LayoutRect.Union);
+
+        Assert.IsTrue(washed.Contains(escape.Bounds), $"washed {washed}, the escape is drawn at {escape.Bounds}");
+    });
+
     // ── A line number ───────────────────────────────────────────────────────
 
     [TestMethod]

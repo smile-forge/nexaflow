@@ -14,6 +14,7 @@
               "runner": "llama-chat",
               "folder": "models/gemma-4-e4b-it-qat",
               "file": "gemma-4-E4B_q4_0-it.gguf",
+              "layers": 42,
               "projector": "gemma-4-E4B-it-mmproj.gguf",
               "memoryBytes": 5905580032,
               "bytesPerToken": 17920,
@@ -49,6 +50,7 @@
           "runner": "llama-chat",
           "folder": "models/qwen-3.5-9b",
           "file": "Qwen3.5-9B-Q4_K_M.gguf",
+          "layers": 32,
           "projector": "mmproj-F16.gguf",
           "memoryBytes": 8321499136,
           "bytesPerToken": 30720,
@@ -84,6 +86,7 @@
           "runner": "llama-chat",
           "folder": "models/mimo-v2.6-9b",
           "file": "MiMo-V2.6-Distill-Qwen-9B-Q4_K_M.gguf",
+          "layers": 32,
           "projector": "mmproj-MiMo-V2.6-Distill-Qwen-9B-f16.gguf",
           "memoryBytes": 8589934592,
           "bytesPerToken": 34816,
@@ -118,6 +121,7 @@
           "runner": "llama-chat",
           "folder": "models/phi-4",
           "file": "phi-4-Q4_K.gguf",
+          "layers": 40,
           "memoryBytes": 9663676416,
           "bytesPerToken": 207872,
           "contextTokens": 16384
@@ -146,6 +150,10 @@
           "runner": "llama-chat",
           "folder": "models/gemma-4-26b-a4b-it-qat",
           "file": "gemma-4-26B_q4_0-it.gguf",
+          "layers": 30,
+          "batchBytesPerToken": 1376256,
+          "bytesPerSequence": 213909504,
+          "backgroundBytes": 9428795392,
           "projector": "gemma-4-26B-it-mmproj.gguf",
           "memoryBytes": 18790481920,
           "bytesPerToken": 25600,
@@ -181,6 +189,7 @@
           "runner": "llama-chat",
           "folder": "models/qwen-3.6-35b-a3b",
           "file": "Qwen3.6-35B-A3B-Q4_K_M.gguf",
+          "layers": 40,
           "projector": "mmproj-Qwen3.6-35B-A3B-Q8_0.gguf",
           "memoryBytes": 23085449216,
           "bytesPerToken": 22528,
@@ -216,6 +225,7 @@
           "runner": "llama-chat",
           "folder": "models/qwen-3.8-27b",
           "file": "Qwen3.8-27B-Q4_K_M.gguf",
+          "layers": 64,
           "projector": "mmproj-Qwen3.8-27B-Q8_0.gguf",
           "memoryBytes": 22011707392,
           "bytesPerToken": 63488,
@@ -251,6 +261,7 @@
           "runner": "llama-chat",
           "folder": "models/gemma-4-31b-it-qat",
           "file": "gemma-4-31B_q4_0-it.gguf",
+          "layers": 60,
           "projector": "gemma-4-31B-it-mmproj.gguf",
           "memoryBytes": 27111981056,
           "bytesPerToken": 96768,
@@ -1146,6 +1157,138 @@
       ]
     },
     {
+      "id": "moss-image",
+      "displayName": "MOSS-Image",
+      "kind": "imageGeneration",
+      "tier": "highQuality",
+      "sampler": { "method": "mossImage", "steps": 50, "shift": 5.0, "guidance": 3.0, "negativePrompts": true,
+                   "sizes": { "square": [1024, 1024], "landscape": [1344, 768], "portrait": [768, 1344] } },
+      "parts": [
+        {
+          "role": "promptEncoder",
+          "runner": "moss-image-prompt-encoder",
+          "folder": "models/moss-image/encoder",
+          "file": "Qwen3.5-9B-Q8_0.gguf",
+          "memoryBytes": 9235857408,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "denoiser",
+          "runner": "moss-image-denoiser",
+          "folder": "models/moss-image/denoiser",
+          "file": "denoiser.onnx",
+          "memoryBytes": 9810477056,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "decoder",
+          "runner": "moss-image-decoder",
+          "folder": "models/moss-image/decoder",
+          "file": "decoder.onnx",
+          "memoryBytes": 3266314240,
+          "executionProvider": "cuda"
+        }
+      ],
+      "files": [
+        { "path": "models/moss-image/encoder/Qwen3.5-9B-Q8_0.gguf", "url": "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/3885219b6810b007914f3a7950a8d1b469d598a5/Qwen3.5-9B-Q8_0.gguf", "size": 9527502048, "sha256": "809626574d0cb43d4becfa56169980da2bb448f2299270f7be443cb89d0a6ae4" },
+        { "path": "models/moss-image/denoiser/denoiser.onnx", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/denoiser/denoiser.onnx", "size": 1239723, "sha256": "d1c25efdd22f1f7cec3b908d319db7779d612ecdba9a2b2344ba2dab632bf45b" },
+        { "path": "models/moss-image/denoiser/denoiser.onnx.data", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/denoiser/denoiser.onnx.data", "size": 5658382336, "sha256": "3cf5c59f4a9e49d5377600511d3b88d8260db69e7468a847537c157de2e29c82" },
+        { "path": "models/moss-image/decoder/decoder.onnx", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/decoder/decoder.onnx", "size": 120563, "sha256": "a517f79d0f2f8d20163fa88599700cec1c9115109aab7d96127300827c374fc3" },
+        { "path": "models/moss-image/decoder/decoder.onnx.data", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/decoder/decoder.onnx.data", "size": 56524800, "sha256": "933727b1a5f9ad3030927a6876fe82597517a8f3eddebc4ddba0869d9520792a" }
+      ],
+      "loras": [
+        {
+          "id": "moss-fast-8step",
+          "displayName": "Fast (8 steps)",
+          "description": "Draws in eight steps instead of fifty, several times faster and a little less faithful to the prompt; it takes no negative prompt.",
+          "strength": 1.0,
+          "adapter": "models/moss-image/loras/moss-fast-8step.onnx_adapter",
+          "sampler": "models/moss-image/loras/moss-fast-8step.sampler.json",
+          "files": [
+            { "path": "models/moss-image/loras/moss-fast-8step.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/loras/moss-fast-8step.onnx_adapter", "size": 635596296, "sha256": "903c4510e91c3a03c2d8967bdec62e6f3b7125c86a2d4ec05aaef08b2542c6ed" },
+            { "path": "models/moss-image/loras/moss-fast-8step.sampler.json", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/loras/moss-fast-8step.sampler.json", "size": 381852, "sha256": "153cc4520ddf44793ebf5ae3c56eee044e81a8a5e990579177e11c20a7e504b5" }
+          ]
+        },
+        {
+          "id": "moss-anime",
+          "displayName": "Anime",
+          "description": "Seinen anime: clean line work and cel shading.",
+          "trigger": "moss_seinen_style",
+          "strength": 1.0,
+          "adapter": "models/moss-image/loras/moss-anime.onnx_adapter",
+          "files": [
+            { "path": "models/moss-image/loras/moss-anime.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/loras/moss-anime.onnx_adapter", "size": 74353744, "sha256": "74993c2d4c9bae27a5d505dcb22fac2c1115462bb6c531ffa7a0dca865a2bb04" }
+          ]
+        },
+        {
+          "id": "moss-gouache",
+          "displayName": "Gouache",
+          "description": "Gouache painting: matte, opaque brushwork in flat colour.",
+          "trigger": "moss_vgouache_style",
+          "strength": 1.0,
+          "adapter": "models/moss-image/loras/moss-gouache.onnx_adapter",
+          "files": [
+            { "path": "models/moss-image/loras/moss-gouache.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/loras/moss-gouache.onnx_adapter", "size": 74353744, "sha256": "26a5251a9be5b1b554f3f0a33b8f449833e63cd125e981c970fc374738eb4807" }
+          ]
+        },
+        {
+          "id": "moss-psychedelic",
+          "displayName": "Psychedelic",
+          "description": "Psychedelic pop art: saturated, swirling colour.",
+          "trigger": "moss_psychpop_style",
+          "strength": 1.0,
+          "adapter": "models/moss-image/loras/moss-psychedelic.onnx_adapter",
+          "files": [
+            { "path": "models/moss-image/loras/moss-psychedelic.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/loras/moss-psychedelic.onnx_adapter", "size": 74353744, "sha256": "612aae5b002e2db7903823218e6c4793c2e3c9bff383a497e55b6c83d3d3ff4a" }
+          ]
+        },
+        {
+          "id": "moss-beauty",
+          "displayName": "Beauty",
+          "description": "Glamour portraiture: polished skin and soft studio light.",
+          "trigger": "moss_beauty_style",
+          "strength": 1.0,
+          "adapter": "models/moss-image/loras/moss-beauty.onnx_adapter",
+          "files": [
+            { "path": "models/moss-image/loras/moss-beauty.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/loras/moss-beauty.onnx_adapter", "size": 74353744, "sha256": "dbe1a386fcb500c289efef15013109bb86b8c8c00463d4b7b739e06c93304a1c" }
+          ]
+        },
+        {
+          "id": "moss-nsfw",
+          "displayName": "Uncensored",
+          "description": "Adult imagery, nudity included, that the model otherwise avoids drawing.",
+          "trigger": "moss_xvstyle",
+          "strength": 0.7,
+          "adult": true,
+          "adapter": "models/moss-image/loras/moss-nsfw.onnx_adapter",
+          "files": [
+            { "path": "models/moss-image/loras/moss-nsfw.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/loras/moss-nsfw.onnx_adapter", "size": 74353744, "sha256": "85a41404115bc67106ae6dde3dbc06613b9d6456a3a8d119a82ba90a5665b746" }
+          ]
+        },
+        {
+          "id": "moss-animated",
+          "displayName": "Animated",
+          "description": "An animated-film look: stylised characters, expressive eyes, soft light.",
+          "trigger": "moss_ac_style",
+          "strength": 0.7,
+          "adapter": "models/moss-image/loras/moss-animated.onnx_adapter",
+          "files": [
+            { "path": "models/moss-image/loras/moss-animated.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/loras/moss-animated.onnx_adapter", "size": 74353744, "sha256": "d53905f1507ae1a58718f18d529238622ad6c83eaca53923dc5a35ac221c0f37" }
+          ]
+        },
+        {
+          "id": "moss-impressionism",
+          "displayName": "Impressionism",
+          "description": "Impressionist oil painting: loose brushstrokes and soft, broken light.",
+          "strength": 1.0,
+          "adapter": "models/moss-image/loras/moss-impressionism.onnx_adapter",
+          "files": [
+            { "path": "models/moss-image/loras/moss-impressionism.onnx_adapter", "url": "https://huggingface.co/smile-forge/moss-image-onnx/resolve/1b6c0496cfcbfa53426245bd084d01d85ca0326e/loras/moss-impressionism.onnx_adapter", "size": 74353744, "sha256": "6a804db2fd20e528d3535bc1a7827384e03379029daf6f161e0039582c12a4a6" }
+          ]
+        }
+      ]
+    },
+    {
       "id": "hidream-o1-image-fp16",
       "displayName": "HiDream-O1 (16-bit)",
       "kind": "imageGeneration",
@@ -1389,6 +1532,27 @@
   ],
   "tools": [
     {
+      "id": "image-safety-classifier-m",
+      "displayName": "Image Safety Classifier (M)",
+      "kind": "pictureChecking",
+      "parts": [
+        {
+          "role": "safetyClassifier",
+          "runner": "picture-safety-classifier",
+          "folder": "tools/image-safety-classifier-m",
+          "file": "image-safety-classifier-m.onnx",
+          "runsOnCpu": true
+        }
+      ],
+      "files": [
+        {
+          "path": "tools/image-safety-classifier-m/image-safety-classifier-m.onnx",
+          "url": "https://huggingface.co/OwenElliott/image-safety-classifier-m/resolve/a5ce9eec1ac11773ca9ff44f45b1bb6591631562/onnx/image-safety-classifier-m.onnx",
+          "size": 46308944,
+          "sha256": "ddef8084eeee5b460bbb70744b15747f07fd1538d39efe0f448212b87bb3aee7"
+        }
+      ]
+    },    {
       "id": "real-esrgan-gfpgan",
       "displayName": "Real-ESRGAN and GFPGAN",
       "kind": "pictureRestoration",

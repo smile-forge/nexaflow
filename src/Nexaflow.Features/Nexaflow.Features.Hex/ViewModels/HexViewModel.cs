@@ -9,6 +9,7 @@ using System.IO;
 using System.Text;
 using Nexaflow.Visuals.Common.Theming;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Hex.ViewModels;
 
@@ -59,15 +60,33 @@ public sealed partial class HexViewModel : ObservableObject, IPageViewModel, IDi
     // ── Event to request visual refresh of both panels ────────────────────────
     public event Action? InvalidateView;
 
-    public HexViewModel(string filePath, IShellServices shell)
+    public HexViewModel(string filePath, IShellServices shell, IVirtualFileSystem vfs)
     {
         _shell   = shell;
         FilePath = filePath;
-        Buffer   = new HexBuffer(filePath);
-        TotalRows = Buffer.TotalRows;
+        Buffer   = new HexBuffer(vfs, filePath);
+        UpdateSelectionText();
+        Loaded = LoadAsync();
+    }
+
+    /// <summary>The file opened — or found unreadable — and the view built around it. Started by the constructor,
+    /// because the file may be on a location, where opening it is a round trip nothing should wait for.</summary>
+    public Task Loaded { get; }
+
+    /// <summary>Whether <see cref="Loaded"/> has opened the buffer — what a reveal waits for besides the view's size.</summary>
+    private bool _bufferLoaded;
+
+    private async Task LoadAsync()
+    {
+        await Buffer.LoadAsync();
+        _bufferLoaded = true;
+        TotalRows    = Buffer.TotalRows;
         FileSizeText = FormatSize(Buffer.FileLength);
         DetectEncoding();
         UpdateSelectionText();
+        Buffer.EnsureWindow(TopRow, VisibleRowCount);
+        InvalidateView?.Invoke();
+        RevealPending();
     }
 
     // ── Read failures ─────────────────────────────────────────────────────────
@@ -102,9 +121,9 @@ public sealed partial class HexViewModel : ObservableObject, IPageViewModel, IDi
     /// caller is mid-prompt and owns what to say next, so this deliberately does not re-raise
     /// <see cref="ReadFailed"/>.
     /// </summary>
-    public bool Retry()
+    public async Task<bool> RetryAsync()
     {
-        Buffer.Reload();
+        await Buffer.ReloadAsync();
         TotalRows    = Buffer.TotalRows;
         FileSizeText = FormatSize(Buffer.FileLength);
         IsModified   = Buffer.IsModified;
@@ -132,13 +151,17 @@ public sealed partial class HexViewModel : ObservableObject, IPageViewModel, IDi
         InvalidateView?.Invoke();
         CheckReadable();
 
-        // A reveal requested before the view had measured itself could not scroll anywhere; now it can.
-        if (value > 0 && _pendingRevealOffset >= 0)
-        {
-            long offset = _pendingRevealOffset, length = _pendingRevealLength;
-            _pendingRevealOffset = -1;
-            RevealRange(offset, length);
-        }
+        // A reveal requested before the view had measured itself could not scroll anywhere; now it may.
+        RevealPending();
+    }
+
+    /// <summary>Makes a reveal held by <see cref="RevealRange"/> once both the view's size and the file are known.</summary>
+    private void RevealPending()
+    {
+        if (VisibleRowCount <= 0 || !_bufferLoaded || _pendingRevealOffset < 0) return;
+        long offset = _pendingRevealOffset, length = _pendingRevealLength;
+        _pendingRevealOffset = -1;
+        RevealRange(offset, length);
     }
 
     // ── Reveal a range ────────────────────────────────────────────────────────
@@ -151,16 +174,16 @@ public sealed partial class HexViewModel : ObservableObject, IPageViewModel, IDi
     /// view — how another feature says "show me this part of the file" (a PE section, a resource, a
     /// TLS callback).
     /// <para>
-    /// Called before the view has laid out — which is the normal case when the tab is opening — the
-    /// request is held until <see cref="VisibleRowCount"/> is known, because scrolling is meaningless
-    /// until then.
+    /// Called before the view has laid out or the file is open — which is the normal case when the tab is
+    /// opening — the request is held until <see cref="VisibleRowCount"/> and the file's rows are known,
+    /// because scrolling is meaningless until then.
     /// </para>
     /// </summary>
     public void RevealRange(long offset, long length)
     {
         if (offset < 0) return;
 
-        if (VisibleRowCount <= 0)
+        if (VisibleRowCount <= 0 || !_bufferLoaded)
         {
             _pendingRevealOffset = offset;
             _pendingRevealLength = length;
@@ -355,11 +378,11 @@ public sealed partial class HexViewModel : ObservableObject, IPageViewModel, IDi
     // ── Save ──────────────────────────────────────────────────────────────────
 
     [RelayCommand(CanExecute = nameof(CanSave))]
-    private void Save()
+    private async Task Save()
     {
         try
         {
-            Buffer.Save();
+            await Buffer.SaveAsync();
             IsModified = false;
             TotalRows  = Buffer.TotalRows;
             FileSizeText = FormatSize(Buffer.FileLength);
@@ -385,7 +408,7 @@ public sealed partial class HexViewModel : ObservableObject, IPageViewModel, IDi
 
         try
         {
-            Buffer.Save(path);
+            await Buffer.SaveAsync(path);
             FilePath     = path;
             IsModified   = false;
             FileSizeText = FormatSize(Buffer.FileLength);
@@ -650,7 +673,8 @@ public sealed partial class HexViewModel : ObservableObject, IPageViewModel, IDi
             async (_, _) =>
             {
                 if (!IsModified) return ToolResult.Ok("nothing to save", "There are no unsaved edits.");
-                await _shell.RunOnUiAsync(() => SaveCommand.Execute(null));
+                // Awaited through to the write, so what is said next is the save's outcome, not that one was asked for.
+                await _shell.RunOnUiAsync(async () => { await SaveCommand.ExecuteAsync(null); return true; });
                 return IsModified
                     ? ToolResult.Error("save failed", "The save did not complete; the file may be read-only or in use.")
                     : ToolResult.Ok("saved", "Saved all edits to disk.");

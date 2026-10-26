@@ -31,7 +31,7 @@ internal sealed partial class JsonViewModel : ISearchable
     /// top-level item, so a multi-gigabyte file would tie the page up with no way to cancel from the UI.</summary>
     private const long MaxScanBytes = 512L * 1024 * 1024;
 
-    private readonly JsonTextScanner _scanner = new(new JsonFileLoader());
+    private readonly JsonTextScanner _scanner;
 
     // ── Visible search state (the toolbar chip binds these) ───────────────────
 

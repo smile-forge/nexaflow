@@ -3,6 +3,8 @@ using System.IO;
 using System.Text;
 using System;
 using System.Threading;
+using Nexaflow.IO.Common.Locations;
+using System.Threading.Tasks;
 
 namespace Nexaflow.IO.Common;
 
@@ -33,13 +35,16 @@ public sealed record ArchiveSummary(
 public interface IVirtualFileSystem
 {
     /// <summary>True if the path resolves to an existing real or in-archive file or directory.</summary>
+    [BlocksOnIo(nameof(ExistsAsync))]
     bool Exists(string path);
 
     /// <summary>True if the path is a directory — a real directory, an archive file (browsable like a
     /// folder), or a directory inside an archive.</summary>
+    [BlocksOnIo(nameof(IsDirectoryAsync))]
     bool IsDirectory(string path);
 
     /// <summary>True if the path is an existing real file that a registered handler can open as a folder.</summary>
+    [BlocksOnIo(nameof(IsContainerAsync))]
     bool IsContainer(string path);
 
     /// <summary>True if a registered handler recognises <paramref name="fileName"/> by name alone (no
@@ -47,36 +52,47 @@ public interface IVirtualFileSystem
     bool IsContainerName(string fileName);
 
     /// <summary>Length in bytes of the (real or in-archive) file at the path.</summary>
+    [BlocksOnIo(nameof(GetEntryAsync))]
     long GetLength(string path);
 
     /// <summary>Metadata for the path, or null if it does not resolve.</summary>
+    [BlocksOnIo(nameof(GetEntryAsync))]
     VirtualEntry? GetEntryInfo(string path);
 
     /// <summary>Lists the children of a real or virtual directory (or an archive's top level).</summary>
+    [BlocksOnIo(nameof(EnumerateAsync))]
     IReadOnlyList<VirtualEntry> EnumerateEntries(string path);
 
     /// <summary>Opens the file for reading. The returned stream is seekable (real files directly;
     /// in-archive entries via a materialised temp copy).</summary>
+    [BlocksOnIo(nameof(OpenReadAsync))]
     Stream OpenRead(string path);
 
     /// <summary>As <see cref="OpenRead(string)"/>, with the <see cref="FileStream"/> tuning a reader that
     /// scans a huge file off the UI thread needs — a large buffer and overlapped IO. Read-only, so the
     /// materialised temp of an in-archive entry can never be written to behind the archive's back; writers
     /// go through <see cref="OpenReadWrite"/> or <see cref="Replace"/>.</summary>
+    [BlocksOnIo(nameof(OpenReadAsync))]
     Stream OpenRead(string path, int bufferSize, bool useAsync);
 
     /// <summary>Opens the file for read-write. Real paths map to a read-write <see cref="FileStream"/>;
     /// in-archive entries materialise to a temp copy whose changes are written back to the archive when
     /// the stream is closed.</summary>
+    [BlocksOnIo(null)]
     Stream OpenReadWrite(string path);
 
+    [BlocksOnIo(nameof(ReadAllBytesAsync))]
     byte[] ReadAllBytes(string path);
+    [BlocksOnIo(nameof(ReadAllTextAsync))]
     string ReadAllText(string path, Encoding? encoding = null);
+    [BlocksOnIo(nameof(WriteAllBytesAsync))]
     void WriteAllBytes(string path, byte[] bytes);
+    [BlocksOnIo(nameof(WriteAllTextAsync))]
     void WriteAllText(string path, string contents, Encoding? encoding = null);
 
     /// <summary>Replaces the file's whole content. Atomic for real paths; for in-archive entries the
     /// owning archive is rewritten with the entry's bytes swapped.</summary>
+    [BlocksOnIo(nameof(ReplaceAsync))]
     void Replace(string path, byte[] newContent);
 
     /// <summary>Splits a path at its <b>outermost</b> archive boundary: returns the real container file
@@ -86,16 +102,19 @@ public interface IVirtualFileSystem
 
     /// <summary>Top-level facts about the archive at <paramref name="containerPath"/> (a real archive
     /// file), or null if it is not a recognised container. Used by the Compressed inspector.</summary>
+    [BlocksOnIo(nameof(DescribeArchiveAsync))]
     ArchiveSummary? DescribeArchive(string containerPath);
 
     /// <summary>Extracts every file in the archive into <paramref name="destinationDir"/>, recreating its
     /// folder structure. Entries whose path would escape the destination (zip-slip) are skipped.</summary>
+    [BlocksOnIo(nameof(ExtractAllAsync))]
     void ExtractAll(string containerPath, string destinationDir,
                     IProgress<TransferProgress>? progress = null, CancellationToken ct = default);
 
     /// <summary>Creates a new archive at <paramref name="archivePath"/> from the contents of
     /// <paramref name="sourceDir"/> (recursively). The format is chosen by the archive file's extension;
     /// throws if no registered handler can create it.</summary>
+    [BlocksOnIo(nameof(CreateArchiveAsync))]
     void CreateArchive(string archivePath, string sourceDir,
                        IProgress<TransferProgress>? progress = null, CancellationToken ct = default);
 
@@ -104,6 +123,7 @@ public interface IVirtualFileSystem
     /// keeps its own name: a file is stored at the root under its file name, a directory recursively beneath
     /// a folder of that name, so same-named entries from two different folders cannot collide. The format is
     /// chosen by the archive file's extension; throws if no registered handler can create it.</summary>
+    [BlocksOnIo(nameof(CreateArchiveAsync))]
     void CreateArchive(string archivePath, IReadOnlyList<string> sourcePaths,
                        IProgress<TransferProgress>? progress = null, CancellationToken ct = default);
 
@@ -113,10 +133,12 @@ public interface IVirtualFileSystem
     /// <summary>Rebuilds the archive's contents into <paramref name="targetPath"/> — a different
     /// extension to convert formats, or the same path with new <paramref name="options"/> (e.g. a
     /// compression level) to recompress.</summary>
+    [BlocksOnIo(nameof(RepackageAsync))]
     void Repackage(string sourcePath, string targetPath, ArchiveWriteOptions? options = null);
 
     /// <summary>Adds files into the archive, rewriting it. Each item is a source file on disk and the
     /// entry path it should take inside the archive; an existing entry of that path is replaced.</summary>
+    [BlocksOnIo(nameof(AddFilesAsync))]
     void AddFiles(string containerPath, IReadOnlyList<(string SourcePath, string EntryName)> files);
 
     /// <summary>Registers a compression backend. Called once per handler at startup.</summary>
@@ -165,4 +187,111 @@ public interface IVirtualFileSystem
     /// first pair is the mount root or the drive root; no "This PC" crumb is included — that belongs to
     /// the caller, which alone knows whether it is browsing rooted or from This PC.</summary>
     IReadOnlyList<(string Label, string Path)> GetBreadcrumbs(string path);
+
+    // ── Display form ─────────────────────────────────────────────────────────
+
+    /// <summary>The path as the address bar shows it: a local path is its own display form; a path on a remote
+    /// location is its URI (<c>sftp://adam@nas/home/adam/notes.md</c>).</summary>
+    string GetDisplayPath(string path);
+
+    /// <summary>The path a display form typed or pasted into the address bar names, or null when it names none of
+    /// this file system's locations — the caller then reads the text as a local path.</summary>
+    string? TryParseDisplayPath(string text);
+
+    // ── Async ────────────────────────────────────────────────────────────────
+    // Every path — real, mounted, inside an archive, or on a remote location — is served here, and nothing waits on
+    // the disk or the network on the caller's thread. The sync IO members above serve local paths only and throw
+    // LocationRequiresAsyncException on a remote one. Expected failures are LocationExceptions.
+
+    /// <summary>As <see cref="Exists"/>.</summary>
+    ValueTask<bool> ExistsAsync(string path, CancellationToken ct = default);
+
+    /// <summary>As <see cref="IsDirectory"/>: a folder, an archive browsable as one, or a folder inside an archive.</summary>
+    ValueTask<bool> IsDirectoryAsync(string path, CancellationToken ct = default);
+
+    /// <summary>As <see cref="IsContainer"/>. A file on a remote location is never one: archive work runs over local bytes.</summary>
+    ValueTask<bool> IsContainerAsync(string path, CancellationToken ct = default);
+
+    /// <summary>The entry at the path, or null when there is none.</summary>
+    ValueTask<LocationEntry?> GetEntryAsync(string path, CancellationToken ct = default);
+
+    /// <summary>The children of a folder, an archive or a folder inside one, streamed as they are read — the first rows
+    /// arrive before the last is listed. <see cref="LocationError.NotFound"/> when there is no such folder.</summary>
+    IAsyncEnumerable<LocationEntry> EnumerateAsync(string path, CancellationToken ct = default);
+
+    /// <summary>A stream of the file's bytes, seekable for <see cref="ReadIntent.Random"/>.</summary>
+    ValueTask<Stream> OpenReadAsync(string path, ReadIntent intent, CancellationToken ct = default);
+
+    /// <summary>Starts a write that is invisible at the path until it commits (<see cref="ILocationSession.BeginWriteAsync"/>).
+    /// Inside an archive the bytes are gathered and the archive rewritten in one piece at commit.</summary>
+    ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected = null, CancellationToken ct = default);
+
+    ValueTask<byte[]> ReadAllBytesAsync(string path, CancellationToken ct = default);
+
+    /// <summary>As <see cref="ReadAllText"/>: a byte-order mark wins, UTF-8 otherwise.</summary>
+    ValueTask<string> ReadAllTextAsync(string path, Encoding? encoding = null, CancellationToken ct = default);
+
+    /// <summary>As <see cref="WriteAllBytes"/>. In place on a real file; atomic on a remote one.</summary>
+    ValueTask WriteAllBytesAsync(string path, byte[] bytes, CancellationToken ct = default);
+
+    /// <summary>As <see cref="WriteAllText"/>: the encoding's preamble first when it has one.</summary>
+    ValueTask WriteAllTextAsync(string path, string contents, Encoding? encoding = null, CancellationToken ct = default);
+
+    /// <summary>As <see cref="Replace"/>: the whole content swapped atomically.</summary>
+    ValueTask ReplaceAsync(string path, byte[] newContent, CancellationToken ct = default);
+
+    /// <summary>Renames or moves a file or folder within one location. <see cref="LocationError.Conflict"/> when the
+    /// target exists and <paramref name="replace"/> is false — and always for a folder, which never replaces anything.
+    /// Between locations a move is a transfer, and an entry inside an archive changes through the archive members, so
+    /// both are refused with <see cref="NotSupportedException"/>.</summary>
+    ValueTask MoveAsync(string from, string to, bool replace, CancellationToken ct = default);
+
+    /// <summary>Copies a file within one location, on its server, where the location can
+    /// (<see cref="LocationCapabilities.ServerSideCopy"/>), so its bytes never cross the connection.
+    /// <see cref="NotSupportedException"/> anywhere else — between locations, on this disk, inside an archive — and the
+    /// caller streams it instead.</summary>
+    ValueTask CopyWithinAsync(string from, string to, bool replace, CancellationToken ct = default);
+
+    /// <summary>Deletes a file, or a folder — only an empty one unless <paramref name="recursive"/>. Permanent: this is
+    /// not the recycle bin. <see cref="LocationError.NotFound"/> when nothing is there;
+    /// <see cref="LocationError.Conflict"/> when a folder still holds something and <paramref name="recursive"/> is false.</summary>
+    ValueTask DeleteAsync(string path, bool recursive, CancellationToken ct = default);
+
+    /// <summary>Creates the folder and any missing parents; nothing happens when it already exists.</summary>
+    ValueTask CreateDirectoryAsync(string path, CancellationToken ct = default);
+
+    /// <summary>Reports changes to a file, or under a folder, by the path as given here. Null when the path cannot be
+    /// watched — inside an archive (watch its container), missing, or on a location without
+    /// <see cref="LocationCapabilities.Watch"/> — and the caller then polls.</summary>
+    ValueTask<ILocationWatch?> WatchChangesAsync(string path, bool recursive, CancellationToken ct = default);
+
+    /// <summary>What the location holding the path can do, without touching the network — what the UI reads before it
+    /// offers an action.</summary>
+    LocationCapabilities GetCapabilities(string path);
+
+    /// <summary>As <see cref="DescribeArchive"/>.</summary>
+    ValueTask<ArchiveSummary?> DescribeArchiveAsync(string containerPath, CancellationToken ct = default);
+
+    /// <summary>A path on this disk holding the file's bytes, for a reader that can only open a file by a path of its own:
+    /// a real or mounted path as it is, an archive entry extracted to a cached temp copy. A file on a remote location keeps
+    /// no copy on this disk, and is refused with <see cref="NotSupportedException"/>.</summary>
+    ValueTask<string> MaterializeFileAsync(string path, CancellationToken ct = default);
+
+    /// <summary>As <see cref="ExtractAll"/>.</summary>
+    ValueTask ExtractAllAsync(string containerPath, string destinationDir,
+                              IProgress<TransferProgress>? progress = null, CancellationToken ct = default);
+
+    /// <summary>As <see cref="CreateArchive(string, string, IProgress{TransferProgress}?, CancellationToken)"/>.</summary>
+    ValueTask CreateArchiveAsync(string archivePath, string sourceDir,
+                                 IProgress<TransferProgress>? progress = null, CancellationToken ct = default);
+
+    /// <summary>As <see cref="CreateArchive(string, IReadOnlyList{string}, IProgress{TransferProgress}?, CancellationToken)"/>.</summary>
+    ValueTask CreateArchiveAsync(string archivePath, IReadOnlyList<string> sourcePaths,
+                                 IProgress<TransferProgress>? progress = null, CancellationToken ct = default);
+
+    /// <summary>As <see cref="Repackage"/>.</summary>
+    ValueTask RepackageAsync(string sourcePath, string targetPath, ArchiveWriteOptions? options = null, CancellationToken ct = default);
+
+    /// <summary>As <see cref="AddFiles"/>.</summary>
+    ValueTask AddFilesAsync(string containerPath, IReadOnlyList<(string SourcePath, string EntryName)> files, CancellationToken ct = default);
 }

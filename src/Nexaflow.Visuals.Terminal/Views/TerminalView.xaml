@@ -341,7 +341,7 @@
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
-                                    <TextBlock Text="{Binding ScreenText}" Style="{StaticResource TerminalLine}"/>
+                                    <TextBlock x:Name="ScreenLines" Text="{Binding ScreenText}" Style="{StaticResource TerminalLine}"/>
                                 </StackPanel>
                             </ScrollViewer>
                         </Border>

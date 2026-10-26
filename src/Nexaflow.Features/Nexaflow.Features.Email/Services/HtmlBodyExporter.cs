@@ -6,6 +6,7 @@ using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using Nexaflow.Features.Email.Model;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Email.Services;
 
@@ -17,6 +18,7 @@ namespace Nexaflow.Features.Email.Services;
 /// folder is created lazily (nothing on disk until the body actually references an inline image or the user
 /// opens the browser view) and cleaned up at process exit.
 /// </summary>
+[LocalDiskOnly("the message's HTML and inline pictures, written to the temp folder for the rendered view and the browser")]
 internal sealed partial class HtmlBodyExporter : IDisposable
 {
     private static readonly string Root = Path.Combine(Path.GetTempPath(), "nexaflow-email");

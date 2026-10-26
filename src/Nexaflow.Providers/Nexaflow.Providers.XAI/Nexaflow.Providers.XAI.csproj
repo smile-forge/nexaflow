@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Providers.Common\Nexaflow.Providers.Common.csproj" />
+    <!-- xAI's API speaks OpenAI's chat-completions wire format; the OpenAI SDK comes with it. -->
+    <ProjectReference Include="..\Nexaflow.Providers.OpenAICompatible\Nexaflow.Providers.OpenAICompatible.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Providers" />
+  </ItemGroup>
+</Project>

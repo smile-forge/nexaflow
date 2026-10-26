@@ -25,6 +25,6 @@ public partial class FontView : UserControl, IPageView
     void IPageView.Reinitialize(Dictionary<string, string> pageParams)
     {
         if (pageParams.TryGetValue("paths", out var paths) && !string.IsNullOrWhiteSpace(paths))
-            _vm.OpenFiles(paths.Split('|', StringSplitOptions.RemoveEmptyEntries));
+            _ = _vm.OpenFilesAsync(paths.Split('|', StringSplitOptions.RemoveEmptyEntries));
     }
 }

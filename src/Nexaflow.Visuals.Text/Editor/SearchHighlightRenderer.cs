@@ -18,6 +18,24 @@ public sealed class SearchHighlightRenderer : IBackgroundRenderer
 
     public IReadOnlyList<(int offset, int length)> Highlights { get; set; } = [];
 
+    /// <summary>
+    /// Which of <see cref="Highlights"/> is the one being looked at — outlined as well as washed, since a wash alone cannot say
+    /// which of several it is — or -1 where none is.
+    /// </summary>
+    public int Current { get; set; } = -1;
+
+    // Themed (AccentBrush), resolved lazily like the wash.
+    private Pen? _outline;
+    private Pen Outline => _outline ??= Outlined(Application.Current?.Resources["AccentBrush"] as Brush
+        ?? throw new InvalidOperationException("Theme brush 'AccentBrush' not found."));
+
+    private static Pen Outlined(Brush brush)
+    {
+        var pen = new Pen(brush, 1.5);
+        pen.Freeze();
+        return pen;
+    }
+
     public KnownLayer Layer => KnownLayer.Selection;
 
     public void Draw(TextView textView, DrawingContext drawingContext)
@@ -26,8 +44,9 @@ public sealed class SearchHighlightRenderer : IBackgroundRenderer
 
         textView.EnsureVisualLines();
 
-        foreach (var (offset, length) in Highlights)
+        for (var at = 0; at < Highlights.Count; at++)
         {
+            var (offset, length) = Highlights[at];
             if (offset < 0 || offset + length > textView.Document.TextLength) continue;
 
             var segment = new ICSharpCode.AvalonEdit.Document.TextSegment
@@ -45,7 +64,7 @@ public sealed class SearchHighlightRenderer : IBackgroundRenderer
 
             var geo = builder.CreateGeometry();
             if (geo is not null)
-                drawingContext.DrawGeometry(HighlightBrush, null, geo);
+                drawingContext.DrawGeometry(HighlightBrush, at == Current ? Outline : null, geo);
         }
     }
 }

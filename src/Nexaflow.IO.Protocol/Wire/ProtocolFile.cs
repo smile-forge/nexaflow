@@ -40,6 +40,12 @@ public static class ProtocolFile
         IReadOnlyDictionary<string, Node> Messages,
         IReadOnlyDictionary<string, Node> Named);
 
+    /// <summary>Where the protocol description named <paramref name="fileName"/> ships: the Protocols folder beside the app.</summary>
+    public static string ShippedPath(string fileName) => Path.Combine(AppContext.BaseDirectory, "Protocols", fileName);
+
+    /// <summary>The bytes of the description shipped as <paramref name="fileName"/>, at <see cref="ShippedPath"/>.</summary>
+    public static byte[] ReadShipped(string fileName) => File.ReadAllBytes(ShippedPath(fileName));
+
     public static Loaded Read(string written)
     {
         var doc = JsonNode.Parse(written)?.AsObject()

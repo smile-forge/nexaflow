@@ -85,7 +85,7 @@ public sealed partial class VirtualDiskViewModel : ISearchable
 
         var path = _diskPath;
         var scan = await Task.Run(
-            () => DiskSearchScanner.Scan(_vfs, path, request, FolderVisitCap, SearchHitCap, ct), ct);
+            () => DiskSearchScanner.ScanAsync(_vfs, path, request, FolderVisitCap, SearchHitCap, ct), ct);
 
         // A cancelled walk returns what it had; without this the partial set would read as the whole answer.
         ct.ThrowIfCancellationRequested();

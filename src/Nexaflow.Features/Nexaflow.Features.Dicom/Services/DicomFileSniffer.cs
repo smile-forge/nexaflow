@@ -14,19 +14,7 @@ internal static class DicomFileSniffer
     public static bool HasDicomExtension(string path)
         => KnownExtensions.Contains(Path.GetExtension(path).ToLowerInvariant());
 
-    /// <summary>True if the file carries the <c>DICM</c> magic at offset 128.</summary>
-    public static bool HasDicmMagic(string path)
-    {
-        try
-        {
-            using var fs = File.OpenRead(path);
-            return HasDicmMagic(fs);
-        }
-        catch { return false; }
-    }
-
-    /// <summary>True if <paramref name="stream"/> (seekable) carries the <c>DICM</c> magic at offset 128 —
-    /// used for in-archive entries opened through the VFS.</summary>
+    /// <summary>True if <paramref name="stream"/> (seekable) carries the <c>DICM</c> magic at offset 128.</summary>
     public static bool HasDicmMagic(Stream stream)
     {
         try
@@ -39,8 +27,4 @@ internal static class DicomFileSniffer
         }
         catch { return false; }
     }
-
-    /// <summary>Cheap-first recognition: trust a known extension, else sniff the magic.</summary>
-    public static bool IsDicom(string path)
-        => HasDicomExtension(path) || HasDicmMagic(path);
 }

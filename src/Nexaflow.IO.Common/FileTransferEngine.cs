@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using Microsoft.Win32.SafeHandles;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.IO.Common;
 
@@ -50,20 +51,65 @@ public static class FileTransferEngine
     /// never fails, because refusing to start a copy over a folder you cannot list helps nobody.
     /// </summary>
     public static Task<TransferScan> ScanAsync(IReadOnlyList<string> sources, CancellationToken ct = default)
-        => Task.Run(() =>
-        {
-            var tally = new ScanTally();
+        => ScanAsync(sources, fileSystem: null, ct);
 
-            foreach (var source in sources)
+    /// <summary>As <see cref="ScanAsync(IReadOnlyList{string}, CancellationToken)"/>, measuring a source the disk
+    /// cannot reach through <paramref name="fileSystem"/> (<see cref="FileTransferRequest.FileSystem"/>).</summary>
+    public static async Task<TransferScan> ScanAsync(IReadOnlyList<string> sources, IVirtualFileSystem? fileSystem,
+                                                     CancellationToken ct = default)
+    {
+        var tally  = new ScanTally();
+        var onDisk = new List<string>(sources.Count);
+        foreach (var source in sources)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (fileSystem is null) onDisk.Add(source);
+            else if (fileSystem.ResolveOnDisk(source) is { } real) onDisk.Add(real);
+            else await MeasureThroughAsync(fileSystem, source, tally, ct);
+        }
+
+        await Task.Run(() =>
+        {
+            foreach (var source in onDisk)
             {
                 ct.ThrowIfCancellationRequested();
 
                 if (Directory.Exists(source)) Measure(source, tally, ct);
                 else if (File.Exists(source)) tally.AddFile(LongPath.Prefix(source));
             }
-
-            return tally.ToScan();
         }, ct);
+
+        return tally.ToScan();
+    }
+
+    /// <summary><see cref="Measure"/> through the file system: a link is counted as nothing and not followed, and a
+    /// folder that cannot be listed makes the totals a floor.</summary>
+    private static async Task MeasureThroughAsync(IVirtualFileSystem fileSystem, string path, ScanTally tally,
+                                                  CancellationToken ct)
+    {
+        LocationEntry? entry;
+        try { entry = await fileSystem.GetEntryAsync(path, ct); }
+        catch (OperationCanceledException) { throw; }
+        catch { tally.Partial = true; return; }
+
+        if (entry is null) return;
+        if (!entry.IsDirectory) { tally.AddFile(entry.Size); return; }
+
+        tally.Folders++;
+        var subs = new List<string>();
+        try
+        {
+            await foreach (var child in fileSystem.EnumerateAsync(path, ct))
+            {
+                if (!child.IsDirectory) tally.AddFile(child.Size);
+                else if (!child.IsSymlink) subs.Add(Path.Combine(path, child.Name));
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch { tally.Partial = true; }
+
+        foreach (var sub in subs) await MeasureThroughAsync(fileSystem, sub, tally, ct);
+    }
 
     private static void Measure(string directory, ScanTally tally, CancellationToken ct)
     {
@@ -102,6 +148,13 @@ public static class FileTransferEngine
             Files++;
             try { Bytes += new FileInfo(path).Length; }
             catch { Partial = true; }
+        }
+
+        /// <summary>A file whose length a listing already gave.</summary>
+        public void AddFile(long length)
+        {
+            Files++;
+            Bytes += length;
         }
 
         public TransferScan ToScan() => new(Bytes, Files, Folders, Partial);
@@ -224,9 +277,20 @@ public static class FileTransferEngine
         {
             Report(TransferPhase.Running, force: true);
 
-            foreach (var item in request.Items)
+            foreach (var requested in request.Items)
             {
                 if (Stopping) break;
+
+                if (OnDisk(requested) is not { } item)
+                {
+                    switch (request.Kind)
+                    {
+                        case TransferKind.Copy:   await CopyThroughAsync(requested);   break;
+                        case TransferKind.Move:   await MoveThroughAsync(requested);   break;
+                        case TransferKind.Delete: await DeleteThroughAsync(requested); break;
+                    }
+                    continue;
+                }
 
                 switch (request.Kind)
                 {
@@ -674,6 +738,424 @@ public static class FileTransferEngine
 
             try { Directory.Delete(LongPath.Prefix(path)); return true; }
             catch (Exception ex) { Fail("delete", path, ex); return false; }
+        }
+
+        // ── Through the file system ───────────────────────────────────────────
+        // An item with an end the disk cannot reach — inside an archive, on a location — goes through the runtime's file
+        // system. The same promises hold: nothing throws, a move removes each source only once its copy has committed, a link
+        // is never followed, and a verified run reads every file back from where it landed. The write commits whole or not at
+        // all, which is what the partial name gives a copy on disk. Free-space parking applies where the destination is on this
+        // disk; the unbuffered read-back and the attribute copy need a Windows volume at both ends, so they stay the disk's.
+
+        private IVirtualFileSystem FileSystem => request.FileSystem!;
+
+        /// <summary>The item with both ends as real paths on this disk, or null when either end is somewhere only the file
+        /// system reaches.</summary>
+        private TransferItem? OnDisk(TransferItem item)
+        {
+            if (request.FileSystem is not { } fileSystem) return item;
+            return fileSystem.ResolveOnDisk(item.Source) is { } source && fileSystem.ResolveOnDisk(item.Destination) is { } destination
+                ? item with { Source = source, Destination = destination }
+                : null;
+        }
+
+        /// <summary>The entry at <paramref name="path"/>; null when it is gone — not a complaint — or could not be asked
+        /// about, which is recorded.</summary>
+        private async Task<LocationEntry?> EntryThroughAsync(string path, string verb)
+        {
+            try { return await FileSystem.GetEntryAsync(path, ct); }
+            catch (OperationCanceledException) { return null; }
+            catch (Exception ex) { Fail(verb, path, ex); return null; }
+        }
+
+        private async Task MoveThroughAsync(TransferItem item)
+        {
+            if (await EntryThroughAsync(item.Source, "move") is not { } source) return;
+
+            var (destination, outcome) = await ResolveThroughAsync(item.Destination, source.IsDirectory, request.Conflicts);
+            if (outcome == Resolution.Skip) { _itemsDone++; return; }
+            if (outcome == Resolution.Clash)
+            {
+                Fail("move", item.Source, 183, $"\"{Name(item.Source)}\" already exists at the destination.");
+                return;
+            }
+
+            _currentItem = item.Source;
+
+            // A rename within one location moves no bytes. Between locations, or out of an archive, the file system says it
+            // cannot — and the copy route below, which also merges into an existing folder, does it instead.
+            if (await TakenThroughAsync(destination) is null)
+            {
+                try
+                {
+                    await FileSystem.MoveAsync(item.Source, destination, replace: false, ct);
+                    _itemsDone++;
+                    if (!source.IsDirectory) await CarryThroughAsync(item, destination, move: true);
+                    Report(TransferPhase.Running, force: true);
+                    return;
+                }
+                catch (NotSupportedException) { /* falls through to copy-then-remove */ }
+                catch (OperationCanceledException) { return; }
+                catch (Exception ex)
+                {
+                    Fail("move", item.Source, ex);
+                    return;
+                }
+            }
+
+            await CopyThroughAsync(item with { Destination = destination }, source, forMove: true);
+        }
+
+        private async Task CopyThroughAsync(TransferItem item, LocationEntry? known = null, bool forMove = false)
+        {
+            if ((known ?? await EntryThroughAsync(item.Source, "copy")) is not { } source) return;
+
+            string destination = item.Destination;
+            if (known is null)
+            {
+                var (resolved, outcome) = await ResolveThroughAsync(item.Destination, source.IsDirectory, request.Conflicts);
+                if (outcome == Resolution.Skip) { _itemsDone++; return; }
+                if (outcome == Resolution.Clash)
+                {
+                    Fail("copy", item.Source, 183, $"\"{Name(item.Source)}\" already exists at the destination.");
+                    return;
+                }
+                destination = resolved;
+            }
+
+            if (source.IsDirectory) await CopyDirectoryThroughAsync(item.Source, destination, forMove);
+            else if (await CopyFileThroughAsync(item.Source, source.Size, destination, forMove, resolved: true))
+                await CarryThroughAsync(item, destination, move: forMove);
+        }
+
+        /// <summary>As <see cref="CopyDirectoryAsync"/>: true only when every descendant landed, which is the gate on
+        /// removing the source folder during a move.</summary>
+        private async Task<bool> CopyDirectoryThroughAsync(string source, string destination, bool forMove)
+        {
+            if (Stopping) return false;
+
+            try { await FileSystem.CreateDirectoryAsync(destination, ct); }
+            catch (OperationCanceledException) { return false; }
+            catch (Exception ex) { Fail("create", destination, ex); return false; }
+
+            var children = new List<LocationEntry>();
+            try
+            {
+                await foreach (var child in FileSystem.EnumerateAsync(source, ct)) children.Add(child);
+            }
+            catch (OperationCanceledException) { return false; }
+            catch (Exception ex) { Fail("read", source, ex); return false; }
+
+            bool complete = true;
+
+            foreach (var file in children.Where(c => !c.IsDirectory))
+            {
+                if (Stopping) return false;
+                complete &= await CopyFileThroughAsync(Path.Combine(source, file.Name), file.Size,
+                                                       Path.Combine(destination, file.Name), forMove, resolved: false);
+            }
+
+            foreach (var folder in children.Where(c => c.IsDirectory))
+            {
+                if (Stopping) return false;
+                string from = Path.Combine(source, folder.Name), to = Path.Combine(destination, folder.Name);
+                if (folder.IsSymlink)
+                {
+                    // Recreated empty, never followed — as a junction is on disk.
+                    _skippedReparsePoints.Add(from);
+                    try { await FileSystem.CreateDirectoryAsync(to, ct); } catch { }
+                    complete = false;
+                    continue;
+                }
+                complete &= await CopyDirectoryThroughAsync(from, to, forMove);
+            }
+
+            if (forMove && complete && !Stopping)
+            {
+                // Non-recursive on purpose, as on disk: it only succeeds once every child has already gone.
+                try { await FileSystem.DeleteAsync(source, recursive: false, ct); }
+                catch (OperationCanceledException) { return false; }
+                catch (Exception ex) { Fail("remove", source, ex); complete = false; }
+            }
+
+            return complete;
+        }
+
+        private async Task<bool> CopyFileThroughAsync(string source, long length, string destination, bool forMove, bool resolved)
+        {
+            if (Stopping) return false;
+
+            if (!resolved)
+            {
+                var (path, outcome) = await ResolveThroughAsync(destination, isDirectory: false, request.Conflicts);
+                if (outcome == Resolution.Skip) { _itemsDone++; return true; }
+                if (outcome == Resolution.Clash)
+                {
+                    Fail("copy", source, 183, $"\"{Name(source)}\" already exists at the destination.");
+                    return false;
+                }
+                destination = path;
+            }
+
+            _currentItem = source;
+            // The destination was settled by the conflict policy; a name taken since is a clash at the commit, not a write over it.
+            var mode = request.Conflicts is ConflictPolicy.Overwrite or ConflictPolicy.Resume ? WriteMode.Replace : WriteMode.CreateNew;
+
+            // Within one location that copies on its server, the bytes need not cross the connection twice. A verified run
+            // streams instead, because it hashes what it sent.
+            if (!request.Verify && CopiesOnServer(source, destination))
+            {
+                try
+                {
+                    await FileSystem.CopyWithinAsync(source, destination, replace: mode == WriteMode.Replace, ct);
+                    _bytesDone += length;
+                    return await FinishThroughAsync(source, forMove);
+                }
+                catch (NotSupportedException) { /* streams below */ }
+                catch (OperationCanceledException) { return false; }
+                catch (Exception ex) { Fail("copy", source, ex); return false; }
+            }
+
+            string? onDisk = FileSystem.ResolveOnDisk(destination);
+
+            while (true)
+            {
+                if (Stopping) return false;
+                if (onDisk is not null && !await EnsureSpaceAsync(onDisk, length, source)) return false;
+
+                long before = _bytesDone;
+                string? sourceHash;
+                try
+                {
+                    sourceHash = await StreamThroughAsync(source, destination, mode);
+                }
+                catch (Exception ex) when (IsDiskFull(ex))
+                {
+                    _bytesDone = before;
+                    if (await PauseAsync(PauseReason.OutOfSpace, DescribeSpace(destination, length))) continue;
+                    return false;
+                }
+                catch (OperationCanceledException)
+                {
+                    _bytesDone = before;
+                    return false;
+                }
+                catch (Exception ex)
+                {
+                    _bytesDone = before;
+                    Fail("copy", source, ex);
+                    return false;
+                }
+
+                // The write committed whole, so the copy can only be wrong if the destination keeps different bytes than it was
+                // sent; a verified run reads it back to find out, and takes the copy away again when it does.
+                if (sourceHash is not null)
+                {
+                    string landed;
+                    try { landed = await HashThroughAsync(destination); }
+                    catch (OperationCanceledException) { return false; }
+                    catch (Exception ex) { Fail("verify", source, ex); return false; }
+
+                    if (!string.Equals(landed, sourceHash, StringComparison.Ordinal))
+                    {
+                        try { await FileSystem.DeleteAsync(destination, recursive: false, CancellationToken.None); } catch { }
+                        Fail("verify", source, 0, $"\"{Name(source)}\" read back different from what was written, so the copy was removed.");
+                        return false;
+                    }
+                    _verified.Add(new VerifiedFile(destination, length, sourceHash));
+                }
+
+                return await FinishThroughAsync(source, forMove);
+            }
+        }
+
+        /// <summary>A file that has landed: a move takes the source away now, and only now; the item is counted.</summary>
+        private async Task<bool> FinishThroughAsync(string source, bool forMove)
+        {
+            if (forMove)
+            {
+                try { await FileSystem.DeleteAsync(source, recursive: false, ct); }
+                catch (OperationCanceledException) { return false; }
+                catch (Exception ex) { Fail("remove", source, ex); return false; }
+            }
+
+            _itemsDone++;
+            Report(TransferPhase.Running, force: true);
+            return true;
+        }
+
+        /// <summary>Whether both ends are on one location that copies on its server — the same <c>::{id}</c> root, and the
+        /// capability declared — so asking it to costs no exception per file when it cannot.</summary>
+        private bool CopiesOnServer(string source, string destination)
+        {
+            static string RootOf(string path) => path.Split('\\', 2)[0];
+            return source.StartsWith("::", StringComparison.Ordinal)
+                   && string.Equals(RootOf(source), RootOf(destination), StringComparison.OrdinalIgnoreCase)
+                   && FileSystem.GetCapabilities(source).HasFlag(LocationCapabilities.ServerSideCopy);
+        }
+
+        /// <summary>Streams one file through the file system, returning the source's SHA-256 when the run verifies. The write
+        /// is invisible at <paramref name="destination"/> until it commits, so a failure or a stop leaves nothing there.</summary>
+        private async Task<string?> StreamThroughAsync(string source, string destination, WriteMode mode)
+        {
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
+            using var hash = request.Verify ? IncrementalHash.CreateHash(HashAlgorithmName.SHA256) : null;
+            try
+            {
+                await using var from  = await FileSystem.OpenReadAsync(source, ReadIntent.Sequential, ct);
+                await using var write = await FileSystem.BeginWriteAsync(destination, mode, expected: null, ct);
+                while (true)
+                {
+                    ct.ThrowIfCancellationRequested();
+
+                    int read = await from.ReadAsync(buffer.AsMemory(0, BufferSize), ct);
+                    if (read == 0) break;
+
+                    await write.Content.WriteAsync(buffer.AsMemory(0, read), ct);
+                    hash?.AppendData(buffer, 0, read);
+                    _bytesDone += read;
+                    Report(TransferPhase.Running);
+                }
+                await write.CommitAsync(ct);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
+
+            return hash is null ? null : Convert.ToHexString(hash.GetHashAndReset());
+        }
+
+        /// <summary>The SHA-256 of what is at <paramref name="path"/>, read back through the file system.</summary>
+        private async Task<string> HashThroughAsync(string path)
+        {
+            _verifying = true;
+            Report(TransferPhase.Running, force: true);
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
+            try
+            {
+                await using var stream = await FileSystem.OpenReadAsync(path, ReadIntent.Sequential, ct);
+                using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                int read;
+                while ((read = await stream.ReadAsync(buffer.AsMemory(0, BufferSize), ct)) > 0)
+                    hash.AppendData(buffer, 0, read);
+                return Convert.ToHexString(hash.GetHashAndReset());
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+                _verifying = false;
+            }
+        }
+
+        private async Task DeleteThroughAsync(TransferItem item)
+        {
+            if (Stopping) return;
+            _currentItem = item.Source;
+            if (await EntryThroughAsync(item.Source, "delete") is not { } entry) return;
+
+            if (entry.IsDirectory && !entry.IsSymlink)
+            {
+                await DeleteDirectoryThroughAsync(item.Source);
+            }
+            else
+            {
+                // A link goes, never what it points at.
+                try { await FileSystem.DeleteAsync(item.Source, recursive: false, ct); _itemsDone++; }
+                catch (OperationCanceledException) { return; }
+                catch (Exception ex) { Fail("delete", item.Source, ex); return; }
+
+                foreach (var (path, error) in await CompanionFiles.DeleteWithAsync(FileSystem, item.Source, item.CompanionSuffixes, ct))
+                    Fail("delete", path, error);
+            }
+            Report(TransferPhase.Running, force: true);
+        }
+
+        /// <summary>As <see cref="DeleteDirectory"/>: each file counted as it goes, and the folder itself only once it is
+        /// empty.</summary>
+        private async Task<bool> DeleteDirectoryThroughAsync(string path)
+        {
+            if (Stopping) return false;
+
+            var children = new List<LocationEntry>();
+            try
+            {
+                await foreach (var child in FileSystem.EnumerateAsync(path, ct)) children.Add(child);
+            }
+            catch (OperationCanceledException) { return false; }
+            catch (Exception ex) { Fail("read", path, ex); return false; }
+
+            bool complete = true;
+            foreach (var child in children)
+            {
+                if (Stopping) return false;
+                string childPath = Path.Combine(path, child.Name);
+                if (child.IsDirectory && !child.IsSymlink)
+                {
+                    complete &= await DeleteDirectoryThroughAsync(childPath);
+                    continue;
+                }
+                try { await FileSystem.DeleteAsync(childPath, recursive: false, ct); _itemsDone++; Report(TransferPhase.Running); }
+                catch (OperationCanceledException) { return false; }
+                catch (Exception ex) { Fail("delete", childPath, ex); complete = false; }
+            }
+
+            if (!complete) return false;
+
+            try { await FileSystem.DeleteAsync(path, recursive: false, ct); return true; }
+            catch (OperationCanceledException) { return false; }
+            catch (Exception ex) { Fail("delete", path, ex); return false; }
+        }
+
+        /// <summary>A file's companions follow it to where it landed, through the file system.</summary>
+        private async Task CarryThroughAsync(TransferItem item, string destination, bool move)
+        {
+            foreach (var (path, error) in await CompanionFiles.FollowAsync(FileSystem, item.Source, destination, item.CompanionSuffixes, move, ct))
+                Fail(move ? "move" : "copy", path, error);
+        }
+
+        /// <summary>What is at <paramref name="path"/>, or null when nothing is or nobody can say — a write there then finds
+        /// out.</summary>
+        private async Task<LocationEntry?> TakenThroughAsync(string path)
+        {
+            try { return await FileSystem.GetEntryAsync(path, ct); }
+            catch (Exception ex) when (ex is not OperationCanceledException) { return null; }
+        }
+
+        /// <summary><see cref="ResolveDestination"/> through the file system.</summary>
+        private async Task<(string Path, Resolution Outcome)> ResolveThroughAsync(string desired, bool isDirectory, ConflictPolicy policy)
+        {
+            if (await TakenThroughAsync(desired) is not { } there || there.IsDirectory != isDirectory)
+                return (desired, Resolution.Proceed);
+
+            switch (policy)
+            {
+                case ConflictPolicy.Overwrite:
+                    return (desired, Resolution.Proceed);
+
+                case ConflictPolicy.Skip:
+                    return (desired, Resolution.Skip);
+
+                case ConflictPolicy.Fail:
+                    return (desired, Resolution.Clash);
+
+                case ConflictPolicy.Resume:
+                    return (desired, isDirectory ? Resolution.Proceed : Resolution.Skip);
+
+                default:
+                    string dir  = Path.GetDirectoryName(desired) ?? desired;
+                    string stem = isDirectory ? Path.GetFileName(desired) : Path.GetFileNameWithoutExtension(desired);
+                    string ext  = isDirectory ? string.Empty : Path.GetExtension(desired);
+                    for (int i = 2; ; i++)
+                    {
+                        string candidate = Path.Combine(dir, $"{stem} ({i}){ext}");
+                        if (await TakenThroughAsync(candidate) is null)
+                        {
+                            _renamed.Add(candidate);
+                            return (candidate, Resolution.Proceed);
+                        }
+                    }
+            }
         }
 
         // ── Space ─────────────────────────────────────────────────────────────

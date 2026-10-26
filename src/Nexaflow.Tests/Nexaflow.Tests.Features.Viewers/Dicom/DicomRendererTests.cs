@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using System.Windows.Media.Imaging;
 using Nexaflow.Features.Dicom.Services;
@@ -32,9 +33,9 @@ public class DicomRendererTests
 
     [TestMethod]
     [CoversNode("dicom-frame-render")]
-    public void Render_SingleFrame_ProducesBgra32Bitmap_OfExpectedSize()
+    public async Task Render_SingleFrame_ProducesBgra32Bitmap_OfExpectedSize()
     {
-        var r = new DicomRenderer(SampleDcm);
+        var r = await DicomRenderer.OpenAsync(new DicomIo(VirtualFileSystem.Instance), SampleDcm);
         Assert.AreEqual(1, r.Frames);
         Assert.AreEqual(4, r.Width);
         Assert.AreEqual(4, r.Height);
@@ -46,9 +47,9 @@ public class DicomRendererTests
 
     [TestMethod]
     [CoversNode("dicom-window-level")]
-    public void ChangingWindow_ChangesRenderedPixels()
+    public async Task ChangingWindow_ChangesRenderedPixels()
     {
-        var r = new DicomRenderer(SampleDcm);
+        var r = await DicomRenderer.OpenAsync(new DicomIo(VirtualFileSystem.Instance), SampleDcm);
 
         r.WindowWidth = 256; r.WindowCenter = 128;
         var wide = ToBytes(r.Render(0));
@@ -61,9 +62,10 @@ public class DicomRendererTests
 
     [TestMethod]
     [CoversNode("dicom-invert")]
-    public void Invert_ProducesPhotographicNegative_NotSolidWhite()
+    public async Task Invert_ProducesPhotographicNegative_NotSolidWhite()
     {
-        var r = new DicomRenderer(SampleDcm) { Invert = false };
+        var r = await DicomRenderer.OpenAsync(new DicomIo(VirtualFileSystem.Instance), SampleDcm);
+        r.Invert = false;
         r.WindowWidth = 256; r.WindowCenter = 128;
         var normal = ToBytes(r.Render(0));
 
@@ -78,10 +80,10 @@ public class DicomRendererTests
 
     [TestMethod]
     [CoversNode("dicom-cine-slider")]
-    public void MultiFrame_ReportsFrameCount_AndRendersEachFrame()
+    public async Task MultiFrame_ReportsFrameCount_AndRendersEachFrame()
     {
         var path = DicomTestFiles.WriteImage(_tmp, "cine.dcm", "PX", "C^D", "1.7.1", "1.7.1.1", "1.7.1.1.1", frames: 3);
-        var r = new DicomRenderer(path);
+        var r = await DicomRenderer.OpenAsync(new DicomIo(VirtualFileSystem.Instance), path);
 
         Assert.AreEqual(3, r.Frames);
         // Frames are solid greys 30/90/150 stored; with CT rescale (−1024) they sit near −994/−934/−874 HU,

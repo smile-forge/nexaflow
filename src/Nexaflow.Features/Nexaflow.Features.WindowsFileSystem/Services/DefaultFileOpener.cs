@@ -39,15 +39,14 @@ public sealed class DefaultFileOpener
     /// not mapped there at all (<c>.eml</c>) — keeps its own viewer, so <see cref="GetMatchSpecificity"/>
     /// scores it below the extension level (4) and this is false. A disk's secondary actions ("As Disk",
     /// "Mount") stay on the action strip / context menu, exactly as "As Archive" does for an archive.
-    /// Works for a virtual (in-archive) path too: <see cref="FileInfo"/> yields the name/extension without
-    /// the file existing, and the magic-number probe inside <see cref="FileMapManager.GetMatchSpecificity"/>
-    /// is guarded by <c>file.Exists</c>.
+    /// Works for any path — in an archive, on a location — because only its name is matched.
     /// </summary>
     public static bool ExpandsInPlace(string path)
     {
-        var fi = new FileInfo(path);
+        // Extension level and above only, so the file's bytes are never asked for.
+        var file = FileSubject.ByName(path);
         return BrowseInPlaceExperiences.Any(exp =>
-            FileMapManager.Instance.GetMatchSpecificity(fi, exp) >= 4);
+            FileMapManager.Instance.GetMatchSpecificity(file, exp) >= 4);
     }
 
     /// <summary>
@@ -59,7 +58,7 @@ public sealed class DefaultFileOpener
     public async Task<bool> OpenAsync(string filePath)
     {
         var entry    = new FileSystemEntry { Name = Path.GetFileName(filePath), FullPath = filePath, IsDirectory = false };
-        var fileInfo = new FileInfo(filePath);
+        var file     = FileSubject.Of(_actions.Vfs, filePath);
         var ext      = Path.GetExtension(filePath);
 
         var canPerform = _actions.SnapshotCanPerform();
@@ -75,10 +74,10 @@ public sealed class DefaultFileOpener
 
         // An explicit per-extension default (Options → Default Actions) wins over automatic resolution.
         // A stale override (removed viewer/app, failed verb) returns false so we fall through below.
-        var overrideEntry = DefaultActionRegistry.Instance.Resolve(fileInfo);
+        var overrideEntry = DefaultActionRegistry.Instance.Resolve(filePath);
         if (overrideEntry is not null &&
-            TryPerformOverride(overrideEntry, filePath, internalActions, out bool overrideRefresh))
-            return overrideRefresh;
+            await TryPerformOverrideAsync(overrideEntry, filePath, internalActions) is { Handled: true } overridden)
+            return overridden.RequiresRefresh;
 
         // Pick the highest match-specificity; break ties by the deeper experience so the specific viewer
         // wins over a broader ancestor (e.g. "As Code"/"As Markdown" at "/text/…" beat "As Text" at "/text",
@@ -88,7 +87,7 @@ public sealed class DefaultFileOpener
         int          bestInternalDepth = -1;
         foreach (var action in internalActions)
         {
-            int spec  = FileMapManager.Instance.GetMatchSpecificity(fileInfo, action.ExperienceId);
+            int spec  = FileMapManager.Instance.GetMatchSpecificity(file, action.ExperienceId);
             int depth = ExperienceDepth(action.ExperienceId);
             if (spec > bestInternalSpec || (spec == bestInternalSpec && depth > bestInternalDepth))
             {
@@ -108,7 +107,7 @@ public sealed class DefaultFileOpener
             // Deliberately unguarded: this class holds no shell handle, so it cannot report anything. The
             // caller (FileSystemViewModel.OpenFileDefaultAsync) catches and names the file — see the note
             // there for why a throw must not be allowed to reach the dispatcher.
-            bestInternal.PerformAction(filePath);
+            await bestInternal.PerformActionAsync(filePath);
             return bestInternal.RequiresRefresh;
         }
 
@@ -133,40 +132,37 @@ public sealed class DefaultFileOpener
     private static string RealizeForShell(string path) => ShellPath.Realize(path);
 
     /// <summary>
-    /// Runs an explicit Default Actions override. Returns false (so the caller falls back to automatic
-    /// resolution) when the target no longer applies: a removed viewer/app or a shell verb that failed.
+    /// Runs an explicit Default Actions override. Not handled (so the caller falls back to automatic resolution) when the
+    /// target no longer applies: a removed viewer/app or a shell verb that failed.
     /// </summary>
-    private static bool TryPerformOverride(
-        DefaultActionOverride ov, string filePath,
-        IReadOnlyList<IFileAction> internalActions, out bool requiresRefresh)
+    private static async Task<(bool Handled, bool RequiresRefresh)> TryPerformOverrideAsync(
+        DefaultActionOverride ov, string filePath, IReadOnlyList<IFileAction> internalActions)
     {
-        requiresRefresh = false;
         switch (ov.Kind)
         {
             case DefaultActionKind.InternalViewer:
                 var action = internalActions.FirstOrDefault(a =>
                     string.Equals(a.ExperienceId, ov.TargetId, System.StringComparison.OrdinalIgnoreCase));
-                if (action is null) return false;
-                action.PerformAction(filePath);
-                requiresRefresh = action.RequiresRefresh;
-                return true;
+                if (action is null) return (false, false);
+                await action.PerformActionAsync(filePath);
+                return (true, action.RequiresRefresh);
 
             case DefaultActionKind.ExternalApp:
                 var def = ExternalAppRegistry.Instance.FindById(ov.TargetId);
-                if (def is null) return false;
-                new CustomAction(def, ExternalAppRegistry.ResolveIcon(def)).PerformAction(RealizeForShell(filePath));
-                return true;
+                if (def is null) return (false, false);
+                await new CustomAction(def, ExternalAppRegistry.ResolveIcon(def)).PerformActionAsync(RealizeForShell(filePath));
+                return (true, false);
 
             case DefaultActionKind.WindowsVerb:
                 try
                 {
                     Process.Start(new ProcessStartInfo(RealizeForShell(filePath)) { Verb = ov.TargetId, UseShellExecute = true });
-                    return true;
+                    return (true, false);
                 }
-                catch { return false; }
+                catch { return (false, false); }
 
             default:
-                return false;
+                return (false, false);
         }
     }
 

@@ -2,6 +2,8 @@ using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Features.Images.FileActions
 {
@@ -28,17 +30,17 @@ namespace Nexaflow.Features.Images.FileActions
 
         // Routed through the selection overload so both filter alike — opening one file and opening a
         // one-item selection of it are the same user intent, and only one of them used to check the type.
-        public bool PerformAction(string filePath) => PerformAction([filePath]);
+        public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default) => PerformActionAsync([filePath], ct);
 
-        public bool PerformAction(IEnumerable<string> filePaths)
+        public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
         {
             var images = filePaths
                 .Where(ImageFileTypes.IsImage)
                 .ToList();
 
-            if (images.Count == 0) return false;
+            if (images.Count == 0) return Task.FromResult(false);
             _shellServices.OpenTab("Images", new Dictionary<string, string> { ["paths"] = string.Join('|', images) });
-            return true;
+            return Task.FromResult(true);
         }
     }
 }

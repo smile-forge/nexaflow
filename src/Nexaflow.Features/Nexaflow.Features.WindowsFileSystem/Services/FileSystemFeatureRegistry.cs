@@ -14,7 +14,7 @@ namespace Nexaflow.Features.WindowsFileSystem.Services;
 /// <summary>
 /// Owns discovery, construction and caching of the file-system feature
 /// contracts: <see cref="IFileAction"/>, <see cref="IFolderAction"/>,
-/// <see cref="IFileCreateAction"/> and <see cref="IFolderViewlet"/>.
+/// <see cref="IFileCreateAction"/>, <see cref="IFileCreateWithOptions"/> and <see cref="IFolderViewlet"/>.
 /// </summary>
 public sealed class FileSystemFeatureRegistry
 {
@@ -30,12 +30,12 @@ public sealed class FileSystemFeatureRegistry
     /// </summary>
     public static FileSystemFeatureRegistry For(
         IShellServices shell, IAIService ai,
-        IReadOnlyDictionary<Type, IFeatureConfig> configs)
+        IReadOnlyDictionary<Type, IFeatureConfig> configs, IVirtualFileSystem vfs)
     {
         lock (_instancesLock)
         {
             if (!_instances.TryGetValue(shell, out var r))
-                _instances.Add(shell, r = new FileSystemFeatureRegistry(shell, ai, configs));
+                _instances.Add(shell, r = new FileSystemFeatureRegistry(shell, ai, configs, vfs));
             return r;
         }
     }
@@ -47,6 +47,7 @@ public sealed class FileSystemFeatureRegistry
     private readonly List<Type> _fileActionTypes       = [];
     private readonly List<Type> _folderActionTypes     = [];
     private readonly List<Type> _fileCreateActionTypes = [];
+    private readonly List<Type> _fileCreateWithOptionsTypes = [];
     private readonly List<Type> _folderViewletTypes    = [];
     private readonly List<Type> _thisPcProviderTypes   = [];
 
@@ -54,9 +55,9 @@ public sealed class FileSystemFeatureRegistry
     /// takes its mount with it. Guarded by <see cref="_cacheLock"/>.</summary>
     private readonly HashSet<string> _ownedMounts = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>The VFS mounts are published into. Settable for tests; defaults to the process singleton
-    /// because a mount is process-wide — every window browses the same namespace.</summary>
-    internal IVirtualFileSystem Vfs { get; set; } = VirtualFileSystem.Instance;
+    /// <summary>The runtime's file system — handed to every action that asks for one, and where mounts are published
+    /// (a mount is process-wide, so every window browses the same namespace).</summary>
+    public IVirtualFileSystem Vfs { get; }
 
     private readonly Dictionary<Type, object> _cache = new();
     private readonly object _cacheLock = new();
@@ -65,11 +66,12 @@ public sealed class FileSystemFeatureRegistry
 
     private FileSystemFeatureRegistry(
         IShellServices shell, IAIService ai,
-        IReadOnlyDictionary<Type, IFeatureConfig> configs)
+        IReadOnlyDictionary<Type, IFeatureConfig> configs, IVirtualFileSystem vfs)
     {
         _shell = shell;
         _ai = ai;
         _configs = configs;
+        Vfs = vfs;
 
         foreach (var t in shell.DiscoverImplementations<IFolderViewlet>())
             _folderViewletTypes.Add(t);
@@ -86,10 +88,15 @@ public sealed class FileSystemFeatureRegistry
         foreach (var t in shell.DiscoverImplementations<IFileCreateAction>())
             if (typeof(ICacheable).IsAssignableFrom(t)) _fileCreateActionTypes.Add(t);
 
+        foreach (var t in shell.DiscoverImplementations<IFileCreateWithOptions>())
+            if (typeof(ICacheable).IsAssignableFrom(t)) _fileCreateWithOptionsTypes.Add(t);
+
         // No ICacheable filter: a provider is inherently one-per-shell, and the SAME instance must be
         // handed out every time or the Changed subscription the browser holds would be on a dead object.
+        // The volumes are This PC's own rows, offered whatever the catalog holds; every other provider is discovered.
+        _thisPcProviderTypes.Add(typeof(DriveThisPcProvider));
         foreach (var t in shell.DiscoverImplementations<IThisPcItemProvider>())
-            _thisPcProviderTypes.Add(t);
+            if (t != typeof(DriveThisPcProvider)) _thisPcProviderTypes.Add(t);
 
         _allExperiences = _fileActionTypes
             .Select(t => t.GetProperty("StaticExperienceId",
@@ -110,6 +117,7 @@ public sealed class FileSystemFeatureRegistry
     public IReadOnlyList<IFileAction>       FileActions       => Materialize<IFileAction>(_fileActionTypes);
     public IReadOnlyList<IFolderAction>     FolderActions     => Materialize<IFolderAction>(_folderActionTypes);
     public IReadOnlyList<IFileCreateAction> FileCreateActions => Materialize<IFileCreateAction>(_fileCreateActionTypes);
+    public IReadOnlyList<IFileCreateWithOptions> FileCreateWithOptions => Materialize<IFileCreateWithOptions>(_fileCreateWithOptionsTypes);
     public IReadOnlyList<IFolderViewlet>    FolderViewlets    => Materialize<IFolderViewlet>(_folderViewletTypes);
 
     /// <summary>The This PC row contributors. Instances are cached, so the object returned here is the
@@ -202,10 +210,12 @@ public sealed class FileSystemFeatureRegistry
                 args[i] = _shell;
             else if (typeof(IAIService).IsAssignableFrom(pt))
                 args[i] = _ai;
+            else if (pt == typeof(IVirtualFileSystem))
+                args[i] = Vfs;
             else if (typeof(IFileOperationHost).IsAssignableFrom(pt))
                 // The file browser is what shows a progress row, so it is what supplies one to the actions it
                 // builds. An action that asks for this outside a browser simply does not get one.
-                args[i] = FileOperationQueue.For(_shell);
+                args[i] = FileOperationQueue.For(_shell, Vfs);
             else if (_configs.TryGetValue(pt, out var cfg))
                 args[i] = cfg;
             else if (parms[i].IsOptional)

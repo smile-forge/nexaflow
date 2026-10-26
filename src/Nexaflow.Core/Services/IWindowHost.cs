@@ -23,6 +23,14 @@ internal interface IWindowHost
     /// <summary>The underlying WPF window — used for point-in-window hit testing.</summary>
     Window Window { get; }
 
+    /// <summary>Where the user means this window to be — not where Windows moved it while a monitor was asleep or
+    /// missing. Null until the window has been shown or opened at a placement.</summary>
+    WindowPlacement? IntendedPlacement { get; }
+
+    /// <summary>Opens the window at <paramref name="placement"/>, fitted to the monitors attached, when it is first
+    /// shown. Call before <c>Show</c>.</summary>
+    void OpenAt(WindowPlacement placement);
+
     /// <summary>Prepends the tab and makes it active.</summary>
     void AddTab(Page tab);
 

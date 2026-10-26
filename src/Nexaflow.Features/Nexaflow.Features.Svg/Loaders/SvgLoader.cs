@@ -13,8 +13,9 @@ using Nexaflow.IO.Common;
 namespace Nexaflow.Features.Svg.Loaders;
 
 /// <summary>
-/// Parses an SVG (or gzipped <c>.svgz</c>) file into a frozen WPF <see cref="DrawingImage"/> via
-/// SharpVectors, off the UI thread. Text is emitted as geometry and external/interactive content is
+/// Parses an SVG (or gzipped <c>.svgz</c>) file's bytes into a frozen WPF <see cref="DrawingImage"/> via
+/// SharpVectors, off the UI thread. The caller reads the file — through the runtime's file system, so one in
+/// an archive or on a location is read as one on disk is. Text is emitted as geometry and external/interactive content is
 /// disabled so everything the reader produces is a <see cref="Freezable"/> that can be built on a
 /// background thread and handed to the UI (mirrors the Model3D loader's freeze-on-background pattern).
 ///
@@ -29,12 +30,12 @@ public sealed class SvgLoader
         "path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "text", "image", "use",
     };
 
-    public LoadedSvg Load(string path)
+    public LoadedSvg Load(byte[] content)
     {
         var settings = BuildSettings();
 
         DrawingGroup group;
-        using (var reader = OpenSvg(path))
+        using (var reader = OpenSvg(content))
         {
             var svgReader = new FileSvgReader(settings);
             group = svgReader.Read(reader) ?? new DrawingGroup();
@@ -46,7 +47,7 @@ public sealed class SvgLoader
         var image = new DrawingImage(group);
         image.Freeze();
 
-        var (width, height, viewBox, count) = ProbeMetadata(path);
+        var (width, height, viewBox, count) = ProbeMetadata(content);
 
         return new LoadedSvg
         {
@@ -73,10 +74,9 @@ public sealed class SvgLoader
 
     /// <summary>Opens the file as an XXE-hardened <see cref="XmlReader"/>, transparently gunzipping when the
     /// content is gzip (covers <c>.svgz</c> and gzip content mislabeled <c>.svg</c>).</summary>
-    private static XmlReader OpenSvg(string path)
+    private static XmlReader OpenSvg(byte[] content)
     {
-        // Read through the VFS so an .svg inside a disk image / archive resolves (real files pass through).
-        Stream fs = VirtualFileSystem.Instance.OpenRead(path);
+        Stream fs = new MemoryStream(content, writable: false);
         try
         {
             int b0 = fs.ReadByte(), b1 = fs.ReadByte();
@@ -101,13 +101,13 @@ public sealed class SvgLoader
     /// <summary>Lightweight streaming pass over the same (gzip-aware) content for the footer metadata: the
     /// root <c>&lt;svg&gt;</c> width/height/viewBox and a drawable-element count. Cosmetic — failures are
     /// swallowed.</summary>
-    private static (string? Width, string? Height, string? ViewBox, int Count) ProbeMetadata(string path)
+    private static (string? Width, string? Height, string? ViewBox, int Count) ProbeMetadata(byte[] content)
     {
         string? width = null, height = null, viewBox = null;
         int count = 0;
         try
         {
-            using var reader = OpenSvg(path);
+            using var reader = OpenSvg(content);
             bool rootSeen = false;
             while (reader.Read())
             {

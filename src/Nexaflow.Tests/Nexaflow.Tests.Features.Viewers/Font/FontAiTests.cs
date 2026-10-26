@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -23,18 +24,22 @@ public class FontAiTests
     private static string TtfSample() => TestSampleData.Files("font").Single(p => p.EndsWith(".ttf"));
     private static string WoffSample() => TestSampleData.Files("font").Single(p => p.EndsWith(".woff"));
 
-    private static FontViewModel Vm(params string[] paths) =>
-        new(paths, Substitute.For<IShellServices>());
+    private static async Task<FontViewModel> VmAsync(params string[] paths)
+    {
+        var vm = new FontViewModel(paths, Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
+        await vm.Loaded;
+        return vm;
+    }
 
     [TestMethod]
     [TestCategory("Unit")]
     [CoversNode("font-ai-context")]
-    public void SecurityScope_IsDistinctPerFontSet_AndContextIsHonest()
+    public async Task SecurityScope_IsDistinctPerFontSet_AndContextIsHonest()
     {
-        var a = Vm(TtfSample());
-        var sameAsA = Vm(TtfSample());
-        var different = Vm(WoffSample());
-        var empty = Vm();   // blank compare mode
+        var a = await VmAsync(TtfSample());
+        var sameAsA = await VmAsync(TtfSample());
+        var different = await VmAsync(WoffSample());
+        var empty = await VmAsync();   // blank compare mode
 
         // ── the core guarantee: a non-null scope, equal for the same set, distinct across sets ──
         Assert.IsNotNull(a.GetSecurityContext());
@@ -62,7 +67,7 @@ public class FontAiTests
     [CoversNode("font-ai-act")]
     public async Task GetFontDetails_ReturnsMetadata_ForResolvableFont()
     {
-        var vm = Vm(TtfSample());
+        var vm = await VmAsync(TtfSample());
         var details = vm.GetClientTools().Single(t => t.Name == "get_font_details");
 
         // resolvable by 1-based index (matching the context numbering) — a pure metadata read

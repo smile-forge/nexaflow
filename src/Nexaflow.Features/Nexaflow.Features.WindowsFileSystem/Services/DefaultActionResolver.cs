@@ -66,7 +66,7 @@ internal static class DefaultActionResolver
         if (string.IsNullOrEmpty(ext)) return list;
 
         // ── Internal viewers: experiences that apply to the extension and are backed by a real viewer.
-        var applicable = FileMapManager.Instance.GetExperiencesForFile(new FileInfo("dummy" + ext));
+        var applicable = FileMapManager.Instance.GetExperiencesForFile(FileSubject.ByName("dummy" + ext));
         foreach (var expId in applicable.Where(id => id != "/" && viewerExperienceIds.Contains(id))
                                         .OrderBy(id => id, StringComparer.OrdinalIgnoreCase))
             list.Add(new DefaultActionCandidate(DefaultActionKind.InternalViewer, expId, Pretty(expId),

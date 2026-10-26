@@ -3,6 +3,7 @@ using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Email.ViewModels;
 using Nexaflow.Features.Email.Views;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Email;
@@ -12,7 +13,7 @@ namespace Nexaflow.Features.Email;
 /// (the "As Email" action / a double-click). The view-model owns a temp-folder exporter for the HTML body's
 /// inline images, disposed on <see cref="Page.Closed"/>.
 /// </summary>
-public sealed class EmailTabRegistration(IShellServices shell) : IPageRegistration
+public sealed class EmailTabRegistration(IShellServices shell, IVirtualFileSystem vfs) : IPageRegistration
 {
     public static string StaticPageKind => "Email";
     public string PageKind => StaticPageKind;
@@ -32,7 +33,7 @@ public sealed class EmailTabRegistration(IShellServices shell) : IPageRegistrati
 
         page.ContentFactory = () =>
         {
-            var vm = new EmailViewModel(path, shell);
+            var vm = new EmailViewModel(path, shell, vfs);
             page.Closed += (_, _) => vm.Dispose();
             return new EmailView(vm);
         };

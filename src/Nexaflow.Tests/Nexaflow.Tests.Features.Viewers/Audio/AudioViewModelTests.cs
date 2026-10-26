@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Linq;
 using Nexaflow.Features.Audio;             // AudioConfig
@@ -17,7 +18,7 @@ namespace Nexaflow.Tests.Features.Audio;
 public class AudioViewModelTests
 {
     private static AudioViewModel Make(params string[] paths)
-        => new(paths, 0, Substitute.For<IShellServices>(), new AudioConfig());
+        => new(paths, 0, Substitute.For<IShellServices>(), VirtualFileSystem.Instance, new AudioConfig());
 
     [TestMethod]
     [CoversNode("audio-playlist-toggle")]

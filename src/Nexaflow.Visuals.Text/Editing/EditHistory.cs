@@ -111,14 +111,8 @@ public sealed class EditHistory
     /// <summary>The stretch of <paramref name="before"/> an edit wrote over.</summary>
     private static (int Start, int End) Touched(string before, string after)
     {
-        var shorter = Math.Min(before.Length, after.Length);
+        var change = SourceDifference.Between(before, after);
 
-        var start = 0;
-        while (start < shorter && before[start] == after[start]) start++;
-
-        var same = 0;
-        while (same < shorter - start && before[before.Length - 1 - same] == after[after.Length - 1 - same]) same++;
-
-        return (start, before.Length - same);
+        return (change.Start, change.Start + change.Removed);
     }
 }

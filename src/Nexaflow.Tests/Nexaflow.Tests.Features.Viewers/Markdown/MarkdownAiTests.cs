@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Markdown.ViewModels;
 using Nexaflow.Tests.Fixtures;
@@ -36,22 +37,26 @@ public class MarkdownAiTests
         var shell = Substitute.For<IShellServices>();
         shell.RunOnUiAsync(Arg.Any<Action>())
              .Returns(ci => { ci.Arg<Action>()(); return Task.CompletedTask; });
+        shell.RunOnUiAsync(Arg.Any<Func<Task<bool>>>())
+             .Returns(ci => ci.Arg<Func<Task<bool>>>()());
         return shell;
     }
 
-    private MarkdownViewModel Make(string content)
+    private async Task<MarkdownViewModel> MakeAsync(string content)
     {
         var path = TestTemp.CreateFile();
         File.WriteAllText(path, content);
         _tempFiles.Add(path);
-        return new MarkdownViewModel(path, RunningShell());
+        var vm = new MarkdownViewModel(path, RunningShell(), VirtualFileSystem.Instance);
+        await vm.Loaded;
+        return vm;
     }
 
     [TestMethod]
     [CoversNode("markdown-ai-context")]
-    public void Context_ReportsModeSizeAndOutline()
+    public async Task Context_ReportsModeSizeAndOutline()
     {
-        var vm = Make("# Title\n\n## Section\n\nBody text here.\n");
+        var vm = await MakeAsync("# Title\n\n## Section\n\nBody text here.\n");
 
         var ctx = vm.GetContext();
         StringAssert.Contains(ctx, vm.FileName);
@@ -69,9 +74,9 @@ public class MarkdownAiTests
 
     [TestMethod]
     [CoversNode("markdown-ai-preview")]
-    public void Scope_IsFilePath_AndOffersContextPreview()
+    public async Task Scope_IsFilePath_AndOffersContextPreview()
     {
-        var vm = Make("# Hi\n");
+        var vm = await MakeAsync("# Hi\n");
 
         // Aspect 4: two markdown tabs on different files stay distinguishable when pinned together.
         Assert.AreEqual(vm.FilePath, vm.GetSecurityContext());
@@ -83,7 +88,7 @@ public class MarkdownAiTests
     [CoversNode("markdown-ai-act")]
     public async Task AiTools_ReadReplaceModeSetSave_ThroughToolSurface()
     {
-        var vm = Make("# Draft\n\nalpha beta alpha\n");
+        var vm = await MakeAsync("# Draft\n\nalpha beta alpha\n");
 
         var tools = vm.GetClientTools();
         CollectionAssert.AreEquivalent(

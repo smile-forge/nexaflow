@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Dotnet.Services;
 
@@ -12,6 +13,7 @@ namespace Nexaflow.Features.Dotnet.Services;
 /// JSON file under LocalAppData (a regenerable cache, not roaming config). Best-effort — any IO/parse
 /// failure behaves as a cache miss.
 /// </summary>
+[LocalDiskOnly("the package-check cache, in the app's data folder")]
 public static class NugetCheckCache
 {
     private static readonly TimeSpan MaxAge = TimeSpan.FromHours(24);

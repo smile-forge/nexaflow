@@ -62,7 +62,7 @@ public sealed partial class MarkdownBuilder
 
     private readonly List<Run> _runs = [];
     private readonly List<(int Run, int Start, int End)> _line = [];
-    private readonly List<(Run Run, IShapedText? Glyphs)> _groups = [];
+    private readonly List<(Run Run, ISourcePart Part, IShapedText? Glyphs)> _groups = [];
     private readonly List<double> _tops = [];
 
     // ── What each construct is set as ───────────────────────────────────────
@@ -438,7 +438,7 @@ public sealed partial class MarkdownBuilder
 
             if (run.Inset is not null)
             {
-                groups.Add((run, null));
+                groups.Add((run, run.Part, null));
 
                 continue;
             }
@@ -447,15 +447,15 @@ public sealed partial class MarkdownBuilder
 
             var cut = start == 0 && end == run.Text.Length ? run.Text : run.Text[start..end];
 
-            if (align == ParagraphAlign.Justified && !closes) Worded(run, cut, groups);
-            else groups.Add((run, Glyphs(cut, run.Face)));
+            if (align == ParagraphAlign.Justified && !closes) Worded(run, start, cut, groups);
+            else groups.Add((run, LineShare(run, start, end - start), Glyphs(cut, run.Face)));
         }
 
         line.Clear();
 
         var words = Space;
         var baseline = double.NegativeInfinity;
-        foreach (var (_, glyphs) in groups) baseline = Math.Max(baseline, glyphs?.Baseline ?? words.Baseline);
+        foreach (var (_, _, glyphs) in groups) baseline = Math.Max(baseline, glyphs?.Baseline ?? words.Baseline);
 
         var middle = baseline - words.Baseline + (words.Height / 2);
 
@@ -465,7 +465,7 @@ public sealed partial class MarkdownBuilder
 
         for (var index = 0; index < groups.Count; index++)
         {
-            var (run, glyphs) = groups[index];
+            var (run, _, glyphs) = groups[index];
 
             tops.Add(glyphs is not null
                 ? baseline - glyphs.Baseline + (run.Face.Lift * Style.TextSize)
@@ -482,10 +482,10 @@ public sealed partial class MarkdownBuilder
 
         for (var index = 0; index < groups.Count; index++)
         {
-            var (run, glyphs) = groups[index];
+            var (run, part, glyphs) = groups[index];
             var top = tops[index] - over;
 
-            Set(into, run, glyphs, cursor, _y + top);
+            Set(into, run, part, glyphs, cursor, _y + top);
 
             reach = cursor + (glyphs?.Width ?? run.Inset!.Width);
             cursor += glyphs?.WidthWithSpace ?? run.Inset!.Width;
@@ -499,7 +499,7 @@ public sealed partial class MarkdownBuilder
         Reached(reach);
     }
 
-    private void Worded(Run run, string cut, List<(Run Run, IShapedText? Glyphs)> groups)
+    private void Worded(Run run, int from, string cut, List<(Run Run, ISourcePart Part, IShapedText? Glyphs)> groups)
     {
         var at = 0;
 
@@ -510,12 +510,21 @@ public sealed partial class MarkdownBuilder
             while (end < cut.Length && char.IsWhiteSpace(cut[end])) end++;
             if (end == at) end++;
 
-            groups.Add((run, Glyphs(at == 0 && end == cut.Length ? cut : cut[at..end], run.Face)));
+            groups.Add((run, LineShare(run, from + at, end - at), Glyphs(at == 0 && end == cut.Length ? cut : cut[at..end], run.Face)));
             at = end;
         }
     }
 
-    private static (double Shift, double Widen) Aligned(List<(Run Run, IShapedText? Glyphs)> groups, double room,
+    /// <summary>
+    /// What the stretch of a run set on one line — the whole of it, or one word of a justified line — is drawn from. Where what
+    /// is drawn is what was written, a run broken over several lines is that many stretches of its source, each line its own: the
+    /// letters on the second line are not the first line's, and a press among them means one of them. Anything else stands for
+    /// the whole of what it was written as, however it is broken, since none of what it draws stands for one character of that.
+    /// </summary>
+    private static ISourcePart LineShare(Run run, int from, int length) =>
+        !run.Maps || (from == 0 && length == run.Text.Length) ? run.Part : new PartSlice(run.Part, from, length);
+
+    private static (double Shift, double Widen) Aligned(List<(Run Run, ISourcePart Part, IShapedText? Glyphs)> groups, double room,
                                                         ParagraphAlign align, bool closes)
     {
         if (align == ParagraphAlign.Start || groups.Count == 0) return (0, 0);
@@ -523,7 +532,7 @@ public sealed partial class MarkdownBuilder
         var wide = 0.0;
         for (var index = 0; index < groups.Count; index++)
         {
-            var (run, glyphs) = groups[index];
+            var (run, _, glyphs) = groups[index];
             wide += index < groups.Count - 1
                 ? glyphs?.WidthWithSpace ?? run.Inset!.Width
                 : glyphs?.Width ?? run.Inset!.Width;
@@ -549,11 +558,11 @@ public sealed partial class MarkdownBuilder
     private static bool Spaced(IShapedText? glyphs) =>
         glyphs is { Text.Length: > 0 } words && char.IsWhiteSpace(words.Text[^1]);
 
-    private void Set(LayoutBuilder into, Run run, IShapedText? glyphs, double x, double top)
+    private void Set(LayoutBuilder into, Run run, ISourcePart part, IShapedText? glyphs, double x, double top)
     {
         if (run.Inset is { } inset)
         {
-            into.Open(LayoutPieces.Block, run.Part, new LayoutPoint(x, top));
+            into.Open(LayoutPieces.Block, part, new LayoutPoint(x, top));
             inset.Set(into, default, LayoutPieces.Block);
             into.Close();
 
@@ -566,7 +575,7 @@ public sealed partial class MarkdownBuilder
         {
             var pad = Style.TextSize * 0.12;
 
-            into.Open(LayoutPieces.Block, run.Part, new LayoutPoint(x - pad, top));
+            into.Open(LayoutPieces.Block, part, new LayoutPoint(x - pad, top));
             into.Draw(new WashMark(new LayoutRect(0, 0, glyphs.Width + (pad * 2), glyphs.Height), wash));
             into.Close();
         }
@@ -574,16 +583,16 @@ public sealed partial class MarkdownBuilder
         if (run.Act is not { } act)
         {
             LayoutText.Words(into, glyphs, new LayoutPoint(x, top), double.PositiveInfinity, LayoutAlign.Left,
-                               run.Part, LayoutPieces.Words, maps: run.Maps, writes: !run.Maps, ink: run.Face.Ink ?? Style.Text);
+                               part, LayoutPieces.Words, maps: run.Maps, writes: !run.Maps, ink: run.Face.Ink ?? Style.Text);
 
             return;
         }
 
-        into.Open(LayoutPieces.Block, run.Part, new LayoutPoint(x, top));
+        into.Open(LayoutPieces.Block, part, new LayoutPoint(x, top));
         into.Acts(new LayoutActions { Click = act });
 
         LayoutText.Words(into, glyphs, default, double.PositiveInfinity, LayoutAlign.Left,
-                           run.Part, LayoutPieces.Words, maps: run.Maps, writes: !run.Maps, ink: run.Face.Ink ?? Style.Text);
+                           part, LayoutPieces.Words, maps: run.Maps, writes: !run.Maps, ink: run.Face.Ink ?? Style.Text);
 
         into.Close();
     }

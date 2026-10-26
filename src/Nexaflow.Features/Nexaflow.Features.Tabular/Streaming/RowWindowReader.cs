@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Tabular.Detection;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 using Nexaflow.Visuals.Common.Collections;
 
 namespace Nexaflow.Features.Tabular.Streaming;
@@ -21,6 +22,7 @@ namespace Nexaflow.Features.Tabular.Streaming;
 /// </summary>
 public sealed class RowWindowReader : IRowSource
 {
+    private readonly IVirtualFileSystem _vfs;
     private readonly string    _path;
     private readonly Encoding  _encoding;
     private readonly int       _bomBytes;
@@ -39,8 +41,9 @@ public sealed class RowWindowReader : IRowSource
         lock (_knownLock) _knownRowCount = count;
     }
 
-    public RowWindowReader(string filePath, Encoding encoding, int bomBytes, DataShape shape)
+    public RowWindowReader(IVirtualFileSystem vfs, string filePath, Encoding encoding, int bomBytes, DataShape shape)
     {
+        _vfs      = vfs;
         _path     = filePath;
         _encoding = encoding;
         _bomBytes = bomBytes;
@@ -50,7 +53,7 @@ public sealed class RowWindowReader : IRowSource
     public Task<List<HydratedRow>> GetVisibleAsync(
         int fromRow, int maxVisible, RowFilter filter, CancellationToken ct)
     {
-        return Task.Run(() => ScanForVisible(fromRow, maxVisible, filter, ct), CancellationToken.None);
+        return Task.Run(() => ScanForVisibleAsync(fromRow, maxVisible, filter, ct), CancellationToken.None);
     }
 
     /// <summary>
@@ -60,12 +63,13 @@ public sealed class RowWindowReader : IRowSource
     /// scan returns whatever it has so far and the caller checks the token before
     /// committing the result.
     /// </summary>
-    private List<HydratedRow> ScanForVisible(int fromRow, int maxVisible, RowFilter filter, CancellationToken ct)
+    private async Task<List<HydratedRow>> ScanForVisibleAsync(int fromRow, int maxVisible, RowFilter filter, CancellationToken ct)
     {
         var result = new List<HydratedRow>(maxVisible);
         try
         {
-            using var fs = VirtualFileSystem.Instance.OpenRead(_path);
+            // Not cancelled by ct: a cancelled scan still returns what it has, and the caller decides.
+            await using var fs = await _vfs.OpenReadAsync(_path, ReadIntent.Sequential, CancellationToken.None);
             fs.Position  = _bomBytes;
             using var sr = new StreamReader(fs, _encoding, detectEncodingFromByteOrderMarks: false, bufferSize: 16384);
 

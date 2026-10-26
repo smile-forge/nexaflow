@@ -29,17 +29,25 @@ public sealed class FeatureFileStamp
 /// <para>
 /// Capturing this costs one directory enumeration and <b>no</b> assembly loads, so the lazy-loading guarantee is
 /// untouched: <see cref="Directory"/>'s enumerator already carries each entry's length and write time on
-/// Windows, so no file is opened and nothing is hashed. It is the same <c>Nexaflow.Features.*.dll</c> sweep the
-/// full scan opens with, and an order of magnitude cheaper than deserializing the ~90 KB index it validates.
+/// Windows, so no file is opened and nothing is hashed. It is the same sweep the full scan opens with — every
+/// <see cref="CataloguedPatterns"/> match — and an order of magnitude cheaper than deserializing the ~90 KB index it
+/// validates.
 /// </para>
 /// </remarks>
 public static class FeatureCatalogStamp
 {
     public const string FeatureDllPattern = "Nexaflow.Features.*.dll";
 
+    /// <summary>The location backends (<c>Nexaflow.IO.Location.&lt;Kind&gt;</c>), catalogued beside the features so the
+    /// app finds a protocol by its assembly being there.</summary>
+    public const string LocationDllPattern = "Nexaflow.IO.Location.*.dll";
+
+    /// <summary>Every assembly pattern the catalog sweeps.</summary>
+    public static readonly IReadOnlyList<string> CataloguedPatterns = [FeatureDllPattern, LocationDllPattern];
+
     /// <summary>
-    /// The current stamp for <paramref name="exeDir"/>: every feature assembly plus Core, name-ordered so two
-    /// captures of the same directory compare equal regardless of enumeration order.
+    /// The current stamp for <paramref name="exeDir"/>: every feature and location assembly plus Core, name-ordered so
+    /// two captures of the same directory compare equal regardless of enumeration order.
     /// </summary>
     public static List<FeatureFileStamp> Capture(string exeDir, string coreFile)
     {
@@ -47,8 +55,9 @@ public static class FeatureCatalogStamp
         try
         {
             var dir = new DirectoryInfo(exeDir);
-            foreach (var f in dir.EnumerateFiles(FeatureDllPattern))
-                stamps.Add(Of(f));
+            foreach (var pattern in CataloguedPatterns)
+                foreach (var f in dir.EnumerateFiles(pattern))
+                    stamps.Add(Of(f));
 
             // Core carries registrations too, and does not match the feature pattern.
             if (!stamps.Exists(s => string.Equals(s.Name, coreFile, StringComparison.OrdinalIgnoreCase)))

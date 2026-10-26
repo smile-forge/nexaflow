@@ -184,7 +184,8 @@ public sealed class FeatureCatalog
     {
         var idx = new CatalogIndex { Version = version, Files = stamp };
 
-        var files = Directory.GetFiles(_exeDir, FeatureCatalogStamp.FeatureDllPattern)
+        var files = FeatureCatalogStamp.CataloguedPatterns
+            .SelectMany(pattern => Directory.GetFiles(_exeDir, pattern))
             .Select(Path.GetFileName)
             .Where(f => f is not null)
             .Select(f => f!)

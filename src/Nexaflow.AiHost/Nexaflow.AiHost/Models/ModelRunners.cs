@@ -39,6 +39,9 @@ internal sealed class ModelRunners(IEnumerable<IModelRunner> runners)
     new Drawing.ZImageDenoiserRunner(),
     new Drawing.ZImageDecoderRunner(),
     new Drawing.HiDreamDenoiserRunner(),
+    new Drawing.MossPromptEncoderRunner(),
+    new Drawing.MossDenoiserRunner(),
+    new Drawing.MossDecoderRunner(),
     new Filming.WanPromptEncoderRunner(),
     new Filming.WanDenoiserRunner(),
     new Filming.WanDecoderRunner(),
@@ -54,6 +57,7 @@ internal sealed class ModelRunners(IEnumerable<IModelRunner> runners)
     new Selecting.FinderRunner(),
     new Reading.TextFinderRunner(),
     new Erasing.PictureInpainterRunner(),
+    new Checking.PictureSafetyClassifierRunner(),
     ]);
 
     /// <exception cref="HostRequestException">This host has no runner of that name.</exception>

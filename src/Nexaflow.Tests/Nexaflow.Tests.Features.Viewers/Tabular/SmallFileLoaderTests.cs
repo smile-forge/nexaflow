@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -34,24 +35,24 @@ public class SmallFileLoaderTests
     };
 
     [TestMethod]
-    public void Load_WithHeader_SkipsHeaderRow()
+    public async Task Load_WithHeader_SkipsHeaderRow()
     {
         var path = WriteTemp("name,age\nalice,30\nbob,42\n");
         try
         {
-            var loader = new SmallFileLoader(path, Encoding.UTF8, 0, new DataShape(SimpleCsv(hasHeader: true, fields: 2), null));
+            var loader = await SmallFileLoader.LoadAsync(VirtualFileSystem.Instance, path, Encoding.UTF8, 0, new DataShape(SimpleCsv(hasHeader: true, fields: 2), null));
             Assert.AreEqual(2, loader.KnownRowCount);
         }
         finally { File.Delete(path); }
     }
 
     [TestMethod]
-    public void GetVisible_FilterMatchesAll_ReturnsAllRows()
+    public async Task GetVisible_FilterMatchesAll_ReturnsAllRows()
     {
         var path = WriteTemp("a,1\nb,2\nc,3\n");
         try
         {
-            var loader = new SmallFileLoader(path, Encoding.UTF8, 0, new DataShape(SimpleCsv(hasHeader: false, fields: 2), null));
+            var loader = await SmallFileLoader.LoadAsync(VirtualFileSystem.Instance, path, Encoding.UTF8, 0, new DataShape(SimpleCsv(hasHeader: false, fields: 2), null));
             var rows = loader.GetVisibleAsync(0, 10, _ => true, CancellationToken.None).Result;
             Assert.AreEqual(3, rows.Count);
             Assert.AreEqual("a", rows[0].Cells[0]);
@@ -61,12 +62,12 @@ public class SmallFileLoaderTests
     }
 
     [TestMethod]
-    public void GetVisible_Filter_DropsNonMatchingRows()
+    public async Task GetVisible_Filter_DropsNonMatchingRows()
     {
         var path = WriteTemp("a,1\nb,2\nc,3\n");
         try
         {
-            var loader = new SmallFileLoader(path, Encoding.UTF8, 0, new DataShape(SimpleCsv(hasHeader: false, fields: 2), null));
+            var loader = await SmallFileLoader.LoadAsync(VirtualFileSystem.Instance, path, Encoding.UTF8, 0, new DataShape(SimpleCsv(hasHeader: false, fields: 2), null));
             var rows = loader.GetVisibleAsync(0, 10, cells => cells[1] != "2", CancellationToken.None).Result;
             Assert.AreEqual(2, rows.Count);
             Assert.AreEqual("a", rows[0].Cells[0]);
@@ -76,12 +77,12 @@ public class SmallFileLoaderTests
     }
 
     [TestMethod]
-    public void GetVisible_FromRowOffset_StartsAtThatIndex()
+    public async Task GetVisible_FromRowOffset_StartsAtThatIndex()
     {
         var path = WriteTemp("a,1\nb,2\nc,3\nd,4\n");
         try
         {
-            var loader = new SmallFileLoader(path, Encoding.UTF8, 0, new DataShape(SimpleCsv(hasHeader: false, fields: 2), null));
+            var loader = await SmallFileLoader.LoadAsync(VirtualFileSystem.Instance, path, Encoding.UTF8, 0, new DataShape(SimpleCsv(hasHeader: false, fields: 2), null));
             var rows = loader.GetVisibleAsync(2, 10, _ => true, CancellationToken.None).Result;
             Assert.AreEqual(2, rows.Count);
             Assert.AreEqual("c", rows[0].Cells[0]);
@@ -91,12 +92,12 @@ public class SmallFileLoaderTests
     }
 
     [TestMethod]
-    public void Sort_RewritesUnderlyingRowOrder()
+    public async Task Sort_RewritesUnderlyingRowOrder()
     {
         var path = WriteTemp("c,3\na,1\nb,2\n");
         try
         {
-            var loader = new SmallFileLoader(path, Encoding.UTF8, 0, new DataShape(SimpleCsv(hasHeader: false, fields: 2), null));
+            var loader = await SmallFileLoader.LoadAsync(VirtualFileSystem.Instance, path, Encoding.UTF8, 0, new DataShape(SimpleCsv(hasHeader: false, fields: 2), null));
             loader.Sort((x, y) => string.Compare(x[0], y[0], StringComparison.Ordinal));
             var rows = loader.GetVisibleAsync(0, 10, _ => true, CancellationToken.None).Result;
             Assert.AreEqual("a", rows[0].Cells[0]);
@@ -107,14 +108,14 @@ public class SmallFileLoaderTests
     }
 
     [TestMethod]
-    public void Load_MergeTransform_AppliesAtHydration()
+    public async Task Load_MergeTransform_AppliesAtHydration()
     {
         var path = WriteTemp("first,last,age\nada,lovelace,36\nlinus,torvalds,55\n");
         try
         {
             var data = new DataShape(SimpleCsv(hasHeader: true, fields: 3), null);
             data.AddTransform(new MergeColumnsTransform([0, 1], " "));
-            var loader = new SmallFileLoader(path, Encoding.UTF8, 0, data);
+            var loader = await SmallFileLoader.LoadAsync(VirtualFileSystem.Instance, path, Encoding.UTF8, 0, data);
             var rows = loader.GetVisibleAsync(0, 10, _ => true, CancellationToken.None).Result;
             Assert.AreEqual("ada lovelace", rows[0].Cells[0]);
             Assert.AreEqual("36",           rows[0].Cells[1]);

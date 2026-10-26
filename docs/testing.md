@@ -411,7 +411,15 @@ folder is held only by a live host. `TempHygieneRulesTests` (Architecture) fails
     They assert its fifty steps, its size, a picture rather than a flat field, a stop between steps, a size it was not
     trained on refused, and the prompt read as HiDream's processor reads it; the fox it draws is attached to the run's
     results. Unset, each is **inconclusive**. How the build compares with PyTorch is
-        `tools/ai-models/hidream-o1/check_hidream_o1.py`; the sampler's port is held to HiDream's own by `HiDreamSamplerTests`.
+              `tools/ai-models/hidream-o1/check_hidream_o1.py`; the sampler's port is held to HiDream's own by `HiDreamSamplerTests`.
+  - **`MossImageModelTests`** *(`Tests.AiHost`, `TestCategory("OwnedModel")`)* — the same for MOSS-Image's parts:
+    `NEXAFLOW_TEST_MOSS` names a folder holding the build as the catalog lays it out (`encoder\Qwen3.5-9B-Q8_0.gguf`,
+    `denoiser\`, `decoder\`, `loras\`), with `NEXAFLOW_TEST_RUNTIME_PACK`. They assert its fifty guided steps, the same
+    picture from the same seed, a negative prompt and a style LoRA each changing the picture, the distillation's own
+    eight steps, and what a model takes not refused before anything loads; the pictures are attached to the run's
+    results. Unset, each is **inconclusive**. How the build and each LoRA compare with PyTorch is
+    `tools/ai-models/moss-image/check_moss_image.py` and `check_moss_loras.py`; the sampler's port is held to the
+    recipe's loop by `MossSamplerTests`.
     - **`VideoModelTests`** *(`Tests.AiHost`, `TestCategory("OwnedModel")`)* — the host filming with Wan2.2-TI2V's real
       graphs: `NEXAFLOW_TEST_VIDEO` names a folder holding the published build (`prompt-encoder\`, `denoiser\`,
       `denoiser-fast\`, `decoder\`, `frame-encoder\`) and `NEXAFLOW_TEST_RUNTIME_PACK` the CUDA pack. They assert a clip's
@@ -695,6 +703,32 @@ builder is made by hand — a fake of the base to hold it to what it promises �
 compilation that holds a `[TestClass]`. `ContentBuilderAnalyzerTests` (in `Tests.Features.Architecture`) puts each rule
 to a compilation of its own.
 
+### How a feature reaches a file (`NXIO001`–`NXIO003`)
+
+A path a person opened may be on another machine ([remote-locations.md](remote-locations.md)), so a feature reaches it
+through the awaitable members of `IVirtualFileSystem`. `Nexaflow.Analyzers.Io` holds that:
+
+- **`NXIO001`** — a call to a file-system member marked `[BlocksOnIo]`, through the interface or a type implementing it.
+  The mark names the member to await, and so does the report; a member marked `[BlocksOnIo(null)]`
+  (`OpenReadWrite`) has none and serves local paths only.
+- **`NXIO002`** — `System.IO` reaching the disk itself: a static of `File`, `Directory` or `ZipFile`, `Path.Exists`, or
+  making a `FileInfo`, `DirectoryInfo`, `FileStream`, `FileSystemWatcher`, or a `StreamReader` / `StreamWriter` on a
+  path. `Path`'s string work and a reader over a stream are not the disk.
+- **`NXIO003`** — a `[LocalDiskOnly]` with an empty reason.
+
+`[LocalDiskOnly("…")]` (in `IO.Common`) exempts code that only ever touches this machine's own disk: settings, caches
+and stores under `%APPDATA%` / `%LOCALAPPDATA%`, or a path the file system has already resolved to a real local file.
+It goes on the type or the member and covers what is lexically inside it, lambdas, local functions and accessors
+included, never what it calls. Its reason says where the files are, because that is what review weighs.
+
+`Directory.Build.targets` hands the analyzer to every C# project under `src\Nexaflow.Features\` and
+`src\Nexaflow.Visuals.*` that is not a test project. It keys on where a project lives rather than `UseWPF`, so the
+codec backends are held too, and it compares those paths ignoring case, because MSBuild names the same folder in
+whichever case it was reached by. The WPF markup pass (`_wpftmp`) runs none of the `Nexaflow.Analyzers.*` analyzers, or each
+finding would be reported twice. All three are **errors**: no feature or shared visual reports one, so a new call site
+that blocks on the file system or reaches the disk itself fails the build until it awaits or carries the mark.
+`BlockingIoAnalyzerTests` (in `Tests.Features.Architecture`) puts each rule to a compilation of its own.
+
 ### Automation ids (`NXUI001` / `AutomationIdJourneyCoverageTests`)
 
 A journey can only click what it can find, and on this shell that means an `AutomationProperties.AutomationId`
@@ -729,7 +763,7 @@ ship without being held to the same rules, and a rule added to the base applies 
 | Contract | Base | Implementors |
 |---|---|---|
 | `ISearchable` — a page may decline regex, but never *appear* to support it | `Search/SearchableConformance.cs` (two tiers: with and without seeded content) | every searchable page |
-| viewer `IFileAction` — `PerformAction(p)` and `PerformAction([p])` are the same user intent | `FileActions/FileActionConformance.cs` | every action with `OpensViewer => true` |
+| viewer `IFileAction` — `PerformActionAsync(p)` and `PerformActionAsync([p])` are the same user intent | `FileActions/FileActionConformance.cs` | every action with `OpensViewer => true` |
 
 Each rule is one a hand-written test would assert in some features and not others — and the features that skip it
 are the ones that drift. The file-action contract holds the two overloads to one answer: filtering by file type
@@ -854,6 +888,11 @@ least able to fail for a reason that is not about its subject.
   before the read-back). `Common/Audio/` holds the test signals and the meter's arithmetic, sample by sample, and the
   float WAV round trip. `AudioEndpointCatalogTests` and `SerialPortCatalogTests` list this machine's audio endpoints
   and COM ports without opening any.
+- **`Location/`** — the location provider contract, written once as `LocationSessionContract` and inherited per
+  backend (listing, ranged reads, atomic and conflict-checked writes, rename, delete, cancellation, reconnect), run
+  against an in-memory host at 0, 80 and 250 ms of latency so a change that adds round trips shows as time; plus the
+  path escaping and display form, and the runtime file system's routing. The async VFS over local paths is in
+  `Common/` beside the sync tests.
 - **`Protocol/`** — the DynamicProtocol engine, plus the ten-protocol corpus (`Protocol/Corpus/*.json`)
   and the protocol graphs authored against it (`Protocol/Definitions/*.json`), both copied to the output
   by the csproj. See [dynamic-protocol.md](dynamic-protocol.md) → *Reading the tests*.

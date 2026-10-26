@@ -1,9 +1,11 @@
+using Nexaflow.Features.Images.Editing;
 using System.IO;
 using Nexaflow.Features.Audio;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Video;
+using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 
@@ -70,18 +72,18 @@ public class DraftHandlerTests
     [TestMethod]
     public async Task APictureKeptFromADraft_TakesItsEdits_AndNeverTheEditsOfAPictureItReplaced()
     {
-        using var recipes = new ImageRecipeStore(TimeSpan.FromHours(1));
+        using var editing = new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1)));
         var draft = Made("fox.png");
         File.WriteAllText(ImageRecipeStore.SidecarPath(draft), "the draft's edits");
         var kept = Path.Combine(Directory.CreateDirectory(Path.Combine(_dir, "kept")).FullName, "fox.png");
 
-        await ImageDraftHandler.KeepAsync(recipes, draft, kept);
+        await ImageDraftHandler.KeepAsync(editing, draft, kept);
 
         CollectionAssert.AreEqual(new byte[] { 1, 2, 3 }, File.ReadAllBytes(kept));
         Assert.AreEqual("the draft's edits", File.ReadAllText(ImageRecipeStore.SidecarPath(kept)));
 
         var plain = Made("plain.png");
-        await ImageDraftHandler.KeepAsync(recipes, plain, kept);
+        await ImageDraftHandler.KeepAsync(editing, plain, kept);
 
         Assert.IsFalse(File.Exists(ImageRecipeStore.SidecarPath(kept)), "the replaced picture's edits do not land on this one");
     }

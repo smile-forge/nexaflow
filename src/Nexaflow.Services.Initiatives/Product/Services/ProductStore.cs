@@ -55,6 +55,9 @@ public sealed class ProductStore
         _graphScope = Sanitise(graphScope);
     }
 
+    /// <summary>What the product kept at <paramref name="productRoot"/> is called until it is named: its folder's name.</summary>
+    public static string NameOfRoot(string productRoot) => Path.GetFileName(Path.TrimEndingDirectorySeparator(productRoot));
+
     /// <summary>A directory-safe form of a working tree's name.</summary>
     private static string? Sanitise(string? scope)
     {

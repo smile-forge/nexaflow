@@ -3,10 +3,12 @@ using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions
 {
-    internal class FileProperties : IFileAction, IFolderAction, ICacheable
+    internal class FileProperties(IVirtualFileSystem vfs) : IFileAction, IFolderAction, ICacheable
     {
         // ── IFileAction ───────────────────────────────────────────────────────
 
@@ -33,13 +35,13 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
         // ── Actions ───────────────────────────────────────────────────────────
 
-        public bool PerformAction(string filePath)
+        public async Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default)
         {
             try
             {
                 // A file inside a disk image / archive is virtual — the shell needs a real path, so
                 // materialise it to a temp copy first (a real file/folder passes through unchanged).
-                NativeMethods.ShowFileProperties(RealPath(filePath));
+                NativeMethods.ShowFileProperties(await RealPathAsync(filePath, ct));
                 return true;
             }
             catch
@@ -48,19 +50,19 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
             }
         }
 
-        private static string RealPath(string path)
+        private async Task<string> RealPathAsync(string path, CancellationToken ct)
         {
-            try { return VirtualFileSystem.Instance.MaterializeFile(path); }
+            try { return await vfs.MaterializeFileAsync(path, ct); }
             catch { return path; }
         }
 
         // SupportsMultipleFiles is false, so the action strip never offers this on a multi-selection — but
         // the ribbon-pin path invokes a pinned action directly, and this threw NotImplementedException there.
         // Show the first file's properties, the same defensive answer RenameFile and ExecuteFile give.
-        public bool PerformAction(IEnumerable<string> filePaths)
+        public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
         {
-            foreach (var p in filePaths) return PerformAction(p);
-            return false;
+            foreach (var p in filePaths) return PerformActionAsync(p, ct);
+            return Task.FromResult(false);
         }
     }
 }

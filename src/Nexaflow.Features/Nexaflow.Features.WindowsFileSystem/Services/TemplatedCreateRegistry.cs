@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
+using Nexaflow.IO.Common;
 using System.Collections.Generic;
 using System.IO;
 
@@ -32,8 +33,9 @@ public sealed class TemplatedCreateRegistry
     /// <summary>Directory where template files are stored, alongside the config JSON.</summary>
     public string TemplatesDir => Path.Combine(_baseDir, "templatedcreate", "templates");
 
-    /// <summary>Fresh <see cref="IFileCreateAction"/>s for every configured template.</summary>
-    public IReadOnlyList<IFileCreateAction> BuildCreateActions()
+    /// <summary>Fresh <see cref="IFileCreateAction"/>s for every configured template, each creating through
+    /// <paramref name="vfs"/>, the runtime's file system.</summary>
+    public IReadOnlyList<IFileCreateAction> BuildCreateActions(IVirtualFileSystem vfs)
     {
         var dir  = TemplatesDir;
         var list = new List<IFileCreateAction>();
@@ -42,7 +44,7 @@ public sealed class TemplatedCreateRegistry
             if (string.IsNullOrWhiteSpace(def.Name) || string.IsNullOrWhiteSpace(def.TemplateFileName))
                 continue;
             list.Add(new TemplateCreateAction(
-                def.Name, def.Icon, def.FileExtension, Path.Combine(dir, def.TemplateFileName)));
+                def.Name, def.Icon, def.FileExtension, Path.Combine(dir, def.TemplateFileName), vfs));
         }
         return list;
     }

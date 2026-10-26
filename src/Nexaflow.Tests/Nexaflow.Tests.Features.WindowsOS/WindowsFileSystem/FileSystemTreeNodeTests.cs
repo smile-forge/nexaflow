@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.ComponentModel;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Tests.Fixtures;
@@ -16,7 +17,7 @@ public class FileSystemTreeNodeTests
     [TestMethod]
     public void FolderNode_NonExistentPath_NoChildren()
     {
-        var node = new FileSystemTreeNode("docs", FakePath);
+        var node = new FileSystemTreeNode("docs", FakePath, VirtualFileSystem.Instance);
 
         // Non-existent path → no subdir check succeeds → no Dummy child
         Assert.AreEqual(0, node.Children.Count);
@@ -25,7 +26,7 @@ public class FileSystemTreeNodeTests
     [TestMethod]
     public void FolderNode_Kind_IsFolder()
     {
-        var node = new FileSystemTreeNode("docs", FakePath);
+        var node = new FileSystemTreeNode("docs", FakePath, VirtualFileSystem.Instance);
 
         Assert.AreEqual(TreeNodeKind.Folder, node.Kind);
     }
@@ -33,7 +34,7 @@ public class FileSystemTreeNodeTests
     [TestMethod]
     public void DriveNode_Kind_IsDrive()
     {
-        var node = new FileSystemTreeNode("C:", @"C:\", TreeNodeKind.Drive);
+        var node = new FileSystemTreeNode("C:", @"C:\", TreeNodeKind.Drive, VirtualFileSystem.Instance);
 
         Assert.AreEqual(TreeNodeKind.Drive, node.Kind);
     }
@@ -41,7 +42,7 @@ public class FileSystemTreeNodeTests
     [TestMethod]
     public void DriveNode_InitialStatus_IsLoading()
     {
-        var node = new FileSystemTreeNode("C:", @"C:\", TreeNodeKind.Drive);
+        var node = new FileSystemTreeNode("C:", @"C:\", TreeNodeKind.Drive, VirtualFileSystem.Instance);
 
         Assert.AreEqual(DriveStatus.Loading, node.DriveStatus);
     }
@@ -49,7 +50,7 @@ public class FileSystemTreeNodeTests
     [TestMethod]
     public void ThisPcNode_Kind_IsThisPc()
     {
-        var node = new FileSystemTreeNode("This PC", string.Empty, TreeNodeKind.ThisPc);
+        var node = new FileSystemTreeNode("This PC", string.Empty, TreeNodeKind.ThisPc, VirtualFileSystem.Instance);
 
         Assert.AreEqual(TreeNodeKind.ThisPc, node.Kind);
     }
@@ -57,7 +58,7 @@ public class FileSystemTreeNodeTests
     [TestMethod]
     public void FolderNode_NameAndFullPath_Stored()
     {
-        var node = new FileSystemTreeNode("docs", FakePath);
+        var node = new FileSystemTreeNode("docs", FakePath, VirtualFileSystem.Instance);
 
         Assert.AreEqual("docs", node.Name);
         Assert.AreEqual(FakePath, node.FullPath);
@@ -68,7 +69,7 @@ public class FileSystemTreeNodeTests
     [TestMethod]
     public void IsExpanded_DriveLoading_BlocksExpansion()
     {
-        var node = new FileSystemTreeNode("C:", @"C:\", TreeNodeKind.Drive);
+        var node = new FileSystemTreeNode("C:", @"C:\", TreeNodeKind.Drive, VirtualFileSystem.Instance);
         // DriveStatus starts as Loading
 
         node.IsExpanded = true;
@@ -79,7 +80,7 @@ public class FileSystemTreeNodeTests
     [TestMethod]
     public void IsExpanded_DriveUnavailable_BlocksExpansion()
     {
-        var node = new FileSystemTreeNode("D:", @"D:\", TreeNodeKind.Drive);
+        var node = new FileSystemTreeNode("D:", @"D:\", TreeNodeKind.Drive, VirtualFileSystem.Instance);
         node.DriveStatus = DriveStatus.Unavailable;
 
         node.IsExpanded = true;
@@ -90,7 +91,7 @@ public class FileSystemTreeNodeTests
     [TestMethod]
     public void IsExpanded_DriveReady_AllowsExpansion()
     {
-        var node = new FileSystemTreeNode("C:", @"C:\", TreeNodeKind.Drive);
+        var node = new FileSystemTreeNode("C:", @"C:\", TreeNodeKind.Drive, VirtualFileSystem.Instance);
         node.DriveStatus = DriveStatus.Ready;
 
         node.IsExpanded = true;
@@ -101,7 +102,7 @@ public class FileSystemTreeNodeTests
     [TestMethod]
     public void IsExpanded_FolderNode_AllowsExpansion()
     {
-        var node = new FileSystemTreeNode("docs", FakePath);
+        var node = new FileSystemTreeNode("docs", FakePath, VirtualFileSystem.Instance);
 
         node.IsExpanded = true;
 
@@ -111,7 +112,7 @@ public class FileSystemTreeNodeTests
     [TestMethod]
     public void IsExpanded_SetSameValue_NoChangeEvent()
     {
-        var node  = new FileSystemTreeNode("docs", FakePath);
+        var node  = new FileSystemTreeNode("docs", FakePath, VirtualFileSystem.Instance);
         var fired = new List<string?>();
         ((INotifyPropertyChanged)node).PropertyChanged += (_, e) => fired.Add(e.PropertyName);
 
@@ -125,7 +126,7 @@ public class FileSystemTreeNodeTests
     [TestMethod]
     public void Name_Set_FiresPropertyChanged()
     {
-        var node  = new FileSystemTreeNode("old", FakePath);
+        var node  = new FileSystemTreeNode("old", FakePath, VirtualFileSystem.Instance);
         var fired = new List<string?>();
         ((INotifyPropertyChanged)node).PropertyChanged += (_, e) => fired.Add(e.PropertyName);
 
@@ -137,7 +138,7 @@ public class FileSystemTreeNodeTests
     [TestMethod]
     public void DriveStatus_Set_FiresPropertyChanged()
     {
-        var node  = new FileSystemTreeNode("C:", @"C:\", TreeNodeKind.Drive);
+        var node  = new FileSystemTreeNode("C:", @"C:\", TreeNodeKind.Drive, VirtualFileSystem.Instance);
         var fired = new List<string?>();
         ((INotifyPropertyChanged)node).PropertyChanged += (_, e) => fired.Add(e.PropertyName);
 
@@ -149,7 +150,7 @@ public class FileSystemTreeNodeTests
     [TestMethod]
     public void IsSelected_Set_FiresPropertyChanged()
     {
-        var node  = new FileSystemTreeNode("docs", FakePath);
+        var node  = new FileSystemTreeNode("docs", FakePath, VirtualFileSystem.Instance);
         var fired = new List<string?>();
         ((INotifyPropertyChanged)node).PropertyChanged += (_, e) => fired.Add(e.PropertyName);
 

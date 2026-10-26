@@ -6,6 +6,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Pdf.Reading;
+using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Pdf.Services;
@@ -28,11 +30,11 @@ public sealed record PdfImageExtractionResult(
 /// the UI thread. A draft it was handed — a copy written for it alone — it deletes once read, whatever the outcome.
 /// </para>
 /// </summary>
-public sealed class PdfImageExtractionTask(IReadOnlyList<PdfImageSource> sources, string targetRoot) : IBackgroundTask
+public sealed class PdfImageExtractionTask(IReadOnlyList<PdfImageSource> sources, string targetRoot, IVirtualFileSystem vfs) : IBackgroundTask
 {
-    /// <summary>PDFs as they are on disk, each going by its file name.</summary>
-    public PdfImageExtractionTask(IReadOnlyList<string> pdfPaths, string targetRoot)
-        : this(pdfPaths.Select(PdfImageSource.OfFile).ToList(), targetRoot)
+    /// <summary>PDFs as they are where they are, each going by its file name.</summary>
+    public PdfImageExtractionTask(IReadOnlyList<string> pdfPaths, string targetRoot, IVirtualFileSystem vfs)
+        : this(pdfPaths.Select(PdfImageSource.OfFile).ToList(), targetRoot, vfs)
     {
     }
 
@@ -43,16 +45,16 @@ public sealed class PdfImageExtractionTask(IReadOnlyList<PdfImageSource> sources
     /// <summary>Per-document outcome, populated as the run proceeds and read by the completion callback.</summary>
     public List<PdfImageExtractionResult> Results { get; } = [];
 
-    public Task RunAsync(CancellationToken ct)
+    public async Task RunAsync(CancellationToken ct)
     {
-        // PdfPig is synchronous throughout, so there is nothing to await — the shell already called this on a
-        // background thread, and pretending otherwise would only add a hop.
+        // The documents are read, and the images written, through the file system, so either may be in an archive or
+        // on a location. PdfPig itself is synchronous, and parses on the background thread the shell called this on.
         try
         {
             foreach (var source in sources)
             {
                 ct.ThrowIfCancellationRequested();
-                Results.Add(ExtractOne(source, ct));
+                Results.Add(await ExtractOneAsync(source, ct));
                 if (source.Draft) DeleteDraft(source);
             }
         }
@@ -62,13 +64,11 @@ public sealed class PdfImageExtractionTask(IReadOnlyList<PdfImageSource> sources
             foreach (var source in sources)
                 if (source.Draft) DeleteDraft(source);
         }
-
-        return Task.CompletedTask;
     }
 
-    private PdfImageExtractionResult ExtractOne(PdfImageSource source, CancellationToken ct)
+    private async Task<PdfImageExtractionResult> ExtractOneAsync(PdfImageSource source, CancellationToken ct)
     {
-        using var scope = PdfDocumentScope.TryOpen(source.Path, ct);
+        using var scope = await PdfDocumentScope.TryOpenAsync(vfs, source.Path, ct);
         if (scope is null)
             return new PdfImageExtractionResult(source.Name, null, 0, 0, 0, Str.Get("Pdf.Extract.CouldNotBeRead"));
 
@@ -81,8 +81,8 @@ public sealed class PdfImageExtractionTask(IReadOnlyList<PdfImageSource> sources
         {
             foreach (var image in PdfImageReader.Read(scope.Document, t => tally = t, ct))
             {
-                destination ??= CreateDestination(source.Name);
-                Write(Path.Combine(destination, image.SuggestedFileName), image.Bytes.Span, ct);
+                destination ??= await CreateDestinationAsync(source.Name, ct);
+                await WriteAsync(Path.Combine(destination, image.SuggestedFileName), image.Bytes, ct);
             }
         }
         catch (OperationCanceledException) { throw; }
@@ -96,41 +96,34 @@ public sealed class PdfImageExtractionTask(IReadOnlyList<PdfImageSource> sources
             source.Name, destination, tally.Extracted, tally.Duplicates, tally.Undecodable, Error: null);
     }
 
-    // Written to a sidecar name and then moved, so cancelling or failing part-way through a large image
-    // never leaves a truncated file that looks like a successful extraction.
-    private static void Write(string path, ReadOnlySpan<byte> bytes, CancellationToken ct)
+    // Written whole and then put in place, so cancelling or failing part-way through a large image never leaves a
+    // truncated file that looks like a successful extraction.
+    private async Task WriteAsync(string path, ReadOnlyMemory<byte> bytes, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
 
-        var partial = path + ".part";
-        try
-        {
-            File.WriteAllBytes(partial, bytes);
-            File.Move(partial, path, overwrite: true);
-        }
-        catch
-        {
-            try { if (File.Exists(partial)) File.Delete(partial); } catch { }
-            throw;
-        }
+        await using var write = await vfs.BeginWriteAsync(path, WriteMode.Replace, ct: ct);
+        await write.Content.WriteAsync(bytes, ct);
+        await write.CommitAsync(ct);
     }
 
     /// <summary>
     /// A subfolder named after the document, so extracting from several PDFs — or into a folder that already
     /// holds an earlier run — never interleaves or overwrites two sets of <c>p001-01.png</c>.
     /// </summary>
-    private string CreateDestination(string name)
+    private async Task<string> CreateDestinationAsync(string name, CancellationToken ct)
     {
         var baseName = Sanitize(Path.GetFileNameWithoutExtension(name));
         var dest     = Path.Combine(targetRoot, baseName);
-        for (var n = 1; Directory.Exists(dest) || File.Exists(dest); n++)
+        for (var n = 1; await vfs.ExistsAsync(dest, ct); n++)
             dest = Path.Combine(targetRoot, $"{baseName} ({n})");
 
-        Directory.CreateDirectory(dest);
+        await vfs.CreateDirectoryAsync(dest, ct);
         return dest;
     }
 
     /// <summary>A draft goes with the folder of its own it was written into.</summary>
+    [LocalDiskOnly("a draft written for the run alone, in a folder of its own under the temp folder")]
     private static void DeleteDraft(PdfImageSource draft)
     {
         try

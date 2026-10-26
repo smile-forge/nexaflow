@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -31,16 +33,16 @@ public sealed class InspectPeAction(IShellServices shell) : IFileAction, ICachea
     public bool CanPerformAction      => true;
     public bool OpensViewer           => true;
 
-    public bool PerformAction(string filePath)
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default)
     {
         shell.OpenTab(ExecutableTabRegistration.StaticPageKind,
                       new Dictionary<string, string> { ["path"] = filePath });
-        return true;
+        return Task.FromResult(true);
     }
 
-    public bool PerformAction(IEnumerable<string> filePaths)
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
     {
-        foreach (var path in filePaths) return PerformAction(path);
-        return false;
+        foreach (var path in filePaths) return PerformActionAsync(path, ct);
+        return Task.FromResult(false);
     }
 }

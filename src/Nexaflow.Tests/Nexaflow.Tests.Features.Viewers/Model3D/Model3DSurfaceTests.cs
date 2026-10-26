@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -23,7 +24,7 @@ public class Model3DSurfaceTests
 
     private static async Task<Model3DViewModel> Load(string sample)
     {
-        var vm = new Model3DViewModel(Sample(sample), new ModelLoaderRegistry());
+        var vm = new Model3DViewModel(Sample(sample), VirtualFileSystem.Instance, new ModelLoaderRegistry());
         await vm.LoadAsync();
         return vm;
     }
@@ -95,7 +96,7 @@ public class Model3DSurfaceTests
     [CoversNode("model3d-error-overlay")]
     public async Task UnknownExtension_ShowsTheOverlay_AndStillReleasesTheContextGate()
     {
-        var vm = new Model3DViewModel("model.unknownformat", new ModelLoaderRegistry());
+        var vm = new Model3DViewModel("model.unknownformat", VirtualFileSystem.Instance, new ModelLoaderRegistry());
 
         await vm.LoadAsync();
 
@@ -113,7 +114,7 @@ public class Model3DSurfaceTests
         File.WriteAllText(path, "# an OBJ with no faces at all\n");
         try
         {
-            var vm = new Model3DViewModel(path, new ModelLoaderRegistry());
+            var vm = new Model3DViewModel(path, VirtualFileSystem.Instance, new ModelLoaderRegistry());
             await vm.LoadAsync();
 
             Assert.IsTrue(vm.HasError, "an empty viewport looks identical to a model that failed to draw");

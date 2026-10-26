@@ -2,6 +2,7 @@ using System.IO;
 using System.Threading;
 using LibGit2Sharp;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Git.Services;
 
@@ -48,6 +49,7 @@ public sealed record GitWorktreeRemovalResult(bool Success, string Message);
 /// Read queries open a fresh <see cref="Repository"/> per call (like <see cref="GitService"/>); the mutating
 /// <see cref="Remove"/> drives everything from the main repository so the branch is free to delete.
 /// </summary>
+[LocalDiskOnly("a git repository's worktrees, which git keeps as folders on this disk")]
 public sealed class GitWorktreeService(string folderPath)
 {
     /// <summary>True when <c>folderPath</c> is a linked worktree (its <c>.git</c> is a pointer file).</summary>

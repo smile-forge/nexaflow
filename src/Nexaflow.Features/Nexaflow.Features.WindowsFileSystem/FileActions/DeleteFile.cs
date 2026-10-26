@@ -1,7 +1,10 @@
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 
@@ -10,13 +13,20 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 /// <list type="bullet">
 ///   <item>Normal delete — shows a confirmation overlay, then moves items to the Recycle Bin.</item>
 ///   <item>Force delete (Shift held) — skips confirmation and permanently deletes immediately.</item>
+///   <item>Something the Recycle Bin cannot hold — inside an archive, on a location — is deleted for good, and the
+///   confirmation says so.</item>
 /// </list>
 /// </summary>
 public class DeleteFile : IFileAction, IFolderAction, ICacheable
 {
     private readonly IShellServices _shell;
+    private readonly IVirtualFileSystem _vfs;
 
-    public DeleteFile(IShellServices shell) => _shell = shell;
+    public DeleteFile(IShellServices shell, IVirtualFileSystem vfs)
+    {
+        _shell = shell;
+        _vfs   = vfs;
+    }
 
     // ── IFileAction ───────────────────────────────────────────────────────────
 
@@ -43,16 +53,13 @@ public class DeleteFile : IFileAction, IFolderAction, ICacheable
 
     // ── Single path ───────────────────────────────────────────────────────────
 
-    public bool PerformAction(string filePath)
-        => PerformAction(filePath, force: false);
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default) => PerformActionAsync(filePath, force: false, ct);
 
-    public bool PerformAction(string filePath, bool force)
-        => PerformAction(new[] { filePath }, force);
+    public Task<bool> PerformActionAsync(string filePath, bool force, CancellationToken ct = default) => PerformActionAsync(new[] { filePath }, force, ct);
 
     // ── Multiple paths ────────────────────────────────────────────────────────
 
-    public bool PerformAction(IEnumerable<string> filePaths)
-        => PerformAction(filePaths, force: false);
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default) => PerformActionAsync(filePaths, force: false, ct);
 
     /// <summary>
     /// Queues the delete rather than doing it here. Emptying a large tree used to block the UI thread
@@ -60,30 +67,36 @@ public class DeleteFile : IFileAction, IFolderAction, ICacheable
     /// with nothing on screen to say why. Recycling still goes through shell32 — only it produces a
     /// Recycle Bin entry — but on a background thread, with a row in the operations panel.
     /// </summary>
-    public bool PerformAction(IEnumerable<string> filePaths, bool force)
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, bool force, CancellationToken ct = default)
     {
         // Delete what the row points at, not a temp copy of it — see ShellPath.RealForMutation.
         var paths = new List<string>(Services.ShellPath.RealForMutation(filePaths));
-        if (paths.Count == 0) return false;
+        if (paths.Count == 0) return Task.FromResult(false);
 
-        var queue = Operations.FileOperationQueue.For(_shell);
+        var queue = Operations.FileOperationQueue.For(_shell, _vfs);
 
         if (force)
         {
             queue.EnqueueDelete(paths, permanent: true);
-            return true;
+            return Task.FromResult(true);
         }
 
-        string message = paths.Count == 1
-            ? Str.Format("WindowsFileSystem.Delete.ConfirmOneFormat", Path.GetFileName(paths[0]))
-            : Str.Format("WindowsFileSystem.Delete.ConfirmManyFormat", paths.Count);
+        // What the Recycle Bin cannot hold goes for good, so the question says that instead.
+        bool recyclable = paths.TrueForAll(queue.IsRecyclable);
+        string message = (paths.Count == 1, recyclable) switch
+        {
+            (true,  true)  => Str.Format("WindowsFileSystem.Delete.ConfirmOneFormat", Path.GetFileName(paths[0])),
+            (false, true)  => Str.Format("WindowsFileSystem.Delete.ConfirmManyFormat", paths.Count),
+            (true,  false) => Str.Format("WindowsFileSystem.Delete.PermanentOneFormat", Path.GetFileName(paths[0])),
+            (false, false) => Str.Format("WindowsFileSystem.Delete.PermanentManyFormat", paths.Count),
+        };
 
         _shell.ShowConfirmation(
-            title:     Str.Get("WindowsFileSystem.Delete.ConfirmTitle"),
+            title:     Str.Get(recyclable ? "WindowsFileSystem.Delete.ConfirmTitle" : "WindowsFileSystem.Delete.PermanentTitle"),
             message:   message,
-            onConfirm: () => queue.EnqueueDelete(paths, permanent: false),
+            onConfirm: () => queue.EnqueueDelete(paths, permanent: !recyclable),
             onCancel:  () => { });
 
-        return false;   // the actual delete is deferred to the confirm callback
+        return Task.FromResult(false);   // the actual delete is deferred to the confirm callback
     }
 }

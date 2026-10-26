@@ -1,6 +1,7 @@
 using System.IO;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Features.Rtf.Reading;
+using Nexaflow.IO.Common;
 using Nexaflow.Markdown.Rtf;
 
 namespace Nexaflow.Features.Rtf.Search;
@@ -14,7 +15,7 @@ namespace Nexaflow.Features.Rtf.Search;
 /// requires — every piece of working state lives in the call.
 /// </para>
 /// </summary>
-public sealed class RtfTextExtractor : IFileTextExtractor
+public sealed class RtfTextExtractor(IVirtualFileSystem vfs) : IFileTextExtractor
 {
     private const string Extension = ".rtf";
 
@@ -30,16 +31,16 @@ public sealed class RtfTextExtractor : IFileTextExtractor
     public Task<string?> ExtractAsync(string path, long maxBytes, CancellationToken ct)
     {
         // Cancelling before the work starts skips it entirely rather than scheduling and then throwing.
-        return Task.Run(() => Extract(path, maxBytes), ct);
+        return Task.Run(() => ExtractCoreAsync(path, maxBytes, ct), ct);
     }
 
-    private static string? Extract(string path, long maxBytes)
+    private async Task<string?> ExtractCoreAsync(string path, long maxBytes, CancellationToken ct)
     {
         if (maxBytes <= 0) return null;
 
         try
         {
-            var source = RtfDocumentFile.Read(path, maxBytes);
+            var source = await RtfDocumentFile.ReadAsync(vfs, path, maxBytes, ct);
             return RtfDocumentFile.IsRtf(source) ? RtfParser.Text(source) : null;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)

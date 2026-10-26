@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media.Imaging;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Previews;
 
 namespace Nexaflow.Features.Scratchpad.Services;
@@ -13,6 +14,7 @@ namespace Nexaflow.Features.Scratchpad.Services;
 /// canvas (which creates new notes) and an existing note (which inserts blocks), so the image-detection,
 /// attachment-copying and file-link formatting live in one place.
 /// </summary>
+[LocalDiskOnly("a picture or file dropped from Windows, which is on this disk, kept in the note's attachments in the app's config folder")]
 public static class DroppedMedia
 {
     private static readonly HashSet<string> ImageExtensions = new(DecodablePictures.Extensions, StringComparer.OrdinalIgnoreCase);

@@ -16,12 +16,12 @@ namespace Nexaflow.Features.Pdf.Editing;
 internal static class PdfImagePageWriter
 {
     /// <summary>
-    /// Writes the picture at <paramref name="imagePath"/> on a page <paramref name="page"/> points in size.
+    /// Writes the picture <paramref name="bytes"/> — the file at <paramref name="imagePath"/> — on a page
+    /// <paramref name="page"/> points in size.
     /// </summary>
     /// <exception cref="NotSupportedException">The file is not a picture this machine can decode.</exception>
-    public static void Write(string imagePath, Size page, Stream output, CancellationToken ct)
+    public static void Write(byte[] bytes, string imagePath, Size page, Stream output, CancellationToken ct)
     {
-        var bytes = VirtualFileSystem.Instance.ReadAllBytes(imagePath);
         ct.ThrowIfCancellationRequested();
 
         BitmapFrame frame;

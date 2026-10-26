@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -33,7 +34,7 @@ public class FileSystemSurfaceTests
     }
 
     [TestCleanup]
-    public void RemoveScratch() { try { Directory.Delete(_scratch, recursive: true); } catch { } }
+    public async Task RemoveScratch() { try { Directory.Delete(_scratch, recursive: true); } catch { } }
 
     private static (IShellServices Shell, IAIService Ai, IReadOnlyDictionary<Type, IFeatureConfig> Configs) Deps()
     {
@@ -45,20 +46,21 @@ public class FileSystemSurfaceTests
         return (shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>());
     }
 
-    private FileSystemViewModel AtScratch(out IShellServices shell)
+    private async Task<(FileSystemViewModel Vm, IShellServices Shell)> AtScratchAsync()
     {
-        var (s, ai, configs) = Deps();
-        shell = s;
-        return new FileSystemViewModel(_scratch, s, ai, configs);
+        var (shell, ai, configs) = Deps();
+        var vm = new FileSystemViewModel(_scratch, shell, ai, configs, VirtualFileSystem.Instance);
+        await vm.Browsing;
+        return (vm, shell);
     }
 
     // ── Column sorting ────────────────────────────────────────────────────────
 
     [TestMethod]
     [CoversNode("winfs-column-sort")]
-    public void ClickingANewColumnStartsAscending_AndClickingItAgainFlips()
+    public async Task ClickingANewColumnStartsAscending_AndClickingItAgainFlips()
     {
-        var vm = AtScratch(out _);
+        var (vm, _) = await AtScratchAsync();
         Assert.AreEqual(nameof(FileSystemEntry.Name), vm.SortColumn, "a folder opens sorted by name");
         Assert.IsTrue(vm.SortAscending);
 
@@ -77,9 +79,9 @@ public class FileSystemSurfaceTests
 
     [TestMethod]
     [CoversNode("winfs-footer-filter")]
-    public void ClickingACountFiltersToThatKind_AndClickingItAgainClears()
+    public async Task ClickingACountFiltersToThatKind_AndClickingItAgainClears()
     {
-        var vm = AtScratch(out _);
+        var (vm, _) = await AtScratchAsync();
 
         vm.ToggleFolderFilterCommand.Execute(null);
         Assert.AreEqual(EntryFilter.FoldersOnly, vm.ActiveFilter);
@@ -90,9 +92,9 @@ public class FileSystemSurfaceTests
 
     [TestMethod]
     [CoversNode("winfs-footer-filter")]
-    public void TheTwoTalliesAreExclusive_YouCannotFilterToBothAtOnce()
+    public async Task TheTwoTalliesAreExclusive_YouCannotFilterToBothAtOnce()
     {
-        var vm = AtScratch(out _);
+        var (vm, _) = await AtScratchAsync();
 
         vm.ToggleFolderFilterCommand.Execute(null);
         vm.ToggleFileFilterCommand.Execute(null);
@@ -103,7 +105,7 @@ public class FileSystemSurfaceTests
 
     [TestMethod]
     [CoversNode("winfs-footer-filter")]
-    public void TheCountsTakeTheSingularAndThePlural()
+    public async Task TheCountsTakeTheSingularAndThePlural()
     {
         Directory.CreateDirectory(Path.Combine(_scratch, "one-folder"));
         File.WriteAllText(Path.Combine(_scratch, "a.txt"), "");
@@ -114,7 +116,7 @@ public class FileSystemSurfaceTests
         // the old 0/0 totals and writing them back, and the footer stayed at zero for good.
         AsyncPump.Run(async () =>
         {
-            var vm = AtScratch(out _);
+            var (vm, _) = await AtScratchAsync();
             for (int i = 0; i < 400 && vm.IsLoadingEntries; i++)
                 await Task.Delay(25);
             Assert.IsFalse(vm.IsLoadingEntries, "the folder to finish loading");
@@ -127,9 +129,9 @@ public class FileSystemSurfaceTests
 
     [TestMethod]
     [CoversNode("winfs-footer-filter")]
-    public void SelectingRowsAddsACountInFront_AndDeselectingTakesItAway()
+    public async Task SelectingRowsAddsACountInFront_AndDeselectingTakesItAway()
     {
-        var vm = AtScratch(out _);
+        var (vm, _) = await AtScratchAsync();
 
         vm.OnSelectionChanged([new FileSystemEntry { Name = "a" }, new FileSystemEntry { Name = "b" }]);
         Assert.AreEqual(Str.Format("WindowsFileSystem.Footer.SelectedFormat", 2), vm.SelectionSummary);
@@ -142,9 +144,9 @@ public class FileSystemSurfaceTests
 
     [TestMethod]
     [CoversNode("winfs-drag-drop")]
-    public void TheDropTooltipSaysWhichWayItWillGo_AndWhere()
+    public async Task TheDropTooltipSaysWhichWayItWillGo_AndWhere()
     {
-        var vm = AtScratch(out _);
+        var (vm, _) = await AtScratchAsync();
         var target = new FileSystemDropTarget(vm);
         var data = new DataObject(DataFormats.FileDrop, new[] { @"C:\a.txt" });
 
@@ -157,9 +159,9 @@ public class FileSystemSurfaceTests
 
     [TestMethod]
     [CoversNode("winfs-drag-drop")]
-    public void DroppingOntoTheListRatherThanAFolderNamesTheCurrentOne()
+    public async Task DroppingOntoTheListRatherThanAFolderNamesTheCurrentOne()
     {
-        var vm = AtScratch(out _);
+        var (vm, _) = await AtScratchAsync();
         var target = new FileSystemDropTarget(vm);
         var data = new DataObject(DataFormats.FileDrop, new[] { @"C:\a.txt" });
 
@@ -169,9 +171,9 @@ public class FileSystemSurfaceTests
 
     [TestMethod]
     [CoversNode("winfs-drag-drop")]
-    public void OnlyAFileDropIsAccepted()
+    public async Task OnlyAFileDropIsAccepted()
     {
-        var vm = AtScratch(out _);
+        var (vm, _) = await AtScratchAsync();
         var target = new FileSystemDropTarget(vm);
 
         Assert.IsTrue(target.CanAcceptDrop(new DataObject(DataFormats.FileDrop, new[] { @"C:\a.txt" })));
@@ -186,14 +188,14 @@ public class FileSystemSurfaceTests
     /// </summary>
     [TestMethod]
     [CoversNode("winfs-drag-drop")]
-    public void ADropOntoTheThingBeingDraggedIsRefusedBeforeItHappens()
+    public async Task ADropOntoTheThingBeingDraggedIsRefusedBeforeItHappens()
     {
         var folder = Path.Combine(_scratch, "folder");
         var other = Path.Combine(_scratch, "other");
         Directory.CreateDirectory(folder);
         Directory.CreateDirectory(other);
 
-        var vm = AtScratch(out _);
+        var (vm, _) = await AtScratchAsync();
         var target = new FileSystemDropTarget(vm);
         var dragged = new DataObject(DataFormats.FileDrop, new[] { folder });
 
@@ -223,7 +225,7 @@ public class FileSystemSurfaceTests
         File.WriteAllText(copied, "x");
         File.WriteAllText(moved, "y");
 
-        var vm = AtScratch(out _);
+        var (vm, _) = await AtScratchAsync();
         var target = new FileSystemDropTarget(vm);
 
         // The drop queues the work and returns — awaiting the operation is the point, not a nicety.
@@ -242,11 +244,11 @@ public class FileSystemSurfaceTests
 
     [TestMethod]
     [CoversNode("winfs-drag-drop")]
-    public void ASourceThatVanishedBetweenDragAndDropIsSkipped_NotReportedAsAFailure()
+    public async Task ASourceThatVanishedBetweenDragAndDropIsSkipped_NotReportedAsAFailure()
     {
         var dest = Path.Combine(_scratch, "dest");
         Directory.CreateDirectory(dest);
-        var vm = AtScratch(out var shell);
+        var (vm, shell) = await AtScratchAsync();
         var target = new FileSystemDropTarget(vm);
 
         target.Drop(new DataObject(DataFormats.FileDrop, new[] { Path.Combine(_scratch, "gone.txt") }),
@@ -260,9 +262,9 @@ public class FileSystemSurfaceTests
 
     [TestMethod]
     [CoversNode("winfs-right-drag-menu")]
-    public void ThePromptForARightDragNamesWhereItWouldLand_AndPromisesNothingYet()
+    public async Task ThePromptForARightDragNamesWhereItWouldLand_AndPromisesNothingYet()
     {
-        var vm = AtScratch(out _);
+        var (vm, _) = await AtScratchAsync();
         var target = new FileSystemDropTarget(vm);
 
         Assert.AreEqual(Str.Format("WindowsFileSystem.Drop.ChoicePromptFormat", "Projects"), target.GetChoicePrompt("Projects"));
@@ -273,11 +275,11 @@ public class FileSystemSurfaceTests
 
     [TestMethod]
     [CoversNode("winfs-right-drag-menu")]
-    public void OnlyAFileDropIsWorthOfferingAChoiceAbout()
+    public async Task OnlyAFileDropIsWorthOfferingAChoiceAbout()
     {
         var dest = Path.Combine(_scratch, "dest");
         Directory.CreateDirectory(dest);
-        var vm = AtScratch(out _);
+        var (vm, _) = await AtScratchAsync();
         var target = new FileSystemDropTarget(vm);
 
         Assert.IsNull(target.Capture(new DataObject(DataFormats.Text, "hello"), dest));
@@ -329,7 +331,7 @@ public class FileSystemSurfaceTests
         File.WriteAllText(copied, "x");
         File.WriteAllText(moved, "y");
 
-        var vm = AtScratch(out _);
+        var (vm, _) = await AtScratchAsync();
         var target = new FileSystemDropTarget(vm);
 
         // Capture and Execute are deliberately separated by the menu: the data object is only valid
@@ -369,7 +371,7 @@ public class FileSystemSurfaceTests
         Directory.CreateDirectory(dest);
         File.WriteAllText(Path.Combine(source, "once.txt"), "x");
 
-        var vm = AtScratch(out _);
+        var (vm, _) = await AtScratchAsync();
         var target = new FileSystemDropTarget(vm);
 
         var plan = target.Capture(new DataObject(DataFormats.FileDrop, new[] { source }), dest);
@@ -399,14 +401,14 @@ public class FileSystemSurfaceTests
     /// </summary>
     [TestMethod]
     [CoversNode("winfs-right-drag-menu")]
-    public void MovingSomethingToWhereItAlreadyIsIsNotOffered_ThoughCopyingItIs()
+    public async Task MovingSomethingToWhereItAlreadyIsIsNotOffered_ThoughCopyingItIs()
     {
         var here = Path.Combine(_scratch, "here");
         Directory.CreateDirectory(here);
         var file = Path.Combine(here, "a.txt");
         File.WriteAllText(file, "x");
 
-        var vm = AtScratch(out _);
+        var (vm, _) = await AtScratchAsync();
         var target = new FileSystemDropTarget(vm);
 
         var ontoItself = target.Capture(new DataObject(DataFormats.FileDrop, new[] { file }), here);
@@ -429,13 +431,13 @@ public class FileSystemSurfaceTests
 
     [TestMethod]
     [CoversNode("winfs-right-drag-menu")]
-    public void AFolderDroppedIntoItselfIsOfferedNeither()
+    public async Task AFolderDroppedIntoItselfIsOfferedNeither()
     {
         var folder = Path.Combine(_scratch, "folder");
         var inside = Path.Combine(folder, "inside");
         Directory.CreateDirectory(inside);
 
-        var vm = AtScratch(out _);
+        var (vm, _) = await AtScratchAsync();
         var target = new FileSystemDropTarget(vm);
 
         var plan = target.Capture(new DataObject(DataFormats.FileDrop, new[] { folder }), inside);
@@ -460,9 +462,9 @@ public class FileSystemSurfaceTests
 
     [TestMethod]
     [CoversNode("winfs-ribbon-pin")]
-    public void PinningAFileActionCapturesTheFilesItWasAimedAt()
+    public async Task PinningAFileActionCapturesTheFilesItWasAimedAt()
     {
-        var vm = AtScratch(out var shell);
+        var (vm, shell) = await AtScratchAsync();
         vm.OnSelectionChanged([new FileSystemEntry { Name = "a.txt", FullPath = @"C:\work\a.txt" },
                                new FileSystemEntry { Name = "b.txt", FullPath = @"C:\work\b.txt" }]);
 
@@ -474,9 +476,9 @@ public class FileSystemSurfaceTests
 
     [TestMethod]
     [CoversNode("winfs-ribbon-pin")]
-    public void PinningAFolderActionCapturesTheFolder_NotWhateverWasSelectedInIt()
+    public async Task PinningAFolderActionCapturesTheFolder_NotWhateverWasSelectedInIt()
     {
-        var vm = AtScratch(out var shell);
+        var (vm, shell) = await AtScratchAsync();
         vm.OnSelectionChanged([new FileSystemEntry { Name = "a.txt", FullPath = @"C:\work\a.txt" }]);
 
         var folderAction = new FileActionViewModel(new FolderActionAdapter(new CopyFiles(shell)));
@@ -507,11 +509,11 @@ public class FileSystemSurfaceTests
 
     [TestMethod]
     [CoversNode("winfs-create-folder")]
-    public void NewFolderMakesTheDirectoryVerbatim_WithNoExtensionAppended()
+    public async Task NewFolderMakesTheDirectoryVerbatim_WithNoExtensionAppended()
     {
-        var action = new NewFolderCreateAction();
+        var action = new NewFolderCreateAction(VirtualFileSystem.Instance);
 
-        var made = action.Create(_scratch, "Q3 Reports");
+        var made = await action.CreateItemAsync(_scratch, "Q3 Reports");
 
         Assert.AreEqual(Path.Combine(_scratch, "Q3 Reports"), made);
         Assert.IsTrue(Directory.Exists(made!));
@@ -521,21 +523,21 @@ public class FileSystemSurfaceTests
 
     [TestMethod]
     [CoversNode("winfs-create-folder")]
-    public void NewFolderRefusesANamelessCreate()
+    public async Task NewFolderRefusesANamelessCreate()
     {
-        var action = new NewFolderCreateAction();
+        var action = new NewFolderCreateAction(VirtualFileSystem.Instance);
 
-        Assert.IsNull(action.Create(_scratch, "   "));
-        Assert.IsNull(action.Create("", "docs"));
+        Assert.IsNull(await action.CreateItemAsync(_scratch, "   "));
+        Assert.IsNull(await action.CreateItemAsync("", "docs"));
     }
 
     // ── Context menu ──────────────────────────────────────────────────────────
 
     [TestMethod]
     [CoversNode("winfs-context-menu")]
-    public void RightClickingEmptySpaceOffersFolderActionsForTheCurrentFolder()
+    public async Task RightClickingEmptySpaceOffersFolderActionsForTheCurrentFolder()
     {
-        var vm = AtScratch(out _);
+        var (vm, _) = await AtScratchAsync();
 
         // No registered actions in this harness, so what is asserted is that the empty-space case is
         // handled as "the current folder" rather than as "no target" — the branch that used to hand back
@@ -550,7 +552,7 @@ public class FileSystemSurfaceTests
     public void InThisPcModeOnlyAnEmptySelectionHasNoTarget()
     {
         var (shell, ai, configs) = Deps();
-        var vm = FileSystemViewModel.CreateThisPc(shell, ai, configs);
+        var vm = FileSystemViewModel.CreateThisPc(shell, ai, configs, VirtualFileSystem.Instance);
 
         Assert.AreEqual(0, vm.BuildContextActions([]).Count,
                         "This PC has no open folder, so a right-click on nothing has nothing to act on");

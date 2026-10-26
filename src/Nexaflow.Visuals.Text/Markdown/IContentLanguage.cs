@@ -43,6 +43,19 @@ public interface IContentLanguage
     bool ReadsAsDrawn => false;
 
     /// <summary>
+    /// Whether a drag through its words picks out letters — from the letter pressed to the letter the pointer is over, wherever
+    /// either is and whatever lies between — rather than whole things. Yes for prose and for code, where any stretch of what is
+    /// drawn is a stretch a writer could have typed; no where what is drawn stands for what its source meant, as a formula, a
+    /// score or a diagram does, and half of one is not a smaller selection but one that cannot be read.
+    ///
+    /// <para>
+    /// Default is what <see cref="ShowsWhatWasWritten"/> says, since words drawn as they were written are words any stretch of
+    /// which can be read.
+    /// </para>
+    /// </summary>
+    bool ChosenByLetter => ShowsWhatWasWritten;
+
+    /// <summary>
     /// What may be done to this content where a gesture landed — the things a reader can add, and the
     /// things they can do to what is already there.
     ///

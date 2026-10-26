@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using Microsoft.Win32;
 using Nexaflow.Features.WindowsApps.Models;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsApps.Services;
@@ -12,6 +13,7 @@ namespace Nexaflow.Features.WindowsApps.Services;
 /// WOW node, HKCU) — the same set Windows' "Add or remove programs" shows. Uninstall runs the
 /// vendor-registered <c>UninstallString</c> (which may be interactive and prompt for elevation).
 /// </summary>
+[LocalDiskOnly("the apps Windows lists as installed, in folders on this computer")]
 public sealed class RegistryAppSource : IInstalledAppSource
 {
     private const string UninstallSubKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall";

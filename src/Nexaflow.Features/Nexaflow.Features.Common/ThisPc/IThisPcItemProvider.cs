@@ -6,20 +6,19 @@ using System.Threading.Tasks;
 namespace Nexaflow.Features.Common.ThisPc;
 
 /// <summary>
-/// Contributes extra top-level rows to "This PC" beside the physical drives — cloud sync roots today,
-/// network locations or pinned folders on the same seam later.
+/// Offers rows to "This PC". Nothing is there by default: the volumes come from the file browser's own provider, cloud
+/// sync roots from OneDrive's, and network locations or pinned folders can arrive on the same seam.
 /// <para>
-/// The two halves mirror how drives already load: <see cref="GetItems"/> is the cheap synchronous list
-/// (the analogue of <c>DriveInfo.GetDrives()</c>) so rows appear in the same frame as the drives, and
-/// <see cref="GetDetailAsync"/> is the slow per-row probe (the analogue of <c>CheckDriveAsync</c>) that
-/// settles each row's badge off the UI thread. Reusing that split means no new UI states.
+/// The two halves keep This PC drawing at once: <see cref="GetItems"/> is the cheap synchronous list, so every row
+/// appears in the same frame, and <see cref="GetDetailAsync"/> is the slow per-row probe that settles each row's badge
+/// off the UI thread.
 /// </para>
 /// <para>
 /// Discovered by reflection — by the file browser through
 /// <c>IShellServices.DiscoverImplementations&lt;IThisPcItemProvider&gt;()</c>, and by the shell's pickers
 /// through <c>FeatureManager.GetThisPcItemProviders</c>. Constructors are resolved by the usual feature
 /// DI, so they may take an <c>IFeatureConfig</c>, <c>IShellServices</c>, <c>IAIService</c>, the config
-/// map, or nothing.
+/// map, the runtime's <c>IVirtualFileSystem</c>, or nothing.
 /// </para>
 /// </summary>
 public interface IThisPcItemProvider
@@ -27,8 +26,8 @@ public interface IThisPcItemProvider
     /// <summary>Short slug namespacing this provider's item ids, e.g. <c>onedrive</c>.</summary>
     string ProviderId { get; }
 
-    /// <summary>Order of this provider's block relative to others. Physical drives are conceptually 0,
-    /// and provided rows follow them.</summary>
+    /// <summary>Order of this provider's block relative to others. The volumes are 0, and every other provider
+    /// follows them.</summary>
     int SortOrder => 100;
 
     /// <summary>
@@ -40,12 +39,11 @@ public interface IThisPcItemProvider
     IReadOnlyList<ThisPcItem> GetItems();
 
     /// <summary>
-    /// The slow half, run one task per row off the UI thread. The default probes the local path, which
-    /// is right for every <see cref="ThisPcItemBacking.LocalPath"/> row; override only to answer faster
-    /// or to describe a <see cref="ThisPcItemBacking.Virtual"/> row.
+    /// The slow half, run one task per row off the UI thread: whether the row is there, whether it holds folders, and
+    /// what only the device can say. Every provider answers for its own rows — there is no default, because only the
+    /// provider knows what a row is: a volume, a folder, a namespace it serves.
     /// </summary>
-    Task<ThisPcItemDetail> GetDetailAsync(ThisPcItem item, CancellationToken ct = default)
-        => ThisPcItemSet.ProbeLocalAsync(item, ct);
+    Task<ThisPcItemDetail> GetDetailAsync(ThisPcItem item, CancellationToken ct = default);
 
     /// <summary>
     /// Raised when the set <see cref="GetItems"/> would return has changed — the user edited Options, a

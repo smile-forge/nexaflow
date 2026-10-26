@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -183,7 +184,7 @@ public class PdfDocumentSessionTests
 
     private static async Task<PdfDocumentSession> Opened(string? path = null)
     {
-        var session = new PdfDocumentSession(path ?? Copy());
+        var session = new PdfDocumentSession(path ?? Copy(), VirtualFileSystem.Instance);
         Assert.IsTrue(await session.OpenAsync(CancellationToken.None));
         return session;
     }

@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -41,7 +42,7 @@ public class RowWindowReaderTests
         var path = WriteRows(1000, header: false);
         try
         {
-            var reader = new RowWindowReader(path, Encoding.UTF8, 0, new DataShape(Shape(false), null));
+            var reader = new RowWindowReader(VirtualFileSystem.Instance, path, Encoding.UTF8, 0, new DataShape(Shape(false), null));
             var rows = reader.GetVisibleAsync(400, 150, _ => true, CancellationToken.None).Result;
             Assert.AreEqual(150, rows.Count);
             Assert.AreEqual(400, rows[0].AbsoluteIndex);
@@ -56,7 +57,7 @@ public class RowWindowReaderTests
         var path = WriteRows(1000, header: false);
         try
         {
-            var reader = new RowWindowReader(path, Encoding.UTF8, 0, new DataShape(Shape(false), null));
+            var reader = new RowWindowReader(VirtualFileSystem.Instance, path, Encoding.UTF8, 0, new DataShape(Shape(false), null));
             // Keep only even-indexed rows (value is the index, "0","1",…).
             bool Filter(string[] cells) => int.Parse(cells[1]) % 2 == 0;
             var rows = reader.GetVisibleAsync(0, 150, Filter, CancellationToken.None).Result;
@@ -74,7 +75,7 @@ public class RowWindowReaderTests
         var path = WriteRows(10, header: true);
         try
         {
-            var reader = new RowWindowReader(path, Encoding.UTF8, 0, new DataShape(Shape(true), null));
+            var reader = new RowWindowReader(VirtualFileSystem.Instance, path, Encoding.UTF8, 0, new DataShape(Shape(true), null));
             var rows = reader.GetVisibleAsync(0, 50, _ => true, CancellationToken.None).Result;
             Assert.AreEqual(10, rows.Count);
             Assert.AreEqual(0,  rows[0].AbsoluteIndex);
@@ -89,7 +90,7 @@ public class RowWindowReaderTests
         var path = WriteRows(100, header: false);
         try
         {
-            var reader = new RowWindowReader(path, Encoding.UTF8, 0, new DataShape(Shape(false), null));
+            var reader = new RowWindowReader(VirtualFileSystem.Instance, path, Encoding.UTF8, 0, new DataShape(Shape(false), null));
             var rows = reader.GetVisibleAsync(90, 150, _ => true, CancellationToken.None).Result;
             Assert.AreEqual(10, rows.Count);
             Assert.AreEqual(99, rows[^1].AbsoluteIndex);
@@ -108,7 +109,7 @@ public class RowWindowReaderTests
         var path = WriteRows(1000, header: false);
         try
         {
-            var reader = new RowWindowReader(path, Encoding.UTF8, 0, new DataShape(Shape(false), null));
+            var reader = new RowWindowReader(VirtualFileSystem.Instance, path, Encoding.UTF8, 0, new DataShape(Shape(false), null));
 
             // First scan from 0 writes anchors at 200, 400, 600, 800.
             var first = reader.GetVisibleAsync(0, 1000, _ => true, CancellationToken.None).Result;
@@ -143,7 +144,7 @@ public class RowWindowReaderTests
         var path = WriteRows(2000, header: false);
         try
         {
-            var reader = new RowWindowReader(path, Encoding.UTF8, 0, new DataShape(Shape(false), null));
+            var reader = new RowWindowReader(VirtualFileSystem.Instance, path, Encoding.UTF8, 0, new DataShape(Shape(false), null));
             using var cts = new CancellationTokenSource();
             cts.Cancel();  // already cancelled before the call
             // Must not throw OperationCanceledException.
@@ -160,7 +161,7 @@ public class RowWindowReaderTests
         var path = WriteRows(5000, header: false);
         try
         {
-            var reader = new RowWindowReader(path, Encoding.UTF8, 0, new DataShape(Shape(false), null));
+            var reader = new RowWindowReader(VirtualFileSystem.Instance, path, Encoding.UTF8, 0, new DataShape(Shape(false), null));
             var a = reader.GetVisibleAsync(2000, 150, _ => true, CancellationToken.None).Result;
             var b = reader.GetVisibleAsync(2000, 150, _ => true, CancellationToken.None).Result;
             CollectionAssert.AreEqual(a.Select(r => r.AbsoluteIndex).ToArray(),

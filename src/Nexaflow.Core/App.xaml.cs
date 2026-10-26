@@ -300,10 +300,12 @@ public partial class App : Application
         var pictureSelection = new PictureSelection(new OwnedPictureSelection(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
         var pageReading = new PageReading(new OwnedPageReading(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
         var pictureErasing = new PictureErasing(new OwnedPictureErasing(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
+        // Not a feature's tool: the check Enhanced AI Protection Mode holds every picture made to, which Core runs itself.
+        var pictureChecking = new PictureChecking(new OwnedPictureChecking(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
         ProviderManager.Instance.Initialize(activityManager, assets, _residency,
             aiHost, hostSetup, hardware,
             new LocalModelDownloads(assets, activityManager, WorkspaceManager.Instance.UseLocalModel), pictureTools, pictureSelection, pageReading,
-            pictureErasing);
+            pictureErasing, pictureChecking);
         FeatureManager.Instance.ProvideTool<IPictureTools>(pictureTools);
         FeatureManager.Instance.ProvideTool<IPictureSelection>(pictureSelection);
         FeatureManager.Instance.ProvideTool<IPageReading>(pageReading);
@@ -599,7 +601,11 @@ public partial class App : Application
 
         var win = new MainWindow(activityManager, ws, openPath: openPath);
         StartupTimings.Mark("MainWindowBuilt");
-        CenterOnMonitor(win, wizardMonitor);
+        // Back where this workspace's last window was meant to be; the first time, on the wizard's monitor.
+        if (workspace.LastWindowPlacement is { IsUsable: true } placement)
+            ((IWindowHost)win.ViewModel).OpenAt(placement);
+        else
+            CenterOnMonitor(win, wizardMonitor);
         win.Show();
         StartupTimings.Mark("WindowShown");
         // Models load ahead only once a window has drawn, so none of their loading competes with it.

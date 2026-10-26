@@ -139,6 +139,7 @@
   "Executable.Inspector.NoDirectoriesArePresent": "Aucun répertoire n'est présent.",
   "Executable.Inspector.NoExecutableSectionIsAboveThe": "Aucune section exécutable ne dépasse le seuil de compression.",
   "Executable.Inspector.NoFileToInspect": "Aucun fichier à inspecter.",
+  "Executable.Inspector.ReadFailedFormat": "Impossible de lire le fichier : {0}",
   "Executable.Inspector.NoFunctionsListed": "aucune fonction listée",
   "Executable.Inspector.NoImports": "— (aucune importation)",
   "Executable.Inspector.None": "(aucun)",

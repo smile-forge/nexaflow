@@ -31,12 +31,13 @@ public sealed partial class MeasurementViewModel : ObservableObject
         _ => 0,
     };
 
-    /// <summary>Switches the pixel context to a specific frame of an image instance and surfaces that
-    /// frame's annotation collection.</summary>
-    public void SetFrame(DicomInstanceInfo? info, int frame)
+    /// <summary>Switches the pixel context to a specific frame of an image instance — sampled from
+    /// <paramref name="dataset"/>, the instance as the renderer read it — and surfaces that frame's annotation
+    /// collection.</summary>
+    public void SetFrame(DicomInstanceInfo? info, FellowOakDicom.DicomDataset? dataset, int frame)
     {
         _info = info;
-        _sampler = info is { IsImage: true } ? new PixelSampler(info, frame) : null;
+        _sampler = info is { IsImage: true } && dataset is not null ? new PixelSampler(info, dataset, frame) : null;
 
         var key = info is null ? null : $"{info.FilePath}#{frame}";
         if (key is null) { Current = []; return; }

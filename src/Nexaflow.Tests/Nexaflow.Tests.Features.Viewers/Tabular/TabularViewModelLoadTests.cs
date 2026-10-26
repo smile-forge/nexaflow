@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -30,7 +31,7 @@ public class TabularViewModelLoadTests
         try
         {
             var vm = new TabularViewModel(csv,
-                Substitute.For<IShellServices>(), Substitute.For<IAIService>(),
+                Substitute.For<IShellServices>(), VirtualFileSystem.Instance, Substitute.For<IAIService>(),
                 new TabularTemplatesConfig());
             await vm.Ready;
 
@@ -62,7 +63,7 @@ public class TabularViewModelLoadTests
             });
 
             var vm = new TabularViewModel(csv,
-                Substitute.For<IShellServices>(), Substitute.For<IAIService>(), config);
+                Substitute.For<IShellServices>(), VirtualFileSystem.Instance, Substitute.For<IAIService>(), config);
             await vm.Ready;
 
             Assert.AreEqual(3, vm.Columns.Count);
@@ -92,7 +93,7 @@ public class TabularViewModelLoadTests
             });
 
             var vm = new TabularViewModel(csv,
-                Substitute.For<IShellServices>(), Substitute.For<IAIService>(), config);
+                Substitute.For<IShellServices>(), VirtualFileSystem.Instance, Substitute.For<IAIService>(), config);
             await vm.Ready;
 
             Assert.AreEqual("a", vm.Columns[0].Header, "incompatible template must not auto-apply");

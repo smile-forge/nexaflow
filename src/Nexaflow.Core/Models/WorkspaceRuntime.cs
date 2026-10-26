@@ -1,5 +1,7 @@
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Services;
+using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Core.Models;
 
@@ -30,7 +32,26 @@ public sealed class WorkspaceRuntime
     public AIService?     AiService     { get; internal set; }
     public ShellServices? ShellServices { get; internal set; }
 
-    public WorkspaceRuntime(Workspace workspace) => Workspace = workspace;
+    /// <summary>
+    /// This runtime's file system: the shared <see cref="VirtualFileSystem"/> plus the remote locations this runtime
+    /// has connected, which the process-wide instance cannot see. Features are given it as
+    /// <see cref="IVirtualFileSystem"/>.
+    /// </summary>
+    public LocationFileSystem Vfs { get; } = new(VirtualFileSystem.Instance);
+
+    /// <summary>
+    /// The workspace's connections as this runtime has mounted them on <see cref="Vfs"/>, each with its live session from
+    /// the runtime's own pool — signed in from what Credential Manager holds, with nobody to ask for anything more until
+    /// the shell has a prompt.
+    /// </summary>
+    public RuntimeLocations Locations { get; }
+
+    public WorkspaceRuntime(Workspace workspace)
+    {
+        Workspace = workspace;
+        Locations = new RuntimeLocations(Vfs, new LocationSessionPool(LocationProviderRegistry.Instance,
+                                                                      new StoredCredentialSource(CredentialManagerStore.Default)));
+    }
 
     /// <summary>Convenience constructor for tests and defaults.</summary>
     public WorkspaceRuntime() : this(new Workspace()) { }

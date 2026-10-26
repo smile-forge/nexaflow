@@ -14,7 +14,7 @@ namespace Nexaflow.AiHost.Generation;
 /// among its replies, so a prompt being read or another model's work goes between rounds.
 /// </para>
 /// </summary>
-internal sealed class TokenRounds(LlamaContext context)
+internal sealed class TokenRounds(LlamaContext context, PromptReads prompts, Action<IEnumerable<LiveConversation>> gather)
 {
     private readonly object _gate = new();
     private readonly List<Member> _members = [];
@@ -82,25 +82,34 @@ internal sealed class TokenRounds(LlamaContext context)
 
     private async Task RunAsync(List<Member> round)
     {
+        List<PromptReads.Slice> slices = [];
         try
         {
-            var reads = new SequenceToken[round.Count];
-            var samplers = new LlamaSampler?[round.Count];
-            var chosen = new int[round.Count];
+            var chosen = new int[0];
             using (await round.MinBy(m => m.Priority)!.Turn())
             {
-                for (int i = 0; i < round.Count; i++)
-                {
-                    reads[i] = round[i].Conversation.Readying(round[i].Token);
-                    samplers[i] = round[i].Conversation.Sampler;
-                }
-                context.Step(reads, samplers, chosen);
+                // The room its tokens leave read with whatever prompts are waiting to be read.
+    // Each conversation's own slice: read in one step only in the order of their sequences, a token each; prompts are read in
+    // steps of their own.
+    if (context.PerConversation)
+    {
+        gather(round.Select(member => member.Conversation));
+        round.Sort((a, b) => a.Conversation.Sequence.CompareTo(b.Conversation.Sequence));
+    }
+    else slices = prompts.Take(null, context.Batch - round.Count);
+                var reads = new SequenceRead[round.Count + slices.Count];
+                for (int i = 0; i < round.Count; i++) reads[i] = round[i].Conversation.Readying(round[i].Token);
+                for (int i = 0; i < slices.Count; i++) reads[round.Count + i] = slices[i].Reading();
+                chosen = new int[reads.Length];
+                context.Read(reads, chosen);
             }
             for (int i = 0; i < round.Count; i++) round[i].Conversation.Advanced(chosen[i]);
+            PromptReads.Finished(slices, chosen.AsSpan(round.Count));
             foreach (var member in round) member.Done!.TrySetResult();
         }
         catch (Exception ex)
         {
+            PromptReads.Failed(slices, ex);
             foreach (var member in round) member.Done!.TrySetException(ex);
         }
     }

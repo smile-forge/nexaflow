@@ -24,6 +24,10 @@ internal sealed class DrawHandler(ModelRegistry models, IReadOnlyList<IDrawingMe
             throw new HostRequestException(HostErrorKind.Invalid, $"{request.Width}x{request.Height} is not a size this model draws at.");
         if (string.IsNullOrWhiteSpace(request.Prompt))
             throw new HostRequestException(HostErrorKind.Invalid, "Drawing needs a prompt.");
+        if (request.NegativePrompt is not null && !method.TakesNegativePrompts)
+            throw new HostRequestException(HostErrorKind.Invalid, $"A model that draws the {request.Model.Method} way is told nothing to keep out.");
+        if (request.Lora is not null && !method.TakesLoras)
+            throw new HostRequestException(HostErrorKind.Invalid, $"A model that draws the {request.Model.Method} way takes no LoRA.");
 
         using var room = models.BorrowRoom(ids => reply(new MadeWay(request.RequestId, ids)));
         var rgb = await method.DrawAsync(request, stage => reply(new Progress(request.RequestId, stage, 0, 0)),

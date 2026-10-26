@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Executable.Services;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Executable.FileActions;
@@ -20,7 +21,7 @@ namespace Nexaflow.Features.Executable.FileActions;
 /// mapped by the universal <c>*.*</c> rule.
 /// </para>
 /// </summary>
-public sealed class AvScanAction(IShellServices shell) : IFileAction, ICacheable
+public sealed class AvScanAction(IShellServices shell, IVirtualFileSystem vfs) : IFileAction, ICacheable
 {
     public static string? StaticExperienceId => "/";
 
@@ -40,19 +41,19 @@ public sealed class AvScanAction(IShellServices shell) : IFileAction, ICacheable
     /// <summary>Shows a result, not a tab — so it stays out of the viewer-reachability rules.</summary>
     public bool OpensViewer => false;
 
-    public bool PerformAction(string filePath) => PerformAction([filePath]);
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default) => PerformActionAsync([filePath], ct);
 
-    public bool PerformAction(IEnumerable<string> filePaths)
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
     {
-        var paths = filePaths.Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
-        if (paths.Count == 0) return false;
+            var paths = filePaths.Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
+            if (paths.Count == 0) return Task.FromResult(false);
 
-        // The provider does real work and can take seconds on a large file; never on the dispatcher.
-        shell.QueueBackgroundTask(new ScanTask(shell, paths));
-        return true;
-    }
+            // The provider does real work and can take seconds on a large file; never on the dispatcher.
+            shell.QueueBackgroundTask(new ScanTask(shell, vfs, paths));
+            return Task.FromResult(true);
+        }
 
-    private sealed class ScanTask(IShellServices shell, IReadOnlyList<string> paths) : IBackgroundTask
+    private sealed class ScanTask(IShellServices shell, IVirtualFileSystem vfs, IReadOnlyList<string> paths) : IBackgroundTask
     {
         public string Description => paths.Count == 1
             ? Str.Format("Executable.Av.ScanningOneFormat", Path.GetFileName(paths[0]))
@@ -68,7 +69,7 @@ public sealed class AvScanAction(IShellServices shell) : IFileAction, ICacheable
             {
                 ct.ThrowIfCancellationRequested();
 
-                var result = await Task.Run(() => AmsiScanner.ScanFile(path, ct), ct);
+                var result = await Task.Run(() => AmsiScanner.ScanFileAsync(vfs, path, ct), ct);
                 string name = Path.GetFileName(path);
 
                 if (result.IsThreat)          threats.Add($"{name}: {result.Message}");

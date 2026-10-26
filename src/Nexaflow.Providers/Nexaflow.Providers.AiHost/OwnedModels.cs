@@ -24,10 +24,21 @@ namespace Nexaflow.Providers.AiHost;
 /// time a request uses it — a voice for a language seldom spoken.</param>
 /// <param name="Name">What it is called in its model: its role, unless the model has several parts in that role.</param>
 /// <param name="Projector">A language model's multimodal projector, in its folder: what it sees and hears through.</param>
+/// <param name="Layers">How many layers a language model's GGUF has, as its header says: what it is cut into where only part
+/// of it fits on a GPU; 0 where it is never cut.</param>
+/// <param name="BatchBytesPerToken">What more a language model holds on the GPU for each token it reads in a step past
+/// <see cref="ModelSpec.DefaultBatch"/>, as measured; 0 where that is not known, and it reads in steps of that many.</param>
+/// <param name="BytesPerSequence">What more a language model holds on the GPU for each sequence its context holds past
+/// <see cref="ModelSpec.DefaultSequences"/>, held in 16 bits, as measured — the window of what it read that each keeps; 0 where
+/// that is not known, and it holds that many.</param>
+/// <param name="BackgroundBytes">What a language model's context for work nobody is watching holds on the GPU while it is made —
+/// <see cref="ModelPlacement.BackgroundSequences"/> conversations of <see cref="ModelPlacement.BackgroundTokens"/> each, held in 8
+/// bits — as measured; 0 where that is not known, and it has none.</param>
 
 internal sealed record OwnedPart(string Role, string Runner, string Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
                                  IReadOnlyDictionary<string, string>? CudaOptions, string? ExecutionProvider, string Name, string? Projector = null,
-                                 long BytesPerToken = 0, bool LoadsOnDemand = false);
+                                 long BytesPerToken = 0, bool LoadsOnDemand = false, int Layers = 0, long BatchBytesPerToken = 0,
+                                 long BytesPerSequence = 0, long BackgroundBytes = 0);
 
 /// <summary>What each part of an owned model does.</summary>
 internal static class OwnedRoles
@@ -55,6 +66,7 @@ internal static class OwnedRoles
     public const string Reader          = ReadingParts.Reader;
     public const string TextFinder      = ReadingParts.TextFinder;
     public const string Inpainter       = ErasingParts.Inpainter;
+    public const string SafetyClassifier = CheckingParts.SafetyClassifier;
 
     /// <summary>The parts a model of each kind is made of — an image model's, the parts the method it draws with takes; a
     /// video model's, the parts the method it films with takes.</summary>
@@ -75,6 +87,7 @@ internal static class OwnedRoles
         OwnedToolKind.PictureSelection   => [ImageEncoder, ClickDecoder, TextEncoder, ExemplarEncoder, Finder],
         OwnedToolKind.PageReading        => [Reader, TextFinder],
         OwnedToolKind.PictureErasing     => [Inpainter],
+        OwnedToolKind.PictureChecking    => [SafetyClassifier],
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "no owned tool is of this kind"),
     };
 
@@ -131,6 +144,9 @@ internal enum OwnedToolKind
 
     /// <summary>Erases from a picture what a mask covers, filling it from what is round it: LaMa's big-lama inpainter.</summary>
     PictureErasing,
+
+    /// <summary>Checks how fit a picture is for a general audience: OwenElliott's image safety classifier, M, on the CPU.</summary>
+    PictureChecking,
 }
 
 /// <summary>
@@ -154,6 +170,9 @@ internal sealed record OwnedModel(CatalogModel Catalog, ModelKind Kind, IReadOnl
 {
     /// <summary>A picture's and a clip's parts load for their stage alone.</summary>
     public override bool LoadsOnDemand => Kind is ModelKind.ImageGeneration or ModelKind.VideoGeneration;
+
+    /// <summary>The LoRAs an image model draws with when asked; none for most.</summary>
+    public IReadOnlyList<OwnedLora> Loras { get; init; } = [];
 }
 
 /// <summary>A voice of a model that speaks: the language it reads, the part that speaks it, its file in that part's
@@ -162,10 +181,26 @@ internal sealed record OwnedVoice(string Language, string Part, string File, str
 
 /// <summary>
 /// How a model that draws samples: the method it draws with, its number of denoising steps, the shift of the noise levels
-/// they run through, how far each step steers away from the empty prompt (0 for a model that does not), and the size it
-/// draws each shape at — sizes it was trained on.
+/// they run through, how far each step steers away from the empty prompt (0 for a model that does not), the size it
+/// draws each shape at — sizes it was trained on — and whether what it steers away from can be a negative prompt.
 /// </summary>
-internal sealed record OwnedSampler(DrawingMethod Method, int Steps, float Shift, float Guidance, IReadOnlyDictionary<MediaShape, (int Width, int Height)> Sizes);
+internal sealed record OwnedSampler(DrawingMethod Method, int Steps, float Shift, float Guidance, IReadOnlyDictionary<MediaShape, (int Width, int Height)> Sizes,
+                                   bool NegativePrompts = false);
+
+/// <summary>
+/// A LoRA an image model draws with when asked, as its makers apply it: unmerged, at <paramref name="Strength"/>, its
+/// <paramref name="Trigger"/> leading the prompt. Its files — the adapter and, for a distillation that draws in its own
+/// steps, its sampler — are fetched the first time a picture asks for it, not with the model.
+/// </summary>
+/// <param name="Offer">What it is offered as.</param>
+/// <param name="Trigger">The word its makers trained it to answer to; null for one that needs none.</param>
+internal sealed record OwnedLora(ImageLora Offer, string? Trigger, float Strength, ModelAsset Adapter, ModelAsset? Sampler)
+{
+    public IReadOnlyList<ModelAsset> Files => Sampler is null ? [Adapter] : [Adapter, Sampler];
+
+    /// <summary>The prompt as the LoRA is asked with it: its trigger first, where it has one.</summary>
+    public string Prompted(string prompt) => Trigger is null ? prompt : $"{Trigger}, {prompt}";
+}
 
 /// <summary>
 /// How a model that films samples: the method it films with, its number of denoising steps, the shift of the noise
@@ -218,16 +253,20 @@ internal static class OwnedModels
     private sealed record Manifest(List<Entry>? Models, List<ToolEntry>? Tools);
     private sealed record ToolEntry(string? Id, OwnedToolKind? Kind, List<Part>? Parts);
     private sealed record Entry(string? Id, ModelKind? Kind, bool Images, bool Audio, bool ToolCalls, List<Part>? Parts, List<Voice>? Voices, Sampler? Sampler,
-                                Choosing? TokenSampling, Filming? Filming);
+                                Choosing? TokenSampling, Filming? Filming, List<Lora>? Loras);
+    private sealed record Lora(string? Id, string? DisplayName, string? Description, string? Trigger, float Strength, bool Adult, string? Adapter,
+                               string? Sampler, List<LoraFile>? Files);
+    private sealed record LoraFile(string? Path, string? Url, long Size, string? Sha256);
     private sealed record Filming(FilmingMethod? Method, int Steps, float Shift, float Guidance, List<int>? Timesteps, string? NegativePrompt,
                                   int FramesPerSecond, List<int>? Seconds, Dictionary<string, int[]>? Sizes, bool StartsFromPictures);
     private sealed record Choosing(Choice? Thinking, Choice? Answering);
     private sealed record Choice(float Temperature, int TopK, float TopP, float PresencePenalty);
-    private sealed record Sampler(DrawingMethod? Method, int Steps, float Shift, float Guidance, Dictionary<string, int[]>? Sizes);
+    private sealed record Sampler(DrawingMethod? Method, int Steps, float Shift, float Guidance, Dictionary<string, int[]>? Sizes, bool NegativePrompts);
     private sealed record Voice(string? Language, string? Part, string? File, string? Lexicon);
     private sealed record Part(string? Role, string? Runner, string? Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
                                Dictionary<string, string>? CudaOptions, string? ExecutionProvider, string? Name, string? Projector, long BytesPerToken,
-                                                              bool RunsOnCpu, bool LoadsOnDemand);
+                                                              bool RunsOnCpu, bool LoadsOnDemand, int Layers = 0, long BatchBytesPerToken = 0,
+                                                              long BytesPerSequence = 0, long BackgroundBytes = 0);
 
     public static IReadOnlyList<OwnedModel> All { get; } = Read(Embedded());
 
@@ -272,7 +311,14 @@ internal static class OwnedModels
             var filming = e.Filming is { } f ? ToFilming(e.Id, f) : null;
             if ((kind == ModelKind.VideoGeneration) != (filming is not null))
                 throw new InvalidDataException($"Owned model '{e.Id}' says how it films, or films without saying how.");
-            var owned = new OwnedModel(model, kind, parts, voices, e.Images, e.Audio, e.ToolCalls, sampler, choosing, filming);
+            var loras = (e.Loras ?? []).Select(l => ToLora(e.Id, l)).ToList();
+            if (loras.Count > 0 && kind != ModelKind.ImageGeneration)
+                throw new InvalidDataException($"Owned model '{e.Id}' lists LoRAs, which only a model that draws takes.");
+            if (loras.GroupBy(l => l.Offer.Id).Any(g => g.Count() > 1))
+                throw new InvalidDataException($"Owned model '{e.Id}' lists two LoRAs of one id.");
+            if (sampler is { NegativePrompts: false } && loras.Any(l => l.Sampler is null))
+                throw new InvalidDataException($"Owned model '{e.Id}' takes no negative prompt, so a LoRA it draws with in its own steps would be told one.");
+            var owned = new OwnedModel(model, kind, parts, voices, e.Images, e.Audio, e.ToolCalls, sampler, choosing, filming) { Loras = loras };
             Check("Owned model", owned, OwnedRoles.Of(kind, sampler, filming));
             return owned;
         })];
@@ -333,7 +379,26 @@ internal static class OwnedModels
         }
         if (Enum.GetValues<MediaShape>().Any(shape => !sizes.ContainsKey(shape)))
             throw new InvalidDataException($"Owned model '{modelId}' does not say what size it draws each shape at.");
-        return new OwnedSampler(method, s.Steps, s.Shift, s.Guidance, sizes);
+        return new OwnedSampler(method, s.Steps, s.Shift, s.Guidance, sizes, s.NegativePrompts);
+    }
+
+    /// <exception cref="InvalidDataException">The LoRA does not say what it is, what it does, how strongly it is drawn
+    /// with, or which of its files is its adapter and which its sampler — or lists a file that is neither.</exception>
+    private static OwnedLora ToLora(string modelId, Lora l)
+    {
+        if (string.IsNullOrWhiteSpace(l.Id) || string.IsNullOrWhiteSpace(l.DisplayName) || string.IsNullOrWhiteSpace(l.Description) || l.Strength <= 0)
+            throw new InvalidDataException($"A LoRA of owned model '{modelId}' does not say what it is, what it does or how strongly it is drawn with.");
+        var files = (l.Files ?? []).Select(f => ModelCatalog.FileOf(l.Id, f.Path, f.Url, f.Size, f.Sha256)).ToList();
+        var adapter = files.FirstOrDefault(f => f.RelativePath == l.Adapter)
+                      ?? throw new InvalidDataException($"LoRA '{l.Id}' of owned model '{modelId}' does not list its adapter among its files.");
+        ModelAsset? sampler = null;
+        if (l.Sampler is not null)
+            sampler = files.FirstOrDefault(f => f.RelativePath == l.Sampler)
+                      ?? throw new InvalidDataException($"LoRA '{l.Id}' of owned model '{modelId}' does not list its sampler among its files.");
+        if (files.Count != (sampler is null ? 1 : 2))
+            throw new InvalidDataException($"LoRA '{l.Id}' of owned model '{modelId}' lists a file that is neither its adapter nor its sampler.");
+        var offer = new ImageLora(l.Id, l.DisplayName, l.Description) { Adult = l.Adult, NegativePrompts = sampler is null };
+        return new OwnedLora(offer, string.IsNullOrWhiteSpace(l.Trigger) ? null : l.Trigger, l.Strength, adapter, sampler);
     }
 
     /// <exception cref="InvalidDataException">It does not say how it films, how many steps and how far shifted — a distilled
@@ -400,7 +465,7 @@ internal static class OwnedModels
             throw new InvalidDataException($"{what} '{id}' loads its {p.Role} on demand, which only a part of a model kept loaded can.");
 
         return new OwnedPart(p.Role, p.Runner, p.Folder, p.File, p.Adapter, p.MemoryBytes, p.ContextTokens, p.CudaOptions, p.ExecutionProvider,
-                             p.Name ?? p.Role, p.Projector, p.BytesPerToken, p.LoadsOnDemand);
+                             p.Name ?? p.Role, p.Projector, p.BytesPerToken, p.LoadsOnDemand, p.Layers, p.BatchBytesPerToken, p.BytesPerSequence, p.BackgroundBytes);
     }
 
     private static OwnedVoice ToVoice(string modelId, CatalogModel model, List<OwnedPart> parts, Voice v)

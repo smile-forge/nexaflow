@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -36,11 +37,13 @@ public class WebContextPreviewTests
         try { if (Directory.Exists(_tempDir)) Directory.Delete(_tempDir, recursive: true); } catch { }
     }
 
-    private HtmlViewModel Page()
+    private async Task<HtmlViewModel> PageAsync()
     {
         var path = Path.Combine(_tempDir, "page.html");
         File.WriteAllText(path, "<html><body>hi</body></html>");
-        return new HtmlViewModel(path);
+        var vm = new HtmlViewModel(path, VirtualFileSystem.Instance);
+        await vm.Loaded;
+        return vm;
     }
 
     /// <summary>A browser that answers each capture with the next picture in <paramref name="pictures"/>,
@@ -71,7 +74,7 @@ public class WebContextPreviewTests
     [TestMethod]
     public async Task ALoadedPage_IsPictured_SmallerThanTheAiIsShown()
     {
-        var vm    = Page();
+        var vm    = await PageAsync();
         var asked = Browser(vm, Png(48, 30));
 
         await vm.TakeSnapshotAsync(CancellationToken.None);
@@ -88,7 +91,7 @@ public class WebContextPreviewTests
     [TestMethod]
     public async Task ACaptureThatComesBackEmpty_OrIsOvertaken_LeavesTheLastSnapshot()
     {
-        var vm = Page();
+        var vm = await PageAsync();
         Browser(vm, Png(16, 10), null, Png(32, 20));
 
         await vm.TakeSnapshotAsync(CancellationToken.None);
@@ -103,7 +106,7 @@ public class WebContextPreviewTests
     [TestMethod]
     public async Task WithoutABrowser_NothingIsCaptured()
     {
-        var vm    = Page();
+        var vm    = await PageAsync();
         var asked = Browser(vm, Png(16, 10));
         vm.WebViewAvailable = false;
 
@@ -114,11 +117,11 @@ public class WebContextPreviewTests
     }
 
     [TestMethod]
-    public void ThePreview_RemindsOfThePage_ByItsAddress_AndIsFreshEachTime()
+    public async Task ThePreview_RemindsOfThePage_ByItsAddress_AndIsFreshEachTime()
     {
+        var vm = await PageAsync();
         UiThread.Run(() =>
         {
-            var vm = Page();
             vm.PageTitle = "Release notes";
 
             var first  = vm.CreateContextPreview();

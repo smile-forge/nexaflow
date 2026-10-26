@@ -63,9 +63,9 @@ public class VirtualBackingActionTests
     [TestMethod]
     public void EveryActionThatLaunchesTheFileElsewhereDeclaresItNeedsARealFolder()
     {
-        Assert.IsTrue(((IFileAction)new ExecuteFile()).RequiresFullyBackedPath,
+        Assert.IsTrue(((IFileAction)new ExecuteFile(VirtualFileSystem.Instance)).RequiresFullyBackedPath,
                       "Run needs the exe's dependencies");
-        Assert.IsTrue(((IFileAction)new InstallPackage()).RequiresFullyBackedPath,
+        Assert.IsTrue(((IFileAction)new InstallPackage(VirtualFileSystem.Instance)).RequiresFullyBackedPath,
                       "Install needs the package's payload");
         Assert.IsTrue(((IFileAction)new CustomAction(new ExternalAppDefinition())).RequiresFullyBackedPath,
                       "a user-configured program is opaque — assume it looks around the file");
@@ -78,8 +78,8 @@ public class VirtualBackingActionTests
     {
         // The default, so opening / inspecting keeps working inside an archive — the point of the VFS.
         // These materialise a single file and that is genuinely all they need.
-        Assert.IsFalse(((IFileAction)new FileProperties()).RequiresFullyBackedPath);
-        Assert.IsFalse(((IFileAction)new OpenWithAction()).RequiresFullyBackedPath);
+        Assert.IsFalse(((IFileAction)new FileProperties(VirtualFileSystem.Instance)).RequiresFullyBackedPath);
+        Assert.IsFalse(((IFileAction)new OpenWithAction(VirtualFileSystem.Instance)).RequiresFullyBackedPath);
     }
 
     // ── The classification the filter keys on ────────────────────────────────

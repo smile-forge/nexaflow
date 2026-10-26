@@ -23,7 +23,7 @@ public class PdfViewModelEditingTests
     [CoversNode("pdf-extract-images")]
     public async Task SavingAsAndExtracting_AreOffered_AsSoonAsTheDocumentIsOpen_AndAfterAnEdit()
     {
-        using var vm = new PdfViewModel(Copy("save-as.pdf"), Shell(), new PdfConfig());
+        using var vm = new PdfViewModel(Copy("save-as.pdf"), Shell(), VirtualFileSystem.Instance, new PdfConfig());
         var told = new HashSet<string>();
         vm.SaveAsCommand.CanExecuteChanged += (_, _) => told.Add("save as");
         vm.ExtractImagesCommand.CanExecuteChanged += (_, _) => told.Add("extract");
@@ -73,7 +73,7 @@ public class PdfViewModelEditingTests
 
     private static async Task<PdfViewModel> Opened(IShellServices shell, string path)
     {
-        var vm = new PdfViewModel(path, shell, new PdfConfig());
+        var vm = new PdfViewModel(path, shell, VirtualFileSystem.Instance, new PdfConfig());
         await vm.LoadAsync(Brushes.White);
         return vm;
     }

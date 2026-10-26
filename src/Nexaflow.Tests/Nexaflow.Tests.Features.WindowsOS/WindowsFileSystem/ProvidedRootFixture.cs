@@ -8,6 +8,8 @@ using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -52,11 +54,15 @@ internal sealed class ProvidedRootFixture : IDisposable
     }
 
     public FileSystemViewModel ThisPc()
-        => FileSystemViewModel.CreateThisPc(_shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>());
+        => FileSystemViewModel.CreateThisPc(_shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
 
     /// <summary>A browser opened directly at a folder (the "rooted" mode), for the real-path journey.</summary>
-    public FileSystemViewModel At(string folder)
-        => new(folder, _shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>());
+    public async Task<FileSystemViewModel> AtAsync(string folder)
+    {
+        var vm = new FileSystemViewModel(folder, _shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
+        await vm.Browsing;
+        return vm;
+    }
 
     public void Dispose()
     {
@@ -87,5 +93,10 @@ internal sealed class ProvidedRootFixture : IDisposable
                     Icon       = ThisPcItemIcon.Cloud,
                 })];
         }
+
+        public async Task<ThisPcItemDetail> GetDetailAsync(ThisPcItem item, CancellationToken ct = default)
+            => await VirtualFileSystem.Instance.IsDirectoryAsync(item.TargetPath, ct)
+                ? new ThisPcItemDetail { Available = true, HasChildren = await VirtualFileSystem.Instance.HasChildFoldersAsync(item.TargetPath, ct) }
+                : new ThisPcItemDetail { Available = false };
     }
 }

@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.Collections.Specialized;
 using System.IO;
 using System.Windows.Media;
@@ -184,7 +185,7 @@ public class PdfPagesPanelTests
     /// </summary>
     private static async Task<(PdfDocumentSession Session, PdfPagesPanel Panel)> Opened(IShellServices? shell = null, string sample = "outline.pdf")
     {
-        var session = new PdfDocumentSession(Copy(sample));
+        var session = new PdfDocumentSession(Copy(sample), VirtualFileSystem.Instance);
         Assert.IsTrue(await session.OpenAsync(CancellationToken.None));
         var pages = new PdfPageSource(session.Arrangement, session.Opened(), Brushes.White);
         var panel = new PdfPagesPanel(session, shell ?? Substitute.For<IShellServices>(), _ => true, () => pages) { CanEdit = true };

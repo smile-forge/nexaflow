@@ -280,7 +280,7 @@ public sealed partial class PictureCutter : ObservableObject
 
     private async Task<Opened> OpenAsync(string photo)
     {
-        var upright = await Task.Run(() => _services.ReadUpright(photo));
+        var upright = await Task.Run(() => _services.ReadUprightAsync(photo));
         var session = await _selection!.OpenAsync(upright.Rgba, upright.Width, upright.Height, CancellationToken.None);
         return new Opened(session, upright);
     }
@@ -377,7 +377,7 @@ public sealed partial class PictureCutter : ObservableObject
         try
         {
             if (await CutOutAsync(CancellationToken.None) is not { } png) return;
-            await File.WriteAllBytesAsync(Path.ChangeExtension(destination, ".png"), png);
+            await _services.FileSystem.WriteAllBytesAsync(Path.ChangeExtension(destination, ".png"), png);
             _shell.ShowNotification(Str.Format("Images.CutOut.SavedFormat", Path.GetFileName(destination)));
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)

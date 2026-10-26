@@ -55,7 +55,7 @@ internal sealed class WanFilming(ModelRegistry models, GpuScheduler gpu) : IFilm
             }
         }
 
-        var noise   = new ClipNoise(request.Seed);
+        var noise   = new GaussianNoise(request.Seed);
         var latents = noise.Draw(shape.Values);
         var denoiserSpec = model.Parts[FilmingParts.Denoiser];
         using (var lease = await models.AcquireAsync(denoiserSpec, resident: false, report.Stage, ct, room))

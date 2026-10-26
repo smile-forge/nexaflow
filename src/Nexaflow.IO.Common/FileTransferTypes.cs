@@ -86,7 +86,15 @@ public sealed record FileTransferRequest(
     TransferKind Kind,
     IReadOnlyList<TransferItem> Items,
     ConflictPolicy Conflicts = ConflictPolicy.AutoRename,
-    bool Verify = false);
+    bool Verify = false)
+{
+    /// <summary>
+    /// The runtime's file system, for an item with an end the disk cannot reach — a folder under a mount, an archive
+    /// entry, a connected location. Such an item goes through it; an item whose both ends are real paths on this disk
+    /// still takes the disk's own path. Null when every path is known to be a real one.
+    /// </summary>
+    public IVirtualFileSystem? FileSystem { get; init; }
+}
 
 /// <summary>A file a verified run read back and found identical to its source.</summary>
 public sealed record VerifiedFile(string Destination, long Bytes, string Sha256);

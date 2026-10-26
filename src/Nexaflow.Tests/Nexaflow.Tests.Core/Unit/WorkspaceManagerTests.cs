@@ -232,6 +232,9 @@ public class WorkspaceManagerTests
             SuppressSessionRestore = true,
             DefaultTabs            = [new DefaultTabDescriptor { PageKind = "Terminal", Pane = 1, IsActive = true }],
             LastSessionTabs        = [new DefaultTabDescriptor { PageKind = "Markdown", Title = "notes.md" }],
+            LastWindowPlacement    = new WindowPlacement(new PixelRect(100, 80, 1500, 980), Maximized: true,
+                                         new MonitorArea("dell", new PixelRect(1920, 0, 4480, 1440),
+                                                         new PixelRect(1920, 0, 4480, 1400), IsPrimary: false)),
             IsInUse                = true,   // transient UI flag — must not reach the file
         };
         InitWith(workspace);
@@ -248,6 +251,7 @@ public class WorkspaceManagerTests
         Assert.IsTrue(saved.DefaultTabs.Single().IsActive);
         Assert.AreEqual("Markdown", saved.LastSessionTabs?.Single().PageKind);
         Assert.AreEqual("notes.md", saved.LastSessionTabs?.Single().Title);
+        Assert.AreEqual(workspace.LastWindowPlacement, saved.LastWindowPlacement, "monitor, rectangle and state come back whole");
         Assert.IsFalse(saved.IsInUse, "IsInUse marks a live row in the editor and is never persisted");
     }
 
@@ -267,7 +271,11 @@ public class WorkspaceManagerTests
                 new Workspace { Name = "  Dev  " },
                 new Workspace { Name = "DEV" },                              // the same folder, case-insensitively
                 new Workspace { Name = "Re:ports/Q1" },                      // not a folder name
-                new Workspace { Name = "Tabs", DefaultTabs = [null!], LastSessionTabs = [null!] },
+                new Workspace
+                {
+                    Name = "Tabs", DefaultTabs = [null!], LastSessionTabs = [null!],
+                    LastWindowPlacement = new WindowPlacement(new PixelRect(0, 0, 0, 0), false, null!),
+                },
             ],
         };
 
@@ -280,6 +288,7 @@ public class WorkspaceManagerTests
         Assert.IsFalse(names.Contains("Re:ports/Q1"), "the characters a folder name cannot hold are dropped");
         Assert.AreEqual(0, tabs.DefaultTabs.Count, "an entry that is not there cannot open a tab");
         Assert.IsNull(tabs.LastSessionTabs, "and a session holding nothing is no offer at all");
+        Assert.IsNull(tabs.LastWindowPlacement, "a placement with no size or monitor is never applied");
 
         // The folder for every surviving name resolves, which is what startup does before anything else.
         foreach (var workspace in config.Contexts)

@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common.ThisPc;
 using Nexaflow.Features.OneDrive.Models;
 using Nexaflow.Features.OneDrive.Services;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.OneDrive;
 
@@ -18,19 +19,22 @@ public sealed class OneDriveThisPcProvider : IThisPcItemProvider
 
     private readonly OneDriveConfig  _config;
     private readonly OneDriveDetector _detector;
+    private readonly IVirtualFileSystem _vfs;
     private readonly Lock _gate = new();
 
     private IReadOnlyList<ThisPcItem>? _memo;
     private DateTime _memoAt;
 
-    public OneDriveThisPcProvider(OneDriveConfig config)
-        : this(config, new OneDriveDetector(new HkcuRegistryView())) { }
+    /// <param name="vfs">The runtime's file system each sync folder is probed through.</param>
+    public OneDriveThisPcProvider(OneDriveConfig config, IVirtualFileSystem vfs)
+        : this(config, vfs, new OneDriveDetector(new HkcuRegistryView())) { }
 
     /// <summary>Test seam: the detector is built, not run, here — nothing touches the registry until
     /// <see cref="GetItems"/> is called.</summary>
-    internal OneDriveThisPcProvider(OneDriveConfig config, OneDriveDetector detector)
+    internal OneDriveThisPcProvider(OneDriveConfig config, IVirtualFileSystem vfs, OneDriveDetector detector)
     {
         _config   = config;
+        _vfs      = vfs;
         _detector = detector;
         _config.Changed += Invalidate;
     }
@@ -52,6 +56,13 @@ public sealed class OneDriveThisPcProvider : IThisPcItemProvider
             _memoAt = DateTime.UtcNow;
             return _memo;
         }
+    }
+
+    /// <summary>A sync folder is there when the file system finds it as a folder, with an expander when it holds one.</summary>
+    public async Task<ThisPcItemDetail> GetDetailAsync(ThisPcItem item, CancellationToken ct = default)
+    {
+        if (!await _vfs.IsDirectoryAsync(item.TargetPath, ct)) return new ThisPcItemDetail { Available = false };
+        return new ThisPcItemDetail { Available = true, HasChildren = await _vfs.HasChildFoldersAsync(item.TargetPath, ct) };
     }
 
     private IReadOnlyList<ThisPcItem> Build()

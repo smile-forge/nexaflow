@@ -1,74 +1,74 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.CompilerServices;
 using FellowOakDicom;
+using FellowOakDicom.Media;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Features.Dicom.Services;
 
 /// <summary>
-/// Reads DICOM content from either a real on-disk path or an <b>in-archive (virtual) path</b> — so a study
-/// opened from inside a <c>.zip</c> works the same as one on disk. The shell's <see cref="VirtualFileSystem"/>
-/// is transparent for real paths, so callers never branch on where the bytes live.
+/// Reads DICOM content wherever the runtime's file system reaches it — on disk, inside an archive or on a location — so
+/// a study opened from inside a <c>.zip</c> works the same as one on disk. A file on this disk is opened by its path, so
+/// fo-dicom reads what it skipped on demand; anywhere else its bytes come through the file system.
 /// </summary>
-internal static class DicomIo
+internal sealed class DicomIo(IVirtualFileSystem vfs)
 {
-    private static IVirtualFileSystem Vfs => VirtualFileSystem.Instance;
+    /// <summary>Whether <paramref name="path"/> is a file on this disk — one fo-dicom can read by path, lazily.</summary>
+    public bool IsOnDisk(string path) => vfs.ResolveOnDisk(path) is not null;
 
-    public static bool Exists(string path) => File.Exists(path) || Vfs.Exists(path);
+    public ValueTask<bool> ExistsAsync(string path, CancellationToken ct = default) => vfs.ExistsAsync(path, ct);
 
-    /// <summary>True for a real directory, an archive container (a <c>.zip</c> whose contents we browse), or a
-    /// virtual folder inside one.</summary>
-    public static bool IsDirectory(string path)
-        => Directory.Exists(path)
-           || Vfs.IsContainer(path)
-           || (!File.Exists(path) && Vfs.GetEntryInfo(path) is { IsDirectory: true });
+    /// <summary>True for a folder, an archive container (a <c>.zip</c> whose contents we browse), or a folder inside one.</summary>
+    public ValueTask<bool> IsDirectoryAsync(string path, CancellationToken ct = default) => vfs.IsDirectoryAsync(path, ct);
 
-    /// <summary>Opens a DICOM file from a real or virtual path. The stream is fully consumed by the chosen
-    /// <paramref name="option"/> (headers-only or read-all) before it is disposed.</summary>
-    public static DicomFile Open(string path, FileReadOption option)
+    /// <summary>Opens a DICOM file. Read through a stream, the file is fully consumed by the chosen
+    /// <paramref name="option"/> (headers-only or read-all) before the stream is disposed.</summary>
+    public async Task<DicomFile> OpenAsync(string path, FileReadOption option, CancellationToken ct = default)
     {
-        if (File.Exists(path)) return DicomFile.Open(path, option);
-        using var s = Vfs.OpenRead(path);
-        return DicomFile.Open(s, option);
+        if (vfs.ResolveOnDisk(path) is { } real) return await DicomFile.OpenAsync(real, option);
+        await using var s = await vfs.OpenReadAsync(path, ReadIntent.Random, ct);
+        return await DicomFile.OpenAsync(s, option);
     }
 
-    /// <summary>Recursively enumerates every file under a real directory or a virtual folder/archive.</summary>
-    public static IEnumerable<string> EnumerateFiles(string dir)
+    /// <summary>Opens a <c>DICOMDIR</c> index.</summary>
+    public async Task<DicomDirectory> OpenDirectoryAsync(string path, CancellationToken ct = default)
     {
-        if (Directory.Exists(dir))
+        if (vfs.ResolveOnDisk(path) is { } real) return await DicomDirectory.OpenAsync(real);
+        await using var s = await vfs.OpenReadAsync(path, ReadIntent.Random, ct);
+        return await DicomDirectory.OpenAsync(s);
+    }
+
+    /// <summary>Every file under a folder or an archive, however deep. A folder that cannot be listed has none.</summary>
+    public async IAsyncEnumerable<string> EnumerateFilesAsync(string dir, [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        var entries = new List<LocationEntry>();
+        try
         {
-            foreach (var f in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)) yield return f;
-            yield break;
+            await foreach (var entry in vfs.EnumerateAsync(dir, ct)) entries.Add(entry);
         }
-        foreach (var f in EnumerateVirtual(dir)) yield return f;
-    }
+        catch (Exception e) when (e is not OperationCanceledException) { yield break; }
 
-    private static IEnumerable<string> EnumerateVirtual(string dir)
-    {
-        IReadOnlyList<VirtualEntry> entries;
-        try { entries = Vfs.EnumerateEntries(dir); }
-        catch { yield break; }
-
-        foreach (var e in entries)
+        foreach (var entry in entries)
         {
-            var child = dir.TrimEnd('/', '\\') + Path.DirectorySeparatorChar + e.Name;
-            if (e.IsDirectory)
-                foreach (var f in EnumerateVirtual(child)) yield return f;
+            var child = Path.Combine(dir, entry.Name);
+            if (entry.IsDirectory)
+                await foreach (var f in EnumerateFilesAsync(child, ct)) yield return f;
             else
                 yield return child;
         }
     }
 
-    /// <summary>Recognises a DICOM file at a real or virtual path: a known extension, else the <c>DICM</c> magic.</summary>
-    public static bool IsDicom(string path)
+    /// <summary>Recognises a DICOM file: a known extension, else the <c>DICM</c> magic.</summary>
+    public async Task<bool> IsDicomAsync(string path, CancellationToken ct = default)
     {
         if (DicomFileSniffer.HasDicomExtension(path)) return true;
-        if (File.Exists(path)) return DicomFileSniffer.HasDicmMagic(path);
         try
         {
-            using var s = Vfs.OpenRead(path);
+            await using var s = await vfs.OpenReadAsync(path, ReadIntent.Random, ct);
             return DicomFileSniffer.HasDicmMagic(s);
         }
-        catch { return false; }
+        catch (Exception e) when (e is not OperationCanceledException) { return false; }
     }
 }

@@ -1,3 +1,7 @@
+using Nexaflow.IO.Common;
+using System.Threading.Tasks;
+using System.Threading;
+using Nexaflow.Features.Images.Services;
 using System.Text;
 using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.Editing.Codecs;
@@ -18,7 +22,7 @@ namespace Nexaflow.Tests.Features.Images;
 [TestClass]
 public class ImageExportTests
 {
-    private static readonly ImageEditingServices Services = new();
+    private static readonly ImageEditingServices Services = new(VirtualFileSystem.Instance);
 
     /// <summary>A copy of the generated photo stored on its side, with EXIF, GPS and XMP.</summary>
     private static string SourceJpeg(string dir) => CopyOfSample(dir, OrientedPhotoSample.FileName);
@@ -29,12 +33,12 @@ public class ImageExportTests
     [TestMethod]
     [CoversNode("images-metadata-transfer")]
     [CoversNode("images-bake")]
-    public void ASavedJpeg_IsUpright_AndItsExifSaysSo()
+    public async Task ASavedJpeg_IsUpright_AndItsExifSaysSo()
     {
         var dir = TempDirectory();
         try
         {
-            var bytes = Services.Exporter.Export(SourceJpeg(dir), ImageRecipe.Identity, ImageContainer.Jpeg);
+            var bytes = await Services.Exporter.ExportAsync(SourceJpeg(dir), ImageRecipe.Identity, ImageContainer.Jpeg);
 
             using var decoded = Services.Decoders.Decode(bytes, maxLongEdge: null);
             Assert.AreEqual(SKEncodedOrigin.TopLeft, decoded.Origin, "the orientation is baked into the pixels");
@@ -55,13 +59,13 @@ public class ImageExportTests
     [TestMethod]
     [CoversNode("images-edit-export")]
     [CoversNode("images-metadata-transfer")]
-    public void StrippingMetadata_LeavesNothingButThePicture()
+    public async Task StrippingMetadata_LeavesNothingButThePicture()
     {
         var dir = TempDirectory();
         try
         {
             var recipe = new ImageRecipe { Export = new RecipeExport { StripMetadata = true } };
-            var bytes = Services.Exporter.Export(SourceJpeg(dir), recipe, ImageContainer.Jpeg);
+            var bytes = await Services.Exporter.ExportAsync(SourceJpeg(dir), recipe, ImageContainer.Jpeg);
 
             var blocks = Read(bytes);
             Assert.IsNull(blocks.Exif);
@@ -76,7 +80,7 @@ public class ImageExportTests
     [TestMethod]
     [CoversNode("images-metadata-transfer")]
     [CoversNode("images-encode")]
-    public void ACopyInAnotherFormat_CarriesTheMetadataThatFormatCanHold()
+    public async Task ACopyInAnotherFormat_CarriesTheMetadataThatFormatCanHold()
     {
         var dir = TempDirectory();
         try
@@ -84,7 +88,7 @@ public class ImageExportTests
             var source = SourceJpeg(dir);
             foreach (var target in new[] { ImageContainer.Png, ImageContainer.Webp, ImageContainer.Tiff })
             {
-                var bytes = Services.Exporter.Export(source, ImageRecipe.Identity, target);
+                var bytes = await Services.Exporter.ExportAsync(source, ImageRecipe.Identity, target);
                 Assert.AreEqual(target, ImageContainers.Sniff(bytes.AsSpan(0, 16)), $"{target} written");
 
                 var blocks = Read(bytes);
@@ -99,7 +103,7 @@ public class ImageExportTests
             }
 
             Assert.IsFalse(Services.Encoders.CarriesMetadata(ImageContainer.Bmp), "BMP has nowhere to put it, and says so");
-            var bmp = Services.Exporter.Export(source, ImageRecipe.Identity, ImageContainer.Bmp);
+            var bmp = await Services.Exporter.ExportAsync(source, ImageRecipe.Identity, ImageContainer.Bmp);
             Assert.AreEqual(ImageContainer.Bmp, ImageContainers.Sniff(bmp.AsSpan(0, 16)));
         }
         finally { Directory.Delete(dir, recursive: true); }
@@ -123,16 +127,18 @@ public class ImageExportTests
 
     [TestMethod]
     [CoversNode("images-bake")]
-    public void ReplacingTheOriginal_LeavesOnlyTheNewFile()
+    public async Task SavingOverTheOriginal_LeavesOnlyTheNewFile()
     {
         var dir = TempDirectory();
         try
         {
-            var path = Path.Combine(dir, "photo.jpg");
-            File.WriteAllBytes(path, [1, 2, 3]);
-            ImageExporter.ReplaceFile(path, [4, 5, 6, 7]);
+            var path = SourceJpeg(dir);
+            var before = File.ReadAllBytes(path);
+            var save = new ImageSaveTask(Services, path, ImageRecipe.Identity, ImageContainer.Jpeg, path);
+            await save.RunAsync(CancellationToken.None);
 
-            CollectionAssert.AreEqual(new byte[] { 4, 5, 6, 7 }, File.ReadAllBytes(path));
+            Assert.IsNull(save.Failure);
+            CollectionAssert.AreNotEqual(before, File.ReadAllBytes(path), "the saved picture is in the original's place");
             Assert.AreEqual(1, Directory.GetFiles(dir).Length, "no swap file left behind");
         }
         finally { Directory.Delete(dir, recursive: true); }

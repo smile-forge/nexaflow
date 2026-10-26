@@ -26,12 +26,12 @@ public sealed class DefaultActionRegistry
     /// (longest, e.g. <c>tar.gz</c> before <c>gz</c>) extension first, then a <c>*</c> catch-all. Null when
     /// no override applies.
     /// </summary>
-    public DefaultActionOverride? Resolve(FileInfo file)
+    public DefaultActionOverride? Resolve(string path)
     {
         var overrides = _config.Overrides;
         if (overrides is null || overrides.Count == 0) return null;
 
-        foreach (var cand in ExtensionCandidates(file.Name))
+        foreach (var cand in ExtensionCandidates(Path.GetFileName(path)))
         {
             var bare = cand.TrimStart('.');
             var match = overrides.FirstOrDefault(o =>

@@ -13,6 +13,7 @@ using Nexaflow.Search;
 using Nexaflow.Features.WindowsApps.Models;
 using Nexaflow.Features.WindowsApps.Services;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.WindowsApps.ViewModels;
 
@@ -265,6 +266,7 @@ public sealed partial class WindowsAppsViewModel : ObservableObject, IPageViewMo
 
     // ── Open install location ────────────────────────────────────────────────
     [RelayCommand]
+    [LocalDiskOnly("an installed app's folder, on this computer")]
     private void OpenLocation(InstalledAppItem? item)
     {
         var path = item?.App.InstallLocation;

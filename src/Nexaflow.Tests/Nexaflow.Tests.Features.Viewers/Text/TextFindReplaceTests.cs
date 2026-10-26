@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -40,10 +41,10 @@ public class TextFindReplaceTests
     }
 
     private static TextViewModel Make(IShellServices? shell = null)
-        => new("nonexistent.txt", shell ?? Substitute.For<IShellServices>()) { IsMonitoring = false };
+        => new("nonexistent.txt", shell ?? Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
 
     private static TextViewModel Make(string path, IShellServices? shell = null)
-        => new(path, shell ?? Substitute.For<IShellServices>()) { IsMonitoring = false };
+        => new(path, shell ?? Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
 
     // ── Find bar open / close ───────────────────────────────────────────────────
 
@@ -190,7 +191,7 @@ public class TextFindReplaceTests
                                          Arg.Any<Action<string>>(), Arg.Any<Action>()))
                  .Do(ci => confirm = ci.Arg<Action<string>>());
 
-            using var vm = new TextViewModel(path, shell) { IsMonitoring = false };
+            using var vm = new TextViewModel(path, shell, VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             vm.GoToLineCommand.Execute(null);

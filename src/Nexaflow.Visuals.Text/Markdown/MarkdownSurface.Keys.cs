@@ -85,7 +85,7 @@ public sealed partial class MarkdownSurface
     /// <summary>Brings the caret onto the page, wherever an edit or a key left it.</summary>
     private void Reveal()
     {
-        if (!_shown.HasCaret) return;
+        if (!_shown.HasCaret || _takingEdit) return;
 
         var at = _shown.Laid.Root.CaretRect(_shown.Caret);
         if (at.IsEmpty) return;

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Nexaflow.IO.Common;
 using Nexaflow.Services.Initiatives.Graph;
 using Nexaflow.Services.Initiatives.Graph.Model;
@@ -358,5 +359,104 @@ public class GraphWorkspaceTests
         var reading = workspace.Read();
         Assert.IsTrue(reading.CatchUp.IsEmpty, "the watcher's catch-up got there first");
         Assert.IsTrue(Declares(reading.Snapshot!.Graph, "src/File2.cs", "B"));
+    }
+
+    /// <summary>
+    /// The common case, and the one that queued: an edit writes its file and folds it in, and the watcher's report of that
+    /// write lands after. The version already describes the file, so a reader answers at once, however long whoever holds the
+    /// lock takes over something else.
+    /// </summary>
+    [TestMethod]
+    public void AReader_DoesNotWaitForTheLock_WhenTheVersionAlreadyHoldsWhatWasReported()
+    {
+        Seed(3);
+        using var workspace = Workspace(watch: true);
+        Assert.IsNotNull(workspace.Current());
+
+        Touch(1);
+        workspace.Update(["src/File1.cs"]);                 // what an edit does after it writes
+        Thread.Sleep(100);                                 // the report lands, short of the quiet period
+
+        using var inside  = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var holding = Task.Run(() => workspace.Mutate(_ =>
+        {
+            inside.Set();
+            release.Wait(TimeSpan.FromSeconds(30));
+            return 0;
+        }));
+
+        try
+        {
+            Assert.IsTrue(inside.Wait(TimeSpan.FromSeconds(15)), "the lock should be held");
+
+            var reading = Task.Run(() => workspace.Read());
+            Assert.IsTrue(reading.Wait(TimeSpan.FromSeconds(5)), "the reader waited for a lock it had no need of");
+            Assert.IsTrue(Declares(reading.Result.Snapshot!.Graph, "src/File1.cs", "B"));
+        }
+        finally
+        {
+            release.Set();
+            holding.Wait(TimeSpan.FromSeconds(30));
+        }
+    }
+
+    /// <summary>
+    /// The other half, which is the guarantee: a reported file the version does not describe is folded in before the reader is
+    /// answered — never an answer from a version known to be behind. The lock is held while the report lands, so the watcher's
+    /// own catch-up cannot get there first and the reader is seen to wait for it.
+    /// </summary>
+    [TestMethod]
+    public void AReader_WaitsForTheCatchUp_WhenAReportedFileIsNotInTheVersion()
+    {
+        Seed(3);
+        using var workspace = Workspace(watch: true);
+        Assert.IsNotNull(workspace.Current());
+
+        using var inside  = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var holding = Task.Run(() => workspace.Mutate(_ =>
+        {
+            inside.Set();
+            release.Wait(TimeSpan.FromSeconds(30));
+            return 0;
+        }));
+
+        try
+        {
+            Assert.IsTrue(inside.Wait(TimeSpan.FromSeconds(15)), "the lock should be held");
+            Touch(2);
+            Thread.Sleep(1_000);                           // the report lands; the catch-up it starts waits on the lock
+
+            var reading = Task.Run(() => workspace.Read());
+            Assert.IsFalse(reading.Wait(TimeSpan.FromMilliseconds(500)), "the reader answered from a version it knew was behind");
+
+            release.Set();
+            Assert.IsTrue(reading.Wait(TimeSpan.FromSeconds(15)));
+            Assert.IsTrue(Declares(reading.Result.Snapshot!.Graph, "src/File2.cs", "B"));
+        }
+        finally
+        {
+            release.Set();
+            holding.Wait(TimeSpan.FromSeconds(30));
+        }
+    }
+
+    /// <summary>A holder that lives on writes the archive itself, a moment after the change, so no command waits for tens of
+    /// megabytes to reach the disk.</summary>
+    [TestMethod]
+    public void AWorkspaceThatLivesOn_WritesItsArchiveSoonAfterAChange_Unasked()
+    {
+        Seed(3);
+        using var workspace = Workspace(watch: true);
+        Assert.IsNotNull(workspace.Current());
+        var before = new FileInfo(_store.GraphFilePath).LastWriteTimeUtc;
+
+        Touch(1);
+        workspace.Update(["src/File1.cs"]);
+
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        while (new FileInfo(_store.GraphFilePath).LastWriteTimeUtc == before && DateTime.UtcNow < deadline) Thread.Sleep(100);
+        Assert.IsTrue(Declares(GraphArchive.ReadGraph(_store.GraphFilePath)!, "src/File1.cs", "B"), "written without being asked");
     }
 }

@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using Nexaflow.Features.Common;
 using NSubstitute;
 using System.IO;
@@ -70,7 +71,7 @@ public class NotebookTests
     public async Task ViewModel_LoadsCells_AndBuildsCodeOutline()
     {
         var path = Path.Combine(TestSampleData.Path("notebook"), "notebook.ipynb");
-        var vm = new NotebookViewModel(path, Substitute.For<IShellServices>());
+        var vm = new NotebookViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
 
         await vm.LoadAsync();
 

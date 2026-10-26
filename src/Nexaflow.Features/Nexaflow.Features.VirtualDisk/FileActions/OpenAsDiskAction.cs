@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -23,19 +25,16 @@ public sealed class OpenAsDiskAction(IShellServices shell) : IFileAction, ICache
     public bool CanPerformAction => true;
     public bool OpensViewer => true;
 
-    public bool PerformAction(string filePath)
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default)
     {
         shell.OpenTab(VirtualDiskTabRegistration.StaticPageKind,
             new Dictionary<string, string> { ["path"] = filePath });
-        return true;
+        return Task.FromResult(true);
     }
 
     // SupportsMultipleFiles is false, so a selection opens the first image and nothing else — this used to
     // open a tab per file (contradicting the flag the file browser reads) and to return true for an empty
     // selection, flashing the action strip's success tick over nothing.
-    public bool PerformAction(IEnumerable<string> filePaths)
-    {
-        var first = filePaths.FirstOrDefault();
-        return first is not null && PerformAction(first);
-    }
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
+        => filePaths.FirstOrDefault() is { } first ? PerformActionAsync(first, ct) : Task.FromResult(false);
 }

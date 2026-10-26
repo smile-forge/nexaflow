@@ -1,0 +1,80 @@
+<UserControl x:Class="Nexaflow.Features.Video.Views.GenerateVideoOptionsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
+             AutomationProperties.AutomationId="Video_GenerateOptions">
+
+    <!-- What Gen Video in the New picker makes: shown between the kinds and the name while it is chosen. -->
+
+    <UserControl.Resources>
+        <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
+        <cv:InverseBoolToVisibilityConverter x:Key="NotBoolVis"/>
+        <cv:CountToVisibilityConverter x:Key="CountVis"/>
+        <Style x:Key="OptionLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Margin" Value="0,8,0,4"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel Margin="0,8,0,0">
+        <!-- No model makes clips yet: why, and the download of one of Nexaflow's own where one waits on it. -->
+        <StackPanel Visibility="{Binding IsReady, Converter={StaticResource NotBoolVis}}">
+            <TextBlock Text="{loc:Str Video.Generate.NoModel}" FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"/>
+            <Button Content="{loc:Str Video.Generate.Download}" Command="{Binding DownloadCommand}" HorizontalAlignment="Left" Margin="0,8,0,0"
+                    Padding="10,4" Visibility="{Binding IsWaiting, Converter={StaticResource BoolVis}}"
+                    AutomationProperties.AutomationId="Video_GenerateDownload"/>
+        </StackPanel>
+
+        <StackPanel Visibility="{Binding IsReady, Converter={StaticResource BoolVis}}">
+            <TextBlock Text="{loc:Str Video.Generate.WhatHappens}" Style="{StaticResource OptionLabel}" Margin="0,0,0,4"/>
+            <TextBox Text="{Binding Prompt, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBox}"
+                     AcceptsReturn="True" TextWrapping="Wrap" Height="64" VerticalScrollBarVisibility="Auto"
+                     AutomationProperties.AutomationId="Video_GeneratePrompt"
+                     AutomationProperties.Name="{loc:Str Video.Generate.WhatHappens}"/>
+
+            <UniformGrid Columns="2">
+                <StackPanel Margin="0,0,8,0">
+                    <TextBlock Text="{loc:Str Video.Generate.Shape}" Style="{StaticResource OptionLabel}"/>
+                    <ComboBox ItemsSource="{Binding Aspects}" SelectedItem="{Binding Aspect, Mode=TwoWay}" DisplayMemberPath="Label"
+                              Style="{StaticResource DarkComboBox}"
+                              AutomationProperties.AutomationId="Video_GenerateShape"
+                              AutomationProperties.Name="{loc:Str Video.Generate.Shape}"/>
+                </StackPanel>
+                <StackPanel Margin="0,0,8,0" Visibility="{Binding Resolutions.Count, Converter={StaticResource CountVis}}">
+                    <TextBlock Text="{loc:Str Video.Generate.Size}" Style="{StaticResource OptionLabel}"/>
+                    <ComboBox ItemsSource="{Binding Resolutions}" SelectedItem="{Binding Resolution, Mode=TwoWay}" DisplayMemberPath="Label"
+                              Style="{StaticResource DarkComboBox}"
+                              AutomationProperties.AutomationId="Video_GenerateSize"
+                              AutomationProperties.Name="{loc:Str Video.Generate.Size}"/>
+                </StackPanel>
+                <StackPanel Margin="0,0,8,0">
+                    <TextBlock Text="{loc:Str Video.Generate.Length}" Style="{StaticResource OptionLabel}"/>
+                    <ComboBox ItemsSource="{Binding Lengths}" SelectedItem="{Binding Length, Mode=TwoWay}" DisplayMemberPath="Label"
+                              Style="{StaticResource DarkComboBox}"
+                              AutomationProperties.AutomationId="Video_GenerateLength"
+                              AutomationProperties.Name="{loc:Str Video.Generate.Length}"/>
+                </StackPanel>
+                <StackPanel Margin="0,0,8,0" Visibility="{Binding Seeds, Converter={StaticResource BoolVis}}">
+                    <TextBlock Text="{loc:Str Video.Generate.Seed}" Style="{StaticResource OptionLabel}"/>
+                    <TextBox Text="{Binding Seed, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBox}"
+                             ToolTip="{loc:Str Video.Generate.SeedTip}"
+                             AutomationProperties.AutomationId="Video_GenerateSeed"
+                             AutomationProperties.Name="{loc:Str Video.Generate.Seed}"/>
+                </StackPanel>
+            </UniformGrid>
+            <TextBlock Text="{loc:Str Video.Generate.SeedInvalid}" FontSize="11" Margin="0,4,0,0" Foreground="{StaticResource WarningBrush}"
+                       Visibility="{Binding SeedIsValid, Converter={StaticResource NotBoolVis}}"/>
+
+            <StackPanel Visibility="{Binding NegativePrompts, Converter={StaticResource BoolVis}}">
+                <TextBlock Text="{loc:Str Video.Generate.KeepOut}" Style="{StaticResource OptionLabel}"/>
+                <TextBox Text="{Binding NegativePrompt, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBox}"
+                         AutomationProperties.AutomationId="Video_GenerateKeepOut"
+                         AutomationProperties.Name="{loc:Str Video.Generate.KeepOut}"/>
+            </StackPanel>
+
+            <TextBlock Text="{loc:Str Video.Generate.Note}" FontSize="11" Margin="0,10,0,0" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"/>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

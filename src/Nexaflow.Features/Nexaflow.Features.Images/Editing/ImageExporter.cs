@@ -33,22 +33,23 @@ public sealed class ImageExporter(ImageEditingServices services)
     /// <summary>The finished file for <paramref name="recipe"/> applied to the picture at <paramref name="path"/>.</summary>
     /// <param name="made">What the picture tools made for the recipe: the restoration, the cut-out's mask.</param>
     /// <exception cref="InvalidOperationException">The recipe asks the picture tools for something not made yet.</exception>
-    public byte[] Export(string path, ImageRecipe recipe, ImageContainer target, CancellationToken ct = default, MadeByTools? made = null)
+    public async Task<byte[]> ExportAsync(string path, ImageRecipe recipe, ImageContainer target, CancellationToken ct = default,
+                                          MadeByTools? made = null)
     {
-    made ??= MadeByTools.None;
-    if (!made.Serves(recipe))
-        throw new InvalidOperationException("What the picture tools make for the picture is not made yet.");
-    var file = ImageEditingServices.ReadSource(path);
-    ct.ThrowIfCancellationRequested();
+        made ??= MadeByTools.None;
+        if (!made.Serves(recipe))
+            throw new InvalidOperationException("What the picture tools make for the picture is not made yet.");
+        var file = await services.ReadSourceAsync(path, ct).ConfigureAwait(false);
+        ct.ThrowIfCancellationRequested();
 
-    using var full = services.Decoders.Decode(file, maxLongEdge: null);
-    ct.ThrowIfCancellationRequested();
+        using var full = services.Decoders.Decode(file, maxLongEdge: null);
+        ct.ThrowIfCancellationRequested();
 
-    // Erased, the photo is drawn from as erased; its metadata and container are still the file's.
-    using var erasedFull = !recipe.Erasures.IsEmpty ? services.DecodeRestored(made.Erased!, full.SourceSize, maxLongEdge: null) : null;
-    using var restoredFull = recipe.Restore is not null ? services.DecodeRestored(made.Restored!, full.SourceSize, maxLongEdge: null) : null;
-    using var mask = recipe.CutOut is not null ? CutOutMasks.Decode(made.CutOut!) : null;
-    using var pipeline = services.Pipeline(erasedFull ?? full, cache: false, restoredFull, mask);
+        // Erased, the photo is drawn from as erased; its metadata and container are still the file's.
+        using var erasedFull = !recipe.Erasures.IsEmpty ? services.DecodeRestored(made.Erased!, full.SourceSize, maxLongEdge: null) : null;
+        using var restoredFull = recipe.Restore is not null ? services.DecodeRestored(made.Restored!, full.SourceSize, maxLongEdge: null) : null;
+        using var mask = recipe.CutOut is not null ? CutOutMasks.Decode(made.CutOut!) : null;
+        using var pipeline = services.Pipeline(erasedFull ?? full, cache: false, restoredFull, mask);
         var picture = pipeline.Render(recipe, RenderRequest.Saved);
         ct.ThrowIfCancellationRequested();
 
@@ -60,24 +61,5 @@ public sealed class ImageExporter(ImageEditingServices services)
         var options = new EncodeOptions(recipe.Export.JpegQuality,
                                         Lossless: target == ImageContainer.Webp && ImageContainers.IsLosslessWebp(file));
         return services.Encoders.Encode(picture, target, options, blocks);
-    }
-
-    /// <summary>
-    /// Writes <paramref name="bytes"/> over <paramref name="path"/> without ever leaving it half-written: a swap file
-    /// beside it, then one replace. The original's attributes and creation time carry over.
-    /// </summary>
-    public static void ReplaceFile(string path, byte[] bytes)
-    {
-        var swap = path + ".nexsave.tmp";
-        File.WriteAllBytes(swap, bytes);
-        try
-        {
-            File.Replace(swap, path, null);
-        }
-        catch
-        {
-            File.Delete(swap);
-            throw;
-        }
     }
 }

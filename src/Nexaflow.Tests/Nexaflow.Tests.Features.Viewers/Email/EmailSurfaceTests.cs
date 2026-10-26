@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -21,21 +22,23 @@ namespace Nexaflow.Tests.Features.Email;
 [TestClass]
 public class EmailSurfaceTests
 {
-    private static EmailViewModel Open(string sampleFile, out IShellServices shell)
+    private static async Task<(EmailViewModel Vm, IShellServices Shell)> OpenWithShellAsync(string sampleFile)
     {
-        shell = Substitute.For<IShellServices>();
-        return new EmailViewModel(TestSampleData.Path("email", sampleFile), shell);
+        var shell = Substitute.For<IShellServices>();
+        var vm = new EmailViewModel(TestSampleData.Path("email", sampleFile), shell, VirtualFileSystem.Instance);
+        await vm.Loaded;
+        return (vm, shell);
     }
 
-    private static EmailViewModel Open(string sampleFile = "simple.eml") => Open(sampleFile, out _);
+    private static async Task<EmailViewModel> OpenAsync(string sampleFile = "simple.eml") => (await OpenWithShellAsync(sampleFile)).Vm;
 
     // ── Envelope ──────────────────────────────────────────────────────────────
 
     [TestMethod]
     [CoversNode("email-envelope")]
-    public void TheEnvelopeCarriesTheFieldsTheMessageDeclared()
+    public async Task TheEnvelopeCarriesTheFieldsTheMessageDeclared()
     {
-        var vm = Open();
+        var vm = await OpenAsync();
 
         Assert.IsFalse(string.IsNullOrEmpty(vm.Subject));
         Assert.IsFalse(string.IsNullOrEmpty(vm.From));
@@ -45,9 +48,9 @@ public class EmailSurfaceTests
 
     [TestMethod]
     [CoversNode("email-envelope")]
-    public void AMessageWithNoCcDoesNotShowAnEmptyCcField()
+    public async Task AMessageWithNoCcDoesNotShowAnEmptyCcField()
     {
-        var vm = Open();
+        var vm = await OpenAsync();
 
         if (string.IsNullOrEmpty(vm.Cc))
             Assert.IsFalse(vm.HasCc, "the row is dropped from the layout, not left blank");
@@ -57,9 +60,9 @@ public class EmailSurfaceTests
 
     [TestMethod]
     [CoversNode("email-raw-headers")]
-    public void TheRawHeaderListIsCapturedButFoldedAwayToStartWith()
+    public async Task TheRawHeaderListIsCapturedButFoldedAwayToStartWith()
     {
-        var vm = Open();
+        var vm = await OpenAsync();
 
         Assert.IsTrue(vm.AllHeaders.Count > 0, "every header the message carried is kept");
         Assert.IsFalse(vm.HeadersExpanded, "a forwarded message's hundred headers must not open over the body");
@@ -72,9 +75,9 @@ public class EmailSurfaceTests
 
     [TestMethod]
     [CoversNode("email-body-modes")]
-    public void AMessageOpensOnTheRenderedView()
+    public async Task AMessageOpensOnTheRenderedView()
     {
-        var vm = Open();
+        var vm = await OpenAsync();
 
         Assert.IsTrue(vm.IsRenderedView);
         Assert.IsFalse(vm.IsPlainTextView);
@@ -83,9 +86,9 @@ public class EmailSurfaceTests
 
     [TestMethod]
     [CoversNode("email-body-modes")]
-    public void TheThreeViewsAreMutuallyExclusive()
+    public async Task TheThreeViewsAreMutuallyExclusive()
     {
-        var vm = Open();
+        var vm = await OpenAsync();
 
         vm.ShowPlainTextCommand.Execute(null);
         Assert.IsTrue(vm.IsPlainTextView);
@@ -102,19 +105,19 @@ public class EmailSurfaceTests
 
     [TestMethod]
     [CoversNode("email-body-modes")]
-    public void TheToolbarOnlyOffersTheFormsThisMessageActuallyHas()
+    public async Task TheToolbarOnlyOffersTheFormsThisMessageActuallyHas()
     {
         // simple.eml is multipart/alternative — it has both, so both buttons are earned.
-        var both = Open();
+        var both = await OpenAsync();
         Assert.IsTrue(both.HasPlainText, "a text/plain part exists");
         Assert.IsTrue(both.HasHtmlBody, "and a text/html one");
     }
 
     [TestMethod]
     [CoversNode("email-body")]
-    public void ThereIsAlwaysSomethingInTheRenderedPane_WhicheverBodyPartsExist()
+    public async Task ThereIsAlwaysSomethingInTheRenderedPane_WhicheverBodyPartsExist()
     {
-        var vm = Open();
+        var vm = await OpenAsync();
 
         Assert.IsFalse(string.IsNullOrWhiteSpace(vm.RenderedMarkdown),
                        "a message with only a plain-text part still renders it, rather than showing blank");
@@ -122,10 +125,10 @@ public class EmailSurfaceTests
 
     [TestMethod]
     [CoversNode("email-body")]
-    public void AnInlineImageIsRewrittenToSomethingTheRendererCanActuallyShow()
+    public async Task AnInlineImageIsRewrittenToSomethingTheRendererCanActuallyShow()
     {
         // cid: references mean nothing to a markdown renderer; they are exported to local files first.
-        var vm = Open("inline-image.eml");
+        var vm = await OpenAsync("inline-image.eml");
 
         Assert.IsTrue(vm.HasInlineImages, "the fixture carries one");
         Assert.IsFalse(vm.RenderedMarkdown.Contains("cid:", StringComparison.OrdinalIgnoreCase),
@@ -137,9 +140,9 @@ public class EmailSurfaceTests
 
     [TestMethod]
     [CoversNode("email-attachment-strip")]
-    public void OnlyRealAttachmentsGetAButton_InlineImagesAreCountedInstead()
+    public async Task OnlyRealAttachmentsGetAButton_InlineImagesAreCountedInstead()
     {
-        var vm = Open("inline-image.eml");
+        var vm = await OpenAsync("inline-image.eml");
 
         Assert.IsTrue(vm.InlineImageCount > 0);
         Assert.IsFalse(vm.Attachments.Any(a => a.DisplayName.Contains("logo", StringComparison.OrdinalIgnoreCase)),
@@ -148,9 +151,9 @@ public class EmailSurfaceTests
 
     [TestMethod]
     [CoversNode("email-attachment-strip")]
-    public void OpeningAnAttachmentGoesThroughTheOrdinaryFileOpenPath()
+    public async Task OpeningAnAttachmentGoesThroughTheOrdinaryFileOpenPath()
     {
-        var vm = Open("simple.eml", out var shell);
+        var (vm, shell) = await OpenWithShellAsync("simple.eml");
         var attachment = vm.Attachments.First();
         shell.HandleObject(Arg.Any<string>()).Returns(true);
 
@@ -163,9 +166,9 @@ public class EmailSurfaceTests
 
     [TestMethod]
     [CoversNode("email-attachment-strip")]
-    public void AnAttachmentThatCannotBeOpenedSaysSo()
+    public async Task AnAttachmentThatCannotBeOpenedSaysSo()
     {
-        var vm = Open("simple.eml", out var shell);
+        var (vm, shell) = await OpenWithShellAsync("simple.eml");
         shell.HandleObject(Arg.Any<string>()).Returns(false);
 
         vm.OpenAttachmentCommand.Execute(vm.Attachments.First());
@@ -175,9 +178,9 @@ public class EmailSurfaceTests
 
     [TestMethod]
     [CoversNode("email-attachment-strip")]
-    public void AMessageWithNoAttachmentsHidesTheStrip()
+    public async Task AMessageWithNoAttachmentsHidesTheStrip()
     {
-        var vm = Open("inline-image.eml");
+        var vm = await OpenAsync("inline-image.eml");
 
         if (vm.Attachments.Count == 0) Assert.IsFalse(vm.HasAttachments);
         else Assert.IsTrue(vm.HasAttachments);
@@ -187,13 +190,14 @@ public class EmailSurfaceTests
 
     [TestMethod]
     [CoversNode("email-error")]
-    public void AFileThatIsNotAMessageReportsWhy_RatherThanOpeningEmpty()
+    public async Task AFileThatIsNotAMessageReportsWhy_RatherThanOpeningEmpty()
     {
         var path = Path.Combine(TestTemp.Root, $"notmail_{Guid.NewGuid():N}.eml");
         File.WriteAllBytes(path, [0x00, 0x01, 0x02, 0x03]);
         try
         {
-            var vm = new EmailViewModel(path, Substitute.For<IShellServices>());
+            var vm = new EmailViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
+            await vm.Loaded;
 
             // Either it fails outright, or it parses to a message with nothing in it — both must be visible
             // as *something*, never a silently blank tab.
@@ -206,10 +210,11 @@ public class EmailSurfaceTests
 
     [TestMethod]
     [CoversNode("email-error")]
-    public void AMissingFileIsAnErrorOnThePage_NotAnException()
+    public async Task AMissingFileIsAnErrorOnThePage_NotAnException()
     {
         var vm = new EmailViewModel(Path.Combine(TestTemp.Root, "no-such-message.eml"),
-                                    Substitute.For<IShellServices>());
+                                    Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
+        await vm.Loaded;
 
         Assert.IsTrue(vm.HasError);
         StringAssert.Contains(vm.ErrorMessage!, "Couldn't open");

@@ -1,5 +1,6 @@
 using Microsoft.Win32.SafeHandles;
 using Nexaflow.IO.Common.Processes;
+using Nexaflow.IO.Common.Terminal;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -8,25 +9,24 @@ namespace Nexaflow.IO.Terminal;
 
 /// <summary>
 /// Hosts a persistent shell process (cmd.exe or pwsh.exe) inside a Windows
-/// pseudo-console (ConPTY) created via the CreatePseudoConsole Win32 API.
+/// pseudo-console (ConPTY) created via the CreatePseudoConsole Win32 API — the
+/// terminal transport for a shell on this computer, started by
+/// <see cref="PseudoConsoleLauncher"/>.
 ///
 /// • One instance per terminal tab — the shell stays alive for the lifetime
-///   of the tab.  Text is written into the PTY input pipe as the user types
-///   commands; all PTY output is decoded and forwarded to the caller's
-///   <see cref="OutputReceived"/> event.
+///   of the tab. Input bytes are written into the PTY input pipe as they are
+///   typed; PTY output is raised raw on <see cref="Output"/>, decoding and VT
+///   interpretation being the consumer's, and what the shell writes before
+///   anyone listens is held for the first listener.
 ///
-/// • The VT-escape sequences emitted by ConPTY are stripped to plain text
-///   before they reach the ViewModel so the view stays a simple scrolling
-///   ItemsControl rather than a full VT renderer.
-///
-/// • Designed to be subclassed or configured: override
+/// • Designed to be configured: override
 ///   <see cref="ShellExecutable"/>/<see cref="ShellArguments"/> for PowerShell.
 ///
 /// • Lifetime: every child shell is assigned to a kill-on-close job object
 ///   (<see cref="KillOnCloseJob"/>) so it dies with this process even on a
 ///   crash; <see cref="Dispose"/> additionally terminates it promptly.
 /// </summary>
-public class PseudoConsoleHostService : IDisposable
+public class PseudoConsoleHostService : ITerminalTransport
 {
     // ── Configurable ─────────────────────────────────────────────────────
     public virtual string ShellExecutable => "cmd.exe";
@@ -47,13 +47,18 @@ public class PseudoConsoleHostService : IDisposable
     // ── Events ────────────────────────────────────────────────────────────
 
     /// <summary>Fired on a ThreadPool thread for every decoded output chunk.</summary>
-    public event Action<string>? OutputReceived;
+    private readonly HeldEvent<ReadOnlyMemory<byte>> _output = new(chunk => chunk.ToArray());
+    private readonly HeldEvent<string> _failed = new();
+    private readonly HeldEvent<int> _exited = new();
+
+    /// <summary>Raw output, one read at a time, on a ThreadPool thread.</summary>
+    public event Action<ReadOnlyMemory<byte>>? Output { add => _output.Add(value); remove => _output.Remove(value); }
 
     /// <summary>Fired when the output pump hits an unrecoverable error.</summary>
-    public event Action<string>? TerminalError;
+    public event Action<string>? Failed { add => _failed.Add(value); remove => _failed.Remove(value); }
 
     /// <summary>Fired when the hosted shell process exits.</summary>
-    public event Action<int>? ProcessExited;
+    public event Action<int>? Exited { add => _exited.Add(value); remove => _exited.Remove(value); }
 
     // ── State ─────────────────────────────────────────────────────────────
 
@@ -76,14 +81,14 @@ public class PseudoConsoleHostService : IDisposable
 
     // Output pump
     private Stream?      _outputStream;
-    private StreamWriter? _inputWriter;
+    private Stream?       _input;
 
     private readonly CancellationTokenSource _lifetimeCts = new();
 
     // ── Public API ────────────────────────────────────────────────────────
 
-    /// <summary>Starts the hosted shell.  Call once. Virtual so tests can inject a no-op host.</summary>
-    public virtual void Start(short cols = 220, short rows = 50)
+    /// <summary>Starts the hosted shell at <paramref name="columns"/> × <paramref name="rows"/> cells. Call once.</summary>
+    public void Start(int columns, int rows)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -96,7 +101,7 @@ public class PseudoConsoleHostService : IDisposable
                    inheritable: true /*write end inherited by child*/);
 
         // ── 3. CreatePseudoConsole ────────────────────────────────────────
-        var size   = new COORD { X = cols, Y = rows };
+        var size   = Cells(columns, rows);
         int hr     = NativeMethods.CreatePseudoConsole(size,
                          inputReadPipe.DangerousGetHandle(),
                          outputWritePipe.DangerousGetHandle(),
@@ -155,13 +160,7 @@ public class PseudoConsoleHostService : IDisposable
         // ── 7. Wrap pipes in .NET streams ─────────────────────────────────
         // Use isAsync: false for both streams (required for non-overlapped handles)
         _outputStream = new FileStream(_outputReadPipe, FileAccess.Read, bufferSize: 4096, isAsync: false);
-        _inputWriter  = new StreamWriter(
-            new FileStream(_inputWritePipe, FileAccess.Write, bufferSize: 1, isAsync: false),
-            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
-        {
-            AutoFlush = true,
-            NewLine   = "\r\n"
-        };
+        _input        = new FileStream(_inputWritePipe, FileAccess.Write, bufferSize: 1, isAsync: false);
 
         // ── 8. Start output pump + exit watch, then release the suspended thread ──
         _ = PumpOutputAsync(_lifetimeCts.Token);
@@ -194,35 +193,23 @@ public class PseudoConsoleHostService : IDisposable
         => Marshal.StringToHGlobalUni(block);   // copies all chars incl. embedded NULs, then a final NUL
 
     /// <summary>
-    /// Writes a command line into the PTY input as if the user pressed Enter.
-    /// The caller should NOT append \r\n — this method does it.
+    /// Writes input bytes into the PTY as they are typed — keystrokes and VT sequences, with any CR/ESC bytes the caller
+    /// includes. This is what makes the console a real terminal: keys reach the shell live, so interactive programs and
+    /// inline echo work.
     /// </summary>
-    public virtual void WriteInput(string text)
+    public void Write(ReadOnlySpan<byte> input)
     {
-        if (_inputWriter is null || !IsRunning) return;
-        try { _inputWriter.WriteLine(text); }
-        catch (IOException) { /* shell exited */ }
-    }
-
-    /// <summary>
-    /// Writes raw text to the PTY input with no added line ending — for forwarding individual keystrokes
-    /// and VT sequences as they are typed (the caller includes any CR/ESC bytes). This is what makes the
-    /// console a real terminal: keys reach the shell live, so interactive programs and inline echo work.
-    /// </summary>
-    public virtual void WriteRaw(string text)
-    {
-        if (_inputWriter is null || !IsRunning) return;
-        try { _inputWriter.Write(text); }
+        if (_input is null || !IsRunning) return;
+        try
+        {
+            _input.Write(input);
+            _input.Flush();
+        }
         catch (IOException) { /* shell exited */ }
     }
 
     /// <summary>Sends Ctrl-C into the PTY.</summary>
-    public virtual void SendCtrlC()
-    {
-        if (_inputWriter is null) return;
-        try { _inputWriter.Write('\x03'); }
-        catch (IOException) { }
-    }
+    public void Interrupt() => Write([0x03]);
 
     /// <summary>
     /// Hard-stop: force-terminates every descendant of the hosted shell (the foreground command and anything
@@ -230,7 +217,7 @@ public class PseudoConsoleHostService : IDisposable
     /// escalation for a wedged child that ignored Ctrl-C (a native process blocked in a syscall, or an MSYS2
     /// helper that mishandles <c>CTRL_C_EVENT</c>). Best-effort — a process we can't open is skipped.
     /// </summary>
-    public virtual void TerminateForegroundChildren()
+    public void TerminateForeground()
     {
         if (_shellPid == 0) return;
         foreach (var pid in ComputeDescendants(_shellPid, SnapshotProcesses()))
@@ -293,25 +280,27 @@ public class PseudoConsoleHostService : IDisposable
     }
 
     /// <summary>
-    /// Resizes the pseudo-console viewport.
+    /// Resizes the pseudo-console viewport, in character cells.
     /// </summary>
-    public void Resize(short cols, short rows)
+    public void Resize(int columns, int rows)
     {
         if (_hPseudoConsole == IntPtr.Zero) return;
-        NativeMethods.ResizePseudoConsole(_hPseudoConsole, new COORD { X = cols, Y = rows });
+        NativeMethods.ResizePseudoConsole(_hPseudoConsole, Cells(columns, rows));
     }
+
+    /// <summary>A size as ConPTY takes it, each side between one cell and what a COORD holds.</summary>
+    private static COORD Cells(int columns, int rows)
+        => new() { X = (short)Math.Clamp(columns, 1, short.MaxValue), Y = (short)Math.Clamp(rows, 1, short.MaxValue) };
 
     // ── Output pump ───────────────────────────────────────────────────────
 
     // Pipe handles are non-overlapped (synchronous).  We use a dedicated
     // thread-pool thread via Task.Run so the blocking Read never ties up
-    // the UI thread.  VT stripping is the consumer's responsibility so
-    // we fire OutputReceived for every decoded byte regardless of content.
+    // the UI thread. Each read is raised raw — decoding (a code point may
+    // straddle two reads) and VT interpretation are the consumer's.
     private Task PumpOutputAsync(CancellationToken ct) => Task.Run(() =>
     {
-        var buffer  = new byte[4096];
-        var decoder = Encoding.UTF8.GetDecoder();
-        var charBuf = new char[4096];
+        var buffer = new byte[4096];
 
         try
         {
@@ -323,19 +312,16 @@ public class PseudoConsoleHostService : IDisposable
 
                 if (read == 0) break;            // EOF
 
-                int charCount = decoder.GetChars(buffer, 0, read, charBuf, 0);
-                if (charCount > 0)
-                    OutputReceived?.Invoke(new string(charBuf, 0, charCount));
+                _output.Raise(new ReadOnlyMemory<byte>(buffer, 0, read));
             }
         }
         catch (OperationCanceledException) { }   // shutdown requested
         catch (Exception ex)
         {
             // Surface the error to the caller instead of swallowing silently
-            TerminalError?.Invoke(
-                $"{ex.GetType().Name}: {ex.Message}");
+            _failed.Raise($"{ex.GetType().Name}: {ex.Message}");
         }
-    }, CancellationToken.None);  // don't cancel the Task itself; let Read unblock via pipe close
+    }, CancellationToken.None);  // don't cancel the Task itself; let Read unblock via pipe close  // don't cancel the Task itself; let Read unblock via pipe close
 
     private async Task WatchExitAsync(CancellationToken ct)
     {
@@ -348,7 +334,7 @@ public class PseudoConsoleHostService : IDisposable
 
             _processExited = true;
             NativeMethods.GetExitCodeProcess(_processHandle.DangerousGetHandle(), out uint code);
-            ProcessExited?.Invoke((int)code);
+            _exited.Raise((int)code);
         }
         catch (OperationCanceledException) { }
     }
@@ -371,6 +357,10 @@ public class PseudoConsoleHostService : IDisposable
     {
         si = new STARTUPINFOEX();
         si.StartupInfo.cb = Marshal.SizeOf<STARTUPINFOEX>();
+        // Standard handles stated, and left empty: without this a child of a process whose stdio is redirected (a test
+        // runner, a script piping the app's output) takes those handles rather than the pseudo-console, and the shell's
+        // own output never reaches it.
+        si.StartupInfo.dwFlags = NativeMethods.STARTF_USESTDHANDLES;
 
         // Query required attribute list size
         nuint attrListSize = 0;
@@ -424,7 +414,7 @@ public class PseudoConsoleHostService : IDisposable
         // Stop the pumps, then signal the shell to exit: closing our input pipe gives it EOF and
         // closing the pseudo-console detaches it. Most shells exit on their own from here.
         _lifetimeCts.Cancel();
-        _inputWriter?.Dispose();
+        _input?.Dispose();
         _outputStream?.Dispose();
 
         if (_hPseudoConsole != IntPtr.Zero)

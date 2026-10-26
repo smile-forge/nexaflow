@@ -12,7 +12,7 @@ namespace Nexaflow.Features.Hdf5;
 /// Registers the HDF5 viewer page. <c>path</c> says which file the tab is; <c>node</c> says where in it the user is
 /// looking, so opening another dataset of an open file re-points that tab rather than opening a second one.
 /// </summary>
-public sealed class Hdf5TabRegistration(IShellServices shell) : IPageRegistration
+public sealed class Hdf5TabRegistration(IShellServices shell, IVirtualFileSystem vfs) : IPageRegistration
 {
     public static string StaticPageKind => "Hdf5";
     public string PageKind => StaticPageKind;
@@ -25,7 +25,7 @@ public sealed class Hdf5TabRegistration(IShellServices shell) : IPageRegistratio
 
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
-        var (file, inner) = Hdf5Location.Split(pageParams?.GetValueOrDefault("path") ?? string.Empty, VirtualFileSystem.Instance);
+        var (file, inner) = Hdf5Location.Split(pageParams?.GetValueOrDefault("path") ?? string.Empty, vfs);
         var node  = pageParams?.GetValueOrDefault("node") is { Length: > 0 } n ? n : inner;
         var title = string.IsNullOrEmpty(file) ? Str.Get("Hdf5.Page.Title") : Path.GetFileName(file);
 
@@ -42,7 +42,7 @@ public sealed class Hdf5TabRegistration(IShellServices shell) : IPageRegistratio
         page.ContentFactory = () =>
         {
             // Built here so defining a tab stays cheap: the view-model opens the file as it is constructed.
-            var vm = new Hdf5ViewModel(file, node, shell, Hdf5SourceCache.Shared);
+            var vm = new Hdf5ViewModel(file, node, shell, vfs, Hdf5SourceCache.Shared);
             page.Closed += (_, _) => vm.Dispose();
             return new Hdf5View(vm);
         };

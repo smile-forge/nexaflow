@@ -272,6 +272,7 @@ public sealed class WorkspaceManager
         BackgroundTasks?.StopJobsOf(ws);
         FeatureManager.Instance.EvictWorkspace(ws);
         ProviderManager.Instance.ReleaseProviderSet(ws.Providers);   // cools any now-unused models
+        _ = ws.Locations.DisposeAsync();                             // unmounts, and closes every session
         ws.Providers = null;
         ws.AiService = null;
         _workspaces.Remove(ws);
@@ -470,22 +471,16 @@ public sealed class WorkspaceManager
 
         // Snapshot the acting window's tabs grouped by pane (so a left/right split survives) and its placement.
         var snapshot  = acting.CaptureTabLayout();
-        var src       = acting.Window;
-        bool maximized = src.WindowState == WindowState.Maximized;
-        var bounds    = maximized ? src.RestoreBounds
-                                  : new Rect(src.Left, src.Top, src.Width, src.Height);
+        var placement = acting.IntendedPlacement;
 
         // Fresh workspace on the same workspace — the shared Workspace already carries the saved edits.
         var fresh = CreateWorkspace(old.Workspace);
 
-        // Replacement window, placed where the old one was, shown BEFORE the old closes so the
+        // Replacement window, opened where the old one is meant to be, shown BEFORE the old closes so the
         // workspace is never left window-less (which would dispose it / shut the app down).
         var freshHost = WindowHostFactory(fresh);
-        var dst = freshHost.Window;
-        dst.WindowStartupLocation = WindowStartupLocation.Manual;
-        dst.Left = bounds.Left; dst.Top = bounds.Top; dst.Width = bounds.Width; dst.Height = bounds.Height;
-        dst.Show();
-        if (maximized) dst.WindowState = WindowState.Maximized;
+        if (placement is not null) freshHost.OpenAt(placement);
+        freshHost.Window.Show();
 
         // Tear down the old workspace's windows (last close releases its providers + evicts caches).
         old.ShellServices?.CloseAllWindows();
@@ -583,6 +578,10 @@ public sealed class WorkspaceManager
                 svc.Register(columnId, provider);
             ws.RaiseProvidersChanged();
         }
+
+        // The workspace's connections, mounted on the runtime's file system from its own session pool.
+        FeatureManager.Instance.EnsureLocationProviders();
+        ws.Locations.Follow(workspace.Connections);
     }
 
     /// <summary>The grid columns actually assigned to an ability — the models in use (need an instance).</summary>

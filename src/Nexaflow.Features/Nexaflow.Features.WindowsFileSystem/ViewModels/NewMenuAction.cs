@@ -2,6 +2,8 @@ using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 
@@ -26,6 +28,6 @@ internal sealed class NewMenuAction(Action openCreateOverlay) : IFolderAction
     public string? Tooltip               => Str.Get("WindowsFileSystem.Actions.New.Tooltip");
     public bool    IsRibbonPinnable      => false;   // synthetic menu — can't be rehydrated from the ribbon
 
-    public bool PerformAction(string folderPath)              { openCreateOverlay(); return false; }
-    public bool PerformAction(IEnumerable<string> folderPaths) { openCreateOverlay(); return false; }
+    public Task<bool> PerformActionAsync(string folderPath, CancellationToken ct = default)              { openCreateOverlay(); return Task.FromResult(false); }
+    public Task<bool> PerformActionAsync(IEnumerable<string> folderPaths, CancellationToken ct = default) { openCreateOverlay(); return Task.FromResult(false); }
 }

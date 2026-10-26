@@ -21,6 +21,9 @@ namespace Nexaflow.Features.Json.ViewModels;
 internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, IContextPreview, IDisposable
 {
     private readonly JsonFileLoader    _loader;
+
+    /// <summary>The runtime's file system the document is read and saved through — on disk, in an archive or on a location.</summary>
+    private readonly IVirtualFileSystem _vfs;
     private readonly JsonPathEvaluator _evaluator;
     private readonly IShellServices    _shellServices;
 
@@ -71,10 +74,12 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
     private int _lastVisibleDisplayIdx = 50;
     private const int PreloadRows = 50;   // load this many rows past the visible bottom
 
-    public JsonViewModel(string filePath, JsonFileLoader loader,
+    public JsonViewModel(string filePath, IVirtualFileSystem vfs,
                          JsonPathEvaluator evaluator, IShellServices shellServices)
     {
-        _loader        = loader;
+        _vfs           = vfs;
+        _loader        = new JsonFileLoader(vfs);
+        _scanner       = new JsonTextScanner(_loader);
         _evaluator     = evaluator;
         _shellServices = shellServices;
         FilePath       = filePath;
@@ -1215,7 +1220,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
         try
         {
             var json = JsonNodeSerializer.Serialize(Root);
-            await Task.Run(() => VirtualFileSystem.Instance.WriteAllText(FilePath, json, Encoding.UTF8));
+            await _vfs.WriteAllTextAsync(FilePath, json, Encoding.UTF8);
             IsModified = false;
         }
         catch (Exception ex) { _shellServices.ShowError(Str.Format("Json.Save.FailedFormat", ex.Message)); }

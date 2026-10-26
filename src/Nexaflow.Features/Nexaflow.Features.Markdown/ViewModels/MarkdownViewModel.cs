@@ -43,6 +43,9 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     [ObservableProperty]
     private string? _documentFolder;
 
+    /// <summary>The runtime's file system the document is read and saved through — on disk, in an archive or on a location.</summary>
+    private readonly IVirtualFileSystem _vfs;
+
     /// <summary>What Save As offers a document to be written as: a package first, its attachments in it, or a file beside
     /// its attachments. A file of one language — a tune, a formula — stays that.</summary>
     private static SaveFileType[] DocumentTypes =>
@@ -160,11 +163,12 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
 
     // ── Construction ──────────────────────────────────────────────────────
 
-    public MarkdownViewModel(string filePath, IShellServices shell, IReadOnlyList<string>? initialHeading = null, string? draftFolder = null,
-                             IAIService? ai = null, string? initialPlace = null)
+    public MarkdownViewModel(string filePath, IShellServices shell, IVirtualFileSystem vfs, IReadOnlyList<string>? initialHeading = null,
+                             string? draftFolder = null, IAIService? ai = null, string? initialPlace = null)
     {
         FilePath       = filePath;
         _shell         = shell;
+        _vfs           = vfs;
         _ai            = ai;
         _documentModel = ai?.Gate(AiAbility.Documents);
         if (_documentModel is { } documents)
@@ -176,20 +180,42 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         InitialPlace   = initialPlace;
         _draftFolder   = draftFolder;
         WrittenIn      = SingleBlockFiles.LanguageOf(filePath);
-        if (MarkdownPackage.Names(filePath) && VirtualFileSystem.Instance.Exists(filePath))
-        {
-            _documentFolder = Path.Combine(Path.GetTempPath(), "nexaflow-mdz", Guid.NewGuid().ToString("N")[..12]);
-            _savedText      = MarkdownPackage.Unpack(filePath, _documentFolder).ReplaceLineEndings("\n");
-        }
-        else
-        {
-            _documentFolder = Path.GetDirectoryName(filePath) is { Length: > 0 } folder ? folder : null;
-            _savedText = VirtualFileSystem.Instance.Exists(filePath)
-                ? VirtualFileSystem.Instance.ReadAllText(filePath).ReplaceLineEndings("\n")
-                : string.Empty;
-        }
-        Markdown = _savedText;   // OnMarkdownChanged sees value == _savedText → stays clean
+        _documentFolder = Path.GetDirectoryName(filePath) is { Length: > 0 } folder ? folder : null;
+        _savedText      = string.Empty;
         WatchWork();
+        Loaded = LoadAsync();
+    }
+
+    /// <summary>The document read in — done once <see cref="Markdown"/> holds what is saved. Started by the constructor, because
+    /// the file may be on a location, where reading it is a round trip nothing should wait for.</summary>
+    public Task Loaded { get; }
+
+    /// <summary>
+    /// Reads the document: a Markdown Package unpacked into a folder of its own under the temp folder, its attachments beside
+    /// its document there; anything else read where it is, its attachments beside it. Nothing there is a new document. A
+    /// file that cannot be read says why, and leaves the page empty and clean.
+    /// </summary>
+    private async Task LoadAsync()
+    {
+        try
+        {
+            if (!await _vfs.ExistsAsync(FilePath)) return;
+            if (MarkdownPackage.Names(FilePath))
+            {
+                var unpacked = Path.Combine(Path.GetTempPath(), "nexaflow-mdz", Guid.NewGuid().ToString("N")[..12]);
+                _savedText      = (await MarkdownPackage.UnpackAsync(_vfs, FilePath, unpacked)).ReplaceLineEndings("\n");
+                DocumentFolder  = unpacked;
+            }
+            else
+            {
+                _savedText = (await _vfs.ReadAllTextAsync(FilePath)).ReplaceLineEndings("\n");
+            }
+            Markdown = _savedText;   // OnMarkdownChanged sees value == _savedText → stays clean
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or NotSupportedException)
+        {
+            _shell.ShowError(Str.Format("Markdown.Error.OpenFailedFormat", Path.GetFileName(FilePath), ex.Message));
+        }
     }
 
     // ── Commands ──────────────────────────────────────────────────────────
@@ -204,8 +230,8 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
             await SaveAs();
             return;
         }
-        if (MarkdownPackage.Names(FilePath)) MarkdownPackage.Pack(Markdown, DocumentFolder!, FilePath);
-        else VirtualFileSystem.Instance.WriteAllText(FilePath, Markdown);
+        if (MarkdownPackage.Names(FilePath)) await MarkdownPackage.PackAsync(_vfs, Markdown, DocumentFolder!, FilePath);
+        else await _vfs.WriteAllTextAsync(FilePath, Markdown);
         _savedText = Markdown;
         IsDirty    = false;
     }
@@ -228,12 +254,12 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
                                            string.IsNullOrEmpty(folder) ? null : folder) is not { } target) return;
         try
         {
-            if (MarkdownPackage.Names(target)) MarkdownPackage.Pack(Markdown, DocumentFolder ?? Path.GetDirectoryName(Path.GetFullPath(target))!, target);
+            if (MarkdownPackage.Names(target)) await MarkdownPackage.PackAsync(_vfs, Markdown, DocumentFolder ?? FolderOf(target), target);
             else
             {
-                CarryAttachments(Path.GetDirectoryName(Path.GetFullPath(target))!);
-                VirtualFileSystem.Instance.WriteAllText(target, Markdown);
-                DocumentFolder = Path.GetDirectoryName(Path.GetFullPath(target));
+                await CarryAttachmentsAsync(FolderOf(target));
+                await _vfs.WriteAllTextAsync(target, Markdown);
+                DocumentFolder = FolderOf(target);
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
@@ -255,20 +281,29 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     public void PrintFailed(string why) => _shell.ShowError(Str.Format("Markdown.Error.PrintFormat", why));
 
     /// <summary>The files the document shows or links to from its folder, copied to the same places under <paramref name="to"/>.</summary>
-    private void CarryAttachments(string to)
+    private async Task CarryAttachmentsAsync(string to)
     {
-        if (DocumentFolder is not { } from || string.Equals(Path.GetFullPath(from), to, StringComparison.OrdinalIgnoreCase)) return;
+        if (DocumentFolder is not { } from || string.Equals(Full(from), to, StringComparison.OrdinalIgnoreCase)) return;
         foreach (var attachment in MarkdownAttachments.Paths(Markdown))
         {
             string source = Path.Combine(from, attachment);
-            if (!File.Exists(source)) continue;
+            if (!await _vfs.ExistsAsync(source)) continue;
             string copy = Path.Combine(to, attachment);
-            Directory.CreateDirectory(Path.GetDirectoryName(copy)!);
-            File.Copy(source, copy, overwrite: true);
+            await _vfs.CreateDirectoryAsync(Path.GetDirectoryName(copy)!);
+            await _vfs.CopyFileAsync(source, copy, replace: true);
         }
     }
 
+    /// <summary>A path made whole — one in a namespace of its own (<c>::id\…</c>, a location) left as it is, which
+    /// <see cref="Path.GetFullPath(string)"/> would mangle.</summary>
+    private static string Full(string path)
+        => path.StartsWith("::", StringComparison.Ordinal) ? path : Path.GetFullPath(path);
+
+    /// <summary>The folder <paramref name="path"/> is in, made whole as <see cref="Full"/> makes it.</summary>
+    private static string FolderOf(string path) => Path.GetDirectoryName(Full(path))!;
+
     /// <summary>Lets go of what follows the workspace's models, and of the folder a Markdown Package was unpacked in, once the document is closed.</summary>
+    [LocalDiskOnly("the folder a Markdown Package was unpacked into under the temp folder")]
     public void Release()
     {
         if (_work is { } work)
@@ -453,6 +488,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     {
         IsDirty = value != _savedText;
         UpdateCounts(value);
+        RefoundInSource(value);
     }
 
     // ── AI surface helpers (used by the client tools) ─────────────────────
@@ -469,8 +505,12 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     internal async Task<bool> SaveFromToolAsync()
     {
         if (!IsDirty) return false;
-        await _shell.RunOnUiAsync(() => { if (SaveCommand.CanExecute(null)) SaveCommand.Execute(null); });
-        return true;
+        // Awaited through to the write, so the tool answers once the document is saved, not once a save was asked for.
+        return await _shell.RunOnUiAsync(async () =>
+        {
+            if (SaveCommand.CanExecute(null)) await SaveCommand.ExecuteAsync(null);
+            return true;
+        });
     }
 
     /// <summary>
@@ -489,7 +529,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
 
         try
         {
-            await File.WriteAllBytesAsync(path, png);
+            await _vfs.WriteAllBytesAsync(path, png);
             return true;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)

@@ -51,13 +51,14 @@ public partial class HexView : UserControl, IPageView
         Unloaded += OnUnloaded;
     }
 
-    private void OnLoaded(object sender, RoutedEventArgs e)
+    private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         SyncScrollBar();
         HexPanel.Focus();
 
-        // The buffer opened (or failed to) while the tab was being built. Report it now the view is
+        // The buffer opens (or fails to) while the tab is being built. Report it once it has and the view is
         // real, so the prompt has a window to land in.
+        await _vm.Loaded;
         _vm.CheckReadable();
     }
 

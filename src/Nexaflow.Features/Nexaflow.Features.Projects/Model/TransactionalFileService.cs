@@ -3,11 +3,13 @@ namespace Nexaflow.Features.Projects.Model
     using System.Collections.Concurrent;
     using System.IO;
     using System.Text;
+    using Nexaflow.IO.Common;
 
     /// <summary>
     /// Provides copy-on-write transactional file operations over an arbitrary root directory.
     /// Not MCP-exposed; all access is via ProjectService.
     /// </summary>
+    [LocalDiskOnly("a project's files and their backups, under the projects folder on this disk, watched for edits made outside")]
     public sealed class TransactionalFileService : IDisposable
     {
         private readonly ConcurrentDictionary<string, TransactionState> _transactions = new(StringComparer.Ordinal);

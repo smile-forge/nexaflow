@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Nexaflow.Features.Dotnet.Models;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Dotnet.Services;
 
@@ -13,6 +14,7 @@ namespace Nexaflow.Features.Dotnet.Services;
 /// launch. Needed because <c>dotnet run</c> takes a project, never a solution — with a solution
 /// selected the viewlet has to name a startup project itself.
 /// </summary>
+[LocalDiskOnly("a solution in a folder the .NET viewlet is shown in, which a viewlet is only offered for on this disk")]
 public static partial class SolutionReader
 {
     private static readonly string[] ProjectExtensions = [".csproj", ".fsproj", ".vbproj"];

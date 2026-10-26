@@ -2,6 +2,7 @@ using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Rtf.ViewModels;
 using Nexaflow.Features.Rtf.Views;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Rtf;
 
@@ -10,7 +11,7 @@ namespace Nexaflow.Features.Rtf;
 /// "As rich text" action, or a double-click — and draws it with the shared renderer's RTF language. Discovered by
 /// reflection via <see cref="StaticPageKind"/>.
 /// </summary>
-public sealed class RtfTabRegistration(IShellServices shell) : IPageRegistration
+public sealed class RtfTabRegistration(IShellServices shell, IVirtualFileSystem vfs) : IPageRegistration
 {
     public static string StaticPageKind => "Rtf";
     public string PageKind => StaticPageKind;
@@ -33,7 +34,7 @@ public sealed class RtfTabRegistration(IShellServices shell) : IPageRegistration
 
         page.ContentFactory = () =>
         {
-            var vm = new RtfViewModel(path, shell);
+            var vm = new RtfViewModel(path, shell, vfs);
 
             // Stops watching the file. Closed fires only on a genuine close — a tear-off re-keys the registry and never reaches it.
             page.Closed += (_, _) => vm.Dispose();

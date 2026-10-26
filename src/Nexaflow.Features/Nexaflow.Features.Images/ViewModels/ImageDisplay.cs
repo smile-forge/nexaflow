@@ -195,12 +195,12 @@ public sealed class ImageDisplay : IDisposable
         var cts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime);
         _decodeCts = cts;
 
-        _ = Task.Run(() =>
+        _ = Task.Run(async () =>
         {
             DecodedImage decoded;
             try
             {
-                decoded = _editing.Decode(session.Path, longEdge);
+                decoded = await _editing.DecodeAsync(session.Path, longEdge);
             }
             catch (Exception ex) when (ex is ImageDecodeException or IOException or UnauthorizedAccessException or NotSupportedException or InvalidOperationException)
             {

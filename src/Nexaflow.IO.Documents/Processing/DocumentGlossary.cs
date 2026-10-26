@@ -11,20 +11,65 @@ public sealed record DocumentGlossary(IReadOnlyList<(string Source, string Targe
     /// <summary>A glossary with nothing in it, for a document with no name or term used more than once.</summary>
     public static DocumentGlossary None { get; } = new([]);
 
-    /// <summary>The entries <paramref name="text"/> uses.</summary>
+    /// <summary>The entries <paramref name="text"/> uses — each where its term stands in it as a word of its own (<see cref="WordPlaces"/>).</summary>
     public IReadOnlyList<(string Source, string Target)> In(string text) =>
-        [.. Entries.Where(entry => text.Contains(entry.Source, StringComparison.OrdinalIgnoreCase))];
+        [.. Entries.Where(entry => WordPlaces(text, entry.Source).Any())];
 
     /// <summary><paramref name="entries"/>, a line each, as a model is handed them.</summary>
     public static string Said(IEnumerable<(string Source, string Target)> entries) =>
         string.Join('\n', entries.Select(entry => $"{entry.Source} => {entry.Target}"));
+
+    /// <summary>
+    /// Where <paramref name="term"/> stands in <paramref name="text"/> as a word of its own, in any case. A term is the word it
+    /// spells, not its letters inside a longer one: <c>Bild</c> is not in <c>Abbildung</c>, nor <c>And</c> in <c>andere</c>. A term's
+    /// edge runs into the character beside it only where both are letters or digits of a script that puts spaces between its words;
+    /// Chinese, Japanese, Thai, Lao, Khmer and Myanmar write their words together, so there a term is wherever it is written.
+    /// </summary>
+    public static IEnumerable<int> WordPlaces(string text, string term)
+    {
+        if (term.Length == 0) yield break;
+
+        for (var at = text.IndexOf(term, StringComparison.OrdinalIgnoreCase); at >= 0;)
+        {
+            var end = at + term.Length;
+            var whole = !(at > 0 && JoinsWords(text[at - 1]) && JoinsWords(term[0]))
+                        && !(end < text.Length && JoinsWords(text[end]) && JoinsWords(term[^1]));
+
+            if (whole) yield return at;
+
+            var next = whole ? end : at + 1;
+            at = next < text.Length ? text.IndexOf(term, next, StringComparison.OrdinalIgnoreCase) : -1;
+        }
+    }
+
+    /// <summary>Whether <paramref name="c"/> belongs to a word in a script that puts spaces between its words.</summary>
+    private static bool JoinsWords(char c) => char.IsLetterOrDigit(c) && !RunsTogether(c);
+
+    /// <summary>Whether <paramref name="c"/> is written in a script that runs its words together: Han, kana, Thai, Lao, Myanmar, Khmer.</summary>
+    private static bool RunsTogether(char c) =>
+        c is (>= '\u3040' and <= '\u30FF') or (>= '\u31F0' and <= '\u31FF') or (>= '\u3400' and <= '\u4DBF') or (>= '\u4E00' and <= '\u9FFF')
+            or (>= '\uF900' and <= '\uFAFF') or (>= '\uFF66' and <= '\uFF9D')
+            or (>= '\u0E00' and <= '\u0EFF') or (>= '\u1000' and <= '\u109F') or (>= '\u1780' and <= '\u17FF');
 }
 
 /// <summary>
 /// Finds the names and terms a translation of a document has to give the same way every time, and how it gives them: read
-/// from the whole document a stretch at a time, each stretch sized to the model, and kept to those used more than once —
+/// from the whole document's words a stretch at a time, each stretch sized to the model, and kept to those used more than once —
 /// as many as fit beside what each translated passage is handed. Kept, both what was found and how it was translated, so
 /// translating again asks only about what changed.
+///
+/// <para>
+/// <strong>A term is a word.</strong> It is found, counted and handed to a passage where it stands as a word of its own
+/// (<see cref="DocumentGlossary.WordPlaces"/>) — counted in the letters of longer words, a short word rises to the top of the
+/// list without being used once, and handed to every passage holding one of those words, it is put where it never stood. And it
+/// is asked for, and its translation given, as written in the middle of a sentence, so neither carries a capital only the start
+/// of one, or the language translated from, gave it.
+/// </para>
+/// <para>
+/// <strong>Only words are read.</strong> Code and formulas are never translated — a passage hands them over held back — so
+/// nothing written in one is a term a translation gives one way or another, and an entry for one tells the model to do
+/// something to what it may not touch.
+/// </para>
 /// </summary>
 public sealed class DocumentGlossaryPass(IDocumentModel model, IDocumentNotes notes, IProgress<DocumentProgress>? progress = null)
 {
@@ -34,14 +79,18 @@ public sealed class DocumentGlossaryPass(IDocumentModel model, IDocumentNotes no
     /// <summary>The most names and terms asked for from one stretch.</summary>
     private const int MostPerStretch = 30;
 
+    /// <summary>The most of a sentence a term is handed with: a long one is cut to this much round the term.</summary>
+    private const int MostSaid = 240;
+
     /// <summary>Changed whenever what it asks changes, so nothing asked another way is taken for its answer.</summary>
-    private const string Version = "glossary-1";
+    private const string Version = "glossary-4";
 
     /// <summary>The glossary for translating <paramref name="reading"/>, which is <paramref name="gist"/>, into <paramref name="language"/>.</summary>
     public async Task<DocumentGlossary> GatherAsync(DocumentReading reading, DocumentGist gist, string language, CancellationToken ct)
     {
         var budget = DocumentBudget.Of(model);
-        var stretches = reading.Stretches(budget.Share(0.5));
+        var stretches = reading.WordStretches(budget.Share(0.5));
+        var words = string.Join('\n', stretches);
         var found = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         for (var at = 0; at < stretches.Count; at++)
@@ -55,7 +104,7 @@ public sealed class DocumentGlossaryPass(IDocumentModel model, IDocumentNotes no
         var kept = new List<string>();
         var length = 0;
 
-        foreach (var (term, _) in found.Values.Select(term => (term, Used: Occurrences(reading.Source, term)))
+        foreach (var (term, _) in found.Values.Select(term => (term, Used: Occurrences(words, term)))
                                          .Where(entry => entry.Used > 1)
                                          .OrderByDescending(entry => entry.Used).ThenBy(entry => entry.term, StringComparer.Ordinal))
         {
@@ -64,12 +113,15 @@ public sealed class DocumentGlossaryPass(IDocumentModel model, IDocumentNotes no
             length += (term.Length * 2) + 5;
         }
 
-        var glossary = kept.Count == 0 ? DocumentGlossary.None : await TranslatedAsync(gist, kept, language, ct);
+        var ends = DocumentCuts.SentenceEnds(words).ToArray();
+        var glossary = kept.Count == 0
+            ? DocumentGlossary.None
+            : await TranslatedAsync(gist, [.. kept.Select(term => (term, SentenceUsing(words, ends, term)))], language, budget, ct);
         progress?.Report(new(DocumentStep.Glossary, stretches.Count + 1, stretches.Count + 1));
         return glossary;
     }
 
-    /// <summary>The names and terms one stretch uses, as written in it — anything the model gave that the stretch does not hold left out.</summary>
+    /// <summary>The names and terms one stretch uses, as written in it — anything the model gave that the stretch does not hold as a word left out.</summary>
     private async Task<IReadOnlyList<string>> FoundAsync(DocumentGist gist, string stretch, CancellationToken ct)
     {
         var key = DocumentKeys.Of(Version, "found", model.Key, gist.Key, stretch);
@@ -80,7 +132,8 @@ public sealed class DocumentGlossaryPass(IDocumentModel model, IDocumentNotes no
             var reply = await model.AnswerAsync(
                 "You list the words a translation of a document has to give the same way every time: the names of people, places " +
                 "and things, and the terms the document uses in a sense of its own. List only what the passage holds, written as it " +
-                "writes them, one a line, and nothing else.",
+                "writes them in the middle of a sentence — not with a capital only the start of a sentence gave them — one a line, and " +
+                "nothing else.",
                 $"The whole document is:\n{gist.Said}\n\nThe passage:\n\n{stretch}\n\nList at most {MostPerStretch} of them, one a line.",
                 ct);
 
@@ -92,24 +145,60 @@ public sealed class DocumentGlossaryPass(IDocumentModel model, IDocumentNotes no
 
         return [.. answer.Split('\n')
                          .Select(Term)
-                         .Where(term => term.Length is >= 2 and <= 60 && stretch.Contains(term, StringComparison.OrdinalIgnoreCase))
+                         .Where(term => term.Length is >= 2 and <= 60 && DocumentGlossary.WordPlaces(stretch, term).Any())
                          .Distinct(StringComparer.OrdinalIgnoreCase)
                          .Take(MostPerStretch)];
     }
 
-    /// <summary>How each of <paramref name="terms"/> is given in <paramref name="language"/>.</summary>
-    private async Task<DocumentGlossary> TranslatedAsync(DocumentGist gist, IReadOnlyList<string> terms, string language, CancellationToken ct)
+    /// <summary>
+    /// How each of <paramref name="terms"/> is given in <paramref name="language"/>, each handed over with a sentence the document uses
+    /// it in (<see cref="SentenceUsing"/>). A term out of its sentence is only its letters, and an abbreviation's letters say nothing of
+    /// what they stand for — asked alone, one is kept as it is where the language abbreviates the same thing another way. As many are
+    /// asked at once as fit the model, so a document of many terms is asked about every one of them.
+    /// </summary>
+    private async Task<DocumentGlossary> TranslatedAsync(DocumentGist gist, IReadOnlyList<(string Term, string Sentence)> terms, string language,
+                                                         DocumentBudget budget, CancellationToken ct)
     {
-        var key = DocumentKeys.Of(Version, "translated", model.Key, gist.Key, language, string.Join('\n', terms));
+        var room = budget.Share(0.4);
+        var entries = new List<(string Source, string Target)>();
+        var together = new List<(string Term, string Sentence)>();
+        var length = 0;
+
+        foreach (var term in terms)
+        {
+            var said = term.Term.Length + term.Sentence.Length + 12;
+            if (together.Count > 0 && length + said > room)
+            {
+                entries.AddRange(await AskedTogetherAsync(gist, together, language, ct));
+                (together, length) = ([], 0);
+            }
+
+            together.Add(term);
+            length += said;
+        }
+
+        if (together.Count > 0) entries.AddRange(await AskedTogetherAsync(gist, together, language, ct));
+        return new DocumentGlossary(entries);
+    }
+
+    /// <summary>How each of <paramref name="terms"/>, asked about at once, is given in <paramref name="language"/>.</summary>
+    private async Task<IReadOnlyList<(string Source, string Target)>> AskedTogetherAsync(DocumentGist gist, IReadOnlyList<(string Term, string Sentence)> terms,
+                                                                                          string language, CancellationToken ct)
+    {
+        var listed = string.Join('\n', terms.Select(term => $"{term.Term}\n  used in: {term.Sentence}"));
+        var key = DocumentKeys.Of(Version, "translated", model.Key, gist.Key, language, listed);
         var answer = await notes.ReadAsync(Shelf, key, ct);
 
         if (answer is null)
         {
             var reply = await model.AnswerAsync(
                 $"You translate the glossary of a document being translated into {language}, so its names and terms are given the " +
-                $"same way all through it. A name stays as it is unless {language} writes it another way.",
-                $"The whole document is:\n{gist.Said}\n\nIts names and terms:\n{string.Join('\n', terms)}\n\n" +
-                "Answer with one line for each, as `term => translation`, and nothing else.",
+                "same way all through it. Each comes with a sentence the document uses it in, which says what it means there. A name " +
+                $"stays as it is unless {language} writes it another way; an abbreviation becomes the one {language} uses for what it " +
+                $"stands for. Give each translation as {language} writes it in the middle of a sentence: in lower case wherever {language} " +
+                "writes the word so, whatever case the term has here.",
+                $"The whole document is:\n{gist.Said}\n\nIts names and terms, each with a sentence it is used in:\n{listed}\n\n" +
+                "Answer with one line for each term, as `term => translation`, and nothing else.",
                 ct);
 
             if (reply.Ended == DocumentReplyEnd.Failed) throw DocumentWorkException.NotAsked("how to translate the document's names and terms", reply);
@@ -118,7 +207,7 @@ public sealed class DocumentGlossaryPass(IDocumentModel model, IDocumentNotes no
             await notes.WriteAsync(Shelf, key, answer, ct);
         }
 
-        var asked = new HashSet<string>(terms, StringComparer.OrdinalIgnoreCase);
+        var asked = new HashSet<string>(terms.Select(term => term.Term), StringComparer.OrdinalIgnoreCase);
         var entries = new List<(string Source, string Target)>();
 
         foreach (var line in answer.Split('\n'))
@@ -131,7 +220,49 @@ public sealed class DocumentGlossaryPass(IDocumentModel model, IDocumentNotes no
             if (target.Length > 0 && asked.Remove(source)) entries.Add((source, target));
         }
 
-        return new DocumentGlossary(entries);
+        return entries;
+    }
+
+    /// <summary>
+    /// The sentence of <paramref name="words"/> that says most plainly what <paramref name="term"/> is: the first writing it in brackets
+    /// after other words — how an abbreviation or a name is brought in beside what it stands for — or else the first using it
+    /// at all, which in a book may be its table of contents. Cut to <see cref="MostSaid"/> characters round the term where it is longer.
+    /// <paramref name="ends"/> are where the sentences of <paramref name="words"/> end, in order (<see cref="DocumentCuts.SentenceEnds"/>).
+    /// </summary>
+    private static string SentenceUsing(string words, int[] ends, string term)
+    {
+        var first = -1;
+        var used = -1;
+
+        foreach (var at in DocumentGlossary.WordPlaces(words, term))
+        {
+            if (first < 0) first = at;
+
+            var end = at + term.Length;
+            if (at > 1 && words[at - 1] is '(' or '[' && end < words.Length && words[end] is ')' or ']')
+            {
+                used = at;
+                break;
+            }
+        }
+
+        if (first < 0) return term;
+        if (used < 0) used = first;
+
+        // The first end past the term closes its sentence, and the one before it opens it.
+        var next = Array.BinarySearch(ends, used + 1);
+        if (next < 0) next = ~next;
+
+        var (opens, closes) = (next > 0 ? ends[next - 1] : 0, next < ends.Length ? ends[next] : words.Length);
+        var (from, to) = (opens, closes);
+
+        if (to - from > MostSaid)
+        {
+            from = Math.Clamp(used + (term.Length / 2) - (MostSaid / 2), opens, closes - MostSaid);
+            to = from + MostSaid;
+        }
+
+        return (from > opens ? "…" : string.Empty) + words[from..to].Trim() + (to < closes ? "…" : string.Empty);
     }
 
     /// <summary>A name or term as a model listed it, without what it listed it with.</summary>
@@ -146,13 +277,6 @@ public sealed class DocumentGlossaryPass(IDocumentModel model, IDocumentNotes no
         return term.Trim().Trim('`', '"', '\'', '*').Trim();
     }
 
-    /// <summary>How many times <paramref name="term"/> is written in <paramref name="text"/>.</summary>
-    private static int Occurrences(string text, string term)
-    {
-        var count = 0;
-        for (var at = text.IndexOf(term, StringComparison.OrdinalIgnoreCase); at >= 0; at = text.IndexOf(term, at + term.Length, StringComparison.OrdinalIgnoreCase))
-            count++;
-
-        return count;
-    }
+    /// <summary>How many times <paramref name="term"/> is written in <paramref name="text"/> as a word of its own.</summary>
+    private static int Occurrences(string text, string term) => DocumentGlossary.WordPlaces(text, term).Count();
 }

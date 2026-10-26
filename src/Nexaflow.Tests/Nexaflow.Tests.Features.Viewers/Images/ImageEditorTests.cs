@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using System.Text.Json.Nodes;
 using Nexaflow.Features.Common;
@@ -67,7 +68,7 @@ public class ImageEditorTests
     /// <summary>The viewer in edit mode over the copied photo, once a frame of it is on screen.</summary>
     private ImageViewModel Editing(IShellServices? shell = null)
     {
-        var vm = new ImageViewModel([_photo], shell ?? Shell(), ImageViewMode.Edit, new ImageEditingServices(new ImageRecipeStore(TimeSpan.FromHours(1))));
+        var vm = new ImageViewModel([_photo], shell ?? Shell(), ImageViewMode.Edit, new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1))));
         Settle(vm);
         Assert.IsNotNull(vm.Canvas, "the photo was never decoded and presented");
         return vm;
@@ -403,7 +404,7 @@ public class ImageEditorTests
         await vm.Editor.SaveCommand.ExecuteAsync(null);
         Settle(vm, () => !vm.IsEdited);
 
-        using var saved = new ImageEditingServices().Decode(_photo, null);
+        using var saved = await new ImageEditingServices(VirtualFileSystem.Instance).DecodeAsync(_photo, null);
         Assert.AreEqual(SKEncodedOrigin.TopLeft, saved.Origin);
         Assert.AreEqual(new SKSizeI(64, 32), saved.StoredFullSize, "upright, then turned a quarter: 64 wide");
         Assert.IsFalse(File.Exists(ImageRecipeStore.SidecarPath(_photo)), "the edits are in the file now");
@@ -474,7 +475,7 @@ public class ImageEditorTests
     [CoversNode("images-render-preview")]
     public void ThePreview_IsTheEditedPicture_SizedForTheScreen()
     {
-        var vm = new ImageViewModel([_photo], Shell(), ImageViewMode.Carousel, new ImageEditingServices());
+        var vm = new ImageViewModel([_photo], Shell(), ImageViewMode.Carousel, new ImageEditingServices(VirtualFileSystem.Instance));
         vm.SetViewport(16, 16, 1);
         vm.RotateRightCommand.Execute(null);
         Settle(vm, () => vm.CurrentImage is not null);
@@ -523,26 +524,26 @@ public class ImageEditorTests
 
     [TestMethod]
     [CoversNode("images-open-edit")]
-    public void TheEditAction_OpensTheImagesStraightIntoTheEditor()
+    public async Task TheEditAction_OpensTheImagesStraightIntoTheEditor()
     {
         var shell = Shell();
-        Assert.IsTrue(new EditImageAction(shell).PerformAction([_photo, Path.Combine(_dir, "notes.txt")]));
+        Assert.IsTrue(await new EditImageAction(shell).PerformActionAsync([_photo, Path.Combine(_dir, "notes.txt")]));
         shell.Received().OpenTab("Images", Arg.Is<Dictionary<string, string>>(p => p["view"] == "edit" && p["paths"] == _photo));
     }
 
     [TestMethod]
     [CoversNode("images-revert-action")]
-    public void TheRevertAction_ConfirmsThenRemovesTheEdits_AndAsksForTheCompanion()
+    public async Task TheRevertAction_ConfirmsThenRemovesTheEdits_AndAsksForTheCompanion()
     {
         new ImageRecipeStore().Save(_photo, new ImageRecipe { Geometry = new RecipeGeometry { QuarterTurns = 1 } });
         var shell = Shell();
         var action = new RevertImageEditsAction(shell);
 
         Assert.AreEqual(ImageRecipeStore.Extension, action.RequiredCompanionSuffix, "offered only on an edited image");
-        action.PerformAction(_photo);
+        await action.PerformActionAsync(_photo);
 
         shell.Received().ShowConfirmation(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Action>(), Arg.Any<Action>());
         Assert.IsFalse(File.Exists(ImageRecipeStore.SidecarPath(_photo)));
-        Assert.IsFalse(action.PerformAction(Path.Combine(_dir, "unedited.jpg")), "nothing to revert");
+        Assert.IsFalse(await action.PerformActionAsync(Path.Combine(_dir, "unedited.jpg")), "nothing to revert");
     }
 }

@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -88,7 +89,7 @@ public class PdfCorpusDrawingTests
     private static Row? Draw(string file, string folder)
     {
         using var budget = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        using var scope = PdfDocumentScope.TryOpen(file, budget.Token);
+        using var scope = PdfDocumentScope.TryOpen(File.OpenRead(file), budget.Token);
         if (scope is null) return null;
 
         var document = scope.Pages.ReadDocument(budget.Token);

@@ -6,6 +6,7 @@ using Nexaflow.Features.Pdf.Rendering;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Editing;
 using UglyToad.PdfPig.Writer;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Features.Pdf.Editing;
 
@@ -23,6 +24,12 @@ internal sealed class PdfDocumentSession : IDisposable
 {
     private static readonly PdfSourceId WorkingCopies = new(-1);
 
+    /// <summary>Why the drafts are on the disk directly: they are the session's own, in a folder of its own under the temp folder.</summary>
+    private const string DraftFolder = "the session's drafts — inserted pictures, working copies — in its own folder under the temp folder";
+
+    /// <summary>The runtime's file system the documents are read, and saved, through.</summary>
+    private readonly IVirtualFileSystem _vfs;
+
     private readonly Dictionary<PdfSourceId, PdfSourceDocument> _sources = new();
     private readonly Dictionary<PdfSourceId, PdfSourceFile> _files = new();
     private readonly Timer _idleTimer;
@@ -36,8 +43,9 @@ internal sealed class PdfDocumentSession : IDisposable
     private int _nextDraft;
     private bool _disposed;
 
-    public PdfDocumentSession(string path)
+    public PdfDocumentSession(string path, IVirtualFileSystem vfs)
     {
+        _vfs = vfs;
         Base = AddSource(path, new PdfSourceFile(path, null));
         _document = new CurrentDocument(this);
 
@@ -276,7 +284,7 @@ internal sealed class PdfDocumentSession : IDisposable
         {
             foreach (var path in paths)
             {
-                var source = new PdfSourceDocument(new PdfSourceId(Interlocked.Increment(ref _nextSource)), path);
+                var source = new PdfSourceDocument(new PdfSourceId(Interlocked.Increment(ref _nextSource)), path, _vfs);
                 added.Add(source);
 
                 if (await source.ReadSlotsAsync(ct) is not { } slots)
@@ -320,11 +328,8 @@ internal sealed class PdfDocumentSession : IDisposable
                 var page = System.IO.Path.Combine(folder, $"picture-{Interlocked.Increment(ref _nextDraft)}.pdf");
                 try
                 {
-                    await Task.Run(() =>
-                    {
-                        using var output = new FileStream(page, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-                        PdfImagePageWriter.Write(path, size, output, ct);
-                    }, ct);
+                    var bytes = await _vfs.ReadAllBytesAsync(path, ct);
+                    await Task.Run(() => WriteDraftPage(page, bytes, path, size, ct), ct);
                 }
                 catch (NotSupportedException ex)
                 {
@@ -332,7 +337,7 @@ internal sealed class PdfDocumentSession : IDisposable
                     throw new PdfEditRefusedException(path, PdfEditRefusal.NotAPicture, ex);
                 }
 
-                var source = new PdfSourceDocument(new PdfSourceId(Interlocked.Increment(ref _nextSource)), page);
+                var source = new PdfSourceDocument(new PdfSourceId(Interlocked.Increment(ref _nextSource)), page, _vfs);
                 added.Add((source, path));
                 if (await source.ReadSlotsAsync(ct) is null)
                     throw new PdfEditRefusedException(path, PdfEditRefusal.NotAPicture);
@@ -353,6 +358,14 @@ internal sealed class PdfDocumentSession : IDisposable
             Register(source, new PdfSourceFile(source.Path, new AssembledContentTag("Figure", System.IO.Path.GetFileName(picture))));
 
         Commit(Arrangement.Insert(gap, added.Select(item => new PdfArrangedPage(NewPageId(), item.Source.Id, 1)).ToList()));
+    }
+
+    /// <summary>A picture written as a page of its own, in the drafts.</summary>
+    [LocalDiskOnly(DraftFolder)]
+    private static void WriteDraftPage(string page, byte[] picture, string from, Size size, CancellationToken ct)
+    {
+        using var output = new FileStream(page, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        PdfImagePageWriter.Write(picture, from, size, output, ct);
     }
 
     public void Undo()
@@ -395,14 +408,15 @@ internal sealed class PdfDocumentSession : IDisposable
     /// copies untouched: for a save, and for a reader of the whole document that must not share the tab's copies, such
     /// as a job that runs on after the tab is closed.
     /// </summary>
+    [LocalDiskOnly("a copy written beside the file on this disk, or in the session's drafts")]
     public Task WriteCopyAsync(string path, CancellationToken ct)
     {
         var arrangement = Arrangement;
         var files = Files();
-        return Task.Run(() =>
+        return Task.Run(async () =>
         {
-            using var output = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
-            PdfArrangementWriter.Write(arrangement, files, Base.Id, output, ct);
+            await using var output = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
+            await PdfArrangementWriter.WriteAsync(_vfs, arrangement, files, Base.Id, output, ct);
         }, ct);
     }
 
@@ -415,7 +429,9 @@ internal sealed class PdfDocumentSession : IDisposable
     public async Task SaveAsync(string? target, CancellationToken ct)
     {
         var destination = target ?? Base.Path;
-        var real = VirtualFileSystem.Instance.TryResolveReal(destination);
+        // On this disk the document is written beside the file and swapped in; anywhere else it is written in the drafts
+        // and put in place through the file system, whole.
+        var real = _vfs.ResolveOnDisk(destination);
         var written = real is null
             ? System.IO.Path.Combine(Drafts(), $"saving-{Interlocked.Increment(ref _nextDraft)}.pdf")
             : real + ".nexatmp";
@@ -430,12 +446,8 @@ internal sealed class PdfDocumentSession : IDisposable
                 Base.Release();
             }
 
-            if (real is null)
-                VirtualFileSystem.Instance.Replace(destination, await File.ReadAllBytesAsync(written, ct));
-            else if (File.Exists(real))
-                File.Replace(written, real, null);
-            else
-                File.Move(written, real);
+            if (real is null) await PutInPlaceAsync(written, destination, ct);
+            else SwapOnDisk(written, real);
         }
         finally
         {
@@ -445,6 +457,23 @@ internal sealed class PdfDocumentSession : IDisposable
         await RebaseAsync(destination, ct);
     }
 
+    /// <summary>The copy written in the drafts made <paramref name="destination"/>'s content, whole or not at all.</summary>
+    private async Task PutInPlaceAsync(string written, string destination, CancellationToken ct)
+    {
+        await using var write = await _vfs.BeginWriteAsync(destination, WriteMode.Replace, ct: ct);
+        await using (var copy = await _vfs.OpenReadAsync(written, ReadIntent.Sequential, ct))
+            await copy.CopyToAsync(write.Content, ct);
+        await write.CommitAsync(ct);
+    }
+
+    /// <summary>The copy written beside a file on this disk swapped in for it.</summary>
+    [LocalDiskOnly("a file on this disk and the copy written beside it")]
+    private static void SwapOnDisk(string written, string real)
+    {
+        if (File.Exists(real)) File.Replace(written, real, null);
+        else File.Move(written, real);
+    }
+
     /// <summary>
     /// After a save: the file written is the one source, its pages the arrangement's in order, each keeping its id; the
     /// history starts again from it, and everything the edits needed is let go.
@@ -452,7 +481,7 @@ internal sealed class PdfDocumentSession : IDisposable
     private async Task RebaseAsync(string path, CancellationToken ct)
     {
         var moved = !string.Equals(path, Base.Path, StringComparison.OrdinalIgnoreCase);
-        var saved = new PdfSourceDocument(new PdfSourceId(Interlocked.Increment(ref _nextSource)), path);
+        var saved = new PdfSourceDocument(new PdfSourceId(Interlocked.Increment(ref _nextSource)), path, _vfs);
         if (await saved.ReadSlotsAsync(ct) is null)
         {
             saved.Dispose();
@@ -542,8 +571,8 @@ internal sealed class PdfDocumentSession : IDisposable
 
         _working = new PdfWorkingCopy(
             Drafts(),
-            (arrangement, output, ct) => Task.Run(() => PdfArrangementWriter.Write(arrangement, Files(), Base.Id, output, ct), ct),
-            path => new PdfSourceDocument(WorkingCopies, path));
+            (arrangement, output, ct) => Task.Run(() => PdfArrangementWriter.WriteAsync(_vfs, arrangement, Files(), Base.Id, output, ct), ct),
+            path => new PdfSourceDocument(WorkingCopies, path, _vfs));
         _working.Written += _ => DocumentChanged?.Invoke();
         return _working;
     }
@@ -580,7 +609,7 @@ internal sealed class PdfDocumentSession : IDisposable
 
     private PdfSourceDocument AddSource(string path, PdfSourceFile file)
     {
-        var source = new PdfSourceDocument(new PdfSourceId(_nextSource), path);
+        var source = new PdfSourceDocument(new PdfSourceId(_nextSource), path, _vfs);
         Register(source, file);
         return source;
     }
@@ -600,6 +629,7 @@ internal sealed class PdfDocumentSession : IDisposable
     private string Drafts() =>
         _drafts ??= System.IO.Path.GetDirectoryName(DraftLocation.NewFile("pages.pdf"))!;
 
+    [LocalDiskOnly(DraftFolder)]
     private void DeleteDrafts()
     {
         if (_drafts is null) return;
@@ -618,6 +648,7 @@ internal sealed class PdfDocumentSession : IDisposable
             source.CloseIfIdle();
     }
 
+    [LocalDiskOnly(DraftFolder)]
     private static void TryDelete(string path)
     {
         try { File.Delete(path); }

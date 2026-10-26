@@ -30,11 +30,11 @@ public class CmdHereActionTests
     }
 
     [TestMethod]
-    public void ItOpensAConsoleRootedAtTheFolder()
+    public async Task ItOpensAConsoleRootedAtTheFolder()
     {
         var (shell, opened) = Shell();
 
-        Assert.IsTrue(new CmdHereAction(shell).PerformAction(@"C:\work\src"));
+        Assert.IsTrue(await new CmdHereAction(shell).PerformActionAsync(@"C:\work\src"));
 
         Assert.AreEqual(@"C:\work\src", opened.Single()["path"]);
     }
@@ -50,22 +50,22 @@ public class CmdHereActionTests
     }
 
     [TestMethod]
-    public void AMultiFolderSelectionOpensOneConsole_NotOnePerFolder()
+    public async Task AMultiFolderSelectionOpensOneConsole_NotOnePerFolder()
     {
         var (shell, opened) = Shell();
 
-        Assert.IsTrue(new CmdHereAction(shell).PerformAction([@"C:\a", @"C:\b", @"C:\c"]));
+        Assert.IsTrue(await new CmdHereAction(shell).PerformActionAsync([@"C:\a", @"C:\b", @"C:\c"]));
 
         Assert.AreEqual(1, opened.Count, "a shell has one working directory — three tabs is not the answer");
         Assert.AreEqual(@"C:\a", opened.Single()["path"]);
     }
 
     [TestMethod]
-    public void AnEmptySelectionOpensNothing()
+    public async Task AnEmptySelectionOpensNothing()
     {
         var (shell, opened) = Shell();
 
-        Assert.IsFalse(new CmdHereAction(shell).PerformAction([]));
+        Assert.IsFalse(await new CmdHereAction(shell).PerformActionAsync([]));
 
         Assert.AreEqual(0, opened.Count);
     }

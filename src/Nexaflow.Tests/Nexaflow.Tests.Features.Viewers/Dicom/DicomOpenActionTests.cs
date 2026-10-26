@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -35,12 +36,12 @@ public class DicomOpenActionTests
 
 
     [TestMethod]
-    public void AsDicom_OnASelection_OpensOneTabHoldingAllOfThem()
+    public async Task AsDicom_OnASelection_OpensOneTabHoldingAllOfThem()
     {
         var (shell, opened) = Shell();
         string[] files = [@"C:\s\a.dcm", @"C:\s\b.dcm", @"C:\s\c.dcm"];
 
-        Assert.IsTrue(new ShowDicomAction(shell).PerformAction(files));
+        Assert.IsTrue(await new ShowDicomAction(shell).PerformActionAsync(files));
 
         Assert.AreEqual(1, opened.Count, "a selection is one study, not three tabs");
         CollectionAssert.AreEqual(files, opened.Single()["paths"].Split('|'),
@@ -62,11 +63,11 @@ public class DicomOpenActionTests
     // ── "As DICOM" on a folder ────────────────────────────────────────────────
 
     [TestMethod]
-    public void AsDicom_OnAFolder_HandsTheFolderOver_AndLetsTheViewerFindTheIndex()
+    public async Task AsDicom_OnAFolder_HandsTheFolderOver_AndLetsTheViewerFindTheIndex()
     {
         var (shell, opened) = Shell();
 
-        Assert.IsTrue(new DicomFolderAction(shell).PerformAction(@"D:\STUDY01"));
+        Assert.IsTrue(await new DicomFolderAction(shell).PerformActionAsync(@"D:\STUDY01"));
 
         Assert.AreEqual(@"D:\STUDY01", opened.Single()["path"]);
     }
@@ -95,7 +96,7 @@ public class DicomOpenActionTests
             var dicomdir = Path.Combine(dir, "STUDY01", "DICOMDIR");
             File.WriteAllText(dicomdir, "");
 
-            var page = new DicomTabRegistration(Substitute.For<IShellServices>())
+            var page = new DicomTabRegistration(Substitute.For<IShellServices>(), VirtualFileSystem.Instance)
                        .CreatePageDefinition(new Dictionary<string, string> { ["path"] = dicomdir });
 
             Assert.AreEqual("STUDY01", page.Title,
@@ -107,7 +108,7 @@ public class DicomOpenActionTests
     [TestMethod]
     public void AMultiFileTabIsTitledByCount()
     {
-        var page = new DicomTabRegistration(Substitute.For<IShellServices>())
+        var page = new DicomTabRegistration(Substitute.For<IShellServices>(), VirtualFileSystem.Instance)
                    .CreatePageDefinition(new Dictionary<string, string> { ["paths"] = @"a.dcm|b.dcm|c.dcm" });
 
         Assert.AreEqual("DICOM (3)", page.Title);

@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Markdown.ViewModels;
 using Nexaflow.Features.Markdown.Views;
+using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -14,7 +15,7 @@ namespace Nexaflow.Features.Markdown;
 /// "draft" — the folder a document made for the reader and kept in a temp folder is offered to be saved in. A document saved
 /// as another file moves its tab with it.
 /// </summary>
-public sealed class MarkdownTabRegistration(IShellServices shell, IAIService ai) : IPageRegistration
+public sealed class MarkdownTabRegistration(IShellServices shell, IAIService ai, IVirtualFileSystem vfs) : IPageRegistration
 {
     public static string StaticPageKind => "Markdown";
     public string PageKind => StaticPageKind;
@@ -47,7 +48,7 @@ public sealed class MarkdownTabRegistration(IShellServices shell, IAIService ai)
         };
         page.ContentFactory = () =>
         {
-            var viewModel = new MarkdownViewModel(filePath, shell, heading, draft, ai, place);
+            var viewModel = new MarkdownViewModel(filePath, shell, vfs, heading, draft, ai, place);
             viewModel.Moved += moved => Follow(page, moved);
             page.Closed     += (_, _) => viewModel.Release();
             return new MarkdownView(viewModel);

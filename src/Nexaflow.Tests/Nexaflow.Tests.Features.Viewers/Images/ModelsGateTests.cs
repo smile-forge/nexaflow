@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using System.ComponentModel;
 using Nexaflow.Features.Common;
@@ -127,7 +128,7 @@ public class ModelsGateTests
             var erasing = Missing<IPictureErasing>(210L << 20);
             var pictures = Missing<IPictureTools>(640L << 20);
             pictures.Restores(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>()).Returns(true);
-            var vm = new ImageViewModel([photo], shell, ImageViewMode.Edit, new ImageEditingServices(new ImageRecipeStore(TimeSpan.FromHours(1))),
+            var vm = new ImageViewModel([photo], shell, ImageViewMode.Edit, new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1))),
                                         pictures: pictures, selection: selection, erasing: erasing);
             Until(() => vm.Canvas is not null);
             var editor = vm.Editor;

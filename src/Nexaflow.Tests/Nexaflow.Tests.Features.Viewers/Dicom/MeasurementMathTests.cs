@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.Windows;
 using Nexaflow.Features.Dicom.Models;
 using Nexaflow.Features.Dicom.Services;
@@ -61,12 +62,12 @@ public class MeasurementMathTests
     [TestMethod]
     [CoversNode("dicom-measurements")]
     [CoversNode("dicom-probe")]
-    public void Probe_OnRealImage_ReadsRawPixelValue()
+    public async Task Probe_OnRealImage_ReadsRawPixelValue()
     {
         // Exercises PixelSampler end-to-end against the hand-rolled 8-bit sample (raw pixel access).
-        var info = DicomContainerLoader.Load([TestSampleData.Path("dicom", "ct.dcm")]).Images[0].Instance!;
+        var info = (await DicomContainerLoader.LoadAsync(new DicomIo(VirtualFileSystem.Instance), [TestSampleData.Path("dicom", "ct.dcm")])).Images[0].Instance!;
         var vm = new MeasurementViewModel();
-        vm.SetFrame(info, 0);
+        vm.SetFrame(info, (await DicomRenderer.OpenAsync(new DicomIo(VirtualFileSystem.Instance), info.FilePath)).Dataset, 0);
 
         var probe = vm.ProbeAt(new Point(1, 1));
         Assert.IsNotNull(probe, "the pixel probe should read a value from the sampled frame");

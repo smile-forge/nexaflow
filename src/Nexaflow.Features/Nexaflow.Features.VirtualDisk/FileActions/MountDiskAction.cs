@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.VirtualDisk.Services;
 using Nexaflow.Visuals.Common.Localization;
@@ -22,18 +24,15 @@ public sealed class MountDiskAction(IShellServices shell) : IFileAction, ICachea
     public bool RequiresRefresh => false;
     public bool CanPerformAction => true;
 
-    public bool PerformAction(string filePath)
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default)
     {
         // Fire-and-forget: the UI thread's SynchronizationContext carries the shell notifications back.
         _ = DiskMountService.MountAsync(shell, filePath);
-        return true;
+        return Task.FromResult(true);
     }
 
     // SupportsMultipleFiles is false, so a selection mounts the first image and nothing else — this used to
     // mount every one of them, and to return true for an empty selection having mounted nothing at all.
-    public bool PerformAction(IEnumerable<string> filePaths)
-    {
-        var first = filePaths.FirstOrDefault();
-        return first is not null && PerformAction(first);
-    }
+    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
+        => filePaths.FirstOrDefault() is { } first ? PerformActionAsync(first, ct) : Task.FromResult(false);
 }

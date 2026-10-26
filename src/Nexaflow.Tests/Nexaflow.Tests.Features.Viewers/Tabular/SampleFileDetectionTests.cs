@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.Linq;
 using System.Threading;
 using Nexaflow.Features.Tabular.Detection;
@@ -17,9 +18,9 @@ public class SampleFileDetectionTests
 {
     private static string Sample(string name) => TestSampleData.Path("tabular", name);
 
-    private static (FileSample sample, CsvShape top) Probe(string path)
+    private static async Task<(FileSample sample, CsvShape top)> ProbeAsync(string path)
     {
-        var sample = LineSamplingReader.Read(path);
+        var sample = await LineSamplingReader.ReadAsync(VirtualFileSystem.Instance, path);
         var shapes = ShapeDetector.DetectAll(sample);
         return (sample, shapes[0]);
     }
@@ -28,9 +29,9 @@ public class SampleFileDetectionTests
 
     [TestMethod]
     [CoversNode("tabular-detection")]
-    public void CommaHeader_DetectedAsCommaWithHeader_AndColumnTypes()
+    public async Task CommaHeader_DetectedAsCommaWithHeader_AndColumnTypes()
     {
-        var (_, top) = Probe(Sample("comma_header.csv"));
+        var (_, top) = await ProbeAsync(Sample("comma_header.csv"));
         Assert.AreEqual(',', top.Separator);
         Assert.AreEqual(4,   top.FieldCount);
         Assert.IsTrue(top.HasHeader);
@@ -44,9 +45,9 @@ public class SampleFileDetectionTests
 
     [TestMethod]
     [CoversNode("tabular-detection")]
-    public void TabNoHeader_DetectedAsTabSeparated_NoHeader()
+    public async Task TabNoHeader_DetectedAsTabSeparated_NoHeader()
     {
-        var (_, top) = Probe(Sample("tab_no_header.tsv"));
+        var (_, top) = await ProbeAsync(Sample("tab_no_header.tsv"));
         Assert.AreEqual('\t', top.Separator);
         Assert.AreEqual(2,    top.FieldCount);
         Assert.IsFalse(top.HasHeader);
@@ -56,9 +57,9 @@ public class SampleFileDetectionTests
 
     [TestMethod]
     [CoversNode("tabular-detection")]
-    public void SemicolonDates_DetectedAsSemicolonWithHeader_AndDateTimeColumn()
+    public async Task SemicolonDates_DetectedAsSemicolonWithHeader_AndDateTimeColumn()
     {
-        var (_, top) = Probe(Sample("semicolon_dates.csv"));
+        var (_, top) = await ProbeAsync(Sample("semicolon_dates.csv"));
         Assert.AreEqual(';', top.Separator);
         Assert.AreEqual(7,   top.FieldCount);
         Assert.IsTrue(top.HasHeader, "Header labels over typed columns should flag HasHeader.");
@@ -70,9 +71,9 @@ public class SampleFileDetectionTests
 
     [TestMethod]
     [CoversNode("tabular-detection")]
-    public void SingleColumn_FallsBackToSingleColumnShape()
+    public async Task SingleColumn_FallsBackToSingleColumnShape()
     {
-        var (_, top) = Probe(Sample("single_column.csv"));
+        var (_, top) = await ProbeAsync(Sample("single_column.csv"));
         Assert.AreEqual(1, top.FieldCount);
         Assert.IsNull(top.Separator);
     }
@@ -81,9 +82,9 @@ public class SampleFileDetectionTests
 
     [TestMethod]
     [CoversNode("tabular-detection")]
-    public void CommaSpaceHeader_DetectedAsCommaWithHeader_ManyColumns()
+    public async Task CommaSpaceHeader_DetectedAsCommaWithHeader_ManyColumns()
     {
-        var (_, top) = Probe(Sample("comma_space_header.csv"));
+        var (_, top) = await ProbeAsync(Sample("comma_space_header.csv"));
         Assert.AreEqual(',', top.Separator);
         Assert.IsTrue(top.HasHeader);
         Assert.IsTrue(top.FieldCount >= 10, $"expected ≥10 fields, got {top.FieldCount}");
@@ -93,9 +94,9 @@ public class SampleFileDetectionTests
 
     [TestMethod]
     [CoversNode("tabular-detection")]
-    public void QuotedFields_DetectedAsQuotedComma_ThreeColumns()
+    public async Task QuotedFields_DetectedAsQuotedComma_ThreeColumns()
     {
-        var (_, top) = Probe(Sample("quoted_fields.csv"));
+        var (_, top) = await ProbeAsync(Sample("quoted_fields.csv"));
         Assert.AreEqual(',',  top.Separator);
         Assert.AreEqual('"',  top.Quote);
         Assert.AreEqual(3,    top.FieldCount);
@@ -106,9 +107,9 @@ public class SampleFileDetectionTests
 
     [TestMethod]
     [CoversNode("tabular-detection")]
-    public void IsoDates_DetectedAsComma_WithDateColumn()
+    public async Task IsoDates_DetectedAsComma_WithDateColumn()
     {
-        var (_, top) = Probe(Sample("iso_dates.csv"));
+        var (_, top) = await ProbeAsync(Sample("iso_dates.csv"));
         Assert.AreEqual(',', top.Separator);
         Assert.AreEqual(3,   top.FieldCount);
         Assert.AreEqual(CsvDataType.Date, top.ColumnTypes[0]);
@@ -118,12 +119,12 @@ public class SampleFileDetectionTests
 
     [TestMethod]
     [CoversNode("tabular-windowed-load")]
-    public void CommaHeader_SmallLoader_ReturnsBodyRows()
+    public async Task CommaHeader_SmallLoader_ReturnsBodyRows()
     {
         var path = Sample("comma_header.csv");
-        var (sample, top) = Probe(path);
+        var (sample, top) = await ProbeAsync(path);
 
-        var loader = new SmallFileLoader(path, sample.Encoding, sample.BomByteCount, new DataShape(top, null));
+        var loader = await SmallFileLoader.LoadAsync(VirtualFileSystem.Instance, path, sample.Encoding, sample.BomByteCount, new DataShape(top, null));
         Assert.IsTrue(loader.KnownRowCount > 0);
 
         var window = loader.GetVisibleAsync(0, 5, _ => true, CancellationToken.None).Result;
@@ -136,12 +137,12 @@ public class SampleFileDetectionTests
 
     [TestMethod]
     [CoversNode("tabular-windowed-load")]
-    public void CommaLong_WindowReader_ReadsDeepRange()
+    public async Task CommaLong_WindowReader_ReadsDeepRange()
     {
         var path = Sample("comma_long.csv");
-        var (sample, top) = Probe(path);
+        var (sample, top) = await ProbeAsync(path);
 
-        using var reader = new RowWindowReader(path, sample.Encoding, sample.BomByteCount, new DataShape(top, null));
+        using var reader = new RowWindowReader(VirtualFileSystem.Instance, path, sample.Encoding, sample.BomByteCount, new DataShape(top, null));
         var window = reader.GetVisibleAsync(1000, 50, _ => true, CancellationToken.None).Result;
         Assert.AreEqual(50, window.Count);
         Assert.AreEqual(1000, window[0].AbsoluteIndex, "Window should start exactly at the requested row.");
@@ -152,12 +153,12 @@ public class SampleFileDetectionTests
     [TestMethod]
     [CoversNode("tabular-detection")]
     [CoversNode("tabular-windowed-load")]
-    public void AllSamples_ProbeAndLoadFirstWindow_DoNotThrow()
+    public async Task AllSamples_ProbeAndLoadFirstWindow_DoNotThrow()
     {
         foreach (var path in TestSampleData.Files("tabular"))
         {
-            var (sample, top) = Probe(path);
-            using var reader = new RowWindowReader(path, sample.Encoding, sample.BomByteCount, new DataShape(top, null));
+            var (sample, top) = await ProbeAsync(path);
+            using var reader = new RowWindowReader(VirtualFileSystem.Instance, path, sample.Encoding, sample.BomByteCount, new DataShape(top, null));
             var rows = reader.GetVisibleAsync(0, 10, _ => true, CancellationToken.None).Result;
             Assert.IsTrue(rows.Count >= 0, $"{System.IO.Path.GetFileName(path)}: window read failed");
         }

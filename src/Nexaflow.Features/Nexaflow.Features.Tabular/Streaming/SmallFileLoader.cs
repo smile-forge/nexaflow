@@ -20,12 +20,20 @@ public sealed class SmallFileLoader : IRowSource
     public int? KnownRowCount => _rows.Count;
     public IReadOnlyList<string[]> RawRows => _rows;
 
-    public SmallFileLoader(string filePath, Encoding encoding, int bomBytes, DataShape shape)
+    /// <summary>The file read in one go — it is small, and on a location one read is one round trip — and its rows parsed.</summary>
+    public static async Task<SmallFileLoader> LoadAsync(IVirtualFileSystem vfs, string filePath, Encoding encoding, int bomBytes,
+                                                        DataShape shape, CancellationToken ct = default)
+    {
+        var bytes = await vfs.ReadAllBytesAsync(filePath, ct);
+        return new SmallFileLoader(new MemoryStream(bytes, writable: false), encoding, bomBytes, shape);
+    }
+
+    private SmallFileLoader(Stream content, Encoding encoding, int bomBytes, DataShape shape)
     {
         _shape = shape;
         _rows  = new List<string[]>(1024);
 
-        using var fs = VirtualFileSystem.Instance.OpenRead(filePath);
+        using var fs = content;
         fs.Position  = bomBytes;
         using var sr = new StreamReader(fs, encoding, detectEncodingFromByteOrderMarks: false);
         int  commentsLeft = shape.LeadingCommentCount;

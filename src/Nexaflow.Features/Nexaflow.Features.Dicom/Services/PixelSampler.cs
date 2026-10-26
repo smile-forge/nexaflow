@@ -16,14 +16,14 @@ internal sealed class PixelSampler
     private readonly IPixelData? _pixels;
     private readonly DicomInstanceInfo _info;
 
-    public PixelSampler(DicomInstanceInfo info, int frame)
+    /// <param name="dataset">The instance as the renderer read it — its pixels are sampled from it, not read again.</param>
+    public PixelSampler(DicomInstanceInfo info, DicomDataset dataset, int frame)
     {
         _info = info;
         try
         {
             DicomBootstrap.EnsureInitialized();
-            var dcm = DicomIo.Open(info.FilePath, FileReadOption.ReadAll);
-            var header = DicomPixelData.Create(dcm.Dataset);
+            var header = DicomPixelData.Create(dataset);
             _pixels = PixelDataFactory.Create(header, frame);
         }
         catch

@@ -705,7 +705,8 @@
                                 </Grid.ColumnDefinitions>
                                 <!-- The selector and string format are how DisplayMemberPath and ItemStringFormat reach the closed box:
                                      WPF turns either into the combo's ItemTemplateSelector, which an ItemTemplate overrides. -->
-                                <ContentPresenter Grid.Column="0"
+                                <ContentPresenter x:Name="selectionBox"
+                                                  Grid.Column="0"
                                                   Content="{TemplateBinding SelectionBoxItem}"
                                                   ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
                                                   ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
@@ -713,11 +714,33 @@
                                                   Margin="{TemplateBinding Padding}"
                                                   VerticalAlignment="Center"
                                                   IsHitTestVisible="False"/>
+                                <!-- An editable combo types into this part instead; the combo finds it by name and keeps Text in step. -->
+                                <TextBox x:Name="PART_EditableTextBox"
+                                         Grid.Column="0"
+                                         Visibility="Collapsed"
+                                         Margin="{TemplateBinding Padding}"
+                                         VerticalAlignment="Center"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         Foreground="{TemplateBinding Foreground}"
+                                         CaretBrush="{StaticResource AccentBrush}"
+                                         SelectionBrush="{StaticResource AccentBrush}"
+                                         IsReadOnly="{Binding IsReadOnly, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <TextBox.Template>
+                                        <ControlTemplate TargetType="TextBox">
+                                            <ScrollViewer x:Name="PART_ContentHost"
+                                                          Focusable="False"
+                                                          HorizontalScrollBarVisibility="Hidden"
+                                                          VerticalScrollBarVisibility="Hidden"/>
+                                        </ControlTemplate>
+                                    </TextBox.Template>
+                                </TextBox>
                                 <TextBlock Grid.Column="1" Text="⌄"
                                            Foreground="{StaticResource TextMutedBrush}"
                                            FontSize="10" VerticalAlignment="Center"
                                            Margin="4,0,10,0" IsHitTestVisible="False"/>
-                                <ToggleButton Grid.Column="0" Grid.ColumnSpan="2"
+                                <ToggleButton x:Name="dropDownToggle"
+                                              Grid.Column="0" Grid.ColumnSpan="2"
                                               Focusable="False"
                                               IsChecked="{Binding IsDropDownOpen,
                                                           RelativeSource={RelativeSource TemplatedParent},
@@ -756,11 +779,377 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
                         </Trigger>
+                        <!-- Editable: the text box takes the selection box's place, and only the arrow opens the list. -->
+                        <Trigger Property="IsEditable" Value="True">
+                            <Setter TargetName="PART_EditableTextBox" Property="Visibility"      Value="Visible"/>
+                            <Setter TargetName="selectionBox"         Property="Visibility"      Value="Collapsed"/>
+                            <Setter TargetName="dropDownToggle"       Property="Grid.Column"     Value="1"/>
+                            <Setter TargetName="dropDownToggle"       Property="Grid.ColumnSpan" Value="1"/>
+                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
     </Style>
+
+    <!-- Every combo is a DarkComboBox unless it names another style, so one left unstyled still follows the theme. -->
+    <Style TargetType="ComboBox" BasedOn="{StaticResource DarkComboBox}"/>
+
+    <!-- ══ DatePicker + Calendar ══ -->
+    <!-- A day in the month view. CalendarItem builds the 7×6 grid of these itself and styles each with the calendar's
+         CalendarDayButtonStyle; the states are its own read-only properties. -->
+    <Style x:Key="DarkCalendarDayButton" TargetType="CalendarDayButton">
+        <Setter Property="Foreground"                 Value="{StaticResource TextBrush}"/>
+        <Setter Property="Background"                 Value="Transparent"/>
+        <Setter Property="BorderBrush"                Value="Transparent"/>
+        <Setter Property="BorderThickness"            Value="1"/>
+        <Setter Property="FontSize"                   Value="12"/>
+        <Setter Property="MinWidth"                   Value="30"/>
+        <Setter Property="MinHeight"                  Value="28"/>
+        <Setter Property="Margin"                     Value="1"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment"   Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CalendarDayButton">
+                    <Border x:Name="cell"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                    </Border>
+                    <!-- Later triggers win: a chosen day reads as chosen even when it is today or in the next month. -->
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsInactive" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="cell" Property="Background" Value="{StaticResource BorderBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="cell" Property="Background" Value="{StaticResource BorderBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsToday" Value="True">
+                            <Setter TargetName="cell" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="cell" Property="Background" Value="{StaticResource AccentBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsBlackedOut" Value="True">
+                            <Setter TargetName="cell" Property="Opacity" Value="0.35"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="cell" Property="Opacity" Value="0.35"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A month in the year view, or a year in the decade view; styled by the calendar's CalendarButtonStyle. -->
+    <Style x:Key="DarkCalendarButton" TargetType="CalendarButton">
+        <Setter Property="Foreground"                 Value="{StaticResource TextBrush}"/>
+        <Setter Property="Background"                 Value="Transparent"/>
+        <Setter Property="BorderBrush"                Value="Transparent"/>
+        <Setter Property="BorderThickness"            Value="1"/>
+        <Setter Property="FontSize"                   Value="12"/>
+        <Setter Property="MinWidth"                   Value="52"/>
+        <Setter Property="MinHeight"                  Value="40"/>
+        <Setter Property="Margin"                     Value="2"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment"   Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CalendarButton">
+                    <Border x:Name="cell"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsInactive" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="cell" Property="Background" Value="{StaticResource BorderBrush}"/>
+                        </Trigger>
+                        <Trigger Property="HasSelectedDays" Value="True">
+                            <Setter TargetName="cell" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The calendar's page: the header row and the month / year grids, which CalendarItem fills by part name. -->
+    <Style x:Key="DarkCalendarItem" TargetType="CalendarItem">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CalendarItem">
+                    <ControlTemplate.Resources>
+                        <!-- The weekday initials over the month grid; CalendarItem loads this by its own key. -->
+                        <DataTemplate x:Key="{x:Static CalendarItem.DayTitleTemplateResourceKey}">
+                            <TextBlock Text="{Binding}"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Margin="0,4"/>
+                        </DataTemplate>
+                        <Style x:Key="CalendarHeaderButton" TargetType="Button">
+                            <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
+                            <Setter Property="Background"      Value="Transparent"/>
+                            <Setter Property="Padding"         Value="8,4"/>
+                            <Setter Property="Focusable"       Value="False"/>
+                            <Setter Property="Cursor"          Value="Hand"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="root" Background="{TemplateBinding Background}"
+                                                CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="root" Property="Background" Value="{StaticResource BorderBrush}"/>
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter TargetName="root" Property="Opacity" Value="0.35"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ControlTemplate.Resources>
+                    <Border x:Name="PART_Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="5" Padding="6">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="PART_PreviousButton" Grid.Column="0"
+                                    Style="{StaticResource CalendarHeaderButton}"
+                                    Foreground="{StaticResource TextMutedBrush}">
+                                <icons:IconGlyph Icon="fluent:chevron_left" FontSize="14"/>
+                            </Button>
+                            <!-- CalendarItem writes the month or year into this, and a press steps out to the next view. -->
+                            <Button x:Name="PART_HeaderButton" Grid.Column="1"
+                                    Style="{StaticResource CalendarHeaderButton}"
+                                    FontWeight="SemiBold" FontSize="13"/>
+                            <Button x:Name="PART_NextButton" Grid.Column="2"
+                                    Style="{StaticResource CalendarHeaderButton}"
+                                    Foreground="{StaticResource TextMutedBrush}">
+                                <icons:IconGlyph Icon="fluent:chevron_right" FontSize="14"/>
+                            </Button>
+                            <Grid x:Name="PART_MonthView" Grid.Row="1" Grid.ColumnSpan="3"
+                                  HorizontalAlignment="Center" Margin="0,4,0,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                            </Grid>
+                            <Grid x:Name="PART_YearView" Grid.Row="1" Grid.ColumnSpan="3"
+                                  Visibility="Hidden" HorizontalAlignment="Center" Margin="0,4,0,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                            </Grid>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <DataTrigger Binding="{Binding DisplayMode, RelativeSource={RelativeSource FindAncestor, AncestorType=Calendar}}" Value="Year">
+                            <Setter TargetName="PART_MonthView" Property="Visibility" Value="Hidden"/>
+                            <Setter TargetName="PART_YearView"  Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding DisplayMode, RelativeSource={RelativeSource FindAncestor, AncestorType=Calendar}}" Value="Decade">
+                            <Setter TargetName="PART_MonthView" Property="Visibility" Value="Hidden"/>
+                            <Setter TargetName="PART_YearView"  Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="PART_Root" Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DarkCalendar" TargetType="Calendar">
+        <Setter Property="Background"             Value="{StaticResource Surface2Brush}"/>
+        <Setter Property="Foreground"             Value="{StaticResource TextBrush}"/>
+        <Setter Property="BorderBrush"            Value="{StaticResource BorderLightBrush}"/>
+        <Setter Property="BorderThickness"        Value="1"/>
+        <Setter Property="CalendarItemStyle"      Value="{StaticResource DarkCalendarItem}"/>
+        <Setter Property="CalendarDayButtonStyle" Value="{StaticResource DarkCalendarDayButton}"/>
+        <Setter Property="CalendarButtonStyle"    Value="{StaticResource DarkCalendarButton}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Calendar">
+                    <StackPanel x:Name="PART_Root" HorizontalAlignment="Center">
+                        <CalendarItem x:Name="PART_CalendarItem"
+                                      Style="{TemplateBinding CalendarItemStyle}"
+                                      Background="{TemplateBinding Background}"
+                                      BorderBrush="{TemplateBinding BorderBrush}"
+                                      BorderThickness="{TemplateBinding BorderThickness}"/>
+                    </StackPanel>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The calendar a DatePicker drops down: lifted off the page like the combo's list. -->
+    <Style x:Key="DarkDatePickerCalendar" TargetType="Calendar" BasedOn="{StaticResource DarkCalendar}">
+        <Setter Property="Margin" Value="0,2,0,0"/>
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.4" Color="Black"/>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- DatePicker puts its own Calendar into PART_Popup and styles it with CalendarStyle, so the popup is left empty here. -->
+    <Style x:Key="DarkDatePicker" TargetType="DatePicker">
+        <Setter Property="Background"      Value="{StaticResource Surface2Brush}"/>
+        <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
+        <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding"         Value="8,5"/>
+        <Setter Property="FontSize"        Value="12"/>
+        <Setter Property="CalendarStyle"   Value="{StaticResource DarkDatePickerCalendar}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="DatePicker">
+                    <Grid x:Name="PART_Root">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <!-- DatePickerTextBox fills PART_Watermark with the date pattern itself; it shows while the box is empty and unfocused. -->
+                                <DatePickerTextBox x:Name="PART_TextBox"
+                                                   Grid.Column="0"
+                                                   Margin="{TemplateBinding Padding}"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{TemplateBinding Foreground}"
+                                                   CaretBrush="{StaticResource AccentBrush}"
+                                                   SelectionBrush="{StaticResource AccentBrush}">
+                                    <DatePickerTextBox.Template>
+                                        <ControlTemplate TargetType="DatePickerTextBox">
+                                            <Grid>
+                                                <ScrollViewer x:Name="PART_ContentHost"
+                                                              Focusable="False"
+                                                              HorizontalScrollBarVisibility="Hidden"
+                                                              VerticalScrollBarVisibility="Hidden"/>
+                                                <ContentControl x:Name="PART_Watermark"
+                                                                Focusable="False" IsHitTestVisible="False"
+                                                                Foreground="{StaticResource TextMutedBrush}"
+                                                                Visibility="Collapsed"
+                                                                VerticalAlignment="Center"
+                                                                Margin="2,0,0,0"/>
+                                            </Grid>
+                                            <ControlTemplate.Triggers>
+                                                <MultiTrigger>
+                                                    <MultiTrigger.Conditions>
+                                                        <Condition Property="Text" Value=""/>
+                                                        <Condition Property="IsKeyboardFocused" Value="False"/>
+                                                    </MultiTrigger.Conditions>
+                                                    <Setter TargetName="PART_Watermark" Property="Visibility" Value="Visible"/>
+                                                </MultiTrigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </DatePickerTextBox.Template>
+                                </DatePickerTextBox>
+                                <Button x:Name="PART_Button" Grid.Column="1"
+                                        Focusable="False"
+                                        Margin="0,0,4,0"
+                                        Foreground="{StaticResource TextMutedBrush}"
+                                        Cursor="Hand">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="root" Background="Transparent" CornerRadius="4" Padding="6,2">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="root" Property="Background" Value="{StaticResource BorderBrush}"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                    <icons:IconGlyph Icon="fluent:calendar_ltr" FontSize="14"/>
+                                </Button>
+                            </Grid>
+                        </Border>
+                        <Popup x:Name="PART_Popup"
+                               Placement="Bottom"
+                               PlacementTarget="{Binding ElementName=border}"
+                               StaysOpen="False"
+                               AllowsTransparency="True"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="border" Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Every date picker and calendar is themed unless it names another style, as every combo is. -->
+    <Style TargetType="DatePicker" BasedOn="{StaticResource DarkDatePicker}"/>
+    <Style TargetType="Calendar"   BasedOn="{StaticResource DarkCalendar}"/>
 
     <!-- ══ Separator ══ -->
     <Style x:Key="RibbonSeparator" TargetType="Separator">

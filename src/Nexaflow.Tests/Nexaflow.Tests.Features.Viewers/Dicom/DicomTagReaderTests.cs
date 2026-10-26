@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.Linq;
 using Nexaflow.Features.Dicom.Services;
 using Nexaflow.Tests.Fixtures;
@@ -13,9 +14,9 @@ public class DicomTagReaderTests
     private static string SampleDcm => TestSampleData.Path("dicom", "ct.dcm");
 
     [TestMethod]
-    public void Read_ListsTags_WithNameAndValue()
+    public async Task Read_ListsTags_WithNameAndValue()
     {
-        var tags = DicomTagReader.Read(SampleDcm, hidePatient: false);
+        var tags = await DicomTagReader.ReadAsync(new DicomIo(VirtualFileSystem.Instance), SampleDcm, hidePatient: false);
 
         Assert.IsTrue(tags.Count > 5, "a real instance has many tags");
         Assert.IsTrue(tags.Any(t => t.Name == "Modality" && t.Value.Contains("OT")), "non-identifying tags are shown");
@@ -23,9 +24,9 @@ public class DicomTagReaderTests
     }
 
     [TestMethod]
-    public void Read_HidePatient_MasksIdentifyingValues_KeepsTheRest()
+    public async Task Read_HidePatient_MasksIdentifyingValues_KeepsTheRest()
     {
-        var tags = DicomTagReader.Read(SampleDcm, hidePatient: true);
+        var tags = await DicomTagReader.ReadAsync(new DicomIo(VirtualFileSystem.Instance), SampleDcm, hidePatient: true);
 
         var name = tags.First(t => t.Tag == "(0010,0010)");
         Assert.IsFalse(name.Value.Contains("Doe"), "patient name value must be masked");

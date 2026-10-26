@@ -25,19 +25,6 @@ public static class LrcParser
     private static readonly Regex OffsetTag =
         new(@"\[offset:\s*(?<v>[-+]?\d+)\s*\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    /// <summary>Reads and parses <paramref name="path"/>; returns an empty list if missing or unreadable.</summary>
-    public static IReadOnlyList<LyricLine> ParseFile(string path)
-    {
-        try
-        {
-            return Parse(File.ReadAllText(path));
-        }
-        catch
-        {
-            return [];
-        }
-    }
-
     /// <summary>Parses raw LRC <paramref name="content"/> into ordered, de-duplicated timed lines.</summary>
     public static IReadOnlyList<LyricLine> Parse(string? content)
     {

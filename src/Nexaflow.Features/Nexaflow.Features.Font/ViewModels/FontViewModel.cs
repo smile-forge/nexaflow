@@ -14,6 +14,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Font.ClientTools;
 using Nexaflow.Features.Font.Decoding;
 using Nexaflow.Features.Font.Views;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Font.ViewModels;
@@ -29,6 +30,9 @@ public sealed partial class FontViewModel : ObservableObject, IPageViewModel, IC
     private readonly IShellServices _shell;
     private readonly FontSourceResolver _resolver = new();
 
+    /// <summary>The runtime's file system the font files are read through — on disk, in an archive or on a location.</summary>
+    private readonly IVirtualFileSystem _vfs;
+
     /// <summary>Shared preview settings (text, size, bold/italic/underline) attached to every compare item.</summary>
     public FontPreviewOptions Options { get; } = new();
 
@@ -39,9 +43,10 @@ public sealed partial class FontViewModel : ObservableObject, IPageViewModel, IC
 
     [ObservableProperty] private FontItemViewModel? _selectedFont;
 
-    public FontViewModel(IEnumerable<string>? paths, IShellServices shell)
+    public FontViewModel(IEnumerable<string>? paths, IShellServices shell, IVirtualFileSystem vfs)
     {
         _shell = shell;
+        _vfs   = vfs;
         Fonts.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(HasFonts));
@@ -52,7 +57,16 @@ public sealed partial class FontViewModel : ObservableObject, IPageViewModel, IC
         };
 
         var list = paths?.Where(p => !string.IsNullOrWhiteSpace(p)).ToList() ?? [];
-        foreach (var p in list) LoadFontsFromFile(p, preselect: SelectedFont is null);
+        Loaded = LoadAllAsync(list);
+    }
+
+    /// <summary>The fonts the page opened on, read in — each one, or why it could not be. Started by the constructor,
+    /// because a file may be on a location, where reading it is a round trip nothing should wait for.</summary>
+    public Task Loaded { get; }
+
+    private async Task LoadAllAsync(IReadOnlyList<string> paths)
+    {
+        foreach (var p in paths) await LoadFontsFromFileAsync(p, preselect: SelectedFont is null);
     }
 
     partial void OnSelectedFontChanged(FontItemViewModel? value) => value?.EnsureFacesLoaded();
@@ -65,7 +79,7 @@ public sealed partial class FontViewModel : ObservableObject, IPageViewModel, IC
 
     private void OnPickInstalled(FontItemViewModel item) => AddItem(item, select: true);
 
-    private void OnPickFile(string path) => LoadFontsFromFile(path, preselect: true);
+    private async void OnPickFile(string path) => await LoadFontsFromFileAsync(path, preselect: true);
 
     private void AddItem(FontItemViewModel item, bool select)
     {
@@ -102,25 +116,25 @@ public sealed partial class FontViewModel : ObservableObject, IPageViewModel, IC
     /// Loads the fonts at <paramref name="paths"/> into the compare list (deduping by path) and selects
     /// the first. Called from the view's <c>Reinitialize</c> when the shell re-routes this tab a font set.
     /// </summary>
-    public void OpenFiles(IEnumerable<string> paths)
+    public async Task OpenFilesAsync(IEnumerable<string> paths)
     {
         FontItemViewModel? first = null;
         foreach (var path in paths.Where(p => !string.IsNullOrWhiteSpace(p)))
         {
             var existing = Fonts.FirstOrDefault(f =>
                 string.Equals(f.SourcePath, path, StringComparison.OrdinalIgnoreCase));
-            first ??= existing ?? LoadFontsFromFile(path, preselect: false);
+            first ??= existing ?? await LoadFontsFromFileAsync(path, preselect: false);
         }
         if (first is not null) SelectedFont = first;
     }
 
     /// <summary>Loads one file (which may yield several families / an error item); returns the first added.</summary>
-    private FontItemViewModel? LoadFontsFromFile(string path, bool preselect)
+    private async Task<FontItemViewModel?> LoadFontsFromFileAsync(string path, bool preselect)
     {
         FontItemViewModel? first = null;
         try
         {
-            var uri = _resolver.ResolveRenderableUri(path);
+            var uri = await _resolver.ResolveRenderableUriAsync(_vfs, path);
             if (uri is null)
             {
                 var ext = Path.GetExtension(path);

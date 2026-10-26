@@ -95,6 +95,103 @@ public sealed class AIService : IAIService
         }, TaskScheduler.Default);
     }
 
+    public PictureMaking? MakesPictures => ImageGenerator is null && HighQualityImageGenerator is null
+        ? null
+            : new(PictureChoicesOf(ImageGenerator, AllowsAdultContent), PictureChoicesOf(HighQualityImageGenerator, AllowsAdultContent));
+
+        /// <summary>Whether the app allows adult content: not while Enhanced AI Protection Mode is on, as it is by default
+        /// (<see cref="ProtectedAudience"/>). Read where it is offered, so a change applies to the next choice made.</summary>
+    private static bool AllowsAdultContent => !ProtectedAudience.IsOn;
+
+        /// <summary>The check every picture made passes while Enhanced AI Protection Mode is on; null while it is off.</summary>
+        private static Generation.IPictureCheck? PictureCheck => ProtectedAudience.IsOn ? ProviderManager.Instance.Service<Tools.PictureChecking>() : null;
+
+    /// <summary>What <paramref name="model"/> lets a picture be asked for with, as <c>generate_image</c> names it.</summary>
+    private static PictureChoices? PictureChoicesOf(IImageGenerationProvider? model, bool allowsAdultContent)
+    {
+        if (model?.Settings is not { } offered) return null;
+        var settings = Generation.GenerateImageTool.Offerable(offered, allowsAdultContent);
+        return new([.. settings.Aspects.Select(a => a.ToString())])
+        {
+            Resolutions            = settings.Resolutions,
+            Details                = [.. settings.Details.Select(Generation.GenerateImageTool.DetailName)],
+            Seeds                  = settings.Seeds,
+            NegativePrompts        = settings.NegativePrompts,
+            TransparentBackgrounds = settings.TransparentBackgrounds,
+            Loras                  = [.. settings.Loras.Select(l => new PictureLora(l.Id, l.Name, l.Description, l.NegativePrompts))],
+        };
+    }
+
+    public void MakePicture(PictureAsked picture)
+    {
+        if (ImageGenerator is null && HighQualityImageGenerator is null)
+            throw new InvalidOperationException("This workspace has no model that draws pictures.");
+        var (shell, jobs, target) = UsersJob(picture.Path);
+
+        // The call generate_image would be given, run as the assistant's slow calls run — but the user's, so nothing is asked.
+        // It saves only where the user named, and opens the picture once it is there.
+        var tool = new Generation.GenerateImageTool(ImageGenerator, HighQualityImageGenerator,
+                                                    Generation.GeneratedFiles.For(shell, new PathScope([], [Path.GetDirectoryName(target)!])),
+                                                    AllowsAdultContent, PictureCheck);
+        var arguments = new JsonObject
+        {
+            ["prompt"]  = picture.Prompt,
+            ["path"]    = target,
+            ["quality"] = picture.HighQuality ? "high" : "standard",
+        };
+        if (picture.Aspect is { } aspect)                    arguments["shape"]                  = aspect;
+        if (picture.Resolution is { } resolution)            arguments["resolution"]             = resolution;
+        if (picture.Detail is { } detail)                    arguments["detail"]                 = detail;
+        if (picture.Seed is { } seed)                        arguments["seed"]                   = seed;
+        if (picture.NegativePrompt is { Length: > 0 } keep)  arguments["negative_prompt"]        = keep;
+        if (picture.TransparentBackground)                   arguments["transparent_background"] = true;
+        if (picture.Lora is { Length: > 0 } lora)            arguments["lora"]                   = lora;
+        jobs.Start(tool, arguments, origin: null);
+    }
+
+    public ClipChoices? MakesClips => Generation.GenerateVideoTool.FromDescriptionOf(VideoGenerator, HighQualityVideoGenerator) is not { } model
+        ? null
+        : new([.. model.Settings.Aspects.Select(a => a.ToString())], model.Lengths)
+        {
+            Resolutions     = [.. model.Settings.Resolutions.Select(r => new ClipResolution(r.Name, r.OnlyLengths))],
+            Seeds           = model.Settings.Seeds,
+            NegativePrompts = model.Settings.NegativePrompts,
+        };
+
+    public void MakeClip(ClipAsked clip)
+    {
+        if (Generation.GenerateVideoTool.FromDescriptionOf(VideoGenerator, HighQualityVideoGenerator) is null)
+            throw new InvalidOperationException("This workspace has no model that makes clips.");
+        var (shell, jobs, target) = UsersJob(clip.Path);
+
+        // The call generate_video would be given for a clip from a description, run as the user's: nothing is asked.
+        var tool = new Generation.GenerateVideoTool(VideoGenerator, HighQualityVideoGenerator,
+                                                    Generation.GeneratedFiles.For(shell, new PathScope([], [Path.GetDirectoryName(target)!])));
+        var arguments = new JsonObject
+        {
+            ["prompt"]  = clip.Prompt,
+            ["path"]    = target,
+            ["seconds"] = clip.Seconds,
+        };
+        if (clip.Aspect is { } aspect)                   arguments["shape"]           = aspect;
+        if (clip.Resolution is { } resolution)           arguments["resolution"]      = resolution;
+        if (clip.Seed is { } seed)                       arguments["seed"]            = seed;
+        if (clip.NegativePrompt is { Length: > 0 } keep) arguments["negative_prompt"] = keep;
+        jobs.Start(tool, arguments, origin: null);
+    }
+
+    /// <summary>What a job the user sets going to make a file at <paramref name="path"/> runs with, and the file's full path.</summary>
+    /// <exception cref="InvalidOperationException">The workspace runs no background jobs, or the file's folder is not there.</exception>
+    private (IShellServices Shell, BackgroundJobs Jobs, string Target) UsersJob(string path)
+    {
+        if (_workspace.ShellServices is not { } shell || _jobs is not { } jobs)
+            throw new InvalidOperationException("This workspace runs no background jobs.");
+        var target = Path.GetFullPath(path);
+        if (!Directory.Exists(Path.GetDirectoryName(target)))
+            throw new InvalidOperationException($"There is no folder to save '{Path.GetFileName(target)}' in.");
+        return (shell, jobs, target);
+    }
+
     // ── Whole documents ────────────────────────────────────────────────────
 
     public void SummarizeDocument(DocumentAsked document) => StartDocumentJob(document, tools => tools.Summary, []);
@@ -145,7 +242,13 @@ public sealed class AIService : IAIService
     {
         if (CandidateColumns<ILlmProvider>(AiAbility.Documents).FirstOrDefault() is not ({ } column, { } provider)) return null;
 
-        return new Documents.WorkspaceDocumentModel(provider, $"{column.ProviderName}/{column.Model}", await ContextOfAsync(provider, ct) ?? OwnedFallbackContext);
+        // A document's passages are work nobody is watching: asked as such, where the model gives such work room of its own.
+        var info = await InfoOfAsync(provider, ct);
+        string key = $"{column.ProviderName}/{column.Model}";
+        return info?.Background is { } background
+            ? new Documents.WorkspaceDocumentModel(provider, key, background.ContextTokens, background.RepliesAtOnce, sharesContext: false)
+            : new Documents.WorkspaceDocumentModel(provider, key, info?.ContextWindowTokens is > 0 and var tokens ? tokens : OwnedFallbackContext,
+                                                   info?.RepliesAtOnce);
     }
 
     /// <summary>
@@ -268,7 +371,7 @@ public sealed class AIService : IAIService
         {
             var made = Generation.GeneratedFiles.For(shell, scope);
             tools.AddRange(new Generation.GenerationTools(ImageGenerator, HighQualityImageGenerator, TextToSpeech, VideoGenerator,
-                                                          HighQualityVideoGenerator, made).Tools);
+                                                          HighQualityVideoGenerator, made, AllowsAdultContent, PictureCheck).Tools);
             tools.AddRange(AwaitingMakingTools(made));
         }
 
@@ -613,7 +716,7 @@ public sealed class AIService : IAIService
 
         // Nobody is watching an analysis: on a GPU shared with a reply, it waits its turn behind each token.
         var response = await provider.CompleteAsync(
-            [new(LlmRole.System, systemPrompt), new(LlmRole.User, userPrompt)], LlmUrgency.Background, ct);
+            [new(LlmRole.System, ProtectedAudience.Framed(systemPrompt)), new(LlmRole.User, userPrompt)], LlmUrgency.Background, ct);
         return response?.RawText;
     }
 
@@ -689,8 +792,12 @@ public sealed class AIService : IAIService
 
     /// <summary>What a model reads, in tokens, as it says; null when it does not.</summary>
     private static async Task<int?> ContextOfAsync(ILlmProvider model, CancellationToken ct)
+        => (await InfoOfAsync(model, ct))?.ContextWindowTokens is > 0 and var tokens ? tokens : null;
+
+    /// <summary>What <paramref name="model"/> says of itself, or null where it says nothing or cannot be asked.</summary>
+    private static async Task<ModelInfo?> InfoOfAsync(ILlmProvider model, CancellationToken ct)
     {
-        try { return (await model.GetModelInfoAsync(ct))?.ContextWindowTokens is > 0 and var tokens ? tokens : null; }
+        try { return await model.GetModelInfoAsync(ct); }
         catch (OperationCanceledException) { throw; }
         catch { return null; }
     }
@@ -751,7 +858,7 @@ public sealed class AIService : IAIService
         }
 
         var response = await provider.CompleteAsync(
-            [new(LlmRole.System, systemPrompt), new(LlmRole.User, userPrompt)], ct);
+            [new(LlmRole.System, ProtectedAudience.Framed(systemPrompt)), new(LlmRole.User, userPrompt)], ct);
         return response?.RawText;
     }
 
@@ -1290,7 +1397,7 @@ public sealed class AIService : IAIService
         try
         {
             var resp = await imageProvider.CompleteAsync(
-                [new(LlmRole.System, system),
+                [new(LlmRole.System, ProtectedAudience.Framed(system)),
                  new(LlmRole.User, "Describe this image.") { Attachments = [image] }],
                 ct);
             return resp?.RawText;
@@ -1345,6 +1452,7 @@ public sealed class AIService : IAIService
 
         // How to act — only for a model with no tool calling of its own; any other is offered its tools in it.
         if (acting is { Length: > 0 }) sb.Append(acting);
-        return sb.ToString().TrimEnd();
+        // Enhanced AI Protection Mode, while on, frames all of it: ahead of the persona, which cannot set it aside.
+        return ProtectedAudience.Framed(sb.ToString().TrimEnd());
     }
 }

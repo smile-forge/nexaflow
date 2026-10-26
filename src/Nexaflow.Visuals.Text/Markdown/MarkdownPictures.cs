@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -21,6 +22,11 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// </summary>
 public static class MarkdownPictures
 {
+    /// <summary>Why the folder fallback reads the disk directly: a picture resolves while the page is laid out, which nothing
+    /// may wait on, so a host that reads elsewhere — an archive, a location — answers through <c>asked</c>, and what is left
+    /// is a file beside the document on this disk.</summary>
+    private const string BesideOnThisDisk = "pictures beside a document on this disk; a host reading elsewhere answers first";
+
     /// <summary>
     /// What a name resolves to for this showing of a document: <paramref name="asked"/> if it answers,
     /// otherwise a file under <paramref name="from"/>.
@@ -51,6 +57,7 @@ public static class MarkdownPictures
     /// a path read against the document's own folder. Anything else — <c>http</c>, <c>data</c> — is somewhere
     /// this does not go.
     /// </summary>
+    [LocalDiskOnly(BesideOnThisDisk)]
     public static string? Under(string? named, string? from)
     {
         if (string.IsNullOrWhiteSpace(named)) return null;
@@ -70,6 +77,7 @@ public static class MarkdownPictures
     /// A file, read whole and frozen — read whole so the file is not held open behind the document, and
     /// frozen so any thread can draw it and the same picture can be shared by every view of the page.
     /// </summary>
+    [LocalDiskOnly(BesideOnThisDisk)]
     public static ImageSource? Loaded(string? path)
     {
         if (path is null) return null;

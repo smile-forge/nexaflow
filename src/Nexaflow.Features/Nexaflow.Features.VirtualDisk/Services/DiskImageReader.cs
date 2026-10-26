@@ -73,10 +73,6 @@ public sealed class DiskImageReader : IDisposable
         _fileName = fileName;
     }
 
-    /// <summary>Opens a reader over a real disk-image file (used by the inspector; owns the file stream).</summary>
-    public static DiskImageReader Open(string path) =>
-        new(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read), Path.GetFileName(path));
-
     private void EnsureOpen()
     {
         if (_opened) return;

@@ -82,7 +82,7 @@ internal sealed class DocumentJob(Func<CancellationToken, Task<IDocumentModel?>>
             return ToolResult.Error("not markdown", $"'{Path.GetFileName(path)}' is not a markdown document: a Markdown file (.md) or a Markdown Package (.mdz).");
 
         DocumentAsked? document;
-        try { document = written(path) ?? await Task.Run(() => Read(path), ct); }
+        try { document = written(path) ?? await ReadAsync(path, ct); }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         {
             return ToolResult.Error("could not read", ex.Message);
@@ -122,15 +122,17 @@ internal sealed class DocumentJob(Func<CancellationToken, Task<IDocumentModel?>>
 
         try
         {
-            var source = written(path)?.Source ?? MarkdownDocuments.ReadText(path);
+            var source = written(path)?.Source ?? MarkdownDocuments.ReadLocalText(path);
             return source is not null && DocumentRecord.Held(new DocumentNotesFolder(notes, path), shelf, source);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException) { return false; }
     }
 
     /// <summary>The document at <paramref name="path"/> as it is saved — a package's own read inside it — or null where there is none.</summary>
-    private static DocumentAsked? Read(string path) =>
-        MarkdownDocuments.ReadText(path) is { } source ? new DocumentAsked(path, source, MarkdownDocuments.FolderOf(path)) : null;
+    private static async Task<DocumentAsked?> ReadAsync(string path, CancellationToken ct) =>
+        await MarkdownDocuments.ReadTextAsync(VirtualFileSystem.Instance, path, ct) is { } source
+            ? new DocumentAsked(path, source, MarkdownDocuments.FolderOf(path))
+            : null;
 
     /// <summary>What a document undergoing <paramref name="kind"/> of work is being, as a refusal says it.</summary>
     private static string Done(DocumentWorkKind kind, string? language) => kind switch

@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Serial.Services;
+using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Hardware;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -314,6 +315,7 @@ public sealed partial class SerialViewModel : ObservableObject, IPageViewModel, 
     }
 
     [RelayCommand]
+    [LocalDiskOnly("a transcript of this computer's serial port, saved where the Windows save dialog picked")]
     private async Task SaveAsync()
     {
         if (await _shell.PickSaveFileAsync($"{Port} {DateTime.Now:yyyy-MM-dd HHmm}.txt", [".txt"]) is not { } path) return;

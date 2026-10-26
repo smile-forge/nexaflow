@@ -186,6 +186,22 @@ public class WorkspaceStartupTabsTests
     }
 
     [TestMethod]
+    public void AClosingWindow_RecordsWhereItWasMeantToBe_EvenWithTheTabOfferTurnedOff()
+    {
+        var (workspace, shell, host) = LiveWorkspace("Dev");
+        workspace.SuppressSessionRestore = true;
+
+        var placement = new WindowPlacement(new PixelRect(100, 80, 1500, 980), Maximized: true,
+                                            new MonitorArea("dell", new PixelRect(1920, 0, 4480, 1440),
+                                                            new PixelRect(1920, 0, 4480, 1400), IsPrimary: false));
+        host.IntendedPlacement = placement;
+        shell.CaptureLastSession(host);
+
+        Assert.AreEqual(placement, workspace.LastWindowPlacement, "reopening where it was is not the offer the setting turns off");
+        Assert.AreEqual(placement, ReadBack().Contexts.Single().LastWindowPlacement, "and it reached disk");
+    }
+
+    [TestMethod]
     public void TheOptOut_RoundTripsWithTheWorkspace()
     {
         var workspace = new Workspace { Name = "Fixed", SuppressSessionRestore = true };

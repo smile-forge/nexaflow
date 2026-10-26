@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.Buffers.Binary;
 using System.Globalization;
 using System.IO;
@@ -144,14 +145,14 @@ public class PhotoDetailsTests
     // ── Read from the picture ───────────────────────────────────────────────
 
     [TestMethod]
-    public void APictureOnDisk_IsReadThroughTheMetadataItsSaveKeeps()
+    public async Task APictureOnDisk_IsReadThroughTheMetadataItsSaveKeeps()
     {
         var dir = TempDirectory();
         try
         {
             var photo = CopyOfSample(dir, OrientedPhotoSample.FileName);
 
-            var details = new PhotoDetailsReader(new ImageEditingServices().Metadata).Read(photo);
+            var details = await new PhotoDetailsReader(new ImageEditingServices(VirtualFileSystem.Instance).Metadata, VirtualFileSystem.Instance).ReadAsync(photo);
 
             Assert.AreEqual(OrientedPhotoSample.FileName, details.FileName);
             Assert.AreEqual(ImageContainer.Jpeg, details.Container);
@@ -171,7 +172,7 @@ public class PhotoDetailsTests
             var photo = CopyOfSample(dir, OrientedPhotoSample.FileName);
             var shell = Substitute.For<IShellServices>();
             shell.RunOnUiAsync(Arg.Any<Action>()).Returns(call => ui.Run(call.Arg<Action>()));
-            var vm = new ImageViewModel([photo], shell, ImageViewMode.Carousel, new ImageEditingServices(new ImageRecipeStore(TimeSpan.FromHours(1))));
+            var vm = new ImageViewModel([photo], shell, ImageViewMode.Carousel, new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1))));
 
             Until(() => ui.Invoke(() => vm.CurrentSession?.Proxy is not null));
             Assert.AreEqual(0, ui.Invoke(() => vm.Details.Sections.Count), "shut, the panel reads nothing");

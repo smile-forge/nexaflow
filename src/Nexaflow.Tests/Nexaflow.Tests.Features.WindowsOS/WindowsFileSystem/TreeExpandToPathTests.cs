@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System;
 using System.IO;
 using System.Linq;
@@ -29,9 +30,9 @@ public class TreeExpandToPathTests
     }
 
     [TestCleanup]
-    public void RemoveTree() { try { Directory.Delete(_root, recursive: true); } catch { } }
+    public async Task RemoveTree() { try { Directory.Delete(_root, recursive: true); } catch { } }
 
-    private FileSystemViewModel Vm()
+    private async Task<FileSystemViewModel> VmAsync()
     {
         var shell = Substitute.For<IShellServices>();
         var ai    = Substitute.For<IAIService>();
@@ -39,18 +40,20 @@ public class TreeExpandToPathTests
         shell.DiscoverImplementations<IFolderAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFileCreateAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFolderViewlet>().Returns(Array.Empty<Type>());
-        return new FileSystemViewModel(_root, shell, ai, new Dictionary<Type, IFeatureConfig>());
+        var vm = new FileSystemViewModel(_root, shell, ai, new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
+        await vm.Browsing;
+        return vm;
     }
 
     private static FileSystemTreeNode Node(FileSystemViewModel vm, string name)
         => vm.TreeRoots[0].Children.Single(c => c.Name == name);
 
     [TestMethod]
-    public void ExpandTo_Target_IsExpandedAndSelected()
+    public async Task ExpandTo_Target_IsExpandedAndSelected()
     {
-        var vm = Vm();
+        var vm = await VmAsync();
 
-        vm.SelectAndExpandPath(Path.Combine(_root, "Datasets"));
+        await vm.ExpandToPathAsync(Path.Combine(_root, "Datasets"));
 
         var target = Node(vm, "Datasets");
         Assert.IsTrue(target.IsSelected, "the target node should be selected");
@@ -60,32 +63,32 @@ public class TreeExpandToPathTests
     [TestMethod]
     [DataRow("Data")]   // a strict string prefix of the target
     [DataRow("Dat")]    // …and a prefix of that prefix
-    public void ExpandTo_NamePrefixSibling_StaysCollapsed(string sibling)
+    public async Task ExpandTo_NamePrefixSibling_StaysCollapsed(string sibling)
     {
-        var vm = Vm();
+        var vm = await VmAsync();
 
-        vm.SelectAndExpandPath(Path.Combine(_root, "Datasets"));
+        await vm.ExpandToPathAsync(Path.Combine(_root, "Datasets"));
 
         Assert.IsFalse(Node(vm, sibling).IsExpanded,
             $"'{sibling}' only shares a name prefix with 'Datasets' — it is not an ancestor of it");
     }
 
     [TestMethod]
-    public void ExpandTo_NamePrefixSibling_StaysUnselected()
+    public async Task ExpandTo_NamePrefixSibling_StaysUnselected()
     {
-        var vm = Vm();
+        var vm = await VmAsync();
 
-        vm.SelectAndExpandPath(Path.Combine(_root, "Datasets"));
+        await vm.ExpandToPathAsync(Path.Combine(_root, "Datasets"));
 
         Assert.IsFalse(Node(vm, "Data").IsSelected);
     }
 
     [TestMethod]
-    public void ExpandTo_NestedTarget_ExpandsRealAncestorOnly()
+    public async Task ExpandTo_NestedTarget_ExpandsRealAncestorOnly()
     {
-        var vm = Vm();
+        var vm = await VmAsync();
 
-        vm.SelectAndExpandPath(Path.Combine(_root, "Datasets", "child"));
+        await vm.ExpandToPathAsync(Path.Combine(_root, "Datasets", "child"));
 
         Assert.IsTrue(Node(vm, "Datasets").IsExpanded, "a real ancestor expands");
         Assert.IsFalse(Node(vm, "Data").IsExpanded, "a name-prefix sibling does not");

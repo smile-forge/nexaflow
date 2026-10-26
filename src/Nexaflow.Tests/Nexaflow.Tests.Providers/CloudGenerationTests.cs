@@ -57,17 +57,17 @@ public class CloudGenerationTests
 
     private static async Task DrawsAndWorksFromItAsync(IImageGenerationProvider provider)
     {
-        var drawn = await provider.GenerateImageAsync(new ImageGenerationRequest("A small red circle on a white background.", MediaShape.Landscape));
+        var drawn = await provider.GenerateImageAsync(new ImageGenerationRequest("A small red circle on a white background.", provider.Settings.AspectFor(MediaShape.Landscape)));
         AssertPicture(drawn.Media);
         if (provider.MaxSources == 0) return;
 
-        var redrawn = await provider.GenerateImageAsync(new ImageGenerationRequest("Make the circle blue.") { Sources = [drawn.Media] });
+        var redrawn = await provider.GenerateImageAsync(new ImageGenerationRequest("Make the circle blue.", provider.Settings.AspectFor(MediaShape.Square)) { Sources = [drawn.Media] });
         AssertPicture(redrawn.Media);
     }
 
     private static async Task MakesAClipAsync(IVideoGenerationProvider provider)
     {
-        var made = await provider.GenerateVideoAsync(new VideoGenerationRequest("A red ball rolls slowly across a white floor.", MediaShape.Landscape, provider.Lengths[0]));
+        var made = await provider.GenerateVideoAsync(new VideoGenerationRequest("A red ball rolls slowly across a white floor.", provider.Settings.AspectFor(MediaShape.Landscape), provider.Lengths[0]));
 
         Assert.AreEqual("video/mp4", made.Media.MimeType);
         Assert.AreEqual("ftyp", Encoding.ASCII.GetString(made.Media.Bytes, 4, 4), "an MP4 opens with its ftyp box");

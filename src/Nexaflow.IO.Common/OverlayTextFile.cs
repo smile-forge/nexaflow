@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.IO.Common;
 
@@ -72,13 +73,13 @@ public sealed class OverlayTextFile : IDisposable
     public int BomByteCount => _index.BomByteCount;
 
     /// <summary>Opens an overlay over <paramref name="originalPath"/>, creating (truncating) the
-    /// add-buffer at <paramref name="addBufferPath"/>. The original is read through the
-    /// <see cref="VirtualFileSystem"/>, so <paramref name="originalPath"/> may descend into an archive.
+    /// add-buffer at <paramref name="addBufferPath"/>. The original is read through <paramref name="vfs"/>,
+    /// so <paramref name="originalPath"/> may descend into an archive or be on a location.
     /// <see cref="SaveAsync"/> only produces bytes — persisting them back to the path is the caller's job.</summary>
-    public static async Task<OverlayTextFile> OpenAsync(string originalPath, Encoding enc, int linesPerPage,
+    public static async Task<OverlayTextFile> OpenAsync(IVirtualFileSystem vfs, string originalPath, Encoding enc, int linesPerPage,
                                                         string addBufferPath, CancellationToken ct = default)
     {
-        var orig = VirtualFileSystem.Instance.OpenRead(originalPath, 1 << 16, useAsync: true);
+        var orig = await vfs.OpenReadAsync(originalPath, ReadIntent.Random, ct);
         TextLineIndex index;
         try { index = await TextLineIndex.BuildAsync(orig, enc, linesPerPage, ct); }
         catch { orig.Dispose(); throw; }

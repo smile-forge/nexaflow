@@ -1,3 +1,4 @@
+using Nexaflow.IO.Common;
 using System.IO;
 using NSubstitute;
 using Nexaflow.Features.Common;
@@ -64,15 +65,17 @@ public sealed class EmailSearchableTests : SearchableContentConformanceTests
         return shell;
     }
 
-    private EmailViewModel Open(string content)
+    private async Task<EmailViewModel> OpenAsync(string content)
     {
         var path = Path.Combine(TestTemp.Root, "nexasearch_" + Guid.NewGuid().ToString("N") + ".eml");
         File.WriteAllText(path, content);
         _paths.Add(path);
-        return new EmailViewModel(path, Shell());
+        var vm = new EmailViewModel(path, Shell(), VirtualFileSystem.Instance);
+        await vm.Loaded;
+        return vm;
     }
 
-    protected override Task<ISearchable> CreateAsync() => Task.FromResult<ISearchable>(Open(Message));
+    protected override async Task<ISearchable> CreateAsync() => await OpenAsync(Message);
 
     [TestCleanup]
     public void Cleanup()
@@ -144,7 +147,7 @@ public sealed class EmailSearchableTests : SearchableContentConformanceTests
     [TestMethod]
     public void Attachment_IsMatchedByName() => WithPage(async _ =>
     {
-        var vm = Open(Rich);
+        var vm = await OpenAsync(Rich);
         var outcome = await vm.SearchAsync(new SearchRequest("notes"), display: false, default);
 
         Assert.IsTrue(outcome.Hits.Any(h => h.Id.StartsWith("attachment:")), "notes.txt matches by name");
@@ -153,7 +156,7 @@ public sealed class EmailSearchableTests : SearchableContentConformanceTests
     [TestMethod]
     public void Attachment_IsMatchedByItsTextContents() => WithPage(async _ =>
     {
-        var vm = Open(Rich);
+        var vm = await OpenAsync(Rich);
         var outcome = await vm.SearchAsync(new SearchRequest("attachword"), display: false, default);
 
         Assert.AreEqual(1, outcome.MatchCount, "the word is only inside the attachment's text");
@@ -164,7 +167,7 @@ public sealed class EmailSearchableTests : SearchableContentConformanceTests
     [TestMethod]
     public void Attachment_IsMatchedInsideACarriedMessage() => WithPage(async _ =>
     {
-        var vm = Open(Rich);
+        var vm = await OpenAsync(Rich);
         var outcome = await vm.SearchAsync(new SearchRequest("nestedword"), display: false, default);
 
         Assert.AreEqual(1, outcome.MatchCount, "the word is only in the forwarded message's subject");
@@ -175,7 +178,7 @@ public sealed class EmailSearchableTests : SearchableContentConformanceTests
     [TestMethod]
     public void DisplayingSearch_HighlightsTheMatchingAttachmentTile() => WithPage(async _ =>
     {
-        var vm = Open(Rich);
+        var vm = await OpenAsync(Rich);
         await vm.SearchAsync(new SearchRequest("attachword"), display: true, default);
 
         var notes = vm.Attachments.Single(a => a.DisplayName == "notes.txt");
@@ -197,7 +200,7 @@ public sealed class EmailSearchableTests : SearchableContentConformanceTests
     [TestMethod]
     public void ClearingSearch_DropsEveryHighlight() => WithPage(async _ =>
     {
-        var vm = Open(Rich);
+        var vm = await OpenAsync(Rich);
         vm.HeadersExpanded = true;
         await vm.SearchAsync(new SearchRequest("outer"), display: true, default);   // subject header
         Assert.IsTrue(vm.IsSearchActive);

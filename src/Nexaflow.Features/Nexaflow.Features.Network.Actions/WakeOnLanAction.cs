@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
+
 using Nexaflow.IO.Network.Actions;
 using Nexaflow.IO.Network.Adapters;
 using Nexaflow.IO.Network.Guard;
@@ -214,18 +215,16 @@ public sealed class WakeOnLanAction : IDeviceAction
     {
         if (_wol is not null) return _wol;
 
-        var path = Path.Combine(AppContext.BaseDirectory, "Protocols", "wol.json");
-
         try
         {
-            var octets = File.ReadAllBytes(path);
+            var octets = ProtocolFile.ReadShipped("wol.json");
             return _wol = new ShippedDescription(
                 ProtocolFile.Read(System.Text.Encoding.UTF8.GetString(octets)),
                 Convert.ToHexString(SHA256.HashData(octets)).ToLowerInvariant());
         }
         catch (Exception ex) when (ex is IOException or ProtoTypeException)
         {
-            log.Error($"{ActionId}: could not load {path}", ex);
+            log.Error($"{ActionId}: could not load {ProtocolFile.ShippedPath("wol.json")}", ex);
             return null;
         }
     }

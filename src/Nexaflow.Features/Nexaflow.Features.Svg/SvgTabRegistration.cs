@@ -4,6 +4,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Svg.Loaders;
 using Nexaflow.Features.Svg.ViewModels;
 using Nexaflow.Features.Svg.Views;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Svg;
 
@@ -14,6 +15,9 @@ namespace Nexaflow.Features.Svg;
 public sealed class SvgTabRegistration : IPageRegistration
 {
     private readonly SvgLoader _loader = new();
+    private readonly IVirtualFileSystem _vfs;
+
+    public SvgTabRegistration(IVirtualFileSystem vfs) => _vfs = vfs;
 
     public static string StaticPageKind => "Svg";
     public string PageKind => StaticPageKind;
@@ -32,7 +36,7 @@ public sealed class SvgTabRegistration : IPageRegistration
         {
             Title = title,
             Icon = "🎨",
-            ContentFactory = () => new SvgView(new SvgViewModel(path, _loader)),
+            ContentFactory = () => new SvgView(new SvgViewModel(path, _vfs, _loader)),
         };
         page.SetFileBreadcrumbs(path, title);
         return page;
