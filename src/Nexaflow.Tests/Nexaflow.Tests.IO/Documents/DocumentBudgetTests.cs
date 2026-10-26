@@ -37,4 +37,13 @@ public class DocumentBudgetTests
         Assert.AreEqual(31, budget.AtOnce, "the model fits what it can and has the rest wait");
         Assert.AreEqual(8_192 * 3 / 4 * 3 * 9 / 10, budget.Characters, "three quarters of what it holds, never all of it");
     }
+
+    [TestMethod]
+    public void AModelGivingEachAnswerAContextOfItsOwn_IsAskedQuestionsThatFillIt_AsManyAtOnceAsItWrites_LessOne()
+    {
+        var budget = DocumentBudget.Of(new ScriptedModel((_, _) => new("", DocumentReplyEnd.Finished), context: 8_192, repliesAtOnce: 32, sharesContext: false));
+
+        Assert.AreEqual(31, budget.AtOnce);
+        Assert.AreEqual(8_192 * 3 * 9 / 10, budget.Characters, "all of its own context, not three quarters of one shared");
+    }
 }

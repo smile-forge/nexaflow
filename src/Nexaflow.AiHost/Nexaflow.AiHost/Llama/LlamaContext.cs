@@ -24,14 +24,17 @@ internal sealed unsafe class LlamaContext : IDisposable
     /// <param name="batch">The tokens read per call, every sequence's together.</param>
     /// <param name="cache">How the cache holds each token. Held in 8 bits, flash attention reads it: llama.cpp reads quantized
     /// values no other way.</param>
-    public LlamaContext(LlamaModel model, int contextTokens, int sequences, int batch = DefaultBatch, ContextCache cache = ContextCache.F16)
+    /// <param name="perConversation">Whether each sequence has a slice of the cache of its own — a step reading each token against its
+    /// own sequence's cells alone — rather than all of them sharing one, every token read against every cell in use.</param>
+    public LlamaContext(LlamaModel model, int contextTokens, int sequences, int batch = DefaultBatch, ContextCache cache = ContextCache.F16,
+                        bool perConversation = false)
     {
         var parameters = LlamaNative.ContextDefaults();
         parameters.Context = (uint)contextTokens;
         parameters.Batch = (uint)batch;
         parameters.MicroBatch = (uint)batch;
         parameters.MaxSequences = (uint)sequences;
-        parameters.KvUnified = 1;
+        parameters.KvUnified = (byte)(perConversation ? 0 : 1);
         // Sliding-window layers keep their window alone: a conversation is appended to or forgotten whole, never cut
         // back, so nothing older than the window is read again — and a large Gemma 4 holds half the memory.
         parameters.SwaFull = 0;
@@ -46,6 +49,7 @@ internal sealed unsafe class LlamaContext : IDisposable
         Tokens = (int)LlamaNative.ContextSize(_context);
         Sequences = sequences;
         Batch = batch;
+        PerConversation = perConversation;
     }
 
     /// <summary>The tokens the cache holds, all sequences together.</summary>
@@ -55,6 +59,12 @@ internal sealed unsafe class LlamaContext : IDisposable
 
     /// <summary>The tokens one call reads, every sequence's together.</summary>
     public int Batch { get; }
+
+    /// <summary>
+    /// Whether each sequence has a slice of the cache of its own. llama.cpp then reads a step's sequences together only where their
+    /// numbers follow one another in the step, each with as many tokens as the others: a step that breaks that is read in several.
+    /// </summary>
+    public bool PerConversation { get; }
 
     /// <summary>Reads each of <paramref name="reads"/> into its sequence, all in one call — <see cref="Batch"/> tokens at most — and
     /// chooses, for each that asks, the token after its last by its sampler, into <paramref name="chosen"/> in the same order;
@@ -127,6 +137,17 @@ internal sealed unsafe class LlamaContext : IDisposable
     {
         lock (_gate)
             LlamaNative.MemoryShare(_memory, from, to, 0, tokens);
+    }
+
+    /// <summary>Moves what sequence <paramref name="from"/> holds to <paramref name="to"/>, which holds nothing — where each sequence has
+    /// a slice of its own, its slice is copied as the next read begins, before anything is read into either.</summary>
+    public void Move(int from, int to)
+    {
+        lock (_gate)
+        {
+            LlamaNative.MemoryShare(_memory, from, to, -1, -1);
+            LlamaNative.MemoryRemove(_memory, from, -1, -1);
+        }
     }
 
     /// <summary>The next token, from the scores the last read left for its <paramref name="index"/>-th output — -1 the last:

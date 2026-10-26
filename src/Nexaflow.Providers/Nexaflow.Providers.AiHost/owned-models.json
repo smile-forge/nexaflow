@@ -153,6 +153,7 @@
           "layers": 30,
           "batchBytesPerToken": 1376256,
           "bytesPerSequence": 213909504,
+          "backgroundBytes": 9428795392,
           "projector": "gemma-4-26B-it-mmproj.gguf",
           "memoryBytes": 18790481920,
           "bytesPerToken": 25600,

@@ -57,6 +57,8 @@ internal sealed class PromptReads(LlamaContext context)
                 taken.Add(first);
                 room -= first.Tokens.Length;
             }
+            // Where each conversation has a slice of its own, a step reads as many tokens of each: a slice is read alone.
+            if (context.PerConversation && first is not null) return taken;
             for (int i = 0; i < _waiting.Count && room > 0;)
             {
                 if (_waiting[i].Tokens.Length > room)

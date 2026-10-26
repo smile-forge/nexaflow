@@ -28,14 +28,15 @@ public readonly record struct DocumentBudget(int Characters, int AtOnce)
     /// <summary>
     /// What <paramref name="model"/> is handed at once, and how many such questions it is asked at once. Where its answers share
     /// one context, a question is never larger than fits in most of it, and as many are asked at once as it writes answers, less
-    /// one left for anyone else: the model fits them in its context as their real sizes allow, the rest waiting for room.
+    /// one left for anyone else: the model fits them in its context as their real sizes allow, the rest waiting for room. Where
+    /// each answer has a context of its own, a question may fill it.
     /// </summary>
     public static DocumentBudget Of(IDocumentModel model)
     {
         if (model.RepliesAtOnce is not { } replies) return new(CharactersOf(model, Math.Min(model.ContextTokens, MostTokens)), Separately);
 
-        var each = Math.Max(1, Math.Min((int)(model.ContextTokens * Filled), MostTokens));
-        return new(CharactersOf(model, each), Math.Max(1, replies - 1));
+        var each = model.SharesContext ? Math.Min((int)(model.ContextTokens * Filled), MostTokens) : Math.Min(model.ContextTokens, MostTokens);
+        return new(CharactersOf(model, Math.Max(1, each)), Math.Max(1, replies - 1));
     }
 
     /// <summary>What <paramref name="tokens"/> of <paramref name="model"/>'s come to in characters, less a tenth for what is not words.</summary>

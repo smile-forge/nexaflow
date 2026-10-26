@@ -9,7 +9,8 @@ namespace Nexaflow.Tests.IO.Documents;
 /// A model that answers as it is told to, writing down everything it was asked — the tests' stand-in for one that reads a
 /// few pages at once.
 /// </summary>
-internal sealed class ScriptedModel(Func<string, string, DocumentReply> answer, int context = 8192, int? repliesAtOnce = null) : IDocumentModel
+internal sealed class ScriptedModel(Func<string, string, DocumentReply> answer, int context = 8192, int? repliesAtOnce = null, bool sharesContext = true)
+    : IDocumentModel
 {
     public List<(string Instructions, string Asked)> Asked { get; } = [];
 
@@ -20,6 +21,8 @@ internal sealed class ScriptedModel(Func<string, string, DocumentReply> answer, 
     public int CharsPerToken => 3;
 
     public int? RepliesAtOnce => repliesAtOnce;
+
+    public bool SharesContext => sharesContext;
 
     /// <summary>The most each question let its answer run to, in the order asked.</summary>
     public List<int> Longest { get; } = [];

@@ -27,17 +27,23 @@ namespace Nexaflow.AiHost.Contracts;
 /// context it is given, which they share — <see cref="ContextTokens"/> is what all of them together hold — and the conversations it
 /// keeps and the openings it holds while fewer are written. Each costs memory of its own wherever a model attends to a window of
 /// what it read, and every step reads against every one of those windows, so more is not free.</param>
+/// <param name="BackgroundSequences">How many replies a language model writes at once for work nobody is watching — a document
+/// translated passage by passage — in a context of its own made when such work comes and let go when it stops, each with a slice
+/// of <paramref name="BackgroundTokens"/> to itself; 0 for none, all its work done in the one context.</param>
+/// <param name="BackgroundTokens">How long each conversation in that context may grow.</param>
+/// <param name="BackgroundBytes">What that context holds on <see cref="Device"/>: it is made only where that much is free.</param>
 public sealed record ModelSpec(string Id, string Runner, string Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
                                IReadOnlyDictionary<string, string>? CudaOptions = null, string? Projector = null, int? Device = null,
                                int BatchTokens = ModelSpec.DefaultBatch, ContextCache ContextCache = ContextCache.F16, int? GpuLayers = null,
-                               int Sequences = ModelSpec.DefaultSequences)
+                               int Sequences = ModelSpec.DefaultSequences, int BackgroundSequences = 0, int BackgroundTokens = 0, long BackgroundBytes = 0)
 {
     /// <summary>Whether <paramref name="other"/> runs the same model in the same place at the same size — a model held
     /// as one and asked for as the other is loaded again.</summary>
     public bool PlacedAs(ModelSpec other)
         => Device == other.Device && ContextTokens == other.ContextTokens && MemoryBytes == other.MemoryBytes
            && File == other.File && Folder == other.Folder && Projector == other.Projector
-           && BatchTokens == other.BatchTokens && ContextCache == other.ContextCache && GpuLayers == other.GpuLayers && Sequences == other.Sequences;
+           && BatchTokens == other.BatchTokens && ContextCache == other.ContextCache && GpuLayers == other.GpuLayers && Sequences == other.Sequences
+                      && BackgroundSequences == other.BackgroundSequences && BackgroundTokens == other.BackgroundTokens && BackgroundBytes == other.BackgroundBytes;
 
     /// <summary>The sequences a language model's context holds where nothing gives it room for more: as many as the catalog's figures
     /// were measured holding.</summary>

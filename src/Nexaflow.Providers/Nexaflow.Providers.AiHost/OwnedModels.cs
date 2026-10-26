@@ -31,11 +31,14 @@ namespace Nexaflow.Providers.AiHost;
 /// <param name="BytesPerSequence">What more a language model holds on the GPU for each sequence its context holds past
 /// <see cref="ModelSpec.DefaultSequences"/>, held in 16 bits, as measured — the window of what it read that each keeps; 0 where
 /// that is not known, and it holds that many.</param>
+/// <param name="BackgroundBytes">What a language model's context for work nobody is watching holds on the GPU while it is made —
+/// <see cref="ModelPlacement.BackgroundSequences"/> conversations of <see cref="ModelPlacement.BackgroundTokens"/> each, held in 8
+/// bits — as measured; 0 where that is not known, and it has none.</param>
 
 internal sealed record OwnedPart(string Role, string Runner, string Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
                                  IReadOnlyDictionary<string, string>? CudaOptions, string? ExecutionProvider, string Name, string? Projector = null,
                                  long BytesPerToken = 0, bool LoadsOnDemand = false, int Layers = 0, long BatchBytesPerToken = 0,
-                                 long BytesPerSequence = 0);
+                                 long BytesPerSequence = 0, long BackgroundBytes = 0);
 
 /// <summary>What each part of an owned model does.</summary>
 internal static class OwnedRoles
@@ -263,7 +266,7 @@ internal static class OwnedModels
     private sealed record Part(string? Role, string? Runner, string? Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
                                Dictionary<string, string>? CudaOptions, string? ExecutionProvider, string? Name, string? Projector, long BytesPerToken,
                                                               bool RunsOnCpu, bool LoadsOnDemand, int Layers = 0, long BatchBytesPerToken = 0,
-                                                              long BytesPerSequence = 0);
+                                                              long BytesPerSequence = 0, long BackgroundBytes = 0);
 
     public static IReadOnlyList<OwnedModel> All { get; } = Read(Embedded());
 
@@ -462,7 +465,7 @@ internal static class OwnedModels
             throw new InvalidDataException($"{what} '{id}' loads its {p.Role} on demand, which only a part of a model kept loaded can.");
 
         return new OwnedPart(p.Role, p.Runner, p.Folder, p.File, p.Adapter, p.MemoryBytes, p.ContextTokens, p.CudaOptions, p.ExecutionProvider,
-                             p.Name ?? p.Role, p.Projector, p.BytesPerToken, p.LoadsOnDemand, p.Layers, p.BatchBytesPerToken, p.BytesPerSequence);
+                             p.Name ?? p.Role, p.Projector, p.BytesPerToken, p.LoadsOnDemand, p.Layers, p.BatchBytesPerToken, p.BytesPerSequence, p.BackgroundBytes);
     }
 
     private static OwnedVoice ToVoice(string modelId, CatalogModel model, List<OwnedPart> parts, Voice v)

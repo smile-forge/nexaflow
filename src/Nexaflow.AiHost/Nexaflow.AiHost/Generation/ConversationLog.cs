@@ -31,16 +31,19 @@ internal sealed class ConversationLog : IDisposable
     /// <summary>How many prompts read lately an opening is looked for in.</summary>
     private const int Remembered = 8;
 
-    /// <summary>Sequences the cache has — the model's spec says how many: one for each reply written at once, and those not being
-    /// answered kept for a conversation or held as an opening.</summary>
-    private int Sequences => _model.Spec.Sequences;
+    /// <summary>Sequences the cache has — the lane's: one for each reply written at once, and those not being answered kept for a
+    /// conversation or held as an opening.</summary>
+    private int Sequences => _lane.Sequences;
 
-    private readonly ChatModel _model;
+    private readonly ChatLane _lane;
+    private readonly string _id;
     private readonly LinkedList<LiveConversation> _kept = new();
     private readonly HashSet<LiveConversation> _live = [];
     private readonly LinkedList<PromptOpening> _openings = new();
     private readonly LinkedList<int[]> _recent = new();
-    private readonly Stack<int> _free;
+    /// <summary>The sequences nobody holds, lowest first: where each conversation has a slice of its own, sequences in use read in
+    /// one step only where their numbers follow one another, so the lowest free is always the one taken.</summary>
+    private readonly SortedSet<int> _free;
 
     private readonly SemaphoreSlim _answering;
 
@@ -48,11 +51,18 @@ internal sealed class ConversationLog : IDisposable
     private TaskCompletionSource _freed = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly object _gate = new();
 
-    public ConversationLog(ChatModel model)
+    public ConversationLog(ChatLane lane, string id)
     {
-        _model = model;
-        _free = new(Enumerable.Range(0, Sequences).Reverse());
+        _lane = lane;
+        _id = id;
+        _free = [.. Enumerable.Range(0, Sequences)];
         _answering = new(Sequences, Sequences);
+    }
+
+    /// <summary>Whether it keeps the conversation <paramref name="turns"/> continue.</summary>
+    public bool Continues(IReadOnlyList<ChatTurn> turns)
+    {
+        lock (_gate) return _kept.Any(conversation => conversation.IsContinuedBy(turns));
     }
 
     /// <summary>Takes the conversation <paramref name="turns"/> continues, out of the log while it is used.</summary>
@@ -73,6 +83,13 @@ internal sealed class ConversationLog : IDisposable
     /// <summary>Keeps a conversation for the next request, as the most recently used.</summary>
     public void Keep(LiveConversation conversation)
     {
+        // Where each conversation has a slice of its own, the work it does is never continued, and one kept would stand among
+        // those being written.
+        if (_lane.PerConversation)
+        {
+            conversation.Dispose();
+            return;
+        }
         lock (_gate)
         {
             _kept.AddFirst(conversation);
@@ -82,16 +99,46 @@ internal sealed class ConversationLog : IDisposable
     }
 
     /// <summary>A new conversation in a sequence of its own — a kept conversation, oldest first, or an opening nobody holds let go
-    /// when every sequence is taken.</summary>
+    /// when every sequence is taken. Where each conversation has a slice of its own it takes the highest free, out of the way of
+    /// the replies being written, which are gathered into the lowest (<see cref="Gather"/>).</summary>
     public LiveConversation Start()
     {
         lock (_gate)
         {
             while (_free.Count == 0 && Releasable()) { }
-            var conversation = new LiveConversation(_model.Context, _free.Pop(), Release);
+            int sequence = _lane.PerConversation ? _free.Max : _free.Min;
+            _free.Remove(sequence);
+            var conversation = new LiveConversation(_lane.Context, sequence, Release);
             _live.Add(conversation);
             return conversation;
         }
+    }
+
+    /// <summary>
+    /// Gathers the replies being written — <paramref name="writing"/>, a round's — into the lowest sequences, each that stands above
+    /// a free one moved down into it. Where each conversation has a slice of its own, llama.cpp reads in one step only sequences
+    /// whose numbers follow one another: a step whose replies stood apart, as they come to as some end and others begin, would be
+    /// read in as many as there are gaps, the model's weights read again for each. Called in the round's turn on the GPU, so
+    /// nothing reads them as they move.
+    /// </summary>
+    public void Gather(IEnumerable<LiveConversation> writing)
+    {
+        lock (_gate)
+            foreach (var conversation in writing.OrderByDescending(c => c.Sequence))
+            {
+                if (_free.Count == 0 || _free.Min > conversation.Sequence) break;
+                int from = conversation.Sequence;
+                conversation.Moved(Lowest());
+                _free.Add(from);
+            }
+    }
+
+    /// <summary>The lowest sequence nobody holds, taken. Called under the gate.</summary>
+    private int Lowest()
+    {
+        int lowest = _free.Min;
+        _free.Remove(lowest);
+        return lowest;
     }
 
     /// <summary>
@@ -122,6 +169,8 @@ internal sealed class ConversationLog : IDisposable
     /// </summary>
     public PromptOpening? OpeningFor(int[] tokens)
     {
+        // Where each conversation has a slice of its own, none can share another's cells.
+        if (_lane.PerConversation) return null;
         lock (_gate)
         {
             try
@@ -143,7 +192,7 @@ internal sealed class ConversationLog : IDisposable
                 // Only a sequence no reply could need: one left over for each turn to answer not yet taken.
                 while (_free.Count <= _answering.CurrentCount && _kept.Count > 0) DropOldest();
                 if (_free.Count <= _answering.CurrentCount) return null;
-                var opening = new PromptOpening(new LiveConversation(_model.Context, _free.Pop(), FreeOpening), tokens[..shared]);
+                var opening = new PromptOpening(new LiveConversation(_lane.Context, Lowest(), FreeOpening), tokens[..shared]);
                 _openings.AddFirst(opening);
                 return opening;
             }
@@ -185,22 +234,23 @@ internal sealed class ConversationLog : IDisposable
     /// Makes room in the cache for <paramref name="tokens"/> more of <paramref name="conversation"/>'s: the kept conversations
     /// go, oldest first, then the openings nobody holds, until it fits — and holds that room for them until they are read, so
     /// prompts arriving together are never let in to the same room. Where the conversations being answered hold it, this waits
-    /// for them to let it go: a request that fits the model is answered once there is room, rather than turned away.
+    /// for them to let it go: a request that fits the model is answered once there is room, rather than turned away. Where each
+    /// conversation has a slice of its own, its slice is its room.
     /// </summary>
-    /// <exception cref="HostRequestException">The conversation would outgrow the model's context.</exception>
+    /// <exception cref="HostRequestException">The conversation would outgrow what it may be given.</exception>
     public async Task MakeRoomAsync(LiveConversation conversation, int tokens, CancellationToken ct)
     {
-        int context = _model.Context.Tokens;
-        if (conversation.Length + tokens >= context)
+        int longest = _lane.Longest, context = _lane.Context.Tokens;
+        if (conversation.Length + tokens >= longest)
             throw new HostRequestException(HostErrorKind.Invalid,
-                $"The conversation is {conversation.Length + tokens} tokens, longer than {_model.Spec.Id}'s context of {context}.");
+                $"The conversation is {conversation.Length + tokens} tokens, longer than {_id}'s context of {longest}.");
         while (true)
         {
             Task freed;
             lock (_gate)
             {
-                while (Held + tokens > context && Releasable()) { }
-                if (Held + tokens <= context)
+                while (!_lane.PerConversation && Held + tokens > context && Releasable()) { }
+                if (_lane.PerConversation || Held + tokens <= context)
                 {
                     conversation.Reserve(tokens);
                     return;
@@ -226,7 +276,8 @@ internal sealed class ConversationLog : IDisposable
     /// </summary>
     public bool MakeRoomForNext()
     {
-        int context = _model.Context.Tokens;
+        if (_lane.PerConversation) return true;   // its slice is its own: how long it may grow is the lane's to say
+        int context = _lane.Context.Tokens;
         lock (_gate)
         {
             int answered = _live.Count - _kept.Count;
@@ -270,7 +321,7 @@ internal sealed class ConversationLog : IDisposable
         lock (_gate)
         {
             conversation.Opening?.Let();
-            if (_live.Remove(conversation)) _free.Push(conversation.Sequence);
+            if (_live.Remove(conversation)) _free.Add(conversation.Sequence);
             Freed();
         }
     }
@@ -279,7 +330,7 @@ internal sealed class ConversationLog : IDisposable
     {
         lock (_gate)
         {
-            _free.Push(holder.Sequence);
+            _free.Add(holder.Sequence);
             Freed();
         }
     }
@@ -355,7 +406,14 @@ internal sealed class LiveConversation : IDisposable
         Sequence = sequence;
     }
 
-    public int Sequence { get; }
+    public int Sequence { get; private set; }
+
+    /// <summary>What it holds is now held in sequence <paramref name="to"/>.</summary>
+    public void Moved(int to)
+    {
+        _context.Move(Sequence, to);
+        Sequence = to;
+    }
 
     /// <summary>The cache cells it holds of its own.</summary>
     public int Tokens { get; private set; }

@@ -19,8 +19,10 @@ namespace Nexaflow.AiHost.Client;
 /// 0 where that is not known, and it reads in steps of that many.</param>
 /// <param name="BytesPerSequence">What more it holds for each sequence its context holds past <see cref="ModelSpec.DefaultSequences"/>;
 /// 0 where that is not known, and it holds that many.</param>
+/// <param name="BackgroundBytes">What its context for work nobody is watching holds while it is made; 0 where that is not known,
+/// and it has none.</param>
 public sealed record PlacementNeed(ModelSpec OnGpu, ModelSpec? OnCpu = null, long BytesPerToken = 0, int ShortestContext = 0, int Layers = 0,
-                                   long WeightsBytes = 0, long BatchBytesPerToken = 0, long BytesPerSequence = 0)
+                                   long WeightsBytes = 0, long BatchBytesPerToken = 0, long BytesPerSequence = 0, long BackgroundBytes = 0)
 {
     public string Id => OnGpu.Id;
 
@@ -109,6 +111,17 @@ public static class ModelPlacement
     /// </summary>
     public const int MostSequences = 16;
 
+    /// <summary>
+    /// How many replies a language model writes at once for work nobody is watching, in a context of its own made while there is
+    /// such work: measured on a Gemma 4 26B, each with a slice of its own, 32 write 800 tokens/s where its one context's 16 write
+    /// 580, and 48 no faster than 32.
+    /// </summary>
+    public const int BackgroundSequences = 32;
+
+    /// <summary>How long each conversation in a language model's context for work nobody is watching may grow: a passage of a
+    /// document and what it is asked with, and its answer.</summary>
+    public const int BackgroundTokens = 8192;
+
     /// <summary>The context a language model cut between a GPU and the CPU is given: what it reads beyond is read slowly
     /// wherever it is held, so its layers come before its length.</summary>
     public const int CutContext = 32768;
@@ -124,6 +137,10 @@ public static class ModelPlacement
 
         public int Batch { get; set; } = ModelSpec.DefaultBatch;
         public int Sequences { get; set; } = ModelSpec.DefaultSequences;
+
+        /// <summary>Whether it may make a context for work nobody is watching: room for one left beside it. Not counted in what
+        /// it holds — it is made only while there is such work, and only where that room is free then.</summary>
+        public bool Background { get; set; }
         public long Bytes => Need.BytesAt(Context, Layers, Batch, Sequences);
         public long Spare => Need.HasContext && Layers is null ? Need.BytesPerToken * (Context - Need.ShortestContext) : 0;
     }
@@ -155,9 +172,16 @@ public static class ModelPlacement
                 seat.Sequences = MostSequences;
         }
 
+        // A context for work nobody is watching, where what is left once all that is placed would hold it.
+        foreach (var seat in seats.Where(s => s.Layers is null && s.Need.BackgroundBytes > 0))
+            seat.Background = Free(gpus.First(g => g.Device == seat.Device)) >= seat.Need.BackgroundBytes;
+
         var placed = CpuPlaced(onCpu, memoryBudget);
         placed.AddRange(seats.Select(s => s.Need.OnGpu with { Device = s.Device, ContextTokens = s.Context, MemoryBytes = s.Bytes, BatchTokens = s.Batch,
-                                                              GpuLayers = s.Layers, Sequences = s.Sequences }));
+                                                              GpuLayers = s.Layers, Sequences = s.Sequences,
+                                                              BackgroundSequences = s.Background ? BackgroundSequences : 0,
+                                                              BackgroundTokens = s.Background ? BackgroundTokens : 0,
+                                                              BackgroundBytes = s.Background ? s.Need.BackgroundBytes : 0 }));
         return new Placement(gpus, placed, unplaced);
 
         Seat? Seated(PlacementNeed need)

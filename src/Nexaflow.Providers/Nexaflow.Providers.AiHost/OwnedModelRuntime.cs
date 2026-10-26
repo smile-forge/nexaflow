@@ -244,6 +244,16 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
             return _placed.TryGetValue($"{model.Id}/{partName}", out var placed) ? placed.Sequences : ModelSpec.DefaultSequences;
     }
 
+    /// <summary>What a language model's part gives work nobody is watching, as it is held: replies at once, each with a context of
+    /// its own; null where it has no context for such work, and does it in its one context.</summary>
+    public BackgroundCapacity? BackgroundOf(OwnedModel model, string partName)
+    {
+        lock (_gate)
+            return _placed.TryGetValue($"{model.Id}/{partName}", out var placed) && placed.BackgroundSequences > 0
+                ? new BackgroundCapacity(placed.BackgroundTokens, placed.BackgroundSequences)
+                : null;
+    }
+
     /// <summary>Where a part loaded on demand — a picture's or a clip's — runs beside the models held now.</summary>
     /// <exception cref="LlmProviderException">No GPU here has room for it, and it has no CPU build.</exception>
     public async Task<ModelSpec> PlacedOnDemandAsync(OwnedEntry model, string partName, CancellationToken ct)
@@ -265,7 +275,7 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
         bool language = part.BytesPerToken > 0;
         return new PlacementNeed(Unresolved(model, part), onCpu is null ? null : Unresolved(model, onCpu) with { MemoryBytes = FilesBytes(model, onCpu) },
                                  language ? ContextCache.Q8.BytesPerToken(part.BytesPerToken) : 0, language ? OwnedModels.ShortestContext : 0,
-                                 part.Layers, language ? WeightsBytes(model, part) : 0, part.BatchBytesPerToken, ContextCache.Q8.BytesPerToken(part.BytesPerSequence));
+                                 part.Layers, language ? WeightsBytes(model, part) : 0, part.BatchBytesPerToken, ContextCache.Q8.BytesPerToken(part.BytesPerSequence), part.BackgroundBytes);
     }
 
     /// <summary>What <paramref name="part"/>'s own file holds — a language model's weights, its GGUF — read whole.</summary>

@@ -31,6 +31,12 @@ public interface IDocumentModel
     /// run on this machine; null where each answer has the whole of it to itself.
     /// </summary>
     int? RepliesAtOnce => null;
+
+    /// <summary>
+    /// Whether the answers it writes at once share <see cref="ContextTokens"/> between them; where they do not, each has as much to
+    /// itself. Asked only where <see cref="RepliesAtOnce"/> says how many it writes.
+    /// </summary>
+    bool SharesContext => true;
 }
 
 /// <summary>Asking a document model where the question sets no length of its own for the answer.</summary>

@@ -242,9 +242,13 @@ public sealed class AIService : IAIService
     {
         if (CandidateColumns<ILlmProvider>(AiAbility.Documents).FirstOrDefault() is not ({ } column, { } provider)) return null;
 
+        // A document's passages are work nobody is watching: asked as such, where the model gives such work room of its own.
         var info = await InfoOfAsync(provider, ct);
-        return new Documents.WorkspaceDocumentModel(provider, $"{column.ProviderName}/{column.Model}",
-                                                    info?.ContextWindowTokens is > 0 and var tokens ? tokens : OwnedFallbackContext, info?.RepliesAtOnce);
+        string key = $"{column.ProviderName}/{column.Model}";
+        return info?.Background is { } background
+            ? new Documents.WorkspaceDocumentModel(provider, key, background.ContextTokens, background.RepliesAtOnce, sharesContext: false)
+            : new Documents.WorkspaceDocumentModel(provider, key, info?.ContextWindowTokens is > 0 and var tokens ? tokens : OwnedFallbackContext,
+                                                   info?.RepliesAtOnce);
     }
 
     /// <summary>

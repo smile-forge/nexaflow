@@ -429,8 +429,21 @@ cell each step, and each token is read against every cell in use, the others' ma
 what it read too, used or not. So on Gemma 4 26B short replies write about 200 tokens/s alone and 1,100 sixteen at once,
 but replies each the length of a passage of a document — a 1,700-token prompt — write 530 tokens/s eight at once, 580
 sixteen and 530 thirty-two: the total is set by the cells read, not by how many replies there are. llama.cpp's cache cut
-into a slice per conversation, which reads only a reply's own, was four times slower again in the build the host carries.
-Choosing tokens is a few percent of a step.
+into a slice per conversation reads only a reply's own: llama.cpp reads in one step only sequences whose numbers follow one
+another, each with as many tokens as the rest, so one fed as the shared cache is — replies in the order they came, prompts
+read beside them — reads a step in several and is slower still. Choosing tokens is a few percent of a step.
+
+So a language model whose catalog says what it costs, wholly on a GPU with that room left once everything else is placed,
+has a second lane for work nobody is watching (`ChatLane`): a context of its own on the same weights, 32 conversations of
+8,192 tokens each with a slice of the cache to itself. It is made when such work comes — a request of background priority
+whose prompt of text alone leaves a quarter of a slice for its reply — and only where its GPU has what it holds free then
+(Gemma 4 26B: 9 GB), and let go 30 seconds after the last of it; a GPU without the room does the work in the model's own
+lane, more slowly. Its replies are kept numbered without gaps: a conversation starts in the highest free sequence, out of the
+way while it reads its prompt, each round moves any reply standing above a free sequence down into it (`llama_memory_seq_cp`
+copies the slice), and nothing is kept there for a follow-up. Thirty-two passage-length replies write 800 tokens/s there,
+against 580 for sixteen in the model's own lane; forty-eight write no more. A document's passages are asked there, as many at
+once as it writes less one, each filling its slice (`ModelInfo.Background`), and six chapters of a lecture script translate
+in 43 s where the shared lane takes 56.
 
 A prompt that begins as one read lately began — the same instructions, a different question — begins with the cells that
 start already holds: where two prompts share 256 tokens or more, the start they share is read once into a sequence of

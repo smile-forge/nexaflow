@@ -165,7 +165,7 @@ public class ModelPlacementTests
     /// of context held in 8 bits, 262k of it where there is room; and what reading in longer steps, and holding more sequences, cost it.</summary>
     private static PlacementNeed Large()
         => new(Spec("large", 18_790_481_920L, 262_144), Spec("large", 18_790_481_920L, 262_144), BytesPerToken: 13_600, ShortestContext: 8192,
-               Layers: 30, WeightsBytes: 14_439_363_584L, BatchBytesPerToken: 1_376_256, BytesPerSequence: 113_639_424);
+               Layers: 30, WeightsBytes: 14_439_363_584L, BatchBytesPerToken: 1_376_256, BytesPerSequence: 113_639_424, BackgroundBytes: 9_428_795_392L);
 
     [TestMethod]
     public void ALanguageModelNoCardHasRoomFor_IsCutBetweenTheCardAndTheCpu_AsManyOfItsLayersOnTheCardAsFit()
@@ -222,5 +222,18 @@ public class ModelPlacementTests
 
         var cut = Placed(ModelPlacement.Plan([Gpu(0, 14)], [Large()]), "large");
         Assert.AreEqual(ModelSpec.DefaultSequences, cut.Sequences, "and a model cut between a card and the CPU has no room to spare");
+    }
+
+    [TestMethod]
+    public void ACardWithRoomForIt_LetsItsLanguageModelMakeAContextForWorkNobodyIsWatching_WithoutCountingItAsHeld()
+    {
+        var roomy = Placed(ModelPlacement.Plan([Gpu(0, 40)], [Large()]), "large");
+        Assert.AreEqual((ModelPlacement.BackgroundSequences, ModelPlacement.BackgroundTokens, Large().BackgroundBytes),
+                        (roomy.BackgroundSequences, roomy.BackgroundTokens, roomy.BackgroundBytes));
+        Assert.AreEqual(Large().BytesAt(262_144, batch: roomy.BatchTokens, sequences: roomy.Sequences), roomy.MemoryBytes,
+                        "made only while there is such work, it is not what the model holds");
+
+        var short_ = Placed(ModelPlacement.Plan([Gpu(0, 28)], [Large()]), "large");
+        Assert.AreEqual(0, short_.BackgroundSequences, "what is left once the model is placed, 2 GB longer steps and 1 GB more sequences in, holds no 9 GB context");
     }
 }
