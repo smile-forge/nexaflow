@@ -7,6 +7,9 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Export;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown.Printing;
 
@@ -157,7 +160,7 @@ public static class PaperPages
     /// </summary>
     private static List<Whole> Wholes(Laid laid, double width)
     {
-        var found = new List<(Rect Where, int Block, bool WithNext)>();
+        var found = new List<(LayoutRect Where, int Block, bool WithNext)>();
         var reach = new Dictionary<int, double>();
         var block = -1;
         var passing = int.MaxValue;
@@ -199,7 +202,7 @@ public static class PaperPages
     /// page, which a cut would make two — not one drawn down it, which reads on as one across the cut; and of a ground,
     /// nothing, since a cut leaves it under both halves.
     /// </summary>
-    private static IEnumerable<Rect> Inked(Piece leaf, Rect where)
+    private static IEnumerable<LayoutRect> Inked(LayoutPiece leaf, LayoutRect where)
     {
         var marks = leaf.Marks.ToArray();
 
@@ -214,11 +217,11 @@ public static class PaperPages
 
         foreach (var mark in marks)
             if (mark is RuleMark or LineMark && mark.Covers is { IsEmpty: false } covers && covers.Width >= covers.Height)
-                yield return Rect.Offset(covers, anchor);
+                yield return LayoutRect.Offset(covers, anchor);
     }
 
     /// <summary>Whether a piece is drawn from a heading, which no sheet ends on.</summary>
-    private static bool Heads(Piece piece) =>
+    private static bool Heads(LayoutPiece piece) =>
         piece.Naming() is ContentPart part
         && (part.Kind == MarkdownKinds.Heading || part.Ancestors().Any(holder => holder.Kind == MarkdownKinds.Heading));
 

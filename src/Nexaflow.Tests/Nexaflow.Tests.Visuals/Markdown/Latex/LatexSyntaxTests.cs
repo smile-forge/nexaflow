@@ -3,6 +3,9 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 using Nexaflow.Tests.Features.Fixtures;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
@@ -30,7 +33,7 @@ public class LatexSyntaxTests
 
             // Placeholders on, because the check asks for holes: an empty argument is unfinished to both.
             var drawn = Laying.Formula(latex, Scale, placeholders: true).Trouble
-                .Where(d => d.Severity == DiagnosticSeverity.Error)
+                .Where(d => d.Severity == LayoutSeverity.Error)
                 .Select(Said).OrderBy(s => s).ToList();
             var checkedOut = LatexSyntax.Check(latex).Select(Said).OrderBy(s => s).ToList();
 
@@ -50,5 +53,5 @@ public class LatexSyntaxTests
         Assert.IsTrue(LatexSyntax.IsWellFormed(latex),
             $"{latex}: {string.Join("; ", LatexSyntax.Check(latex).Select(Said))}"));
 
-    private static string Said(Diagnostic d) => $"{d.Start}+{d.Length} {d.Message}";
+    private static string Said(LayoutDiagnostic d) => $"{d.Start}+{d.Length} {d.Message}";
 }

@@ -2,9 +2,14 @@ using System;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Layout.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -88,19 +93,19 @@ public class DiagramColoursTests
     [TestMethod]
     public void ColoursWrittenOutAreReadBetween()
     {
-        Color[] stops = [Colors.Black, Colors.White];
+        LayoutColor[] stops = [LayoutColors.Black, LayoutColors.White];
 
-        Assert.AreEqual(Colors.Black, DiagramColours.At(stops, 0));
-        Assert.AreEqual(Colors.White, DiagramColours.At(stops, 1));
+        Assert.AreEqual(LayoutColors.Black, DiagramColours.At(stops, 0));
+        Assert.AreEqual(LayoutColors.White, DiagramColours.At(stops, 1));
         Assert.AreEqual(128, DiagramColours.At(stops, 0.5).R, 1);
     }
 
     [TestMethod]
     public void ThreeColoursPutTheMiddleOneInTheMiddle()
     {
-        Color[] stops = [Colors.Blue, Colors.White, Colors.Red];
+        LayoutColor[] stops = [LayoutColors.Blue, LayoutColors.White, LayoutColors.Red];
 
-        Assert.AreEqual(Colors.White, DiagramColours.At(stops, 0.5));
+        Assert.AreEqual(LayoutColors.White, DiagramColours.At(stops, 0.5));
     }
 
     [TestMethod]
@@ -142,17 +147,17 @@ public class DiagramColoursTests
                                  [(0, DiagramShapesTests.Words("0")),
                                   (0.5, DiagramShapesTests.Words("50")),
                                   (1, DiagramShapesTests.Words("100"))],
-                                 Brushes.Gray);
+                                 Brushes.Gray.Ink());
 
-        var build = new LayoutBuilder();
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("Root");
-        bar.Draw(build, new Point(0, 0));
+        bar.Draw(build, new LayoutPoint(0, 0));
         build.Close();
 
-        laid = new Laid(build.Seal(), bar.Size, []);
+        laid = new Laid(build.Seal(), bar.Size.Width, bar.Size.Height, []);
         return bar;
     }
 
-    private static double Grey(Color colour) =>
+    private static double Grey(LayoutColor colour) =>
         ((0.2126 * colour.R) + (0.7152 * colour.G) + (0.0722 * colour.B)) / 255;
 }

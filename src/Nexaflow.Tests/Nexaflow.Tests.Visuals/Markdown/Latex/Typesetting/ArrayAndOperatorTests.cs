@@ -5,6 +5,8 @@ using Nexaflow.Visuals.Text.Editing;
 
 using static Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting.Typeset;
 
+using Nexaflow.Markdown.Layout;
+
 namespace Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting;
 
 /// <summary>

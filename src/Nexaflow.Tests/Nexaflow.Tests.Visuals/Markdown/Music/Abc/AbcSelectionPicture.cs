@@ -12,6 +12,9 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
 using Nexaflow.Visuals.Text.Markdown.Music;
 
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
 
@@ -97,9 +100,9 @@ public class AbcSelectionPicture
     private static RenderTargetBitmap Shot(string fromKind, int fromAt, string toKind, int toAt) =>
         Shot(Tune, root => Of(root, fromKind)[fromAt], root => Of(root, toKind)[toAt]);
 
-    private static RenderTargetBitmap Shot(string tune, Func<Piece, Piece> from, Func<Piece, Piece> to)
+    private static RenderTargetBitmap Shot(string tune, Func<LayoutPiece, LayoutPiece> from, Func<LayoutPiece, LayoutPiece> to)
     {
-        var element = Alone.Engraved(MusicDialect.Abc, tune, StyleFormat.Light);
+        var element = Alone.Engraved(MusicDialect.Abc, tune, WpfStyles.Light);
         element.Measure(new Size(760, double.PositiveInfinity));
         element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
 
@@ -119,14 +122,14 @@ public class AbcSelectionPicture
     }
 
     /// <summary>The deepest piece naming the first <paramref name="written"/> after <paramref name="after"/>.</summary>
-    private static Func<Piece, Piece> At(string tune, string written, string after = "") => root =>
+    private static Func<LayoutPiece, LayoutPiece> At(string tune, string written, string after = "") => root =>
     {
         var offset = tune.IndexOf(written, tune.IndexOf(after, StringComparison.Ordinal), StringComparison.Ordinal);
         return root.SelfAndDescendants().Last(p => p.Stands() && p.Sits().Start <= offset && offset < p.Sits().End);
     };
 
-    private static List<Piece> Of(Piece root, string kind) => [.. root.SelfAndDescendants().Where(n => n.Kind == kind)];
+    private static List<LayoutPiece> Of(LayoutPiece root, string kind) => [.. root.SelfAndDescendants().Where(n => n.Kind == kind)];
 
-    private static Point Middle(Piece node) =>
+    private static Point Middle(LayoutPiece node) =>
         new(node.Bounds.X + (node.Bounds.Width / 2), node.Bounds.Y + (node.Bounds.Height / 2));
 }

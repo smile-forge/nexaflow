@@ -10,6 +10,9 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -52,7 +55,7 @@ public class DiagramEscapingTests
     /// <summary>Every character typed at every place <paramref name="source"/> draws something written, one at a time; each that leaves a line unread is told to <paramref name="broken"/>.</summary>
     private static void Typing(string what, string source, List<string> broken)
     {
-        var laid = new ContentEngine().Lay("mermaid", EditState.For(source), StyleFormat.Dark, 700, readOnly: false);
+        var laid = new ContentEngine().Lay("mermaid", EditState.For(source), WpfStyles.Dark, 700, readOnly: false);
         var held = Held(source);
 
         var places = laid.Root.SelfAndDescendants()

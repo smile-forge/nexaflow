@@ -7,6 +7,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Core.Unit;
 
@@ -73,7 +74,7 @@ public class HelpContentsTests
     public void EveryLinkItAdds_LandsOnARenderedHeading() => UiThread.Run(() =>
     {
         var result = HelpContents.AddTopics(Page);
-        var laid = new ContentEngine().Lay(null, EditState.For(result), StyleFormat.Dark, 600, readOnly: true);
+        var laid = new ContentEngine().Lay(null, EditState.For(result), WpfStyles.Dark, 600, readOnly: true);
 
         foreach (Match link in Regex.Matches(result, @"\]\(#([^)]+)\)"))
             Assert.IsTrue(MarkdownAnchors.Sought(laid, link.Groups[1].Value).Exists, $"#{link.Groups[1].Value} has a heading to land on");

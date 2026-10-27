@@ -5,11 +5,15 @@ using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Quadrant;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Quadrant;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -48,7 +52,7 @@ public class QuadrantBuilderTests : MermaidBuilderContract
     [TestMethod]
     public void TheFirstQuadrantIsTopRight_AndTheRestGoAnticlockwise() => UiThread.Run(() =>
     {
-        var cells = Pieces(Build(Campaigns), QuadrantPiece.Quadrant).Select(piece => Middle(piece.Bounds)).ToList();
+        var cells = Pieces(Build(Campaigns), QuadrantPiece.Quadrant).Select(piece => Middle(piece.Bounds.ToWpf())).ToList();
 
         Assert.IsTrue(cells[0].X > cells[1].X && cells[0].Y < cells[3].Y, "first top right");
         Assert.IsTrue(cells[1].X < cells[0].X && cells[1].Y < cells[2].Y, "second top left");
@@ -79,13 +83,13 @@ public class QuadrantBuilderTests : MermaidBuilderContract
     public void APointStandsWhereItIsWritten_ItsNameUnderIt() => UiThread.Run(() =>
     {
         var laid = Build(Campaigns);
-        var plot = Pieces(laid, QuadrantPiece.Quadrant).Select(piece => piece.Bounds).Aggregate(Rect.Union);
+        var plot = Pieces(laid, QuadrantPiece.Quadrant).Select(piece => piece.Bounds).Aggregate(LayoutRect.Union);
         var point = Pieces(laid, QuadrantPiece.Point)[1];
         var name = Pieces(laid, QuadrantPiece.Name)[1];
 
         Assert.AreEqual("Campaign B: [0.8, 0.2]", Written(Campaigns, point.Part));
-        Assert.AreEqual(plot.Left + (0.8 * plot.Width), Middle(point.Bounds).X, 2);
-        Assert.AreEqual(plot.Bottom - (0.2 * plot.Height), Middle(point.Bounds).Y, 2);
+        Assert.AreEqual(plot.Left + (0.8 * plot.Width), Middle(point.Bounds.ToWpf()).X, 2);
+        Assert.AreEqual(plot.Bottom - (0.2 * plot.Height), Middle(point.Bounds.ToWpf()).Y, 2);
         Assert.IsTrue(name.Bounds.Top > point.Bounds.Bottom - 0.5, "the name under its dot");
     });
 
@@ -97,7 +101,7 @@ public class QuadrantBuilderTests : MermaidBuilderContract
 
         Assert.AreEqual(24, dot.Bounds.Width, 1, "its own radius over its class's");
         var mark = dot.Marks.ToArray().OfType<GeometryMark>().Single();
-        Assert.AreEqual(Color.FromRgb(0xFF, 0, 0), ((SolidColorBrush)mark.Fill!).Color, "its class's colour");
+        Assert.AreEqual(Color.FromRgb(0xFF, 0, 0), ((SolidColorBrush)mark.Fill!.Brush()).Color, "its class's colour");
     });
 
     [TestMethod]
@@ -106,7 +110,7 @@ public class QuadrantBuilderTests : MermaidBuilderContract
         foreach (var (source, under) in new[] { (Campaigns, true), ("quadrantChart\n  x-axis Low --> High\n  quadrant-1 Plan", false) })
         {
             var laid = Build(source);
-            var plot = Pieces(laid, QuadrantPiece.Quadrant).Select(piece => piece.Bounds).Aggregate(Rect.Union);
+            var plot = Pieces(laid, QuadrantPiece.Quadrant).Select(piece => piece.Bounds).Aggregate(LayoutRect.Union);
             var low = Pieces(laid, QuadrantPiece.AxisLabel).First(label => label.Words!.Glyphs.Text == "Low" || label.Words.Glyphs.Text == "Low Reach");
 
             Assert.AreEqual(under, low.Bounds.Top >= plot.Bottom - 0.5, source);
@@ -117,7 +121,7 @@ public class QuadrantBuilderTests : MermaidBuilderContract
     public void TheAxessEndsStandOutAtTheirEnds_TheYAxissReadingUpItsSide() => UiThread.Run(() =>
     {
         var laid = Build(Campaigns);
-        var plot = Pieces(laid, QuadrantPiece.Quadrant).Select(piece => piece.Bounds).Aggregate(Rect.Union);
+        var plot = Pieces(laid, QuadrantPiece.Quadrant).Select(piece => piece.Bounds).Aggregate(LayoutRect.Union);
         var ends = Pieces(laid, QuadrantPiece.AxisLabel).ToDictionary(label => label.Words!.Glyphs.Text, label => label.Bounds);
 
         Assert.AreEqual(plot.Left, ends["Low Reach"].Left, 1, "the x-axis's low end at its left");
@@ -149,12 +153,12 @@ public class QuadrantBuilderTests : MermaidBuilderContract
 
         for (var at = 0; at < names.Count; at++)
         {
-            var name = Rect.Inflate(names[at], -0.5, -0.5);
+            var name = LayoutRect.Inflate(names[at], -0.5, -0.5);
             Assert.IsFalse(names.Where((_, other) => other != at).Any(other => other.IntersectsWith(name)), $"name {at} covers another name");
             Assert.IsFalse(axes.Any(axis => axis.IntersectsWith(name)), $"name {at} covers an axis's words");
 
             // A dot is round: a name off its corner is clear of it.
-            Assert.IsFalse(dots.Any(dot => (new Point(Math.Clamp(Middle(dot).X, name.Left, name.Right), Math.Clamp(Middle(dot).Y, name.Top, name.Bottom)) - Middle(dot)).Length < dot.Width / 2),
+            Assert.IsFalse(dots.Any(dot => (new LayoutPoint(Math.Clamp(Middle(dot.ToWpf()).ToLayout().X, name.Left, name.Right), Math.Clamp(Middle(dot.ToWpf()).ToLayout().Y, name.Top, name.Bottom)) - Middle(dot.ToWpf()).ToLayout()).Length < dot.Width / 2),
                 $"name {at} covers a dot");
         }
     });
@@ -167,14 +171,14 @@ public class QuadrantBuilderTests : MermaidBuilderContract
         var captions = Pieces(laid, QuadrantPiece.Caption).ToDictionary(caption => caption.Words!.Glyphs.Text, caption => caption.Bounds);
         var taken = Pieces(laid, QuadrantPiece.Point).Concat(Pieces(laid, QuadrantPiece.Name)).Select(piece => piece.Bounds).ToList();
 
-        Assert.AreEqual(Middle(cells[1]).X, Middle(captions["Promote"]).X, 1, "a clear quadrant's caption in its middle");
-        Assert.AreEqual(Middle(cells[1]).Y, Middle(captions["Promote"]).Y, 1);
+        Assert.AreEqual(Middle(cells[1].ToWpf()).X, Middle(captions["Promote"].ToWpf()).X, 1, "a clear quadrant's caption in its middle");
+        Assert.AreEqual(Middle(cells[1].ToWpf()).Y, Middle(captions["Promote"].ToWpf()).Y, 1);
         Assert.IsTrue(cells[0].Contains(captions["Expand"]), "a crowded quadrant's caption still in it");
         Assert.IsFalse(taken.Any(what => what.IntersectsWith(captions["Expand"])), "clear of the point in its middle, and its name");
     });
 
-    private static Brush? Ink(Piece words) =>
-        words.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<TextMark>().First().Foreground;
+    private static Brush? Ink(LayoutPiece words) =>
+        words.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<TextMark>().First().Ink?.Brush();
 
     [TestMethod]
     public void TheChartIsFittedIntoTheRoomItIsGiven() => UiThread.Run(() =>

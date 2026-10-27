@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Media;
 
+using Nexaflow.Markdown.Layout.Mermaid;
 using Nexaflow.Visuals.Common.Theming;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
@@ -29,7 +30,7 @@ internal static class DiagramSwatches
 
     /// <summary>The bank, each colour under the invariant name a diagram's choices are keyed by and the label a reader sees.</summary>
     public static IEnumerable<(string Name, string Label, Color Shade)> Bank() =>
-    SwatchPalette.Keys.Select(key => (Named(key), SwatchPalette.HueName(key), DiagramColour.ColorOf(SwatchPalette.Resolve(key), Colors.Gray)));
+        SwatchPalette.Keys.Select(key => (Named(key), SwatchPalette.HueName(key), (SwatchPalette.Resolve(key) as SolidColorBrush)?.Color ?? Colors.Gray));
 
     /// <summary>The colour the bank holds by a name, written as a diagram writes one — or null for a name it holds none by.</summary>
     public static string? Hex(string name) =>
@@ -38,7 +39,8 @@ internal static class DiagramSwatches
               .FirstOrDefault();
 
     /// <summary>What a colour written in a diagram's source comes to, or null where nothing is written or it says no colour.</summary>
-    public static Color? Shade(string? written) => DiagramColour.ParseCss(written);
+    public static Color? Shade(string? written) =>
+        DiagramColour.ParseCss(written) is { } said ? Color.FromArgb(said.A, said.R, said.G, said.B) : null;
 
     /// <summary>A swatch's name, which is its key without the word every key in the bank starts with.</summary>
     private static string Named(string key) => key[(key.IndexOf('.') + 1)..];

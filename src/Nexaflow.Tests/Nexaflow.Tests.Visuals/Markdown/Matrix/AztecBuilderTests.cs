@@ -4,11 +4,14 @@ using Nexaflow.Markdown.Matrix;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
-using Nexaflow.Visuals.Text.Markdown.Matrix;
+using Nexaflow.Markdown.Layout.Matrix;
 using Nexaflow.Markdown.Matrix.Aztec;
 using Nexaflow.Markdown.Matrix.Aztec.Stages;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Matrix;
 
@@ -34,7 +37,7 @@ public class AztecBuilderTests
     [CoversNode("aztec-render")]
     public void AnAztecFenceIsDrawnByItsLanguageWithNowhereInItToWrite() => UiThread.Run(() =>
     {
-        var element = Alone.Drawn("aztec", "type: text\ntext: hello", StyleFormat.Dark);
+        var element = Alone.Drawn("aztec", "type: text\ntext: hello", WpfStyles.Dark);
 
         element.Measure(new Size(600, double.PositiveInfinity));
         Assert.IsFalse(element.AcceptsCaret, "a symbol has nowhere in it to write");
@@ -140,7 +143,7 @@ public class AztecBuilderTests
         var block = Read(source);
         Assert.IsTrue(AztecEncoder.TryEncode(block.Payload, block.Options, out var symbol, out string? error), error);
 
-        var drawn = MatrixLayouts.ReadBack(Alone.Drawn("aztec", source, StyleFormat.Light),
+        var drawn = MatrixLayouts.ReadBack(Alone.Drawn("aztec", source, WpfStyles.Light),
                                            symbol!.Size, symbol.Size, block.Settings);
 
         for (int y = 0; y < symbol.Size; y++)
@@ -164,7 +167,7 @@ public class AztecBuilderTests
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static Laid Build(string source) => Laying.Lay("aztec", source, style: StyleFormat.Light);
+    private static Laid Build(string source) => Laying.Lay("aztec", source, style: WpfStyles.Light);
 
     private static AztecBlock Read(string source)
     {

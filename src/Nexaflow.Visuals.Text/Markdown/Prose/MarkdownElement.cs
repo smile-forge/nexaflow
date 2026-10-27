@@ -6,6 +6,9 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown.Prose;
 
@@ -31,13 +34,13 @@ public sealed class MarkdownElement : LinkedElement
     /// <param name="host">What the host answers, for the verbs this document does not answer itself.</param>
     /// <param name="engine">What lays it out — the host's, where the host keeps one for longer than an element lasts.</param>
     /// <param name="language">What it is written in, where that is one language rather than a markdown document.</param>
-    public MarkdownElement(string source, StyleFormat palette, ILayoutActions? host = null, ContentEngine? engine = null,
+    public MarkdownElement(string source, LayoutStyle palette, ILayoutActions? host = null, ContentEngine? engine = null,
                            string? language = null)
         : this(engine ?? new ContentEngine(), source, palette, host, language)
     {
     }
 
-    private MarkdownElement(ContentEngine engine, string source, StyleFormat palette, ILayoutActions? host, string? language)
+    private MarkdownElement(ContentEngine engine, string source, LayoutStyle palette, ILayoutActions? host, string? language)
         : base(source ?? string.Empty, palette, engine, language, host)
     {
     }
@@ -99,7 +102,7 @@ public sealed class MarkdownElement : LinkedElement
             var runs = LayoutQuery.Clusters(Laid.Root.RangeRects(start, length), 0);
 
             foreach (var run in runs)
-                dc.DrawRectangle(Palette.Marked, Edge(at == _showing.At), run);
+                dc.DrawRectangle(Palette.Marked.Brush(), Edge(at == _showing.At), run.ToWpf());
         }
     }
 
@@ -112,7 +115,7 @@ public sealed class MarkdownElement : LinkedElement
     {
         if (!looking) return null;
 
-        var pen = new Pen(Palette.Accent, Math.Max(1, Palette.TextSize / 13.5));
+        var pen = new Pen(Palette.Accent.Brush(), Math.Max(1, Palette.TextSize / 13.5));
         pen.Freeze();
 
         return pen;
@@ -174,19 +177,19 @@ public sealed class MarkdownElement : LinkedElement
         var found = Laid.Root.RangeRects(what.Start, what.Length);
         var place = found[0];
 
-        foreach (var rect in found) place = Rect.Union(place, rect);
+        foreach (var rect in found) place = LayoutRect.Union(place, rect);
 
-        for (var piece = Laid.Root.PieceAt(new Point(place.X + (place.Width / 2), place.Y + (place.Height / 2)));
+        for (var piece = Laid.Root.PieceAt(new LayoutPoint(place.X + (place.Width / 2), place.Y + (place.Height / 2)));
              piece.Exists;
              piece = piece.Parent)
         {
             if (piece.Part.TreePart() is not { } part) continue;
             if (ContentLanguages.Held(part) is null) continue;
 
-            return piece.Bounds;
+            return piece.Bounds.ToWpf();
         }
 
-        return place;
+        return place.ToWpf();
     }
 
     /// <summary>

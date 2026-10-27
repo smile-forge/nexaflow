@@ -14,7 +14,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.Architecture;
 
 /// <summary>
-/// What <see cref="ContentBuilderAnalyzer"/> holds a builder to: made from the five things every builder is made from, told
+/// What <see cref="ContentBuilderAnalyzer"/> holds a builder to: made from the six things every builder is made from, told
 /// nothing after, offering nothing the base does not, and made by nothing but the engine — each put to it in a compilation of
 /// its own, against a base of the same shape as the real one.
 /// </summary>
@@ -24,17 +24,19 @@ public class ContentBuilderAnalyzerTests
 {
     /// <summary>The base every builder derives from, as the real one is shaped.</summary>
     private const string Base = """
-        namespace Nexaflow.Visuals.Text.Editing
+        namespace Nexaflow.Markdown.Layout
         {
             public sealed class ContentReading { }
             public sealed class EditState { }
-            public sealed class StyleFormat { }
-            public sealed class Nesting { }
+            public sealed class LayoutStyle { }
+            public interface ILayoutMedium { }
+            public sealed class Medium : ILayoutMedium { }
+            public sealed class LayoutHost { }
             public sealed class Laid { }
 
             public abstract class ContentBuilder
             {
-                protected ContentBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) { }
+                protected ContentBuilder(ContentReading reading, EditState state, LayoutStyle style, bool isReadOnly, ILayoutMedium medium, LayoutHost host) { }
                 public string Source => "";
                 public Laid Lay(double room = double.PositiveInfinity) => new Laid();
                 protected abstract Laid Build();
@@ -42,11 +44,11 @@ public class ContentBuilderAnalyzerTests
         }
         """;
 
-    private const string Usings = "using Nexaflow.Visuals.Text.Editing;\n";
+    private const string Usings = "using Nexaflow.Markdown.Layout;\n";
 
     /// <summary>A builder in the one shape.</summary>
     private const string Shaped = """
-        sealed class Pie(ContentReading r, EditState s, StyleFormat f, bool o, Nesting n) : ContentBuilder(r, s, f, o, n)
+        sealed class Pie(ContentReading r, EditState s, LayoutStyle f, bool o, ILayoutMedium m, LayoutHost h) : ContentBuilder(r, s, f, o, m, h)
         {
             protected override Laid Build() => new Laid();
         }
@@ -79,9 +81,9 @@ public class ContentBuilderAnalyzerTests
 
     [TestMethod]
     [TestCategory("Unit")]
-    public void ABuilderToldAFifthThingIsNotTheShape() =>
+    public void ABuilderToldASeventhThingIsNotTheShape() =>
         CollectionAssert.AreEqual(new[] { "NXCB001" }, Found("""
-            sealed class Pie(ContentReading r, EditState s, StyleFormat f, bool o, Nesting n, int slices) : ContentBuilder(r, s, f, o, n)
+            sealed class Pie(ContentReading r, EditState s, LayoutStyle f, bool o, ILayoutMedium m, LayoutHost h, int slices) : ContentBuilder(r, s, f, o, m, h)
             {
                 protected override Laid Build() => new Laid();
             }
@@ -93,8 +95,8 @@ public class ContentBuilderAnalyzerTests
         CollectionAssert.AreEqual(new[] { "NXCB001" }, Found("""
             sealed class Pie : ContentBuilder
             {
-                public Pie(ContentReading r, EditState s, StyleFormat f, bool o, Nesting n) : base(r, s, f, o, n) { }
-                public Pie(ContentReading r, EditState s, StyleFormat f, Nesting n) : base(r, s, f, true, n) { }
+                public Pie(ContentReading r, EditState s, LayoutStyle f, bool o, ILayoutMedium m, LayoutHost h) : base(r, s, f, o, m, h) { }
+                public Pie(ContentReading r, EditState s, LayoutStyle f, ILayoutMedium m, LayoutHost h) : base(r, s, f, true, m, h) { }
                 protected override Laid Build() => new Laid();
             }
             """).ToList());
@@ -103,7 +105,7 @@ public class ContentBuilderAnalyzerTests
     [TestCategory("Unit")]
     public void ABuilderToldSomethingAfterItIsMadeIsSaidToBe() =>
         CollectionAssert.AreEqual(new[] { "NXCB002" }, Found("""
-            sealed class Pie(ContentReading r, EditState s, StyleFormat f, bool o, Nesting n) : ContentBuilder(r, s, f, o, n)
+            sealed class Pie(ContentReading r, EditState s, LayoutStyle f, bool o, ILayoutMedium m, LayoutHost h) : ContentBuilder(r, s, f, o, m, h)
             {
                 internal int Slices { get; set; }
                 protected override Laid Build() => new Laid();
@@ -114,7 +116,7 @@ public class ContentBuilderAnalyzerTests
     [TestCategory("Unit")]
     public void ABuilderOfferingANameOfItsOwnIsSaidToBe_WhileWhatTheBaseNamesIsItsToOffer() =>
         CollectionAssert.AreEqual(new[] { "NXCB003" }, Found("""
-            sealed class Pie(ContentReading r, EditState s, StyleFormat f, bool o, Nesting n) : ContentBuilder(r, s, f, o, n)
+            sealed class Pie(ContentReading r, EditState s, LayoutStyle f, bool o, ILayoutMedium m, LayoutHost h) : ContentBuilder(r, s, f, o, m, h)
             {
                 public static Laid Draws(string source) => new Laid();
                 public new string Source => "pie";
@@ -128,7 +130,7 @@ public class ContentBuilderAnalyzerTests
         CollectionAssert.AreEqual(new[] { "NXCB004" }, Found(Shaped, """
             static class Somewhere
             {
-                public static Laid Draw(ContentReading r) => new Pie(r, new EditState(), new StyleFormat(), true, new Nesting()).Lay();
+                public static Laid Draw(ContentReading r) => new Pie(r, new EditState(), new LayoutStyle(), true, new Medium(), new LayoutHost()).Lay();
             }
             """).ToList());
 
@@ -138,7 +140,7 @@ public class ContentBuilderAnalyzerTests
         CollectionAssert.AreEqual(Array.Empty<string>(), Found("""
             namespace Microsoft.VisualStudio.TestTools.UnitTesting { public sealed class TestClassAttribute : System.Attribute { } }
 
-            sealed class Box(ContentReading r, bool fail) : ContentBuilder(r, new EditState(), new StyleFormat(), true, new Nesting())
+            sealed class Box(ContentReading r, bool fail) : ContentBuilder(r, new EditState(), new LayoutStyle(), true, new Medium(), new LayoutHost())
             {
                 public static Laid Built(ContentReading r) => new Box(r, fail: true).Lay();
                 protected override Laid Build() => new Laid();

@@ -6,6 +6,9 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Features.Pdf;
 
@@ -50,9 +53,9 @@ internal static class PdfLayoutSnapshot
     {
         if (paint.Clip is { } clip) text.Append(" clip ").Append(Hash(clip));
         if (paint.Opacity < 1) text.Append(" opacity ").Append(Number(paint.Opacity));
-        if (paint.Mask is { } mask) text.Append(" mask ").Append(Brush(mask));
+        if (paint.Mask is { } mask) text.Append(" mask ").Append(Brush(mask.Brush()));
         if (paint.Turn is { Count: > 0 } turns)
-            foreach (var turn in turns) text.Append(" turn ").Append(MatrixText(turn.Value));
+            foreach (var turn in turns) text.Append(" turn ").Append(MatrixText(turn.Matrix.ToWpf()));
     }
 
     private static void Mark(LayoutMark mark, StringBuilder text)
@@ -60,22 +63,23 @@ internal static class PdfLayoutSnapshot
         switch (mark)
         {
             case GeometryMark geometry:
+                var stroke = geometry.Stroke as WpfStroke;
                 text.Append("geometry ").Append(Box(geometry.Covers))
-                    .Append(" fill ").Append(Brush(geometry.Fill))
-                    .Append(" stroke ").Append(Brush(geometry.Stroke))
-                    .Append(" thickness ").Append(Number(geometry.Thickness));
-                if (geometry.Dashes is { Count: > 0 } dashes)
+                    .Append(" fill ").Append(Brush(geometry.Fill?.Brush()))
+                    .Append(" stroke ").Append(Brush(stroke?.Ink?.Brush()))
+                    .Append(" thickness ").Append(Number(stroke?.Thickness ?? 0));
+                if (stroke?.Dashes is { Count: > 0 } dashes)
                     text.Append(" dashes ").Append(string.Join(',', System.Linq.Enumerable.Select(dashes, Number)));
-                if (geometry.Outline is { } pen)
+                if (stroke?.Ends is { } pen)
                     text.Append(" pen ").Append(pen.StartCap).Append('/').Append(pen.EndCap).Append('/').Append(pen.DashCap)
                         .Append('/').Append(pen.Join).Append('/').Append(Number(pen.MiterLimit)).Append('/').Append(Number(pen.DashOffset));
                 text.Append(" shape ").Append(Hash(geometry.Shape));
                 break;
             case PictureMark picture:
-                text.Append("picture ").Append(Box(picture.Bounds)).Append(' ').Append(Image(picture.Picture));
+                text.Append("picture ").Append(Box(picture.Bounds)).Append(' ').Append(Image(((WpfPicture)picture.Picture).Source));
                 break;
             case WashMark wash:
-                text.Append("wash ").Append(Box(wash.Bounds)).Append(' ').Append(Brush(wash.Fill));
+                text.Append("wash ").Append(Box(wash.Bounds)).Append(' ').Append(Brush(wash.Fill.Brush()));
                 break;
             default:
                 text.Append(mark.GetType().Name).Append(' ').Append(Box(mark.Covers));
@@ -142,8 +146,13 @@ internal static class PdfLayoutSnapshot
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString())))[..16];
     }
 
+    /// <summary>An outline the medium made, by the geometry WPF holds it as.</summary>
+    private static string Hash(LayoutShape shape) => Hash(((WpfShape)shape).Geometry);
+
     private static string Hash(Drawing drawing) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Box(drawing.Bounds))))[..16];
+
+    private static string Box(LayoutRect box) => Box(box.ToWpf());
 
     private static string Box(Rect box) =>
         box.IsEmpty ? "empty" : $"{Number(box.X)},{Number(box.Y)} {Number(box.Width)}x{Number(box.Height)}";

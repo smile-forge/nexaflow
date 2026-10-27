@@ -3,6 +3,10 @@ using System.Linq;
 using System.Windows;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Layout.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -50,7 +54,7 @@ public class DiagramBoxTests
     [TestMethod]
     public void ARuleRunsBetweenEachBandAndTheNextAndNoneUnderTheLast() => UiThread.Run(() =>
     {
-        var bounds = new Rect(10, 20, 200, 100);
+        var bounds = new LayoutRect(10, 20, 200, 100);
         var box = Measure([Band("A"), Band("one"), Band("two")]);
 
         CollectionAssert.AreEqual(new[] { 20 + box.Depths[0], 20 + box.Depths[0] + box.Depths[1] },
@@ -61,7 +65,7 @@ public class DiagramBoxTests
     [TestMethod]
     public void ACentredRowIsSetAcrossTheMiddleAndALeftOneAPadIn() => UiThread.Run(() =>
     {
-        var bounds = new Rect(10, 20, 200, 100);
+        var bounds = new LayoutRect(10, 20, 200, 100);
         var box = Measure([new DiagramCompartment([Row("Name")]) { Centred = true }, Band("a field")]);
 
         var placed = box.Placed(bounds).ToList();
@@ -76,7 +80,7 @@ public class DiagramBoxTests
     [TestMethod]
     public void ColumnsLineUpDownAnAlignedBandAndFollowOneAnotherWhereTheyDoNot() => UiThread.Run(() =>
     {
-        var bounds = new Rect(0, 0, 400, 200);
+        var bounds = new LayoutRect(0, 0, 400, 200);
 
         var aligned = new DiagramCompartment([Row("string", "name"), Row("int", "a much longer one")]) { Aligned = true };
         var set = Measure([aligned]).Placed(bounds).Select(placed => placed.Set[1].Where.X).ToList();
@@ -101,7 +105,7 @@ public class DiagramBoxTests
     // ── What it works with ──────────────────────────────────────────────────
 
     private static DiagramBox Measure(IReadOnlyList<DiagramCompartment> bands) =>
-        DiagramBox.Measure(bands, Tall, Pad, Air, Gap, new Size(96, 34));
+        DiagramBox.Measure(bands, Tall, Pad, Air, Gap, new LayoutSize(96, 34));
 
     private static DiagramCompartment Band(params string[] rows) => new([.. rows.Select(said => Row(said))]);
 

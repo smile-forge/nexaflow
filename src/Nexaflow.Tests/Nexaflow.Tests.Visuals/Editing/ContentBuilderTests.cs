@@ -10,6 +10,9 @@ using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 
@@ -34,11 +37,11 @@ public class ContentBuilderTests
     /// <summary>A builder that draws nothing, however it is asked.</summary>
     private sealed class Unwilling(string source, Func<Laid?> read)
         : ContentBuilder(ContentReading.Of(ContentNode.Leaf(Kinds.Verbatim, source)), EditState.For(source),
-                         StyleFormat.Dark, isReadOnly: true, Nexaflow.Tests.Visuals.Markdown.Laying.NestingNothing)
+                                 WpfStyles.Dark, isReadOnly: true, WpfMedium.OnThisThread, Nexaflow.Tests.Visuals.Markdown.Laying.Hosting)
     {
         protected override Laid? Build() => read();
 
-        protected override CharacterSetting Characters => new(new Typeface("Consolas"), 13, Brushes.Black, Culture: CultureInfo.InvariantCulture);
+        protected override LayoutCharacters Characters => new(Medium.Face("Consolas"), 13, Style.Text);
     }
 
     [TestMethod]
@@ -71,7 +74,7 @@ public class ContentBuilderTests
         Assert.IsTrue(laid.ShowsSource, "the source is still on the page");
 
         var trouble = laid.Trouble.Single();
-        Assert.AreEqual(DiagnosticSeverity.Error, trouble.Severity);
+        Assert.AreEqual(LayoutSeverity.Error, trouble.Severity);
         Assert.AreEqual((0, 2), (trouble.Start, trouble.Length), "covering all of it — it has no better idea");
         StringAssert.Contains(trouble.Message, "ran off the end");
     });
@@ -93,9 +96,9 @@ public class ContentBuilderTests
         // A tree the builder was given: it names the part it could not draw, and the helper finds where that part's characters are.
         var tree = ContentPart.Of(ContentNode.Branch("line", [ContentNode.Leaf("word", "one "), ContentNode.Leaf("word", "two"), ContentNode.Leaf("word", " three")]));
         var two = tree.Children[1];
-        var laid = SourceShown.Lay(tree, [(two, "Two is not a word here.")],
-                                   new CharacterSetting(new Typeface("Consolas"), 13, Brushes.Black, Culture: CultureInfo.InvariantCulture),
-                                   StyleFormat.Dark);
+        var medium = WpfMedium.OnThisThread;
+        var laid = SourceShown.Lay(tree, [(two, "Two is not a word here.")], medium, medium.Face("Consolas"), 13, WpfStyles.Dark.Text,
+                                           WpfStyles.Dark);
 
         var unread = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == SourceShown.Unread);
         var letters = laid.Root.SelfAndDescendants().Where(piece => piece.Kind == LayoutText.SourceKind + "-letter").ToList();
@@ -162,7 +165,7 @@ public class ContentBuilderTests
         // Content in another language is read while the document's own builder is part-way through laying it, so a throw
         // let out would be blamed on the only tree that builder has — all of it.
         var document = $"Pets:\n\n```{HandLaid.Unreading}\nx\n```\n\nThe end.\n";
-        var element = new MarkdownElement(document, StyleFormat.Dark);
+        var element = new MarkdownElement(document, WpfStyles.Dark);
         element.Measure(new Size(400, double.PositiveInfinity));
 
         var laid = element.Laid;

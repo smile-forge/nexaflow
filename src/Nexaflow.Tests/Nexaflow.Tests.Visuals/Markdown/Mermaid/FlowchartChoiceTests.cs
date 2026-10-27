@@ -8,6 +8,8 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Flowchart;
+using Nexaflow.Markdown.Mermaid.Flowchart;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -176,15 +178,15 @@ public class FlowchartChoiceTests
         chart.Laid.Root.SelfAndDescendants()
              .First(piece => piece.Kind == FlowchartPiece.Node
                              && piece.SelfAndDescendants().Any(inner => inner.Words?.Glyphs.Text == words))
-             .Bounds;
+             .Bounds.ToWpf();
 
     /// <summary>Where some words the chart drew stand, whatever drew them.</summary>
     private static Rect Words(DocumentBlock chart, string words) =>
-        chart.Laid.Root.SelfAndDescendants().First(piece => piece.Words?.Glyphs.Text == words).Bounds;
+        chart.Laid.Root.SelfAndDescendants().First(piece => piece.Words?.Glyphs.Text == words).Bounds.ToWpf();
 
     /// <summary>Where the first link stands.</summary>
     private static Rect Link(DocumentBlock chart) =>
-        chart.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == FlowchartPiece.Link).Bounds;
+        chart.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == FlowchartPiece.Link).Bounds.ToWpf();
 
     /// <summary>The ribbon a right-click in the middle of somewhere opens, or nothing where it opens none.</summary>
     private static DiagramRibbon? Opened(MarkdownSurface editor, Rect over) =>

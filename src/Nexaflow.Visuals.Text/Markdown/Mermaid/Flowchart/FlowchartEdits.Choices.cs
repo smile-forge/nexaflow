@@ -11,6 +11,10 @@ using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Flowchart;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Layout.Mermaid;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Flowchart;
 
@@ -160,7 +164,7 @@ internal sealed partial class FlowchartEdits : IContentLanguage
 
         return kept.TryGetValue(shape, out var already)
             ? already
-            : kept[shape] = DiagramShapes.AsPicture(DiagramShapes.For(shape), Side);
+            : kept[shape] = ((WpfShape)DiagramShapes.AsPicture(WpfMedium.OnThisThread, DiagramShapes.For(shape), Side)).Geometry;
     }
 
     /// <summary>

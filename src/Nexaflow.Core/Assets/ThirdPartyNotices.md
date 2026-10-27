@@ -72,7 +72,7 @@ licence shown; the full texts are in each project's repository. "via" names the 
 | [Bravura](https://github.com/steinbergmedia/bravura) — music notation font | OFL-1.1 |
 | [Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons) — ribbon, picker and diagram icons | MIT |
 | The Computer Modern and AMS faces LaTeX is set in — each with its licence in `Nexaflow.Visuals.Text/Markdown/Latex/Tex/Fonts/LICENSES.md` | OFL-1.1 and others |
-| [XAML-Math](https://github.com/ForNeVeR/xaml-math)'s TeX box model and metrics, modified (`Nexaflow.Visuals.Text/Markdown/Latex/Tex`) | MIT |
+| [XAML-Math](https://github.com/ForNeVeR/xaml-math)'s TeX box model and metrics, modified (`Nexaflow.Markdown/Typesetting`, and its WPF fonts in `Nexaflow.Visuals.Text/Markdown/Latex/Tex`) | MIT |
 | [OpenJPEG.net](https://github.com/notBald/OpenJPEG.net), a C# port of [OpenJPEG](https://github.com/uclouvain/openjpeg) (`Nexaflow.Media/Jpeg2000`) | BSD-2-Clause |
 | [libjpeg-turbo](https://github.com/libjpeg-turbo/libjpeg-turbo)'s decoder, ported to C# (`Nexaflow.Media/Jpeg`). This software is based in part on the work of the Independent JPEG Group. | IJG, BSD-3-Clause |
 | [Apache PDFBox](https://pdfbox.apache.org/)'s JBIG2 decoder, by way of [PdfPig.Filters.Jbig2.PdfboxJbig2](https://github.com/BobLd/UglyToad.PdfPig.Filters.Jbig2.PdfboxJbig2), ported to C# (`Nexaflow.Media/Jbig2`, with its `NOTICE`). Based on source code originally developed in the JBig2 project, copyright levigo holding GmbH. | Apache-2.0 |

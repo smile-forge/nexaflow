@@ -11,6 +11,9 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Editing.Paged;
 
@@ -540,7 +543,7 @@ public sealed class PagedLayoutElement : FrameworkElement, IScrollInfo
         using var dc = shown.Page.RenderOpen();
         var size = _sizes[shown.Index];
         if (_laid.TryGetValue(shown.Index, out var laid))
-            LayoutPainter.Paint(dc, laid.Tree.Root, Ink);
+            WpfPainter.Paint(dc, laid.Tree.Root, Ink);
         else
             dc.DrawRectangle(Paper, null, new Rect(size));
     }
@@ -567,12 +570,13 @@ public sealed class PagedLayoutElement : FrameworkElement, IScrollInfo
         {
             var hit = _highlights[i];
             if (hit.Page != shown.Index) continue;
-            var wash = root.Wash([new EditRange(hit.Start, hit.Length)], 1);
-            dc.DrawGeometry(i == _currentHighlight ? CurrentHighlight : Highlight, null, wash);
+            if (root.Wash([new EditRange(hit.Start, hit.Length)], 1) is WpfShape wash)
+                dc.DrawGeometry(i == _currentHighlight ? CurrentHighlight : Highlight, null, wash.Geometry);
         }
 
-        if (SelectedOn(shown.Index, laid.Text.Length) is { Length: > 0 } range)
-            dc.DrawGeometry(Selection, null, root.Wash([new EditRange(range.Start, range.Length)], 1));
+        if (SelectedOn(shown.Index, laid.Text.Length) is { Length: > 0 } range
+            && root.Wash([new EditRange(range.Start, range.Length)], 1) is WpfShape chosen)
+            dc.DrawGeometry(Selection, null, chosen.Geometry);
     }
 
     /// <summary>The share of the selection on page <paramref name="index"/>, whose text is <paramref name="length"/> long.</summary>
@@ -611,7 +615,7 @@ public sealed class PagedLayoutElement : FrameworkElement, IScrollInfo
         var rects = laid.Tree.Root.RangeRects(range.Start, range.Length);
         if (rects.Count == 0) return;
         var where = rects[0];
-        foreach (var rect in rects) where.Union(rect);
+        foreach (var rect in rects) where = LayoutRect.Union(where, rect);
         GoToPage(range.Page, Math.Max(0, where.Top - _viewport.Height / Zoom / 3));
     }
 
@@ -740,7 +744,7 @@ public sealed class PagedLayoutElement : FrameworkElement, IScrollInfo
             return;
         }
 
-        var piece = over.Tree.Root.PieceAt(local);
+        var piece = over.Tree.Root.PieceAt(local.ToLayout());
         Cursor = Link(over.Tree.Root, local) is not null ? Cursors.Hand
             : piece is { Exists: true, Words: not null } ? Cursors.IBeam
             : Cursors.Arrow;
@@ -803,11 +807,11 @@ public sealed class PagedLayoutElement : FrameworkElement, IScrollInfo
     /// What a press at <paramref name="local"/> follows, when it lands on a link: the last-placed piece there that answers a
     /// click by navigating, as the content engine finds what a press means — the uppermost link wins.
     /// </summary>
-    private static string? Link(Piece root, Point local)
+    private static string? Link(LayoutPiece root, Point local)
     {
         string? found = null;
         foreach (var (piece, where) in root.Placed())
-            if (where.Contains(local) && piece.Acts?.For(LayoutGesture.Click) is { Verb: LayoutVerbs.Navigate, Target: { } target })
+            if (where.Contains(local.ToLayout()) && piece.Acts.For(LayoutGesture.Click) is { Verb: LayoutVerbs.Navigate, Target: { } target })
                 found = target;
         return found;
     }
@@ -815,17 +819,18 @@ public sealed class PagedLayoutElement : FrameworkElement, IScrollInfo
     /// <summary>The text offset a point on a laid page means: the letter it lands on, or the nearest place there is one.</summary>
     private static int Offset(LaidPage laid, Point local)
     {
-        var root = laid.Tree.Root;
-        var piece = root.PieceAt(local);
-        return piece is { Exists: true, Words: { Maps: true } } ? root.OffsetAt(local) : root.StopNear(local);
+        var (root, at) = (laid.Tree.Root, local.ToLayout());
+        var piece = root.PieceAt(at);
+        return piece is { Exists: true, Words: { Maps: true } } ? root.OffsetAt(at) : root.StopNear(at);
     }
 
     /// <summary>The word under a point, for a double press.</summary>
     private static (int Start, int End)? Words(LaidPage laid, Point local)
     {
-        var piece = laid.Tree.Root.PieceAt(local);
+        var at = local.ToLayout();
+        var piece = laid.Tree.Root.PieceAt(at);
         if (piece is not { Exists: true, Words: { Maps: true } words, Part: { } part }) return null;
-        var offset = laid.Tree.Root.OffsetAt(local) - part.Start;
+        var offset = laid.Tree.Root.OffsetAt(at) - part.Start;
         var (start, end) = words.WordAt(Math.Clamp(offset, 0, Math.Max(0, words.Length - 1)));
         return (part.Start + start, part.Start + end);
     }

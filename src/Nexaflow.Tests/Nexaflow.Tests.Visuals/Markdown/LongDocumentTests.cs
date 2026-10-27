@@ -6,6 +6,9 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -38,7 +41,7 @@ public class LongDocumentTests
     private static ContentEngine LaidOut(string document)
     {
         var engine = new ContentEngine();
-        var element = new MarkdownElement(document, StyleFormat.Dark, null, engine);
+        var element = new MarkdownElement(document, WpfStyles.Dark, null, engine);
 
         element.Measure(new Size(600, double.PositiveInfinity));
         element.Arrange(new Rect(element.DesiredSize));
@@ -72,14 +75,14 @@ public class LongDocumentTests
         foreach (var block in engine.ReadRoot.Children.Where(block => !block.Derived && block.Role != Roles.Trivia))
         {
             // The block's own piece: the first of the document's that first names something inside the block.
-            var own = root.Children.FirstOrDefault(whole => whole.Kind == MarkdownPieces.Whole
+            var own = root.Children.FirstOrDefault(whole => whole.Kind == LayoutPieces.Whole
                                                             && whole.SelfAndDescendants().Select(piece => piece.Part).FirstOrDefault(part => part is { Length: > 0 }) is { } named
                                                             && named.Start >= block.Start && named.Start < block.End);
 
             var where = engine.Where(block);
             if (own.Exists) Assert.AreEqual(own.Bounds, where, $"{block.Kind} at {block.Start} came out as its own piece did");
 
-            var middle = new Point(where.X + (where.Width / 2), where.Y + (where.Height / 2));
+            var middle = new LayoutPoint(where.X + (where.Width / 2), where.Y + (where.Height / 2));
             Assert.AreSame(block, engine.Blocked(middle), $"a point in the middle of {block.Kind} at {block.Start} is on it");
         }
     });

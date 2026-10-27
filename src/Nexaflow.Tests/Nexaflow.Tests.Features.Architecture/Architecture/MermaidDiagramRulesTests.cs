@@ -30,8 +30,8 @@ public class MermaidDiagramRulesTests
 {
     private static readonly string Root = RepoRoot.Locate();
     private const string Grammars = "src/Nexaflow.Markdown/Mermaid/";
-    private const string Builders = "src/Nexaflow.Visuals.Text/Markdown/Mermaid/";
-    private const string Prose    = "src/Nexaflow.Visuals.Text/Markdown/Prose/";
+    private const string Builders = "src/Nexaflow.Markdown/Layout/Mermaid/";
+    private const string Prose    = "src/Nexaflow.Markdown/Layout/Prose/";
 
     private sealed record Rule(Regex Found, string Instead);
 
@@ -56,13 +56,13 @@ public class MermaidDiagramRulesTests
     /// <summary>What a diagram's own drawing does through the kit.</summary>
     private static readonly Rule[] Drawing =
     [
-        new(new(@"\bDiagramColour\b"), "DiagramInk — a builder asks for a brush that follows the theme, not for colour arithmetic"),
-        new(new(@"new FormattedText\("), "MermaidBuilder.Written and Worked — every word a diagram sets is DiagramWords"),
+        new(new(@"\bPortableDiagramColour\b"), "DiagramInk — a builder asks for an ink that follows the theme, not for colour arithmetic"),
+        new(new(@"\b[Mm]edium\.Shape\("), "DiagramText.Written and Worked — every word a diagram sets is DiagramWords"),
         new(new(@"LayoutText\.(Words|Hole|Place)\("), "DiagramWords.Set"),
-        new(new(@"new SolidColorBrush\(|Color\.From(Rgb|Argb)\(|\bColors\.|\bBrushes\.|""#[0-9A-Fa-f]{3,8}"""), "DiagramInk and the palette — a colour nobody wrote is the theme's"),
-        new(new(@"\.Opacity\s*="), "DiagramInk.Faded"),
-        new(new(@"Palette\.Series\s*\["), "DiagramInk.Series"),
-        new(new(@"System\.Windows\.Controls|\bTextBlock\b|\bCanvas\b"), "the layout tree — a diagram is pieces and marks, not controls"),
+        new(new(@"\bLayoutColors?\b|\b[Mm]edium\.Ink\(|""#[0-9A-Fa-f]{3,8}"""), "DiagramInk and the palette — a colour nobody wrote is the theme's"),
+        new(new(@"\b[Mm]edium\.Faded\("), "DiagramInk.Faded"),
+        new(new(@"\bStyle\.Series\s*\["), "DiagramInk.Series"),
+        new(new(@"System\.Windows\b"), "the layout tree — a diagram is pieces and marks, drawn by whatever medium it is handed"),
     ];
 
     /// <summary>

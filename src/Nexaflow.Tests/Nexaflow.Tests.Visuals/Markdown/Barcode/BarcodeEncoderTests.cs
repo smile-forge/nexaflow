@@ -1,6 +1,6 @@
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Markdown.Barcode;
-using Nexaflow.Visuals.Text.Markdown.Barcode;
+using Nexaflow.Markdown.Layout.Barcode;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Barcode;
 

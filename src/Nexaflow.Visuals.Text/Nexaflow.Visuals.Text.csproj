@@ -48,17 +48,10 @@
     </ItemGroup>
 
     <ItemGroup>
-      <!-- TeX's typesetting engine, ingested from XAML-Math (MIT; see Core's ThirdPartyNotices) and moved
-           here from the two projects it arrived as, beside the builder that is replacing it. The boundary
-           had stopped protecting anything: the builder built its atoms, reached its boxes and captured its
-           drawing, and a box could not lay itself into the layout tree across it.
+      <!-- The faces TeX's maths is drawn in, from XAML-Math (MIT; see Core's ThirdPartyNotices). The typesetter and what it
+           knows of them — their metrics and the glue between classes — are Nexaflow.Markdown's (Typesetting); the faces are
+           WPF resources under Tex\Fonts\, the path the WPF font provider opens them from. -->
 
-           The data is TeX's knowledge of how to set maths — the metrics of every glyph and the glue between
-           classes — not of what maths means, which is Nexaflow.Markdown's (TexVocabulary). Its manifest names
-           are pinned to what the readers ask for, and the faces are WPF resources under Tex\Fonts\, the path the
-           font provider asks for. -->
-      <EmbeddedResource Include="Markdown\Latex\Tex\Data\DefaultTexFont.xml" LogicalName="XamlMath.Data.DefaultTexFont.xml" />
-      <EmbeddedResource Include="Markdown\Latex\Tex\Data\GlueSettings.xml" LogicalName="XamlMath.Data.GlueSettings.xml" />
 
       <Resource Include="Markdown\Latex\Tex\Fonts\*.ttf" />
       <None Include="Markdown\Latex\Tex\Fonts\LICENSES.md" />

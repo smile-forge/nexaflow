@@ -13,6 +13,9 @@ using System.Windows.Controls.Primitives;
 using Nexaflow.Markdown.Binding;
 using Nexaflow.Markdown.Editing;
 using System.Windows.Automation.Peers;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Editing;
 
@@ -58,7 +61,7 @@ public class ContentElement : FrameworkElement
     /// <param name="engine">What lays the content out, and holds it as it is being written.</param>
     /// <param name="language">What the content is written in — markdown, where nothing names a language.</param>
     /// <param name="actions">What answers what the content's pieces mean by a gesture — null where nothing here answers one.</param>
-    public ContentElement(string source, StyleFormat palette, ContentEngine engine, string? language = null, ILayoutActions? actions = null)
+    public ContentElement(string source, LayoutStyle palette, ContentEngine engine, string? language = null, ILayoutActions? actions = null)
     {
         Palette = palette;
         _engine = engine;
@@ -164,11 +167,11 @@ public class ContentElement : FrameworkElement
 
     private void OnSourceChanged(object? sender, ContentSourceChange change) => SourceChanged?.Invoke(this, change);
 
-    private void OnRevealing(object? sender, Rect shown) =>
+    private void OnRevealing(object? sender, LayoutRect shown) =>
         BringIntoView(new Rect(shown.X * Zoom, shown.Y * Zoom, Math.Max(shown.Width * Zoom, 1), Math.Max(shown.Height * Zoom, 1)));
 
     /// <summary>The theme, for the ink, the accent and the two colours trouble is drawn in.</summary>
-    protected StyleFormat Palette { get; }
+    protected LayoutStyle Palette { get; }
 
     /// <summary>What is laid out. Always something: a builder always makes a layout.</summary>
     public Laid Laid => _engine.Laid;
@@ -192,8 +195,14 @@ public class ContentElement : FrameworkElement
     internal Rect FromContent(Rect content) =>
         content.IsEmpty ? Rect.Empty : new Rect(FromContent(content.TopLeft), FromContent(content.BottomRight));
 
+    /// <summary>A place in the content's own units, on this element.</summary>
+    internal Point FromContent(LayoutPoint content) => FromContent(content.ToWpf());
+
+    /// <summary>A stretch of the content in its own units, on this element.</summary>
+    internal Rect FromContent(LayoutRect content) => FromContent(content.ToWpf());
+
     /// <summary>Whether any of a stretch of the content is on screen — everything is, where nothing has said what the screen is.</summary>
-    internal bool ReachesScreen(Rect content) => _engine.OnScreen is not { } screen || screen.IntersectsWith(content);
+    internal bool ReachesScreen(LayoutRect content) => _engine.OnScreen is not { } screen || screen.IntersectsWith(content);
 
     /// <summary>The editing model — source, caret, selection, and what is shown as written.</summary>
     protected EditState State => _engine.State;
@@ -218,7 +227,7 @@ public class ContentElement : FrameworkElement
     /// by the fence that holds it and cannot be selected alone — a bracket without its partner can't be read —
     /// so pointing at one selects the thing it belongs to.
     /// </summary>
-    protected static Piece Pointing(Piece piece) => piece.Selectable();
+    protected static LayoutPiece Pointing(LayoutPiece piece) => piece.Selectable();
 
     // ── Shape and colour ────────────────────────────────────────────────────
 
@@ -297,9 +306,9 @@ public class ContentElement : FrameworkElement
             State.Source.Length == 0 || Laid.Root.SelfAndDescendants().Any(piece => piece.Part is { Length: > 0 } || (piece.Part is not null && piece.Kind == LayoutText.HoleKind));
 
     /// <summary>A translucent wash from the theme accent, falling back to the highlight token.</summary>
-    private static Brush Wash(StyleFormat palette)
+    private static Brush Wash(LayoutStyle palette)
     {
-        if (palette.Accent is not SolidColorBrush accent) return palette.Marked;
+        if (palette.Accent.Brush() is not SolidColorBrush accent) return palette.Marked.Brush();
 
         var brush = new SolidColorBrush(Color.FromArgb(0x3A, accent.Color.R, accent.Color.G, accent.Color.B));
         brush.Freeze();
@@ -312,14 +321,14 @@ public class ContentElement : FrameworkElement
     public string Source => State.Source;
 
     /// <inheritdoc />
-    public Piece Root => Laid.Root;
+    public LayoutPiece Root => Laid.Root;
 
     /// <inheritdoc />
     public IReadOnlyList<(int Start, int Length)> Selection =>
         [.. State.Selection.Select(range => (range.Start, range.Length))];
 
     /// <inheritdoc />
-    public IReadOnlyList<Diagnostic> Diagnostics => Laid.Trouble;
+    public IReadOnlyList<LayoutDiagnostic> Diagnostics => Laid.Trouble;
 
     // ── The caret ───────────────────────────────────────────────────────────
 
@@ -480,7 +489,7 @@ public class ContentElement : FrameworkElement
     /// What the pointer is over <paramref name="at"/>: a bar over what can be written in and an arrow elsewhere, and whatever
     /// the piece there says while it is pointed at (<see cref="Roles.Tip"/>).
     /// </summary>
-    protected virtual Cursor Pointing(Point at)
+    protected virtual Cursor Pointing(LayoutPoint at)
     {
         Tip(Says(Laid.Root.PieceAt(at)));
 
@@ -491,7 +500,7 @@ public class ContentElement : FrameworkElement
     /// What <paramref name="piece"/> says while pointed at: the tip hung on the part of the source it was drawn from, or on
     /// what holds that part. Asked of the tree when the pointer arrives — nothing of it is laid out.
     /// </summary>
-    private static string? Says(Piece piece)
+    private static string? Says(LayoutPiece piece)
     {
         if (!piece.Exists || piece.Naming().TreePart() is not { } named) return null;
 
@@ -562,7 +571,7 @@ public class ContentElement : FrameworkElement
     /// The pieces that answer to a gesture and are covered by what is picked out — empty where nothing is, which is
     /// what makes "for one item" and "for a selection of them" the same question asked twice.
     /// </summary>
-    protected IReadOnlyList<Piece> Selected() =>
+    protected IReadOnlyList<LayoutPiece> Selected() =>
         [.. Laid.Root.SelfAndDescendants()
                  .Where(piece => piece.Acts is not null && piece.Sits() is { Length: > 0 } sits && _engine.Covers(sits.Start))];
 
@@ -597,7 +606,7 @@ public class ContentElement : FrameworkElement
     public bool PointerDoubleClick(Point pointInElement) => _engine.Input(new ContentPress(Unscaled(pointInElement), 2));
 
     /// <summary>What the piece under a point means by <paramref name="gesture"/>, or null where nothing there means anything by it.</summary>
-    protected LayoutAct? Offered(Point at, LayoutGesture gesture) => _engine.Offered(at, gesture);
+    protected LayoutAct? Offered(LayoutPoint at, LayoutGesture gesture) => _engine.Offered(at, gesture);
 
     /// <summary>Whether the host answered the gesture, which is the end of it.</summary>
     protected bool Answered(LayoutAct act) => _engine.Answered(act);
@@ -606,10 +615,10 @@ public class ContentElement : FrameworkElement
     protected IReadOnlyList<LayoutIntent> Hosted(LayoutAct act) => _engine.Hosted(act);
 
     /// <summary>What the language drawn at a point on the content offers there — see <see cref="ContentEngine.Asked"/>.</summary>
-    protected IReadOnlyList<LayoutIntent> Asked(Point at) => _engine.Asked(at);
+    protected IReadOnlyList<LayoutIntent> Asked(LayoutPoint at) => _engine.Asked(at);
 
     /// <summary>Does one of what the language offered at a point, as its edit handler says — see <see cref="ContentEngine.Choose"/>.</summary>
-    protected bool Choose(string verb, Point at) => _engine.Choose(verb, at);
+    protected bool Choose(string verb, LayoutPoint at) => _engine.Choose(verb, at);
 
     // Hosted in a plain panel (the read-only markdown view), the element does get its own mouse events.
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
@@ -706,7 +715,7 @@ public class ContentElement : FrameworkElement
 
             var scaled = Math.Abs(Scale - 1.0) > 0.001;
             if (scaled) dc.PushTransform(new ScaleTransform(Scale, Scale));
-            LayoutPainter.Paint(dc, laid.Root, Palette.Text);
+            WpfPainter.Paint(dc, laid.Root, Palette.Text.Brush());
             if (scaled) dc.Pop();
         }
 
@@ -752,7 +761,7 @@ public class ContentElement : FrameworkElement
         if (_engine.Corner is { } corner)
         {
             if (!_onCorner) dc.PushOpacity(Faint);
-            LayoutPainter.Paint(dc, corner.Root, Palette.Text);
+            WpfPainter.Paint(dc, corner.Root, Palette.Text.Brush());
             if (!_onCorner) dc.Pop();
         }
 
@@ -770,21 +779,21 @@ public class ContentElement : FrameworkElement
             ? new Rect(showing.X / Scale, showing.Y / Scale, showing.Width / Scale, showing.Height / Scale)
             : (Rect?)null;
 
-        _painted = shown is { } near ? LayoutPainter.Around(near) : null;
-        LayoutPainter.Paint(dc, laid.Root, Palette.Text, shown);
+        _painted = shown is { } near ? WpfPainter.Around(near).ToLayout() : null;
+        WpfPainter.Paint(dc, laid.Root, Palette.Text.Brush(), shown);
 
         // One shape for the whole selection, joined across the spacing between what it holds — and not one box
         // around it all: a column of a matrix washed from its first cell to its last would highlight the lot.
         // Only what is near the screen of it: a selection running down a long document is washed where it can be seen.
-        if (state.HasSelection) dc.DrawGeometry(_wash, null, laid.Root.Wash(state.Selection, WashPad, _painted));
+        if (state.HasSelection && laid.Root.Wash(state.Selection, WashPad, _painted) is WpfShape washed) dc.DrawGeometry(_wash, null, washed.Geometry);
 
         // What of content a binding supplied is picked out stands for no source, so it is washed piece by piece —
         // over the shape it stands in where it has one, as a range of source is (see RangeRegions). A box is right
         // for a box, and wrong for an arrow: the box round a diagonal one is mostly not the arrow.
         foreach (var picked in _engine.PickedWhole)
         {
-            if (picked.OnPage() is { } standing) dc.DrawGeometry(_wash, null, standing);
-            else if (picked.Ink() is { IsEmpty: false } ink) dc.DrawRectangle(_wash, null, Rect.Inflate(ink, WashPad, WashPad));
+            if (picked.OnPage() is WpfShape standing) dc.DrawGeometry(_wash, null, standing.Geometry);
+            else if (picked.Ink() is { IsEmpty: false } ink) dc.DrawRectangle(_wash, null, Rect.Inflate(ink.ToWpf(), WashPad, WashPad));
         }
 
         Waves(dc, laid, _painted);
@@ -808,7 +817,7 @@ public class ContentElement : FrameworkElement
     /// still worth looking at, and the reader needs to see which part is not. Only the waves near <paramref name="near"/> are
     /// drawn, where something says what is on screen — all of them where nothing does.
     /// </summary>
-    private void Waves(DrawingContext dc, Laid laid, Rect? near)
+    private void Waves(DrawingContext dc, Laid laid, LayoutRect? near)
     {
         if (!ReferenceEquals(_squiggledIn, laid))
             (_squiggles, _squiggledIn) = (new Squiggled?[laid.Trouble.Count], laid);
@@ -826,18 +835,18 @@ public class ContentElement : FrameworkElement
             }
 
             if (squiggled.Wave is { } wave && (near is not { } painted || painted.IntersectsWith(squiggled.Under)))
-                dc.DrawGeometry(null, trouble.Severity == DiagnosticSeverity.Error ? ErrorWave : WarningWave, wave);
+                dc.DrawGeometry(null, trouble.Severity == LayoutSeverity.Error ? ErrorWave : WarningWave, wave);
         }
     }
 
     /// <summary>The wave under what <paramref name="trouble"/> blames, and what it is drawn under — nothing, where that drew nothing.</summary>
-    private static Squiggled WaveUnder(Laid laid, Diagnostic trouble)
+    private static Squiggled WaveUnder(Laid laid, LayoutDiagnostic trouble)
     {
         var runs = LayoutQuery.Clusters(laid.Root.RangeRects(trouble.Start, trouble.Length), 0);
-        if (runs.Count == 0) return new Squiggled(Rect.Empty, null);
+        if (runs.Count == 0) return new Squiggled(LayoutRect.Empty, null);
 
-        var wave = Squiggle.Under(runs);
-        return new Squiggled(wave.Bounds, wave);
+        var wave = Squiggle.Under(runs.Select(run => run.ToWpf()));
+        return new Squiggled(wave.Bounds.ToLayout(), wave);
     }
 
     /// <summary>
@@ -849,8 +858,8 @@ public class ContentElement : FrameworkElement
     private Laid? _squiggledIn;
 
     /// <summary>What a wave is drawn with, in the colour of what it is under.</summary>
-    private Pen ErrorWave => _errorPen ??= Frozen(new Pen(Palette.Danger, 1.0));
-    private Pen WarningWave => _warningPen ??= Frozen(new Pen(Palette.Warning, 1.0));
+    private Pen ErrorWave => _errorPen ??= Frozen(new Pen(Palette.Danger.Brush(), 1.0));
+    private Pen WarningWave => _warningPen ??= Frozen(new Pen(Palette.Warning.Brush(), 1.0));
     private Pen? _errorPen;
     private Pen? _warningPen;
 
@@ -861,7 +870,7 @@ public class ContentElement : FrameworkElement
     }
 
     /// <summary>A wave worked out, and the stretch of the page it is drawn under.</summary>
-    private readonly record struct Squiggled(Rect Under, Geometry? Wave);
+    private readonly record struct Squiggled(LayoutRect Under, Geometry? Wave);
 
     /// <summary>
     /// The part of the element on screen, in its own coordinates — what whatever scrolls it says it is showing — or null where
@@ -876,11 +885,11 @@ public class ContentElement : FrameworkElement
             if (_onScreen == value) return;
             _onScreen = value;
 
-            _engine.OnScreen = value is { } seen ? new Rect(seen.X / Scale, seen.Y / Scale, seen.Width / Scale, seen.Height / Scale) : null;
+            _engine.OnScreen = value is { } seen ? new LayoutRect(seen.X / Scale, seen.Y / Scale, seen.Width / Scale, seen.Height / Scale) : null;
 
             // Painted again only once what is shown leaves what was painted round it last time.
             if (value is not { } shown || _painted is not { } painted
-                || !painted.Contains(new Rect(shown.X / Scale, shown.Y / Scale, shown.Width / Scale, shown.Height / Scale)))
+                || !painted.Contains(new LayoutRect(shown.X / Scale, shown.Y / Scale, shown.Width / Scale, shown.Height / Scale)))
                 InvalidateVisual();
         }
     }
@@ -888,7 +897,7 @@ public class ContentElement : FrameworkElement
     private Rect? _onScreen;
 
     /// <summary>What was painted round what was shown, the last time anything was painted — in the content's own units.</summary>
-    private Rect? _painted;
+    private LayoutRect? _painted;
 
     /// <summary>Anything the content draws over the shared picture (e.g. a strike-through on a symbol that won't encode). Drawn after the ink and wash, before the caret.</summary>
     protected virtual void PaintOver(DrawingContext dc) { }
@@ -896,21 +905,21 @@ public class ContentElement : FrameworkElement
     /// <summary>Draws the content as it would read after the drop, with the carried part in the accent colour — once it's merged in (braces, spacing and all) nothing else would distinguish it.</summary>
     private void PaintPreview(DrawingContext dc, Laid preview, (int Start, int End) moved)
     {
-    LayoutPainter.Paint(dc, preview.Root, Palette.Text);
+        WpfPainter.Paint(dc, preview.Root, Palette.Text.Brush());
 
     // Over the top rather than instead of: painting all of it and then the carried part again is what
     // keeps this to two calls, and the second colour is the one that shows.
     foreach (var piece in Carried(preview, moved))
-            LayoutPainter.PaintOne(dc, piece, Palette.Accent);
+            WpfPainter.PaintOne(dc, piece, Palette.Accent.Brush());
     }
 
     /// <summary>The outermost pieces of <paramref name="preview"/> lying wholly inside what is carried — outermost so a piece and its children aren't painted twice.</summary>
-    private static IEnumerable<Piece> Carried(Laid preview, (int Start, int End) moved)
+    private static IEnumerable<LayoutPiece> Carried(Laid preview, (int Start, int End) moved)
     {
-    var (start, end) = moved;
+        var (start, end) = moved;
         if (end <= start) yield break;
 
-        var taken = new List<Piece>();
+        var taken = new List<LayoutPiece>();
         foreach (var piece in preview.Root.SelfAndDescendants())
         {
             if (piece.Sits() is not { Length: > 0 } at || at.Start < start || at.End > end) continue;
@@ -924,12 +933,12 @@ public class ContentElement : FrameworkElement
     /// <summary>The caret itself. One place, so content that is empty draws the same one as any other.</summary>
     private void DrawCaret(DrawingContext dc, double x, double y, double height)
     {
-        var pen = new Pen(Palette.Accent, 1.4);
+        var pen = new Pen(Palette.Accent.Brush(), 1.4);
         pen.Freeze();
         dc.DrawLine(pen, new Point(x, y), new Point(x, y + Math.Max(height, 1)));
     }
 
     /// <summary>A point in the element's own pixels, read as a point in the content's.</summary>
-    protected Point Unscaled(Point point) =>
-        Math.Abs(Scale - 1.0) < 0.001 ? point : new Point(point.X / Scale, point.Y / Scale);
+    protected LayoutPoint Unscaled(Point point) =>
+        Math.Abs(Scale - 1.0) < 0.001 ? new LayoutPoint(point.X, point.Y) : new LayoutPoint(point.X / Scale, point.Y / Scale);
 }

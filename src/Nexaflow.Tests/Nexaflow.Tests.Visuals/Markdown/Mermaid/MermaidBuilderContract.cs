@@ -11,6 +11,9 @@ using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -125,7 +128,7 @@ public abstract class MermaidBuilderContract
     public void ItIsWhatTheMarkdownRendererShows() => UiThread.Run(() =>
     {
         var (what, source) = Drawn.First();
-        var element = Alone.Drawn(Language, source, StyleFormat.Dark);
+        var element = Alone.Drawn(Language, source, WpfStyles.Dark);
 
         Assert.IsInstanceOfType<ContentElement>(element, $"{what}: drawn on the shared layout tree");
 
@@ -138,7 +141,7 @@ public abstract class MermaidBuilderContract
     // ── What a diagram's own tests ask of what it drew ──────────────────────
 
     /// <summary>Every piece of a kind that was drawn, in the order it was drawn.</summary>
-    protected static List<Piece> Pieces(Laid laid, string kind) => [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];
+    protected static List<LayoutPiece> Pieces(Laid laid, string kind) => [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];
 
     /// <summary>What a piece stands for, as it was written — empty for a piece standing for nothing.</summary>
     protected static string Written(string source, ISourcePart? part) => part is null ? "" : source.Substring(part.Start, part.Length);
@@ -147,7 +150,7 @@ public abstract class MermaidBuilderContract
     protected static Point Middle(Rect rect) => new(rect.X + (rect.Width / 2), rect.Y + (rect.Height / 2));
 
     /// <summary>The colour a piece is drawn in — the first fill under it — or null where nothing under it is filled.</summary>
-    protected static Color? Fill(Piece piece) =>
+    protected static Color? Fill(LayoutPiece piece) =>
         piece.SelfAndDescendants().SelectMany(inner => inner.Marks.ToArray()).OfType<GeometryMark>()
-            .Select(mark => mark.Fill).OfType<SolidColorBrush>().Select(brush => (Color?)brush.Color).FirstOrDefault();
+            .Select(mark => mark.Fill?.Brush()).OfType<SolidColorBrush>().Select(brush => (Color?)brush.Color).FirstOrDefault();
 }

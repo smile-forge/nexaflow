@@ -6,6 +6,9 @@ using Nexaflow.Visuals.Icons;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -133,7 +136,7 @@ public class ContentLanguageDrawingTests
             if (Laying.Read(named, body).Root.SelfAndDescendants().FirstOrDefault(part => part.Trouble is not null) is { } troubled)
                 faults.Add($"{name}: '{troubled.Text}' {troubled.Trouble}");
 
-            var laid = Laying.Lay(named, body, 480, StyleFormat.Dark);
+            var laid = Laying.Lay(named, body, 480, WpfStyles.Dark);
             if (laid.Trouble.Count > 0) faults.Add($"{name}: {string.Join("; ", laid.Trouble.Select(trouble => trouble.Message))}");
             if (laid.ShowsSource || !Anything(laid)) faults.Add($"{name}: drew no {name}");
         }
@@ -169,7 +172,7 @@ public class ContentLanguageDrawingTests
     // ── Reading the answers ─────────────────────────────────────────────────
 
     private static Laid Lay(string named, string source) =>
-        Laying.Lay(null, $"```{named}\n{source}```\n", 480, StyleFormat.Dark);
+        Laying.Lay(null, $"```{named}\n{source}```\n", 480, WpfStyles.Dark);
 
     /// <summary>Whether anything at all reached the page: a run of words, or a mark of any kind.</summary>
     private static bool Anything(Laid laid)

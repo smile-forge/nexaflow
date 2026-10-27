@@ -6,9 +6,14 @@ using Nexaflow.Markdown.Latex;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
-using TexEnvironment = Nexaflow.Visuals.Text.Markdown.Latex.Tex.TexEnvironment;
+using Nexaflow.Markdown.Layout.Maths;
+using Nexaflow.Markdown.Typesetting.Tex;
+using TexEnvironment = Nexaflow.Markdown.Typesetting.Tex.TexEnvironment;
+using Nexaflow.Markdown.Typesetting;
+using Nexaflow.Markdown.Typesetting.Tex.Rendering;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting;
 
@@ -33,7 +38,7 @@ internal static class Typeset
     {
         _environments ??= new Dictionary<TexStyle, TexEnvironment>();
         if (!_environments.TryGetValue(style, out var environment))
-            _environments[style] = environment = WpfTeXEnvironment.Create(style);
+            _environments[style] = environment = TexFonts.Of(WpfHandles.Medium, "Arial").Environment(style, 20.0);
 
         return environment;
     }
@@ -92,7 +97,7 @@ internal static class Typeset
 
     /// <summary>The stretches that were read but have no drawing, and so are set as the characters written — which the layout says, each with a warning.</summary>
     public static IReadOnlyList<string> Undrawn(string markup) =>
-        Laid(markup).Trouble.Where(said => said.Severity == DiagnosticSeverity.Warning)
+        Laid(markup).Trouble.Where(said => said.Severity == LayoutSeverity.Warning)
                             .Select(said => markup.Substring(said.Start, said.Length))
                             .Distinct()
                             .ToList();

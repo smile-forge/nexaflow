@@ -13,6 +13,10 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Gantt;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Layout.Mermaid.Gantt;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -47,7 +51,7 @@ public class GanttBuilderTests : MermaidBuilderContract
     private static Laid Build(string source, double room = 700) =>
         Laying.Lay("mermaid", source, room);
 
-    private static string Task(string source, Piece piece) => Written(source, piece.Part).Split(':')[0].Trim();
+    private static string Task(string source, LayoutPiece piece) => Written(source, piece.Part).Split(':')[0].Trim();
 
     [TestMethod]
     public void EveryTaskStandsForItsLine_InTheRowItIsWrittenIn() => UiThread.Run(() =>
@@ -94,8 +98,8 @@ public class GanttBuilderTests : MermaidBuilderContract
         Assert.AreEqual(names[0].Right, names[^1].Right, 0.5, "every name set right");
         Assert.IsTrue(names.All(name => name.Right <= bars.Min(bar => bar.Left) - 8), "clear of where the dates start");
 
-        var lines = Pieces(laid, GanttPiece.Rows).Single().Marks.ToArray().OfType<GeometryMark>().Single(mark => mark.Dashes is not null);
-        Assert.AreEqual(4, ((GeometryGroup)lines.Shape).Children.Count, "one along each of the four rows");
+        var lines = Pieces(laid, GanttPiece.Rows).Single().Marks.ToArray().OfType<GeometryMark>().Single(mark => (mark.Stroke as WpfStroke)?.Dashes is not null);
+        Assert.AreEqual(4, ((GeometryGroup)lines.Shape.Geometry()).Children.Count, "one along each of the four rows");
     });
 
     [TestMethod]
@@ -174,6 +178,6 @@ public class GanttBuilderTests : MermaidBuilderContract
             ? new GanttBlockNode(chart, chart.Config, chart.Days, now, chart.AxisFormat, chart.Tick, chart.Marker, chart.Weekday, chart.TopAxis)
             : node);
 
-        return new GanttBuilder(ContentReading.Of(read), EditState.For(source), StyleFormat.Dark, true, Laying.NestingNothing).Lay(700);
+        return new GanttBuilder(ContentReading.Of(read), EditState.For(source), WpfStyles.Dark, true, WpfHandles.Medium, Laying.Hosting).Lay(700);
     }
 }

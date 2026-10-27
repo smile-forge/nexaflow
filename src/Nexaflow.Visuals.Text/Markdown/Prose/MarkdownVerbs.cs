@@ -7,6 +7,7 @@ using System.Windows;
 using System.Windows.Media;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Editing;
 

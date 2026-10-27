@@ -10,6 +10,9 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Printing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Printing;
 
@@ -141,7 +144,7 @@ public class MarkdownPaperTests
     [TestMethod]
     public void NothingWritten_IsOneBlankSheet() => UiThread.Run(() =>
     {
-        var paper = new MarkdownPaginator(string.Empty, new Size(816, 1056), StyleFormat.Light);
+        var paper = new MarkdownPaginator(string.Empty, new Size(816, 1056), WpfStyles.Light);
 
         Assert.AreEqual(1, paper.PageCount);
         Assert.AreNotSame(DocumentPage.Missing, paper.GetPage(0));
@@ -152,7 +155,7 @@ public class MarkdownPaperTests
     {
         var sheet = new Size(Room.Width + (2 * MarkdownPaginator.Margin), Room.Height + (2 * MarkdownPaginator.Margin));
         var inside = new Rect(new Point(MarkdownPaginator.Margin, MarkdownPaginator.Margin), Room);
-        var paper = new MarkdownPaginator(Prose(20), sheet, StyleFormat.Light);
+        var paper = new MarkdownPaginator(Prose(20), sheet, WpfStyles.Light);
 
         Assert.IsTrue(paper.IsPageCountValid);
         Assert.AreEqual(paper.Pages.Count, paper.PageCount);
@@ -172,7 +175,7 @@ public class MarkdownPaperTests
     [TestMethod]
     public void ASurfacePrintsOnWhitePaper_WhateverItIsDrawnIn() => UiThread.Run(() =>
     {
-        var surface = new MarkdownSurface { Palette = StyleFormat.Dark, Markdown = Prose(3) };
+        var surface = new MarkdownSurface { Palette = WpfStyles.Dark, Markdown = Prose(3) };
         var sheet = new Size(Room.Width + (2 * MarkdownPaginator.Margin), Room.Height + (2 * MarkdownPaginator.Margin));
         var ink = Colours(surface.Paginator(sheet).GetPage(0).Visual, new Rect(sheet)).Where(colour => colour.A > 200).ToList();
 
@@ -188,28 +191,28 @@ public class MarkdownPaperTests
     private static string Prose(int paragraphs) => string.Concat(Enumerable.Range(0, paragraphs).Select(n => $"Paragraph {n}: {Paragraph}\n\n"));
 
     private static Laid Laid(string markdown) =>
-        new ContentEngine().Lay(null, EditState.For(markdown), StyleFormat.Light, Room.Width, readOnly: true);
+        new ContentEngine().Lay(null, EditState.For(markdown), WpfStyles.Light, Room.Width, readOnly: true);
 
     /// <summary>Every line of words, where it is on the page.</summary>
-    private static IEnumerable<Rect> Words(Laid laid) =>
+    private static IEnumerable<LayoutRect> Words(Laid laid) =>
         laid.Root.Placed().Where(placed => placed.Piece.Words is not null && !placed.Where.IsEmpty).Select(placed => placed.Where);
 
     /// <summary>The lines of words drawn from a heading.</summary>
-    private static IEnumerable<Rect> HeadingLines(Laid laid) =>
+    private static IEnumerable<LayoutRect> HeadingLines(Laid laid) =>
         laid.Root.Placed()
             .Where(placed => placed.Piece.Words is not null && placed.Piece.Naming() is ContentPart part
                              && (part.Kind == MarkdownKinds.Heading || part.Ancestors().Any(holder => holder.Kind == MarkdownKinds.Heading)))
             .Select(placed => placed.Where);
 
     /// <summary>Where the one piece of <paramref name="kind"/> is drawn.</summary>
-    private static Rect Drawn(Laid laid, string kind) => laid.Root.Placed().Single(placed => placed.Piece.Kind == kind).Where;
+    private static LayoutRect Drawn(Laid laid, string kind) => laid.Root.Placed().Single(placed => placed.Piece.Kind == kind).Where;
 
     /// <summary>Whether any band starts part-way through <paramref name="drawn"/>.</summary>
-    private static bool Cuts(IReadOnlyList<PaperPage> pages, Rect drawn) =>
+    private static bool Cuts(IReadOnlyList<PaperPage> pages, LayoutRect drawn) =>
         pages.SelectMany(page => page.Bands).Any(band => band.Top > drawn.Top + Hair && band.Top < drawn.Bottom - Hair);
 
     /// <summary>The band that holds all of <paramref name="drawn"/>.</summary>
-    private static PaperBand Holding(IReadOnlyList<PaperPage> pages, Rect drawn) =>
+    private static PaperBand Holding(IReadOnlyList<PaperPage> pages, LayoutRect drawn) =>
         pages.SelectMany(page => page.Bands).Single(band => band.Top <= drawn.Top + Hair && drawn.Bottom <= band.Bottom + Hair);
 
     // ── What a sheet is painted with ─────────────────────────────────────────

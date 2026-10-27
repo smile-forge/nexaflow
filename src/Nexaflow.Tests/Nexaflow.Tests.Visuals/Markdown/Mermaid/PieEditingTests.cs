@@ -10,6 +10,11 @@ using System.Windows.Input;
 using System.Windows.Controls;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Pie;
+using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Pie;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -110,8 +115,8 @@ public class PieEditingTests
         for (var across = 1; across < 20; across++)
             for (var down = 1; down < 20; down++)
             {
-                var at = new Point(box.X + (box.Width * across / 20), box.Y + (box.Height * down / 20));
-                if (wedge.Region!.FillContains(at - wedge.Anchor) && !shares.Any(share => share.Contains(at))) return at;
+                var at = new LayoutPoint(box.X + (box.Width * across / 20), box.Y + (box.Height * down / 20));
+                if (wedge.Region!.Contains(at - wedge.Anchor) && !shares.Any(share => share.Contains(at))) return at.ToWpf();
             }
 
         Assert.Fail("no point inside the wedge");
@@ -286,13 +291,13 @@ public class PieEditingTests
         Edited((editor, pie) =>
         {
             var block = pie;
-            Piece First(string kind) => pie.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == kind);
+            LayoutPiece First(string kind) => pie.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == kind);
             static Point Middle(Rect box) => new(box.X + (box.Width / 2), box.Y + (box.Height / 2));
 
-            Assert.AreEqual(Cursors.IBeam, block.PointerCursor(Middle(First(PiePiece.Label).Bounds)), "a label is written in");
-            Assert.AreEqual(Cursors.IBeam, block.PointerCursor(Middle(First(PiePiece.Value).Bounds)), "and so is a value");
-            Assert.AreEqual(Cursors.Arrow, block.PointerCursor(Middle(First(PiePiece.Share).Bounds)), "a share is worked out");
-            Assert.AreEqual(Cursors.Arrow, block.PointerCursor(Middle(First(MermaidPiece.Swatch).Bounds)), "a swatch is drawing");
+            Assert.AreEqual(Cursors.IBeam, block.PointerCursor(Middle(First(PiePiece.Label).Bounds.ToWpf())), "a label is written in");
+            Assert.AreEqual(Cursors.IBeam, block.PointerCursor(Middle(First(PiePiece.Value).Bounds.ToWpf())), "and so is a value");
+            Assert.AreEqual(Cursors.Arrow, block.PointerCursor(Middle(First(PiePiece.Share).Bounds.ToWpf())), "a share is worked out");
+            Assert.AreEqual(Cursors.Arrow, block.PointerCursor(Middle(First(MermaidPiece.Swatch).Bounds.ToWpf())), "a swatch is drawing");
             Assert.AreEqual(Cursors.Arrow, block.PointerCursor(InsideAWedge(pie)), "and so is a wedge");
             Assert.AreEqual(Cursors.Arrow, block.PointerCursor(new Point(1, 1)), "and the card round it all is nothing");
         }));
@@ -331,7 +336,7 @@ public class PieEditingTests
             var shares = pie.Laid.Root.SelfAndDescendants().Where(piece => piece.Kind == PiePiece.Share).ToList();
 
             Assert.IsTrue(shares.Count > 0);
-            Assert.IsTrue(shares.All(share => share.Stops == Stops.None),
+            Assert.IsTrue(shares.All(share => share.Stops == LayoutStops.None),
                           "a worked-out share is not a place to stand, so stepping never stops in one");
         }));
 
@@ -531,8 +536,8 @@ public class PieEditingTests
         {
             ChooseTheRow(pie, "Dogs");
 
-            var from = Middle(Row(pie, "Dogs").SelfAndDescendants().First(piece => piece.Kind == MermaidPiece.Swatch).Bounds);
-            var to = Middle(Row(pie, "Birds").Bounds);
+            var from = Middle(Row(pie, "Dogs").SelfAndDescendants().First(piece => piece.Kind == MermaidPiece.Swatch).Bounds.ToWpf());
+            var to = Middle(Row(pie, "Birds").Bounds.ToWpf());
 
             pie.BeginPointerSelect(from);
             pie.ExtendPointerSelect(new Point(from.X, from.Y + ((to.Y - from.Y) / 2)));
@@ -550,7 +555,7 @@ public class PieEditingTests
     public void TheLegendsRibbonSaysWhereItGoes_AndChoosingMovesIt() => UiThread.Run(() =>
         InADocument((editor, pie) =>
         {
-            var ribbon = Ribbon(editor, Row(pie, "Dogs").Bounds);
+            var ribbon = Ribbon(editor, Row(pie, "Dogs").Bounds.ToWpf());
 
             CollectionAssert.AreEqual(new[] { "pie.legend.left", "pie.legend.top", "pie.legend.right", "pie.legend.bottom", "pie.legend.center" },
                                       ribbon.Offers.Where(offer => offer.Group == "Legend").Select(offer => offer.Verb).ToArray());
@@ -559,7 +564,7 @@ public class PieEditingTests
             Click(ribbon, "pie.legend.left");
             StringAssert.Contains(editor.Markdown, "```mermaid\n---\nconfig:\n  pie:\n    legendPosition: left\n---\npie showData", editor.Markdown);
 
-            Click(Ribbon(editor, Row(MarkdownEditorHarness.Block(editor)!, "Dogs").Bounds), "pie.legend.top");
+            Click(Ribbon(editor, Row(MarkdownEditorHarness.Block(editor)!, "Dogs").Bounds.ToWpf()), "pie.legend.top");
             StringAssert.Contains(editor.Markdown, "    legendPosition: top\n---", $"the one field given its new value: {editor.Markdown}");
         }));
 
@@ -636,7 +641,7 @@ public class PieEditingTests
             Holding(editor, " and\nfriends");
             PressInTheTitle(pie, atEnd: true);
 
-            Assert.IsTrue(Ribbon(editor, pie.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == MermaidPiece.Title).Bounds)
+            Assert.IsTrue(Ribbon(editor, pie.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == MermaidPiece.Title).Bounds.ToWpf())
                               .Offers.Any(offer => offer.Verb == LayoutVerbs.Paste), "the title holds words");
 
             editor.Pressed(Key.V, ModifierKeys.Control);
@@ -667,7 +672,7 @@ public class PieEditingTests
             Holding(editor, "Big ");
             PressPastTheLabel(pie, "Cats");
 
-            var ribbon = Ribbon(editor, Row(pie, "Cats").Bounds);
+            var ribbon = Ribbon(editor, Row(pie, "Cats").Bounds.ToWpf());
             Assert.IsTrue(ribbon.Offers.Any(offer => offer.Verb == LayoutVerbs.Paste), "the caret is in a label");
             Assert.IsFalse(ribbon.Offers.Any(offer => offer.Verb == "cut"), "nothing is cut from a pie");
 
@@ -676,7 +681,7 @@ public class PieEditingTests
 
             pie = MarkdownEditorHarness.Block(editor)!;
             ChooseTheRow(pie, "Dogs");
-            var chosen = Ribbon(editor, Row(pie, "Dogs").Bounds);
+            var chosen = Ribbon(editor, Row(pie, "Dogs").Bounds.ToWpf());
             Assert.IsFalse(chosen.Offers.Any(offer => offer.Verb is LayoutVerbs.Paste or "cut"), "with a slice chosen there is no caret to paste at");
         }));
 
@@ -684,7 +689,7 @@ public class PieEditingTests
     public void EveryOptionOnThePiesRibbonIsDrawn_AndSaysInWordsWhatItIs() => UiThread.Run(() =>
         InADocument((editor, pie) =>
         {
-            var offers = Ribbon(editor, Row(pie, "Dogs").Bounds).Offers
+            var offers = Ribbon(editor, Row(pie, "Dogs").Bounds.ToWpf()).Offers
                 .Concat(Ribbon(editor, new Rect(InsideAWedge(pie), new Size(0, 0))).Offers)
                 .Where(offer => offer.Group is not null)
                 .ToList();
@@ -699,7 +704,7 @@ public class PieEditingTests
         MarkdownEditorHarness.Clipboard = new DataObject(DataFormats.UnicodeText, words);
 
     /// <summary>The legend's row for the slice labelled <paramref name="name"/>.</summary>
-    private static Piece Row(DocumentBlock pie, string name)
+    private static LayoutPiece Row(DocumentBlock pie, string name)
     {
         var at = pie.Source.IndexOf(name, pie.Start, StringComparison.Ordinal);
         return pie.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == MermaidPiece.Key && piece.Sits().Start <= at && at < piece.Sits().End);

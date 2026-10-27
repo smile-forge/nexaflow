@@ -4,11 +4,15 @@ using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Mindmap;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Mindmap;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -64,7 +68,7 @@ public class MindmapBuilderTests : MermaidBuilderContract
     private static Laid Build(string source, double room = 700) =>
         Laying.Lay("mermaid", source, room);
 
-    private static Piece Node(Laid laid, string source, string title) =>
+    private static LayoutPiece Node(Laid laid, string source, string title) =>
         Pieces(laid, MindmapPiece.Node).Single(node => Written(source, node.Part).Contains(title, System.StringComparison.Ordinal));
 
     [TestMethod]
@@ -111,10 +115,10 @@ public class MindmapBuilderTests : MermaidBuilderContract
             .SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>().First(mark => mark.Stroke is not null);
         var words = node.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<TextMark>().First();
 
-        Assert.AreEqual(((SolidColorBrush)line.Stroke!).Color, ((SolidColorBrush)shape.Stroke!).Color, "edged in its branch's colour");
-        Assert.AreEqual(((SolidColorBrush)shape.Stroke).Color, ((SolidColorBrush)shape.Fill!).Color, "washed in it");
-        Assert.IsTrue(shape.Fill.Opacity < 0.5, "and only washed, not filled solid");
-        Assert.AreSame(StyleFormat.Dark.Text, words.Foreground, "its words in the diagram's own ink");
+        Assert.AreEqual(((SolidColorBrush)line.Stroke!.Ink!.Brush()).Color, ((SolidColorBrush)shape.Stroke!.Ink!.Brush()).Color, "edged in its branch's colour");
+        Assert.AreEqual(((SolidColorBrush)shape.Stroke.Ink!.Brush()).Color, ((SolidColorBrush)shape.Fill!.Brush()).Color, "washed in it");
+        Assert.IsTrue(shape.Fill!.Brush().Opacity < 0.5, "and only washed, not filled solid");
+        Assert.AreSame(WpfStyles.Dark.Text, words.Ink, "its words in the diagram's own ink");
     });
 
     [TestMethod]
@@ -134,7 +138,7 @@ public class MindmapBuilderTests : MermaidBuilderContract
     {
         var laid = Build(Map);
         var branch = Pieces(laid, MindmapPiece.Branch).Single(one => Written(Map, one.Part).Trim() == "CommonMark");
-        var middle = new Point(branch.Bounds.X + (branch.Bounds.Width / 2), branch.Bounds.Y + (branch.Bounds.Height / 2));
+        var middle = new LayoutPoint(branch.Bounds.X + (branch.Bounds.Width / 2), branch.Bounds.Y + (branch.Bounds.Height / 2));
 
         Assert.AreEqual("CommonMark", Written(Map, laid.Root.PieceAt(middle).Part).Trim(), "pressing the branch means the node it reaches");
     });
@@ -142,7 +146,7 @@ public class MindmapBuilderTests : MermaidBuilderContract
     /// <summary>What a branch is drawn in, by the node it reaches.</summary>
     private static Color Stroke(Laid laid, string source, string reaches) =>
         ((SolidColorBrush)Pieces(laid, MindmapPiece.Branch).Single(one => Written(source, one.Part).Trim() == reaches)
-            .SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>().First(mark => mark.Stroke is not null).Stroke!).Color;
+            .SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>().First(mark => mark.Stroke is not null).Stroke!.Ink!.Brush()).Color;
 
     [TestMethod]
     public void UnclearIndentationHangsANodeOffTheNearestNodeIndentedLess() => UiThread.Run(() =>

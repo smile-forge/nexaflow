@@ -7,8 +7,8 @@ own, planned in detail then, and finished before the next one starts.
 ## A class and a state diagram keep an address off the thing it applies to
 
 Every language that lets a reader write an address marks it `Roles.Destination`, and what leads somewhere is a `Kinds.Link`
-holding it — the shape prose writes a link in. Whoever draws one reads it off the tree and puts a `LayoutIntent` on what it drew
-(`MarkdownBuilder.Linked`, `FlowchartBuilder.Answers`), so a press is answered by what it landed on rather than by walking the
+holding it — the shape prose writes a link in. Whoever draws one reads it off the tree and puts a `LayoutAsk` on what it drew
+(`MarkdownBuilder.Linked`, `FlowchartDrawing.Answers`), so a press is answered by what it landed on rather than by walking the
 tree again. Markdown answers because a link node holds its destination, and a reference-style link holds what the definition
 said as a derived `Held` string. A flowchart answers because `ResolveChart` puts a `click` line's address on the node of the
 graph it names.
@@ -94,9 +94,9 @@ stage. A builder walks a finished reading and decides only where things go. R12 
 enforceable.
 
 **Where it stands.** This is the deepest divergence, and it is a pattern rather than a set of slips. Nine diagram
-builders still carry a private reader model of their own — `ArchitectureBuilder`, `BlockBuilder`, `C4Builder`,
-`ClassBuilder`, `ErBuilder`, `RequirementBuilder`, `SequenceBuilder`, `StateBuilder`, `VennBuilder` — five of them in a
-`*Builder.Reading.cs` partial whose name says what it is doing. Those models are
+builders still carry a private reader model of their own — `ArchitectureBuilder`, `BlockBuilder`,
+`C4Builder`, `ClassDrawing`, `ErBuilder`, `RequirementBuilder`, `SequenceDrawing`,
+`StateBuilder`, `VennBuilder` — three of them in a `.Reading.cs` partial whose name says what it is doing. Those models are
 built by walking the AST and working out what it means, which is stage work sitting in the wrong component. It shows
 up in three concrete ways:
 
@@ -104,16 +104,17 @@ up in three concrete ways:
   opening.Start)` and its variants, while `Nexaflow.Markdown` — where spans belong — mentions `SourceSpan` three
   times in total. The builders are reconstructing which characters a construct covers because nothing gives it to
   them.
-- **Identity derived from an offset.** `ErBuilder`, `RequirementBuilder` and `SequenceBuilder` name an unwritten thing
+- **Identity derived from an offset.** `ErBuilder`, `RequirementBuilder` and `SequenceDrawing` name an unwritten thing
   by appending a source offset to a prefix, so a node's identity moves when text above it changes.
 - **Relationships decided by comparing offsets.** Which side of a boundary a group marker was written
-  (`ArchitectureBuilder`), whether a centre marker came before or after an arrow (`SequenceBuilder`), whether a part
-  falls inside a cell (`LatexBuilder`), whether a part is inside the stretch shown as typed (`MermaidBuilder`) — all
+  (`ArchitectureBuilder`), whether a centre marker came before or after an arrow (`SequenceDrawing`),
+  whether a part falls inside a cell (`LatexBuilder`), whether a part is inside the stretch shown as typed
+  (`DiagramText`) — all
   answered with `<` and `>` on offsets.
 
 **The flowchart is done, and says what the shape of the rest is.** `ResolveChart` reads the chart as the graph it is —
 every node once, what it says, the shape it is drawn as, the subgraph it belongs to, where it leads, and every
-connection by the names of its two ends. `FlowchartBuilder` walks that reading: it keeps no index of its own, works
+connection by the names of its two ends. `FlowchartDrawing` walks that reading: it keeps no index of its own, works
 nothing out from a `click` line or an `id@{ … }` line, and decides nothing about what the chart holds.
 
 What that taught, and what the shape of this section has to account for: **a stage has no positions**, because a
@@ -121,7 +122,7 @@ derived part stands for no characters at all. So "delete the `.Reading` partial"
 stage can say is what exists, what it is called, what it says, what it amounts to and what joins what; what is left is
 finding the characters each of those was written as — the mentions of a node by its id, the links in the order they are
 written, the metadata about each. That is position work and not semantics, and it is all that
-`FlowchartBuilder.Reading.cs` still does. The target for each of the remaining nine is the same: a `.Reading` partial
+`FlowchartDrawing.Reading.cs` still does. The target for each of the remaining nine is the same: a `.Reading` partial
 that resolves positions and decides nothing. Giving a reading a way to name written parts directly would close even
 that, and wants its own section.
 
@@ -139,7 +140,7 @@ that, and wants its own section.
 
 **Shape.** One diagram at a time, each a self-contained change: name the facts its reader model works out, move them
 into stages saying them in that diagram's own nodes, reduce the builder to resolving positions. Nine of these left,
-plus `LatexBuilder`'s cell containment and `MermaidBuilder`'s raw-zone test, which is shared by every diagram and so
+plus `LatexBuilder`'s cell containment and `DiagramText`'s raw-zone test, which is shared by every diagram and so
 should come before the rest.
 
 **Depends on.** Section 1, so that a part-migrated language still draws something.
@@ -300,7 +301,7 @@ the staff are the default's, the staff is the handler's, and neither needs to kn
 
 1. **§1, the engine's stopgap** — held. Nothing waited on it, and everything else is safer for it.
 2. **§2, reading out of the builders** — the deepest, and everything except §3 waits on it. The flowchart is done;
-   `MermaidBuilder`'s shared raw-zone test next, then one diagram at a time; §4 rides along with Pie.
+   `DiagramText`'s shared raw-zone test next, then one diagram at a time; §4 rides along with Pie.
 3. **§3, the parser's write half** — the splice interface is designed and proved against two languages, so this can
    run beside §2 now. What is left is the handlers, one language at a time.
 4. **§6's R13 analyzer** — as soon as §2 makes it true for a language, so the next language cannot regress.

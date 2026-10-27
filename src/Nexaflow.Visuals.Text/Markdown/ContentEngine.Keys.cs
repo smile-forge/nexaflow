@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -217,7 +218,7 @@ public sealed partial class ContentEngine
         var at = root.CaretRect(_state.Caret);
         if (at.IsEmpty) return;
 
-        var edge = new Point(end ? Math.Max(_laid.Size.Width, at.Right) + 1 : -1, at.Y + (at.Height / 2));
+        var edge = new LayoutPoint(end ? Math.Max(_laid.Size.Width, at.Right) + 1 : -1, at.Y + (at.Height / 2));
 
         MoveCaretTo(root.OffsetAt(edge), extend);
     }

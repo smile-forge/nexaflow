@@ -8,6 +8,9 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 
@@ -43,22 +46,21 @@ public class ContentWordsTests
             ? state.Source[Number.Start..Number.End()]
             : double.Parse(state.Source[Number.Start..Number.End()], CultureInfo.InvariantCulture).ToString("0.00", CultureInfo.InvariantCulture);
 
-        var build = new LayoutBuilder();
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("row", new SourceSpan(0, state.Source.Length));
 
         // A formatted view of its own source: pressing it shows what was written, which is what `writes` says.
-        LayoutText.Words(build, Set(number), default, 400, TextAlignment.Left, Number, "value", written, writes: true);
-        LayoutText.Words(build, Set("x"), new Point(200, 0), 400, TextAlignment.Left, Letter, "letter");
+        LayoutText.Words(build, Set(number), default, 400, LayoutAlign.Left, Number, "value", written, writes: true);
+        LayoutText.Words(build, Set("x"), new LayoutPoint(200, 0), 400, LayoutAlign.Left, Letter, "letter");
 
         build.Close();
 
         var tree = build.Seal();
-        return new Laid(tree, tree.Root.Bounds.Size, []);
+        return new Laid(tree, tree.Root.Bounds.Width, tree.Root.Bounds.Height, []);
     }
 
-    private static FormattedText Set(string text) =>
-        new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-            new Typeface("Segoe UI"), 12, Brushes.Black, pixelsPerDip: 1.0);
+    private static IShapedText Set(string text) =>
+        WpfMedium.OnThisThread.Shape(text, new Typeface("Segoe UI"), 12, Brushes.Black, null, CultureInfo.InvariantCulture);
 
     private static ContentElement Element(bool readOnly = false)
     {
@@ -69,11 +71,11 @@ public class ContentWordsTests
         return element;
     }
 
-    private static Piece Run(ContentElement element, string kind) =>
+    private static LayoutPiece Run(ContentElement element, string kind) =>
         element.Laid.Root.SelfAndDescendants().Single(piece => piece.Kind == kind);
 
     /// <summary>Where the middle of a letter of a run is, in the element's own coordinates.</summary>
-    private static Point Middle(Piece run, int index)
+    private static Point Middle(LayoutPiece run, int index)
     {
         var letter = run.Words!.Covers(index, index + 1);
         return new Point(run.Anchor.X + letter.X + (letter.Width / 2), run.Anchor.Y + letter.Y + (letter.Height / 2));

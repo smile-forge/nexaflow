@@ -6,11 +6,14 @@ using System.Windows.Media;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
-using Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
+using Nexaflow.Markdown.Layout.Scores;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Media.Imaging;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music.LilyPond;
 
@@ -102,9 +105,9 @@ public class LilyPondCorpusParityTests
     private static string? Compare(string abc, string ly)
     {
         Laid one, other;
-        try { one = Laying.Engraved("abc", abc, Width, StyleFormat.Light); }
+        try { one = Laying.Engraved("abc", abc, Width, WpfStyles.Light); }
         catch (Exception e) { return $"abc threw {e.GetType().Name}: {e.Message}"; }
-        try { other = Laying.Engraved("lilypond", ly, Width, StyleFormat.Light); }
+        try { other = Laying.Engraved("lilypond", ly, Width, WpfStyles.Light); }
         catch (Exception e) { return $"ly threw {e.GetType().Name}: {e.Message}"; }
 
         var (abcNotes, abcBars) = Read(one);
@@ -148,13 +151,13 @@ public class LilyPondCorpusParityTests
     }
 
     /// <summary>How many staves the first bracket joins — one per voice — or one where nothing is bracketed.</summary>
-    private static int Voices(Piece root, List<Piece> systems) =>
+    private static int Voices(LayoutPiece root, List<LayoutPiece> systems) =>
         All(root, "bracket").FirstOrDefault() is { } bracket
             ? Math.Max(1, systems.Count(system => Top(system) >= bracket.Bounds.Top - 1 && Top(system) <= bracket.Bounds.Bottom + 1))
             : 1;
 
     /// <summary>Where a system's staff starts: its top line.</summary>
-    private static double Top(Piece system) => All(system, "staff-line").Select(line => line.Bounds.Top).DefaultIfEmpty(0).Min();
+    private static double Top(LayoutPiece system) => All(system, "staff-line").Select(line => line.Bounds.Top).DefaultIfEmpty(0).Min();
 
     /// <summary>
     /// abc2ly's one systematic slip, undone so the sweep can see past it: a tune whose ABC names its voice
@@ -180,7 +183,7 @@ public class LilyPondCorpusParityTests
         return ly;
     }
 
-    private static List<Piece> All(Piece root, string kind) => [.. root.SelfAndDescendants().Where(p => p.Kind == kind)];
+    private static List<LayoutPiece> All(LayoutPiece root, string kind) => [.. root.SelfAndDescendants().Where(p => p.Kind == kind)];
 
     /// <summary>
     /// One tune's two engravings, the ABC above the LilyPond, written beside the report. A line in the report
@@ -213,7 +216,7 @@ public class LilyPondCorpusParityTests
     /// <summary>A source engraved as the page shows it, at the sweep's width.</summary>
     private static RenderTargetBitmap Engraved(string source, string dialect)
     {
-        var element = new Nexaflow.Visuals.Text.Editing.ContentElement(source, StyleFormat.Light, new ContentEngine(), dialect) { IsReadOnly = true };
+        var element = new Nexaflow.Visuals.Text.Editing.ContentElement(source, WpfStyles.Light, new ContentEngine(), dialect) { IsReadOnly = true };
         element.Measure(new Size(Width, double.PositiveInfinity));
         element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
 

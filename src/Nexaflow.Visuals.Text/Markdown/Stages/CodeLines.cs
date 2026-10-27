@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Code;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Visuals.Text.Markdown.Code;
 

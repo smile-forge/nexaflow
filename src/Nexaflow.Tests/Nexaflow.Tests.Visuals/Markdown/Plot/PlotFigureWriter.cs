@@ -7,7 +7,10 @@ using System.Windows.Media.Imaging;
 using Nexaflow.Markdown.Plot;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
-using Nexaflow.Visuals.Text.Markdown.Plot;
+using Nexaflow.Markdown.Layout.Plot;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Plot;
 
@@ -363,65 +366,65 @@ public class PlotFigureWriter
 
         UiThread.Run(() =>
         {
-            Write(Path.Combine(folder, "scatter.png"), Plain, PlotFence.Scatter, StyleFormat.Light,
+            Write(Path.Combine(folder, "scatter.png"), Plain, PlotFence.Scatter, WpfStyles.Light,
                               Brushes.White, 640);
 
                         Write(Path.Combine(folder, "settings-furnished.png"), Furnished, PlotFence.Scatter,
-                              StyleFormat.Light, Brushes.White, 640);
+                              WpfStyles.Light, Brushes.White, 640);
 
                         Write(Path.Combine(folder, "settings-jitter-none.png"), Stacked(0), PlotFence.Scatter,
-                              StyleFormat.Light, Brushes.White, 420);
+                              WpfStyles.Light, Brushes.White, 420);
 
                         Write(Path.Combine(folder, "settings-jitter.png"), Stacked(0.6), PlotFence.Scatter,
-                              StyleFormat.Light, Brushes.White, 420);
+                              WpfStyles.Light, Brushes.White, 420);
 
                         Write(Path.Combine(folder, "settings-shaped.png"), Shaped, PlotFence.Scatter,
-                              StyleFormat.Light, Brushes.White, 520);
+                              WpfStyles.Light, Brushes.White, 520);
 
                         Write(Path.Combine(folder, "scatter-fit.png"),
                               "fit: lm\nse: true\nstats: r r2 n p\n" + Plain,
-                              PlotFence.Scatter, StyleFormat.Light, Brushes.White, 640);
+                              PlotFence.Scatter, WpfStyles.Light, Brushes.White, 640);
 
                         Write(Path.Combine(folder, "scatter-loess.png"),
                               "fit: loess\nse: true\nstats: r n\nmethod: spearman\n" + Plain,
-                              PlotFence.Scatter, StyleFormat.Light, Brushes.White, 640);
+                              PlotFence.Scatter, WpfStyles.Light, Brushes.White, 640);
 
-            Write(Path.Combine(folder, "scatter-groups.png"), Grouped, PlotFence.Scatter, StyleFormat.Light,
+            Write(Path.Combine(folder, "scatter-groups.png"), Grouped, PlotFence.Scatter, WpfStyles.Light,
                   Brushes.White, 640);
 
-            Write(Path.Combine(folder, "bubble.png"), Bubbles, PlotFence.Bubble, StyleFormat.Light,
+            Write(Path.Combine(folder, "bubble.png"), Bubbles, PlotFence.Bubble, WpfStyles.Light,
                               Brushes.White, 640);
 
-                        Write(Path.Combine(folder, "scatter-log.png"), Scaled, PlotFence.Scatter, StyleFormat.Light,
+                        Write(Path.Combine(folder, "scatter-log.png"), Scaled, PlotFence.Scatter, WpfStyles.Light,
                                           Brushes.White, 640);
 
                                     Write(Path.Combine(folder, "heatmap-correlations.png"), Correlations, PlotFence.Heatmap,
-                                          StyleFormat.Light, Brushes.White, 620);
+                                          WpfStyles.Light, Brushes.White, 620);
 
                                     Write(Path.Combine(folder, "heatmap-counts.png"), Counts, PlotFence.Heatmap,
-                                                      StyleFormat.Light, Brushes.White, 620);
+                                                      WpfStyles.Light, Brushes.White, 620);
 
                                                 Write(Path.Combine(folder, "heatmap-hex.png"), Crowded("hex", 26), PlotFence.Heatmap,
-                                                      StyleFormat.Light, Brushes.White, 620);
+                                                      WpfStyles.Light, Brushes.White, 620);
 
                                                 Write(Path.Combine(folder, "heatmap-bin2d.png"), Crowded("bin2d", 24), PlotFence.Heatmap,
-                                                                  StyleFormat.Light, Brushes.White, 620);
+                                                                  WpfStyles.Light, Brushes.White, 620);
 
                                                             Write(Path.Combine(folder, "density-bands.png"), Clouded("bands", points: false),
-                                                                  PlotFence.Density2d, StyleFormat.Light, Brushes.White, 620);
+                                                                  PlotFence.Density2d, WpfStyles.Light, Brushes.White, 620);
 
                                                             Write(Path.Combine(folder, "density-lines.png"), Clouded("lines", points: true),
-                                                                  PlotFence.Density2d, StyleFormat.Light, Brushes.White, 620);
+                                                                  PlotFence.Density2d, WpfStyles.Light, Brushes.White, 620);
 
                                                             Write(Path.Combine(folder, "heatmap-computed.png"), Computed, PlotFence.Heatmap,
-                                                                  StyleFormat.Light, Brushes.White, 620);
+                                                                  WpfStyles.Light, Brushes.White, 620);
 
                                                             Write(Path.Combine(folder, "scatter-facets.png"), Split, PlotFence.Scatter,
-                                                                  StyleFormat.Light, Brushes.White, 660);
+                                                                  WpfStyles.Light, Brushes.White, 660);
         });
     }
 
-    private static void Write(string path, string source, PlotFence fence, StyleFormat palette,
+    private static void Write(string path, string source, PlotFence fence, LayoutStyle palette,
                               Brush ground, double width)
     {
         var host = new Border

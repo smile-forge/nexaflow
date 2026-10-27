@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Input;
 
 using System.Windows.Threading;
+using Nexaflow.Markdown.Layout;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;

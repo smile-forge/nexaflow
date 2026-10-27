@@ -22,17 +22,11 @@ using Nexaflow.Markdown.Matrix.Pdf417.Stages;
 using Nexaflow.Markdown.Matrix.Qr.Stages;
 
 using Nexaflow.Visuals.Text.Editing;
-using Nexaflow.Visuals.Text.Markdown.Barcode;
-using Nexaflow.Visuals.Text.Markdown.Chemistry;
 using Nexaflow.Visuals.Text.Markdown.Code;
 using Nexaflow.Visuals.Text.Markdown.Latex;
-using Nexaflow.Visuals.Text.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Music;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
-using Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
-using Nexaflow.Visuals.Text.Markdown.Nomnoml;
-using Nexaflow.Visuals.Text.Markdown.Plot;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 using Nexaflow.Visuals.Text.Markdown.Stages;
 using Nexaflow.Visuals.Text.Markdown.WordCloud;
@@ -43,6 +37,7 @@ using Nexaflow.Icons;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Rtf;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Markdown.Layout;
 
 namespace Nexaflow.Visuals.Text.Markdown.Languages;
 
@@ -79,7 +74,7 @@ internal static class Shipped
             // After it: a block shown as written is not what was read, and is never kept as if it were.
             show.Shown is { } zone ? new ShowBlocksAsWritten(zone, show.At, show.Reads) : null,
         ],
-        Builder: typeof(MarkdownBuilder))
+        Builder: ContentLayouts.Markdown)
         {
             Writable = true,
             Windowed = MarkdownParser.Windowed,
@@ -104,7 +99,7 @@ internal static class Shipped
             // Last of what is read, because a block is only the same as it was when everything worked out about it is too.
             show.Unchanged,
         ],
-        Builder: typeof(MarkdownBuilder))
+        Builder: ContentLayouts.Markdown)
         {
             Windowed = RtfParser.Windowed,
             Editing = new ReadAsDrawn(),
@@ -119,7 +114,7 @@ internal static class Shipped
         Reads: static word => "mermaid".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
         Parser: static () => static source => ContentParse.Of(MermaidFenceParser.Parse(source)),
         Stages: static (_, _) => [],
-        Builder: typeof(MermaidFenceBuilder))
+        Builder: ContentLayouts.MermaidFence)
         {
             // Whoever writes in the block writes in the diagram, which is laid out as this is — and whose own handler is told the edit.
             Writable = true,
@@ -133,8 +128,8 @@ internal static class Shipped
     public static readonly IReadOnlyList<ContentLanguage> Diagrams =
     [
         .. Enum.GetValues<MermaidDiagram>()
-               .Where(diagram => MermaidBuilders.For(diagram) is not null)
-               .Select(diagram => Diagram(diagram, MermaidBuilders.For(diagram)!)),
+               .Where(diagram => ContentLayouts.Diagram(diagram) is not null)
+               .Select(diagram => Diagram(diagram, ContentLayouts.Diagram(diagram)!)),
     ];
 
     /// <summary><paramref name="diagram"/>, drawn by <paramref name="builder"/>.</summary>
@@ -372,7 +367,7 @@ internal static class Shipped
         Reads: static word => "nomnoml".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
         Parser: static () => static source => ContentParse.Of(NomnomlParser.Parse(source)),
         Stages: static (_, _) => [],
-        Builder: typeof(NomnomlBuilder))
+        Builder: ContentLayouts.Nomnoml)
             {
                 Name = "nomnoml",
                                 DisplayName = static () => Str.Get("Text.Language.Nomnoml"),
@@ -457,14 +452,14 @@ internal static class Shipped
 
     /// <summary>A 2D code, <paramref name="named"/>: read as fields, encoded by its own stage, and drawn as the symbol that comes to.</summary>
     private static ContentLanguage Symbol(string named, Func<string?, bool> reads, IAstStage encode) =>
-        new(reads, () => source => ContentParse.Of(MatrixParser.Parse(source, named)), (_, _) => [encode], typeof(MatrixBuilder));
+        new(reads, () => source => ContentParse.Of(MatrixParser.Parse(source, named)), (_, _) => [encode], ContentLayouts.Matrix);
 
     /// <summary>A one-dimensional barcode, in whichever symbology the block names.</summary>
     public static readonly ContentLanguage Barcode = new(
         Reads: static word => "barcode".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
         Parser: static () => static source => ContentParse.Of(BarcodeParser.Parse(source)),
         Stages: static (_, show) => show.Writing ? [new HoldValue(), new EncodeBarcode(writing: true)] : [new EncodeBarcode(writing: false)],
-        Builder: typeof(BarcodeBuilder))
+        Builder: ContentLayouts.Barcode)
         {
             Writable = true,
             Name = "barcode",
@@ -483,7 +478,7 @@ internal static class Shipped
         Reads: static word => "smiles".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
         Parser: static () => static source => ContentParse.Of(SmilesParser.Parse(source)),
         Stages: static (_, _) => SmilesPipeline.Of().Stages,
-        Builder: typeof(SmilesBuilder))
+        Builder: ContentLayouts.Smiles)
             {
                 Name = "smiles",
                                 DisplayName = static () => Str.Get("Text.Language.Smiles"),
@@ -500,7 +495,7 @@ internal static class Shipped
         Reads: static word => word?.Trim().ToLowerInvariant() is "latex" or "math" or "tex",
         Parser: static () => static source => ContentParse.Of(TexParser.Parse(source)),
         Stages: static (tree, show) => TexPipeline.Of(Editing(show.Own(tree.Width)), holes: show.Writing).Stages,
-        Builder: typeof(LatexBuilder))
+        Builder: ContentLayouts.Latex)
         {
             Writable = true,
             Editing = new EditedBy(LatexEdits.Instance),
@@ -520,7 +515,7 @@ internal static class Shipped
         Reads: static word => MusicDialectExtensions.FromTag(word ?? string.Empty) == MusicDialect.Abc,
         Parser: static () => static source => ContentParse.Of(AbcParser.Parse(source)),
         Stages: static (tree, show) => AbcPipeline.Of(Editing(show.Own(tree.Width))).Stages,
-        Builder: typeof(AbcBuilder))
+        Builder: ContentLayouts.Abc)
             {
                 Writable = true,
                 Editing = AbcEdits.Instance,
@@ -545,7 +540,7 @@ internal static class Shipped
         Reads: static word => MusicDialectExtensions.FromTag(word ?? string.Empty) == MusicDialect.LilyPond,
         Parser: static () => static source => ContentParse.Of(LilyPondParser.Parse(source)),
         Stages: static (tree, show) => LilyPondPipeline.Of(Editing(show.Own(tree.Width))).Stages,
-        Builder: typeof(LilyPondBuilder))
+        Builder: ContentLayouts.LilyPond)
             {
                 Name = "lilypond",
                                 DisplayName = static () => Str.Get("Text.Language.LilyPond"),
@@ -570,7 +565,7 @@ internal static class Shipped
             Reads: word => PlotFences.Named(word ?? string.Empty) == fence,
             Parser: () => source => ContentParse.Of(PlotParser.Parse(source, fence.ToString().ToLowerInvariant())),
             Stages: (_, _) => PlotPipeline.Of(fence).Stages,
-            Builder: typeof(PlotBuilder))
+            Builder: ContentLayouts.Plot)
             {
                 Name = shown is null ? null : "plot." + fence.ToString().ToLowerInvariant(),
                 DisplayName = shown,
@@ -628,7 +623,7 @@ internal static class Shipped
         Reads: static word => "wordcloud".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
         Parser: static () => static source => ContentParse.Of(WordCloudParser.Parse(source)),
         Stages: static (_, show) => [new WordCloud.Stages.WithPictures(show.Inputs.Pictures), new ResolveCloud(), new ResolveWords()],
-        Builder: typeof(WordCloudBuilder))
+        Builder: ContentLayouts.WordCloud)
             {
                 Name = "wordcloud",
                                 DisplayName = static () => Str.Get("Text.Language.WordCloud"),
@@ -659,7 +654,7 @@ internal static class Shipped
         Reads: word => grammar is not null && string.Equals(CodeGrammars.For(word), grammar, StringComparison.OrdinalIgnoreCase),
         Parser: () => source => ContentParse.Of(CodeParser.Parse(source, grammar ?? string.Empty)),
         Stages: static (_, _) => [new CodeLines()],
-        Builder: typeof(CodeBuilder))
+        Builder: ContentLayouts.Code)
         {
             Editing = CodeEdits,
             SlowParser = grammar is null ? null : source => ContentParse.Of(CodeParser.Parse(source, grammar, CodeSpans.Read(grammar, source))),

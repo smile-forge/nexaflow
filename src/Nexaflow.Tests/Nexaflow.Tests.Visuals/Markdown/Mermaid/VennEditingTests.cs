@@ -6,10 +6,15 @@ using System.Windows.Input;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Venn;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
+using Nexaflow.Markdown.Layout.Mermaid.Venn;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Venn;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
@@ -188,7 +193,7 @@ public class VennEditingTests
         }));
 
     /// <summary>The piece drawing a run of words that starts where <paramref name="words"/> is written.</summary>
-    private static Piece Words(DocumentBlock venn, string words) =>
+    private static LayoutPiece Words(DocumentBlock venn, string words) =>
         venn.Laid.Root.SelfAndDescendants()
             .First(piece => piece.Words is not null && piece.Sits().Start == venn.Source.IndexOf(words, venn.Start, System.StringComparison.Ordinal));
 

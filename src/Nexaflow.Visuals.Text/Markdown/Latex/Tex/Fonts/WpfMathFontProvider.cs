@@ -2,6 +2,7 @@ using System;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Markdown.Typesetting.Tex.Fonts;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;

@@ -2,9 +2,14 @@ using System.Globalization;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Layout.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -39,10 +44,10 @@ public class DiagramAxisTests
     {
         var ticks = new[] { 0.0, 0.5, 1 }.Select(at => new DiagramTick(at, DiagramShapesTests.Words(at.ToString(CultureInfo.InvariantCulture)))).ToList();
 
-        var build = new LayoutBuilder();
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("page");
-        DiagramAxis.Draw(build, "Axis", null, new Point(20, 100), new Point(220, 100), ticks, new DiagramStroke(Brushes.Black), "Tick");
-        DiagramAxis.Draw(build, "Side", null, new Point(20, 100), new Point(20, 0), ticks, new DiagramStroke(Brushes.Black), "Value", after: false);
+        DiagramAxis.Draw(build, "Axis", null, new LayoutPoint(20, 100), new LayoutPoint(220, 100), ticks, new DiagramStroke(Brushes.Black.Ink()), "Tick");
+        DiagramAxis.Draw(build, "Side", null, new LayoutPoint(20, 100), new LayoutPoint(20, 0), ticks, new DiagramStroke(Brushes.Black.Ink()), "Value", after: false);
         build.Close();
 
         var root = build.Seal().Root;

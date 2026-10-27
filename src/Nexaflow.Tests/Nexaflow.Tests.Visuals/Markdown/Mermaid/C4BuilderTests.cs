@@ -8,6 +8,11 @@ using Nexaflow.Visuals.Text.Markdown;
 
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.C4;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Layout.Mermaid;
+using Nexaflow.Markdown.Layout.Mermaid.C4;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -159,7 +164,7 @@ public class C4BuilderTests : MermaidBuilderContract
     {
         const string body = "\nPerson(a, \"A\")\nSystem(b, \"B\")\nRel(a, b, \"Uses\")";
 
-        Rect Card(string source, string name) =>
+        LayoutRect Card(string source, string name) =>
             Pieces(Lay(source), C4Piece.Element).Single(card => card.SelfAndDescendants().Any(part => part.Words?.Glyphs.Text == name)).Bounds;
 
         Assert.IsTrue(Card("C4Context" + body, "B").Top > Card("C4Context" + body, "A").Bottom - 1, "down the page by default");
@@ -174,9 +179,9 @@ public class C4BuilderTests : MermaidBuilderContract
     [CoversNode("c4-elements")]
     public void TheAbstractionLevelsAreGradedFromTheThemesOwnAccent()
     {
-        var ink = C4Grading.Of(StyleFormat.Dark);
+        var ink = C4Grading.Of(WpfHandles.Medium, WpfStyles.Dark);
 
-        double Lit(int tone) => DiagramColour.Luminance(DiagramColour.ColorOf(ink.Band(tone), Colors.Black));
+        double Lit(int tone) => DiagramColour.Luminance(DiagramColour.ColorOf(ink.Band(tone), LayoutColors.Black));
 
         // C4's information is the grading: deeper for the outer abstraction, lighter as you go in.
         Assert.IsTrue(Lit((int)C4Level.Person) < Lit((int)C4Level.System), "a person is deeper than a system");
@@ -188,10 +193,10 @@ public class C4BuilderTests : MermaidBuilderContract
     [CoversNode("c4-elements")]
     public void TheGradingIsMadeFromTheThemeRatherThanFixedHex()
     {
-        var dark = C4Grading.Of(StyleFormat.Dark).Band((int)C4Level.Container);
-        var light = C4Grading.Of(StyleFormat.Light).Band((int)C4Level.Container);
+        var dark = C4Grading.Of(WpfHandles.Medium, WpfStyles.Dark).Band((int)C4Level.Container);
+        var light = C4Grading.Of(WpfHandles.Medium, WpfStyles.Light).Band((int)C4Level.Container);
 
-        Assert.AreNotEqual(DiagramColour.ColorOf(dark, Colors.Black), DiagramColour.ColorOf(light, Colors.Black),
+        Assert.AreNotEqual(DiagramColour.ColorOf(dark, LayoutColors.Black), DiagramColour.ColorOf(light, LayoutColors.Black),
                            "a retheme retunes a C4 diagram rather than leaving one region stubbornly cornflower blue");
     }
 
@@ -199,27 +204,27 @@ public class C4BuilderTests : MermaidBuilderContract
     [CoversNode("c4-elements")]
     public void WhatIsWrittenWinsOverTheGrading_AndTheInkIsChosenToReadOnIt()
     {
-        var ink = C4Grading.Of(StyleFormat.Dark);
+        var ink = C4Grading.Of(WpfHandles.Medium, WpfStyles.Dark);
 
         var (fill, stroke, text) = ink.Card((int)C4Level.Container, "#969", "#333", "#fff");
-        Assert.AreEqual(Color.FromRgb(0x99, 0x66, 0x99), DiagramColour.ColorOf(fill, Colors.Black));
-        Assert.AreEqual(Color.FromRgb(0x33, 0x33, 0x33), DiagramColour.ColorOf(stroke, Colors.Black));
-        Assert.AreEqual(Colors.White, DiagramColour.ColorOf(text, Colors.Black));
+        Assert.AreEqual(LayoutColor.Of(0x99, 0x66, 0x99), DiagramColour.ColorOf(fill, LayoutColors.Black));
+        Assert.AreEqual(LayoutColor.Of(0x33, 0x33, 0x33), DiagramColour.ColorOf(stroke, LayoutColors.Black));
+        Assert.AreEqual(LayoutColors.White, DiagramColour.ColorOf(text, LayoutColors.Black));
 
         // On both palettes, because the trap is a theme whose text brush matches the fill's own darkness.
-        foreach (var palette in new[] { StyleFormat.Dark, StyleFormat.Light })
+        foreach (var palette in new[] { WpfStyles.Dark, WpfStyles.Light })
         {
-            var on = C4Grading.Of(palette);
+            var on = C4Grading.Of(WpfHandles.Medium, palette);
 
-            var onWhite = DiagramColour.Luminance(DiagramColour.ColorOf(on.Card(0, "#ffffff", null, null).Ink, Colors.Red));
+            var onWhite = DiagramColour.Luminance(DiagramColour.ColorOf(on.Card(0, "#ffffff", null, null).Ink, LayoutColors.Red));
             Assert.IsTrue(onWhite < 100, $"a white card takes dark ink (luminance {onWhite})");
 
-            var onBlack = DiagramColour.Luminance(DiagramColour.ColorOf(on.Card(0, "#000000", null, null).Ink, Colors.Red));
+            var onBlack = DiagramColour.Luminance(DiagramColour.ColorOf(on.Card(0, "#000000", null, null).Ink, LayoutColors.Red));
             Assert.IsTrue(onBlack > 180, $"a black card takes light ink (luminance {onBlack})");
 
             var (person, _, reading) = on.Card((int)C4Level.Person, null, null, null);
-            var gap = Math.Abs(DiagramColour.Luminance(DiagramColour.ColorOf(reading, Colors.Red))
-                               - DiagramColour.Luminance(DiagramColour.ColorOf(person, Colors.Red)));
+            var gap = Math.Abs(DiagramColour.Luminance(DiagramColour.ColorOf(reading, LayoutColors.Red))
+                               - DiagramColour.Luminance(DiagramColour.ColorOf(person, LayoutColors.Red)));
             Assert.IsTrue(gap > 90, $"and the deepest of the grading is legible too (gap {gap})");
         }
     }
@@ -228,23 +233,18 @@ public class C4BuilderTests : MermaidBuilderContract
     [CoversNode("c4-elements")]
     public void ThemeTokensWinOverTheDerivedGrading()
     {
-        var pinned = Color.FromRgb(0x43, 0x8D, 0xD5);
-        var dark = StyleFormat.Dark;
-        var palette = new StyleFormat
+        var pinned = LayoutColor.Of(0x43, 0x8D, 0xD5);
+        var dark = WpfStyles.Dark;
+        var palette = dark with
         {
-            Text = dark.Text, TextMuted = dark.TextMuted, Accent = dark.Accent, Heading = dark.Heading,
-            DefTerm = dark.DefTerm, Citation = dark.Citation, Marked = dark.Marked, Success = dark.Success,
-            Warning = dark.Warning, Danger = dark.Danger, Important = dark.Important, CodeBg = dark.CodeBg,
-            CodeBorder = dark.CodeBorder, QuoteBg = dark.QuoteBg, Hr = dark.Hr, TableBorder = dark.TableBorder,
-            TableHeaderBg = dark.TableHeaderBg, TableAltRowBg = dark.TableAltRowBg, FigureBorder = dark.FigureBorder,
-            FigureBg = dark.FigureBg, FooterBg = dark.FooterBg,
-            C4Container = DiagramColour.Frozen(pinned),
+        C4Person = null, C4System = null, C4Component = null, C4DeploymentNode = null, C4External = null, C4Boundary = null,
+        C4Container = WpfHandles.Medium.Ink(pinned),
         };
 
-        var ink = C4Grading.Of(palette);
+        var ink = C4Grading.Of(WpfHandles.Medium, palette);
 
-        Assert.AreEqual(pinned, DiagramColour.ColorOf(ink.Band((int)C4Level.Container), Colors.Black));
-        Assert.AreNotEqual(pinned, DiagramColour.ColorOf(ink.Band((int)C4Level.Component), Colors.Black),
+        Assert.AreEqual(pinned, DiagramColour.ColorOf(ink.Band((int)C4Level.Container), LayoutColors.Black));
+        Assert.AreNotEqual(pinned, DiagramColour.ColorOf(ink.Band((int)C4Level.Component), LayoutColors.Black),
                            "and the levels it did not pin still derive");
     }
 
@@ -252,15 +252,15 @@ public class C4BuilderTests : MermaidBuilderContract
     [CoversNode("c4-elements")]
     public void SomebodyElsesIsTheOneMutedColourWhateverLevelItSitsAt() => UiThread.Run(() =>
     {
-        var ink = C4Grading.Of(StyleFormat.Dark);
-        var muted = DiagramColour.ColorOf(ink.Band(C4Elements.External), Colors.Black);
+        var ink = C4Grading.Of(WpfHandles.Medium, WpfStyles.Dark);
+        var muted = DiagramColour.ColorOf(ink.Band(C4Elements.External), LayoutColors.Black);
 
         foreach (var level in new[] { C4Level.Person, C4Level.System, C4Level.Container, C4Level.Component })
-            Assert.AreEqual(muted, DiagramColour.ColorOf(ink.Band(C4Elements.Banded(level, external: true)), Colors.Black),
+            Assert.AreEqual(muted, DiagramColour.ColorOf(ink.Band(C4Elements.Banded(level, external: true)), LayoutColors.Black),
                             $"{level}");
     });
 
-    private static IEnumerable<Piece> Words(Piece piece) =>
+    private static IEnumerable<LayoutPiece> Words(LayoutPiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Words is not null);
 
     [TestMethod]
@@ -292,9 +292,9 @@ public class C4BuilderTests : MermaidBuilderContract
         var laid = Lay("C4Container\nSystem_Boundary(outer, \"Outer\") {\n  Container_Boundary(inner, \"Inner\") {\n"
                        + "    Container(a, \"A\")\n  }\n  Container(b, \"B\")\n}\nContainer(c, \"C\")");
 
-        Rect Box(string name) => Pieces(laid, C4Piece.Boundary).Where(box => box.SelfAndDescendants().Any(part => part.Words?.Glyphs.Text == name))
+        LayoutRect Box(string name) => Pieces(laid, C4Piece.Boundary).Where(box => box.SelfAndDescendants().Any(part => part.Words?.Glyphs.Text == name))
                                                               .OrderBy(box => box.Bounds.Width * box.Bounds.Height).First().Bounds;
-        Rect Card(string name) => Pieces(laid, C4Piece.Element).Single(card => card.SelfAndDescendants().Any(part => part.Words?.Glyphs.Text == name)).Bounds;
+        LayoutRect Card(string name) => Pieces(laid, C4Piece.Element).Single(card => card.SelfAndDescendants().Any(part => part.Words?.Glyphs.Text == name)).Bounds;
 
         Assert.IsTrue(Box("Outer").Contains(Box("Inner")), "the inner boundary is drawn inside the outer one");
         Assert.IsTrue(Box("Inner").Contains(Card("A")));
@@ -308,7 +308,7 @@ public class C4BuilderTests : MermaidBuilderContract
     {
         const string source = "C4Context\nLAYOUT_LEFT_RIGHT()\nLAYOUT_TOP_DOWN()\nPerson(a, \"A\")\nSystem(b, \"B\")\nRel(a, b, \"Uses\")";
 
-        Rect Card(string name) =>
+        LayoutRect Card(string name) =>
             Pieces(Lay(source), C4Piece.Element).Single(card => card.SelfAndDescendants().Any(part => part.Words?.Glyphs.Text == name)).Bounds;
 
         Assert.IsTrue(Card("B").Top > Card("A").Bottom - 1, "down the page, as the last one says");

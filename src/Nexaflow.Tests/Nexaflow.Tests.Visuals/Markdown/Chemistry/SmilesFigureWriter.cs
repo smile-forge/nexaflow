@@ -6,7 +6,10 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
-using Nexaflow.Visuals.Text.Markdown.Chemistry;
+using Nexaflow.Markdown.Layout.Chemistry;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Chemistry;
 
@@ -50,12 +53,12 @@ public class SmilesFigureWriter
 
         UiThread.Run(() =>
         {
-            Write(Path.Combine(folder, "smiles.png"), Figure, StyleFormat.Light, Brushes.White, 720);
-            Write(Path.Combine(folder, "smiles-cages.png"), Cages, StyleFormat.Light, Brushes.White, 720);
+            Write(Path.Combine(folder, "smiles.png"), Figure, WpfStyles.Light, Brushes.White, 720);
+            Write(Path.Combine(folder, "smiles-cages.png"), Cages, WpfStyles.Light, Brushes.White, 720);
         });
     }
 
-    private static void Write(string path, string source, StyleFormat palette, Brush ground, double width)
+    private static void Write(string path, string source, LayoutStyle palette, Brush ground, double width)
     {
         var host = new Border
         {

@@ -330,7 +330,7 @@ public class MarkdownSurfaceTests
 
         Assert.IsTrue(page.DesiredSize.Width <= 700, $"given no width, it is fitted to the room a page is set in: {page.DesiredSize.Width}");
         Assert.IsTrue(unlimited.DesiredSize.Width > 700, $"with its width unlimited it is laid at its own size: {unlimited.DesiredSize.Width}");
-        Assert.IsFalse(unlimited.Shown.Laid.Root.SelfAndDescendants().Any(piece => piece.Kind == Nexaflow.Visuals.Text.Markdown.Mermaid.MermaidPiece.Reduced),
+        Assert.IsFalse(unlimited.Shown.Laid.Root.SelfAndDescendants().Any(piece => piece.Kind == Nexaflow.Markdown.Mermaid.MermaidPiece.Reduced),
                        "and so is not drawn smaller");
     });
 

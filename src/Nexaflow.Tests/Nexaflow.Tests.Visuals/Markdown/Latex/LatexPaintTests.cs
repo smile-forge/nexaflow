@@ -8,10 +8,12 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
+using Nexaflow.Markdown.Layout.Maths;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 
-using Size = System.Windows.Size;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
@@ -71,12 +73,12 @@ public class LatexPaintTests
         var layout = Laying.Formula(@"\textcolor{red}{x} + y", Scale);
         Assert.IsNotNull(layout);
 
-        var black = Draw(layout.Size, dc => LayoutPainter.Paint(dc, layout.Root, Brushes.Black));
-        var white = Draw(layout.Size, dc => LayoutPainter.Paint(dc, layout.Root, Brushes.White));
+        var black = Draw(layout.Size, dc => WpfPainter.Paint(dc, layout.Root, Brushes.Black));
+        var white = Draw(layout.Size, dc => WpfPainter.Paint(dc, layout.Root, Brushes.White));
         Assert.AreNotEqual(black, white, "the theme's colour never reached the glyphs");
 
-        var reddish = Draw(layout.Size, dc => LayoutPainter.Paint(dc, layout.Root, Brushes.Black), Colors.Red);
-        var plain = Draw(layout.Size, dc => LayoutPainter.Paint(dc, layout.Root, Brushes.Black), Colors.White);
+        var reddish = Draw(layout.Size, dc => WpfPainter.Paint(dc, layout.Root, Brushes.Black), Colors.Red);
+        var plain = Draw(layout.Size, dc => WpfPainter.Paint(dc, layout.Root, Brushes.Black), Colors.White);
         Assert.AreNotEqual(reddish, plain,
             "a red glyph on red paper should vanish — the \\textcolor was overwritten by the theme");
     });
@@ -93,8 +95,8 @@ public class LatexPaintTests
         var fraction = layout.Root.SelfAndDescendants()
             .First(n => n.Sits().Start == 0 && n.Sits().Length == 13);
 
-        var whole = Draw(layout.Size, dc => LayoutPainter.Paint(dc, layout.Root, Brushes.Black));
-        var part = Draw(layout.Size, dc => LayoutPainter.PaintOne(dc, fraction, Brushes.Black));
+        var whole = Draw(layout.Size, dc => WpfPainter.Paint(dc, layout.Root, Brushes.Black));
+        var part = Draw(layout.Size, dc => WpfPainter.PaintOne(dc, fraction, Brushes.Black));
 
         Assert.AreNotEqual(whole, part, "painting one term drew the whole formula");
 
@@ -103,7 +105,7 @@ public class LatexPaintTests
         Assert.AreNotEqual(nothing, part, "painting one term drew nothing at all");
     });
 
-    private static string Draw(Size size, Action<DrawingContext> paint, Color? paper = null)
+    private static string Draw(LayoutSize size, Action<DrawingContext> paint, Color? paper = null)
     {
         var width = (int)Math.Ceiling(Math.Max(size.Width, 1));
         var height = (int)Math.Ceiling(Math.Max(size.Height, 1));

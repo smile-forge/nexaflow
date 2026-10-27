@@ -8,7 +8,7 @@ using System.Windows.Media.Imaging;
 using Nexaflow.Features.Pdf.Document;
 using Nexaflow.Features.Pdf.Editing;
 using Nexaflow.Features.Pdf.Reading;
-using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Visuals.Text.Painting;
 using Nexaflow.Visuals.Text.Editing.Paged;
 using UglyToad.PdfPig.Core;
 
@@ -115,7 +115,7 @@ internal sealed class PdfPageSource : IRearrangingPagedSource
     public async Task<BitmapSource?> PaintedAsync(int index, int width, CancellationToken ct)
     {
         var laid = await LayAsync(index, ct).ConfigureAwait(false);
-        return await Task.Run(() => LayoutPictures.Painted(laid.Tree.Root, new Rect(laid.Size), width / laid.Size.Width, Brushes.Black, _paper), ct)
+        return await Task.Run(() => WpfPainter.Painted(laid.Tree.Root, new Rect(laid.Size), width / laid.Size.Width, Brushes.Black, _paper), ct)
             .ConfigureAwait(false);
     }
 
@@ -123,7 +123,7 @@ internal sealed class PdfPageSource : IRearrangingPagedSource
     public async Task<byte[]?> PictureAsync(int index, int width, CancellationToken ct)
     {
         var picture = await PaintedAsync(index, width, ct).ConfigureAwait(false);
-        return picture is null ? null : await Task.Run(() => LayoutPictures.Png(picture), ct).ConfigureAwait(false);
+        return picture is null ? null : await Task.Run(() => WpfPainter.Png(picture), ct).ConfigureAwait(false);
     }
 
     /// <summary>

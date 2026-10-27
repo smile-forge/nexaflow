@@ -3,6 +3,9 @@ using System.Windows.Documents;
 
 using Nexaflow.Visuals.Common.Theming;
 using Nexaflow.Visuals.Text.Markdown.Printing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -18,6 +21,6 @@ public sealed partial class MarkdownSurface
         new MarkdownPaginator(Markdown ?? string.Empty, sheet, Paper, Asked, Named);
 
     /// <summary>What paper is printed in: white, in this surface's faces, at the size a document is read at.</summary>
-    private StyleFormat Paper =>
-        StyleFormat.Light with { TextFont = Drawn.TextFont, MonoFont = Drawn.MonoFont, TextSize = TextTypography.BaseFontSize };
+    private LayoutStyle Paper =>
+        WpfStyles.Light with { TextFont = Drawn.TextFont, MonoFont = Drawn.MonoFont, TextSize = TextTypography.BaseFontSize };
 }

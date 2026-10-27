@@ -1,6 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Editing;
 
@@ -13,14 +16,14 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// </summary>
 public sealed class ContentSelection
 {
-    private ContentSelection(IReadOnlyList<Piece> pieces, IReadOnlyList<(int Start, int Length)>? ranges = null)
+    private ContentSelection(IReadOnlyList<LayoutPiece> pieces, IReadOnlyList<(int Start, int Length)>? ranges = null)
     {
         Pieces = pieces;
         Ranges = ranges ?? LayoutQuery.Ranges(pieces);
     }
 
     /// <summary>The selected pieces, outermost, in reading order.</summary>
-    public IReadOnlyList<Piece> Pieces { get; }
+    public IReadOnlyList<LayoutPiece> Pieces { get; }
 
     /// <summary>The stretches of source they stand for, in order and never overlapping.</summary>
     public IReadOnlyList<(int Start, int Length)> Ranges { get; }
@@ -36,7 +39,7 @@ public sealed class ContentSelection
     /// gives the column, across gives the row, corner to corner gives everything between, as if the pieces
     /// were cells of a sheet); failing both, it's the plain stretch of source grown out to whole constructs.
     /// </summary>
-    public static ContentSelection Between(Piece root, Piece anchor, Piece focus)
+    public static ContentSelection Between(LayoutPiece root, LayoutPiece anchor, LayoutPiece focus)
     {
         if (!anchor.Exists || !focus.Exists) return None;
 
@@ -65,11 +68,11 @@ public sealed class ContentSelection
     /// block they span between two. Null where either is on no declared run, which is where <see cref="Between"/> would step through
     /// what is merely drawn beside it, and words beside words are a stretch of text rather than a row of things.
     /// </summary>
-    public static ContentSelection? Gridded(Piece root, Piece anchor, Piece focus) =>
+    public static ContentSelection? Gridded(LayoutPiece root, LayoutPiece anchor, LayoutPiece focus) =>
         OnDeclaredRun(anchor) && OnDeclaredRun(focus) ? Along(root, anchor, focus) ?? Stacked(root, anchor, focus) : null;
 
     /// <summary>Whether <paramref name="piece"/>, or something holding it, is on a run the builder declared.</summary>
-    private static bool OnDeclaredRun(Piece piece)
+    private static bool OnDeclaredRun(LayoutPiece piece)
     {
         for (var at = piece; at.Exists; at = at.Parent)
             if (at.RunOn(vertical: false) >= 0 || at.RunOn(vertical: true) >= 0) return true;
@@ -78,13 +81,13 @@ public sealed class ContentSelection
     }
 
     /// <summary>One whole piece, as a selection.</summary>
-    public static ContentSelection Of(Piece piece) => piece.Exists ? new([piece]) : None;
+    public static ContentSelection Of(LayoutPiece piece) => piece.Exists ? new([piece]) : None;
 
     /// <summary>
     /// What <paramref name="ranges"/> of the source pick out: the stretches themselves, and the whole pieces that lie inside them
     /// — none, where they are characters inside one run of words.
     /// </summary>
-    public static ContentSelection Over(Piece root, IReadOnlyList<(int Start, int Length)> ranges)
+    public static ContentSelection Over(LayoutPiece root, IReadOnlyList<(int Start, int Length)> ranges)
     {
         if (ranges.All(range => range.Length <= 0)) return None;
 
@@ -106,7 +109,7 @@ public sealed class ContentSelection
     /// to the run first is what lets one drag mean "the next cell" and a shorter one mean "the next term".
     /// Falls back to <see cref="LayoutQuery.Selectable"/> where nothing declares a run at all.
     /// </summary>
-    private static Piece Stepping(Piece piece)
+    private static LayoutPiece Stepping(LayoutPiece piece)
     {
         for (var at = piece; at.Exists; at = at.Parent)
             if (at.RunOn(vertical: false) >= 0 || at.RunOn(vertical: true) >= 0) return at;
@@ -121,7 +124,7 @@ public sealed class ContentSelection
     /// Both axes and both directions are tried, and the first that reaches the other end wins; nothing
     /// reaching it means the two share no run, the caller's cue to read the drag as an ordinary stretch.
     /// </summary>
-    private static ContentSelection? Along(Piece root, Piece anchor, Piece focus)
+    private static ContentSelection? Along(LayoutPiece root, LayoutPiece anchor, LayoutPiece focus)
     {
         var from = Stepping(anchor);
         var to = Stepping(focus);
@@ -130,7 +133,7 @@ public sealed class ContentSelection
         foreach (var vertical in new[] { false, true })
             foreach (var forward in new[] { true, false })
             {
-                var run = new List<Piece> { from };
+                var run = new List<LayoutPiece> { from };
 
                 for (var at = from.Step(vertical, forward); at.Exists; at = at.Step(vertical, forward))
                 {
@@ -152,10 +155,10 @@ public sealed class ContentSelection
     }
 
     /// <summary>Whether <paramref name="piece"/> is inside <paramref name="group"/>.</summary>
-    private static bool Within(Piece piece, Piece group) => piece.Ancestors().Contains(group);
+    private static bool Within(LayoutPiece piece, LayoutPiece group) => piece.Ancestors().Contains(group);
 
     /// <summary>A run of chosen pieces as a selection: their ink, and the source they cover.</summary>
-    private static ContentSelection? Gathered(Piece root, IReadOnlyList<Piece> run)
+    private static ContentSelection? Gathered(LayoutPiece root, IReadOnlyList<LayoutPiece> run)
     {
         var ink = run.SelectMany(p => p.Leaves()).Select(p => p.Selectable()).Where(p => p.Exists).Distinct().ToList();
         if (ink.Count == 0) return null;
@@ -171,16 +174,16 @@ public sealed class ContentSelection
     /// swallowing those took things the reader never pointed at. So the gap decides, not the axis — it
     /// closes only when nothing was drawn from it.
     /// </summary>
-    private static IReadOnlyList<(int Start, int Length)> Joined(Piece root, IReadOnlyList<Piece> chosen)
+    private static IReadOnlyList<(int Start, int Length)> Joined(LayoutPiece root, IReadOnlyList<LayoutPiece> chosen)
     {
         var ranges = LayoutQuery.Ranges(chosen);
         if (ranges.Count < 2) return ranges;
 
-        var inside = new HashSet<Piece>(chosen.SelectMany(p => p.SelfAndDescendants()));
+        var inside = new HashSet<LayoutPiece>(chosen.SelectMany(p => p.SelfAndDescendants()));
 
         // Nor what holds them. A bar, or the group a slur is drawn in, names every character between its notes, and
         // the arc nobody typed is named by it — but it is around what was chosen, not written between.
-        var around = new HashSet<Piece>(chosen.SelectMany(p => p.Ancestors()));
+        var around = new HashSet<LayoutPiece>(chosen.SelectMany(p => p.Ancestors()));
 
         // Only a gap between two of the ranges is asked about, so only what is written somewhere between the first and the last.
         var (opening, closing) = (ranges[0].Start, ranges[^1].Start + ranges[^1].Length);
@@ -213,7 +216,7 @@ public sealed class ContentSelection
     /// Every piece the source named — with characters of its own — that sits in source touching <c>[from, to]</c> and that
     /// <paramref name="keeps"/> keeps: what a leaf between the two can mean.
     /// </summary>
-    private static HashSet<Piece> Named(Piece root, int from, int to, Func<SourcePlace, bool> keeps) =>
+    private static HashSet<LayoutPiece> Named(LayoutPiece root, int from, int to, Func<SourcePlace, bool> keeps) =>
         [.. LayoutQuery.SittingIn(root, from, to).Where(piece => piece.Part is { Length: > 0 } && keeps(piece.Sits()))];
 
     /// <summary>
@@ -224,7 +227,7 @@ public sealed class ContentSelection
     /// numbering or equal-length runs — just as well, since a note layer has a member every moment of a tune
     /// and a verse only where something is sung, and indexing by row position broke on exactly that mismatch.
     /// </summary>
-    private static ContentSelection? Stacked(Piece root, Piece anchor, Piece focus)
+    private static ContentSelection? Stacked(LayoutPiece root, LayoutPiece anchor, LayoutPiece focus)
     {
         var from = Stepping(anchor);
         var to = Stepping(focus);
@@ -240,8 +243,8 @@ public sealed class ContentSelection
         if (Columns(from, theirsDown) is not { } columns) return null;
         if (Downward(from, to) is not { } downward) return null;
 
-        var block = new List<Piece>();
-        var rows = new Dictionary<(int Run, int Alone), List<Piece>>();
+        var block = new List<LayoutPiece>();
+        var rows = new Dictionary<(int Run, int Alone), List<LayoutPiece>>();
 
         foreach (var column in columns)
         {
@@ -297,13 +300,13 @@ public sealed class ContentSelection
     /// The things the block spans across: stepped along the anchor's own run, in whichever direction
     /// reaches the stack the focus is in.
     /// </summary>
-    private static List<Piece>? Columns(Piece from, int stack)
+    private static List<LayoutPiece>? Columns(LayoutPiece from, int stack)
     {
         if (from.RunOn(vertical: true) == stack) return [from];
 
         foreach (var forward in new[] { true, false })
         {
-            var run = new List<Piece> { from };
+            var run = new List<LayoutPiece> { from };
 
             for (var at = from.Step(vertical: false, forward); at.Exists;
                  at = at.Step(vertical: false, forward))
@@ -317,7 +320,7 @@ public sealed class ContentSelection
     }
 
     /// <summary>Whether the focus's run sits below the anchor's, asked of a stack that holds both. Null when neither end's stack holds both, meaning the two are not stacked together at all.</summary>
-    private static bool? Downward(Piece from, Piece to)
+    private static bool? Downward(LayoutPiece from, LayoutPiece to)
     {
         foreach (var end in new[] { from, to })
         {
@@ -333,7 +336,7 @@ public sealed class ContentSelection
     }
 
     /// <summary>Where in a stack the member reading along a given run sits, or -1 when it has none.</summary>
-    private static int Holding(IReadOnlyList<Piece> stack, int run)
+    private static int Holding(IReadOnlyList<LayoutPiece> stack, int run)
     {
         for (var i = 0; i < stack.Count; i++)
             if (stack[i].RunOn(vertical: false) == run) return i;

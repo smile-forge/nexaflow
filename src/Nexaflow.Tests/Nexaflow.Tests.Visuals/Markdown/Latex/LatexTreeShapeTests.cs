@@ -4,6 +4,9 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 
 using Point = System.Windows.Point;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
@@ -128,7 +131,7 @@ public class LatexTreeShapeTests
         // cells, so those rules have something to work on.
         const string latex = @"\begin{matrix} 1 & 2 & 3 \\ 4 & 5 & 6 \\ 7 & 8 & 9 \end{matrix}";
         var tree = Build(latex, "a matrix");
-        Piece Cell(string digit) => tree.Root.Leaves().Single(n => Text(latex, n) == digit);
+        LayoutPiece Cell(string digit) => tree.Root.Leaves().Single(n => Text(latex, n) == digit);
 
         var column = ContentSelection.Between(tree.Root, Cell("2"), Cell("8"));
         Assert.AreEqual(3, column.Ranges.Count, "down the middle column is three cells, three ranges");
@@ -155,7 +158,7 @@ public class LatexTreeShapeTests
         // having anything to say: what was dragged over inside one is a run of terms like any other.
         const string latex = @"A = \begin{pmatrix} a & 4b^{2}+3 \\ c^4 & d+3i \end{pmatrix}";
         var tree = Build(latex, "a matrix");
-        Piece At(int offset) => tree.Root.Leaves().Single(n => n.Sits().Start == offset);
+        LayoutPiece At(int offset) => tree.Root.Leaves().Single(n => n.Sits().Start == offset);
 
         var four = latex.IndexOf("4b", StringComparison.Ordinal);
         var two = latex.IndexOf("{2}", StringComparison.Ordinal) + 1;
@@ -190,6 +193,6 @@ public class LatexTreeShapeTests
             "the 4 sits inside three fractions");
     });
 
-    private static string Text(string latex, Piece node) =>
+    private static string Text(string latex, LayoutPiece node) =>
         node.Sits().Length > 0 ? latex.Substring(node.Sits().Start, node.Sits().Length) : string.Empty;
 }

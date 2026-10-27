@@ -12,6 +12,8 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Mermaid.Class;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Features.CodeIntel;
 
@@ -521,7 +523,7 @@ public class CodeIntelligenceTests
     public void AMembersLinkTokenIsPeeledFromWhatTheRowSays() => UiThread.Run(() =>
     {
         const string src = "classDiagram\n  class Shape {\n    +draw() @@nx:line#42\n    -color\n  }\n";
-        var drawn = new ContentEngine().Lay("mermaid", EditState.For(src), StyleFormat.Dark, 900, readOnly: true).Root.SelfAndDescendants().ToList();
+        var drawn = new ContentEngine().Lay("mermaid", EditState.For(src), WpfStyles.Dark, 900, readOnly: true).Root.SelfAndDescendants().ToList();
 
         var linked = drawn.Single(piece => piece.Kind == ClassPiece.Member);
         Assert.AreEqual("+draw()", linked.SelfAndDescendants().Single(piece => piece.Words is not null).Words!.Glyphs.Text);

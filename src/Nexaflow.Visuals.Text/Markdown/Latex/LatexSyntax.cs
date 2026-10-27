@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
-using Nexaflow.Visuals.Text.Editing;
-
+using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Markdown.Latex;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Common.Localization;
@@ -28,7 +27,7 @@ public static class LatexSyntax
     /// What could not be read in <paramref name="latex"/>, in its own offsets. Empty when all of it
     /// was understood.
     /// </summary>
-    public static IReadOnlyList<Diagnostic> Check(string? latex)
+    public static IReadOnlyList<LayoutDiagnostic> Check(string? latex)
     {
         if (string.IsNullOrWhiteSpace(latex)) return [];
 
@@ -46,13 +45,13 @@ public static class LatexSyntax
 
             return reading.Root.SelfAndDescendants()
                 .Where(part => part.Node.Trouble is not null)
-                .Select(part => TexSourcePart.Trouble(part, DiagnosticSeverity.Error, part.Node.Trouble!))
+                .Select(part => LayoutDiagnostic.Of(part, part.Node.Trouble!))
                 .ToList();
         }
         catch
         {
             // Nothing at all could be made of it, which is the strongest kind of "not yet".
-            return [new Diagnostic(0, latex.Length, DiagnosticSeverity.Error, Str.Get("Text.Latex.NotAFormula"))];
+            return [new LayoutDiagnostic(0, latex.Length, Str.Get("Text.Latex.NotAFormula"))];
         }
     }
 

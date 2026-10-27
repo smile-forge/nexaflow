@@ -3,12 +3,16 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Requirement;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Requirement;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -147,9 +151,9 @@ public class RequirementBuilderTests : MermaidBuilderContract
     // ── What it works with ──────────────────────────────────────────────────
 
     /// <summary>Every box drawn, by the name it was written with.</summary>
-    private static Dictionary<string, Rect> Boxes(string source, Laid laid)
+    private static Dictionary<string, LayoutRect> Boxes(string source, Laid laid)
     {
-        var boxes = new Dictionary<string, Rect>();
+        var boxes = new Dictionary<string, LayoutRect>();
 
         foreach (var piece in Pieces(laid, RequirementPiece.Box))
             if (piece.SelfAndDescendants().FirstOrDefault(part => part.Kind == MermaidPiece.Shape) is { } shape)
@@ -159,16 +163,16 @@ public class RequirementBuilderTests : MermaidBuilderContract
     }
 
     /// <summary>Where the words saying this were drawn inside a piece.</summary>
-    private static Rect Words(Piece piece, string said) => Said(piece).First(words => words.Words!.Glyphs.Text == said).Bounds;
+    private static LayoutRect Words(LayoutPiece piece, string said) => Said(piece).First(words => words.Words!.Glyphs.Text == said).Bounds;
 
     /// <summary>The words drawn under a piece, in the order they were drawn.</summary>
-    private static IEnumerable<Piece> Said(Piece piece) =>
+    private static IEnumerable<LayoutPiece> Said(LayoutPiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Words && part.Words is not null);
 
     /// <summary>Whether anything under a piece is drawn with a broken line.</summary>
-    private static bool Dashed(Piece piece) =>
+    private static bool Dashed(LayoutPiece piece) =>
         piece.SelfAndDescendants().SelectMany(inner => inner.Marks.ToArray()).OfType<GeometryMark>()
-            .Any(mark => mark.Dashes is not null);
+            .Any(mark => (mark.Stroke as WpfStroke)?.Dashes is not null);
 
     [TestMethod]
     public void AnElementSaysWhatItIsOverItsName_AndEachFieldIsMermaidsWordForIt() => UiThread.Run(() =>
@@ -217,7 +221,7 @@ public class RequirementBuilderTests : MermaidBuilderContract
     public void ABoxIsFilledWithWhatStylesIt() => UiThread.Run(() =>
     {
         var box = Pieces(Lay("requirementDiagram\n  A:::blue\n  classDef blue fill:#0000ff"), RequirementPiece.Box).Single();
-        var fills = box.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>().Select(mark => mark.Fill).OfType<SolidColorBrush>();
+        var fills = box.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>().Select(mark => mark.Fill?.Brush()).OfType<SolidColorBrush>();
 
         Assert.IsTrue(fills.Any(fill => fill.Color == Color.FromRgb(0, 0, 0xFF)), "filled as its class says");
     });

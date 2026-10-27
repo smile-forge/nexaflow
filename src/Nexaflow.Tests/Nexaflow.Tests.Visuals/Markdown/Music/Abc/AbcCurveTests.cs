@@ -6,6 +6,9 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
 
@@ -27,7 +30,7 @@ public class AbcCurveTests
     [TestMethod]
     public void ATieInsideABarGathersTheTwoNotesItJoins() => UiThread.Run(() =>
     {
-        var layout = Laying.Engraved("abc", "X:1\nL:1/4\nK:C\nA- A B c |\n", 700, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", "X:1\nL:1/4\nK:C\nA- A B c |\n", 700, WpfStyles.Light);
 
         // Written as two groups, so the two notes are siblings in the bar. Written as one — `A-A` —
         // they would be siblings inside that written group instead and the tie would gather there: the
@@ -47,7 +50,7 @@ public class AbcCurveTests
         // Gathering these two would mean lifting a note out of each bar, and a bar that no longer holds
         // its own notes can never be selected as one. The line is the smallest thing that reaches across
         // a bar line, so that is where the tie goes.
-        var layout = Laying.Engraved("abc", "X:1\nL:1/4\nK:C\nA B-|B c |\n", 700, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", "X:1\nL:1/4\nK:C\nA B-|B c |\n", 700, WpfStyles.Light);
 
         var set = Only(layout, "tie-set");
 
@@ -64,7 +67,7 @@ public class AbcCurveTests
         // nodes, and a note moved out of its bar is a bar that can no longer be selected whole.
         foreach (var (what, abc) in AbcConstructs.Everything)
         {
-            var layout = Laying.Engraved("abc", abc, 700, StyleFormat.Light);
+            var layout = Laying.Engraved("abc", abc, 700, WpfStyles.Light);
 
             foreach (var note in layout.Root.SelfAndDescendants().Where(n => Kind(n) is "note" or "rest"))
                 Assert.IsTrue(note.Ancestors().Any(a => Kind(a) == "measure"),
@@ -77,7 +80,7 @@ public class AbcCurveTests
     {
         // "The two notes, note-sets or beam groups the curve connects" — whatever the two ends turn out
         // to be at the level they share, which for a note slurred to a beamed run is the run.
-        var layout = Laying.Engraved("abc", "X:1\nL:1/8\nK:C\nA2(A2 GFGA) |\n", 700, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", "X:1\nL:1/8\nK:C\nA2(A2 GFGA) |\n", 700, WpfStyles.Light);
 
         var set = Only(layout, "slur-set");
 
@@ -92,8 +95,8 @@ public class AbcCurveTests
         // paints it twice and measures it twice, both invisibly.
         foreach (var (what, abc) in AbcConstructs.Everything)
         {
-            var layout = Laying.Engraved("abc", abc, 700, StyleFormat.Light);
-            var seen = new HashSet<Piece>();
+            var layout = Laying.Engraved("abc", abc, 700, WpfStyles.Light);
+            var seen = new HashSet<LayoutPiece>();
 
             foreach (var node in layout.Root.SelfAndDescendants())
             {
@@ -106,12 +109,12 @@ public class AbcCurveTests
         }
     });
 
-    private static Piece Only(Laid layout, string kind)
+    private static LayoutPiece Only(Laid layout, string kind)
     {
         var found = layout.Root.SelfAndDescendants().Where(n => Kind(n) == kind).ToList();
         Assert.AreEqual(1, found.Count, $"expected one {kind}, found {found.Count}");
         return found[0];
     }
 
-    private static string Kind(Piece node) => node.Exists ? node.Kind : "nothing";
+    private static string Kind(LayoutPiece node) => node.Exists ? node.Kind : "nothing";
 }

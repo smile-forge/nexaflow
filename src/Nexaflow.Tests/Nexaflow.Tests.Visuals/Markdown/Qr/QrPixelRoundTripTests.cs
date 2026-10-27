@@ -7,6 +7,9 @@ using Nexaflow.Markdown.Matrix.Qr;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Qr;
 
@@ -85,7 +88,7 @@ public class QrPixelRoundTripTests
     /// </summary>
     private static QrMatrix ReadBackFromPixels(string source, QrBlock block, QrMatrix matrix)
     {
-        var drawn = MatrixLayouts.ReadBack(Alone.Drawn("qr", source, StyleFormat.Dark),
+        var drawn = MatrixLayouts.ReadBack(Alone.Drawn("qr", source, WpfStyles.Dark),
                                            matrix.Size, matrix.Size, block.Settings);
 
         var modules = new bool[matrix.Size * matrix.Size];

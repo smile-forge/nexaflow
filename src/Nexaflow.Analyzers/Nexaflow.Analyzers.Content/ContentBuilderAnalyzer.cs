@@ -10,7 +10,7 @@ namespace Nexaflow.Analyzers.Content;
 /// <summary>
 /// What a content builder is. A builder is one step of the chain the engine runs — parse, nest, stages, build — handed content
 /// already read and turning it into a layout, and owning nothing. A language only names its builder; the engine makes it, from
-/// the same five things every time.
+/// the same six things every time.
 ///
 /// <para>
 /// <b>NXCB001</b> — one constructor, taking exactly what <c>ContentBuilder</c>'s own takes. Anything else a builder was going to be
@@ -31,17 +31,17 @@ public sealed class ContentBuilderAnalyzer : DiagnosticAnalyzer
     private const string Category = "Content";
 
     /// <summary>What every builder derives from.</summary>
-    private const string Builder = "Nexaflow.Visuals.Text.Editing.ContentBuilder";
+    private const string Builder = "Nexaflow.Markdown.Layout.ContentBuilder";
 
     /// <summary>What marks an assembly as tests, which may make builders of their own.</summary>
     private const string TestClass = "Microsoft.VisualStudio.TestTools.UnitTesting.TestClassAttribute";
 
     private static readonly DiagnosticDescriptor OneShape = new(
         "NXCB001",
-        "A builder is made from the five things every builder is made from",
+        "A builder is made from the six things every builder is made from",
         "{0} {1}; a builder has one constructor, taking ({2})",
         Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
-        description: "The engine makes every builder the same way, from what was read, what is being written, what it is drawn in, whether it is only looked at, and what lays out what it holds in another language. Anything else is a fact about the content or its showing, and belongs in one of those.");
+        description: "The engine makes every builder the same way, from what was read, what is being written, what it is drawn in, whether it is only looked at, what it is laid out in, and what hosts it. Anything else is a fact about the content or its showing, and belongs in one of those.");
 
     private static readonly DiagnosticDescriptor ToldAfter = new(
         "NXCB002",

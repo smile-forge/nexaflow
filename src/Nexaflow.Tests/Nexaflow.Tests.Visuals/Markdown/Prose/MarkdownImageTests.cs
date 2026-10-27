@@ -12,6 +12,9 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 using Nexaflow.Visuals.Text.Markdown.Stages;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Prose;
 
@@ -129,7 +132,7 @@ public class MarkdownImageTests
         var laid = Lay("Before ![pic alt](pic.png) after.\n", _ => Blank(20, 10));
 
         var words = laid.Root.SelfAndDescendants()
-            .Where(piece => piece.Kind == MarkdownPieces.Words)
+            .Where(piece => piece.Kind == LayoutPieces.Words)
             .Select(piece => Math.Round(piece.Bounds.Y))
             .Distinct()
             .ToList();
@@ -141,7 +144,7 @@ public class MarkdownImageTests
     [TestMethod]
     public void AndItStandsForTheCharactersItWasWrittenAs() => UiThread.Run(() =>
     {
-        var picture = Pieces(Lay(Doc, _ => Blank(20, 10)), MarkdownPieces.Picture).Single();
+        var picture = Pieces(Lay(Doc, _ => Blank(20, 10)), LayoutPieces.Picture).Single();
 
         Assert.IsNotNull(picture.Part, "a press on the picture has to mean the ![…](…) somebody typed");
         Assert.AreEqual(Doc.IndexOf('!'), picture.Part!.Start);
@@ -151,7 +154,7 @@ public class MarkdownImageTests
     public void AnImageNobodyResolvedIsStillTheLinkItWasWritten() => UiThread.Run(() =>
     {
         // No stage ran at all, which is every surface that was never given a way to find a picture.
-        var laid = Laying.Lay(null, Doc, 480, StyleFormat.Dark);
+        var laid = Laying.Lay(null, Doc, 480, WpfStyles.Dark);
 
         Assert.AreEqual(0, Pictures(laid).Count);
         StringAssert.Contains(Drawn(laid), "pic alt");
@@ -174,11 +177,11 @@ public class MarkdownImageTests
         return found;
     }
 
-    private static List<ImageSource> Pictures(Laid laid) => [.. Marks(laid).Select(mark => mark.Picture)];
+    private static List<ImageSource> Pictures(Laid laid) => [.. Marks(laid).Select(mark => ((WpfPicture)mark.Picture).Source)];
 
-    private static Rect Box(Laid laid) => Marks(laid).Single().Bounds;
+    private static LayoutRect Box(Laid laid) => Marks(laid).Single().Bounds;
 
-    private static List<Piece> Pieces(Laid laid, string kind) =>
+    private static List<LayoutPiece> Pieces(Laid laid, string kind) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];
 
     private static string Drawn(Laid laid) =>

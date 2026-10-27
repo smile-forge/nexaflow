@@ -6,8 +6,11 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
-using Nexaflow.Visuals.Text.Markdown.Music.Model;
-using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
+using Nexaflow.Markdown.Scores.Model;
+using Nexaflow.Markdown.Scores.Rendering;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music;
 
@@ -181,17 +184,17 @@ public class EngravingRulesTests
 
     // ── Reading the picture ─────────────────────────────────────────────────
 
-    private static List<Piece> Systems(string abc, double width) =>
-        All(Laying.Engraved("abc", abc, width, StyleFormat.Light).Root, "system");
+    private static List<LayoutPiece> Systems(string abc, double width) =>
+        All(Laying.Engraved("abc", abc, width, WpfStyles.Light).Root, "system");
 
-    private static List<Piece> All(Piece root, string kind) => [.. root.SelfAndDescendants().Where(p => p.Kind == kind)];
+    private static List<LayoutPiece> All(LayoutPiece root, string kind) => [.. root.SelfAndDescendants().Where(p => p.Kind == kind)];
 
-    private static double Right(Piece system) => All(system, "staff-line").Max(line => line.Bounds.Right);
+    private static double Right(LayoutPiece system) => All(system, "staff-line").Max(line => line.Bounds.Right);
 
-    private static double Top(Piece system) => All(system, "staff-line").Min(line => line.Bounds.Top);
+    private static double Top(LayoutPiece system) => All(system, "staff-line").Min(line => line.Bounds.Top);
 
     /// <summary>The distance from each note head to the next in a system's first bar.</summary>
-    private static List<double> Gaps(Piece system)
+    private static List<double> Gaps(LayoutPiece system)
     {
         var xs = All(All(system, "measure")[0], "head").Select(head => head.Bounds.Left).Order().ToList();
 

@@ -9,7 +9,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
+using Nexaflow.Markdown.Layout.Maths;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 using Nexaflow.Markdown.Ast;
 

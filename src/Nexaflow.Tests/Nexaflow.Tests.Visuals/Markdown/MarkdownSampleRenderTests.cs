@@ -9,6 +9,9 @@ using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -117,7 +120,7 @@ public class MarkdownSampleRenderTests
 
                 var layout = Laying.Formula(latex, 20);
                 var ok = layout is not null
-                         && !layout.Trouble.Any(d => d.Severity == DiagnosticSeverity.Error);
+                         && !layout.Trouble.Any(d => d.Severity == LayoutSeverity.Error);
 
                 if (known.Any(gap => latex.Contains(gap, StringComparison.Ordinal)))
                 {
@@ -315,7 +318,7 @@ public class MarkdownSampleRenderTests
     /// </summary>
     private static void Lays(string md, IEnumerable<ContentPart> fences, string what)
     {
-        var laid = Laying.Lay(null, md, 700, StyleFormat.Dark);
+        var laid = Laying.Lay(null, md, 700, WpfStyles.Dark);
         Assert.IsTrue(laid.Draws, $"{what}: the document drew nothing");
 
         var drawn = laid.Root.SelfAndDescendants().Where(piece => piece.Part is not null).Select(piece => piece.Sits().Start).ToList();

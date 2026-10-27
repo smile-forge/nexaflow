@@ -9,6 +9,9 @@ using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Visuals.Text.Markdown.Music;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music;
 
@@ -92,7 +95,7 @@ public class MusicFigureWriter
     /// <summary>Engraved as the help page's own figures are drawn: in the dark theme, laid out for the page's width.</summary>
     private static ContentElement Drawn(string source)
     {
-        var block = Alone.Engraved(MusicDialect.Abc, source, StyleFormat.Dark);
+        var block = Alone.Engraved(MusicDialect.Abc, source, WpfStyles.Dark);
         block.Measure(new Size(720, double.PositiveInfinity));
         block.Arrange(new Rect(block.DesiredSize));
         return block;

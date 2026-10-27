@@ -2,6 +2,9 @@ using System.Linq;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Latex;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
@@ -57,6 +60,6 @@ public class BracketTests
         Assert.AreEqual(1, layout.Trouble.Count, "and says so");
     });
 
-    private static string Text(string latex, Piece node) =>
+    private static string Text(string latex, LayoutPiece node) =>
         latex.Substring(node.Sits().Start, node.Sits().Length);
 }

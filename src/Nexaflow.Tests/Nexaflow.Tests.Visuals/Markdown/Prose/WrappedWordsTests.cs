@@ -3,11 +3,13 @@ using System.Linq;
 using System.Windows;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Prose;
 
@@ -60,7 +62,7 @@ public class WrappedWordsTests
         foreach (var line in Lines(element))
         {
             var sits = line.Sits();
-            var offset = element.Laid.OffsetAt(Along(line, 0.5));
+            var offset = element.Laid.OffsetAt(Along(line, 0.5).ToLayout());
 
             Assert.IsTrue(offset > sits.Start && offset < sits.End,
                 $"pressed half way along '{line.Words!.Glyphs.Text}' and landed at {offset}, outside {sits.Start}..{sits.End}");
@@ -102,7 +104,7 @@ public class WrappedWordsTests
 
     private static MarkdownElement Element(string source)
     {
-        var element = new MarkdownElement(source, StyleFormat.Dark);
+        var element = new MarkdownElement(source, WpfStyles.Dark);
 
         element.Measure(new Size(360, double.PositiveInfinity));
         element.Arrange(new Rect(0, 0, 360, element.DesiredSize.Height));
@@ -112,10 +114,10 @@ public class WrappedWordsTests
     }
 
     /// <summary>Every piece drawing words as they were written, in the order they are read.</summary>
-    private static List<Piece> Lines(MarkdownElement element) =>
+    private static List<LayoutPiece> Lines(MarkdownElement element) =>
         [.. element.Laid.Root.SelfAndDescendants().Where(piece => piece.Words is { Maps: true })];
 
-    private static Point Along(Piece piece, double fraction) =>
+    private static Point Along(LayoutPiece piece, double fraction) =>
         new(piece.Bounds.X + (piece.Bounds.Width * fraction), piece.Bounds.Y + (piece.Bounds.Height / 2));
 
     /// <summary>A press, a drag and a release.</summary>

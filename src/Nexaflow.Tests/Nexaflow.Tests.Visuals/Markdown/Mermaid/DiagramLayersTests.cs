@@ -1,8 +1,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
+using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Layout.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -14,7 +19,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 [CoversNode("mermaid-diagram-kit")]
 public class DiagramLayersTests
 {
-    private static readonly Size Box = new(40, 20);
+    private static readonly LayoutSize Box = new(40, 20);
 
     [TestMethod]
     public void ALinkPutsWhatItReachesInTheRankBeyondWhatItLeaves()
@@ -219,7 +224,7 @@ public class DiagramLayersTests
     }
 
     /// <summary>Whether two routes cross anywhere along them — a run of one passing through a run of the other.</summary>
-    private static bool Cross(IReadOnlyList<Point> one, IReadOnlyList<Point> other)
+    private static bool Cross(IReadOnlyList<LayoutPoint> one, IReadOnlyList<LayoutPoint> other)
     {
         for (var at = 0; at + 1 < one.Count; at++)
             for (var to = 0; to + 1 < other.Count; to++)
@@ -227,9 +232,9 @@ public class DiagramLayersTests
 
         return false;
 
-        static bool Crossing(Point a, Point b, Point c, Point d)
+        static bool Crossing(LayoutPoint a, LayoutPoint b, LayoutPoint c, LayoutPoint d)
         {
-            static double Side(Point p, Point q, Point r) => ((q.X - p.X) * (r.Y - p.Y)) - ((q.Y - p.Y) * (r.X - p.X));
+            static double Side(LayoutPoint p, LayoutPoint q, LayoutPoint r) => ((q.X - p.X) * (r.Y - p.Y)) - ((q.Y - p.Y) * (r.X - p.X));
 
             return Side(a, b, c) * Side(a, b, d) < -1e-6 && Side(c, d, a) * Side(c, d, b) < -1e-6;
         }

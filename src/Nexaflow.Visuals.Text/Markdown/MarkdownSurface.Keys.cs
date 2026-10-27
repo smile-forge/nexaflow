@@ -2,7 +2,9 @@ using System;
 using System.Windows;
 using System.Windows.Input;
 
+using Nexaflow.Markdown.Layout;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 

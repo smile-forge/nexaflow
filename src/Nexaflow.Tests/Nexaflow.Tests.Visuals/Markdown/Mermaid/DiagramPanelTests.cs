@@ -1,9 +1,14 @@
 using System.Globalization;
 using System.Linq;
 using System.Windows;
+using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Layout.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -56,7 +61,7 @@ public class DiagramPanelTests
     {
         var round = DiagramPanel.Round(500, 300, new DiagramEdges(40, 10, 20, 30));
 
-        Assert.AreEqual(new Rect(40, 10, 440, 260), round.Plot);
+        Assert.AreEqual(new LayoutRect(40, 10, 440, 260), round.Plot);
         Assert.AreEqual(500, round.Wide, "and the room offered is what it takes up");
         Assert.AreEqual(300, round.Tall);
     }
@@ -97,9 +102,9 @@ public class DiagramPanelTests
     [TestMethod]
     public void TheUprightTitleReadsUpTheAxisAndTheFlatOneSitsUnderItsNumbers() => UiThread.Run(() =>
     {
-        var panel = new DiagramPanel(new Rect(40, 10, 400, 260), 500, 300);
+        var panel = new DiagramPanel(new LayoutRect(40, 10, 400, 260), 500, 300);
 
-        var build = new LayoutBuilder();
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("page");
         panel.Titles(build, "AxisTitle", DiagramShapesTests.Words("Miles per gallon"),
                      DiagramShapesTests.Words("Weight"), below: 20);
@@ -123,9 +128,9 @@ public class DiagramPanelTests
     [TestMethod]
     public void ATitleWiderThanThePanelStillStartsInsideIt() => UiThread.Run(() =>
     {
-        var panel = new DiagramPanel(new Rect(40, 10, 30, 260), 500, 300);
+        var panel = new DiagramPanel(new LayoutRect(40, 10, 30, 260), 500, 300);
 
-        var build = new LayoutBuilder();
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("page");
         panel.Titles(build, "AxisTitle", null, DiagramShapesTests.Words("A title far wider than its panel"), below: 20);
         build.Close();

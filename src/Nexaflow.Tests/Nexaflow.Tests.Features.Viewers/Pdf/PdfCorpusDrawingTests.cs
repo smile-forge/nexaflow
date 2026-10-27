@@ -19,6 +19,9 @@ using Nexaflow.Visuals.Text.Editing;
 using Windows.Storage;
 using Windows.Storage.Streams;
 using WinPdf = Windows.Data.Pdf;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Features.Pdf;
 
@@ -100,21 +103,21 @@ public class PdfCorpusDrawingTests
         var size = new Size(page.Size.Width * PdfPageLayout.DipsPerPoint, page.Size.Height * PdfPageLayout.DipsPerPoint);
         if (size.Width <= 0 || size.Height <= 0) return null;
 
-        var ours = LayoutPictures.Painted(tree.Root, new Rect(size), ReviewWidth / size.Width, Brushes.Black, Brushes.White);
+        var ours = WpfPainter.Painted(tree.Root, new Rect(size), ReviewWidth / size.Width, Brushes.Black, Brushes.White);
         if (ours is null) return null;
 
         var theirs = Windows(file, number - 1, ReviewWidth);
 
         var stem = Path.GetFileNameWithoutExtension(file);
         var oursName = $"{stem}-p{number}-ours.png";
-        File.WriteAllBytes(Path.Combine(folder, oursName), LayoutPictures.Png(ours));
+        File.WriteAllBytes(Path.Combine(folder, oursName), WpfPainter.Png(ours));
 
         string theirsName = string.Empty;
         var score = double.NaN;
         if (theirs is not null)
         {
             theirsName = $"{stem}-p{number}-windows.png";
-            File.WriteAllBytes(Path.Combine(folder, theirsName), LayoutPictures.Png(theirs));
+            File.WriteAllBytes(Path.Combine(folder, theirsName), WpfPainter.Png(theirs));
             score = Likeness(ours, theirs);
         }
 

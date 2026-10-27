@@ -64,7 +64,7 @@ public static class TextWidths
 
             var written = text.ToString();
             var set = new FormattedText(written, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, _face, _size,
-                                        Brushes.Black, LayoutText.Density);
+                                        Brushes.Black, Painting.WpfMedium.Density);
             width = (set.Width, set.WidthIncludingTrailingWhitespace);
             _widths[written] = width;
 

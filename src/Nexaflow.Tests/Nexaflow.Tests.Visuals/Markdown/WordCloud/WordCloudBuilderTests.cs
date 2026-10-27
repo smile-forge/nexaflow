@@ -6,6 +6,10 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.WordCloud;
 using System.Windows.Media.Imaging;
+using Nexaflow.Markdown.WordCloud;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.WordCloud;
 
@@ -27,9 +31,9 @@ public class WordCloudBuilderTests
     private const string Stack = "WPF: 40\nXAML: 25\nMVVM: 12";
 
     private static Laid Lay(string source, double room = 480) =>
-        Laying.Lay("wordcloud", source, room, StyleFormat.Dark);
+        Laying.Lay("wordcloud", source, room, WpfStyles.Dark);
 
-    private static Piece[] Words(Laid laid) =>
+    private static LayoutPiece[] Words(Laid laid) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == WordCloudPiece.Word)];
 
     // ── The words ──────────────────────────────────────────────────────────
@@ -64,7 +68,7 @@ public class WordCloudBuilderTests
         var word = Words(Lay(Stack)).First();
 
         Assert.IsNotNull(word.Words, "a word is a run of text, not a picture of one");
-        Assert.AreNotEqual(Stops.None, word.Stops);
+        Assert.AreNotEqual(LayoutStops.None, word.Stops);
     });
 
     [TestMethod]
@@ -105,7 +109,7 @@ public class WordCloudBuilderTests
                               five: 5
                               """));
 
-        var inked = words.Select(word => word.Words!.Glyphs.BuildGeometry(word.Bounds.TopLeft)).ToList();
+        var inked = words.Select(word => ((WpfText)word.Words!.Glyphs).BuildGeometry(word.Bounds.TopLeft.ToWpf())).ToList();
 
         for (var one = 0; one < inked.Count; one++)
             for (var other = one + 1; other < inked.Count; other++)
@@ -125,8 +129,7 @@ public class WordCloudBuilderTests
 
         // Half a pixel of slack: the picture is the union of the words' own rectangles, so the word on each
         // edge lands exactly on it and whether it is "inside" comes down to the last bit of a double.
-        var picture = new Rect(laid.Size);
-        picture.Inflate(0.5, 0.5);
+        var picture = LayoutRect.Inflate(new LayoutRect(laid.Size), 0.5, 0.5);
 
         foreach (var word in Words(laid))
             Assert.IsTrue(picture.Contains(word.Bounds), $"{Said(word)} at {word.Bounds} is outside {picture}");
@@ -200,7 +203,7 @@ public class WordCloudBuilderTests
 
         Assert.IsTrue(words.Length > 20, $"only {words.Length} word(s) were placed");
 
-        var corner = new Rect(laid.Size.Width * 0.55, 0, laid.Size.Width * 0.45, laid.Size.Height * 0.55);
+        var corner = new LayoutRect(laid.Size.Width * 0.55, 0, laid.Size.Width * 0.45, laid.Size.Height * 0.55);
 
         foreach (var word in words)
             Assert.IsFalse(corner.Contains(word.Bounds),
@@ -289,7 +292,7 @@ public class WordCloudBuilderTests
 
         Assert.IsTrue(laid.ShowsSource);
         Assert.AreEqual(1, laid.Trouble.Count);
-        Assert.AreEqual(DiagnosticSeverity.Error, laid.Trouble[0].Severity);
+        Assert.AreEqual(LayoutSeverity.Error, laid.Trouble[0].Severity);
         Assert.AreEqual(1, laid.Root.SelfAndDescendants().Count(piece => piece.Kind == SourceShown.Unread), "that line marked");
     });
 
@@ -312,9 +315,9 @@ public class WordCloudBuilderTests
         var laid = Lay("width: 120\nheight: 100\nminSize: 40\nmaxSize: 60\nfit: false\n"
                      + "alpha: 10\nbravo: 10\ncharlie: 10\ndelta: 10\necho: 10");
 
-        Assert.IsTrue(laid.Trouble.Any(trouble => trouble.Severity == DiagnosticSeverity.Warning),
+        Assert.IsTrue(laid.Trouble.Any(trouble => trouble.Severity == LayoutSeverity.Warning),
                       "something should have been left out, and said so");
     });
 
-    private static string Said(Piece word) => word.Words?.Glyphs.Text ?? word.Kind;
+    private static string Said(LayoutPiece word) => word.Words?.Glyphs.Text ?? word.Kind;
 }

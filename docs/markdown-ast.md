@@ -43,8 +43,9 @@ mistake available here.
 
 - The **AST** says *what we are talking about*. `src/Nexaflow.Markdown/` — `Ast/` holds the tree and what every
   language shares; each language has a folder of its parser, kinds, stages and model.
-- The **layout tree** says *what will be on the screen*. `src/Nexaflow.Visuals.Text/Editing/`, because a mark paints
-  onto a WPF `DrawingContext`.
+- The **layout tree** says *what will be on the screen*. `src/Nexaflow.Markdown/Layout/`, free of any renderer: a mark is
+  made by the medium the tree is laid out in (`ILayoutMedium`), which in the app paints onto a WPF `DrawingContext`
+  (`src/Nexaflow.Visuals.Text/Painting/`).
 
 A pie chart shows the difference. Its AST holds data: a list of names, values and percentages. Its layout tree holds a
 pie graph containing slices, and a legend containing rows and columns. Nodes in both point back at the same AST nodes,
@@ -57,7 +58,7 @@ AST node got a layout node" is not a sign of a correct builder; it is a sign of 
 has no concept of — rules, axes, decorations, connectors — which stand for nothing anybody typed, carry no meaning of
 their own, and are not selectable. A piece must be allowed to point nowhere; nothing may require otherwise.
 
-**R3 — A layout is made at a standard size, in the content's own units.** Text is measured at `LayoutText.Density` and
+**R3 — A layout is made at a standard size, in the content's own units.** Text is measured at `WpfMedium.Density` and
 the element scales the finished tree as it paints (`Zoom`). The same source and the same room give the same tree on any
 display, which is what makes a layout something a test can measure.
 
@@ -209,7 +210,8 @@ nothing, and hands the AST back as it was.
 ## 5. The builder
 
 A builder is made by the engine and by nothing else, always the same way — what was read, what is being written, what
-it is drawn in, whether it is read-only, and `Nesting` — and gives back a `Laid` from `Build`. It exposes nothing else.
+it is drawn in, whether it is read-only, what it is laid out in, and what hosts it (`LayoutHost`) — and gives back a
+`Laid` from `Build`. It exposes nothing else.
 `Nexaflow.Analyzers.Content` holds that as build errors (see [testing.md](testing.md)); `MermaidDiagramRulesTests`
 holds that no builder names the table of languages.
 
@@ -249,9 +251,9 @@ round it — so every part of it still names the characters it was written as. A
 language's own characters, and back, by `OwnAt` and `DocumentAt`.
 
 **R14 — A builder knows nothing about what it nests.** Meeting a piece in another language it calls
-`Nested(part, room, style)` — the one thing a builder may ask the engine for. The engine works that piece's AST over
-with its own language's stages, lays it out with its own language's builder, at the room and in the style the asking
-builder chose, and hands back a `ContentInset`: a layout tree and its size. The asking builder places it wherever its
+`Nested(part, room, standing)` — the one thing a builder may ask the engine for. The engine works that piece's AST over
+with its own language's stages, lays it out with its own language's builder, at the room and standing the asking
+builder chose, and hands back a `LayoutInset`: a layout tree and its size. The asking builder places it wherever its
 own layout makes sense, based on where the part sits in the AST it is walking. It never learns what the language was.
 
 So anything can be nested inside anything the engine knows about — **but only where the builder looks for nested
@@ -271,7 +273,7 @@ wrong.
 
 **The good answer is a diagnosis.** The parser, a stage or the builder notices what is wrong and says something the
 reader can act on. The most a builder can say about something it cannot draw is which part it was given and why —
-`AsSource(parts, reason)`, or `Diagnostic.Of(part, reason)` for something wrong in what it did draw. Showing content
+`AsSource(parts, reason)`, or `LayoutDiagnostic.Of(part, reason)` for something wrong in what it did draw. Showing content
 as written is one helper's (`SourceShown`): it prints the AST back, puts a piece standing for each blamed part over
 its characters, and writes each reason beneath.
 
@@ -319,7 +321,8 @@ It lays content out in four steps, and nothing else does:
    language and put the AST in the piece's body, then the same inside that tree, until nothing is left unread.
 3. **Stages.** Run the language's stages.
 4. **Build.** Make the builder the language names — from the worked-over reading, what is being written, what it is
-   drawn in, whether it is only looked at, and `Nesting` — and lay it out at the room it was given.
+   drawn in, whether it is only looked at, what it is laid out in, and what hosts it (`LayoutHost`) — and lay it out
+   at the room it was given.
 
 `ContentEngine.Read` does the first three steps and lays nothing out, for whatever wants to know what content says
 rather than to draw it.
@@ -600,7 +603,7 @@ whatever that language drew. So the walk (`LayoutExport`, in `Visuals.Text`, sin
 read-only and walks it into a format-neutral document (`ExportDocument`, in `Nexaflow.Markdown/Export`): what each piece
 *is* comes from the part it was laid from — a heading's rank and anchor, a list's counting and looseness, a cell's
 alignment and span, a link's address — and what it *looks like* from the pieces laid from it. Content in another language
-is its source and, where the occasion keeps pictures, the picture its piece paints (`LayoutPictures`, the painting *Save
+is its source and, where the occasion keeps pictures, the picture its piece paints (`WpfPainter.Painted`, the painting *Save
 as a picture* uses), so a SMILES structure in a cell is that cell's picture. A writer per format spells it
 (`Nexaflow.IO.Documents`: `TextDocumentWriter`, `HtmlDocumentWriter`) and takes what it can use: HTML for a page that runs
 scripts writes a Mermaid diagram as its source for mermaid.js and a formula for a typesetter, and otherwise the picture or

@@ -54,4 +54,14 @@
     <EmbeddedResource Include="Latex\Data\TexFormulaSettings.xml" LogicalName="Nexaflow.Markdown.Latex.Data.TexFormulaSettings.xml" />
   </ItemGroup>
 
+  <!--
+    How TeX sets maths, from XAML-Math (MIT; see Core's ThirdPartyNotices): the metrics of every glyph of the maths faces and the
+    glue between classes, read by the typesetter. The faces themselves are a renderer's to open — a medium is handed their file
+    names — so they stay with the renderer that draws them. Manifest names pinned to what the readers ask for.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Typesetting\Tex\Data\DefaultTexFont.xml" LogicalName="XamlMath.Data.DefaultTexFont.xml" />
+    <EmbeddedResource Include="Typesetting\Tex\Data\GlueSettings.xml" LogicalName="XamlMath.Data.GlueSettings.xml" />
+  </ItemGroup>
+
 </Project>

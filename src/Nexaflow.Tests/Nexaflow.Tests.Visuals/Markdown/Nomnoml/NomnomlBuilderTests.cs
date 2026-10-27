@@ -1,15 +1,19 @@
 using Nexaflow.Markdown.Mermaid;
 
+using Nexaflow.Markdown.Mermaid.Class;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.Visuals.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Languages;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Class;
-using Nexaflow.Visuals.Text.Markdown.Nomnoml;
+using Nexaflow.Markdown.Layout.Nomnoml;
 using System;
 using System.Linq;
 using System.Windows;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Nomnoml;
 
@@ -77,7 +81,7 @@ public class NomnomlBuilderTests : MermaidBuilderContract
     });
 
     /// <summary>What every word drawn inside a piece says, run together.</summary>
-    private static string Saying(Piece piece) =>
+    private static string Saying(LayoutPiece piece) =>
         string.Concat(piece.SelfAndDescendants().Select(part => part.Words?.Glyphs.Text ?? string.Empty));
 
     [TestMethod]

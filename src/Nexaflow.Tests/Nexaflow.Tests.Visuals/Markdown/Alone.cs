@@ -10,7 +10,10 @@ using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Visuals.Text.Markdown.Languages;
 using Nexaflow.Visuals.Text.Markdown.Music;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
-using Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
+using Nexaflow.Markdown.Layout.Scores;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -27,11 +30,11 @@ namespace Nexaflow.Tests.Visuals.Markdown;
 internal static class Alone
 {
     /// <summary><paramref name="source"/> as the language <paramref name="language"/> names draws it, in <paramref name="palette"/>, told what the host says.</summary>
-    public static ContentElement Drawn(string language, string source, StyleFormat? palette = null, ContentInputs? inputs = null)
+    public static ContentElement Drawn(string language, string source, LayoutStyle? palette = null, ContentInputs? inputs = null)
     {
         if (!ContentLanguages.Reads(language)) throw new ArgumentException($"no language reads '{language}'", nameof(language));
 
-        var style = palette ?? StyleFormat.FromTheme();
+        var style = palette ?? WpfStyles.FromTheme();
         return new ContentElement(source, style, new ContentEngine(inputs), language)
         {
             Cursor = Cursors.Arrow,
@@ -41,7 +44,7 @@ internal static class Alone
     }
 
     /// <summary>A score on an element of its own, written in to by nobody.</summary>
-    public static ContentElement Engraved(MusicDialect dialect, string source, StyleFormat palette, double zoom = 1)
+    public static ContentElement Engraved(MusicDialect dialect, string source, LayoutStyle palette, double zoom = 1)
     {
         var named = dialect == MusicDialect.LilyPond ? "lilypond" : "abc";
 

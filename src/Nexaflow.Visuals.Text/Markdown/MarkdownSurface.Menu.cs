@@ -6,8 +6,10 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -39,7 +41,7 @@ public sealed partial class MarkdownSurface
         Focus();
 
         var zoom = _shown.Zoom;
-        var offset = _shown.Laid.Root.OffsetAt(new Point(at.X / zoom, at.Y / zoom));
+        var offset = _shown.Laid.Root.OffsetAt(new LayoutPoint(at.X / zoom, at.Y / zoom));
         var state = _shown.Current;
 
         if (!state.HasSelection || !state.Selection.Any(range => offset >= range.Start && offset <= range.End))

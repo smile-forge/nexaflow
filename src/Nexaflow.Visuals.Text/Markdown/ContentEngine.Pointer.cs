@@ -9,6 +9,9 @@ using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -24,15 +27,15 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// </summary>
 public sealed partial class ContentEngine
 {
-    private Piece _anchorNode;
-    private Point _pressedAt;
+    private LayoutPiece _anchorNode;
+    private LayoutPoint _pressedAt;
     private bool _dragging;
 
     private bool _moving;
     private int _dropAt;
 
     /// <summary>The piece what is carried is over, which the language it is written in is told where it is let go.</summary>
-    private Piece _dropOver;
+    private LayoutPiece _dropOver;
     private Laid? _preview;
     private Moved? _previewOf;
     private (int Start, int End) _previewMoved;
@@ -53,7 +56,7 @@ public sealed partial class ContentEngine
     internal IReadOnlyList<LayoutIntent> Hosted(LayoutAct act) => _answers?.Menu(act) ?? [];
 
     /// <summary>Raised to bring a stretch of the laid content into view — the heading a link into the content goes to.</summary>
-    internal event EventHandler<Rect>? Revealing;
+    internal event EventHandler<LayoutRect>? Revealing;
 
     /// <summary>The content as it would read if what is being carried were let go where it is now, with what is carried, or null.</summary>
     internal (Laid Laid, int Start, int End)? Preview => _preview is { } preview ? (preview, _previewMoved.Start, _previewMoved.End) : null;
@@ -96,7 +99,7 @@ public sealed partial class ContentEngine
     /// A press, taken as what it means where it landed. True where the content took it; false is a press that landed on
     /// nothing of the content, which whatever shows it may want for itself.
     /// </summary>
-    private bool Press(Point at, ModifierKeys modifiers)
+    private bool Press(LayoutPoint at, ModifierKeys modifiers)
     {
         _pressedAt = at;
         _moving = false;
@@ -171,7 +174,7 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>Adds what a press lands on to what is chosen — or, where all of it is chosen already, takes it back out.</summary>
-    private void Toggle(Point at)
+    private void Toggle(LayoutPoint at)
     {
         if (Supplied(_laid.PieceAt(at))) { TogglePicked(_laid.PieceAt(at)); return; }
 
@@ -214,7 +217,7 @@ public sealed partial class ContentEngine
     /// rounded value, a percentage) has nowhere to put a caret since what is drawn isn't what was written — pressing it reveals
     /// the source first, then re-answers the press against that.
     /// </summary>
-    private bool Writing(Piece piece, Point at)
+    private bool Writing(LayoutPiece piece, LayoutPoint at)
     {
         if (piece.Words is not { } words || piece.Part is not { } part) return false;
 
@@ -235,7 +238,7 @@ public sealed partial class ContentEngine
     /// Whether a press lands on <paramref name="piece"/> itself rather than at one of its stops. The reach is capped at a
     /// quarter of the piece's width so a letter as narrow as an "i" still has a place at each side.
     /// </summary>
-    private static bool On(Piece piece, Point at)
+    private static bool On(LayoutPiece piece, LayoutPoint at)
     {
         if (!piece.Exists) return false;
 
@@ -252,7 +255,7 @@ public sealed partial class ContentEngine
     /// The pointer moved while pressed, far enough to be a drag — how far that is being the pointer's to say, since it is
     /// counted in the pixels of the screen.
     /// </summary>
-    private void Drag(Point at)
+    private void Drag(LayoutPoint at)
     {
         if (!_dragging) return;
 
@@ -276,7 +279,7 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>Chooses from the anchor to <paramref name="at"/>: what a drag there chooses, and what Shift and a press there choose.</summary>
-    private void ChooseTo(Point at)
+    private void ChooseTo(LayoutPoint at)
     {
         // From content a binding supplied, there are no characters to choose between: it picks out every piece of it spanned.
         if (Supplied(_anchorNode)) { PickSpanned(at); return; }
@@ -321,7 +324,7 @@ public sealed partial class ContentEngine
     /// over, a formula between taken whole and the end of a line no edge. An end on anything else takes the whole of the thing it
     /// is on, so a drag reaching into a formula takes the symbol it reached.
     /// </summary>
-    private void ChooseStretch(Piece pointed, int offset)
+    private void ChooseStretch(LayoutPiece pointed, int offset)
     {
         var (anchor, focus) = (Reach(_anchorNode, Anchor), Reach(pointed, offset));
         var (from, to) = (Math.Min(anchor.Start, focus.Start), Math.Max(anchor.End, focus.End));
@@ -330,11 +333,11 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>What one end of a drag, on <paramref name="end"/> at <paramref name="offset"/>, reaches: the letter, in words, or else the whole of the thing it is on.</summary>
-    private (int Start, int End) Reach(Piece end, int offset) =>
+    private (int Start, int End) Reach(LayoutPiece end, int offset) =>
         !ByLetter(end) && end.Selectable() is { Exists: true } thing && thing.Sits() is var whole ? (whole.Start, whole.End) : (offset, offset);
 
     /// <summary>Whether <paramref name="piece"/> is words a drag picks out by the letter: drawn as written, in a language chosen by the letter (<see cref="IContentLanguage.ChosenByLetter"/>).</summary>
-    private bool ByLetter(Piece piece) => piece.Words is { Maps: true } && Language(LanguageOf(piece)).Editing.ChosenByLetter;
+    private bool ByLetter(LayoutPiece piece) => piece.Words is { Maps: true } && Language(LanguageOf(piece)).Editing.ChosenByLetter;
 
     /// <summary>
     /// Whether a drag from <paramref name="from"/> to <paramref name="to"/> picks out characters rather than whole pieces: both ends
@@ -344,7 +347,7 @@ public sealed partial class ContentEngine
     /// grow it out to the whole fence. A formula, a score or a diagram draws what its source meant, and half of one of those is
     /// not a smaller selection but one that cannot be read.
     /// </summary>
-    private bool CharactersBetween(Piece from, Piece to)
+    private bool CharactersBetween(LayoutPiece from, LayoutPiece to)
     {
         if (from.Words is not { Maps: true } || to.Words is not { Maps: true }) return false;
         if (from == to) return true;
@@ -405,7 +408,7 @@ public sealed partial class ContentEngine
     /// Two presses: what the piece under them means by it, and otherwise the thing pressed chosen rather than the whole of what
     /// holds it — inside content, "the word you clicked" is the symbol you clicked.
     /// </summary>
-    private void Twice(Point at)
+    private void Twice(LayoutPoint at)
     {
         // Two presses on a block show it as it was written, where it can be written in and is not already.
         if (OpenAsWritten(at)) return;
@@ -449,9 +452,10 @@ public sealed partial class ContentEngine
     /// What the piece under a point means by <paramref name="gesture"/>: the innermost one that means anything by it, or null
     /// where none does. The corner's buttons stand over the content, so they answer first — each for the block it is the corner of.
     /// </summary>
-    internal LayoutAct? Offered(Point at, LayoutGesture gesture)
+    internal LayoutAct? Offered(LayoutPoint at, LayoutGesture gesture)
     {
-        if (_corner is { } corner && _over is { } block && Answering(corner, at, gesture) is var (button, offer))
+        if (_corner is { } corner && _over is { } block && Answering(corner, at, gesture) is var (button, _)
+            && _cornerOffers.TryGetValue(button.At, out var offer))
             return new LayoutAct(gesture, offer, button, block, block, [button], at);
 
         if (Answering(_laid, at, gesture) is not var (found, meant)) return null;
@@ -461,9 +465,9 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>The innermost piece of <paramref name="laid"/> under a point that means something by <paramref name="gesture"/>, and what.</summary>
-    private static (Piece Piece, LayoutIntent Intent)? Answering(Laid laid, Point at, LayoutGesture gesture)
+    private static (LayoutPiece Piece, LayoutIntent Intent)? Answering(Laid laid, LayoutPoint at, LayoutGesture gesture)
     {
-        (Piece, LayoutIntent)? found = null;
+        (LayoutPiece, LayoutIntent)? found = null;
 
         // Only what reaches the point is asked: a link under the pointer is in the block it is over, not anywhere in the document.
         foreach (var (piece, where) in LayoutQuery.PlacedNear(laid.Tree.Root, reach => reach.Contains(at)))
@@ -518,7 +522,7 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>A piece was picked by a press at <paramref name="at"/>. It is chosen either way; this is only the telling.</summary>
-    private void Picked(Point at)
+    private void Picked(LayoutPoint at)
     {
         if (Offered(at, LayoutGesture.Select) is { } act) Answered(act);
     }

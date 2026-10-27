@@ -7,6 +7,9 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Globalization;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -102,8 +105,8 @@ public class DiagramSnapshotTests
                     index++;
                     foreach (var (theme, palette) in new[]
                     {
-                        ("dark",  StyleFormat.Dark),
-                        ("light", StyleFormat.Light),
+                        ("dark",  WpfStyles.Dark),
+                        ("light", WpfStyles.Light),
                     })
                     {
                         string name = $"{stem}-{index}-{theme}.png";
@@ -242,7 +245,7 @@ public class DiagramSnapshotTests
     }
 
     /// <summary>Renders one fence at the fixed host width and returns the PNG bytes.</summary>
-    private static byte[] Render(string source, StyleFormat palette)
+    private static byte[] Render(string source, LayoutStyle palette)
     {
         var host = new Border { Width = HostWidth, Child = Alone.Drawn("mermaid", source, palette) };
         host.Measure(new Size(HostWidth, double.PositiveInfinity));
@@ -256,7 +259,7 @@ public class DiagramSnapshotTests
         var bitmap = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
         var ground = new DrawingVisual();
         using (var dc = ground.RenderOpen())
-            dc.DrawRectangle(palette == StyleFormat.Light ? Brushes.White : Brushes.Black, null, new Rect(0, 0, w, h));
+            dc.DrawRectangle(palette == WpfStyles.Light ? Brushes.White : Brushes.Black, null, new Rect(0, 0, w, h));
         bitmap.Render(ground);
         bitmap.Render(host);
 

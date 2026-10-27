@@ -1,10 +1,15 @@
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.Visuals.Editing;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Layout.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -16,17 +21,17 @@ public class DiagramLegendTests
 {
     private static readonly string[] Columns = ["Label", "Value"];
 
-    private static Piece Drawn(bool across, out DiagramLegend legend)
+    private static LayoutPiece Drawn(bool across, out DiagramLegend legend)
     {
         legend = new DiagramLegend(
         [
-            new DiagramKey(new TestPart(0, 5), Brushes.Red, [DiagramShapesTests.Words("Dogs"), DiagramShapesTests.Words("386")]),
+            new DiagramKey(new TestPart(0, 5), Brushes.Red.Ink(), [DiagramShapesTests.Words("Dogs"), DiagramShapesTests.Words("386")]),
             new DiagramKey(new TestPart(6, 5), null, [DiagramShapesTests.Words("Hamsters and gerbils"), DiagramShapesTests.Words("15")]),
-        ], Columns, across, Brushes.Gray);
+        ], Columns, across, Brushes.Gray.Ink());
 
-        var build = new LayoutBuilder();
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("page");
-        legend.Draw(build, new Point(10, 10));
+        legend.Draw(build, new LayoutPoint(10, 10));
         build.Close();
 
         return build.Seal().Root;
@@ -69,12 +74,12 @@ public class DiagramLegendTests
     [TestMethod]
     public void ASwatchIsDrawnAtTheSizeItIsAskedFor() => UiThread.Run(() =>
     {
-        var legend = new DiagramLegend([new DiagramKey(new TestPart(0, 5), Brushes.Red, [DiagramShapesTests.Words("Dogs")])], Columns, across: false, Brushes.Gray)
+        var legend = new DiagramLegend([new DiagramKey(new TestPart(0, 5), Brushes.Red.Ink(), [DiagramShapesTests.Words("Dogs")])], Columns, across: false, Brushes.Gray.Ink())
         {
             Square = 30,
         };
 
-        var build = new LayoutBuilder();
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("page");
         legend.Draw(build, default);
         build.Close();

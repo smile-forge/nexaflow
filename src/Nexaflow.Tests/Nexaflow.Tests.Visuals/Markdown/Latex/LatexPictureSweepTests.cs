@@ -14,6 +14,9 @@ using Nexaflow.Visuals.Text.Markdown.Latex;
 using Rect = System.Windows.Rect;
 using Nexaflow.Tests.Visuals.Markdown.Latex;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
@@ -269,7 +272,7 @@ public class LatexPictureSweepTests
         foreach (var child in part.Children) Parsed(child, depth + 1, text);
     }
 
-    private static int Depth(Piece node)
+    private static int Depth(LayoutPiece node)
     {
         var depth = 1;
         for (var at = node.Parent; at.Exists; at = at.Parent) depth++;
@@ -293,7 +296,7 @@ public class LatexPictureSweepTests
         {
             dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, width, height));
             dc.PushTransform(new TranslateTransform(pad, pad));
-            LayoutPainter.Paint(dc, layout.Root, Brushes.Black);
+            WpfPainter.Paint(dc, layout.Root, Brushes.Black);
             dc.Pop();
         }
 

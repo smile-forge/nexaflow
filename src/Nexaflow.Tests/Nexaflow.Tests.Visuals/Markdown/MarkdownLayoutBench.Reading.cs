@@ -10,6 +10,9 @@ using System.Windows.Controls;
 using System.Windows.Threading;
 
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -25,7 +28,7 @@ public partial class MarkdownLayoutBench
     /// How many sections the generated lecture script has: about a megabyte, with as many formulas in it as a term's notes —
     /// the shape of document that showed every one of those costs.
     /// </summary>
-    private const int LectureSections = 400;
+    internal const int LectureSections = 400;
 
     /// <summary>How many screens are read on down from the top, a screen at a time.</summary>
     private const int Pages = 60;
@@ -52,7 +55,7 @@ public partial class MarkdownLayoutBench
         {
             IsReadOnly = false,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Palette = StyleFormat.Dark,
+            Palette = WpfStyles.Dark,
         };
 
         // Off the desktop but shown: what is not shown is neither laid out nor painted.
@@ -115,7 +118,7 @@ public partial class MarkdownLayoutBench
             var pointing = Steps(Moves, () => element.PointerCursor(Along(++pointed, 13)));
 
             var hovered = 0;
-            var hovering = Steps(Moves, () => surface.Engine.Input(new ContentHover(Along(++hovered, 11))));
+            var hovering = Steps(Moves, () => surface.Engine.Input(new ContentHover(Along(++hovered, 11).ToLayout())));
 
             element.BeginPointerSelect(top);
             Settle();
@@ -212,7 +215,7 @@ public partial class MarkdownLayoutBench
     /// it, so the waves under what could not be set are in what is measured, as they are in a real script. The same every run,
     /// so runs compare.
     /// </summary>
-    private static string LectureScript(int sections)
+    internal static string LectureScript(int sections)
     {
         string[] words = ["let", "the", "function", "be", "continuous", "on", "the", "closed", "interval", "and", "differentiable",
                           "in", "its", "interior", "then", "there", "exists", "a", "point", "such", "that", "it", "holds", "for",

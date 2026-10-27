@@ -13,6 +13,11 @@ using System.Threading.Tasks;
 using System.Windows.Threading;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 using System.Text;
+using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Flowchart;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -75,7 +80,7 @@ public class FoldingDiagramTests
 
     /// <summary>Where each piece of a kind was placed, in the order they were drawn.</summary>
     private static List<Rect> Placed(MarkdownSurface surface, string kind) =>
-        [.. surface.Shown.Laid.Tree.Root.Placed().Where(at => at.Piece.Kind == kind).Select(at => at.Where)];
+        [.. surface.Shown.Laid.Tree.Root.Placed().Where(at => at.Piece.Kind == kind).Select(at => at.Where.ToWpf())];
 
     private static Point Middle(Rect where) => new(where.X + (where.Width / 2), where.Y + (where.Height / 2));
 
@@ -127,7 +132,7 @@ public class FoldingDiagramTests
 
     /// <summary>Whether the node drawn at <paramref name="where"/> says <paramref name="words"/>.</summary>
     private static bool Says(MarkdownSurface surface, Rect where, string words) =>
-        surface.Shown.Laid.Tree.Root.Placed().Any(at => at.Piece.Words?.Glyphs.Text == words && where.Contains(at.Where));
+        surface.Shown.Laid.Tree.Root.Placed().Any(at => at.Piece.Words?.Glyphs.Text == words && where.Contains(at.Where.ToWpf()));
 
     [TestMethod]
     [CoversNode("graph-expandable-nodes")]
@@ -300,12 +305,12 @@ public class FoldingDiagramTests
         var surface = new MarkdownSurface { Markdown = "Before it.\n\n```mermaid\n" + Src + "\n```\n\nAfter it.\n" };
         Settled(surface);
 
-        var before = Placed(surface, MarkdownPieces.Whole)[0];
+        var before = Placed(surface, LayoutPieces.Whole)[0];
 
         Press(surface, Placed(surface, MermaidPiece.Chip)[1]);
 
         Assert.IsTrue(Words(surface).Contains("Hidden"), "the diagram opened");
-        Assert.AreEqual(before, Placed(surface, MarkdownPieces.Whole)[0],
+        Assert.AreEqual(before, Placed(surface, LayoutPieces.Whole)[0],
                         "and the paragraph above it was not laid out again");
     });
 
@@ -464,7 +469,7 @@ public class FoldingDiagramTests
     {
         var drawn = surface.Shown.Laid.Tree.Root.Placed()
                            .Where(at => at.Piece.Region is not null || at.Piece.Words is not null)
-                           .Select(at => at.Where).ToList();
+                           .Select(at => at.Where.ToWpf()).ToList();
         var size = surface.Shown.Laid.Size;
 
         for (var down = 3.0; down < size.Height; down += 4)

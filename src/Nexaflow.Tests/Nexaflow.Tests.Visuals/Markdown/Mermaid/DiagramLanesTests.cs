@@ -1,8 +1,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
+using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Layout.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -15,7 +20,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 [CoversNode("mermaid-diagram-kit")]
 public class DiagramLanesTests
 {
-    private static readonly Size Box = new(40, 20);
+    private static readonly LayoutSize Box = new(40, 20);
 
     [TestMethod]
     public void ALanesCellsComeOneToARank()
@@ -50,7 +55,7 @@ public class DiagramLanesTests
                                   "side by side in the same rank, there is no rank between them to bend in — so it runs straight across, "
                                 + "which is what lets each end be brought in to the shape it meets");
 
-        static Point Middle(Rect bounds) => new(bounds.X + (bounds.Width / 2), bounds.Y + (bounds.Height / 2));
+        static LayoutPoint Middle(LayoutRect bounds) => new(bounds.X + (bounds.Width / 2), bounds.Y + (bounds.Height / 2));
     }
 
     [TestMethod]
@@ -96,7 +101,7 @@ public class DiagramLanesTests
         DiagramLayers.Lay([one], [], DiagramWay.Down, 10, 30, Lanes(lane));
 
         Assert.AreEqual(18, one.Bounds.Top, 0.01, "the first rank starts past the room the lanes keep for their names");
-        Assert.AreEqual(new Rect(lane.Bounds.X, 0, lane.Bounds.Width, 18), lane.Strip,
+        Assert.AreEqual(new LayoutRect(lane.Bounds.X, 0, lane.Bounds.Width, 18), lane.Strip,
                         "and the strip is that room, across the near end of the band");
     }
 
@@ -149,8 +154,8 @@ public class DiagramLanesTests
         var lane = Lane(least: 30, heading: 18);
         var whole = DiagramLayers.Lay([], [], DiagramWay.Down, 10, 30, Lanes(lane));
 
-        Assert.AreEqual(new Rect(0, 0, 30, 18), lane.Bounds, "a swimlane of empty lanes is still lanes to draw");
-        Assert.AreEqual(new Size(30, 18), whole);
+        Assert.AreEqual(new LayoutRect(0, 0, 30, 18), lane.Bounds, "a swimlane of empty lanes is still lanes to draw");
+        Assert.AreEqual(new LayoutSize(30, 18), whole);
     }
 
     [TestMethod]
@@ -180,7 +185,7 @@ public class DiagramLanesTests
     public void ACellInsideASubgraphInsideALaneIsStillHeldToTheBand()
     {
         var lane = Lane();
-        var box = new DiagramCell(new Size(0, 0)) { Lane = 1, Pad = 6 };
+        var box = new DiagramCell(new LayoutSize(0, 0)) { Lane = 1, Pad = 6 };
         var inner = new DiagramCell(Box) { Inside = box };
         var beside = Cell(2);
 

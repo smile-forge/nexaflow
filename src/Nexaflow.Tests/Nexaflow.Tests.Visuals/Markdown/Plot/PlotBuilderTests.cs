@@ -4,7 +4,10 @@ using Nexaflow.Markdown.Plot;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
-using Nexaflow.Visuals.Text.Markdown.Plot;
+using Nexaflow.Markdown.Layout.Plot;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Plot;
 
@@ -43,10 +46,10 @@ public class PlotBuilderTests
         StringAssert.Contains(laid.Trouble.Single().Message, "jitter");
     });
 
-    private static Piece[] Marks(Laid laid) =>
+    private static LayoutPiece[] Marks(Laid laid) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == PlotPiece.Mark)];
 
-    private static Piece[] Of(Laid laid, string kind) =>
+    private static LayoutPiece[] Of(Laid laid, string kind) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];
 
     // ── The marks ───────────────────────────────────────────────────────────
@@ -264,7 +267,7 @@ public class PlotBuilderTests
     [CoversNode("correlation-plots-render")]
     public void AScatterBlockDispatchesThroughTheDiagramRenderer() => UiThread.Run(() =>
     {
-        var element = Alone.Drawn("scatter", Cars, StyleFormat.Dark);
+        var element = Alone.Drawn("scatter", Cars, WpfStyles.Dark);
 
         Assert.IsInstanceOfType<ContentElement>(element,
             "a plot is rendered content, not the source text it was written as");
@@ -370,9 +373,9 @@ public class PlotBuilderTests
     });
 
     /// <summary>What a piece was drawn in, which is how two groups are told apart.</summary>
-    private static Color? Fill(Piece piece) =>
+    private static Color? Fill(LayoutPiece piece) =>
         piece.SelfAndDescendants().SelectMany(inner => inner.Marks.ToArray()).OfType<GeometryMark>()
-             .Select(mark => mark.Fill).OfType<SolidColorBrush>().Select(brush => (Color?)brush.Color)
+             .Select(mark => mark.Fill?.Brush()).OfType<SolidColorBrush>().Select(brush => (Color?)brush.Color)
              .FirstOrDefault();
 
     [TestMethod]
@@ -760,7 +763,7 @@ public class PlotBuilderTests
         {
             Assert.IsNotNull(label.Part, "a value drawn from nothing could not be typed into");
             Assert.IsNotNull(label.Words, "it is a run of text rather than a picture of one");
-            Assert.AreNotEqual(Stops.None, label.Stops, "and a caret can stand between any two of its digits");
+            Assert.AreNotEqual(LayoutStops.None, label.Stops, "and a caret can stand between any two of its digits");
 
             Assert.AreEqual(Source.Substring(label.Part!.Start, label.Part.Length),
                             label.Words!.Glyphs.Text,
@@ -827,9 +830,9 @@ public class PlotBuilderTests
         Assert.AreNotEqual(Clearness(marks[0]), Clearness(marks[1]));
     });
 
-    private static double Clearness(Piece piece) =>
+    private static double Clearness(LayoutPiece piece) =>
         piece.SelfAndDescendants().SelectMany(inner => inner.Marks.ToArray()).OfType<GeometryMark>()
-             .Select(mark => mark.Fill?.Opacity ?? 1).FirstOrDefault();
+             .Select(mark => mark.Fill?.Brush().Opacity ?? 1).FirstOrDefault();
 
     [TestMethod]
     [CoversNode("correlation-plots-render")]
@@ -938,8 +941,8 @@ public class PlotBuilderTests
         var title = Of(laid, PlotPiece.Title)[0].Bounds;
         var panel = Of(laid, PlotPiece.Grid)[0].Bounds;
 
-        foreach (var piece in Of(laid, PlotPiece.Grid)) panel.Union(piece.Bounds);
-        foreach (var piece in Of(laid, PlotPiece.Title)) title.Union(piece.Bounds);
+        foreach (var piece in Of(laid, PlotPiece.Grid)) panel = LayoutRect.Union(panel, piece.Bounds);
+        foreach (var piece in Of(laid, PlotPiece.Title)) title = LayoutRect.Union(title, piece.Bounds);
 
         Assert.IsTrue(title.Top >= panel.Bottom - 0.5 || title.Bottom <= panel.Top + 0.5,
                       $"a title reaching {title.Top}–{title.Bottom} runs into a panel of {panel.Top}–{panel.Bottom}");
@@ -954,7 +957,7 @@ public class PlotBuilderTests
         var grid = Of(laid, PlotPiece.Grid);
         var panel = grid[0].Bounds;
 
-        foreach (var piece in grid) panel.Union(piece.Bounds);
+        foreach (var piece in grid) panel = LayoutRect.Union(panel, piece.Bounds);
 
         return panel.Width / panel.Height;
     }
@@ -978,15 +981,15 @@ public class PlotBuilderTests
         var laid = Lay("jitter: 0.9\n\nmonth  rating\nJan  3\nJan  3\nJan  5\nFeb  5\nFeb  2\nMar  4");
 
         var panel = Of(laid, PlotPiece.Grid)[0].Bounds;
-            foreach (var piece in Of(laid, PlotPiece.Grid)) panel.Union(piece.Bounds);
+            foreach (var piece in Of(laid, PlotPiece.Grid)) panel = LayoutRect.Union(panel, piece.Bounds);
 
             // A mark held to the edge lands on it, and an edge is not a place two doubles agree about.
-            panel.Inflate(0.01, 0.01);
+            panel = LayoutRect.Inflate(panel, 0.01, 0.01);
 
         foreach (var mark in Marks(laid))
         {
-            var middle = new System.Windows.Point(mark.Bounds.Left + (mark.Bounds.Width / 2),
-                                                  mark.Bounds.Top + (mark.Bounds.Height / 2));
+            var middle = new LayoutPoint(mark.Bounds.Left + (mark.Bounds.Width / 2),
+                                         mark.Bounds.Top + (mark.Bounds.Height / 2));
 
             Assert.IsTrue(panel.Contains(middle),
                           $"a mark at {middle} stands outside a panel of {panel}");
@@ -1129,7 +1132,7 @@ public class PlotBuilderTests
     });
 
     /// <summary>Each of an axis's ticks: what it says, and where it is along the page.</summary>
-    private static (string Says, double At)[] Ticked(Laid laid, string axis, Func<Piece, double> along) =>
+    private static (string Says, double At)[] Ticked(Laid laid, string axis, Func<LayoutPiece, double> along) =>
         [.. laid.Root.SelfAndDescendants()
                  .First(piece => piece.Kind == axis)
                  .SelfAndDescendants()

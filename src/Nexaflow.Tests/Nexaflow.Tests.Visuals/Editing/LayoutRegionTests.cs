@@ -4,6 +4,9 @@ using System.Windows.Media;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 
@@ -33,18 +36,19 @@ public class LayoutRegionTests
 
     private static LayoutTree Wedges(bool shaped = true, TestPart? label = null)
     {
-        var build = new LayoutBuilder();
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("pie", new TestPart(0, 11));
 
         foreach (var (part, shape) in new[] { (UpperPart, Upper), (LowerPart, Lower) })
         {
             build.Open("wedge", part);
-            build.Draw(GeometryMark.Filled(shape));
-            if (shaped) build.Occupies(shape);
+            var region = shape.Shape();
+            build.Draw(new GeometryMark(region, null, null));
+            if (shaped) build.Occupies(region);
             build.Close();
         }
 
-        if (label is not null) build.Leaf(new Rect(110, 0, 30, 10), label, "label");
+        if (label is not null) build.Leaf(new LayoutRect(110, 0, 30, 10), label, "label");
 
         build.Close();
         return build.Seal();
@@ -55,8 +59,8 @@ public class LayoutRegionTests
     {
         // What the rest of this is about: without a shape, their boxes cannot tell them apart.
         var wedges = Wedges(shaped: false).Root.Children.ToList();
-        Assert.AreEqual(wedges[0].Bounds, new Rect(0, 0, 90, 90));
-        Assert.IsTrue(wedges[1].Bounds.Contains(new Point(20, 20)), "the lower wedge's box reaches right into the upper wedge");
+        Assert.AreEqual(wedges[0].Bounds, new LayoutRect(0, 0, 90, 90));
+        Assert.IsTrue(wedges[1].Bounds.Contains(new LayoutPoint(20, 20)), "the lower wedge's box reaches right into the upper wedge");
     }
 
     [TestMethod]
@@ -64,9 +68,9 @@ public class LayoutRegionTests
     {
         var root = Wedges().Root;
 
-        Assert.AreEqual(LowerPart.Start, root.PieceAt(new Point(80, 80)).Sits().Start);
-        Assert.AreEqual(UpperPart.Start, root.PieceAt(new Point(20, 20)).Sits().Start);
-        Assert.AreEqual(UpperPart.Start, root.PieceAt(new Point(60, 25)).Sits().Start, "inside both boxes, and in the upper wedge");
+        Assert.AreEqual(LowerPart.Start, root.PieceAt(new LayoutPoint(80, 80)).Sits().Start);
+        Assert.AreEqual(UpperPart.Start, root.PieceAt(new LayoutPoint(20, 20)).Sits().Start);
+        Assert.AreEqual(UpperPart.Start, root.PieceAt(new LayoutPoint(60, 25)).Sits().Start, "inside both boxes, and in the upper wedge");
     }
 
     [TestMethod]
@@ -74,8 +78,8 @@ public class LayoutRegionTests
     {
         var root = Wedges().Root;
 
-        Assert.AreEqual(UpperPart.Start, root.PieceAt(new Point(47, 47)).Sits().Start, "just past the upper wedge's edge");
-        Assert.AreEqual(LowerPart.Start, root.PieceAt(new Point(53, 53)).Sits().Start, "just short of the lower wedge's edge");
+        Assert.AreEqual(UpperPart.Start, root.PieceAt(new LayoutPoint(47, 47)).Sits().Start, "just past the upper wedge's edge");
+        Assert.AreEqual(LowerPart.Start, root.PieceAt(new LayoutPoint(53, 53)).Sits().Start, "just short of the lower wedge's edge");
     }
 
     [TestMethod]
@@ -83,7 +87,7 @@ public class LayoutRegionTests
     {
         var root = Wedges().Root;
 
-        var taken = root.PiecesIn(new Rect(75, 75, 10, 10));
+        var taken = root.PiecesIn(new LayoutRect(75, 75, 10, 10));
         Assert.AreEqual(LowerPart.Start, taken.Single().Sits().Start);
     }
 
@@ -91,11 +95,11 @@ public class LayoutRegionTests
     public void ASelectedShapeIsWashedAsItself()
     {
         var root = Wedges().Root;
-        var wash = root.Wash([new EditRange(UpperPart.Start, UpperPart.Length)], pad: 2);
+        var wash = root.Wash([new EditRange(UpperPart.Start, UpperPart.Length)], pad: 2)!;
 
-        Assert.IsTrue(wash.FillContains(new Point(20, 20)), "the wedge chosen is washed");
-        Assert.IsTrue(wash.FillContains(new Point(45, 46)), "and the pad around its edge");
-        Assert.IsFalse(wash.FillContains(new Point(80, 80)), "and its neighbour, which shares its box, is not");
+        Assert.IsTrue(wash.Contains(new LayoutPoint(20, 20)), "the wedge chosen is washed");
+        Assert.IsTrue(wash.Contains(new LayoutPoint(45, 46)), "and the pad around its edge");
+        Assert.IsFalse(wash.Contains(new LayoutPoint(80, 80)), "and its neighbour, which shares its box, is not");
         Assert.AreEqual(0, root.RangeRects(UpperPart.Start, UpperPart.Length).Count, "a shape is no rectangle's business");
     }
 
@@ -104,28 +108,28 @@ public class LayoutRegionTests
     {
         // A label written inside the upper wedge's stretch, drawn off to the side of the pie.
         var root = Wedges(label: new TestPart(1, 2)).Root;
-        var wash = root.Wash([new EditRange(UpperPart.Start, UpperPart.Length)], pad: 2);
+        var wash = root.Wash([new EditRange(UpperPart.Start, UpperPart.Length)], pad: 2)!;
 
-        Assert.IsTrue(wash.FillContains(new Point(20, 20)));
-        Assert.IsTrue(wash.FillContains(new Point(125, 5)), "the label belonging to it");
-        Assert.IsFalse(wash.FillContains(new Point(80, 80)));
+        Assert.IsTrue(wash.Contains(new LayoutPoint(20, 20)));
+        Assert.IsTrue(wash.Contains(new LayoutPoint(125, 5)), "the label belonging to it");
+        Assert.IsFalse(wash.Contains(new LayoutPoint(80, 80)));
     }
 
     [TestMethod]
     public void AShapeGoesWhereverItsTreeIsPutDown()
     {
-        var build = new LayoutBuilder();
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("page");
-        build.Graft(Wedges(), new Point(200, 40));
+        build.Graft(Wedges(), new LayoutPoint(200, 40));
         build.Close();
         var root = build.Seal().Root;
 
-        Assert.AreEqual(LowerPart.Start, root.PieceAt(new Point(280, 120)).Sits().Start);
-        Assert.AreEqual(UpperPart.Start, root.PieceAt(new Point(220, 60)).Sits().Start);
+        Assert.AreEqual(LowerPart.Start, root.PieceAt(new LayoutPoint(280, 120)).Sits().Start);
+        Assert.AreEqual(UpperPart.Start, root.PieceAt(new LayoutPoint(220, 60)).Sits().Start);
 
-        var wash = root.Wash([new EditRange(LowerPart.Start, LowerPart.Length)], pad: 0);
-        Assert.IsTrue(wash.FillContains(new Point(280, 120)), "washed where it landed");
-        Assert.IsFalse(wash.FillContains(new Point(80, 80)), "not where it was built");
+        var wash = root.Wash([new EditRange(LowerPart.Start, LowerPart.Length)], pad: 0)!;
+        Assert.IsTrue(wash.Contains(new LayoutPoint(280, 120)), "washed where it landed");
+        Assert.IsFalse(wash.Contains(new LayoutPoint(80, 80)), "not where it was built");
     }
 
     [TestMethod]
@@ -142,17 +146,17 @@ public class LayoutRegionTests
             var standing = wedge.OnPage();
 
             Assert.IsNotNull(standing, "a wedge stands in its own shape");
-            Assert.IsTrue(standing.FillContains(Middle(wedge.Region!.Bounds, wedge.Anchor)),
+            Assert.IsTrue(standing.Contains(Middle(wedge.Region!.Bounds, wedge.Anchor)),
                           "answered where the piece sits, not in the shape's own frame");
             Assert.IsTrue(standing.Bounds.Width <= wedge.Bounds.Width + 1 && standing.Bounds.Height <= wedge.Bounds.Height + 1,
                           "and never wider than the box it was cut from");
         }
 
-        Assert.IsFalse(wedges[1].OnPage()!.FillContains(new Point(20, 20)),
+        Assert.IsFalse(wedges[1].OnPage()!.Contains(new LayoutPoint(20, 20)),
                        "the corner of the lower wedge's box is no part of the lower wedge");
     }
 
     /// <summary>The middle of a shape's own bounds, said where the piece carrying it sits.</summary>
-    private static Point Middle(Rect bounds, Vector anchor) =>
+    private static LayoutPoint Middle(LayoutRect bounds, LayoutVector anchor) =>
         new(bounds.X + (bounds.Width / 2) + anchor.X, bounds.Y + (bounds.Height / 2) + anchor.Y);
 }

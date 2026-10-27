@@ -13,6 +13,9 @@ using Nexaflow.Markdown.Rtf;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -26,7 +29,7 @@ public class WindowedLayoutTests
 {
     private const double Room = 640;
 
-    private static readonly StyleFormat Style = StyleFormat.Dark;
+    private static readonly LayoutStyle Style = WpfStyles.Dark;
 
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(20);
 
@@ -93,7 +96,7 @@ public class WindowedLayoutTests
         var laid = engine.Laid.Tree.Count;
         var bottom = engine.Laid.Root.Children.Max(piece => piece.Bounds.Bottom);
 
-        engine.OnScreen = new Rect(0, bottom - 200, Room, 400);
+        engine.OnScreen = new LayoutRect(0, bottom - 200, Room, 400);
 
         Assert.IsTrue(grew > 0, "Nothing said there was more to lay.");
 
@@ -188,7 +191,7 @@ public class WindowedLayoutTests
     {
         var text = Paragraphs(4000);
         var engine = Shown(text, null, new ContentEngine());
-        var brought = new List<Rect>();
+        var brought = new List<LayoutRect>();
         engine.Revealing += (_, at) => brought.Add(at);
 
         var far = text.IndexOf("Paragraph 3501 ", StringComparison.Ordinal);
@@ -257,7 +260,7 @@ public class WindowedLayoutTests
     /// <summary>What <paramref name="engine"/> lays with the reader looking at all of it, once the reading of the rest has landed.</summary>
     private static Laid ToTheEnd(ContentEngine engine)
     {
-        engine.OnScreen = new Rect(0, 0, Room, 1e12);
+        engine.OnScreen = new LayoutRect(0, 0, Room, 1e12);
 
         for (var round = 0; round < 2; round++)
         {
@@ -303,7 +306,7 @@ public class WindowedLayoutTests
 
             Assert.AreEqual(a.Kind, b.Kind, $"{what}: piece {at}");
             // Except the line at today, drawn from the clock: two layouts made a moment apart need not agree on the moment.
-            if (a.Kind != Nexaflow.Visuals.Text.Markdown.Mermaid.Gantt.GanttPiece.Today)
+            if (a.Kind != Nexaflow.Markdown.Mermaid.Gantt.GanttPiece.Today)
                 Assert.IsTrue(Near(a.Bounds, b.Bounds), $"{what}: piece {at} ({a.Kind}) stands at {b.Bounds}, not {a.Bounds}");
             Assert.AreEqual(Span(a.Part), Span(b.Part), $"{what}: what piece {at} ({a.Kind}) stands for");
         }
@@ -313,16 +316,16 @@ public class WindowedLayoutTests
 
         CollectionAssert.AreEquivalent(expected.Trouble.Select(Said).ToList(), actual.Trouble.Select(Said).ToList(), $"{what}: trouble");
 
-        Assert.IsTrue(Near(new Rect(expected.Size), new Rect(actual.Size)), $"{what}: the size is {actual.Size}, not {expected.Size}");
+        Assert.IsTrue(Near(new LayoutRect(expected.Size), new LayoutRect(actual.Size)), $"{what}: the size is {actual.Size}, not {expected.Size}");
     }
 
-    private static bool Near(Rect want, Rect got) =>
+    private static bool Near(LayoutRect want, LayoutRect got) =>
         want.IsEmpty ? got.IsEmpty
         : !got.IsEmpty && Math.Abs(want.X - got.X) < 1e-6 && Math.Abs(want.Y - got.Y) < 1e-6
           && Math.Abs(want.Width - got.Width) < 1e-6 && Math.Abs(want.Height - got.Height) < 1e-6;
 
     /// <summary>Where two layouts of the same content stop agreeing, for a count that does not match.</summary>
-    private static string Diverged(IReadOnlyList<Piece> want, IReadOnlyList<Piece> got)
+    private static string Diverged(IReadOnlyList<LayoutPiece> want, IReadOnlyList<LayoutPiece> got)
     {
         for (var at = 0; at < Math.Min(want.Count, got.Count); at++)
         {
@@ -338,5 +341,5 @@ public class WindowedLayoutTests
 
     private static (int, int)? Span(ISourcePart? part) => part is null ? null : (part.Start, part.Length);
 
-    private static string Said(Diagnostic trouble) => $"{trouble.Start}+{trouble.Length} {trouble.Message} {Span(trouble.Part)}";
+    private static string Said(LayoutDiagnostic trouble) => $"{trouble.Start}+{trouble.Length} {trouble.Message} {Span(trouble.Part)}";
 }

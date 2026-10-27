@@ -4,8 +4,10 @@ using System.Linq;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 

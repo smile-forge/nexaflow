@@ -4,11 +4,15 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Block;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Block;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -154,8 +158,8 @@ public class BlockBuilderTests : MermaidBuilderContract
         Assert.AreEqual(Color.FromRgb(0xBB, 0xBB, 0xFF), Filled(blocks[1]), "and the style written for it");
 
         var outline = Marks(blocks[1])[0];
-        Assert.AreEqual(Color.FromRgb(0xFF, 0x66, 0x66), ((SolidColorBrush)outline.Stroke!).Color);
-        Assert.AreEqual(3, outline.Thickness);
+        Assert.AreEqual(Color.FromRgb(0xFF, 0x66, 0x66), ((SolidColorBrush)outline.Stroke!.Ink!.Brush()).Color);
+        Assert.AreEqual(3, outline.Stroke.Thickness);
     });
 
     [TestMethod]
@@ -214,24 +218,24 @@ public class BlockBuilderTests : MermaidBuilderContract
     });
 
     /// <summary>What a block's shape comes to as a path, which is the only thing that tells two shapes of the same size apart.</summary>
-    private static string Outlined(Piece piece) =>
-        string.Join("|", Marks(piece).Select(mark => PathGeometry.CreateFromGeometry(mark.Shape).ToString(CultureInfo.InvariantCulture)));
+    private static string Outlined(LayoutPiece piece) =>
+        string.Join("|", Marks(piece).Select(mark => PathGeometry.CreateFromGeometry(mark.Shape.Geometry()).ToString(CultureInfo.InvariantCulture)));
 
     private static Laid Build(string source, double room = 900) =>
         Laying.Lay("mermaid", source, room);
 
     /// <summary>The words drawn under a piece, in the order they were drawn.</summary>
-    private static IEnumerable<Piece> Said(Piece piece) =>
+    private static IEnumerable<LayoutPiece> Said(LayoutPiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Words && part.Words is not null);
 
-    private static IReadOnlyList<GeometryMark> Marks(Piece piece) =>
+    private static IReadOnlyList<GeometryMark> Marks(LayoutPiece piece) =>
         [.. piece.SelfAndDescendants().First(part => part.Kind == MermaidPiece.Shape).Marks.ToArray().OfType<GeometryMark>()];
 
-    private static Color? Filled(Piece piece) => Fill(piece.SelfAndDescendants().First(part => part.Kind == MermaidPiece.Shape));
+    private static Color? Filled(LayoutPiece piece) => Fill(piece.SelfAndDescendants().First(part => part.Kind == MermaidPiece.Shape));
 
-    private static Rect Drawing(string source) => Marks(Pieces(Build(source), BlockPiece.Arrow).Single())[0].Shape.Bounds;
+    private static LayoutRect Drawing(string source) => Marks(Pieces(Build(source), BlockPiece.Arrow).Single())[0].Shape.Bounds;
 
-    private static bool Holds(Rect over, Rect inner) =>
+    private static bool Holds(LayoutRect over, LayoutRect inner) =>
         inner.Left >= over.Left - 1 && inner.Right <= over.Right + 1 && inner.Top >= over.Top - 1 && inner.Bottom <= over.Bottom + 1;
 
     [TestMethod]
@@ -240,25 +244,25 @@ public class BlockBuilderTests : MermaidBuilderContract
         var laid = Build("block-beta\n  block:one[\"Outer\"]\n    columns 2\n    a b\n  end\n  a -- \"why\" --> b");
         var said = Pieces(laid, BlockPiece.Label).Single();
         var holding = Pieces(laid, BlockPiece.Holding).Single();
-        var at = Middle(said.Bounds);
+        var at = Middle(said.Bounds.ToWpf()).ToLayout();
 
         Assert.IsTrue(holding.Bounds.Contains(at), "what is written on the link sits over the composite");
         Assert.IsFalse(Stands(holding, at), "and the composite does not stand there, so a press there means the link");
     });
 
     /// <summary>Whether a piece's shape stands at a point, which is where a press on it lands rather than on what is under it.</summary>
-    private static bool Stands(Piece piece, Point at)
+    private static bool Stands(LayoutPiece piece, LayoutPoint at)
     {
         var shift = piece.Offset;
         foreach (var over in piece.Ancestors()) shift += over.Offset;
 
-        return piece.SelfAndDescendants().First(part => part.Kind == MermaidPiece.Shape).Region?.FillContains(at - shift) == true;
+        return piece.SelfAndDescendants().First(part => part.Kind == MermaidPiece.Shape).Region?.Contains(at - shift) == true;
     }
 
     // ── What is read from the lines as written ──────────────────────────────
 
     /// <summary>The blocks drawn, each by what is written on it.</summary>
-    private static Dictionary<string, Rect> Blocks(Laid laid) =>
+    private static Dictionary<string, LayoutRect> Blocks(Laid laid) =>
         Pieces(laid, BlockPiece.Block).ToDictionary(block => string.Concat(Said(block).Select(words => words.Words!.Glyphs.Text)), block => block.Bounds);
 
     [TestMethod]
@@ -308,7 +312,7 @@ public class BlockBuilderTests : MermaidBuilderContract
     {
         const string source = "block-beta\n  block:one\n    block:two\n      a\n    end\n  end\n  block:three\n    b\n  end";
         var laid = Build(source);
-        string[] Holding(Piece piece) =>
+        string[] Holding(LayoutPiece piece) =>
             [.. piece.Ancestors().Where(over => over.Kind == BlockPiece.Composite).Select(over => Written(source, over.Part))];
 
         var composites = Pieces(laid, BlockPiece.Composite).ToDictionary(piece => Written(source, piece.Part), Holding);
@@ -330,8 +334,8 @@ public class BlockBuilderTests : MermaidBuilderContract
         Assert.AreNotEqual(Outline(Link("<-->")), Outline(Link("-->")), "and one at each end where it points both ways");
         Assert.AreNotEqual(Outline(Link("--x")), Outline(Link("-->")), "a cross is not an arrow's head");
         Assert.AreNotEqual(Outline(Link("o--o")), Outline(Link("<-->")), "nor is a circle");
-        Assert.IsTrue(Link("==>")[0].Thickness > Link("-->")[0].Thickness, "a link of equals signs is drawn thick");
-        Assert.IsNotNull(Link("-.->")[0].Dashes, "and a dotted one dotted");
+        Assert.IsTrue(Link("==>")[0].Stroke!.Thickness > Link("-->")[0].Stroke!.Thickness, "a link of equals signs is drawn thick");
+        Assert.IsNotNull(((WpfStroke)Link("-.->")[0].Stroke!).Dashes, "and a dotted one dotted");
     });
 
     [TestMethod]
@@ -342,5 +346,5 @@ public class BlockBuilderTests : MermaidBuilderContract
     });
 
     private static string Outline(IReadOnlyList<GeometryMark> marks) =>
-        string.Join("|", marks.Select(mark => PathGeometry.CreateFromGeometry(mark.Shape).ToString(CultureInfo.InvariantCulture)));
+        string.Join("|", marks.Select(mark => PathGeometry.CreateFromGeometry(mark.Shape.Geometry()).ToString(CultureInfo.InvariantCulture)));
 }

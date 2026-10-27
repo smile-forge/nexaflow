@@ -5,6 +5,10 @@ using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Languages;
 using Nexaflow.Visuals.Text.Markdown.Music;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Layout.Scores;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music;
 
@@ -21,11 +25,11 @@ namespace Nexaflow.Tests.Visuals.Markdown.Music;
 [TestCategory("UI")]
 public class MusicRendererTests
 {
-    private static Laid Lay(string md) => Laying.Lay(null, md, 700, StyleFormat.Dark);
+    private static Laid Lay(string md) => Laying.Lay(null, md, 700, WpfStyles.Dark);
 
     private static bool Engraved(Laid laid) =>
-        laid.Root.SelfAndDescendants().Any(piece => piece.Kind == MusicPiece.Page)
-        && !laid.Root.SelfAndDescendants().Any(piece => piece.Kind == MarkdownPieces.Verbatim);
+        laid.Root.SelfAndDescendants().Any(piece => piece.Kind == MusicBuilder.Page)
+        && !laid.Root.SelfAndDescendants().Any(piece => piece.Kind == LayoutPieces.Verbatim);
 
     [TestMethod]
     [CoversNode("abc-layout")]

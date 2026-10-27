@@ -3,7 +3,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Media;
-using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Features.Pdf.Rendering;
 
@@ -49,7 +49,7 @@ internal sealed class PdfPaginator : DocumentPaginator
         {
             dc.PushTransform(new TranslateTransform((sheet.Width - drawn.Width) / 2, (sheet.Height - drawn.Height) / 2));
             dc.PushTransform(new ScaleTransform(scale, scale));
-            LayoutPainter.Paint(dc, laid.Tree.Root, Brushes.Black);
+            WpfPainter.Paint(dc, laid.Tree.Root, Brushes.Black);
             dc.Pop();
             dc.Pop();
         }

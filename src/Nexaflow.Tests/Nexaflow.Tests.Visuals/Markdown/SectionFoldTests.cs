@@ -7,6 +7,9 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -58,7 +61,7 @@ public class SectionFoldTests
         engine.Input(new ContentPress(Middle(Marker(engine).Bounds)));
 
         Assert.IsTrue(Words(engine).Any(said => said.Contains("Cats purr")), "what was folded is back on the page");
-        Assert.IsFalse(Pieces(engine, MarkdownPieces.Fold).Any(), "and the marker is gone");
+        Assert.IsFalse(Pieces(engine, LayoutPieces.Fold).Any(), "and the marker is gone");
     });
 
     [TestMethod]
@@ -108,19 +111,19 @@ public class SectionFoldTests
     private static void FoldAt(ContentEngine engine, string heading)
     {
         engine.Input(new ContentHover(Middle(Where(engine, heading))));
-        var fold = Buttons(engine).Single(button => button.Acts!.Click!.Value.Verb == LayoutVerbs.Collapse);
+        var fold = Buttons(engine).Single(button => button.Acts!.Click!.Verb == LayoutVerbs.Collapse);
 
         engine.Input(new ContentPress(Middle(fold.Bounds)));
         engine.Input(new ContentHover(null));
     }
 
     /// <summary>The one fold marker on the page.</summary>
-    private static Piece Marker(ContentEngine engine) => Pieces(engine, MarkdownPieces.Fold).Single();
+    private static LayoutPiece Marker(ContentEngine engine) => Pieces(engine, LayoutPieces.Fold).Single();
 
     /// <summary>What a marker says, as drawn.</summary>
-    private static string Says(Piece marker) => string.Concat(marker.Marks.ToArray().OfType<TextMark>().Select(mark => mark.Glyphs.Text));
+    private static string Says(LayoutPiece marker) => string.Concat(marker.Marks.ToArray().OfType<TextMark>().Select(mark => mark.Glyphs.Text));
 
-    private static IEnumerable<Piece> Pieces(ContentEngine engine, string kind) =>
+    private static IEnumerable<LayoutPiece> Pieces(ContentEngine engine, string kind) =>
         engine.Laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind);
 
     /// <summary>Every run of words drawn on the page.</summary>
@@ -128,21 +131,21 @@ public class SectionFoldTests
         [.. engine.Laid.Root.SelfAndDescendants().Select(piece => piece.Words?.Glyphs.Text).OfType<string>()];
 
     /// <summary>The corner's buttons, in the order they stand.</summary>
-    private static List<Piece> Buttons(ContentEngine engine) =>
+    private static List<LayoutPiece> Buttons(ContentEngine engine) =>
         engine.Corner is null ? [] : [.. engine.Corner.Root.SelfAndDescendants().Where(piece => piece.Acts is not null)];
 
-    private static List<string> Verbs(ContentEngine engine, Point at)
+    private static List<string> Verbs(ContentEngine engine, LayoutPoint at)
     {
         engine.Input(new ContentHover(at));
 
-        return [.. Buttons(engine).Select(button => button.Acts!.Click!.Value.Verb)];
+        return [.. Buttons(engine).Select(button => button.Acts!.Click!.Verb)];
     }
 
     /// <summary>The document laid out as a reader is shown it, and the engine that laid it.</summary>
     private static (ContentEngine Engine, MarkdownElement Element) LaidOut(string document)
     {
         var engine = new ContentEngine();
-        var element = new MarkdownElement(document, StyleFormat.Dark, null, engine);
+        var element = new MarkdownElement(document, WpfStyles.Dark, null, engine);
 
         element.Measure(new Size(600, double.PositiveInfinity));
         element.Arrange(new Rect(element.DesiredSize));
@@ -151,8 +154,8 @@ public class SectionFoldTests
     }
 
     /// <summary>Where the block holding <paramref name="written"/> came out on the page.</summary>
-    private static Rect Where(ContentEngine engine, string written) =>
-        engine.Where(engine.Blocked(engine.State.Source.IndexOf(written, StringComparison.Ordinal))!);
+private static LayoutRect Where(ContentEngine engine, string written) =>
+    engine.Where(engine.Blocked(engine.State.Source.IndexOf(written, StringComparison.Ordinal))!);
 
-    private static Point Middle(Rect where) => new(where.X + (where.Width / 2), where.Y + (where.Height / 2));
+    private static LayoutPoint Middle(LayoutRect where) => new(where.X + (where.Width / 2), where.Y + (where.Height / 2));
 }

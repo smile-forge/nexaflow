@@ -3,10 +3,12 @@ using System.Linq;
 using System.Windows;
 
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Prose;
 
@@ -52,7 +54,7 @@ public class DragThroughWordsTests
                 Assert.IsTrue(chosen.Start + chosen.Length > at && chosen.Start + chosen.Length <= at + reached.Length + 1,
                     $"reaching into '{reached}' chose '{said}', not as far as the symbol reached");
             else
-                Assert.AreEqual(element.Laid.OffsetAt(to), chosen.Start + chosen.Length, $"reaching '{reached}' chose '{said}'");
+                Assert.AreEqual(element.Laid.OffsetAt(to.ToLayout()), chosen.Start + chosen.Length, $"reaching '{reached}' chose '{said}'");
         }
 
         element.EndPointerSelect();
@@ -114,7 +116,7 @@ public class DragThroughWordsTests
 
     private static MarkdownElement Element(string source)
     {
-        var element = new MarkdownElement(source, StyleFormat.Dark);
+        var element = new MarkdownElement(source, WpfStyles.Dark);
 
         element.Measure(new Size(360, double.PositiveInfinity));
         element.Arrange(new Rect(0, 0, 360, element.DesiredSize.Height));
@@ -165,9 +167,9 @@ public class DragThroughWordsTests
         var wash = element.Laid.Root.Wash([.. element.Selection.Select(range => new EditRange(range.Start, range.Length))], 2);
 
 
-        Assert.IsTrue(wash.FillContains(new Point(first.Right - 4, across)), "the rest of the first line is chosen");
-        Assert.IsTrue(wash.FillContains(new Point(second.Left + 4, down)), "and the start of the next");
-        Assert.IsFalse(wash.FillContains(new Point(first.Left + 4, across)), "but not the first line before where the drag was pressed");
-        Assert.IsFalse(wash.FillContains(new Point(second.Right - 4, down)), "nor the next past where it reached");
+        Assert.IsTrue(wash!.Contains(new LayoutPoint(first.Right - 4, across)), "the rest of the first line is chosen");
+        Assert.IsTrue(wash!.Contains(new LayoutPoint(second.Left + 4, down)), "and the start of the next");
+        Assert.IsFalse(wash!.Contains(new LayoutPoint(first.Left + 4, across)), "but not the first line before where the drag was pressed");
+        Assert.IsFalse(wash!.Contains(new LayoutPoint(second.Right - 4, down)), "nor the next past where it reached");
     });
 }

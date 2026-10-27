@@ -4,6 +4,9 @@ using System.Linq;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -73,7 +76,7 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>What the drawing says choosing <paramref name="piece"/> means — a diagram node's id and label — or nothing.</summary>
-    private static (string? Id, string? Label) Selecting(Piece piece)
+    private static (string? Id, string? Label) Selecting(LayoutPiece piece)
     {
         for (var at = piece; at.Exists; at = at.Parent)
             if (at.Acts?.Select is { } select) return (select.Target, select.Tip);
@@ -82,11 +85,11 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>The language <paramref name="piece"/> was drawn in: what the nearest piece holding content in another language on the way up holds, or what the content itself is written in.</summary>
-    private string? LanguageOf(Piece piece) =>
-        HolderOf(piece) is { Exists: true } holder && holder.Part.TreePart() is { } part ? ContentNested.Language(part) : _named;
+private string? LanguageOf(LayoutPiece piece) =>
+    HolderOf(piece) is { Exists: true } holder && holder.Part.TreePart() is { } part ? ContentNested.Language(part) : _named;
 
     /// <summary>The nearest piece on the way up from <paramref name="piece"/> holding content in another language — none, where it is drawn in the content's own.</summary>
-    private static Piece HolderOf(Piece piece)
+    private static LayoutPiece HolderOf(LayoutPiece piece)
     {
         for (var at = piece; at.Exists; at = at.Parent)
             if (at.Part.TreePart() is { } part && ContentLanguages.Held(part) is not null)

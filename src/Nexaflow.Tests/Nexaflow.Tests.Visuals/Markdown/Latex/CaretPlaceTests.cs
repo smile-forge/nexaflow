@@ -5,6 +5,9 @@ using System.Windows;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Latex;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
@@ -130,8 +133,8 @@ public class CaretPlaceTests
         var againstTheSix = laid.Places[atOne[0]].CaretRect();
         var againstThePlus = laid.Places[atOne[1]].CaretRect();
 
-        Assert.AreEqual(atOne[1], laid.StopNear(new Point(againstThePlus.X - 0.2, againstThePlus.Y + 1)));
-        Assert.AreEqual(atOne[0], laid.StopNear(new Point(againstTheSix.X + 0.2, againstTheSix.Y + 1)));
+        Assert.AreEqual(atOne[1], laid.StopNear(new LayoutPoint(againstThePlus.X - 0.2, againstThePlus.Y + 1)));
+        Assert.AreEqual(atOne[0], laid.StopNear(new LayoutPoint(againstTheSix.X + 0.2, againstTheSix.Y + 1)));
     });
 
     [TestMethod]

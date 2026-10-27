@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -21,19 +22,19 @@ public sealed record ContentKey(Key Key, ModifierKeys Modifiers = ModifierKeys.N
 public sealed record ContentText(string Text) : ContentInput;
 
 /// <summary>A press at a point, the second of two in quick succession where <paramref name="Clicks"/> says so.</summary>
-public sealed record ContentPress(Point At, int Clicks = 1, ModifierKeys Modifiers = ModifierKeys.None) : ContentInput;
+public sealed record ContentPress(LayoutPoint At, int Clicks = 1, ModifierKeys Modifiers = ModifierKeys.None) : ContentInput;
 
 /// <summary>
 /// The pointer moved while pressed, far enough to be a drag rather than a hand's tremor — how far that is being the
 /// pointer's to say, since it is counted in the pixels of the screen.
 /// </summary>
-public sealed record ContentDrag(Point At) : ContentInput;
+public sealed record ContentDrag(LayoutPoint At) : ContentInput;
 
 /// <summary>The press was let go.</summary>
 public sealed record ContentRelease : ContentInput;
 
 /// <summary>The pointer is over the content at a point, or — null — has left it.</summary>
-public sealed record ContentHover(Point? At) : ContentInput;
+public sealed record ContentHover(LayoutPoint? At) : ContentInput;
 
 /// <summary>What changed in the source, and how it came to change.</summary>
 /// <param name="Before">The content as it was.</param>

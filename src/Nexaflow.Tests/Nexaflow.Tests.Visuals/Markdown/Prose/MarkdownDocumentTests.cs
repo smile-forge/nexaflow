@@ -6,6 +6,9 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Prose;
 
@@ -183,24 +186,24 @@ public class MarkdownDocumentTests
 
     private static MarkdownElement Laid(string source)
     {
-        var element = new MarkdownElement(source, StyleFormat.Dark);
+        var element = new MarkdownElement(source, WpfStyles.Dark);
         element.Measure(new System.Windows.Size(480, 2000));
         element.Arrange(new System.Windows.Rect(0, 0, 480, 2000));
         return element;
     }
 
-    private static System.Windows.Point Middle(Piece piece) =>
+    private static System.Windows.Point Middle(LayoutPiece piece) =>
         new(piece.Bounds.X + (piece.Bounds.Width / 2), piece.Bounds.Y + (piece.Bounds.Height / 2));
 
     /// <summary>A document laid out, and its <paramref name="box"/>th task box pressed as a reader presses it.</summary>
     private static MarkdownElement Pressed(string source, int box, bool readOnly = false, System.Action<MarkdownElement>? before = null)
     {
-        var element = new MarkdownElement(source, StyleFormat.Dark) { IsReadOnly = readOnly };
+        var element = new MarkdownElement(source, WpfStyles.Dark) { IsReadOnly = readOnly };
         element.Measure(new System.Windows.Size(480, 2000));
         element.Arrange(new System.Windows.Rect(0, 0, 480, 2000));
         before?.Invoke(element);
 
-        var tick = element.Laid.Root.SelfAndDescendants().Where(piece => piece.Kind == MarkdownPieces.Tick).ElementAt(box);
+        var tick = element.Laid.Root.SelfAndDescendants().Where(piece => piece.Kind == LayoutPieces.Tick).ElementAt(box);
 
         element.BeginPointerSelect(new System.Windows.Point(tick.Bounds.X + (tick.Bounds.Width / 2), tick.Bounds.Y + (tick.Bounds.Height / 2)));
         element.EndPointerSelect();
@@ -218,5 +221,5 @@ public class MarkdownDocumentTests
     }
 
     private static Landing Land(ContentEngine engine, EditState state) =>
-        new(state, engine.Lay(null, state, StyleFormat.Dark, 480, readOnly: false), -1);
+        new(state, engine.Lay(null, state, WpfStyles.Dark, 480, readOnly: false), -1);
 }

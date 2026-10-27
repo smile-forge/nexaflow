@@ -690,14 +690,15 @@ nothing. A language names its builder's type and the engine makes it, so `Nexafl
 errors:
 
 - **`NXCB001`** — one constructor, taking exactly what `ContentBuilder`'s takes: `(ContentReading, EditState,
-  StyleFormat, bool, Nesting)`. Anything else a builder was going to be given is a fact about the content or about this
+  LayoutStyle, bool, ILayoutMedium, LayoutHost)`. Anything else a builder was going to be given is a fact about the content or about this
   showing of it, and belongs somewhere every builder can be given it the same way — the style, the tree, or a stage that
   puts it there. How wide it may be goes to `Lay(room)`, the one thing that changes without either changing.
 - **`NXCB002`** — nothing told to it after it is made: no property with a setter.
 - **`NXCB003`** — nothing public named that `ContentBuilder` does not declare.
 - **`NXCB004`** — nothing makes a builder with `new`: the engine makes each from the type its language names.
 
-`Directory.Build.targets` hands the analyzer to every WPF project that is not a test project. Tests are the one place a
+`Directory.Build.targets` hands the analyzer to `Nexaflow.Markdown`, where the builders live, and to every WPF project,
+where the engine and its hosts are — apart from test projects. Tests are the one place a
 builder is made by hand — a fake of the base to hold it to what it promises — and the analyzer stays quiet in any
 compilation that holds a `[TestClass]`. `ContentBuilderAnalyzerTests` (in `Tests.Features.Architecture`) puts each rule
 to a compilation of its own.

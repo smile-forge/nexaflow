@@ -2,6 +2,9 @@ using System.Linq;
 using System.Windows;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 
@@ -34,23 +37,23 @@ public class ContentSelectionTests
     /// piece stands for a cell is a question about what was drawn.
     /// </para>
     /// </summary>
-    private static Piece Matrix()
+    private static LayoutPiece Matrix()
     {
-        var build = new LayoutBuilder();
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         var cells = new int[3, 3];
 
-        build.At(new Rect(0, 0, 70, 60), new TestPart(0, 9), "grid");
+        build.At(new LayoutRect(0, 0, 70, 60), new TestPart(0, 9), "grid");
 
         for (var r = 0; r < 3; r++)
         {
-            build.At(new Rect(0, r * 20, 70, 13), new TestPart(r * 3, 3), "row");
+            build.At(new LayoutRect(0, r * 20, 70, 13), new TestPart(r * 3, 3), "row");
 
             for (var c = 0; c < 3; c++)
             {
-                cells[r, c] = build.At(new Rect(c * 25, r * 20, 10, 13), new TestPart((r * 3) + c, 1),
+                cells[r, c] = build.At(new LayoutRect(c * 25, r * 20, 10, 13), new TestPart((r * 3) + c, 1),
                                        "cell");
 
-                build.Leaf(new Rect(c * 25, r * 20, 10, 13), new TestPart((r * 3) + c, 1), "char");
+                build.Leaf(new LayoutRect(c * 25, r * 20, 10, 13), new TestPart((r * 3) + c, 1), "char");
                 build.Close();
             }
 
@@ -71,31 +74,31 @@ public class ContentSelectionTests
     }
 
     /// <summary><c>\frac{x^2}{2}+y</c> — rows without columns, which is not a grid.</summary>
-    private static Piece Fraction()
+    private static LayoutPiece Fraction()
     {
-        var build = new LayoutBuilder();
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
 
-        build.At(new Rect(0, 0, 100, 44), new TestPart(0, 15), "row");
+        build.At(new LayoutRect(0, 0, 100, 44), new TestPart(0, 15), "row");
 
-        build.At(new Rect(0, 0, 26, 44), new TestPart(0, 13), "fraction");
+        build.At(new LayoutRect(0, 0, 26, 44), new TestPart(0, 13), "fraction");
 
-        build.At(new Rect(2, 0, 20, 17), new TestPart(6, 3), "script");
-        build.Leaf(new Rect(2, 8, 11, 9), new TestPart(6, 1), "char");
-        build.Leaf(new Rect(14, 0, 7, 9), new TestPart(8, 1), "char");
+        build.At(new LayoutRect(2, 0, 20, 17), new TestPart(6, 3), "script");
+        build.Leaf(new LayoutRect(2, 8, 11, 9), new TestPart(6, 1), "char");
+        build.Leaf(new LayoutRect(14, 0, 7, 9), new TestPart(8, 1), "char");
         build.Close();
 
-        build.Leaf(new Rect(2, 20, 22, 2), null, "rule");
-        build.Leaf(new Rect(7, 30, 10, 13), new TestPart(11, 1), "char");
+        build.Leaf(new LayoutRect(2, 20, 22, 2), null, "rule");
+        build.Leaf(new LayoutRect(7, 30, 10, 13), new TestPart(11, 1), "char");
         build.Close();
 
-        build.Leaf(new Rect(28, 18, 16, 13), new TestPart(13, 1), "char");
-        build.Leaf(new Rect(46, 18, 11, 13), new TestPart(14, 1), "char");
+        build.Leaf(new LayoutRect(28, 18, 16, 13), new TestPart(13, 1), "char");
+        build.Leaf(new LayoutRect(46, 18, 11, 13), new TestPart(14, 1), "char");
         build.Close();
 
         return build.Seal().Root;
     }
 
-    private static Piece Cell(Piece grid, int offset) =>
+    private static LayoutPiece Cell(LayoutPiece grid, int offset) =>
         grid.Leaves().Single(n => n.Sits().Start == offset);
 
     // ── A grid selects like a sheet ─────────────────────────────────────────
@@ -205,18 +208,18 @@ public class ContentSelectionTests
         // invent an answer for the cells that are not there. Nothing refuses anything now: a builder that
         // declared no runs gets the behaviour everything had before any of this — the stretch from one
         // piece to the other, grown out to whole constructs.
-        var build = new LayoutBuilder();
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
 
-        build.At(new Rect(0, 0, 70, 40), new TestPart(0, 5), "rows");
+        build.At(new LayoutRect(0, 0, 70, 40), new TestPart(0, 5), "rows");
 
-        build.At(new Rect(0, 0, 70, 13), new TestPart(0, 3), "row");
+        build.At(new LayoutRect(0, 0, 70, 13), new TestPart(0, 3), "row");
         for (var c = 0; c < 3; c++)
-            build.Leaf(new Rect(c * 25, 0, 10, 13), new TestPart(c, 1), "char");
+            build.Leaf(new LayoutRect(c * 25, 0, 10, 13), new TestPart(c, 1), "char");
         build.Close();
 
-        build.At(new Rect(0, 20, 70, 13), new TestPart(3, 2), "row");
+        build.At(new LayoutRect(0, 20, 70, 13), new TestPart(3, 2), "row");
         for (var c = 0; c < 2; c++)
-            build.Leaf(new Rect(c * 25, 20, 10, 13), new TestPart(3 + c, 1), "char");
+            build.Leaf(new LayoutRect(c * 25, 20, 10, 13), new TestPart(3 + c, 1), "char");
         build.Close();
 
         build.Close();

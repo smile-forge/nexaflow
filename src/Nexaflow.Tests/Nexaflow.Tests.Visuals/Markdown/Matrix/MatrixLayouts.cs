@@ -5,7 +5,10 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Matrix;
-using Nexaflow.Visuals.Text.Markdown.Matrix;
+using Nexaflow.Markdown.Layout.Matrix;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Matrix;
 
@@ -13,7 +16,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Matrix;
 internal static class MatrixLayouts
 {
     /// <summary>Every piece of <paramref name="kind"/> in the layout.</summary>
-    public static Piece[] Of(Laid laid, string kind) =>
+    public static LayoutPiece[] Of(Laid laid, string kind) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];
 
     /// <summary>The light field the symbol is printed on.</summary>
@@ -27,7 +30,7 @@ internal static class MatrixLayouts
                 .OfType<GeometryMark>()];
 
     /// <summary>How much of the page the module ink covers.</summary>
-    public static double InkedArea(Laid laid) => Ink(laid).Sum(mark => mark.Shape.GetArea(0.01, ToleranceType.Absolute));
+    public static double InkedArea(Laid laid) => Ink(laid).Sum(mark => mark.Shape.Geometry().GetArea(0.01, ToleranceType.Absolute));
 
     /// <summary>
     /// Lays <paramref name="element"/> out at 96 dpi, rasterises it, and samples the middle of each module back into

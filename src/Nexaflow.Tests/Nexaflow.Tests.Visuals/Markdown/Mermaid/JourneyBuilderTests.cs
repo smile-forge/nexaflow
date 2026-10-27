@@ -4,11 +4,15 @@ using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Journey;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Journey;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -73,7 +77,7 @@ public class JourneyBuilderTests : MermaidBuilderContract
     public void AFaceFloatsHigherTheBetterItScored() => UiThread.Run(() =>
     {
         var faces = Pieces(Build("journey\n  Best: 5: Me\n  Middling: 3: Me\n  Worst: 1: Me\n  Unscored: "), JourneyPiece.Face)
-            .Select(face => Middle(face.Bounds).Y).ToList();
+            .Select(face => Middle(face.Bounds.ToWpf()).Y).ToList();
 
         Assert.IsTrue(faces[0] < faces[1], "five over three");
         Assert.IsTrue(faces[1] < faces[2], "three over one");

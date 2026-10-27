@@ -6,11 +6,14 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.Visuals.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
-using Nexaflow.Visuals.Text.Markdown.Matrix;
+using Nexaflow.Markdown.Layout.Matrix;
 using Nexaflow.Markdown.Matrix.Qr;
 using Nexaflow.Markdown.Matrix.Qr.Stages;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Qr;
 
@@ -41,7 +44,7 @@ public class QrBuilderTests
     [TestMethod]
     public void AQrFenceIsDrawnByItsLanguageWithNowhereInItToWrite() => UiThread.Run(() =>
     {
-        var element = Alone.Drawn("qr", Source, StyleFormat.Dark);
+        var element = Alone.Drawn("qr", Source, WpfStyles.Dark);
 
         var content = (ContentElement)element;
         content.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
@@ -66,12 +69,12 @@ public class QrBuilderTests
         // The palette's QR tokens rather than its text and surface brushes: a code that follows the theme onto a
         // dark background stops being scannable.
         var themed = Build(Source);
-        Assert.AreEqual(((SolidColorBrush)StyleFormat.Dark.QrLight).Color,
-                        ((SolidColorBrush)MatrixLayouts.Ground(themed).Foreground!).Color);
+        Assert.AreEqual(((SolidColorBrush)WpfStyles.Dark.QrLight.Brush()).Color,
+                        ((SolidColorBrush)MatrixLayouts.Ground(themed).Ink!.Brush()).Color);
 
         var overridden = Build($"{Source}\ndark: #123456\nlight: #fedcba");
-        Assert.AreEqual(Color.FromRgb(0xFE, 0xDC, 0xBA), ((SolidColorBrush)MatrixLayouts.Ground(overridden).Foreground!).Color);
-        Assert.IsTrue(MatrixLayouts.Ink(overridden).All(mark => ((SolidColorBrush)mark.Fill!).Color == Color.FromRgb(0x12, 0x34, 0x56)));
+        Assert.AreEqual(Color.FromRgb(0xFE, 0xDC, 0xBA), ((SolidColorBrush)MatrixLayouts.Ground(overridden).Ink!.Brush()).Color);
+        Assert.IsTrue(MatrixLayouts.Ink(overridden).All(mark => ((SolidColorBrush)mark.Fill!.Brush()).Color == Color.FromRgb(0x12, 0x34, 0x56)));
     });
 
     [TestMethod]
@@ -97,7 +100,7 @@ public class QrBuilderTests
         int size = Encoded(Source).Size;
 
         var corners = MatrixLayouts.Of(laid, EncodeQr.Finder).Select(finder => finder.Bounds.TopLeft).ToHashSet();
-        CollectionAssert.AreEquivalent(new[] { new Point(0, 0), new Point(size - 7, 0), new Point(0, size - 7) },
+        CollectionAssert.AreEquivalent(new[] { new LayoutPoint(0, 0), new LayoutPoint(size - 7, 0), new LayoutPoint(0, size - 7) },
                                        corners.ToArray());
 
         Assert.AreEqual(2, MatrixLayouts.Of(laid, EncodeQr.Timing).Length);
@@ -151,7 +154,7 @@ public class QrBuilderTests
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static Laid Build(string source) => Laying.Lay("qr", source, style: StyleFormat.Dark);
+    private static Laid Build(string source) => Laying.Lay("qr", source, style: WpfStyles.Dark);
 
     private static QrMatrix Encoded(string source)
     {

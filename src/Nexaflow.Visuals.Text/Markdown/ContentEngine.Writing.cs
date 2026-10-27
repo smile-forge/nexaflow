@@ -7,6 +7,9 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -27,12 +30,12 @@ public sealed partial class ContentEngine
     private const double UnsaidRoom = 680;
 
     private string? _named;
-    private StyleFormat _style = StyleFormat.Dark;
+    private LayoutStyle _style = WpfStyles.Dark;
     private bool _readOnly;
     private double _laidFor;
 
     private EditState _state = EditState.For(string.Empty);
-    private Laid _laid = Laid.Nothing;
+    private Laid _laid = Laid.Nothing(WpfMedium.OnThisThread);
 
     /// <summary>
     /// What the caret is standing at: an index into the layout's places, or -1 for a caret standing somewhere none of them
@@ -56,7 +59,7 @@ public sealed partial class ContentEngine
 
     /// <summary>Says what the content being written is written in, what it is drawn in, and whether anybody may write in it.</summary>
     /// <param name="named">The language, or null for markdown.</param>
-    internal void Show(string? named, StyleFormat style)
+    internal void Show(string? named, LayoutStyle style)
     {
         _named = named;
         _style = style;
@@ -487,7 +490,7 @@ public sealed partial class ContentEngine
     /// label, and what a paste comes to at the caret is the engine's to work out.
     /// </para>
     /// </summary>
-    internal bool Choose(string verb, Point at)
+    internal bool Choose(string verb, LayoutPoint at)
     {
         if (Unwritable || Said(EditKind.Choosing, verb, Landing, _laid.Root.PieceAt(at)) is not { } said) return false;
 

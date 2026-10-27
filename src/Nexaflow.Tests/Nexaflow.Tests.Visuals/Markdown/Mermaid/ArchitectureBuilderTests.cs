@@ -3,11 +3,15 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Architecture;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Architecture;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -188,7 +192,7 @@ public class ArchitectureBuilderTests : MermaidBuilderContract
     private static Laid Build(string source, double room = 900) =>
         Laying.Lay("mermaid", source, room);
 
-    private static IEnumerable<Piece> Said(Piece piece) =>
+    private static IEnumerable<LayoutPiece> Said(LayoutPiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Words && part.Words is not null);
 
     [TestMethod]
@@ -206,7 +210,7 @@ public class ArchitectureBuilderTests : MermaidBuilderContract
     });
 
     /// <summary>Where each service is drawn, by its id.</summary>
-    private static Dictionary<string, Rect> Services(string source) =>
+    private static Dictionary<string, LayoutRect> Services(string source) =>
         Pieces(Build(source), ArchitecturePiece.Service).ToDictionary(piece => Written(source, piece.Part).Split(' ', '(', '[')[1], piece => piece.Bounds);
 
     [TestMethod]

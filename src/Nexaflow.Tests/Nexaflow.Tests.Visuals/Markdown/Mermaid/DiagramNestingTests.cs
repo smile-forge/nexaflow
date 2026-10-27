@@ -7,6 +7,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -25,7 +29,7 @@ public class DiagramNestingTests
 
     private static ContentElement Drawn(string source)
     {
-        var element = (ContentElement)Alone.Drawn("mermaid", source, StyleFormat.Dark);
+        var element = (ContentElement)Alone.Drawn("mermaid", source, WpfStyles.Dark);
 
         element.Measure(new Size(900, 900));
         element.Arrange(new Rect(0, 0, 900, 900));
@@ -33,7 +37,7 @@ public class DiagramNestingTests
         return element;
     }
 
-    private static List<Piece> Pieces(ContentElement element, string kind) =>
+    private static List<LayoutPiece> Pieces(ContentElement element, string kind) =>
         [.. element.Laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];
 
     private static List<string> Words(ContentElement element) =>

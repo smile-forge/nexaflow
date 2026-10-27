@@ -7,6 +7,9 @@ using System.Windows.Media;
 
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown.Printing;
 
@@ -22,12 +25,12 @@ public sealed class MarkdownPaginator : DocumentPaginator
     public const double Margin = 48;
 
     private readonly string _markdown;
-    private readonly StyleFormat _style;
+    private readonly LayoutStyle _style;
     private readonly ContentInputs _inputs;
     private readonly string? _language;
 
     private Size _sheet;
-    private Laid _laid = Laid.Nothing;
+    private Laid _laid = Laid.Nothing(WpfMedium.OnThisThread);
     private IReadOnlyList<PaperPage> _pages = [];
 
     /// <param name="markdown">What is printed.</param>
@@ -35,7 +38,7 @@ public sealed class MarkdownPaginator : DocumentPaginator
     /// <param name="style">The palette and faces it is printed in.</param>
     /// <param name="inputs">Where its pictures, links and data come from.</param>
     /// <param name="language">The one language it is written in, where it is content in one language rather than a document.</param>
-    public MarkdownPaginator(string markdown, Size sheet, StyleFormat style, ContentInputs? inputs = null, string? language = null)
+    public MarkdownPaginator(string markdown, Size sheet, LayoutStyle style, ContentInputs? inputs = null, string? language = null)
     {
         _markdown = markdown;
         _style = style;
@@ -91,7 +94,7 @@ public sealed class MarkdownPaginator : DocumentPaginator
                 // Its own stretch of the page and no more, inside the margins: nothing is printed in them but the sheet's number.
                 var showing = new Rect(0, band.Top, room.Width / band.Scale, band.Height);
                 dc.PushClip(new RectangleGeometry(showing));
-                LayoutPainter.Paint(dc, _laid.Root, _style.Text, showing);
+                WpfPainter.Paint(dc, _laid.Root, _style.Text.Brush(), showing);
 
                 for (var pushed = 0; pushed < 4; pushed++) dc.Pop();
 
@@ -109,7 +112,7 @@ public sealed class MarkdownPaginator : DocumentPaginator
     {
         var number = new FormattedText(
             string.Create(CultureInfo.CurrentCulture, $"{pageNumber + 1} / {_pages.Count}"),
-            CultureInfo.CurrentCulture, FlowDirection.LeftToRight, _style.Face(), _style.TextSize * 0.75, _style.TextMuted,
+            CultureInfo.CurrentCulture, FlowDirection.LeftToRight, _style.Face(_style.TextFont).Typeface(), _style.TextSize * 0.75, _style.TextMuted.Brush(),
             pixelsPerDip: 1);
 
         dc.DrawText(number, new Point((_sheet.Width - number.Width) / 2, _sheet.Height - ((Margin + number.Height) / 2)));

@@ -6,7 +6,9 @@ using System.Windows.Threading;
 
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Layout;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -249,7 +251,7 @@ public sealed partial class MarkdownSurface
 
     /// <summary>How to find what is in the middle of the page again later, after the document has been written in.</summary>
     public ContentPath Reference() =>
-        ContentPath.Of(_shown.Laid.Root.PieceAt(Middle()).Part.TreePart());
+        ContentPath.Of(_shown.Laid.Root.PieceAt(Middle().ToLayout()).Part.TreePart());
 
     /// <summary>
     /// Scrolls the heading whose headings above it say <paramref name="titlePath"/> to the top — matched on the whole path,

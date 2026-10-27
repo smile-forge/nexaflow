@@ -4,9 +4,15 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
+using Nexaflow.Markdown.Layout.Maths;
 using Nexaflow.Tests.Visuals.Markdown.Latex;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Typesetting;
+using Nexaflow.Markdown.Typesetting.Tex.Rendering;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Latex;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Source;
 
@@ -106,11 +112,11 @@ public class LatexLayoutTests
     });
 
     /// <summary>The equation: the piece standing for the whole formula, which the number is set beside.</summary>
-    private static Piece Equation(Laid laid) =>
+    private static LayoutPiece Equation(Laid laid) =>
         laid.Root.SelfAndDescendants().First(p => p.Stands() && p.Sits().Start == 0);
 
     /// <summary>The number: the piece standing for the <c>\tag</c>.</summary>
-    private static Piece Number(Laid laid, string latex) =>
+    private static LayoutPiece Number(Laid laid, string latex) =>
         laid.Root.SelfAndDescendants().First(p => p.Stands() && p.Sits().Start == latex.IndexOf(@"\tag", StringComparison.Ordinal));
 
     [TestMethod]
@@ -310,8 +316,8 @@ public class LatexLayoutTests
         }
     });
 
-    private static Nexaflow.Visuals.Text.Markdown.Latex.Tex.TexEnvironment Environment() =>
-        WpfTeXEnvironment.Create(scale: Scale);
+    private static Nexaflow.Markdown.Typesetting.Tex.TexEnvironment Environment() =>
+        TexFonts.Of(WpfHandles.Medium, "Arial").Environment(TexStyle.Display, Scale);
 
     [TestMethod]
     [CoversNode("latex-source-map")]
@@ -396,7 +402,7 @@ public class LatexLayoutTests
         var unknown = Laying.Formula(@"x + \nosuchcommand", Scale);
         Assert.IsNotNull(unknown);
         CollectionAssert.AreEqual(
-            new[] { DiagnosticSeverity.Error },
+            new[] { LayoutSeverity.Error },
             unknown.Trouble.Select(d => d.Severity).ToArray(),
             "a name nothing has heard of is a reading failure, reported once: " + Said(unknown));
 
@@ -406,7 +412,7 @@ public class LatexLayoutTests
         var undrawn = Laying.Formula(@"\shoveleft{x}", Scale);
         Assert.IsNotNull(undrawn);
         CollectionAssert.AreEqual(
-            new[] { DiagnosticSeverity.Warning },
+            new[] { LayoutSeverity.Warning },
             undrawn.Trouble.Select(d => d.Severity).ToArray(),
             "something we read and cannot draw is ours, not the writer's: " + Said(undrawn));
     });

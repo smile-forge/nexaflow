@@ -5,6 +5,9 @@ using System.Windows;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -21,10 +24,10 @@ namespace Nexaflow.Visuals.Text.Markdown;
 public sealed partial class ContentEngine
 {
     /// <summary>The pieces of supplied content picked out, in the order drawn.</summary>
-    private IReadOnlyList<Piece> _picked = [];
+    private IReadOnlyList<LayoutPiece> _picked = [];
 
     /// <summary>The pieces of supplied content picked out — what is washed besides the stretches of source picked out.</summary>
-    internal IReadOnlyList<Piece> PickedWhole => _picked;
+    internal IReadOnlyList<LayoutPiece> PickedWhole => _picked;
 
     /// <summary>The words drawn on what of supplied content is picked out, a line each — or null where none of it is.</summary>
     internal string? PickedText =>
@@ -38,7 +41,7 @@ public sealed partial class ContentEngine
         _readOnly || _picked.Count > 0 || (_at >= 0 && _at < _laid.Places.Count && Supplied(_laid.Places[_at].Against));
 
     /// <summary>Whether <paramref name="piece"/> was drawn from content a binding supplied.</summary>
-    private static bool Supplied(Piece piece)
+    private static bool Supplied(LayoutPiece piece)
     {
         for (var at = piece; at.Exists; at = at.Parent)
             if (at.Part.TreePart() is { } part) return part.Supplied;
@@ -50,7 +53,7 @@ public sealed partial class ContentEngine
     /// What picking out <paramref name="piece"/> picks out: the thing the drawing says choosing it means, and failing that the
     /// whole of what it was drawn in that was supplied — the box a label sits in, not a letter of the label.
     /// </summary>
-    private static Piece Whole(Piece piece)
+    private static LayoutPiece Whole(LayoutPiece piece)
     {
         var whole = piece;
 
@@ -68,21 +71,21 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>Every whole piece of supplied content with words drawn on it inside <paramref name="where"/> — all of them, where that is null.</summary>
-    private IEnumerable<Piece> Wholes(Rect? where = null) =>
+    private IEnumerable<LayoutPiece> Wholes(LayoutRect? where = null) =>
         _laid.Root.SelfAndDescendants()
             .Where(piece => piece.Words is not null && Supplied(piece) && (where is not { } span || piece.Ink().IntersectsWith(span)))
             .Select(Whole)
             .Distinct();
 
     /// <summary>What a piece of supplied content is known by from one laying out to the next: what the drawing calls it, or its words.</summary>
-    private static string Known(Piece piece) => piece.Acts?.Select?.Target ?? Drawn(piece);
+    private static string Known(LayoutPiece piece) => piece.Acts?.Select?.Target ?? Drawn(piece);
 
     /// <summary>The words drawn on <paramref name="piece"/>, in the order drawn.</summary>
-    private static string Drawn(Piece piece) =>
+    private static string Drawn(LayoutPiece piece) =>
         string.Join(" ", piece.SelfAndDescendants().Select(inside => inside.Words?.Glyphs.Text).OfType<string>());
 
     /// <summary>Picks out <paramref name="pieces"/> of supplied content in place of whatever was picked out.</summary>
-    private void PickWhole(IReadOnlyList<Piece> pieces)
+    private void PickWhole(IReadOnlyList<LayoutPiece> pieces)
     {
         if (_state.HasSelection) Apply(_state.Select(0, 0), notify: false);
 
@@ -92,7 +95,7 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>A press on supplied content: the piece pressed, picked out whole.</summary>
-    private void PickPressed(Piece pressed)
+    private void PickPressed(LayoutPiece pressed)
     {
         _dragging = true;
         _moving = false;
@@ -101,10 +104,10 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>A drag from supplied content: every piece of it the drag spans, picked out whole.</summary>
-    private void PickSpanned(Point at) => PickWhole([.. Wholes(new Rect(_pressedAt, at))]);
+    private void PickSpanned(LayoutPoint at) => PickWhole([.. Wholes(new LayoutRect(_pressedAt, at))]);
 
     /// <summary>A Ctrl press on supplied content: the piece added to what is picked out, or taken back out of it.</summary>
-    private void TogglePicked(Piece pressed)
+    private void TogglePicked(LayoutPiece pressed)
     {
         if (Whole(pressed) is not { Exists: true } whole) return;
 

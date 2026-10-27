@@ -7,8 +7,13 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
-using Nexaflow.Visuals.Text.Markdown.Mermaid.Venn;
+using Nexaflow.Markdown.Layout.Mermaid.Venn;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Venn;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Layout.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -45,20 +50,20 @@ public class VennBuilderTests : MermaidBuilderContract
         Laying.Lay("mermaid", source, room);
 
     /// <summary>A circle's centre and radius, from the circle it is drawn as.</summary>
-    private static (Point Centre, double Radius) Round(Piece circle)
+    private static (Point Centre, double Radius) Round(LayoutPiece circle)
     {
         foreach (var mark in circle.Marks)
-            if (mark is GeometryMark { Shape: EllipseGeometry shape })
-                return (shape.Center + (Vector)circle.Anchor, shape.RadiusX);
+            if (mark is GeometryMark { Shape: WpfShape { Geometry: EllipseGeometry shape } })
+                return (shape.Center + new Vector(circle.Anchor.X, circle.Anchor.Y), shape.RadiusX);
 
         Assert.Fail("a circle is drawn as a circle");
         return default;
     }
 
-    private static Brush? Paint(Piece piece)
+    private static Brush? Paint(LayoutPiece piece)
     {
         foreach (var mark in piece.Marks)
-            if (mark is GeometryMark { Fill: { } fill }) return fill;
+            if (mark is GeometryMark { Fill: { } fill }) return fill.Brush();
 
         return null;
     }
@@ -128,9 +133,9 @@ public class VennBuilderTests : MermaidBuilderContract
         var lens = a.Centre + (along * chord) + (new Vector(along.Y, -along.X) * Math.Sqrt((a.Radius * a.Radius) - (chord * chord)) * 0.7);
         var alone = a.Centre + new Vector(0, -a.Radius * 0.9);
 
-        Assert.AreEqual(overlap.Sits().Start, laid.PieceAt(lens).Selectable().Sits().Start, "the union");
-        Assert.AreEqual("union A,B[\"AB\"]:3", Written(Sized, laid.PieceAt(lens).Selectable().Part).Trim());
-        StringAssert.StartsWith(Written(Sized, laid.PieceAt(alone).Selectable().Part).Trim(), "set A", "the set");
+        Assert.AreEqual(overlap.Sits().Start, laid.PieceAt(lens.ToLayout()).Selectable().Sits().Start, "the union");
+        Assert.AreEqual("union A,B[\"AB\"]:3", Written(Sized, laid.PieceAt(lens.ToLayout()).Selectable().Part).Trim());
+        StringAssert.StartsWith(Written(Sized, laid.PieceAt(alone.ToLayout()).Selectable().Part).Trim(), "set A", "the set");
     });
 
     [TestMethod]
@@ -175,9 +180,9 @@ public class VennBuilderTests : MermaidBuilderContract
         var overlaps = Pieces(laid, VennPiece.Overlap).ToList();
         var shipIt = Pieces(laid, VennPiece.Label).Single(label => Written(source, label.Part) == "Ship it");
 
-        var middle = new Point(shipIt.Bounds.X + (shipIt.Bounds.Width / 2), shipIt.Bounds.Y + (shipIt.Bounds.Height / 2));
+        var middle = new LayoutPoint(shipIt.Bounds.X + (shipIt.Bounds.Width / 2), shipIt.Bounds.Y + (shipIt.Bounds.Height / 2));
         Assert.AreEqual(4, overlaps.Count, "three pairs and the three together");
-        Assert.IsTrue(overlaps[3].Region!.FillContains(middle - overlaps[3].Anchor), "its label sits where all three overlap");
+        Assert.IsTrue(overlaps[3].Region!.Contains(middle - overlaps[3].Anchor), "its label sits where all three overlap");
         Assert.AreEqual(0, laid.Trouble.Count);
     });
 
@@ -232,7 +237,7 @@ public class VennBuilderTests : MermaidBuilderContract
     [TestMethod]
     public void ItDispatchesThroughTheDiagramRenderer() => UiThread.Run(() =>
     {
-        var content = (ContentElement)Alone.Drawn("mermaid", Sized, StyleFormat.Dark);
+        var content = (ContentElement)Alone.Drawn("mermaid", Sized, WpfStyles.Dark);
 
         content.Measure(new Size(700, double.PositiveInfinity));
         Assert.IsTrue(content.DesiredSize.Width > 0 && content.DesiredSize.Height > 0);

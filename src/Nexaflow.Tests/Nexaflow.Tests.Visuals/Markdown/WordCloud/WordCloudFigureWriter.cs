@@ -7,6 +7,9 @@ using System.Windows.Media.Imaging;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.WordCloud;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.WordCloud;
 
@@ -758,13 +761,13 @@ public class WordCloudFigureWriter
 
         UiThread.Run(() =>
         {
-            Write(Path.Combine(folder, "wordcloud.png"), Figure, StyleFormat.Light, Brushes.White, 720);
-            Write(Path.Combine(folder, "wordcloud-shapes.png"), Shaped, StyleFormat.Light, Brushes.White, 720);
-            Write(Path.Combine(folder, "wordcloud-letters.png"), Lettered, StyleFormat.Light, Brushes.White, 900);
+            Write(Path.Combine(folder, "wordcloud.png"), Figure, WpfStyles.Light, Brushes.White, 720);
+            Write(Path.Combine(folder, "wordcloud-shapes.png"), Shaped, WpfStyles.Light, Brushes.White, 720);
+            Write(Path.Combine(folder, "wordcloud-letters.png"), Lettered, WpfStyles.Light, Brushes.White, 900);
         });
     }
 
-    private static void Write(string path, string source, StyleFormat palette, Brush ground, double width)
+    private static void Write(string path, string source, LayoutStyle palette, Brush ground, double width)
     {
         var host = new Border
         {

@@ -3,12 +3,16 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Er;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Er;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -169,9 +173,9 @@ public class ErBuilderTests : MermaidBuilderContract
     // ── What it works with ──────────────────────────────────────────────────
 
     /// <summary>Every entity drawn, by the name it was written with.</summary>
-    private static Dictionary<string, Rect> Boxes(string source, Laid laid)
+    private static Dictionary<string, LayoutRect> Boxes(string source, Laid laid)
     {
-        var boxes = new Dictionary<string, Rect>();
+        var boxes = new Dictionary<string, LayoutRect>();
 
         foreach (var piece in Pieces(laid, ErPiece.Entity))
             if (piece.SelfAndDescendants().FirstOrDefault(part => part.Kind == MermaidPiece.Shape) is { } shape)
@@ -181,13 +185,13 @@ public class ErBuilderTests : MermaidBuilderContract
     }
 
     /// <summary>Where the words saying this were drawn inside a piece.</summary>
-    private static Rect Words(Piece piece, string said) => Said(piece).First(words => words.Words!.Glyphs.Text == said).Bounds;
+    private static LayoutRect Words(LayoutPiece piece, string said) => Said(piece).First(words => words.Words!.Glyphs.Text == said).Bounds;
 
     /// <summary>The words drawn under a piece, in the order they were drawn.</summary>
-    private static IEnumerable<Piece> Said(Piece piece) =>
+    private static IEnumerable<LayoutPiece> Said(LayoutPiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Words && part.Words is not null);
 
-    private static bool Holds(Rect over, Rect inner) =>
+    private static bool Holds(LayoutRect over, LayoutRect inner) =>
         inner.Left >= over.Left - 1 && inner.Right <= over.Right + 1 && inner.Top >= over.Top - 1 && inner.Bottom <= over.Bottom + 1;
 
     // ── What is read from the lines as written ──────────────────────────────
@@ -202,7 +206,7 @@ public class ErBuilderTests : MermaidBuilderContract
         var marks = Pieces(Lay($"erDiagram\n  {relation}"), ErPiece.Relation).Single()
             .SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>().ToList();
 
-        return ([.. marks.Select(mark => PathGeometry.CreateFromGeometry(mark.Shape).ToString())], marks.Any(mark => mark.Dashes is not null));
+        return ([.. marks.Select(mark => PathGeometry.CreateFromGeometry(mark.Shape.Geometry()).ToString())], marks.Any(mark => (mark.Stroke as WpfStroke)?.Dashes is not null));
     }
 
     [TestMethod]

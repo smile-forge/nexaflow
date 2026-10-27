@@ -9,6 +9,9 @@ using Nexaflow.Markdown.Binding;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -34,7 +37,7 @@ public class BoundContentTests
 
     private static ContentElement Drawn(string source, IDataContext? data)
     {
-        var element = Alone.Drawn("mermaid", source, StyleFormat.Dark, new ContentInputs(Data: data));
+        var element = Alone.Drawn("mermaid", source, WpfStyles.Dark, new ContentInputs(Data: data));
 
         element.Measure(new Size(900, 900));
         element.Arrange(new Rect(0, 0, 900, 900));

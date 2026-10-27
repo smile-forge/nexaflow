@@ -5,8 +5,10 @@ using System.Windows.Input;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -84,7 +86,7 @@ public sealed partial class MarkdownSurface
 
         if (!asked.Handled) return;
 
-        _engine.Brought(asked.Words ?? string.Empty, asked.Markdown ?? string.Empty, at);
+        _engine.Brought(asked.Words ?? string.Empty, asked.Markdown ?? string.Empty, at.ToLayout());
     }
 
     /// <summary>

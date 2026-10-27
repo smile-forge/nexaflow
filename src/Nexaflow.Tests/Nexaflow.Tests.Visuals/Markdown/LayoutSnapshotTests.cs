@@ -12,6 +12,9 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -94,7 +97,7 @@ public class LayoutSnapshotTests
     /// <summary>The document laid out the way a surface lays it — the one line to change when that way changes.</summary>
     private static Laid Lay(string text, bool readOnly)
     {
-        var style = StyleFormat.Dark;
+        var style = WpfStyles.Dark;
         return new ContentEngine().Lay(null, EditState.For(text), style, Room, readOnly);
     }
 
@@ -109,7 +112,7 @@ public class LayoutSnapshotTests
 
             if (piece.Part is { } part) text.Append(" @").Append(part.Start).Append('+').Append(part.Length).Append(' ').Append(part.GetType().Name);
             if (piece.Words is { } words) text.Append(" words ").Append(words.Length);
-            if (piece.Turned is { } turned && !turned.Value.IsIdentity) text.Append(" turned ").Append(turned.Value.ToString(CultureInfo.InvariantCulture));
+            if (piece.Turned is { } turned && !turned.IsIdentity) text.Append(" turned ").Append(turned.ToWpf().ToString(CultureInfo.InvariantCulture));
             text.Append('\n');
 
             foreach (var mark in piece.Marks)
@@ -134,16 +137,16 @@ public class LayoutSnapshotTests
         {
             if (property.GetIndexParameters().Length > 0) continue;
 
-            var value = property.PropertyType == typeof(Brush) || property.PropertyType == typeof(Pen)
-                        || property.PropertyType == typeof(FormattedText) || property.PropertyType == typeof(string)
+            var value = property.PropertyType == typeof(LayoutInk) || property.PropertyType == typeof(LayoutStroke)
+                        || property.PropertyType == typeof(IShapedText) || property.PropertyType == typeof(string)
                 ? property.GetValue(mark)
                 : null;
 
             switch (value)
             {
-                case Brush brush: said.Append(' ').Append(property.Name).Append('=').Append(Paint(brush)); break;
-                case Pen pen: said.Append(' ').Append(property.Name).Append('=').Append(Paint(pen.Brush)).Append('/').Append(Number(pen.Thickness)); break;
-                case FormattedText formatted: said.Append(' ').Append(property.Name).Append("=\"").Append(formatted.Text.Replace("\n", "\\n")).Append('"'); break;
+                case LayoutInk ink: said.Append(' ').Append(property.Name).Append('=').Append(Paint(ink.Brush())); break;
+                case LayoutStroke stroke: said.Append(' ').Append(property.Name).Append('=').Append(Paint(stroke.Ink?.Brush())).Append('/').Append(Number(stroke.Thickness)); break;
+                case IShapedText shaped: said.Append(' ').Append(property.Name).Append("=\"").Append(shaped.Text.Replace("\n", "\\n")).Append('"'); break;
                 case string words: said.Append(' ').Append(property.Name).Append("=\"").Append(words.Replace("\n", "\\n")).Append('"'); break;
             }
         }
@@ -158,10 +161,10 @@ public class LayoutSnapshotTests
         _ => brush.GetType().Name,
     };
 
-    private static string Rect(Rect rect) =>
+    private static string Rect(LayoutRect rect) =>
         rect.IsEmpty ? "empty" : $"[{Number(rect.X)},{Number(rect.Y)} {Number(rect.Width)}x{Number(rect.Height)}]";
 
-    private static string Size(Size size) => $"{Number(size.Width)}x{Number(size.Height)}";
+    private static string Size(LayoutSize size) => $"{Number(size.Width)}x{Number(size.Height)}";
 
     private static string Number(double value) =>
         double.IsFinite(value) ? Math.Round(value, 2).ToString("0.##", CultureInfo.InvariantCulture) : value.ToString(CultureInfo.InvariantCulture);

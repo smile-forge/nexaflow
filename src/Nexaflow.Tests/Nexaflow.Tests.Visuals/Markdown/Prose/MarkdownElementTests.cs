@@ -6,6 +6,9 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Prose;
 
@@ -75,7 +78,7 @@ public class MarkdownElementTests
         // deliberate.
         var element = Element();
         var words = element.Laid.Root.SelfAndDescendants()
-            .First(piece => piece.Kind == MarkdownPieces.Words && piece.Words!.Glyphs.Text.Contains("do"));
+            .First(piece => piece.Kind == LayoutPieces.Words && piece.Words!.Glyphs.Text.Contains("do"));
 
         element.BeginPointerSelect(Middle(words));
 
@@ -87,7 +90,7 @@ public class MarkdownElementTests
 
     private static MarkdownElement Element(bool readOnly = false)
     {
-        var element = new MarkdownElement(Source, StyleFormat.Dark) { IsReadOnly = readOnly };
+        var element = new MarkdownElement(Source, WpfStyles.Dark) { IsReadOnly = readOnly };
 
         element.Measure(new Size(400, double.PositiveInfinity));
         element.Arrange(new Rect(0, 0, 400, element.DesiredSize.Height));
@@ -95,9 +98,9 @@ public class MarkdownElementTests
         return element;
     }
 
-    private static List<Piece> Ticks(MarkdownElement element) =>
-        [.. element.Laid.Root.SelfAndDescendants().Where(piece => piece.Kind == MarkdownPieces.Tick)];
+    private static List<LayoutPiece> Ticks(MarkdownElement element) =>
+        [.. element.Laid.Root.SelfAndDescendants().Where(piece => piece.Kind == LayoutPieces.Tick)];
 
-    private static Point Middle(Piece piece) =>
+    private static Point Middle(LayoutPiece piece) =>
         new(piece.Bounds.X + (piece.Bounds.Width / 2), piece.Bounds.Y + (piece.Bounds.Height / 2));
 }

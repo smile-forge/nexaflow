@@ -1,9 +1,13 @@
 using System.Windows;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Sequence;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Sequence;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -136,10 +140,10 @@ public class C4SequenceBuilderTests : MermaidBuilderContract
         Assert.AreEqual(1, Pieces(laid, SequencePiece.Line).Count);
     });
 
-    private static IEnumerable<Piece> Said(Piece piece) =>
+    private static IEnumerable<LayoutPiece> Said(LayoutPiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Words && part.Words is not null);
 
-    private static bool Holds(Rect over, Rect inner) =>
+    private static bool Holds(LayoutRect over, LayoutRect inner) =>
         inner.Left >= over.Left - 1 && inner.Right <= over.Right + 1;
 
     [TestMethod]

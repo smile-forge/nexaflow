@@ -10,6 +10,9 @@ using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Kanban;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -62,7 +65,7 @@ public class KanbanEditingTests : MermaidEditing
         }));
 
     /// <summary>The long card's title, as it is drawn now: one run of words, broken into lines to fit its card.</summary>
-    private static Piece Title(DocumentBlock chart) =>
+    private static LayoutPiece Title(DocumentBlock chart) =>
         chart.Laid.Root.SelfAndDescendants().Single(piece => piece is { Kind: "Title", Words.Maps: true }
                                                             && piece.Part!.Start > chart.Source.IndexOf("id4[", StringComparison.Ordinal)
                                                             && piece.Part.Start < chart.Source.IndexOf("]@{", StringComparison.Ordinal));

@@ -3,11 +3,15 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.State;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.State;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -101,7 +105,7 @@ public class StateBuilderTests : MermaidBuilderContract
         var standing = Fork(across).Bounds;
         Assert.IsTrue(standing.Height > standing.Width * 3, $"and running across the page it stands up: {standing}");
 
-        static Piece Fork(string source) =>
+        static LayoutPiece Fork(string source) =>
             Pieces(Build(source), StatePiece.State).Single(piece => Written(source, piece.Part) == "f");
     });
 
@@ -112,7 +116,7 @@ public class StateBuilderTests : MermaidBuilderContract
         var steps = Pieces(laid, StatePiece.Step).ToDictionary(step => Written(Intro, step.Part).Trim());
         var (down, up) = (steps["Still --> Moving"].Bounds, steps["Moving --> Still"].Bounds);
 
-        Assert.IsTrue(Math.Abs(Middle(down).X - Middle(up).X) > 20, $"the two lie apart rather than one along the other: {down} and {up}");
+        Assert.IsTrue(Math.Abs(Middle(down.ToWpf()).X - Middle(up.ToWpf()).X) > 20, $"the two lie apart rather than one along the other: {down} and {up}");
     });
 
     [TestMethod]
@@ -123,10 +127,10 @@ public class StateBuilderTests : MermaidBuilderContract
         var moving = Pieces(laid, StatePiece.State).Single(piece => Said(piece).Any(said => said.Words!.Glyphs.Text == "Moving"));
 
         var outline = moving.Children.First(piece => piece.Kind == MermaidPiece.Shape).Marks.ToArray().OfType<GeometryMark>().First().Shape;
-        var line = PathGeometry.CreateFromGeometry(step.Marks.ToArray().OfType<GeometryMark>().First().Shape).GetFlattenedPathGeometry();
+        var line = PathGeometry.CreateFromGeometry(step.Marks.ToArray().OfType<GeometryMark>().First().Shape.Geometry()).GetFlattenedPathGeometry();
         var points = line.Figures.SelectMany(figure => figure.Segments.OfType<PolyLineSegment>().SelectMany(segment => segment.Points));
 
-        Assert.IsFalse(points.Any(outline.FillContains), "the line from Still to where the diagram stops passes Moving by rather than through it");
+        Assert.IsFalse(points.Any(outline.Geometry().FillContains), "the line from Still to where the diagram stops passes Moving by rather than through it");
     });
 
     [TestMethod]
@@ -248,11 +252,11 @@ public class StateBuilderTests : MermaidBuilderContract
         Laying.Lay("mermaid", source, room);
 
     /// <summary>Every state drawn, by what is written on it.</summary>
-    private static Dictionary<string, Rect> Nodes(string source) => Nodes(Build(source));
+    private static Dictionary<string, LayoutRect> Nodes(string source) => Nodes(Build(source));
 
-    private static Dictionary<string, Rect> Nodes(Laid laid)
+    private static Dictionary<string, LayoutRect> Nodes(Laid laid)
     {
-        var nodes = new Dictionary<string, Rect>();
+        var nodes = new Dictionary<string, LayoutRect>();
 
         foreach (var piece in Pieces(laid, StatePiece.State))
             nodes[Said(piece).Select(said => said.Words!.Glyphs.Text).FirstOrDefault() ?? piece.Bounds.ToString()] = piece.Bounds;
@@ -261,22 +265,22 @@ public class StateBuilderTests : MermaidBuilderContract
     }
 
     /// <summary>Where the state written with these words was drawn.</summary>
-    private static Rect Shape(Laid laid, string said) => Nodes(laid)[said];
+    private static LayoutRect Shape(Laid laid, string said) => Nodes(laid)[said];
 
     /// <summary>The words drawn under a piece, in the order they were drawn.</summary>
-    private static IEnumerable<Piece> Said(Piece piece) =>
+    private static IEnumerable<LayoutPiece> Said(LayoutPiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Words && part.Words is not null);
 
-    private static Color? Filled(Piece piece) =>
+    private static Color? Filled(LayoutPiece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Shape).Select(Fill).FirstOrDefault();
 
-    private static bool Holds(Rect over, Rect inner) =>
+    private static bool Holds(LayoutRect over, LayoutRect inner) =>
         inner.Left >= over.Left - 1 && inner.Right <= over.Right + 1 && inner.Top >= over.Top - 1 && inner.Bottom <= over.Bottom + 1;
 
     // ── What is read from the lines as written ──────────────────────────────
 
     /// <summary>The dots drawn, which are the states with nothing written on them.</summary>
-    private static List<Piece> Dots(Laid laid) => [.. Pieces(laid, StatePiece.State).Where(piece => !Said(piece).Any())];
+    private static List<LayoutPiece> Dots(Laid laid) => [.. Pieces(laid, StatePiece.State).Where(piece => !Said(piece).Any())];
 
     [TestMethod]
     public void AStateIsWrittenWhereItIsFirstNamed_AndSaidAgainAfter() => UiThread.Run(() =>

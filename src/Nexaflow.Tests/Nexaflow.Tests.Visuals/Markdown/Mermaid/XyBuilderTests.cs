@@ -5,11 +5,15 @@ using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Xy;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Xy;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -146,7 +150,7 @@ public class XyBuilderTests : MermaidBuilderContract
     public void ThePalettesColoursAreWhatTheSeriesAreDrawnIn() => UiThread.Run(() =>
     {
         var bar = Pieces(Build("---\nconfig:\n  themeVariables:\n    xyChart:\n      plotColorPalette: \"#ff0000\"\n---\nxychart\n  bar [1]"), XyPiece.Bar).Single();
-        Assert.IsTrue(bar.Marks.ToArray().OfType<GeometryMark>().Any(mark => mark.Fill is SolidColorBrush { Color: var colour } && colour == Color.FromRgb(0xFF, 0, 0)));
+        Assert.IsTrue(bar.Marks.ToArray().OfType<GeometryMark>().Any(mark => mark.Fill?.Brush() is SolidColorBrush { Color: var colour } && colour == Color.FromRgb(0xFF, 0, 0)));
     });
 
     [TestMethod]
@@ -175,8 +179,8 @@ public class XyBuilderTests : MermaidBuilderContract
 
         // It reads upward: a press at its foot means the first letter, and one at its head the last.
         var across = title.Bounds.X + (title.Bounds.Width / 2);
-        var foot = laid.Root.OffsetAt(new Point(across, title.Bounds.Bottom - 1));
-        var head = laid.Root.OffsetAt(new Point(across, title.Bounds.Top + 1));
+        var foot = laid.Root.OffsetAt(new LayoutPoint(across, title.Bounds.Bottom - 1));
+        var head = laid.Root.OffsetAt(new LayoutPoint(across, title.Bounds.Top + 1));
 
         Assert.AreEqual(title.Part!.Start, foot, "the first letter is at the foot");
         Assert.AreEqual(title.Part.Start + title.Part.Length, head, "and the last at the head");
@@ -190,7 +194,7 @@ public class XyBuilderTests : MermaidBuilderContract
         Assert.IsTrue(washed.Height < title.Bounds.Height && title.Bounds.IntersectsWith(washed), "three letters of the words, not all of them");
     });
 
-    private static List<Rect> Bars(string source) => [.. Pieces(Build(source), XyPiece.Bar).Select(bar => bar.Bounds)];
+    private static List<LayoutRect> Bars(string source) => [.. Pieces(Build(source), XyPiece.Bar).Select(bar => bar.Bounds)];
 
     [TestMethod]
     public void WhichWayItRunsIsTheHeaders_UnlessTheFrontMatterSays() => UiThread.Run(() =>
@@ -212,7 +216,7 @@ public class XyBuilderTests : MermaidBuilderContract
 
         double Apart(string source)
         {
-            var dots = Pieces(Build(source), XyPiece.Dot).Select(dot => Middle(dot.Bounds).Y).ToList();
+            var dots = Pieces(Build(source), XyPiece.Dot).Select(dot => Middle(dot.Bounds.ToWpf()).Y).ToList();
             return dots[0] - dots[1];
         }
 
@@ -224,8 +228,8 @@ public class XyBuilderTests : MermaidBuilderContract
     public void WithNoCategoriesTheSlotsAreTheLongestSeries() => UiThread.Run(() =>
     {
         var laid = Build("xychart\n  x-axis 0 --> 10\n  bar [1, 2]\n  line [1 \"a\", 2, 3, 4]");
-        var dots = Pieces(laid, XyPiece.Dot).Select(dot => Middle(dot.Bounds).X).ToList();
-        var bars = Pieces(laid, XyPiece.Bar).Select(bar => Middle(bar.Bounds).X).ToList();
+        var dots = Pieces(laid, XyPiece.Dot).Select(dot => Middle(dot.Bounds.ToWpf()).X).ToList();
+        var bars = Pieces(laid, XyPiece.Bar).Select(bar => Middle(bar.Bounds.ToWpf()).X).ToList();
 
         Assert.AreEqual(4, dots.Count);
         Assert.AreEqual(dots[1], bars[1], 1, "the bar series' second value stands at the second of the four places");
@@ -244,7 +248,7 @@ public class XyBuilderTests : MermaidBuilderContract
     public void ThePalettesColoursComeRoundAgainForTheSeriesPastIt() => UiThread.Run(() =>
     {
         var bars = Pieces(Build("---\nconfig:\n  themeVariables:\n    xyChart:\n      plotColorPalette: \"#ff0000, #00ff00\"\n---\nxychart\n  x-axis [a]\n  bar [1]\n  bar [2]\n  bar [3]"), XyPiece.Bar)
-            .Select(bar => bar.Marks.ToArray().OfType<GeometryMark>().Select(mark => mark.Fill).OfType<SolidColorBrush>().First().Color).ToList();
+            .Select(bar => bar.Marks.ToArray().OfType<GeometryMark>().Select(mark => mark.Fill?.Brush()).OfType<SolidColorBrush>().First().Color).ToList();
 
         CollectionAssert.AreEqual(new[] { Color.FromRgb(0xFF, 0, 0), Color.FromRgb(0, 0xFF, 0), Color.FromRgb(0xFF, 0, 0) }, bars);
     });

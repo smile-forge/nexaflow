@@ -6,6 +6,9 @@ using System.Windows;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -37,14 +40,14 @@ public sealed partial class ContentEngine
     /// </para>
     /// </summary>
     /// <param name="from">The piece the edit applied to, where it is not the one the caret stands against — a right-click's.</param>
-    internal static EditState? Edited(EditKind kind, string text, Landing landing, Piece from = default) =>
+    internal static EditState? Edited(EditKind kind, string text, Landing landing, LayoutPiece from = default) =>
         Said(kind, text, landing, from) is { } change ? Made(landing.State, change) : null;
 
     /// <summary>
     /// The same, as the change itself rather than the content it comes to — for the one caller that has to see what the language
     /// said rather than only what it wrote: a language may ask for an edit of the engine's instead (<see cref="ContentChange.Asked"/>).
     /// </summary>
-    private static ContentChange? Said(EditKind kind, string text, Landing landing, Piece from)
+    private static ContentChange? Said(EditKind kind, string text, Landing landing, LayoutPiece from)
     {
         var edit = Walked(kind, text, landing, from);
         // Nothing on the way up named a part of any tree, so there is no language to ask.
@@ -99,7 +102,7 @@ public sealed partial class ContentEngine
     /// The edit as the language it landed in is told it: the piece it applied to — <paramref name="from"/>, or else the one the caret
     /// stands against — the first part named on the way up the layout from it, and the root of that part's tree.
     /// </summary>
-    private static ContentEdit Walked(EditKind kind, string text, Landing landing, Piece from = default)
+    private static ContentEdit Walked(EditKind kind, string text, Landing landing, LayoutPiece from = default)
     {
         var (piece, part, root) = Reached(landing, from);
 
@@ -115,7 +118,7 @@ public sealed partial class ContentEngine
     /// another. An edit and a move both find their language this way, which is why the walk is here rather than in either.
     /// </para>
     /// </summary>
-    private static (Piece Piece, ContentPart? Part, ContentPart Root) Reached(Landing landing, Piece from)
+    private static (LayoutPiece Piece, ContentPart? Part, ContentPart Root) Reached(Landing landing, LayoutPiece from)
     {
         var piece = from.Exists ? from : Against(landing);
 
@@ -130,7 +133,7 @@ public sealed partial class ContentEngine
     /// What the language drawn at <paramref name="at"/> offers there — what a right-click opens: the same walks a key makes, from
     /// the piece under the point to its part and that part's root, and that language's <see cref="IContentLanguage.Offers"/> asked.
     /// </summary>
-    internal IReadOnlyList<LayoutIntent> Asked(Point at)
+    internal IReadOnlyList<LayoutIntent> Asked(LayoutPoint at)
     {
         var edit = Walked(EditKind.Choosing, string.Empty, Landing, _laid.Root.PieceAt(at));
         if (edit.Part is null || ContentLanguages.WrittenIn(edit.Root) is not { } language) return [];
@@ -164,7 +167,7 @@ public sealed partial class ContentEngine
     /// The piece the caret stands against: the place it was put at, the words at its offset, or else the innermost piece drawn
     /// from a stretch holding it.
     /// </summary>
-    private static Piece Against(Landing landing)
+    private static LayoutPiece Against(Landing landing)
     {
         var laid = landing.Laid;
         if (landing.At >= 0 && landing.At < laid.Places.Count) return laid.Places[landing.At].Against;

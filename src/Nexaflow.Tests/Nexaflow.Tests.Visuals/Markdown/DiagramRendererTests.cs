@@ -5,6 +5,11 @@ using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using System.Linq;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Pie;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Sequence;
+using Nexaflow.Markdown.Mermaid.Pie;
+using Nexaflow.Markdown.Mermaid.Sequence;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -30,7 +35,7 @@ public class DiagramRendererTests
     [CoversNode("sequence-diagram")]
     public void Sequence_DrawsOnTheSharedLayoutTree() => UiThread.Run(() =>
     {
-        var laid = Laying.Lay("mermaid", SequenceSrc, style: StyleFormat.Dark);
+        var laid = Laying.Lay("mermaid", SequenceSrc, style: WpfStyles.Dark);
 
         Assert.IsNotNull(laid);
         Assert.IsTrue(laid!.Root.SelfAndDescendants().Any(piece => piece.Kind == SequencePiece.Lifeline));
@@ -40,7 +45,7 @@ public class DiagramRendererTests
     [CoversNode("sequence-diagram")]
     public void Sequence_DispatchesThroughDiagramRenderer() => UiThread.Run(() =>
     {
-        Assert.IsNotNull(Alone.Drawn("mermaid", SequenceSrc, StyleFormat.Dark));
+        Assert.IsNotNull(Alone.Drawn("mermaid", SequenceSrc, WpfStyles.Dark));
     });
 
     [TestMethod]
@@ -48,11 +53,11 @@ public class DiagramRendererTests
     public void C4Sequence_DrawsOnTheSharedLayoutTreeToo() => UiThread.Run(() =>
     {
         const string source = "C4Sequence\nPerson(a, \"A\")\nSystem(b, \"B\")\nRel(a, b, \"Uses\", \"HTTPS\")";
-        var laid = Laying.Lay("mermaid", source, style: StyleFormat.Dark);
+        var laid = Laying.Lay("mermaid", source, style: WpfStyles.Dark);
 
         Assert.IsNotNull(laid);
         Assert.AreEqual(2, laid!.Root.SelfAndDescendants().Count(piece => piece.Kind == SequencePiece.Lifeline));
-        Assert.IsNotNull(Alone.Drawn("mermaid", source, StyleFormat.Dark));
+        Assert.IsNotNull(Alone.Drawn("mermaid", source, WpfStyles.Dark));
     });
 
     [TestMethod]
@@ -60,7 +65,7 @@ public class DiagramRendererTests
     {
         // A config front-matter block used to defeat routing → the diagram rendered as raw text.
         const string src = "---\nconfig:\n  pie:\n    textPosition: 0.5\n---\npie title T\n  \"A\" : 1\n  \"B\" : 2\n";
-        var content = Alone.Drawn("mermaid", src, StyleFormat.Dark) as Nexaflow.Visuals.Text.Editing.ContentElement;
+        var content = Alone.Drawn("mermaid", src, WpfStyles.Dark) as Nexaflow.Visuals.Text.Editing.ContentElement;
 
         Assert.IsNotNull(content, "a pie is drawn on the shared layout tree");
         content!.Measure(new Size(700, double.PositiveInfinity));
@@ -99,7 +104,7 @@ public class DiagramRendererTests
     [TestMethod]
     public void Class_RendersOnTheSharedTreeNotSourceText() => UiThread.Run(() =>
     {
-        var content = Alone.Drawn("mermaid", ClassSrc, StyleFormat.Dark) as Nexaflow.Visuals.Text.Editing.ContentElement;
+        var content = Alone.Drawn("mermaid", ClassSrc, WpfStyles.Dark) as Nexaflow.Visuals.Text.Editing.ContentElement;
 
         Assert.IsNotNull(content, "a class diagram is drawn on the shared layout tree");
         content!.Measure(new Size(900, double.PositiveInfinity));
@@ -128,7 +133,7 @@ public class DiagramRendererTests
     [TestMethod]
     public void Requirement_RendersOnTheSharedTreeNotSourceText() => UiThread.Run(() =>
     {
-        var content = Alone.Drawn("mermaid", RequirementSrc, StyleFormat.Dark) as Nexaflow.Visuals.Text.Editing.ContentElement;
+        var content = Alone.Drawn("mermaid", RequirementSrc, WpfStyles.Dark) as Nexaflow.Visuals.Text.Editing.ContentElement;
 
         Assert.IsNotNull(content, "a requirement diagram is drawn on the shared layout tree");
         content!.Measure(new Size(900, double.PositiveInfinity));
@@ -166,7 +171,7 @@ public class DiagramRendererTests
     [TestMethod]
     public void Er_RendersOnTheSharedTreeNotSourceText() => UiThread.Run(() =>
     {
-        var content = Alone.Drawn("mermaid", ErSrc, StyleFormat.Dark) as Nexaflow.Visuals.Text.Editing.ContentElement;
+        var content = Alone.Drawn("mermaid", ErSrc, WpfStyles.Dark) as Nexaflow.Visuals.Text.Editing.ContentElement;
 
         Assert.IsNotNull(content, "an ER diagram is drawn on the shared layout tree");
         content!.Measure(new Size(900, double.PositiveInfinity));
@@ -190,13 +195,13 @@ public class DiagramRendererTests
                 CAR 1 to zero or more NAMED-DRIVER : allows
                 PERSON many(0) optionally to 0+ NAMED-DRIVER : is
             """;
-        Assert.IsNotNull(Alone.Drawn("mermaid", src, StyleFormat.Dark));
+        Assert.IsNotNull(Alone.Drawn("mermaid", src, WpfStyles.Dark));
     });
 
     [TestMethod]
     public void Er_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
     {
-        Assert.IsNotNull(Alone.Drawn("mermaid", "erDiagram\n", StyleFormat.Dark));
+        Assert.IsNotNull(Alone.Drawn("mermaid", "erDiagram\n", WpfStyles.Dark));
     });
 
     // ── Architecture diagram ──────────────────────────────────────────────

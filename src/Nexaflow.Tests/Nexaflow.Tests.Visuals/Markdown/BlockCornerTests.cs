@@ -14,6 +14,9 @@ using Nexaflow.Tests.Visuals.Editing;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -43,7 +46,7 @@ public class BlockCornerTests
     {
         var asked = new List<LayoutAct>();
         var engine = new ContentEngine();
-        var element = new MarkdownElement(Document, StyleFormat.Dark, new Keeper(asked), engine);
+        var element = new MarkdownElement(Document, WpfStyles.Dark, new Keeper(asked), engine);
         element.Measure(new Size(600, double.PositiveInfinity));
         element.Arrange(new Rect(element.DesiredSize));
 
@@ -73,7 +76,7 @@ public class BlockCornerTests
     public void OffEveryBlockNothingIsOffered() => UiThread.Run(() =>
     {
         var engine = LaidOut(Document);
-        var below = new Point(4, engine.Laid.Size.Height + 40);
+        var below = new LayoutPoint(4, engine.Laid.Size.Height + 40);
 
         Assert.AreEqual(0, Verbs(engine, below).Count, "past everything written there is no block");
     });
@@ -85,7 +88,7 @@ public class BlockCornerTests
         // hover, out of code the language wrote. Moving the pointer must not be able to cost the reader the document.
         var document = $"Pets:\n\n```{HandLaid.Uncornering}\nx\n```\n\nThe end.\n";
         var engine = new ContentEngine();
-        var element = new MarkdownElement(document, StyleFormat.Dark, engine: engine);
+        var element = new MarkdownElement(document, WpfStyles.Dark, engine: engine);
         element.Measure(new Size(600, double.PositiveInfinity));
         element.Arrange(new Rect(element.DesiredSize));
 
@@ -144,7 +147,7 @@ public class BlockCornerTests
     {
         const string source = "```cs\nvar x = 1;\n```\n";
         var engine = LaidOut(source);
-        var edge = new Point(engine.Laid.Size.Width - 2, Middle(Where(engine, source, "var")).Y);
+        var edge = new LayoutPoint(engine.Laid.Size.Width - 2, Middle(Where(engine, source, "var")).Y);
 
         CollectionAssert.Contains(Verbs(engine, edge), LayoutVerbs.Copy,
                                   "past the end of the code, at the edge the corner stands at, it is still the block's");
@@ -156,9 +159,9 @@ public class BlockCornerTests
         // A barcode's bars stand for no characters, so a block found only by where its characters were drawn would be no
         // taller than the value printed under it — and the corner, at the block's top, would be off the block.
         var engine = LaidOut("Before.\n\n```barcode\nformat: CODE128\nvalue: 12345\n```\n");
-        var symbol = engine.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == MarkdownPieces.Block && piece.Part is { Length: > 30 });
+        var symbol = engine.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == LayoutPieces.Block && piece.Part is { Length: > 30 });
 
-        CollectionAssert.Contains(Verbs(engine, new Point(engine.Laid.Size.Width - 2, symbol.Bounds.Top + 2)), LayoutVerbs.Copy);
+        CollectionAssert.Contains(Verbs(engine, new LayoutPoint(engine.Laid.Size.Width - 2, symbol.Bounds.Top + 2)), LayoutVerbs.Copy);
     });
 
     [TestMethod]
@@ -185,7 +188,7 @@ public class BlockCornerTests
         MarkdownEditorHarness.Run(document, editor =>
         {
             var pie = MarkdownEditorHarness.Blocks(editor)[0];
-            var box = editor.Shown.Laid.Root.RangeRects(pie.Start, pie.Length).Aggregate(Rect.Union);
+            var box = editor.Shown.Laid.Root.RangeRects(pie.Start, pie.Length).Aggregate(LayoutRect.Union);
 
             Assert.IsTrue(box.Width < editor.Shown.Laid.Size.Width - 40,
                           "precondition: the paragraph made the document much wider than the chart");
@@ -231,7 +234,7 @@ public class BlockCornerTests
         // a button without having travelled there is not something a hand can do.
         var asked = new List<LayoutAct>();
         var engine = new ContentEngine();
-        var element = new MarkdownElement(Document, StyleFormat.Dark, new Keeper(asked), engine);
+        var element = new MarkdownElement(Document, WpfStyles.Dark, new Keeper(asked), engine);
         element.Measure(new Size(600, double.PositiveInfinity));
         element.Arrange(new Rect(element.DesiredSize));
 
@@ -262,7 +265,7 @@ public class BlockCornerTests
         // Whether the corner is faint is the whole corner's business and the element draws it. Which of its buttons a press
         // would answer is a different question, and marking them all would answer it wrongly for every button but one.
         var engine = new ContentEngine();
-        var element = new MarkdownElement(Document, StyleFormat.Dark, engine: engine);
+        var element = new MarkdownElement(Document, WpfStyles.Dark, engine: engine);
         element.Measure(new Size(900, double.PositiveInfinity));
         element.Arrange(new Rect(new Size(900, element.DesiredSize.Height)));
 
@@ -291,7 +294,7 @@ public class BlockCornerTests
         // in them, so the piece nearest them is the paragraph above or below. A reader crossing one of those corners on the
         // way to the buttons has not left the diagram, and must not lose them.
         var engine = new ContentEngine();
-        var element = new MarkdownElement(Document, StyleFormat.Dark, engine: engine);
+        var element = new MarkdownElement(Document, WpfStyles.Dark, engine: engine);
         element.Measure(new Size(900, double.PositiveInfinity));
         element.Arrange(new Rect(new Size(1168, element.DesiredSize.Height)));
 
@@ -305,7 +308,7 @@ public class BlockCornerTests
         {
             for (var x = box.X; x < box.Right; x += 8)
             {
-                var found = engine.Blocked(new Point(x, y))?.Start == pie.Start;
+                var found = engine.Blocked(new LayoutPoint(x, y))?.Start == pie.Start;
                 if (!found) missed++;
 
                 map.Append(found ? '#' : '.');
@@ -327,7 +330,7 @@ public class BlockCornerTests
         const double Panel = 1000;
 
         var engine = new ContentEngine();
-        var element = new MarkdownElement(Document, StyleFormat.Dark, engine: engine);
+        var element = new MarkdownElement(Document, WpfStyles.Dark, engine: engine);
         element.Measure(new Size(Panel, double.PositiveInfinity));
         element.Arrange(new Rect(new Size(Panel, element.DesiredSize.Height)));
 
@@ -350,36 +353,36 @@ public class BlockCornerTests
     // ── Reading the answers ─────────────────────────────────────────────────
 
     /// <summary>Where the <paramref name="index"/>th block of another language came out on the page.</summary>
-    private static Rect Box(MarkdownSurface editor, int index)
+    private static LayoutRect Box(MarkdownSurface editor, int index)
     {
         var block = MarkdownEditorHarness.Blocks(editor)[index];
         var rects = editor.Shown.Laid.Root.RangeRects(block.Start, block.Length);
         Assert.IsTrue(rects.Count > 0, "the block was drawn");
 
-        return rects.Aggregate(Rect.Union);
+        return rects.Aggregate(LayoutRect.Union);
     }
 
-    private static Point Middle(Rect box) => new(box.X + (box.Width / 2), box.Y + (box.Height / 2));
+    private static LayoutPoint Middle(LayoutRect box) => new(box.X + (box.Width / 2), box.Y + (box.Height / 2));
 
     /// <summary>The points a pointer passes through on its way from one place to another, as a hand moves it: a few units at a time.</summary>
-    private static IEnumerable<(Point At, string Step)> Walked(Point from, Point to)
+    private static IEnumerable<(LayoutPoint At, string Step)> Walked(LayoutPoint from, LayoutPoint to)
     {
         var away = to - from;
         var steps = Math.Max(1, (int)Math.Ceiling(away.Length / 4));
 
         for (var step = 1; step <= steps; step++)
-            yield return (new Point(from.X + (away.X * step / steps), from.Y + (away.Y * step / steps)), $"{step}/{steps}");
+            yield return (new LayoutPoint(from.X + (away.X * step / steps), from.Y + (away.Y * step / steps)), $"{step}/{steps}");
     }
 
     /// <summary>The corner's buttons, in the order they stand.</summary>
-    private static List<Piece> Buttons(ContentEngine engine) =>
+    private static List<LayoutPiece> Buttons(ContentEngine engine) =>
         [.. engine.Corner!.Root.SelfAndDescendants().Where(piece => piece.Acts is not null)];
 
     /// <summary>A document laid out as a reader is shown it, with the engine that laid it ready to be pointed at.</summary>
     private static ContentEngine LaidOut(string document, ILayoutActions? host = null)
     {
         var engine = new ContentEngine();
-        var element = new MarkdownElement(document, StyleFormat.Dark, host, engine);
+        var element = new MarkdownElement(document, WpfStyles.Dark, host, engine);
 
         element.Measure(new Size(600, double.PositiveInfinity));
         element.Arrange(new Rect(element.DesiredSize));
@@ -391,19 +394,19 @@ public class BlockCornerTests
     /// What the buttons in a corner answer, with the pointer resting where a reader would rest it. Read off what was drawn rather
     /// than asked of anything, because what a reader can press is what is on the page.
     /// </summary>
-    private static List<string> Verbs(ContentEngine engine, Point at)
+    private static List<string> Verbs(ContentEngine engine, LayoutPoint at)
     {
         engine.Input(new ContentHover(at));
 
-        return engine.Corner is null ? [] : [.. Buttons(engine).Select(button => button.Acts!.Click!.Value.Verb)];
+        return engine.Corner is null ? [] : [.. Buttons(engine).Select(button => button.Acts!.Click!.Verb)];
     }
 
     /// <summary>Where the block holding <paramref name="written"/> came out on the page.</summary>
-    private static Rect Where(ContentEngine engine, string document, string written) =>
+    private static LayoutRect Where(ContentEngine engine, string document, string written) =>
         engine.Where(engine.Blocked(document.IndexOf(written, StringComparison.Ordinal))!);
 
     /// <summary>Whether a button is drawn as the one a press would answer.</summary>
-    private static bool Outlined(Piece button) =>
+    private static bool Outlined(LayoutPiece button) =>
         button.Marks.ToArray().OfType<GeometryMark>().Any(mark => mark.Stroke is not null);
 
     /// <summary>A host that answers every verb it is asked, and remembers them.</summary>
@@ -422,13 +425,13 @@ public class BlockCornerTests
     /// <summary>Content that draws a block for everybody, and a second only where somebody can write in it.</summary>
     private static Laid Marked(EditState state, bool readOnly)
     {
-        var build = new LayoutBuilder();
+        var build = new LayoutBuilder(WpfMedium.OnThisThread);
         build.Open("content");
-        build.Draw(new RuleMark(new Rect(0, 0, 40, 20), Brushes.Blue));
-        if (!readOnly) build.Draw(new RuleMark(new Rect(50, 0, 20, 20), Brushes.Red));
+        build.Draw(new RuleMark(new LayoutRect(0, 0, 40, 20), Brushes.Blue.Ink()));
+        if (!readOnly) build.Draw(new RuleMark(new LayoutRect(50, 0, 20, 20), Brushes.Red.Ink()));
         build.Close();
 
-        return new Laid(build.Seal(), new Size(80, 20), []);
+        return new Laid(build.Seal(), 80, 20, []);
     }
 
     /// <summary>An element measured and arranged, as it would be on a page.</summary>

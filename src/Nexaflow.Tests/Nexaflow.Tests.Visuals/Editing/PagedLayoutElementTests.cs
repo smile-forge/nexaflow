@@ -10,6 +10,9 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Editing.Paged;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 
@@ -213,14 +216,13 @@ public class PagedLayoutElementTests
             var text = $"page {index}";
             var laidSize = Actual?.Invoke(index) ?? size;
 
-            var into = new LayoutBuilder();
+            var into = new LayoutBuilder(WpfMedium.OnThisThread);
             into.Open("page");
-            into.Draw(new WashMark(new Rect(laidSize), Brushes.White));
-            var words = new FormattedText(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-                new Typeface("Arial"), 12, Brushes.Black, 1.0);
-            into.Open("text", new SourceSpan(0, text.Length), new Point(20, 20));
+            into.Draw(new WashMark(new Rect(laidSize).ToLayout(), Brushes.White.Ink()));
+            var words = WpfMedium.OnThisThread.Shape(text, new Typeface("Arial"), 12, Brushes.Black, null, CultureInfo.InvariantCulture);
+            into.Open("text", new SourceSpan(0, text.Length), new LayoutPoint(20, 20));
             into.Words(new LayoutWords(words, default, Maps: true));
-            into.Covers(new Rect(0, 0, words.WidthIncludingTrailingWhitespace, words.Height));
+            into.Covers(new LayoutRect(0, 0, words.WidthWithSpace, words.Height));
             into.Close();
             into.Close();
             return Task.FromResult(new LaidPage(into.Seal(), laidSize, text));
@@ -267,9 +269,9 @@ public class PagedLayoutElementTests
         public Task<LaidPage> LayAsync(int index, CancellationToken ct)
         {
             Laid.Add(index);
-            var into = new LayoutBuilder();
+            var into = new LayoutBuilder(WpfMedium.OnThisThread);
             into.Open("page");
-            into.Draw(new WashMark(new Rect(size), Brushes.White));
+            into.Draw(new WashMark(new Rect(size).ToLayout(), Brushes.White.Ink()));
             into.Close();
             return Task.FromResult(new LaidPage(into.Seal(), size, $"page {_order[index]}"));
         }
