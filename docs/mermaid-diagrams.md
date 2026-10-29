@@ -27,7 +27,7 @@ lines list items with values and whose options share a line, xychart one with ax
 | `…/<Type>/Stages/*.cs` | `IAstStage`s: what lines mean together that the order they are written in does not already say, worked out and said in the diagram's own nodes — `PieSliceNode` — or, where it is only a word, hung underneath as a fact, as a message's `autonumber` number is; and what is wrong that only the whole block shows. The front matter goes on the block through `WithConfig` | `ResolveSlices`, `ResolveShares`; `GroupRegions`, `ResolveRegions`; `ResolveCurves`, `ResolveOptions` |
 | `…/<Type>/<Type>Config.cs` | The front matter's options, from `MermaidConfig.Diagram(name)`, `Theme`, `DiagramTheme(name)` and `Shared` | `PieConfig`, `VennConfig`, `RadarConfig` |
 | `…/<Type>/<Type>Nodes.cs` | What the stages say lines mean where it is more than a word, as the diagram's own nodes — internal, and printing as what was written. A diagram with nothing of the kind to say has none | `PieNodes`, `RadarNodes`, `GanttNodes` |
-| `src/Nexaflow.Markdown/Layout/Mermaid/<Type>/Portable<Type>Builder.cs` | A `ContentBuilder` made from the kit: `Build` lays the tree out at the origin, reading the lines in the order they are written and what its stages wrote, with the front matter from `DiagramConfig.Of` — see [The builders](#the-builders) | `PieBuilder`, `SankeyBuilder`, `RadarBuilder` |
+| `src/Nexaflow.Markdown/Layout/Mermaid/<Type>/<Type>Builder.cs` | A `ContentBuilder` made from the kit: `Build` lays the tree out at the origin, reading the lines in the order they are written and what its stages wrote, with the front matter from `DiagramConfig.Of` — see [The builders](#the-builders) | `PieBuilder`, `SankeyBuilder`, `RadarBuilder` |
 | `src/Nexaflow.Markdown/Mermaid/<Type>/<Type>Piece.cs` | The names of the pieces the diagram lays, shared by its builder and its tests | `PiePiece`, `SankeyPiece`, `RadarPiece` |
 | `MermaidDiagrams.Grammar` · `ContentLayouts.Diagram` | Where the diagram is named — both, or neither. The second names the builder's type, which makes the diagram a language of its own (`Shipped.Diagrams`) | |
 
@@ -170,6 +170,29 @@ stands for a stretch of what the lane itself stands for. Where shapes overlap, a
 stands only in what the shapes drawn over it leave uncovered (a Venn circle less its unions' lenses, a radar curve less
 the curves after it). A piece standing for a stretch nothing is written in yet stands for nothing — only its hole does.
 
+### Editing
+
+What a reader does to a diagram is its edit handler's (`<Type>Edits`, an `IOnEdit` named in `DiagramEdits.For`, and an
+`IContentLanguage` and `IOnMove` where it offers or moves anything), and what it writes is its language's write half: the
+handler names what was meant, and the write half spells it.
+
+| To | Use |
+|---|---|
+| let a reader write in words where they are drawn | `Words.Written` — a caret stop, typed into as the characters written, a hole where nothing is written yet (`Holds`) |
+| set what is worked out from what is written — a share, a bit number, a total | `Words.Worked(says, part)`, pressed as `part` and never a caret stop; `Worked(says, null)` for what stands for nothing at all. A value that follows from the rest is never written in where it is drawn: change what it follows from instead |
+| let a thing be chosen whole | open the piece drawn for it with the statement's part, its words inside it; a press on it away from its words chooses it (`ContentEngine.ChoseWhole`) |
+| wash a thing picked out, and nothing drawn round it | the wash is the outermost piece standing for what is picked out, its `Bounds`, and every `Occupies` region inside it (`LayoutQuery.Wash`) — so what is drawn round a thing but is not it (a packet's bit numbers, an axis) goes in a piece of its own standing for nothing, outside the piece standing for the thing |
+| offer what can be done to the thing under a right-click | `IContentLanguage.Offers(ContentAsk)`: `LayoutIntent`s with verbs of the diagram's own. One chosen comes back as `EditKind.Choosing`, `edit.Text` the verb and `edit.Part` what the pointer was over. What is done to the thing stands in the menu; `LayoutOffer.Insert` is for browsing many kinds of new thing, never for "one beside this". A second ask carries no `Root` — answer nothing to it |
+| offer a choice among options | `LayoutIntent` with `Group`, `GroupTip` and `Current`, drawn as its `Shape`, `Letters` or `Shade`; `TypedVerb` where a reader may type a value the options do not list, written after the verb (`packet.bits.12`) |
+| write a change to the structure — a thing put in, taken out, longer, moved | the language's write half (`PacketWriting`, `PieEdits.Configured`): `ContentWrite`s over the parts that change, keeping what is written round them — and everything the rules make follow from it (a packet's fields numbered on from bit 0) |
+| write words a reader means into a place that spells them its own way | `ContentWrite.Words(part, start, length, words)`, spelled by the parser's `ITranspile.Rewrite` — only what was meant, never the place's existing characters again |
+| Delete and Insert on things picked out whole | `EditKind.Erasing` / `Deleting` / `Inserting` with the selection covering their parts (`PieEdits.Erased`, `PacketEdits.Edit`) |
+| move a thing by dragging it onto another | `IOnMove.Move(ContentMove)`: `Carrying()` for what is carried, `Part` for what it is let go on, `Holds` that both are this language's |
+| offer the clipboard | `IContentLanguage.Clipboard(ContentAsk)` returning which `ClipboardOffers` mean what they say there — the engine offers and does them; a paste into words is the handler's `EditKind.Pasting`, written as `ContentWrite.Words` |
+| say whole what is cut short to fit | `DiagramWords.CutShort` (`IShapedText.CutShort`), then `build.Acts(new LayoutActions { Tip = … })` on the piece standing for it; what the source itself says on hover is a `Roles.Tip` hung by a stage |
+| ink words set in a node's box | `Ink.Written(colour) ?? Style.Text` over `Ink.Node`; `Ink.Over(fill)` only over a solid fill — a wedge, a bar, a fill the front matter writes |
+| test it | in a real editor (`MarkdownEditorHarness`): `editor.Shown.BuildRibbon(point)` for what a right-click offers, its button `Diagram_Ribbon_<verb>` clicked; `BeginPointerSelect`/`ExtendPointerSelect` for a press and a drag; `Select`/`TakeCaret` and `MarkdownEditorHarness.Clipboard` for the clipboard |
+
 ## The builders
 
 Every diagram is laid on the renderer-free layout tree (`LayoutTree`, in `src/Nexaflow.Markdown/Layout/`), by a builder of
@@ -196,6 +219,12 @@ handed the kit's pieces and whatever the diagrams sharing it draw differently, a
 
 ## Adding a diagram
 
+0. **Decide what a reader does to it, before any of it is written.** Which of what it draws are words written in, and which
+   are worked out from the rest and never a place for the caret — a derived value, written in, only breaks the diagram. What a
+   reader changes about its structure — puts a thing in, takes one out, makes one longer, moves one — and through what: the
+   right-click, a drag, Delete and Insert on a thing picked out. What a thing picked out washes, and what is drawn round it that
+   it does not. What is cut short to fit and how it is said whole. Which of the clipboard's ways mean what they say where. Every
+   answer is a row of [the editing kit](#editing); one with no row is a piece the kit lacks, and is added to it.
 1. **Read Mermaid's syntax page for it** (`https://mermaid.ai/open-source/syntax/<type>.html`) and support all of it.
 2. **The grammar and its kinds**, reading every line through `MermaidLine`, named in `MermaidDiagrams.Grammar`. Its
    tests derive from `MermaidGrammarContract` and list every construct, and what nobody means to write, in `Blocks`, and
@@ -205,11 +234,12 @@ handed the kit's pieces and whatever the diagrams sharing it draw differently, a
 3. **Stages** for what lines mean together, and `Holds` for where a hole stands while the diagram is written.
 4. **The config**, hung on the block by a stage, and **stages writing the rest** of what the builder needs — a share, a
    place in the order, whether something is listed — so the builder only lays out.
-5. **The builder**, `Portable<Type>Builder`, named in `ContentLayouts.Diagram`: layers by how the diagram looks, each piece
+5. **The builder**, `<Type>Builder`, named in `ContentLayouts.Diagram`: layers by how the diagram looks, each piece
    standing for the part it was drawn from, its pieces named in `<Type>Piece` beside the grammar. Its tests derive from
    `MermaidBuilderContract` and list what it draws in `Drawn`.
-6. **Writing in place**: the diagram's edit handler, `<Type>Edits`, named in `DiagramEdits.For` — its `Escaping`, and what
-   any key means in it that is its own — with editing tests like `PieEditingTests` and `VennEditingTests`.
+6. **Writing in place**: the diagram's edit handler, `<Type>Edits`, named in `DiagramEdits.For` — its `Escaping`, what any
+   key means in it that is its own, and everything decided in step 0, made from [the editing kit](#editing) — with editing
+   tests like `PieEditingTests`, `VennEditingTests` and `PacketEditingTests`.
 7. **The rest of the product**: a section in `MarkdownSamples`, the help page's example and its figure
    (`MermaidFigureWriter`), the row in [MarkdownSupport.md](MarkdownSupport.md), and the product tree node with its
    snaplinks.
