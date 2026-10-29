@@ -23,7 +23,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Packet;
 /// </para>
 /// <para>
 /// A right-click on a field offers to put a field in before it or after it, to take it out, and how many bits it takes — each
-/// length written as its number, the one it takes now marked. Anywhere else in the packet, it offers a field after everything
+/// length written as its number, the one it takes now marked, and beside them a box to type any other. Anywhere else in the packet, it offers a field after everything
 /// written. With whole fields picked out, Delete takes them out and Insert puts a field in above them; and fields carried and let
 /// go on another change places with it. Whatever changes, the fields stay contiguous and keep their lengths, and only their
 /// numbers are written again (<see cref="PacketWriting"/>).
@@ -90,6 +90,7 @@ internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
                 Group = Bits,
                 GroupTip = Str.Get("Text.Packet.Bits"),
                 Current = sized && bits == size,
+                TypedVerb = Sized,
                 Letters = Said(bits),
             }),
         ];

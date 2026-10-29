@@ -59,6 +59,13 @@ public readonly record struct LayoutIntent(string Verb, string? Target = null, s
     public bool Current { get; init; }
 
     /// <summary>
+    /// For the options of a choice that also takes a value they do not list: the verb a value typed in is written after to make
+    /// the verb chosen — <c>packet.bits.</c>, so twelve typed is <c>packet.bits.12</c> — read from the choice's first option. Null
+    /// for a choice of only its options.
+    /// </summary>
+    public string? TypedVerb { get; init; }
+
+    /// <summary>
     /// What it is drawn as where a picture says it better than a word — a shape in a 16 by 16 box, filled in the ink of whatever
     /// shows it — or null, to be named. Its name is still what a reader hovering over it, or hearing the screen read, is told.
     /// </summary>

@@ -71,6 +71,7 @@
   "Text.Ribbon.Collapse": "Fold this away",
   "Text.Ribbon.Copy": "Copy",
   "Text.Ribbon.Cut": "Cut",
+  "Text.Ribbon.Apply": "use what is typed",
   "Text.Ribbon.Paste": "Paste",
   "Text.Ribbon.SavePicture": "Save as a picture",
   "Text.Markdown.TaskDone": "Done",

@@ -141,6 +141,31 @@ public class PacketEditingTests
         }, Three));
 
     [TestMethod]
+    public void ALengthTheMenuDoesNotListIsTypedBesideTheOnesItDoes() => UiThread.Run(() =>
+        InADocument((editor, packet) =>
+        {
+            var ribbon = Ribbon(editor, Box(packet, "B"));
+            var typed = Logical(ribbon).OfType<TextBox>().Single(box => System.Windows.Automation.AutomationProperties.GetAutomationId(box) == "Diagram_Ribbon_Bits_Value");
+
+            typed.Text = "12";
+            Click(ribbon, "Bits_Accept");
+
+            StringAssert.Contains(packet.Source, "0-3: \"A\"\n4-15: \"B\"\n16-19: \"C\"", packet.Source);
+            Assert.AreEqual(0, packet.Diagnostics.Count, Trouble(packet));
+        }, Three));
+
+    [TestMethod]
+    public void ALengthThatIsNoNumberWritesNothing() => UiThread.Run(() =>
+        InADocument((editor, packet) =>
+        {
+            var ribbon = Ribbon(editor, Box(packet, "B"));
+            Logical(ribbon).OfType<TextBox>().Single(box => System.Windows.Automation.AutomationProperties.GetAutomationId(box) == "Diagram_Ribbon_Bits_Value").Text = "lots";
+            Click(ribbon, "Bits_Accept");
+
+            StringAssert.Contains(packet.Source, "```packet\n" + Three + "\n```", packet.Source);
+        }, Three));
+
+    [TestMethod]
     public void ChoosingToTakeAFieldOutTakesItsLine_AndTheFieldsAfterItCloseUp() => UiThread.Run(() =>
         InADocument((editor, packet) =>
         {
