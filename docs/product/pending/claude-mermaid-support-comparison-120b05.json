@@ -84,8 +84,12 @@
         {
           "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Markdown/Packet/PacketEdits.cs",
-          "class": "PacketEdits",
-          "method": "Escaping"
+          "class": "PacketEdits"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packet/PacketWriting.cs",
+          "class": "PacketWriting"
         }
       ],
       "concerns": {
@@ -94,6 +98,11 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Packet/PacketEditingTests.cs",
             "class": "PacketEditingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Packet/PacketWritingTests.cs",
+            "class": "PacketWritingTests"
           }
         ]
       }

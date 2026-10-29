@@ -1190,6 +1190,12 @@ wide where how many bits it takes cannot be known — with the number at fault m
 write is a hole there. A label is typed into in its box, and a bit number over a field's end is typed into where it is
 the number written.
 
+A right-click on a field offers to put a field in before or after it, to take it out, and how many bits it takes; anywhere
+else in the packet, a field after everything written. With whole fields picked out, Delete takes them out and Insert puts
+one in above them, and a field carried and let go on another takes its place. Whatever changes, every field is numbered
+again from bit 0 and keeps its length and the form it is written in — a range, one bit, or a count — and only its numbers
+are written over ([`PacketWriting`](../src/Nexaflow.Markdown/Packet/PacketWriting.cs)).
+
 **Divergences from Mermaid**
 
 - The title is set over the packet, as every diagram's is here, rather than under it.

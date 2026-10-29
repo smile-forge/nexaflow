@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Packet;
@@ -8,6 +11,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Packet;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Packet;
 
@@ -104,6 +108,143 @@ public class PacketEditingTests
 
             StringAssert.Contains(packet.Source, "8-15: \"Lengths\"", packet.Source);
         }));
+
+    // ── Whole fields ────────────────────────────────────────────────────────
+
+    /// <summary>Three fields of different lengths, written as ranges.</summary>
+    private const string Three = "0-3: \"A\"\n4-11: \"B\"\n12-15: \"C\"";
+
+    [TestMethod]
+    public void ARightClickOnAFieldOffersToPutOneInBesideIt_TakeItOut_AndHowManyBitsItTakes() => UiThread.Run(() =>
+        InADocument((editor, packet) =>
+        {
+            var ribbon = Ribbon(editor, Box(packet, "B"));
+
+            CollectionAssert.IsSubsetOf(new[] { "packet.insert.before", "packet.insert.after", "packet.delete" }, ribbon.Offers.Select(offer => offer.Verb).ToArray());
+            Assert.IsTrue(ribbon.Offers.Where(offer => offer.Verb.StartsWith("packet.insert", StringComparison.Ordinal)).All(offer => offer.Offer == LayoutOffer.Insert),
+                          "putting a field in is adding something, behind the one Insert button");
+            CollectionAssert.AreEqual(new[] { "packet.bits.1", "packet.bits.2", "packet.bits.4", "packet.bits.8", "packet.bits.16", "packet.bits.32" },
+                                      ribbon.Offers.Where(offer => offer.Group == "Bits").Select(offer => offer.Verb).ToArray());
+            Assert.AreEqual("packet.bits.8", ribbon.Offers.Single(offer => offer.Current).Verb, "the length it takes now");
+        }, Three));
+
+    [TestMethod]
+    public void ChoosingALengthMakesTheFieldThatLong_AndTheFieldsAfterItMoveOn() => UiThread.Run(() =>
+        InADocument((editor, packet) =>
+        {
+            Click(Ribbon(editor, Box(packet, "B")), "packet.bits.16");
+
+            StringAssert.Contains(packet.Source, "0-3: \"A\"\n4-19: \"B\"\n20-23: \"C\"", packet.Source);
+            Assert.AreEqual(0, packet.Diagnostics.Count, Trouble(packet));
+        }, Three));
+
+    [TestMethod]
+    public void ChoosingToTakeAFieldOutTakesItsLine_AndTheFieldsAfterItCloseUp() => UiThread.Run(() =>
+        InADocument((editor, packet) =>
+        {
+            Click(Ribbon(editor, Box(packet, "B")), "packet.delete");
+
+            StringAssert.Contains(packet.Source, "```packet\n0-3: \"A\"\n4-7: \"C\"\n```", packet.Source);
+            Assert.AreEqual(0, packet.Diagnostics.Count, Trouble(packet));
+        }, Three));
+
+    [TestMethod]
+    public void ChoosingAFieldAfterPutsOneBitIn_TheCaretInItsLabel() => UiThread.Run(() =>
+        InADocument((editor, packet) =>
+        {
+            var ribbon = Ribbon(editor, Box(packet, "A"));
+            Click(ribbon, "Insert");
+            Click(ribbon, "Insert_packet.insert.after");
+
+            StringAssert.Contains(packet.Source, "0-3: \"A\"\n4: \"\"\n5-12: \"B\"\n13-16: \"C\"", packet.Source);
+            Assert.AreEqual(packet.Source.IndexOf("4: \"", StringComparison.Ordinal) + 4, packet.Caret, "between its quotes");
+
+            Write(editor, "Flag");
+            StringAssert.Contains(packet.Source, "4: \"Flag\"", packet.Source);
+        }, Three));
+
+    [TestMethod]
+    public void DeleteTakesAChosenFieldOut() => UiThread.Run(() =>
+        InADocument((editor, packet) =>
+        {
+            ChooseTheField(packet, "B");
+            Press(editor, Key.Delete);
+
+            StringAssert.Contains(packet.Source, "```packet\n0-3: \"A\"\n4-7: \"C\"\n```", packet.Source);
+        }, Three));
+
+    [TestMethod]
+    public void DraggingAChosenFieldOntoAnotherPutsItThere_EveryFieldKeepingItsLength() => UiThread.Run(() =>
+        InADocument((editor, packet) =>
+        {
+            ChooseTheField(packet, "A");
+
+            var from = Inside(Box(packet, "A"));
+            var to = Middle(Box(packet, "C"));
+
+            packet.BeginPointerSelect(from);
+            packet.ExtendPointerSelect(new Point((from.X + to.X) / 2, (from.Y + to.Y) / 2));
+            packet.ExtendPointerSelect(to);
+            packet.EndPointerSelect();
+            MarkdownEditorHarness.Pump();
+
+            StringAssert.Contains(packet.Source, "```packet\n0-7: \"B\"\n8-11: \"C\"\n12-15: \"A\"\n```", $"after the field it was let go on: {packet.Source}");
+            Assert.AreEqual(0, packet.Diagnostics.Count, Trouble(packet));
+        }, Three));
+
+    /// <summary>Where the box of the field labelled <paramref name="label"/> is drawn — on the row it starts on.</summary>
+    private static Rect Box(DocumentBlock packet, string label)
+    {
+        var field = packet.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == PacketPiece.Field && piece.Part is { } part
+                                                                         && packet.Source.Substring(part.Start, part.Length).Contains($"\"{label}\"", StringComparison.Ordinal));
+
+        return field.Children.First(piece => piece.Kind == MermaidPiece.Shape).Bounds.ToWpf();
+    }
+
+    /// <summary>A point inside a box but clear of its label and its edges, where a press means the box.</summary>
+    private static Point Inside(Rect box) => new(box.X + 6, box.Y + 4);
+
+    private static Point Middle(Rect box) => new(box.X + (box.Width / 2), box.Y + (box.Height / 2));
+
+    /// <summary>Chooses a field whole, as a press on its box does.</summary>
+    private static void ChooseTheField(DocumentBlock packet, string label)
+    {
+        packet.BeginPointerSelect(Inside(Box(packet, label)));
+        packet.EndPointerSelect();
+
+        Assert.IsTrue(packet.SelectionLength > 0, $"pressing {label}'s box chooses its field");
+    }
+
+    private static void Press(MarkdownSurface editor, Key key)
+    {
+        MarkdownEditorHarness.RaiseKey(editor, key);
+        MarkdownEditorHarness.Pump();
+    }
+
+    /// <summary>The ribbon a right-click in the middle of <paramref name="over"/> opens.</summary>
+    private static DiagramRibbon Ribbon(MarkdownSurface editor, Rect over)
+    {
+        var ribbon = editor.Shown.BuildRibbon(Middle(over)) as DiagramRibbon;
+        Assert.IsNotNull(ribbon, "a right-click opens the ribbon");
+        return ribbon!;
+    }
+
+    /// <summary>Clicks the ribbon's button named <c>Diagram_Ribbon_</c> and <paramref name="named"/>.</summary>
+    private static void Click(DiagramRibbon ribbon, string named)
+    {
+        var button = Logical(ribbon).OfType<Button>().Single(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "Diagram_Ribbon_" + named);
+        button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+        MarkdownEditorHarness.Pump();
+    }
+
+    private static IEnumerable<DependencyObject> Logical(DependencyObject from)
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(from).OfType<DependencyObject>())
+        {
+            yield return child;
+            foreach (var further in Logical(child)) yield return further;
+        }
+    }
 
     [TestMethod]
     public void WhatEndsALabelIsKeptByABackslash_InTheQuoteTheLabelIsWrittenIn()
