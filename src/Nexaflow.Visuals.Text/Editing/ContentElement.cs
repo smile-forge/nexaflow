@@ -497,11 +497,16 @@ public class ContentElement : FrameworkElement
     }
 
     /// <summary>
-    /// What <paramref name="piece"/> says while pointed at: the tip hung on the part of the source it was drawn from, or on
-    /// what holds that part. Asked of the tree when the pointer arrives — nothing of it is laid out.
+    /// What <paramref name="piece"/> says while pointed at: the tip its builder gave it or what holds it
+    /// (<see cref="LayoutActions.Tip"/>), else the tip hung on the part of the source it was drawn from, or on what holds that
+    /// part. Asked when the pointer arrives — nothing of it is laid out.
     /// </summary>
     private static string? Says(LayoutPiece piece)
     {
+        // What a builder said of what it drew comes first: it alone knows what it had to cut short.
+        for (var drawn = piece; drawn.Exists; drawn = drawn.Parent)
+            if (drawn.Acts?.Tip is { } said) return said;
+
         if (!piece.Exists || piece.Naming().TreePart() is not { } named) return null;
 
         for (var part = named; part is not null; part = part.Parent)

@@ -1185,17 +1185,17 @@ by [`PlaceFields`](../src/Nexaflow.Markdown/Packet/Stages/PlaceFields.cs), what 
 | `config: themeVariables: packet:` | `byteFontSize`, `startByteColor`, `endByteColor`, `labelColor`, `labelFontSize`, `titleColor`, `titleFontSize`, `blockStrokeColor`, `blockStrokeWidth`, `blockFillColor` |
 
 The fields are contiguous, each ends at or after the bit it starts at and takes a bit or more, and a packet is drawn to
-10,000 rows, as Mermaid's rules say. A field that breaks a rule is still drawn — where it was written to start, or a bit
-wide where how many bits it takes cannot be known — with the number at fault marked where it is drawn; a number still to
-write is a hole there. A label is typed into in its box, and a bit number over a field's end is typed into where it is
-the number written.
+10,000 rows, as Mermaid's rules say; a block breaking a rule is shown as written, the number at fault marked. A label is
+typed into in its box, and said whole where the pointer rests on a box too narrow for it. The numbers over a field are
+worked out from the bits and never written in where they are drawn: a field is made longer, shorter or moved from its
+right-click and by dragging it, never by typing a number.
 
 A right-click on a field offers to put a field in before or after it, to take it out, and how many bits it takes; anywhere
 else in the packet, a field after everything written. With whole fields picked out, Delete takes them out and Insert puts
 one in above them, and a field carried and let go on another takes its place. Whatever changes, every field is numbered
 again from bit 0 and keeps its length and the form it is written in — a range, one bit, or a count — and only its numbers
-are written over ([`PacketWriting`](../src/Nexaflow.Markdown/Packet/PacketWriting.cs)). In a label, a bit number or the
-title a right-click offers to cut, copy and paste, a paste spelled for where it lands; over whole fields, only to copy them.
+are written over ([`PacketWriting`](../src/Nexaflow.Markdown/Packet/PacketWriting.cs)). In a label or the title a
+right-click offers to cut, copy and paste, a paste spelled for where it lands; over whole fields, only to copy them.
 
 **Divergences from Mermaid**
 

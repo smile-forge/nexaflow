@@ -416,6 +416,10 @@ public sealed class WpfText(string text, CultureInfo culture, Typeface face, dou
 
     public double Room => MaxTextWidth;
 
+    /// <inheritdoc/>
+    /// <remarks>WPF breaks lines only between words, and sets a word wider than the room it is given with an ellipsis.</remarks>
+    public bool CutShort => MaxTextWidth > 0 && MinWidth > MaxTextWidth + 0.01;
+
     public LayoutAlign Align => TextAlignment switch
     {
         TextAlignment.Right => LayoutAlign.Right,

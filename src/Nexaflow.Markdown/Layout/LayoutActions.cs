@@ -11,6 +11,12 @@ public sealed record LayoutActions
 
     /// <summary>What choosing it means, for a host following the selection.</summary>
     public LayoutAsk? Select { get; init; }
+
+    /// <summary>
+    /// What resting the pointer on it says where a press on it means nothing of its own — words set cut short to fit their room,
+    /// said whole. A piece answering to a press says what its <see cref="Click"/> does instead.
+    /// </summary>
+    public string? Tip { get; init; }
 }
 
 /// <summary>

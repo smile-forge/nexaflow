@@ -86,16 +86,17 @@ public class PacketEditingTests
         }));
 
     [TestMethod]
-    public void TypingIntoABitNumberMovesTheEndOfItsField_AndALetterGoesNowhere() => UiThread.Run(() =>
+    public void ABitNumberIsNoPlaceToWrite() => UiThread.Run(() =>
         InADocument((editor, packet) =>
         {
-            PressPast(packet, "15");
-            Write(editor, "x");
-            StringAssert.Contains(packet.Source, "8-15: \"Length\"", $"a letter is no bit number: {packet.Source}");
+            var number = packet.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == PacketPiece.Bit);
+            packet.BeginPointerSelect(new Point(number.Bounds.X + (number.Bounds.Width / 2), number.Bounds.Y + (number.Bounds.Height / 2)));
+            packet.EndPointerSelect();
 
             Write(editor, "9");
-            StringAssert.Contains(packet.Source, "8-159: \"Length\"", packet.Source);
-            Assert.AreEqual(0, packet.Diagnostics.Count, Trouble(packet));
+
+            StringAssert.Contains(packet.Source, "```packet\n0-7: ", $"the caret never stands in a number, so no key changes one: {packet.Source}");
+            StringAssert.Contains(packet.Source, "\n8-15: ", packet.Source);
         }));
 
     [TestMethod]
@@ -122,8 +123,8 @@ public class PacketEditingTests
             var ribbon = Ribbon(editor, Box(packet, "B"));
 
             CollectionAssert.IsSubsetOf(new[] { "packet.insert.before", "packet.insert.after", "packet.delete" }, ribbon.Offers.Select(offer => offer.Verb).ToArray());
-            Assert.IsTrue(ribbon.Offers.Where(offer => offer.Verb.StartsWith("packet.insert", StringComparison.Ordinal)).All(offer => offer.Offer == LayoutOffer.Insert),
-                          "putting a field in is adding something, behind the one Insert button");
+            Assert.IsTrue(ribbon.Offers.Where(offer => offer.Verb.StartsWith("packet.insert", StringComparison.Ordinal)).All(offer => offer.Offer == LayoutOffer.Change),
+                          "putting a field in beside this one is done to this one, so it stands in the menu rather than behind a button");
             CollectionAssert.AreEqual(new[] { "packet.bits.1", "packet.bits.2", "packet.bits.4", "packet.bits.8", "packet.bits.16", "packet.bits.32" },
                                       ribbon.Offers.Where(offer => offer.Group == "Bits").Select(offer => offer.Verb).ToArray());
             Assert.AreEqual("packet.bits.8", ribbon.Offers.Single(offer => offer.Current).Verb, "the length it takes now");
@@ -153,9 +154,7 @@ public class PacketEditingTests
     public void ChoosingAFieldAfterPutsOneBitIn_TheCaretInItsLabel() => UiThread.Run(() =>
         InADocument((editor, packet) =>
         {
-            var ribbon = Ribbon(editor, Box(packet, "A"));
-            Click(ribbon, "Insert");
-            Click(ribbon, "Insert_packet.insert.after");
+        Click(Ribbon(editor, Box(packet, "A")), "packet.insert.after");
 
             StringAssert.Contains(packet.Source, "0-3: \"A\"\n4: \"\"\n5-12: \"B\"\n13-16: \"C\"", packet.Source);
             Assert.AreEqual(packet.Source.IndexOf("4: \"", StringComparison.Ordinal) + 4, packet.Caret, "between its quotes");
@@ -225,18 +224,6 @@ public class PacketEditingTests
 
             StringAssert.Contains(packet.Source, "0-7: \"Flags say \\\"hi\\\"\"", packet.Source);
             Assert.AreEqual(0, packet.Diagnostics.Count, Trouble(packet));
-        }));
-
-    [TestMethod]
-    public void APasteIntoABitNumberThatIsNoNumberWritesNothing() => UiThread.Run(() =>
-        InADocument((editor, packet) =>
-        {
-            packet.TakeCaret(packet.Source.IndexOf("15", packet.Start, StringComparison.Ordinal) + 2);
-            MarkdownEditorHarness.Clipboard = new DataObject(DataFormats.UnicodeText, "x9");
-
-            Click(Ribbon(editor, Label(packet, "Length")), LayoutVerbs.Paste);
-
-            StringAssert.Contains(packet.Source, "8-15: \"Length\"", packet.Source);
         }));
 
     [TestMethod]
@@ -336,15 +323,5 @@ public class PacketEditingTests
 
         Assert.AreEqual("\"Flags\"", writing.Text);
         Assert.AreEqual(hole.Start + "\"Flags".Length, writing.Caret);
-    }
-
-    [TestMethod]
-    public void ABitNumberTakesOnlyDigits()
-    {
-        const string source = "packet\n0-7: \"A\"";
-        var end = Laying.Read(PacketParser.Language, source).Root.SelfAndDescendants().First(part => part.Kind == Kinds.Number && part.Role == PacketRoles.End);
-
-        Assert.AreEqual("12", PacketEdits.Escaping(end, end.End, "1a2")!.Value.Text);
-        Assert.IsNull(PacketEdits.Escaping(end, end.End, "12"), "digits go in as they are");
     }
 }

@@ -18,7 +18,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Packet;
 ///
 /// <para>
 /// What is typed into a label is kept by a backslash where it would end it, and a label still to write is put in quotes as it is
-/// written into; a bit number takes only digits.
+/// written into. A field's bits are never typed: they follow from the fields before it and how long each is, and change only by
+/// what is offered below.
 /// </para>
 /// <para>
 /// A right-click on a field offers to put a field in before it or after it, to take it out, and how many bits it takes — each
@@ -93,12 +94,14 @@ internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
             }),
         ];
 
-        static LayoutIntent Inserting(string verb, string tip) => new(verb, null, Str.Get(tip)) { Offer = LayoutOffer.Insert };
+        // Done to the field under the pointer, so it stands in the menu beside the rest of what is done to it — never behind a
+        // button of its own a reader has to open to find it.
+        static LayoutIntent Inserting(string verb, string tip) => new(verb, null, Str.Get(tip));
     }
 
     /// <inheritdoc/>
     /// <remarks>
-    /// In a packet's words — a label, a bit number, the title — what is picked out is text, so every one of the clipboard's ways means
+    /// In a packet's words — a label, the title — what is picked out is text, so every one of the clipboard's ways means
     /// what it says there, and a paste at the caret goes in as the parser spells it for that place. Over anything else picked out —
     /// whole fields — only a copy: taken away as characters they would leave a gap the fields after them do not close up, which is
     /// what taking a field out does instead.
@@ -115,7 +118,7 @@ internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
 
     /// <summary>
     /// A paste in a packet's words: what is pasted, written where it was put as words the parser makes safe there — kept by a
-    /// backslash in a label, only a whole number in a bit number, which refuses the paste where it is not one. Anywhere else, nothing.
+    /// backslash in a label, on one line in the title. Anywhere else, nothing.
     /// </summary>
     private static ContentChange Pasted(ContentEdit edit)
     {
@@ -127,11 +130,11 @@ internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
         return new ContentChange([ContentWrite.Words(words, from, to - from, edit.Text)], from + edit.Text.Length);
     }
 
-    /// <summary>The words the stretch from <paramref name="from"/> to <paramref name="to"/> lies in — a label's, a bit number's or the title's — or null.</summary>
+    /// <summary>The words the stretch from <paramref name="from"/> to <paramref name="to"/> lies in — a label's or the title's — or null.</summary>
     private static ContentPart? Written(ContentPart root, int from, int to) =>
         root.SelfAndDescendants().FirstOrDefault(part => part.Start <= from && to <= part.End && !part.Derived && part.Kind switch
         {
-            Kinds.Number => true,
+    
             Kinds.Words => PacketParser.LabelOf(part) is not null || part.Role == MermaidRoles.Title,
             _ => false,
         });
@@ -171,7 +174,7 @@ internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
     /// </summary>
     internal static MermaidWriting? Escaping(ContentPart part, int caret, string text)
     {
-        if (part.Kind == Kinds.Number || part.Parent is { Kind: MermaidKinds.Amount }) return MermaidWriting.Only(caret, text, char.IsAsciiDigit);
+
 
         if (PacketParser.LabelOf(part) is not { } label) return null;
 

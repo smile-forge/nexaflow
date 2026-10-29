@@ -86,8 +86,11 @@ public sealed class PacketParser : ITranspile
         return new BlockNode(Language, lines, MermaidKinds.Block);
     }
 
-    /// <summary>Whether a hole stands in <paramref name="node"/> while somebody writes in the block: between a label's quotes, after a field's colon, and where a bit number is still to write.</summary>
-    public static bool Holds(ContentNode? holder, ContentNode node) => node.Kind is PacketKinds.Label or MermaidKinds.Amount;
+    /// <summary>
+    /// Whether a hole stands in <paramref name="node"/> while somebody writes in the block: between a label's quotes, and after a
+    /// field's colon where its label is still to write. Never in a bit number, which is not written in where it is drawn.
+    /// </summary>
+    public static bool Holds(ContentNode? holder, ContentNode node) => node.Kind is PacketKinds.Label;
 
     // ── Lines ───────────────────────────────────────────────────────────────
 
@@ -350,12 +353,12 @@ public sealed class PacketParser : ITranspile
     public static ContentChange? Rewrite(ContentChange change) => Transpiles.Spelling(change, Spelled);
 
     /// <summary>
-    /// A change as a packet spells it: into a label, with what would end it kept by a backslash; into a bit number, only a whole
-    /// number; anywhere else, as every block written Mermaid's way spells it.
+    /// A change as a packet spells it: into a label, with what would end it kept by a backslash; anywhere else, as every block
+    /// written Mermaid's way spells it.
     /// </summary>
     private static string? Spelled(ContentPart part, string text) =>
         LabelOf(part) is { } label ? Opened(label) is { } quote ? Escaped(text, quote) : Opening + Escaped(text, Opening) + Opening
-        : part.Kind is MermaidKinds.Amount or Kinds.Number ? text.Length > 0 && text.All(char.IsAsciiDigit) ? text : null
+
         : MermaidParser.Spelled(part, text);
 
     /// <summary>The quote a label still to write is put in once something is written into it.</summary>

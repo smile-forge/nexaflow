@@ -14,22 +14,26 @@ namespace Nexaflow.Markdown.Layout.Packet;
 ///
 /// <para>
 /// <strong>Rows of fields, as it is drawn.</strong> The layout is the rows top to bottom, and in each row the runs of the fields
-/// on it in the order they are drawn across it — so a row turned round by <c>bitOrder</c> holds its highest bits first. A run is
-/// its box, its label and its numbers together, and stands for the whole field as it was written, so pressing it means that
-/// line; a field running across rows is a run in each, every one standing for the same field. The label is the characters
-/// written, typed into in the run on the row the field starts on and said again on every row after it. A number over an end
-/// of a run is the number written there where it is — typed into — and otherwise worked out from the bits, and pressed as the
-/// field.
+/// on it in the order they are drawn across it — so a row turned round by <c>bitOrder</c> holds its highest bits first — and over
+/// them the band of their bit numbers. A run is its box and its label, and stands for the whole field as it was written, so
+/// pressing it means that line and choosing it washes the box and nothing over it; a field running across rows is a run in each,
+/// every one standing for the same field. The label is the characters written, typed into in the run on the row the field starts
+/// on and said again on every row after it; where it is cut short to fit its box, resting on the run says it whole.
 /// </para>
 /// <para>
-/// <strong>What is wrong is drawn where it can be put right.</strong> A field that starts where it should not is drawn where it
-/// was written to start, the gap or the overlap in plain sight; one whose width cannot be known is drawn a bit wide, with the
-/// number in the way over it — a hole, where it is still to write. A field drawn over another stands in what it covers, so a
-/// press there means the one seen.
+/// <strong>The numbers are worked out, never written in.</strong> Which bits a field takes follows from the fields before it and
+/// how long each is, so a number over a run is the bit it starts or ends at, standing for nothing — no caret stops in it and no
+/// press means it. A field is made longer, shorter or moved by what its right-click and a drag offer (<c>PacketEdits</c>), which
+/// number every field again.
 /// </para>
 /// <para>
-/// <strong>It fits the room by narrowing its bits</strong>, down to as narrow as a bit can be and still be numbered, setting
-/// labels on more lines as their boxes narrow and making a row as tall as its labels need; past that it is drawn smaller.
+/// <strong>A field breaking a rule is drawn where it was written</strong> — the gap or the overlap in plain sight, and one whose
+/// width cannot be known a bit wide. A field drawn over another stands in what it covers, so a press there means the one seen.
+/// </para>
+/// <para>
+/// <strong>It fits the room by narrowing its bits</strong>, down to as narrow as a bit can be with every run still holding the
+/// numbers over its ends side by side and a letter of its label, setting labels on more lines as their boxes narrow and making a
+/// row as tall as its labels need; past that it is drawn smaller.
 /// </para>
 /// </summary>
 internal sealed class PacketBuilder : ContentBuilder
@@ -46,8 +50,8 @@ internal sealed class PacketBuilder : ContentBuilder
     /// <summary>The air round a label inside its box.</summary>
     private const double Inset = 3;
 
-    /// <summary>How narrow a bit may be drawn before the packet is drawn smaller instead: as narrow as still takes its number.</summary>
-    private const double Narrowest = 14;
+    /// <summary>The air between the numbers over a run's two ends, where the run is as narrow as it can be.</summary>
+    private const double Apart = 4;
 
     internal PacketBuilder(ContentReading reading, EditState state, LayoutStyle style, bool isReadOnly, ILayoutMedium medium,
                            LayoutHost host) : base(reading, state, style, isReadOnly, medium, host)
@@ -86,17 +90,20 @@ internal sealed class PacketBuilder : ContentBuilder
     /// <summary>A field as its stages left it, the part of the reading it is, and the numbers and label written in it.</summary>
     private sealed record Field(ContentPart Part, PacketFieldNode Said)
     {
-        /// <summary>The number written as <paramref name="role"/> — its start, end or count — or null where none is written as that.</summary>
-        public ContentPart? Number(string role) =>
-            this.Part.SelfAndDescendants().FirstOrDefault(part => part.Kind == Kinds.Number && part.Role == role);
-
         public ContentPart? Label => this.Part.Inner(PacketKinds.Label);
     }
 
-    /// <summary>A run of a field's bits as it is laid: where its box stands, its label set in it, and its numbers set over it.</summary>
+    /// <summary>
+    /// A run of a field's bits as it is laid: where its box stands, its label set in it, its numbers set over it, and the label
+    /// whole where it is cut short to fit — what resting on the run says.
+    /// </summary>
     private sealed record Box(Field Field, PacketSpan Span, LayoutRect Bounds,
                               IReadOnlyList<(DiagramWords Words, LayoutPoint At)> Label,
-                              IReadOnlyList<(DiagramWords Words, LayoutPoint At)> Numbers);
+                              IReadOnlyList<(DiagramWords Words, LayoutPoint At)> Numbers,
+                              string? Tip);
+
+    /// <summary>A run of a field's bits on one row, which of its runs it is, and the numbers set over its ends — the same at any width.</summary>
+    private sealed record Run(Field Field, PacketSpan Span, int At, IReadOnlyList<Numbering> Numbers);
 
     /// <summary>Every box laid at one bit width, and the room they take.</summary>
     private sealed record Plan(IReadOnlyList<Box> Boxes, LayoutSize Size);
@@ -114,52 +121,68 @@ internal sealed class PacketBuilder : ContentBuilder
         if (fields.All(field => field.Said.Spans.Count == 0)) return Sheet.AsWritten();
 
         var config = Config;
-        var plan = Sheet.LaidNarrower(config.BitWidth, Math.Min(config.BitWidth, Narrowest),
-                                      bit => Planned(fields, config, bit), laid => laid.Size.Width);
+
+        // The numbers over a run say which bits it takes, not how wide they are drawn, so they are set once whatever width it comes to.
+        var runs = fields.SelectMany(field => field.Said.Spans.Select((span, at) => new Run(field, span, at, Numbers(span, config)))).ToList();
+        var least = Narrowest(runs, config);
+
+        var plan = Sheet.LaidNarrower(Math.Max(config.BitWidth, least), least, bit => Planned(runs, config, bit), laid => laid.Size.Width);
 
         Lay(build, plan, config);
         return Sheet.Reduced(plan.Size);
     }
 
+    /// <summary>
+    /// How narrow a bit can be drawn with every run still holding what is set in it and over it: the numbers over its two ends side
+    /// by side with air between them, or the one over a run one bit wide, and a letter of its label.
+    /// </summary>
+    private double Narrowest(IReadOnlyList<Run> runs, PacketConfig config)
+    {
+        var letter = Words.Text("x", config.LabelFontSize ?? LabelSize, Style.Text).Width + (Inset * 2);
+        var narrowest = 1.0;
+
+        foreach (var run in runs)
+        {
+            var numbered = run.Numbers.Count == 0 ? 0 : run.Numbers.Sum(number => number.Words.Width) + (Apart * (run.Numbers.Count - 1));
+            narrowest = Math.Max(narrowest, (Math.Max(numbered, letter) + config.PaddingX) / run.Span.Bits);
+        }
+
+        return narrowest;
+    }
+
     // ── Where it all goes ───────────────────────────────────────────────────
 
-    /// <summary>Every field's runs laid as boxes with a bit <paramref name="bit"/> wide, a row as tall as its labels need.</summary>
-    private Plan Planned(IReadOnlyList<Field> fields, PacketConfig config, double bit)
+    /// <summary>Every run laid as a box with a bit <paramref name="bit"/> wide, a row as tall as its labels need.</summary>
+    private Plan Planned(IReadOnlyList<Run> runs, PacketConfig config, double bit)
     {
         var across = (long)config.BitsPerRow;
+
         // A label is set over a box washed in the theme's accent, as every diagram's node is, so it is the theme's text — and,
         // where the front matter fills the box itself, whatever reads on that fill.
         var labelInk = Ink.Written(config.LabelColour) ?? (Ink.Written(config.BlockFillColour) is { } filled ? Ink.Over(filled) : Style.Text);
         var labelSize = config.LabelFontSize ?? LabelSize;
 
-        var drafts = new List<(Field Field, PacketSpan Span, double X, double Width, IReadOnlyList<DiagramWords> Label, IReadOnlyList<Numbering> Numbers)>();
+        var drafts = new List<(Run Run, double X, double Width, IReadOnlyList<DiagramWords> Label)>();
         var rows = 0;
 
-        foreach (var field in fields)
+        foreach (var run in runs)
         {
-            for (var run = 0; run < field.Said.Spans.Count; run++)
-            {
-                var span = field.Said.Spans[run];
+            // A row turned round is numbered from its far end, so a run stands as far from the right as it would from the left.
+            var column = run.Span.From % across;
+            if (config.BitOrder == PacketBitOrder.Descending) column = across - column - run.Span.Bits;
 
-                // A row turned round is numbered from its far end, so a run stands as far from the right as it would from the left.
-                var column = span.From % across;
-                if (config.BitOrder == PacketBitOrder.Descending) column = across - column - span.Bits;
-
-                // Mermaid's own: each box a bit's width for each of its bits, less the air before the next.
-                var width = Math.Max(1, (span.Bits * bit) - config.PaddingX);
-                var label = Labelled(field, run == 0, width - (Inset * 2), labelSize, labelInk);
-
-                drafts.Add((field, span, (column * bit) + 1, width, label, Numbers(field, span, config)));
-                rows = Math.Max(rows, span.Row + 1);
-            }
+            // Mermaid's own: each box a bit's width for each of its bits, less the air before the next.
+            var width = Math.Max(1, (run.Span.Bits * bit) - config.PaddingX);
+            drafts.Add((run, (column * bit) + 1, width, Labelled(run.Field, run.At == 0, width - (Inset * 2), labelSize, labelInk)));
+            rows = Math.Max(rows, run.Span.Row + 1);
         }
 
         var heights = Enumerable.Repeat(config.RowHeight, rows).ToArray();
         foreach (var draft in drafts)
-            heights[draft.Span.Row] = Math.Max(heights[draft.Span.Row], draft.Label.Sum(line => line.Height) + (Inset * 2));
+            heights[draft.Run.Span.Row] = Math.Max(heights[draft.Run.Span.Row], draft.Label.Sum(line => line.Height) + (Inset * 2));
 
         // The numbers are set in the air over each row, which numbering them makes room for.
-        var air = config.PaddingY + (drafts.Any(draft => draft.Numbers.Count > 0) ? Numbered : 0);
+        var air = config.PaddingY + (runs.Any(run => run.Numbers.Count > 0) ? Numbered : 0);
         var tops = new double[rows];
         var down = 0.0;
 
@@ -172,10 +195,11 @@ internal sealed class PacketBuilder : ContentBuilder
 
         var boxes = drafts.Select(draft =>
         {
-            var bounds = new LayoutRect(draft.X, tops[draft.Span.Row], draft.Width, heights[draft.Span.Row]);
-            var numbers = draft.Numbers.Select(number => (number.Words, Above(number, bounds))).ToList();
+            var bounds = new LayoutRect(draft.X, tops[draft.Run.Span.Row], draft.Width, heights[draft.Run.Span.Row]);
+            var numbers = draft.Run.Numbers.Select(number => (number.Words, Above(number, bounds))).ToList();
+            var tip = draft.Label.Any(line => line.CutShort) && draft.Run.Field.Label.Words() is { } words ? Words.Shown(words) : null;
 
-            return new Box(draft.Field, draft.Span, bounds, [.. DiagramWords.Stack(draft.Label, bounds)], numbers);
+            return new Box(draft.Run.Field, draft.Run.Span, bounds, [.. DiagramWords.Stack(draft.Label, bounds)], numbers, tip);
         }).ToList();
 
         return new Plan(boxes, new LayoutSize((across * bit) + 2, down));
@@ -211,52 +235,30 @@ internal sealed class PacketBuilder : ContentBuilder
     }
 
     /// <summary>
-    /// The numbers over a run's ends: its first and last bit as the row reads, or the one bit of a run one bit wide. Over a field
-    /// whose width cannot be known, the number in the way of knowing it — the end or the count — is the one set, so it can be put
-    /// right where it stands.
+    /// The numbers over a run's ends: its first and last bit as the row reads, or the one bit of a run one bit wide — worked out from
+    /// the bits, standing for nothing: nobody writes in them and no press means them. None where the bits are not numbered.
     /// </summary>
-    private IReadOnlyList<Numbering> Numbers(Field field, PacketSpan span, PacketConfig config)
+    private IReadOnlyList<Numbering> Numbers(PacketSpan span, PacketConfig config)
     {
+        if (!config.ShowBits) return [];
+
         var size = config.ByteFontSize ?? BitSize;
         var leading = Ink.Written(config.StartByteColour) ?? Style.TextMuted;
         var trailing = Ink.Written(config.EndByteColour) ?? Style.TextMuted;
-        var said = field.Said;
 
-        if (said.Unsized is { } unsized)
-            return Only(Number(field, field.Number(unsized), said.First, config, size, leading), LayoutAlign.Centre);
-
-        var start = span.From == said.First ? field.Number(PacketRoles.Start) : null;
-        var end = span.To == said.Last ? field.Number(PacketRoles.End) : null;
-
-        if (span.Bits == 1) return Only(Number(field, start ?? end, span.From, config, size, leading), LayoutAlign.Centre);
+        if (span.Bits == 1) return [new Numbering(Number(span.From, size, leading), LayoutAlign.Centre)];
 
         var descending = config.BitOrder == PacketBitOrder.Descending;
-        var low = Number(field, start, span.From, config, size, descending ? trailing : leading);
-        var high = Number(field, end, span.To, config, size, descending ? leading : trailing);
 
-        var numbers = new List<Numbering>(2);
-        if (low is not null) numbers.Add(new Numbering(low, descending ? LayoutAlign.Right : LayoutAlign.Left));
-        if (high is not null) numbers.Add(new Numbering(high, descending ? LayoutAlign.Left : LayoutAlign.Right));
-
-        return numbers;
-
-        static IReadOnlyList<Numbering> Only(DiagramWords? words, LayoutAlign edge) => words is null ? [] : [new Numbering(words, edge)];
+        return
+        [
+            new Numbering(Number(descending ? span.To : span.From, size, leading), LayoutAlign.Left),
+            new Numbering(Number(descending ? span.From : span.To, size, trailing), LayoutAlign.Right),
+        ];
     }
 
-    /// <summary>
-    /// The number of <paramref name="bit"/>: the number written, where <paramref name="written"/> is the one written there, and
-    /// otherwise worked out and pressed as the field — or null where the bits are not numbered. A number written wrong, or still
-    /// to write, is set whether or not they are: it is in the way, and set is where it is put right.
-    /// </summary>
-    private DiagramWords? Number(Field field, ContentPart? written, long bit, PacketConfig config, double size, LayoutInk ink)
-    {
-        if (written is not null)
-            return config.ShowBits || written.Trouble is not null || written.Length == 0
-                ? Words.Written(written, written.Parent.Hole(), size, ink)
-                : null;
-
-        return config.ShowBits ? Words.Worked(bit.ToString(CultureInfo.InvariantCulture), field.Part, size, ink) : null;
-    }
+    /// <summary>The number of <paramref name="bit"/>, standing for nothing.</summary>
+    private DiagramWords Number(long bit, double size, LayoutInk ink) => Words.Worked(bit.ToString(CultureInfo.InvariantCulture), null, size, ink);
 
     // ── Drawing ─────────────────────────────────────────────────────────────
 
@@ -288,6 +290,7 @@ internal sealed class PacketBuilder : ContentBuilder
                     if (boxes[later].Bounds.IntersectsWith(box.Bounds)) over.Add(build.Medium.Rectangle(boxes[later].Bounds));
 
                 build.Open(PacketPiece.Field, box.Field.Part, stops: LayoutStops.None);
+                if (box.Tip is { } tip) build.Acts(new LayoutActions { Tip = tip });
 
                 build.Open(MermaidPiece.Shape, box.Field.Part, stops: LayoutStops.None);
                 build.Draw(DiagramMarks.Outlined(build.Medium, outline, fill, edge, thickness));
@@ -295,10 +298,15 @@ internal sealed class PacketBuilder : ContentBuilder
                 build.Close();
 
                 foreach (var (words, place) in box.Label) words.Set(build, place, PacketPiece.Label);
-                foreach (var (words, place) in box.Numbers) words.Set(build, place, PacketPiece.Bit);
 
                 build.Close();
             }
+
+            // Over the row's fields and apart from them, so choosing a field washes its box and not the numbers over it.
+            build.Open(PacketPiece.Bits, part: null, stops: LayoutStops.None);
+            foreach (var box in boxes)
+                foreach (var (words, place) in box.Numbers) words.Set(build, place, PacketPiece.Bit);
+            build.Close();
 
             build.Close();
         }
