@@ -391,7 +391,11 @@ asks that language what it offers there (`ContentEngine.Asked`, answered by `Edi
 root); the options of one choice come back under one `LayoutIntent.Group`, the one in force marked `Current`, and
 `DiagramRibbon` draws them side by side, each as what it would make (`LayoutIntent.Shape`) and named in its tooltip. A
 press on one comes back through the engine as a choosing edit on the same piece and part (`ContentEngine.Choose`), so
-what a ribbon does is written in the handler that answers the keys.
+what a ribbon does is written in the handler that answers the keys. The clipboard's ways — cut and copy what is picked out,
+paste at the caret — are the engine's to offer and to do, since only it knows what is picked out and the clipboard is the
+host's; the language says only which of them apply where the right-click landed (`Editing.Clipboard`). One with no edit handler
+writes nothing but characters and allows them all; one with a handler says place by place, because a copy is almost always
+right but a cut may take away what holds its content together and a paste may land where only some of it can go.
 
 Markdown's own offer is Insert: every language that names a block to start from (`ContentLanguage.DisplayName` — read
 as it is shown, in the window's language, while the invariant `Name` keys the offer — `Icon`, a Fluent UI System Icons

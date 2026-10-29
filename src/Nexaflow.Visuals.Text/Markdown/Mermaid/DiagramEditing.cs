@@ -28,5 +28,8 @@ internal sealed class DiagramEditing(IOnEdit? onEdit) : IContentLanguage
     public IReadOnlyList<LayoutIntent> Offers(ContentAsk ask) => this._own?.Offers(ask) ?? [];
 
     /// <inheritdoc/>
+    public ClipboardOffers Clipboard(ContentAsk ask) => this._own?.Clipboard(ask) ?? (onEdit is null ? ClipboardOffers.All : ClipboardOffers.None);
+
+    /// <inheritdoc/>
     public BlockCorner Corner(ContentAsk ask) => this._own?.Corner(ask) ?? BlockCorner.Usual;
 }

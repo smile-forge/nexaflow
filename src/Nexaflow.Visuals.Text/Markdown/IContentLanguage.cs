@@ -118,6 +118,37 @@ public interface IContentLanguage
     /// </para>
     /// </summary>
     Editing.IOnMove? OnMove => null;
+
+    /// <summary>
+    /// Which of the clipboard's ways a right-click offers where it landed — copying what is picked out, cutting it, and pasting at the
+    /// caret — which the engine then offers and does itself.
+    ///
+    /// <para>
+    /// A language with no edit handler of its own writes nothing but characters, so every one of them means what it says in it and
+    /// all are offered. A language with one says itself, place by place, because what its characters mean is its own: a copy is
+    /// almost always right, but a cut may take away what holds the content together and a paste may land where only some of what
+    /// is pasted can go. Where none of them is right as the engine does it, the language offers its own instead.
+    /// </para>
+    /// </summary>
+    ClipboardOffers Clipboard(ContentAsk ask) => OnEdit is null ? ClipboardOffers.All : ClipboardOffers.None;
+}
+
+/// <summary>The clipboard's ways a right-click may offer where it landed (<see cref="IContentLanguage.Clipboard"/>).</summary>
+[System.Flags]
+public enum ClipboardOffers
+{
+    None = 0,
+
+    /// <summary>Copying what is picked out.</summary>
+    Copy = 1,
+
+    /// <summary>Copying what is picked out, and taking it away.</summary>
+    Cut = 2,
+
+    /// <summary>Writing what was copied at the caret, or over what is picked out.</summary>
+    Paste = 4,
+
+    All = Copy | Cut | Paste,
 }
 
 /// <summary>

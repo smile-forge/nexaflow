@@ -1194,7 +1194,8 @@ A right-click on a field offers to put a field in before or after it, to take it
 else in the packet, a field after everything written. With whole fields picked out, Delete takes them out and Insert puts
 one in above them, and a field carried and let go on another takes its place. Whatever changes, every field is numbered
 again from bit 0 and keeps its length and the form it is written in — a range, one bit, or a count — and only its numbers
-are written over ([`PacketWriting`](../src/Nexaflow.Markdown/Packet/PacketWriting.cs)).
+are written over ([`PacketWriting`](../src/Nexaflow.Markdown/Packet/PacketWriting.cs)). In a label, a bit number or the
+title a right-click offers to cut, copy and paste, a paste spelled for where it lands; over whole fields, only to copy them.
 
 **Divergences from Mermaid**
 

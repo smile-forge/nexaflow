@@ -433,6 +433,7 @@ internal sealed class DiagramRibbon : UserControl
         LayoutVerbs.Expand => Str.Get("Text.Ribbon.Expand"),
         LayoutVerbs.Collapse => Str.Get("Text.Ribbon.Collapse"),
         LayoutVerbs.Copy => Str.Get("Text.Ribbon.Copy"),
+        LayoutVerbs.Cut => Str.Get("Text.Ribbon.Cut"),
         LayoutVerbs.Paste => Str.Get("Text.Ribbon.Paste"),
         LayoutVerbs.Save => Str.Get("Text.Ribbon.SavePicture"),
         _ => intent.Tip is { Length: > 0 } said ? said : intent.Verb,
@@ -448,6 +449,7 @@ internal sealed class DiagramRibbon : UserControl
         LayoutVerbs.Save => "\uE74E",
         LayoutVerbs.Navigate => "\uE8A7",
         LayoutVerbs.Paste => "\uE77F",
+        LayoutVerbs.Cut => "\uE8C6",
         _ => null,
     };
 

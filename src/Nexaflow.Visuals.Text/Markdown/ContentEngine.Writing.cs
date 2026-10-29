@@ -492,6 +492,15 @@ public sealed partial class ContentEngine
     /// </summary>
     internal bool Choose(string verb, LayoutPoint at)
     {
+        // The clipboard's ways are the engine's, whichever language offered them: only it knows what is picked out, and the
+        // clipboard itself is the host's.
+        switch (verb)
+        {
+            case LayoutVerbs.Copy: return Copied();
+            case LayoutVerbs.Cut: return Cut();
+            case LayoutVerbs.Paste: return Paste();
+        }
+
         if (Unwritable || Said(EditKind.Choosing, verb, Landing, _laid.Root.PieceAt(at)) is not { } said) return false;
 
         if (said.Asked is EditKind.Pasting) return Paste();

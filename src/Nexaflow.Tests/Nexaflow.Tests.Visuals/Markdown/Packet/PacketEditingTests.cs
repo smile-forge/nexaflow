@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Packet;
 using Nexaflow.Tests.Fixtures;
@@ -191,6 +192,72 @@ public class PacketEditingTests
             StringAssert.Contains(packet.Source, "```packet\n0-7: \"B\"\n8-11: \"C\"\n12-15: \"A\"\n```", $"after the field it was let go on: {packet.Source}");
             Assert.AreEqual(0, packet.Diagnostics.Count, Trouble(packet));
         }, Three));
+
+    // ── The clipboard ───────────────────────────────────────────────────────
+
+    [TestMethod]
+    public void WordsPickedOutInALabelAreOfferedToCutCopyAndPaste_AndCuttingTakesThemOut() => UiThread.Run(() =>
+        InADocument((editor, packet) =>
+        {
+            packet.Select(packet.Source.IndexOf("Flags", packet.Start, StringComparison.Ordinal), 3);
+
+            var ribbon = Ribbon(editor, Label(packet, "Flags"));
+            CollectionAssert.IsSubsetOf(new[] { LayoutVerbs.Cut, LayoutVerbs.Copy, LayoutVerbs.Paste }, ribbon.Offers.Select(offer => offer.Verb).ToArray());
+
+            Click(ribbon, LayoutVerbs.Cut);
+
+            Assert.AreEqual("Fla", MarkdownClipboard.ReadPlainText(MarkdownEditorHarness.Clipboard!).TrimEnd(), "what was picked out is on the clipboard, as the engine copies a stretch");
+            StringAssert.Contains(packet.Source, "0-7: \"gs\"", $"and gone from the label: {packet.Source}");
+        }));
+
+    [TestMethod]
+    public void APasteIntoALabelIsKeptByABackslashWhereItWouldEndIt() => UiThread.Run(() =>
+        InADocument((editor, packet) =>
+        {
+            packet.TakeCaret(packet.Source.IndexOf("Flags", packet.Start, StringComparison.Ordinal) + "Flags".Length);
+            MarkdownEditorHarness.Clipboard = new DataObject(DataFormats.UnicodeText, " say \"hi\"");
+
+            var ribbon = Ribbon(editor, Label(packet, "Flags"));
+            CollectionAssert.Contains(ribbon.Offers.Select(offer => offer.Verb).ToArray(), LayoutVerbs.Paste);
+            CollectionAssert.DoesNotContain(ribbon.Offers.Select(offer => offer.Verb).ToArray(), LayoutVerbs.Cut, "nothing is picked out to cut");
+
+            Click(ribbon, LayoutVerbs.Paste);
+
+            StringAssert.Contains(packet.Source, "0-7: \"Flags say \\\"hi\\\"\"", packet.Source);
+            Assert.AreEqual(0, packet.Diagnostics.Count, Trouble(packet));
+        }));
+
+    [TestMethod]
+    public void APasteIntoABitNumberThatIsNoNumberWritesNothing() => UiThread.Run(() =>
+        InADocument((editor, packet) =>
+        {
+            packet.TakeCaret(packet.Source.IndexOf("15", packet.Start, StringComparison.Ordinal) + 2);
+            MarkdownEditorHarness.Clipboard = new DataObject(DataFormats.UnicodeText, "x9");
+
+            Click(Ribbon(editor, Label(packet, "Length")), LayoutVerbs.Paste);
+
+            StringAssert.Contains(packet.Source, "8-15: \"Length\"", packet.Source);
+        }));
+
+    [TestMethod]
+    public void OverAWholeFieldPickedOutOnlyACopyIsOffered() => UiThread.Run(() =>
+        InADocument((editor, packet) =>
+        {
+            ChooseTheField(packet, "Flags");
+
+            var verbs = Ribbon(editor, Box(packet, "Flags")).Offers.Select(offer => offer.Verb).ToArray();
+
+            CollectionAssert.Contains(verbs, LayoutVerbs.Copy);
+            CollectionAssert.DoesNotContain(verbs, LayoutVerbs.Cut, "cut as characters it would leave a gap; Delete takes a field out");
+            CollectionAssert.DoesNotContain(verbs, LayoutVerbs.Paste);
+        }));
+
+    /// <summary>Where the label written <paramref name="words"/> is drawn — in the box on the row its field starts on.</summary>
+    private static Rect Label(DocumentBlock packet, string words)
+    {
+        var at = packet.Source.IndexOf(words, packet.Start, StringComparison.Ordinal);
+        return packet.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == PacketPiece.Label && piece.Words is { Maps: true } && piece.Sits().Start == at).Bounds.ToWpf();
+    }
 
     /// <summary>Where the box of the field labelled <paramref name="label"/> is drawn — on the row it starts on.</summary>
     private static Rect Box(DocumentBlock packet, string label)

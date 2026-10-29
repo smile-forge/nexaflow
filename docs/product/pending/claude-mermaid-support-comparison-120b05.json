@@ -106,11 +106,23 @@
           }
         ]
       }
+    },
+    "markdown-context-menu": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/ClipboardOffersTests.cs",
+            "class": "ClipboardOffersTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 6,
+  "changed_sets": 7,
   "touched_nodes": [
+    "markdown-context-menu",
     "packet",
     "packet-ast",
     "packet-writing"

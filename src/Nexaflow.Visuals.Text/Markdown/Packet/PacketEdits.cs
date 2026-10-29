@@ -27,6 +27,10 @@ namespace Nexaflow.Visuals.Text.Markdown.Packet;
 /// go on another change places with it. Whatever changes, the fields stay contiguous and keep their lengths, and only their
 /// numbers are written again (<see cref="PacketWriting"/>).
 /// </para>
+/// <para>
+/// In its words the clipboard is offered as the engine does it — cut, copy and paste — and over whole fields only a copy
+/// (<see cref="Clipboard"/>).
+/// </para>
 /// </summary>
 internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
 {
@@ -58,6 +62,7 @@ internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
     {
         EditKind.Typing => DiagramWriting.Typed(edit, Escaping),
         EditKind.Settling => DiagramWriting.Typed(edit, Escaping),
+        EditKind.Pasting => Pasted(edit),
         EditKind.Erasing or EditKind.Deleting => Chosen(edit) is { Count: > 0 } chosen ? PacketWriting.Removed(edit.Root, chosen) : null,
         EditKind.Inserting => Chosen(edit) is [var first, ..] ? PacketWriting.Inserted(edit.Root, first, after: false, Newline(edit)) : null,
         EditKind.Choosing => Chosen(edit, edit.Text),
@@ -90,6 +95,46 @@ internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
 
         static LayoutIntent Inserting(string verb, string tip) => new(verb, null, Str.Get(tip)) { Offer = LayoutOffer.Insert };
     }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// In a packet's words — a label, a bit number, the title — what is picked out is text, so every one of the clipboard's ways means
+    /// what it says there, and a paste at the caret goes in as the parser spells it for that place. Over anything else picked out —
+    /// whole fields — only a copy: taken away as characters they would leave a gap the fields after them do not close up, which is
+    /// what taking a field out does instead.
+    /// </remarks>
+    public ClipboardOffers Clipboard(ContentAsk ask)
+    {
+        if (ask.Root is not { } root) return ClipboardOffers.None;
+
+        if (ask.Chosen is { } chosen)
+            return Written(root, root.Start + chosen.Start, root.Start + chosen.Start + chosen.Length) is not null ? ClipboardOffers.All : ClipboardOffers.Copy;
+
+        return ask.Caret is { } caret && Written(root, caret, caret) is not null ? ClipboardOffers.Paste : ClipboardOffers.None;
+    }
+
+    /// <summary>
+    /// A paste in a packet's words: what is pasted, written where it was put as words the parser makes safe there — kept by a
+    /// backslash in a label, only a whole number in a bit number, which refuses the paste where it is not one. Anywhere else, nothing.
+    /// </summary>
+    private static ContentChange Pasted(ContentEdit edit)
+    {
+        var state = edit.State;
+        var (from, to) = state.HasSelection ? (state.Selection[0].Start, state.Selection[^1].End) : (state.Caret, state.Caret);
+
+        if (state.Selection.Count > 1 || Written(edit.Root, from, to) is not { } words) return ContentChange.Stay(state);
+
+        return new ContentChange([ContentWrite.Words(words, from, to - from, edit.Text)], from + edit.Text.Length);
+    }
+
+    /// <summary>The words the stretch from <paramref name="from"/> to <paramref name="to"/> lies in — a label's, a bit number's or the title's — or null.</summary>
+    private static ContentPart? Written(ContentPart root, int from, int to) =>
+        root.SelfAndDescendants().FirstOrDefault(part => part.Start <= from && to <= part.End && !part.Derived && part.Kind switch
+        {
+            Kinds.Number => true,
+            Kinds.Words => PacketParser.LabelOf(part) is not null || part.Role == MermaidRoles.Title,
+            _ => false,
+        });
 
     /// <summary>What the right-click offered and was chosen, made on the field it was offered over.</summary>
     private static ContentChange? Chosen(ContentEdit edit, string verb)

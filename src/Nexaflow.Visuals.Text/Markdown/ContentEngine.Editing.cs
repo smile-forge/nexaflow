@@ -9,6 +9,7 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -147,7 +148,7 @@ public sealed partial class ContentEngine
         // that language would have added to the menu, not the window.
         try
         {
-            return language.Editing.Offers(new ContentAsk(edit.Root.Node is BlockNode block ? block.Language : string.Empty, edit.Source)
+            var ask = new ContentAsk(edit.Root.Node is BlockNode block ? block.Language : string.Empty, edit.Source)
             {
                 Part = edit.Part,
                 Piece = edit.Piece,
@@ -155,12 +156,25 @@ public sealed partial class ContentEngine
                 Chosen = chosen,
                 Caret = state.HasSelection ? null : state.Caret,
                 IsReadOnly = _readOnly,
-            });
+            };
+
+            return [.. language.Editing.Offers(ask), .. Clipboarding(language.Editing.Clipboard(ask), state)];
         }
         catch
         {
             return [];
         }
+    }
+
+    /// <summary>
+    /// The clipboard's ways a language allows where a right-click landed, as the engine offers them: copying and cutting what is
+    /// picked out, where anything is, and pasting where anything can be written. Done by the engine when chosen (<see cref="Choose"/>).
+    /// </summary>
+    private IEnumerable<LayoutIntent> Clipboarding(ClipboardOffers allowed, EditState state)
+    {
+        if (state.HasSelection && !_readOnly && allowed.HasFlag(ClipboardOffers.Cut)) yield return new LayoutIntent(LayoutVerbs.Cut, null, Str.Get("Text.Ribbon.Cut"));
+        if (state.HasSelection && allowed.HasFlag(ClipboardOffers.Copy)) yield return new LayoutIntent(LayoutVerbs.Copy, null, Str.Get("Text.Ribbon.Copy"));
+        if (!_readOnly && allowed.HasFlag(ClipboardOffers.Paste)) yield return new LayoutIntent(LayoutVerbs.Paste, null, Str.Get("Text.Ribbon.Paste"));
     }
 
     /// <summary>

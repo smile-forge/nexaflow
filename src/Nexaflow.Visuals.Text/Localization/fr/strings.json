@@ -70,6 +70,7 @@
   "Text.Ribbon.Expand": "Montrer ce qu'il y a derrière",
   "Text.Ribbon.Collapse": "Replier",
   "Text.Ribbon.Copy": "Copier",
+  "Text.Ribbon.Cut": "Couper",
   "Text.Ribbon.Paste": "Coller",
   "Text.Ribbon.SavePicture": "Enregistrer comme image",
   "Text.Markdown.TaskDone": "Fait",
