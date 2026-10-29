@@ -127,7 +127,9 @@ internal sealed class PacketBuilder : ContentBuilder
     private Plan Planned(IReadOnlyList<Field> fields, PacketConfig config, double bit)
     {
         var across = (long)config.BitsPerRow;
-        var labelInk = Ink.Written(config.LabelColour) ?? Ink.Over(Fill(config));
+        // A label is set over a box washed in the theme's accent, as every diagram's node is, so it is the theme's text — and,
+        // where the front matter fills the box itself, whatever reads on that fill.
+        var labelInk = Ink.Written(config.LabelColour) ?? (Ink.Written(config.BlockFillColour) is { } filled ? Ink.Over(filled) : Style.Text);
         var labelSize = config.LabelFontSize ?? LabelSize;
 
         var drafts = new List<(Field Field, PacketSpan Span, double X, double Width, IReadOnlyList<DiagramWords> Label, IReadOnlyList<Numbering> Numbers)>();

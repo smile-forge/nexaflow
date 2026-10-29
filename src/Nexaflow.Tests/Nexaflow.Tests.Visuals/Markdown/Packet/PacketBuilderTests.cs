@@ -101,6 +101,17 @@ public class PacketBuilderTests : MermaidBuilderContract
     });
 
     [TestMethod]
+    public void ALabelIsSetInTheThemesText_WhateverTheTheme() => UiThread.Run(() =>
+    {
+        foreach (var style in new[] { WpfStyles.Dark, WpfStyles.Light })
+        {
+            var label = Pieces(Laying.Lay(PacketParser.Language, "packet\n0-15: \"A\"", 700, style), PacketPiece.Label).Single();
+    var words = label.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<TextMark>().First();
+            Assert.AreSame(style.Text, words.Ink, "as every diagram's node is");
+        }
+    });
+
+    [TestMethod]
     public void ABoxIsAsWideAsItsBits_AndStandsWhereTheyAreOnItsRow() => UiThread.Run(() =>
     {
         var boxes = Pieces(Lay("packet\n0-15: \"A\"\n16-23: \"B\"\n24: \"C\"\n25-31: \"D\""), PacketPiece.Field).Select(Box).ToList();
