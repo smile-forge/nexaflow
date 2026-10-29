@@ -13,11 +13,13 @@ namespace Nexaflow.Markdown.Layout.Packet;
 /// of bits on a row with its label in it, and the number of the first and last bit of each run over its ends.
 ///
 /// <para>
-/// <strong>Two layers.</strong> The fields — each box and its label — and the numbers over them, so the numbers sit over every
-/// box whatever is drawn next to it. A box stands for the whole field as it was written, so pressing it means that line; its
-/// label is the characters written, typed into in the box on the row the field starts on, and said again in the box on every
-/// row it runs on into. A number over an end of a field is the number written there where it is — typed into — and otherwise
-/// worked out from the bits, and pressed as the field.
+/// <strong>Rows of fields, as it is drawn.</strong> The layout is the rows top to bottom, and in each row the runs of the fields
+/// on it in the order they are drawn across it — so a row turned round by <c>bitOrder</c> holds its highest bits first. A run is
+/// its box, its label and its numbers together, and stands for the whole field as it was written, so pressing it means that
+/// line; a field running across rows is a run in each, every one standing for the same field. The label is the characters
+/// written, typed into in the run on the row the field starts on and said again on every row after it. A number over an end
+/// of a run is the number written there where it is — typed into — and otherwise worked out from the bits, and pressed as the
+/// field.
 /// </para>
 /// <para>
 /// <strong>What is wrong is drawn where it can be put right.</strong> A field that starts where it should not is drawn where it
@@ -262,39 +264,43 @@ internal sealed class PacketBuilder : ContentBuilder
         var edge = Ink.Written(config.BlockStrokeColour) ?? Ink.NodeEdge;
         var thickness = config.BlockStrokeWidth ?? 1;
 
-        // Fields overlap only on a row they share, so a box asks only what is drawn after it on its own row what covers it.
-        var onRow = plan.Boxes.Select((box, at) => (box.Span.Row, at)).GroupBy(each => each.Row)
-                              .ToDictionary(row => row.Key, row => row.Select(each => each.at).ToList());
+        build.Open(PacketPiece.Rows, part: null, stops: LayoutStops.None);
 
-        build.Open(PacketPiece.Fields, part: null, stops: LayoutStops.None);
-
-        for (var at = 0; at < plan.Boxes.Count; at++)
+        foreach (var row in plan.Boxes.GroupBy(box => box.Span.Row).OrderBy(row => row.Key))
         {
-            var box = plan.Boxes[at];
-            var outline = build.Medium.Rectangle(box.Bounds);
+            // Across the row as it is drawn, which is the order it reads in — its highest bits first, where it is turned round.
+            var boxes = row.OrderBy(box => box.Bounds.Left).ToList();
 
-            var over = new List<LayoutShape>();
-            foreach (var (words, place) in box.Label) over.Add(build.Medium.Rectangle(new LayoutRect(place, new LayoutSize(words.Width, words.Height))));
-            foreach (var later in onRow[box.Span.Row])
-                if (later > at && plan.Boxes[later].Bounds.IntersectsWith(box.Bounds)) over.Add(build.Medium.Rectangle(plan.Boxes[later].Bounds));
+            build.Open(PacketPiece.Row, part: null, stops: LayoutStops.None);
 
-            build.Open(PacketPiece.Field, box.Field.Part, stops: LayoutStops.None);
+            for (var at = 0; at < boxes.Count; at++)
+            {
+                var box = boxes[at];
+                var outline = build.Medium.Rectangle(box.Bounds);
 
-            build.Open(MermaidPiece.Shape, box.Field.Part, stops: LayoutStops.None);
-            build.Draw(DiagramMarks.Outlined(build.Medium, outline, fill, edge, thickness));
-            build.Occupies(over.Count == 0 ? outline : build.Medium.Combine(outline, build.Medium.Group(over), ShapeCombine.Exclude));
-            build.Close();
+                // A box stands in what its words and the boxes drawn after it on its row leave uncovered: fields overlap only on a
+                // row they share, and a press there means the one seen.
+                var over = new List<LayoutShape>();
+                foreach (var (words, place) in box.Label) over.Add(build.Medium.Rectangle(new LayoutRect(place, new LayoutSize(words.Width, words.Height))));
+                for (var later = at + 1; later < boxes.Count; later++)
+                    if (boxes[later].Bounds.IntersectsWith(box.Bounds)) over.Add(build.Medium.Rectangle(boxes[later].Bounds));
 
-            foreach (var (words, place) in box.Label) words.Set(build, place, PacketPiece.Label);
+                build.Open(PacketPiece.Field, box.Field.Part, stops: LayoutStops.None);
+
+                build.Open(MermaidPiece.Shape, box.Field.Part, stops: LayoutStops.None);
+                build.Draw(DiagramMarks.Outlined(build.Medium, outline, fill, edge, thickness));
+                build.Occupies(over.Count == 0 ? outline : build.Medium.Combine(outline, build.Medium.Group(over), ShapeCombine.Exclude));
+                build.Close();
+
+                foreach (var (words, place) in box.Label) words.Set(build, place, PacketPiece.Label);
+                foreach (var (words, place) in box.Numbers) words.Set(build, place, PacketPiece.Bit);
+
+                build.Close();
+            }
 
             build.Close();
         }
 
-        build.Close();
-
-        build.Open(PacketPiece.Bits, part: null, stops: LayoutStops.None);
-        foreach (var box in plan.Boxes)
-            foreach (var (words, place) in box.Numbers) words.Set(build, place, PacketPiece.Bit);
         build.Close();
     }
 

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Packet;
@@ -66,9 +67,43 @@ public class PacketBuilderTests : MermaidBuilderContract
     });
 
     [TestMethod]
+    public void TheLayoutIsItsRowsAsDrawn_EachHoldingTheFieldsOnIt() => UiThread.Run(() =>
+    {
+        const string source = "packet\n0-7: \"A\"\n8-47: \"Wide\"\n48-63: \"B\"";
+        var rows = Pieces(Lay(source), PacketPiece.Row);
+
+        Assert.AreEqual(2, rows.Count);
+        Assert.IsTrue(rows[0].Bounds.Top < rows[1].Bounds.Top, "top to bottom");
+        CollectionAssert.AreEqual(new[] { "0-7: \"A\"", "8-47: \"Wide\"" }, Fields(rows[0]).Select(field => Written(source, field.Part)).ToArray());
+        CollectionAssert.AreEqual(new[] { "8-47: \"Wide\"", "48-63: \"B\"" }, Fields(rows[1]).Select(field => Written(source, field.Part)).ToArray());
+        Assert.IsTrue(rows.All(row => row.Part is null), "a row is how the bits are laid out, and stands for nothing written");
+    });
+
+    [TestMethod]
+    public void AFieldAcrossTwoRowsIsARunInEach_BothStandingForTheOneFieldWritten() => UiThread.Run(() =>
+    {
+        const string source = "packet\n0-7: \"A\"\n8-47: \"Wide\"";
+        var runs = Pieces(Lay(source), PacketPiece.Row).Select(row => Fields(row).Last()).ToList();
+
+        Assert.AreEqual(2, runs.Count);
+        Assert.AreNotSame(runs[0].Parent, runs[1].Parent, "one in each row");
+        Assert.AreSame(((ContentPart)runs[0].Part!).Node, ((ContentPart)runs[1].Part!).Node, "and both point back to the same field");
+    });
+
+    [TestMethod]
+    public void ARunHoldsItsBoxItsLabelAndItsNumbers() => UiThread.Run(() =>
+    {
+        var laid = Lay("packet\n0-15: \"A\"\n+16: \"B\"");
+
+        Assert.IsTrue(Pieces(laid, PacketPiece.Bit).All(bit => bit.Parent.Kind == PacketPiece.Field), "each number in the run it numbers");
+        Assert.IsTrue(Pieces(laid, PacketPiece.Label).All(label => label.Parent.Kind == PacketPiece.Field), "and each label");
+        CollectionAssert.AreEqual(new[] { "0", "15" }, Numbers(Pieces(laid, PacketPiece.Field)[0]));
+    });
+
+    [TestMethod]
     public void ABoxIsAsWideAsItsBits_AndStandsWhereTheyAreOnItsRow() => UiThread.Run(() =>
     {
-        var boxes = Pieces(Lay("packet\n0-15: \"A\"\n16-23: \"B\"\n24: \"C\"\n25-31: \"D\""), PacketPiece.Field).Select(box => box.Bounds).ToList();
+        var boxes = Pieces(Lay("packet\n0-15: \"A\"\n16-23: \"B\"\n24: \"C\"\n25-31: \"D\""), PacketPiece.Field).Select(Box).ToList();
 
         Assert.AreEqual(boxes[0].Width, boxes[1].Width * 2, 6, "sixteen bits are twice eight");
         Assert.IsTrue(boxes[2].Width < boxes[1].Width / 4, "and one bit is narrow");
@@ -81,14 +116,14 @@ public class PacketBuilderTests : MermaidBuilderContract
     {
         const string source = "packet\n0-7: \"A\"\n8-71: \"Wide\"";
         var laid = Lay(source);
-        var wide = Pieces(laid, PacketPiece.Field).Where(box => Written(source, box.Part).StartsWith("8-71", StringComparison.Ordinal)).ToList();
+        var wide = Pieces(laid, PacketPiece.Field).Where(box => Written(source, box.Part).StartsWith("8-71", StringComparison.Ordinal)).Select(Box).ToList();
 
         Assert.AreEqual(3, wide.Count, "the rest of the first row, the whole second and a part of the third");
-        Assert.IsTrue(wide[0].Bounds.Top < wide[1].Bounds.Top && wide[1].Bounds.Top < wide[2].Bounds.Top);
+        Assert.IsTrue(wide[0].Top < wide[1].Top && wide[1].Top < wide[2].Top);
 
-        var labels = Pieces(laid, PacketPiece.Label).Where(label => label.Bounds.IntersectsWith(wide[0].Bounds) || label.Bounds.IntersectsWith(wide[1].Bounds)).ToList();
+        var labels = Pieces(laid, PacketPiece.Label).Where(label => label.Bounds.IntersectsWith(wide[0]) || label.Bounds.IntersectsWith(wide[1])).ToList();
         Assert.IsTrue(labels.Any(label => label.Words is { Maps: true }), "typed into on the row it starts on");
-        Assert.IsTrue(labels.Any(label => label.Words is not { Maps: true } && label.Bounds.IntersectsWith(wide[1].Bounds)), "and only said again after it");
+        Assert.IsTrue(labels.Any(label => label.Words is not { Maps: true } && label.Bounds.IntersectsWith(wide[1])), "and only said again after it");
     });
 
     [TestMethod]
@@ -106,7 +141,7 @@ public class PacketBuilderTests : MermaidBuilderContract
     public void OneBitIsNumberedOnceOverItsMiddle() => UiThread.Run(() =>
     {
         var laid = Lay("packet\n0-30: \"A\"\n31: \"Flag\"");
-        var flag = Pieces(laid, PacketPiece.Field)[1].Bounds;
+        var flag = Box(Pieces(laid, PacketPiece.Field)[1]);
         var number = Pieces(laid, PacketPiece.Bit).Single(bit => Says(bit) == "31").Bounds;
 
         Assert.AreEqual(flag.Left + (flag.Width / 2), number.Left + (number.Width / 2), 1);
@@ -116,13 +151,12 @@ public class PacketBuilderTests : MermaidBuilderContract
     [TestMethod]
     public void ARegisterIsNumberedFromItsHighestBitOnTheLeft() => UiThread.Run(() =>
     {
-        var laid = Lay(Register);
-        var boxes = Pieces(laid, PacketPiece.Field).Select(box => box.Bounds).ToList();
+        var fields = Pieces(Lay(Register), PacketPiece.Field);
 
-        Assert.IsTrue(boxes[0].Left > boxes[1].Left && boxes[1].Left > boxes[2].Left, "the lowest bits on the right");
-
-        var mode = Pieces(laid, PacketPiece.Bit).Where(bit => bit.Bounds.Left >= boxes[0].Left - 1).OrderBy(bit => bit.Bounds.Left).Select(Says).ToArray();
-        CollectionAssert.AreEqual(new[] { "3", "0" }, mode, "a field reads from its highest bit down");
+        CollectionAssert.AreEqual(new[] { "9-15: \"Reserved\"", "8: \"Enable\"", "4-7: \"Speed\"", "0-3: \"Mode\"" },
+                                  fields.Select(field => Written(Register, field.Part)).ToArray(), "the row holds its fields as it is drawn, highest bits first");
+        Assert.IsTrue(fields.Zip(fields.Skip(1)).All(pair => Box(pair.First).Right <= Box(pair.Second).Left), "left to right");
+        CollectionAssert.AreEqual(new[] { "3", "0" }, Numbers(fields[^1]), "and a field reads from its highest bit down");
     });
 
     [TestMethod]
@@ -153,9 +187,19 @@ public class PacketBuilderTests : MermaidBuilderContract
         var laid = Lay("packet\n0-7: \"A\"\n+: \"B\"", writing: true);
         var boxes = Pieces(laid, PacketPiece.Field);
 
-        Assert.IsTrue(boxes[1].Bounds.Width < boxes[0].Bounds.Width / 4, "a bit wide");
+        Assert.IsTrue(Box(boxes[1]).Width < Box(boxes[0]).Width / 4, "a bit wide");
         Assert.AreEqual(1, laid.Holes.Count, "and a hole where its count goes");
     });
 
     private static string Says(LayoutPiece piece) => piece.Words?.Glyphs.Text ?? string.Empty;
+
+    /// <summary>The runs of fields a row holds, in the order it holds them.</summary>
+    private static List<LayoutPiece> Fields(LayoutPiece row) => [.. row.Children.Where(piece => piece.Kind == PacketPiece.Field)];
+
+    /// <summary>Where a run's box stands — its shape, less the label in it and the numbers set over it.</summary>
+    private static LayoutRect Box(LayoutPiece field) => field.Children.First(piece => piece.Kind == MermaidPiece.Shape).Bounds;
+
+    /// <summary>The numbers over a run, left to right.</summary>
+    private static string[] Numbers(LayoutPiece field) =>
+        [.. field.SelfAndDescendants().Where(piece => piece.Kind == PacketPiece.Bit).OrderBy(bit => bit.Bounds.Left).Select(Says)];
 }

@@ -45,11 +45,6 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Packet/Stages/SayEscapes.cs",
-          "class": "SayEscapes"
-        },
-        {
-          "type": "code",
           "doc": "src/Nexaflow.Markdown/Packet/Stages/PlaceFields.cs",
           "class": "PlaceFields"
         },
@@ -62,6 +57,11 @@
           "type": "code",
           "doc": "src/Nexaflow.Markdown/Packet/PacketConfig.cs",
           "class": "PacketConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packet/PacketStandIns.cs",
+          "class": "PacketStandIns"
         }
       ],
       "concerns": {

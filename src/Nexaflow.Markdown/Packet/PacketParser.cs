@@ -335,7 +335,7 @@ public sealed class PacketParser : ITranspile
             }
 
             if (place > from) pieces.Add(ContentNode.Leaf(Kinds.Words, text[from..place], PacketRoles.Label, offset: at + from));
-            pieces.Add(ContentNode.Branch(kind, [ContentNode.Leaf(Kinds.Verbatim, text.Substring(place, length), offset: at + place)], offset: at + place));
+            pieces.Add(ContentNode.Leaf(kind, text.Substring(place, length), offset: at + place));
             from = place += length;
         }
 

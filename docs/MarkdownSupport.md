@@ -1170,8 +1170,8 @@ A packet is a language of its own here: a `packet` fence names it, and a `mermai
 is handed to it whole. It is read by a parser of its own
 ([`PacketParser`](../src/Nexaflow.Markdown/Packet/PacketParser.cs)) — the frame every block written Mermaid's way has
 (front matter, comments, directives, `accTitle`, `accDescr`) with Mermaid's own pieces, its fields itself — worked over
-by [`SayEscapes`](../src/Nexaflow.Markdown/Packet/Stages/SayEscapes.cs) and
-[`PlaceFields`](../src/Nexaflow.Markdown/Packet/Stages/PlaceFields.cs), and drawn by
+by [`PlaceFields`](../src/Nexaflow.Markdown/Packet/Stages/PlaceFields.cs), what a label's escapes read as said by
+[`PacketStandIns`](../src/Nexaflow.Markdown/Packet/PacketStandIns.cs), and drawn by
 [`PacketBuilder`](../src/Nexaflow.Markdown/Layout/Packet/PacketBuilder.cs) from the diagrams' own sheet, words and ink.
 
 | Written | Read as |
