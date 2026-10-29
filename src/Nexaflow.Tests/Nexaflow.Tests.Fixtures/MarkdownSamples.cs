@@ -45,6 +45,7 @@ internal sealed partial class MarkdownSamples : ISampleSet
         SampleFile.Text("mermaid-block.md",       Block),
         SampleFile.Text("mermaid-c4.md",          C4),
         SampleFile.Text("nomnoml.md",             Nomnoml),
+        SampleFile.Text("packet.md",              Packet),
         SampleFile.Text("extensions.md",          Extensions),
         SampleFile.Text("latex-math-symbols.md",    LatexMathSymbols),
         SampleFile.Text("latex-math-structures.md", LatexMathStructures),
@@ -1867,6 +1868,76 @@ internal sealed partial class MarkdownSamples : ISampleSet
         [Shape] <:- [Circle|radius: double]
         [Shape] <:- [Square|side: double]
         [<note>A shape knows how to draw itself]
+        ```
+        """;
+
+    private const string Packet =
+        """
+        # packet
+
+        A packet — or a register — is its fields, each its bits and a label. It is a language of its own, fenced as
+        `packet`, where it needs no header; a `mermaid` block headed `packet` is the same diagram.
+
+        ```packet
+        ---
+        title: "TCP Packet"
+        ---
+        0-15: "Source Port"
+        16-31: "Destination Port"
+        32-63: "Sequence Number"
+        64-95: "Acknowledgment Number"
+        96-99: "Data Offset"
+        100-105: "Reserved"
+        106: "URG"
+        107: "ACK"
+        108: "PSH"
+        109: "RST"
+        110: "SYN"
+        111: "FIN"
+        112-127: "Window"
+        128-143: "Checksum"
+        144-159: "Urgent Pointer"
+        160-191: "(Options and Padding)"
+        192-255: "Data (variable length)"
+        ```
+
+        ## Counting bits
+
+        A field written as `+16` takes sixteen bits from where the field before it ended.
+
+        ```mermaid
+        packet
+        title UDP Packet
+        +16: "Source Port"
+        +16: "Destination Port"
+        32-47: "Length"
+        48-63: "Checksum"
+        64-95: "Data (variable length)"
+        ```
+
+        ## A register, numbered from its highest bit
+
+        ```packet
+        ---
+        config:
+          packet:
+            bitOrder: descending
+            bitsPerRow: 16
+        ---
+        0-3: "Mode"
+        4-7: "Speed"
+        8: "Enable"
+        9-15: "Reserved"
+        ```
+
+        ## Labels
+
+        A label is in double quotes or single, and a backslash keeps a quote that would end it.
+
+        ```packet
+        0-7: 'it\'s'
+        8-15: "say \"hi\""
+        16-31: "100%% sure"
         ```
         """;
 

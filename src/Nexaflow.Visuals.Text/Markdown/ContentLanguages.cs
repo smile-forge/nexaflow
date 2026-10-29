@@ -35,6 +35,7 @@ public static class ContentLanguages
         Shipped.Rtf,
         .. Shipped.Diagrams,
         Shipped.Nomnoml,
+        Shipped.Packet,
         Shipped.Qr,
         Shipped.Barcode,
         Shipped.Abc,

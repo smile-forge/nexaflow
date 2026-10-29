@@ -5,7 +5,8 @@ namespace Nexaflow.Markdown.Mermaid;
 
 /// <summary>
 /// What each run of a diagram's words is made of, where it is more than its own characters — an entity code standing for the
-/// character it names, a line break written in it, a binding standing for its value, a whole other content written in its
+/// character it names, a line break written in it, a binding standing for its value, an escape standing for the character it
+/// keeps (said under it by the stage reading the escape, as a packet's <c>SayEscapes</c> does), a whole other content written in its
 /// place, which is the characters it is written as wherever nothing draws that content — found once and held on the diagram
 /// (<see cref="MermaidWords"/>).
 ///
@@ -42,8 +43,8 @@ public sealed class WithWordPieces : IAstStage
     {
         if (words.IsLeaf) return Plain(words.Text) ? null : Split(words.Text, 0);
 
-        // A run with bindings in it, or a whole other content: each binding is one piece, saying its value where one was worked
-        // out, and everything else the pieces its characters are.
+        // A run with bindings in it, escapes, or a whole other content: each binding is one piece, saying its value where one was
+        // worked out, each escape one saying the character it keeps, and everything else the pieces its characters are.
         var pieces = new List<WordPiece>();
         var at = 0;
 
@@ -52,7 +53,7 @@ public sealed class WithWordPieces : IAstStage
             if (child.IsDerived) continue;
 
             var written = child.Print();
-            if (child.Kind == Kinds.Bound)
+            if (child.Kind == Kinds.Bound || child.Said(ContentWords.Value) is not null)
             {
                 var value = child.Said(ContentWords.Value);
                 pieces.Add(new WordPiece(at, written, value ?? written, Breaks: false, AsWritten: value is null));

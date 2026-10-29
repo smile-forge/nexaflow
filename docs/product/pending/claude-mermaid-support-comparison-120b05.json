@@ -1,0 +1,109 @@
+{
+  "branch": "claude/mermaid-support-comparison-120b05",
+  "nodes": {
+    "packet": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Packet/PacketBuilder.cs",
+          "class": "PacketBuilder"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "packet \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/packet.html"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Packet/PacketBuilderTests.cs",
+            "class": "PacketBuilderTests"
+          }
+        ]
+      }
+    },
+    "packet-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packet/PacketParser.cs",
+          "class": "PacketParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packet/PacketPipeline.cs",
+          "class": "PacketPipeline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packet/Stages/SayEscapes.cs",
+          "class": "SayEscapes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packet/Stages/PlaceFields.cs",
+          "class": "PlaceFields"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packet/PacketNodes.cs",
+          "class": "PacketFieldNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packet/PacketConfig.cs",
+          "class": "PacketConfig"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Packet/PacketParserTests.cs",
+            "class": "PacketParserTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Packet/PacketStagesTests.cs",
+            "class": "PacketStagesTests"
+          }
+        ]
+      }
+    },
+    "packet-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Packet/PacketEdits.cs",
+          "class": "PacketEdits",
+          "method": "Escaping"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Packet/PacketEditingTests.cs",
+            "class": "PacketEditingTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 6,
+  "touched_nodes": [
+    "packet",
+    "packet-ast",
+    "packet-writing"
+  ]
+}

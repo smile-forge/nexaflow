@@ -52,6 +52,13 @@ the two with one parser and draws them with one renderer; so `MermaidDiagrams.Gr
 themselves ask for is its own (`SwimlaneConfig`, which the stages hang on a swimlane's block with the chart's own inside it). Its tests are its own either way — the grammar contract over `swimlane-beta` blocks,
 and a builder's over what it draws.
 
+**A type Mermaid draws may be a language of its own here.** A packet is nothing but its fields, and its label is a string as
+Mermaid's newer grammars write one — in either quote, a backslash keeping what follows, running across a line ending — so it
+is read by a parser of its own (`PacketParser`), reusing `MermaidParser`'s pieces for the frame every block shares, worked
+over by its own pipeline (`PacketPipeline`), and drawn by `PacketBuilder` from the kit's sheet, words and ink, with no
+grammar in `MermaidDiagrams.Grammar` and no builder in `ContentLayouts.Diagram`. `MermaidDiagrams` names it only so a
+`mermaid` block headed `packet` is handed to it, as it would be to any diagram.
+
 The sheet (`DiagramSheet`) draws everything round the diagram: the title (a `title` line, a header's title, or the
 front matter's), what could not be read set beneath it, and the card. The element the block is shown and written in is the
 host's — read-only where the host takes no edits (`MarkdownSurface.IsReadOnly`, which a viewer leaves set and an editor

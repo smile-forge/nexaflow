@@ -29,6 +29,7 @@ using Nexaflow.Markdown.Layout.Mermaid.Timeline;
 using Nexaflow.Markdown.Layout.Mermaid.Venn;
 using Nexaflow.Markdown.Layout.Mermaid.Xy;
 using Nexaflow.Markdown.Layout.Nomnoml;
+using Nexaflow.Markdown.Layout.Packet;
 using Nexaflow.Markdown.Layout.Plot;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Markdown.Layout.Scores;
@@ -55,6 +56,9 @@ public static class ContentLayouts
     public static Type MermaidFence => typeof(MermaidFenceBuilder);
 
     public static Type Nomnoml => typeof(NomnomlBuilder);
+
+    /// <summary>A packet, or a register: its fields drawn as boxes along rows of bits.</summary>
+    public static Type Packet => typeof(PacketBuilder);
 
     /// <summary>A two-dimensional code — QR, Data Matrix, PDF417, Aztec — drawn as its modules.</summary>
     public static Type Matrix => typeof(MatrixBuilder);

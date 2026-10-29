@@ -106,6 +106,7 @@
   "Text.Language.C4": "Diagramme C4",
   "Text.Language.C4Sequence": "Séquence C4",
   "Text.Language.Nomnoml": "UML (nomnoml)",
+  "Text.Language.Packet": "Paquet",
   "Text.Language.Qr": "Code QR",
   "Text.Language.Aztec": "Code Aztec",
   "Text.Language.DataMatrix": "Data Matrix",
