@@ -68,9 +68,6 @@ internal sealed class DiagramWords
     public DiagramWords In(LayoutInk ink) =>
         ReferenceEquals(ink, Ink) ? this : new DiagramWords(_text, Part, Hole, _letter, ink, _maps, _writes, _inset);
 
-    /// <summary>Whether they are set cut short to fit the room they were given (<see cref="IShapedText.CutShort"/>).</summary>
-    public bool CutShort => _text.CutShort;
-
     /// <summary>How wide they are set: what is written there, the words, or the hole.</summary>
     public double Width => _inset?.Width ?? (Hole is null ? _text.Width : LayoutText.HoleWidth(_letter));
 

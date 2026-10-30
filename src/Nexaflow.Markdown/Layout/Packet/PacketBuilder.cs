@@ -18,7 +18,8 @@ namespace Nexaflow.Markdown.Layout.Packet;
 /// them the band of their bit numbers. A run is its box and its label, and stands for the whole field as it was written, so
 /// pressing it means that line and choosing it washes the box and nothing over it; a field running across rows is a run in each,
 /// every one standing for the same field. The label is the characters written, typed into in the run on the row the field starts
-/// on and said again on every row after it; where it is cut short to fit its box, resting on the run says it whole.
+/// on and said again on every row after it; where it is cut short to fit its box, pointing at it says it whole, as any words cut
+/// short do.
 /// </para>
 /// <para>
 /// <strong>The numbers are worked out, never written in.</strong> Which bits a field takes follows from the fields before it and
@@ -93,14 +94,10 @@ internal sealed class PacketBuilder : ContentBuilder
         public ContentPart? Label => this.Part.Inner(PacketKinds.Label);
     }
 
-    /// <summary>
-    /// A run of a field's bits as it is laid: where its box stands, its label set in it, its numbers set over it, and the label
-    /// whole where it is cut short to fit — what resting on the run says.
-    /// </summary>
+    /// <summary>A run of a field's bits as it is laid: where its box stands, its label set in it, and its numbers set over it.</summary>
     private sealed record Box(Field Field, PacketSpan Span, LayoutRect Bounds,
                               IReadOnlyList<(DiagramWords Words, LayoutPoint At)> Label,
-                              IReadOnlyList<(DiagramWords Words, LayoutPoint At)> Numbers,
-                              string? Tip);
+                              IReadOnlyList<(DiagramWords Words, LayoutPoint At)> Numbers);
 
     /// <summary>A run of a field's bits on one row, which of its runs it is, and the numbers set over its ends — the same at any width.</summary>
     private sealed record Run(Field Field, PacketSpan Span, int At, IReadOnlyList<Numbering> Numbers);
@@ -197,9 +194,7 @@ internal sealed class PacketBuilder : ContentBuilder
         {
             var bounds = new LayoutRect(draft.X, tops[draft.Run.Span.Row], draft.Width, heights[draft.Run.Span.Row]);
             var numbers = draft.Run.Numbers.Select(number => (number.Words, Above(number, bounds))).ToList();
-            var tip = draft.Label.Any(line => line.CutShort) && draft.Run.Field.Label.Words() is { } words ? Words.Shown(words) : null;
-
-            return new Box(draft.Run.Field, draft.Run.Span, bounds, [.. DiagramWords.Stack(draft.Label, bounds)], numbers, tip);
+        return new Box(draft.Run.Field, draft.Run.Span, bounds, [.. DiagramWords.Stack(draft.Label, bounds)], numbers);
         }).ToList();
 
         return new Plan(boxes, new LayoutSize((across * bit) + 2, down));
@@ -289,8 +284,7 @@ internal sealed class PacketBuilder : ContentBuilder
                 for (var later = at + 1; later < boxes.Count; later++)
                     if (boxes[later].Bounds.IntersectsWith(box.Bounds)) over.Add(build.Medium.Rectangle(boxes[later].Bounds));
 
-                build.Open(PacketPiece.Field, box.Field.Part, stops: LayoutStops.None);
-                if (box.Tip is { } tip) build.Acts(new LayoutActions { Tip = tip });
+            build.Open(PacketPiece.Field, box.Field.Part, stops: LayoutStops.None);
 
                 build.Open(MermaidPiece.Shape, box.Field.Part, stops: LayoutStops.None);
                 build.Draw(DiagramMarks.Outlined(build.Medium, outline, fill, edge, thickness));

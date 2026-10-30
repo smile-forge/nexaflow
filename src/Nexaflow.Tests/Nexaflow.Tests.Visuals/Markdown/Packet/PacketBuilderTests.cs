@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Windows;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Mermaid;
@@ -111,12 +112,21 @@ public class PacketBuilderTests : MermaidBuilderContract
     });
 
     [TestMethod]
-    public void ALabelCutShortToFitItsBoxIsSaidWholeWhereItIsRestedOn() => UiThread.Run(() =>
+    public void ALabelCutShortToFitItsBoxIsSaidWholeWhereItIsPointedAt() => UiThread.Run(() =>
     {
-        var fields = Pieces(Lay("packet\n0: \"Urgent pointer field\"\n1-31: \"Rest\""), PacketPiece.Field);
+        const string source = "packet\n0: \"Urgent pointer field\"\n1-31: \"Rest\"";
 
-        Assert.AreEqual("Urgent pointer field", fields[0].Acts?.Tip, "too wide for one bit, so said whole");
-        Assert.IsNull(fields[1].Acts?.Tip, "and one that fits says nothing more");
+        var element = (Nexaflow.Visuals.Text.Editing.ContentElement)Alone.Drawn(PacketParser.Language, source, WpfStyles.Dark);
+        element.Measure(new Size(700, double.PositiveInfinity));
+        element.Arrange(new Rect(element.DesiredSize));
+
+        var labels = element.Laid.Root.SelfAndDescendants().Where(piece => piece.Kind == PacketPiece.Label).ToList();
+
+        element.PointerCursor(Middle(labels[0].Bounds.ToWpf()));
+        Assert.AreEqual("Urgent pointer field", element.Saying, "too wide for one bit, so said whole");
+
+        element.PointerCursor(Middle(labels[1].Bounds.ToWpf()));
+        Assert.IsNull(element.Saying, "and one that fits says nothing more");
     });
 
     [TestMethod]
