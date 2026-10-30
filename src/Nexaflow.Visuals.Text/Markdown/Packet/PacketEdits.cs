@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 
+using Nexaflow.Icons;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Mermaid;
@@ -82,16 +83,16 @@ internal sealed class PacketEdits(Func<long, long?> asked) : IContentLanguage, I
     {
         if (ask.IsReadOnly || ask.Root is null) return [];
 
-        if (PacketWriting.FieldOf(ask.Part) is not { } field) return [Inserting(Last, "Text.Packet.Field.End")];
+        if (PacketWriting.FieldOf(ask.Part) is not { } field) return [Pictured(Last, "Text.Packet.Field.End", "table_stack_right")];
 
         var size = PacketWriting.Size(field);
         var sized = PacketWriting.Sized(field);
 
         return
         [
-            Inserting(Before, "Text.Packet.Field.Before"),
-            Inserting(After, "Text.Packet.Field.After"),
-            new LayoutIntent(Delete, null, Str.Get("Text.Packet.Field.Delete")),
+            Pictured(Before, "Text.Packet.Field.Before", "table_stack_left"),
+            Pictured(After, "Text.Packet.Field.After", "table_stack_right"),
+            Pictured(Delete, "Text.Packet.Field.Delete", "table_delete_column"),
             new LayoutIntent(Other, null, Str.Get("Text.Packet.Bits.Other")),
             .. Lengths.Append(size).Distinct().Order().Select(bits => new LayoutIntent(Sized + Said(bits), null, Length(bits))
             {
@@ -102,9 +103,10 @@ internal sealed class PacketEdits(Func<long, long?> asked) : IContentLanguage, I
             }),
         ];
 
-        // Done to the field under the pointer, so it stands in the menu beside the rest of what is done to it — never behind a
-        // button of its own a reader has to open to find it.
-        static LayoutIntent Inserting(string verb, string tip) => new(verb, null, Str.Get(tip));
+        // Done to the field under the pointer, so each stands beside the rest of what is done to it as its icon — never behind a
+        // button of its own a reader has to open to find it — and is named to a reader hovering over it.
+        static LayoutIntent Pictured(string verb, string tip, string icon) =>
+            new(verb, null, Str.Get(tip)) { Shape = DiagramRibbon.Drawn(IconRef.Fluent(icon)) };
     }
 
     /// <inheritdoc/>

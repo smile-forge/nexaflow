@@ -80,7 +80,7 @@ internal sealed partial class MarkdownEdits : IContentLanguage, IOnEdit
         .. ContentLanguages.Insertable.Select(language => new LayoutIntent(Inserts + language.Name, null, language.DisplayName?.Invoke())
         {
             Offer = LayoutOffer.Insert,
-            Shape = Drawn(language.Icon),
+            Shape = DiagramRibbon.Drawn(language.Icon),
         }),
     ];
 
@@ -136,33 +136,6 @@ internal sealed partial class MarkdownEdits : IContentLanguage, IOnEdit
 
         return null;
     }
-
-    /// <summary>
-    /// <paramref name="icon"/> as a shape in the ribbon's box — its glyph's outline, centred — or null where the font has no such icon and
-    /// the offer is named instead. Each is made once.
-    /// </summary>
-    private static Geometry? Drawn(IconRef icon) => Shapes.GetOrAdd(icon, static icon =>
-    {
-        var font = icon.IsEmpty || !IconCatalog.Contains(icon) ? null : IconCatalog.FontFor(icon);
-        if (font is null) return null;
-
-        var face = new Typeface(font, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
-        var glyph = new FormattedText(IconCatalog.GlyphFor(icon), CultureInfo.InvariantCulture, FlowDirection.LeftToRight, face, Side, Brushes.Black, 1.0)
-            .BuildGeometry(new Point(0, 0));
-
-        var bounds = glyph.Bounds;
-        if (bounds.IsEmpty) return null;
-
-        glyph.Transform = new TranslateTransform((Side - bounds.Width) / 2 - bounds.X, (Side - bounds.Height) / 2 - bounds.Y);
-        glyph.Freeze();
-        return glyph;
-    });
-
-    /// <summary>Every icon drawn so far.</summary>
-    private static readonly ConcurrentDictionary<IconRef, Geometry?> Shapes = new();
-
-    /// <summary>How wide and high the box an icon is drawn in is.</summary>
-    private const double Side = 16;
 
     /// <summary>
     /// A character written so it reads as itself. A line shown as its characters stays shown as its characters while it is written

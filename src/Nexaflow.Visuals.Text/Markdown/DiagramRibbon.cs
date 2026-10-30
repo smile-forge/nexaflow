@@ -11,6 +11,14 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
+using System.Collections.Concurrent;
+using System.Globalization;
+using System.Text.RegularExpressions;
+using Nexaflow.Icons;
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Prose;
+using Nexaflow.Visuals.Icons;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -458,4 +466,28 @@ internal sealed class DiagramRibbon : UserControl
 
     private static Brush Brush(string key, Color fallback) =>
         Application.Current?.TryFindResource(key) as Brush ?? new SolidColorBrush(fallback);
+
+    /// <summary>
+    /// <paramref name="icon"/> as a shape in the ribbon's box — its glyph's outline, centred — or null where the font has no such icon and
+    /// the offer is named instead: how a language's own offer is drawn as an icon (<see cref="LayoutIntent.Shape"/>). Each is made once.
+    /// </summary>
+    internal static Geometry? Drawn(IconRef icon) => Shapes.GetOrAdd(icon, static icon =>
+    {
+        var font = icon.IsEmpty || !IconCatalog.Contains(icon) ? null : IconCatalog.FontFor(icon);
+        if (font is null) return null;
+
+        var face = new Typeface(font, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        var glyph = new FormattedText(IconCatalog.GlyphFor(icon), CultureInfo.InvariantCulture, FlowDirection.LeftToRight, face, Side, Brushes.Black, 1.0)
+            .BuildGeometry(new Point(0, 0));
+
+        var bounds = glyph.Bounds;
+        if (bounds.IsEmpty) return null;
+
+        glyph.Transform = new TranslateTransform((Side - bounds.Width) / 2 - bounds.X, (Side - bounds.Height) / 2 - bounds.Y);
+        glyph.Freeze();
+        return glyph;
+    });
+
+    /// <summary>Every icon drawn so far.</summary>
+    private static readonly ConcurrentDictionary<IconRef, Geometry?> Shapes = new();
 }

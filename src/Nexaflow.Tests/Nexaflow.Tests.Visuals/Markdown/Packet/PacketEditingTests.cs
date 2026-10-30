@@ -141,7 +141,9 @@ public class PacketEditingTests
     CollectionAssert.IsSubsetOf(new[] { "packet.insert.before", "packet.insert.after", "packet.delete", "packet.bits.other" },
                                         ribbon.Offers.Select(offer => offer.Verb).ToArray());
             Assert.IsTrue(ribbon.Offers.Where(offer => offer.Verb.StartsWith("packet.insert", StringComparison.Ordinal)).All(offer => offer.Offer == LayoutOffer.Change),
-                          "putting a field in beside this one is done to this one, so it stands in the menu rather than behind a button");
+                                                    "putting a field in beside this one is done to this one, so it stands in the ribbon rather than behind a button");
+                          Assert.IsTrue(ribbon.Offers.Where(offer => offer.Verb is "packet.insert.before" or "packet.insert.after" or "packet.delete").All(offer => offer.Shape is not null),
+                                        "and each is drawn as its icon, side by side, rather than named down a list");
             CollectionAssert.AreEqual(new[] { "packet.bits.1", "packet.bits.2", "packet.bits.4", "packet.bits.8", "packet.bits.16", "packet.bits.32" },
                                       ribbon.Offers.Where(offer => offer.Group == "Bits").Select(offer => offer.Verb).ToArray());
             Assert.AreEqual("packet.bits.8", ribbon.Offers.Single(offer => offer.Current).Verb, "the length it takes now");
