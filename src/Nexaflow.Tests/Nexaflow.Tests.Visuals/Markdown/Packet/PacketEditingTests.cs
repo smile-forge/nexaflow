@@ -5,7 +5,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Packet;
 using Nexaflow.Tests.Fixtures;
@@ -122,7 +124,8 @@ public class PacketEditingTests
         {
             var ribbon = Ribbon(editor, Box(packet, "B"));
 
-            CollectionAssert.IsSubsetOf(new[] { "packet.insert.before", "packet.insert.after", "packet.delete" }, ribbon.Offers.Select(offer => offer.Verb).ToArray());
+    CollectionAssert.IsSubsetOf(new[] { "packet.insert.before", "packet.insert.after", "packet.delete", "packet.bits.other" },
+                                        ribbon.Offers.Select(offer => offer.Verb).ToArray());
             Assert.IsTrue(ribbon.Offers.Where(offer => offer.Verb.StartsWith("packet.insert", StringComparison.Ordinal)).All(offer => offer.Offer == LayoutOffer.Change),
                           "putting a field in beside this one is done to this one, so it stands in the menu rather than behind a button");
             CollectionAssert.AreEqual(new[] { "packet.bits.1", "packet.bits.2", "packet.bits.4", "packet.bits.8", "packet.bits.16", "packet.bits.32" },
@@ -139,6 +142,65 @@ public class PacketEditingTests
             StringAssert.Contains(packet.Source, "0-3: \"A\"\n4-19: \"B\"\n20-23: \"C\"", packet.Source);
             Assert.AreEqual(0, packet.Diagnostics.Count, Trouble(packet));
         }, Three));
+
+    [TestMethod]
+    public void OtherLengthAsksForOne_AndWritesWhatIsGiven_OrNothingWhereTheReaderCancels()
+    {
+        const string source = "packet\n0-3: \"A\"\n4-11: \"B\"\n12-15: \"C\"";
+        var root = ContentPart.Of(Staged(source));
+        var field = PacketWriting.Fields(root)[1];
+
+        long? now = null;
+        var given = new PacketEdits(taking => { now = taking; return 12; }).Edit(Choosing(source, root, field, "packet.bits.other"))!;
+
+        Assert.AreEqual(8, now, "asked with the length the field takes now");
+        Assert.AreEqual("packet\n0-3: \"A\"\n4-15: \"B\"\n16-19: \"C\"", Written(source, given));
+
+        var cancelled = new PacketEdits(_ => null).Edit(Choosing(source, root, field, "packet.bits.other"))!;
+        Assert.AreEqual(0, cancelled.Writes.Count, "cancelled, nothing is written");
+    }
+
+    [TestMethod]
+    public void ThePromptGivesTheWholeNumberTyped_AndNothingElse() => UiThread.Run(() =>
+    {
+        var prompt = new PacketLengthPrompt(8);
+        var bits = Logical(prompt).OfType<TextBox>().Single(box => System.Windows.Automation.AutomationProperties.GetAutomationId(box) == "Packet_Length_Bits");
+        var set = Logical(prompt).OfType<Button>().Single(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "Packet_Length_Set");
+
+        Assert.AreEqual("8", bits.Text, "it starts at the length the field takes now");
+
+        bits.Text = "0";
+        Assert.IsFalse(set.IsEnabled, "nought is no length");
+
+        bits.Text = "12";
+        set.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+        Assert.AreEqual(12, prompt.Length);
+
+        var cancelled = new PacketLengthPrompt(8);
+        Logical(cancelled).OfType<Button>().Single(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "Packet_Length_Cancel")
+            .RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+        Assert.IsNull(cancelled.Length, "cancelled, it gives nothing");
+    });
+
+    /// <summary>A packet read and worked over, as an edit is handed it.</summary>
+    private static ContentNode Staged(string source)
+    {
+        var tree = PacketParser.Parse(source);
+        return new Nexaflow.Markdown.Pipeline.AstPipeline(PacketPipeline.Of(tree, false)).Run(tree);
+    }
+
+    /// <summary>A choice of <paramref name="verb"/> from the right-click over <paramref name="field"/>.</summary>
+    private static ContentEdit Choosing(string source, ContentPart root, ContentPart field, string verb) =>
+        new(EditKind.Choosing, verb, new Landing(new EditState(source, field.Start), Laid.Nothing(WpfHandles.Medium), -1), default, field, root);
+
+    /// <summary>What <paramref name="source"/> becomes once <paramref name="change"/> is written.</summary>
+    private static string Written(string source, ContentChange change)
+    {
+        foreach (var write in change.Writes.OrderByDescending(write => write.Start))
+            source = source[..write.Start] + write.Text + source[write.End..];
+
+        return source;
+    }
 
     [TestMethod]
     public void ChoosingToTakeAFieldOutTakesItsLine_AndTheFieldsAfterItCloseUp() => UiThread.Run(() =>

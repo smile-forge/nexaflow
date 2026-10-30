@@ -23,7 +23,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Packet;
 /// </para>
 /// <para>
 /// A right-click on a field offers to put a field in before it or after it, to take it out, and how many bits it takes — each
-/// length written as its number, the one it takes now marked. Anywhere else in the packet, it offers a field after everything
+/// length written as its number, the one it takes now marked, and any other asked of the reader once "Other length…" is chosen. Anywhere else in the packet, it offers a field after everything
 /// written. With whole fields picked out, Delete takes them out and Insert puts a field in above them; and fields carried and let
 /// go on another change places with it. Whatever changes, the fields stay contiguous and keep their lengths, and only their
 /// numbers are written again (<see cref="PacketWriting"/>).
@@ -33,7 +33,11 @@ namespace Nexaflow.Visuals.Text.Markdown.Packet;
 /// (<see cref="Clipboard"/>).
 /// </para>
 /// </summary>
-internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
+/// <param name="asked">
+/// How many bits a field now taking the length given is to take, asked of the reader where "Other length…" is chosen — or null
+/// where they cancel (<see cref="PacketLengthPrompt.Ask"/>).
+/// </param>
+internal sealed class PacketEdits(Func<long, long?> asked) : IContentLanguage, IOnEdit, IOnMove
 {
     /// <summary>What a field's offers start with.</summary>
     private const string Named = "packet.";
@@ -42,6 +46,9 @@ internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
     private const string After = Named + "insert.after";
     private const string Last = Named + "insert.end";
     private const string Delete = Named + "delete";
+
+    /// <summary>A length the offered ones do not list, asked of the reader once chosen.</summary>
+    private const string Other = Named + "bits.other";
 
     /// <summary>What an offer of a field's length starts with, the length after it.</summary>
     private const string Sized = Named + "bits.";
@@ -85,6 +92,7 @@ internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
             Inserting(Before, "Text.Packet.Field.Before"),
             Inserting(After, "Text.Packet.Field.After"),
             new LayoutIntent(Delete, null, Str.Get("Text.Packet.Field.Delete")),
+            new LayoutIntent(Other, null, Str.Get("Text.Packet.Bits.Other")),
             .. Lengths.Append(size).Distinct().Order().Select(bits => new LayoutIntent(Sized + Said(bits), null, Length(bits))
             {
                 Group = Bits,
@@ -140,7 +148,7 @@ internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
         });
 
     /// <summary>What the right-click offered and was chosen, made on the field it was offered over.</summary>
-    private static ContentChange? Chosen(ContentEdit edit, string verb)
+    private ContentChange? Chosen(ContentEdit edit, string verb)
     {
         if (!verb.StartsWith(Named, StringComparison.Ordinal)) return null;
         if (verb == Last) return PacketWriting.Appended(edit.Root, Newline(edit));
@@ -151,6 +159,9 @@ internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
             Before => PacketWriting.Inserted(edit.Root, field, after: false, Newline(edit)),
             After => PacketWriting.Inserted(edit.Root, field, after: true, Newline(edit)),
             Delete => PacketWriting.Removed(edit.Root, [field]),
+            Other => asked(PacketWriting.Size(field)) is { } bits and > 0
+                ? PacketWriting.Resized(edit.Root, field, bits, edit.State.Caret)
+                : ContentChange.Stay(edit.State),
             _ when verb.StartsWith(Sized, StringComparison.Ordinal)
                    && long.TryParse(verb[Sized.Length..], NumberStyles.None, CultureInfo.InvariantCulture, out var bits) && bits > 0
                 => PacketWriting.Resized(edit.Root, field, bits, edit.State.Caret),
