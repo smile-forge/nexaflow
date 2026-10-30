@@ -78,59 +78,12 @@ internal sealed class DiagramRibbon : UserControl
 
     /// <summary>
     /// One choice, drawn however its options are read best: a few shapes are read side by side, a bank of colours as the colours
-    /// themselves, and a choice of more options than a row holds from a list the button showing the current one opens — and beside
-    /// them, where the choice takes a value its options do not list (<see cref="LayoutIntent.TypedVerb"/>), a box to type one in.
+    /// themselves, and a choice of more options than a row holds from a list the button showing the current one opens.
     /// </summary>
-    private static FrameworkElement Choosing(string group, string name, IReadOnlyList<LayoutIntent> options, Action<LayoutIntent> invoke)
-    {
-        var chosen = options.All(option => option.Shade is not null) ? ChoosingAColour(name, options, invoke)
-                   : options.Count > Abreast ? ChoosingFromAList(group, name, options, invoke)
-                   : ChoosingInARow(name, options, invoke);
-
-        return options[0].TypedVerb is { } verb ? Typing(chosen, group, name, verb, invoke) : chosen;
-    }
-
-    /// <summary>
-    /// A choice's options, and beside them a box to type a value they do not list: written when Enter is pressed in it or its button
-    /// is, as the choice's verb with what was typed after it — which the language reads, and refuses where it means nothing.
-    /// </summary>
-    private static FrameworkElement Typing(FrameworkElement options, string group, string name, string verb, Action<LayoutIntent> invoke)
-    {
-        var box = new TextBox
-        {
-            Width = 52,
-            Margin = new Thickness(6, 0, 4, 4),
-            VerticalContentAlignment = VerticalAlignment.Center,
-            Foreground = Brush("TextBrush", Colors.Black),
-            Background = Brush("SurfaceBrush", Colors.White),
-            BorderBrush = Brush("BorderBrush", Colors.Gray),
-            ToolTip = new TextBlock { Text = name },
-        };
-        AutomationProperties.SetName(box, name);
-        AutomationProperties.SetAutomationId(box, "Diagram_Ribbon_" + group + "_Value");
-
-        var accept = Flat(new Thickness(6, 4, 6, 4));
-        accept.Margin = new Thickness(0, 0, 0, 4);
-        accept.Foreground = Brush("TextBrush", Colors.Black);
-        accept.Content = new TextBlock { Text = "", FontFamily = IconFont, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
-        Said(accept, name + ": " + Str.Get("Text.Ribbon.Apply"), "Diagram_Ribbon_" + group + "_Accept");
-
-        void Typed()
-        {
-            if (box.Text.Trim() is { Length: > 0 } typed) invoke(new LayoutIntent(verb + typed) { Group = group });
-        }
-
-        accept.Click += (_, _) => Typed();
-        box.KeyDown += (_, pressed) =>
-        {
-            if (pressed.Key != System.Windows.Input.Key.Enter) return;
-
-            Typed();
-            pressed.Handled = true;
-        };
-
-        return new StackPanel { Orientation = Orientation.Horizontal, Children = { options, box, accept } };
-    }
+    private static FrameworkElement Choosing(string group, string name, IReadOnlyList<LayoutIntent> options, Action<LayoutIntent> invoke) =>
+        options.All(option => option.Shade is not null) ? ChoosingAColour(name, options, invoke)
+        : options.Count > Abreast ? ChoosingFromAList(group, name, options, invoke)
+        : ChoosingInARow(name, options, invoke);
 
     /// <summary>A choice's options side by side, each drawn as what it would make, the one the content says now picked out.</summary>
     private static FrameworkElement ChoosingInARow(string name, IReadOnlyList<LayoutIntent> options, Action<LayoutIntent> invoke)

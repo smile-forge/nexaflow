@@ -96,9 +96,7 @@ public class LinkedElement(string source, LayoutStyle palette, ContentEngine eng
     {
         // Whatever the content itself offered is the content's to do, a paste as much as anything else: what is on the
         // clipboard is the host's, but asking for it is the engine's (ContentChange.Asks).
-        // So is a value typed in for a choice it offered that takes one.
-        if (asked.Any(offer => offer.Verb == meant.Verb
-                               || (offer.Group == meant.Group && offer.TypedVerb is { } verb && meant.Verb.StartsWith(verb, StringComparison.Ordinal))))
+        if (asked.Any(offer => offer.Verb == meant.Verb))
         {
             Choose(meant.Verb, where);
             return;

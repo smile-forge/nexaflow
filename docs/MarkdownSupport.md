@@ -1190,8 +1190,7 @@ typed into in its box, and said whole where the pointer rests on a box too narro
 worked out from the bits and never written in where they are drawn: a field is made longer, shorter or moved from its
 right-click and by dragging it, never by typing a number.
 
-A right-click on a field offers to put a field in before or after it, to take it out, and how many bits it takes — a
-length from a list, or any other typed beside it; anywhere
+A right-click on a field offers to put a field in before or after it, to take it out, and how many bits it takes; anywhere
 else in the packet, a field after everything written. With whole fields picked out, Delete takes them out and Insert puts
 one in above them, and a field carried and let go on another takes its place. Whatever changes, every field is numbered
 again from bit 0 and keeps its length and the form it is written in — a range, one bit, or a count — and only its numbers
