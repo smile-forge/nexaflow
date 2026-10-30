@@ -18,7 +18,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Packet;
 ///
 /// <para>
 /// What is typed into a label is kept by a backslash where it would end it, and a label still to write is put in quotes as it is
-/// written into. A field's bits are never typed: they follow from the fields before it and how long each is, and change only by
+/// written into. Backspace and Delete take a backslash and what it keeps together. A field's bits are never typed: they follow from the fields before it and how long each is, and change only by
 /// what is offered below.
 /// </para>
 /// <para>
@@ -71,7 +71,7 @@ internal sealed class PacketEdits(Func<long, long?> asked) : IContentLanguage, I
         EditKind.Typing => DiagramWriting.Typed(edit, Escaping),
         EditKind.Settling => DiagramWriting.Typed(edit, Escaping),
         EditKind.Pasting => Pasted(edit),
-        EditKind.Erasing or EditKind.Deleting => Chosen(edit) is { Count: > 0 } chosen ? PacketWriting.Removed(edit.Root, chosen) : null,
+        EditKind.Erasing or EditKind.Deleting => Chosen(edit) is { Count: > 0 } chosen ? PacketWriting.Removed(edit.Root, chosen) : Unescaped(edit),
         EditKind.Inserting => Chosen(edit) is [var first, ..] ? PacketWriting.Inserted(edit.Root, first, after: false, Newline(edit)) : null,
         EditKind.Choosing => Chosen(edit, edit.Text),
         _ => null,
@@ -198,6 +198,26 @@ internal sealed class PacketEdits(Func<long, long?> asked) : IContentLanguage, I
         // Nothing is written after the colon yet: what is typed there is a label, so it goes in its quotes, the caret inside them.
         var opened = PacketParser.Opening + PacketParser.Escaped(text, PacketParser.Opening);
         return new MermaidWriting(caret, caret, opened + PacketParser.Opening, caret + opened.Length);
+    }
+
+    /// <summary>
+    /// A key taking a character out of a label where the character is half of what a backslash keeps: the backslash and what it keeps
+    /// go together. Half of one is a backslash keeping the quote that ends the label, or the character after it, which is never what was
+    /// meant. Null anywhere else, where a key takes one character as it does in any words.
+    /// </summary>
+    private static ContentChange? Unescaped(ContentEdit edit)
+    {
+        var state = edit.State;
+        if (state.HasSelection || edit.Part is not { } part || PacketParser.LabelOf(part) is not { } label) return null;
+
+        var caret = state.Caret;
+        var erasing = edit.Kind == EditKind.Erasing;
+
+        foreach (var escape in label.SelfAndDescendants())
+            if (escape.Kind == PacketKinds.Escape && (erasing ? escape.Start < caret && caret <= escape.End : escape.Start <= caret && caret < escape.End))
+                return ContentChange.Write(escape.Start, escape.Length, string.Empty, escape.Start);
+
+        return null;
     }
 
     /// <summary>The fields whose whole stretch of characters is picked out.</summary>

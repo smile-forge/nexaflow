@@ -88,6 +88,20 @@ public class PacketEditingTests
         }));
 
     [TestMethod]
+    public void BackspaceAfterABackslashTypedTakesTheBackslashAndWhatItKeepsTogether() => UiThread.Run(() =>
+        InADocument((editor, packet) =>
+        {
+            PressPast(packet, "Flags");
+            Write(editor, "\\");
+            StringAssert.Contains(packet.Source, "0-7: \"Flags\\\\\"", packet.Source);
+
+            Press(editor, Key.Back);
+
+            StringAssert.Contains(packet.Source, "0-7: \"Flags\"", packet.Source);
+            Assert.AreEqual(0, packet.Diagnostics.Count, Trouble(packet));
+        }));
+
+    [TestMethod]
     public void ABitNumberIsNoPlaceToWrite() => UiThread.Run(() =>
         InADocument((editor, packet) =>
         {
