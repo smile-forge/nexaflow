@@ -254,6 +254,27 @@ public class PacketEditingTests
             Assert.AreEqual(0, packet.Diagnostics.Count, Trouble(packet));
         }, Three));
 
+    /// <summary>
+    /// A drag as a hand makes it, a step at a time, from one box to the next and clear of their labels: the only stops are in the labels,
+    /// so the nearest offset stands still — inside the field carried — while the pointer crosses onto the other box.
+    /// </summary>
+    [TestMethod]
+    public void DraggingAFieldStepByStepOntoTheNextBoxPutsItThere() => UiThread.Run(() =>
+        InADocument((editor, packet) =>
+        {
+            ChooseTheField(packet, "A");
+
+            var from = Inside(Box(packet, "A"));
+            var to = Inside(Box(packet, "B"));
+
+            packet.BeginPointerSelect(from);
+            for (var x = from.X; x <= to.X; x += 2) packet.ExtendPointerSelect(new Point(x, from.Y));
+            packet.EndPointerSelect();
+            MarkdownEditorHarness.Pump();
+
+            StringAssert.Contains(packet.Source, "```packet\n0-7: \"B\"\n8-11: \"A\"\n12-15: \"C\"\n```", packet.Source);
+        }, Three));
+
     // ── The clipboard ───────────────────────────────────────────────────────
 
     [TestMethod]

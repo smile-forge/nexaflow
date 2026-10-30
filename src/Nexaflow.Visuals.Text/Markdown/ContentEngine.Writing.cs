@@ -643,7 +643,6 @@ public sealed partial class ContentEngine
             .ToList();
 
         if (ranges.Count == 0) return null;
-        if (ranges.Any(range => to > range.Start && to < range.End)) return null;
 
         var (piece, part, root) = Reached(Landing, _dropOver);
         var move = new ContentMove(ranges, to, Landing, piece, part, root);
@@ -686,8 +685,12 @@ public sealed partial class ContentEngine
     /// dragged into a formula commenting out the rest of it.
     /// </para>
     /// </summary>
-    private static ContentChange Carrying(ContentMove move)
+    private static ContentChange? Carrying(ContentMove move)
     {
+        // Characters let go inside themselves go nowhere. Only theirs to refuse: a language saying what a move means decides by
+        // the piece it is let go on, and the nearest offset to a piece with no stops of its own can lie in what is carried.
+        if (move.Carried.Any(range => move.To > range.Start && move.To < range.End)) return null;
+
         var carried = move.Text;
         var writes = new List<ContentWrite>(move.Carried.Count + 1);
         var into = move.Holds ? null : move.Part;

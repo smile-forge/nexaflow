@@ -263,11 +263,15 @@ public sealed partial class ContentEngine
         // so the reader is choosing between finished results.
         if (_moving)
         {
+            // Where it lands is the offset and the piece both: a language that says what a move means decides by the piece
+            // (IOnMove), and a piece holding no stop of its own — a box with its words elsewhere — is crossed with the offset
+            // standing still.
             var drop = _laid.OffsetAt(at);
-            if (drop == _dropAt) return;
+            var over = _laid.PieceAt(at);
+            if (drop == _dropAt && over == _dropOver) return;
 
             _dropAt = drop;
-            _dropOver = _laid.PieceAt(at);
+            _dropOver = over;
             BuildPreview();
 
             PreRender?.Invoke(this, EventArgs.Empty);
