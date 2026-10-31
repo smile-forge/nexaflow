@@ -118,11 +118,11 @@ Electricity,Losses,50
 
 Values as tiles, each as big as its share: a section holds the items indented under it, with its total in its band, and a
 leaf is a label and its value. Labels and values are typed into where they are drawn, and `valueFormat` under
-`config: treemap:` sets how values read. You work with the boxes: Enter splits the box you are in into two halves, and
-Backspace in the empty label takes the split back. Right-click a box to split it, to merge the boxes you have picked out
-with Ctrl+click, or to put it in a new group; right-click a group's band to add a box or ungroup it. Drag a tile onto a
-group to move it in — the group it would go into is outlined, and nothing moves until you let go. An item worth nothing
-yet waits under the map until it is given something.
+`config: treemap:` sets how values read. You work with the boxes: right-click a group's band to add a box, type its name,
+press Enter, type its value and press Enter again. While you type a value the tiles hold still, and they move once you
+are done. Right-click a box to split it in two, to merge the boxes you have picked out with Ctrl+click, or to put it in a
+new group; right-click a group's band to ungroup it. Drag a tile onto a group to move it in — the group it would go into
+is outlined, and nothing moves until you let go. A box with no value yet waits under the map until you give it one.
 
 ````markdown
 ```mermaid

@@ -183,7 +183,7 @@ internal sealed class DiagramText(ContentReading reading, EditState state, Layou
     /// caret is in it. Words like any other written words, where they say what is written.
     /// </summary>
     public DiagramWords Formatted(ContentPart part, string says, double size, LayoutInk ink, int? weight = null, bool? italic = null) =>
-        WritingIn(part) || says == part.Text
+        WritingIn(part)
             ? Written(part, null, size, ink, weight, italic)
             : new DiagramWords(Text(says, size, ink, weight, italic), part, null, Letter(size, ink), ink, maps: false, writes: true);
 

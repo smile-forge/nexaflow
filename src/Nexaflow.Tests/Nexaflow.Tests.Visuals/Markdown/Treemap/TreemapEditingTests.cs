@@ -110,23 +110,60 @@ public class TreemapEditingTests
         }, "---\nconfig:\n  treemap:\n    valueFormat: '$0,0'\n---\n\"S\"\n    \"A\": 1000\n    \"B\": 2000"));
 
     [TestMethod]
-    public void EnterSplitsABoxInTwo_AndWhatIsTypedNamesTheNewHalf() => UiThread.Run(() =>
+    public void EnterEndsTheWriting_AndPicksTheBoxOut() => UiThread.Run(() =>
         InADocument((editor, treemap) =>
         {
             PressPast(treemap, "A");
             Press(editor, Key.Enter);
-            Write(editor, "N");
 
-            StringAssert.Contains(treemap.Source, "    \"A\": 5\n    \"N\": 5\n    \"B\": 20", treemap.Source);
-            Assert.AreEqual(0, treemap.Diagnostics.Count, Trouble(treemap));
+            Assert.AreEqual(Map, Written(treemap), "nothing put in");
+    Assert.IsTrue(Covers(treemap, "\"A\": 10"), "A picked out whole");
+            Assert.IsFalse(Covers(treemap, "\"B\": 20"), "and only A");
+            Assert.IsFalse(treemap.ShowsCaret, "and nothing being written in");
+        }));
+
+    [TestMethod]
+    public void ABoxPutInIsMadeByItsName_Enter_ItsValue_Enter() => UiThread.Run(() =>
+        InADocument((editor, treemap) =>
+        {
+            Click(Ribbon(editor, Band(Tile(treemap, "T"))), "treemap.group.add");
+            Write(editor, "shoes");
+            Press(editor, Key.Enter);
+
+            Assert.IsTrue(treemap.HasCaret, "its value is still to write, so Enter goes on into it");
+            Write(editor, "300");
+            Assert.IsFalse(InTheMap(treemap, "shoes"), "it waits under the map while its value is written");
+
+            Press(editor, Key.Enter);
+
+            StringAssert.Contains(treemap.Source, "\"T\"\n    \"C\": 30\n    \"shoes\": 300\n```", treemap.Source);
+            Assert.IsTrue(InTheMap(treemap, "shoes"), "given its value, it takes its room in the map");
+            Assert.IsFalse(treemap.ShowsCaret, "and the writing is over");
+        }));
+
+    [TestMethod]
+    public void TypingAValueHoldsTheTilesStill_UntilTheCaretLeavesIt() => UiThread.Run(() =>
+        InADocument((editor, treemap) =>
+        {
+            var before = Tile(treemap, "A");
+
+            PressPast(treemap, "10", TreemapPiece.Value);
+            Write(editor, "0");
+
+            StringAssert.Contains(treemap.Source, "\"A\": 100", treemap.Source);
+            Assert.AreEqual(before, Tile(treemap, "A"), "nothing moves under the caret");
+            var value = treemap.Source.IndexOf("100", StringComparison.Ordinal);
+            Assert.IsTrue(treemap.Caret >= value && treemap.Caret <= value + 3, $"the caret still in the value, not at {treemap.Caret}");
+
+            Press(editor, Key.Enter);
+            Assert.AreNotEqual(before, Tile(treemap, "A"), "and once the writing ends, the tile takes the room its value gives it");
         }));
 
     [TestMethod]
     public void BackspaceInTheNewHalfTakesTheSplitBack() => UiThread.Run(() =>
         InADocument((editor, treemap) =>
         {
-            PressPast(treemap, "A");
-            Press(editor, Key.Enter);
+            Click(Ribbon(editor, Tile(treemap, "A")), "treemap.box.split");
             Press(editor, Key.Back);
 
             Assert.AreEqual(Map, Written(treemap), "the box it was, worth what it was");
@@ -187,14 +224,16 @@ public class TreemapEditingTests
     public void MergeIsGreyedOutUntilBoxesArePickedOut_ThenMergesThemIntoTheOneRightClicked() => UiThread.Run(() =>
         InADocument((editor, treemap) =>
         {
-            var alone = Ribbon(editor, Tile(treemap, "A"));
+            var alone = RightClick(editor, Inside(Tile(treemap, "A")));
             Assert.IsFalse(Pressable(alone, "treemap.box.merge"), "one box is nothing to merge");
             Assert.AreEqual(Str.Get("Text.Treemap.Box.MergeHow"), Offered(alone, "treemap.box.merge").Name, "and it says how to pick boxes out");
+            editor.ContextRibbon!.IsOpen = false;
 
             Pick(treemap, "A");
             Pick(treemap, "B");
 
-            var picked = Ribbon(editor, Tile(treemap, "B"));
+            var picked = RightClick(editor, Inside(Tile(treemap, "B")));
+            Assert.IsTrue(Covers(treemap, "\"A\": 10") && Covers(treemap, "\"B\": 20"), "a right-click on a box picked out keeps every box picked out");
             Assert.IsTrue(Pressable(picked, "treemap.box.merge"));
 
             Click(picked, "treemap.box.merge");
@@ -219,10 +258,10 @@ public class TreemapEditingTests
         {
             Click(Ribbon(editor, Band(Tile(treemap, "S"))), "treemap.group.add");
             Write(editor, "N");
-            StringAssert.Contains(treemap.Source, "    \"B\": 20\n    \"N\": 10\n\"T\"", treemap.Source);
+            StringAssert.Contains(treemap.Source, "    \"B\": 20\n    \"N\":\n\"T\"", treemap.Source);
 
             Click(Ribbon(editor, Band(Tile(treemap, "T"))), "treemap.group.ungroup");
-            StringAssert.Contains(treemap.Source, "    \"N\": 10\n\"C\": 30\n```", treemap.Source);
+            StringAssert.Contains(treemap.Source, "    \"N\":\n\"C\": 30\n```", treemap.Source);
         }));
 
     [TestMethod]
@@ -363,6 +402,25 @@ public class TreemapEditingTests
         var ribbon = editor.Shown.BuildRibbon(at) as DiagramRibbon;
         Assert.IsNotNull(ribbon, "a right-click opens the ribbon");
         return ribbon!;
+    }
+
+    /// <summary>A right-click at <paramref name="at"/> as the reader makes one, and the ribbon it opened.</summary>
+    private static DiagramRibbon RightClick(MarkdownSurface editor, Point at)
+    {
+        Assert.IsTrue(editor.ShowContextRibbon(at), "a right-click opens the ribbon");
+        MarkdownEditorHarness.Pump();
+
+        return (DiagramRibbon)editor.ContextRibbon!.Child;
+    }
+
+    /// <summary>Whether the item labelled <paramref name="label"/> is drawn in the map rather than waiting under it.</summary>
+    private static bool InTheMap(DocumentBlock treemap, string label) => Drawn(treemap, label).Ancestors().Any(piece => piece.Kind == TreemapPiece.Map);
+
+    /// <summary>Whether what is picked out covers the whole of <paramref name="written"/>.</summary>
+    private static bool Covers(DocumentBlock treemap, string written)
+    {
+        var at = treemap.Source.IndexOf(written, treemap.Start, StringComparison.Ordinal);
+        return treemap.Selection.Any(range => range.Start <= at && at + written.Length <= range.Start + range.Length);
     }
 
     private static string[] Ids(DiagramRibbon ribbon) => [.. ribbon.Controls.Select(control => control.Id)];

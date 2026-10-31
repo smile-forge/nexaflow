@@ -89,14 +89,14 @@ public sealed partial class ContentEngine
         if (change.Writes.Count == 0)
         {
             var caret = Math.Clamp(change.Caret, 0, state.Source.Length);
-            return state with { Caret = caret, Raw = change.Raw, Selected = caret == state.Caret ? state.Selected : [] };
+            return state with { Caret = caret, Raw = change.Raw, Selected = change.Chooses ?? (caret == state.Caret ? state.Selected : []) };
         }
 
         var source = state.Source;
         foreach (var write in change.Writes.OrderByDescending(write => write.Start))
             source = string.Concat(source.AsSpan(0, write.Start), write.Text, source.AsSpan(write.End));
 
-        return new EditState(source, Math.Clamp(change.Caret, 0, source.Length), [], change.Raw);
+        return new EditState(source, Math.Clamp(change.Caret, 0, source.Length), change.Chooses ?? (IReadOnlyList<EditRange>)[], change.Raw);
     }
 
     /// <summary>

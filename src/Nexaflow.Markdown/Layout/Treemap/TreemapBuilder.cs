@@ -81,15 +81,18 @@ internal sealed class TreemapBuilder : ContentBuilder
     /// <summary>What the front matter asks of the treemap, as its stages left it on the block.</summary>
     private TreemapConfig Config => DiagramConfig.Of(Reading, TreemapConfig.Default);
 
-    /// <summary>An item as its stages left it, the items under it, and which of the theme's colours its label gives it.</summary>
-    private sealed record Item(ContentPart Part, TreemapNode Said, IReadOnlyList<Item> Under, int Shade)
+    /// <summary>
+    /// An item as its stages left it, the items under it, which of the theme's colours it is handed, and what it is laid out as worth —
+    /// it and everything under it (<see cref="Kept"/>).
+    /// </summary>
+    private sealed record Item(ContentPart Part, TreemapNode Said, IReadOnlyList<Item> Under, int Shade, double Worth)
     {
         public ContentPart? Label => this.Part.Children[0].Stated()?.Inner(TreemapKinds.Label);
 
         public ContentPart? Value => this.Part.Children[0].Stated()?.Inner(MermaidKinds.Amount);
 
         /// <summary>Whether it has room in the map: it is worth something.</summary>
-        public bool Drawn => this.Said.Total > 0;
+        public bool Drawn => this.Worth > 0;
     }
 
     /// <summary>What an item is drawn with: its fill, its band's, its outline, its words, and how thick its outline is.</summary>
@@ -97,7 +100,8 @@ internal sealed class TreemapBuilder : ContentBuilder
 
     private LayoutSize Draw(LayoutBuilder build)
     {
-        var items = Items(Reading.Root, Shades(Reading.Root), Whole);
+        var weighed = Items(Reading.Root);
+        var items = Shaded(weighed, Shades(weighed), Whole);
 
         // A treemap with no item to draw is the source: there is nothing to look at but the lines written.
         if (items.Count == 0) return Sheet.AsWritten();
@@ -124,23 +128,39 @@ internal sealed class TreemapBuilder : ContentBuilder
         return Sheet.Reduced(new LayoutSize(width, bottom));
     }
 
-    /// <summary>
-    /// The items gathered in <paramref name="holder"/>, each with those under it, in the order written: a section in the colour its
-    /// label is handed in <paramref name="shades"/>, and a leaf in the colour of what it is in, <paramref name="within"/> — as Mermaid
-    /// colours them.
-    /// </summary>
-    private static List<Item> Items(ContentPart holder, IReadOnlyDictionary<string, int> shades, int within)
+    /// <summary>The items gathered in <paramref name="holder"/>, each with those under it and what it is laid out as worth, in the order written.</summary>
+    private List<Item> Items(ContentPart holder)
     {
         var items = new List<Item>();
 
         foreach (var part in ItemsIn(holder))
         {
-            var shade = HoldsItems(part) ? shades[LabelOf(part)] : within;
-            items.Add(new Item(part, (TreemapNode)part.Node, Items(part, shades, shade), shade));
+            var said = (TreemapNode)part.Node;
+            var under = Items(part);
+            items.Add(new Item(part, said, under, Whole, Kept(part, said) + under.Sum(item => item.Worth)));
         }
 
         return items;
     }
+
+    /// <summary>
+    /// What <paramref name="item"/>'s own value is laid out as: what it was as the reader began writing in it, while they still are — so
+    /// the tiles hold still under the caret, and move once, when it leaves — and otherwise what is written.
+    /// </summary>
+    private double Kept(ContentPart item, TreemapNode said) =>
+        State.Raw is { Was: { } was } zone && item.Children[0].Stated()?.Inner(MermaidKinds.Amount) is { } amount
+        && zone.Start >= amount.Start && zone.End <= amount.End
+            ? TreemapValues.Read(was) ?? 0
+            : said.Value ?? 0;
+
+    /// <summary>
+    /// <paramref name="items"/> with the colours they are handed: a section the colour <paramref name="shades"/> gives its label, and a
+    /// leaf the colour of what it is in, <paramref name="within"/> — as Mermaid colours them.
+    /// </summary>
+    private static List<Item> Shaded(IReadOnlyList<Item> items, IReadOnlyDictionary<string, int> shades, int within) =>
+        [.. items.Select(item => item.Under.Count > 0 && shades[LabelOf(item.Part)] is var shade
+                ? item with { Shade = shade, Under = Shaded(item.Under, shades, shade) }
+                : item with { Shade = within })];
 
     /// <summary>The colour the treemap itself is handed, before any section: the theme's first. An item in no section is drawn in it.</summary>
     private const int Whole = 0;
@@ -150,16 +170,16 @@ internal sealed class TreemapBuilder : ContentBuilder
     /// first, then a level at a time from the top, the largest first among those side by side. Where an item is written among its
     /// siblings changes no colour, and the same label is the same colour.
     /// </summary>
-    private static Dictionary<string, int> Shades(ContentPart root)
+    private static Dictionary<string, int> Shades(IReadOnlyList<Item> top)
     {
         var shades = new Dictionary<string, int>(StringComparer.Ordinal);
-        var waiting = new Queue<ContentPart>([root]);
+        var waiting = new Queue<IReadOnlyList<Item>>([top]);
 
-        while (waiting.TryDequeue(out var holder))
-            foreach (var part in ItemsIn(holder).OrderByDescending(part => ((TreemapNode)part.Node).Total).Where(HoldsItems))
+        while (waiting.TryDequeue(out var level))
+            foreach (var item in level.OrderByDescending(item => item.Worth).Where(item => item.Under.Count > 0))
             {
-                shades.TryAdd(LabelOf(part), shades.Count + 1);
-                waiting.Enqueue(part);
+                shades.TryAdd(LabelOf(item.Part), shades.Count + 1);
+                waiting.Enqueue(item.Under);
             }
 
         return shades;
@@ -168,9 +188,6 @@ internal sealed class TreemapBuilder : ContentBuilder
     /// <summary>The items written directly in <paramref name="holder"/>, in the order written.</summary>
     private static IEnumerable<ContentPart> ItemsIn(ContentPart holder) =>
         holder.Children.Where(part => part.Kind == TreemapKinds.Node && part.Node is TreemapNode);
-
-    /// <summary>Whether an item has items written in it — a section, as Mermaid colours one.</summary>
-    private static bool HoldsItems(ContentPart item) => item.Children.Any(child => child.Kind == TreemapKinds.Node);
 
     /// <summary>What an item's label says — nothing, where it says nothing yet.</summary>
     private static string LabelOf(ContentPart item) => item.Children[0].Stated()?.Inner(TreemapKinds.Label)?.Words()?.Text ?? string.Empty;
@@ -187,8 +204,8 @@ internal sealed class TreemapBuilder : ContentBuilder
     /// <summary>Where each of <paramref name="items"/> goes in <paramref name="room"/>, largest first, with the air between them.</summary>
     private static IEnumerable<(Item Item, LayoutRect Tile)> Tiled(IReadOnlyList<Item> items, LayoutRect room, TreemapConfig config)
     {
-        var ordered = items.OrderByDescending(item => item.Said.Total).ToList();
-        var tiles = TreemapTiles.Squarified([.. ordered.Select(item => item.Said.Total)], room);
+        var ordered = items.OrderByDescending(item => item.Worth).ToList();
+        var tiles = TreemapTiles.Squarified([.. ordered.Select(item => item.Worth)], room);
         var air = config.Padding / 2;
 
         for (var at = 0; at < ordered.Count; at++)
@@ -223,7 +240,7 @@ internal sealed class TreemapBuilder : ContentBuilder
     {
         var paint = Painted(item, config);
 
-        var total = config.ShowValues ? Words.Worked(TreemapValues.Format(item.Said.Total, config.ValueFormat), item.Part, TotalSize, paint.Words) : null;
+        var total = config.ShowValues ? Words.Worked(TreemapValues.Format(item.Worth, config.ValueFormat), item.Part, TotalSize, paint.Words) : null;
         var room = Math.Max(1, tile.Width - (Inset * 2) - (total is null ? 0 : total.Width + Inset));
         var label = Labelled(item, BandSize, paint.Words, room).FirstOrDefault();
 

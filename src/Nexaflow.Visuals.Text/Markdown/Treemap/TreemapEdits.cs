@@ -21,10 +21,12 @@ namespace Nexaflow.Visuals.Text.Markdown.Treemap;
 ///
 /// <para>
 /// A label is typed into where it is drawn, and holds anything but the quote it is in: a quote typed into it puts it in the other
-/// quote where it holds none of those, and is left out where it holds both. A value takes only what a number is written with, and one
-/// drawn as its format sets it is shown as written once the caret is in it. Enter in a box splits it in two, the caret in the new
-/// box's label; Backspace in a label with nothing written in it takes the box back into the one before it, as it joins a line with
-/// nothing on it to the line before — so a split taken back is the box it was — and Delete there takes it out.
+/// quote where it holds none of those, and is left out where it holds both. A value takes only what a number is written with, and
+/// is shown as written once the caret is in it, the tiles laid out as it was until the caret leaves it, so nothing moves under the
+/// caret while it is typed. Enter ends the writing, the item picked out whole — but in the label of a box whose value is still to
+/// write it goes on into the value, so a box is made by its name, Enter, its value, Enter. Backspace in a label with nothing written
+/// in it takes the box back into the one before it, as it joins a line with nothing on it to the line before — so a split taken back
+/// is the box it was — and Delete there takes it out.
 /// </para>
 /// <para>
 /// A right-click on a box offers to split it, to merge the boxes picked out into it, to put it — or the boxes picked out, where it is
@@ -59,8 +61,8 @@ internal sealed class TreemapEdits : IContentLanguage, IOnEdit, IOnMove
     /// <inheritdoc/>
     public ContentChange? Edit(ContentEdit edit) => edit.Kind switch
     {
-        EditKind.Typing => DiagramWriting.Typed(edit, Escaping),
-        EditKind.Settling => edit.Text == "\n" ? Entered(edit) : DiagramWriting.Typed(edit, Escaping),
+        EditKind.Typing => Holding(edit, DiagramWriting.Typed(edit, Escaping)),
+        EditKind.Settling => edit.Text == "\n" ? Finished(edit) : Holding(edit, DiagramWriting.Typed(edit, Escaping)),
         EditKind.Pasting => Pasted(edit),
         EditKind.Erasing or EditKind.Deleting => Chosen(edit) is { Count: > 0 } chosen ? TreemapWriting.Removed(edit.Root, chosen) : Erased(edit),
         EditKind.Tabbing or EditKind.TabbingBack or EditKind.Raising or EditKind.Lowering => Taken(edit),
@@ -154,12 +156,39 @@ internal sealed class TreemapEdits : IContentLanguage, IOnEdit, IOnMove
 
     // ── Keys ────────────────────────────────────────────────────────────────
 
-    /// <summary>Enter in a box: the box split in two, the caret in the new one's label. In a group, the key taken; anywhere else, what Enter does anywhere.</summary>
-    private static ContentChange? Entered(ContentEdit edit)
+    /// <summary>
+    /// Enter in an item's words: the writing ended, the item picked out whole as a press on its tile picks it — except in the label of a
+    /// box whose value is still to write, where the caret goes on into the value; so a box put in is made by its name, Enter, its value,
+    /// Enter. Anywhere else, what Enter does anywhere.
+    /// </summary>
+    private static ContentChange? Finished(ContentEdit edit)
     {
         if (edit.State.HasSelection || TreemapWriting.ItemOf(edit.Part) is not { } item) return null;
 
-        return TreemapWriting.Split(edit.Root, item) ?? ContentChange.Stay(edit.State);
+        if (TreemapParser.LabelOf(edit.Part) is not null && !TreemapWriting.Holds(item) && TreemapWriting.Value(item)?.Hole() is { } hole)
+            return new ContentChange([], hole.Start);
+
+        return new ContentChange([], item.Start) { Chooses = new WholeRanges([new EditRange(item.Start, item.End - item.Start)]) };
+    }
+
+    /// <summary>
+    /// What is typed into a value, as <paramref name="typed"/> writes it, with the value held open while the caret stays in it and keeping
+    /// what it said as it was begun — so the tiles it sizes stand still until the caret leaves it, and move once (<see cref="RawZone.Was"/>).
+    /// A value opened already, by a press or a key, is kept open as it was; anything else is <paramref name="typed"/> as it is.
+    /// </summary>
+    private static ContentChange? Holding(ContentEdit edit, ContentChange? typed)
+    {
+        if (typed is not { Writes: [var write] } || typed.Raw is not null || TreemapParser.LabelOf(edit.Part) is not null
+            || TreemapWriting.ItemOf(edit.Part) is not { } item || TreemapWriting.Value(item) is not { } amount
+            || write.Start < amount.Start || write.Start > amount.End)
+            return typed;
+
+        var lead = write.Text.Length - write.Text.TrimStart().Length;
+        var (start, end) = amount.Inner(Kinds.Number) is { Length: > 0 } number
+            ? (number.Start, number.End + write.Text.Length - write.Length)
+            : (write.Start + lead, write.Start + write.Text.Length);
+
+        return typed with { Raw = new RawZone(start, end) { Was = amount.Inner(Kinds.Number)?.Text ?? string.Empty } };
     }
 
     /// <summary>
@@ -221,7 +250,16 @@ internal sealed class TreemapEdits : IContentLanguage, IOnEdit, IOnMove
             return new MermaidWriting(label.Start, label.End, head + said[at..] + other, label.Start + head.Length);
         }
 
-        return part.Role == TreemapRoles.Value || part.Parent?.Kind == MermaidKinds.Amount ? MermaidWriting.Only(caret, text, TreemapParser.Numeral) : null;
+    if (part.Role != TreemapRoles.Value && part.Parent?.Kind != MermaidKinds.Amount) return null;
+
+        var only = MermaidWriting.Only(caret, text, TreemapParser.Numeral);
+        var digits = only ?? new MermaidWriting(caret, caret, text, caret + text.Length);
+
+        // A value begun straight after its colon is written a space after it, as Mermaid writes one.
+        if (digits.Text.Length == 0 || TreemapWriting.ItemOf(part) is not { } item || caret <= item.Children[0].Start
+            || item.Children[0].Print()[caret - item.Children[0].Start - 1] is not (':' or ',')) return only;
+
+        return digits with { Text = " " + digits.Text, Caret = digits.Caret + 1 };
     }
 
     // ── Moving ──────────────────────────────────────────────────────────────

@@ -391,7 +391,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
             // between its lines are not among.
             var showing = Showing(named, style, writing,
                                   shown is { } zone && ContentNested.Holds(body, zone.Start, zone.End)
-                                      ? new RawZone(body.Start + ContentNested.OwnAt(body, zone.Start), body.Start + ContentNested.OwnAt(body, zone.End))
+                                      ? zone with { Start = body.Start + ContentNested.OwnAt(body, zone.Start), End = body.Start + ContentNested.OwnAt(body, zone.End) }
                                       : null,
                                   body.Start);
 

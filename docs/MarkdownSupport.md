@@ -1238,12 +1238,16 @@ leaf in its section's colour, so the order items are written in changes no colou
 | `config: treemap:` | `padding`, `diagramPadding`, `showValues`, `nodeWidth`, `nodeHeight`, `borderWidth`, `valueFontSize`, `labelFontSize`, `valueFormat` (a d3 format, with Mermaid's `$` shorthands) |
 
 A label is typed into on its tile, and a value too — drawn as `valueFormat` sets it, and shown as written once the caret
-is in it, by a press or a key. A section's total is worked out and never written in. It is worked as boxes, not as an
-outline: where a tile is drawn follows from what it is worth, so the order lines are written in is nothing a reader sees,
-and nothing offered moves a line among its siblings. What the map adds up to is kept wherever a change can keep it. Enter
-in a box splits it in two, each worth half; Backspace in an empty label takes the box back into the one before it, as it
-joins a line to the line before, so a split taken back is the box it was — and the only box in a group gives the group its
-value back. A right-click on a box offers to split it, to merge the boxes picked out with Ctrl+click into it (greyed out
+is in it, by a press or a key; while it is typed the tiles stay laid out as they were, and move once, when the caret leaves
+it. A section's total is worked out and never written in. It is worked as boxes, not as an outline: where a tile is drawn
+follows from what it is worth, so the order lines are written in is nothing a reader sees, and nothing offered moves a line
+among its siblings. What the map adds up to is kept wherever a change can keep it. Enter ends the writing and picks the box
+out — but in the label of a box whose value is still to write it goes on into the value, so a box put in is made by its
+name, Enter, its value, Enter. A box put in has its value still to write (`"shoes":`) and waits under the map until it is
+given one, and a group left with nothing in it becomes such a box rather than something nothing can be given to.
+Backspace in an empty label takes the box back into the one before it, as it joins a line to the line before, so a split
+taken back is the box it was — and the only box in a group gives the group its value back. A right-click on a box offers
+to split it in two, each worth half, to merge the boxes picked out with Ctrl+click into it (greyed out
 until two are), to put it or the boxes picked out in a new group — a box on its own becomes the group, handing its value to
 a box in it — and to take it out; on a group's band, to add a box to it, to let its items out into the group around it,
 and to take it out; anywhere else, a box at the top. A box or group dragged by its tile goes into the group it is let go

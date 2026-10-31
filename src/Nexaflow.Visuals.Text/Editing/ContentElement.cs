@@ -645,7 +645,8 @@ public class ContentElement : FrameworkElement
         // Claimed only where the content took the press, so a press it made nothing of is left unhandled and uncaptured
         // for whatever shows the content — which is how a viewport knows it may pan from there. Capturing regardless and
         // then losing it to the host is what left the drag going with no button-up ever coming to end it.
-        if (!BeginPointerSelect(e.GetPosition(this), ModifierKeys.None)) return;
+        // With the keys held as it was pressed: Ctrl adds what it lands on to what is picked out, and Shift picks out to it.
+        if (!BeginPointerSelect(e.GetPosition(this), Keyboard.Modifiers)) return;
 
         CaptureMouse();
         e.Handled = true;

@@ -175,6 +175,9 @@ public sealed partial class ContentEngine
         // a stretch being shown as the characters it was written with, is not a change to what is written.
         if (next.Source != _state.Source && this.Events?.OnBeforeChange(_state, next) == false) return;
 
+        // What an edit leaves picked out as whole things is chosen as a press on them chooses them: no caret stands in it.
+        if (next.Selected is WholeRanges) _chosenWhole = next.Selection;
+
         var before = _state;
         var resized = next.Source != before.Source || next.Raw != before.Raw;
         var was = (before.Caret, _at);
@@ -205,14 +208,15 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
-    /// Stops showing a run of text as written once the caret has left it. Only a stretch that is exactly a run of text — one the
-    /// content itself opened (a command half typed) is the content's own business to close.
+    /// Stops showing a run of text as written once the caret has left it. Only a stretch that is exactly a run of text — or one opened
+    /// to write in words drawn otherwise, which keeps what it said (<see cref="RawZone.Was"/>), even emptied — and not one the content
+    /// itself opened (a command half typed), which is the content's own business to close.
     /// </summary>
     private EditState Left(EditState next)
     {
         if (next.Raw is not { } zone || zone.Holds(next.Caret)) return next;
 
-        var run = _laid.Root.SelfAndDescendants().Any(piece =>
+        var run = zone.Was is not null || _laid.Root.SelfAndDescendants().Any(piece =>
             piece.Words is not null && piece.Part is { } part && part.Start == zone.Start && part.End() == zone.End);
 
         return run ? next with { Raw = null } : next;
@@ -227,8 +231,11 @@ public sealed partial class ContentEngine
     {
         if (_readOnly || next.Raw is not null || next.HasSelection || next.Source != _state.Source) return next;
 
-        return _laid.Root.RestatedAt(next.Caret) is { Part: { } part } ? next with { Raw = new RawZone(part.Start, part.End()) } : next;
+        return _laid.Root.RestatedAt(next.Caret) is { Part: { } part } ? next with { Raw = Opened(part.Start, part.End()) } : next;
     }
+
+    /// <summary>Words drawn other than as written opened to be written in, from <paramref name="start"/> to <paramref name="end"/>, keeping what they said as they were opened.</summary>
+    private RawZone Opened(int start, int end) => new(start, end) { Was = _state.Source[start..end] };
 
     // ── The caret ───────────────────────────────────────────────────────────
 

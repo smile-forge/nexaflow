@@ -42,9 +42,9 @@ public class TreemapWritingTests
         Assert.AreEqual("treemap-beta\n\"S\"\n    \"B\": 30\n\"T\"\n    \"C\": 30", merged.Source);
         Assert.AreEqual(merged.Source.IndexOf("\"B\"", StringComparison.Ordinal) + 2, merged.Caret, "at the end of its label");
 
-        Assert.AreEqual("treemap-beta\n\"S\"\n    \"A\": 40\n    \"B\": 20\n\"T\"",
+        Assert.AreEqual("treemap-beta\n\"S\"\n    \"A\": 40\n    \"B\": 20\n\"T\":",
                         Changed(Map, root => TreemapWriting.Merged(root, [Item(root, "A"), Item(root, "C")], Item(root, "A"))!),
-                        "from another group too, into the group of the one named");
+                        "from another group too, into the group of the one named — the group it leaves empty waiting for a value");
 
         var root = Root(Map);
         Assert.IsNull(TreemapWriting.Merged(root, [Item(root, "A"), Item(root, "T")], Item(root, "A")), "a group is not merged");
@@ -112,21 +112,32 @@ public class TreemapWritingTests
     }
 
     [TestMethod, TestCategory("Unit")]
-    public void ABoxPutInIsWorthWhatTheFirstBoxBesideItIs_AndTheCaretIsInItsLabel()
+    public void ABoxPutInHasItsValueStillToWrite_AndTheCaretIsInItsLabel()
     {
         var added = Change(Map, root => TreemapWriting.AddedInside(root, Item(root, "T")));
 
-        Assert.AreEqual("treemap-beta\n\"S\"\n    \"A\": 10\n    \"B\": 20\n\"T\"\n    \"C\": 30\n    \"\": 30", added.Source);
+        Assert.AreEqual("treemap-beta\n\"S\"\n    \"A\": 10\n    \"B\": 20\n\"T\"\n    \"C\": 30\n    \"\":", added.Source);
         Assert.AreEqual(added.Source.LastIndexOf("\"\"", StringComparison.Ordinal) + 1, added.Caret);
 
-        Assert.AreEqual(Map + "\n\"\": 10", Changed(Map, TreemapWriting.Added), "at the top, worth the first box written");
+        Assert.AreEqual(Map + "\n\"\":", Changed(Map, TreemapWriting.Added), "at the top too");
+    }
+
+    [TestMethod, TestCategory("Unit")]
+    public void AGroupLeftWithNothingInItIsABoxWithItsValueStillToWrite()
+    {
+        Assert.AreEqual("treemap-beta\n\"S\"\n    \"A\": 10\n    \"B\": 20\n    \"C\": 30\n\"T\":",
+                        Changed(Map, root => TreemapWriting.MovedInto(root, [Item(root, "C")], Item(root, "S"), 0)!), "its last box dragged out");
+        Assert.AreEqual("treemap-beta\n\"S\"\n    \"A\": 10\n    \"B\": 20\n\"T\":",
+                        Changed(Map, root => TreemapWriting.Removed(root, [Item(root, "C")])!), "its last box taken out");
+        Assert.AreEqual("treemap-beta\n\"T\"\n    \"C\": 30",
+                        Changed(Map, root => TreemapWriting.Removed(root, [Item(root, "S"), Item(root, "A")])!), "a group going with its boxes goes");
     }
 
     [TestMethod, TestCategory("Unit")]
     public void TheFirstItemGoesAfterEverythingTheBlockHolds()
     {
-        Assert.AreEqual("treemap-beta\n\"\": 1", Changed("treemap-beta", TreemapWriting.Added));
-        Assert.AreEqual("treemap-beta\ntitle Spend\n\"\": 1\n", Changed("treemap-beta\ntitle Spend\n", TreemapWriting.Added),
+        Assert.AreEqual("treemap-beta\n\"\":", Changed("treemap-beta", TreemapWriting.Added));
+        Assert.AreEqual("treemap-beta\ntitle Spend\n\"\":\n", Changed("treemap-beta\ntitle Spend\n", TreemapWriting.Added),
                         "keeping the line ending the block closes with");
     }
 
@@ -134,7 +145,7 @@ public class TreemapWritingTests
     public void AnItemTakenOutTakesEverythingUnderIt_AndLeavesNoEmptyLine()
     {
         Assert.AreEqual("treemap-beta\n\"T\"\n    \"C\": 30", Changed(Map, root => TreemapWriting.Removed(root, [Item(root, "S")])!));
-        Assert.AreEqual("treemap-beta\n\"S\"\n    \"A\": 10\n    \"B\": 20\n\"T\"", Changed(Map, root => TreemapWriting.Removed(root, [Item(root, "C")])!));
+        Assert.AreEqual("treemap-beta\n\"S\"\n    \"B\": 20\n\"T\"\n    \"C\": 30", Changed(Map, root => TreemapWriting.Removed(root, [Item(root, "A")])!));
         Assert.AreEqual("treemap-beta", Changed(Map, root => TreemapWriting.Removed(root, [Item(root, "S"), Item(root, "T")])!), "nothing left at all");
     }
 

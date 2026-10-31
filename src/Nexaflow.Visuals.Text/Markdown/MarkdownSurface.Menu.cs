@@ -37,18 +37,22 @@ public sealed partial class MarkdownSurface
     /// <summary>
     /// Shows what may be done at <paramref name="at"/> — a point on the document as drawn — and says whether there was
     /// anything. A press outside what is picked out puts the caret where it landed first, which is what every editor does:
-    /// a reader right-clicking a word means that word.
+    /// a reader right-clicking a word means that word. A press on something picked out keeps all of it picked out — a tile among the
+    /// boxes Ctrl+clicked — though the place a caret would go there may be outside it.
     /// </summary>
     internal bool ShowContextRibbon(Point at)
     {
         Focus();
 
         var zoom = _shown.Zoom;
-        var offset = _shown.Laid.Root.OffsetAt(new LayoutPoint(at.X / zoom, at.Y / zoom));
+        var point = new LayoutPoint(at.X / zoom, at.Y / zoom);
+        var offset = _shown.Laid.Root.OffsetAt(point);
+        var pressed = _shown.Laid.Root.PieceAt(point).Selectable().Sits();
         var state = _shown.Current;
 
-        if (!state.HasSelection || !state.Selection.Any(range => offset >= range.Start && offset <= range.End))
-            _shown.MoveCaretTo(offset);
+        var onPicked = state.Selection.Any(range => (offset >= range.Start && offset <= range.End)
+                                                    || (pressed.Length > 0 && pressed.Start >= range.Start && pressed.End <= range.End));
+        if (!onPicked) _shown.MoveCaretTo(offset);
 
         if (_shown.BuildRibbon(at) is not { } ribbon) return false;
 

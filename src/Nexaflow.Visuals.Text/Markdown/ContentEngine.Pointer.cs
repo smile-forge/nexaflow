@@ -307,7 +307,7 @@ public sealed partial class ContentEngine
             // means the slice, which is what the ordinary rules already do with it.
             if (_readOnly || !words.Writes) return false;
 
-            Apply(_state.MoveCaretTo(part.Start) with { Raw = new RawZone(part.Start, part.End()) }, notify: false);
+            Apply(_state.MoveCaretTo(part.Start) with { Raw = Opened(part.Start, part.End()) }, notify: false);
         }
 
         TakeCaret(_laid.Root.OffsetAt(_pressedAt), -1);

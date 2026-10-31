@@ -19,16 +19,13 @@ namespace Nexaflow.Markdown.Treemap;
 /// </para>
 /// <para>
 /// An item goes with everything under it, and keeps every character it says but the value a change gives it; only its indentation
-/// changes as it moves, which is what says what it is in. A box put in is worth what a box beside it is, so it is drawn the size of
-/// its neighbours rather than too small to see. A value a change works out is written as the values beside it are — grouped with
-/// commas where one of them is.
+/// changes as it moves, which is what says what it is in. A box put in has its value still to write, and waits under the map until it
+/// is given one; a group left with nothing in it becomes such a box rather than nothing anybody can give a value to. A value a change
+/// works out is written as the values beside it are — grouped with commas where one of them is.
 /// </para>
 /// </summary>
 public static class TreemapWriting
 {
-    /// <summary>What a box put in is worth where there is no box to go by.</summary>
-    private const string One = "1";
-
     /// <summary>The treemap's items as an outline.</summary>
     public static OutlineWriting Outline(ContentPart root) => OutlineWriting.Of(root, TreemapKinds.Node, Lead);
 
@@ -60,12 +57,11 @@ public static class TreemapWriting
     /// <summary>Whether <paramref name="items"/> are two or more boxes, each with a value to add to the rest — what merging them needs.</summary>
     public static bool Merges(IReadOnlyList<ContentPart> items) => items.Count > 1 && items.All(Mergeable);
 
-    /// <summary>A box put in after everything, worth what the first box written is, and the caret in its label.</summary>
-    public static ContentChange Added(ContentPart root) => Outline(root).Inserted(Fresh(Like(root)), null, OutlineSide.After, 1);
+    /// <summary>A box put in after everything, its value still to write, and the caret in its label.</summary>
+    public static ContentChange Added(ContentPart root) => Outline(root).Inserted(Waiting, null, OutlineSide.After, 1);
 
-    /// <summary>A box put in <paramref name="group"/> after the items already there, worth what the first box in it is, and the caret in its label.</summary>
-    public static ContentChange AddedInside(ContentPart root, ContentPart group) =>
-        Outline(root).Inserted(Fresh(Like(group)), group, OutlineSide.Inside, 1);
+    /// <summary>A box put in <paramref name="group"/> after the items already there, its value still to write, and the caret in its label.</summary>
+    public static ContentChange AddedInside(ContentPart root, ContentPart group) => Outline(root).Inserted(Waiting, group, OutlineSide.Inside, 1);
 
     /// <summary>
     /// <paramref name="item"/> split in two: it worth half what it was and a box after it, worth the other half, with the caret in the
@@ -93,8 +89,11 @@ public static class TreemapWriting
         var total = items.Sum(item => WorthOf(item)!.Value);
         var grouped = items.Any(item => Number(item)!.Text.Contains(TreemapValues.Grouped, StringComparison.Ordinal));
 
-        return Outline(root).Removed([.. items.Where(item => !ReferenceEquals(item, into))], AfterLabel(into),
-                                     new Dictionary<ContentPart, string> { [into] = Restated(into, number, Spelled(total, grouped)) });
+        List<ContentPart> others = [.. items.Where(item => !ReferenceEquals(item, into))];
+        var bodies = Emptied(root, others);
+        bodies[into] = Restated(into, number, Spelled(total, grouped));
+
+        return Outline(root).Removed(others, AfterLabel(into), bodies);
     }
 
     /// <summary>
@@ -113,9 +112,12 @@ public static class TreemapWriting
     /// <summary>The items in <paramref name="group"/> let out into the group around it where it stood, and its own line taken out.</summary>
     public static ContentChange? Ungrouped(ContentPart root, ContentPart group) => Holds(group) ? Outline(root).Ungrouped(group) : null;
 
-    /// <summary><paramref name="items"/> taken out, with everything under them — the caret where <paramref name="caret"/> says, where it says.</summary>
+    /// <summary>
+    /// <paramref name="items"/> taken out, with everything under them — the caret where <paramref name="caret"/> says, where it says. A
+    /// group left with nothing in it is a box with its value still to write, so it can be given one rather than left as nothing.
+    /// </summary>
     public static ContentChange? Removed(ContentPart root, IReadOnlyList<ContentPart> items, OutlineCaret? caret = null) =>
-        Outline(root).Removed(items, caret);
+        Outline(root).Removed(items, caret, Emptied(root, items));
 
     /// <summary>
     /// <paramref name="item"/>, a box with nothing written in its label, taken back into the box beside it — as Backspace joins a line
@@ -141,15 +143,16 @@ public static class TreemapWriting
 
     /// <summary>
     /// <paramref name="items"/> moved into <paramref name="holder"/> — a group, after what it holds, or the treemap itself, after
-    /// everything at its top — with everything under them. Null where they are all in it already, or it is one of them or in one.
+    /// everything at its top — with everything under them; a group they leave with nothing in it a box with its value still to write.
+    /// Null where they are all in it already, or it is one of them or in one.
     /// </summary>
     public static ContentChange? MovedInto(ContentPart root, IReadOnlyList<ContentPart> items, ContentPart holder, int caret)
     {
         if (items.All(item => ReferenceEquals(HolderOf(root, item), holder))) return null;
-        if (!ReferenceEquals(holder, root)) return Outline(root).Moved(items, holder, OutlineSide.Inside, caret);
+        if (!ReferenceEquals(holder, root)) return Outline(root).Moved(items, holder, OutlineSide.Inside, caret, Emptied(root, items));
 
         return ItemsIn(root).LastOrDefault(top => !items.Any(item => ReferenceEquals(item, top))) is { } last
-            ? Outline(root).Moved(items, last, OutlineSide.After, caret)
+            ? Outline(root).Moved(items, last, OutlineSide.After, caret, Emptied(root, items))
             : null;
     }
 
@@ -165,6 +168,28 @@ public static class TreemapWriting
     /// <summary>The items written directly in <paramref name="holder"/> — a group, or the treemap itself — in the order written.</summary>
     private static IEnumerable<ContentPart> ItemsIn(ContentPart holder) =>
         holder.Children.Where(part => part.Kind == TreemapKinds.Node && part.Node is TreemapNode);
+
+    /// <summary>
+    /// What each group <paramref name="items"/> leave with nothing in it says once they have gone: a box with its value still to write —
+    /// for a group with nothing in it is worth nothing and drawn nowhere a reader can give it anything. A group that goes with them, or
+    /// already says a value, says what it says.
+    /// </summary>
+    private static Dictionary<ContentPart, string> Emptied(ContentPart root, IReadOnlyList<ContentPart> items)
+    {
+        var going = items.ToHashSet(ReferenceEqualityComparer.Instance);
+        var bodies = new Dictionary<ContentPart, string>(ReferenceEqualityComparer.Instance);
+
+        foreach (var holder in items.Select(item => HolderOf(root, item)).Distinct(ReferenceEqualityComparer.Instance).Cast<ContentPart>())
+        {
+            var goes = false;
+            for (var at = holder; at is not null && !goes; at = ItemOf(at.Parent)) goes = going.Contains(at);
+
+            if (!ReferenceEquals(holder, root) && !goes && Value(holder) is null && ItemsIn(holder).All(going.Contains))
+                bodies[holder] = Valued(holder, string.Empty);
+        }
+
+        return bodies;
+    }
 
     /// <summary>Whether <paramref name="item"/> is a box whose value reads — one that can be merged with another.</summary>
     private static bool Mergeable(ContentPart item) => !Holds(item) && WorthOf(item) is not null;
@@ -197,13 +222,8 @@ public static class TreemapWriting
     /// <summary>A box still to be called anything, worth <paramref name="worth"/>.</summary>
     private static string Fresh(string worth) => $"{Unnamed}{TreemapParser.Colon} {worth}";
 
-    /// <summary>
-    /// What a box put in among what <paramref name="beside"/> holds is worth: the value written for the first box in it — one, where none
-    /// is written.
-    /// </summary>
-    private static string Like(ContentPart beside) =>
-        beside.SelfAndDescendants().Where(part => part.Kind == TreemapKinds.Node).Select(Value).OfType<ContentPart>().Select(Written).OfType<string>().FirstOrDefault()
-        ?? One;
+    /// <summary>A box still to be called anything, its value still to write: a hole after its colon, where the caret goes from its label.</summary>
+    private static string Waiting => $"{Unnamed}{TreemapParser.Colon}";
 
     /// <summary>The number written in a value, where it is one — as it is written, so it keeps the reader's way of writing numbers.</summary>
     private static string? Written(ContentPart value) =>
@@ -229,13 +249,16 @@ public static class TreemapWriting
         return body[..(label.End - start)] + body[(value.End - start)..];
     }
 
-    /// <summary>What <paramref name="item"/>'s line says after its indentation, its value given after its label as <paramref name="worth"/>.</summary>
+    /// <summary>
+    /// What <paramref name="item"/>'s line says after its indentation, its value given after its label as <paramref name="worth"/> — or,
+    /// where that is nothing, the colon alone, a hole after it where the value is still to write.
+    /// </summary>
     private static string Valued(ContentPart item, string worth)
     {
         var (body, start) = Body(item);
         var at = item.Children[0].Stated()!.Inner(TreemapKinds.Label)!.End - start;
 
-        return body[..at] + $"{TreemapParser.Colon} {worth}" + body[at..];
+        return body[..at] + TreemapParser.Colon + (worth.Length > 0 ? " " + worth : string.Empty) + body[at..];
     }
 
     /// <summary>What <paramref name="item"/>'s line says after its indentation, the number written as its value saying <paramref name="worth"/> instead.</summary>

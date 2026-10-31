@@ -119,14 +119,15 @@ public sealed class OutlineWriting
     /// <summary>
     /// <paramref name="items"/> moved beside <paramref name="onto"/> — in front of it, after it, or under it after its last child — with
     /// everything under them; null where that is onto one of them, or anything under one. The caret stays where it was in what an item
-    /// says, or goes to the start of the first of them.
+    /// says, or goes to the start of the first of them. Where <paramref name="bodies"/> says, items say something else as well: one they
+    /// left with nothing under it saying what it is worth, say.
     /// </summary>
-    public ContentChange? Moved(IReadOnlyList<ContentPart> items, ContentPart onto, OutlineSide side, int caret)
+    public ContentChange? Moved(IReadOnlyList<ContentPart> items, ContentPart onto, OutlineSide side, int caret, IReadOnlyDictionary<ContentPart, string>? bodies = null)
     {
         var tops = Tops(items);
         if (tops.Count == 0 || Find(onto) is not { } target || Under(target, tops)) return null;
 
-        return Placed(tops, target, side, caret);
+        return Placed(tops, target, side, caret, bodies);
     }
 
     /// <summary><paramref name="items"/> a level in: under the item before them, after its last child — null where there is none to go under.</summary>
@@ -326,14 +327,15 @@ public sealed class OutlineWriting
         }
     }
 
-    /// <summary><paramref name="tops"/> moved beside <paramref name="target"/>, the caret kept in what it was in.</summary>
-    private ContentChange Placed(List<Entry> tops, Entry target, OutlineSide side, int caret)
+    /// <summary><paramref name="tops"/> moved beside <paramref name="target"/>, the caret kept in what it was in, and what <paramref name="bodies"/> names saying what it says.</summary>
+    private ContentChange Placed(List<Entry> tops, Entry target, OutlineSide side, int caret, IReadOnlyDictionary<ContentPart, string>? bodies = null)
     {
         // The item the caret is in, and how far into what it says — where it is in one at all.
         var holding = Preorder(_forest).FirstOrDefault(entry => Body(entry) is var (from, to) && from <= caret && caret <= to);
         var into = holding is not null ? caret - Body(holding).From : 0;
 
         Put(tops, target, side);
+        Say(bodies);
 
         return Written(placed => holding is not null ? placed[holding] + into : placed[tops[0]]);
     }

@@ -61,7 +61,7 @@ internal static class DiagramWriting
                          : quoted ? (writing.Start + 1, writing.Start + writing.Text.Length - 1)
                          : (writing.Start, writing.Start + writing.Text.Length);
 
-        RawZone? raw = state.Raw is { } zone && zone.Holds(caret) ? new RawZone(zone.Start, zone.End + grown)
+        RawZone? raw = state.Raw is { } zone && zone.Holds(caret) ? zone with { End = zone.End + grown }
                      : MermaidText.Decode(source[start..end]) != source[start..end] ? new RawZone(start, end)
                      : null;
 
