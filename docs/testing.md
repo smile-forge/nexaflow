@@ -540,8 +540,21 @@ picking everything out — over a generated lecture script about a megabyte long
 `docs/MarkdownSupport.md`. Each is a median, the step nine in ten come under, and the worst. It writes one JSON file per run
 and asserts nothing.
 
+What **writing** costs is its own test and its own file (`WhatWritingInADocumentCosts`, `markdown-writing-bench-*.json`),
+because an edit laid as a changed string pays for laying out and painting and nothing else. Its keys go in as the window's
+do (`ContentEngine.Input`), to a `MarkdownSurface` in a window, each timed until the window is idle, so the edit, the history
+kept, the host told, laying out and painting are all in it. Over generated prose and C# at 50 KB, 1 MB and 50 MB, and prose
+holding a 1 MB and a 5 MB C# fence, it times a keystroke at the top, middle and end (in and after the fence), taking back
+the last step, taking back fifty one at a time, pasting a megabyte and carrying a word down the screen, each with what it
+allocated, and says what fifty steps of history hold. It is bounded, since today's costs are what it measures: a size whose
+opening, scaled from the size before it, would take over a minute is skipped, as is a place whose laying down to (timed as `reachMs`, scaled as the square of the distance from the size before) would, a step stops being repeated once its repeats
+pass a minute, and fifty steps that would hold over 2 GB are not written — each recorded with why. The run is written again
+after every document, with a `.log` beside it naming each step as it starts, so a stopped run keeps what it finished.
+
 ```powershell
 tools/bench/Run-MarkdownBench.ps1 -Label "what changed"     # Release; runs kept in %LOCALAPPDATA%\Nexaflow\markdown-bench
+tools/bench/Run-MarkdownBench.ps1 -Part Writing             # only what writing costs; -Part Layout for only the rest
+tools/bench/Run-MarkdownBench.ps1 -Part Writing -Only fence # only the documents whose names hold "fence"
 ```
 
 Compare runs taken on one machine in one configuration; the absolute numbers mean little on their own. Release is the

@@ -11,6 +11,13 @@
   is open - scrolling it a screen and a wheel turn at a time, jumping about it, pointing, dragging and picking everything out -
   on a surface in a window, over a generated lecture script full of formulas and docs/MarkdownSupport.md.
 
+  And what writing costs as a reader pays for it, in a file of its own (markdown-writing-bench-*.json): keys go in as the
+  window's do, to a surface in a window, each timed until the window is idle - a keystroke at the top, middle and end of
+  generated prose and code at 50 KB, 1 MB and 50 MB, and in and after a 1 MB and a 5 MB code fence; taking back one step
+  and fifty; pasting a megabyte; carrying a word down the screen; and what fifty steps of history hold. A size too slow to
+  open, a step too slow to repeat and a history too large to hold are recorded as skipped with why, and a .log beside the
+  run names each step as it starts.
+
   A timing is only worth comparing with another taken on the same machine in the same configuration. Release is the
   default because Debug checks every pipeline stage's output against its input, which is not what a user pays for.
 
@@ -22,11 +29,19 @@
 
 .PARAMETER Configuration
   Release (default) or Debug.
+
+.PARAMETER Part
+  All (default); Layout - laying out and reading the corpus; or Writing - what writing in a document costs.
+
+.PARAMETER Only
+  Writing only: part of a document's name - "fence", "code-1024" - to measure only the documents whose names hold it.
 #>
 param(
     [string]$Label = "",
     [string]$Out = (Join-Path $env:LOCALAPPDATA 'Nexaflow\markdown-bench'),
-    [ValidateSet('Release', 'Debug')][string]$Configuration = 'Release'
+    [ValidateSet('Release', 'Debug')][string]$Configuration = 'Release',
+    [ValidateSet('All', 'Layout', 'Writing')][string]$Part = 'All',
+    [string]$Only = ""
 )
 
 $ErrorActionPreference = 'Stop'
@@ -43,11 +58,24 @@ New-Item -ItemType Directory -Force $Out | Out-Null
 $env:NEXAFLOW_MARKDOWN_BENCH = $Out
 $env:NEXAFLOW_BENCH_LABEL = $Label
 $env:NEXAFLOW_BENCH_COMMIT = $commit
+$env:NEXAFLOW_WRITING_BENCH_ONLY = $Only
 
 $exe = Join-Path $root "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/bin/x64/$Configuration/net10.0-windows/Nexaflow.Tests.Visuals.exe"
-& $exe --filter "FullyQualifiedName~MarkdownLayoutBench" | Out-Null
+$filter = switch ($Part) {
+    'Layout'  { 'FullyQualifiedName~MarkdownLayoutBench.WhereLayingADocumentSpendsItsTime' }
+    'Writing' { 'FullyQualifiedName~MarkdownLayoutBench.WhatWritingInADocumentCosts' }
+    default   { 'FullyQualifiedName~MarkdownLayoutBench' }
+}
 
-$written = Get-ChildItem $Out -Filter 'markdown-bench-*.json' | Sort-Object LastWriteTime | Select-Object -Last 1
+$started = Get-Date
+& $exe --filter $filter | Out-Null
+
+function Latest($pattern) {
+    Get-ChildItem $Out -Filter $pattern | Where-Object LastWriteTime -ge $started | Sort-Object LastWriteTime | Select-Object -Last 1
+}
+
+if ($Part -ne 'Writing') {
+$written = Latest 'markdown-bench-*.json'
 if (-not $written) { throw "the run wrote nothing to $Out" }
 
 $run = Get-Content $written.FullName -Raw | ConvertFrom-Json
@@ -60,4 +88,23 @@ foreach ($read in $run.reading) {
 if ($run.rtfTotals) {
     "rich text: open {0:N0} ms  opened as a page {1:N0} ms  edit {2:N0} ms  paint {3:N0} ms  a screen {4:N0} ms  held open {5:N0} KB" -f `
         $run.rtfTotals.open, $run.rtfTotals.opened, $run.rtfTotals.edit, $run.rtfTotals.paint, $run.rtfTotals.paintShown, $run.rtfTotals.retainedOpenedKb
+}
+}
+
+if ($Part -ne 'Layout') {
+    $writing = Latest 'markdown-writing-bench-*.json'
+    if (-not $writing) { throw "the writing run wrote nothing to $Out" }
+
+    $run = Get-Content $writing.FullName -Raw | ConvertFrom-Json
+    "{0}  ({1} {2})" -f $writing.FullName, $run.configuration, $run.commit
+    foreach ($doc in $run.documents) {
+        $keys = ($doc.keystroke.PSObject.Properties | ForEach-Object {
+            if ($_.Value -is [string]) { "{0} skipped" -f $_.Name } else { "{0} p90 {1:N1} ms (reached in {2:N0} ms)" -f $_.Name, $_.Value.p90, $_.Value.reachMs }
+        }) -join '  '
+        $deep = if ($doc.undoSteps -is [string]) { 'skipped' } else { "{0:N1} ms" -f $doc.undoSteps.p90 }
+        $drag = if ($doc.drag -is [string]) { $doc.drag } else { "{0:N1} ms" -f $doc.drag.p90 }
+        "writing {0} ({1:N0} KB): open {2:N0} ms  {3}  undo p90 {4:N1} ms  fifty back p90 {5}  paste p90 {6:N0} ms  carry p90 {7}" -f `
+            $doc.name, $doc.kb, $doc.opened, $keys, $doc.undoLatest.p90, $deep, $doc.paste.p90, $drag
+    }
+    foreach ($skip in $run.skipped) { "skipped {0}: {1}" -f $skip.name, $skip.why }
 }

@@ -1,0 +1,23 @@
+{
+  "branch": "claude/document-model-bench",
+  "nodes": {
+    "markdown-long-writing": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "should",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownLayoutBench.Writing.cs",
+            "class": "MarkdownLayoutBench",
+            "method": "WhatWritingInADocumentCosts"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 1,
+  "touched_nodes": [
+    "markdown-long-writing"
+  ]
+}
