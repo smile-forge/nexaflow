@@ -14,7 +14,7 @@ namespace Nexaflow.Markdown.Ast;
 /// <strong>What a body holds is not always one stretch of the document.</strong> A fence written in a quote has the quote's
 /// <c>&gt;</c> in front of every line, and one written in a list item the item's indentation: those marks are the containers',
 /// held in the body as trivia between the lines that are the language's own. The language is handed its own characters
-/// (<see cref="Own(ContentNode)"/>) and nothing else, and what it reads is given the marks back where they stand
+/// (<see cref="ContentSpace"/>) and nothing else, and what it reads is given the marks back where they stand
 /// (<see cref="Spliced"/>), so every piece of it still names the characters it was written as in the document.
 /// </para>
 /// </summary>
@@ -44,9 +44,16 @@ public static class ContentNested
     /// The stretch of the document a body's own characters stand in: from where the body starts to the last of them, the line ending
     /// that closes its last line left out — that belongs to the line the closing delimiter stands on, and written into, it would carry
     /// what was typed onto the delimiter's line and the delimiter would no longer close anything. The marks a container put in front
-    /// of a line are inside the stretch where the body runs over several lines (<see cref="OwnAt"/>).
+    /// of a line are inside the stretch where the body runs over several lines (<see cref="ContentSpace"/>). Found from the end of the
+    /// body, without reading what it holds.
     /// </summary>
-    public static (int Start, int Length) Own(ContentPart body) => (body.Start, DocumentAt(body, Own(body.Node).Length) - body.Start);
+    public static (int Start, int Length) Own(ContentPart body) => (body.Start, OwnEnd(body.Node));
+
+    /// <summary>
+    /// How far a body's own characters reach from where it starts: to the end of the last of them, the line ending closing it left out
+    /// (<see cref="Own(ContentPart)"/>).
+    /// </summary>
+    public static int OwnEnd(ContentNode body) => Math.Max(Ends(body, body.Width), 0);
 
     /// <summary>
     /// The characters of a body that are the other language's own — what its parser is handed: every line written in it, without the
@@ -74,71 +81,44 @@ public static class ContentNested
         return said.ToString();
     }
 
-    /// <summary>Where the language's own character <paramref name="own"/> places along stands in the document — one past the last for all of them.</summary>
-    public static int DocumentAt(ContentPart body, int own)
-    {
-        if (body.Children.Count == 0) return body.Start + own;
-
-        var left = own;
-        var end = body.Start;
-
-        foreach (var leaf in body.SelfAndDescendants())
-        {
-            if (leaf.Children.Count > 0 || leaf.Derived || leaf.Role == Roles.Trivia) continue;
-            if (left < leaf.Length) return leaf.Start + left;
-
-            left -= leaf.Length;
-            end = leaf.End;
-        }
-
-        return end;
-    }
-
     /// <summary>
-    /// How many of the language's own characters stand in front of <paramref name="at"/> in the document — what a place in the document
-    /// is to the language, which was handed its own characters and none of the marks between them.
+    /// Where the last of the language's own characters under <paramref name="node"/> ends — <paramref name="end"/> being where the node
+    /// ends — the line ending closing it left out; or -1 where it holds none of them.
     /// </summary>
-    public static int OwnAt(ContentPart body, int at)
+    private static int Ends(ContentNode node, int end)
     {
-        if (body.Children.Count == 0) return Math.Clamp(at - body.Start, 0, body.Length);
-
-        var own = 0;
-
-        foreach (var leaf in body.SelfAndDescendants())
+        if (node.IsLeaf)
         {
-            if (leaf.Children.Count > 0 || leaf.Derived || leaf.Role == Roles.Trivia) continue;
-            if (at <= leaf.Start) return own;
-            if (at < leaf.End) return own + (at - leaf.Start);
+            if (node.IsDerived || node.Role == Roles.Trivia || node.Width == 0) return -1;
 
-            own += leaf.Length;
+            var closing = node.Width >= 2 && node.CharacterAt(node.Width - 1) == '\n' && node.CharacterAt(node.Width - 2) == '\r' ? 2
+                        : node.CharacterAt(node.Width - 1) == '\n' ? 1
+                        : 0;
+
+            return end - closing;
         }
 
-        return own;
+        for (var index = node.Children.Count - 1; index >= 0; index--)
+        {
+            var child = node.Children[index];
+            if (Ends(child, end) is var found and >= 0) return found;
+
+            end -= child.Width;
+        }
+
+        return -1;
     }
 
     /// <summary>
     /// What a language read of a body's own characters (<paramref name="read"/>), given back the marks the body holds between its
-    /// lines: each put in where it stands among the characters read — a piece standing over the place cut in two round it — and
-    /// every piece saying where it now stands. So the reading prints as the stretch of the document the body's own characters stand
-    /// in (<see cref="Own(ContentPart)"/>), and positioned from where the body starts, every part names the characters it was written as.
-    /// A body that is one stretch of the document is handed back as it was read.
+    /// lines (<paramref name="space"/>): each put in where it stands among the characters read — a piece standing over the place cut
+    /// in two round it — and every piece saying where it now stands. So the reading prints as the stretch of the document the body's
+    /// own characters stand in (<see cref="Own(ContentPart)"/>), and positioned from where the body starts, every part names the
+    /// characters it was written as. A body that is one stretch of the document is handed back as it was read.
     /// </summary>
-    public static ContentNode Spliced(ContentNode read, ContentNode body)
+    public static ContentNode Spliced(ContentNode read, ContentSpace space)
     {
-        if (body.IsLeaf) return read;
-
-        var cuts = new List<(int At, ContentNode Mark)>();
-        var own = 0;
-
-        foreach (var leaf in body.Leaves())
-        {
-            if (leaf.Role == Roles.Trivia) cuts.Add((own, leaf));
-            else own += leaf.Text.Length;
-        }
-
-        // Only the marks inside the characters handed over: what stands after the last of them is the closing delimiter's line.
-        var length = Own(body).Length;
-        cuts.RemoveAll(cut => cut.At >= length);
+        var cuts = space.Marks(0, space.Length).ToList();
         if (cuts.Count == 0) return read;
 
         var splice = new Splice(cuts, read.Offset ?? 0);
@@ -283,4 +263,10 @@ public sealed record ContentParse(ContentNode Tree)
     /// yet, short of the end of the reading — what it read is to be thrown away, and the stretch read again from a longer window.
     /// </summary>
     public bool NeedsMore { get; init; }
+
+    /// <summary>
+    /// Whether the language will read the same characters again, more fully, once a slower reading of them lands
+    /// (<c>ContentLanguage.SlowParser</c>) — so what was read here stands until then, and is read again when it has.
+    /// </summary>
+    public bool Provisional { get; init; }
 }

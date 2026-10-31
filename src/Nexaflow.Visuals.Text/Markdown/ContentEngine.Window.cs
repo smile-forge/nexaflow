@@ -122,10 +122,9 @@ public sealed partial class ContentEngine
 
         while (true)
         {
-            Turn();
             var taken = new Parsed(language, _named ?? string.Empty, state.Document, window.Units.Tree(window.Document, window.Taken));
 
-            laid = LaidFrom(language, _named, taken, state, style, room, readOnly);
+            laid = LaidFrom(language, _named, taken, state, style, room, readOnly, new KeptInContent(window, state.Document));
             window.Bottom = laid.Size.Height;
 
             if (!Short(window, reach, needed) || spent.Elapsed > Spent || !Took(window, reach, needed)) break;
@@ -226,6 +225,7 @@ public sealed partial class ContentEngine
     {
         _window?.Reading?.Cancel();
         _targets.Forget();
+        _whole = null;
 
         var parse = language.Windowed!();
         var first = ContentUnit.Read(parse, document, 0, StretchLength, null);
@@ -438,8 +438,11 @@ public sealed partial class ContentEngine
 }
 
 /// <summary>
-/// A large document being shown a stretch at a time: what has been read of it, how much of that is taken into the reading
-/// that is laid, and what the background reading has handed back that is not taken in yet. The engine's, and only the engine's.
+/// Content being shown, and what has been read of it: a large document a stretch at a time — how much of what is read is taken
+/// into the reading that is laid, and what the background reading has handed back that is not taken in yet — or content read
+/// whole, as one unit always taken. Either way read again from each change the engine makes to it (<see cref="Wrote"/>), with the
+/// readings of what is written inside it attached to their holders (<see cref="ContentUnit.Bodies"/>). The engine's, and only the
+/// engine's.
 /// </summary>
 internal sealed class ContentWindow(ContentLanguage language, ContentDocument document, ContentUnits units, Func<ContentStretch, ContentParse> parse)
 {

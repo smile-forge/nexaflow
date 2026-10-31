@@ -1140,7 +1140,10 @@ names the characters a reader is actually selecting in the document holding both
 That is what makes it editable rather than a picture: selection and editing go from a layout piece to its part to
 the AST node behind it, and for the formula's pieces that is the *formula's* node, at the right offset.
 
-The engine has already parsed that content with its own language, and the builder asks for its **layout tree** — `abc`,
+The engine reads that content with its own language the first time a builder asks for it and keeps the reading attached to
+the node holding it ([`ContentBody`](../src/Nexaflow.Markdown/Ast/ContentBody.cs)), carried through every edit — so writing
+anywhere else never reads it again, and writing inside it reads again only what the change reached, at any depth. The
+builder asks for its **layout tree** — `abc`,
 `lilypond`, `latex`, `smiles`, `qr` and `mermaid` itself ([`ContentLanguages`](../src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs)) — sizes its own content
 around it, and grafts the two into one combined layout tree
 ([`LayoutInset`](../src/Nexaflow.Markdown/Layout/Prose/LayoutProse.cs)). A language nothing here draws leaves the

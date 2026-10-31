@@ -294,6 +294,159 @@ public class WindowedReadingTests
         }
     }
 
+    [TestMethod]
+    public void ReadingsNestedThreeDeep_WrittenInAtEveryUnitBoundaryOfEveryLevel_ReadAsTheWrittenDocumentReadWhole()
+    {
+        foreach (var quoted in new[] { false, true })
+        {
+            var source = NestedSamples.ThreeDeep(quoted);
+            var name = quoted ? "three deep, in quotes" : "three deep";
+            var reader = new ContentReader(MarkdownParser.Windowed(), 64, MarkdownParser.Bounds);
+            var units = Attached(Read(source, MarkdownParser.Language, MarkdownParser.Windowed, 64), ContentDocument.Of(source), reader);
+
+            Assert.AreEqual(3, Depth(units), $"{name}: a reading three deep");
+
+    // Every unit boundary of every level, every holder's start — and every line, which a delimiter closing a body stands on.
+            var lines = Enumerable.Range(0, source.Length).Where(at => at == 0 || source[at - 1] == '\n');
+
+            foreach (var at in Boundaries(units).Concat(lines).Distinct().Order())
+                foreach (var (from, to, text) in new[] { (at, at, "x"), (at + 1, at + 1, "x"), (at, at, "\n"), (at, at + 1, "") })
+                {
+                    if (to > source.Length) continue;
+
+                    var edit = source[..from] + text + source[to..];
+                    var said = $"{name}, {(text.Length == 0 ? "a character taken" : Shortened(text) + " written")} at {from}";
+                    var now = ContentDocument.Of(edit);
+
+                    var (written, _, _) = units.Edited(from, to, text.Length - (to - from), now, reader.Parse, 64, bounds: MarkdownParser.Bounds);
+                    while (!written.Done) written = written.ReadOn(reader.Parse, now, 64);
+
+                    var whole = MarkdownParser.Parsing()(edit).Tree;
+                    Assert.IsTrue(written.Tree(now).Same(whole), $"{said}: {Diverged(whole, written.Tree(now))}");
+
+                    // Every body carried reads as its own characters read whole, all the way down; and with what was let go read afresh,
+                    // the readings are those of the written document read from nothing.
+                    Carried(written, now, said);
+
+                    var afresh = Attached(Read(edit, MarkdownParser.Language, MarkdownParser.Windowed, 64), now, reader);
+                    Assert.AreEqual(Count(afresh), Count(Attached(written, now, reader)), $"{said}: every body has its reading");
+                }
+        }
+    }
+
+    [TestMethod]
+    public void ABodyThreeDeep_WrittenIn_IsWrittenIntoItsReading_AndEveryOtherReadingIsKeptAsItWas()
+    {
+        var source = NestedSamples.ThreeDeep(quoted: true);
+        var reader = new ContentReader(MarkdownParser.Windowed(), 64, MarkdownParser.Bounds);
+        var units = Attached(Read(source, MarkdownParser.Language, MarkdownParser.Windowed, 64), ContentDocument.Of(source), reader);
+        var before = Bodies(units).ToList();
+
+        // A word in the third reading, deep inside it.
+        var at = source.IndexOf("third 4", StringComparison.Ordinal);
+        var now = ContentDocument.Of(source.Insert(at, "y"));
+        var (written, _, read) = units.Edited(at, at, 1, now, reader.Parse, 64, bounds: MarkdownParser.Bounds);
+
+        Assert.AreEqual(0, read, "nothing of the document is read again");
+
+        var after = Bodies(written).ToList();
+        Assert.AreEqual(before.Count, after.Count, "every reading is still attached");
+        Assert.AreEqual(3, Depth(written));
+        Carried(written, now, "a word written three deep");
+
+        // Written somewhere else, after them all: every reading is the one it was.
+        var end = source.IndexOf("After it all", StringComparison.Ordinal);
+        var later = ContentDocument.Of(source.Insert(end, "z"));
+        var (moved, _, _) = units.Edited(end, end, 1, later, reader.Parse, 64, bounds: MarkdownParser.Bounds);
+
+        CollectionAssert.AreEqual(before, Bodies(moved).ToList(), "a change after them leaves every reading as it was");
+    }
+
+    /// <summary><paramref name="units"/> with every markdown body it holds read and attached, and every body those hold, all the way down.</summary>
+    private static ContentUnits Attached(ContentUnits units, IContentCharacters characters, ContentReader reader)
+    {
+        foreach (var at in Holders(units))
+        {
+            if (units.Body(at) is null && units.Reading(at, MarkdownParser.Language, reader, characters) is var (held, _)) units = held;
+            if (units.Body(at) is { } body) units = units.Holding(at, Attached(body, reader));
+        }
+
+        return units;
+    }
+
+    private static ContentBody Attached(ContentBody body, ContentReader reader)
+    {
+        foreach (var at in Holders(body.Units))
+        {
+            if (body.Units.Body(at) is null && body.Reading(at, MarkdownParser.Language, reader) is var (held, _)) body = held;
+            if (body.Units.Body(at) is { } inner) body = body.Holding(at, Attached(inner, reader));
+        }
+
+        return body;
+    }
+
+    /// <summary>Where every holder of a markdown body in <paramref name="units"/> starts.</summary>
+    private static IEnumerable<int> Holders(ContentUnits units) =>
+        units.From(0).SelectMany(unit => unit.Unit.Tree.SelfAndDescendants()
+                                             .Where(node => !node.IsDerived && node.Offset is not null && ContentNested.Language(node) == MarkdownParser.Language)
+                                             .Select(node => unit.Start + node.Offset!.Value))
+                     .ToList();
+
+    /// <summary>
+    /// Asserts every body attached anywhere under <paramref name="units"/> — read from <paramref name="characters"/> — stands where its holder
+    /// says, holds the characters its holder holds, and reads as those characters read whole.
+    /// </summary>
+    private static void Carried(ContentUnits units, IContentCharacters characters, string said)
+    {
+        foreach (var (unit, start) in units.From(0))
+            foreach (var (at, body) in unit.Bodies)
+            {
+                var holder = unit.Tree.SelfAndDescendants().Single(node => node.Offset == at && ContentNested.Language(node) == body.Language);
+                var held = holder.Children.Single(child => child.Kind == Kinds.Nested);
+                var own = ContentNested.Own(held);
+
+                Assert.AreEqual(held.Offset - at, body.Lead, $"{said}: the body at {start + at} starts where its holder says");
+                Assert.AreEqual(held.Width, body.Width, $"{said}: the body at {start + at} is as long as its holder says");
+                Assert.AreEqual(own, body.Space.Slice(0, body.Space.Length), $"{said}: the body at {start + at} holds its holder's characters");
+
+                var whole = MarkdownParser.Parsing()(own).Tree;
+                Assert.IsTrue(body.Tree.Same(whole), $"{said}: the body at {start + at}: {Diverged(whole, body.Tree)}");
+
+                Carried(body.Units, body.Space, said);
+            }
+    }
+
+    /// <summary>Every reading attached under <paramref name="units"/>, in order, all the way down.</summary>
+    private static IEnumerable<ContentBody> Bodies(ContentUnits units) =>
+        units.From(0).SelectMany(unit => unit.Unit.Bodies).SelectMany(held => Bodies(held.Body.Units).Prepend(held.Body));
+
+    private static int Count(ContentUnits units) => Bodies(units).Count();
+
+    /// <summary>How deep the readings attached under <paramref name="units"/> go.</summary>
+    private static int Depth(ContentUnits units) =>
+        units.From(0).SelectMany(unit => unit.Unit.Bodies).Select(held => 1 + Depth(held.Body.Units)).DefaultIfEmpty(0).Max();
+
+    /// <summary>Where every unit of every reading under <paramref name="units"/> starts in the document, and where each holder of a body does.</summary>
+    private static IEnumerable<int> Boundaries(ContentUnits units, Func<int, int>? placed = null)
+    {
+        placed ??= at => at;
+
+        foreach (var (unit, start) in units.From(0))
+        {
+            yield return placed(start);
+
+            foreach (var (at, body) in unit.Bodies)
+            {
+                var opens = start + at + body.Lead;
+                var outer = placed;
+
+                yield return placed(start + at);
+
+                foreach (var inner in Boundaries(body.Units, own => outer(opens + body.Space.HolderAt(own)))) yield return inner;
+            }
+        }
+    }
+
     private static void Stitched(string source, string name, string language, Func<Func<ContentStretch, ContentParse>> windowed,
                                  Func<string, ContentNode> whole)
     {

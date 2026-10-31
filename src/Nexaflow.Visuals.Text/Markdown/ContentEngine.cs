@@ -62,11 +62,6 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// <summary>The parse each language keeps for the content asked for, and the one for what is written inside it.</summary>
     private readonly Dictionary<ContentLanguage, Func<string, ContentParse>> _parses = [];
     private readonly Dictionary<ContentLanguage, Func<string, ContentParse>> _nestedParses = [];
-
-    /// <summary>What every piece in another language read to last time and this time, by what it was written as.</summary>
-    private Dictionary<(ContentLanguage, string, string), Parsed> _before = [];
-    private Dictionary<(ContentLanguage, string, string), Parsed> _now = [];
-
     /// <summary>What the reader has opened in each diagram, by where its body starts.</summary>
     private readonly Dictionary<int, DiagramViewState> _views = [];
 
@@ -101,17 +96,18 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     public Laid Lay(string? named, EditState state, LayoutStyle style, double room, bool readOnly)
     {
         var language = Language(named);
+        var top = ReadAgain(language, named, state.Document);
 
-        Turn();
-
-        return LaidFrom(language, named, Parse(language, named, state.Document), state, style, room, readOnly);
+        return LaidFrom(language, named, top, state, style, room, readOnly, new KeptInContent(_whole!, state.Document));
     }
 
     /// <summary>
     /// What <paramref name="top"/> — <paramref name="state"/>'s source as its language read it — comes to laid out at
-    /// <paramref name="room"/>: worked over by the language's stages and laid by its builder, as any content is.
+    /// <paramref name="room"/>: worked over by the language's stages and laid by its builder, as any content is — the bodies written
+    /// inside it kept in <paramref name="holding"/>.
     /// </summary>
-    private Laid LaidFrom(ContentLanguage language, string? named, Parsed top, EditState state, LayoutStyle style, double room, bool readOnly)
+    private Laid LaidFrom(ContentLanguage language, string? named, Parsed top, EditState state, LayoutStyle style, double room, bool readOnly,
+                          Keeping holding)
     {
         Views(top);
         // What the reader opened in a diagram, or folded away of a document.
@@ -121,8 +117,9 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         var staged = Staged(top, showing);
 
         Reading = ContentReading.Of(staged, 0, top.Document);
+        _readings.AddOrUpdate(staged, holding.Address);
 
-        return Builder(language, Reading, showing, LayoutStanding.Alone).Lay(room);
+        return Builder(language, Reading, showing, LayoutStanding.Alone, holding).Lay(room);
     }
 
 
@@ -136,28 +133,22 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// </summary>
     public ContentReading Read(string? named, string source, bool writing = false)
     {
-        Turn();
         var top = Parse(Language(named), named, ContentDocument.Of(source));
 
         return ContentReading.Of(Staged(top, Showing(named ?? string.Empty, WpfStyles.Dark, writing, null, 0)), 0, top.Document);
     }
 
-    /// <summary>Starts another reading: what the last one read in other languages is kept for it, and nothing older.</summary>
-    private void Turn()
-    {
-        _before = _now;
-        _now = [];
-    }
-
     /// <summary>
-    /// Forgets what was read and laid, so the next layout reads everything again — for content shown against something else, or
-    /// read again because a slower reading of it has landed.
+    /// Forgets what was laid, so the next layout lays everything again — for content shown against something else, or read again because
+    /// a slower reading of it has landed. What was read before that slower reading landed is read again: the content itself, at once,
+    /// and each body as it is next laid (<see cref="LandedSince"/>).
     /// </summary>
     public void Forget()
     {
         _unchanged.Forget();
-        _before = [];
-        _now = [];
+        _forgotten++;
+
+        if (_whole?.Units is { Count: 1 } units && units[0].Unit.Provisional) _whole = null;
     }
 
     /// <summary>
@@ -201,25 +192,6 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         return new Parsed(language, named ?? string.Empty, document, Read(language, parse, document.ToString()).Tree);
     }
 
-    /// <summary>A piece written in another language, read by that language — or, written as it was last time, what it read to then.</summary>
-    private Parsed Nested(ContentLanguage language, string named, string text)
-    {
-        var key = (language, named, text);
-
-        if (_now.TryGetValue(key, out var kept) || _before.TryGetValue(key, out kept))
-        {
-            _now[key] = kept;
-            return kept;
-        }
-
-        if (!_nestedParses.TryGetValue(language, out var parse)) _nestedParses[language] = parse = language.Parser();
-
-        var read = new Parsed(language, named, ContentDocument.Of(text), Read(language, parse, text).Tree);
-
-        _now[key] = read;
-        return read;
-    }
-
     private ContentShowing Showing(string named, LayoutStyle style, bool writing, RawZone? shown, int at) =>
         new(named, style, writing, shown, at, _inputs) { Reads = ContentLanguages.Reads };
 
@@ -228,21 +200,23 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// its builder, and every builder is made from the same six things: what was read, what is being written, what it is drawn in,
     /// whether it is only looked at, what it is laid out in, and what hosts it.
     /// </summary>
-    private ContentBuilder Builder(ContentLanguage language, ContentReading reading, ContentShowing showing, LayoutStanding standing)
+    private ContentBuilder Builder(ContentLanguage language, ContentReading reading, ContentShowing showing, LayoutStanding standing,
+                                   Keeping holding)
     {
         var readOnly = !(language.Writable && showing.Writing);
 
         return Makers.GetOrAdd(language.Builder, Maker)(
             reading, EditState.For(reading.Document) with { Raw = showing.Shown }, showing.Style, readOnly, WpfMedium.OnThisThread,
-            Hosting(showing, standing, writing: !readOnly));
+            Hosting(showing, standing, writing: !readOnly, holding));
     }
 
     /// <summary>
     /// What hosts content laid for <paramref name="showing"/>: where it stands, the engine laying out whatever it holds in another
-    /// language — shown as written where this showing is, and written in where it is — and what the stages found its parts to name.
+    /// language — found in <paramref name="holding"/>, shown as written where this showing is, and written in where it is — and what the
+    /// stages found its parts to name.
     /// </summary>
-    private LayoutHost Hosting(ContentShowing showing, LayoutStanding standing, bool writing) =>
-        new(standing, (holder, room, asked) => Nested(holder, room, asked, showing.Style, showing.Shown, writing))
+    private LayoutHost Hosting(ContentShowing showing, LayoutStanding standing, bool writing, Keeping holding) =>
+        new(standing, (holder, room, asked) => Nested(holder, room, asked, showing.Style, showing.Shown, writing, holding))
         {
             Pictures = Pictured,
             Links = Linked,
@@ -369,23 +343,32 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// tree it was drawn from is that language's own, and its root says so.
     ///
     /// <para>
+    /// The body's reading is the one kept where its holder was read (<paramref name="holding"/>), read the first time it is asked for;
+    /// what it holds in turn is kept in it, so a builder laying the body asks of it as this one asked of the content.
+    /// </para>
+    /// <para>
     /// A failure here is the block's, not the document's. Reading or working over nested content happens while the builder
     /// asking is part-way through laying its own, so letting a throw out would blame a whole document for one block of it.
     /// What could not be read comes back as that block shown as it is written, with why — which is what the builder asking
     /// already does with a block it cannot draw. Null keeps its own meaning: nothing is nested here.
     /// </para>
     /// </summary>
-    internal LayoutInset? Nested(ContentPart holder, double room, LayoutStanding standing, LayoutStyle style, RawZone? shown, bool writing)
+    private LayoutInset? Nested(ContentPart holder, double room, LayoutStanding standing, LayoutStyle style, RawZone? shown, bool writing,
+                                Keeping holding)
     {
         if (ContentNested.Language(holder) is not { } named || holder.Part(Roles.Body) is not { } body
             || ContentLanguages.For(named) is not { } language) return null;
 
-        // The language is handed its own characters — the lines written in it, without what a quote or a list put in front of each.
-        var text = ContentNested.Own(body.Node);
-
         try
         {
-            var read = Nested(language, named, text);
+            // Found where its holder was read; content a binding supplied was read nowhere, and is read here, for this laying out.
+            var at = holding.At(holder.Start);
+            var reading = (body.Supplied ? null : Body(holding, at, named, language, body.Length)) ?? Unheld(named, language, body);
+
+            // Where its own characters stand in the document: past the marks of every container they are written in, at every level up.
+            var placed = body.Supplied ? ContentSpace.Of(ContentDocument.Of(body.Node.Print()), 0, body.Node)
+                                       : ContentSpace.Of(holding.Document, body.Start, body.Node);
+            Keeping within = holding.Held(at) == reading ? new KeptInBody(holding, at, body.Start, placed) : new KeptNowhere(holding.Document);
 
             // Its own openings, or those of the diagram holding it — never the sections of the document it is written in.
             if (Opened(holder) is { } view) style = style with { Expansion = view.Expansion };
@@ -395,29 +378,23 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
             // between its lines are not among.
             var showing = Showing(named, style, writing,
                                   shown is { } zone && ContentNested.Holds(body, zone.Start, zone.End)
-                                      ? new RawZone(body.Start + ContentNested.OwnAt(body, zone.Start), body.Start + ContentNested.OwnAt(body, zone.End))
+                                      ? new RawZone(body.Start + placed.OwnAt(zone.Start - body.Start), body.Start + placed.OwnAt(zone.End - body.Start))
                                       : null,
                                   body.Start);
 
-            // And what it read is given those marks back where they stand, so every part names its characters in the document.
-            // A body that is one stretch of the document is read from the very characters it was handed: nothing is copied again.
-            var characters = body.Children.Count == 0 ? read.Document : ContentDocument.Of(Stretch(body, text));
-            var reading = ContentReading.Of(ContentNested.Spliced(Staged(read, showing), body.Node), body.Start, characters);
-            return new LayoutInset(Builder(language, reading, showing, standing).Lay(room));
+            // What it read is given those marks back where they stand, so every part names its characters in the document.
+            var read = new Parsed(language, named, Stretched(reading, holding.Document, body), reading.Tree);
+            var root = ContentNested.Spliced(Staged(read, showing), placed);
+            _readings.AddOrUpdate(root, within.Address);
+
+            return new LayoutInset(Builder(language, ContentReading.Of(root, body.Start, read.Document), showing, standing, within).Lay(room));
         }
         catch (Exception error)
         {
-            var written = Stretch(body, text);
+            var written = body.Node.Print()[..ContentNested.Own(body).Length];
 
             return new LayoutInset(Unreadable(written, body.Start, Str.Format("Text.Content.CouldNotRead", error.Message),
                                                style, !(language.Writable && writing), room));
         }
     }
-
-    /// <summary>
-    /// The stretch of the document a body's own characters stand in — <paramref name="own"/> itself, where the body is one run of
-    /// them, and otherwise with a container's marks between its lines.
-    /// </summary>
-    private static string Stretch(ContentPart body, string own) =>
-        body.Children.Count == 0 ? own : body.Node.Print()[..ContentNested.Own(body).Length];
 }

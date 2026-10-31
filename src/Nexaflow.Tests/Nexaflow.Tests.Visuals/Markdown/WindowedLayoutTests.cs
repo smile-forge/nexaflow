@@ -156,6 +156,41 @@ public class WindowedLayoutTests
 
     [TestMethod]
     [CoversNode("windowed-reading")]
+    public void ReadingsNestedThreeDeep_WrittenInAtEveryLineOfEveryLevel_AreLaidAsTheWrittenDocumentLaidWhole()
+    {
+        foreach (var quoted in new[] { false, true })
+        {
+            var text = NestedSamples.ThreeDeep(quoted);
+            var name = quoted ? "three deep, in quotes" : "three deep";
+
+            // Every reading at every depth read a few dozen characters at a time: a unit only ever stops where a line starts, so writing
+            // at every line, and a character into it, writes at every unit boundary of every level.
+            var engine = Shown(text, null, new ContentEngine { WindowedFrom = 0, StretchLength = 64 });
+            ToTheEnd(engine);
+
+            var lines = Enumerable.Range(0, text.Length).Where(at => at == 0 || text[at - 1] == '\n').ToList();
+
+            foreach (var at in lines)
+                foreach (var (start, length, written) in new[] { (at, 0, "x"), (at + 1, 0, "x"), (at, 0, "\n"), (at, 1, "") })
+                {
+                    if (start + length > text.Length) continue;
+
+                    var before = engine.State.Document;
+                    var after = before.Apply(ContentChange.Write(start, length, written));
+                    var said = $"{name}, {(written.Length == 0 ? "a character taken" : written.Replace("\n", "\\n") + " written")} at {start}";
+
+                    engine.Apply(engine.State with { Document = after, Caret = Math.Min(engine.State.Caret, after.Length), Selected = null }, notify: false);
+                    Same(Whole(after.ToString(), null), ToTheEnd(engine), said);
+
+                    engine.Apply(engine.State with { Document = after.Apply(after.Inverse!), Caret = 0, Selected = null }, notify: false);
+                }
+
+            Same(Whole(text, null), ToTheEnd(engine), $"{name}, every edit taken back");
+        }
+    }
+
+    [TestMethod]
+    [CoversNode("windowed-reading")]
     public void ALongRtfDocumentWrittenIn_IsLaidAsTheDocumentItBecameLaidWhole()
     {
         var text = RtfParagraphs(1500);

@@ -58,10 +58,15 @@ public sealed partial class ContentEngine
 
     /// <summary>
     /// <paramref name="text"/>, read: by the language's second reading where it has landed, and otherwise by
-    /// <paramref name="parse"/> — starting the second reading where the language has one and nobody has asked for it yet.
+    /// <paramref name="parse"/> — starting the second reading where the language has one and nobody has asked for it yet, and saying
+    /// that what was read stands only until it lands (<see cref="ContentParse.Provisional"/>).
     /// </summary>
-    private ContentParse Read(ContentLanguage language, Func<string, ContentParse> parse, string text) =>
-        language.SlowParser is { } slow && Later(new(language, null, ContentDocument.Of(text)), () => slow(text)) is ContentParse landed ? landed : parse(text);
+    private ContentParse Read(ContentLanguage language, Func<string, ContentParse> parse, string text)
+    {
+        if (language.SlowParser is not { } slow) return parse(text);
+
+        return Later(new(language, null, ContentDocument.Of(text)), () => slow(text)) is ContentParse landed ? landed : parse(text) with { Provisional = true };
+    }
 
     /// <summary>
     /// A slow stage, where it stands among the stages <paramref name="read"/> is worked over by: what it found hung on the tree where
@@ -92,6 +97,12 @@ public sealed partial class ContentEngine
 
         ThreadPool.QueueUserWorkItem(static job => Land(job.Key, job.Work), (Key: key, Work: work), preferLocal: false);
         return null;
+    }
+
+    /// <summary>Whether the slow work kept by <paramref name="key"/> has landed — asking for nothing to be started.</summary>
+    private static bool HasLanded(Kept key)
+    {
+        lock (Slow) return Landed.ContainsKey(key);
     }
 
     /// <summary>Does the slow work kept by <paramref name="key"/>, keeps what it came to, and tells every engine that asked for it.</summary>

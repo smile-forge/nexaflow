@@ -5,6 +5,12 @@ public interface IContentWidth
 {
     /// <summary>How many characters it stands for.</summary>
     int Width { get; }
+
+    /// <summary>
+    /// How many characters it spreads over in what holds it: its <see cref="Width"/>, where nothing stands between its characters —
+    /// more, where something else's characters do, as a container's marks stand between the lines of a fence written in a quote.
+    /// </summary>
+    int Spread => this.Width;
 }
 
 /// <summary>
@@ -50,6 +56,68 @@ public sealed class ContentIndex<T> where T : IContentWidth
 
     /// <summary>How many characters they stand for, together.</summary>
     public int Width => _root?.Width ?? 0;
+
+    /// <summary>How many characters they spread over, together (<see cref="IContentWidth.Spread"/>).</summary>
+    public int Spread => _root?.Spread ?? 0;
+
+    /// <summary>The thing at <paramref name="index"/>, where it starts, and where it starts spread over what holds it.</summary>
+    public (T Item, int Start, int Spread) Placed(int index)
+    {
+        if (index < 0 || index >= this.Count) throw new ArgumentOutOfRangeException(nameof(index), $"{index} is not among the {this.Count} held");
+
+        var (node, start, spread) = (_root!, 0, 0);
+
+        while (node is Branch branch)
+            foreach (var child in branch.Children)
+            {
+                if (index < child.Count) { node = child; break; }
+
+                index -= child.Count;
+                start += child.Width;
+                spread += child.Spread;
+            }
+
+        var items = ((Leaf)node).Items;
+
+        for (var before = 0; before < index; before++)
+        {
+            start += items[before].Width;
+            spread += items[before].Spread;
+        }
+
+        return (items[index], start, spread);
+    }
+
+    /// <summary>
+    /// Which thing's spread holds <paramref name="offset"/> (<see cref="IContentWidth.Spread"/>): the first whose spread ends past
+    /// it — the last, for an offset at or past the end of them all — or -1 where there is nothing.
+    /// </summary>
+    public int IndexAtSpread(int offset)
+    {
+        if (_root is null) return -1;
+        if (offset >= _root.Spread) return _root.Count - 1;
+
+        var (node, index) = (_root, 0);
+
+        while (node is Branch branch)
+            foreach (var child in branch.Children)
+            {
+                if (offset < child.Spread) { node = child; break; }
+
+                offset -= child.Spread;
+                index += child.Count;
+            }
+
+        foreach (var item in ((Leaf)node).Items)
+        {
+            if (offset < item.Spread) return index;
+
+            offset -= item.Spread;
+            index++;
+        }
+
+        return index - 1;
+    }
 
     /// <summary>The thing at <paramref name="index"/>, and where it starts.</summary>
     public (T Item, int Start) this[int index]
@@ -157,34 +225,36 @@ public sealed class ContentIndex<T> where T : IContentWidth
 
     // ── The tree ────────────────────────────────────────────────────────────
 
-    private abstract class Node(int count, int width, int height)
+    private abstract class Node(int count, int width, int spread, int height)
     {
         public int Count { get; } = count;
 
         public int Width { get; } = width;
+
+        public int Spread { get; } = spread;
 
         public int Height { get; } = height;
 
         public abstract bool Filled { get; }
     }
 
-    private sealed class Leaf(T[] items) : Node(items.Length, Summed(items), 0)
+    private sealed class Leaf(T[] items) : Node(items.Length, Summed(items, false), Summed(items, true), 0)
     {
         public T[] Items { get; } = items;
 
         public override bool Filled => this.Items.Length >= LeafLeast;
 
-        private static int Summed(T[] items)
+        private static int Summed(T[] items, bool spread)
         {
             var width = 0;
-            foreach (var item in items) width += item.Width;
+            foreach (var item in items) width += spread ? item.Spread : item.Width;
 
             return width;
         }
     }
 
     private sealed class Branch(Node[] children)
-        : Node(children.Sum(child => child.Count), children.Sum(child => child.Width), children[0].Height + 1)
+        : Node(children.Sum(child => child.Count), children.Sum(child => child.Width), children.Sum(child => child.Spread), children[0].Height + 1)
     {
         public Node[] Children { get; } = children;
 

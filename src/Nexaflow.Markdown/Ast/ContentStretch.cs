@@ -43,6 +43,59 @@ public sealed record ContentUnit(int Width, object? Begun, object? Ended, bool L
     /// <summary>Its tree where it was last placed, and where that was.</summary>
     private Placing? _placed;
 
+    /// <summary>A copy, with nothing placed yet: a copy may hold another tree.</summary>
+    private ContentUnit(ContentUnit original)
+    {
+        this.Width = original.Width;
+        this.Begun = original.Begun;
+        this.Ended = original.Ended;
+        this.Last = original.Last;
+        this.Tree = original.Tree;
+        this.Bodies = original.Bodies;
+        this.Provisional = original.Provisional;
+    }
+
+    /// <summary>
+    /// The readings of the bodies it holds written in other languages, each at the place its holder starts in the unit, in order —
+    /// those read so far: a body is read when something asks for it (<see cref="ContentBody"/>).
+    /// </summary>
+    public IReadOnlyList<(int At, ContentBody Body)> Bodies { get; init; } = [];
+
+    /// <summary>Whether its language will read it again once a slower reading lands (<see cref="ContentParse.Provisional"/>).</summary>
+    public bool Provisional { get; init; }
+
+    /// <summary>The reading of the body held by the holder starting at <paramref name="at"/> in the unit, or null where none is read.</summary>
+    public ContentBody? Body(int at)
+    {
+        foreach (var (held, body) in this.Bodies)
+            if (held == at) return body;
+
+        return null;
+    }
+
+    /// <summary>The same unit holding <paramref name="body"/> as the reading of the body held by the holder starting at <paramref name="at"/>.</summary>
+    public ContentUnit Holding(int at, ContentBody body)
+    {
+        var bodies = new List<(int At, ContentBody Body)>(this.Bodies.Count + 1);
+        var placed = false;
+
+        foreach (var (held, kept) in this.Bodies)
+        {
+            if (!placed && held >= at)
+            {
+                bodies.Add((at, body));
+                placed = true;
+                if (held == at) continue;
+            }
+
+            bodies.Add((held, kept));
+        }
+
+        if (!placed) bodies.Add((at, body));
+
+        return this with { Bodies = bodies };
+    }
+
     private sealed record Placing(int Start, ContentNode Tree);
 
     /// <summary>
@@ -85,7 +138,10 @@ public sealed record ContentUnit(int Width, object? Begun, object? Ended, bool L
             if (read.Stopped is null && !ends)
                 throw new InvalidOperationException($"A windowed parse read to the end of a window short of the end, from {from}, and neither stopped nor said it needs more.");
 
-            return new ContentUnit(read.Stopped ?? length, begun, read.Resume, read.Stopped is null, Standing(read.Tree, characters, from));
+            // Read as one unit, a reading is held as it was read; read a unit at a time, what a body holds stands for its characters.
+            var tree = softMaxLength == int.MaxValue ? read.Tree : Standing(read.Tree, characters, from);
+
+            return new ContentUnit(read.Stopped ?? length, begun, read.Resume, read.Stopped is null, tree) { Provisional = read.Provisional };
         }
     }
 
@@ -170,6 +226,42 @@ public sealed class ContentUnits
     /// <summary>The units from <paramref name="index"/> on, each with where it starts.</summary>
     public IEnumerable<(ContentUnit Unit, int Start)> From(int index) => _units.From(index);
 
+    /// <summary>The reading of the body held by the holder starting at <paramref name="at"/> in the reading, or null where none is read.</summary>
+    public ContentBody? Body(int at)
+    {
+        if (this.Count == 0) return null;
+
+        var (unit, start) = _units[_units.IndexAt(at)];
+        return unit.Body(at - start);
+    }
+
+    /// <summary>The same reading holding <paramref name="body"/> as the reading of the body held by the holder starting at <paramref name="at"/>.</summary>
+    public ContentUnits Holding(int at, ContentBody body)
+    {
+        var index = _units.IndexAt(at);
+        var (unit, start) = _units[index];
+
+        return new(this.Language, _units.Replaced(index, index + 1, [unit.Holding(at - start, body)]));
+    }
+
+    /// <summary>
+    /// The reading of the body held by the holder starting at <paramref name="at"/> — written in the language called
+    /// <paramref name="language"/>, read by <paramref name="reader"/> from <paramref name="characters"/>, the characters this reading reads —
+    /// and the reading holding it; or null where nothing starting there holds a body in that language.
+    /// </summary>
+    public (ContentUnits Units, ContentBody Body)? Reading(int at, string language, ContentReader reader, IContentCharacters characters)
+    {
+        if (this.Count == 0) return null;
+
+        var (unit, start) = _units[_units.IndexAt(at)];
+
+        if (HolderAt(unit.Tree, at - start, language) is not { } holder
+            || holder.Children.FirstOrDefault(child => child.Kind == Kinds.Nested) is not { Offset: { } offset } held) return null;
+
+        var body = ContentBody.Read(language, ContentSpace.Of(characters, start + offset, held), offset - (at - start), held.Width, reader);
+        return (this.Holding(at, body), body);
+    }
+
     /// <summary>The same, with <paramref name="unit"/> after the last read; it must not follow one that read to the end.</summary>
     public ContentUnits Added(ContentUnit unit)
     {
@@ -190,6 +282,10 @@ public sealed class ContentUnits
     public ContentNode Tree(IContentCharacters characters, int? count = null)
     {
         var taken = Math.Min(count ?? this.Count, this.Count);
+
+        // A reading of one unit is that unit's tree, as its language read it — standing nowhere where there is nothing to read.
+        if (taken == 1 && this.Count == 1 && _units[0].Item is { Last: true } whole)
+            return characters.Length > 0 || whole.Tree.Offset is null ? whole.Tree : whole.Tree.With(whole.Tree.Children, null);
         var parts = new List<ContentNode>();
         var (reached, last) = (0, (ContentNode?)null);
 
@@ -229,6 +325,13 @@ public sealed class ContentUnits
     /// is — its offsets are its own, so nothing in it moves. A change that leaves a fence open, or an RTF group, simply reads on
     /// further, as far as it reaches. What was not read before is still not read.
     /// </para>
+    /// <para>
+    /// <strong>The bodies read inside go with their holders</strong> (<see cref="ContentUnit.Bodies"/>). A unit kept keeps its own.
+    /// One written inside — where the reading's language says the body still ends where it did — is written into, and reads again
+    /// only the units of its own the change reached; and one whose unit is read again is carried to the holder that comes back in
+    /// the same language at the same place, the change mapped through, unchanged where the change missed it and written into where
+    /// it did not. Where no holder comes back, it is let go, to be read afresh when something asks for it.
+    /// </para>
     /// </summary>
     /// <param name="bounds">
     /// What the reading's language says about a body it holds when something is written inside it, so a change wholly inside one
@@ -255,6 +358,7 @@ public sealed class ContentUnits
         // again, and the unit holding it only stands for more or fewer characters.
         if (bounds is not null && this.Grown(holding, changedFrom, changedTo, by, edited, bounds) is { } grown)
             return (new(this.Language, _units.Replaced(holding, holding + 1, [grown])), holding, 0);
+
         var kept = holding > 0 && Opening(edited, _units[holding].Start, changedFrom) ? holding - 1 : holding;
         var (first, from) = _units[kept];
         var begun = first.Begun;
@@ -267,22 +371,100 @@ public sealed class ContentUnits
             // change reached it — so a unit stops in step with the old ones rather than a few characters off them for ever.
             while (next < this.Count && (_units[next].Start < changedTo || _units[next].Start + by <= from)) next++;
 
-            var length = next < this.Count ? _units[next].Start + by - from : softMaxLength;
+            // A reading read as one unit reads to its end, wherever the change was.
+            var length = next < this.Count && softMaxLength != int.MaxValue ? _units[next].Start + by - from : softMaxLength;
             var read = ContentUnit.Read(parse, edited, from, length, begun);
             reread.Add(read);
 
-            if (read.Last) return (new(this.Language, _units.Replaced(kept, this.Count, reread)), kept, reread.Count);
+            if (read.Last) return this.Reread(kept, this.Count, reread, changedFrom, changedTo, by, edited);
 
             var stop = from + read.Width;
 
             if (next < this.Count && _units[next] is var (old, start) && start + by == stop && Equals(old.Begun, read.Ended))
-                return (new(this.Language, _units.Replaced(kept, next, reread)), kept, reread.Count);
+                return this.Reread(kept, next, reread, changedFrom, changedTo, by, edited);
 
             if ((!this.Done && stop >= this.Reached + by) || stop >= enough)
-                return (new(this.Language, _units.Replaced(kept, this.Count, reread)), kept, reread.Count);
+                return this.Reread(kept, this.Count, reread, changedFrom, changedTo, by, edited);
 
             (from, begun) = (stop, read.Ended);
         }
+    }
+
+    /// <summary>
+    /// The reading with the units from <paramref name="kept"/> up to <paramref name="next"/> replaced by <paramref name="reread"/>,
+    /// the bodies they held carried to the units read again — and how many units are kept before them and how many were read.
+    /// </summary>
+    private (ContentUnits Units, int Kept, int Read) Reread(int kept, int next, List<ContentUnit> reread, int from, int to, int by,
+                                                           IContentCharacters edited)
+    {
+        var (start, left) = (_units[kept].Start, next - kept);
+
+        foreach (var (unit, at) in _units.From(kept))
+        {
+            if (left-- <= 0) break;
+
+            foreach (var (held, body) in unit.Bodies)
+            {
+                var was = at + held;
+                if (from < to && from <= was && was < to) continue;
+
+                var now = was < from ? was : was + by;
+                var (index, local) = (0, now - start);
+
+                while (index < reread.Count - 1 && local >= reread[index].Width) local -= reread[index++].Width;
+
+                if (Carried(body, reread[index].Tree, local, was, now, from, to, by, edited) is { } carried)
+                    reread[index] = reread[index].Holding(local, carried);
+            }
+        }
+
+        return (new(this.Language, _units.Replaced(kept, next, reread)), kept, reread.Count);
+    }
+
+    /// <summary>
+    /// <paramref name="body"/>, read while its holder started at <paramref name="was"/>, carried through the characters from
+    /// <paramref name="from"/> to <paramref name="to"/> being written over to the holder starting at <paramref name="local"/> in
+    /// <paramref name="tree"/> — <paramref name="now"/> in the reading: kept as it is where the change missed it, written into where it
+    /// did not — or null where nothing in the same language comes back there, or its body no longer starts where it did.
+    /// </summary>
+    private static ContentBody? Carried(ContentBody body, ContentNode tree, int local, int was, int now, int from, int to, int by,
+                                        IContentCharacters edited)
+    {
+        if (HolderAt(tree, local, body.Language) is not { } holder
+            || holder.Children.FirstOrDefault(child => child.Kind == Kinds.Nested) is not { Offset: { } offset } held
+            || offset - local != body.Lead) return null;
+
+        var (begins, ends) = (was + body.Lead, was + body.Lead + body.Width);
+        var touched = from == to ? begins <= from && from < ends : from < ends && to > begins;
+        if (!touched && held.Width == body.Width) return body;
+
+        var space = ContentSpace.Of(edited, now + body.Lead, held);
+        var own = body.Space;
+
+        // What the body holds before the change reads as it did — as far as the body still reaches: a change can end it sooner.
+        var start = Math.Min(own.OwnAt(Math.Clamp(from - begins, 0, body.Width)), space.Length);
+
+        // What the body holds past the change reads as it did only where the body still ends where it did, moved along.
+        var end = to <= ends && ends + by == now + body.Lead + held.Width ? own.OwnAt(Math.Clamp(to - begins, 0, body.Width)) : own.Length;
+
+        return body.Edited(start, Math.Max(start, end), space.Length - own.Length, space, body.Lead, held.Width);
+    }
+
+    /// <summary>The piece of <paramref name="node"/> starting at <paramref name="at"/> that holds a body written in <paramref name="language"/>, or null.</summary>
+    private static ContentNode? HolderAt(ContentNode node, int at, string language)
+    {
+        if (node.IsDerived) return null;
+
+        if (node.Offset is { } offset)
+        {
+            if (at < offset || at >= offset + node.Width) return null;
+            if (offset == at && ContentNested.Language(node) == language) return node;
+        }
+
+        foreach (var child in node.Children)
+            if (HolderAt(child, at, language) is { } found) return found;
+
+        return null;
     }
 
     /// <summary>
@@ -301,26 +483,24 @@ public sealed class ContentUnits
         if (!Holding(unit.Tree, low, high, path) || path.Count < 2) return null;
 
         var (holder, body) = (path[^2], path[^1]);
-        var (begins, ends) = (body.Offset!.Value, body.Offset.Value + body.Width);
-
-        // The line ending closing the body's last line is the closing delimiter's line's, and no part of what the body holds.
-        var closing = ends + by;
-        var tail = closing >= 2 && edited[start + closing - 1] == '\n' && edited[start + closing - 2] == '\r' ? 2
-                 : closing >= 1 && edited[start + closing - 1] == '\n' ? 1
-                 : 0;
-        if (low < begins || high > ends - tail) return null;
+        // The line ending closing the body's last line is the closing delimiter's line's, and no part of what the body holds — as
+        // the body was read: written in where it starts, the delimiter's line is written in, whatever is written there.
+        var (begins, ends) = (body.Offset!.Value, body.Offset.Value + ContentNested.OwnEnd(body));
+        if (low < begins || high > ends) return null;
 
         // The piece written in: the body itself, or the one line of it the change falls in where a container's marks stand between.
         if (!body.IsLeaf)
         {
-            var line = body.Children.FirstOrDefault(part => part.Role != Roles.Trivia && part.Offset is { } at && at <= low && high <= at + part.Width);
+            // Never across the line ending closing a line: past it is the next line, the container's marks first.
+            var line = body.Children.FirstOrDefault(part => part.Role != Roles.Trivia && part.Offset is { } at && at <= low
+                                                            && high <= at + part.Width - Closing(part));
             if (line is null || !line.IsLeaf) return null;
 
             path.Add(line);
         }
 
         var written = edited.Slice(from, to - from + by);
-        var lines = Lines(edited, start + begins, start + closing - tail, from, from + written.Length);
+        var lines = Lines(edited, start + begins, start + ends + by, from, from + written.Length);
         if (!bounds.Holds(holder, body, written, lines)) return null;
 
         var leaf = path[^1];
@@ -347,7 +527,35 @@ public sealed class ContentUnits
             grown = parent.With(children);
         }
 
-        return new ContentUnit(unit.Width + by, unit.Begun, unit.Ended, unit.Last, grown);
+        // The body written into is written into its reading, if it has one; every holder after it is moved along.
+        var (lead, bodies) = (holder.Offset!.Value, new List<(int At, ContentBody Body)>(unit.Bodies.Count));
+
+        foreach (var (held, reading) in unit.Bodies)
+        {
+            if (held != lead)
+            {
+                bodies.Add((held > lead ? held + by : held, reading));
+                continue;
+            }
+
+            var opens = held + reading.Lead;
+            var (ownFrom, ownTo) = (reading.Space.OwnAt(low - opens), reading.Space.OwnAt(high - opens));
+            var space = reading.Space.Grown(edited, start + opens, ownFrom, by);
+
+            bodies.Add((held, reading.Edited(ownFrom, ownTo, by, space, reading.Lead, reading.Width + by)));
+        }
+
+        return new ContentUnit(unit.Width + by, unit.Begun, unit.Ended, unit.Last, grown) { Bodies = bodies, Provisional = unit.Provisional };
+    }
+
+    /// <summary>How long the line ending closing <paramref name="line"/> is: two, one, or none.</summary>
+    private static int Closing(ContentNode line)
+    {
+        var width = line.Width;
+
+        return width >= 2 && line.CharacterAt(width - 1) == '\n' && line.CharacterAt(width - 2) == '\r' ? 2
+             : width >= 1 && line.CharacterAt(width - 1) == '\n' ? 1
+             : 0;
     }
 
     /// <summary>

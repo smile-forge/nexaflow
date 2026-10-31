@@ -196,7 +196,11 @@ public sealed partial class ContentEngine
         var was = (before.Caret, _at);
 
         _state = next;
-        if (changed) _window?.Wrote(before.Document, next.Document);
+        if (changed)
+        {
+            _window?.Wrote(before.Document, next.Document);
+            _whole?.Wrote(before.Document, next.Document);
+        }
 
         // A caret, or what is picked out, gone past what a long document has laid yet is laid out to — which is how a search
         // found further down, a jump to the end or a line, and choosing everything all come to be on the page.
@@ -667,7 +671,7 @@ public sealed partial class ContentEngine
         // A carry of a language's own is that language's to let go, and only in its own content: anywhere else it goes nowhere.
         if (_carry is { } carry)
         {
-            if (part is null || !ReferenceEquals(root.Node, _carriedIn)
+            if (part is null || !Equals(ReadingOf(root.Node), _carriedIn)
                 || ContentLanguages.WrittenIn(root) is not { } own || own.Editing.OnMove is not { } onMove) return null;
 
             ContentChange? answered;

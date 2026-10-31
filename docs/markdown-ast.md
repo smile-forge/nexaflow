@@ -67,11 +67,18 @@ content is set is a fact about the content. A builder that reads the display, th
 
 ## 2. The AST
 
-**The AST owns its text, and every piece of it says where that text was read from** (`ContentNode.Offset`). A parser
-says it for every piece it reads; a stage that cuts, joins or rewrites pieces says it for the pieces it makes, from the
-ones it was handed; and what a stage hangs is derived and stands for no characters at all. Where a part sits in the document is still worked out
-by a walk when somebody asks (`ContentReading`, `ContentPart`), which is what positions a language read from its own
-slice inside the document holding it.
+**The AST owns its text, and every piece of it says where that text was read from** (`ContentNode.Offset`): where in
+the unit of its reading it was read. A long reading is read a unit at a time and each unit's tree counts from the unit's
+own start (§11); content read whole is one unit, so there an offset is where in the content. A parser says it for every
+piece it reads; a stage that cuts, joins or rewrites pieces says it for the pieces it makes, from the ones it was handed;
+and what a stage hangs is derived and stands for no characters at all. Where a part sits in the document is worked out
+when somebody asks (`ContentReading`, `ContentPart`), from where its unit starts (`ContentUnits`) and where its reading's
+characters stand in those of the reading holding it (`ContentSpace`).
+
+**A piece may stand for characters without holding them** (`ContentNode.Leaf(kind, characters, start, length)`): what a
+long reading has not read yet, and a body another reading reads. It is as wide as its characters, prints as them, and
+reads them only when something asks — from the version it was read from, so a unit kept through later changes still
+reads exactly what it read.
 
 An offset means **where it was read from**, and nothing else. It is not a print position, not a hint, and not
 something an edit updates: an edit names the characters it changes, the engine writes them, and the content is read
@@ -235,20 +242,26 @@ The parser reading the outer content says only that a piece is written in anothe
 `Kinds.Language` part holding the word — a fence by the word after it, a formula by being one (nobody writes a
 language after `$$`), a diagram label by the word after its own fence. The piece's `Roles.Body` holds its characters.
 
-The **engine** then parses those characters with that language and puts the AST in the piece's body
-(`ContentNested.Reading`), and does the same inside that tree, until nothing is left unread. The body becomes a
-`Kinds.Nested` node holding that language's AST and, where the characters had one, the line ending that closed them —
-which belongs to the line the closing delimiter stands on and is not the other language's (`ContentNested.Own`).
-`ContentNested` answers the questions about all of this: which language a node holds, the holders from a part upwards,
-what was read in one, and the parts of a tree that are its own language's (`OwnParts` — what a builder reports trouble
-from, since a nested language answers for its own).
+The body is a `Kinds.Nested` piece standing for the characters as written and, where they had one, the line ending that
+closed them — which belongs to the line the closing delimiter stands on and is not the other language's
+(`ContentNested.Own`). The **engine** reads those characters with that language when a builder asks for them (R14), and
+keeps what it read as a reading of its own (`ContentBody`): the body's own characters, cut into units by its own
+language where they are long, holding the readings of whatever is written inside them in turn — a fence in a document, a
+label in a diagram in that fence. Nothing about depth is special. A reading is attached to the piece holding it, on the
+unit of the reading it was read in (`ContentUnit.Bodies`), so it is found from its holder rather than by what it says,
+and every change carries it (§11). `ContentNested` answers the questions about the pieces themselves: which language a
+node holds, the holders from a part upwards, the stretch a body's own characters stand in, and the parts of a tree that
+are its own language's (`OwnParts` — what a builder reports trouble from, since a nested language answers for its own).
 
 **What a body holds need not be one stretch of the document.** A fence written in a quote has the quote's `>` in front of
 every line, and one in a list item the item's indentation: those marks are the container's, held in the body as trivia
-between the lines that are the language's own. The language is handed its own characters (`ContentNested.Own`) and nothing
-else, and what it read is given the marks back where they stand (`ContentNested.Spliced`) — a piece standing over one cut
-round it — so every part of it still names the characters it was written as. A place in the document is a place among the
-language's own characters, and back, by `OwnAt` and `DocumentAt`.
+between the lines that are the language's own. The language is handed its own characters and nothing else — a
+`ContentSpace`, which is a view of the holder's characters rather than a copy, one run of them for a fence in prose and a
+run per line for one in a quote — and what it reads is given the marks back where they stand (`ContentNested.Spliced`) —
+a piece standing over one cut round it — so every part of it still names the characters it was written as. The runs are
+indexed by how many of the language's characters and how many of the holder's each spreads over, so a place among the
+language's own characters is a place in the holder's, and back, down one path (`ContentSpace.OwnAt`, `HolderAt`); a place
+in the document is that, composed through every reading on the way down.
 
 **R14 — A builder knows nothing about what it nests.** Meeting a piece in another language it calls
 `Nested(part, room, standing)` — the one thing a builder may ask the engine for. The engine works that piece's AST over
@@ -317,8 +330,9 @@ Nothing else holds state, and nothing else caches.
 It lays content out in four steps, and nothing else does:
 
 1. **Parse** the content with its language — markdown where nothing names one.
-2. **Nest.** Wherever the parser named another language (`Kinds.Language`), parse the piece's own characters with that
-   language and put the AST in the piece's body, then the same inside that tree, until nothing is left unread.
+2. **Nest.** Wherever a builder meets a piece written in another language (`Kinds.Language`), it asks the engine, which
+   reads the piece's own characters with that language — or finds the reading it kept for that piece — and works it over
+   and lays it the same way, down to whatever that holds in turn (§6).
 3. **Stages.** Run the language's stages.
 4. **Build.** Make the builder the language names — from the worked-over reading, what is being written, what it is
    drawn in, whether it is only looked at, what it is laid out in, and what hosts it (`LayoutHost`) — and lay it out
@@ -327,9 +341,10 @@ It lays content out in four steps, and nothing else does:
 `ContentEngine.Read` does the first three steps and lays nothing out, for whatever wants to know what content says
 rather than to draw it.
 
-**One engine per showing of some content**, because what it keeps is that content's: the parse of a document read again
-as it is written, what every nested piece read to (a keystroke in a paragraph does not read the diagram under it
-again), the blocks that read as they did last time, and what the reader has opened in each diagram. A surface keeps its
+**One engine per showing of some content**, because what it keeps is that content's: what the content read to, read
+again from each change as it is written, the readings of what is written inside it in other languages, attached to their
+holders (a keystroke in a paragraph does not read the diagram under it again), the blocks that read as they did last
+time, and what the reader has opened in each diagram. A surface keeps its
 engine for as long as it shows content, so none of that is lost when a change of colours or of who may write makes its
 element again.
 
@@ -486,10 +501,29 @@ block scrolled far away is let go.
 
 ## 11. Speed
 
-**Nothing is incremental.** An edit can reshape everything after it — a closing brace, a bar line — so the whole
-content is parsed and worked over again: one path, always taken, therefore always right.
+**A change is read again from where it was written.** Every reading is units (`ContentUnits`): one unit for content
+read whole, units of about 32 KB (`StretchLength`) for one 128 KB long or more (`WindowedFrom`) — at every depth, since a
+body is windowed by its own length. The units are indexed by width (`ContentIndex`), so where one starts is the widths
+before it, and text written before a unit moves it without anything in it being rewritten. A change names what it wrote
+(`ContentChange`), and the reading is read again from the unit it fell in — from the unit before, where it fell on its
+unit's first line, since a block's first line can change what the block before it is — on until a unit stops where an
+old one started, moved along, in the state that one began in: from there every old unit reads as it did and is kept
+(`ContentUnits.Edited`). An edit that reshapes everything after it — a closing brace, a fence left open — simply reads on
+as far as it reaches. `WindowedReadingTests` holds every sample, read a unit at a time and written in, to the same
+document read whole.
 
-What is saved is reuse, and it is keyed on identity, never on a guess about what an edit touched:
+**Written inside a body, nothing of the reading holding it is read again** where the holder's language says the body
+still ends where it did (`IBodyBounds`; markdown says so for its fences): the unit holding it stands for more or fewer
+characters, and the change is written into the body's reading, which reads again only its own units the change reached —
+and so on down. Where a unit holding a body is read again, the body's reading is carried to the holder that comes back in
+the same language at the same place, the change mapped through: kept as it was where the change missed it, written into
+where it did not. A document holding readings nested three deep, written in at every unit boundary and every line of
+every level, reads (`WindowedReadingTests`) and lays out (`WindowedLayoutTests`) as the document it became does read
+whole.
+
+**Laying is not yet a unit at a time.** What is laid is one tree, from the top down to as far as the reader has looked,
+worked over by the stages and laid again on every change; what spares it is reuse, keyed on identity, never on a guess
+about what an edit touched:
 
 - **A block written as it was is read as it was.** The engine keeps a parse per document (`MarkdownParser.Parsing`)
   that hands back every block written exactly as last time beside the same definitions as the very block it handed out

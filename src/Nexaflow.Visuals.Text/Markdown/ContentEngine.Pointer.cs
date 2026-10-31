@@ -46,8 +46,11 @@ public sealed partial class ContentEngine
     /// </summary>
     private ContentCarry? _carry;
 
-    /// <summary>The content a carry of a language's own was picked up in, which is the only content it can be let go in.</summary>
-    private ContentNode? _carriedIn;
+    /// <summary>
+    /// The reading a carry of a language's own was picked up in, which is the only content it can be let go in — the same reading
+    /// through every laying out of it while the carry is under way (<see cref="ReadingOf"/>).
+    /// </summary>
+    private object? _carriedIn;
     private Laid? _preview;
     private Moved? _previewOf;
     private (int Start, int End) _previewMoved;
@@ -214,14 +217,14 @@ public sealed partial class ContentEngine
         /// (<see cref="IOnMove.Lift"/>), and the content it landed in. What is picked out, where the language is not asked — it has no
         /// <see cref="IOnMove"/> — and where it falls over being asked.
         /// </summary>
-        private (ContentLift Lift, ContentNode? Root) Lifted(LayoutPiece pressed, LayoutPoint at)
+        private (ContentLift Lift, object? Reading) Lifted(LayoutPiece pressed, LayoutPoint at)
         {
             var (piece, part, root) = Reached(Landing, pressed);
             if (part is null || ContentLanguages.WrittenIn(root)?.Editing.OnMove is not { } onMove) return (ContentLift.Selection, null);
 
             try
             {
-                return (onMove.Lift(new ContentGrip(Landing, piece, part, root, at)), root.Node);
+                return (onMove.Lift(new ContentGrip(Landing, piece, part, root, at)), ReadingOf(root.Node));
             }
             catch
             {

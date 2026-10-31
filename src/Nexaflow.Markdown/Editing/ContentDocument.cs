@@ -123,6 +123,23 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
         return length == 0 ? string.Empty : string.Create(length, (Rope: _rope!, Start: start), static (into, said) => said.Rope.CopyTo(said.Start, into));
     }
 
+    /// <summary>
+    /// The characters from <paramref name="start"/> over <paramref name="length"/>, as a document of their own made from no other — for
+    /// a document held as a rope, sharing every leaf they stand in rather than copying them, so a stretch megabytes long costs the two
+    /// paths cut to it.
+    /// </summary>
+    public ContentDocument Stretch(int start, int length)
+    {
+        Checked(start, length);
+
+        if (_rope is not { } rope || length < FlatBelow) return Of(this.Slice(start, length));
+
+        var from = start == 0 ? rope : ContentRope.From(rope, start)!;
+        var cut = length == from.Length ? from : ContentRope.Before(from, length)!;
+
+        return new(null, cut, 0, null, null);
+    }
+
     /// <summary>The characters from <paramref name="start"/> on, as many as <paramref name="into"/> holds.</summary>
     public void CopyTo(int start, Span<char> into)
     {

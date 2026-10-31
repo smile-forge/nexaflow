@@ -198,6 +198,12 @@ public class ContentNode
         /// <summary>Whether this is a leaf standing for characters held elsewhere rather than holding them (<see cref="Leaf(string, IContentCharacters, int, int, string, int?)"/>).</summary>
         public bool Stands => _stretch is not null;
 
+        /// <summary>
+        /// The character of a leaf at <paramref name="index"/> — read where it is held, for a leaf standing for characters held elsewhere,
+        /// rather than by making the string of all of them.
+        /// </summary>
+        public char CharacterAt(int index) => _text is { } text ? text[index] : _stretch is { } stretch ? stretch.Over[stretch.Start + index] : this.Text[index];
+
     /// <summary>The same piece, meaning something else to whatever holds it.</summary>
     public ContentNode As(string role) =>
         role == this.Role ? this : this.Rebuilt(role, this.Children, this.Offset, this.Trouble);

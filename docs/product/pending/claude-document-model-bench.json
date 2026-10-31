@@ -160,6 +160,17 @@
           "type": "code",
           "doc": "src/Nexaflow.Markdown/Prose/MarkdownFenceBounds.cs",
           "class": "MarkdownFenceBounds"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentIndex.cs",
+          "class": "ContentIndex"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Bodies.cs",
+          "class": "ContentEngine",
+          "method": "ReadAgain"
         }
       ],
       "concerns": {
@@ -182,11 +193,70 @@
           }
         ]
       }
+    },
+    "diagram-nesting": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs",
+          "class": "ContentLanguages"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentLink.cs",
+          "class": "ContentLink"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/LayoutProse.cs",
+          "class": "LayoutInset"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentBody.cs",
+          "class": "ContentBody"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentSpace.cs",
+          "class": "ContentSpace"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Bodies.cs",
+          "class": "ContentEngine",
+          "method": "Body"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramNestingTests.cs",
+            "class": "DiagramNestingTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Ast/WindowedReadingTests.cs",
+            "class": "WindowedReadingTests",
+            "method": "ReadingsNestedThreeDeep_WrittenInAtEveryUnitBoundaryOfEveryLevel_ReadAsTheWrittenDocumentReadWhole"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/WindowedLayoutTests.cs",
+            "class": "WindowedLayoutTests",
+            "method": "ReadingsNestedThreeDeep_WrittenInAtEveryLineOfEveryLevel_AreLaidAsTheWrittenDocumentLaidWhole"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 6,
+  "changed_sets": 8,
   "touched_nodes": [
+    "diagram-nesting",
     "markdown-block-undo",
     "markdown-dirty-tracking",
     "markdown-long-writing",
