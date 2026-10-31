@@ -85,8 +85,39 @@ public sealed record ContentUnit(int Width, object? Begun, object? Ended, bool L
             if (read.Stopped is null && !ends)
                 throw new InvalidOperationException($"A windowed parse read to the end of a window short of the end, from {from}, and neither stopped nor said it needs more.");
 
-            return new ContentUnit(read.Stopped ?? length, begun, read.Resume, read.Stopped is null, read.Tree);
+            return new ContentUnit(read.Stopped ?? length, begun, read.Resume, read.Stopped is null, Standing(read.Tree, characters, from));
         }
+    }
+
+    /// <summary>
+    /// <paramref name="node"/> with every body another reading reads (<see cref="Kinds.Nested"/>) standing for its characters in
+    /// <paramref name="characters"/> rather than holding a copy — the unit read from <paramref name="from"/>, whose offsets are its own.
+    /// The characters are the version the unit was read from, which a unit kept through later changes still reads exactly as.
+    /// </summary>
+    private static ContentNode Standing(ContentNode node, IContentCharacters characters, int from)
+    {
+        if (node.IsLeaf)
+            return node.Kind == Kinds.Nested && !node.IsDerived && !node.Stands && node.Offset is { } at
+                ? ContentNode.Leaf(Kinds.Nested, characters, from + at, node.Width, node.Role, at)
+                : node;
+
+        ContentNode[]? made = null;
+
+        for (var index = 0; index < node.Children.Count; index++)
+        {
+            var child = node.Children[index];
+            var now = Standing(child, characters, from);
+
+            if (made is null && !ReferenceEquals(now, child))
+            {
+                made = new ContentNode[node.Children.Count];
+                for (var before = 0; before < index; before++) made[before] = node.Children[before];
+            }
+
+            if (made is not null) made[index] = now;
+        }
+
+        return made is null ? node : node.With(made);
     }
 }
 
@@ -199,6 +230,10 @@ public sealed class ContentUnits
     /// further, as far as it reaches. What was not read before is still not read.
     /// </para>
     /// </summary>
+    /// <param name="bounds">
+    /// What the reading's language says about a body it holds when something is written inside it, so a change wholly inside one
+    /// reads nothing again where the body still ends where it did — or null, for a language that says nothing.
+    /// </param>
     /// <param name="enough">
     /// How far reading again has to go before it may stop without having come back into step: past there, what was read before is
     /// let go and left unread, for whatever reads the rest to read again — so a change that moves everything after it, a heading
@@ -209,11 +244,17 @@ public sealed class ContentUnits
     /// again.
     /// </returns>
     public (ContentUnits Units, int Kept, int Read) Edited(int changedFrom, int changedTo, int by, IContentCharacters edited,
-                                                 Func<ContentStretch, ContentParse> parse, int softMaxLength, int enough = int.MaxValue)
+                                                 Func<ContentStretch, ContentParse> parse, int softMaxLength, int enough = int.MaxValue,
+                                                 IBodyBounds? bounds = null)
     {
         if (this.Count == 0) return (new ContentUnits(this.Language), 0, 0);
 
         var holding = _units.IndexAt(changedFrom);
+
+        // Written inside a body another reading reads, which its holder's language says still ends where it did: nothing is read
+        // again, and the unit holding it only stands for more or fewer characters.
+        if (bounds is not null && this.Grown(holding, changedFrom, changedTo, by, edited, bounds) is { } grown)
+            return (new(this.Language, _units.Replaced(holding, holding + 1, [grown])), holding, 0);
         var kept = holding > 0 && Opening(edited, _units[holding].Start, changedFrom) ? holding - 1 : holding;
         var (first, from) = _units[kept];
         var begun = first.Begun;
@@ -242,6 +283,101 @@ public sealed class ContentUnits
 
             (from, begun) = (stop, read.Ended);
         }
+    }
+
+    /// <summary>
+    /// The unit at <paramref name="index"/> once the characters from <paramref name="from"/> to <paramref name="to"/> are written
+    /// over, where that is wholly inside the characters one body it holds has in its own language and <paramref name="bounds"/> says
+    /// the body still ends where it did: the piece written in standing for what it holds now, and everything after it in the unit
+    /// moved along — or null, where the change is not inside one body or the language will not say.
+    /// </summary>
+    private ContentUnit? Grown(int index, int from, int to, int by, IContentCharacters edited, IBodyBounds bounds)
+    {
+        var (unit, start) = _units[index];
+        var (low, high) = (from - start, to - start);
+        if (high > unit.Width) return null;
+
+        var path = new List<ContentNode>();
+        if (!Holding(unit.Tree, low, high, path) || path.Count < 2) return null;
+
+        var (holder, body) = (path[^2], path[^1]);
+        var (begins, ends) = (body.Offset!.Value, body.Offset.Value + body.Width);
+
+        // The line ending closing the body's last line is the closing delimiter's line's, and no part of what the body holds.
+        var closing = ends + by;
+        var tail = closing >= 2 && edited[start + closing - 1] == '\n' && edited[start + closing - 2] == '\r' ? 2
+                 : closing >= 1 && edited[start + closing - 1] == '\n' ? 1
+                 : 0;
+        if (low < begins || high > ends - tail) return null;
+
+        // The piece written in: the body itself, or the one line of it the change falls in where a container's marks stand between.
+        if (!body.IsLeaf)
+        {
+            var line = body.Children.FirstOrDefault(part => part.Role != Roles.Trivia && part.Offset is { } at && at <= low && high <= at + part.Width);
+            if (line is null || !line.IsLeaf) return null;
+
+            path.Add(line);
+        }
+
+        var written = edited.Slice(from, to - from + by);
+        var lines = Lines(edited, start + begins, start + closing - tail, from, from + written.Length);
+        if (!bounds.Holds(holder, body, written, lines)) return null;
+
+        var leaf = path[^1];
+        var stood = leaf.Offset!.Value;
+        var grown = leaf.Stands
+            ? ContentNode.Leaf(leaf.Kind, edited, start + stood, leaf.Width + by, leaf.Role, stood)
+            : ContentNode.Leaf(leaf.Kind, edited.Slice(start + stood, leaf.Width + by), leaf.Role, leaf.Trouble, stood);
+
+        // Up the path again, each piece holding the one grown and everything after it moved along.
+        for (var at = path.Count - 2; at >= 0; at--)
+        {
+            var parent = path[at];
+            var children = new ContentNode[parent.Children.Count];
+            var after = false;
+
+            for (var child = 0; child < children.Length; child++)
+            {
+                var part = parent.Children[child];
+
+                if (ReferenceEquals(part, path[at + 1])) { children[child] = grown; after = true; }
+                else children[child] = after ? part.FurtherOn(by) : part;
+            }
+
+            grown = parent.With(children);
+        }
+
+        return new ContentUnit(unit.Width + by, unit.Begun, unit.Ended, unit.Last, grown);
+    }
+
+    /// <summary>
+    /// The way down <paramref name="node"/> to the body another reading reads (<see cref="Kinds.Nested"/>) holding the whole of
+    /// <paramref name="low"/> to <paramref name="high"/>, collected into <paramref name="path"/> — false where none holds it.
+    /// </summary>
+    private static bool Holding(ContentNode node, int low, int high, List<ContentNode> path)
+    {
+        if (node.IsDerived || node.Offset is not { } at || low < at || high > at + node.Width) return false;
+
+        path.Add(node);
+        if (node.Kind == Kinds.Nested) return true;
+
+        foreach (var child in node.Children)
+            if (Holding(child, low, high, path)) return true;
+
+        path.RemoveAt(path.Count - 1);
+        return false;
+    }
+
+    /// <summary>Every line from <paramref name="low"/> to <paramref name="high"/>, whole — no further back than <paramref name="first"/> nor on past <paramref name="last"/>.</summary>
+    private static string Lines(IContentCharacters characters, int first, int last, int low, int high)
+    {
+        var start = low;
+        while (start > first && characters[start - 1] != '\n') start--;
+
+        var end = Math.Max(high, start);
+        while (end < last && characters[end] != '\n') end++;
+
+        return characters.Slice(start, end - start);
     }
 
     /// <summary>Whether <paramref name="at"/> is on the first line of what starts at <paramref name="start"/>: no line break stands between them.</summary>

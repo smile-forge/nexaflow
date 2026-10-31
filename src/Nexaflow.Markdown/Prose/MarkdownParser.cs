@@ -64,6 +64,12 @@ public sealed class MarkdownParser : ITranspile
         return stretch => Stretched(stretch, blocks);
     }
 
+    /// <summary>
+    /// What a document says about a fence when something is written inside it (<see cref="IBodyBounds"/>): that it still ends where
+    /// it did unless a line touched would close it — so writing in a long fence reads nothing of the document again.
+    /// </summary>
+    public static IBodyBounds Bounds => MarkdownFenceBounds.Instance;
+
     private static ContentParse Stretched(ContentStretch stretch, MarkdownBlocks blocks)
     {
         // A window short of the end of the reading may end part-way through a line, which says nothing yet about the line it is

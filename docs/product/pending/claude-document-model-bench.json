@@ -12,6 +12,11 @@
           "type": "code",
           "doc": "src/Nexaflow.Markdown/Editing/EditedDocument.cs",
           "class": "EditedDocument"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentRope.cs",
+          "class": "ContentRope"
         }
       ],
       "concerns": {
@@ -40,6 +45,12 @@
             "status": "should",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/SurfaceDocumentTests.cs",
             "class": "SurfaceDocumentTests"
+          },
+          {
+            "type": "code",
+            "status": "should",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Editing/ContentRopeTests.cs",
+            "class": "ContentRopeTests"
           }
         ]
       }
@@ -75,13 +86,110 @@
           "method": "IsDirty"
         }
       ]
+    },
+    "windowed-reading": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentStretch.cs",
+          "class": "ContentUnits"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentStretch.cs",
+          "class": "ContentStretch"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownParser.cs",
+          "class": "MarkdownParser",
+          "method": "Windowed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Rtf/RtfParser.cs",
+          "class": "RtfParser",
+          "method": "Windowed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Rtf/RtfResume.cs",
+          "class": "RtfResume"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Window.cs",
+          "class": "ContentEngine",
+          "method": "Windowed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentStretch.cs",
+          "class": "ContentUnits",
+          "method": "Edited"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/DrawnText.cs",
+          "class": "DrawnText",
+          "method": "Of"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Window.cs",
+          "class": "ContentEngine",
+          "method": "Background"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Pipeline/LinkTargets.cs",
+          "class": "LinkTargets",
+          "method": "Further"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentIndex.cs",
+          "class": "ContentIndex"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/IBodyBounds.cs",
+          "class": "IBodyBounds"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownFenceBounds.cs",
+          "class": "MarkdownFenceBounds"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Ast/WindowedReadingTests.cs",
+            "class": "WindowedReadingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/WindowedLayoutTests.cs",
+            "class": "WindowedLayoutTests"
+          },
+          {
+            "type": "code",
+            "status": "should",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Ast/ContentIndexTests.cs",
+            "class": "ContentIndexTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 4,
+  "changed_sets": 6,
   "touched_nodes": [
     "markdown-block-undo",
     "markdown-dirty-tracking",
-    "markdown-long-writing"
+    "markdown-long-writing",
+    "windowed-reading"
   ]
 }

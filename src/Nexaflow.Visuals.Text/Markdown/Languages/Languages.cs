@@ -80,6 +80,7 @@ internal static class Shipped
         {
             Writable = true,
             Windowed = MarkdownParser.Windowed,
+            Bounds = MarkdownParser.Bounds,
             Editing = MarkdownEdits.Instance,
             Transpile = Transpiles.By<MarkdownParser>(),
         };

@@ -231,6 +231,69 @@ public class WindowedReadingTests
         Assert.IsTrue(heading.Tree(underlined).Same(MarkdownParser.Parsing()(underlined.ToString()).Tree));
     }
 
+    [TestMethod]
+    public void ALongFencesBody_StandsForItsCharacters_RatherThanHoldingACopy()
+    {
+        var fence = "```csharp\n" + string.Concat(Enumerable.Range(0, 3000).Select(line => $"var x{line} = {line};\n")) + "```\n";
+        var source = "# Title\n\n" + fence + "\nAfter.\n";
+        var units = Read(source, MarkdownParser.Language, MarkdownParser.Windowed, 64);
+        var (unit, _) = units[units.IndexAt(source.IndexOf("```", StringComparison.Ordinal))];
+
+        var body = unit.Tree.SelfAndDescendants().Single(node => node.Kind == Kinds.Nested);
+
+        Assert.IsTrue(body.Stands, "the fence's body stands for the document's characters");
+        Assert.IsTrue(units.Tree(ContentDocument.Of(source)).Same(MarkdownParser.Parsing()(source).Tree));
+    }
+
+    [TestMethod]
+    public void WritingInsideALongFence_ReadsNothingAgain_WhereTheFenceStillEndsWhereItDid()
+    {
+        var fence = "```csharp\n" + string.Concat(Enumerable.Range(0, 3000).Select(line => $"var x{line} = {line};\n")) + "```\n";
+        var source = "# Title\n\nOpening words.\n\n" + fence + "\nAfter the fence.\n\nAnd more.\n";
+        var parse = MarkdownParser.Windowed();
+        var units = Read(source, MarkdownParser.Language, MarkdownParser.Windowed, 64);
+        var inside = source.IndexOf("x1500", StringComparison.Ordinal);
+
+        foreach (var written in new[] { "y", "\n", "``", "// ```csharp" })
+        {
+            var now = ContentDocument.Of(source.Insert(inside, written));
+            var (grown, _, read) = units.Edited(inside, inside, written.Length, now, parse, 64, bounds: MarkdownParser.Bounds);
+
+            Assert.AreEqual(0, read, $"writing {written.Replace("\n", "\\n")} inside the fence reads nothing again");
+            Assert.AreEqual(units.Count, grown.Count);
+            Assert.IsTrue(grown.Tree(now).Same(MarkdownParser.Parsing()(now.ToString()).Tree), $"writing {written.Replace("\n", "\\n")} inside the fence");
+        }
+
+        // A line of fence marks closes it early: what comes after is read again, as markdown.
+        var line = source.LastIndexOf('\n', inside) + 1;
+        var closing = ContentDocument.Of(source.Insert(line, "```\n"));
+        var (closed, _, again) = units.Edited(line, line, 4, closing, parse, 64, bounds: MarkdownParser.Bounds);
+
+        Assert.IsTrue(again > 0, "a closing fence typed inside reads the fence's unit again");
+        while (!closed.Done) closed = closed.ReadOn(parse, closing, 64);
+        Assert.IsTrue(closed.Tree(closing).Same(MarkdownParser.Parsing()(closing.ToString()).Tree));
+    }
+
+    [TestMethod]
+    public void WritingInsideAFenceInAQuote_KeepsWithinTheLine_OrIsReadAgain()
+    {
+        var fence = "> ```js\n" + string.Concat(Enumerable.Range(0, 400).Select(line => $"> let v{line} = {line};\n")) + "> ```\n";
+        var source = "Opening.\n\n" + fence + "\nAfter.\n";
+        var parse = MarkdownParser.Windowed();
+        var units = Read(source, MarkdownParser.Language, MarkdownParser.Windowed, 64);
+        var inside = source.IndexOf("v200 ", StringComparison.Ordinal);
+
+        foreach (var (written, readsAgain) in new[] { ("w", false), ("\n", true), ("`", true) })
+        {
+            var now = ContentDocument.Of(source.Insert(inside, written));
+            var (rewritten, _, read) = units.Edited(inside, inside, written.Length, now, parse, 64, bounds: MarkdownParser.Bounds);
+            while (!rewritten.Done) rewritten = rewritten.ReadOn(parse, now, 64);
+
+            Assert.AreEqual(readsAgain, read > 0, $"writing {written.Replace("\n", "\\n")} inside a quoted fence");
+            Assert.IsTrue(rewritten.Tree(now).Same(MarkdownParser.Parsing()(now.ToString()).Tree), $"writing {written.Replace("\n", "\\n")} inside a quoted fence");
+        }
+    }
+
     private static void Stitched(string source, string name, string language, Func<Func<ContentStretch, ContentParse>> windowed,
                                  Func<string, ContentNode> whole)
     {

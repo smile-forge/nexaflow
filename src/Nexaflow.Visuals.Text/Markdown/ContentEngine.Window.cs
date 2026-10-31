@@ -266,7 +266,8 @@ public sealed partial class ContentEngine
             var (from, to, by) = Spanned(change);
 
             // Read again as far as what is laid, and a stretch past it, at most: the rest is the background's to read.
-            (units, var kept, var read) = units.Edited(from, to, by, after, window.Parse, StretchLength, laidTo + by + StretchLength);
+            (units, var kept, var read) = units.Edited(from, to, by, after, window.Parse, StretchLength, laidTo + by + StretchLength,
+                                                       window.Language.Bounds);
 
             _targets.Moved(laidTo, by);
             laidTo += by;

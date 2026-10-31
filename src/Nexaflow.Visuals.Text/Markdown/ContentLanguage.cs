@@ -64,6 +64,12 @@ public sealed record ContentLanguage(
     /// </summary>
     public Func<Func<ContentStretch, ContentParse>>? Windowed { get; init; }
 
+    /// <summary>
+    /// What the language says about a body it holds in another language when something is written inside it — whether the body
+    /// still ends where it did (<see cref="IBodyBounds"/>) — or null, for a language that says nothing, whose unit is read again.
+    /// </summary>
+    public IBodyBounds? Bounds { get; init; }
+
     /// <summary>What an edit, a gesture and a block's corner mean in it — what they mean everywhere, unless it says otherwise.</summary>
     public IContentLanguage Editing { get; init; } = Usual.Editing;
 

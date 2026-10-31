@@ -400,7 +400,9 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
                                   body.Start);
 
             // And what it read is given those marks back where they stand, so every part names its characters in the document.
-            var reading = ContentReading.Of(ContentNested.Spliced(Staged(read, showing), body.Node), body.Start, ContentDocument.Of(Stretch(body, text)));
+            // A body that is one stretch of the document is read from the very characters it was handed: nothing is copied again.
+            var characters = body.Children.Count == 0 ? read.Document : ContentDocument.Of(Stretch(body, text));
+            var reading = ContentReading.Of(ContentNested.Spliced(Staged(read, showing), body.Node), body.Start, characters);
             return new LayoutInset(Builder(language, reading, showing, standing).Lay(room));
         }
         catch (Exception error)
