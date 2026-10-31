@@ -208,15 +208,14 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
-    /// Stops showing a run of text as written once the caret has left it. Only a stretch that is exactly a run of text — or one opened
-    /// to write in words drawn otherwise, which keeps what it said (<see cref="RawZone.Was"/>), even emptied — and not one the content
-    /// itself opened (a command half typed), which is the content's own business to close.
+    /// Stops showing a run of text as written once the caret has left it. Only a stretch that is exactly a run of text — one the
+    /// content itself opened (a command half typed) is the content's own business to close.
     /// </summary>
     private EditState Left(EditState next)
     {
         if (next.Raw is not { } zone || zone.Holds(next.Caret)) return next;
 
-        var run = zone.Was is not null || _laid.Root.SelfAndDescendants().Any(piece =>
+        var run = _laid.Root.SelfAndDescendants().Any(piece =>
             piece.Words is not null && piece.Part is { } part && part.Start == zone.Start && part.End() == zone.End);
 
         return run ? next with { Raw = null } : next;
@@ -231,11 +230,31 @@ public sealed partial class ContentEngine
     {
         if (_readOnly || next.Raw is not null || next.HasSelection || next.Source != _state.Source) return next;
 
-        return _laid.Root.RestatedAt(next.Caret) is { Part: { } part } ? next with { Raw = Opened(part.Start, part.End()) } : next;
+        return _laid.Root.RestatedAt(next.Caret) is { Part: { } part } ? next with { Raw = new RawZone(part.Start, part.End()) } : next;
     }
 
-    /// <summary>Words drawn other than as written opened to be written in, from <paramref name="start"/> to <paramref name="end"/>, keeping what they said as they were opened.</summary>
-    private RawZone Opened(int start, int end) => new(start, end) { Was = _state.Source[start..end] };
+    /// <summary>
+    /// What the stretch shown as written said before the step being written in it began — read from what taking that step back would
+    /// put back (<see cref="EditHistory.Begun"/>), so a drawing sized by it can stand still while it is typed. Null where nothing is shown
+    /// as written, or the step wrote somewhere else.
+    /// </summary>
+    private string? ShownBefore()
+    {
+        if (_state.Raw is not { } zone || _history.Begun(_last, _state) is not { } begun) return null;
+
+        var change = SourceDifference.Between(begun.Source, _state.Source);
+        if (change.None) return _state.Source[zone.Start..zone.End];
+        if (change.Start > zone.End || change.Start + change.Added < zone.Start) return null;
+
+        // Each end of the stretch where it stood before the step: as it is in front of what was written, moved back past it after it,
+        // and at its start within it — a value begun after its colon was written with the space before it.
+        int Back(int at, bool end) => at <= change.Start ? at
+                                    : at >= change.Start + change.Added ? at - change.Added + change.Removed
+                                    : change.Start + (end ? change.Removed : 0);
+
+        var (from, to) = (Back(zone.Start, end: false), Back(zone.End, end: true));
+        return from <= to && to <= begun.Source.Length ? begun.Source[from..to] : null;
+    }
 
     // ── The caret ───────────────────────────────────────────────────────────
 

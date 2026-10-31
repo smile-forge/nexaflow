@@ -144,13 +144,13 @@ internal sealed class TreemapBuilder : ContentBuilder
     }
 
     /// <summary>
-    /// What <paramref name="item"/>'s own value is laid out as: what it was as the reader began writing in it, while they still are — so
-    /// the tiles hold still under the caret, and move once, when it leaves — and otherwise what is written.
+    /// What <paramref name="item"/>'s own value is laid out as: what it said before the step being typed into it began, while the caret is
+    /// still in it — so the tiles hold still under the caret, and move once, when it leaves — and otherwise what is written.
     /// </summary>
     private double Kept(ContentPart item, TreemapNode said) =>
-        State.Raw is { Was: { } was } zone && item.Children[0].Stated()?.Inner(MermaidKinds.Amount) is { } amount
-        && zone.Start >= amount.Start && zone.End <= amount.End
-            ? TreemapValues.Read(was) ?? 0
+        State.Raw is { } zone && item.Children[0].Stated()?.Inner(MermaidKinds.Amount) is { } amount
+        && zone.Start >= amount.Start && zone.End <= amount.End && ShownBefore is { } before
+            ? TreemapValues.Read(before) ?? 0
             : said.Value ?? 0;
 
     /// <summary>

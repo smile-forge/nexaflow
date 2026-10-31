@@ -172,8 +172,8 @@ internal sealed class TreemapEdits : IContentLanguage, IOnEdit, IOnMove
     }
 
     /// <summary>
-    /// What is typed into a value, as <paramref name="typed"/> writes it, with the value held open while the caret stays in it and keeping
-    /// what it said as it was begun — so the tiles it sizes stand still until the caret leaves it, and move once (<see cref="RawZone.Was"/>).
+    /// What is typed into a value, as <paramref name="typed"/> writes it, with the value shown as written while the caret stays in it — so
+    /// the tiles it sizes are laid out as it was until the caret leaves it, and move once (<see cref="ContentBuilder"/>'s ShownBefore).
     /// A value opened already, by a press or a key, is kept open as it was; anything else is <paramref name="typed"/> as it is.
     /// </summary>
     private static ContentChange? Holding(ContentEdit edit, ContentChange? typed)
@@ -188,7 +188,7 @@ internal sealed class TreemapEdits : IContentLanguage, IOnEdit, IOnMove
             ? (number.Start, number.End + write.Text.Length - write.Length)
             : (write.Start + lead, write.Start + write.Text.Length);
 
-        return typed with { Raw = new RawZone(start, end) { Was = amount.Inner(Kinds.Number)?.Text ?? string.Empty } };
+        return typed with { Raw = new RawZone(start, end) };
     }
 
     /// <summary>

@@ -15,11 +15,6 @@ public readonly record struct RawZone(int Start, int End)
     /// <summary>How many characters are raw.</summary>
     public int Length => End - Start;
 
-    /// <summary>
-    /// What the stretch said when the reader began writing in it, where whatever opened it kept that — what a drawing laid out from
-    /// it holds to while they write, so nothing moves under the caret until they are done: a tile sized by the value being typed.
-    /// </summary>
-    public string? Was { get; init; }
 
     /// <summary>Whether the caret at <paramref name="offset"/> is inside or at either edge of the zone.</summary>
     public bool Holds(int offset) => offset >= Start && offset <= End;
@@ -201,12 +196,11 @@ public sealed record EditState(
         if (HasSelection) return DeleteSelection();
         if (Caret <= 0) return this;
 
-        // Inside a raw zone the source is already on show, so backspace just deletes — and one keeping what it said as it was
-        // opened stays open emptied, since the reader is still writing there.
+        // Inside a raw zone the source is already on show, so backspace just deletes.
         if (Raw is { } zone && zone.Holds(Caret) && Caret > zone.Start)
         {
             var shrunk = zone with { End = zone.End - 1 };
-            return DeleteBack(1, shrunk.Length > 0 || shrunk.Was is not null ? shrunk : null);
+            return DeleteBack(1, shrunk.Length > 0 ? shrunk : null);
         }
 
         if (renderedBefore is { } atom && atom.Length > 1 && atom.Start + atom.Length == Caret)

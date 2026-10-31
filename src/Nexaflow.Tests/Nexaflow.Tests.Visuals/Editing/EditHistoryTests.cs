@@ -122,4 +122,26 @@ public class EditHistoryTests
 
         Assert.AreEqual(EditHistory.Limit, undone);
     }
+
+    [TestMethod]
+    public void WhereTheStepBeingWrittenBeganIsWhatTakingItBackWouldPutBack()
+    {
+        var history = new EditHistory();
+        var first = new EditState("Total: 10", 9);
+
+        Assert.IsNull(history.Begun(first, first), "nothing written, and no step open");
+
+        var once = first.Write("0");
+        Assert.AreEqual(first, history.Begun(first, once), "the first letter of a step: where it starts from");
+        history.Record(first, once);
+
+        var twice = once.Write("0");
+        Assert.AreEqual(first, history.Begun(once, twice), "carrying on: where the step began, not the letter before");
+        history.Record(once, twice);
+
+        Assert.AreEqual(first, history.Begun(twice, twice), "and so while nothing more is written");
+
+        history.Break();
+        Assert.IsNull(history.Begun(twice, twice), "the step ended: nothing is being written");
+    }
 }

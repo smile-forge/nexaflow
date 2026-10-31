@@ -242,6 +242,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         {
             Pictures = Pictured,
             Links = Linked,
+            ShownBefore = ShownBefore,
         };
 
     /// <summary>The picture a part was found to name — an image, a diagram node's, a cloud's mask — as the medium draws it.</summary>
