@@ -162,6 +162,7 @@ internal sealed class PieBuilder : ContentBuilder
             if (slice.Said.Highlighted) shape = Moved(build.Medium, shape, Out(from + (sweep / 2), PulledOut));
 
             build.Open(PiePiece.Wedge, slice.Part, stops: LayoutStops.None);
+            if (!Shared(slice)) build.Tip(Untold(slice));
             build.Draw(DiagramMarks.Outlined(build.Medium, shape, Fill(config, slice), rim, edge));
             build.Occupies(shape);
             build.Close();
@@ -247,7 +248,7 @@ internal sealed class PieBuilder : ContentBuilder
             var middle = from + (sweep / 2);
             from += sweep;
 
-            if (share < Labelled) continue;
+            if (!Shared(slice)) continue;
 
             // What a share says is worked out rather than written, so there is nowhere in it to put a caret — but it
             // still stands for the slice, so pressing it means that slice like everything else drawn for it.
@@ -258,6 +259,19 @@ internal sealed class PieBuilder : ContentBuilder
         }
 
         build.Close();
+    }
+
+    /// <summary>Whether a slice's wedge has room for its share: one too thin to hold it is drawn bare (<see cref="Labelled"/>).</summary>
+    private static bool Shared(Slice slice) => slice.Said.Share >= Labelled;
+
+    /// <summary>
+    /// What a wedge too thin for its share says while pointed at: what its slice is called, what it is worth where values are shown, and
+    /// its share — each on a line of its own.
+    /// </summary>
+    private static string Untold(Slice slice)
+    {
+        var value = slice.Said.ValueShown ? slice.Part.Inner(Kinds.Number)?.Text : null;
+        return string.Join("\n", new[] { slice.Part.Words()?.Text, value, Percent(slice.Said.Share) }.Where(line => line is { Length: > 0 }));
     }
 
     private static string Percent(double share) =>

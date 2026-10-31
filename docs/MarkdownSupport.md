@@ -248,7 +248,9 @@ choose as they do in any diagram on the layout tree.
 the section/legend text sizes and colours, and `pieTitleTextColor`. A size or colour nobody wrote is the theme's.
 Each wedge **stands in its own shape**, so a press means the slice it lands in rather than whichever bounding box was
 asked first, and the gaps between slices are real gaps of even width. A wedge, the share written on it and its legend
-row all point at the same slice, so choosing one highlights all three. **Limitations:** `hover` highlighting needs a
+row all point at the same slice, so choosing one highlights all three. A wedge too thin to hold its share (under 5%)
+says, while pointed at, what its slice is called, what it is worth where `showData` shows values, and its share; a
+wedge showing its share says nothing more. **Limitations:** `hover` highlighting needs a
 pointer the layout does not yet report, so it picks out nothing; and a value is typed into only where the host makes
 the block editable.
 
