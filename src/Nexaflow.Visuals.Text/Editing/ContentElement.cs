@@ -299,6 +299,12 @@ public class ContentElement : FrameworkElement
     public (int Start, int Length)? ShownAsWritten =>
         State.Raw is { Length: > 0 } zone ? (zone.Start, zone.Length) : null;
 
+    /// <summary>Where on the page what is being carried would go into stands, where its language outlines that rather than showing the result.</summary>
+    internal LayoutRect? Marking => _engine.Marking;
+
+    /// <summary>Whether what is being carried is shown as the content would read once let go.</summary>
+    internal bool ShowsCarriedResult => _engine.Preview is not null;
+
     // Somewhere written, or a hole standing where something is still to be written - which is somewhere to write too.
 
     /// <summary>Whether the caret belongs in this content at all. Asked of the tree rather than declared, since a piece naming a stretch of source is one somebody typed — a barcode that only prints a worked-out number has none.</summary>
@@ -777,6 +783,9 @@ public class ContentElement : FrameworkElement
         if (scaled) dc.Pop();
     }
 
+    /// <summary>How thick the outline round what a carry would go into is drawn, and how far outside it.</summary>
+    private const double MarkThickness = 2;
+
     private void PaintContent(DrawingContext dc)
     {
         var laid = Laid;
@@ -808,6 +817,10 @@ public class ContentElement : FrameworkElement
         Waves(dc, laid, _painted);
 
         PaintOver(dc);
+
+        // What a carry would go into, outlined on the content as it stands: the drop is chosen against what is on screen.
+        if (_engine.Marking is { } marked)
+            dc.DrawRectangle(null, new Pen(Palette.Accent.Brush(), MarkThickness), Rect.Inflate(marked.ToWpf(), MarkThickness, MarkThickness));
 
         var dropping = _engine.Dropping;
         if (!ShowsCaret || !_caretVisible) return;

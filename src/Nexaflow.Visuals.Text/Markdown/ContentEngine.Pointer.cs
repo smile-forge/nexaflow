@@ -52,6 +52,9 @@ public sealed partial class ContentEngine
     private Moved? _previewOf;
     private (int Start, int End) _previewMoved;
 
+    /// <summary>Where on the page what a carry would go into stands, where its language marks that rather than showing the result (<see cref="IOnMove.DropTarget"/>).</summary>
+    private LayoutRect? _marked;
+
     /// <summary>How near a stop a press has to be to mean the stop rather than the thing, in layout pixels.</summary>
     private const double CaretReach = 3.0;
 
@@ -73,8 +76,11 @@ public sealed partial class ContentEngine
     /// <summary>The content as it would read if what is being carried were let go where it is now, with what is carried, or null.</summary>
     internal (Laid Laid, int Start, int End)? Preview => _preview is { } preview ? (preview, _previewMoved.Start, _previewMoved.End) : null;
 
-    /// <summary>Where what is being carried would land, or null where nothing is.</summary>
-    internal int? Dropping => _moving ? _dropAt : null;
+    /// <summary>Where what is being carried would land, or null where nothing is — or where what it would go into is marked out instead (<see cref="Marking"/>).</summary>
+    internal int? Dropping => _moving && _marked is null ? _dropAt : null;
+
+    /// <summary>Where on the page what is being carried would go into stands, where its language marks that out rather than showing the result — or null.</summary>
+    internal LayoutRect? Marking => _moving ? _marked : null;
 
     /// <summary>What a press, a drag or a release comes to.</summary>
     private bool Pointed(ContentInput input)
@@ -475,16 +481,20 @@ public sealed partial class ContentEngine
 
         _previewOf = carried;
         _previewMoved = carried is { } moved ? (moved.Wrote.Start, moved.Wrote.End) : default;
-        _preview = carried is { } laid ? LaidOut(new EditState(laid.Source, laid.Caret)) : null;
+
+        // Where the language names what it goes into, that is marked out on the content as it stands, and nothing is laid out again.
+        _marked = carried is null ? null : Target(_dropAt);
+        _preview = carried is { } laid && _marked is null ? LaidOut(new EditState(laid.Source, laid.Caret)) : null;
 
         return true;
     }
 
     private void ClearPreview()
     {
-        var had = _preview is not null;
+        var had = _preview is not null || _marked is not null;
 
         _preview = null;
+        _marked = null;
         _previewOf = null;
         _previewMoved = default;
 

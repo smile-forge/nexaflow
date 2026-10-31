@@ -173,6 +173,12 @@ public sealed record ContentAsk(string Named, string Source)
     /// <summary>What is picked out, where anything is — offsets into <see cref="Source"/>.</summary>
     public (int Start, int Length)? Chosen { get; init; }
 
+    /// <summary>
+    /// Every stretch picked out, in the document's offsets as every part names them — what something offered for several things at once
+    /// is offered from, where they were picked out apart (<see cref="Chosen"/> runs from the first to the last of them).
+    /// </summary>
+    public IReadOnlyList<Nexaflow.Markdown.Editing.EditRange> Selection { get; init; } = [];
+
     /// <summary>Where the caret stands, where nothing is picked out — in the document's offsets, as every part names them — or null.</summary>
     public int? Caret { get; init; }
 

@@ -169,7 +169,7 @@ public sealed partial class ContentEngine
     /// </param>
     internal void Apply(EditState next, bool notify, int at = -1)
     {
-        next = Held(Left(next));
+        next = Held(Arrived(Left(next)));
 
         // A host that owns what is written may refuse it. Asked only where the words themselves would change: the caret moving, or
         // a stretch being shown as the characters it was written with, is not a change to what is written.
@@ -216,6 +216,18 @@ public sealed partial class ContentEngine
             piece.Words is not null && piece.Part is { } part && part.Start == zone.Start && part.End() == zone.End);
 
         return run ? next with { Raw = null } : next;
+    }
+
+    /// <summary>
+    /// Shows words drawn other than as written — a value as its format sets it — as the characters written once the caret has come into
+    /// them by a key, as a press on them does; so a step into a value finds the number it is about to type into, not what it is drawn as.
+    /// Only a caret moving: what is written changing lays the content out again, and the caret then lands among what that drew.
+    /// </summary>
+    private EditState Arrived(EditState next)
+    {
+        if (_readOnly || next.Raw is not null || next.HasSelection || next.Source != _state.Source) return next;
+
+        return _laid.Root.RestatedAt(next.Caret) is { Part: { } part } ? next with { Raw = new RawZone(part.Start, part.End()) } : next;
     }
 
     // ── The caret ───────────────────────────────────────────────────────────
@@ -644,18 +656,15 @@ public sealed partial class ContentEngine
     /// </summary>
     private ContentChange? Carried(int to)
     {
-        var (piece, part, root) = Reached(Landing, _dropOver);
-
         // A carry of a language's own is that language's to let go, and only in its own content: anywhere else it goes nowhere.
         if (_carry is { } carry)
         {
-            if (part is null || !ReferenceEquals(root.Node, _carriedIn)
-                || ContentLanguages.WrittenIn(root) is not { } own || own.Editing.OnMove is not { } onMove) return null;
+            if (OwnMove(carry, to) is not var (onMove, ownMove, own)) return null;
 
             ContentChange? answered;
             try
             {
-                answered = onMove.Move(new ContentMove([], to, Landing, piece, part, root) { Carry = carry, At = _dropPoint });
+                answered = onMove.Move(ownMove);
             }
             catch
             {
@@ -672,6 +681,7 @@ public sealed partial class ContentEngine
 
         if (ranges.Count == 0) return null;
 
+        var (piece, part, root) = Reached(Landing, _dropOver);
         var move = new ContentMove(ranges, to, Landing, piece, part, root) { At = _dropPoint };
 
         var language = part is null ? null : ContentLanguages.WrittenIn(root);
@@ -693,6 +703,46 @@ public sealed partial class ContentEngine
         return said is null || !said.Writes.Any(write => write.Meant) ? said
              : language is null ? null
              : Spelling(said, _state, language);
+    }
+
+    /// <summary>
+    /// A carry of a language's own let go at <paramref name="to"/>: that language, what it answers moves with, and the move told to it —
+    /// null where it is over anything but the content it was picked up in, where it goes nowhere.
+    /// </summary>
+    private (IOnMove OnMove, ContentMove Move, ContentLanguage Own)? OwnMove(ContentCarry carry, int to)
+    {
+        var (piece, part, root) = Reached(Landing, _dropOver);
+
+        if (part is null || !ReferenceEquals(root.Node, _carriedIn)
+            || ContentLanguages.WrittenIn(root) is not { } own || own.Editing.OnMove is not { } onMove) return null;
+
+        return (onMove, new ContentMove([], to, Landing, piece, part, root) { Carry = carry, At = _dropPoint }, own);
+    }
+
+    /// <summary>
+    /// Where on the page the part a carry of a language's own would go into stands, let go at <paramref name="to"/>, as the language names
+    /// it (<see cref="IOnMove.DropTarget"/>) — or null, where the carry is shown by what it would come to instead.
+    /// </summary>
+    private LayoutRect? Target(int to)
+    {
+        if (_carry is not { } carry || OwnMove(carry, to) is not var (onMove, move, _)) return null;
+
+        ContentPart? target;
+        try
+        {
+            target = onMove.DropTarget(move);
+        }
+        catch
+        {
+            return null;
+        }
+
+        if (target is null) return null;
+
+        foreach (var (piece, where) in _laid.Root.Placed())
+            if (ReferenceEquals(piece.Part, target)) return where;
+
+        return null;
     }
 
     /// <summary>

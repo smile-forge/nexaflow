@@ -22,7 +22,8 @@ public readonly record struct OutlineCaret(ContentPart Item, int Into);
 
 /// <summary>
 /// What a change to an outline's structure is written as — an item put in, taken out, moved beside another, under another, a level in
-/// or out, up or down among its siblings — for a diagram that nests by how deep its lines stand and has gathered them so
+/// or out, up or down among its siblings, items put under a new one, an item's own taken out from under it — for a diagram that nests
+/// by how deep its lines stand and has gathered them so
 /// (<see cref="MermaidOutline.Gather"/>).
 ///
 /// <para>
@@ -94,9 +95,10 @@ public sealed class OutlineWriting
 
     /// <summary>
     /// <paramref name="items"/> taken out, with everything under them — the caret where <paramref name="caret"/> says, or where the item
-    /// after them now starts, or the end of the one before them.
+    /// after them now starts, or the end of the one before them. Where <paramref name="bodies"/> says, items left say something else as
+    /// well: the one they were merged into saying what they were all worth, say.
     /// </summary>
-    public ContentChange? Removed(IReadOnlyList<ContentPart> items, OutlineCaret? caret = null)
+    public ContentChange? Removed(IReadOnlyList<ContentPart> items, OutlineCaret? caret = null, IReadOnlyDictionary<ContentPart, string>? bodies = null)
     {
         var tops = Tops(items);
         if (tops.Count == 0) return null;
@@ -106,6 +108,7 @@ public sealed class OutlineWriting
         var before = order.TakeWhile(entry => entry != tops[0]).LastOrDefault(entry => !Under(entry, tops));
 
         foreach (var top in tops) Siblings(top).Remove(top);
+        Say(bodies);
 
         return Written(placed => caret is { } at && Find(at.Item) is { } focus ? placed[focus] + at.Into
                                : after is not null ? placed[after]
@@ -180,10 +183,56 @@ public sealed class OutlineWriting
         if (beside is not null && Find(beside) is { } target) Put([fresh], target, side);
         else _forest.Add(fresh);
 
-        foreach (var (item, said) in bodies ?? new Dictionary<ContentPart, string>())
-            if (Find(item) is { } entry) entry.Body = said;
+        Say(bodies);
 
         return Written(placed => placed[fresh] + into);
+    }
+
+    /// <summary>
+    /// An item saying <paramref name="body"/> put in where the first of <paramref name="items"/> stands, with them all under it in the
+    /// order written and everything under them — the caret <paramref name="into"/> characters into it. Null where none of them is written.
+    /// </summary>
+    public ContentChange? Grouped(string body, IReadOnlyList<ContentPart> items, int into)
+    {
+        var tops = Tops(items);
+        if (tops.Count == 0) return null;
+
+        var fresh = new Entry(null, null, string.Empty, body, string.Empty);
+        Put([fresh], tops[0], OutlineSide.Before);
+        Put(tops, fresh, OutlineSide.Inside);
+
+        return Written(placed => placed[fresh] + into);
+    }
+
+    /// <summary>
+    /// <paramref name="item"/> taken out with what it says, the items under it standing where it stood a level out, and the lines written
+    /// in front of it in front of the first of them — the caret where <paramref name="caret"/> says, or at the start of the first of them.
+    /// Null where it is not written.
+    /// </summary>
+    public ContentChange? Ungrouped(ContentPart item, OutlineCaret? caret = null)
+    {
+        if (Find(item) is not { } entry) return null;
+
+        var siblings = Siblings(entry);
+        var at = siblings.IndexOf(entry);
+        var under = entry.Children.ToList();
+
+        foreach (var child in under) child.Parent = entry.Parent;
+        if (under.Count > 0) under[0].Before = entry.Before + under[0].Before;
+
+        siblings.RemoveAt(at);
+        siblings.InsertRange(at, under);
+
+        return Written(placed => caret is { } held && Find(held.Item) is { } focus ? placed[focus] + held.Into
+                               : under.Count > 0 ? placed[under[0]]
+                               : 0);
+    }
+
+    /// <summary>What the items <paramref name="bodies"/> names say instead, where it names any.</summary>
+    private void Say(IReadOnlyDictionary<ContentPart, string>? bodies)
+    {
+        foreach (var (item, said) in bodies ?? new Dictionary<ContentPart, string>())
+            if (Find(item) is { } entry) entry.Body = said;
     }
 
     // ── The outline ─────────────────────────────────────────────────────────
@@ -195,7 +244,7 @@ public sealed class OutlineWriting
         public ContentPart? Line { get; } = line;
         public string Lead { get; } = lead;
         public string Body { get; set; } = body;
-        public string Before { get; } = before;
+        public string Before { get; set; } = before;
         public Entry? Parent { get; set; }
         public List<Entry> Children { get; } = [];
     }

@@ -15,21 +15,24 @@ using Nexaflow.Visuals.Text.Markdown.Mermaid;
 namespace Nexaflow.Visuals.Text.Markdown.Treemap;
 
 /// <summary>
-/// What an edit means in a treemap, and what it offers where it is right-clicked — an outline a reader works with as they would any
-/// other.
+/// What an edit means in a treemap, and what it offers where it is right-clicked — boxes a reader splits, merges, groups and moves
+/// between groups as they see them drawn, rather than lines of an outline: where a tile is drawn follows from what it is worth, so the
+/// order its line is written in is nothing a reader sees (<see cref="TreemapWriting"/>).
 ///
 /// <para>
 /// A label is typed into where it is drawn, and holds anything but the quote it is in: a quote typed into it puts it in the other
-/// quote where it holds none of those, and is left out where it holds both. A value takes only what a number is written with. Enter
-/// in an item puts a leaf in after it, the caret in its label; Tab and Shift+Tab take the item a level in, into the section before
-/// it, and out, after the section it is in; Page Up and Page Down move it up and down among its siblings. Backspace in a label with
-/// nothing written in it takes the item out, as it does a line with nothing on it.
+/// quote where it holds none of those, and is left out where it holds both. A value takes only what a number is written with, and one
+/// drawn as its format sets it is shown as written once the caret is in it. Enter in a box splits it in two, the caret in the new
+/// box's label; Backspace in a label with nothing written in it takes the box back into the one before it, as it joins a line with
+/// nothing on it to the line before — so a split taken back is the box it was — and Delete there takes it out.
 /// </para>
 /// <para>
-/// A right-click on an item offers to put a leaf in before it, after it or inside it, to take it a level in or out where it can go,
-/// and to take it out; anywhere else in the treemap, a leaf after everything. With whole items picked out, Delete takes them out and Insert puts a
-/// leaf in before them; and an item taken hold of by its tile — picked out first or not — and let go on a section goes into it, and
-/// on a leaf goes beside it. An item always goes with everything under it (<see cref="TreemapWriting"/>).
+/// A right-click on a box offers to split it, to merge the boxes picked out into it, to put it — or the boxes picked out, where it is
+/// one of them — in a new group, and to take it out; on a group's band, to put a box in it, to let its items out into the group around
+/// it, and to take it out; anywhere else in the treemap, a box at its top. With whole items picked out Delete takes them out. A box or
+/// group taken hold of by its tile — picked out first or not — and let go on a group, its band or any box in it, goes into that group,
+/// and let go on a box at the top, to the top; while it is carried the treemap stands still with that group outlined
+/// (<see cref="DropTarget"/>), since laid out finished at every point it would move under the pointer.
 /// </para>
 /// <para>
 /// In its words the clipboard is offered as the engine does it, and over whole items only a copy (<see cref="Clipboard"/>).
@@ -39,12 +42,12 @@ internal sealed class TreemapEdits : IContentLanguage, IOnEdit, IOnMove
 {
     private const string Named = "treemap.";
 
-    private const string Before = Named + "insert.before";
-    private const string After = Named + "insert.after";
-    private const string Inside = Named + "insert.inside";
-    private const string Last = Named + "insert.end";
-    private const string Deeper = Named + "level.in";
-    private const string Shallower = Named + "level.out";
+    private const string Split = Named + "box.split";
+    private const string Merge = Named + "box.merge";
+    private const string Group = Named + "box.group";
+    private const string AddInside = Named + "group.add";
+    private const string Ungroup = Named + "group.ungroup";
+    private const string Add = Named + "add";
     private const string Delete = Named + "delete";
 
     /// <inheritdoc/>
@@ -60,11 +63,7 @@ internal sealed class TreemapEdits : IContentLanguage, IOnEdit, IOnMove
         EditKind.Settling => edit.Text == "\n" ? Entered(edit) : DiagramWriting.Typed(edit, Escaping),
         EditKind.Pasting => Pasted(edit),
         EditKind.Erasing or EditKind.Deleting => Chosen(edit) is { Count: > 0 } chosen ? TreemapWriting.Removed(edit.Root, chosen) : Erased(edit),
-        EditKind.Inserting => Targets(edit) is [var first, ..] ? TreemapWriting.Added(edit.Root, first, OutlineSide.Before) : null,
-        EditKind.Tabbing => Leveled(edit, TreemapWriting.Deeper),
-        EditKind.TabbingBack => Leveled(edit, TreemapWriting.Shallower),
-        EditKind.Raising => Leveled(edit, TreemapWriting.Raised),
-        EditKind.Lowering => Leveled(edit, TreemapWriting.Lowered),
+        EditKind.Tabbing or EditKind.TabbingBack or EditKind.Raising or EditKind.Lowering => Taken(edit),
         _ => null,
     };
 
@@ -74,26 +73,34 @@ internal sealed class TreemapEdits : IContentLanguage, IOnEdit, IOnMove
         if (ask.IsReadOnly || ask.Root is not { } root) return [];
 
         if (TreemapWriting.ItemOf(ask.Part) is not { } item)
-            return [Pressing(Last, "Text.Treemap.Item.End", "add_square", static edit => TreemapWriting.Added(edit.Root, null, OutlineSide.After))];
+            return [Pressing(Add, "Text.Treemap.Add", "add_square", static edit => TreemapWriting.Added(edit.Root))];
 
-        var outline = TreemapWriting.Outline(root);
+        var deleting = Pressing(Delete, "Text.Treemap.Item.Delete", "delete",
+                                static edit => Over(edit) is { } over ? TreemapWriting.Removed(edit.Root, With(edit, over)) : null) with { Warns = true };
+
+        if (TreemapWriting.Holds(item))
+            return
+            [
+                Pressing(AddInside, "Text.Treemap.Group.Add", "add_square",
+                         static edit => Over(edit) is { } over ? TreemapWriting.AddedInside(edit.Root, over) : null),
+                Pressing(Ungroup, "Text.Treemap.Group.Ungroup", "group_dismiss",
+                         static edit => Over(edit) is { } over ? TreemapWriting.Ungrouped(edit.Root, over) : null),
+                deleting,
+            ];
+
+        var merges = TreemapWriting.Merges(With(Picked(root, ask.Selection), item));
 
         return
         [
-            Pressing(Before, "Text.Treemap.Item.Before", "table_stack_above",
-                     static edit => Over(edit) is { } over ? TreemapWriting.Added(edit.Root, over, OutlineSide.Before) : null),
-            Pressing(After, "Text.Treemap.Item.After", "table_stack_below",
-                     static edit => Over(edit) is { } over ? TreemapWriting.Added(edit.Root, over, OutlineSide.After) : null),
-            Pressing(Inside, "Text.Treemap.Item.Inside", "add_square",
-                     static edit => Over(edit) is { } over ? TreemapWriting.AddedInside(edit.Root, over) : null),
-            Pressing(Deeper, "Text.Treemap.Item.Deeper", "text_indent_increase_ltr",
-                     static edit => Over(edit) is { } over ? TreemapWriting.Deeper(edit.Root, [over], edit.State.Caret) : null)
-                with { Disabled = !outline.CanGoDeeper([item]) },
-            Pressing(Shallower, "Text.Treemap.Item.Shallower", "text_indent_decrease_ltr",
-                     static edit => Over(edit) is { } over ? TreemapWriting.Shallower(edit.Root, [over], edit.State.Caret) : null)
-                with { Disabled = !outline.CanGoShallower([item]) },
-            Pressing(Delete, "Text.Treemap.Item.Delete", "delete",
-                     static edit => Over(edit) is { } over ? TreemapWriting.Removed(edit.Root, [over]) : null) with { Warns = true },
+            Pressing(Split, "Text.Treemap.Box.Split", "table_cells_split",
+                     static edit => Over(edit) is { } over ? TreemapWriting.Split(edit.Root, over) : null)
+                with { Disabled = !TreemapWriting.Splits(item) },
+            Pressing(Merge, merges ? "Text.Treemap.Box.Merge" : "Text.Treemap.Box.MergeHow", "table_cells_merge",
+                     static edit => Over(edit) is { } over ? TreemapWriting.Merged(edit.Root, With(edit, over), over) : null)
+                with { Disabled = !merges },
+            Pressing(Group, "Text.Treemap.Box.Group", "group",
+                     static edit => Over(edit) is { } over ? TreemapWriting.Grouped(edit.Root, With(edit, over)) : null),
+            deleting,
         ];
 
         // Done to the item under the pointer, so each stands beside the rest as its icon, named to a reader hovering over it.
@@ -103,6 +110,11 @@ internal sealed class TreemapEdits : IContentLanguage, IOnEdit, IOnMove
 
     /// <summary>The item a control of the ribbon was used over, or null where it was used over none.</summary>
     private static ContentPart? Over(ContentEdit edit) => TreemapWriting.ItemOf(edit.Part);
+
+    /// <summary>What something done to <paramref name="over"/> is done to: the items picked out, where it is one of them — else it alone.</summary>
+    private static List<ContentPart> With(ContentEdit edit, ContentPart over) => With(Chosen(edit), over);
+
+    private static List<ContentPart> With(List<ContentPart> picked, ContentPart over) => picked.Contains(over) ? picked : [over];
 
     /// <inheritdoc/>
     /// <remarks>
@@ -142,25 +154,24 @@ internal sealed class TreemapEdits : IContentLanguage, IOnEdit, IOnMove
 
     // ── Keys ────────────────────────────────────────────────────────────────
 
-    /// <summary>Enter in an item: a leaf put in after it, the caret in its label. Anywhere else, what Enter does anywhere.</summary>
-    private static ContentChange? Entered(ContentEdit edit) =>
-        !edit.State.HasSelection && TreemapWriting.ItemOf(edit.Part) is { } item ? TreemapWriting.Added(edit.Root, item, OutlineSide.After) : null;
+    /// <summary>Enter in a box: the box split in two, the caret in the new one's label. In a group, the key taken; anywhere else, what Enter does anywhere.</summary>
+    private static ContentChange? Entered(ContentEdit edit)
+    {
+        if (edit.State.HasSelection || TreemapWriting.ItemOf(edit.Part) is not { } item) return null;
+
+        return TreemapWriting.Split(edit.Root, item) ?? ContentChange.Stay(edit.State);
+    }
 
     /// <summary>
-    /// Tab, Shift+Tab, Page Up or Page Down on the items picked out, or the item the caret is in: what <paramref name="moved"/> makes of
-    /// them — and the key taken where it can make nothing of them, rather than written into a label.
+    /// Tab, Shift+Tab, Page Up or Page Down in an item, taken rather than written into its label: they move a line of an outline, and
+    /// where a tile is drawn follows from what it is worth, not from where its line is written. Anywhere else, what the key does anywhere.
     /// </summary>
-    private static ContentChange? Leveled(ContentEdit edit, Func<ContentPart, IReadOnlyList<ContentPart>, int, ContentChange?> moved) =>
-        Targets(edit) is { Count: > 0 } targets ? moved(edit.Root, targets, edit.State.Caret) ?? ContentChange.Stay(edit.State) : null;
-
-    /// <summary>The items a key is about: the ones picked out whole, or else the one the caret is in.</summary>
-    private static List<ContentPart> Targets(ContentEdit edit) =>
-        Chosen(edit) is { Count: > 0 } chosen ? chosen : TreemapWriting.ItemOf(edit.Part) is { } item ? [item] : [];
+    private static ContentChange? Taken(ContentEdit edit) => TreemapWriting.ItemOf(edit.Part) is not null ? ContentChange.Stay(edit.State) : null;
 
     /// <summary>
     /// A key taking a character out of a label where the label cannot lose it — a quote round it — so nothing is taken; or, where nothing
-    /// is written in the label, the item itself taken out, as a line with nothing on it is, and the caret at the end of the label before
-    /// it. Null anywhere else.
+    /// is written in the label, Backspace taking the box back into the one beside it and Delete taking it out, the caret at the end of the
+    /// label before it. Null anywhere else.
     /// </summary>
     private static ContentChange? Erased(ContentEdit edit)
     {
@@ -173,7 +184,9 @@ internal sealed class TreemapEdits : IContentLanguage, IOnEdit, IOnMove
         var erasing = edit.Kind == EditKind.Erasing;
 
         if (erasing ? caret > open.End : caret < close.Start) return null;
-        if (label.Words() is { Length: > 0 } || !erasing || TreemapWriting.ItemOf(label) is not { } item) return ContentChange.Stay(state);
+        if (label.Words() is { Length: > 0 } || TreemapWriting.ItemOf(label) is not { } item || TreemapWriting.Holds(item)) return ContentChange.Stay(state);
+
+        if (erasing) return TreemapWriting.MergedBack(edit.Root, item) ?? ContentChange.Stay(state);
 
         var before = TreemapWriting.Items(edit.Root).TakeWhile(each => each.Start < item.Start).LastOrDefault();
         return TreemapWriting.Removed(edit.Root, [item], before is null ? null : TreemapWriting.AfterLabel(before)) ?? ContentChange.Stay(state);
@@ -221,30 +234,43 @@ internal sealed class TreemapEdits : IContentLanguage, IOnEdit, IOnMove
     {
         if (grip.Piece.Kind != MermaidPiece.Shape || TreemapWriting.ItemOf(grip.Part) is not { } item) return ContentLift.Selection;
 
-        var chosen = Picked(grip.Root, grip.State);
+        var chosen = Picked(grip.Root, grip.State.Selection);
         return new ItemsCarried(chosen.Contains(item) ? chosen : [item]);
     }
 
-    /// <summary>Whole items, carried: let go on a section they go into it, and on a leaf beside it.</summary>
+    /// <summary>Whole items, carried: let go on a group or anything in it, they go into it.</summary>
     private sealed record ItemsCarried(IReadOnlyList<ContentPart> Items) : ContentCarry;
 
-    /// <summary>Items carried — taken hold of by a tile, or picked out and carried — let go on another item: into it where it is a section, and beside it where it is a leaf.</summary>
+    /// <summary>Items carried — taken hold of by a tile, or picked out and carried — let go on the treemap: into the group the drop is on (<see cref="Into"/>).</summary>
     public ContentChange? Move(ContentMove move)
     {
-        if (move.Carry is ItemsCarried carried)
-            return TreemapWriting.ItemOf(move.Part) is { } onto ? TreemapWriting.Moved(move.Root, carried.Items, onto, move.State.Caret) : null;
+        if (move.Carry is ItemsCarried carried) return TreemapWriting.MovedInto(move.Root, carried.Items, Into(move), move.State.Caret);
 
         if (!move.Holds) return null;
         if (move.Carrying().Where(part => part.Kind == TreemapKinds.Node).ToList() is not { Count: > 0 } chosen) return null;
-        if (TreemapWriting.ItemOf(move.Part) is not { } over) return ContentChange.Stay(move.State);
 
-        return TreemapWriting.Moved(move.Root, chosen, over, move.State.Caret) ?? ContentChange.Stay(move.State);
+        return TreemapWriting.MovedInto(move.Root, chosen, Into(move), move.State.Caret) ?? ContentChange.Stay(move.State);
     }
 
-    /// <summary>The items whose whole stretch of characters is picked out.</summary>
-    private static List<ContentPart> Chosen(ContentEdit edit) => Picked(edit.Root, edit.State);
+    /// <inheritdoc/>
+    /// <remarks>The group a carried item would go into, outlined where it stands — the treemap itself, for its top.</remarks>
+    public ContentPart? DropTarget(ContentMove move) => move.Carry is ItemsCarried ? Into(move) : null;
 
-    /// <summary>The items of <paramref name="root"/> whose whole stretch of characters <paramref name="state"/> has picked out.</summary>
-    private static List<ContentPart> Picked(ContentPart root, EditState state) =>
-        [.. TreemapWriting.Items(root).Where(item => state.Selection.Any(range => range.Start <= item.Start && item.End <= range.End))];
+    /// <summary>
+    /// The group a drop is on: the group whose band it is on, or the group the box it is on is in — the treemap itself for a box at its
+    /// top, and anywhere in it on no item.
+    /// </summary>
+    private static ContentPart Into(ContentMove move) => TreemapWriting.ItemOf(move.Part) switch
+    {
+        { } on when TreemapWriting.Holds(on) => on,
+        { } box => TreemapWriting.HolderOf(move.Root, box),
+        null => move.Root,
+    };
+
+    /// <summary>The items whose whole stretch of characters is picked out.</summary>
+    private static List<ContentPart> Chosen(ContentEdit edit) => Picked(edit.Root, edit.State.Selection);
+
+    /// <summary>The items of <paramref name="root"/> whose whole stretch of characters <paramref name="selection"/> picks out.</summary>
+    private static List<ContentPart> Picked(ContentPart root, IReadOnlyList<EditRange> selection) =>
+        [.. TreemapWriting.Items(root).Where(item => selection.Any(range => range.Start <= item.Start && item.End <= range.End))];
 }

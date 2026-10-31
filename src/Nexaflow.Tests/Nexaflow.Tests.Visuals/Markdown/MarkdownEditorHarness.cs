@@ -315,6 +315,12 @@ internal sealed class DocumentBlock(MarkdownSurface editor, int index)
     public (int Start, int Length)? ShownAsWritten =>
         Element.ShownAsWritten is { } shown ? (shown.Start - Origin, shown.Length) : null;
 
+    /// <summary>Where what is being carried would go into is outlined, where its language outlines it rather than showing the result.</summary>
+    public LayoutRect? Marking => Element.Marking;
+
+    /// <summary>Whether what is being carried is shown as the content would read once let go.</summary>
+    public bool ShowsCarriedResult => Element.ShowsCarriedResult;
+
     public int SelectionLength => Element.SelectionLength;
 
     public string SelectedText => Element.SelectedText;

@@ -127,7 +127,7 @@ JS/Mermaid.js, no browser).
 |---|---|---|
 | `nomnoml` | ✅ | ✅ — UML class notation on the shared layout tree; see [nomnoml](#nomnoml--sub-support) below |
 | `packet` | ✅ | ✅ — a packet or a register on the shared layout tree, written in place; see [packet](#packet--sub-support) below |
-| `treemap` | ✅ | ✅ — values as nested tiles on the shared layout tree, worked like an outline; see [treemap](#treemap--sub-support) below |
+| `treemap` | ✅ | ✅ — values as nested tiles on the shared layout tree, split, merged and grouped as boxes; see [treemap](#treemap--sub-support) below |
 | `treeview` | ✅ | ✅ — a folder tree on the shared layout tree, worked like an outline; see [tree view](#tree-view--sub-support) below |
 | `mermaid` | ⚠️ Partial | ✅ — see sub-types below |
 | `qr` | ✅ | ✅ — see [QR codes](#qr-codes--sub-support) below |
@@ -1237,13 +1237,19 @@ leaf in its section's colour, so the order items are written in changes no colou
 | `title …` on a line of its own | the title |
 | `config: treemap:` | `padding`, `diagramPadding`, `showValues`, `nodeWidth`, `nodeHeight`, `borderWidth`, `valueFontSize`, `labelFontSize`, `valueFormat` (a d3 format, with Mermaid's `$` shorthands) |
 
-A label is typed into on its tile, and a value too — drawn as `valueFormat` sets it, and shown as written once pressed. A
-section's total is worked out and never written in. It works like an outline: Enter adds a leaf after the item the caret
-is in, worth what the leaf beside it is; Tab moves an item into the section before it; Page Up and Page Down move it among
-its siblings; Backspace in an empty label takes the item out. A right-click on an item offers to put a leaf in before it,
-after it or inside it — a leaf given one becomes a section and hands it its value — to move it a level in or out, and to
-take it out. An item dragged by its tile goes into a section it is let go on, and beside a leaf. An item always goes with
-everything under it, and only its indentation is written again
+A label is typed into on its tile, and a value too — drawn as `valueFormat` sets it, and shown as written once the caret
+is in it, by a press or a key. A section's total is worked out and never written in. It is worked as boxes, not as an
+outline: where a tile is drawn follows from what it is worth, so the order lines are written in is nothing a reader sees,
+and nothing offered moves a line among its siblings. What the map adds up to is kept wherever a change can keep it. Enter
+in a box splits it in two, each worth half; Backspace in an empty label takes the box back into the one before it, as it
+joins a line to the line before, so a split taken back is the box it was — and the only box in a group gives the group its
+value back. A right-click on a box offers to split it, to merge the boxes picked out with Ctrl+click into it (greyed out
+until two are), to put it or the boxes picked out in a new group — a box on its own becomes the group, handing its value to
+a box in it — and to take it out; on a group's band, to add a box to it, to let its items out into the group around it,
+and to take it out; anywhere else, a box at the top. A box or group dragged by its tile goes into the group it is let go
+on — its band, or any box in it — and to the top on a box at the top; while it is carried the map stands still with that
+group outlined, and changes once, when it is let go. An item always goes with everything under it, and only its
+indentation and the values a change works out are written again
 ([`TreemapWriting`](../src/Nexaflow.Markdown/Treemap/TreemapWriting.cs), through
 [`OutlineWriting`](../src/Nexaflow.Markdown/Mermaid/OutlineWriting.cs)).
 
