@@ -387,16 +387,22 @@ own (`DiagramEdits`), which escapes what a place cannot hold as it is typed and 
 does anywhere.
 
 **A right-click asks the same language.** The engine walks from the piece under the pointer as it does for a key and
-asks that language what it offers there (`ContentEngine.Asked`, answered by `Editing.Offers` with the piece and the
-root); the options of one choice come back under one `LayoutIntent.Group`, the one in force marked `Current`, and
-`DiagramRibbon` draws them side by side, each as what it would make (`LayoutIntent.Shape`) and named in its tooltip. A
-press on one comes back through the engine as a choosing edit on the same piece and part (`ContentEngine.Choose`), so
-what a ribbon does is written in the handler that answers the keys.
+asks that language for its mini ribbon there (`ContentEngine.Asked`, answered by `Editing.Ribbon` with the piece, its part
+and the root). What comes back is controls, each with the language's own callback (`MiniRibbonControl`): a button pressed
+(`MiniRibbonButton`), a choice among options, the one in force marked (`MiniRibbonChoice`), and a value typed or picked
+from a list of the usual ones (`MiniRibbonEntry`). Nothing of it is in the layout tree, which says only what a press on a
+piece means. `DiagramRibbon` only draws them — what sets something on one row, what is done at once on the other, every
+list dropped down from a button — and hands back the control's callback with the value it was used with; the engine runs
+it against the content as it stands then and applies what it answers (`ContentEngine.Used`). The clipboard's ways — cut and copy what is picked out,
+paste at the caret — are the engine's to offer and to do, since only it knows what is picked out and the clipboard is the
+host's; the language says only which of them apply where the right-click landed (`Editing.Clipboard`). One with no edit handler
+writes nothing but characters and allows them all; one with a handler says place by place, because a copy is almost always
+right but a cut may take away what holds its content together and a paste may land where only some of it can go.
 
 Markdown's own offer is Insert: every language that names a block to start from (`ContentLanguage.DisplayName` — read
 as it is shown, in the window's language, while the invariant `Name` keys the offer — `Icon`, a Fluent UI System Icons
-name, and `DefaultBlock`, gathered by `ContentLanguages.Insertable`) sits behind the
-ribbon's one Insert button, which opens a sub-ribbon of their icons; choosing one writes its block after the block the
+name, and `DefaultBlock`, gathered by `ContentLanguages.Insertable`) is an option of one choice, its icon dropped down from the
+ribbon's one Insert button; choosing one writes its block after the block the
 ribbon was opened over, the caret on its last line (`MarkdownEdits`). The surface adds nothing to the ribbon of its
 own. Paste is the engine's: it asks whatever shows the content for what is on the clipboard, since a clipboard is the
 application's, and hands the words to the language the caret is in as a pasting edit. What a copy holds is the engine's
@@ -408,18 +414,24 @@ While whole pieces are chosen — a slice, a node — there is no caret (`Conten
 press, the drag, the content laid out as it would read after the drop, and letting go settling exactly what was on
 screen (`ContentEngine.Moving`, `BuildPreview`, `Release`). What it comes to by default is the characters carried,
 emptied from where they were and written in at the drop, which is right for everything whose source is what a reader
-sees. A language says otherwise through **`IOnMove`** (`IContentLanguage.OnMove`), told what is carried and where it is
-being let go (`ContentMove`) rather than left to work either out from the selection — because the case that needs it is
-the one where the stretches carried are not next to one another and what they stand for is a place in a structure: a
-slice of a pie, a column of a matrix, a note of a tune. It answers with a `ContentChange` like every other edit, so
-there is still one path from a gesture to the source. Text arriving from outside is an edit rather than a move, and
+sees. A language says otherwise through **`IOnMove`** (`IContentLanguage.OnMove`), which decides both ends, since the
+layout knows neither — where a press began and where a drop landed are only pieces and the parts they were drawn from.
+Every press is put to it (`Lift`, told the piece, the part and the point), and it answers explicitly: what is picked out,
+carried as the engine carries it (`ContentLift.Selection`), or a carry of its own (`ContentCarry`) that this press alone
+picks up, with nothing picked out first — a packet's field by its box, or the end of one — and whose `Pointer` is what the
+pointer shows over where it would be taken from, asked only as the pointer arrives on another piece. Wherever the carry goes it is told what is carried and
+where it is being let go (`ContentMove`: the stretches or its own carry, the piece, the part and the point) rather than left
+to work either out from the selection — because the case that needs it is the one where what is carried stands for a place
+in a structure: a slice of a pie, a column of a matrix, a field's end. A carry of its own is let go only in its own content,
+and is asked at every point it crosses, the content laid out again only where the answer changes. It answers with a
+`ContentChange` like every other edit, so there is still one path from a gesture to the source. Text arriving from outside is an edit rather than a move, and
 stays one (`EditKind.Dropping`, `ContentEngine.Brought`).
 
 **The rest is shared and comes with the element.** Shift chooses from where the choosing started and Ctrl adds or takes
 back what is pressed (`ContentElement.BeginPointerSelect`); up and down go to the nearest line with somewhere to stand,
 at the place nearest the column (`LayoutQuery.StepVertical`); undo takes back a stretch of writing, each step the whole
 document as it stood (`EditHistory`); the pointer is a bar only over what can be written in
-(`LayoutQuery.Writable`). A block's corner offers what its language says (`Editing.Corner`, `Editing.Offers`): code no
+(`LayoutQuery.Writable`). A block's corner offers what its language says (`Editing.Corner`): code no
 picture of itself, prose no corner at all. A language that implements any of these itself is off-spec.
 
 ## 10. The element and the surface

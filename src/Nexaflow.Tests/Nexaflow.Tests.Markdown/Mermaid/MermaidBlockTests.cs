@@ -40,6 +40,8 @@ public class MermaidBlockTests
         ("timeline", MermaidDiagram.Timeline),
         ("journey", MermaidDiagram.Journey),
         ("block-beta", MermaidDiagram.Block),
+        ("packet", MermaidDiagram.Packet),
+        ("packet-beta", MermaidDiagram.Packet),
         ("C4Context", MermaidDiagram.C4),
         ("C4Container", MermaidDiagram.C4),
         ("C4Component", MermaidDiagram.C4),

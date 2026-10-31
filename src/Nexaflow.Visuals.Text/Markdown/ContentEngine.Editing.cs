@@ -9,6 +9,7 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -130,10 +131,11 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
-    /// What the language drawn at <paramref name="at"/> offers there — what a right-click opens: the same walks a key makes, from
-    /// the piece under the point to its part and that part's root, and that language's <see cref="IContentLanguage.Offers"/> asked.
+    /// The mini ribbon the language drawn at <paramref name="at"/> offers there — what a right-click opens: the same walks a key makes,
+    /// from the piece under the point to its part and that part's root, that language's <see cref="IContentLanguage.Ribbon"/> asked,
+    /// and beside it the clipboard's ways it allows.
     /// </summary>
-    internal IReadOnlyList<LayoutIntent> Asked(LayoutPoint at)
+    internal IReadOnlyList<MiniRibbonControl> Asked(LayoutPoint at)
     {
         var edit = Walked(EditKind.Choosing, string.Empty, Landing, _laid.Root.PieceAt(at));
         if (edit.Part is null || ContentLanguages.WrittenIn(edit.Root) is not { } language) return [];
@@ -144,10 +146,10 @@ public sealed partial class ContentEngine
             : ((int, int)?)null;
 
         // Asking a language what it offers is running its code, on a right-click. One that falls over costs the reader what
-        // that language would have added to the menu, not the window.
+        // that language would have added to the ribbon, not the window.
         try
         {
-            return language.Editing.Offers(new ContentAsk(edit.Root.Node is BlockNode block ? block.Language : string.Empty, edit.Source)
+            var ask = new ContentAsk(edit.Root.Node is BlockNode block ? block.Language : string.Empty, edit.Source)
             {
                 Part = edit.Part,
                 Piece = edit.Piece,
@@ -155,12 +157,34 @@ public sealed partial class ContentEngine
                 Chosen = chosen,
                 Caret = state.HasSelection ? null : state.Caret,
                 IsReadOnly = _readOnly,
-            });
+            };
+
+            return [.. language.Editing.Ribbon(ask), .. Clipboarding(language.Editing.Clipboard(ask), state)];
         }
         catch
         {
             return [];
         }
+    }
+
+    /// <summary>
+    /// The clipboard's ways a language allows where a right-click landed, as the engine's own buttons: copying and cutting what is
+    /// picked out, where anything is, and pasting where anything can be written — each done by the engine, whichever language allowed
+    /// it, since only the engine knows what is picked out and the clipboard itself is the host's.
+    /// </summary>
+    private IEnumerable<MiniRibbonControl> Clipboarding(ClipboardOffers allowed, EditState state)
+    {
+        if (state.HasSelection && !_readOnly && allowed.HasFlag(ClipboardOffers.Cut)) yield return Clipboard(LayoutVerbs.Cut, "Text.Ribbon.Cut", Cut);
+        if (state.HasSelection && allowed.HasFlag(ClipboardOffers.Copy)) yield return Clipboard(LayoutVerbs.Copy, "Text.Ribbon.Copy", Copied);
+        if (!_readOnly && allowed.HasFlag(ClipboardOffers.Paste)) yield return Clipboard(LayoutVerbs.Paste, "Text.Ribbon.Paste", Paste);
+
+        // Done by the engine itself rather than written by a change, so the button answers none.
+        static MiniRibbonButton Clipboard(string verb, string name, Func<bool> done) =>
+            new(verb, Str.Get(name), _ =>
+            {
+                done();
+                return null;
+            }) { Shape = DiagramRibbon.Marked(new LayoutIntent(verb)) };
     }
 
     /// <summary>

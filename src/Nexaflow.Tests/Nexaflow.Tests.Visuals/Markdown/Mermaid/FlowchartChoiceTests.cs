@@ -39,33 +39,33 @@ public class FlowchartChoiceTests
     public void AChartOffersEveryShapeOverANode_AndSaysWhichOneItIsDrawnAs() => UiThread.Run(() =>
         InADocument((editor, chart) =>
         {
-            var shapes = Ribbon(editor, Node(chart, "Start")).Offers.Where(offer => offer.Group == "Shape").ToList();
+            var choice = Choice(Ribbon(editor, Node(chart, "Start")), "flowchart.shape");
+            var shapes = choice.Options;
 
             Assert.AreEqual(53, shapes.Count, "every shape Mermaid draws, which is every one but the one that is no shape");
-            Assert.AreEqual(shapes.Count, shapes.Select(offer => offer.Verb).Distinct().Count(), "each offered under a name of its own");
-            Assert.IsTrue(shapes.All(offer => offer.Tip is { Length: > 0 }), "each named, for whoever hovers or hears the screen read");
+            Assert.AreEqual(shapes.Count, shapes.Select(option => option.Id).Distinct().Count(), "each offered under a name of its own");
+            Assert.IsTrue(shapes.All(option => option.Name is { Length: > 0 }), "each named, for whoever hovers or hears the screen read");
 
             // Every shape is drawn as itself, bar the one whose whole shape is having none, which is drawn as letters instead.
-            Assert.IsTrue(shapes.All(offer => offer.Shape is { IsFrozen: true } drawn && !drawn.IsEmpty() || offer.Letters is { Length: > 0 }),
+            Assert.IsTrue(shapes.All(option => option.Shape is { IsFrozen: true } drawn && !drawn.IsEmpty() || option.Letters is { Length: > 0 }),
                           "each drawn as itself");
-            CollectionAssert.AreEqual(new[] { "flowchart.shape.text" },
-                                      shapes.Where(offer => offer.Shape is null).Select(offer => offer.Verb).ToArray());
+            CollectionAssert.AreEqual(new[] { "text" }, shapes.Where(option => option.Shape is null).Select(option => option.Id).ToArray());
 
-            Assert.AreEqual("flowchart.shape.rect", shapes.Single(offer => offer.Current).Verb,
-                            "the brackets it is written in say a rectangle");
+            Assert.AreEqual("rect", choice.Current, "the brackets it is written in say a rectangle");
         }));
 
     [TestMethod]
     public void AndEveryColourOfTheSharedBank_WithTheClearOneAmongThem() => UiThread.Run(() =>
         InADocument((editor, chart) =>
         {
-            var colours = Ribbon(editor, Node(chart, "Start")).Offers.Where(offer => offer.Group == "Fill").ToList();
+            var choice = Choice(Ribbon(editor, Node(chart, "Start")), "flowchart.fill");
+            var colours = choice.Options;
 
             Assert.AreEqual(13, colours.Count, "the twelve of the bank, and no colour at all");
-            Assert.AreEqual(colours.Count, colours.Select(offer => offer.Verb).Distinct().Count(),
+            Assert.AreEqual(colours.Count, colours.Select(option => option.Id).Distinct().Count(),
                             "each under a name of its own, so two the theme happens to tune alike are still two offers");
-            Assert.IsTrue(colours.All(offer => offer.Shade is not null), "each one a colour, which is how the ribbon draws it");
-            Assert.AreEqual("flowchart.fill.none", colours.Single(offer => offer.Current).Verb, "nothing styles it yet");
+            Assert.IsTrue(colours.All(option => option.Shade is not null), "each one a colour, which is how the ribbon draws it");
+            Assert.AreEqual("none", choice.Current, "nothing styles it yet");
         }));
 
     [TestMethod]
@@ -137,8 +137,8 @@ public class FlowchartChoiceTests
         {
             var over = Groups(editor, Link(chart));
 
-            CollectionAssert.DoesNotContain(over, "Shape", "a link is drawn in no shape and filled with nothing");
-            CollectionAssert.DoesNotContain(over, "Fill");
+            CollectionAssert.DoesNotContain(over, "flowchart.shape", "a link is drawn in no shape and filled with nothing");
+            CollectionAssert.DoesNotContain(over, "flowchart.fill");
         }));
 
     [TestMethod]
@@ -149,8 +149,8 @@ public class FlowchartChoiceTests
             // not a node of the chart, so neither a shape nor a fill means anything on it.
             var over = Groups(editor, Words(chart, "Work"));
 
-            CollectionAssert.DoesNotContain(over, "Shape");
-            CollectionAssert.DoesNotContain(over, "Fill");
+            CollectionAssert.DoesNotContain(over, "flowchart.shape");
+            CollectionAssert.DoesNotContain(over, "flowchart.fill");
         }, "flowchart LR\n  subgraph Work\n    a[\"Start\"]\n  end\n"));
 
     // ── Driving it ──────────────────────────────────────────────────────────
@@ -199,14 +199,19 @@ public class FlowchartChoiceTests
         return ribbon!;
     }
 
-    /// <summary>The choices a right-click offers there, by name.</summary>
+    /// <summary>The choices a right-click offers there, by id.</summary>
     private static List<string> Groups(MarkdownSurface editor, Rect over) =>
-        [.. (Opened(editor, over)?.Offers ?? []).Select(offer => offer.Group).OfType<string>().Distinct()];
+        [.. (Opened(editor, over)?.Controls ?? []).OfType<MiniRibbonChoice>().Select(choice => choice.Id)];
 
-    /// <summary>What the ribbon says a node is, of one of its choices.</summary>
+    /// <summary>The choice of <paramref name="ribbon"/> known by <paramref name="id"/>.</summary>
+    private static MiniRibbonChoice Choice(DiagramRibbon ribbon, string id) =>
+        ribbon.Controls.OfType<MiniRibbonChoice>().Single(choice => choice.Id == id);
+
+    /// <summary>What the ribbon says a node is, of one of its choices — that choice's id and the option's, as the option's button is found by.</summary>
     private static string? Current(MarkdownSurface editor, string words, string group) =>
-        Ribbon(editor, Node(Block(editor), words)).Offers
-            .FirstOrDefault(offer => offer.Group == group && offer.Current).Verb;
+        Choice(Ribbon(editor, Node(Block(editor), words)), "flowchart." + group.ToLowerInvariant()) is { Current: { } current } choice
+            ? choice.Id + "." + current
+            : null;
 
     /// <summary>Presses the ribbon's button for a verb.</summary>
     private static void Click(DiagramRibbon ribbon, string verb)
@@ -246,19 +251,19 @@ public class FlowchartChoiceTests
         {
             var drawn = new Dictionary<string, string>();
 
-            foreach (var offer in Ribbon(editor, Node(chart, "Start")).Offers.Where(offer => offer.Group == "Shape"))
+            foreach (var option in Choice(Ribbon(editor, Node(chart, "Start")), "flowchart.shape").Options)
             {
-                var picture = Pictured(offer);
+                var picture = Pictured(option);
 
-                Assert.IsFalse(drawn.TryGetValue(picture, out var already), $"{offer.Tip} is drawn exactly as {already} is");
-                drawn[picture] = offer.Tip!;
+                Assert.IsFalse(drawn.TryGetValue(picture, out var already), $"{option.Name} is drawn exactly as {already} is");
+                drawn[picture] = option.Name;
             }
 
             Assert.AreEqual(53, drawn.Count, "every shape, each its own picture");
         }));
 
     /// <summary>What an option's face comes out as, drawn into the box a button gives it — its shape, or its letters.</summary>
-    private static string Pictured(LayoutIntent offer)
+    private static string Pictured(MiniRibbonOption offer)
     {
         const int pixels = 48;
         const double side = 16;

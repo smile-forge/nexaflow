@@ -1,8 +1,10 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Common.Localization;
@@ -22,7 +24,9 @@ namespace Nexaflow.Tests.Visuals.Markdown;
 /// </para>
 /// </summary>
 [TestClass]
-[TestCategory("UI")]
+
+[TestCategory("Desktop")]
+[DoNotParallelize]
 public class ContentOffersTests
 {
     [TestMethod]
@@ -79,53 +83,162 @@ public class ContentOffersTests
     {
         // Nothing, rather than something guessed at — a language that has not been asked what its content
         // is made of has no business putting buttons in front of a reader.
-        Assert.AreEqual(0, ContentLanguages.For("qr")!.Editing.Offers(Ask("qr", "text: hello\n")).Count);
+        Assert.AreEqual(0, ContentLanguages.For("qr")!.Editing.Ribbon(Ask("qr", "text: hello\n")).Count);
         Assert.IsTrue(ContentLanguages.For("qr")!.Editing.Corner(Ask("qr", "text: hello\n")).Adds.Count == 0);
     }
 
     [TestMethod]
-    public void AddingSomethingIsBrowsingSoItAllSitsBehindOneButton() => UiThread.Run(() =>
+    public void TheRibbonIsTwoRows_WhatSetsSomethingAboveWhatIsDoneAtOnce() => UiThread.Run(() =>
     {
         var ribbon = new DiagramRibbon(
         [
-            new LayoutIntent("slice", "a slice", "A slice") { Offer = LayoutOffer.Insert },
-            new LayoutIntent("row", "a row", "A row") { Offer = LayoutOffer.Insert },
-            new LayoutIntent(LayoutVerbs.Copy, null, "Copy"),
-            new LayoutIntent("restyle", null, "Restyle this"),
+            new MiniRibbonButton("delete", "Delete", _ => null),
+            new MiniRibbonChoice("size", "Size", [new("s", "Small"), new("m", "Medium"), new("l", "Large")], (_, _) => null) { Current = "m" },
+            new MiniRibbonEntry("width", "Width", ["1", "2"], "2", (_, _) => null),
+            new MiniRibbonButton("copy", "Copy", _ => null),
         ], _ => { });
 
-        var buttons = Descendants(ribbon).OfType<Button>().ToList();
-        var insert = buttons.Single(button => Id(button) == Inserting);
-        var adds = buttons.Where(button => Id(button).StartsWith(Inserting + "_", System.StringComparison.Ordinal)).ToList();
+        var rows = ((Panel)((System.Windows.Controls.Border)ribbon.Content).Child).Children.OfType<StackPanel>().ToList();
 
-        // Doing something to what is there is not browsing: a reader reaching for one of these knows what
-        // they want, and hiding it a level down makes them hunt for it.
-        CollectionAssert.AreEquivalent(new[] { "Copy", "Restyle this" },
-                                       buttons.Except(adds).Where(button => button != insert).Select(Said).ToArray());
-
-        Assert.AreEqual(DiagramRibbon.Inserts, Said(insert), "everything addable is behind one button");
-        CollectionAssert.AreEquivalent(new[] { "A slice", "A row" }, adds.Select(Said).ToArray());
-        Assert.IsTrue(adds.All(Hidden), "out of the way until it is opened");
-
-        Press(insert);
-        Assert.IsFalse(adds.Any(Hidden), "pressed, it opens a sub-ribbon of them");
-
-        Press(insert);
-        Assert.IsTrue(adds.All(Hidden), "and pressed again, closes it");
+        Assert.AreEqual(2, rows.Count, "never more than two rows");
+        CollectionAssert.IsSubsetOf(new[] { "Diagram_Ribbon_size.s", "Diagram_Ribbon_size.m", "Diagram_Ribbon_size.l", "Diagram_Ribbon_width_List" },
+                                    Descendants(rows[0]).OfType<Button>().Select(Id).ToArray(), "what sets something on the first row");
+        CollectionAssert.AreEqual(new[] { "Diagram_Ribbon_delete", "Diagram_Ribbon_copy" }, rows[1].Children.OfType<Button>().Select(Id).ToArray(),
+                                  "what is done at once on the second, in the order offered");
     });
 
     [TestMethod]
-    public void AndNothingToAddMeansNoButtonToAddItWith() => UiThread.Run(() =>
+    public void AChoiceOfMoreThanARowHoldsDropsDownFromOneButton_AndUsingAnyControlHandsBackItsOwnCallback() => UiThread.Run(() =>
     {
-        var ribbon = new DiagramRibbon([new LayoutIntent(LayoutVerbs.Copy, null, "Copy")], _ => { });
+        MiniRibbonOption? chosen = null;
+        var pressed = false;
+        Func<ContentEdit, ContentChange?>? handed = null;
 
-        Assert.IsFalse(Descendants(ribbon).OfType<Button>().Any(button => Id(button) == Inserting));
+        var options = Enumerable.Range(1, 12).Select(at => new MiniRibbonOption("o" + at, "Option " + at)).ToList();
+        var ribbon = new DiagramRibbon(
+        [
+            new MiniRibbonChoice("many", "Many", options, (_, option) => { chosen = option; return null; }),
+            new MiniRibbonButton("go", "Go", _ => { pressed = true; return null; }),
+        ], made => handed = made);
+
+        var window = new Window { Content = ribbon, ShowActivated = false, WindowStyle = WindowStyle.None, Left = -10000, Top = -10000 };
+        window.Show();
+
+        try
+        {
+            var buttons = Descendants(ribbon).OfType<Button>().ToList();
+            var list = Descendants(ribbon).OfType<System.Windows.Controls.Primitives.Popup>().Single();
+
+            Assert.IsFalse(list.IsOpen, "out of the way until it is opened");
+            Press(buttons.Single(button => Id(button) == "Diagram_Ribbon_many"));
+            Assert.IsTrue(list.IsOpen, "pressed, it drops every option down");
+
+            Press(buttons.Single(button => Id(button) == "Diagram_Ribbon_many.o7"));
+            Assert.IsFalse(list.IsOpen, "and closes on the one chosen");
+            handed!(null!);
+            Assert.AreEqual("o7", chosen?.Id, "the choice's own callback, run with the option chosen");
+
+            Press(buttons.Single(button => Id(button) == "Diagram_Ribbon_go"));
+            handed!(null!);
+            Assert.IsTrue(pressed, "a button's own callback");
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [TestMethod]
+    public void AnEntryHandsBackOnlyAValueTheLanguageTakes_TypedOrPickedFromItsList() => UiThread.Run(() =>
+    {
+        var entered = new List<string>();
+        var ribbon = new DiagramRibbon(
+        [
+            new MiniRibbonEntry("bits", "Bits", ["8", "16"], "4", (_, value) => { entered.Add(value); return null; })
+            {
+                Accepts = value => int.TryParse(value, out var bits) && bits > 0,
+            },
+        ], made => made(null!));
+
+        var window = new Window { Content = ribbon, ShowActivated = false, WindowStyle = WindowStyle.None, Left = -10000, Top = -10000 };
+        window.Show();
+
+        try
+        {
+            var box = Descendants(ribbon).OfType<TextBox>().Single(found => System.Windows.Automation.AutomationProperties.GetAutomationId(found) == "Diagram_Ribbon_bits");
+            Assert.AreEqual("4", box.Text, "it holds the value the content has now");
+
+            box.Text = "0";
+            Enter(box);
+            Assert.AreEqual(0, entered.Count, "a value the language refuses goes nowhere");
+
+            box.Text = "12";
+            Enter(box);
+            CollectionAssert.AreEqual(new[] { "12" }, entered, "one it takes is handed back as typed");
+
+            Press(Descendants(ribbon).OfType<Button>().Single(button => Id(button) == "Diagram_Ribbon_bits.16"));
+            CollectionAssert.AreEqual(new[] { "12", "16" }, entered, "and one picked from the list the same");
+        }
+        finally
+        {
+            window.Close();
+        }
+
+        static void Enter(TextBox box) =>
+            box.RaiseEvent(new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice, PresentationSource.FromVisual(box)!, 0, System.Windows.Input.Key.Enter)
+            {
+                RoutedEvent = System.Windows.Input.Keyboard.KeyDownEvent,
+            });
+    });
+
+    [TestMethod]
+    public void AValueEnteredOrAButtonPressedTakesTheRibbonAway_AChoiceLeavesItOpen() => UiThread.Run(() =>
+    {
+        var window = new Window { ShowActivated = false, WindowStyle = WindowStyle.None, Left = -10000, Top = -10000, Width = 10, Height = 10 };
+        window.Show();
+
+        try
+        {
+            foreach (var (control, used) in new (MiniRibbonControl, string)[]
+                     {
+                         (new MiniRibbonButton("go", "Go", _ => null), "Diagram_Ribbon_go"),
+                         (new MiniRibbonEntry("bits", "Bits", ["8"], "4", (_, _) => null), "Diagram_Ribbon_bits.8"),
+                         (new MiniRibbonChoice("size", "Size", [new("s", "Small"), new("l", "Large")], (_, _) => null), "Diagram_Ribbon_size.l"),
+                     })
+            {
+                var ribbon = new DiagramRibbon([control], made => made(null!));
+                var shown = new System.Windows.Controls.Primitives.Popup { Child = ribbon, PlacementTarget = window, StaysOpen = true, IsOpen = true };
+
+                Press(Descendants(ribbon).OfType<Button>().Single(button => Id(button) == used));
+
+                Assert.AreEqual(control is MiniRibbonChoice, shown.IsOpen, $"{control.Id}: a choice stays open for the next, anything else is done");
+                shown.IsOpen = false;
+            }
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [TestMethod]
+    public void AButtonThatTakesSomethingAwayIsDrawnInTheColourForDanger() => UiThread.Run(() =>
+    {
+        var ribbon = new DiagramRibbon([new MiniRibbonButton("delete", "Delete", _ => null) { Warns = true }, new MiniRibbonButton("copy", "Copy", _ => null)], _ => { });
+        var buttons = Descendants(ribbon).OfType<Button>().ToList();
+        var danger = Application.Current?.TryFindResource("DangerBrush") as System.Windows.Media.SolidColorBrush;
+
+        var warned = (System.Windows.Media.SolidColorBrush)buttons.Single(button => Id(button) == "Diagram_Ribbon_delete").Foreground;
+        var plain = (System.Windows.Media.SolidColorBrush)buttons.Single(button => Id(button) == "Diagram_Ribbon_copy").Foreground;
+
+        Assert.AreEqual(danger?.Color ?? System.Windows.Media.Colors.Firebrick, warned.Color);
+        Assert.AreNotEqual(warned.Color, plain.Color);
     });
 
     [TestMethod]
     [CoversNode("markdown-context-menu")]
     public void NothingIsOfferedToAReaderWhoMayNotWrite() =>
-        Assert.AreEqual(0, ContentLanguages.Markdown.Editing.Offers(new ContentAsk(string.Empty, "words\n") { IsReadOnly = true }).Count);
+        Assert.AreEqual(0, ContentLanguages.Markdown.Editing.Ribbon(new ContentAsk(string.Empty, "words\n") { IsReadOnly = true }).Count);
 
     [TestMethod]
     public void EveryOfferIsSomethingAReaderCanRead() => UiThread.Run(() =>
@@ -143,17 +256,8 @@ public class ContentOffersTests
 
     private static ContentAsk Ask(string named, string source) => new(named, source);
 
-    /// <summary>What a button says it does, whether it is drawn as words or as a picture.</summary>
-    private static string Said(Button button) => System.Windows.Automation.AutomationProperties.GetName(button);
-
     /// <summary>The handle a journey presses a button by.</summary>
     private static string Id(Button button) => System.Windows.Automation.AutomationProperties.GetAutomationId(button);
-
-    /// <summary>What the ribbon's one button everything addable sits behind is found by.</summary>
-    private const string Inserting = "Diagram_Ribbon_Insert";
-
-    /// <summary>Whether a button is in a sub-ribbon still closed.</summary>
-    private static bool Hidden(Button button) => button.Parent is UIElement { Visibility: not Visibility.Visible };
 
     private static void Press(Button button) => button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
 

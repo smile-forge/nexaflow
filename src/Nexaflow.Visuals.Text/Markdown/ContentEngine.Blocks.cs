@@ -527,8 +527,8 @@ public sealed partial class ContentEngine
         LayoutVerbs.Expand   => Folded(act, open: true),
         LayoutVerbs.Collapse => Folded(act, open: false),
 
-        // Whatever the language offering it makes of it, which for a paste is to ask for the engine's own.
-        LayoutVerbs.Paste => Choose(LayoutVerbs.Paste, act.At),
+        // The engine's own, whatever offered it: only the engine knows what a paste comes to at the caret.
+        LayoutVerbs.Paste => Paste(),
 
         _ => false,
     };
@@ -621,8 +621,7 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
-    /// A press on something that leads somewhere: the language it was written in has first say, and failing that whoever hosts the
-    /// content, which is the only thing that can leave the content at all. A place within the same content never reaches here —
+    /// A press on something that leads somewhere: whoever hosts the content, which is the only thing that can leave the content at all. A place within the same content never reaches here —
     /// <see cref="Anchored"/> scrolls to it before this is asked.
     ///
     /// <para>
@@ -634,7 +633,6 @@ public sealed partial class ContentEngine
     private bool Followed(LayoutAct act)
     {
         if (act.Intent.Target is not { Length: > 0 } where) return false;
-        if (Choose(LayoutVerbs.Navigate, act.At)) return true;
 
         return Uri.TryCreate(where, UriKind.Absolute, out _) && this.Events?.OnNavigate(where) == true;
     }

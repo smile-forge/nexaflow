@@ -33,6 +33,9 @@ internal sealed class LatexEdits : IOnEdit, IOnMove
         _ => null,
     };
 
+    /// <summary>A formula carries what is picked out in it, as the engine carries it: a whole term, a cell, a column.</summary>
+    public ContentLift Lift(ContentGrip grip) => ContentLift.Selection;
+
     /// <summary>
     /// What carrying something about in a formula means: cells of a table moved, where that is what is being carried
     /// (<see cref="TexMove"/>), and nothing of its own otherwise — a term carried about is characters moving, which is

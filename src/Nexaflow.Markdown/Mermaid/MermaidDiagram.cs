@@ -31,6 +31,12 @@ public enum MermaidDiagram
     Journey,
     Block,
 
+    /// <summary>
+    /// <c>packet</c> or <c>packet-beta</c>: a language of its own (<see cref="Nexaflow.Markdown.Packet.PacketParser"/>), with no
+    /// grammar or builder here — named only so a <c>mermaid</c> block headed by it is handed to it (<see cref="MermaidFenceParser"/>).
+    /// </summary>
+    Packet,
+
     /// <summary><c>C4Context</c>, <c>C4Container</c>, <c>C4Component</c>, <c>C4Dynamic</c>, <c>C4Deployment</c>.</summary>
     C4,
     C4Sequence,
@@ -228,5 +234,6 @@ public static class MermaidDiagrams
         ("architecture", MermaidDiagram.Architecture),
         ("swimlane", MermaidDiagram.Swimlane),
         ("block", MermaidDiagram.Block),
+        ("packet", MermaidDiagram.Packet),
     ];
 }

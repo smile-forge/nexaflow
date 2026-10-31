@@ -551,6 +551,17 @@ public class PieEditingTests
 
     private static Point Middle(Rect box) => new(box.X + (box.Width / 2), box.Y + (box.Height / 2));
 
+    /// <summary>Every control of <paramref name="ribbon"/>, by id.</summary>
+    private static string[] Ids(DiagramRibbon ribbon) => [.. ribbon.Controls.Select(control => control.Id)];
+
+    /// <summary>The options of the choice known by <paramref name="id"/>, each as its button is found by.</summary>
+    private static string[] Options(DiagramRibbon ribbon, string id) =>
+        [.. ribbon.Controls.OfType<MiniRibbonChoice>().Single(choice => choice.Id == id).Options.Select(option => id + "." + option.Id)];
+
+    /// <summary>The option the choice known by <paramref name="id"/> says the chart has now, as its button is found by.</summary>
+    private static string? Current(DiagramRibbon ribbon, string id) =>
+        ribbon.Controls.OfType<MiniRibbonChoice>().Single(choice => choice.Id == id).Current is { } current ? id + "." + current : null;
+
     [TestMethod]
     public void TheLegendsRibbonSaysWhereItGoes_AndChoosingMovesIt() => UiThread.Run(() =>
         InADocument((editor, pie) =>
@@ -558,8 +569,8 @@ public class PieEditingTests
             var ribbon = Ribbon(editor, Row(pie, "Dogs").Bounds.ToWpf());
 
             CollectionAssert.AreEqual(new[] { "pie.legend.left", "pie.legend.top", "pie.legend.right", "pie.legend.bottom", "pie.legend.center" },
-                                      ribbon.Offers.Where(offer => offer.Group == "Legend").Select(offer => offer.Verb).ToArray());
-            Assert.AreEqual("pie.legend.right", ribbon.Offers.Single(offer => offer.Current).Verb, "where Mermaid puts it when nothing says");
+                                      Options(ribbon, "pie.legend"));
+            Assert.AreEqual("pie.legend.right", Current(ribbon, "pie.legend"), "where Mermaid puts it when nothing says");
 
             Click(ribbon, "pie.legend.left");
             StringAssert.Contains(editor.Markdown, "```mermaid\n---\nconfig:\n  pie:\n    legendPosition: left\n---\npie showData", editor.Markdown);
@@ -575,12 +586,11 @@ public class PieEditingTests
             var ribbon = Ribbon(editor, new Rect(InsideAWedge(pie), new Size(0, 0)));
 
             CollectionAssert.AreEqual(new[] { "pie.hole.0", "pie.hole.0.2", "pie.hole.0.5", "pie.hole.0.8" },
-                                      ribbon.Offers.Where(offer => offer.Group == "Hole").Select(offer => offer.Verb).ToArray());
-            CollectionAssert.AreEqual(new[] { "pie.stroke.0", "pie.stroke.2", "pie.stroke.4" },
-                                      ribbon.Offers.Where(offer => offer.Group == "Stroke").Select(offer => offer.Verb).ToArray());
-            CollectionAssert.AreEquivalent(new[] { "pie.hole.0", "pie.stroke.2" }, ribbon.Offers.Where(offer => offer.Current).Select(offer => offer.Verb).ToArray(),
+                                      Options(ribbon, "pie.hole"));
+            CollectionAssert.AreEqual(new[] { "pie.stroke.0", "pie.stroke.2", "pie.stroke.4" }, Options(ribbon, "pie.stroke"));
+            CollectionAssert.AreEquivalent(new[] { "pie.hole.0", "pie.stroke.2" }, new[] { Current(ribbon, "pie.hole"), Current(ribbon, "pie.stroke") },
                                            "no hole and a thin line, as Mermaid draws a pie when nothing says");
-            Assert.IsFalse(ribbon.Offers.Any(offer => offer.Group == "Legend"), "where the legend goes is the legend's");
+            Assert.IsFalse(Ids(ribbon).Contains("pie.legend"), "where the legend goes is the legend's");
 
             Click(ribbon, "pie.hole.0.5");
             StringAssert.Contains(editor.Markdown, "config:\n  pie:\n    donutHole: 0.5\n---", editor.Markdown);
@@ -642,7 +652,7 @@ public class PieEditingTests
             PressInTheTitle(pie, atEnd: true);
 
             Assert.IsTrue(Ribbon(editor, pie.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == MermaidPiece.Title).Bounds.ToWpf())
-                              .Offers.Any(offer => offer.Verb == LayoutVerbs.Paste), "the title holds words");
+                              .Controls.Any(control => control.Id == LayoutVerbs.Paste), "the title holds words");
 
             editor.Pressed(Key.V, ModifierKeys.Control);
 
@@ -673,8 +683,8 @@ public class PieEditingTests
             PressPastTheLabel(pie, "Cats");
 
             var ribbon = Ribbon(editor, Row(pie, "Cats").Bounds.ToWpf());
-            Assert.IsTrue(ribbon.Offers.Any(offer => offer.Verb == LayoutVerbs.Paste), "the caret is in a label");
-            Assert.IsFalse(ribbon.Offers.Any(offer => offer.Verb == "cut"), "nothing is cut from a pie");
+            Assert.IsTrue(Ids(ribbon).Contains(LayoutVerbs.Paste), "the caret is in a label");
+            Assert.IsFalse(Ids(ribbon).Contains(LayoutVerbs.Cut), "nothing is cut from a pie");
 
             Click(ribbon, LayoutVerbs.Paste);
             StringAssert.Contains(editor.Markdown, "\"CatsBig \" : 10", editor.Markdown);
@@ -682,21 +692,22 @@ public class PieEditingTests
             pie = MarkdownEditorHarness.Block(editor)!;
             ChooseTheRow(pie, "Dogs");
             var chosen = Ribbon(editor, Row(pie, "Dogs").Bounds.ToWpf());
-            Assert.IsFalse(chosen.Offers.Any(offer => offer.Verb is LayoutVerbs.Paste or "cut"), "with a slice chosen there is no caret to paste at");
+            Assert.IsFalse(Ids(chosen).Any(id => id is LayoutVerbs.Paste or LayoutVerbs.Cut), "with a slice chosen there is no caret to paste at");
         }));
 
     [TestMethod]
     public void EveryOptionOnThePiesRibbonIsDrawn_AndSaysInWordsWhatItIs() => UiThread.Run(() =>
         InADocument((editor, pie) =>
         {
-            var offers = Ribbon(editor, Row(pie, "Dogs").Bounds.ToWpf()).Offers
-                .Concat(Ribbon(editor, new Rect(InsideAWedge(pie), new Size(0, 0))).Offers)
-                .Where(offer => offer.Group is not null)
+            var offers = Ribbon(editor, Row(pie, "Dogs").Bounds.ToWpf()).Controls
+                .Concat(Ribbon(editor, new Rect(InsideAWedge(pie), new Size(0, 0))).Controls)
+                .OfType<MiniRibbonChoice>()
+                .SelectMany(choice => choice.Options)
                 .ToList();
 
             Assert.AreEqual(12, offers.Count, "five places, four holes, three strokes");
-            Assert.IsTrue(offers.All(offer => offer.Shape is { IsFrozen: true } shape && !shape.IsEmpty()), "each drawn as what it would make");
-            Assert.IsTrue(offers.All(offer => offer.Tip is { Length: > 0 }), "and named, for whoever hovers or hears the screen read");
+            Assert.IsTrue(offers.All(option => option.Shape is { IsFrozen: true } shape && !shape.IsEmpty()), "each drawn as what it would make");
+            Assert.IsTrue(offers.All(option => option.Name is { Length: > 0 }), "and named, for whoever hovers or hears the screen read");
         }));
 
     /// <summary>Has <paramref name="editor"/> handed <paramref name="words"/> to paste, as the clipboard would.</summary>

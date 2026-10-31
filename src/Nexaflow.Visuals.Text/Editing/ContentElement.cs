@@ -486,23 +486,32 @@ public class ContentElement : FrameworkElement
     private const double PointerReach = 4.0;
 
     /// <summary>
-    /// What the pointer is over <paramref name="at"/>: a bar over what can be written in and an arrow elsewhere, and whatever
-    /// the piece there says while it is pointed at (<see cref="Roles.Tip"/>).
+    /// What the pointer is over <paramref name="at"/>: what the language says a press there would take hold of, a bar over what can be
+    /// written in and an arrow elsewhere — and whatever the piece there says while it is pointed at (<see cref="Roles.Tip"/>).
     /// </summary>
     protected virtual Cursor Pointing(LayoutPoint at)
     {
-        Tip(Says(Laid.Root.PieceAt(at)));
+        var piece = Laid.Root.PieceAt(at);
+        Tip(Says(piece));
+
+        if (!IsReadOnly && _engine.Gripping(piece, at) is { } grip) return grip;
 
         return !IsReadOnly && Laid.Root.Writable(at, PointerReach) ? Cursors.IBeam : Cursors.Arrow;
     }
 
     /// <summary>
-    /// What <paramref name="piece"/> says while pointed at: the tip hung on the part of the source it was drawn from, or on
-    /// what holds that part. Asked of the tree when the pointer arrives — nothing of it is laid out.
+    /// What <paramref name="piece"/> says while pointed at: all of its words, where they are set cut short to fit
+    /// (<see cref="IShapedText.CutShort"/>), else the tip hung on the part of the source it was drawn from, or on what holds that
+    /// part. Asked of the tree when the pointer arrives — nothing of it is laid out.
     /// </summary>
     private static string? Says(LayoutPiece piece)
     {
-        if (!piece.Exists || piece.Naming().TreePart() is not { } named) return null;
+        if (!piece.Exists) return null;
+
+        // Words set cut short to fit their room still hold all of what they say, so that is what they say when pointed at.
+        if (piece.Words is { Glyphs: { CutShort: true } cut }) return cut.Text;
+
+        if (piece.Naming().TreePart() is not { } named) return null;
 
         for (var part = named; part is not null; part = part.Parent)
             foreach (var child in part.Node.Children)
@@ -615,10 +624,10 @@ public class ContentElement : FrameworkElement
     protected IReadOnlyList<LayoutIntent> Hosted(LayoutAct act) => _engine.Hosted(act);
 
     /// <summary>What the language drawn at a point on the content offers there — see <see cref="ContentEngine.Asked"/>.</summary>
-    protected IReadOnlyList<LayoutIntent> Asked(LayoutPoint at) => _engine.Asked(at);
+    protected IReadOnlyList<MiniRibbonControl> Asked(LayoutPoint at) => _engine.Asked(at);
 
-    /// <summary>Does one of what the language offered at a point, as its edit handler says — see <see cref="ContentEngine.Choose"/>.</summary>
-    protected bool Choose(string verb, LayoutPoint at) => _engine.Choose(verb, at);
+    /// <summary>Uses a control of the ribbon opened at a point, its callback run against the content as it stands — see <see cref="ContentEngine.Used"/>.</summary>
+    protected bool Use(LayoutPoint at, Func<ContentEdit, ContentChange?> made) => _engine.Used(at, made);
 
     // Hosted in a plain panel (the read-only markdown view), the element does get its own mouse events.
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)

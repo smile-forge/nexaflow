@@ -5,7 +5,8 @@ namespace Nexaflow.Markdown.Mermaid;
 
 /// <summary>
 /// What each run of a diagram's words is made of, where it is more than its own characters — an entity code standing for the
-/// character it names, a line break written in it, a binding standing for its value, a whole other content written in its
+/// character it names, a line break written in it, a binding standing for its value, a piece the diagram's own language writes
+/// as other characters than it reads as (<paramref name="standIns"/>), a whole other content written in its
 /// place, which is the characters it is written as wherever nothing draws that content — found once and held on the diagram
 /// (<see cref="MermaidWords"/>).
 ///
@@ -19,7 +20,11 @@ namespace Nexaflow.Markdown.Mermaid;
 /// characters, which is nearly every one, has nothing held for it.
 /// </para>
 /// </summary>
-public sealed class WithWordPieces : IAstStage
+/// <param name="standIns">
+/// What a piece of a run reads as where the diagram's language writes it as other characters — an escape its language reads
+/// itself — or null where the piece reads as written; null for a language with no such pieces.
+/// </param>
+public sealed class WithWordPieces(Func<ContentNode, string?>? standIns = null) : IAstStage
 {
     /// <summary>What breaks a line in a diagram's words: a <c>&lt;br&gt;</c> however it is written, and a <c>\n</c>.</summary>
     private static readonly string[] Breaks = ["<br/>", "<br />", "<br>", @"\n"];
@@ -38,12 +43,13 @@ public sealed class WithWordPieces : IAstStage
     }
 
     /// <summary>The pieces a run is made of, or null where it is only its own characters.</summary>
-    private static List<WordPiece>? Pieces(ContentNode words)
+    private List<WordPiece>? Pieces(ContentNode words)
     {
         if (words.IsLeaf) return Plain(words.Text) ? null : Split(words.Text, 0);
 
-        // A run with bindings in it, or a whole other content: each binding is one piece, saying its value where one was worked
-        // out, and everything else the pieces its characters are.
+        // A run with bindings in it, stand-ins of its language, or a whole other content: each binding is one piece, saying its
+        // value where one was worked out, each stand-in one saying what it reads as, and everything else the pieces its
+        // characters are.
         var pieces = new List<WordPiece>();
         var at = 0;
 
@@ -57,6 +63,7 @@ public sealed class WithWordPieces : IAstStage
                 var value = child.Said(ContentWords.Value);
                 pieces.Add(new WordPiece(at, written, value ?? written, Breaks: false, AsWritten: value is null));
             }
+            else if (standIns?.Invoke(child) is { } stands) pieces.Add(new WordPiece(at, written, stands, Breaks: false, AsWritten: false));
             else pieces.AddRange(Split(written, at));
 
             at += child.Width;

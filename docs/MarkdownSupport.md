@@ -126,6 +126,7 @@ JS/Mermaid.js, no browser).
 | Language | Status | Tests |
 |---|---|---|
 | `nomnoml` | ✅ | ✅ — UML class notation on the shared layout tree; see [nomnoml](#nomnoml--sub-support) below |
+| `packet` | ✅ | ✅ — a packet or a register on the shared layout tree, written in place; see [packet](#packet--sub-support) below |
 | `mermaid` | ⚠️ Partial | ✅ — see sub-types below |
 | `qr` | ✅ | ✅ — see [QR codes](#qr-codes--sub-support) below |
 | `barcode` | ✅ | ✅ — see [Barcodes](#barcodes--sub-support) below |
@@ -168,6 +169,7 @@ JS/Mermaid.js, no browser).
 | `journey` | ✅ (shared layout tree; scored faces, actor legend, written in place) | ✅ grammar (`JourneyGrammarTests`) + config (`JourneyConfigTests`) + sections, tasks, actors and draw (`JourneyBuilderTests`) + writing (`JourneyEditingTests`) + sample render. See sub-features below. |
 | `C4Context` / `C4Container` / `C4Component` / `C4Dynamic` / `C4Deployment` | ✅ (shared layout tree; element cards, nested boundaries, a key, written in place) | ✅ grammar (`C4GrammarTests`) + elements, boundaries, relationships, styling + config (`C4StagesTests`) + draw and grading (`C4BuilderTests`) + writing (`C4EditingTests`) + sample render. See sub-features below. |
 | `C4Sequence` *(Nexaflow extension)* | ✅ (shared layout tree; element cards, boundaries, numbering and a key, written in place) | ✅ grammar (`C4SequenceGrammarTests`) + cards, boundaries, relationships + config (`C4StagesTests`) + draw (`C4SequenceBuilderTests`) + writing (`C4SequenceEditingTests`) + sample render. See sub-features below. |
+| `packet` / `packet-beta` | ✅ (handed whole to the `packet` language — see [packet](#packet--sub-support)) | ✅ — the packet language's own tests |
 | `block-beta` | ✅ (shared layout tree; the author's own grid, nested composites, written in place) | ✅ grammar (`BlockGrammarTests`) + composites, styles + config (`BlockStagesTests`) + grid, links and draw (`BlockBuilderTests`) + writing (`BlockEditingTests`) + shapes (`MermaidShapesTests`) + sample render. See sub-features below. |
 
 **Flowchart sub-features** ([`FlowchartGrammar`](../src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartGrammar.cs) →
@@ -1161,6 +1163,53 @@ that needs a `MermaidStretch` on each graph-family grammar, the mechanism that a
 
 ---
 
+## packet — sub-support
+
+[Packet diagrams](https://mermaid.js.org/syntax/packet.html) draw the fields of a network packet or a hardware register.
+A packet is a language of its own here: a `packet` fence names it, and a `mermaid` block headed `packet` or `packet-beta`
+is handed to it whole. It is read by a parser of its own
+([`PacketParser`](../src/Nexaflow.Markdown/Packet/PacketParser.cs)) — the frame every block written Mermaid's way has
+(front matter, comments, directives, `accTitle`, `accDescr`) with Mermaid's own pieces, its fields itself — worked over
+by [`PlaceFields`](../src/Nexaflow.Markdown/Packet/Stages/PlaceFields.cs), what a label's escapes read as said by
+[`PacketStandIns`](../src/Nexaflow.Markdown/Packet/PacketStandIns.cs), and drawn by
+[`PacketBuilder`](../src/Nexaflow.Markdown/Layout/Packet/PacketBuilder.cs) from the diagrams' own sheet, words and ink.
+
+| Written | Read as |
+|---|---|
+| `0-15: "Source Port"` | a field from bit 0 to bit 15 |
+| `106: "URG"` | a field of one bit |
+| `+16: "Length"` | sixteen bits, from where the field before it ended |
+| `"…"` or `'…'` | a label: a backslash keeps a quote or a backslash, `\n` `\r` `\t` and a line ending inside it draw as a space, and a `%%` inside it is the label's |
+| `title …`, after the header or on a line of its own | the title |
+| `config: packet:` | `rowHeight`, `bitWidth`, `bitsPerRow`, `showBits`, `bitOrder`, `paddingX`, `paddingY` |
+| `config: themeVariables: packet:` | `byteFontSize`, `startByteColor`, `endByteColor`, `labelColor`, `labelFontSize`, `titleColor`, `titleFontSize`, `blockStrokeColor`, `blockStrokeWidth`, `blockFillColor` |
+
+The fields are contiguous, each ends at or after the bit it starts at and takes a bit or more, and a packet is drawn to
+10,000 rows, as Mermaid's rules say; a block breaking a rule is shown as written, the number at fault marked. A label is
+typed into in its box, and said whole where the pointer rests on a box too narrow for it. The numbers over a field are
+worked out from the bits and never written in where they are drawn: a field is made longer, shorter or moved from its
+right-click and by dragging it, never by typing a number.
+
+A right-click on a field opens a ribbon of how many bits it takes — a box holding its length that any whole number typed
+in replaces, the usual lengths dropped down beside it — and buttons putting a field in before or after it and taking it
+out; anywhere else in the packet, a field after everything written. With whole fields picked out, Delete takes them out
+and Insert puts one in above them. A field is dragged by its box — with every chosen field, where it is one of them — and
+let go on another takes its place. The end of a field — the edge of its box where its last bit ends, where the pointer
+turns to say it moves across — is taken hold of and dragged: let go over a bit, the field ends there. Whatever changes, every field is numbered
+again from bit 0 and keeps its length and the form it is written in — a range, one bit, or a count — and only its numbers
+are written over ([`PacketWriting`](../src/Nexaflow.Markdown/Packet/PacketWriting.cs)). In a label or the title a
+right-click offers to cut, copy and paste, a paste spelled for where it lands; over whole fields, only to copy them.
+
+**Divergences from Mermaid**
+
+- The title is set over the packet, as every diagram's is here, rather than under it.
+- A packet breaking a rule is drawn with the fault marked; Mermaid draws nothing.
+- A packet wider than its room narrows its bits and sets labels on more lines, its rows growing to hold them, before it
+  is drawn smaller; Mermaid's labels run past their boxes.
+- A `<br>` in a label breaks its line, as in every diagram here; Mermaid writes it as it stands.
+
+---
+
 ## nomnoml — sub-support
 
 [nomnoml](https://www.nomnoml.com/) is UML class notation written its own way, and a language of its own here: it is
@@ -2097,7 +2146,8 @@ Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code the
 Sample fixtures (driving `MarkdownSampleRenderTests`) live in
 [`Nexaflow.Tests.Fixtures/MarkdownSamples.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Fixtures/MarkdownSamples.cs):
 the `mermaid-*` diagram docs (pie, flowchart, quadrant, sequence, gantt, git graph, mindmap, state, class,
-requirement, kanban, xychart, radar, ishikawa, sankey, er, venn, architecture, swimlane, cynefin, timeline, journey, block, C4) and `extensions.md` (YAML front matter, emphasis extras, abbreviations, alert blocks).
+requirement, kanban, xychart, radar, ishikawa, sankey, er, venn, architecture, swimlane, cynefin, timeline, journey, block, C4),
+`packet.md`, and `extensions.md` (YAML front matter, emphasis extras, abbreviations, alert blocks).
 
 **Where coverage is thin:**
 

@@ -9,6 +9,7 @@ using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Music.Abc;
 using Nexaflow.Markdown.Music.LilyPond;
 using Nexaflow.Markdown.Nomnoml;
+using Nexaflow.Markdown.Packet;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Pipeline.Stages;
 using Nexaflow.Markdown.Plot;
@@ -27,6 +28,7 @@ using Nexaflow.Visuals.Text.Markdown.Latex;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Music;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
+using Nexaflow.Visuals.Text.Markdown.Packet;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 using Nexaflow.Visuals.Text.Markdown.Stages;
 using Nexaflow.Visuals.Text.Markdown.WordCloud;
@@ -378,6 +380,32 @@ internal static class Shipped
                     ```
                     """,
             };
+
+    /// <summary>
+    /// A packet, or a register — its fields, each its bits and a label — read by a parser of its own and drawn as rows of bits
+    /// (<see cref="PacketParser"/>). Written Mermaid's way, so a <c>mermaid</c> block headed <c>packet</c> is handed here, and fenced as
+    /// itself it needs no header.
+    /// </summary>
+    public static readonly ContentLanguage Packet = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && PacketParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(PacketParser.Parse(source)),
+        Stages: static (tree, show) => PacketPipeline.Of(tree, show.Writing),
+        Builder: ContentLayouts.Packet)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new PacketEdits()),
+            Transpile = Transpiles.By<PacketParser>(),
+            Name = PacketParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.Packet"),
+            Icon = IconRef.Fluent("number_row"),
+            DefaultBlock = """
+                ```packet
+                0-15: "Source Port"
+                16-31: "Destination Port"
+                ```
+                """,
+        };
 
     /// <summary>What a host puts between reading a diagram and drawing it: what its words are bound against, and the pictures it names.</summary>
     private static IEnumerable<IAstStage?> Hosted(ContentShowing show) =>

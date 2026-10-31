@@ -278,6 +278,12 @@ public interface IShapedText
     LayoutAlign Align { get; }
 
     /// <summary>
+    /// Whether a word in it is wider than the room it is broken into lines to fit (<see cref="Bound"/>), so that it is set cut
+    /// short — what a reader cannot read whole where it is drawn, and so has to be told some other way.
+    /// </summary>
+    bool CutShort { get; }
+
+    /// <summary>
     /// Gives it room and an alignment — only where they differ from what it has, since either set throws away everything the
     /// medium worked out about it.
     /// </summary>

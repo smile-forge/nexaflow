@@ -25,7 +25,10 @@ internal sealed class DiagramEditing(IOnEdit? onEdit) : IContentLanguage
     public bool TakesTextOnlyInWords => true;
 
     /// <inheritdoc/>
-    public IReadOnlyList<LayoutIntent> Offers(ContentAsk ask) => this._own?.Offers(ask) ?? [];
+    public IReadOnlyList<MiniRibbonControl> Ribbon(ContentAsk ask) => this._own?.Ribbon(ask) ?? [];
+
+    /// <inheritdoc/>
+    public ClipboardOffers Clipboard(ContentAsk ask) => this._own?.Clipboard(ask) ?? (onEdit is null ? ClipboardOffers.All : ClipboardOffers.None);
 
     /// <inheritdoc/>
     public BlockCorner Corner(ContentAsk ask) => this._own?.Corner(ask) ?? BlockCorner.Usual;

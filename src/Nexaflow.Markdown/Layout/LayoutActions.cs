@@ -43,6 +43,12 @@ public static class LayoutVerbs
     public const string Copy = "copy";
 
     /// <summary>
+    /// Put what is chosen where things are copied to, and take it away — the host's to do, as copying is, and taking it away only
+    /// once it has gone there.
+    /// </summary>
+    public const string Cut = "cut";
+
+    /// <summary>
     /// Put what was copied where the caret is. The host's to do, as copying is — the clipboard is its — and what is on it goes to
     /// the engine as a paste, for the language the caret is in to say what it comes to there.
     /// </summary>

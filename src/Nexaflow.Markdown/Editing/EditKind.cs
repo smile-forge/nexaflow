@@ -33,7 +33,10 @@ public enum EditKind
     /// <summary>Insert: something new, where the caret is or before what is picked out.</summary>
     Inserting,
 
-    /// <summary>One of what the language offered was chosen; <see cref="ContentEdit.Text"/> is its verb.</summary>
+    /// <summary>
+    /// A control of the mini ribbon the language offered was used: the edit its callback is handed, at the piece the ribbon was
+    /// opened over, with no text — never asked of an edit handler, since the control's own callback says what it does.
+    /// </summary>
     Choosing,
 
     /// <summary>What is picked out, carried and let go over the piece the edit applied to.</summary>

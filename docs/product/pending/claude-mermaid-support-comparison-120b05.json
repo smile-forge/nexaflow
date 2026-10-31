@@ -1,0 +1,253 @@
+{
+  "branch": "claude/mermaid-support-comparison-120b05",
+  "nodes": {
+    "packet": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Packet/PacketBuilder.cs",
+          "class": "PacketBuilder"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "packet \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/packet.html"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Packet/PacketBuilderTests.cs",
+            "class": "PacketBuilderTests"
+          }
+        ]
+      }
+    },
+    "packet-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packet/PacketParser.cs",
+          "class": "PacketParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packet/PacketPipeline.cs",
+          "class": "PacketPipeline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packet/Stages/PlaceFields.cs",
+          "class": "PlaceFields"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packet/PacketNodes.cs",
+          "class": "PacketFieldNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packet/PacketConfig.cs",
+          "class": "PacketConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packet/PacketStandIns.cs",
+          "class": "PacketStandIns"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Packet/PacketParserTests.cs",
+            "class": "PacketParserTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Packet/PacketStagesTests.cs",
+            "class": "PacketStagesTests"
+          }
+        ]
+      }
+    },
+    "packet-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Packet/PacketEdits.cs",
+          "class": "PacketEdits"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packet/PacketWriting.cs",
+          "class": "PacketWriting"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Packet/PacketPlaces.cs",
+          "class": "PacketPlaces",
+          "method": "BitAt"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Packet/PacketEditingTests.cs",
+            "class": "PacketEditingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Packet/PacketWritingTests.cs",
+            "class": "PacketWritingTests"
+          }
+        ]
+      }
+    },
+    "markdown-context-menu": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.Menu.cs",
+          "class": "MarkdownSurface",
+          "method": "ShowContextRibbon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LinkedElement.cs",
+          "class": "LinkedElement",
+          "method": "BuildRibbon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/DiagramRibbon.cs",
+          "class": "DiagramRibbon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownEdits.cs",
+          "class": "MarkdownEdits",
+          "method": "Started"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs",
+          "class": "ContentLanguages",
+          "method": "Insertable"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
+          "class": "Shipped",
+          "method": "Starting"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/MiniRibbon.cs",
+          "class": "MiniRibbonControl"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownEdits.cs",
+          "class": "MarkdownEdits",
+          "method": "Ribbon"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/ClipboardOffersTests.cs",
+            "class": "ClipboardOffersTests"
+          }
+        ]
+      }
+    },
+    "flowchart-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Flowchart/FlowchartEdits.cs",
+          "class": "FlowchartEdits",
+          "method": "Escaping"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Flowchart/FlowchartEdits.cs",
+          "class": "FlowchartEdits",
+          "method": "Edit"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/DiagramRibbon.cs",
+          "class": "DiagramRibbon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Flowchart/FlowchartEdits.Choices.cs",
+          "class": "FlowchartEdits",
+          "method": "Ribbon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Flowchart/FlowchartEdits.Choices.cs",
+          "class": "FlowchartEdits",
+          "method": "Shapes"
+        }
+      ]
+    },
+    "markdown-offers": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/IContentLanguage.cs",
+          "class": "BlockCorner"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/IContentLanguage.cs",
+          "class": "IContentLanguage",
+          "method": "Ribbon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/MiniRibbon.cs",
+          "class": "MiniRibbonControl"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Writing.cs",
+          "class": "ContentEngine",
+          "method": "Used"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/DiagramRibbon.cs",
+          "class": "DiagramRibbon",
+          "method": "Entering"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 10,
+  "touched_nodes": [
+    "flowchart-writing",
+    "markdown-context-menu",
+    "markdown-offers",
+    "packet",
+    "packet-ast",
+    "packet-writing"
+  ]
+}

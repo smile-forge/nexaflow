@@ -51,6 +51,7 @@ public class MermaidFigureWriter
         ("Git graph", "mermaid-gitgraph.png"),
         ("Block diagram", "mermaid-block.png"),
         ("Architecture diagram", "mermaid-architecture.png"),
+        ("Packet diagram", "mermaid-packet.png"),
         ("Sankey diagram", "mermaid-sankey.png"),
     ];
 

@@ -1,7 +1,7 @@
 # Markdown — Diagrams: flow & structure
 
-Diagrams for how something is built, and how it runs: flowcharts, swimlanes, sequence, class, state and ER diagrams, and
-the C4 family.
+Diagrams for how something is built, and how it runs: flowcharts, swimlanes, sequence, class, state and ER diagrams, packets,
+and the C4 family.
 
 ---
 
@@ -224,6 +224,30 @@ architecture-beta
 ````
 
 ![An architecture diagram with a cloud group holding a database, two disks and a server](images/markdown/mermaid-architecture.png)
+
+---
+
+## Packet diagram
+
+The fields of a network packet or a register, drawn along rows of 32 bits: each field is its bits — `0-15`, one bit as
+`106`, or `+16` to count on from the field before it — and its label in quotes. The first and last bit of each field are
+numbered over it, and a label and a bit number written are typed into where they are drawn. Fence it as `packet` and it
+needs no header; `bitOrder: descending` under `config: packet:` numbers each row from its highest bit, as a register is
+drawn.
+
+````markdown
+```mermaid
+packet
+title UDP Packet
++16: "Source Port"
++16: "Destination Port"
+32-47: "Length"
+48-63: "Checksum"
+64-95: "Data (variable length)"
+```
+````
+
+![A UDP header drawn as two rows of fields, each numbered at its ends](images/markdown/mermaid-packet.png)
 
 ---
 

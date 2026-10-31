@@ -16,6 +16,7 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Visuals.Text.Markdown.Prose;
 
@@ -45,8 +46,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Prose;
 /// it back. At the start of a paragraph it takes back the gap before it, joining the two.
 /// </para>
 /// <para>
-/// <strong>A right-click offers a block in any language there is one to start in.</strong> Each is drawn as its icon, behind the
-/// ribbon's one Insert button, and choosing one writes the block it starts from after the block the ribbon was opened over.
+/// <strong>A right-click offers a block in any language there is one to start in.</strong> Each is drawn as its icon, dropped down
+/// from the ribbon's one Insert button, and choosing one writes the block it starts from after the block the ribbon was opened over.
 /// </para>
 /// </summary>
 internal sealed partial class MarkdownEdits : IContentLanguage, IOnEdit
@@ -61,7 +62,6 @@ internal sealed partial class MarkdownEdits : IContentLanguage, IOnEdit
         EditKind.Settling => Typing(edit),
         EditKind.Erasing => Erasing(edit, forward: false),
         EditKind.Deleting => Erasing(edit, forward: true),
-        EditKind.Choosing => Started(edit),
         _ => null,
     };
 
@@ -73,15 +73,16 @@ internal sealed partial class MarkdownEdits : IContentLanguage, IOnEdit
 
     /// <summary>
     /// A block to start in every language there is one to start in (<see cref="ContentLanguages.Insertable"/>), each drawn as its icon and
-    /// named for a reader hovering over it — nothing, where the reader may not write.
+    /// named for a reader hovering over it, behind the one button they are browsed from — nothing, where the reader may not write.
     /// </summary>
-    public IReadOnlyList<LayoutIntent> Offers(ContentAsk ask) => ask.IsReadOnly ? [] :
+    public IReadOnlyList<MiniRibbonControl> Ribbon(ContentAsk ask) => ask.IsReadOnly ? [] :
     [
-        .. ContentLanguages.Insertable.Select(language => new LayoutIntent(Inserts + language.Name, null, language.DisplayName?.Invoke())
-        {
-            Offer = LayoutOffer.Insert,
-            Shape = Drawn(language.Icon),
-        }),
+        new MiniRibbonChoice(Inserts, Str.Get("Text.Ribbon.Insert"),
+                             [.. ContentLanguages.Insertable.Where(language => language.Name is not null).Select(language => new MiniRibbonOption(language.Name!, language.DisplayName?.Invoke() ?? language.Name!)
+                             {
+                                 Shape = DiagramRibbon.Drawn(language.Icon),
+                             })],
+                             Started),
     ];
 
     /// <summary>
@@ -100,18 +101,16 @@ internal sealed partial class MarkdownEdits : IContentLanguage, IOnEdit
         return BlockCorner.None;
     }
 
-    /// <summary>What every offer to start a block begins its verb with; the language's name follows.</summary>
-    private const string Inserts = "insert:";
+    /// <summary>What the choice of a block to start is known by on the ribbon.</summary>
+    private const string Inserts = "insert";
 
     /// <summary>
     /// A block started in the language chosen: the block it starts from, written after the block the ribbon was opened over with a blank
     /// line either side, and the caret at the end of its last line, where a reader goes on to write it.
     /// </summary>
-    private static ContentChange? Started(ContentEdit edit)
+    private static ContentChange? Started(ContentEdit edit, MiniRibbonOption language)
     {
-        if (!edit.Text.StartsWith(Inserts, StringComparison.Ordinal)
-            || ContentLanguages.Insertable.FirstOrDefault(language => Inserts + language.Name == edit.Text)?.DefaultBlock is not { } starts)
-            return null;
+        if (ContentLanguages.Insertable.FirstOrDefault(insertable => insertable.Name == language.Id)?.DefaultBlock is not { } starts) return null;
 
         var block = starts.ReplaceLineEndings("\n");
         var source = edit.State.Source;
@@ -136,33 +135,6 @@ internal sealed partial class MarkdownEdits : IContentLanguage, IOnEdit
 
         return null;
     }
-
-    /// <summary>
-    /// <paramref name="icon"/> as a shape in the ribbon's box — its glyph's outline, centred — or null where the font has no such icon and
-    /// the offer is named instead. Each is made once.
-    /// </summary>
-    private static Geometry? Drawn(IconRef icon) => Shapes.GetOrAdd(icon, static icon =>
-    {
-        var font = icon.IsEmpty || !IconCatalog.Contains(icon) ? null : IconCatalog.FontFor(icon);
-        if (font is null) return null;
-
-        var face = new Typeface(font, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
-        var glyph = new FormattedText(IconCatalog.GlyphFor(icon), CultureInfo.InvariantCulture, FlowDirection.LeftToRight, face, Side, Brushes.Black, 1.0)
-            .BuildGeometry(new Point(0, 0));
-
-        var bounds = glyph.Bounds;
-        if (bounds.IsEmpty) return null;
-
-        glyph.Transform = new TranslateTransform((Side - bounds.Width) / 2 - bounds.X, (Side - bounds.Height) / 2 - bounds.Y);
-        glyph.Freeze();
-        return glyph;
-    });
-
-    /// <summary>Every icon drawn so far.</summary>
-    private static readonly ConcurrentDictionary<IconRef, Geometry?> Shapes = new();
-
-    /// <summary>How wide and high the box an icon is drawn in is.</summary>
-    private const double Side = 16;
 
     /// <summary>
     /// A character written so it reads as itself. A line shown as its characters stays shown as its characters while it is written
