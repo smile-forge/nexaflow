@@ -277,4 +277,10 @@ public sealed record ContentParse(ContentNode Tree)
     /// readings that stop in equal states read the same from there on. Null where nothing is carried.
     /// </summary>
     public object? Resume { get; init; }
+
+    /// <summary>
+    /// Whether a windowed parse came to the end of the window it was handed (<see cref="ContentStretch"/>) with nowhere to stop
+    /// yet, short of the end of the reading — what it read is to be thrown away, and the stretch read again from a longer window.
+    /// </summary>
+    public bool NeedsMore { get; init; }
 }

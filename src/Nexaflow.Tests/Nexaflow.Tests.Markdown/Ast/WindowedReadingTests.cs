@@ -1,4 +1,5 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Markdown.Rtf;
 using Nexaflow.Tests.Fixtures;
@@ -6,19 +7,20 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Markdown.Ast;
 
 /// <summary>
-/// A large document is read a stretch at a time (<see cref="ContentStretch"/>), each stretch stopping softly where nothing is
-/// left open — and the stretches, stitched together (<see cref="ContentChunks"/>), must be exactly the document read whole:
-/// the same pieces, standing for the same characters, wherever the stretches happened to stop.
+/// A long reading is read a unit at a time (<see cref="ContentStretch"/>), each unit stopping softly where nothing is left open
+/// and holding its tree in offsets of its own — and the units, stitched together where the index says each starts
+/// (<see cref="ContentUnits"/>), must be exactly the reading read whole: the same pieces, standing for the same characters, wherever
+/// the units happened to stop.
 /// </summary>
 [TestClass]
 [CoversNode("windowed-reading")]
 public class WindowedReadingTests
 {
-    /// <summary>A stretch as short as can be, which stops at every place there is to stop; one a few blocks long; one most samples fit in.</summary>
+    /// <summary>A unit as short as can be, which stops at every place there is to stop; one a few blocks long; one most samples fit in.</summary>
     private static readonly int[] Lengths = [1, 64, 4096];
 
     [TestMethod]
-    public void EveryMarkdownSample_ReadAStretchAtATime_IsTheSampleReadWhole()
+    public void EveryMarkdownSample_ReadAUnitAtATime_IsTheSampleReadWhole()
     {
         var documents = TestSampleData.Files("markdown").ToList();
         documents.Add(Path.GetFullPath(Path.Combine(TestSampleData.Root, "..", "docs", "MarkdownSupport.md")));
@@ -29,7 +31,7 @@ public class WindowedReadingTests
     }
 
     [TestMethod]
-    public void EveryRtfSample_ReadAStretchAtATime_IsTheSampleReadWhole()
+    public void EveryRtfSample_ReadAUnitAtATime_IsTheSampleReadWhole()
     {
         foreach (var path in TestSampleData.Files("rtf"))
             Stitched(File.ReadAllText(path, System.Text.Encoding.Latin1), Path.GetFileName(path), RtfParser.Language,
@@ -37,48 +39,78 @@ public class WindowedReadingTests
     }
 
     [TestMethod]
-    public void AnRtfStretch_StopsBetweenParagraphs_AndTheNextReadsInWhatTheyWereSetIn()
+    public void EveryUnitIsReadInOffsetsOfItsOwn_FromNought()
+    {
+        var source = string.Concat(Enumerable.Range(0, 300).Select(at => $"Paragraph {at} has words in it.\n\n"));
+        var units = Read(source, MarkdownParser.Language, MarkdownParser.Windowed, 256);
+
+        Assert.IsTrue(units.Count > 10, $"Read in {units.Count} unit(s).");
+
+        foreach (var (unit, start) in units.From(0))
+        {
+            Assert.AreEqual(0, unit.Tree.Offset, $"the unit at {start} is read from nought");
+            Assert.AreEqual(source.Substring(start, unit.Width), unit.Tree.Print(), $"the unit at {start} prints as its own characters");
+        }
+    }
+
+    [TestMethod]
+    public void AnRtfUnit_StopsBetweenParagraphs_AndTheNextReadsInWhatTheyWereSetIn()
     {
         const string Source = @"{\rtf1\ansi{\fonttbl{\f0 Arial;}{\f1 Courier;}}{\colortbl;\red200\green0\blue0;}" +
                               @"\f1\cf1\b one\par {\i two\par three\par} four\b0\par five\par}";
 
-        var chunks = Read(Source, RtfParser.Language, RtfParser.Windowed, 1);
+        var units = Read(Source, RtfParser.Language, RtfParser.Windowed, 1);
 
-        Assert.IsTrue(chunks.Chunks.Count >= 4, $"Read in {chunks.Chunks.Count} stretch(es).");
-        Assert.IsTrue(chunks.Tree().Same(RtfParser.Parse(Source)));
+        Assert.IsTrue(units.Count >= 4, $"Read in {units.Count} unit(s).");
+        Assert.IsTrue(units.Tree(ContentDocument.Of(Source)).Same(RtfParser.Parse(Source)));
 
-        // Every stretch but the last stops just past a paragraph mark, and the space that ends the word.
-        foreach (var chunk in chunks.Chunks.Take(chunks.Chunks.Count - 1))
-            StringAssert.EndsWith(Source[..chunk.Stopped!.Value].TrimEnd(), @"\par");
+        // Every unit but the last stops just past a paragraph mark, and the space that ends the word.
+        foreach (var (unit, start) in units.From(0).SkipLast(1))
+            StringAssert.EndsWith(Source[..(start + unit.Width)].TrimEnd(), @"\par");
     }
 
     [TestMethod]
-    public void AnRtfStretch_NeverStopsInsideATable()
+    public void AnRtfUnit_NeverStopsInsideATable()
     {
         const string Source = @"{\rtf1 before\par\trowd\cellx1000\cellx2000\intbl a\cell b\cell\row" +
                               @"\trowd\cellx1000\cellx2000\intbl c\cell d\cell\row\pard after\par end\par}";
 
-        var chunks = Read(Source, RtfParser.Language, RtfParser.Windowed, 1);
+        var units = Read(Source, RtfParser.Language, RtfParser.Windowed, 1);
         var table = Source.IndexOf(@"\trowd", StringComparison.Ordinal);
         var after = Source.IndexOf(@"\pard after", StringComparison.Ordinal);
 
-        Assert.IsFalse(chunks.Chunks.Any(chunk => chunk.Stopped > table && chunk.Stopped <= after),
-                       "A stretch stopped inside the table.");
-        Assert.IsTrue(chunks.Tree().Same(RtfParser.Parse(Source)));
+        Assert.IsFalse(units.From(0).Any(placed => placed.Start > table && placed.Start <= after), "A unit stopped inside the table.");
+        Assert.IsTrue(units.Tree(ContentDocument.Of(Source)).Same(RtfParser.Parse(Source)));
     }
 
     [TestMethod]
-    public void AMarkdownStretch_ReadsAContainerLongerThanItselfWhole()
+    public void AMarkdownUnit_ReadsAContainerLongerThanItsWindowWhole_AskingForMoreUntilItFitsIn()
     {
-        var fence = "```\n" + string.Concat(Enumerable.Range(0, 200).Select(line => $"line {line}\n")) + "```\n";
+        var fence = "```\n" + string.Concat(Enumerable.Range(0, 2000).Select(line => $"line {line}\n")) + "```\n";
         var source = "# Title\n\n" + fence + "\nAfter.\n\nMore.\n";
 
-        var chunks = Read(source, MarkdownParser.Language, MarkdownParser.Windowed, 16);
+        var units = Read(source, MarkdownParser.Language, MarkdownParser.Windowed, 16);
         var fenced = source.IndexOf("```", StringComparison.Ordinal);
 
-        Assert.IsFalse(chunks.Chunks.Any(chunk => chunk.Stopped > fenced && chunk.Stopped < fenced + fence.Length),
-                       "A stretch stopped inside the fence.");
-        Assert.IsTrue(chunks.Tree().Same(MarkdownParser.Parsing()(source).Tree));
+        Assert.IsTrue(fence.Length > 4096 * 2, "the fence runs past the first window and the one twice as long");
+        Assert.IsFalse(units.From(0).Any(placed => placed.Start > fenced && placed.Start < fenced + fence.Length),
+                       "A unit stopped inside the fence.");
+        Assert.IsTrue(units.Tree(ContentDocument.Of(source)).Same(MarkdownParser.Parsing()(source).Tree));
+    }
+
+    [TestMethod]
+    public void AnRtfUnit_ReadsATableLongerThanItsWindowWhole_AskingForMoreUntilItFitsIn()
+    {
+        var rows = string.Concat(Enumerable.Range(0, 600).Select(row => $@"\trowd\cellx1000\cellx2000\intbl r{row}a\cell r{row}b\cell\row"));
+        var source = @"{\rtf1 before\par" + rows + @"\pard after\par end\par}";
+
+        var units = Read(source, RtfParser.Language, RtfParser.Windowed, 1);
+        var table = source.IndexOf(@"\trowd", StringComparison.Ordinal);
+        var after = source.IndexOf(@"\pard after", StringComparison.Ordinal);
+
+        Assert.IsTrue(rows.Length > 4096 * 2, "the table runs past the first window and the one twice as long");
+        Assert.IsFalse(units.From(0).Any(placed => placed.Start > table && placed.Start <= after), "A unit stopped inside the table.");
+        Assert.IsTrue(units.Tree(ContentDocument.Of(source)).Same(RtfParser.Parse(source)));
     }
 
     [TestMethod]
@@ -89,28 +121,26 @@ public class WindowedReadingTests
         var first = Read(Source, RtfParser.Language, RtfParser.Windowed, 1);
         var second = Read(Source, RtfParser.Language, RtfParser.Windowed, 1);
 
-        Assert.IsTrue(first.Chunks.Count > 1);
-        for (var at = 0; at < first.Chunks.Count; at++)
-            Assert.AreEqual(first.Chunks[at].Ended, second.Chunks[at].Ended, $"The states read at stretch {at} differ.");
+        Assert.IsTrue(first.Count > 1);
+        for (var at = 0; at < first.Count; at++)
+            Assert.AreEqual(first[at].Unit.Ended, second[at].Unit.Ended, $"The states read at unit {at} differ.");
     }
 
     [TestMethod]
-    public void WhatIsNotReadYet_IsHeldAsWritten_SoTheTreeStillPrintsAsTheDocument()
+    public void WhatIsNotReadYet_StandsForItsCharactersWithoutCopyingThem_SoTheTreeStillPrintsAsTheDocument()
     {
         var source = string.Concat(Enumerable.Range(0, 30).Select(at => $"Paragraph {at}.\n\n"));
-        var chunks = new ContentChunks(source, MarkdownParser.Language);
-        var next = chunks.Next(32)!;
+        var document = ContentDocument.Of(source);
+        var units = new ContentUnits(MarkdownParser.Language).ReadOn(MarkdownParser.Windowed(), document, 32);
 
-        chunks.Add(ContentChunk.Read(MarkdownParser.Windowed(), source, next.From, next.SoftMaxLength, next.Resume));
+        var tree = units.Tree(document);
+        var unreached = tree.Children.Last(part => !part.IsDerived);
 
-        var tree = chunks.Tree();
-
-        Assert.IsFalse(chunks.Done);
+        Assert.IsFalse(units.Done);
         Assert.AreEqual(source, tree.Print());
-        Assert.AreEqual(Kinds.Unreached, tree.Children.Last(part => !part.IsDerived).Kind);
+        Assert.AreEqual(Kinds.Unreached, unreached.Kind);
+        Assert.IsTrue(unreached.Stands, "what is not read stands for the document's characters rather than holding a copy");
     }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     [TestMethod]
     public void EveryMarkdownSample_WrittenIn_IsReadAgainFromWhereItChanged_AsTheWrittenDocumentReadsWhole()
@@ -158,19 +188,22 @@ public class WindowedReadingTests
     }
 
     [TestMethod]
-    public void AWordTypedInALongDocument_IsReadInTheStretchesAroundIt_AndEveryOneAfterIsKept()
+    public void AWordTypedInALongDocument_IsReadInTheUnitsAroundIt_AndEveryOneAfterIsTheSameUnit()
     {
         var source = string.Concat(Enumerable.Range(0, 400).Select(at => $"Paragraph {at} has words in it.\n\n"));
         var parse = MarkdownParser.Windowed();
-        var chunks = Read(source, MarkdownParser.Language, MarkdownParser.Windowed, 256);
-        var edited = source.Insert(source.IndexOf("Paragraph 200 ", StringComparison.Ordinal), "typed ");
+        var units = Read(source, MarkdownParser.Language, MarkdownParser.Windowed, 256);
+        var at = source.IndexOf("Paragraph 200 ", StringComparison.Ordinal);
+        var edited = ContentDocument.Of(source.Insert(at, "typed "));
 
-        var (rewritten, kept) = chunks.Edited(edited, parse, 256);
-        var moved = rewritten.Chunks.Count(chunk => chunk.Moved != 0);
+        var (rewritten, kept, read) = units.Edited(at, at, "typed ".Length, edited, parse, 256);
+        var was = new HashSet<ContentUnit>(units.From(0).Select(placed => placed.Unit), ReferenceEqualityComparer.Instance);
+        var same = rewritten.From(0).Count(placed => was.Contains(placed.Unit));
 
         Assert.IsTrue(kept > 0, "Nothing before the change was kept.");
-        Assert.IsTrue(rewritten.Chunks.Count - kept - moved <= 3, $"{rewritten.Chunks.Count - kept - moved} stretches were read again.");
-        Assert.IsTrue(rewritten.Tree().Same(MarkdownParser.Parsing()(edited).Tree));
+        Assert.IsTrue(read <= 3, $"{read} units were read again.");
+        Assert.AreEqual(rewritten.Count - read, same, "every unit not read again is the very unit it was, nothing in it moved");
+        Assert.IsTrue(rewritten.Tree(edited).Same(MarkdownParser.Parsing()(edited.ToString()).Tree));
     }
 
     private static void Stitched(string source, string name, string language, Func<Func<ContentStretch, ContentParse>> windowed,
@@ -182,8 +215,7 @@ public class WindowedReadingTests
 
         foreach (var length in Lengths)
         {
-            var chunks = Read(source, language, windowed, length);
-            var tree = chunks.Tree();
+            var tree = Read(source, language, windowed, length).Tree(ContentDocument.Of(source));
 
             Assert.AreEqual(source, tree.Print(), $"{name} read {length} at a time does not print as itself.");
             Assert.IsTrue(tree.Same(expected), $"{name} read {length} at a time: {Diverged(expected, tree)}");
@@ -191,28 +223,33 @@ public class WindowedReadingTests
     }
 
     /// <summary>
-    /// <paramref name="source"/> read a stretch at a time and then written in, one edit after another, each read again from where
-    /// it changed — and every one the same as the document it became read whole.
+    /// <paramref name="source"/> read a unit at a time and then written in, one edit after another, each read again from where it
+    /// changed — and every one the same as the document it became read whole.
     /// </summary>
     private static void Edited(string source, IReadOnlyList<string> edits, string name, string language,
                                Func<Func<ContentStretch, ContentParse>> windowed, Func<string, ContentNode> whole)
     {
         var parse = windowed();
-        var chunks = Read(source, language, windowed, 64);
+        var units = Read(source, language, windowed, 64);
+        var document = ContentDocument.Of(source);
         var step = 0;
 
         foreach (var edit in edits)
         {
             step++;
-            (chunks, _) = chunks.Edited(edit, parse, 64);
 
-            while (chunks.Next(64) is { } next) chunks.Add(ContentChunk.Read(parse, edit, next.From, next.SoftMaxLength, next.Resume));
+            var now = ContentDocument.Of(edit);
+            var change = now.ChangesFrom(document).Forward.Writes[0];
 
-            var expected = whole(edit);
-            var tree = chunks.Tree();
+            (units, _, _) = units.Edited(change.Start, change.End, change.Text.Length - change.Length, now, parse, 64);
+            while (!units.Done) units = units.ReadOn(parse, now, 64);
+
+            var tree = units.Tree(now);
 
             Assert.AreEqual(edit, tree.Print(), $"{name}, edit {step}, does not print as itself.");
-            Assert.IsTrue(tree.Same(expected), $"{name}, edit {step}: {Diverged(expected, tree)}");
+            Assert.IsTrue(tree.Same(whole(edit)), $"{name}, edit {step}: {Diverged(whole(edit), tree)}");
+
+            document = now;
         }
     }
 
@@ -222,15 +259,13 @@ public class WindowedReadingTests
         return at;
     }
 
-    private static ContentChunks Read(string source, string language, Func<Func<ContentStretch, ContentParse>> windowed, int length)
+    private static ContentUnits Read(string source, string language, Func<Func<ContentStretch, ContentParse>> windowed, int length)
     {
-        var chunks = new ContentChunks(source, language);
-        var parse = windowed();
+        var (units, parse, document) = (new ContentUnits(language), windowed(), ContentDocument.Of(source));
 
-        while (chunks.Next(length) is { } next)
-            chunks.Add(ContentChunk.Read(parse, source, next.From, next.SoftMaxLength, next.Resume));
+        while (!units.Done) units = units.ReadOn(parse, document, length);
 
-        return chunks;
+        return units;
     }
 
     /// <summary>Where two trees first part: the path of kinds down to the first node that differs, and what each holds there.</summary>

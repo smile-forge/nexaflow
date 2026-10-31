@@ -160,7 +160,7 @@ public sealed partial class ContentEngine
             // The content as it is shown is laid as far as the reader has looked, where it is long enough to be shown a stretch at a
             // time. A picture of it — laid read-only, whatever it is shown as — is of the whole of it.
             var language = Language(_named);
-            if (readOnly is null && Windows(language, state.Source)) return Windowed(language, state, _style, Room, only);
+            if (readOnly is null && Windows(language, state.Document)) return Windowed(language, state, _style, Room, only);
             if (readOnly is null) Closed();
 
             return Lay(_named, state, _style, Room, only);
@@ -196,6 +196,7 @@ public sealed partial class ContentEngine
         var was = (before.Caret, _at);
 
         _state = next;
+        if (changed) _window?.Wrote(before.Document, next.Document);
 
         // A caret, or what is picked out, gone past what a long document has laid yet is laid out to — which is how a search
         // found further down, a jump to the end or a line, and choosing everything all come to be on the page.

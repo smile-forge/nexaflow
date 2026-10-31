@@ -54,7 +54,8 @@ public sealed class MarkdownParser : ITranspile
     /// A stretch is read on past its length to the first line a block starts on with nothing but the document open, and stops
     /// there: every block before it is whole, because a block the scan has closed stays closed (<see cref="MarkdownScanner"/>).
     /// A stretch holding a single block, however long, is that block whole. A stretch stops between two blocks, where nothing is
-    /// open, so it carries nothing to the next (<see cref="ContentParse.Resume"/>).
+    /// open, so all it carries to the next (<see cref="ContentParse.Resume"/>) is what stands in front of the block it stopped at on
+    /// that block's line — the indentation that says what column the next stretch starts at.
     /// </para>
     /// </summary>
     public static Func<ContentStretch, ContentParse> Windowed()
@@ -65,21 +66,37 @@ public sealed class MarkdownParser : ITranspile
 
     private static ContentParse Stretched(ContentStretch stretch, MarkdownBlocks blocks)
     {
-        var source = stretch.Source;
-        var from = stretch.From;
-        var lines = MarkdownLines.Of(source, from: from);
-        var scanned = MarkdownScanner.Scan(lines, document: from == 0, from + Math.Max(stretch.SoftMaxLength, 1), out var stopped);
+        // A window short of the end of the reading may end part-way through a line, which says nothing yet about the line it is
+        // the start of: only the lines it holds whole are read, and where it holds none there is nothing to read until it is longer.
+        var source = stretch.Window;
+
+        if (!stretch.Ends)
+        {
+            var whole = source.LastIndexOf('\n') + 1;
+            if (whole == 0) return new ContentParse(new BlockNode(Language, [])) { NeedsMore = true };
+
+            source = source[..whole];
+        }
+
+        // What stands in front of the block a stretch starts with on its line: what the stretch before stopped in.
+        var indent = stretch.Resume as string ?? string.Empty;
+        var lines = MarkdownLines.After(indent, source);
+        var scanned = MarkdownScanner.Scan(lines, document: stretch.From == 0, Math.Max(stretch.SoftMaxLength, 1), out var stopped);
+
+        // Read to the end of the window with something still open, or with nothing yet past which a block could start: what comes
+        // next is still to be seen.
+        if (stopped is null && !stretch.Ends) return new ContentParse(new BlockNode(Language, [])) { NeedsMore = true };
 
         var end = stopped ?? source.Length;
-        var read = new Cut(source, from, end);
+        var read = new Cut(source, 0, end);
         var parts = new List<ContentNode>();
 
         Split(scanned.Children, parts, read);
         read.Gap(parts, end);
 
-        var tree = new BlockNode(Language, Checked(Kinds.Block, parts, source[from..end], Roles.Element, from).Children, offset: from);
+        var tree = new BlockNode(Language, Checked(Kinds.Block, parts, source[..end], Roles.Element, 0).Children, offset: 0);
 
-        return new ContentParse(blocks.Read(tree, source)) { Stopped = stopped };
+        return new ContentParse(blocks.Read(tree, source, indent)) { Stopped = stopped, Resume = stopped is { } at ? source[(source.LastIndexOf('\n', at - 1) + 1)..at] : null };
     }
 
     /// <summary>The word naming what a document is written in — what its root says it is (<see cref="BlockNode"/>).</summary>

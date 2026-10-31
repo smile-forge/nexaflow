@@ -229,8 +229,8 @@ public static class Kinds
     public const string Hole = "hole";
 
     /// <summary>
-    /// What of a large document is still to be read, held as written: trivia standing at the end of the document, which nothing
-    /// draws, until the stretches before it reach it (<see cref="ContentChunks"/>).
+    /// What of a long reading is still to be read: trivia standing at its end for those characters without copying them, which
+    /// nothing draws, until the units before it reach it (<see cref="ContentUnits"/>).
     /// </summary>
     public const string Unreached = "unreached";
 }

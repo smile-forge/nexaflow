@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Markdown.Editing;
 
@@ -44,7 +45,7 @@ namespace Nexaflow.Markdown.Editing;
 /// had asks that, which costs nothing.
 /// </para>
 /// </summary>
-public sealed class ContentDocument : IEquatable<ContentDocument>
+public sealed class ContentDocument : IEquatable<ContentDocument>, IContentCharacters
 {
     /// <summary>How long a document has to be before it is held as a rope rather than one string.</summary>
     public const int RopeFrom = 128 * 1024;

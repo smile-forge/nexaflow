@@ -37,7 +37,8 @@ internal sealed class MarkdownBlocks
     /// <summary>The document's blocks read, each one that is written exactly as it was last time handed back as it was read then.</summary>
     /// <param name="document">The document as the split hands it over: every block named, every body still its own source.</param>
     /// <param name="source">What the document was read from, which says what stands in front of each block on its line.</param>
-    public ContentNode Read(ContentNode document, string source)
+    /// <param name="indent">What stands in front of <paramref name="source"/>'s first character on its line — nothing, unless it is a stretch of a document starting part-way along one.</param>
+    public ContentNode Read(ContentNode document, string source, string indent = "")
     {
         var now = new Dictionary<(string Lead, string Written), List<(ContentNode Written, ContentNode Read)>>(_before.Count);
         var seen = new ContentNode[document.Children.Count];
@@ -49,12 +50,12 @@ internal sealed class MarkdownBlocks
 
             if (block.Part(Roles.Body) is not { IsLeaf: true, Kind: Kinds.Verbatim or Kinds.Nested } body)
             {
-                seen[at] = ReadIn(block, source);
+                seen[at] = ReadIn(block, source, indent);
             }
             else
             {
-                var written = (Lead(source, body.Offset), body.Text);
-                seen[at] = Remembered(written, block) ?? ReadIn(block, source);
+                var written = (Lead(source, body.Offset, indent), body.Text);
+                seen[at] = Remembered(written, block) ?? ReadIn(block, source, indent);
 
                 if (!now.TryGetValue(written, out var alike)) now[written] = alike = [];
                 alike.Add((block, seen[at]));
@@ -152,15 +153,17 @@ internal sealed class MarkdownBlocks
     };
 
     /// <summary>What stands in front of a block's first character on the line it starts on — nothing for one that starts its line.</summary>
-    private static string Lead(string document, int? at)
+    private static string Lead(string document, int? at, string indent)
     {
-        if (at is not { } stands || stands <= 0 || stands > document.Length) return string.Empty;
+        if (at is not { } stands || stands <= 0 || stands > document.Length) return at == 0 ? indent : string.Empty;
 
-        return document[(document.LastIndexOf('\n', stands - 1) + 1)..stands];
+        var line = document.LastIndexOf('\n', stands - 1) + 1;
+
+        return line == 0 ? indent + document[..stands] : document[line..stands];
     }
 
     /// <summary>This piece with its body read, everything under it the same, and then finished.</summary>
-    private static ContentNode ReadIn(ContentNode node, string source)
+    private static ContentNode ReadIn(ContentNode node, string source, string indent)
     {
         if (node.IsLeaf) return node;
 
@@ -168,7 +171,7 @@ internal sealed class MarkdownBlocks
         // named this block cut them out of the document and said so. A body that says nothing is read from nought,
         // which is the only answer left and the one the oracle over every corpus is there to catch.
         if (Reader(node) is { } reader && node.Part(Roles.Body) is { IsLeaf: true, Kind: Kinds.Verbatim } body
-            && reader(body.Text, body.Offset ?? 0, Lead(source, body.Offset)) is { } read && !Circles(node, body, read))
+            && reader(body.Text, body.Offset ?? 0, Lead(source, body.Offset, indent)) is { } read && !Circles(node, body, read))
             node = node.With([.. node.Children.Select(child => ReferenceEquals(child, body) ? read : child)]);
 
         ContentNode[]? seen = null;
@@ -176,7 +179,7 @@ internal sealed class MarkdownBlocks
         for (var at = 0; at < node.Children.Count; at++)
         {
             var child = node.Children[at];
-            var now = ReadIn(child, source);
+            var now = ReadIn(child, source, indent);
 
             if (seen is null && !ReferenceEquals(now, child))
             {
