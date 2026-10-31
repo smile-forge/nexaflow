@@ -199,18 +199,19 @@ internal sealed class DiagramText(ContentReading reading, EditState state, Layou
         named ??= part?.SelfAndDescendants().FirstOrDefault(each => each.Node is RenderedIconNode);
         if (named?.Node is not RenderedIconNode icon) return null;
 
-        var face = icon.Family is null ? style.Face(BodyFont) : style.IconFace;
-        var glyph = medium.Shape(icon.Glyph, face, size, ink);
-
-        return new DiagramWords(glyph, named, null, Text("x", size, ink), ink, maps: false, writes: false);
+        return Icon(icon.Icon, named, size, ink);
     }
 
     /// <summary>
-    /// An icon the diagram draws of its own accord rather than one a line names — a folder beside a folder's name, a file beside a
-    /// file's — standing for <paramref name="part"/>, set in the face its glyph is in; null where the app has no such icon.
+    /// The icon <paramref name="icon"/>, <paramref name="size"/> big, standing for <paramref name="part"/>: an emoji in the body's font,
+    /// a Fluent icon as its glyph, and a pack's icon drawn as its outlines, its <c>currentColor</c> in <paramref name="ink"/> — or null
+    /// where nothing draws it.
     /// </summary>
     public DiagramWords? Icon(IconRef icon, ContentPart? part, double size, LayoutInk ink)
     {
+        if (icon.IsIconify)
+            return IconPacks.Of(icon) is { } drawn ? new DiagramWords(DrawnIcon.Of(drawn, size, medium, ink), part, Text(string.Empty, size, ink), ink) : null;
+
         if (!icon.IsFluent) return new DiagramWords(medium.Shape(icon.Value, style.Face(BodyFont), size, ink), part, null, Text("x", size, ink), ink, maps: false, writes: false);
         if (FluentGlyphs.Of(icon) is not { } glyph) return null;
 

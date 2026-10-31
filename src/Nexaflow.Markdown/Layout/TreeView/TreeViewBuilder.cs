@@ -152,14 +152,28 @@ internal sealed class TreeViewBuilder : ContentBuilder
         }
         else if (!config.ShowIcons) return null;
 
-        var label = item.Inner(TreeViewKinds.Label)?.Words()?.Text ?? string.Empty;
-        var dot = label.LastIndexOf('.');
-        var mapped = config.FilenameIcons.GetValueOrDefault(label) ?? (dot > 0 ? config.ExtensionIcons.GetValueOrDefault(label[dot..]) : null);
+        var mapped = said.Folder ? null : Mapped(item, config);
 
         if (mapped?.Trim().Equals("none", StringComparison.OrdinalIgnoreCase) == true) return null;
-        if (mapped is not null && MermaidIcons.Of(mapped) is { } icon && Words.Icon(icon, part, size, ink) is { } chosen) return chosen;
+        if (mapped is not null && MermaidIcons.Of(mapped, config.DefaultIconPack) is { } icon && Words.Icon(icon, part, size, ink) is { } chosen) return chosen;
 
         return Words.Icon(IconRef.Fluent(said.Folder ? "folder" : "document"), part, size, ink);
+    }
+
+    /// <summary>
+    /// The icon the front matter maps a file to, as Mermaid maps one: by its whole name, then by what follows its last dot — not a
+    /// name's first character, so <c>.env</c> has none — in lower case, the map's key written with its dot or without.
+    /// </summary>
+    private static string? Mapped(ContentPart item, TreeViewConfig config)
+    {
+        var label = item.Inner(TreeViewKinds.Label)?.Words()?.Text ?? string.Empty;
+        if (config.FilenameIcons.GetValueOrDefault(label) is { } named) return named;
+
+        var dot = label.LastIndexOf('.');
+        if (dot <= 0) return null;
+
+        var extension = label[dot..].ToLowerInvariant();
+        return config.ExtensionIcons.GetValueOrDefault(extension) ?? config.ExtensionIcons.GetValueOrDefault(extension[1..]);
     }
 
     /// <summary>Where each of what is set in a row goes: its icon, its label after it, and what is said beside it after that.</summary>

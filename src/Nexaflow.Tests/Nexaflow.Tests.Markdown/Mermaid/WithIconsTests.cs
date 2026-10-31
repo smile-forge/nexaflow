@@ -16,8 +16,6 @@ public class WithIconsTests
 {
     private static List<RenderedIconNode> Rendered(string source) => [.. MermaidStaged.Read(source).SelfAndDescendants().OfType<RenderedIconNode>()];
 
-    private static string Glyph(string name) => FluentGlyphs.Of(IconRef.Fluent(name))!;
-
     [TestMethod]
     [DataRow("mindmap\n  root\n    ::icon(fa fa-book)", "book")]
     [DataRow("kanban\n  Todo\n    task[Write it]\n    ::icon(fa:fa-user)", "person")]
@@ -28,19 +26,26 @@ public class WithIconsTests
     [DataRow("mindmap\n  root\n    ::icon(fluent:rocket)", "rocket")]
     public void EveryWayADiagramNamesAnIconIsTheFluentIconDrawingIt(string source, string fluent)
     {
-        var icon = Rendered(source).Single();
-
-        Assert.AreEqual(FluentGlyphs.Family, icon.Family);
-        Assert.AreEqual(Glyph(fluent), icon.Glyph);
+        Assert.AreEqual(IconRef.Fluent(fluent), Rendered(source).Single().Icon);
     }
 
     [TestMethod]
-    public void AnEmojiIsItsOwnGlyph_InTheFontOfTheWordsRoundIt()
-    {
-        var icon = Rendered("mindmap\n  root\n    ::icon(🚀)").Single();
+    public void AnEmojiIsItsOwnIcon() => Assert.AreEqual(IconRef.Emoji("🚀"), Rendered("mindmap\n  root\n    ::icon(🚀)").Single().Icon);
 
-        Assert.IsNull(icon.Family);
-        Assert.AreEqual("🚀", icon.Glyph);
+    [TestMethod]
+    public void APackShippedWithTheAppIsDrawnAsItself_AndANameItHasNoneOfIsNoIcon()
+    {
+        Assert.AreEqual(IconRef.Iconify("material-icon-theme", "rust"), MermaidIcons.Of("material-icon-theme:rust"));
+        Assert.IsNull(MermaidIcons.Of("material-icon-theme:no-such-icon"), "the pack is here, and has no icon of that name");
+        Assert.AreEqual(IconRef.Iconify("material-icon-theme", "react-ts"), Rendered("kanban\n  Todo\n    task[Write it]@{ icon: 'material-icon-theme:react-ts' }").Single().Icon);
+    }
+
+    [TestMethod]
+    public void ABareNameIsAnIconOfTheDefaultPack_AfterTheIconsMermaidDrawsItself()
+    {
+        Assert.AreEqual(IconRef.Iconify("material-icon-theme", "rust"), MermaidIcons.Of("rust", "material-icon-theme"));
+        Assert.AreEqual(IconRef.Fluent("folder"), MermaidIcons.Of("folder", "material-icon-theme"), "folder is Mermaid's own, though the pack has one too");
+        Assert.AreEqual(IconRef.Fluent("person"), MermaidIcons.Of("user", "material-icon-theme"), "a name the pack has none of is read as before");
     }
 
     [TestMethod]

@@ -217,11 +217,54 @@
           }
         ]
       }
+    },
+    "icons-packs": {
+      "links": [
+        {
+          "type": "url",
+          "target": "https://icon-sets.iconify.design/material-icon-theme/"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Icons/IconPacks.cs",
+          "class": "IconPacks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Icons/IconBody.cs",
+          "class": "IconBody"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Icons/VectorIcon.cs",
+          "class": "VectorIcon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DrawnIcon.cs",
+          "class": "DrawnIcon"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Icons/IconPacksTests.cs",
+            "class": "IconPacksTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Icons/IconBodyTests.cs",
+            "class": "IconBodyTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 12,
+  "changed_sets": 14,
   "touched_nodes": [
+    "icons-packs",
     "treemap",
     "treemap-ast",
     "treemap-writing",

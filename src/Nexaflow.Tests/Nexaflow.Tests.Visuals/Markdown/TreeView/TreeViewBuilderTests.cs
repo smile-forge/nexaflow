@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Windows.Media;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.TreeView;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.Visuals.Markdown.Mermaid;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.TreeView;
 
@@ -38,6 +40,7 @@ public class TreeViewBuilderTests : MermaidBuilderContract
         ("a tree drawn with a box drawing", "treeView-beta\n├── packages/\n│   ├── mermaid/\n│   │   └── src/\n│   └── parser/\n└── README.md"),
         ("quoted labels", "treeView-beta\n    \"my project\"\n        \"folder with spaces\"\n            \"file.js\""),
         ("icons shown, and mapped", "---\nconfig:\n  treeView:\n    showIcons: true\n    filenameIcons:\n      Dockerfile: docker\n    extensionIcons:\n      .txt: none\n---\ntreeView-beta\n    src/\n        App.tsx icon(logos:react)\n    Dockerfile\n    notes.txt"),
+        ("icons from the material icon theme", "---\nconfig:\n  treeView:\n    showIcons: true\n    defaultIconPack: material-icon-theme\n    filenameIcons:\n      Dockerfile: docker\n    extensionIcons:\n      .ts: typescript\n      .txt: none\n---\ntreeView-beta\n    src/\n        index.ts\n        App.tsx icon(material-icon-theme:react-ts)\n    Dockerfile\n    notes.txt"),
         ("its own geometry and colours", "---\nconfig:\n    treeView:\n        rowIndent: 40\n        lineThickness: 3\n    themeVariables:\n        treeView:\n            labelFontSize: '20px'\n            labelColor: '#FF0000'\n            lineColor: '#00FF00'\n---\ntreeView-beta\n    \"packages\"\n        \"mermaid\"\n        \"parser\""),
         ("no header", "src/\n    index.js"),
         ("still being written", "treeView-beta\n├── src/\n│   └── \"\"\n└── README.md ##"),
@@ -99,5 +102,43 @@ public class TreeViewBuilderTests : MermaidBuilderContract
 
         Assert.AreEqual(2, icons.Count, "a folder's and a file's, but none where a node says so");
         Assert.IsTrue(icons.All(icon => icon.Part is not null && !icon.Words!.Writes), "pressed as its node, never typed into");
+    });
+
+    [TestMethod]
+    public void APacksIconIsDrawnAsItsOutlines_StandingForItsNode_ABareNameInTheDefaultPack() => UiThread.Run(() =>
+    {
+        const string source = "---\nconfig:\n  treeView:\n    showIcons: true\n    defaultIconPack: material-icon-theme\n    extensionIcons:\n      .rs: rust\n---\n"
+                              + "treeView-beta\nsrc/\n    main.rs\n    App.tsx icon(material-icon-theme:react-ts)\n    notes.txt";
+        var icons = Pieces(Lay(source), TreeViewPiece.Icon);
+        var drawn = icons.Where(icon => icon.Words is null).ToList();
+
+        Assert.AreEqual(4, icons.Count);
+        Assert.AreEqual(2, drawn.Count, "main.rs and App.tsx are drawn by the pack, src and notes.txt as a folder and a file");
+        Assert.IsTrue(drawn.All(icon => icon.Part is not null && icon.Marks.ToArray().OfType<GeometryMark>().Any()), "outlines, standing for the node");
+    });
+
+    [TestMethod]
+    public void APacksGradientsAreMeasuredWhereItsOutlinesAre() => UiThread.Run(() =>
+    {
+        var brushes = Pieces(Lay("treeView-beta\nsrc/ icon(material-icon-theme:aurelia)\na.vfl icon(material-icon-theme:vfl)"), TreeViewPiece.Icon)
+            .SelectMany(icon => icon.Marks.ToArray().OfType<GeometryMark>())
+            .Select(mark => (mark.Fill as WpfInk)?.Brush)
+            .OfType<GradientBrush>()
+            .ToList();
+
+        Assert.IsTrue(brushes.OfType<LinearGradientBrush>().Any(), "aurelia is graded along lines");
+        Assert.IsTrue(brushes.OfType<RadialGradientBrush>().Any(), "vfl is graded out from a point");
+        Assert.IsTrue(brushes.All(brush => brush.MappingMode == BrushMappingMode.Absolute), "in the outline's own coordinates, not its box");
+    });
+
+    [TestMethod]
+    public void AFilesIconIsMappedByItsNameOrItsLastExtension_InLowerCase_AndAFoldersNever() => UiThread.Run(() =>
+    {
+        const string source = "---\nconfig:\n  treeView:\n    showIcons: true\n    defaultIconPack: material-icon-theme\n    filenameIcons:\n      .env: tune\n"
+                              + "    extensionIcons:\n      md: markdown\n      .ts: typescript\n---\ntreeView-beta\nlib.ts/\n    README.MD\n    app.test.ts\n    .env\n    .ts";
+        var icons = Pieces(Lay(source), TreeViewPiece.Icon);
+
+        CollectionAssert.AreEqual(new[] { true, false, false, false, true }, icons.Select(icon => icon.Words is not null).ToArray(),
+                                  "the folder and a file named only by a dot keep Mermaid's own icons; the rest are the pack's");
     });
 }

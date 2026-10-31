@@ -107,6 +107,19 @@ public interface ILayoutMedium
     /// </summary>
     LayoutInk Gradient(IReadOnlyList<(LayoutColor Color, double At)> stops, LayoutPoint from, LayoutPoint to);
 
+    /// <summary>
+    /// An ink running through <paramref name="stops"/> from <paramref name="from"/> to <paramref name="to"/>, measured where what it
+    /// fills is drawn — in the outline's own coordinates, not its box — once <paramref name="transform"/> has carried them there.
+    /// </summary>
+    LayoutInk LinearGradient(IReadOnlyList<(LayoutColor Color, double At)> stops, LayoutPoint from, LayoutPoint to, LayoutMatrix transform);
+
+    /// <summary>
+    /// An ink running through <paramref name="stops"/> out from <paramref name="focus"/> to the ellipse of <paramref name="radiusX"/> by
+    /// <paramref name="radiusY"/> about <paramref name="centre"/>, measured where what it fills is drawn, as <see cref="LinearGradient"/> is.
+    /// </summary>
+    LayoutInk RadialGradient(IReadOnlyList<(LayoutColor Color, double At)> stops, LayoutPoint centre, double radiusX, double radiusY, LayoutPoint focus,
+                             LayoutMatrix transform);
+
     /// <summary>Two outlines made one by <paramref name="combine"/>.</summary>
     LayoutShape Combine(LayoutShape a, LayoutShape b, ShapeCombine combine);
 

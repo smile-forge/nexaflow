@@ -213,8 +213,9 @@ applied** ([`FlowchartConfig`](../src/Nexaflow.Markdown/Mermaid/Flowchart/Flowch
 anything else curves them), and the shared `markdownAutoWrap`. **Divergences from Mermaid:** a label is written on one line, where
 Mermaid lets a markdown string run across several — `<br/>` breaks a line here; `htmlLabels`, `defaultRenderer` and `useMaxWidth`
 have nothing to ask for, since labels are drawn by the layout tree, there is one layout, and the chart is drawn at the size its
-nodes come to; there is no icon pack to fetch, so an `icon:` node is drawn in its `form:` as the Fluent UI icon drawing the
-same thing ([`MermaidIcons`](../src/Nexaflow.Markdown/Mermaid/MermaidIcons.cs)) — `fa:user` a person, `mdi:account` too, the
+nodes come to; nothing is fetched, so an `icon:` node is drawn in its `form:` as an icon of a pack the app ships, where it names
+one — `material-icon-theme:rust` as itself — and otherwise as the Fluent UI icon drawing the same thing
+([`MermaidIcons`](../src/Nexaflow.Markdown/Mermaid/MermaidIcons.cs)) — `fa:user` a person, `mdi:account` too, the
 app's own `fluent:name` as itself — and as a question mark where the app draws none, which is what Mermaid draws for an icon it
 has no pack for, and `fa:fa-…` in a label is drawn as the characters written; an `img:` node is the
 picture the host finds by that name, found as a document's `![](…)` is (`WithDiagramPictures`), at the `w:`/`h:` it asks for
@@ -437,8 +438,7 @@ time, and what `layout:` names is read and kept.
 **The front matter is applied** ([`MindmapConfig`](../src/Nexaflow.Markdown/Mermaid/Mindmap/MindmapConfig.cs)): `config:
 mindmap:` `padding` and `maxNodeWidth` (`useMaxWidth` read); and the `themeVariables:` `cScale0`…`cScale11`,
 `cScaleLabel0`…`cScaleLabel11` and `cScaleInv0`…`cScaleInv11` for the branches, with `git0` and `gitBranchLabel0` for the root.
-A colour nobody wrote is the theme's. **Not applied:** icons, since no icon font is shipped to draw `fa fa-book` with, and
-classes, since a mindmap declares none; markdown strings' formatting — `**bold**` is drawn as written, because what is drawn is
+A colour nobody wrote is the theme's. **Not applied:** classes, since a mindmap declares none; markdown strings' formatting — `**bold**` is drawn as written, because what is drawn is
 what is typed into, and hiding the asterisks would leave a caret nowhere to stand; titles written over several lines, which a
 line-by-line grammar does not see; and the `handDrawn` look.
 **Written in place:** a title is typed into where it is drawn, on whichever of its wrapped lines is pressed; a quote, a closing
@@ -467,8 +467,8 @@ each line standing for the characters it holds.
 `ticketBaseUrl` (a linked ticket drawn in the accent), `sectionWidth`, and `padding` and `useMaxWidth` (read); and the
 `themeVariables:` `cScale0`…`cScale11` and `cScaleLabel0`…`cScaleLabel11` for the columns — the first column taking the
 scale's third, as Mermaid numbers them — and `background`, `nodeBorder` and `textColor` for the cards. A colour nobody wrote
-is the theme's. **Not applied:** following a ticket's link (which wants a press on a piece to reach the host); icons, since no
-icon font is shipped to draw `fa fa-book` with, and classes, since a kanban board declares none; metadata written over several
+is the theme's. **Not applied:** following a ticket's link (which wants a press on a piece to reach the host); classes, since
+a kanban board declares none; metadata written over several
 lines, which a line-by-line grammar does not see; and the `handDrawn` look.
 **Written in place:** a column's or a card's title is typed into where it is drawn, on whichever of its lines is pressed; a
 quote, a closing bracket or a comment typed into a title in brackets puts it in quotes, and a bracket typed into a bare title
@@ -703,7 +703,8 @@ diagram is drawn the same way every time. Supported: `group id(icon)[Title]` nes
 `service id(icon)[Title] in group`, the icon being words of its own in quotes where it is; `junction`, drawn as the dot
 its edges meet at; edges `id{group}?:SIDE {<}?--{>}? SIDE:id{group}?` with a head at either end or both, the `{group}`
 that reaches the group a service is in, and `-[reads]-` to say what an edge is; `align row` and `align column`; a `title`
-and the accessibility lines. An icon is drawn as the Fluent UI icon drawing the same thing
+and the accessibility lines. An icon of a pack the app ships is drawn as itself — `material-icon-theme:docker` — and any
+other as the Fluent UI icon drawing the same thing
 ([`MermaidIcons`](../src/Nexaflow.Markdown/Mermaid/MermaidIcons.cs)) — the five Mermaid ships, `cloud`, `database`, `disk`,
 `internet` and `server`, and a pack's where the app has one, `fa:user` a person — and one the app draws none of is written out
 as what it is called, which says as much as a picture nobody has. **Everything drawn
@@ -1270,9 +1271,9 @@ each folder to what is in it apart from them.
 | `src/` | a folder, drawn in bold; the slash is not drawn |
 | `index.js`, `"my file"`, `'it'` | a label, bare to the first annotation, or in quotes |
 | `:::highlight` | its row picked out |
-| `icon(name)`, `icon(none)` | the icon it is drawn with, or none |
+| `icon(pack:name)`, `icon(name)`, `icon(none)` | the icon it is drawn with — a shipped pack's by its full name, or by its name alone in the default pack — or none |
 | `## words` | words beside it, in italics |
-| `config: treeView:` | `rowIndent`, `paddingX`, `paddingY`, `lineThickness`, `showIcons`, `filenameIcons`, `extensionIcons` |
+| `config: treeView:` | `rowIndent`, `paddingX`, `paddingY`, `lineThickness`, `showIcons`, `defaultIconPack`, `filenameIcons`, `extensionIcons` |
 | `config: themeVariables: treeView:` | `labelFontSize`, `labelColor`, `lineColor`, `iconColor`, `descriptionColor`, `highlightBg`, `highlightStroke` |
 
 A label and the words beside a node are typed into where they are drawn; a label stays bare for as long as nothing in it
@@ -1286,8 +1287,12 @@ changed ([`TreeViewWriting`](../src/Nexaflow.Markdown/TreeView/TreeViewWriting.c
 
 **Divergences from Mermaid**
 
-- An icon pack's name is drawn as the Fluent icon of that name, where there is one, and otherwise as a folder's or a file's;
-  Mermaid draws a question mark for a pack the page has not registered.
+- The [Material Icon Theme](https://icon-sets.iconify.design/material-icon-theme/), the pack Mermaid's own examples use, is
+  shipped and drawn as itself, every one of its icons in its own colours
+  ([`IconPacks`](../src/Nexaflow.Icons/IconPacks.cs)); nothing has to be registered. Another pack's name is drawn as the
+  Fluent icon of that name, where there is one, and otherwise as a folder's or a file's; Mermaid draws a question mark for a
+  pack the page has not registered.
+- With `showIcons: true` a folder and a file are drawn with the Fluent UI folder and document, where Mermaid draws its own two.
 
 ---
 

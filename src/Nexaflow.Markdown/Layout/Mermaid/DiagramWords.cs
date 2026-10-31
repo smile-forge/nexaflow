@@ -30,6 +30,9 @@ internal sealed class DiagramWords
     /// <summary>Another content written where these words are, drawn instead of them.</summary>
     private readonly LayoutInset? _inset;
 
+    /// <summary>An icon a pack draws as outlines, set where the words would be.</summary>
+    private readonly DrawnIcon? _drawn;
+
     /// <param name="inset">
     /// Another content written where these words are — a tune, a formula, a molecule. Where there is one, it is what is
     /// measured and what is set down, and the words are only what it was written as.
@@ -47,6 +50,14 @@ internal sealed class DiagramWords
         Ink = ink;
     }
 
+    /// <summary>
+    /// An icon a pack draws as outlines (<see cref="DrawnIcon"/>), standing for <paramref name="part"/> as an icon set as a glyph does:
+    /// measured and set down as itself, pressed as what names it, and holding no caret.
+    /// </summary>
+    /// <param name="nothing">Words saying nothing, in the size and ink the icon was made in.</param>
+    internal DiagramWords(DrawnIcon drawn, ISourcePart? part, IShapedText nothing, LayoutInk ink)
+        : this(nothing, part, null, nothing, ink, maps: false, writes: false) => _drawn = drawn;
+
     /// <summary>What they say — empty for a hole.</summary>
     public string Says => Hole is null ? _text.Text : string.Empty;
 
@@ -63,20 +74,21 @@ internal sealed class DiagramWords
 
     /// <summary>
     /// The same words drawn in <paramref name="ink"/> — set once, since what colour they are is only said as they are drawn,
-    /// so a name measured in one colour to see whether it fits and drawn in another where it does not is shaped the once.
+    /// so a name measured in one colour to see whether it fits and drawn in another where it does not is shaped the once. An icon a
+    /// pack draws keeps the colours it was made in.
     /// </summary>
     public DiagramWords In(LayoutInk ink) =>
-        ReferenceEquals(ink, Ink) ? this : new DiagramWords(_text, Part, Hole, _letter, ink, _maps, _writes, _inset);
+        ReferenceEquals(ink, Ink) || _drawn is not null ? this : new DiagramWords(_text, Part, Hole, _letter, ink, _maps, _writes, _inset);
 
     /// <summary>How wide they are set: what is written there, the words, or the hole.</summary>
-    public double Width => _inset?.Width ?? (Hole is null ? _text.Width : LayoutText.HoleWidth(_letter));
+    public double Width => _inset?.Width ?? _drawn?.Width ?? (Hole is null ? _text.Width : LayoutText.HoleWidth(_letter));
 
     /// <summary>How tall a line of them is set.</summary>
-    public double Height => _inset?.Height ?? Math.Max(_text.Height, _letter.Height);
+    public double Height => _inset?.Height ?? _drawn?.Height ?? Math.Max(_text.Height, _letter.Height);
 
     /// <summary>How far below their top their baseline is — what words set side by side line up on.</summary>
-    /// <remarks>Content written where words go sits on its own foot, having no line of text to share one with.</remarks>
-    public double Baseline => _inset is { } inset ? inset.Height : Hole is null ? _text.Baseline : _letter.Baseline;
+    /// <remarks>Content written where words go, and an icon drawn there, sit on their own foot, having no line of text to share one with.</remarks>
+    public double Baseline => _inset is { } inset ? inset.Height : _drawn is { } drawn ? drawn.Height : Hole is null ? _text.Baseline : _letter.Baseline;
 
     /// <summary>Sets them with their top left at <paramref name="at"/>, as a piece of <paramref name="kind"/>.</summary>
     /// <param name="degrees">How far the words are turned about where they start — nought for level words, -90 for words read upward.</param>
@@ -87,6 +99,12 @@ internal sealed class DiagramWords
         if (_inset is { } inset)
         {
             inset.Set(build, at, MermaidPiece.Nested);
+            return;
+        }
+
+        if (_drawn is { } drawn)
+        {
+            drawn.Set(build, at, Part, kind);
             return;
         }
 

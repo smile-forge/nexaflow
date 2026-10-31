@@ -25,6 +25,12 @@ public sealed record TreeViewConfig
     /// <summary>Whether every node is drawn with an icon — a folder's, a file's, or what the maps below say — and not only one naming its own.</summary>
     public bool ShowIcons { get; init; }
 
+    /// <summary>
+    /// The icon pack a bare icon name is an icon of — in an <c>icon()</c>, or either map below — where it has one of that name: a pack
+    /// shipped with the app, such as <c>material-icon-theme</c>, by the prefix Iconify names it with.
+    /// </summary>
+    public string? DefaultIconPack { get; init; }
+
     /// <summary>The icon a file of each name is drawn with, where icons are shown.</summary>
     public IReadOnlyDictionary<string, string> FilenameIcons { get; init; } = new Dictionary<string, string>();
 
@@ -57,6 +63,7 @@ public sealed record TreeViewConfig
             PaddingY = Math.Max(0, tree.Number("paddingY") ?? Default.PaddingY),
             LineThickness = Math.Max(0, tree.Number("lineThickness") ?? Default.LineThickness),
             ShowIcons = tree.Flag("showIcons") ?? Default.ShowIcons,
+            DefaultIconPack = tree.Value("defaultIconPack") is { Length: > 0 } pack ? pack : null,
             FilenameIcons = tree.Section("filenameIcons")?.Values ?? Default.FilenameIcons,
             ExtensionIcons = tree.Section("extensionIcons")?.Values ?? Default.ExtensionIcons,
 
