@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Dicom.FileActions;
@@ -19,7 +20,7 @@ public sealed class ShowDicomAction : IFileAction, ICacheable
 
     public bool IsDestructive => false;
     public bool SupportsMultipleFiles => true;
-    public string Icon => "🩻";
+    public IconRef Icon => IconRef.Emoji("🩻");
     public string DisplayName => Str.Get("Dicom.Action.AsDicom");
     public static string? StaticExperienceId => "/dicom";
     public string ExperienceId => "/dicom";

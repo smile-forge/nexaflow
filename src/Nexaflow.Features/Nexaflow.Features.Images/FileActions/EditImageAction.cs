@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,7 +21,7 @@ public sealed class EditImageAction : IFileAction, ICacheable
 
     public bool   IsDestructive          => false;
     public bool   SupportsMultipleFiles  => true;
-    public string Icon                   => "✎";
+    public IconRef Icon                  => IconRef.Emoji("✎");
     public string DisplayName            => Str.Get("Images.Action.Edit");
     public string? Tooltip               => Str.Get("Images.Action.EditTip");
     public static string? StaticExperienceId => "/image/edit";

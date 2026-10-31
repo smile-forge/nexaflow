@@ -4,6 +4,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Ribbon;
 using Nexaflow.Features.Tabular.Streaming;
 using Nexaflow.Features.Tabular.Views;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Features.Tabular.RibbonHandlers;
 
@@ -41,7 +42,7 @@ public sealed class TabularTabPinHandler : ITabPinHandler
         {
             PageKind   = TabularPageRegistration.StaticPageKind,
             Label      = label,
-            Icon       = tab.Icon,
+            Icon       = IconRef.Parse(tab.Icon),
             PageParams = pageParams,
         };
     }

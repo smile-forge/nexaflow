@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Ribbon;
 using Nexaflow.Features.WindowsRegistry.Views;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Features.WindowsRegistry.RibbonHandlers;
 
@@ -25,7 +26,7 @@ public sealed class RegistryTabPinHandler : ITabPinHandler
             {
                 PageKind   = RegistryPageRegistration.PageKind,
                 Label      = leaf,
-                Icon       = "🗝",
+                Icon       = IconRef.Emoji("🗝"),
                 PageParams = sub.Length == 0
                     ? new() { ["hive"] = hive }
                     : new() { ["hive"] = hive, ["path"] = sub }
@@ -37,7 +38,7 @@ public sealed class RegistryTabPinHandler : ITabPinHandler
         {
             PageKind   = RegistryPageRegistration.PageKind,
             Label      = tab.Title,
-            Icon       = tab.Icon,
+            Icon       = IconRef.Parse(tab.Icon),
             PageParams = tab.PageParams is not null ? new(tab.PageParams) : null
         };
     }

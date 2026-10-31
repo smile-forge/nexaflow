@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
@@ -32,7 +33,7 @@ public class DeleteFile : IFileAction, IFolderAction, ICacheable
 
     public bool   IsDestructive          => true;
     public bool   SupportsMultipleFiles  => true;
-    public string Icon                   => "🗑";
+    public IconRef Icon                  => IconRef.Emoji("🗑");
     public string DisplayName            => Str.Get("WindowsFileSystem.Actions.Delete");
     public static string? StaticExperienceId => "/";
     public string ExperienceId           => "/";
@@ -44,7 +45,7 @@ public class DeleteFile : IFileAction, IFolderAction, ICacheable
 
     bool   IFolderAction.IsDestructive        => true;
     bool   IFolderAction.SupportsMultipleFiles => true;
-    string IFolderAction.Icon                 => "🗑";
+    IconRef IFolderAction.Icon                => IconRef.Emoji("🗑");
     string IFolderAction.DisplayName          => Str.Get("WindowsFileSystem.Actions.Delete");
     bool   IFolderAction.RequiresRefresh       => false;
     bool   IFolderAction.CanPerformAction      => true;

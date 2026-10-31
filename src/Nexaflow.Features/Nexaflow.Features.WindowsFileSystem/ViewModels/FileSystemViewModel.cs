@@ -31,6 +31,7 @@ using Nexaflow.Visuals.Common.Shell;
 using Nexaflow.IO.Common.Cloud;
 using Nexaflow.IO.Common.Listing;
 using Nexaflow.IO.Common.Locations;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 
@@ -763,9 +764,7 @@ else if (entry is IFileCreateAction action) await action.CreateItemAsync(RealFol
                                                             StringComparison.OrdinalIgnoreCase)))
                             continue;
 
-                        var icon = string.IsNullOrEmpty(verb.DefaultIconSpec)
-                            ? null
-                            : ShellIconLoader.Load(verb.DefaultIconSpec);
+                        var icon = ShellIconRef.Parse(verb.DefaultIconSpec);
 
                         // Tooltip: prefer the verb's own resolved description, then the type description
                         string? tooltip = verb.Tooltip

@@ -1,0 +1,119 @@
+{
+  "branch": "claude/icon-refs",
+  "nodes": {
+    "vcommon-shell-resource-icons": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Shell/ShellResourceIcons.cs",
+          "class": "ShellResourceIcons"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Shell/ShellIconRequest.cs",
+          "class": "ShellIconRequest"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Shell/ShellInterop.cs",
+          "class": "ShellInterop",
+          "method": "ResourceIcon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Icons/ShellIconRef.cs",
+          "class": "ShellIconRef"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Shell/ShellResourceIconsTests.cs",
+            "class": "ShellResourceIconsTests"
+          }
+        ]
+      }
+    },
+    "icons-resource-icon": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Icons/ResourceIcon.cs",
+          "class": "ResourceIcon"
+        },
+        {
+          "type": "node",
+          "target": "vcommon-shell-resource-icons"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/features.md",
+          "title_path": [
+            "Building a Feature",
+            "Interface reference \u2014 \u0060Features.Common\u0060",
+            "File \u0026 folder actions (\u0060FileActions/\u0060) \u2014 discovered by \u0060FileSystemFeatureRegistry\u0060"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Icons/ResourceIconTests.cs",
+            "class": "ResourceIconTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Icons/ShellIconRefTests.cs",
+            "class": "ShellIconRefTests"
+          }
+        ]
+      }
+    },
+    "winfs-ribbon-pin": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemSurfaceTests.cs",
+            "class": "FileSystemSurfaceTests",
+            "method": "PinningAFileActionCapturesTheFilesItWasAimedAt"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemSurfaceTests.cs",
+            "class": "FileSystemSurfaceTests",
+            "method": "PinningAFolderActionCapturesTheFolder_NotWhateverWasSelectedInIt"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemSurfaceTests.cs",
+            "class": "FileSystemSurfaceTests",
+            "method": "PinningAShellVerb_GivesTheButtonItsProgramIcon"
+          }
+        ]
+      }
+    },
+    "ribbon-editor-iconpicker": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Ribbon/RibbonEditorViewModelTests.cs",
+            "class": "RibbonEditorViewModelTests",
+            "method": "ChoosingAnIcon_ReplacesThePictureTheButtonWasPinnedWith"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 6,
+  "touched_nodes": [
+    "icons-resource-icon",
+    "ribbon-editor-iconpicker",
+    "vcommon-shell-resource-icons",
+    "winfs-ribbon-pin"
+  ]
+}

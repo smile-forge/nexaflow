@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
@@ -25,7 +26,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
         public bool   IsDestructive          => false;
         public bool   SupportsMultipleFiles  => true;
-        public string Icon                   => "🏷";
+        public IconRef Icon                  => IconRef.Emoji("🏷");
         public string DisplayName            => Str.Get("WindowsFileSystem.Actions.CopyPath");
         public static string? StaticExperienceId => "/";
         public string ExperienceId           => "/";
@@ -37,7 +38,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
         bool   IFolderAction.IsDestructive         => false;
         bool   IFolderAction.SupportsMultipleFiles => true;
-        string IFolderAction.Icon                  => "🏷";
+        IconRef IFolderAction.Icon                 => IconRef.Emoji("🏷");
         string IFolderAction.DisplayName           => Str.Get("WindowsFileSystem.Actions.CopyPath");
         bool   IFolderAction.RequiresRefresh       => false;
         bool   IFolderAction.CanPerformAction      => true;

@@ -10,7 +10,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Media;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 
@@ -22,7 +22,7 @@ public enum DefineNewScope { ThisFileOnly, ExtensionInFolder, ExtensionAnywhere,
 
 /// <summary>One pickable file-open experience (an <see cref="IFileAction"/> grouped by its ExperienceId).</summary>
 public sealed record ExperienceChoice(
-    string ExperienceId, string DisplayName, string Description, string Icon, ImageSource? IconImage);
+    string ExperienceId, string DisplayName, string Description, IconRef Icon, ShellIconRef? IconResource);
 
 /// <summary>An entry in the existing-app picker: either a user-defined app or a system-registered handler.</summary>
 public sealed record ExistingAppChoice(string DisplayName, string SubText, ExternalAppDefinition? UserApp, string? HandlerPath)
@@ -161,7 +161,7 @@ public partial class DefineNewWizardViewModel : ObservableObject
                     rep.DisplayName,
                     string.IsNullOrWhiteSpace(rep.ExperienceDescription) ? rep.DisplayName : rep.ExperienceDescription,
                     rep.Icon,
-                    rep.IconImage);
+                    rep.IconResource);
             })
             .OrderBy(c => c.DisplayName, StringComparer.OrdinalIgnoreCase));
 

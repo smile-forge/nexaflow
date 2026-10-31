@@ -27,6 +27,9 @@
     <!-- Same reasoning as the elevation DTOs: ISearchable exchanges SearchRequest/SearchTerm, so the
          contracts hub names them. The query language itself lives in the leaf, not here. -->
     <ProjectReference Include="..\..\Nexaflow.Search\Nexaflow.Search.csproj" />
+    <!-- An action's icon is named, not drawn: IconRef for its glyph, ShellIconRef for a picture in a file's resources.
+         Both are WPF-free; the views that draw them are Nexaflow.Visuals.Icons'. -->
+    <ProjectReference Include="..\..\Nexaflow.Icons\Nexaflow.Icons.csproj" />
   </ItemGroup>
 
 </Project>

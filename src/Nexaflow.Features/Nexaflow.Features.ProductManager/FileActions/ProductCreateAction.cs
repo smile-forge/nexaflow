@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -13,7 +14,7 @@ namespace Nexaflow.Features.ProductManager.FileActions;
 /// </summary>
 public sealed class ProductCreateAction : IFileCreateAction, ICacheable
 {
-    public string Icon          => "🧭";
+    public IconRef Icon         => IconRef.Emoji("🧭");
     public string DisplayName   => Str.Get("ProductManager.Action.NewProduct");
     public string FileExtension => string.Empty;   // the typed text is the product name, not a filename
 

@@ -20,6 +20,8 @@ using Nexaflow.Features.WindowsFileSystem;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Visuals.Common.Behaviors;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Icons;
+using Nexaflow.Visuals.Icons;
 
 namespace Nexaflow.Features.WindowsFileSystem.Views;
 
@@ -749,7 +751,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
 
         // Shell-level pane action — not a file action, so it's appended here after a separator.
         if (actions.Count > 0) menu.Items.Add(BuildMenuSeparator());
-        var paneItem = BuildMenuItem("◨", Str.Get("WindowsFileSystem.Menu.OpenInRightPane"), ViewModel.OpenInRightPaneCommand,
+        var paneItem = BuildMenuItem(IconRef.Emoji("◨"), Str.Get("WindowsFileSystem.Menu.OpenInRightPane"), ViewModel.OpenInRightPaneCommand,
             (Brush)Application.Current.Resources["TextBrush"],
             (Brush)Application.Current.Resources["Surface2Brush"]);
         paneItem.CommandParameter = node.FullPath;
@@ -829,7 +831,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         foreach (var action in actions)
         {
             var foreground = action.IsDestructive ? destructiveBrush : textBrush;
-            menu.Items.Add(BuildMenuItem(action.Icon, action.DisplayName, action.ExecuteCommand, foreground, surface2Brush));
+            menu.Items.Add(BuildMenuItem(action.Icon, action.DisplayName, action.ExecuteCommand, foreground, surface2Brush, action.IconResource));
         }
 
         return menu;
@@ -879,7 +881,8 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         return template;
     }
 
-    private static MenuItem BuildMenuItem(string icon, string displayName, ICommand command, Brush foreground, Brush hoverBrush)
+    private static MenuItem BuildMenuItem(IconRef icon, string displayName, ICommand command, Brush foreground, Brush hoverBrush,
+                                          ShellIconRef? iconResource = null)
     {
         var item = new MenuItem
         {
@@ -904,14 +907,14 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         var stackFactory = new FrameworkElementFactory(typeof(StackPanel));
         stackFactory.SetValue(StackPanel.OrientationProperty, Orientation.Horizontal);
 
-        var iconFactory = new FrameworkElementFactory(typeof(TextBlock));
-        iconFactory.SetValue(TextBlock.TextProperty,              icon);
-        iconFactory.SetValue(TextBlock.FontSizeProperty,          14d);
-        iconFactory.SetValue(TextBlock.WidthProperty,             22d);
-        iconFactory.SetValue(TextBlock.TextAlignmentProperty,     TextAlignment.Center);
-        iconFactory.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
-        iconFactory.SetValue(TextBlock.MarginProperty,            new Thickness(0, 0, 6, 0));
-        iconFactory.SetValue(TextBlock.ForegroundProperty,        foreground);
+        var iconFactory = new FrameworkElementFactory(typeof(ResourceIcon));
+        iconFactory.SetValue(ResourceIcon.IconProperty,                  icon);
+        iconFactory.SetValue(ResourceIcon.ResourceProperty,              iconResource);
+        iconFactory.SetValue(ResourceIcon.FontSizeProperty,              14d);
+        iconFactory.SetValue(FrameworkElement.WidthProperty,             22d);
+        iconFactory.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+        iconFactory.SetValue(FrameworkElement.MarginProperty,            new Thickness(0, 0, 6, 0));
+        iconFactory.SetValue(ResourceIcon.ForegroundProperty,            foreground);
 
         var nameFactory = new FrameworkElementFactory(typeof(TextBlock));
         nameFactory.SetValue(TextBlock.TextProperty,              displayName);
@@ -1409,14 +1412,14 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
             if (choice is { } made) choices.Execute(plan, made);
         }
 
-        menu.Items.Add(BuildMenuItem("📋", Str.Get("WindowsFileSystem.Drop.CopyHere"),
+        menu.Items.Add(BuildMenuItem(IconRef.Emoji("📋"), Str.Get("WindowsFileSystem.Drop.CopyHere"),
             new RelayCommand(() => Answer(DropChoice.Copy), () => choices.CanExecute(plan, DropChoice.Copy)),
             textBrush, surface2Brush));
-        menu.Items.Add(BuildMenuItem("➡", Str.Get("WindowsFileSystem.Drop.MoveHere"),
+        menu.Items.Add(BuildMenuItem(IconRef.Emoji("➡"), Str.Get("WindowsFileSystem.Drop.MoveHere"),
             new RelayCommand(() => Answer(DropChoice.Move), () => choices.CanExecute(plan, DropChoice.Move)),
             textBrush, surface2Brush));
         menu.Items.Add(BuildMenuSeparator());
-        menu.Items.Add(BuildMenuItem("✕", Str.Get("WindowsFileSystem.Common.Cancel"),
+        menu.Items.Add(BuildMenuItem(IconRef.Emoji("✕"), Str.Get("WindowsFileSystem.Common.Cancel"),
             new RelayCommand(() => Answer(null)), textBrush, surface2Brush));
 
         menu.Closed += (_, _) =>

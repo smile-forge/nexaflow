@@ -55,7 +55,14 @@ public sealed class FileActionRibbonPinHandler : IRibbonPinHandler, IRibbonItemE
             foreach (var kv in reinit)
                 pageParams[ReinitPrefix + kv.Key] = kv.Value;
 
-        return new RibbonPinResult { PageKind = PageKind, Label = label, Icon = action.Icon, PageParams = pageParams };
+        return new RibbonPinResult
+        {
+            PageKind     = PageKind,
+            Label        = label,
+            Icon         = action.Icon,
+            IconResource = action.IconResource,
+            PageParams   = pageParams,
+        };
     }
 
     /// <summary>

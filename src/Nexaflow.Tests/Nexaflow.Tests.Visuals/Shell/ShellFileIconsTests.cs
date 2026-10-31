@@ -189,7 +189,7 @@ public class ShellFileIconsTests
     private static ShellFileIcons Icons(FakeShell shell, int pathCapacity = 64) =>
         new(shell, quiet: TimeSpan.FromMilliseconds(30), patience: TimeSpan.FromMilliseconds(100), pathCapacity);
 
-    private static FileIconLookup Ask(ShellFileIcons icons, string path, bool nameOnly, out List<ImageSource> arrived,
+    private static ShellIconLookup Ask(ShellFileIcons icons, string path, bool nameOnly, out List<ImageSource> arrived,
                                       bool isFolder = false, long stamp = 0)
     {
         var landed = new List<ImageSource>();

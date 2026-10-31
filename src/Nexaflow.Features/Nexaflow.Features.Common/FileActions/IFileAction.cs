@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Media;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Features.Common
 {
@@ -17,7 +17,9 @@ namespace Nexaflow.Features.Common
     {
         bool IsDestructive { get; }
         bool SupportsMultipleFiles { get; }
-        string Icon { get; }
+        /// <summary>The glyph the action's button wears — and, while <see cref="IconResource"/> is still being drawn or cannot
+        /// be, the one it shows instead.</summary>
+        IconRef Icon { get; }
         string DisplayName { get; }
 
         /// <summary>The button's UI Automation id. Invariant, unlike <see cref="DisplayName"/>, which is in the reader's
@@ -46,10 +48,11 @@ namespace Nexaflow.Features.Common
         bool CanPerformAction { get; }
 
         /// <summary>
-        /// Optional WPF image to display instead of the <see cref="Icon"/> glyph.
-        /// Must be frozen if it was created on a non-UI thread.
+        /// A picture in a Windows file's resources to draw instead of the <see cref="Icon"/> glyph — a registered verb's own
+        /// program icon, say. Named, not loaded: the view draws it when it is shown, off the UI thread, and keeps the glyph
+        /// until it arrives.
         /// </summary>
-        ImageSource? IconImage => null;
+        ShellIconRef? IconResource => null;
 
         /// <summary>
         /// Optional tooltip shown on the action button, supplementing <see cref="DisplayName"/>.

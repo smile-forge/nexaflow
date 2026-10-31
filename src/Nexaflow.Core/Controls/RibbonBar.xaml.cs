@@ -660,7 +660,7 @@ public partial class RibbonBar : UserControl
     private UIElement BuildOverflowEntry(RibbonItem item)
     {
         var sp = new StackPanel { Orientation = Orientation.Horizontal };
-        sp.Children.Add(new IconGlyph { Icon = item.Icon, FontSize = 14, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center });
+        sp.Children.Add(new ResourceIcon { Icon = item.Icon, Resource = item.IconResource, FontSize = 14, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center });
         sp.Children.Add(new TextBlock { Text = item.Label, FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
 
         var btn = new Button

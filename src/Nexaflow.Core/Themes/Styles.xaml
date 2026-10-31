@@ -275,10 +275,11 @@
                                       Fill="{TemplateBinding BadgeFill}"
                                       Stroke="{TemplateBinding BorderBrush}"
                                       StrokeThickness="{TemplateBinding BadgeStroke}"/>
-                                <icons:IconGlyph x:Name="icon" FontSize="24"
-                                                 Icon="{TemplateBinding Icon}"
-                                                 Foreground="{TemplateBinding Foreground}"
-                                                 HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <icons:ResourceIcon x:Name="icon" FontSize="24"
+                                                    Icon="{TemplateBinding Icon}"
+                                                    Resource="{TemplateBinding IconResource}"
+                                                    Foreground="{TemplateBinding Foreground}"
+                                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Grid>
                             <TextBlock x:Name="label" Margin="1,4,1,0" HorizontalAlignment="Center"
                                        Text="{TemplateBinding Caption}"

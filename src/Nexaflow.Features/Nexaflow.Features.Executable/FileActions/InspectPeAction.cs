@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Executable.FileActions;
@@ -24,7 +25,7 @@ public sealed class InspectPeAction(IShellServices shell) : IFileAction, ICachea
         Str.Get("Executable.Action.InspectDescription");
 
     public string DisplayName => Str.Get("Executable.Inspector.Inspect");
-    public string Icon        => "🔬";
+    public IconRef Icon       => IconRef.Emoji("🔬");
     public string? Tooltip    => "Inspect this binary's PE structure";
 
     public bool IsDestructive         => false;

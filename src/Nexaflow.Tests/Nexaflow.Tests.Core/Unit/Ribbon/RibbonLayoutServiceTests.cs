@@ -121,8 +121,21 @@ public class RibbonLayoutServiceTests
         service.Save([new RibbonItem { Label = "Plain", Icon = IconRef.Emoji("📁") }]);
 
         var json = File.ReadAllText(RibbonFile);
-        foreach (var name in new[] { "Foreground", "Background", "BorderColor", "BorderWeight", "Shape" })
+        foreach (var name in new[] { "Foreground", "Background", "BorderColor", "BorderWeight", "Shape", "IconResource" })
             Assert.IsFalse(json.Contains(name), $"{name} written for an unstyled button:\n{json}");
+    }
+
+    [TestMethod]
+    [CoversNode("ribbon-layout-sync")]
+    public void APinnedPicture_IsSavedAsItsDefaultIconString_AndReadBack()
+    {
+        var picture = new ShellIconRef(@"%SystemRoot%\System32\notepad.exe", -2);
+        new RibbonLayoutService(_dir).Save([new RibbonItem { Label = "Open", Icon = IconRef.Emoji("🔗"), IconResource = picture }]);
+
+        StringAssert.Contains(File.ReadAllText(RibbonFile), "notepad.exe,-2");
+        var back = new RibbonLayoutService(_dir).Load()![0];
+        Assert.AreEqual(IconRef.Emoji("🔗"), back.Icon);
+        Assert.AreEqual(picture, back.IconResource);
     }
 
     [TestMethod]

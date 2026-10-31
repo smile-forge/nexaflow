@@ -4,6 +4,7 @@ using System.IO;
 using System.Text;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Ribbon;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Features.Web.RibbonHandlers;
 
@@ -36,7 +37,7 @@ public sealed class UrlRibbonPinHandler : IRibbonPinHandler
         {
             PageKind   = HtmlTabRegistration.StaticPageKind,
             Label      = label,
-            Icon       = "🌐",
+            Icon       = IconRef.Emoji("🌐"),
             PageParams = new() { ["path"] = url }
         };
     }

@@ -376,6 +376,15 @@ doc-comment is the authoritative, fuller description. Most are discovered by ref
 | `IFileCreateWithOptions` | A kind of new item that asks for more than a name first — Gen Image, Gen Video. Offered while `IsOffered`; chosen, `OpenOptions` gives the `IFileCreateOptions` the picker shows beneath the kinds, and Create waits on their `CanCreate` and makes the item through them. Both share `IFileCreateEntry`, what the picker shows. |
 | `ICacheable` | Marker: the action has exactly one instance per `WorkspaceRuntime`, so it's cached + auto-listed. Non-cacheable actions are rehydrated instead. |
 
+**An action's icon is named, never drawn by the action.** `IFileAction`, `IFolderAction` and `IFileCreateEntry` give
+`Icon` as an `IconRef` — an emoji or a Fluent icon (`Nexaflow.Icons`) — and may give `IconResource`, a `ShellIconRef`:
+a picture in a Windows file's resources, named as a registry `DefaultIcon` value names it
+(`%SystemRoot%\System32\shell32.dll,-4`, a negative number being a resource id). Neither is WPF, so the contracts stay
+free of it. A view draws both with `ResourceIcon` (`Visuals.Icons`): the glyph at once, then the picture once
+`ShellResourceIcons` has drawn it on its background thread — once per file, index and size, kept for good — at the
+glyph's size, so its arrival never moves the layout. A ribbon button pinned from an action keeps the picture for as
+long as the user keeps the icon it was pinned with.
+
 ### Folder viewlets (`Viewlets/`)
 | Interface | What it's for |
 |---|---|
@@ -436,6 +445,7 @@ each file that draws its own icon (a program, a shortcut, a customised folder) b
 that waits for a scroll to settle and draws the rows on screen first — so a virtualised list asks only for what is in
 view, and a recycled row is never handed its old path's icon. A Type column takes its text from
 `ShellFileTypes.NameFor`, the shell's own name for the kind ("Text Document"), safe to call from a background enumerator.
+
 
 **A file list in a cloud-synced folder shows sync status with `CloudStatusIcon`**, beside `FileIcon`. Read the folder
 with `DirectoryListing` (`IO.Common.Listing`), not `DirectoryInfo`: it keeps each entry's reparse tag, so every

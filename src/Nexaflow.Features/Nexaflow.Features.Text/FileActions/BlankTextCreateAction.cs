@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System;
@@ -15,7 +16,7 @@ namespace Nexaflow.Features.Text.FileActions;
 /// </summary>
 public sealed class BlankTextCreateAction(IVirtualFileSystem vfs) : IFileCreateAction, ICacheable
 {
-    public string Icon          => "📄";
+    public IconRef Icon         => IconRef.Emoji("📄");
     public string DisplayName   => Str.Get("Text.Viewer.Action.NewTextFile");
     public string FileExtension => ".txt";
 
