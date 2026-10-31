@@ -61,6 +61,9 @@ internal sealed class DiagramWords
     /// <summary>What they say — empty for a hole.</summary>
     public string Says => Hole is null ? _text.Text : string.Empty;
 
+    /// <summary>Whether it is set cut short of what it says, to fit the room it was given.</summary>
+    public bool CutShort => _text.CutShort;
+
     /// <summary>Whether these are a whole other content rather than words — which nothing may break, wrap or turn.</summary>
     public bool Nested => _inset is not null;
 

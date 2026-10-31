@@ -506,13 +506,19 @@ public class ContentElement : FrameworkElement
     }
 
     /// <summary>
-    /// What <paramref name="piece"/> says while pointed at: all of its words, where they are set cut short to fit
-    /// (<see cref="IShapedText.CutShort"/>), else the tip hung on the part of the source it was drawn from, or on what holds that
-    /// part. Asked of the tree when the pointer arrives — nothing of it is laid out.
+    /// What <paramref name="piece"/> says while pointed at: what it, or what it is drawn in, was laid out to tell
+    /// (<see cref="LayoutPiece.Tells"/>); else all of its words, where they are set cut short to fit (<see cref="IShapedText.CutShort"/>);
+    /// else the tip hung on the part of the source it was drawn from, or on what holds that part. Asked of the tree when the pointer
+    /// arrives — nothing of it is laid out.
     /// </summary>
     private static string? Says(LayoutPiece piece)
     {
         if (!piece.Exists) return null;
+
+        // What a piece, or what it is drawn in, was laid out to tell — a tile's value with no room on it — is said first: it says the
+        // whole of what was drawn short there, words cut short among it.
+        for (var at = piece; at.Exists; at = at.Parent)
+            if (at.Tells is { } told) return told;
 
         // Words set cut short to fit their room still hold all of what they say, so that is what they say when pointed at.
         if (piece.Words is { Glyphs: { CutShort: true } cut }) return cut.Text;

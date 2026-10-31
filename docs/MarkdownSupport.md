@@ -1239,7 +1239,9 @@ leaf in its section's colour, so the order items are written in changes no colou
 
 A label is typed into on its tile, and a value too — drawn as `valueFormat` sets it, and shown as written once the caret
 is in it, by a press or a key; while it is typed the tiles stay laid out as they were, and move once, when the caret leaves
-it. A section's total is worked out and never written in. It is worked as boxes, not as an outline: where a tile is drawn
+it. A section's total is worked out and never written in. A tile with no room for its value tells it when pointed at, and one
+with no room for its whole label tells its label and its value; a band does the same for its label and total. It is worked
+as boxes, not as an outline: where a tile is drawn
 follows from what it is worth, so the order lines are written in is nothing a reader sees, and nothing offered moves a line
 among its siblings. What the map adds up to is kept wherever a change can keep it. Enter ends the writing and picks the box
 out — but in the label of a box whose value is still to write it goes on into the value, so a box put in is made by its

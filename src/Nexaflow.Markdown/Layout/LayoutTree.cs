@@ -92,6 +92,7 @@ public sealed class LayoutTree
     private readonly LayoutShape?[] _regions;
     private readonly LayoutWords?[] _words;
     private readonly IReadOnlyDictionary<int, LayoutActions>? _acts;
+    private readonly IReadOnlyDictionary<int, string>? _tells;
     private readonly int[] _across;
     private readonly int[] _acrossAt;
     private readonly int[] _down;
@@ -100,8 +101,8 @@ public sealed class LayoutTree
 
     internal LayoutTree(ILayoutMedium medium, LayoutStored[] pieces, LayoutMark[] marks, ISourcePart?[] parts, string[] kinds,
                           LayoutPaint?[] paints, LayoutShape?[] regions, LayoutWords?[] words,
-                          IReadOnlyDictionary<int, LayoutActions>? acts, int[] across, int[] acrossAt, int[] down, int[] downAt,
-                          int[][] runs)
+                          IReadOnlyDictionary<int, LayoutActions>? acts, IReadOnlyDictionary<int, string>? tells, int[] across, int[] acrossAt,
+                          int[] down, int[] downAt, int[][] runs)
     {
         Medium = medium;
         _pieces = pieces;
@@ -112,6 +113,7 @@ public sealed class LayoutTree
         _regions = regions;
         _words = words;
         _acts = acts;
+        _tells = tells;
         _across = across;
         _acrossAt = acrossAt;
         _down = down;
@@ -131,6 +133,7 @@ public sealed class LayoutTree
         _regions = tree._regions;
         _words = tree._words;
         _acts = tree._acts;
+        _tells = tree._tells;
         _across = tree._across;
         _acrossAt = tree._acrossAt;
         _down = tree._down;
@@ -185,6 +188,9 @@ public sealed class LayoutTree
 
     /// <summary>What the piece at <paramref name="at"/> answers to, or null where it answers to nothing.</summary>
     internal LayoutActions? ActsOf(int at) => _acts is not null && _acts.TryGetValue(at, out var acts) ? acts : null;
+
+    /// <summary>What the piece at <paramref name="at"/> tells a reader pointing at it, or null where it tells nothing.</summary>
+    internal string? TellsOf(int at) => _tells is not null && _tells.TryGetValue(at, out var tells) ? tells : null;
 
     internal ReadOnlySpan<LayoutMark> MarksOf(int at) => _marks.AsSpan(_pieces[at].Marks, _pieces[at].MarkCount);
 
@@ -428,6 +434,9 @@ public readonly record struct LayoutPiece
 
     /// <summary>What it answers to, or null where it answers to nothing.</summary>
     public LayoutActions? Acts => _tree?.ActsOf(_at);
+
+    /// <summary>What it tells a reader pointing at it — what it holds that is not all drawn — or null where it tells nothing.</summary>
+    public string? Tells => _tree?.TellsOf(_at);
 
     /// <summary>Where its anchor is on the page — the nought its box is measured from.</summary>
     internal LayoutVector Anchor => _tree is null ? default : _tree.AnchorOf(_at);

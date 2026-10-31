@@ -127,4 +127,34 @@ public class TreemapBuilderTests : MermaidBuilderContract
             Pieces(Lay(source), TreemapPiece.Leaf).Concat(Pieces(Lay(source), TreemapPiece.Section))
                 .ToDictionary(piece => Written(source, piece.Part).Split('\n')[0].Split(':')[0].Trim().Trim('"'), Fill);
     });
+
+    [TestMethod]
+    public void ATileTellsWhatItHadNoRoomFor_ItsValue_OrItsLabelAndItsValue() => UiThread.Run(() =>
+    {
+        const string source = "treemap-beta\n\"S\"\n    \"Salaries\": 1000\n    \"Equipment\": 300\n    \"Travel and lodging\": 100\n    \"Books\": 40\n"
+                              + "    \"Snacks\": 20\n    \"Pens\": 10\n    \"Paper clips\": 5\n    \"Tape\": 2\n    \"Pins\": 1";
+        const string budget = "treemap-beta\n\"Budget\"\n    \"Operations\"\n        \"Salaries\": 700000\n        \"Equipment\": 200000\n"
+                              + "        \"oh dear\": 30000\n    \"Marketing\"\n        \"Advertising\": 400000\n        \"Events\": 100000";
+        var cases = new HashSet<string>();
+
+        // The budget as wide as it was when a tile in it showed its label with no room for its value under it.
+        foreach (var (written, room) in new[] { (source, 700.0), (budget, 1500.0) })
+        foreach (var leaf in Pieces(Lay(written, room), TreemapPiece.Leaf))
+        {
+            var line = Written(written, leaf.Part).Trim();
+            var label = line[1..line.IndexOf('"', 1)];
+            var value = TreemapValues.Format(double.Parse(line[(line.LastIndexOf(':') + 1)..]), null);
+
+            var words = leaf.SelfAndDescendants().Where(piece => piece.Words is not null).ToList();
+            var labels = words.Where(piece => piece.Kind == TreemapPiece.Label).ToList();
+            var labelDrawn = string.Join(" ", labels.Select(piece => piece.Words!.Glyphs.Text)) == label && !labels.Any(piece => piece.Words!.Glyphs.CutShort);
+            var valueDrawn = words.Any(piece => piece.Kind == TreemapPiece.Value);
+
+            var told = !labelDrawn ? label + "\n" + value : !valueDrawn ? value : null;
+            Assert.AreEqual(told, leaf.Tells, $"{label}: what its tile tells a reader pointing at it");
+            cases.Add(!labelDrawn ? "label and value" : !valueDrawn ? "value" : "nothing");
+        }
+
+        CollectionAssert.IsSubsetOf(new[] { "nothing", "value", "label and value" }, cases.ToArray(), "every case is met: " + string.Join(", ", cases));
+    });
 }

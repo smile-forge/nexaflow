@@ -259,6 +259,12 @@ internal sealed class TreemapBuilder : ContentBuilder
 
         var outline = Medium.Rectangle(tile);
         build.Open(MermaidPiece.Shape, item.Part, stops: LayoutStops.None);
+
+        // Its band tells what it had no room for — the tiles in it tell their own.
+        var labelDrawn = label is not null && !label.CutShort;
+        var totalDrawn = total is null || placed.Any(words => words.Kind == TreemapPiece.Total);
+        if (Untold(item, total, labelDrawn, totalDrawn) is { } untold) build.Tells(untold);
+
         build.Draw(DiagramMarks.Outlined(Medium, outline, paint.Fill, paint.Edge, paint.Thickness));
         build.Draw(DiagramMarks.Filled(Medium.Rectangle(band), paint.Band));
         build.Occupies(Less(outline, [.. placed.Select(words => Covered(words.Words, words.At)), .. tiles.Select(each => each.Tile)]));
@@ -274,13 +280,20 @@ internal sealed class TreemapBuilder : ContentBuilder
     private void Leaf(LayoutBuilder build, Item item, LayoutRect tile, TreemapConfig config)
     {
         var paint = Painted(item, config);
-        var lines = Fitted(Labelled(item, config.LabelFontSize, paint.Words, Math.Max(1, tile.Width - (Inset * 2))),
-                           Valued(item, config, paint.Words), tile.Height - (Inset * 2));
+        var label = Labelled(item, config.LabelFontSize, paint.Words, Math.Max(1, tile.Width - (Inset * 2)));
+        var value = Valued(item, config, paint.Words);
+        var lines = Fitted(label, value, tile.Height - (Inset * 2));
 
         var stacked = DiagramWords.Stack(lines.Select(line => line.Words).ToList(), Inside(tile, Inset)).ToList();
         var outline = Medium.Rectangle(tile);
 
         build.Open(TreemapPiece.Leaf, item.Part, stops: LayoutStops.None);
+
+        // What its room left out it tells a reader pointing at it: its label and its value where the label is not all drawn, and its
+        // value where only that is left off.
+        var labelDrawn = lines.Count(line => line.Kind == TreemapPiece.Label) == label.Count && !lines.Any(line => line.Words.CutShort);
+        var valueDrawn = value is not { Says.Length: > 0 } || lines.Any(line => line.Kind == TreemapPiece.Value);
+        if (Untold(item, value, labelDrawn, valueDrawn) is { } untold) build.Tells(untold);
 
         build.Open(MermaidPiece.Shape, item.Part, stops: LayoutStops.None);
         build.Draw(DiagramMarks.Outlined(Medium, outline, paint.Fill, paint.Edge, paint.Thickness));
@@ -293,6 +306,20 @@ internal sealed class TreemapBuilder : ContentBuilder
         build.Close();
 
         build.Close();
+    }
+
+    /// <summary>
+    /// What an item's tile or band would have said that its room left out: its label and its value — or total — on lines of their own
+    /// where the label is not all drawn, its value alone where only that is left off, and null where everything is drawn.
+    /// </summary>
+    private static string? Untold(Item item, DiagramWords? value, bool labelDrawn, bool valueDrawn)
+    {
+        var says = value is { Says.Length: > 0 } ? value.Says : null;
+        var label = item.Label?.Words()?.Text;
+
+        return !labelDrawn && label is { Length: > 0 } ? (says is null ? label : label + "\n" + says)
+             : !valueDrawn ? says
+             : null;
     }
 
     /// <summary>
