@@ -26,8 +26,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Treemap;
 /// nothing written in it takes the item out, as it does a line with nothing on it.
 /// </para>
 /// <para>
-/// A right-click on an item offers to put a leaf in before it, after it or inside it, to take it a level in or out, and to take it
-/// out; anywhere else in the treemap, a leaf after everything. With whole items picked out, Delete takes them out and Insert puts a
+/// A right-click on an item offers to put a leaf in before it, after it or inside it, to take it a level in or out where it can go,
+/// and to take it out; anywhere else in the treemap, a leaf after everything. With whole items picked out, Delete takes them out and Insert puts a
 /// leaf in before them; and an item taken hold of by its tile — picked out first or not — and let go on a section goes into it, and
 /// on a leaf goes beside it. An item always goes with everything under it (<see cref="TreemapWriting"/>).
 /// </para>
@@ -71,10 +71,12 @@ internal sealed class TreemapEdits : IContentLanguage, IOnEdit, IOnMove
     /// <inheritdoc/>
     public IReadOnlyList<MiniRibbonControl> Ribbon(ContentAsk ask)
     {
-        if (ask.IsReadOnly || ask.Root is null) return [];
+        if (ask.IsReadOnly || ask.Root is not { } root) return [];
 
-        if (TreemapWriting.ItemOf(ask.Part) is null)
+        if (TreemapWriting.ItemOf(ask.Part) is not { } item)
             return [Pressing(Last, "Text.Treemap.Item.End", "add_square", static edit => TreemapWriting.Added(edit.Root, null, OutlineSide.After))];
+
+        var outline = TreemapWriting.Outline(root);
 
         return
         [
@@ -85,9 +87,11 @@ internal sealed class TreemapEdits : IContentLanguage, IOnEdit, IOnMove
             Pressing(Inside, "Text.Treemap.Item.Inside", "add_square",
                      static edit => Over(edit) is { } over ? TreemapWriting.AddedInside(edit.Root, over) : null),
             Pressing(Deeper, "Text.Treemap.Item.Deeper", "text_indent_increase_ltr",
-                     static edit => Over(edit) is { } over ? TreemapWriting.Deeper(edit.Root, [over], edit.State.Caret) : null),
+                     static edit => Over(edit) is { } over ? TreemapWriting.Deeper(edit.Root, [over], edit.State.Caret) : null)
+                with { Disabled = !outline.CanGoDeeper([item]) },
             Pressing(Shallower, "Text.Treemap.Item.Shallower", "text_indent_decrease_ltr",
-                     static edit => Over(edit) is { } over ? TreemapWriting.Shallower(edit.Root, [over], edit.State.Caret) : null),
+                     static edit => Over(edit) is { } over ? TreemapWriting.Shallower(edit.Root, [over], edit.State.Caret) : null)
+                with { Disabled = !outline.CanGoShallower([item]) },
             Pressing(Delete, "Text.Treemap.Item.Delete", "delete",
                      static edit => Over(edit) is { } over ? TreemapWriting.Removed(edit.Root, [over]) : null) with { Warns = true },
         ];

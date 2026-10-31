@@ -201,6 +201,11 @@
           "type": "code",
           "doc": "src/Nexaflow.Markdown/Layout/TreeView/TreeViewPlaces.cs",
           "class": "TreeViewPlaces"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/FrontMatterWriting.cs",
+          "class": "FrontMatterWriting"
         }
       ],
       "concerns": {

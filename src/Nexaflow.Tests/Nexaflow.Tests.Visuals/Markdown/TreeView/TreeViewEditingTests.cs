@@ -9,6 +9,7 @@ using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.TreeView;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Painting;
@@ -125,24 +126,68 @@ public class TreeViewEditingTests
         }));
 
     [TestMethod]
-    public void ARightClickOnANodeOffersWhatCanBeDoneToIt_AndWhatItIs() => UiThread.Run(() =>
+    public void ARightClickOnANodeOffersWhatCanBeDoneToIt_AndWhatItCanBeTurnedInto() => UiThread.Run(() =>
         InADocument((editor, tree) =>
         {
             var ribbon = Ribbon(editor, Row(tree, "a.ts"));
             var ids = ribbon.Controls.Select(control => control.Id).ToArray();
 
             CollectionAssert.IsSubsetOf(new[] { "treeview.kind", "treeview.insert.before", "treeview.insert.after", "treeview.insert.inside", "treeview.level.in",
-                                                "treeview.level.out", "treeview.describe", "treeview.delete" }, ids);
-            Assert.AreEqual("file", ribbon.Controls.OfType<MiniRibbonChoice>().Single().Current);
+                                                "treeview.level.out", "treeview.describe", "treeview.icons", "treeview.delete" }, ids);
+
+            var file = Offered(ribbon, "treeview.kind");
+            Assert.AreEqual(Str.Get("Text.TreeView.Node.As"), file.Caption, "drawn as \"As\" and what it would turn the node into");
+            Assert.AreEqual(Str.Get("Text.TreeView.Node.AsFolder"), file.Name, "a file is offered to be made a folder");
+            Assert.AreEqual(Str.Get("Text.TreeView.Node.AsFile"), Offered(Ribbon(editor, Row(tree, "src")), "treeview.kind").Name, "and a folder a file");
         }));
 
     [TestMethod]
-    public void ChoosingFolderMakesANodeAFolder() => UiThread.Run(() =>
+    public void AsAFolderAndAsAFileTurnANodeIntoTheOtherByItsSlash() => UiThread.Run(() =>
         InADocument((editor, tree) =>
         {
-            Click(Ribbon(editor, Row(tree, "README.md")), "treeview.kind.folder");
-
+            Click(Ribbon(editor, Row(tree, "README.md")), "treeview.kind");
             StringAssert.Contains(tree.Source, "\nREADME.md/\n", tree.Source);
+
+            Click(Ribbon(editor, Row(tree, "src")), "treeview.kind");
+            StringAssert.StartsWith(tree.Source[(tree.Source.IndexOf("```treeview\n", StringComparison.Ordinal) + 12)..], "src\n", tree.Source);
+        }));
+
+    [TestMethod]
+    public void MovingALevelInOrOutIsOfferedOnlyWhereTheNodeCanGo() => UiThread.Run(() =>
+        InADocument((editor, tree) =>
+        {
+            // a.ts is the first under src: nothing before it to go under, but src to come out of.
+            var first = Ribbon(editor, Row(tree, "a.ts"));
+            Assert.IsFalse(Pressable(first, "treeview.level.in"), "the first node of its level has nothing to go into");
+            Assert.IsTrue(Pressable(first, "treeview.level.out"));
+
+            // README.md is at the top, after src: src to go into, and nothing to come out of.
+            var top = Ribbon(editor, Row(tree, "README.md"));
+            Assert.IsTrue(Pressable(top, "treeview.level.in"));
+            Assert.IsFalse(Pressable(top, "treeview.level.out"), "a node at the top has nothing to come out of");
+
+            // b.ts can go both ways.
+            var both = Ribbon(editor, Row(tree, "b.ts"));
+            Assert.IsTrue(Pressable(both, "treeview.level.in") && Pressable(both, "treeview.level.out"));
+        }));
+
+    [TestMethod]
+    public void ShowIconsAndHideIconsWriteTheFrontMatter_AndAreOfferedAnywhereInTheTree() => UiThread.Run(() =>
+        InADocument((editor, tree) =>
+        {
+            var ribbon = Ribbon(editor, Row(tree, "a.ts"));
+            Assert.AreEqual(Str.Get("Text.TreeView.Icons.Show"), Offered(ribbon, "treeview.icons").Name);
+
+            Click(ribbon, "treeview.icons");
+            StringAssert.Contains(tree.Source, "---\nconfig:\n  treeView:\n    showIcons: true\n---\nsrc/", tree.Source);
+            Assert.AreEqual(string.Empty, Trouble(tree));
+
+            var shown = Ribbon(editor, Row(tree, "README.md"));
+            Assert.AreEqual(Str.Get("Text.TreeView.Icons.Hide"), Offered(shown, "treeview.icons").Name, "with icons shown, it hides them");
+
+            Click(shown, "treeview.icons");
+            StringAssert.Contains(tree.Source, "    showIcons: false\n", tree.Source);
+            StringAssert.DoesNotMatch(tree.Source, new System.Text.RegularExpressions.Regex("showIcons: true"), "the one field written again, not another");
         }));
 
     [TestMethod]
@@ -277,6 +322,12 @@ public class TreeViewEditingTests
         button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
         MarkdownEditorHarness.Pump();
     }
+
+    private static MiniRibbonButton Offered(DiagramRibbon ribbon, string id) => ribbon.Controls.OfType<MiniRibbonButton>().Single(button => button.Id == id);
+
+    /// <summary>Whether the button <paramref name="named"/> is drawn so it can be pressed.</summary>
+    private static bool Pressable(DiagramRibbon ribbon, string named) =>
+        Logical(ribbon).OfType<Button>().Single(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "Diagram_Ribbon_" + named).IsEnabled;
 
     private static IEnumerable<DependencyObject> Logical(DependencyObject from)
     {

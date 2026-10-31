@@ -240,6 +240,10 @@ public class TreemapEditingTests
         MarkdownEditorHarness.Pump();
     }
 
+    /// <summary>Whether the button <paramref name="named"/> is drawn so it can be pressed.</summary>
+    private static bool Pressable(DiagramRibbon ribbon, string named) =>
+        Logical(ribbon).OfType<Button>().Single(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "Diagram_Ribbon_" + named).IsEnabled;
+
     private static IEnumerable<DependencyObject> Logical(DependencyObject from)
     {
         foreach (var child in LogicalTreeHelper.GetChildren(from).OfType<DependencyObject>())
@@ -248,4 +252,29 @@ public class TreemapEditingTests
             foreach (var further in Logical(child)) yield return further;
         }
     }
+
+    [TestMethod]
+    public void DownFromALabelGoesToItsValue_AndUpGoesBack() => UiThread.Run(() =>
+        InADocument((editor, treemap) =>
+        {
+            PressPast(treemap, "B");
+            Press(editor, Key.Down);
+
+            var value = treemap.Source.IndexOf("20", StringComparison.Ordinal);
+            Assert.IsTrue(treemap.Caret >= value && treemap.Caret <= value + 2, $"the caret in B's value, not at {treemap.Caret}");
+
+            Press(editor, Key.Up);
+
+            var label = treemap.Source.IndexOf("\"B\"", StringComparison.Ordinal) + 1;
+            Assert.IsTrue(treemap.Caret >= label && treemap.Caret <= label + 1, $"the caret back in B's label, not at {treemap.Caret}");
+        }));
+
+    [TestMethod]
+    public void MovingALevelInOrOutIsOfferedOnlyWhereTheItemCanGo() => UiThread.Run(() =>
+        InADocument((editor, treemap) =>
+        {
+            var first = Ribbon(editor, Tile(treemap, "A"));
+            Assert.IsFalse(Pressable(first, "treemap.level.in"), "the first item of its section has nothing before it to go into");
+            Assert.IsTrue(Pressable(first, "treemap.level.out"));
+        }));
 }

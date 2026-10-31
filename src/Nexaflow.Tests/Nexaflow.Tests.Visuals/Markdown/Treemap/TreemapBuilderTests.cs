@@ -109,4 +109,22 @@ public class TreemapBuilderTests : MermaidBuilderContract
     });
 
     private static Nexaflow.Markdown.Layout.LayoutRect Shape(LayoutPiece item) => item.Children.First(piece => piece.Kind == MermaidPiece.Shape).Bounds;
+
+    [TestMethod]
+    public void ALeafIsInItsSectionsColour_AndSectionsAreHandedColoursLargestFirst_SoOrderWrittenChangesNone() => UiThread.Run(() =>
+    {
+        const string written = "treemap-beta\n\"Small\"\n    \"a\": 1\n    \"b\": 2\n\"Large\"\n    \"c\": 30\n    \"d\": 40";
+        const string reordered = "treemap-beta\n\"Large\"\n    \"d\": 40\n    \"c\": 30\n\"Small\"\n    \"b\": 2\n    \"a\": 1";
+
+        var colours = Colours(written);
+
+        Assert.AreEqual(colours["a"], colours["b"], "the leaves of a section are drawn in its colour");
+        Assert.AreEqual(colours["c"], colours["d"]);
+        Assert.AreNotEqual(colours["a"], colours["c"], "each section in a colour of its own");
+        CollectionAssert.AreEquivalent(colours.ToList(), Colours(reordered).ToList(), "written in another order, every item keeps its colour");
+
+        Dictionary<string, System.Windows.Media.Color?> Colours(string source) =>
+            Pieces(Lay(source), TreemapPiece.Leaf).Concat(Pieces(Lay(source), TreemapPiece.Section))
+                .ToDictionary(piece => Written(source, piece.Part).Split('\n')[0].Split(':')[0].Trim().Trim('"'), Fill);
+    });
 }

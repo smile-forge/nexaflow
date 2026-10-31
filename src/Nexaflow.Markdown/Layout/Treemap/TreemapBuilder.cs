@@ -97,8 +97,7 @@ internal sealed class TreemapBuilder : ContentBuilder
 
     private LayoutSize Draw(LayoutBuilder build)
     {
-        var shades = new Dictionary<string, int>(StringComparer.Ordinal);
-        var items = Items(Reading.Root, shades);
+        var items = Items(Reading.Root, Shades(Reading.Root), Whole);
 
         // A treemap with no item to draw is the source: there is nothing to look at but the lines written.
         if (items.Count == 0) return Sheet.AsWritten();
@@ -125,24 +124,56 @@ internal sealed class TreemapBuilder : ContentBuilder
         return Sheet.Reduced(new LayoutSize(width, bottom));
     }
 
-    /// <summary>The items gathered in <paramref name="holder"/>, each with those under it, in the order written.</summary>
-    private static List<Item> Items(ContentPart holder, Dictionary<string, int> shades)
+    /// <summary>
+    /// The items gathered in <paramref name="holder"/>, each with those under it, in the order written: a section in the colour its
+    /// label is handed in <paramref name="shades"/>, and a leaf in the colour of what it is in, <paramref name="within"/> — as Mermaid
+    /// colours them.
+    /// </summary>
+    private static List<Item> Items(ContentPart holder, IReadOnlyDictionary<string, int> shades, int within)
     {
         var items = new List<Item>();
 
-        foreach (var part in holder.Children)
+        foreach (var part in ItemsIn(holder))
         {
-            if (part.Kind != TreemapKinds.Node || part.Node is not TreemapNode said) continue;
-
-            // Mermaid colours an item by its label: the same label, the same colour.
-            var named = part.Children[0].Stated()?.Inner(TreemapKinds.Label)?.Words()?.Text ?? string.Empty;
-            if (!shades.TryGetValue(named, out var shade)) shades[named] = shade = shades.Count;
-
-            items.Add(new Item(part, said, Items(part, shades), shade));
+            var shade = HoldsItems(part) ? shades[LabelOf(part)] : within;
+            items.Add(new Item(part, (TreemapNode)part.Node, Items(part, shades, shade), shade));
         }
 
         return items;
     }
+
+    /// <summary>The colour the treemap itself is handed, before any section: the theme's first. An item in no section is drawn in it.</summary>
+    private const int Whole = 0;
+
+    /// <summary>
+    /// The colour each section's label gives it, handed out as Mermaid hands them: in the order it draws sections — the treemap itself
+    /// first, then a level at a time from the top, the largest first among those side by side. Where an item is written among its
+    /// siblings changes no colour, and the same label is the same colour.
+    /// </summary>
+    private static Dictionary<string, int> Shades(ContentPart root)
+    {
+        var shades = new Dictionary<string, int>(StringComparer.Ordinal);
+        var waiting = new Queue<ContentPart>([root]);
+
+        while (waiting.TryDequeue(out var holder))
+            foreach (var part in ItemsIn(holder).OrderByDescending(part => ((TreemapNode)part.Node).Total).Where(HoldsItems))
+            {
+                shades.TryAdd(LabelOf(part), shades.Count + 1);
+                waiting.Enqueue(part);
+            }
+
+        return shades;
+    }
+
+    /// <summary>The items written directly in <paramref name="holder"/>, in the order written.</summary>
+    private static IEnumerable<ContentPart> ItemsIn(ContentPart holder) =>
+        holder.Children.Where(part => part.Kind == TreemapKinds.Node && part.Node is TreemapNode);
+
+    /// <summary>Whether an item has items written in it — a section, as Mermaid colours one.</summary>
+    private static bool HoldsItems(ContentPart item) => item.Children.Any(child => child.Kind == TreemapKinds.Node);
+
+    /// <summary>What an item's label says — nothing, where it says nothing yet.</summary>
+    private static string LabelOf(ContentPart item) => item.Children[0].Stated()?.Inner(TreemapKinds.Label)?.Words()?.Text ?? string.Empty;
 
     private static IEnumerable<Item> Preorder(IEnumerable<Item> items)
     {
@@ -239,7 +270,10 @@ internal sealed class TreemapBuilder : ContentBuilder
         build.Occupies(Less(outline, [.. stacked.Select(words => Covered(words.Words, words.At))]));
         build.Close();
 
+        // Its words stood together apart from the tile under them, so up and down step between the label and the value.
+        build.Open(TreemapPiece.Words, part: null, stops: LayoutStops.None);
         for (var at = 0; at < stacked.Count; at++) stacked[at].Words.Set(build, stacked[at].At, lines[at].Kind);
+        build.Close();
 
         build.Close();
     }
@@ -344,7 +378,7 @@ internal sealed class TreemapBuilder : ContentBuilder
     }
 
     /// <summary>
-    /// What an item is drawn with: the colour its label gives it — filled part way, and outlined in it — or what its class writes, and
+    /// What an item is drawn with: the colour it is handed — filled part way, and outlined in it — or what its class writes, and
     /// the theme's text for its words, where its class writes none.
     /// </summary>
     private Paint Painted(Item item, TreemapConfig config)

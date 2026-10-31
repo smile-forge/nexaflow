@@ -18,6 +18,12 @@ public static class TreemapPiece
     /// <summary>A leaf: its tile, its label and its value in it. It stands for the leaf as it was written.</summary>
     public const string Leaf = "Leaf";
 
+    /// <summary>
+    /// A leaf's words — its label's lines and its value — stood together apart from its tile, so the caret steps up and down among
+    /// them rather than past the tile they are drawn on. It stands for nothing written.
+    /// </summary>
+    public const string Words = "Words";
+
     /// <summary>An item's label — typed into where it is drawn.</summary>
     public const string Label = "Label";
 

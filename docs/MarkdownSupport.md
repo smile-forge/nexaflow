@@ -1224,8 +1224,9 @@ the frame every block written Mermaid's way has with Mermaid's own pieces, its i
 [`ResolveItems`](../src/Nexaflow.Markdown/Treemap/Stages/ResolveItems.cs) gathers each item with the items indented under
 it, so a section in the tree is the section with everything in it, and says what each comes to. It is drawn by
 [`TreemapBuilder`](../src/Nexaflow.Markdown/Layout/Treemap/TreemapBuilder.cs) as tiles inside tiles, laid as near square
-as they go, largest first ([`TreemapTiles`](../src/Nexaflow.Markdown/Layout/Treemap/TreemapTiles.cs)), each coloured by
-its label as Mermaid colours it.
+as they go, largest first ([`TreemapTiles`](../src/Nexaflow.Markdown/Layout/Treemap/TreemapTiles.cs)), coloured as Mermaid
+colours them: a section by its label, the colours handed out a level at a time from the top and the largest first, and a
+leaf in its section's colour, so the order items are written in changes no colour.
 
 | Written | Read as |
 |---|---|
@@ -1280,7 +1281,8 @@ A label and the words beside a node are typed into where they are drawn; a label
 would read as something else, and is put in quotes when something would. It works like an outline: Enter adds a node
 after the one the caret is in, Tab moves it into the node before it, Page Up and Page Down move it among its siblings, and
 Backspace in an empty label takes it out. A right-click on a node offers to put one in before it, after it or inside it,
-to move it a level in or out, to take it out, to make it a folder or a file, and words beside it. A node dragged by its row
+to move it a level in or out where it can go, to take it out, to turn it into a folder or a file, and words beside it;
+anywhere in the tree, to show or hide the icons, which writes `showIcons` into the front matter. A node dragged by its row
 goes in front of, after or inside the node it is let go on, as the top, bottom or middle of that row says. A node always
 goes with everything under it, and in a tree drawn with a box drawing every branch and bar is drawn again round what
 changed ([`TreeViewWriting`](../src/Nexaflow.Markdown/TreeView/TreeViewWriting.cs)).

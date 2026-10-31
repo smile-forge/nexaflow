@@ -28,8 +28,9 @@ namespace Nexaflow.Visuals.Text.Markdown.TreeView;
 /// out.
 /// </para>
 /// <para>
-/// A right-click on a node offers to put one in before it, after it or inside it, to take it a level in or out, to take it out, to
-/// make it a folder or a file, and words beside it where it has none; anywhere else in the tree, a node after everything. With whole
+/// A right-click on a node offers to turn it into a folder or a file, to put one in before it, after it or inside it, to take it a
+/// level in or out where it can go, to take it out, and words beside it where it has none; anywhere else in the tree, a node after
+/// everything. Everywhere in the tree it offers to show or hide the icons beside every node, in the front matter. With whole
 /// nodes picked out, Delete takes them out and Insert puts one in before them; and a node taken hold of by its row — picked out first
 /// or not — and let go on another goes in front of it, after it or inside it, as the top, bottom or middle of that row says. A node
 /// always goes with everything under it, and a tree drawn with a box drawing is drawn again round it (<see cref="TreeViewWriting"/>).
@@ -48,10 +49,12 @@ internal sealed class TreeViewEdits : IContentLanguage, IOnEdit, IOnMove
     private const string Delete = Named + "delete";
     private const string Describe = Named + "describe";
 
-    /// <summary>The choice of what a node is, and its two options.</summary>
+    /// <summary>The button turning a node into a folder, or a folder into a file.</summary>
     private const string Kind = Named + "kind";
-    private const string File = "file";
-    private const string Folder = "folder";
+
+    /// <summary>The button turning the icons beside every node on or off, and the front matter's field it writes.</summary>
+    private const string Icons = Named + "icons";
+    private static readonly string[] ShowIcons = ["config", "treeView", "showIcons"];
 
     /// <inheritdoc/>
     public IOnEdit OnEdit => this;
@@ -77,19 +80,22 @@ internal sealed class TreeViewEdits : IContentLanguage, IOnEdit, IOnMove
     /// <inheritdoc/>
     public IReadOnlyList<MiniRibbonControl> Ribbon(ContentAsk ask)
     {
-        if (ask.IsReadOnly || ask.Root is null) return [];
+        if (ask.IsReadOnly || ask.Root is not { } root) return [];
+
+        var icons = Pressing(Icons, Shown(root) ? "Text.TreeView.Icons.Hide" : "Text.TreeView.Icons.Show", Shown(root) ? "eye_off" : "eye",
+                             static edit => FrontMatterWriting.Configuring(edit, ShowIcons, Shown(edit.Root) ? "false" : "true"));
 
         if (TreeViewWriting.ItemOf(ask.Part) is not { } item)
-            return [Pressing(Last, "Text.TreeView.Node.End", "add_square", static edit => TreeViewWriting.Added(edit.Root, null, OutlineSide.After))];
+            return [Pressing(Last, "Text.TreeView.Node.End", "add_square", static edit => TreeViewWriting.Added(edit.Root, null, OutlineSide.After)), icons];
+
+        var outline = TreeViewWriting.Outline(root);
+        var folder = TreeViewWriting.Folder(item);
 
         List<MiniRibbonControl> controls =
         [
-            new MiniRibbonChoice(Kind, Str.Get("Text.TreeView.Node.Kind"),
-                                 [new(File, Str.Get("Text.TreeView.Node.File")), new(Folder, Str.Get("Text.TreeView.Node.Folder"))],
-                                 static (edit, option) => Over(edit) is { } over ? TreeViewWriting.Foldered(over, option.Id == Folder, edit.State.Caret) : null)
-            {
-                Current = TreeViewWriting.Folder(item) ? Folder : File,
-            },
+            Pressing(Kind, folder ? "Text.TreeView.Node.AsFile" : "Text.TreeView.Node.AsFolder", folder ? "document" : "folder",
+                     static edit => Over(edit) is { } over ? TreeViewWriting.Foldered(over, !TreeViewWriting.Folder(over), edit.State.Caret) : null)
+                with { Caption = Str.Get("Text.TreeView.Node.As") },
             Pressing(Before, "Text.TreeView.Node.Before", "table_stack_above",
                      static edit => Over(edit) is { } over ? TreeViewWriting.Added(edit.Root, over, OutlineSide.Before) : null),
             Pressing(After, "Text.TreeView.Node.After", "table_stack_below",
@@ -97,24 +103,30 @@ internal sealed class TreeViewEdits : IContentLanguage, IOnEdit, IOnMove
             Pressing(Inside, "Text.TreeView.Node.Inside", "add_square",
                      static edit => Over(edit) is { } over ? TreeViewWriting.AddedInside(edit.Root, over) : null),
             Pressing(Deeper, "Text.TreeView.Node.Deeper", "text_indent_increase_ltr",
-                     static edit => Over(edit) is { } over ? TreeViewWriting.Deeper(edit.Root, [over], edit.State.Caret) : null),
+                     static edit => Over(edit) is { } over ? TreeViewWriting.Deeper(edit.Root, [over], edit.State.Caret) : null)
+                with { Disabled = !outline.CanGoDeeper([item]) },
             Pressing(Shallower, "Text.TreeView.Node.Shallower", "text_indent_decrease_ltr",
-                     static edit => Over(edit) is { } over ? TreeViewWriting.Shallower(edit.Root, [over], edit.State.Caret) : null),
+                     static edit => Over(edit) is { } over ? TreeViewWriting.Shallower(edit.Root, [over], edit.State.Caret) : null)
+                with { Disabled = !outline.CanGoShallower([item]) },
         ];
 
         if (TreeViewWriting.Describable(item))
             controls.Add(Pressing(Describe, "Text.TreeView.Node.Describe", "text_description", static edit => Over(edit) is { } over ? TreeViewWriting.Described(over) : null));
 
+        controls.Add(icons);
         controls.Add(Pressing(Delete, "Text.TreeView.Node.Delete", "delete",
                               static edit => Over(edit) is { } over ? TreeViewWriting.Removed(edit.Root, [over]) : null) with { Warns = true });
 
         return controls;
 
-        // Done to the node under the pointer, so each stands beside the rest as its icon, named to a reader hovering over it. Whether
-        // a node is a file or a folder is said in words: drawn as icons, the two would read as a choice of the icon it is drawn with.
+        // Done to the node under the pointer, so each stands beside the rest as its icon, named to a reader hovering over it. What a node
+        // is turned into is drawn after "As": the folder or the file alone would read as a choice of the icon it is drawn with.
         static MiniRibbonButton Pressing(string id, string name, string icon, Func<ContentEdit, ContentChange?> pressed) =>
             new(id, Str.Get(name), pressed) { Shape = DiagramRibbon.Drawn(IconRef.Fluent(icon)) };
     }
+
+    /// <summary>Whether the tree's front matter shows an icon beside every node.</summary>
+    private static bool Shown(ContentPart root) => ((root.Node as ConfiguredNode<TreeViewConfig>)?.Config ?? TreeViewConfig.Default).ShowIcons;
 
     /// <summary>The node a control of the ribbon was used over, or null where it was used over none.</summary>
     private static ContentPart? Over(ContentEdit edit) => TreeViewWriting.ItemOf(edit.Part);

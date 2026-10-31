@@ -31,6 +31,12 @@ public sealed record MiniRibbonButton(string Id, string Name, Func<ContentEdit, 
 
     /// <summary>Whether it takes something away — drawn in the theme's colour for danger, as what takes something away is.</summary>
     public bool Warns { get; init; }
+
+    /// <summary>Words written before its picture, where the picture says what it does only with them — "As" before a folder.</summary>
+    public string? Caption { get; init; }
+
+    /// <summary>Whether it can do nothing where it was offered — drawn faded, and not pressed, but still named to a reader hovering over it.</summary>
+    public bool Disabled { get; init; }
 }
 
 /// <summary>

@@ -143,6 +143,12 @@ public sealed class OutlineWriting
         return Placed(tops, parent, OutlineSide.After, caret);
     }
 
+    /// <summary>Whether <paramref name="items"/> can go a level in — there is an item before them to go under — without writing it.</summary>
+    public bool CanGoDeeper(IReadOnlyList<ContentPart> items) => Siblings(Tops(items)) is (var tops, var siblings) && siblings.IndexOf(tops[0]) > 0;
+
+    /// <summary>Whether <paramref name="items"/> can go a level out — they are under an item — without writing it.</summary>
+    public bool CanGoShallower(IReadOnlyList<ContentPart> items) => Siblings(Tops(items)) is (var tops, _) && tops[0].Parent is not null;
+
     /// <summary><paramref name="items"/> up past the sibling before them — null where they are the first.</summary>
     public ContentChange? Raised(IReadOnlyList<ContentPart> items, int caret)
     {
