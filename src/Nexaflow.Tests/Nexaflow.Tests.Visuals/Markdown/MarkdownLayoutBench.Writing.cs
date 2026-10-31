@@ -234,9 +234,10 @@ public partial class MarkdownLayoutBench
 
 // A letter at a time at each place, the caret put there first — the content laid out down to it first, as a search finding
 // something further down lays it, since a caret is not put past what is laid. Getting there is timed on its own (reachMs),
-// and a place is skipped where getting there, scaled from the farthest place the size before reached, would take longer
-// than the budget: scaled as the square of the distance, since laying further lays again what is laid. What was typed at
-// one place moves every place after it along.
+// and a place is skipped where getting there, scaled from the farthest place reached so far — in the size before, or
+// earlier in this one, which is all there is when only this size is measured — would take longer than the budget: scaled
+// as the square of the distance, since laying further lays again what is laid. What was typed at one place moves every
+// place after it along.
 var keystrokes = new Dictionary<string, object>();
 var typed = 0;
 farthest = null;
@@ -264,6 +265,7 @@ foreach (var (place, at) in places)
     var reach = getting.Elapsed.TotalMilliseconds;
 
     if (wanted > (farthest?.Offset ?? 0)) farthest = (wanted, reach);
+    if (wanted > (reached?.Offset ?? 0)) reached = (wanted, reach);
 
     // Where the caret was put and where it went, and what typing there laid: a caret that went somewhere else times a
     // keystroke somewhere else.
