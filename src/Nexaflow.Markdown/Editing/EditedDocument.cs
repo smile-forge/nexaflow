@@ -113,7 +113,7 @@ public sealed class EditedDocument : INotifyPropertyChanged
     }
 
     /// <summary>Writes what it holds to <paramref name="writer"/> — what saving it is, without a copy of it being made to hand over.</summary>
-    public void WriteTo(TextWriter writer) => writer.Write(_current.ToString());
+    public void WriteTo(TextWriter writer) => _current.WriteTo(writer);
 
     /// <summary>What it holds, all of it.</summary>
     public override string ToString() => _current.ToString();
