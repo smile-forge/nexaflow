@@ -119,7 +119,7 @@ public class MarkdownSaveAsTests
         string source = Document();
         var vm = new MarkdownViewModel(source, Picking(null), VirtualFileSystem.Instance);
         await vm.Loaded;
-        vm.Markdown += "More.\n";
+        vm.Document.WriteWhole(vm.Markdown + "More.\n");
 
         await vm.SaveAsCommand.ExecuteAsync(null);
 
@@ -161,7 +161,7 @@ public class MarkdownSaveAsTests
         StringAssert.Contains(vm.Markdown, "](attachments/figure%201.png)", "opened, it reads as it is written in the package");
         Assert.IsTrue(File.Exists(Path.Combine(vm.DocumentFolder!, "attachments", "figure 1.png")), "its attachments beside it while it is open");
 
-        vm.Markdown += "\nMore.\n";
+        vm.Document.WriteWhole(vm.Markdown + "\nMore.\n");
         await vm.SaveCommand.ExecuteAsync(null);
         string folder = vm.DocumentFolder!;
         vm.Release();

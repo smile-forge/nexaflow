@@ -28,7 +28,7 @@ public class SourceChangeTests
             MarkdownEditorHarness.Type(editor, "new ");
             editor.Undo();
 
-            Assert.AreEqual("Some words.", editor.Markdown);
+            Assert.AreEqual("Some words.", editor.Document.ToString());
 
             var written = told.Where(change => change.Kind == ContentChangeKind.Written).ToList();
             Assert.AreEqual(4, written.Count, "a letter at a time");

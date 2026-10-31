@@ -16,6 +16,7 @@ using System;
 using Nexaflow.Markdown.Packaging;
 using System.Globalization;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Features.Markdown.ViewModels;
 
@@ -113,9 +114,14 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
 
     // ── Document ──────────────────────────────────────────────────────────
 
-    /// <summary>The whole document. Two-way bound to the editing surface(s).</summary>
-    [ObservableProperty]
-    private string _markdown = string.Empty;
+    /// <summary>
+    /// The document: shown and written in by both halves of the page, saved from here. It says itself what changed and whether that
+    /// is what was saved, so nothing is compared to know either.
+    /// </summary>
+    public EditedDocument Document { get; } = new();
+
+    /// <summary>The whole document as one string — what is saved, and what the assistant reads.</summary>
+    public string Markdown => Document.ToString();
 
     /// <summary>Which of the three surfaces the tab is showing: the rendered document (the default), both side
     /// by side, or the raw source.</summary>
@@ -158,9 +164,6 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     /// (the rest of the document is proportional to that); the source box takes it directly.</summary>
     public TextZoom Zoom { get; } = new();
 
-    /// <summary>Last value written to / read from disk; the dirty baseline.</summary>
-    private string _savedText;
-
     // ── Construction ──────────────────────────────────────────────────────
 
     public MarkdownViewModel(string filePath, IShellServices shell, IVirtualFileSystem vfs, IReadOnlyList<string>? initialHeading = null,
@@ -181,7 +184,11 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         _draftFolder   = draftFolder;
         WrittenIn      = SingleBlockFiles.LanguageOf(filePath);
         _documentFolder = Path.GetDirectoryName(filePath) is { Length: > 0 } folder ? folder : null;
-        _savedText      = string.Empty;
+        Document.Changed += (_, change) => Wrote(change);
+        Document.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(EditedDocument.IsDirty)) IsDirty = Document.IsDirty;
+        };
         WatchWork();
         Loaded = LoadAsync();
     }
@@ -203,14 +210,14 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
             if (MarkdownPackage.Names(FilePath))
             {
                 var unpacked = Path.Combine(Path.GetTempPath(), "nexaflow-mdz", Guid.NewGuid().ToString("N")[..12]);
-                _savedText      = (await MarkdownPackage.UnpackAsync(_vfs, FilePath, unpacked)).ReplaceLineEndings("\n");
+                var text        = (await MarkdownPackage.UnpackAsync(_vfs, FilePath, unpacked)).ReplaceLineEndings("\n");
                 DocumentFolder  = unpacked;
+                Document.Load(text);
             }
             else
             {
-                _savedText = (await _vfs.ReadAllTextAsync(FilePath)).ReplaceLineEndings("\n");
+                Document.Load((await _vfs.ReadAllTextAsync(FilePath)).ReplaceLineEndings("\n"));
             }
-            Markdown = _savedText;   // OnMarkdownChanged sees value == _savedText → stays clean
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or NotSupportedException)
         {
@@ -232,8 +239,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         }
         if (MarkdownPackage.Names(FilePath)) await MarkdownPackage.PackAsync(_vfs, Markdown, DocumentFolder!, FilePath);
         else await _vfs.WriteAllTextAsync(FilePath, Markdown);
-        _savedText = Markdown;
-        IsDirty    = false;
+        Document.MarkSaved();
     }
 
     /// <summary>Something to save: edits, or a draft not yet saved anywhere.</summary>
@@ -272,8 +278,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         OnPropertyChanged(nameof(FileName));
         DraftFolder = null;
         WatchWork();
-        _savedText  = Markdown;
-        IsDirty     = false;
+        Document.MarkSaved();
         Moved?.Invoke(target);
     }
 
@@ -484,19 +489,60 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
 
     // ── Dirty tracking ────────────────────────────────────────────────────
 
-    partial void OnMarkdownChanged(string value)
+    /// <summary>
+    /// The document changed — written in either half, taken back, loaded: counted again from what the change touched, a search under
+    /// way found again, and said again.
+    /// </summary>
+    private void Wrote(ContentSourceChange change)
     {
-        IsDirty = value != _savedText;
-        UpdateCounts(value);
-        RefoundInSource(value);
+        Recounted(change);
+        RefoundInSource(Document.ToString());
+        OnPropertyChanged(nameof(Markdown));
     }
+
+    /// <summary>
+    /// The word and line counts carried through <paramref name="change"/>. A write changes whether a word starts only at the
+    /// characters it wrote and the one just after them, and the lines only by the line ends it wrote and wrote over — so only those are
+    /// counted again, and a keystroke costs what it touched whatever the document holds. Content loaded whole, or several stretches
+    /// written at once, is counted afresh.
+    /// </summary>
+    private void Recounted(ContentSourceChange change)
+    {
+        if (change.Kind == ContentChangeKind.Loaded || change.Change.Writes is not [var write])
+        {
+            UpdateCounts(Document.ToString());
+            return;
+        }
+
+        var (was, now) = (change.Before.Document, change.After.Document);
+
+        WordCount += WordsStarting(now, write.Start, Math.Min(now.Length, write.Start + write.Text.Length + 1))
+                   - WordsStarting(was, write.Start, Math.Min(was.Length, write.End + 1));
+
+        _newlines += write.Text.Count(c => c == '\n') - was.Slice(write.Start, write.Length).Count(c => c == '\n');
+        LineCount  = Lines(now.Length, _newlines, now.Length > 0 && now[now.Length - 1] == '\n');
+    }
+
+    /// <summary>How many words start among the characters of <paramref name="document"/> from <paramref name="from"/> up to <paramref name="to"/>.</summary>
+    private static int WordsStarting(ContentDocument document, int from, int to)
+    {
+        var words = 0;
+
+        for (var at = from; at < to; at++)
+            if (!char.IsWhiteSpace(document[at]) && (at == 0 || char.IsWhiteSpace(document[at - 1]))) words++;
+
+        return words;
+    }
+
+    /// <summary>Line ends counted, for <see cref="Recounted"/> to carry through a change.</summary>
+    private int _newlines;
 
     // ── AI surface helpers (used by the client tools) ─────────────────────
     // Mutating tools run off the UI thread; the Markdown/ViewMode properties are two-way bound to WPF
     // editors, so every write is marshalled through IShellServices.RunOnUiAsync.
 
-    /// <summary>Replaces the whole document (marks dirty via <see cref="OnMarkdownChanged"/>).</summary>
-    internal Task SetDocumentAsync(string text) => _shell.RunOnUiAsync(() => { Markdown = text; });
+    /// <summary>Replaces the whole document, as one step the reader can take back.</summary>
+    internal Task SetDocumentAsync(string text) => _shell.RunOnUiAsync(() => { Document.Write(ContentChange.Write(0, Document.Current.Length, text)); });
 
     /// <summary>Switches which surface(s) are showing (parity with the toolbar slider).</summary>
     internal Task SetViewModeAsync(MarkdownViewMode mode) => _shell.RunOnUiAsync(() => { ViewMode = mode; });
@@ -590,7 +636,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     {
         return new MarkdownSurface
         {
-            Markdown                    = Markdown,
+            Document                    = new EditedDocument(Markdown),
             BaseDirectory               = DocumentFolder,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         };
@@ -642,8 +688,14 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         }
 
         WordCount = words;
-        // A trailing newline ends the last line rather than starting an empty one — the same count
-        // File.ReadAllLines gives, and what every editor puts in its footer.
-        LineCount = text.Length == 0 ? 0 : newlines + (text[^1] == '\n' ? 0 : 1);
+        _newlines = newlines;
+        LineCount = Lines(text.Length, newlines, text.Length > 0 && text[^1] == '\n');
     }
+
+    /// <summary>
+    /// How many lines a text of <paramref name="length"/> characters holding <paramref name="newlines"/> line ends is. A trailing newline
+    /// ends the last line rather than starting an empty one — the same count File.ReadAllLines gives, and what every editor puts in its
+    /// footer.
+    /// </summary>
+    private static int Lines(int length, int newlines, bool endsWithNewline) => length == 0 ? 0 : newlines + (endsWithNewline ? 0 : 1);
 }

@@ -32,7 +32,7 @@ public class RequirementEditingTests : MermaidEditing
             StringAssert.Contains(diagram.Source, "text: the test texts", diagram.Source);
             StringAssert.Contains(diagram.Source, "type: simulations", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count);
-            StringAssert.Contains(editor.Markdown, "the test texts", "and so does the document");
+            StringAssert.Contains(editor.Document.ToString(), "the test texts", "and so does the document");
         }));
 
     [TestMethod]
@@ -56,7 +56,7 @@ public class RequirementEditingTests : MermaidEditing
             PressPast(diagram, "test_req");
             Write(editor, "s");
 
-            StringAssert.Contains(editor.Markdown, "requirement test_reqs {", editor.Markdown);
-            StringAssert.Contains(editor.Markdown, "satisfies -> test_reqs", "the relation names the requirement it named: " + editor.Markdown);
+            StringAssert.Contains(editor.Document.ToString(), "requirement test_reqs {", editor.Document.ToString());
+            StringAssert.Contains(editor.Document.ToString(), "satisfies -> test_reqs", "the relation names the requirement it named: " + editor.Document.ToString());
         }));
 }

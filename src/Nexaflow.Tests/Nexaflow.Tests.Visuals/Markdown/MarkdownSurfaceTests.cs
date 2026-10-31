@@ -4,6 +4,7 @@ using System.Windows;
 
 using System.Windows.Input;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Rtf;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
@@ -105,7 +106,7 @@ public class MarkdownSurfaceTests
         var surface = Shown(Doc);
         surface.Find("chrome");
 
-        surface.Markdown = "Something else entirely.\n";
+        surface.Document.Load("Something else entirely.\n");
 
         Assert.AreEqual(0, surface.Found.Count, "a search is about a document, and this is a different one");
         StringAssert.Contains(surface.Shown.Markdown, "Something else");
@@ -190,16 +191,16 @@ public class MarkdownSurfaceTests
         surface.Shown.MoveCaretTo("Words.".Length);
 
         surface.Shown.Type('!');
-        StringAssert.Contains(surface.Markdown, "!", "with nobody refusing, it is written");
+        StringAssert.Contains(surface.Document.ToString(), "!", "with nobody refusing, it is written");
 
         var asked = 0;
         surface.Changing += (_, e) => { asked++; e.Refused = true; };
 
-        var before = surface.Markdown;
+        var before = surface.Document.ToString();
         surface.Shown.Type('?');
 
         Assert.AreEqual(1, asked, "asked once, before writing");
-        Assert.AreEqual(before, surface.Markdown, "and the refusal left every word as it was");
+        Assert.AreEqual(before, surface.Document.ToString(), "and the refusal left every word as it was");
     });
 
     [TestMethod]
@@ -287,7 +288,7 @@ public class MarkdownSurfaceTests
 
         Assert.IsTrue(surface.Pressed(Key.Escape, ModifierKeys.None));
         Assert.IsNull(surface.Shown.ShownAsWritten);
-        StringAssert.Contains(surface.Markdown, "!", "what was typed stays typed");
+        StringAssert.Contains(surface.Document.ToString(), "!", "what was typed stays typed");
     });
 
     [TestMethod]
@@ -322,10 +323,10 @@ public class MarkdownSurfaceTests
     {
         var chart = "flowchart LR\n" + string.Concat(Enumerable.Range(0, 9).Select(at => $"  n{at}[Step {at}] --> n{at + 1}[Step {at + 1}]\n"));
 
-        var page = new MarkdownSurface { WrittenIn = "mermaid", Markdown = chart };
+        var page = new MarkdownSurface { WrittenIn = "mermaid", Document = new EditedDocument(chart) };
         page.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
 
-        var unlimited = new MarkdownSurface { WrittenIn = "mermaid", Markdown = chart, UnlimitedWidth = true };
+        var unlimited = new MarkdownSurface { WrittenIn = "mermaid", Document = new EditedDocument(chart), UnlimitedWidth = true };
         unlimited.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
 
         Assert.IsTrue(page.DesiredSize.Width <= 700, $"given no width, it is fitted to the room a page is set in: {page.DesiredSize.Width}");
@@ -336,7 +337,7 @@ public class MarkdownSurfaceTests
 
     private static MarkdownSurface Shown(string markdown, ILayoutActions? host = null)
     {
-        var surface = new MarkdownSurface { Host = host, Markdown = markdown };
+        var surface = new MarkdownSurface { Host = host, Document = new EditedDocument(markdown) };
 
         surface.Measure(new Size(640, 2000));
         surface.Arrange(new Rect(0, 0, 640, 2000));
@@ -397,7 +398,7 @@ public class MarkdownSurfaceTests
     [TestMethod]
     public void APageReadAsWhatItDrawsIsSearchedAndQuotedAsItsWords() => UiThread.Run(() =>
     {
-        var surface = new MarkdownSurface { WrittenIn = RtfParser.Language, Markdown = @"{\rtf1\pard Keep the {\b paragraph} here.\par}" };
+        var surface = new MarkdownSurface { WrittenIn = RtfParser.Language, Document = new EditedDocument(@"{\rtf1\pard Keep the {\b paragraph} here.\par}") };
 
         surface.Measure(new Size(640, 2000));
         surface.Arrange(new Rect(0, 0, 640, 2000));

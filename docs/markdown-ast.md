@@ -449,8 +449,18 @@ the pointer is over, since only it knows both where the block came out and what 
 (`ContentEngine.Corner`), and a press on one is a press like any other. The element paints all that and says where the
 reader is.
 
+**The document is the page's, and holds itself.** A page hands the surface an `EditedDocument` (`MarkdownSurface.Document`):
+a plain object, with no control in it, holding the version the document is at, what was written so it can be taken back, and
+whether it differs from what was last saved. The surface's engine writes in it and the page reads from it — `IsDirty`, `Changed`
+with the change itself, and the characters only when it saves them (`WriteTo`). Nothing hands the text back to the page as it is
+written. A page that only shows text binds it through `AsEditedDocument`, a document of its own for each text; a page loading or
+writing on the reader's behalf calls `Load` or `Write` on the document, and the engine takes the change up, carrying the caret
+through it; another view of the same document — the raw half beside a rendered one — writes through `MarkdownSurface.Write`, which
+writes as though the reader typed there. Being a plain object, the document, its history and whether it was saved stay where they
+are when what draws them does not.
+
 What happened is the engine's to say, and the surface says it again to the page as routed events: `SourceChanged` (what
-changed, and whether it was written, taken back or put there), `Selected` (what is picked out — words, a note, a box in
+changed, and whether it was written, taken back, put there or loaded), `Selected` (what is picked out — words, a note, a box in
 a flowchart, each with the language it is written in and the name the drawing knows it by), `DoubleClicked` (the same,
 said of two presses rather than one), `PreRender` (laid out, not yet shown) and `LinkNavigate` (a link out of the
 content, handled where the page took it).

@@ -149,7 +149,7 @@
         </DataTemplate>
 
         <DataTemplate x:Key="ResultReadyTemplate">
-            <md:MarkdownSurface Markdown="{Binding Markdown}"
+            <md:MarkdownSurface Document="{Binding Markdown, Converter={x:Static md:AsEditedDocument.Instance}}"
                                        AutomationProperties.AutomationId="Solver_ResultBody"/>
         </DataTemplate>
     </UserControl.Resources>
@@ -235,7 +235,7 @@
                                                      AutomationProperties.AutomationId="Solver_LatexInput"
                                                      Visibility="{Binding IsLatexMode, Converter={StaticResource BoolToVis}}"
                                                      WrittenIn="latex"
-                                                     Markdown="{Binding LatexText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     Document="{Binding LatexDocument}"
                                                      EditAsSource="{Binding ShowsSource}"
                                                      ContentPadding="10,8"
                                                      Placeholder="{loc:Str Solver.Definition.LatexPlaceholder}"/>
@@ -245,7 +245,7 @@
                             <md:MarkdownSurface x:Name="ProseInput" IsReadOnly="False" VerticalScrollBarVisibility="Auto"
                                                      AutomationProperties.AutomationId="Solver_TextInput"
                                                      Visibility="{Binding IsTextMode, Converter={StaticResource BoolToVis}}"
-                                                     Markdown="{Binding TextText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     Document="{Binding TextDocument}"
                                                      EditAsSource="{Binding ShowsSource}"
                                                      ContentPadding="10,8"
                                                      Placeholder="{loc:Str Solver.Definition.TextPlaceholder}"/>

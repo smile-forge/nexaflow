@@ -1,8 +1,10 @@
 using ICSharpCode.AvalonEdit;
+using ICSharpCode.AvalonEdit.Document;
 using ICSharpCode.AvalonEdit.Rendering;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Markdown.ViewModels;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Editor;
@@ -60,9 +62,9 @@ public partial class MarkdownView : UserControl, IPageView
         Editor.PreRender += (_, _) => viewModel.RenderedLaidOut();
 
         // The raw half: the document's text, kept in step with it both ways; the theme's caret; and the wash a search paints.
-        TakeDocument(viewModel.Markdown ?? string.Empty);
-        SourceBox.Document.UndoStack.ClearAll();
-        SourceBox.TextChanged += (_, _) => TakeSourceEdit();
+        TakeDocument();
+        viewModel.Document.Changed += OnDocumentChanged;
+        SourceBox.Document.Changed += OnSourceEdited;
         SourceBox.TextArea.Caret.CaretBrush = (Brush)FindResource("AccentBrush");
         SourceBox.TextArea.TextView.BackgroundRenderers.Add(_sourceWash);
         Unloaded += (_, _) =>
@@ -187,12 +189,7 @@ public partial class MarkdownView : UserControl, IPageView
     /// </summary>
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
-        // Written in the rendered half, or read from the file again: the raw half is given it.
-        if (e.PropertyName == nameof(MarkdownViewModel.Markdown))
-        {
-            TakeDocument(ViewModel.Markdown ?? string.Empty);
-            return;
-        }
+
 
         // Saved as a file somewhere else: its pictures are read beside that one now.
         if (e.PropertyName == nameof(MarkdownViewModel.DocumentFolder))
@@ -290,21 +287,14 @@ public partial class MarkdownView : UserControl, IPageView
 
     // ── The raw half, kept in step with the document ──────────────────────
 
-    /// <summary>
-    /// Puts what the document now says into the raw half, where it changed somewhere else — written in the rendered half, read
-    /// from the file again. Only the stretch that differs is replaced, so the caret, the place and what can be undone outside it
-    /// stay as they were, and a keystroke in a long document is not the whole of it written out again.
-    /// </summary>
-    private void TakeDocument(string markdown)
+    /// <summary>The whole document put in the raw half afresh — what it is first given, and what a document loaded whole is — with nothing there to take back.</summary>
+    private void TakeDocument()
     {
-        var document = SourceBox.Document;
-        var change = SourceDifference.Between(document.Text, markdown);
-        if (change.None) return;
-
         _takingDocument = true;
         try
         {
-            document.Replace(change.Start, change.Removed, markdown.Substring(change.Start, change.Added));
+            SourceBox.Document.Text = ViewModel.Markdown;
+            SourceBox.Document.UndoStack.ClearAll();
         }
         finally
         {
@@ -313,15 +303,56 @@ public partial class MarkdownView : UserControl, IPageView
     }
 
     /// <summary>
-    /// What the reader wrote in the raw half, given to the rendered half as an edit of the same document — so what it can take back
-    /// and what it was finding go on — and from there to the document. Not when it is the raw half being given the document.
+    /// What the document now says, put in the raw half where it changed somewhere else — written in the rendered half, taken back,
+    /// read from the file again. Each stretch the change wrote is written over in the raw half, so the caret, the place and what can
+    /// be undone outside it stay as they were, and a keystroke in a long document is that keystroke here too.
     /// </summary>
-    private void TakeSourceEdit()
+    private void OnDocumentChanged(object? sender, ContentSourceChange change)
+    {
+        if (_takingSource) return;
+        if (change.Kind == ContentChangeKind.Loaded)
+        {
+            TakeDocument();
+            return;
+        }
+
+        _takingDocument = true;
+        var document = SourceBox.Document;
+        document.BeginUpdate();
+        try
+        {
+            foreach (var write in change.Change.Writes.OrderByDescending(write => write.Start))
+                document.Replace(write.Start, write.Length, write.Text);
+        }
+        finally
+        {
+            document.EndUpdate();
+            _takingDocument = false;
+        }
+    }
+
+    /// <summary>
+    /// What the reader wrote in the raw half, given to the rendered half as writing of its own — the stretch the raw half changed and
+    /// nothing else, so what it can take back and what it was finding go on — and from there to the document. Not when it is the raw
+    /// half being given the document.
+    /// </summary>
+    private void OnSourceEdited(object? sender, DocumentChangeEventArgs e)
     {
         if (_takingDocument) return;
 
-        Editor.TakeEdit(SourceBox.Text);
+        _takingSource = true;
+        try
+        {
+            Editor.Write(ContentChange.Write(e.Offset, e.RemovalLength, e.InsertedText.Text));
+        }
+        finally
+        {
+            _takingSource = false;
+        }
     }
+
+    /// <summary>Whether the raw half's writing is being handed to the rendered half, so the document's report of it is not handed back.</summary>
+    private bool _takingSource;
 
     /// <summary>Whether the raw half is being given what the document says, so its own report of that change is not taken for writing.</summary>
     private bool _takingDocument;

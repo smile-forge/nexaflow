@@ -74,7 +74,7 @@ public class FlowchartChoiceTests
         {
             Click(Ribbon(editor, Node(chart, "Start")), "flowchart.shape.circle");
 
-            StringAssert.Contains(editor.Markdown, "a((\"Start\")) --> b", editor.Markdown);
+            StringAssert.Contains(editor.Document.ToString(), "a((\"Start\")) --> b", editor.Document.ToString());
             Assert.AreEqual(0, Block(editor).Diagnostics.Count, "and the chart still reads");
             Assert.AreEqual("flowchart.shape.circle", Current(editor, "Start", "Shape"), "which is what it now says it is drawn as");
         }));
@@ -86,8 +86,8 @@ public class FlowchartChoiceTests
             // A cloud is one of the shapes no pair of brackets says, so only a line about the node can say it.
             Click(Ribbon(editor, Node(chart, "Start")), "flowchart.shape.cloud");
 
-            StringAssert.Contains(editor.Markdown, "a[\"Start\"] --> b", "what was written stays written: " + editor.Markdown);
-            StringAssert.Contains(editor.Markdown, "a@{ shape: cloud }", "and the line after it says the shape: " + editor.Markdown);
+            StringAssert.Contains(editor.Document.ToString(), "a[\"Start\"] --> b", "what was written stays written: " + editor.Document.ToString());
+            StringAssert.Contains(editor.Document.ToString(), "a@{ shape: cloud }", "and the line after it says the shape: " + editor.Document.ToString());
             Assert.AreEqual(0, Block(editor).Diagnostics.Count);
             Assert.AreEqual("flowchart.shape.cloud", Current(editor, "Start", "Shape"));
         }));
@@ -100,8 +100,8 @@ public class FlowchartChoiceTests
 
             Click(Ribbon(editor, Node(chart, "Store")), "flowchart.shape.circle");
 
-            StringAssert.Contains(editor.Markdown, "a@{ shape: circle, label: \"Store\" }", editor.Markdown);
-            Assert.AreEqual(1, Times(editor.Markdown, "shape:"), "the one line that said it, given a new value");
+            StringAssert.Contains(editor.Document.ToString(), "a@{ shape: circle, label: \"Store\" }", editor.Document.ToString());
+            Assert.AreEqual(1, Times(editor.Document.ToString(), "shape:"), "the one line that said it, given a new value");
             Assert.AreEqual(0, Block(editor).Diagnostics.Count);
         }, Metadata));
 
@@ -111,12 +111,12 @@ public class FlowchartChoiceTests
         {
             Click(Ribbon(editor, Node(chart, "Start")), "flowchart.fill.blue");
 
-            StringAssert.Contains(editor.Markdown, "style a fill:#", "a style line of its own: " + editor.Markdown);
+            StringAssert.Contains(editor.Document.ToString(), "style a fill:#", "a style line of its own: " + editor.Document.ToString());
             Assert.AreEqual(0, Block(editor).Diagnostics.Count, "and the chart still reads");
 
             Click(Ribbon(editor, Node(Block(editor), "Start")), "flowchart.fill.red");
 
-            Assert.AreEqual(1, Times(editor.Markdown, "style a fill:"), "chosen again, the one line is given a new value: " + editor.Markdown);
+            Assert.AreEqual(1, Times(editor.Document.ToString(), "style a fill:"), "chosen again, the one line is given a new value: " + editor.Document.ToString());
         }));
 
     [TestMethod]
@@ -126,8 +126,8 @@ public class FlowchartChoiceTests
             Click(Ribbon(editor, Node(chart, "Start")), "flowchart.fill.blue");
             Click(Ribbon(editor, Node(Block(editor), "Start")), "flowchart.fill.none");
 
-            Assert.AreEqual(0, Times(editor.Markdown, "style a"), "nothing left for the line to say: " + editor.Markdown);
-            StringAssert.Contains(editor.Markdown, "a[\"Start\"] --> b", "and the chart is as it was written");
+            Assert.AreEqual(0, Times(editor.Document.ToString(), "style a"), "nothing left for the line to say: " + editor.Document.ToString());
+            StringAssert.Contains(editor.Document.ToString(), "a[\"Start\"] --> b", "and the chart is as it was written");
             Assert.AreEqual(0, Block(editor).Diagnostics.Count);
         }));
 

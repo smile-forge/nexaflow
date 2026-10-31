@@ -6,6 +6,7 @@ using System.Windows.Automation.Peers;
 using System.Windows.Automation.Provider;
 using System.Windows.Media;
 
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Stages;
@@ -90,7 +91,7 @@ public class LaidLinkTests
         var view = Shown("[one](https://example.org/1)\n");
         var stale = Hyperlinks(view).Single();
 
-        view.Markdown = "[other](https://example.org/2)\n";
+        view.Document.Load("[other](https://example.org/2)\n");
         Settle(view);
 
         Assert.ThrowsExactly<ElementNotAvailableException>(() => Invoke(stale));
@@ -102,7 +103,7 @@ public class LaidLinkTests
     private static MarkdownSurface Shown(string markdown, double width = 640,
                                          System.Func<string, string, LinkLook?>? decorate = null)
     {
-        var view = new MarkdownSurface { LinkDecorator = decorate, Markdown = markdown };
+        var view = new MarkdownSurface { LinkDecorator = decorate, Document = new EditedDocument(markdown) };
         Settle(view, width);
         return view;
     }

@@ -39,7 +39,7 @@ public class GitEditingTests : MermaidEditing
             Write(editor, "ing");
 
             StringAssert.Contains(diagram.Source, "branch developing", diagram.Source);
-            StringAssert.Contains(editor.Markdown, "branch developing", "and so does the document");
+            StringAssert.Contains(editor.Document.ToString(), "branch developing", "and so does the document");
         }));
 
     [TestMethod]
@@ -73,7 +73,7 @@ public class GitEditingTests : MermaidEditing
             PressPast(diagram, "develop");
             Write(editor, "s");
 
-            StringAssert.Contains(editor.Markdown, "branch develops", editor.Markdown);
-            StringAssert.Contains(editor.Markdown, "merge develops", "the merge names the branch it named: " + editor.Markdown);
+            StringAssert.Contains(editor.Document.ToString(), "branch develops", editor.Document.ToString());
+            StringAssert.Contains(editor.Document.ToString(), "merge develops", "the merge names the branch it named: " + editor.Document.ToString());
         }));
 }

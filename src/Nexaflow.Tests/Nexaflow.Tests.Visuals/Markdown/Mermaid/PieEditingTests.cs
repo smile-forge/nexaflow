@@ -136,7 +136,7 @@ public class PieEditingTests
             MarkdownEditorHarness.Pump();
 
             StringAssert.Contains(pie.Source, "\"Dogs\" : 309", $"the block now reads {pie.Source}");
-            StringAssert.Contains(editor.Markdown, "\"Dogs\" : 309", "and so does the document");
+            StringAssert.Contains(editor.Document.ToString(), "\"Dogs\" : 309", "and so does the document");
         }));
 
     [TestMethod]
@@ -273,12 +273,12 @@ public class PieEditingTests
         {
             PressPastTheValue(pie, "30");
             Write(editor, "9");
-            StringAssert.Contains(editor.Markdown, "\"Dogs\" : 309", "precondition: the edit landed");
+            StringAssert.Contains(editor.Document.ToString(), "\"Dogs\" : 309", "precondition: the edit landed");
 
             editor.Undo();
             MarkdownEditorHarness.Pump();
 
-            StringAssert.Contains(editor.Markdown, "\"Dogs\" : 30\n", "the edit is taken back");
+            StringAssert.Contains(editor.Document.ToString(), "\"Dogs\" : 30\n", "the edit is taken back");
 
             var drawn = MarkdownEditorHarness.Block(editor);
             Assert.IsNotNull(drawn, "and the pie is still drawn, rather than opened as its source");
@@ -573,10 +573,10 @@ public class PieEditingTests
             Assert.AreEqual("pie.legend.right", Current(ribbon, "pie.legend"), "where Mermaid puts it when nothing says");
 
             Click(ribbon, "pie.legend.left");
-            StringAssert.Contains(editor.Markdown, "```mermaid\n---\nconfig:\n  pie:\n    legendPosition: left\n---\npie showData", editor.Markdown);
+            StringAssert.Contains(editor.Document.ToString(), "```mermaid\n---\nconfig:\n  pie:\n    legendPosition: left\n---\npie showData", editor.Document.ToString());
 
             Click(Ribbon(editor, Row(MarkdownEditorHarness.Block(editor)!, "Dogs").Bounds.ToWpf()), "pie.legend.top");
-            StringAssert.Contains(editor.Markdown, "    legendPosition: top\n---", $"the one field given its new value: {editor.Markdown}");
+            StringAssert.Contains(editor.Document.ToString(), "    legendPosition: top\n---", $"the one field given its new value: {editor.Document.ToString()}");
         }));
 
     [TestMethod]
@@ -593,10 +593,10 @@ public class PieEditingTests
             Assert.IsFalse(Ids(ribbon).Contains("pie.legend"), "where the legend goes is the legend's");
 
             Click(ribbon, "pie.hole.0.5");
-            StringAssert.Contains(editor.Markdown, "config:\n  pie:\n    donutHole: 0.5\n---", editor.Markdown);
+            StringAssert.Contains(editor.Document.ToString(), "config:\n  pie:\n    donutHole: 0.5\n---", editor.Document.ToString());
 
             Click(Ribbon(editor, new Rect(InsideAWedge(MarkdownEditorHarness.Block(editor)!), new Size(0, 0))), "pie.stroke.4");
-            StringAssert.Contains(editor.Markdown, "config:\n  themeVariables:\n    pieStrokeWidth: 4\n  pie:\n    donutHole: 0.5\n---", editor.Markdown);
+            StringAssert.Contains(editor.Document.ToString(), "config:\n  themeVariables:\n    pieStrokeWidth: 4\n  pie:\n    donutHole: 0.5\n---", editor.Document.ToString());
         }));
 
     [TestMethod]
@@ -623,7 +623,7 @@ public class PieEditingTests
             Assert.IsTrue(editor.Pressed(Key.V, ModifierKeys.Control));
             Write(editor, "!");
 
-            StringAssert.Contains(editor.Markdown, "  \"Dogs #quot;good#quot;<br>dogs!\" : 30\n", editor.Markdown);
+            StringAssert.Contains(editor.Document.ToString(), "  \"Dogs #quot;good#quot;<br>dogs!\" : 30\n", editor.Document.ToString());
             Assert.AreEqual(0, MarkdownEditorHarness.Block(editor)!.Diagnostics.Count);
         }));
 
@@ -635,13 +635,13 @@ public class PieEditingTests
 
             PressPastTheValue(pie, "30");
             editor.Pressed(Key.V, ModifierKeys.Control);
-            StringAssert.Contains(editor.Markdown, "\"Dogs\" : 305\n", editor.Markdown);
+            StringAssert.Contains(editor.Document.ToString(), "\"Dogs\" : 305\n", editor.Document.ToString());
 
             Holding(editor, "five");
             editor.Pressed(Key.V, ModifierKeys.Control);
             Holding(editor, ".5.");
             editor.Pressed(Key.V, ModifierKeys.Control);
-            StringAssert.Contains(editor.Markdown, "\"Dogs\" : 305\n", "what is not a number is not pasted into one");
+            StringAssert.Contains(editor.Document.ToString(), "\"Dogs\" : 305\n", "what is not a number is not pasted into one");
         }));
 
     [TestMethod]
@@ -656,7 +656,7 @@ public class PieEditingTests
 
             editor.Pressed(Key.V, ModifierKeys.Control);
 
-            StringAssert.Contains(editor.Markdown, "  title Pets and friends\n  \"Dogs\" : 30", editor.Markdown);
+            StringAssert.Contains(editor.Document.ToString(), "  title Pets and friends\n  \"Dogs\" : 30", editor.Document.ToString());
             Assert.AreEqual(0, MarkdownEditorHarness.Block(editor)!.Diagnostics.Count);
         }, Titled));
 
@@ -664,7 +664,7 @@ public class PieEditingTests
     public void APasteOverMoreThanOnePlaceWritesNothing() => UiThread.Run(() =>
         InADocument((editor, pie) =>
         {
-            var before = editor.Markdown;
+            var before = editor.Document.ToString();
             Holding(editor, "words");
 
             // From inside a label into its value: past the quote that holds the slice together, so no one place takes the words.
@@ -672,7 +672,7 @@ public class PieEditingTests
             editor.Shown.Select(from, before.IndexOf("30", StringComparison.Ordinal) + 1 - from);
             editor.Pressed(Key.V, ModifierKeys.Control);
 
-            Assert.AreEqual(before, editor.Markdown, "a paste over a label's end and a value's start writes nothing");
+            Assert.AreEqual(before, editor.Document.ToString(), "a paste over a label's end and a value's start writes nothing");
         }));
 
     [TestMethod]
@@ -687,7 +687,7 @@ public class PieEditingTests
             Assert.IsFalse(Ids(ribbon).Contains(LayoutVerbs.Cut), "nothing is cut from a pie");
 
             Click(ribbon, LayoutVerbs.Paste);
-            StringAssert.Contains(editor.Markdown, "\"CatsBig \" : 10", editor.Markdown);
+            StringAssert.Contains(editor.Document.ToString(), "\"CatsBig \" : 10", editor.Document.ToString());
 
             pie = MarkdownEditorHarness.Block(editor)!;
             ChooseTheRow(pie, "Dogs");

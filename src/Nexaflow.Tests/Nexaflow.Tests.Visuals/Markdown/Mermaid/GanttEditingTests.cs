@@ -41,7 +41,7 @@ public class GanttEditingTests : MermaidEditing
             StringAssert.Contains(chart.Source, "section Building\n  Design the whole thing! :a1", chart.Source);
             StringAssert.Contains(chart.Source, "QAs :after a1", chart.Source);
             Assert.AreEqual(0, chart.Diagnostics.Count, string.Join(" | ", chart.Diagnostics.Select(diagnostic => diagnostic.Message)));
-            StringAssert.Contains(editor.Markdown, "QAs :after a1", "and so does the document");
+            StringAssert.Contains(editor.Document.ToString(), "QAs :after a1", "and so does the document");
         }));
 
     [TestMethod]

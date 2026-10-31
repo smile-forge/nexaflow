@@ -221,13 +221,9 @@ public partial class SolverView : UserControl, IPageView
     /// </summary>
     private void OnDefinitionReplaced(string text)
     {
-        if (_vm.IsCalcMode) { CalcInput.CaretIndex = CalcInput.Text.Length; return; }
-
-        // Handed over directly rather than left to the binding: a wholesale replacement is exactly the
-        // case a two-way binding cannot express, since the editor is usually the thing that last wrote
-        // the value and the property has not moved as far as the binding is concerned. The caret is
-        // left where the replacement put it — taking it back would fight the user for it.
-        if (Editor is { } editor && editor.Markdown != text) editor.Markdown = text;
+        // The Latex and Text editors show their documents, which the page loaded; only the Calc field is a string the caret has to be
+        // put at the end of.
+        if (_vm.IsCalcMode) CalcInput.CaretIndex = CalcInput.Text.Length;
     }
 
     /// <summary>

@@ -42,6 +42,6 @@ public class IshikawaEditingTests : MermaidEditing
 
             StringAssert.Contains(diagram.Source, "  Blurry Photos\n  Processes\n    Out of focus!\n      Wrong mode?\n", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count);
-            StringAssert.Contains(editor.Markdown, "Out of focus!", "and so does the document");
+            StringAssert.Contains(editor.Document.ToString(), "Out of focus!", "and so does the document");
         }));
 }

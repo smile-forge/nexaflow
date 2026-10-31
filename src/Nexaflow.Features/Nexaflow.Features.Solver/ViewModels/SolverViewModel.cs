@@ -6,6 +6,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Solver.Palette;
 using Nexaflow.Features.Solver.Solving;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Solver.ViewModels;
@@ -35,21 +36,22 @@ public sealed partial class SolverViewModel : ObservableObject, IPageViewModel, 
     private readonly Dictionary<string, IAiAbilityGate> _gates = [];
 
     /// <summary>
-    /// One text buffer per tab, so switching editors never destroys what is in the other two.
+    /// What each tab holds, kept apart, so switching editors never destroys what is in the other two.
     /// <para>
-    /// Each buffer is bound to its own editor and to nothing else, which is what makes the tabs
-    /// independent. Swapping one editor's text on the way past used to be how this worked, and it
-    /// cannot be made to work: an editor that holds the keyboard refuses a document push (rebuilding
-    /// mid-word would destroy what is being typed), so a switch made while the caret was in the
-    /// editor left it showing the tab you had just left.
+    /// Each is shown by its own editor and by nothing else, which is what makes the tabs independent. Swapping one editor's text on
+    /// the way past used to be how this worked, and it cannot be made to work: an editor that holds the keyboard refuses a document
+    /// push (rebuilding mid-word would destroy what is being typed), so a switch made while the caret was in the editor left it
+    /// showing the tab you had just left. The Calc tab is a field and holds a string; the other two are documents their editors
+    /// write in, which say themselves when they change.
     /// </para>
     /// </summary>
-    private readonly Dictionary<DefinitionMode, string> _buffers = new()
-    {
-        [DefinitionMode.Calc] = string.Empty,
-        [DefinitionMode.Latex] = string.Empty,
-        [DefinitionMode.Text] = string.Empty,
-    };
+    private string _calcText = string.Empty;
+
+    /// <summary>The Latex tab's document, shown and written in by its editor.</summary>
+    public EditedDocument LatexDocument { get; } = new();
+
+    /// <summary>The Text tab's document, shown and written in by its editor.</summary>
+    public EditedDocument TextDocument { get; } = new();
 
     /// <summary>This page's AI scope boundary — see <see cref="GetSecurityContext"/>.</summary>
     private readonly string _scopeId = "solver:" + Guid.NewGuid().ToString("n")[..8];
@@ -64,6 +66,9 @@ public sealed partial class SolverViewModel : ObservableObject, IPageViewModel, 
         _shell = shell;
         _ai = ai;
         _registry = SolverRegistry.CreateDefault(ai);
+
+        LatexDocument.Changed += (_, _) => Wrote(DefinitionMode.Latex);
+        TextDocument.Changed += (_, _) => Wrote(DefinitionMode.Text);
 
         _mode = config.GetStartMode();
         _angleUnit = config.GetAngleUnit();
@@ -101,39 +106,62 @@ public sealed partial class SolverViewModel : ObservableObject, IPageViewModel, 
     /// </summary>
     public string DefinitionText
     {
-        get => _buffers[Mode];
+        get => Mode switch
+        {
+            DefinitionMode.Calc => _calcText,
+            DefinitionMode.Latex => LatexDocument.ToString(),
+            _ => TextDocument.ToString(),
+        };
         set => Write(Mode, value);
     }
 
     /// <summary>The Calc tab's buffer, bound to its field.</summary>
     public string CalcText
     {
-        get => _buffers[DefinitionMode.Calc];
+        get => _calcText;
         set => Write(DefinitionMode.Calc, value);
     }
 
-    /// <summary>The Latex tab's buffer, bound to its editor.</summary>
+    /// <summary>The Latex tab's text. Setting it loads its document, which is what a wholesale replacement is.</summary>
     public string LatexText
     {
-        get => _buffers[DefinitionMode.Latex];
+        get => LatexDocument.ToString();
         set => Write(DefinitionMode.Latex, value);
     }
 
-    /// <summary>The Text tab's buffer, bound to its editor.</summary>
+    /// <summary>The Text tab's text. Setting it loads its document, which is what a wholesale replacement is.</summary>
     public string TextText
     {
-        get => _buffers[DefinitionMode.Text];
+        get => TextDocument.ToString();
         set => Write(DefinitionMode.Text, value);
     }
 
-    /// <summary>Stores one tab's text, and tells the world only what actually changed - a tab that is
-    /// not showing has no bearing on what is emptied, offered or solved.</summary>
+    /// <summary>
+    /// Puts one tab's text in place, whole: the Calc field's string, or what the Latex or Text document is loaded with — the
+    /// document then says it changed, and <see cref="Wrote"/> follows from that, as it does from typing.
+    /// </summary>
     private void Write(DefinitionMode mode, string value)
     {
         value ??= string.Empty;
-        if (_buffers[mode] == value) return;
 
-        _buffers[mode] = value;
+        if (mode == DefinitionMode.Calc)
+        {
+            if (_calcText == value) return;
+
+            _calcText = value;
+            Wrote(mode);
+            return;
+        }
+
+        var document = mode == DefinitionMode.Latex ? LatexDocument : TextDocument;
+        if (string.Equals(document.ToString(), value, StringComparison.Ordinal)) return;
+
+        document.Load(value);
+    }
+
+    /// <summary>Tells the world only what actually changed - a tab that is not showing has no bearing on what is emptied, offered or solved.</summary>
+    private void Wrote(DefinitionMode mode)
+    {
         OnPropertyChanged(mode switch
         {
             DefinitionMode.Calc => nameof(CalcText),

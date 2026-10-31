@@ -72,7 +72,7 @@ public class PacketEditingTests
             Write(editor, "X");
 
             StringAssert.Contains(packet.Source, "0-7: \"FlagsX\"", packet.Source);
-            StringAssert.Contains(editor.Markdown, "0-7: \"FlagsX\"", "and so does the document");
+            StringAssert.Contains(editor.Document.ToString(), "0-7: \"FlagsX\"", "and so does the document");
             Assert.AreEqual(0, packet.Diagnostics.Count, Trouble(packet));
         }));
 

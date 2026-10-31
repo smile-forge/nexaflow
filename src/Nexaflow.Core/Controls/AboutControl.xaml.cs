@@ -9,6 +9,7 @@ using System.Windows.Navigation;
 using Nexaflow.Core.Services;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Core.Controls;
 
@@ -28,7 +29,7 @@ public partial class AboutControl : UserControl
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         VersionText.Text  = Str.Format("Shell.About.VersionFormat", SetupWizardViewModel.CurrentVersion());
-        NoticesView.Markdown = LoadNotices();
+        NoticesView.Document = new EditedDocument(LoadNotices());
 
         // The registry re-raises this after every probe, including the ones the Re-check button starts.
         ExternalDependencyRegistry.Instance.Updated -= OnComponentsUpdated;

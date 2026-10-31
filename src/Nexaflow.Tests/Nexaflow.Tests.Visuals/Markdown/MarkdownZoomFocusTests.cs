@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 
@@ -29,7 +30,7 @@ public class MarkdownZoomFocusTests
     [TestMethod]
     public void BaseFontSize_AppliesEvenWhileTheEditorHasFocus() => UiThread.Run(() =>
     {
-        var editor = new MarkdownSurface { IsReadOnly = false, Markdown = "Body text.\n", BaseFontSize = 15 };
+        var editor = new MarkdownSurface { IsReadOnly = false, Document = new EditedDocument("Body text.\n"), BaseFontSize = 15 };
         var window = new Window
         {
             Content = editor, Width = 600, Height = 400,

@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Projects.Model;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Visuals.Common.Theming;
 using System.Windows.Media;
 
@@ -20,7 +21,18 @@ public partial class BacklogItemViewModel : ObservableObject
     public Guid Id { get; }
 
     [ObservableProperty] private string _title = string.Empty;
-    [ObservableProperty] private string _description = string.Empty;   // markdown
+    /// <summary>The item's detail, shown and written in by its editor — saved explicitly, through the Save button.</summary>
+    public EditedDocument DescriptionDocument { get; }
+
+    /// <summary>The item's detail, whole — markdown. Setting it loads the detail's document in its place.</summary>
+    public string Description
+    {
+        get => DescriptionDocument.ToString();
+        set
+        {
+            if (!string.Equals(DescriptionDocument.ToString(), value ?? string.Empty, StringComparison.Ordinal)) DescriptionDocument.Load(value);
+        }
+    }   // markdown
     [ObservableProperty] private string _statusKey = string.Empty;
 
     /// <summary>The workspace config — the status dropdown binds <c>Config.BacklogStatuses</c>.</summary>
@@ -37,13 +49,12 @@ public partial class BacklogItemViewModel : ObservableObject
         _parent      = parent;
         Id           = item.Id;
         _title       = item.Title;
-        _description = item.Description;
+        DescriptionDocument = new EditedDocument(item.Description);
+        DescriptionDocument.Changed += (_, _) => OnPropertyChanged(nameof(Description));
         _statusKey   = item.StatusKey;
     }
 
     partial void OnTitleChanged(string value) { /* saved explicitly via the Save button */ }
-    partial void OnDescriptionChanged(string value) { /* saved explicitly via the Save button */ }
-
     partial void OnStatusKeyChanged(string value)
     {
         RefreshStatusView();

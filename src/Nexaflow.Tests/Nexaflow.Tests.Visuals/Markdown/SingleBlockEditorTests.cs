@@ -42,8 +42,8 @@ public class SingleBlockEditorTests
             Assert.AreEqual(1, MarkdownEditorHarness.Blocks(editor).Count, "the block did not render as music");
 
             // …and came off again, so what the host holds is the tune and nothing else.
-            Assert.AreEqual(Tune, editor.Markdown);
-            Assert.IsFalse(editor.Markdown.Contains("```"), $"a fence leaked into the text: {editor.Markdown}");
+            Assert.AreEqual(Tune, editor.Document.ToString());
+            Assert.IsFalse(editor.Document.ToString().Contains("```"), $"a fence leaked into the text: {editor.Document.ToString()}");
         },
         e => e.WrittenIn = "abc"));
 
@@ -58,7 +58,7 @@ public class SingleBlockEditorTests
         MarkdownEditorHarness.Run(Tune, editor =>
         {
             Assert.AreEqual(0, MarkdownEditorHarness.Blocks(editor).Count, "with no language it should not have engraved anything");
-            Assert.AreEqual(Tune, editor.Markdown, "and the text is untouched either way");
+            Assert.AreEqual(Tune, editor.Document.ToString(), "and the text is untouched either way");
         });
     });
 

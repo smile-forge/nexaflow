@@ -41,7 +41,7 @@ public class DocumentTypingTests
             MarkdownEditorHarness.PlaceCaret(editor, original.IndexOf("An installed", StringComparison.Ordinal));
             MarkdownEditorHarness.Type(editor, "A font viewer. ");
 
-            Assert.AreEqual("A live Process Explorer. A font viewer. An installed-apps manager.", editor.Markdown);
+            Assert.AreEqual("A live Process Explorer. A font viewer. An installed-apps manager.", editor.Document.ToString());
             Assert.AreSame(drawn, editor.Shown, "the same document, written in — nothing swapped under the reader");
         });
     });
@@ -54,7 +54,7 @@ public class DocumentTypingTests
             MarkdownEditorHarness.Type(editor, "**bold**");
 
             // Typing never makes formatting: the asterisks are written so that they read as the asterisks typed.
-            Assert.AreEqual(@"Some \*\*bold\*\*plain text here.", editor.Markdown);
+            Assert.AreEqual(@"Some \*\*bold\*\*plain text here.", editor.Document.ToString());
         }));
 
     [TestMethod]
@@ -64,7 +64,7 @@ public class DocumentTypingTests
             MarkdownEditorHarness.PlaceCaret(editor, 0);
             MarkdownEditorHarness.Type(editor, "Yes, ");
 
-            Assert.AreEqual("Yes, A **bold** word.", editor.Markdown);
+            Assert.AreEqual("Yes, A **bold** word.", editor.Document.ToString());
         }));
 
     [TestMethod]
@@ -74,7 +74,7 @@ public class DocumentTypingTests
             MarkdownEditorHarness.PlaceCaret(editor, 0);
             MarkdownEditorHarness.Type(editor, "X");
 
-            Assert.AreEqual("Xline one\nline two", editor.Markdown);
+            Assert.AreEqual("Xline one\nline two", editor.Document.ToString());
         }));
 
     [TestMethod]
@@ -101,7 +101,7 @@ public class DocumentTypingTests
                 MarkdownEditorHarness.PlaceCaret(editor, "Start".Length);
                 MarkdownEditorHarness.Type(editor, "ed");
 
-                Assert.AreEqual("Started. " + line, editor.Markdown, line);
+                Assert.AreEqual("Started. " + line, editor.Document.ToString(), line);
             });
     });
 
@@ -126,7 +126,7 @@ public class DocumentTypingTests
             Press(ribbon, Inserting);
             Press(ribbon, Inserting + ".mermaid.pie");
 
-            Assert.AreEqual("Below:\n\n" + Pie + "\n\nAfter.\n", editor.Markdown);
+            Assert.AreEqual("Below:\n\n" + Pie + "\n\nAfter.\n", editor.Document.ToString());
             Assert.AreEqual("Below:\n\n".Length + Pie.LastIndexOf("\n```", System.StringComparison.Ordinal), editor.Shown.Current.Caret,
                 "the caret where the block goes on being written");
             Assert.AreEqual(0, MarkdownEditorHarness.Block(editor).Diagnostics.Count, "and the block reads");
@@ -141,7 +141,7 @@ public class DocumentTypingTests
             Press(ribbon, Inserting);
             Press(ribbon, Inserting + ".mermaid.pie");
 
-            Assert.AreEqual("Only words\n\n" + Pie + "\n", editor.Markdown);
+            Assert.AreEqual("Only words\n\n" + Pie + "\n", editor.Document.ToString());
         }));
 
     /// <summary>The pie's block to start from, as it is written into a document.</summary>
@@ -150,7 +150,7 @@ public class DocumentTypingTests
     /// <summary>The ribbon a right-click on the words <paramref name="over"/> opens.</summary>
     private static DiagramRibbon Ribbon(MarkdownSurface editor, string over)
     {
-        var at = editor.Markdown.IndexOf(over, System.StringComparison.Ordinal);
+        var at = editor.Document.ToString().IndexOf(over, System.StringComparison.Ordinal);
         var box = editor.Shown.Laid.Root.SelfAndDescendants().Last(piece => piece.Words is not null && piece.Sits().Start <= at && at < piece.Sits().End).Bounds;
 
         var ribbon = editor.Shown.BuildRibbon(new Point(box.X + (box.Width / 2), box.Y + (box.Height / 2))) as DiagramRibbon;

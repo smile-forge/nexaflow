@@ -28,7 +28,7 @@
         <!-- Markdown cell: rendered markdown, no chrome. -->
         <DataTemplate x:Key="MarkdownCellTemplate">
             <Border Style="{StaticResource CellHit}" Padding="8,0,0,0" Margin="6,0,0,0">
-                <md:MarkdownSurface Markdown="{Binding Source}"
+                <md:MarkdownSurface Document="{Binding Source, Converter={x:Static md:AsEditedDocument.Instance}}"
                                            Margin="14,6,14,6"/>
             </Border>
         </DataTemplate>
@@ -89,7 +89,7 @@
             <DockPanel>
                 <TextBlock DockPanel.Dock="Top" Text="{loc:Str Notebook.Outline.Title}" Margin="14,12,14,4"
                            FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
-                <md:MarkdownSurface Markdown="{Binding OutlineMarkdown}" Margin="14,0,14,10"
+                <md:MarkdownSurface Document="{Binding OutlineMarkdown, Converter={x:Static md:AsEditedDocument.Instance}}" Margin="14,0,14,10"
                                            VerticalScrollBarVisibility="Auto"/>
             </DockPanel>
         </Border>

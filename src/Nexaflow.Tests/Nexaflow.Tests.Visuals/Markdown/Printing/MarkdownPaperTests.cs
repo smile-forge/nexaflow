@@ -175,7 +175,7 @@ public class MarkdownPaperTests
     [TestMethod]
     public void ASurfacePrintsOnWhitePaper_WhateverItIsDrawnIn() => UiThread.Run(() =>
     {
-        var surface = new MarkdownSurface { Palette = WpfStyles.Dark, Markdown = Prose(3) };
+        var surface = new MarkdownSurface { Palette = WpfStyles.Dark, Document = new EditedDocument(Prose(3)) };
         var sheet = new Size(Room.Width + (2 * MarkdownPaginator.Margin), Room.Height + (2 * MarkdownPaginator.Margin));
         var ink = Colours(surface.Paginator(sheet).GetPage(0).Visual, new Rect(sheet)).Where(colour => colour.A > 200).ToList();
 

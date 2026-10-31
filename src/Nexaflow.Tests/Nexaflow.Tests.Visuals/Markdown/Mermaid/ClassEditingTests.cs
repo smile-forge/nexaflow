@@ -38,7 +38,7 @@ public class ClassEditingTests : MermaidEditing
             StringAssert.Contains(diagram.Source, "Duck : becomes a", diagram.Source);
             StringAssert.Contains(diagram.Source, "note for Duck \"mind this one\"", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count);
-            StringAssert.Contains(editor.Markdown, "The animals", "and so does the document");
+            StringAssert.Contains(editor.Document.ToString(), "The animals", "and so does the document");
         }));
 
     [TestMethod]
@@ -62,8 +62,8 @@ public class ClassEditingTests : MermaidEditing
             PressPast(diagram, "Duck");
             Write(editor, "s");
 
-            StringAssert.Contains(editor.Markdown, "Animal <|-- Ducks", editor.Markdown);
-            StringAssert.Contains(editor.Markdown, "class Ducks {", "the class holding its members names it: " + editor.Markdown);
-            StringAssert.Contains(editor.Markdown, "note for Ducks", "and so does the note against it: " + editor.Markdown);
+            StringAssert.Contains(editor.Document.ToString(), "Animal <|-- Ducks", editor.Document.ToString());
+            StringAssert.Contains(editor.Document.ToString(), "class Ducks {", "the class holding its members names it: " + editor.Document.ToString());
+            StringAssert.Contains(editor.Document.ToString(), "note for Ducks", "and so does the note against it: " + editor.Document.ToString());
         }));
 }

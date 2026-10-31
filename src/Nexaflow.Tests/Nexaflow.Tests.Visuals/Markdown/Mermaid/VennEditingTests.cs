@@ -82,7 +82,7 @@ public class VennEditingTests
             Write(editor, "s");
 
             StringAssert.Contains(venn.Source, "set A[\"Frontends\"]", venn.Source);
-            StringAssert.Contains(editor.Markdown, "set A[\"Frontends\"]", "and so does the document");
+            StringAssert.Contains(editor.Document.ToString(), "set A[\"Frontends\"]", "and so does the document");
         }));
 
     [TestMethod]
@@ -93,9 +93,9 @@ public class VennEditingTests
             Write(editor, "\\");
 
             var drawn = MarkdownEditorHarness.Block(editor);
-            Assert.IsNotNull(drawn, $"the diagram is still drawn: {editor.Markdown}");
+            Assert.IsNotNull(drawn, $"the diagram is still drawn: {editor.Document.ToString()}");
             StringAssert.Contains(drawn!.Source, "set A[\"Frontend\\\"]", $"the block reads {drawn.Source}");
-            StringAssert.Contains(editor.Markdown, "set A[\"Frontend\\\"]", $"and so does the document: {editor.Markdown}");
+            StringAssert.Contains(editor.Document.ToString(), "set A[\"Frontend\\\"]", $"and so does the document: {editor.Document.ToString()}");
             Assert.AreEqual(0, drawn.Diagnostics.Count, string.Join(" | ", drawn.Diagnostics.Select(d => d.Message)));
 
             Write(editor, "n");
@@ -120,7 +120,7 @@ public class VennEditingTests
 
             StringAssert.Contains(venn.Source, "set \"Frontend\\ x\"\n", $"and typing goes on inside the quotes: {venn.Source}");
             Assert.IsTrue(Drawn(venn, "React"), "with the item still in its set");
-            StringAssert.Contains(editor.Markdown, "set \"Frontend\\ x\"", "and the document says so too");
+            StringAssert.Contains(editor.Document.ToString(), "set \"Frontend\\ x\"", "and the document says so too");
         }, Bare));
 
     [TestMethod]
@@ -233,12 +233,12 @@ public class VennEditingTests
         {
             PressPast(venn, "Frontend");
             Write(editor, "s");
-            StringAssert.Contains(editor.Markdown, "Frontends", "precondition: the edit landed");
+            StringAssert.Contains(editor.Document.ToString(), "Frontends", "precondition: the edit landed");
 
             editor.Undo();
             MarkdownEditorHarness.Pump();
 
-            StringAssert.Contains(editor.Markdown, "set A[\"Frontend\"]", "the edit is taken back");
+            StringAssert.Contains(editor.Document.ToString(), "set A[\"Frontend\"]", "the edit is taken back");
             Assert.IsNotNull(MarkdownEditorHarness.Block(editor), "and the diagram is still drawn, rather than opened as its source");
         }));
 

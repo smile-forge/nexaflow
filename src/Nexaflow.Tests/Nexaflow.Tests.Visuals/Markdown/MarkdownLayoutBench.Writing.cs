@@ -203,7 +203,7 @@ public partial class MarkdownLayoutBench
             said($"{name}: opening {text.Length / 1024} KB");
 
             var clock = Stopwatch.StartNew();
-            surface.Markdown = text;
+            surface.Document.Load(text);
             Settle();
             opened = clock.Elapsed;
 

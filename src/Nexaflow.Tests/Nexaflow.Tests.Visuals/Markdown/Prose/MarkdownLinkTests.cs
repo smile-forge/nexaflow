@@ -177,7 +177,7 @@ public class MarkdownLinkTests
             },
         };
 
-        view.Markdown = "[one](a) and [two](b)\n";
+        view.Document.Load("[one](a) and [two](b)\n");
 
         // The stage is asked while the document is being laid out, so nothing has asked it until something has.
         view.Measure(new System.Windows.Size(640, 2000));

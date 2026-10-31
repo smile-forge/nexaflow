@@ -65,7 +65,7 @@ public class QuadrantEditingTests
             StringAssert.Contains(chart.Source, "--> Later!", chart.Source);
             StringAssert.Contains(chart.Source, "Task A1:::hot", chart.Source);
             Assert.AreEqual(0, chart.Diagnostics.Count, Trouble(chart));
-            StringAssert.Contains(editor.Markdown, "Task A1:::hot", "and so does the document");
+            StringAssert.Contains(editor.Document.ToString(), "Task A1:::hot", "and so does the document");
         }));
 
     [TestMethod]

@@ -158,7 +158,7 @@
                                      Palette="{x:Static paint:WpfStyles.Light}"
                                      Placeholder="Type to add a note…"
                                      BaseDirectory="{Binding AttachmentDirectory}"
-                                     Markdown="{Binding Content, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                     Document="{Binding Document}"/>
 
             <!-- Bottom grip -->
             <Border Grid.Row="2"

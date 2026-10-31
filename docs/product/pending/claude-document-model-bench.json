@@ -7,6 +7,11 @@
           "type": "code",
           "doc": "src/Nexaflow.Markdown/Editing/ContentDocument.cs",
           "class": "ContentDocument"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/EditedDocument.cs",
+          "class": "EditedDocument"
         }
       ],
       "concerns": {
@@ -23,6 +28,18 @@
             "status": "should",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Editing/ContentDocumentTests.cs",
             "class": "ContentDocumentTests"
+          },
+          {
+            "type": "code",
+            "status": "should",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Editing/EditedDocumentTests.cs",
+            "class": "EditedDocumentTests"
+          },
+          {
+            "type": "code",
+            "status": "should",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/SurfaceDocumentTests.cs",
+            "class": "SurfaceDocumentTests"
           }
         ]
       }
@@ -48,12 +65,23 @@
           }
         ]
       }
+    },
+    "markdown-dirty-tracking": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/EditedDocument.cs",
+          "class": "EditedDocument",
+          "method": "IsDirty"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 3,
+  "changed_sets": 4,
   "touched_nodes": [
     "markdown-block-undo",
+    "markdown-dirty-tracking",
     "markdown-long-writing"
   ]
 }

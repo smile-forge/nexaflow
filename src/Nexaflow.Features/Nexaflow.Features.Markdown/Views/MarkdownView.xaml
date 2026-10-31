@@ -384,7 +384,7 @@
                                          AutomationProperties.AutomationId="Markdown_Editor"
                                          Visibility="{Binding ShowRendered, Converter={StaticResource BoolVis}}"
                                          WrittenIn="{Binding WrittenIn, Mode=OneTime}"
-                                         Markdown="{Binding Markdown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                         Document="{Binding Document}"/>
             </Grid>
 
             <!-- Minimap match strip: proportional tick marks for the current search's matches -->

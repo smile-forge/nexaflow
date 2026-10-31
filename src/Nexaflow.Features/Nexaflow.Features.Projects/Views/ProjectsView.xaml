@@ -254,7 +254,7 @@
                     <!-- status pie (markdown) + description -->
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                   Margin="32,0,32,0">
-                        <md:MarkdownSurface Markdown="{Binding SelectedProject.DetailMarkdown}"/>
+                        <md:MarkdownSurface Document="{Binding SelectedProject.DetailMarkdown, Converter={x:Static md:AsEditedDocument.Instance}}"/>
                     </ScrollViewer>
 
                     <!-- action buttons -->

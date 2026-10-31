@@ -10,6 +10,7 @@ using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
@@ -160,19 +161,18 @@ public class FormulaEditingTests
     [TestMethod]
     public void EditsAreReportedToTheHost() => InFormula("x", (editor, formula) =>
     {
-        // The host owns what was written; the surface has to say when it moved or the two drift.
+        // The host holds the document; it has to say when it moved, or what the host does with it drifts.
         At(formula, 1);
 
         var changes = 0;
-        var said = DependencyPropertyDescriptor.FromProperty(MarkdownSurface.MarkdownProperty, typeof(MarkdownSurface));
-        EventHandler counted = (_, _) => changes++;
-        said.AddValueChanged(editor, counted);
+        EventHandler<ContentSourceChange> counted = (_, _) => changes++;
+        editor.Document.Changed += counted;
 
         try { MarkdownEditorHarness.Type(editor, "+2"); }
-        finally { said.RemoveValueChanged(editor, counted); }
+        finally { editor.Document.Changed -= counted; }
 
         Assert.AreEqual(2, changes);
-        Assert.AreEqual("x+2", editor.Markdown);
+        Assert.AreEqual("x+2", editor.Document.ToString());
     });
 
     [TestMethod]

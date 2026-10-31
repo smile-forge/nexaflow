@@ -92,7 +92,7 @@ public class MarkdownTypographyTests
 
     private static MarkdownSurface Shown(MarkdownSurface surface)
     {
-        surface.Markdown = "Body text.\n";
+        surface.Document.Load("Body text.\n");
         surface.Measure(new Size(600, 400));
         surface.Arrange(new Rect(0, 0, 600, 400));
         surface.UpdateLayout();

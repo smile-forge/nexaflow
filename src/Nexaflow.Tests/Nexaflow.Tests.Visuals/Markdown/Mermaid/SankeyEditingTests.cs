@@ -26,7 +26,7 @@ public class SankeyEditingTests : MermaidEditing
 
             StringAssert.Contains(diagram.Source, "Windy,Grid,42", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count);
-            StringAssert.Contains(editor.Markdown, "Windy", "and so does the document");
+            StringAssert.Contains(editor.Document.ToString(), "Windy", "and so does the document");
         }));
 
     [TestMethod]
@@ -48,7 +48,7 @@ public class SankeyEditingTests : MermaidEditing
             PressPast(diagram, "Grid");
             Write(editor, "s");
 
-            StringAssert.Contains(editor.Markdown, "Wind,Grids,42", editor.Markdown);
-            StringAssert.Contains(editor.Markdown, "Grids,Homes,30", "the flow out of it names the node it named: " + editor.Markdown);
+            StringAssert.Contains(editor.Document.ToString(), "Wind,Grids,42", editor.Document.ToString());
+            StringAssert.Contains(editor.Document.ToString(), "Grids,Homes,30", "the flow out of it names the node it named: " + editor.Document.ToString());
         }));
 }

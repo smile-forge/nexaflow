@@ -85,7 +85,7 @@ public class MarkdownViewModelEditingTests
     {
         var vm = await MakeAsync(ThreeBlock);
 
-        vm.Markdown = "# Changed";
+        vm.Document.WriteWhole("# Changed");
 
         Assert.IsTrue(vm.IsDirty);
     }
@@ -95,8 +95,8 @@ public class MarkdownViewModelEditingTests
     {
         var vm = await MakeAsync(ThreeBlock);
 
-        vm.Markdown = "# Changed";
-        vm.Markdown = ThreeBlock;   // back to the loaded baseline
+        vm.Document.WriteWhole("# Changed");
+        vm.Document.WriteWhole(ThreeBlock);   // back to the loaded baseline
 
         Assert.IsFalse(vm.IsDirty);
     }
@@ -124,7 +124,7 @@ public class MarkdownViewModelEditingTests
         var vm = new MarkdownViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
         await vm.Loaded;
 
-        vm.Markdown = "# Saved Heading";
+        vm.Document.WriteWhole("# Saved Heading");
         await vm.SaveCommand.ExecuteAsync(null);
 
         StringAssert.Contains(File.ReadAllText(path), "# Saved Heading");
@@ -134,7 +134,7 @@ public class MarkdownViewModelEditingTests
     public async Task Save_ClearsDirtyFlag()
     {
         var vm = await MakeAsync(ThreeBlock);
-        vm.Markdown = "# Modified";
+        vm.Document.WriteWhole("# Modified");
 
         await vm.SaveCommand.ExecuteAsync(null);
 
@@ -147,7 +147,7 @@ public class MarkdownViewModelEditingTests
         var vm = await MakeAsync(ThreeBlock);
         Assert.IsFalse(vm.SaveCommand.CanExecute(null));
 
-        vm.Markdown = "# Modified";
+        vm.Document.WriteWhole("# Modified");
         Assert.IsTrue(vm.SaveCommand.CanExecute(null));
 
         await vm.SaveCommand.ExecuteAsync(null);
@@ -158,11 +158,11 @@ public class MarkdownViewModelEditingTests
     public async Task AfterSave_EditingBackToSavedValue_IsClean()
     {
         var vm = await MakeAsync(ThreeBlock);
-        vm.Markdown = "# Saved";
+        vm.Document.WriteWhole("# Saved");
         await vm.SaveCommand.ExecuteAsync(null);
 
-        vm.Markdown = "# Different";
-        vm.Markdown = "# Saved";   // matches the newly-saved baseline
+        vm.Document.WriteWhole("# Different");
+        vm.Document.WriteWhole("# Saved");   // matches the newly-saved baseline
 
         Assert.IsFalse(vm.IsDirty);
     }

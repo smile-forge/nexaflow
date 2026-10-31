@@ -31,7 +31,9 @@ copied in as test data (`Tests.Markdown/Prose/Corpus/Specs`), each extension's a
   holds them.
 - **Surface:** [`MarkdownSurface`](../src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs) is the one control every
   markdown host uses — read-only or written in, a whole document or content in one language (`WrittenIn`). It
-  draws the whole document on one element; there is no text box underneath.
+  draws the whole document on one element; there is no text box underneath. What it shows is the page's
+  [`EditedDocument`](../src/Nexaflow.Markdown/Editing/EditedDocument.cs) (`Document`), which says what changed and whether it
+  was saved; a page that only shows text binds it through `AsEditedDocument`.
 - **Consequence:** a feature can be *read* by a rule yet not *drawn* if the builder has no case for it. The tables below
   track **drawn** support, which is what actually matters.
 

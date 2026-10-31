@@ -215,7 +215,7 @@ public class MarkdownViewModelTests
         var vm = await MakeAsync("# Original\n");
         Assert.IsFalse(vm.SaveCommand.CanExecute(null));
 
-        vm.Markdown = "# Edited\n";
+        vm.Document.WriteWhole("# Edited\n");
         Assert.IsTrue(vm.SaveCommand.CanExecute(null));
 
         await vm.SaveCommand.ExecuteAsync(null);
@@ -242,7 +242,7 @@ public class MarkdownViewModelTests
     {
         var vm = await MakeAsync();
 
-        vm.Markdown = "# Dirty now\n";
+        vm.Document.WriteWhole("# Dirty now\n");
         var context = vm.GetContext();
 
         StringAssert.Contains(context, "unsaved");
@@ -296,7 +296,7 @@ public class MarkdownViewModelTests
         Assert.AreEqual(3, vm.LineCount, "the trailing newline ends the third line rather than starting a fourth");
         Assert.AreEqual(5, vm.WordCount, "'#', 'Title', 'Body', 'text', 'here.'");
 
-        vm.Markdown = "one  two\tthree\nfour";
+        vm.Document.WriteWhole("one  two\tthree\nfour");
         Assert.AreEqual(4, vm.WordCount, "runs of mixed whitespace separate one word, not several");
         Assert.AreEqual(2, vm.LineCount);
     }

@@ -414,6 +414,9 @@ public class ContentElement : FrameworkElement
     /// </summary>
     protected void Write(string text) => _engine.Write(text);
 
+    /// <summary>Loads <paramref name="text"/> into the document shown, in place of what it held — as a page loading it would.</summary>
+    protected void Load(string text) => _engine.EditedDocument.Load(text);
+
     /// <summary>
     /// Writes <paramref name="text"/> over a stretch of the source as typing it there would — the content's rule, through the
     /// same edit handling a key goes through — and leaves the caret where it was. What a press means when it is an edit

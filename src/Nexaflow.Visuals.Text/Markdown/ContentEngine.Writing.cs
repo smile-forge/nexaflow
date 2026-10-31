@@ -72,10 +72,23 @@ public sealed partial class ContentEngine
         set => _readOnly = value;
     }
 
-    /// <summary>Starts writing <paramref name="source"/> afresh, with nothing laid for it yet.</summary>
+    /// <summary>
+    /// Starts writing <paramref name="source"/>, with nothing laid for it yet. Where the document held already says exactly that — a
+    /// control made again for new colours, showing what was being written — it is taken up as it is, with what can be taken back and
+    /// whether it was saved; otherwise it is loaded in its place.
+    /// </summary>
     internal void Start(string source)
     {
-        _state = EditState.For(source);
+        if (!string.Equals(source, this.EditedDocument.Current.ToString(), StringComparison.Ordinal))
+        {
+            this.Taking(() =>
+            {
+                this.EditedDocument.Load(source);
+                return true;
+            });
+        }
+
+        _state = new EditState(this.EditedDocument.Current, this.EditedDocument.Current.Length);
         _at = -1;
 
         Begin();
@@ -331,12 +344,16 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
-    /// Writes <paramref name="text"/> over a stretch exactly as it is given — what was written somewhere else, already in this
-    /// document's own characters, so nothing a language makes of a key typed here is made of it — as a step that can be taken
-    /// back, with the caret just after it, so the next one written there carries on the same step.
+    /// Writes <paramref name="change"/> exactly as it is given — what was written somewhere else, already in this document's own
+    /// characters, so nothing a language makes of a key typed here is made of it — as writing that can be taken back, with the caret
+    /// just after it, so the next one written there carries on the same step.
     /// </summary>
-    internal void WriteAsGiven(int start, int length, string text) =>
-        Apply((length > 0 ? _state.Select(start, length) : _state.MoveCaretTo(start)).Write(text).MoveCaretTo(start + text.Length), notify: true);
+    internal void WriteAsGiven(ContentChange change)
+    {
+        if (change.Writes.Count == 0) return;
+
+        Apply(_state.Made(change with { Caret = Wrote(change).End }), notify: true);
+    }
 
     /// <summary>
     /// Inserts text at the caret, replacing any selection — how a palette key types itself. <paramref name="caretBack"/> walks

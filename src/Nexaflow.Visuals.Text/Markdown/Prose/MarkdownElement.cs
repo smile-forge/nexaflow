@@ -56,7 +56,7 @@ public sealed class MarkdownElement : LinkedElement
         {
             if (string.Equals(Source, value, StringComparison.Ordinal)) return;
 
-            Apply(EditState.For(value ?? string.Empty), notify: false);
+            Load(value ?? string.Empty);
         }
     }
 

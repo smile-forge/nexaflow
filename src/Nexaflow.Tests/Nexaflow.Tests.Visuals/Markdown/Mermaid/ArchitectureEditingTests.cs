@@ -39,7 +39,7 @@ public class ArchitectureEditingTests : MermaidEditing
 
                 StringAssert.Contains(diagram.Source, said, diagram.Source);
                 Assert.AreEqual(0, diagram.Diagnostics.Count);
-                StringAssert.Contains(editor.Markdown, said, "and so does the document");
+                StringAssert.Contains(editor.Document.ToString(), said, "and so does the document");
             });
         }
     });

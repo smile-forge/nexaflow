@@ -25,7 +25,14 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// </summary>
 public sealed partial class ContentEngine
 {
-    private readonly EditHistory _history = new();
+    /// <summary>
+    /// The document this shows and writes in, with what was written so it can be taken back — the page's, where the page handed one
+    /// over (<see cref="EditedDocument"/>), and otherwise one of its own, made the first time it is asked for.
+    /// </summary>
+    private EditedDocument? _edited;
+
+    /// <summary>Whether this is writing in the document itself, so the change it hears back is its own and not to be taken up.</summary>
+    private bool _taking;
 
     /// <summary>The content as it stood after the last thing written, which is where the next step starts from.</summary>
     private EditState _last = EditState.For(string.Empty);
@@ -263,13 +270,83 @@ public sealed partial class ContentEngine
     // ── What was written ────────────────────────────────────────────────────
 
     /// <summary>What was written, which a host with buttons for undo and redo asks whether either can be done.</summary>
-    internal EditHistory History => _history;
+    internal EditHistory History => this.EditedDocument.History;
+
+    /// <summary>
+    /// The document this shows and writes in. Handed over by the page that holds it, it is taken up as it stands — shown afresh, as
+    /// a document loaded is — and a change the page makes to it later is taken up as it comes (<see cref="Elsewhere"/>).
+    /// </summary>
+    internal EditedDocument EditedDocument
+    {
+        get => _edited ?? this.Holding(new EditedDocument());
+        set
+        {
+            if (ReferenceEquals(value, _edited)) return;
+
+            if (_edited is not null) _edited.Changed -= this.Elsewhere;
+
+            var before = _state;
+            this.Holding(value);
+
+            this.Apply(new EditState(value.Current, 0), notify: false);
+            _last = _state;
+
+            SourceChanged?.Invoke(this, new ContentSourceChange(before, _state, ContentChangeKind.Loaded));
+        }
+    }
+
+    private EditedDocument Holding(EditedDocument edited)
+    {
+        _edited = edited;
+        edited.Changed += this.Elsewhere;
+
+        return edited;
+    }
+
+    /// <summary>
+    /// The page wrote in the document, or loaded another into it: what it wrote is taken up, with the caret carried through the
+    /// change, and said again as this engine's change, so whatever shows the content hears it as it hears everything else.
+    /// </summary>
+    private void Elsewhere(object? sender, ContentSourceChange change)
+    {
+        if (_taking) return;
+
+        var before = _state;
+        var caret = change.Kind == ContentChangeKind.Loaded ? 0 : Carried(_state.Caret, change.Change);
+
+        this.Apply(new EditState(change.After.Document, caret), notify: false);
+        _last = _state;
+
+        SourceChanged?.Invoke(this, new ContentSourceChange(before, _state, change.Kind));
+    }
+
+    /// <summary>Where a caret at <paramref name="caret"/> stands once <paramref name="change"/> is written round it.</summary>
+    private static int Carried(int caret, ContentChange change)
+    {
+        var moved = caret;
+
+        foreach (var write in change.Writes.OrderBy(write => write.Start))
+        {
+            if (write.End <= caret) moved += write.Text.Length - write.Length;
+            else if (write.Start < caret) return Math.Max(0, write.Start + (moved - caret)) + write.Text.Length;
+        }
+
+        return moved;
+    }
+
+    /// <summary><paramref name="write"/>, done to the document as this engine's own writing, so the change it raises is not taken up again.</summary>
+    private T Taking<T>(Func<T> write)
+    {
+        _taking = true;
+        try { return write(); }
+        finally { _taking = false; }
+    }
 
     /// <summary>Takes back the last thing written.</summary>
-    internal void Undo() => Back(_history.Undo(_state), ContentChangeKind.Undone);
+    internal void Undo() => Back(this.Taking(() => this.EditedDocument.Undo(_state)), ContentChangeKind.Undone);
 
     /// <summary>Writes again what was last taken back.</summary>
-    internal void Redo() => Back(_history.Redo(_state), ContentChangeKind.Redone);
+    internal void Redo() => Back(this.Taking(() => this.EditedDocument.Redo(_state)), ContentChangeKind.Redone);
 
     private void Back(EditState? state, ContentChangeKind kind)
     {
@@ -292,25 +369,30 @@ public sealed partial class ContentEngine
 
         var before = _state;
 
-        _history.Break();
+        this.History.Break();
         Apply(next, notify: false);
-        Recorded();
-        _history.Break();
+        Recorded(ContentChangeKind.Replaced);
+        this.History.Break();
 
         SourceChanged?.Invoke(this, new ContentSourceChange(before, _state, ContentChangeKind.Replaced));
     }
 
-    /// <summary>Forgets what was written: what is here now is where taking back stops.</summary>
+    /// <summary>What is here now is where the next step starts from, whatever was written before it.</summary>
     internal void Begin()
     {
-        _history.Clear();
+        this.History.Break();
         _last = _state;
     }
 
-    /// <summary>What was just written, remembered as a step — or as more of the step it carries on from.</summary>
-    private void Recorded()
+    /// <summary>What was just written, remembered as a step — or as more of the step it carries on from — and said to the document's holder.</summary>
+    private void Recorded(ContentChangeKind kind = ContentChangeKind.Written)
     {
-        _history.Record(_last, _state);
+        this.Taking(() =>
+        {
+            this.EditedDocument.Wrote(_last, _state, kind);
+            return true;
+        });
+
         _last = _state;
     }
 
@@ -323,6 +405,6 @@ public sealed partial class ContentEngine
         if (ReferenceEquals(_state, _last) || !ReferenceEquals(_state.Document, _last.Document)) return;
 
         _last = _state;
-        _history.Break();
+        this.History.Break();
     }
 }

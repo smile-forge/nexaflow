@@ -44,7 +44,7 @@ public class TimelineEditingTests : MermaidEditing
             StringAssert.Contains(diagram.Source, "2002 : LinkedIn!", diagram.Source);
             StringAssert.Contains(diagram.Source, ": Friendster?", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count);
-            StringAssert.Contains(editor.Markdown, "LinkedIn!", "and so does the document");
+            StringAssert.Contains(editor.Document.ToString(), "LinkedIn!", "and so does the document");
         }));
 
     [TestMethod]

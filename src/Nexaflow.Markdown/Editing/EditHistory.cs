@@ -1,9 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Nexaflow.Markdown.Editing;
 
-namespace Nexaflow.Visuals.Text.Editing;
+namespace Nexaflow.Markdown.Editing;
 
 /// <summary>
 /// What has been written, so it can be taken back — and what was taken back, so it can be written again.

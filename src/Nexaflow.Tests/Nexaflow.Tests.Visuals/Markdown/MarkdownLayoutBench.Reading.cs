@@ -67,7 +67,7 @@ public partial class MarkdownLayoutBench
             Settle();
 
             var clock = Stopwatch.StartNew();
-            surface.Markdown = text;
+            surface.Document.Load(text);
             Settle();
             var opened = clock.Elapsed.TotalMilliseconds;
 

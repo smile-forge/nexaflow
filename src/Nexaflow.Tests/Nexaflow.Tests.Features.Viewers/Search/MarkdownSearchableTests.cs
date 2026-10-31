@@ -223,7 +223,7 @@ public sealed class MarkdownSearchableTests : SearchableContentConformanceTests
         var picked = 0;
         vm.SourceSelectionRequested += (_, _) => picked++;
 
-        vm.Markdown = $"Also {LiteralTermInContent} here.\n\n" + vm.Markdown;
+        vm.Document.WriteWhole($"Also {LiteralTermInContent} here.\n\n" + vm.Markdown);
 
         Assert.AreEqual(3, vm.SearchMatchCount, "the one written in is found too");
         Assert.AreEqual(2, vm.SourceSearch.At, "and the one looked at is still the one it was, third now");

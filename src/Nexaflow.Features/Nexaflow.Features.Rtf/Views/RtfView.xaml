@@ -57,7 +57,7 @@
                                 BaseFontSize="{Binding Zoom.FontSize}"
                                 AutomationProperties.AutomationId="Rtf_Document"
                                 WrittenIn="{Binding Language, Mode=OneTime}"
-                                Markdown="{Binding Document}"/>
+                                Document="{Binding Document, Converter={x:Static md:AsEditedDocument.Instance}}"/>
 
             <!-- Shown in place of the document when there is none to show, and why. -->
             <Border Grid.Column="0"

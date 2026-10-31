@@ -24,7 +24,7 @@
 
         <!-- What's New markdown. -->
         <DataTemplate DataType="{x:Type vm:WizardMarkdownContent}">
-            <md:MarkdownSurface Markdown="{Binding Markdown}"
+            <md:MarkdownSurface Document="{Binding Markdown, Converter={x:Static md:AsEditedDocument.Instance}}"
                                        VerticalScrollBarVisibility="Auto"/>
         </DataTemplate>
 

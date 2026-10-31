@@ -31,7 +31,7 @@ public class ErEditingTests : MermaidEditing
             StringAssert.Contains(diagram.Source, "string emails UK", diagram.Source);
             StringAssert.Contains(diagram.Source, ": places an order for", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count);
-            StringAssert.Contains(editor.Markdown, "string emails UK", "and so does the document");
+            StringAssert.Contains(editor.Document.ToString(), "string emails UK", "and so does the document");
         }));
 
     [TestMethod]
@@ -55,7 +55,7 @@ public class ErEditingTests : MermaidEditing
             PressPast(diagram, "CUSTOMER");
             Write(editor, "S");
 
-            StringAssert.Contains(editor.Markdown, "CUSTOMERS ||--o{ ORDER", editor.Markdown);
-            StringAssert.Contains(editor.Markdown, "CUSTOMERS {", "the block of its attributes names the entity it named: " + editor.Markdown);
+            StringAssert.Contains(editor.Document.ToString(), "CUSTOMERS ||--o{ ORDER", editor.Document.ToString());
+            StringAssert.Contains(editor.Document.ToString(), "CUSTOMERS {", "the block of its attributes names the entity it named: " + editor.Document.ToString());
         }));
 }
