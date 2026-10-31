@@ -31,6 +31,6 @@ public class ClipboardOffersTests
             var ribbon = editor.Shown.BuildRibbon(new Point(over.X + 2, over.Y + (over.Height / 2))) as DiagramRibbon;
 
             Assert.IsNotNull(ribbon, "a right-click opens the ribbon");
-            CollectionAssert.IsSubsetOf(new[] { LayoutVerbs.Cut, LayoutVerbs.Copy, LayoutVerbs.Paste }, ribbon!.Offers.Select(offer => offer.Verb).ToArray());
+            CollectionAssert.IsSubsetOf(new[] { LayoutVerbs.Cut, LayoutVerbs.Copy, LayoutVerbs.Paste }, ribbon!.Controls.Select(control => control.Id).ToArray());
         }));
 }

@@ -482,31 +482,38 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
-    /// Does what was chosen from what the language offered at <paramref name="at"/> (<see cref="Asked"/>): told to its edit handler
-    /// as <see cref="EditKind.Choosing"/>, from the same piece — false where it said nothing to it.
+    /// Uses a control of the mini ribbon opened at <paramref name="at"/>: <paramref name="made"/>, the control's own callback, is handed
+    /// the edit as the content stands now — from the piece under the point, its part and that part's root, as the ribbon was asked — and
+    /// what it answers is applied as every edit is. False where it answered nothing, or nothing could be written.
     ///
     /// <para>
-    /// A language may answer by asking for an edit of the engine's own instead of spelling one out: a diagram offers Paste over a
-    /// label, and what a paste comes to at the caret is the engine's to work out.
+    /// A language may answer by asking for an edit of the engine's own instead of spelling one out: what a paste comes to at the caret
+    /// is the engine's to work out. Words as the reader means them are put into the language's own syntax before any is written.
     /// </para>
     /// </summary>
-    internal bool Choose(string verb, LayoutPoint at)
+    internal bool Used(LayoutPoint at, Func<ContentEdit, ContentChange?> made)
     {
-        // The clipboard's ways are the engine's, whichever language offered them: only it knows what is picked out, and the
-        // clipboard itself is the host's.
-        switch (verb)
+        var edit = Walked(EditKind.Choosing, string.Empty, Landing, _laid.Root.PieceAt(at));
+
+        // A control's callback is the language's code, run on a click. One that falls over costs the reader that control, not the window.
+        ContentChange? said;
+        try
         {
-            case LayoutVerbs.Copy: return Copied();
-            case LayoutVerbs.Cut: return Cut();
-            case LayoutVerbs.Paste: return Paste();
+            said = made(edit);
+        }
+        catch
+        {
+            return false;
         }
 
-        if (Unwritable || Said(EditKind.Choosing, verb, Landing, _laid.Root.PieceAt(at)) is not { } said) return false;
-
+        if (said is null || Unwritable) return false;
         if (said.Asked is EditKind.Pasting) return Paste();
         if (said.Asked is not null) return false;
 
-        Apply(Made(_state, said), notify: true);
+        var language = edit.Part is null ? null : ContentLanguages.WrittenIn(edit.Root);
+        if (said.Writes.Any(write => write.Meant) && language is null) return false;
+
+        Apply(Made(_state, language is null ? said : Spelling(said, _state, language)), notify: true);
         return true;
     }
 
@@ -637,6 +644,27 @@ public sealed partial class ContentEngine
     /// </summary>
     private ContentChange? Carried(int to)
     {
+        var (piece, part, root) = Reached(Landing, _dropOver);
+
+        // A carry of a language's own is that language's to let go, and only in its own content: anywhere else it goes nowhere.
+        if (_carry is { } carry)
+        {
+            if (part is null || !ReferenceEquals(root.Node, _carriedIn)
+                || ContentLanguages.WrittenIn(root) is not { } own || own.Editing.OnMove is not { } onMove) return null;
+
+            ContentChange? answered;
+            try
+            {
+                answered = onMove.Move(new ContentMove([], to, Landing, piece, part, root) { Carry = carry, At = _dropPoint });
+            }
+            catch
+            {
+                return null;
+            }
+
+            return answered is null || !answered.Writes.Any(write => write.Meant) ? answered : Spelling(answered, _state, own);
+        }
+
         var ranges = _state.Selection
             .Where(range => range.Length > 0 && range.Start >= 0 && range.End <= _state.Source.Length)
             .OrderBy(range => range.Start)
@@ -644,8 +672,7 @@ public sealed partial class ContentEngine
 
         if (ranges.Count == 0) return null;
 
-        var (piece, part, root) = Reached(Landing, _dropOver);
-        var move = new ContentMove(ranges, to, Landing, piece, part, root);
+        var move = new ContentMove(ranges, to, Landing, piece, part, root) { At = _dropPoint };
 
         var language = part is null ? null : ContentLanguages.WrittenIn(root);
 

@@ -44,9 +44,7 @@ internal sealed class PieEdits : IContentLanguage, IOnEdit, IOnMove
     /// <summary>How a line breaks inside a label.</summary>
     private const string Break = "<br>";
 
-    private const string Legend = "Legend";
-    private const string Hole = "Hole";
-    private const string Stroke = "Stroke";
+
 
     /// <summary>Where the legend may go: what is offered, the front matter's word for it, and what it is read back as.</summary>
     private static readonly (Func<string> Tip, string Written, PieLegend Read)[] Placings =
@@ -90,12 +88,11 @@ internal sealed class PieEdits : IContentLanguage, IOnEdit, IOnMove
         EditKind.Tabbing => Tabbed(edit, forward: true),
         EditKind.TabbingBack => Tabbed(edit, forward: false),
         EditKind.Inserting => Inserted(edit),
-        EditKind.Choosing => Chosen(edit),
         _ => null,
     };
 
     /// <inheritdoc/>
-    public IReadOnlyList<LayoutIntent> Offers(ContentAsk ask)
+    public IReadOnlyList<MiniRibbonControl> Ribbon(ContentAsk ask)
     {
         if (ask.IsReadOnly) return [];
 
@@ -106,29 +103,41 @@ internal sealed class PieEdits : IContentLanguage, IOnEdit, IOnMove
         if (kinds.Contains(MermaidPiece.Legend))
             return
             [
-                .. Placings.Select(placing => Offer(Legend, Str.Get("Text.Pie.Legend"), placing.Written, placing.Tip(), Placed(placing.Read), config.Legend == placing.Read)),
-                .. Pasting(ask),
+                Choice("legend", "Text.Pie.Legend", ["config", "pie", "legendPosition"],
+                       Placings.Select(placing => (placing.Written, placing.Tip(), Placed(placing.Read), config.Legend == placing.Read))),
             ];
 
         if (kinds.Contains(PiePiece.Slices) || kinds.Contains(PiePiece.Shares))
             return
             [
-                .. Holes.Select(hole => Offer(Hole, Str.Get("Text.Pie.Hole"), hole.Written, hole.Tip(), Holed(hole.Read), Math.Abs(config.DonutHole - hole.Read) < 0.001)),
-                .. Strokes.Select(stroke => Offer(Stroke, Str.Get("Text.Pie.Stroke"), stroke.Written, stroke.Tip(), Stroked(stroke.Read), Math.Abs(config.StrokeWidth - stroke.Read) < 0.001)),
+                Choice("hole", "Text.Pie.Hole", ["config", "pie", "donutHole"],
+                       Holes.Select(hole => (hole.Written, hole.Tip(), Holed(hole.Read), Math.Abs(config.DonutHole - hole.Read) < 0.001))),
+                Choice("stroke", "Text.Pie.Stroke", ["config", "themeVariables", "pieStrokeWidth"],
+                       Strokes.Select(stroke => (stroke.Written, stroke.Tip(), Stroked(stroke.Read), Math.Abs(config.StrokeWidth - stroke.Read) < 0.001))),
             ];
 
-        return [.. Pasting(ask)];
+        return [];
 
-        static LayoutIntent Offer(string group, string groupTip, string written, string tip, Geometry shape, bool current) =>
-            new($"pie.{group.ToLowerInvariant()}.{written}", null, tip) { Group = group, GroupTip = groupTip, Current = current, Shape = shape };
+        // Each drawn as what it would make; the one chosen written into the front matter at the field it names.
+        static MiniRibbonChoice Choice(string name, string tip, string[] path, IEnumerable<(string Written, string Tip, Geometry Shape, bool Current)> options)
+        {
+            var all = options.ToList();
+
+            return new MiniRibbonChoice("pie." + name, Str.Get(tip), [.. all.Select(option => new MiniRibbonOption(option.Written, option.Tip) { Shape = option.Shape })],
+                                        (edit, option) => Configuring(edit, path, option.Id))
+            {
+                Current = all.FirstOrDefault(option => option.Current).Written,
+            };
+        }
     }
 
     /// <summary>Paste, where the caret stands in a label, a value or the title — the only places in the chart words go.</summary>
-    private static IEnumerable<LayoutIntent> Pasting(ContentAsk ask)
-    {
-        if (ask.Caret is { } caret && Places(ask.Part).Any(place => place.Start <= caret && caret <= place.End))
-            yield return new LayoutIntent(LayoutVerbs.Paste, null, Str.Get("Text.Ribbon.Paste"));
-    }
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Paste where the caret stands in a label, a value or the title — the only places in the chart words go — as the engine does it.
+    /// </remarks>
+    public ClipboardOffers Clipboard(ContentAsk ask) =>
+        ask.Caret is { } caret && Places(ask.Part).Any(place => place.Start <= caret && caret <= place.End) ? ClipboardOffers.Paste : ClipboardOffers.None;
 
     // ── What each option is drawn as ────────────────────────────────────────
 
@@ -262,6 +271,9 @@ internal sealed class PieEdits : IContentLanguage, IOnEdit, IOnMove
     private static ContentChange? Inserted(ContentEdit edit) =>
         Chosen(edit.Root, edit.State) is [var first, ..] ? Before(edit, Line(first)) : null;
 
+    /// <summary>A pie carries what is picked out in it, as the engine carries it: whole slices.</summary>
+    public ContentLift Lift(ContentGrip grip) => ContentLift.Selection;
+
     /// <summary>
     /// Slices carried and let go on another: that one and the ones carried swap places, and the rest shift over.
     ///
@@ -340,24 +352,9 @@ internal sealed class PieEdits : IContentLanguage, IOnEdit, IOnMove
 
     // ── What was chosen ─────────────────────────────────────────────────────
 
-    /// <summary>What the right-click offered and was chosen, written into the front matter.</summary>
-    private static ContentChange? Chosen(ContentEdit edit)
+    /// <summary>A field of the front matter given the value chosen, at <paramref name="path"/>.</summary>
+    private static ContentChange Configuring(ContentEdit edit, string[] path, string value)
     {
-        // A label and a value take words, so the ribbon offers Paste over them — and what a paste comes to at the caret is the
-        // engine's own answer, which is worth asking for and not worth spelling out again here.
-        if (edit.Text == LayoutVerbs.Paste) return ContentChange.Asks(EditKind.Pasting);
-
-        string[]? path = edit.Text.Split('.') switch
-        {
-            ["pie", "legend", _] => ["config", "pie", "legendPosition"],
-            ["pie", "hole", _, ..] => ["config", "pie", "donutHole"],
-            ["pie", "stroke", _] => ["config", "themeVariables", "pieStrokeWidth"],
-            _ => null,
-        };
-
-        if (path is null) return null;
-
-        var value = edit.Text[(edit.Text.IndexOf('.', 4) + 1)..];
         var write = Configured(edit, path, value);
 
         return new ContentChange([write], After([write], edit.State.Caret), null);

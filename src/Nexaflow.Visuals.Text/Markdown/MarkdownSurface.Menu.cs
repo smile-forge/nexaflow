@@ -15,7 +15,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
 /// What a right-click opens: the ribbon of what may be done where it landed — what the pieces under it answer to, what the language
-/// drawn there offers (<see cref="IContentLanguage.Offers"/>), and what the host adds. This control adds nothing of its own: what may
+/// drawn there offers (<see cref="IContentLanguage.Ribbon"/>), and what the host adds. This control adds nothing of its own: what may
 /// be done in content is the language's to say.
 /// </summary>
 public sealed partial class MarkdownSurface

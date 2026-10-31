@@ -110,11 +110,11 @@ public class DocumentTypingTests
     public void MarkdownOffersABlockInEveryLanguageThereIsOneToStartIn_EachDrawnAsItsIcon() => UiThread.Run(() =>
         MarkdownEditorHarness.Run("Below:\n\nAfter.\n", editor =>
         {
-            var adds = Ribbon(editor, "Below").Offers.Where(offer => offer.Offer == LayoutOffer.Insert).ToList();
+            var adds = Ribbon(editor, "Below").Controls.OfType<MiniRibbonChoice>().Single(choice => choice.Id == "insert").Options;
 
-            CollectionAssert.AreEqual(ContentLanguages.Insertable.Select(language => language.DisplayName?.Invoke()).ToArray(),
-                                      adds.Select(offer => offer.Tip).ToArray(), "one for each language, in the table's order");
-            Assert.IsTrue(adds.All(offer => offer.Shape is { IsFrozen: true } shape && !shape.IsEmpty()), "each drawn as its icon");
+            CollectionAssert.AreEqual(ContentLanguages.Insertable.Select(language => language.DisplayName?.Invoke() ?? language.Name).ToArray(),
+                                      adds.Select(option => option.Name).ToArray(), "one for each language, in the table's order");
+            Assert.IsTrue(adds.All(option => option.Shape is { IsFrozen: true } shape && !shape.IsEmpty()), "each drawn as its icon");
         }));
 
     [TestMethod]
@@ -124,7 +124,7 @@ public class DocumentTypingTests
         {
             var ribbon = Ribbon(editor, "Below");
             Press(ribbon, Inserting);
-            Press(ribbon, Inserting + "_insert:mermaid.pie");
+            Press(ribbon, Inserting + ".mermaid.pie");
 
             Assert.AreEqual("Below:\n\n" + Pie + "\n\nAfter.\n", editor.Markdown);
             Assert.AreEqual("Below:\n\n".Length + Pie.LastIndexOf("\n```", System.StringComparison.Ordinal), editor.Shown.Current.Caret,
@@ -139,7 +139,7 @@ public class DocumentTypingTests
         {
             var ribbon = Ribbon(editor, "Only");
             Press(ribbon, Inserting);
-            Press(ribbon, Inserting + "_insert:mermaid.pie");
+            Press(ribbon, Inserting + ".mermaid.pie");
 
             Assert.AreEqual("Only words\n\n" + Pie + "\n", editor.Markdown);
         }));
@@ -158,8 +158,8 @@ public class DocumentTypingTests
         return ribbon!;
     }
 
-    /// <summary>What the ribbon's one button everything addable sits behind is found by.</summary>
-    private const string Inserting = "Diagram_Ribbon_Insert";
+    /// <summary>What the ribbon's one button every block to start drops down from is found by.</summary>
+    private const string Inserting = "Diagram_Ribbon_insert";
 
     /// <summary>Presses the ribbon's button a journey finds by <paramref name="id"/>.</summary>
     private static void Press(DiagramRibbon ribbon, string id)

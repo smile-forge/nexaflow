@@ -25,7 +25,8 @@ namespace Nexaflow.Markdown.Layout.Packet;
 /// <strong>The numbers are worked out, never written in.</strong> Which bits a field takes follows from the fields before it and
 /// how long each is, so a number over a run is the bit it starts or ends at, standing for nothing — no caret stops in it and no
 /// press means it. A field is made longer, shorter or moved by what its right-click and a drag offer (<c>PacketEdits</c>), which
-/// number every field again.
+/// number every field again. The edge of a field's box where its last bit ends is a piece of its own, the field's end, which a drag
+/// takes hold of; which bit a point on the drawing is over is read back off the layout by <see cref="PacketPlaces"/>.
 /// </para>
 /// <para>
 /// <strong>A field breaking a rule is drawn where it was written</strong> — the gap or the overlap in plain sight, and one whose
@@ -53,6 +54,9 @@ internal sealed class PacketBuilder : ContentBuilder
 
     /// <summary>The air between the numbers over a run's two ends, where the run is as narrow as it can be.</summary>
     private const double Apart = 4;
+
+    /// <summary>How wide the end of a field is to take hold of, inside its box — a third of the box, where that is narrower.</summary>
+    private const double Grip = 6;
 
     internal PacketBuilder(ContentReading reading, EditState state, LayoutStyle style, bool isReadOnly, ILayoutMedium medium,
                            LayoutHost host) : base(reading, state, style, isReadOnly, medium, host)
@@ -277,10 +281,13 @@ internal sealed class PacketBuilder : ContentBuilder
                 var box = boxes[at];
                 var outline = build.Medium.Rectangle(box.Bounds);
 
-                // A box stands in what its words and the boxes drawn after it on its row leave uncovered: fields overlap only on a
-                // row they share, and a press there means the one seen.
+                var end = EndOf(box, config);
+
+                // A box stands in what its words, its end and the boxes drawn after it on its row leave uncovered: fields overlap only
+                // on a row they share, and a press there means the one seen.
                 var over = new List<LayoutShape>();
                 foreach (var (words, place) in box.Label) over.Add(build.Medium.Rectangle(new LayoutRect(place, new LayoutSize(words.Width, words.Height))));
+                if (end is { } ending) over.Add(build.Medium.Rectangle(ending));
                 for (var later = at + 1; later < boxes.Count; later++)
                     if (boxes[later].Bounds.IntersectsWith(box.Bounds)) over.Add(build.Medium.Rectangle(boxes[later].Bounds));
 
@@ -292,6 +299,15 @@ internal sealed class PacketBuilder : ContentBuilder
                 build.Close();
 
                 foreach (var (words, place) in box.Label) words.Set(build, place, PacketPiece.Label);
+
+                // Where the field's last bit ends is a piece of its own, so it can be taken hold of.
+                if (end is { } strip)
+                {
+                    build.Open(PacketPiece.End, box.Field.Part, stops: LayoutStops.None);
+                    build.Covers(strip);
+                    build.Occupies(build.Medium.Rectangle(strip));
+                    build.Close();
+                }
 
                 build.Close();
             }
@@ -306,6 +322,20 @@ internal sealed class PacketBuilder : ContentBuilder
         }
 
         build.Close();
+    }
+
+    /// <summary>
+    /// Where the end of a field is taken hold of: a strip inside its box along the edge its last bit ends at — the right, or the left of a
+    /// row turned round — on the row the field ends on; null on any other row.
+    /// </summary>
+    private static LayoutRect? EndOf(Box box, PacketConfig config)
+    {
+        if (box.Span.To != box.Field.Said.Last) return null;
+
+        var grip = Math.Min(Grip, box.Bounds.Width / 3);
+        var left = config.BitOrder == PacketBitOrder.Descending ? box.Bounds.Left : box.Bounds.Right - grip;
+
+        return new LayoutRect(left, box.Bounds.Top, grip, box.Bounds.Height);
     }
 
     /// <summary>What a field is filled with: the front matter's <c>blockFillColor</c>, or what the theme fills a box with.</summary>

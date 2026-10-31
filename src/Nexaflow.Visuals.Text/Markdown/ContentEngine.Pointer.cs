@@ -36,6 +36,18 @@ public sealed partial class ContentEngine
 
     /// <summary>The piece what is carried is over, which the language it is written in is told where it is let go.</summary>
     private LayoutPiece _dropOver;
+
+    /// <summary>Where the pointer is while something is carried, which the language it is let go in is told too.</summary>
+    private LayoutPoint _dropPoint;
+
+    /// <summary>
+    /// A carry of a language's own, picked up by the press that began it (<see cref="IOnMove.Lift"/>) — or null, where what is carried
+    /// is what is picked out.
+    /// </summary>
+    private ContentCarry? _carry;
+
+    /// <summary>The content a carry of a language's own was picked up in, which is the only content it can be let go in.</summary>
+    private ContentNode? _carriedIn;
     private Laid? _preview;
     private Moved? _previewOf;
     private (int Start, int End) _previewMoved;
@@ -103,6 +115,7 @@ public sealed partial class ContentEngine
     {
         _pressedAt = at;
         _moving = false;
+        _carry = null;
 
         // A piece that answers to a press means what it answers with, and not a place to put the caret. Only a plain press:
         // Ctrl and Shift are adding to a selection, which is not what a press on a node means.
@@ -156,22 +169,65 @@ public sealed partial class ContentEngine
         // Carrying content is a write, and every other write asks this first. A document only read has nothing to
         // carry: a generated drawing is the case that showed it, where the offsets a move would be spelled against
         // describe no stretch anybody could write, and laying out the drop threw rather than doing nothing.
-        if (!Unwritable && Covers(Anchor)) { _moving = true; _dropAt = Anchor; return true; }
+            //
+            // What a press picks up is the language's to say where it is asked (IOnMove.Lift): what is picked out, as above, or a carry
+            // of its own that this press alone picks up — the edge of a box — with nothing picked out first.
+            if (!Unwritable)
+            {
+                var (lift, root) = Lifted(at);
 
-        ClearSelection();
+                if (lift is ContentCarry carry)
+                {
+                    (_carry, _carriedIn, _moving, _dropAt, _dropOver, _dropPoint) = (carry, root, true, Anchor, _anchorNode, at);
+                    return true;
+                }
+
+                if (Covers(Anchor)) { _moving = true; _dropAt = Anchor; return true; }
+            }
+
+            PressedOn(at);
+            return true;
+        }
+
+        /// <summary>
+        /// What a press that picked nothing up means: something pressed squarely is that thing picked out, and a press at a stop is the
+        /// caret put down there.
+        /// </summary>
+        private void PressedOn(LayoutPoint at)
+        {
+            ClearSelection();
 
         // A press squarely on something means that thing; a press at a stop — between two things, or at the edge of one —
         // means the place. One rule for every kind of content: a note pressed is a note picked, and a letter pressed at its
         // edge is a caret put down beside it. A run of text is written in rather than picked up, so a press inside one is a
         // caret between two of its letters — including the press that has to show it as written before there is anywhere to
         // put one.
-        if (Writing(_anchorNode, at)) return true;
+        if (Writing(_anchorNode, at)) return;
 
-        if (On(_anchorNode, at)) { SelectNodes(ContentSelection.Of(_anchorNode)); Picked(at); return true; }
+        if (On(_anchorNode, at)) { SelectNodes(ContentSelection.Of(_anchorNode)); Picked(at); return; }
 
         TakeCaret(_laid.Root.OffsetAt(at), _laid.StopNear(at));
-        return true;
     }
+
+        /// <summary>
+        /// What a press at <paramref name="at"/> picks up, as the language it landed in answers (<see cref="IOnMove.Lift"/>), and the content
+        /// it landed in. What is picked out, where the language is not asked — it has no <see cref="IOnMove"/> — and where it falls over
+        /// being asked.
+        /// </summary>
+        private (ContentLift Lift, ContentNode? Root) Lifted(LayoutPoint at)
+        {
+            var (piece, part, root) = Reached(Landing, _anchorNode);
+            if (part is null || ContentLanguages.WrittenIn(root)?.Editing.OnMove is not { } onMove) return (ContentLift.Selection, null);
+
+            try
+            {
+                return (onMove.Lift(new ContentGrip(Landing, piece, part, root, at)), root.Node);
+            }
+            catch
+            {
+                return (ContentLift.Selection, null);
+            }
+        }
 
     /// <summary>Adds what a press lands on to what is chosen — or, where all of it is chosen already, takes it back out.</summary>
     private void Toggle(LayoutPoint at)
@@ -265,14 +321,14 @@ public sealed partial class ContentEngine
         {
             // Where it lands is the offset and the piece both: a language that says what a move means decides by the piece
             // (IOnMove), and a piece holding no stop of its own — a box with its words elsewhere — is crossed with the offset
-            // standing still.
+            // standing still. A carry of a language's own is asked at every point, since only the language knows whether one
+            // point on a piece means what another does; the content is laid out again only where what it answers changes.
             var drop = _laid.OffsetAt(at);
             var over = _laid.PieceAt(at);
-            if (drop == _dropAt && over == _dropOver) return;
+            if (_carry is null && drop == _dropAt && over == _dropOver) return;
 
-            _dropAt = drop;
-            _dropOver = over;
-            BuildPreview();
+            (_dropAt, _dropOver, _dropPoint) = (drop, over, at);
+            if (!BuildPreview() && _carry is not null) return;
 
             PreRender?.Invoke(this, EventArgs.Empty);
             Changed?.Invoke(this, true);
@@ -366,33 +422,44 @@ public sealed partial class ContentEngine
 
         _moving = false;
         var settled = _previewOf;
+        var carried = _carry;
+        _carry = null;
         ClearPreview();
 
         if (_readOnly) return;
 
-        // The press never became a drag: an ordinary click on the selection, which places the caret there and drops the
-        // selection, as clicking a selection does everywhere.
-        if (settled is not { } moved) { ClearSelection(); TakeCaret(Anchor); return; }
+        // The press never became a drag. Over the selection, an ordinary click on it, which places the caret there and drops the
+        // selection, as clicking a selection does everywhere; over a carry of a language's own, whatever the press would have
+        // meant had it picked nothing up.
+        if (settled is not { } moved)
+        {
+            if (carried is not null) PressedOn(_pressedAt);
+            else { ClearSelection(); TakeCaret(Anchor); }
+
+            return;
+        }
 
         // Exactly what was on screen a moment ago — settling is letting go of it, not recomputing something the reader has to
         // check.
         Apply(new EditState(moved.Source, moved.Caret), notify: true);
     }
 
-    /// <summary>Lays the content out as it would read if what is carried were dropped where it is now.</summary>
-    private void BuildPreview()
+    /// <summary>
+    /// Lays the content out as it would read if what is carried were dropped where it is now, and says whether that is other than
+    /// what was laid out for the last place — the same answer again is not laid out again.
+    /// </summary>
+    private bool BuildPreview()
     {
-        _preview = null;
-        _previewOf = null;
-        _previewMoved = default;
-
         // What the language it is let go in says a move there is, where it says, and otherwise the characters carried,
         // emptied and put back at the offset they are over — both of them Moving's to work out (IOnMove).
-        if (Moving(_dropAt) is not { } carried) return;
+        var carried = Moving(_dropAt);
+        if (carried?.Source == _previewOf?.Source && carried?.Caret == _previewOf?.Caret) return false;
 
         _previewOf = carried;
-        _previewMoved = (carried.Wrote.Start, carried.Wrote.End);
-        _preview = LaidOut(new EditState(carried.Source, carried.Caret));
+        _previewMoved = carried is { } moved ? (moved.Wrote.Start, moved.Wrote.End) : default;
+        _preview = carried is { } laid ? LaidOut(new EditState(laid.Source, laid.Caret)) : null;
+
+        return true;
     }
 
     private void ClearPreview()

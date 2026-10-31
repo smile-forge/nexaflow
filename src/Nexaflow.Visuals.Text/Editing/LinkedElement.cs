@@ -35,9 +35,9 @@ public class LinkedElement(string source, LayoutStyle palette, ContentEngine eng
     }
 
     /// <summary>
-    /// What may be done where the pointer is: what the piece under it answers to, what the language drawn there offers, and what
-    /// the host adds — or, where the press landed inside a selection, only what every chosen piece offers, so an item appears when
-    /// it means the same thing for all of them.
+    /// The mini ribbon a right-click opens where the pointer is: what the piece under it answers to, what the language drawn there
+    /// offers and the clipboard's ways it allows, and what the host adds — or, where the press landed inside a selection, only what
+    /// every chosen piece answers to, so a control appears when it means the same thing for all of them.
     /// </summary>
     public FrameworkElement? BuildRibbon(Point? at = null)
     {
@@ -50,7 +50,7 @@ public class LinkedElement(string source, LayoutStyle palette, ContentEngine eng
         // A press outside what is picked out means the thing it landed on, which is what every editor does.
         if (under is { } one && !over.Any(piece => piece.At == one.Piece.At)) over = [one.Piece];
 
-        // Over words that answer to nothing themselves, the menu is still about where the caret is: what the content
+        // Over words that answer to nothing themselves, the ribbon is still about where the caret is: what the content
         // and the host offer there.
         if (over.Count == 0 && Laid.Root.PieceAt(where) is { Exists: true } there) over = [there];
         if (over.Count == 0) return null;
@@ -58,23 +58,14 @@ public class LinkedElement(string source, LayoutStyle palette, ContentEngine eng
         var act = new LayoutAct(LayoutGesture.ContextMenu, under?.Intent ?? default, over[0],
                                 over[0].Naming(), over[0].Naming().TreePart(), over, where);
 
-        var asked = Asked(where);
-        var offers = Shared(over).Concat(asked).Concat(Offering(act)).Concat(Hosted(act))
-            .DistinctBy(offer => offer.Verb).ToList();
+        var controls = Shared(over).Select(intent => Answering(intent, over, where))
+            .Concat(Asked(where))
+            .Concat(Hosted(act).Select(intent => Answering(intent, over, where)))
+            .DistinctBy(control => control.Id)
+            .ToList();
 
-        return offers.Count == 0 ? null : new DiagramRibbon(offers, meant => Invoke(meant, over, where, asked));
+        return controls.Count == 0 ? null : new DiagramRibbon(controls, made => Use(where, made));
     }
-
-    /// <summary>
-    /// What the content itself offers where the gesture landed, beside what its pieces answer to.
-    ///
-    /// <para>
-    /// Nothing, unless what is being shown knows better. A piece says what a press on <em>it</em> means; this
-    /// is for what may be done <em>there</em> — the things a reader can add, and the things they can do to
-    /// what is already around them, which only whatever is being shown knows.
-    /// </para>
-    /// </summary>
-    protected virtual IEnumerable<LayoutIntent> Offering(LayoutAct act) => [];
 
     /// <summary>What every one of <paramref name="over"/> offers, by verb, in the order the first of them says it.</summary>
     private static List<LayoutIntent> Shared(IReadOnlyList<LayoutPiece> over)
@@ -88,33 +79,29 @@ public class LinkedElement(string source, LayoutStyle palette, ContentEngine eng
         LayoutAnswers.Offer(piece.Acts?.Click) is { } press ? [press] : [];
 
     /// <summary>
-    /// Does what was chosen from the menu: what the language offered is its edit handler's to do, from where the menu was opened;
-    /// anything else, to each piece it was offered for, or — where no piece offered it, because the content or the host did —
-    /// once, for where the menu was opened.
+    /// A button for what a piece answers to, or the host adds: pressed, it is told to each piece it was offered for, or — where no piece
+    /// offered it, because the host did — once, for where the ribbon was opened. Answered by whoever hosts the content, so it writes
+    /// nothing itself.
     /// </summary>
-    private void Invoke(LayoutIntent meant, IReadOnlyList<LayoutPiece> over, LayoutPoint where, IReadOnlyList<LayoutIntent> asked)
-    {
-        // Whatever the content itself offered is the content's to do, a paste as much as anything else: what is on the
-        // clipboard is the host's, but asking for it is the engine's (ContentChange.Asks).
-        if (asked.Any(offer => offer.Verb == meant.Verb))
+    private MiniRibbonButton Answering(LayoutIntent meant, IReadOnlyList<LayoutPiece> over, LayoutPoint where) =>
+        new(meant.Verb, DiagramRibbon.Names(meant), _ =>
         {
-            Choose(meant.Verb, where);
-            return;
-        }
+            var told = false;
 
-        var told = false;
+            foreach (var piece in over)
+                if (Offers(piece).FirstOrDefault(offer => offer.Verb == meant.Verb) is { Verb.Length: > 0 } theirs)
+                {
+                    var part = piece.Naming();
+                    Answered(new LayoutAct(LayoutGesture.ContextMenu, theirs, piece, part, part.TreePart(), over, where));
+                    told = true;
+                }
 
-        foreach (var piece in over)
-            if (Offers(piece).FirstOrDefault(offer => offer.Verb == meant.Verb) is { Verb.Length: > 0 } theirs)
+            if (!told && over.Count > 0)
             {
-                var part = piece.Naming();
-                Answered(new LayoutAct(LayoutGesture.ContextMenu, theirs, piece, part, part.TreePart(), over, where));
-                told = true;
+                var named = over[0].Naming();
+                Answered(new LayoutAct(LayoutGesture.ContextMenu, meant, over[0], named, named.TreePart(), over, where));
             }
 
-        if (told || over.Count == 0) return;
-
-        var named = over[0].Naming();
-        Answered(new LayoutAct(LayoutGesture.ContextMenu, meant, over[0], named, named.TreePart(), over, where));
-    }
+            return null;
+        }) { Shape = DiagramRibbon.Marked(meant) };
 }

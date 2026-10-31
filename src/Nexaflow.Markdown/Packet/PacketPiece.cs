@@ -24,6 +24,13 @@ public static class PacketPiece
     /// <summary>A field's label, in its box — typed into in the box on the row the field starts on.</summary>
     public const string Label = "Label";
 
+    /// <summary>
+    /// The end of a field, where its last bit ends: a strip along that edge of the box on the row the field ends on, standing for the
+    /// field. A piece of its own so it can be taken hold of — a press on it picks up the field's length, and where it is let go is
+    /// where the field then ends.
+    /// </summary>
+    public const string End = "End";
+
     /// <summary>The numbers over a row's fields, apart from the fields themselves. It stands for nothing written.</summary>
     public const string Bits = "Bits";
 

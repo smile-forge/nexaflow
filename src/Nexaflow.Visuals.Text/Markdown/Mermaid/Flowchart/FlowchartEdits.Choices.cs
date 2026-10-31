@@ -40,8 +40,7 @@ internal sealed partial class FlowchartEdits : IContentLanguage
     /// <summary>What a chart's own offers open with, so the one chosen is told from every other language's.</summary>
     private const string Chose = "flowchart.";
 
-    private const string ShapeChoice = "Shape";
-    private const string FillChoice = "Fill";
+
 
     /// <summary>Every shape Mermaid draws, which is every one but the one that is no shape.</summary>
     private static readonly MermaidShape[] Drawable =
@@ -51,47 +50,51 @@ internal sealed partial class FlowchartEdits : IContentLanguage
     private static readonly ThreadLocal<Dictionary<MermaidShape, Geometry>> ShapeIcons = new(() => []);
 
     /// <inheritdoc/>
-    public IReadOnlyList<LayoutIntent> Offers(ContentAsk ask)
+    public IReadOnlyList<MiniRibbonControl> Ribbon(ContentAsk ask)
     {
         if (ask.IsReadOnly || ask.Root is not { } root) return [];
         if (Named(ask.Part) is not { Length: > 0 } id || Charted(root, id) is not { } node) return [];
 
-        return [.. Shapes(node.Shape), .. Colours(Filling(root, id))];
+        return [Shapes(node.Shape), Colours(Filling(root, id))];
     }
 
     // ── What is offered ─────────────────────────────────────────────────────
 
-    /// <summary>Every shape a node may be drawn as, each drawn as itself, the one it is drawn as now picked out.</summary>
-    private static IEnumerable<LayoutIntent> Shapes(MermaidShape drawn) =>
-        Drawable.Select(shape => new LayoutIntent(Chose + "shape." + MermaidShapes.Wording(shape), null, ReadAs(shape))
+    /// <summary>
+    /// Every shape a node may be drawn as, each drawn as itself, the one it is drawn as now picked out — and the one chosen written where
+    /// the chart says the shape last.
+    /// </summary>
+    private static MiniRibbonChoice Shapes(MermaidShape drawn) =>
+        new(Chose + "shape", Str.Get("Text.Flowchart.Shape"),
+            [.. Drawable.Select(shape => new MiniRibbonOption(MermaidShapes.Wording(shape)!, ReadAs(shape)) { Shape = ShapeIcon(shape), Letters = Lettered(shape) })],
+            static (edit, option) => OfferedOver(edit) is { } id ? Shaped(edit, id, option.Id) : null)
         {
-            Group = ShapeChoice,
-            GroupTip = Str.Get("Text.Flowchart.Shape"),
-            Current = shape == drawn,
-            Shape = ShapeIcon(shape),
-            Letters = Lettered(shape),
-        });
+            Current = MermaidShapes.Wording(drawn),
+        };
 
     /// <summary>
-    /// The colours a node may be filled with: the shared swatch bank, and the clear one that takes a fill back out again.
+    /// The colours a node may be filled with — the shared swatch bank, and the clear one that takes a fill back out again — the one it is
+    /// filled with now picked out, and the one chosen written into the line styling that node.
     /// </summary>
-    private static IEnumerable<LayoutIntent> Colours(string? filled)
+    private static MiniRibbonChoice Colours(string? filled)
     {
         var said = DiagramSwatches.Shade(filled);
+        var clear = new MiniRibbonOption(DiagramSwatches.Clear.ToLowerInvariant(), Str.Get("Text.Flowchart.NoFill")) { Shade = DiagramSwatches.Nothing };
+        var options = new List<MiniRibbonOption> { clear };
+        var current = filled is null ? clear.Id : null;
 
-        yield return OneColour(DiagramSwatches.Clear, Str.Get("Text.Flowchart.NoFill"), DiagramSwatches.Nothing, filled is null);
-
-        foreach (var (name, label, shade) in DiagramSwatches.Bank()) yield return OneColour(name, label, shade, said == shade);
-    }
-
-    private static LayoutIntent OneColour(string name, string label, Color shade, bool current) =>
-    new(Chose + "fill." + name.ToLowerInvariant(), null, label)
+        foreach (var (name, label, shade) in DiagramSwatches.Bank())
         {
-            Group = FillChoice,
-            GroupTip = Str.Get("Text.Flowchart.Fill"),
+            options.Add(new MiniRibbonOption(name.ToLowerInvariant(), label) { Shade = shade });
+            if (current is null && said == shade) current = name.ToLowerInvariant();
+        }
+
+        return new MiniRibbonChoice(Chose + "fill", Str.Get("Text.Flowchart.Fill"), options,
+                                    static (edit, option) => OfferedOver(edit) is { } id ? Coloured(edit, id, option.Id) : null)
+        {
             Current = current,
-            Shade = shade,
         };
+    }
 
     /// <summary>What a shape is called where a reader has to read it, in the window's language.</summary>
     private static string ReadAs(MermaidShape shape) => shape switch
@@ -178,19 +181,9 @@ internal sealed partial class FlowchartEdits : IContentLanguage
 
     // ── What was chosen ─────────────────────────────────────────────────────
 
-    /// <summary>What the ribbon offered and a reader chose, written where the chart says such things.</summary>
-    private static ContentChange? Chosen(ContentEdit edit)
-    {
-        if (!edit.Text.StartsWith(Chose, StringComparison.Ordinal)) return null;
-        if (Named(edit.Part) is not { Length: > 0 } id || Charted(edit.Root, id) is null) return null;
-
-        var said = edit.Text[Chose.Length..];
-
-        if (said.StartsWith("shape.", StringComparison.Ordinal)) return Shaped(edit, id, said["shape.".Length..]);
-        if (said.StartsWith("fill.", StringComparison.Ordinal)) return Coloured(edit, id, said["fill.".Length..]);
-
-        return null;
-    }
+    /// <summary>The node a control of the ribbon was used over — named, and a node of the chart — or null where it is none.</summary>
+    private static string? OfferedOver(ContentEdit edit) =>
+        Named(edit.Part) is { Length: > 0 } id && Charted(edit.Root, id) is not null ? id : null;
 
     /// <summary>
     /// The shape a node is drawn as given a new one, where the chart says it last — anywhere earlier being written over by what is

@@ -138,15 +138,17 @@ public class PacketEditingTests
         {
             var ribbon = Ribbon(editor, Box(packet, "B"));
 
-    CollectionAssert.IsSubsetOf(new[] { "packet.insert.before", "packet.insert.after", "packet.delete", "packet.bits.other" },
-                                        ribbon.Offers.Select(offer => offer.Verb).ToArray());
-            Assert.IsTrue(ribbon.Offers.Where(offer => offer.Verb.StartsWith("packet.insert", StringComparison.Ordinal)).All(offer => offer.Offer == LayoutOffer.Change),
-                                                    "putting a field in beside this one is done to this one, so it stands in the ribbon rather than behind a button");
-                          Assert.IsTrue(ribbon.Offers.Where(offer => offer.Verb is "packet.insert.before" or "packet.insert.after" or "packet.delete").All(offer => offer.Shape is not null),
-                                        "and each is drawn as its icon, side by side, rather than named down a list");
-            CollectionAssert.AreEqual(new[] { "packet.bits.1", "packet.bits.2", "packet.bits.4", "packet.bits.8", "packet.bits.16", "packet.bits.32" },
-                                      ribbon.Offers.Where(offer => offer.Group == "Bits").Select(offer => offer.Verb).ToArray());
-            Assert.AreEqual("packet.bits.8", ribbon.Offers.Single(offer => offer.Current).Verb, "the length it takes now");
+            CollectionAssert.IsSubsetOf(new[] { "packet.bits", "packet.insert.before", "packet.insert.after", "packet.delete" },
+                                        ribbon.Controls.Select(control => control.Id).ToArray());
+            Assert.IsTrue(ribbon.Controls.OfType<MiniRibbonButton>().Where(button => button.Id.StartsWith("packet.", StringComparison.Ordinal)).All(button => button.Shape is not null),
+                          "what is done to the field stands in the ribbon as its icon, side by side, rather than named down a list");
+
+            var length = ribbon.Controls.OfType<MiniRibbonEntry>().Single();
+            Assert.AreEqual("8", length.Current, "the box holds the length it takes now");
+            CollectionAssert.IsSubsetOf(new[] { "1", "8", "16", "32" }, length.Listed.ToArray(), "and the usual lengths drop down beside it");
+            Assert.IsTrue(length.Accepts!("12"), "any whole number is a length");
+            Assert.IsFalse(length.Accepts!("0"), "nought is none");
+            Assert.IsFalse(length.Accepts!("four"), "and words are none");
         }, Three));
 
     [TestMethod]
@@ -160,63 +162,74 @@ public class PacketEditingTests
         }, Three));
 
     [TestMethod]
-    public void OtherLengthAsksForOne_AndWritesWhatIsGiven_OrNothingWhereTheReaderCancels()
-    {
-        const string source = "packet\n0-3: \"A\"\n4-11: \"B\"\n12-15: \"C\"";
-        var root = ContentPart.Of(Staged(source));
-        var field = PacketWriting.Fields(root)[1];
+    public void ALengthTypedIntoTheBoxMakesTheFieldThatLong() => UiThread.Run(() =>
+        InADocument((editor, packet) =>
+        {
+            var ribbon = Ribbon(editor, Box(packet, "B"));
+            var window = new Window { Content = ribbon, ShowActivated = false, WindowStyle = WindowStyle.None, Left = -10000, Top = -10000 };
+            window.Show();
 
-        long? now = null;
-        var given = new PacketEdits(taking => { now = taking; return 12; }).Edit(Choosing(source, root, field, "packet.bits.other"))!;
+            try
+            {
+                var box = Logical(ribbon).OfType<TextBox>().Single(found => System.Windows.Automation.AutomationProperties.GetAutomationId(found) == "Diagram_Ribbon_packet.bits");
+                box.Text = "12";
+                box.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(box)!, 0, Key.Enter) { RoutedEvent = Keyboard.KeyDownEvent });
+                MarkdownEditorHarness.Pump();
+            }
+            finally
+            {
+                window.Close();
+            }
 
-        Assert.AreEqual(8, now, "asked with the length the field takes now");
-        Assert.AreEqual("packet\n0-3: \"A\"\n4-15: \"B\"\n16-19: \"C\"", Written(source, given));
+            StringAssert.Contains(packet.Source, "0-3: \"A\"\n4-15: \"B\"\n16-19: \"C\"", packet.Source);
+            Assert.AreEqual(0, packet.Diagnostics.Count, Trouble(packet));
+        }, Three));
 
-        var cancelled = new PacketEdits(_ => null).Edit(Choosing(source, root, field, "packet.bits.other"))!;
-        Assert.AreEqual(0, cancelled.Writes.Count, "cancelled, nothing is written");
-    }
+    /// <summary>
+    /// The end of a field taken hold of — nothing picked out first — and carried a step at a time over the next field, as a hand drags
+    /// it: the field ends at the bit it is let go over, and every field after it is numbered on.
+    /// </summary>
+    [TestMethod]
+    public void DraggingTheEndOfAFieldMakesItEndWhereItIsLetGo() => UiThread.Run(() =>
+        InADocument((editor, packet) =>
+        {
+            var end = End(packet, "A");
+            var from = Middle(end);
+
+            // Bit 7 is the fourth of B's eight.
+            var b = Box(packet, "B");
+            var to = new Point(b.X + (b.Width * 3.5 / 8), from.Y);
+
+            Assert.AreEqual(0, packet.SelectionLength, "nothing is picked out first");
+
+            packet.BeginPointerSelect(from);
+            for (var x = from.X; x <= to.X; x += 2) packet.ExtendPointerSelect(new Point(x, from.Y));
+            packet.ExtendPointerSelect(to);
+            packet.EndPointerSelect();
+            MarkdownEditorHarness.Pump();
+
+            StringAssert.Contains(packet.Source, "```packet\n0-7: \"A\"\n8-15: \"B\"\n16-19: \"C\"\n```", packet.Source);
+            Assert.AreEqual(0, packet.Diagnostics.Count, Trouble(packet));
+        }, Three));
 
     [TestMethod]
-    public void ThePromptGivesTheWholeNumberTyped_AndNothingElse() => UiThread.Run(() =>
-    {
-        var prompt = new PacketLengthPrompt(8);
-        var bits = Logical(prompt).OfType<TextBox>().Single(box => System.Windows.Automation.AutomationProperties.GetAutomationId(box) == "Packet_Length_Bits");
-        var set = Logical(prompt).OfType<Button>().Single(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "Packet_Length_Set");
+    public void AndPressingTheEndWithoutDraggingIsAPressOnTheField() => UiThread.Run(() =>
+        InADocument((editor, packet) =>
+        {
+            var before = packet.Source;
 
-        Assert.AreEqual("8", bits.Text, "it starts at the length the field takes now");
+            packet.BeginPointerSelect(Middle(End(packet, "A")));
+            packet.EndPointerSelect();
 
-        bits.Text = "0";
-        Assert.IsFalse(set.IsEnabled, "nought is no length");
+            Assert.AreEqual(before, packet.Source, "nothing written");
+            Assert.IsTrue(packet.SelectionLength > 0, "the field it ends is picked out, as a press on its box picks it out");
+        }, Three));
 
-        bits.Text = "12";
-        set.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
-        Assert.AreEqual(12, prompt.Length);
-
-        var cancelled = new PacketLengthPrompt(8);
-        Logical(cancelled).OfType<Button>().Single(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "Packet_Length_Cancel")
-            .RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
-        Assert.IsNull(cancelled.Length, "cancelled, it gives nothing");
-    });
-
-    /// <summary>A packet read and worked over, as an edit is handed it.</summary>
-    private static ContentNode Staged(string source)
-    {
-        var tree = PacketParser.Parse(source);
-        return new Nexaflow.Markdown.Pipeline.AstPipeline(PacketPipeline.Of(tree, false)).Run(tree);
-    }
-
-    /// <summary>A choice of <paramref name="verb"/> from the right-click over <paramref name="field"/>.</summary>
-    private static ContentEdit Choosing(string source, ContentPart root, ContentPart field, string verb) =>
-        new(EditKind.Choosing, verb, new Landing(new EditState(source, field.Start), Laid.Nothing(WpfHandles.Medium), -1), default, field, root);
-
-    /// <summary>What <paramref name="source"/> becomes once <paramref name="change"/> is written.</summary>
-    private static string Written(string source, ContentChange change)
-    {
-        foreach (var write in change.Writes.OrderByDescending(write => write.Start))
-            source = source[..write.Start] + write.Text + source[write.End..];
-
-        return source;
-    }
+    /// <summary>Where the end of the field labelled <paramref name="label"/> is drawn — the piece a drag takes hold of to make it longer or shorter.</summary>
+    private static Rect End(DocumentBlock packet, string label) =>
+        packet.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == PacketPiece.End && piece.Part is { } part
+                                                             && packet.Source.Substring(part.Start, part.Length).Contains($"\"{label}\"", StringComparison.Ordinal))
+              .Bounds.ToWpf();
 
     [TestMethod]
     public void ChoosingToTakeAFieldOutTakesItsLine_AndTheFieldsAfterItCloseUp() => UiThread.Run(() =>
@@ -300,7 +313,7 @@ public class PacketEditingTests
             packet.Select(packet.Source.IndexOf("Flags", packet.Start, StringComparison.Ordinal), 3);
 
             var ribbon = Ribbon(editor, Label(packet, "Flags"));
-            CollectionAssert.IsSubsetOf(new[] { LayoutVerbs.Cut, LayoutVerbs.Copy, LayoutVerbs.Paste }, ribbon.Offers.Select(offer => offer.Verb).ToArray());
+            CollectionAssert.IsSubsetOf(new[] { LayoutVerbs.Cut, LayoutVerbs.Copy, LayoutVerbs.Paste }, ribbon.Controls.Select(control => control.Id).ToArray());
 
             Click(ribbon, LayoutVerbs.Cut);
 
@@ -316,8 +329,8 @@ public class PacketEditingTests
             MarkdownEditorHarness.Clipboard = new DataObject(DataFormats.UnicodeText, " say \"hi\"");
 
             var ribbon = Ribbon(editor, Label(packet, "Flags"));
-            CollectionAssert.Contains(ribbon.Offers.Select(offer => offer.Verb).ToArray(), LayoutVerbs.Paste);
-            CollectionAssert.DoesNotContain(ribbon.Offers.Select(offer => offer.Verb).ToArray(), LayoutVerbs.Cut, "nothing is picked out to cut");
+            CollectionAssert.Contains(ribbon.Controls.Select(control => control.Id).ToArray(), LayoutVerbs.Paste);
+            CollectionAssert.DoesNotContain(ribbon.Controls.Select(control => control.Id).ToArray(), LayoutVerbs.Cut, "nothing is picked out to cut");
 
             Click(ribbon, LayoutVerbs.Paste);
 
@@ -331,7 +344,7 @@ public class PacketEditingTests
         {
             ChooseTheField(packet, "Flags");
 
-            var verbs = Ribbon(editor, Box(packet, "Flags")).Offers.Select(offer => offer.Verb).ToArray();
+            var verbs = Ribbon(editor, Box(packet, "Flags")).Controls.Select(control => control.Id).ToArray();
 
             CollectionAssert.Contains(verbs, LayoutVerbs.Copy);
             CollectionAssert.DoesNotContain(verbs, LayoutVerbs.Cut, "cut as characters it would leave a gap; Delete takes a field out");

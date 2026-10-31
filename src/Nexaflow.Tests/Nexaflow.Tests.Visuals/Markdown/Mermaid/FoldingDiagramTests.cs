@@ -221,7 +221,7 @@ public class FoldingDiagramTests
     /// <summary>What the menu offers where <paramref name="where"/> was pressed.</summary>
     private static List<string> Verbs(MarkdownSurface surface, Rect where) =>
         surface.Shown.BuildRibbon(Middle(where)) is DiagramRibbon ribbon
-            ? [.. ribbon.Offers.Select(offer => offer.Verb)]
+            ? [.. ribbon.Controls.Select(control => control.Id)]
             : [];
 
     // ── Too many children ───────────────────────────────────────────────────

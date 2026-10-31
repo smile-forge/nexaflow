@@ -19,8 +19,7 @@ internal sealed partial class FlowchartEdits : IOnEdit
     /// <inheritdoc/>
     public ContentChange? Edit(ContentEdit edit)
     {
-        // A choice is the ribbon's, and nothing the chart did not offer is anything to write.
-        if (edit.Kind == EditKind.Choosing) return Chosen(edit) ?? ContentChange.Stay(edit.State);
+
 
         var change = DiagramWriting.Typed(edit, Escaping) ?? OrdinaryEdits.Keyed(edit);
 

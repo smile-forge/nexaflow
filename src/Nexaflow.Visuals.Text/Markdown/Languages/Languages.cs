@@ -394,7 +394,7 @@ internal static class Shipped
         Builder: ContentLayouts.Packet)
         {
             Writable = true,
-            Editing = new DiagramEditing(new PacketEdits(PacketLengthPrompt.Ask)),
+            Editing = new DiagramEditing(new PacketEdits()),
             Transpile = Transpiles.By<PacketParser>(),
             Name = PacketParser.Language,
             DisplayName = static () => Str.Get("Text.Language.Packet"),

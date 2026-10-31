@@ -621,10 +621,10 @@ public class ContentElement : FrameworkElement
     protected IReadOnlyList<LayoutIntent> Hosted(LayoutAct act) => _engine.Hosted(act);
 
     /// <summary>What the language drawn at a point on the content offers there — see <see cref="ContentEngine.Asked"/>.</summary>
-    protected IReadOnlyList<LayoutIntent> Asked(LayoutPoint at) => _engine.Asked(at);
+    protected IReadOnlyList<MiniRibbonControl> Asked(LayoutPoint at) => _engine.Asked(at);
 
-    /// <summary>Does one of what the language offered at a point, as its edit handler says — see <see cref="ContentEngine.Choose"/>.</summary>
-    protected bool Choose(string verb, LayoutPoint at) => _engine.Choose(verb, at);
+    /// <summary>Uses a control of the ribbon opened at a point, its callback run against the content as it stands — see <see cref="ContentEngine.Used"/>.</summary>
+    protected bool Use(LayoutPoint at, Func<ContentEdit, ContentChange?> made) => _engine.Used(at, made);
 
     // Hosted in a plain panel (the read-only markdown view), the element does get its own mouse events.
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)

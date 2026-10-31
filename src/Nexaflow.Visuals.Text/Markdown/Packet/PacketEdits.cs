@@ -6,6 +6,7 @@ using System.Linq;
 using Nexaflow.Icons;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout.Packet;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Packet;
 using Nexaflow.Visuals.Common.Localization;
@@ -19,26 +20,23 @@ namespace Nexaflow.Visuals.Text.Markdown.Packet;
 ///
 /// <para>
 /// What is typed into a label is kept by a backslash where it would end it, and a label still to write is put in quotes as it is
-/// written into. Backspace and Delete take a backslash and what it keeps together. A field's bits are never typed: they follow from the fields before it and how long each is, and change only by
-/// what is offered below.
+/// written into. Backspace and Delete take a backslash and what it keeps together. A field's bits are never typed: they follow
+/// from the fields before it and how long each is, and change only by what is offered below.
 /// </para>
 /// <para>
-/// A right-click on a field offers to put a field in before it or after it, to take it out, and how many bits it takes — each
-/// length written as its number, the one it takes now marked, and any other asked of the reader once "Other length…" is chosen. Anywhere else in the packet, it offers a field after everything
-/// written. With whole fields picked out, Delete takes them out and Insert puts a field in above them; and fields carried and let
-/// go on another change places with it. Whatever changes, the fields stay contiguous and keep their lengths, and only their
-/// numbers are written again (<see cref="PacketWriting"/>).
+/// A right-click on a field opens a ribbon of how many bits it takes — a box holding its length, which any whole number typed in
+/// replaces, and the usual lengths dropped down beside it — and buttons putting a field in before it or after it and taking it
+/// out. Anywhere else in the packet, it offers a field after everything written. With whole fields picked out, Delete takes them
+/// out and Insert puts a field in above them; fields carried and let go on another change places with it; and the end of a field,
+/// taken hold of and let go over a bit, makes the field end there. Whatever changes, the fields stay contiguous and keep their
+/// lengths, and only their numbers are written again (<see cref="PacketWriting"/>).
 /// </para>
 /// <para>
 /// In its words the clipboard is offered as the engine does it — cut, copy and paste — and over whole fields only a copy
 /// (<see cref="Clipboard"/>).
 /// </para>
 /// </summary>
-/// <param name="asked">
-/// How many bits a field now taking the length given is to take, asked of the reader where "Other length…" is chosen — or null
-/// where they cancel (<see cref="PacketLengthPrompt.Ask"/>).
-/// </param>
-internal sealed class PacketEdits(Func<long, long?> asked) : IContentLanguage, IOnEdit, IOnMove
+internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
 {
     /// <summary>What a field's offers start with.</summary>
     private const string Named = "packet.";
@@ -48,17 +46,11 @@ internal sealed class PacketEdits(Func<long, long?> asked) : IContentLanguage, I
     private const string Last = Named + "insert.end";
     private const string Delete = Named + "delete";
 
-    /// <summary>A length the offered ones do not list, asked of the reader once chosen.</summary>
-    private const string Other = Named + "bits.other";
+    /// <summary>The entry a field's length is typed into.</summary>
+    private const string Length = Named + "bits";
 
-    /// <summary>What an offer of a field's length starts with, the length after it.</summary>
-    private const string Sized = Named + "bits.";
-
-    /// <summary>The choice a field's length is one of.</summary>
-    private const string Bits = "Bits";
-
-    /// <summary>The lengths offered: a bit, and the widths fields usually are.</summary>
-    private static readonly long[] Lengths = [1, 2, 4, 8, 16, 32];
+    /// <summary>The lengths listed: a bit, a few, and the widths fields usually are.</summary>
+    private static readonly long[] Lengths = [1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 24, 32, 48, 64];
 
     /// <inheritdoc/>
     public IOnEdit OnEdit => this;
@@ -74,40 +66,48 @@ internal sealed class PacketEdits(Func<long, long?> asked) : IContentLanguage, I
         EditKind.Pasting => Pasted(edit),
         EditKind.Erasing or EditKind.Deleting => Chosen(edit) is { Count: > 0 } chosen ? PacketWriting.Removed(edit.Root, chosen) : Unescaped(edit),
         EditKind.Inserting => Chosen(edit) is [var first, ..] ? PacketWriting.Inserted(edit.Root, first, after: false, Newline(edit)) : null,
-        EditKind.Choosing => Chosen(edit, edit.Text),
         _ => null,
     };
 
     /// <inheritdoc/>
-    public IReadOnlyList<LayoutIntent> Offers(ContentAsk ask)
+    public IReadOnlyList<MiniRibbonControl> Ribbon(ContentAsk ask)
     {
         if (ask.IsReadOnly || ask.Root is null) return [];
 
-        if (PacketWriting.FieldOf(ask.Part) is not { } field) return [Pictured(Last, "Text.Packet.Field.End", "table_stack_right")];
-
-        var size = PacketWriting.Size(field);
-        var sized = PacketWriting.Sized(field);
+        if (PacketWriting.FieldOf(ask.Part) is not { } field)
+            return [Pressing(Last, "Text.Packet.Field.End", "table_stack_right", static edit => PacketWriting.Appended(edit.Root, Newline(edit)))];
 
         return
         [
-            Pictured(Before, "Text.Packet.Field.Before", "table_stack_left"),
-            Pictured(After, "Text.Packet.Field.After", "table_stack_right"),
-            Pictured(Delete, "Text.Packet.Field.Delete", "table_delete_column"),
-            new LayoutIntent(Other, null, Str.Get("Text.Packet.Bits.Other")),
-            .. Lengths.Append(size).Distinct().Order().Select(bits => new LayoutIntent(Sized + Said(bits), null, Length(bits))
+            new MiniRibbonEntry(Length, Str.Get("Text.Packet.Bits"), [.. Lengths.Select(Said)],
+                                PacketWriting.Sized(field) ? Said(PacketWriting.Size(field)) : string.Empty, Lengthened)
             {
-                Group = Bits,
-                GroupTip = Str.Get("Text.Packet.Bits"),
-                Current = sized && bits == size,
-                Letters = Said(bits),
-            }),
+                Accepts = static typed => Counted(typed) is not null,
+            },
+            Pressing(Before, "Text.Packet.Field.Before", "table_stack_left",
+                     static edit => Over(edit) is { } over ? PacketWriting.Inserted(edit.Root, over, after: false, Newline(edit)) : null),
+            Pressing(After, "Text.Packet.Field.After", "table_stack_right",
+                     static edit => Over(edit) is { } over ? PacketWriting.Inserted(edit.Root, over, after: true, Newline(edit)) : null),
+            Pressing(Delete, "Text.Packet.Field.Delete", "table_delete_column",
+                     static edit => Over(edit) is { } over ? PacketWriting.Removed(edit.Root, [over]) : null),
         ];
 
         // Done to the field under the pointer, so each stands beside the rest of what is done to it as its icon — never behind a
         // button of its own a reader has to open to find it — and is named to a reader hovering over it.
-        static LayoutIntent Pictured(string verb, string tip, string icon) =>
-            new(verb, null, Str.Get(tip)) { Shape = DiagramRibbon.Drawn(IconRef.Fluent(icon)) };
+        static MiniRibbonButton Pressing(string id, string name, string icon, Func<ContentEdit, ContentChange?> pressed) =>
+            new(id, Str.Get(name), pressed) { Shape = DiagramRibbon.Drawn(IconRef.Fluent(icon)) };
     }
+
+    /// <summary>The field a control of the ribbon was used over, or null where it was used over none.</summary>
+    private static ContentPart? Over(ContentEdit edit) => PacketWriting.FieldOf(edit.Part);
+
+    /// <summary>A length typed or picked for the field the ribbon was opened over: the field made that long, the fields after it numbered on.</summary>
+    private static ContentChange? Lengthened(ContentEdit edit, string typed) =>
+        Counted(typed) is { } bits && Over(edit) is { } over ? PacketWriting.Resized(edit.Root, over, bits, edit.State.Caret) : null;
+
+    /// <summary>How many bits <paramref name="typed"/> says — a whole number of one or more — or null where it says none.</summary>
+    private static long? Counted(string typed) =>
+        long.TryParse(typed, NumberStyles.None, CultureInfo.InvariantCulture, out var bits) && bits > 0 ? bits : null;
 
     /// <inheritdoc/>
     /// <remarks>
@@ -149,31 +149,37 @@ internal sealed class PacketEdits(Func<long, long?> asked) : IContentLanguage, I
             _ => false,
         });
 
-    /// <summary>What the right-click offered and was chosen, made on the field it was offered over.</summary>
-    private ContentChange? Chosen(ContentEdit edit, string verb)
-    {
-        if (!verb.StartsWith(Named, StringComparison.Ordinal)) return null;
-        if (verb == Last) return PacketWriting.Appended(edit.Root, Newline(edit));
-        if (PacketWriting.FieldOf(edit.Part) is not { } field) return null;
+    /// <summary>
+    /// A press on the end of a field picks up its length, with nothing picked out first; anywhere else, what is picked out — whole
+    /// fields — as the engine carries it.
+    /// </summary>
+    public ContentLift Lift(ContentGrip grip) =>
+        grip.Piece.Kind == PacketPiece.End && PacketWriting.FieldOf(grip.Part) is { } field ? new Ending(field) : ContentLift.Selection;
 
-        return verb switch
-        {
-            Before => PacketWriting.Inserted(edit.Root, field, after: false, Newline(edit)),
-            After => PacketWriting.Inserted(edit.Root, field, after: true, Newline(edit)),
-            Delete => PacketWriting.Removed(edit.Root, [field]),
-            Other => asked(PacketWriting.Size(field)) is { } bits and > 0
-                ? PacketWriting.Resized(edit.Root, field, bits, edit.State.Caret)
-                : ContentChange.Stay(edit.State),
-            _ when verb.StartsWith(Sized, StringComparison.Ordinal)
-                   && long.TryParse(verb[Sized.Length..], NumberStyles.None, CultureInfo.InvariantCulture, out var bits) && bits > 0
-                => PacketWriting.Resized(edit.Root, field, bits, edit.State.Caret),
-            _ => null,
-        };
+    /// <summary>The end of a field, carried: the bit it is let go over is the bit the field then ends at.</summary>
+    private sealed record Ending(ContentPart Field) : ContentCarry;
+
+    /// <summary>
+    /// A field's end let go over a bit: the field made long enough to end there, every field after it numbered on — or nothing, over no
+    /// bit, before the field starts, or where it already ends.
+    /// </summary>
+    private static ContentChange? Ended(ContentMove move, ContentPart field)
+    {
+        if (PacketPlaces.BitAt(move.Piece, move.At) is not { } bit || field.Node is not PacketFieldNode said) return null;
+
+        var bits = bit - said.First + 1;
+        if (bits < 1 || (PacketWriting.Sized(field) && bits == PacketWriting.Size(field))) return null;
+
+        return PacketWriting.Resized(move.Root, field, bits, move.State.Caret);
     }
 
-    /// <summary>Fields carried and let go on another: they and it change places, and every field is numbered on in its new place.</summary>
+    /// <summary>
+    /// A field's end carried, let go where the field is then to end (<see cref="Ended"/>); fields carried and let go on another, they
+    /// and it change places, and every field is numbered on in its new place.
+    /// </summary>
     public ContentChange? Move(ContentMove move)
     {
+        if (move.Carry is Ending ending) return Ended(move, ending.Field);
         if (!move.Holds) return null;
         if (move.Carrying().Where(part => PacketWriting.FieldOf(part) == part).ToList() is not { Count: > 0 } chosen) return null;
         if (PacketWriting.FieldOf(move.Part) is not { } over) return ContentChange.Stay(move.State);
@@ -225,9 +231,6 @@ internal sealed class PacketEdits(Func<long, long?> asked) : IContentLanguage, I
     /// <summary>The fields whose whole stretch of characters is picked out.</summary>
     private static List<ContentPart> Chosen(ContentEdit edit) =>
         [.. PacketWriting.Fields(edit.Root).Where(field => edit.State.Selection.Any(range => range.Start <= field.Start && field.End <= range.End))];
-
-    /// <summary>What a length is called where a reader reads it.</summary>
-    private static string Length(long bits) => bits == 1 ? Str.Get("Text.Packet.Bits.One") : Str.Format("Text.Packet.Bits.Many", bits);
 
     private static string Said(long bits) => bits.ToString(CultureInfo.InvariantCulture);
 

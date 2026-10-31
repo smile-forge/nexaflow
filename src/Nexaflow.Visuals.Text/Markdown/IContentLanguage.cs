@@ -6,8 +6,8 @@ using Nexaflow.Visuals.Text.Editing;
 namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
-/// What editing means in a language, where it means something of its own: what a key does in its source, what a gesture
-/// on its content offers, and what its block's corner holds.
+/// What editing means in a language, where it means something of its own: what a key does in its source, what a right-click
+/// on its content offers, what a press picks up, and what its block's corner holds.
 ///
 /// <para>
 /// Asked by the engine and nothing else, and only about content already laid out. It lays nothing out and reads nothing:
@@ -56,16 +56,18 @@ public interface IContentLanguage
     bool ChosenByLetter => ShowsWhatWasWritten;
 
     /// <summary>
-    /// What may be done to this content where a gesture landed — the things a reader can add, and the
-    /// things they can do to what is already there.
+    /// The mini ribbon a right-click over this content opens where it landed: the controls a reader may use there, each with what the
+    /// language does when it is used (<see cref="Editing.MiniRibbonControl"/>).
     ///
     /// <para>
-    /// A language's own, because only it knows what its content is made of: a slice may be restyled and a
-    /// note may be sharpened, and neither means anything to the other. What comes back is offered beside
-    /// whatever the pieces themselves answer to and whatever the host adds.
+    /// A language's own, because only it knows what its content is made of: a slice may be restyled and a note may be sharpened, and
+    /// neither means anything to the other. The engine finds the language whose part the right-click landed on, asks it, and has the
+    /// ribbon drawn; using a control runs the language's own callback against the content as it then stands. What comes back stands
+    /// beside the clipboard's ways the language allows (<see cref="Clipboard"/>), what the pieces themselves answer to and whatever the
+    /// host adds. Nothing, where the reader may not write and the language offers only what writes.
     /// </para>
     /// </summary>
-    IReadOnlyList<Editing.LayoutIntent> Offers(ContentAsk ask) => [];
+    IReadOnlyList<Editing.MiniRibbonControl> Ribbon(ContentAsk ask) => [];
 
     /// <summary>
     /// What the buttons in the corner of a block are: whichever of the usual ones this content allows, and
