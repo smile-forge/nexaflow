@@ -114,6 +114,33 @@ Electricity,Losses,50
 
 ---
 
+## Treemap
+
+Values as tiles, each as big as its share: a section holds the items indented under it, with its total in its band, and a
+leaf is a label and its value. Labels and values are typed into where they are drawn, and `valueFormat` under
+`config: treemap:` sets how values read. It works like an outline: Enter adds an item after the one you are in, Tab
+moves it into the section before it, a right-click puts items in, takes them out or moves them a level in or out, and an
+item dragged by its tile onto a section goes into it. An item worth nothing yet waits under the map until it is given
+something.
+
+````markdown
+```mermaid
+treemap-beta
+"Products"
+    "Electronics"
+        "Phones": 50
+        "Computers": 30
+        "Accessories": 20
+    "Clothing"
+        "Men's": 40
+        "Women's": 40
+```
+````
+
+![A treemap of products, electronics and clothing sections each holding tiles sized by value](images/markdown/mermaid-treemap.png)
+
+---
+
 ## Ishikawa (fishbone) diagram
 
 Cause-and-effect / root-cause analysis: an effect on the spine, with categories and nested causes

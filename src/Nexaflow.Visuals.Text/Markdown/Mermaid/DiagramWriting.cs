@@ -54,10 +54,12 @@ internal static class DiagramWriting
         var source = state.Source[..writing.Start] + writing.Text + state.Source[writing.End..];
         var grown = writing.Text.Length - (writing.End - writing.Start);
 
-        // Where what was written in now stands: the part typed into, or the stretch written over less the quotes put round it.
-        var (start, end) = writing.Start == writing.End
-            ? (part.Start, part.End + grown)
-            : (writing.Start + 1, writing.Start + writing.Text.Length - 1);
+        // Where what was written in now stands: the part typed into, or the stretch written over — less the quotes, where it was put in
+        // quotes, and the whole of it where it was written bare.
+        var quoted = writing.Text.Length >= 2 && writing.Text[0] is '"' or '\'' && writing.Text[^1] == writing.Text[0];
+        var (start, end) = writing.Start == writing.End ? (part.Start, part.End + grown)
+                         : quoted ? (writing.Start + 1, writing.Start + writing.Text.Length - 1)
+                         : (writing.Start, writing.Start + writing.Text.Length);
 
         RawZone? raw = state.Raw is { } zone && zone.Holds(caret) ? new RawZone(zone.Start, zone.End + grown)
                      : MermaidText.Decode(source[start..end]) != source[start..end] ? new RawZone(start, end)

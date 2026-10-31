@@ -127,6 +127,8 @@ JS/Mermaid.js, no browser).
 |---|---|---|
 | `nomnoml` | ✅ | ✅ — UML class notation on the shared layout tree; see [nomnoml](#nomnoml--sub-support) below |
 | `packet` | ✅ | ✅ — a packet or a register on the shared layout tree, written in place; see [packet](#packet--sub-support) below |
+| `treemap` | ✅ | ✅ — values as nested tiles on the shared layout tree, worked like an outline; see [treemap](#treemap--sub-support) below |
+| `treeview` | ✅ | ✅ — a folder tree on the shared layout tree, worked like an outline; see [tree view](#tree-view--sub-support) below |
 | `mermaid` | ⚠️ Partial | ✅ — see sub-types below |
 | `qr` | ✅ | ✅ — see [QR codes](#qr-codes--sub-support) below |
 | `barcode` | ✅ | ✅ — see [Barcodes](#barcodes--sub-support) below |
@@ -170,6 +172,8 @@ JS/Mermaid.js, no browser).
 | `C4Context` / `C4Container` / `C4Component` / `C4Dynamic` / `C4Deployment` | ✅ (shared layout tree; element cards, nested boundaries, a key, written in place) | ✅ grammar (`C4GrammarTests`) + elements, boundaries, relationships, styling + config (`C4StagesTests`) + draw and grading (`C4BuilderTests`) + writing (`C4EditingTests`) + sample render. See sub-features below. |
 | `C4Sequence` *(Nexaflow extension)* | ✅ (shared layout tree; element cards, boundaries, numbering and a key, written in place) | ✅ grammar (`C4SequenceGrammarTests`) + cards, boundaries, relationships + config (`C4StagesTests`) + draw (`C4SequenceBuilderTests`) + writing (`C4SequenceEditingTests`) + sample render. See sub-features below. |
 | `packet` / `packet-beta` | ✅ (handed whole to the `packet` language — see [packet](#packet--sub-support)) | ✅ — the packet language's own tests |
+| `treemap-beta` / `treemap` | ✅ (handed whole to the `treemap` language — see [treemap](#treemap--sub-support)) | ✅ — the treemap language's own tests |
+| `treeView-beta` | ✅ (handed whole to the `treeview` language — see [tree view](#tree-view--sub-support)) | ✅ — the tree view language's own tests |
 | `block-beta` | ✅ (shared layout tree; the author's own grid, nested composites, written in place) | ✅ grammar (`BlockGrammarTests`) + composites, styles + config (`BlockStagesTests`) + grid, links and draw (`BlockBuilderTests`) + writing (`BlockEditingTests`) + shapes (`MermaidShapesTests`) + sample render. See sub-features below. |
 
 **Flowchart sub-features** ([`FlowchartGrammar`](../src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartGrammar.cs) →
@@ -1210,6 +1214,83 @@ right-click offers to cut, copy and paste, a paste spelled for where it lands; o
 
 ---
 
+## treemap — sub-support
+
+[Treemaps](https://mermaid.js.org/syntax/treemap.html) draw values as tiles, each as big as its share. A treemap is a
+language of its own here: a `treemap` fence names it, and a `mermaid` block headed `treemap-beta` or `treemap` is handed
+to it whole. It is read by a parser of its own ([`TreemapParser`](../src/Nexaflow.Markdown/Treemap/TreemapParser.cs)) —
+the frame every block written Mermaid's way has with Mermaid's own pieces, its items itself — and
+[`ResolveItems`](../src/Nexaflow.Markdown/Treemap/Stages/ResolveItems.cs) gathers each item with the items indented under
+it, so a section in the tree is the section with everything in it, and says what each comes to. It is drawn by
+[`TreemapBuilder`](../src/Nexaflow.Markdown/Layout/Treemap/TreemapBuilder.cs) as tiles inside tiles, laid as near square
+as they go, largest first ([`TreemapTiles`](../src/Nexaflow.Markdown/Layout/Treemap/TreemapTiles.cs)), each coloured by
+its label as Mermaid colours it.
+
+| Written | Read as |
+|---|---|
+| `"Products"` | a section, holding the items indented under it |
+| `"Phones": 50` or `"Phones", 50` | a leaf and its value; `,` and `_` group a value's digits |
+| `:::name` after an item | the class it takes, styled by a `classDef` line |
+| `"…"` or `'…'` | a label, holding anything but its quote |
+| `title …` on a line of its own | the title |
+| `config: treemap:` | `padding`, `diagramPadding`, `showValues`, `nodeWidth`, `nodeHeight`, `borderWidth`, `valueFontSize`, `labelFontSize`, `valueFormat` (a d3 format, with Mermaid's `$` shorthands) |
+
+A label is typed into on its tile, and a value too — drawn as `valueFormat` sets it, and shown as written once pressed. A
+section's total is worked out and never written in. It works like an outline: Enter adds a leaf after the item the caret
+is in, worth what the leaf beside it is; Tab moves an item into the section before it; Page Up and Page Down move it among
+its siblings; Backspace in an empty label takes the item out. A right-click on an item offers to put a leaf in before it,
+after it or inside it — a leaf given one becomes a section and hands it its value — to move it a level in or out, and to
+take it out. An item dragged by its tile goes into a section it is let go on, and beside a leaf. An item always goes with
+everything under it, and only its indentation is written again
+([`TreemapWriting`](../src/Nexaflow.Markdown/Treemap/TreemapWriting.cs), through
+[`OutlineWriting`](../src/Nexaflow.Markdown/Mermaid/OutlineWriting.cs)).
+
+**Divergences from Mermaid**
+
+- An item worth nothing yet — a section with nothing in it, a leaf whose value is nought or still to write — is drawn as a
+  chip under the map, so it can still be written in; Mermaid draws nothing for it.
+- A label too long for its tile wraps, and as many lines as fit are drawn; Mermaid cuts it short with an ellipsis.
+
+---
+
+## tree view — sub-support
+
+[Tree views](https://mermaid.js.org/syntax/treeView.html) draw a folder tree, or any outline, as rows. A tree view is a
+language of its own here: a `treeview` fence names it, and a `mermaid` block headed `treeView-beta` is handed to it whole.
+It is read by a parser of its own ([`TreeViewParser`](../src/Nexaflow.Markdown/TreeView/TreeViewParser.cs)), the box
+drawing in front of a node held as written, and
+[`ResolveNodes`](../src/Nexaflow.Markdown/TreeView/Stages/ResolveNodes.cs) gathers each node with the nodes under it — by
+indentation, or by where its branch stands in a tree drawn with one. It is drawn by
+[`TreeViewBuilder`](../src/Nexaflow.Markdown/Layout/TreeView/TreeViewBuilder.cs) as a list of rows with the lines joining
+each folder to what is in it apart from them.
+
+| Written | Read as |
+|---|---|
+| indentation, or `├──` `└──` `│` (and their heavy forms) | how deep a node stands |
+| `src/` | a folder, drawn in bold; the slash is not drawn |
+| `index.js`, `"my file"`, `'it'` | a label, bare to the first annotation, or in quotes |
+| `:::highlight` | its row picked out |
+| `icon(name)`, `icon(none)` | the icon it is drawn with, or none |
+| `## words` | words beside it, in italics |
+| `config: treeView:` | `rowIndent`, `paddingX`, `paddingY`, `lineThickness`, `showIcons`, `filenameIcons`, `extensionIcons` |
+| `config: themeVariables: treeView:` | `labelFontSize`, `labelColor`, `lineColor`, `iconColor`, `descriptionColor`, `highlightBg`, `highlightStroke` |
+
+A label and the words beside a node are typed into where they are drawn; a label stays bare for as long as nothing in it
+would read as something else, and is put in quotes when something would. It works like an outline: Enter adds a node
+after the one the caret is in, Tab moves it into the node before it, Page Up and Page Down move it among its siblings, and
+Backspace in an empty label takes it out. A right-click on a node offers to put one in before it, after it or inside it,
+to move it a level in or out, to take it out, to make it a folder or a file, and words beside it. A node dragged by its row
+goes in front of, after or inside the node it is let go on, as the top, bottom or middle of that row says. A node always
+goes with everything under it, and in a tree drawn with a box drawing every branch and bar is drawn again round what
+changed ([`TreeViewWriting`](../src/Nexaflow.Markdown/TreeView/TreeViewWriting.cs)).
+
+**Divergences from Mermaid**
+
+- An icon pack's name is drawn as the Fluent icon of that name, where there is one, and otherwise as a folder's or a file's;
+  Mermaid draws a question mark for a pack the page has not registered.
+
+---
+
 ## nomnoml — sub-support
 
 [nomnoml](https://www.nomnoml.com/) is UML class notation written its own way, and a language of its own here: it is
@@ -2147,7 +2228,7 @@ Sample fixtures (driving `MarkdownSampleRenderTests`) live in
 [`Nexaflow.Tests.Fixtures/MarkdownSamples.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Fixtures/MarkdownSamples.cs):
 the `mermaid-*` diagram docs (pie, flowchart, quadrant, sequence, gantt, git graph, mindmap, state, class,
 requirement, kanban, xychart, radar, ishikawa, sankey, er, venn, architecture, swimlane, cynefin, timeline, journey, block, C4),
-`packet.md`, and `extensions.md` (YAML front matter, emphasis extras, abbreviations, alert blocks).
+`packet.md`, `treemap.md`, `treeview.md`, and `extensions.md` (YAML front matter, emphasis extras, abbreviations, alert blocks).
 
 **Where coverage is thin:**
 

@@ -1,0 +1,232 @@
+{
+  "branch": "claude/mermaid-support-comparison-120b05",
+  "nodes": {
+    "treemap": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Treemap/TreemapBuilder.cs",
+          "class": "TreemapBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Treemap/TreemapTiles.cs",
+          "class": "TreemapTiles"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "treemap \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/treemap.html"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Treemap/TreemapBuilderTests.cs",
+            "class": "TreemapBuilderTests"
+          }
+        ]
+      }
+    },
+    "treemap-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Treemap/TreemapParser.cs",
+          "class": "TreemapParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Treemap/TreemapPipeline.cs",
+          "class": "TreemapPipeline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Treemap/Stages/ResolveItems.cs",
+          "class": "ResolveItems"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Treemap/TreemapNodes.cs",
+          "class": "TreemapNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Treemap/TreemapConfig.cs",
+          "class": "TreemapConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Treemap/TreemapValues.cs",
+          "class": "TreemapValues"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidOutline.cs",
+          "class": "MermaidOutline"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Treemap/TreemapParserTests.cs",
+            "class": "TreemapParserTests"
+          }
+        ]
+      }
+    },
+    "treemap-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Treemap/TreemapEdits.cs",
+          "class": "TreemapEdits"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Treemap/TreemapWriting.cs",
+          "class": "TreemapWriting"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/OutlineWriting.cs",
+          "class": "OutlineWriting"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Treemap/TreemapEditingTests.cs",
+            "class": "TreemapEditingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Treemap/TreemapWritingTests.cs",
+            "class": "TreemapWritingTests"
+          }
+        ]
+      }
+    },
+    "treeview": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/TreeView/TreeViewBuilder.cs",
+          "class": "TreeViewBuilder"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "tree view \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/treeView.html"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/TreeView/TreeViewBuilderTests.cs",
+            "class": "TreeViewBuilderTests"
+          }
+        ]
+      }
+    },
+    "treeview-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/TreeView/TreeViewParser.cs",
+          "class": "TreeViewParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/TreeView/TreeViewPipeline.cs",
+          "class": "TreeViewPipeline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/TreeView/Stages/ResolveNodes.cs",
+          "class": "ResolveNodes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/TreeView/TreeViewNodes.cs",
+          "class": "TreeViewNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/TreeView/TreeViewConfig.cs",
+          "class": "TreeViewConfig"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/TreeView/TreeViewParserTests.cs",
+            "class": "TreeViewParserTests"
+          }
+        ]
+      }
+    },
+    "treeview-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/TreeView/TreeViewEdits.cs",
+          "class": "TreeViewEdits"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/TreeView/TreeViewWriting.cs",
+          "class": "TreeViewWriting"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/TreeView/TreeViewPlaces.cs",
+          "class": "TreeViewPlaces"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/TreeView/TreeViewEditingTests.cs",
+            "class": "TreeViewEditingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/TreeView/TreeViewWritingTests.cs",
+            "class": "TreeViewWritingTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 12,
+  "touched_nodes": [
+    "treemap",
+    "treemap-ast",
+    "treemap-writing",
+    "treeview",
+    "treeview-ast",
+    "treeview-writing"
+  ]
+}

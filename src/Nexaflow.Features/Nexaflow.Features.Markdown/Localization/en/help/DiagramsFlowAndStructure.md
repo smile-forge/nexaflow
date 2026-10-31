@@ -251,6 +251,32 @@ title UDP Packet
 
 ---
 
+## Tree view
+
+A folder tree, or any outline drawn as one: each node on a row of its own, set in by how deep it stands and joined to the
+folder it is in. Nest the lines by indenting them, or draw the tree with `├──`, `└──` and `│` as `tree` prints one; a
+slash after a name makes it a folder, drawn in bold. After a name, `## words` says something beside it, `:::highlight`
+picks its row out and `icon(name)` draws an icon. It works like an outline: Enter adds a node after the one you are in,
+Tab moves it into the node before it, a right-click puts nodes in, takes them out, moves them a level in or out or makes
+one a folder, and a node dragged by its row onto another goes before it, after it or inside it — a tree drawn with
+`├──` and `└──` is drawn again round it.
+
+````markdown
+```mermaid
+treeView-beta
+    my-project/
+        src/
+            App.tsx :::highlight ## main component
+            index.js ## entry point
+        .env ## environment variables
+        package.json
+```
+````
+
+![A folder tree with a project, its src folder and the files in each, one highlighted and some described](images/markdown/mermaid-treeview.png)
+
+---
+
 ## C4 diagrams
 
 Software architecture at C4's zoom levels — context, containers, components — plus deployment and dynamic views.
