@@ -95,7 +95,7 @@ characters (`MarkdownTokenizer`, `MarkdownDelimiters`) — **and** drawn by the 
 | Auto links | `MarkdownTokenizer` (bare addresses) | ✅ | ✅ | A bare `https://…` address is a link to itself. |
 | Definition lists | `DefinitionRule` | ✅ | ✅ | The term set apart from what it means. |
 | List extras | `ItemRule` (lettered) | ✅ | ✅ | `a.`/`A.` alphabetic and `i.`/`I.` roman ordered markers. |
-| Abbreviations | `AbbreviationRule`, `WithReferences` | ✅ | ✅ | `*[HTML]: HyperText…` defines an abbreviation wherever it is written; each occurrence is drawn with a dotted rule under it, and says what it stands for while the pointer rests on it — hung on the tree as a tip (`Roles.Tip`) and looked up only when the pointer arrives. The definition line is not drawn. |
+| Abbreviations | `AbbreviationRule`, `WithReferences` | ✅ | ✅ | `*[HTML]: HyperText…` defines an abbreviation wherever it is written; each occurrence is drawn with a dotted rule under it, and says what it stands for while the pointer rests on it — read by a stage (`Roles.Tip`) and put by the builder in the layout's tips beside the piece it draws (`LayoutBuilder.Tip`). The definition line is not drawn. |
 | Alert blocks | `AlertRule` | ✅ | ✅ | `> [!NOTE]` / `[!TIP]` / `[!IMPORTANT]` / `[!WARNING]` / `[!CAUTION]` → the kind's word and colour (`Accent`/`Success`/`Important`/`Warning`/`Danger`). |
 | YAML front matter | `FrontMatterRule` | ✅ (not drawn) | ✅ | What a document says about itself is not on the page — until the caret is put in it. |
 | Figures | `FigureRule` | ✅ | ✅ | `^^^` figure block, caption under the middle. |

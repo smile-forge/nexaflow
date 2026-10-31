@@ -15,7 +15,7 @@ public sealed class LayoutBuilder
     private readonly List<LayoutShape?> _regions;
     private readonly List<LayoutWords?> _words;
     private readonly Dictionary<int, LayoutActions> _acts = [];
-    private readonly Dictionary<int, string> _tells = [];
+    private readonly Dictionary<int, string> _tips = [];
     private readonly List<LayoutMark> _marks;
     private readonly List<(int[] Members, bool Vertical)> _runs = [];
     private readonly List<(int At, LayoutSide Side, double Clear)> _sides = [];
@@ -123,9 +123,10 @@ public sealed class LayoutBuilder
     public void Acts(LayoutActions actions) => _acts[_open.Peek().At] = actions;
 
     /// <summary>
-    /// Says what the open piece tells a reader pointing at it — what it holds that is not all drawn, a value with no room on its tile.
+    /// Puts what the open piece says while it is pointed at in the tree's tips — what an abbreviation stands for, a value with no room on
+    /// its tile — kept beside the pieces by index, as what they answer to is.
     /// </summary>
-    public void Tells(string said) => _tells[_open.Peek().At] = said;
+    public void Tip(string says) => _tips[_open.Peek().At] = says;
 
     /// <summary>Says the open piece leads somewhere: one press on it follows it.</summary>
     public void Links(string href, string? tip = null) =>
@@ -165,7 +166,7 @@ public sealed class LayoutBuilder
             _regions.Add(tree.RegionOf(piece));
             _words.Add(tree.WordsOf(piece));
             if (tree.ActsOf(piece) is { } acts) _acts[_pieces.Count - 1] = acts;
-            if (tree.TellsOf(piece) is { } tells) _tells[_pieces.Count - 1] = tells;
+            if (tree.TipOf(piece) is { } tip) _tips[_pieces.Count - 1] = tip;
         }
 
         for (var run = 0; run < tree.RunCount; run++)
@@ -265,7 +266,7 @@ public sealed class LayoutBuilder
 
         return new LayoutTree(_medium, [.. _pieces], [.. _marks], [.. _parts], [.. _kinds], [.. _paints], [.. _regions], [.. _words],
                                 _acts.Count == 0 ? null : new Dictionary<int, LayoutActions>(_acts),
-                                _tells.Count == 0 ? null : new Dictionary<int, string>(_tells), across, acrossAt, down, downAt, runs);
+                                _tips.Count == 0 ? null : new Dictionary<int, string>(_tips), across, acrossAt, down, downAt, runs);
     }
 
     private void Align(double block)
@@ -342,7 +343,7 @@ public sealed class LayoutBuilder
         _regions.Clear();
         _words.Clear();
         _acts.Clear();
-        _tells.Clear();
+        _tips.Clear();
         _marks.Clear();
         _runs.Clear();
         _sides.Clear();

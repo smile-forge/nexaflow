@@ -151,7 +151,7 @@ public class TreemapBuilderTests : MermaidBuilderContract
             var valueDrawn = words.Any(piece => piece.Kind == TreemapPiece.Value);
 
             var told = !labelDrawn ? label + "\n" + value : !valueDrawn ? value : null;
-            Assert.AreEqual(told, leaf.Tells, $"{label}: what its tile tells a reader pointing at it");
+            Assert.AreEqual(told, leaf.Tip, $"{label}: what its tile tells a reader pointing at it");
             cases.Add(!labelDrawn ? "label and value" : !valueDrawn ? "value" : "nothing");
         }
 

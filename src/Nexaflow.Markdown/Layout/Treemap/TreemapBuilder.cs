@@ -263,7 +263,7 @@ internal sealed class TreemapBuilder : ContentBuilder
         // Its band tells what it had no room for — the tiles in it tell their own.
         var labelDrawn = label is not null && !label.CutShort;
         var totalDrawn = total is null || placed.Any(words => words.Kind == TreemapPiece.Total);
-        if (Untold(item, total, labelDrawn, totalDrawn) is { } untold) build.Tells(untold);
+        if (Untold(item, total, labelDrawn, totalDrawn) is { } untold) build.Tip(untold);
 
         build.Draw(DiagramMarks.Outlined(Medium, outline, paint.Fill, paint.Edge, paint.Thickness));
         build.Draw(DiagramMarks.Filled(Medium.Rectangle(band), paint.Band));
@@ -293,7 +293,7 @@ internal sealed class TreemapBuilder : ContentBuilder
         // value where only that is left off.
         var labelDrawn = lines.Count(line => line.Kind == TreemapPiece.Label) == label.Count && !lines.Any(line => line.Words.CutShort);
         var valueDrawn = value is not { Says.Length: > 0 } || lines.Any(line => line.Kind == TreemapPiece.Value);
-        if (Untold(item, value, labelDrawn, valueDrawn) is { } untold) build.Tells(untold);
+        if (Untold(item, value, labelDrawn, valueDrawn) is { } untold) build.Tip(untold);
 
         build.Open(MermaidPiece.Shape, item.Part, stops: LayoutStops.None);
         build.Draw(DiagramMarks.Outlined(Medium, outline, paint.Fill, paint.Edge, paint.Thickness));

@@ -493,7 +493,7 @@ public class ContentElement : FrameworkElement
 
     /// <summary>
     /// What the pointer is over <paramref name="at"/>: what the language says a press there would take hold of, a bar over what can be
-    /// written in and an arrow elsewhere — and whatever the piece there says while it is pointed at (<see cref="Roles.Tip"/>).
+    /// written in and an arrow elsewhere — and whatever the piece there says while it is pointed at (<see cref="LayoutPiece.Tip"/>).
     /// </summary>
     protected virtual Cursor Pointing(LayoutPoint at)
     {
@@ -506,32 +506,19 @@ public class ContentElement : FrameworkElement
     }
 
     /// <summary>
-    /// What <paramref name="piece"/> says while pointed at: what it, or what it is drawn in, was laid out to tell
-    /// (<see cref="LayoutPiece.Tells"/>); else all of its words, where they are set cut short to fit (<see cref="IShapedText.CutShort"/>);
-    /// else the tip hung on the part of the source it was drawn from, or on what holds that part. Asked of the tree when the pointer
-    /// arrives — nothing of it is laid out.
+    /// What <paramref name="piece"/> says while pointed at: the tip its builder put in the tree's tips for it, or for what it is drawn in
+    /// (<see cref="LayoutPiece.Tip"/>) — else all of its words, where they are set cut short to fit (<see cref="IShapedText.CutShort"/>).
+    /// Read off the layout alone, when the pointer arrives — nothing of it is laid out, and nothing is asked of the source.
     /// </summary>
     private static string? Says(LayoutPiece piece)
     {
         if (!piece.Exists) return null;
 
-        // What a piece, or what it is drawn in, was laid out to tell — a tile's value with no room on it — is said first: it says the
-        // whole of what was drawn short there, words cut short among it.
         for (var at = piece; at.Exists; at = at.Parent)
-            if (at.Tells is { } told) return told;
+            if (at.Tip is { } tip) return tip;
 
         // Words set cut short to fit their room still hold all of what they say, so that is what they say when pointed at.
-        if (piece.Words is { Glyphs: { CutShort: true } cut }) return cut.Text;
-
-        if (piece.Naming().TreePart() is not { } named) return null;
-
-        for (var part = named; part is not null; part = part.Parent)
-            foreach (var child in part.Node.Children)
-                if (child.IsDerived)
-                    foreach (var held in child.Children)
-                        if (held.Role == Roles.Tip && held.Held is string tip) return tip;
-
-        return null;
+        return piece.Words is { Glyphs: { CutShort: true } cut } ? cut.Text : null;
     }
 
     /// <summary>What the piece under the pointer says while it is pointed at (<see cref="Tip"/>); null where it says nothing.</summary>
