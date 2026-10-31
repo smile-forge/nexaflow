@@ -157,6 +157,28 @@ public class TreeViewEditingTests
         }));
 
     [TestMethod]
+    public void AButtonPressedOnTheRibbonGivesTheKeyboardBackWithTheCaretWhereTheReaderWritesNext() => UiThread.Run(() =>
+        InADocument((editor, tree) =>
+        {
+            Assert.IsTrue(editor.ShowContextRibbon(Clear(tree, Row(tree, "a.ts"), 0.5)), "a right-click on a node opens the ribbon");
+            var shown = editor.ContextRibbon!;
+            var button = Logical(shown.Child).OfType<Button>()
+                .Single(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "Diagram_Ribbon_treeview.insert.after");
+
+            // What a press on it does first: the button takes the keyboard.
+            Assert.IsTrue(button.Focus(), "a button on the ribbon takes the keyboard when pressed");
+            Assert.IsFalse(MarkdownEditorHarness.HasKeyboard(editor));
+
+            button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            MarkdownEditorHarness.Pump();
+
+            Assert.IsFalse(shown.IsOpen, "a button pressed takes the ribbon away");
+            Assert.IsTrue(MarkdownEditorHarness.HasKeyboard(editor), "the document has the keyboard again");
+            Assert.IsTrue(tree.HasCaret, "with the caret in the node put in");
+            Assert.AreEqual(tree.Source.IndexOf("\"\"", StringComparison.Ordinal) + 1, tree.Caret);
+        }));
+
+    [TestMethod]
     public void ANodeDraggedOntoTheMiddleOfAnotherGoesInsideIt_AndOntoItsTopInFrontOfIt() => UiThread.Run(() =>
         InADocument((editor, tree) =>
         {

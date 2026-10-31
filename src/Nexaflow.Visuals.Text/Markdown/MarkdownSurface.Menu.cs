@@ -22,6 +22,9 @@ public sealed partial class MarkdownSurface
 {
     private Popup? _ribbon;
 
+    /// <summary>The ribbon a right-click last opened, open or since closed — null before the first.</summary>
+    internal Popup? ContextRibbon => _ribbon;
+
     /// <inheritdoc/>
     protected override void OnMouseRightButtonUp(MouseButtonEventArgs e)
     {
@@ -36,7 +39,7 @@ public sealed partial class MarkdownSurface
     /// anything. A press outside what is picked out puts the caret where it landed first, which is what every editor does:
     /// a reader right-clicking a word means that word.
     /// </summary>
-    private bool ShowContextRibbon(Point at)
+    internal bool ShowContextRibbon(Point at)
     {
         Focus();
 
@@ -49,18 +52,36 @@ public sealed partial class MarkdownSurface
 
         if (_shown.BuildRibbon(at) is not { } ribbon) return false;
 
-        _ribbon ??= new Popup
+        if (_ribbon is null)
         {
-            StaysOpen = false,
-            AllowsTransparency = true,
-            Placement = PlacementMode.MousePoint,
-            PlacementTarget = this,
-        };
+            _ribbon = new Popup
+            {
+                StaysOpen = false,
+                AllowsTransparency = true,
+                Placement = PlacementMode.MousePoint,
+                PlacementTarget = this,
+            };
+            _ribbon.Closed += (_, _) => TakeKeyboardBack();
+        }
 
         _ribbon.IsOpen = false;
         _ribbon.Child = ribbon;
         _ribbon.IsOpen = true;
 
         return true;
+    }
+
+    /// <summary>
+    /// Gives the keyboard back to the document when the ribbon closes, where the ribbon took it: a control pressed there takes the
+    /// keyboard as it is pressed, and what it did — a node put in, words begun beside one — left the caret where the reader writes next.
+    /// Where the reader closed it by pressing something else that took the keyboard, that keeps it.
+    /// </summary>
+    private void TakeKeyboardBack()
+    {
+        var focused = Keyboard.FocusedElement as DependencyObject;
+        var inRibbon = focused is System.Windows.Media.Visual visual && _ribbon?.Child is { } ribbon && ribbon.IsAncestorOf(visual);
+        if (focused is not null && !inRibbon) return;
+
+        Focus();
     }
 }

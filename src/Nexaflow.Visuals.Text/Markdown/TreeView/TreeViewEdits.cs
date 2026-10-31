@@ -85,7 +85,7 @@ internal sealed class TreeViewEdits : IContentLanguage, IOnEdit, IOnMove
         List<MiniRibbonControl> controls =
         [
             new MiniRibbonChoice(Kind, Str.Get("Text.TreeView.Node.Kind"),
-                                 [Option(File, "Text.TreeView.Node.File", "document"), Option(Folder, "Text.TreeView.Node.Folder", "folder")],
+                                 [new(File, Str.Get("Text.TreeView.Node.File")), new(Folder, Str.Get("Text.TreeView.Node.Folder"))],
                                  static (edit, option) => Over(edit) is { } over ? TreeViewWriting.Foldered(over, option.Id == Folder, edit.State.Caret) : null)
             {
                 Current = TreeViewWriting.Folder(item) ? Folder : File,
@@ -110,12 +110,10 @@ internal sealed class TreeViewEdits : IContentLanguage, IOnEdit, IOnMove
 
         return controls;
 
-        // Done to the node under the pointer, so each stands beside the rest as its icon, named to a reader hovering over it.
+        // Done to the node under the pointer, so each stands beside the rest as its icon, named to a reader hovering over it. Whether
+        // a node is a file or a folder is said in words: drawn as icons, the two would read as a choice of the icon it is drawn with.
         static MiniRibbonButton Pressing(string id, string name, string icon, Func<ContentEdit, ContentChange?> pressed) =>
             new(id, Str.Get(name), pressed) { Shape = DiagramRibbon.Drawn(IconRef.Fluent(icon)) };
-
-        static MiniRibbonOption Option(string id, string name, string icon) =>
-            new(id, Str.Get(name)) { Shape = DiagramRibbon.Drawn(IconRef.Fluent(icon)) };
     }
 
     /// <summary>The node a control of the ribbon was used over, or null where it was used over none.</summary>
