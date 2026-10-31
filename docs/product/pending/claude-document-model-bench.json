@@ -2,6 +2,13 @@
   "branch": "claude/document-model-bench",
   "nodes": {
     "markdown-long-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentDocument.cs",
+          "class": "ContentDocument"
+        }
+      ],
       "concerns": {
         "tests": [
           {
@@ -10,14 +17,43 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownLayoutBench.Writing.cs",
             "class": "MarkdownLayoutBench",
             "method": "WhatWritingInADocumentCosts"
+          },
+          {
+            "type": "code",
+            "status": "should",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Editing/ContentDocumentTests.cs",
+            "class": "ContentDocumentTests"
+          }
+        ]
+      }
+    },
+    "markdown-block-undo": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editing/EditHistoryTests.cs",
+            "class": "EditHistoryTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/DocumentTypingTests.cs",
+            "class": "DocumentTypingTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/SourceChangeTests.cs",
+            "class": "SourceChangeTests"
           }
         ]
       }
     }
   },
   "is_empty": false,
-  "changed_sets": 1,
+  "changed_sets": 3,
   "touched_nodes": [
+    "markdown-block-undo",
     "markdown-long-writing"
   ]
 }

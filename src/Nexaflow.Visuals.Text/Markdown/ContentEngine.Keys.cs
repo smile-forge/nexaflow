@@ -18,9 +18,9 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// written on the same page answer the same key differently without this code having a case for either.
 /// </para>
 /// <para>
-/// <strong>The history is the engine's.</strong> An edit is whatever a key came to in the language it landed in, and what it
-/// came to is the whole content — so a step back is that content as it was, put back and read again
-/// (<see cref="EditHistory"/>). An edit to a formula and an edit to a paragraph are the same thing to take back.
+/// <strong>The history is the engine's.</strong> An edit is whatever a key came to in the language it landed in, made as one change
+/// to the document — so a step back is the change that undoes it, made and read again (<see cref="EditHistory"/>). An edit to a
+/// formula and an edit to a paragraph are the same thing to take back.
 /// </para>
 /// </summary>
 public sealed partial class ContentEngine
@@ -288,7 +288,7 @@ public sealed partial class ContentEngine
     /// </summary>
     internal void Replace(EditState next)
     {
-        if (_readOnly || string.Equals(next.Source, _state.Source, StringComparison.Ordinal)) return;
+        if (_readOnly || ReferenceEquals(next.Document, _state.Document)) return;
 
         var before = _state;
 
@@ -320,7 +320,7 @@ public sealed partial class ContentEngine
     /// </summary>
     private void Stayed()
     {
-        if (ReferenceEquals(_state, _last) || !string.Equals(_state.Source, _last.Source, StringComparison.Ordinal)) return;
+        if (ReferenceEquals(_state, _last) || !ReferenceEquals(_state.Document, _last.Document)) return;
 
         _last = _state;
         _history.Break();

@@ -37,32 +37,37 @@ public sealed record ContentRelease : ContentInput;
 public sealed record ContentHover(LayoutPoint? At) : ContentInput;
 
 /// <summary>What changed in the source, and how it came to change.</summary>
-/// <param name="Before">The content as it was.</param>
-/// <param name="After">The content as it is now.</param>
-/// <param name="Kind">Whether it was written, taken back, written again, or put there by whatever shows it.</param>
+/// <param name="before">The content as it was.</param>
+/// <param name="after">The content as it is now.</param>
+/// <param name="kind">Whether it was written, taken back, written again, or put there by whatever shows it.</param>
 public sealed class ContentSourceChange(EditState before, EditState after, ContentChangeKind kind) : EventArgs
 {
+    private ContentChange? _change;
+
     public EditState Before { get; } = before;
 
     public EditState After { get; } = after;
 
     public ContentChangeKind Kind { get; } = kind;
 
-    /// <summary>Where the two differ: from the first character that is not the same to the last, as it was and as it is.</summary>
+    /// <summary>
+    /// What was written: the change that makes <see cref="After"/> from <see cref="Before"/>, in the offsets of what it was. Known
+    /// from the version the change made; found by comparing the two once only where the content was put there whole.
+    /// </summary>
+    public ContentChange Change => _change ??= this.After.Document.ChangesFrom(this.Before.Document).Forward;
+
+    /// <summary>The stretch the change wrote over: from the first character it wrote over to the last, as it was and as it is.</summary>
     public (int Start, int Removed, int Inserted) Span
     {
         get
         {
-            var (was, now) = (Before.Source, After.Source);
-            var shorter = Math.Min(was.Length, now.Length);
+            var writes = this.Change.Writes;
+            if (writes.Count == 0) return (this.After.Caret, 0, 0);
 
-            var start = 0;
-            while (start < shorter && was[start] == now[start]) start++;
+            var (start, end) = (writes.Min(write => write.Start), writes.Max(write => write.End));
+            var grown = writes.Sum(write => write.Text.Length - write.Length);
 
-            var same = 0;
-            while (same < shorter - start && was[was.Length - 1 - same] == now[now.Length - 1 - same]) same++;
-
-            return (start, was.Length - start - same, now.Length - start - same);
+            return (start, end - start, end - start + grown);
         }
     }
 }

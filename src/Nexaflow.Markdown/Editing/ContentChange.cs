@@ -96,4 +96,14 @@ public sealed record ContentChange(IReadOnlyList<ContentWrite> Writes, int Caret
 
     /// <summary>The same, and <paramref name="write"/> as well — the caret and what is shown as written as they were said.</summary>
     public ContentChange And(ContentWrite write) => this with { Writes = [.. this.Writes, write] };
+
+    /// <summary>
+    /// Whether <paramref name="other"/> writes exactly what this writes, exactly where — the same edit, however each was arrived at.
+    /// What two drops at neighbouring points ask the same question by: a drop that writes what the last one wrote need not be laid
+    /// out again.
+    /// </summary>
+    public bool WritesAlike(ContentChange? other) =>
+        other is not null && this.Writes.Count == other.Writes.Count
+        && this.Writes.Zip(other.Writes).All(pair => pair.First.Start == pair.Second.Start && pair.First.Length == pair.Second.Length
+                                                     && string.Equals(pair.First.Text, pair.Second.Text, StringComparison.Ordinal));
 }

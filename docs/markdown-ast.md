@@ -429,8 +429,8 @@ stays one (`EditKind.Dropping`, `ContentEngine.Brought`).
 
 **The rest is shared and comes with the element.** Shift chooses from where the choosing started and Ctrl adds or takes
 back what is pressed (`ContentElement.BeginPointerSelect`); up and down go to the nearest line with somewhere to stand,
-at the place nearest the column (`LayoutQuery.StepVertical`); undo takes back a stretch of writing, each step the whole
-document as it stood (`EditHistory`); the pointer is a bar only over what can be written in
+at the place nearest the column (`LayoutQuery.StepVertical`); undo takes back a stretch of writing, each step the change it
+wrote and the change that takes it back (`EditHistory`); the pointer is a bar only over what can be written in
 (`LayoutQuery.Writable`). A block's corner offers what its language says (`Editing.Corner`): code no
 picture of itself, prose no corner at all. A language that implements any of these itself is off-spec.
 
@@ -441,8 +441,10 @@ and what a search turned up, and answers what the engine asks of a control — a
 on one, a picture of a block, a page. Inside it one element (`MarkdownElement`, a `ContentElement`) shows what its
 engine holds.
 
-The engine keeps the content as it is being written — the source, the caret, the selection, what was written so it can
-be taken back, and the laid tree — and makes every edit to it. It also lays out the buttons in the corner of the block
+The engine keeps the content as it is being written — the document, the caret, the selection, what was written so it can be taken
+back, and the laid tree — and makes every edit to it. The document is one immutable version per edit (`ContentDocument`): an edit is
+a `ContentChange` made to a version, and the version it makes knows the change both ways, so what is kept to take an edit back and
+what whoever shows the content is told both read what changed rather than comparing two documents. It also lays out the buttons in the corner of the block
 the pointer is over, since only it knows both where the block came out and what its language offers
 (`ContentEngine.Corner`), and a press on one is a press like any other. The element paints all that and says where the
 reader is.

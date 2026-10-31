@@ -42,7 +42,7 @@ public sealed partial class ContentEngine
     /// </summary>
     /// <param name="from">The piece the edit applied to, where it is not the one the caret stands against — a right-click's.</param>
     internal static EditState? Edited(EditKind kind, string text, Landing landing, LayoutPiece from = default) =>
-        Said(kind, text, landing, from) is { } change ? Made(landing.State, change) : null;
+        Said(kind, text, landing, from) is { } change ? landing.State.Made(change) : null;
 
     /// <summary>
     /// The same, as the change itself rather than the content it comes to — for the one caller that has to see what the language
@@ -78,26 +78,6 @@ public sealed partial class ContentEngine
     private static ContentChange Spelling(ContentChange change, EditState state, ContentLanguage language) =>
         !change.Writes.Any(write => write.Meant) ? change
         : language.Transpile?.Invoke(change) ?? ContentChange.Stay(state);
-
-    /// <summary>
-    /// What <paramref name="change"/> makes of <paramref name="state"/>: every stretch written — the last first, so each is still
-    /// where it was named — and nothing picked out. A change writing nothing leaves what is picked out where it is, unless it moves
-    /// the caret, which puts down what was picked out as a caret moved anywhere does.
-    /// </summary>
-    internal static EditState Made(EditState state, ContentChange change)
-    {
-        if (change.Writes.Count == 0)
-        {
-            var caret = Math.Clamp(change.Caret, 0, state.Source.Length);
-            return state with { Caret = caret, Raw = change.Raw, Selected = caret == state.Caret ? state.Selected : [] };
-        }
-
-        var source = state.Source;
-        foreach (var write in change.Writes.OrderByDescending(write => write.Start))
-            source = string.Concat(source.AsSpan(0, write.Start), write.Text, source.AsSpan(write.End));
-
-        return new EditState(source, Math.Clamp(change.Caret, 0, source.Length), [], change.Raw);
-    }
 
     /// <summary>
     /// The edit as the language it landed in is told it: the piece it applied to — <paramref name="from"/>, or else the one the caret

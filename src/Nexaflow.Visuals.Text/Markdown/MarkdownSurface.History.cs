@@ -212,6 +212,11 @@ public sealed class ContentChangingEventArgs(RoutedEvent routed, EditState from,
 
     /// <summary>Set to refuse the change.</summary>
     public bool Refused { get; set; }
+
+    private ContentChange? _change;
+
+    /// <summary>What would be written: the change that makes <see cref="To"/> from <see cref="From"/>, in the offsets of what it is now.</summary>
+    public ContentChange Change => _change ??= this.To.Document.ChangesFrom(this.From.Document).Forward;
 }
 
 /// <summary>One block asked to be kept as a picture. Whoever keeps it marks it handled.</summary>

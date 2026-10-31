@@ -458,8 +458,8 @@ public sealed partial class ContentEngine
         }
 
         // Exactly what was on screen a moment ago — settling is letting go of it, not recomputing something the reader has to
-        // check.
-        Apply(new EditState(moved.Source, moved.Caret), notify: true);
+        // check. It is the version the move's change made, so what is kept to take back is that change.
+        Apply(new EditState(moved.State.Document, moved.Caret), notify: true);
     }
 
     /// <summary>
@@ -470,12 +470,14 @@ public sealed partial class ContentEngine
     {
         // What the language it is let go in says a move there is, where it says, and otherwise the characters carried,
         // emptied and put back at the offset they are over — both of them Moving's to work out (IOnMove).
+        // The same move as the last place asked — the same change, the caret left in the same place — is the same picture. Asked of
+        // the change, never of what it comes to, which would be comparing the whole document at every move of the pointer.
         var carried = Moving(_dropAt);
-        if (carried?.Source == _previewOf?.Source && carried?.Caret == _previewOf?.Caret) return false;
+        if (carried is { } now ? now.Alike(_previewOf) : _previewOf is null) return false;
 
         _previewOf = carried;
         _previewMoved = carried is { } moved ? (moved.Wrote.Start, moved.Wrote.End) : default;
-        _preview = carried is { } laid ? LaidOut(new EditState(laid.Source, laid.Caret)) : null;
+        _preview = carried is { } laid ? LaidOut(new EditState(laid.State.Document, laid.Caret)) : null;
 
         return true;
     }

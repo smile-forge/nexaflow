@@ -148,7 +148,7 @@ public class WindowedLayoutTests
 
         foreach (var edit in edits)
         {
-            engine.Apply(engine.State with { Source = edit, Caret = Math.Min(engine.State.Caret, edit.Length), Selected = null }, notify: false);
+            engine.Apply(engine.State with { Document = ContentDocument.Of(edit), Caret = Math.Min(engine.State.Caret, edit.Length), Selected = null }, notify: false);
 
             Same(Whole(edit, null), ToTheEnd(engine), $"written in, {edit.Length} characters");
         }
@@ -165,7 +165,7 @@ public class WindowedLayoutTests
         var middle = text.IndexOf("Paragraph 700 ", StringComparison.Ordinal);
         var edit = text.Insert(middle, @"\b more\b0  ");
 
-        engine.Apply(engine.State with { Source = edit, Caret = 0, Selected = null }, notify: false);
+        engine.Apply(engine.State with { Document = ContentDocument.Of(edit), Caret = 0, Selected = null }, notify: false);
 
         Same(Whole(edit, RtfParser.Language), ToTheEnd(engine), "a long RTF document written in");
     }

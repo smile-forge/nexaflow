@@ -173,12 +173,14 @@ public sealed partial class ContentEngine
 
         // A host that owns what is written may refuse it. Asked only where the words themselves would change: the caret moving, or
         // a stretch being shown as the characters it was written with, is not a change to what is written.
-        if (next.Source != _state.Source && this.Events?.OnBeforeChange(_state, next) == false) return;
+        if (!ReferenceEquals(next.Document, _state.Document) && this.Events?.OnBeforeChange(_state, next) == false) return;
 
         var before = _state;
-        var resized = next.Source != before.Source || next.Raw != before.Raw;
+        // A version is the same document or another one: comparing what two of them say would cost what the document holds, and
+        // every edit makes a new version while everything that writes nothing keeps the one it had.
+        var changed = !ReferenceEquals(next.Document, before.Document);
+        var resized = changed || next.Raw != before.Raw;
         var was = (before.Caret, _at);
-        var changed = next.Source != before.Source;
 
         _state = next;
 
@@ -513,7 +515,7 @@ public sealed partial class ContentEngine
         var language = edit.Part is null ? null : ContentLanguages.WrittenIn(edit.Root);
         if (said.Writes.Any(write => write.Meant) && language is null) return false;
 
-        Apply(Made(_state, language is null ? said : Spelling(said, _state, language)), notify: true);
+        Apply(_state.Made(language is null ? said : Spelling(said, _state, language)), notify: true);
         return true;
     }
 
@@ -633,9 +635,7 @@ public sealed partial class ContentEngine
         // being handed on to be cut out of a source that is shorter than the cut.
         if (change.Writes.Any(write => write.Start < 0 || write.End > _state.Source.Length)) return null;
 
-        var made = Made(_state, change);
-
-        return new Moved(made.Source, made.Caret, Wrote(change));
+        return new Moved(_state.Made(change), change, Wrote(change));
     }
 
     /// <summary>
