@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.VirtualDisk.FileActions;
@@ -17,7 +18,7 @@ public sealed class OpenAsDiskAction(IShellServices shell) : IFileAction, ICache
     public string ExperienceDescription => Str.Get("VirtualDisk.Action.AsDiskDescription");
 
     public string DisplayName => Str.Get("VirtualDisk.Action.AsDisk");
-    public string Icon => "💽";
+    public IconRef Icon => IconRef.Emoji("💽");
 
     public bool IsDestructive => false;
     public bool SupportsMultipleFiles => false;

@@ -258,4 +258,20 @@ public class RibbonEditorViewModelTests
         Assert.IsTrue(item.IsHalf);
         Assert.AreEqual("Chat", item.Label);
     }
+
+    [TestMethod]
+    [CoversNode("ribbon-editor-iconpicker")]
+    public void ChoosingAnIcon_ReplacesThePictureTheButtonWasPinnedWith()
+    {
+        var picture = new ShellIconRef(@"C:\Apps\app.exe", 0);
+        _live.Add(new RibbonItem { Label = "Open", Icon = IconRef.Emoji("🔗"), IconResource = picture, PageKind = "FileAction" });
+        var vm = Editor();
+        vm.Selected = Card(vm, "Open");
+        Assert.AreEqual(picture, vm.SelectedItem!.IconResource, "the draft keeps the pinned picture");
+
+        vm.SelectedItem.Icon = IconRef.Fluent("star");
+
+        Assert.IsNull(vm.SelectedItem.IconResource, "the chosen icon is what the button wears now");
+        Assert.AreEqual(picture, _live[3].IconResource, "and the live ribbon keeps its picture until Done");
+    }
 }

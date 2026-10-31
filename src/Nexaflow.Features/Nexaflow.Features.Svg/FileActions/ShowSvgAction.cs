@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Svg.FileActions;
@@ -16,7 +17,7 @@ public sealed class ShowSvgAction(IShellServices shell) : IFileAction, ICacheabl
 {
     public bool IsDestructive => false;
     public bool SupportsMultipleFiles => false;
-    public string Icon => "🎨";
+    public IconRef Icon => IconRef.Emoji("🎨");
     public string DisplayName => Str.Get("Svg.Action.AsSvg");
     public static string? StaticExperienceId => "/svg";
     public string ExperienceId => "/svg";

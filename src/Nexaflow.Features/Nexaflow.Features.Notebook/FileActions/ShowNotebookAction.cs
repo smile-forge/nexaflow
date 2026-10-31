@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.Threading;
@@ -19,7 +20,7 @@ public sealed class ShowNotebookAction : IFileAction, ICacheable
 
     public bool   IsDestructive          => false;
     public bool   SupportsMultipleFiles  => false;
-    public string Icon                   => "📓";
+    public IconRef Icon                  => IconRef.Emoji("📓");
     public string DisplayName            => Str.Get("Notebook.Action.AsNotebook");
     public static string? StaticExperienceId => "/notebook";
     public string ExperienceId           => "/notebook";

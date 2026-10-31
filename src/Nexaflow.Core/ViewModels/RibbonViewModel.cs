@@ -334,7 +334,7 @@ public partial class RibbonViewModel : ObservableObject
     {
         PageKind   = tab.PageKind!,   // caller guarantees non-empty
         Label      = tab.Title,
-        Icon       = tab.Icon,
+        Icon       = IconRef.Parse(tab.Icon),
         PageParams = tab.PageParams is not null ? new(tab.PageParams) : null
     };
 
@@ -352,12 +352,13 @@ public partial class RibbonViewModel : ObservableObject
 
         AddItem(new RibbonItem
         {
-            Kind        = RibbonItemKind.Button,
-            Label       = result.Label,
-            Icon        = IconRef.Parse(result.Icon),
-            Foreground  = ColorSpec.Parse(result.AccentColor),
-            PageKind    = result.PageKind,
-            PageParams  = result.PageParams
+            Kind         = RibbonItemKind.Button,
+            Label        = result.Label,
+            Icon         = result.Icon,
+            IconResource = result.IconResource,
+            Foreground   = ColorSpec.Parse(result.AccentColor),
+            PageKind     = result.PageKind,
+            PageParams   = result.PageParams
         }, insertIndex);
     }
 

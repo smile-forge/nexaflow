@@ -13,6 +13,7 @@ using Nexaflow.Features.WindowsFileSystem.Services;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -212,7 +213,7 @@ public class FileCompanionTests
     {
         public bool IsDestructive => false;
         public bool SupportsMultipleFiles => true;
-        public string Icon => "↺";
+        public IconRef Icon => IconRef.Emoji("↺");
         public string DisplayName => "Revert";
         public static string? StaticExperienceId => "/";
         public string ExperienceId => "/";

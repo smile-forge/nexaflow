@@ -14,6 +14,9 @@ using NSubstitute;
 using System.Threading.Tasks;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Tests.Features.Infrastructure;
+using Nexaflow.Icons;
+using Nexaflow.Features.Common.Ribbon;
+using Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -489,6 +492,21 @@ public class FileSystemSurfaceTests
                                   "re-run it somewhere else entirely");
     }
 
+    [TestMethod]
+    [CoversNode("winfs-ribbon-pin")]
+    public async Task PinningAShellVerb_GivesTheButtonItsProgramIcon()
+    {
+        var (vm, shell) = await AtScratchAsync();
+        vm.OnSelectionChanged([new FileSystemEntry { Name = "a.txt", FullPath = @"C:\work\a.txt" }]);
+        var program = new ShellIconRef(@"%SystemRoot%\System32\notepad.exe", 0);
+        var verb    = new ShellVerbAction("open", "Open", "notepad.exe \"%1\"", "/text", program);
+
+        var button = PinnedButton(vm, shell, new FileActionViewModel(verb));
+
+        Assert.AreEqual(verb.Icon, button.Icon, "the glyph it shows until the picture is drawn");
+        Assert.AreEqual(program, button.IconResource, "the verb's own program icon, as the action strip draws it");
+    }
+
     /// <summary>Pins <paramref name="action"/> and reads the paths off the payload. The payload type is
     /// internal to the feature, so its contents are read by name rather than cast.</summary>
     private static string[] PinnedPaths(FileSystemViewModel vm, IShellServices shell, FileActionViewModel action)
@@ -503,6 +521,23 @@ public class FileSystemSurfaceTests
         var prop = pinned!.GetType().GetProperty("SelectedPaths");
         Assert.IsNotNull(prop, "the payload must carry the paths it was pinned against");
         return ((IEnumerable<string>)prop!.GetValue(pinned)!).ToArray();
+    }
+
+    /// <summary>Pins <paramref name="action"/> and builds the ribbon button the shell would from its payload.</summary>
+    private static RibbonPinResult PinnedButton(FileSystemViewModel vm, IShellServices shell, FileActionViewModel action)
+    {
+        object? pinned = null;
+        shell.When(s => s.PinToRibbon(Arg.Any<string>(), Arg.Any<object>()))
+             .Do(ci => pinned = ci.Arg<object>());
+
+        vm.PinFileActionToRibbonCommand.Execute(action);
+
+        Assert.IsNotNull(pinned, "a pinned action has to carry a payload or the ribbon button does nothing");
+        var handler = new FileActionRibbonPinHandler(shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(),
+                                                     VirtualFileSystem.Instance);
+        var button = handler.Pin(pinned!);
+        Assert.IsNotNull(button, "a non-destructive action pins");
+        return button!;
     }
 
     // ── Create overlay ────────────────────────────────────────────────────────

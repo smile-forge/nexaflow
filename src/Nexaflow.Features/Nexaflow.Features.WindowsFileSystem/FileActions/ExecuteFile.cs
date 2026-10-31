@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
@@ -19,7 +20,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
         public ExecuteFile(IVirtualFileSystem vfs) => _vfs = vfs;
         public bool   IsDestructive          => false;
         public bool   SupportsMultipleFiles  => false;
-        public string Icon                   => "▶";
+        public IconRef Icon                  => IconRef.Emoji("▶");
         public string DisplayName            => Str.Get("WindowsFileSystem.Actions.Run");
         public static string? StaticExperienceId => "/binary/executable";
         public string ExperienceId           => "/binary/executable";

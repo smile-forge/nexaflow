@@ -8,6 +8,7 @@ using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -18,7 +19,7 @@ public class FileSystemViewModelCreateTests
     /// <summary>Records the create call and materialises the item so Refresh has something to read.</summary>
     private sealed class FakeCreateAction(string ext) : IFileCreateAction
     {
-        public string  Icon          => "🧪";
+        public IconRef Icon          => IconRef.Emoji("🧪");
         public string  DisplayName   => ext.Length == 0 ? "Folder" : "File" + ext;
         public string  FileExtension => ext;
         public string? LastFolder;
@@ -37,7 +38,7 @@ public class FileSystemViewModelCreateTests
 /// <summary>A kind that asks for options first: hands out <see cref="FakeOptions"/> opened on the folder it is given.</summary>
     private sealed class FakeOptionsAction(bool offered = true) : IFileCreateWithOptions
     {
-        public string Icon          => "🎨";
+        public IconRef Icon         => IconRef.Emoji("🎨");
         public string DisplayName   => "Picture";
         public string FileExtension => ".png";
         public bool   IsOffered     => offered;

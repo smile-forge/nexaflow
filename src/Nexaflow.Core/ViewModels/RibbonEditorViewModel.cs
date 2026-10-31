@@ -241,6 +241,7 @@ public sealed partial class RibbonEditorViewModel : ObservableObject
             {
                 option.Preview.Label        = item.Label;
                 option.Preview.Icon         = item.Icon;
+                option.Preview.IconResource = item.IconResource;
                 option.Preview.Foreground   = item.Foreground;
                 option.Preview.Background   = item.Background;
                 option.Preview.BorderColor  = item.BorderColor;

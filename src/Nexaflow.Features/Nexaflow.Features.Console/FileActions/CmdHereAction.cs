@@ -1,9 +1,9 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Media;
 
 namespace Nexaflow.Features.Console.FileActions;
 
@@ -19,14 +19,13 @@ public sealed class CmdHereAction : IFolderAction, ICacheable
 
     public bool     IsDestructive         => false;
     public bool     SupportsMultipleFiles => false;
-    public string   Icon                  => "⌨";
+    public IconRef  Icon                  => IconRef.Emoji("⌨");
     public string   DisplayName           => Str.Get("Console.Action.CmdHere");
     public bool     RequiresRefresh       => false;
     public bool     CanPerformAction      => true;
     public bool     AppliesToRoot         => true;
     public bool     AppliesToDrives       => true;
     public string?  Tooltip               => Str.Get("Console.Action.CmdHereTip");
-    public ImageSource? IconImage         => null;
 
     public Task<bool> PerformActionAsync(string folderPath, CancellationToken ct = default)
     {

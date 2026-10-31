@@ -7,6 +7,7 @@ using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Tests.Fixtures;
 using System.Threading;
 using System.Threading.Tasks;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -30,7 +31,7 @@ public class ThisPcDriveActionsTests
     {
         public bool   IsDestructive         => false;
         public bool   SupportsMultipleFiles => true;
-        public string Icon                  => "💿";
+        public IconRef Icon                 => IconRef.Emoji("💿");
         public string DisplayName           => "Drive Action";
         public bool   RequiresRefresh       => false;
         public bool   CanPerformAction      => true;
@@ -46,7 +47,7 @@ public class ThisPcDriveActionsTests
     {
         public bool   IsDestructive         => false;
         public bool   SupportsMultipleFiles => true;
-        public string Icon                  => "📁";
+        public IconRef Icon                 => IconRef.Emoji("📁");
         public string DisplayName           => "Folder Only";
         public bool   RequiresRefresh       => false;
         public bool   CanPerformAction      => true;

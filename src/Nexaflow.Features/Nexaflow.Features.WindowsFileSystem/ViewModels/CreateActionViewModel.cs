@@ -2,7 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using System;
-using System.Windows.Media;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 
@@ -22,8 +22,8 @@ public partial class CreateActionViewModel : ObservableObject
 
     public IFileCreateEntry Action { get; }
 
-    public string       Icon          => Action.Icon;
-    public ImageSource? IconImage     => Action.IconImage;
+    public IconRef       Icon         => Action.Icon;
+    public ShellIconRef? IconResource => Action.IconResource;
     public string       DisplayName   => Action.DisplayName;
 
     public string       AutomationId  => Action.AutomationId;

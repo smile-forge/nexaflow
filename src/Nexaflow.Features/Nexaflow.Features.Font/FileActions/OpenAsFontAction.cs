@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Font.FileActions;
@@ -17,7 +18,7 @@ public sealed class OpenAsFontAction(IShellServices shell) : IFileAction, ICache
     public string ExperienceDescription => Str.Get("Font.Action.Description");
 
     public string DisplayName => Str.Get("Font.Action.AsFont");
-    public string Icon => "🔤";
+    public IconRef Icon => IconRef.Emoji("🔤");
 
     public bool IsDestructive => false;
     public bool SupportsMultipleFiles => true;

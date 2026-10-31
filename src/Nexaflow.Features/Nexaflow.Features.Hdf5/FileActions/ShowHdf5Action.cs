@@ -2,6 +2,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Hdf5.FileActions;
@@ -18,7 +19,7 @@ public sealed class ShowHdf5Action(IShellServices shell) : IFileAction, ICacheab
     public string ExperienceDescription => Str.Get("Hdf5.Action.OpenDescription");
 
     public string DisplayName => Str.Get("Hdf5.Action.Open");
-    public string Icon        => "🗃";
+    public IconRef Icon       => IconRef.Emoji("🗃");
     public string? Tooltip    => Str.Get("Hdf5.Action.OpenTooltip");
 
     public bool IsDestructive         => false;

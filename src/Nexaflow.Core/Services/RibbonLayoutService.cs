@@ -116,6 +116,7 @@ public sealed class RibbonLayoutService
         Kind         = item.Kind,
         Label        = item.Label,
         Icon         = item.Icon,
+        IconResource = item.IconResource?.ToString(),
         IsHalf       = item.IsHalf,
         Foreground   = item.Foreground,
         Background   = item.Background,
@@ -132,6 +133,7 @@ public sealed class RibbonLayoutService
         Kind         = dto.Kind,
         Label        = dto.Label,
         Icon         = dto.Icon,
+        IconResource = ShellIconRef.Parse(dto.IconResource),
         IsHalf       = dto.IsHalf,
         // Version 1's one colour was the icon and label's.
         Foreground   = dto.Foreground.IsDefault ? ColorSpec.Parse(dto.AccentColor) : dto.Foreground,
@@ -159,6 +161,9 @@ internal sealed class RibbonItemDto
     public RibbonItemKind              Kind         { get; set; } = RibbonItemKind.Button;
     public string                      Label        { get; set; } = string.Empty;
     public IconRef                     Icon         { get; set; }
+
+    /// <summary>The picture drawn instead of <see cref="Icon"/>, as a <c>DefaultIcon</c> string: <c>file,index</c>.</summary>
+    public string?                     IconResource { get; set; }
     public bool                        IsHalf       { get; set; }
     public ColorSpec                   Foreground   { get; set; }
     public ColorSpec                   Background   { get; set; }
