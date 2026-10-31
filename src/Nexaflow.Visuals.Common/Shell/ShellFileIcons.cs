@@ -13,12 +13,6 @@ internal enum ShellIconSize { Small, Large }
 internal readonly record struct FileIconQuery(string Path, bool IsFolder, bool NameOnly, long Stamp, ShellIconSize Size);
 
 /// <summary>
-/// What a request gives back at once: the best icon already in hand, or null when there is none yet; and, while a better
-/// one is still to come, the ticket that stops waiting for it.
-/// </summary>
-internal readonly record struct FileIconLookup(ImageSource? Icon, IDisposable? Pending);
-
-/// <summary>
 /// Explorer's icons for every file list in the app, in two layers. Each kind of file — an extension, a folder — is drawn
 /// once and kept for good; a file that draws its own icon (a program, a shortcut) and a customised folder are drawn one by
 /// one and kept in a bounded most-recently-used set. A request answers at once from either; what is not in hand is drawn
@@ -58,7 +52,7 @@ internal sealed class ShellFileIcons
     /// <paramref name="arrived"/> on <paramref name="dispatcher"/>'s thread, unless the returned ticket is disposed first.
     /// Cheap enough to call while a row is drawn: it never touches the disk or the shell.
     /// </summary>
-    public FileIconLookup Request(FileIconQuery query, Dispatcher dispatcher, Action<ImageSource> arrived)
+    public ShellIconLookup Request(FileIconQuery query, Dispatcher dispatcher, Action<ImageSource> arrived)
     {
         string extension = query.IsFolder ? string.Empty : System.IO.Path.GetExtension(query.Path).ToLowerInvariant();
         var typeKey = new IconKey(null, extension, query.IsFolder, 0, query.Size);

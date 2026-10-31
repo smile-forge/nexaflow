@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Compressed.FileActions;
@@ -16,7 +17,7 @@ public sealed class OpenAsArchiveAction(IShellServices shell) : IFileAction, ICa
     public string ExperienceDescription => Str.Get("Compressed.Experience.Archive");
 
     public string DisplayName => Str.Get("Compressed.Action.AsArchive");
-    public string Icon => "📦";
+    public IconRef Icon => IconRef.Emoji("📦");
 
     public bool IsDestructive => false;
     public bool SupportsMultipleFiles => false;

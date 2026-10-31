@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -10,6 +11,6 @@ public sealed class AlbumFolderAction : ImageFolderAction
     public AlbumFolderAction(IShellServices shell, IVirtualFileSystem vfs) : base(shell, vfs) { }
 
     protected override string ViewMode => "album";
-    public override string Icon        => "▦";
+    public override IconRef Icon       => IconRef.Emoji("▦");
     public override string DisplayName => Str.Get("Images.Action.Album");
 }

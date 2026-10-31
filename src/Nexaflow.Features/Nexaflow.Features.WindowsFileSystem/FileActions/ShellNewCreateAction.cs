@@ -1,15 +1,15 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Media;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 
 /// <summary>A discovered HKCR ShellNew entry, projected into a create-action by the picker.</summary>
-public sealed record ShellNewEntry(string Extension, string DisplayName, ImageSource? IconImage, ShellNewSpec Spec);
+public sealed record ShellNewEntry(string Extension, string DisplayName, ShellIconRef? IconResource, ShellNewSpec Spec);
 
 /// <summary>
 /// A create-action backed by an HKCR <c>ShellNew</c> entry. Runtime-constructed
@@ -18,14 +18,14 @@ public sealed record ShellNewEntry(string Extension, string DisplayName, ImageSo
 /// </summary>
 public sealed class ShellNewCreateAction(ShellNewEntry entry, IVirtualFileSystem vfs) : IFileCreateAction
 {
-    public string       Icon          => "📄";
+    public IconRef      Icon          => IconRef.Emoji("📄");
     public string       DisplayName   => string.IsNullOrWhiteSpace(entry.DisplayName)
         ? Str.Format("WindowsFileSystem.Create.FileTypeFormat", entry.Extension.TrimStart('.').ToUpperInvariant())
         : entry.DisplayName;
 
     public string       AutomationId  => $"ShellNew_{entry.Extension.TrimStart('.')}";
     public string       FileExtension => entry.Extension;
-    public ImageSource? IconImage     => entry.IconImage;
+    public ShellIconRef? IconResource => entry.IconResource;
 
     public async Task<string?> CreateItemAsync(string folderPath, string fileName, CancellationToken ct = default)
     {

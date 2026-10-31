@@ -41,6 +41,18 @@ public partial class RibbonItem : ObservableObject
     [ObservableProperty] private IconRef _icon;
     [ObservableProperty] private bool    _isActive;
 
+    /// <summary>
+    /// A picture in a Windows file's resources drawn instead of <see cref="Icon"/> — a pinned shell verb's program icon.
+    /// It belongs to the icon the button was pinned with, so choosing another icon lets it go.
+    /// </summary>
+    [ObservableProperty] private ShellIconRef? _iconResource;
+
+    partial void OnIconChanged(IconRef oldValue, IconRef newValue)
+    {
+        // Only a change to an icon already set is a choice; the first assignment, as an item is built, is not.
+        if (!oldValue.IsEmpty) IconResource = null;
+    }
+
     /// <summary>When true the button renders compact (icon + label side-by-side) instead of full-height stacked.</summary>
     [ObservableProperty] private bool _isHalf;
 
@@ -85,6 +97,7 @@ public partial class RibbonItem : ObservableObject
         Kind         = Kind,
         Label        = Label,
         Icon         = Icon,
+        IconResource = IconResource,
         IsActive     = IsActive,
         IsHalf       = IsHalf,
         Foreground   = Foreground,

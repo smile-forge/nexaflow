@@ -1,5 +1,6 @@
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.Icons;
 using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
@@ -48,8 +49,7 @@ public sealed class ExternalAppRegistry
     /// Returns a fresh <see cref="CustomAction"/> for each definition whose
     /// extension matches every file in <paramref name="selected"/> and whose
     /// multi-file mode permits the current selection size.
-    /// Safe to call from a background thread; icons are loaded via
-    /// <see cref="ShellIconLoader"/> which returns frozen <c>ImageSource</c>s.
+    /// Safe to call from a background thread; each action's icon is named (<see cref="ResolveIcon"/>), never loaded.
     /// </summary>
     public IReadOnlyList<CustomAction> Resolve(IReadOnlyList<FileSystemEntry> selected)
     {
@@ -82,30 +82,11 @@ public sealed class ExternalAppRegistry
     }
 
     /// <summary>
-    /// Picks an icon for <paramref name="def"/>:
-    ///   1. <see cref="ExternalAppDefinition.IconPath"/> when set
-    ///   2. icon extracted from <see cref="ExternalAppDefinition.ApplicationPath"/>
-    ///   3. shell32.dll generic open icon as a last resort
+    /// The picture <paramref name="def"/>'s button wears: its own icon when it names one, else its program's first icon.
+    /// Named, not loaded — the view draws it, and keeps the button's glyph when the file holds no such icon.
     /// </summary>
-    internal static System.Windows.Media.ImageSource? ResolveIcon(ExternalAppDefinition def)
-    {
-        if (!string.IsNullOrWhiteSpace(def.IconPath))
-        {
-            var fromIcon = ShellIconLoader.Load(def.IconPath);
-            if (fromIcon is not null) return fromIcon;
-        }
-
-        if (!string.IsNullOrWhiteSpace(def.ApplicationPath))
-        {
-            var exe = Environment.ExpandEnvironmentVariables(def.ApplicationPath);
-            var fromExe = ShellIconLoader.Load(exe);
-            if (fromExe is not null) return fromExe;
-        }
-
-        // shell32.dll icon index 3 is the classic "open folder/file" glyph and is
-        // present on every supported Windows version.
-        return ShellIconLoader.Load(@"%SystemRoot%\System32\shell32.dll,3");
-    }
+    internal static ShellIconRef? ResolveIcon(ExternalAppDefinition def)
+        => ShellIconRef.Parse(def.IconPath) ?? ShellIconRef.Parse(def.ApplicationPath);
 
     private static bool MatchesAll(string defExt, IReadOnlyList<string> selectedExts)
     {

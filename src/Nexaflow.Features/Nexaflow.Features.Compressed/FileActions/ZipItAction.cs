@@ -7,6 +7,7 @@ using Nexaflow.IO.Common;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Features.Compressed.FileActions;
 
@@ -19,7 +20,7 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config, I
 {
     public bool IsDestructive => false;
     public bool SupportsMultipleFiles => true;
-    public string Icon => "📦";
+    public IconRef Icon => IconRef.Emoji("📦");
     public string DisplayName => Str.Get("Compressed.Action.ZipIt");
 
     public bool RequiresRefresh => false;   // the queue refreshes when the operation finishes

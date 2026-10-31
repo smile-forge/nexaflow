@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.IO.Common;
 using System;
 using System.IO;
@@ -14,7 +15,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 public sealed class TemplateCreateAction(string name, string icon, string extension, string templatePath, IVirtualFileSystem vfs)
     : IFileCreateAction
 {
-    public string Icon          => string.IsNullOrEmpty(icon) ? "📄" : icon;
+    public IconRef Icon         => string.IsNullOrEmpty(icon) ? IconRef.Emoji("📄") : IconRef.Parse(icon);
 
     public string AutomationId  => $"Template_{name}";
     public string DisplayName   => name;

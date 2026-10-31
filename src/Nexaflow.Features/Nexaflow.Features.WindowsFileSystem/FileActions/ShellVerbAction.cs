@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System;
@@ -6,7 +7,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Media;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 
@@ -22,7 +22,7 @@ public sealed class ShellVerbAction : IFileAction
     private readonly string    _verb;
     private readonly string    _command;        // raw registry command template, for reference
     private readonly string    _experienceId;
-    private readonly ImageSource? _iconImage;
+    private readonly ShellIconRef? _iconResource;
     private readonly string?   _tooltip;
 
     public ShellVerbAction(
@@ -30,14 +30,14 @@ public sealed class ShellVerbAction : IFileAction
         string friendlyName,
         string command,
         string experienceId,
-        ImageSource? iconImage  = null,
-        string? tooltip         = null)
+        ShellIconRef? iconResource = null,
+        string? tooltip            = null)
     {
         _verb         = verb;
         DisplayName   = friendlyName;
         _command      = command;
         _experienceId = experienceId;
-        _iconImage    = iconImage;
+        _iconResource = iconResource;
         _tooltip      = tooltip;
     }
 
@@ -45,7 +45,7 @@ public sealed class ShellVerbAction : IFileAction
 
     public bool   IsDestructive         => false;
     public bool   SupportsMultipleFiles => false;
-    public string Icon                  => "🔗";
+    public IconRef Icon                 => IconRef.Emoji("🔗");
     public string DisplayName           { get; }
     public static string? StaticExperienceId => null;
     public string ExperienceId          => _experienceId;
@@ -55,8 +55,8 @@ public sealed class ShellVerbAction : IFileAction
     public bool   RequiresRefresh       => false;
     public bool   CanPerformAction      => true;
 
-    public ImageSource? IconImage => _iconImage;
-    public string?      Tooltip   => _tooltip;
+    public ShellIconRef? IconResource => _iconResource;
+    public string?       Tooltip      => _tooltip;
 
     /// <summary>A registered verb hands the file to whatever program claims it, which may expect the
     /// file's neighbours to be there too. Offered only where the whole folder really is on disk.</summary>

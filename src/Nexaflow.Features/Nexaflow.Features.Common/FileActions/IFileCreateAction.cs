@@ -1,4 +1,4 @@
-using System.Windows.Media;
+using Nexaflow.Icons;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -11,7 +11,9 @@ namespace Nexaflow.Features.Common;
 /// </summary>
 public interface IFileCreateEntry
 {
-    string Icon { get; }
+    /// <summary>The glyph the entry wears — and, while <see cref="IconResource"/> is still being drawn or cannot be, the one
+    /// it shows instead.</summary>
+    IconRef Icon { get; }
     string DisplayName { get; }
 
     /// <summary>The button's UI Automation id. Invariant, unlike <see cref="DisplayName"/>, which is in the reader's
@@ -19,10 +21,10 @@ public interface IFileCreateEntry
     string AutomationId => GetType().Name;
 
     /// <summary>
-    /// Optional WPF image to display instead of the <see cref="Icon"/> glyph (e.g. a real
-    /// shell icon for a registry ShellNew entry). Must be frozen if created off the UI thread.
+    /// A picture in a Windows file's resources to draw instead of the <see cref="Icon"/> glyph — a registry ShellNew type's
+    /// own icon, say; named, not loaded, as <see cref="IFileAction.IconResource"/> is.
     /// </summary>
-    ImageSource? IconImage => null;
+    ShellIconRef? IconResource => null;
 
     /// <summary>
     /// Default file extension produced, e.g. ".html" or ".md".

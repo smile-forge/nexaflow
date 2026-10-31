@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.VirtualDisk.Services;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.VirtualDisk.FileActions;
@@ -17,7 +18,7 @@ public sealed class MountDiskAction(IShellServices shell) : IFileAction, ICachea
     public string ExperienceDescription => Str.Get("VirtualDisk.Action.MountDescription");
 
     public string DisplayName => Str.Get("VirtualDisk.Action.Mount");
-    public string Icon => "📀";
+    public IconRef Icon => IconRef.Emoji("📀");
 
     public bool IsDestructive => false;
     public bool SupportsMultipleFiles => false;

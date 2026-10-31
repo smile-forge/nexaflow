@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -33,7 +34,7 @@ public sealed class AudioFolderAction : IFolderAction, ICacheable
     public string[]? ContainsFileGlobs              => AudioFileTypes.Globs;
     public int       MinimumFileGlobMatchPercentage => 30;
 
-    public string Icon        => "🎵";
+    public IconRef Icon       => IconRef.Emoji("🎵");
     public string DisplayName => Str.Get("Audio.Action.PlayFolder");
 
     public async Task<bool> PerformActionAsync(string folderPath, CancellationToken ct = default)

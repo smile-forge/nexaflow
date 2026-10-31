@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Media;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Features.Common
 {
@@ -14,7 +14,9 @@ namespace Nexaflow.Features.Common
     {
         bool IsDestructive { get; }
         bool SupportsMultipleFiles { get; }
-        string Icon { get; }
+        /// <summary>The glyph the action's button wears — and, while <see cref="IconResource"/> is still being drawn or cannot
+        /// be, the one it shows instead.</summary>
+        IconRef Icon { get; }
         string DisplayName { get; }
 
         /// <summary>The button's UI Automation id. Invariant, unlike <see cref="DisplayName"/>, which is in the reader's
@@ -59,7 +61,9 @@ namespace Nexaflow.Features.Common
         /// </summary>
         string[]? ContainsFolderGlobs => null;
 
-        ImageSource? IconImage => null;
+        /// <summary>A picture in a Windows file's resources to draw instead of the <see cref="Icon"/> glyph; named, not loaded,
+        /// as <see cref="IFileAction.IconResource"/> is.</summary>
+        ShellIconRef? IconResource => null;
         string? Tooltip => null;
 
         /// <summary>

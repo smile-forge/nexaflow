@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
@@ -19,7 +20,7 @@ internal sealed class NewMenuAction(Action openCreateOverlay) : IFolderAction
 {
     public bool    IsDestructive         => false;
     public bool    SupportsMultipleFiles => false;
-    public string  Icon                  => "➕";
+    public IconRef Icon                  => IconRef.Emoji("➕");
     public string  DisplayName           => Str.Get("WindowsFileSystem.Actions.New");
     public bool    RequiresRefresh       => false;
     public bool    CanPerformAction      => true;

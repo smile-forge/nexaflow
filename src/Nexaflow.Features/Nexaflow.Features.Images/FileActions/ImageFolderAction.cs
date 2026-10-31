@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.IO.Common;
 using System.Collections.Generic;
 using System.Linq;
@@ -36,7 +37,7 @@ public abstract class ImageFolderAction : IFolderAction, ICacheable
     public string[]? ContainsFileGlobs            => ImageFileTypes.Globs;
     public int       MinimumFileGlobMatchPercentage => 30;
 
-    public abstract string Icon        { get; }
+    public abstract IconRef Icon       { get; }
     public abstract string DisplayName { get; }
 
     public async Task<bool> PerformActionAsync(string folderPath, CancellationToken ct = default)

@@ -2,7 +2,7 @@ using Nexaflow.Features.Common;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Media;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 
@@ -20,7 +20,7 @@ public sealed class FolderActionAdapter : IFileAction
 
     public bool         IsDestructive         => Inner.IsDestructive;
     public bool         SupportsMultipleFiles => Inner.SupportsMultipleFiles;
-    public string       Icon                  => Inner.Icon;
+    public IconRef      Icon                  => Inner.Icon;
     public string       DisplayName           => Inner.DisplayName;
 
     public string       AutomationId          => Inner.AutomationId;
@@ -29,7 +29,7 @@ public sealed class FolderActionAdapter : IFileAction
     public string       ExperienceDescription => string.Empty;
     public bool         RequiresRefresh       => Inner.RequiresRefresh;
     public bool         CanPerformAction      => Inner.CanPerformAction;
-    public ImageSource? IconImage             => Inner.IconImage;
+    public ShellIconRef? IconResource         => Inner.IconResource;
     public string?      Tooltip               => Inner.Tooltip;
     public bool         IsRibbonPinnable      => Inner.IsRibbonPinnable;
 

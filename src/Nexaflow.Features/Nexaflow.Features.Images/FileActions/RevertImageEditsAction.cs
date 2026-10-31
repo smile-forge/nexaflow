@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing.Recipe;
+using Nexaflow.Icons;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
@@ -26,7 +27,7 @@ public sealed class RevertImageEditsAction : IFileAction, ICacheable
 
     public bool    IsDestructive          => true;
     public bool    SupportsMultipleFiles  => true;
-    public string  Icon                   => "↺";
+    public IconRef Icon                   => IconRef.Emoji("↺");
     public string  DisplayName            => Str.Get("Images.Action.RevertEdits");
     public string? Tooltip                => Str.Get("Images.Action.RevertEditsTip");
     public static string? StaticExperienceId => "/image/edit/revert";

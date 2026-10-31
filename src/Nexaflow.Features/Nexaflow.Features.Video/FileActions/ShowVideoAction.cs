@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Video.FileActions;
@@ -19,7 +20,7 @@ public sealed class ShowVideoAction : IFileAction, ICacheable
 
     public bool   IsDestructive         => false;
     public bool   SupportsMultipleFiles => false;
-    public string Icon                  => "🎬";
+    public IconRef Icon                 => IconRef.Emoji("🎬");
     public string DisplayName           => Str.Get("Video.Action.Play");
     public static string? StaticExperienceId => "/video";
     public string ExperienceId          => "/video";

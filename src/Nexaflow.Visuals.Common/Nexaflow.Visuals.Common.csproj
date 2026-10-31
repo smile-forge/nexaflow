@@ -16,6 +16,8 @@
   <ItemGroup>
     <!-- The file lists' shell layer reads what a listing and a sync provider say of a cloud file (Cloud/, Listing/). -->
     <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <!-- The shell layer draws icons kept in a file's resources, which Nexaflow.Icons names (ShellIconRef, Shell/). -->
+    <ProjectReference Include="..\Nexaflow.Icons\Nexaflow.Icons.csproj" />
   </ItemGroup>
 
   <ItemGroup>

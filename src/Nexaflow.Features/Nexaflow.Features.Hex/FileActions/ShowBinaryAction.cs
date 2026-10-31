@@ -1,6 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Hex.FileActions;
@@ -20,7 +21,7 @@ public sealed class ShowBinaryAction : IFileAction, ICacheable
     public string ExperienceId          => "/binary";
     public string ExperienceDescription => Str.Get("Hex.Action.OpenInHexEditor");
     public string DisplayName           => Str.Get("Hex.Action.AsHex");
-    public string Icon                  => "⬡";
+    public IconRef Icon                 => IconRef.Emoji("⬡");
     public bool   IsDestructive         => false;
     public bool   SupportsMultipleFiles => false;
     public bool   RequiresRefresh       => false;
