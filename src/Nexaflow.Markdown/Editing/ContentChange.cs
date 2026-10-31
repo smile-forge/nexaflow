@@ -80,7 +80,7 @@ public sealed record ContentChange(IReadOnlyList<ContentWrite> Writes, int Caret
                        from + text.Length, shown);
         }
 
-        var caret = Math.Clamp(state.Caret, 0, state.Source.Length);
+        var caret = Math.Clamp(state.Caret, 0, state.Document.Length);
         return new([new ContentWrite(caret, 0, text)], caret + text.Length, shown ?? Moved(state.Raw, caret, text.Length));
 
         // What is shown as written stays over the same characters: pushed along by what is written in front of it, and grown by

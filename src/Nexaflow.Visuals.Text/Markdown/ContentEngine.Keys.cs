@@ -150,7 +150,7 @@ public sealed partial class ContentEngine
                 return true;
 
             case Key.Home or Key.End:
-                MoveCaretTo(key == Key.End ? _state.Source.Length : 0, extend: shift);
+                MoveCaretTo(key == Key.End ? _state.Document.Length : 0, extend: shift);
                 return true;
 
             // Above the question of writing: what is only being looked at can still be picked out and copied.
@@ -213,7 +213,7 @@ public sealed partial class ContentEngine
     /// Picks out everything written. Exactly that, rather than grown out to the constructs it covers, which in content shown
     /// inside another would reach its delimiters too.
     /// </summary>
-    internal void SelectAll() => Apply(_state.Select(0, _state.Source.Length), notify: false);
+    internal void SelectAll() => Apply(_state.Select(0, _state.Document.Length), notify: false);
 
     /// <summary>
     /// The caret to the start or the end of the line it is on, as a reader sees the line: whatever the page drew beside it,
@@ -265,7 +265,7 @@ public sealed partial class ContentEngine
     /// <summary><paramref name="next"/>, held shown as written where the whole content is.</summary>
     private EditState Held(EditState next) => _holdsWritten ? next with { Raw = Whole(next) } : next;
 
-    private static RawZone Whole(EditState state) => new(0, state.Source.Length);
+    private static RawZone Whole(EditState state) => new(0, state.Document.Length);
 
     // ── What was written ────────────────────────────────────────────────────
 

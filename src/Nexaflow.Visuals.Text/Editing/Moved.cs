@@ -9,9 +9,6 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// </summary>
 public readonly record struct Moved(EditState State, ContentChange Change, EditRange Wrote)
 {
-    /// <summary>What is written once it is let go.</summary>
-    public string Source => State.Source;
-
     /// <summary>Where the caret goes.</summary>
     public int Caret => State.Caret;
 

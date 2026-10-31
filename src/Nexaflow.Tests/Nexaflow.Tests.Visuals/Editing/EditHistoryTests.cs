@@ -43,8 +43,8 @@ public class EditHistoryTests
         var two = elsewhere.Write("B");
         history.Record(one, two);
 
-        Assert.AreEqual("AFirst.\n\nSecond.", history.Undo(two)!.Source, "only the second place written in is taken back");
-        Assert.AreEqual("First.\n\nSecond.", history.Undo(one)!.Source);
+        Assert.AreEqual("AFirst.\n\nSecond.", history.Undo(two)!.Document.ToString(), "only the second place written in is taken back");
+        Assert.AreEqual("First.\n\nSecond.", history.Undo(one)!.Document.ToString());
     }
 
     [TestMethod]
@@ -138,7 +138,7 @@ public class EditHistoryTests
             state = after;
         }
 
-        Assert.AreEqual("ab", state.Source);
+        Assert.AreEqual("ab", state.Document.ToString());
         Assert.AreEqual(start, history.Undo(state), "typing and putting it right, and a letter more, are one stretch of writing");
         Assert.IsFalse(history.CanUndo);
     }

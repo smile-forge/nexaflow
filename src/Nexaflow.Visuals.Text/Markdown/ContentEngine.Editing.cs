@@ -129,7 +129,7 @@ public sealed partial class ContentEngine
         // that language would have added to the ribbon, not the window.
         try
         {
-            var ask = new ContentAsk(edit.Root.Node is BlockNode block ? block.Language : string.Empty, edit.Source)
+            var ask = new ContentAsk(edit.Root.Node is BlockNode block ? block.Language : string.Empty, state.Document)
             {
                 Part = edit.Part,
                 Piece = edit.Piece,

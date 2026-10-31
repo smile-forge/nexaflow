@@ -104,10 +104,10 @@ public class ContentDocumentTests
         foreach (var (edit, before, after) in edits)
         {
             Assert.IsTrue(after.Document.MadeFrom(before.Document), $"{edit} is one change to the document it was made to");
-            Assert.AreEqual(before.Source, after.Document.Apply(after.Document.Inverse!).ToString(), $"{edit} is taken back by its inverse");
+            Assert.AreEqual(before.Document.ToString(), after.Document.Apply(after.Document.Inverse!).ToString(), $"{edit} is taken back by its inverse");
         }
 
-        Assert.AreEqual("X beta ", picked.Write("X").Source, "the first stretch written over, the second taken out");
-        Assert.AreEqual("[alpha] beta [gamma]", picked.Wrap("[", "]").Source);
+        Assert.AreEqual("X beta ", picked.Write("X").Document.ToString(), "the first stretch written over, the second taken out");
+        Assert.AreEqual("[alpha] beta [gamma]", picked.Wrap("[", "]").Document.ToString());
     }
 }

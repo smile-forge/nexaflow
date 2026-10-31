@@ -113,15 +113,15 @@ internal sealed partial class MarkdownEdits : IContentLanguage, IOnEdit
         if (ContentLanguages.Insertable.FirstOrDefault(insertable => insertable.Name == language.Id)?.DefaultBlock is not { } starts) return null;
 
         var block = starts.ReplaceLineEndings("\n");
-        var source = edit.State.Source;
+        var document = edit.State.Document;
         var end = Outermost(edit) is { } over ? over.Start + over.Length : edit.State.Caret;
 
         // At the end of the line the block over ends on, so the gap after it stays after the new one.
-        var at = source.IndexOf('\n', Math.Clamp(end - 1, edit.Start, edit.End));
-        at = at < 0 || at > edit.End ? edit.End : at;
+        var at = document.IndexOf('\n', Math.Clamp(end - 1, edit.Start, edit.End), edit.End);
+        at = at < 0 ? edit.End : at;
 
         var lead = at == edit.Start ? string.Empty : "\n\n";
-        var rest = source[at..edit.End];
+        var rest = document.Slice(at, edit.End - at);
         var trail = rest.Length == 0 ? "\n" : rest == "\n" || rest.StartsWith("\n\n", StringComparison.Ordinal) ? string.Empty : "\n";
 
         return ContentChange.Write(at, 0, lead + block + trail, caret: at + lead.Length + block.LastIndexOf("\n```", StringComparison.Ordinal));
@@ -191,8 +191,12 @@ internal sealed partial class MarkdownEdits : IContentLanguage, IOnEdit
     {
         // Read as the line will be once what is picked out is gone, which changes nothing in front of where the character goes.
         var cleared = state.HasSelection ? state.Write(string.Empty) : state;
-        var source = cleared.Source;
-        var at = Math.Clamp(cleared.Caret, 0, source.Length);
+        var caret = Math.Clamp(cleared.Caret, 0, cleared.Document.Length);
+
+        // Everything asked here is about the line so far, so that is all that is read: the line the caret is on, up to it.
+        var (line, _) = cleared.Document.LineAt(caret);
+        var source = cleared.Document.Slice(line, caret - line);
+        var at = source.Length;
 
         // Two things only become markup once something follows them, so they are put beyond it when that arrives: an
         // entity when its semicolon is typed, and a tag when the first letter of its name is.
@@ -203,7 +207,7 @@ internal sealed partial class MarkdownEdits : IContentLanguage, IOnEdit
         if (behind is { } mark)
         {
             var written = ContentChange.Typed(state, typed.ToString());
-            return written.And(new ContentWrite(mark, 0, "\\")) with { Caret = written.Caret + 1, Raw = null };
+            return written.And(new ContentWrite(line + mark, 0, "\\")) with { Caret = written.Caret + 1, Raw = null };
         }
 
         return Marks(source, at, typed) ? ContentChange.Typed(state, "\\" + typed) : null;
@@ -283,12 +287,9 @@ internal sealed partial class MarkdownEdits : IContentLanguage, IOnEdit
     private static ContentChange Broken(EditState state, bool inItem)
     {
         var cleared = state.HasSelection ? state.Write(string.Empty) : state;
-        var source = cleared.Source;
-        var at = Math.Clamp(cleared.Caret, 0, source.Length);
-        var start = at == 0 ? 0 : source.LastIndexOf('\n', at - 1) + 1;
-        var ending = source.IndexOf('\n', at);
-        var end = ending < 0 ? source.Length : ending > start && source[ending - 1] == '\r' ? ending - 1 : ending;
-        var line = source[start..end];
+        var at = Math.Clamp(cleared.Caret, 0, cleared.Document.Length);
+        var (start, end) = cleared.Document.LineAt(at);
+        var line = cleared.Document.Slice(start, end - start);
 
         var quote = Quoted().Match(line).Value;
 
@@ -297,7 +298,7 @@ internal sealed partial class MarkdownEdits : IContentLanguage, IOnEdit
             var written = start + quote.Length + marker.Length;
 
             // Nothing written in it: this is the Enter that ends the list, and the marker goes.
-            if (!state.HasSelection && string.IsNullOrWhiteSpace(source[Math.Min(written, end)..end]) && at >= written)
+            if (!state.HasSelection && string.IsNullOrWhiteSpace(line[(Math.Min(written, end) - start)..]) && at >= written)
                 return ContentChange.Write(start + quote.Length, end - (start + quote.Length), string.Empty);
 
             var bullet = marker.Groups["bullet"].Value;
@@ -320,24 +321,24 @@ internal sealed partial class MarkdownEdits : IContentLanguage, IOnEdit
     /// </summary>
     private static ContentChange? Joined(EditState state, bool forward)
     {
-        var source = state.Source;
-        var at = Math.Clamp(state.Caret, 0, source.Length);
+        var document = state.Document;
+        var at = Math.Clamp(state.Caret, 0, document.Length);
 
-        var (from, to) = forward ? (at, Skip(source, at, +1)) : (Skip(source, at, -1), at);
-        if (to - from < 2 || source[from..to].Count(character => character == '\n') < 2) return null;
+        var (from, to) = forward ? (at, Skip(document, at, +1)) : (Skip(document, at, -1), at);
+        if (to - from < 2 || document.Slice(from, to - from).Count(character => character == '\n') < 2) return null;
 
         // Nothing on the far side of the gap is no neighbour to join.
-        if (from == 0 || to == source.Length) return null;
+        if (from == 0 || to == document.Length) return null;
 
         return ContentChange.Write(from, to - from, string.Empty);
     }
 
     /// <summary>Past the white space on one side of <paramref name="at"/>.</summary>
-    private static int Skip(string source, int at, int step)
+    private static int Skip(ContentDocument document, int at, int step)
     {
         var to = at;
-        if (step < 0) while (to > 0 && char.IsWhiteSpace(source[to - 1])) to--;
-        else while (to < source.Length && char.IsWhiteSpace(source[to])) to++;
+        if (step < 0) while (to > 0 && char.IsWhiteSpace(document[to - 1])) to--;
+        else while (to < document.Length && char.IsWhiteSpace(document[to])) to++;
         return to;
     }
 
@@ -347,14 +348,8 @@ internal sealed partial class MarkdownEdits : IContentLanguage, IOnEdit
     /// </summary>
     private static RawZone? Written(Landing landing)
     {
-        var source = landing.State.Source;
-        var caret = Math.Clamp(landing.State.Caret, 0, source.Length);
-
-        var start = caret == 0 ? 0 : source.LastIndexOf('\n', caret - 1) + 1;
-        var ending = source.IndexOf('\n', caret);
-        var end = ending < 0 ? source.Length
-                : ending > start && source[ending - 1] == '\r' ? ending - 1
-                : ending;
+        var caret = Math.Clamp(landing.State.Caret, 0, landing.State.Document.Length);
+        var (start, end) = landing.State.Document.LineAt(caret);
 
         if (caret != end || start >= end) return null;
 

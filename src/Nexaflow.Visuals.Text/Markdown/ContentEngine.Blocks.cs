@@ -345,17 +345,17 @@ public sealed partial class ContentEngine
         {
             if (ContentLanguages.Held(at) is not { } language) continue;
 
-            var ask = new ContentAsk(ContentNested.Language(at)!, ContentNested.Own(at.Part(Roles.Body)!.Node)) { Part = block, IsReadOnly = _readOnly };
+            var ask = new ContentAsk(ContentNested.Language(at)!, _state.Document) { Part = block, IsReadOnly = _readOnly };
             return language.Editing.Corner(ask);
         }
 
         // Content in one language is one block of it.
         if (_named is { } named)
-            return Language(named).Editing.Corner(new ContentAsk(named, _state.Source) { Part = block, IsReadOnly = _readOnly });
+            return Language(named).Editing.Corner(new ContentAsk(named, _state.Document) { Part = block, IsReadOnly = _readOnly });
 
         // A heading of the document's own offers what its section can do, as markdown says.
         if (Sectioned(block) is not null)
-            return Language(null).Editing.Corner(new ContentAsk(MarkdownParser.Language, _state.Source) { Part = block, Root = ReadRoot, IsReadOnly = _readOnly });
+            return Language(null).Editing.Corner(new ContentAsk(MarkdownParser.Language, _state.Document) { Part = block, Root = ReadRoot, IsReadOnly = _readOnly });
 
         // Prose is read rather than handled: it is no picture to keep, and copying it is what selecting it is for.
         return BlockCorner.None;
@@ -516,7 +516,7 @@ public sealed partial class ContentEngine
         LayoutVerbs.Navigate => Followed(act),
 
         LayoutVerbs.Copy when act.Intent.Target is { Length: > 0 } what =>
-            this.Events?.OnCopy(MarkdownClipboard.Copied(what, null)) == true,
+            this.Events?.OnCopy(MarkdownClipboard.Copied(what)) == true,
 
         LayoutVerbs.Copy when act.Gesture == LayoutGesture.Click && act.Node is { } block =>
             this.Events?.OnCopy(CopyOf(block)) == true,

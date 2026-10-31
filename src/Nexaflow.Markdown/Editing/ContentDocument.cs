@@ -232,6 +232,41 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
         return this.Splits(after) ? after + 1 : after;
     }
 
+    /// <summary>
+    /// The line <paramref name="offset"/> is on: where it starts, and where it ends — before its line break, which is not the line's.
+    /// Found from the counts the rope keeps, or for one string by looking either side of the offset, never by reading the document.
+    /// </summary>
+    public (int Start, int End) LineAt(int offset)
+    {
+        // Between the two characters of a \r\n is still the line the \r ends.
+        offset = Math.Clamp(offset, 0, this.Length);
+        if (this.Splits(offset)) offset--;
+
+        int start, next;
+
+        if (_flat is { } flat)
+        {
+            start = offset == 0 ? 0 : flat.LastIndexOfAny(['\n', '\r'], offset - 1) + 1;
+
+            next = flat.IndexOfAny(['\n', '\r'], offset);
+            next = next < 0 ? flat.Length : next;
+
+            return (start, next);
+        }
+
+        var line = this.LineOf(offset);
+        start = this.OffsetOf(line);
+        next = line + 1 < this.LineCount ? this.OffsetOf(line + 1) : this.Length;
+
+        if (next > start && this[next - 1] == '\n') next--;
+        if (next > start && this[next - 1] == '\r') next--;
+
+        return (start, next);
+    }
+
+    /// <summary>Whether it holds exactly <paramref name="text"/> — known from the lengths where they differ, and read a stretch at a time where they do not.</summary>
+    public bool HoldsExactly(string text) => this.Length == text.Length && this.Holds(0, text);
+
     /// <summary>Whether this was made from <paramref name="earlier"/> by one change, so <see cref="Change"/> is what changed from it.</summary>
     public bool MadeFrom(ContentDocument earlier) => this.Parent != 0 && this.Parent == earlier.Version;
 

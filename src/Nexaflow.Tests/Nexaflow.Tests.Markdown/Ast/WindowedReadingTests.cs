@@ -206,6 +206,31 @@ public class WindowedReadingTests
         Assert.IsTrue(rewritten.Tree(edited).Same(MarkdownParser.Parsing()(edited.ToString()).Tree));
     }
 
+    [TestMethod]
+    public void AWordTypedJustAfterALongFence_NeverReadsTheFenceAgain_ButOneOnItsFirstLineReadsTheUnitBefore()
+    {
+        var fence = "```\n" + string.Concat(Enumerable.Range(0, 3000).Select(line => $"line {line}\n")) + "```\n";
+        var source = "# Title\n\nOpening words.\n\n" + fence + "\nAfter the fence,\nmore words.\n\nAnd more.\n";
+        var parse = MarkdownParser.Windowed();
+        var units = Read(source, MarkdownParser.Language, MarkdownParser.Windowed, 64);
+        var fenced = units.IndexAt(source.IndexOf("```", StringComparison.Ordinal));
+
+        var later = source.IndexOf("more words", StringComparison.Ordinal);
+        var typed = ContentDocument.Of(source.Insert(later, "x"));
+        var (rewritten, kept, _) = units.Edited(later, later, 1, typed, parse, 64);
+
+        Assert.IsTrue(kept > fenced, "the fence's unit is kept, not read again");
+        Assert.AreSame(units[fenced].Unit, rewritten[fenced].Unit);
+        Assert.IsTrue(rewritten.Tree(typed).Same(MarkdownParser.Parsing()(typed.ToString()).Tree));
+
+        // An underline on the first line after a paragraph makes it a heading: the unit before is read again.
+        var opening = source.IndexOf("After the fence", StringComparison.Ordinal);
+        var underlined = ContentDocument.Of(source.Insert(opening, "===\n"));
+        var (heading, _, _) = units.Edited(opening, opening, 4, underlined, parse, 64);
+
+        Assert.IsTrue(heading.Tree(underlined).Same(MarkdownParser.Parsing()(underlined.ToString()).Tree));
+    }
+
     private static void Stitched(string source, string name, string language, Func<Func<ContentStretch, ContentParse>> windowed,
                                  Func<string, ContentNode> whole)
     {

@@ -61,7 +61,7 @@ public class ContentElement : FrameworkElement
     /// <param name="engine">What lays the content out, and holds it as it is being written.</param>
     /// <param name="language">What the content is written in — markdown, where nothing names a language.</param>
     /// <param name="actions">What answers what the content's pieces mean by a gesture — null where nothing here answers one.</param>
-    public ContentElement(string source, LayoutStyle palette, ContentEngine engine, string? language = null, ILayoutActions? actions = null)
+    public ContentElement(string? source, LayoutStyle palette, ContentEngine engine, string? language = null, ILayoutActions? actions = null)
     {
         Palette = palette;
         _engine = engine;
@@ -69,7 +69,7 @@ public class ContentElement : FrameworkElement
         _wash = Wash(palette);
 
         _engine.Show(language, palette);
-        _engine.Start(source ?? string.Empty);
+        _engine.Start(source);
         _engine.Answers(actions);
 
         _engine.Changed += OnChanged;
@@ -207,6 +207,9 @@ public class ContentElement : FrameworkElement
     /// <summary>The editing model — source, caret, selection, and what is shown as written.</summary>
     protected EditState State => _engine.State;
 
+    /// <summary>The document as it is shown, at the version it is at.</summary>
+    public ContentDocument Document => State.Document;
+
     /// <summary>Opens whatever of the document is folded away over <paramref name="offset"/> (<see cref="ContentEngine.Unfolded"/>).</summary>
     protected bool Unfold(int offset) => _engine.Unfolded(offset);
 
@@ -303,7 +306,7 @@ public class ContentElement : FrameworkElement
 
     /// <summary>Whether the caret belongs in this content at all. Asked of the tree rather than declared, since a piece naming a stretch of source is one somebody typed — a barcode that only prints a worked-out number has none.</summary>
     public bool AcceptsCaret =>
-            State.Source.Length == 0 || Laid.Root.SelfAndDescendants().Any(piece => piece.Part is { Length: > 0 } || (piece.Part is not null && piece.Kind == LayoutText.HoleKind));
+            State.Document.Length == 0 || Laid.Root.SelfAndDescendants().Any(piece => piece.Part is { Length: > 0 } || (piece.Part is not null && piece.Kind == LayoutText.HoleKind));
 
     /// <summary>A translucent wash from the theme accent, falling back to the highlight token.</summary>
     private static Brush Wash(LayoutStyle palette)
@@ -316,9 +319,6 @@ public class ContentElement : FrameworkElement
     }
 
     // ── What is being written ───────────────────────────────────────────────
-
-    /// <inheritdoc />
-    public string Source => State.Source;
 
     /// <inheritdoc />
     public LayoutPiece Root => Laid.Root;
@@ -460,7 +460,7 @@ public class ContentElement : FrameworkElement
     public void SelectRange(int start, int length) => Select(start, length);
 
     /// <summary>Selects everything — what the host asks for when a selection sweeps straight over it.</summary>
-    public void SelectAll() => Select(0, Source.Length);
+    public void SelectAll() => Select(0, State.Document.Length);
 
     /// <inheritdoc />
     public void ClearSelection() => _engine.ClearSelection();

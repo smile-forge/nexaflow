@@ -222,7 +222,7 @@ internal sealed class PieEdits : IContentLanguage, IOnEdit, IOnMove
             foreach (var (part, start, end) in Places(edit.Part))
                 if (start <= from && to <= end)
                 {
-                    var now = state.Source[start..from] + edit.Text + state.Source[to..end];
+                    var now = state.Document.Slice(start, from - start) + edit.Text + state.Document.Slice(to, end - to);
                     return new ContentChange([ContentWrite.Words(part, start, end - start, now)], from + edit.Text.Length);
                 }
 
@@ -524,7 +524,7 @@ internal sealed class PieEdits : IContentLanguage, IOnEdit, IOnMove
     private static bool Ends(ContentPart line) => Ending(line) is not null;
 
     /// <summary>The line ending the chart is written with.</summary>
-    private static string Newline(ContentEdit edit) => edit.Source.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+    private static string Newline(ContentEdit edit) => edit.State.Document.LineEnding;
 
     /// <summary>Where <paramref name="offset"/> in the document as it stood is, once <paramref name="writes"/> are made.</summary>
     private static int After(IEnumerable<ContentWrite> writes, int offset) =>

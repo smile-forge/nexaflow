@@ -45,9 +45,6 @@ public sealed record ContentEdit(EditKind Kind, string Text, Landing Landing, La
     /// <summary>Where it ends.</summary>
     public int End => this.Root.End();
 
-    /// <summary>The language's own source, exactly as it was typed.</summary>
-    public string Source => this.State.Source[this.Start..this.End];
-
     /// <summary>Whether a part is one of this language's, rather than of whatever it is written in.</summary>
     public bool Holds(ISourcePart part) => part.Start >= this.Start && part.End() <= this.End;
 }

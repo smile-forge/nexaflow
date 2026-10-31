@@ -22,7 +22,7 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// </para>
 /// </summary>
 /// <param name="actions">What answers a gesture — null where nothing here answers one.</param>
-public class LinkedElement(string source, LayoutStyle palette, ContentEngine engine, string? language, ILayoutActions? actions)
+public class LinkedElement(string? source, LayoutStyle palette, ContentEngine engine, string? language, ILayoutActions? actions)
     : ContentElement(source, palette, engine, language, actions)
 {
     /// <inheritdoc/>

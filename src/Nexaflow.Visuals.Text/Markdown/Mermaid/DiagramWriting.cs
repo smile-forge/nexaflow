@@ -51,16 +51,17 @@ internal static class DiagramWriting
         if (part is null || escaping?.Invoke(part, caret, text) is not { } writing)
             return state.Raw is { } shown && shown.Holds(caret) ? ContentChange.Typed(state, text, shown with { End = shown.End + text.Length }) : null;
 
-        var source = state.Source[..writing.Start] + writing.Text + state.Source[writing.End..];
         var grown = writing.Text.Length - (writing.End - writing.Start);
 
-        // Where what was written in now stands: the part typed into, or the stretch written over less the quotes put round it.
-        var (start, end) = writing.Start == writing.End
-            ? (part.Start, part.End + grown)
-            : (writing.Start + 1, writing.Start + writing.Text.Length - 1);
+        // Where what was written in now stands, and what it says: the part typed into, the writing in it, or the stretch written
+        // over less the quotes put round it — read from the document either side of the writing, never all of it.
+        var ((start, end), said) = writing.Start == writing.End
+            ? ((part.Start, part.End + grown),
+               state.Document.Slice(part.Start, writing.Start - part.Start) + writing.Text + state.Document.Slice(writing.End, part.End - writing.End))
+            : ((writing.Start + 1, writing.Start + writing.Text.Length - 1), writing.Text[1..^1]);
 
         RawZone? raw = state.Raw is { } zone && zone.Holds(caret) ? new RawZone(zone.Start, zone.End + grown)
-                     : MermaidText.Decode(source[start..end]) != source[start..end] ? new RawZone(start, end)
+                     : MermaidText.Decode(said) != said ? new RawZone(start, end)
                      : null;
 
         return ContentChange.Write(writing.Start, writing.End - writing.Start, writing.Text, writing.Caret, raw);

@@ -353,7 +353,7 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
 
         // A field holding one language is written at the end of what it holds; a document, and anything only read, is read
         // from its top.
-        _shown.Restore(_shown.Current.MoveCaretTo(Named is null || IsReadOnly ? 0 : _shown.Source.Length));
+        _shown.Restore(_shown.Current.MoveCaretTo(Named is null || IsReadOnly ? 0 : _shown.Current.Document.Length));
 
         HoldAsWritten();
         _engine.Begin();
@@ -377,7 +377,7 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
         _engine.Forget();
 
         _shown.Release();
-        _shown = Made(state.Source);
+        _shown = Made(null);
         _shown.Restore(state);
 
         // Laid now rather than at the next layout pass, so what is asked of it in between — a selection, a search, the
@@ -386,7 +386,8 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
         if (caret) _shown.TakeCaret(state.Caret);
     }
 
-    private MarkdownElement Made(string source)
+    /// <param name="source">What to show, loaded in place of what the document holds — or null to show what it holds as it is.</param>
+    private MarkdownElement Made(string? source)
     {
         var style = Drawn;
 

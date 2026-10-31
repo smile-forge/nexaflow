@@ -97,9 +97,6 @@ public abstract class ContentBuilder
     /// </summary>
     protected double Room { get; private set; } = double.PositiveInfinity;
 
-    /// <summary>The source this is laying out — what a selection over the result yields.</summary>
-    public string Source => Reading.Source;
-
     /// <summary>Lays the source out. Never null, and never throws.</summary>
     public Laid Lay(double room = double.PositiveInfinity)
     {

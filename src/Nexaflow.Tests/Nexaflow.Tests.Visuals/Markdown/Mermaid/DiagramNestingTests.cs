@@ -191,7 +191,7 @@ public class DiagramNestingTests
     [TestMethod]
     public void TheSourceIsUntouchedByWhatIsDrawnInsideIt() => UiThread.Run(() =>
     {
-        Assert.AreEqual(Src, Drawn(Src).Source);
+        Assert.AreEqual(Src, Drawn(Src).Document.ToString());
     });
 
     [TestMethod]

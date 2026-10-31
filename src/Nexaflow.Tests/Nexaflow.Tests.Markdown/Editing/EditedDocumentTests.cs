@@ -39,7 +39,7 @@ public class EditedDocumentTests
         Assert.IsTrue(document.IsDirty);
 
         var back = document.Undo(new EditState(document.Current, 0))!;
-        Assert.AreEqual("Some words.", back.Source);
+        Assert.AreEqual("Some words.", back.Document.ToString());
         Assert.IsFalse(document.IsDirty, "taken back, it is what was saved again");
     }
 

@@ -52,9 +52,9 @@ public class ContentMoveTests
 
         // Said without depending on exactly which letter the pointer landed between: a move writes the characters
         // carried and nothing else, so the same characters are there and they are not where they were.
-        Assert.AreEqual(Source.Length, element.Source.Length, $"a move invents none and loses none: {element.Source}");
-        CollectionAssert.AreEquivalent(Source.ToCharArray(), element.Source.ToCharArray(), "the same characters");
-        Assert.AreNotEqual(Source, element.Source, "somewhere else");
+        Assert.AreEqual(Source.Length, element.Document.ToString().Length, $"a move invents none and loses none: {element.Document.ToString()}");
+        CollectionAssert.AreEquivalent(Source.ToCharArray(), element.Document.ToString().ToCharArray(), "the same characters");
+        Assert.AreNotEqual(Source, element.Document.ToString(), "somewhere else");
     });
 
     [TestMethod]
@@ -66,7 +66,7 @@ public class ContentMoveTests
         Sweep(element, Left(words), Right(words));
         element.UpdateLayout();
 
-        Assert.AreEqual(Source, element.Source, "a press that picked nothing out wrote nothing");
+        Assert.AreEqual(Source, element.Document.ToString(), "a press that picked nothing out wrote nothing");
     });
 
     // ── What a move says of itself ──────────────────────────────────────────
@@ -179,7 +179,7 @@ public class ContentMoveTests
             Sweep(element, Middle(words, 2), Right(words));
             element.UpdateLayout();
 
-            Assert.AreEqual(Source, element.Source, "and not a character of it is moved");
+            Assert.AreEqual(Source, element.Document.ToString(), "and not a character of it is moved");
         });
     }
 }

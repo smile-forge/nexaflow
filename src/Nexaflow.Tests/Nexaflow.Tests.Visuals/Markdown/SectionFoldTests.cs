@@ -49,7 +49,7 @@ public class SectionFoldTests
         Assert.IsTrue(words.Any(said => said.Contains("Pets")), "while its heading stays");
         Assert.IsTrue(words.Any(said => said.Contains("Ferns")), "and the next section is untouched");
         Assert.AreEqual("+3", Says(Marker(engine)), "a paragraph, a heading and a paragraph wait behind it");
-        Assert.AreEqual(Document, engine.State.Source, "folding writes nothing into the source");
+        Assert.AreEqual(Document, engine.State.Document.ToString(), "folding writes nothing into the source");
     });
 
     [TestMethod]
@@ -155,7 +155,7 @@ public class SectionFoldTests
 
     /// <summary>Where the block holding <paramref name="written"/> came out on the page.</summary>
 private static LayoutRect Where(ContentEngine engine, string written) =>
-    engine.Where(engine.Blocked(engine.State.Source.IndexOf(written, StringComparison.Ordinal))!);
+    engine.Where(engine.Blocked(engine.State.Document.ToString().IndexOf(written, StringComparison.Ordinal))!);
 
     private static LayoutPoint Middle(LayoutRect where) => new(where.X + (where.Width / 2), where.Y + (where.Height / 2));
 }

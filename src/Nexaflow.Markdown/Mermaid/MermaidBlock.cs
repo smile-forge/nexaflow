@@ -52,8 +52,8 @@ public sealed class MermaidBlock
     /// <summary>The tree, with where each part sits.</summary>
     public ContentReading Reading => _reading ??= ContentReading.Of(_tree, _at);
 
-    /// <summary>The source the block was read from.</summary>
-    public string Source => Reading.Source;
+    /// <summary>The block's characters, all of them: a diagram is short, so they are made one string when asked.</summary>
+    public string Source => Reading.Document.ToString();
 
     /// <summary>
     /// Where <see cref="Source"/> begins in the document that holds it. Every part is counted in the document; a slice of

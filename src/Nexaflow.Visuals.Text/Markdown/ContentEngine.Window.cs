@@ -123,7 +123,7 @@ public sealed partial class ContentEngine
         while (true)
         {
             Turn();
-            var taken = new Parsed(language, _named ?? string.Empty, state.Source, window.Units.Tree(window.Document, window.Taken));
+            var taken = new Parsed(language, _named ?? string.Empty, state.Document, window.Units.Tree(window.Document, window.Taken));
 
             laid = LaidFrom(language, _named, taken, state, style, room, readOnly);
             window.Bottom = laid.Size.Height;

@@ -49,7 +49,7 @@ public class SelectionWashTests
                 .OrderBy(r => r.Width * r.Height)
                 .First();
 
-            var letter = formula.Source.Substring(offset, 1);
+            var letter = formula.Document.ToString().Substring(offset, 1);
             Assert.IsTrue(wash.Width < formula.RenderSize.Width,
                 $"'{letter}': the wash marks the letter, not the formula");
             Assert.IsTrue(wash.Left < glyph.Bounds.Left && wash.Right > glyph.Bounds.Right,

@@ -47,7 +47,7 @@ public class EditStateTests
     {
         var state = Typed(@"\alp");
 
-        Assert.AreEqual(@"\alp", state.Source);
+        Assert.AreEqual(@"\alp", state.Document.ToString());
         Assert.AreEqual(@"\alp", state.RawText,
             "a command being written is shown literally, not put through four failing parses");
     }
@@ -59,7 +59,7 @@ public class EditStateTests
         // word, which is the same rule that ends it when the next thing typed is a plus.
         var state = Typed(@"\alpha ");
 
-        Assert.AreEqual(@"\alpha ", state.Source,
+        Assert.AreEqual(@"\alpha ", state.Document.ToString(),
             "the space has to survive, or \\alpha x becomes the unknown command \\alphax");
         Assert.IsNull(state.Raw, "and the command is no longer raw");
     }
@@ -70,7 +70,7 @@ public class EditStateTests
         // TeX reads a control word as a backslash and letters; the first non-letter terminates it.
         var state = Typed(@"\alpha+");
 
-        Assert.AreEqual(@"\alpha+", state.Source);
+        Assert.AreEqual(@"\alpha+", state.Document.ToString());
         Assert.IsNull(state.Raw, "the plus finished the command without needing a space");
     }
 
@@ -79,7 +79,7 @@ public class EditStateTests
     {
         var state = Typed("x+2");
 
-        Assert.AreEqual("x+2", state.Source);
+        Assert.AreEqual("x+2", state.Document.ToString());
         Assert.IsNull(state.Raw, "ordinary maths typesets as you type — there is nothing to hold back");
     }
 
@@ -89,7 +89,7 @@ public class EditStateTests
         var state = EditState.For(@"\frac{}{2}").MoveCaretTo(6);   // in the numerator
         state = Typed("x", state);
 
-        Assert.AreEqual(@"\frac{x}{2}", state.Source);
+        Assert.AreEqual(@"\frac{x}{2}", state.Document.ToString());
         Assert.AreEqual(7, state.Caret);
     }
 
@@ -102,7 +102,7 @@ public class EditStateTests
         // \alph — a formula the user never wrote.
         var state = EditState.For(@"\alpha").Backspace((0, 6));
 
-        Assert.AreEqual(@"\alpha", state.Source, "nothing is deleted — it is shown, not removed");
+        Assert.AreEqual(@"\alpha", state.Document.ToString(), "nothing is deleted — it is shown, not removed");
         Assert.AreEqual(@"\alpha", state.RawText);
     }
 
@@ -111,7 +111,7 @@ public class EditStateTests
     {
         var state = EditState.For(@"\alpha").Backspace((0, 6)).Backspace();
 
-        Assert.AreEqual(@"\alph", state.Source, "once it is on show, backspace is just backspace");
+        Assert.AreEqual(@"\alph", state.Document.ToString(), "once it is on show, backspace is just backspace");
         Assert.AreEqual(@"\alph", state.RawText);
     }
 
@@ -120,7 +120,7 @@ public class EditStateTests
     {
         var state = EditState.For("x+2").Backspace();
 
-        Assert.AreEqual("x+", state.Source);
+        Assert.AreEqual("x+", state.Document.ToString());
         Assert.AreEqual(2, state.Caret);
         Assert.IsNull(state.Raw);
     }
@@ -130,13 +130,13 @@ public class EditStateTests
     {
         var state = EditState.For(@"\a").Backspace((0, 2)).Backspace().Backspace();
 
-        Assert.AreEqual("", state.Source);
+        Assert.AreEqual("", state.Document.ToString());
         Assert.IsNull(state.Raw, "with nothing raw left there is nothing to hold open");
     }
 
     [TestMethod]
     public void BackspaceAtTheStartDoesNothing() =>
-        Assert.AreEqual("x", EditState.For("x").MoveCaretTo(0).Backspace().Source);
+        Assert.AreEqual("x", EditState.For("x").MoveCaretTo(0).Backspace().Document.ToString());
 
     // ── Selection ───────────────────────────────────────────────────────────
 
@@ -145,7 +145,7 @@ public class EditStateTests
     {
         var state = Typed("y", EditState.For("x+2").Select(0, 1));
 
-        Assert.AreEqual("y+2", state.Source);
+        Assert.AreEqual("y+2", state.Document.ToString());
         Assert.IsFalse(state.HasSelection);
     }
 
@@ -154,7 +154,7 @@ public class EditStateTests
     {
         var state = EditState.For(@"\frac{x}{2}").Select(6, 1).Backspace();
 
-        Assert.AreEqual(@"\frac{}{2}", state.Source);
+        Assert.AreEqual(@"\frac{}{2}", state.Document.ToString());
         Assert.AreEqual(6, state.Caret, "and leaves the caret where the selection was");
     }
 
@@ -166,9 +166,9 @@ public class EditStateTests
         // This is what the Solver's palette needs: \frac{}{} should land you in the numerator.
         var state = EditState.For("").Insert(@"\frac{}{}", caretBack: 3);
 
-        Assert.AreEqual(@"\frac{}{}", state.Source);
+        Assert.AreEqual(@"\frac{}{}", state.Document.ToString());
         Assert.AreEqual(6, state.Caret);
-        Assert.AreEqual("{", state.Source[state.Caret - 1].ToString(), "the caret is just inside the numerator");
+        Assert.AreEqual("{", state.Document.ToString()[state.Caret - 1].ToString(), "the caret is just inside the numerator");
     }
 
     [TestMethod]
@@ -176,7 +176,7 @@ public class EditStateTests
     {
         var state = EditState.For("x+2").Select(0, 3).Wrap(@"\sqrt{", "}");
 
-        Assert.AreEqual(@"\sqrt{x+2}", state.Source);
+        Assert.AreEqual(@"\sqrt{x+2}", state.Document.ToString());
         Assert.AreEqual(9, state.Caret, "the caret ends inside the wrapper, ready to keep typing");
     }
 
@@ -186,7 +186,7 @@ public class EditStateTests
         // Reaching for the palette mid-command is a decision to stop typing that command.
         var state = Typed(@"\alp").Insert(@"\beta ");
 
-        Assert.AreEqual(@"\alp\beta ", state.Source);
+        Assert.AreEqual(@"\alp\beta ", state.Document.ToString());
         Assert.IsNull(state.Raw);
     }
 
@@ -202,7 +202,7 @@ public class EditStateTests
         // back over the gap, which is what covered whatever followed it.
         var state = Typed(@"\alp", EditState.For("x+2").MoveCaretTo(2));
 
-        Assert.AreEqual(@"x+\alp2", state.Source);
+        Assert.AreEqual(@"x+\alp2", state.Document.ToString());
         Assert.IsNotNull(state.Raw);
         Assert.AreEqual(2, state.Raw!.Value.Start, "it starts where the writing started");
         Assert.AreEqual(6, state.Raw!.Value.End, "and ends after what has been written so far");

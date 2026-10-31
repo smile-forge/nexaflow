@@ -37,7 +37,7 @@ public class MarkdownDocumentTests
     public void AShownLineIsDrawnAsItsCharacters()
     {
         var state = Erase("# Title\n\nwords\n", caret: 7)!;
-        var laid = Laying.Lay(null, state.Source, 480, shown: state.Raw);
+        var laid = Laying.Lay(null, state.Document.ToString(), 480, shown: state.Raw);
 
         var source = laid.Root.SelfAndDescendants().Where(piece => piece.Kind == LayoutText.SourceKind).ToList();
 
@@ -85,7 +85,7 @@ public class MarkdownDocumentTests
 
         var typed = ContentEngine.Edited(EditKind.Typing, "!", Land(content, state));
 
-        Assert.AreEqual("# Title!\n", typed?.Source);
+        Assert.AreEqual("# Title!\n", typed?.Document.ToString());
         Assert.AreEqual(8, typed?.Raw?.End);
     }
 

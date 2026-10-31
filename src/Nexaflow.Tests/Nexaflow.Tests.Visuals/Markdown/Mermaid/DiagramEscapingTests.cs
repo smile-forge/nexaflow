@@ -71,8 +71,8 @@ public class DiagramEscapingTests
                 var text = character.ToString();
                 var written = ContentEngine.Edited(EditKind.Typing, text, new Landing(at, laid, -1)) ?? at.Write(text);
 
-                if (Held(written.Source) > held)
-                    broken.Add($"{what}: {text} typed after '{place.Text}' ({place.Parent?.Kind}/{place.Role}) — the line becomes '{Line(written.Source, place.End)}'");
+                if (Held(written.Document.ToString()) > held)
+                    broken.Add($"{what}: {text} typed after '{place.Text}' ({place.Parent?.Kind}/{place.Role}) — the line becomes '{Line(written.Document.ToString(), place.End)}'");
             }
     }
 

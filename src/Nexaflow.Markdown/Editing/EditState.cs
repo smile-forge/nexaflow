@@ -61,9 +61,6 @@ public sealed record EditState(
     {
     }
 
-    /// <summary>What is written, as one string — all of it.</summary>
-    public string Source => Document.ToString();
-
     /// <summary>
     /// What is selected: in order, never overlapping, never empty-length. A pass-through, not computed here:
     /// a record's <c>with</c> copies backing fields without re-running property initialisers, so anything
@@ -75,6 +72,9 @@ public sealed record EditState(
     /// <summary>A fresh state with the caret at the end and nothing selected.</summary>
     public static EditState For(string latex) =>
         new(ContentDocument.Of(latex), (latex ?? string.Empty).Length);
+
+    /// <summary><paramref name="document"/>, with the caret at its end and nothing picked out.</summary>
+    public static EditState For(ContentDocument document) => new(document, document.Length);
 
     /// <summary>Whether anything is selected.</summary>
     public bool HasSelection => Selection.Count > 0;

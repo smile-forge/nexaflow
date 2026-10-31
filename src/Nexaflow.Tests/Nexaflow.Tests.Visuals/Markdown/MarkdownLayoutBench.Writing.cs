@@ -287,7 +287,7 @@ foreach (var (place, at) in places)
             row["undoLatest"] = Taken(5, () => { engine.History.Break(); engine.Input(new ContentText("x")); }, Undo, Source);
 
             // Fifty steps, each a letter of its own, then taken back one at a time — and what keeping them held.
-            var historyBytes = (long)engine.State.Source.Length * sizeof(char) * UndoSteps;
+            var historyBytes = (long)engine.State.Document.ToString().Length * sizeof(char) * UndoSteps;
 
             if (historyBytes > HistoryBudget)
             {
@@ -331,7 +331,7 @@ foreach (var (place, at) in places)
 
     void Undo() => engine.Input(new ContentKey(Key.Z, ModifierKeys.Control));
 
-            object Source() => engine.State.Source;
+            object Source() => engine.State.Document.ToString();
         }
         finally
         {
@@ -353,7 +353,7 @@ foreach (var (place, at) in places)
 
         To(surface.Scroller, 0);
 
-        var source = engine.State.Source;
+        var source = engine.State.Document.ToString();
         var middle = engine.Laid.Root.OffsetAt(new Point(120, surface.Scroller.VerticalOffset + (Screen.Height / 3)).ToLayout());
 
         var start = middle;
@@ -378,12 +378,12 @@ foreach (var (place, at) in places)
         {
             moved++;
             engine.Input(new ContentDrag(new LayoutPoint(from.X + (moved * 13 % 300), from.Y + (moved * 18))));
-        }, () => engine.State.Source);
+        }, () => engine.State.Document.ToString());
 
         engine.Input(new ContentRelease());
         Settle();
 
-        var picked = !ReferenceEquals(engine.State.Source, source);
+        var picked = !ReferenceEquals(engine.State.Document.ToString(), source);
         if (picked) engine.Input(new ContentKey(Key.Z, ModifierKeys.Control));
 
         Settle();

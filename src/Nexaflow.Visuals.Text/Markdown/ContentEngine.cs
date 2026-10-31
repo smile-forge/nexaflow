@@ -49,7 +49,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 public sealed partial class ContentEngine(ContentInputs? inputs = null)
 {
     /// <summary>What a piece of content read to: its language's tree, a block in that language.</summary>
-    private sealed record Parsed(ContentLanguage Language, string Named, string Text, ContentNode Tree);
+    private sealed record Parsed(ContentLanguage Language, string Named, ContentDocument Document, ContentNode Tree);
 
     private readonly WithUnchanged _unchanged = new();
 
@@ -104,7 +104,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
 
         Turn();
 
-        return LaidFrom(language, named, Parse(language, named, state.Source), state, style, room, readOnly);
+        return LaidFrom(language, named, Parse(language, named, state.Document), state, style, room, readOnly);
     }
 
     /// <summary>
@@ -120,7 +120,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         var showing = Showing(named ?? string.Empty, style, !readOnly, state.Raw, 0) with { Unchanged = _unchanged, Targets = _targets };
         var staged = Staged(top, showing);
 
-        Reading = ContentReading.Of(staged, 0, state.Source);
+        Reading = ContentReading.Of(staged, 0, top.Document);
 
         return Builder(language, Reading, showing, LayoutStanding.Alone).Lay(room);
     }
@@ -137,9 +137,9 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     public ContentReading Read(string? named, string source, bool writing = false)
     {
         Turn();
-        var top = Parse(Language(named), named, source);
+        var top = Parse(Language(named), named, ContentDocument.Of(source));
 
-        return ContentReading.Of(Staged(top, Showing(named ?? string.Empty, WpfStyles.Dark, writing, null, 0)), 0, source);
+        return ContentReading.Of(Staged(top, Showing(named ?? string.Empty, WpfStyles.Dark, writing, null, 0)), 0, top.Document);
     }
 
     /// <summary>Starts another reading: what the last one read in other languages is kept for it, and nothing older.</summary>
@@ -189,12 +189,16 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     internal static ContentLanguage Language(string? named) =>
         named is null ? ContentLanguages.Markdown : ContentLanguages.For(named) ?? ContentLanguages.Code;
 
-    /// <summary>The content asked for, parsed by its language — and nothing written in another language in it, which is read when a builder asks for it.</summary>
-    private Parsed Parse(ContentLanguage language, string? named, string source)
+    /// <summary>
+    /// The content asked for, parsed whole by its language — and nothing written in another language in it, which is read when a
+    /// builder asks for it. A parse reads one string, so a document held as a rope is made one here: content laid whole costs what
+    /// it holds to read anyway.
+    /// </summary>
+    private Parsed Parse(ContentLanguage language, string? named, ContentDocument document)
     {
         if (!_parses.TryGetValue(language, out var parse)) _parses[language] = parse = language.Parser();
 
-        return new Parsed(language, named ?? string.Empty, source, Read(language, parse, source).Tree);
+        return new Parsed(language, named ?? string.Empty, document, Read(language, parse, document.ToString()).Tree);
     }
 
     /// <summary>A piece written in another language, read by that language — or, written as it was last time, what it read to then.</summary>
@@ -210,7 +214,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
 
         if (!_nestedParses.TryGetValue(language, out var parse)) _nestedParses[language] = parse = language.Parser();
 
-        var read = new Parsed(language, named, text, Read(language, parse, text).Tree);
+        var read = new Parsed(language, named, ContentDocument.Of(text), Read(language, parse, text).Tree);
 
         _now[key] = read;
         return read;
@@ -229,7 +233,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         var readOnly = !(language.Writable && showing.Writing);
 
         return Makers.GetOrAdd(language.Builder, Maker)(
-            reading, EditState.For(reading.Source) with { Raw = showing.Shown }, showing.Style, readOnly, WpfMedium.OnThisThread,
+            reading, EditState.For(reading.Document) with { Raw = showing.Shown }, showing.Style, readOnly, WpfMedium.OnThisThread,
             Hosting(showing, standing, writing: !readOnly));
     }
 
@@ -275,7 +279,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// <param name="at">Where <paramref name="source"/> begins in the document holding it, so what is said of it is said where it is.</param>
     private Laid Unreadable(string source, int at, string why, LayoutStyle style, bool readOnly, double room) =>
         Makers.GetOrAdd(typeof(UnreadBuilder), Maker)(
-            ContentReading.Of(ContentNode.Shown(source, why), at, source), EditState.For(source), style, readOnly, WpfMedium.OnThisThread,
+            ContentReading.Of(ContentNode.Shown(source, why), at, ContentDocument.Of(source)), EditState.For(source), style, readOnly, WpfMedium.OnThisThread,
             new LayoutHost(LayoutStanding.Alone, static (_, _, _) => null)).Lay(room);
 
     /// <summary>Makes a builder from the six things every builder is made from.</summary>
@@ -396,7 +400,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
                                   body.Start);
 
             // And what it read is given those marks back where they stand, so every part names its characters in the document.
-            var reading = ContentReading.Of(ContentNested.Spliced(Staged(read, showing), body.Node), body.Start, Stretch(body, text));
+            var reading = ContentReading.Of(ContentNested.Spliced(Staged(read, showing), body.Node), body.Start, ContentDocument.Of(Stretch(body, text)));
             return new LayoutInset(Builder(language, reading, showing, standing).Lay(room));
         }
         catch (Exception error)

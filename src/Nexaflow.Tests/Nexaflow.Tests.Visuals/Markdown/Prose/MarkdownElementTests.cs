@@ -36,7 +36,7 @@ public class MarkdownElementTests
 
         element.BeginPointerSelect(Middle(Ticks(element)[0]));
 
-        Assert.AreEqual("- [x] to do\n- [x] done\n", element.Source);
+        Assert.AreEqual("- [x] to do\n- [x] done\n", element.Document.ToString());
     });
 
     [TestMethod]
@@ -46,7 +46,7 @@ public class MarkdownElementTests
 
         element.BeginPointerSelect(Middle(Ticks(element)[1]));
 
-        Assert.AreEqual("- [ ] to do\n- [ ] done\n", element.Source);
+        Assert.AreEqual("- [ ] to do\n- [ ] done\n", element.Document.ToString());
     });
 
     [TestMethod]
@@ -68,7 +68,7 @@ public class MarkdownElementTests
 
         element.BeginPointerSelect(Middle(Ticks(element)[0]));
 
-        Assert.AreEqual(Source, element.Source);
+        Assert.AreEqual(Source, element.Document.ToString());
     });
 
     [TestMethod]
@@ -82,7 +82,7 @@ public class MarkdownElementTests
 
         element.BeginPointerSelect(Middle(words));
 
-        Assert.AreEqual(Source, element.Source, "nothing was written");
+        Assert.AreEqual(Source, element.Document.ToString(), "nothing was written");
         Assert.IsTrue(element.Caret > 0, "and the caret went where it was pressed");
     });
 

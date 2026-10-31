@@ -99,9 +99,9 @@ public class DiagramKeyTests
                     try { after = press(); }
                     catch (Exception trouble) { Blame(key, $"{what} @{place.Offset}: {trouble.GetType().Name}"); return; }
 
-                    if (after.Source != at.Source) changed[key] = changed.GetValueOrDefault(key) + 1;
-                    if (Held(after.Source) > held)
-                        Blame(key, $"{what} @{place.Offset} {Standing(laid, place.Offset)}: '{Line(after.Source, place.Offset)}'");
+                    if (after.Document.ToString() != at.Document.ToString()) changed[key] = changed.GetValueOrDefault(key) + 1;
+                    if (Held(after.Document.ToString()) > held)
+                        Blame(key, $"{what} @{place.Offset} {Standing(laid, place.Offset)}: '{Line(after.Document.ToString(), place.Offset)}'");
                 }
 
                 void Blame(string key, string said) =>

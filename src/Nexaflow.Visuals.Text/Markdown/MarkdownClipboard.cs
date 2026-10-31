@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Media.Imaging;
 
 using Nexaflow.IO.Documents;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Markdown.Export;
 using Nexaflow.Visuals.Text.Markdown.Latex;
@@ -53,11 +54,18 @@ public static class MarkdownClipboard
     /// written in, which is what pasting it anywhere that cannot draw the language can use.
     /// </para>
     /// </summary>
-    public static ContentCopy Copied(string source, (int Start, int Length)? chosen)
+    public static ContentCopy Copied(ContentDocument document, (int Start, int Length)? chosen)
     {
-        var markdown = chosen is { Length: > 0 } picked && picked.Start >= 0 && picked.Start + picked.Length <= source.Length
-            ? source.Substring(picked.Start, picked.Length)
-            : source;
+            var markdown = chosen is { Length: > 0 } picked && picked.Start >= 0 && picked.Start + picked.Length <= document.Length
+                ? document.Slice(picked.Start, picked.Length)
+                : document.ToString();
+
+            return Copied(markdown);
+        }
+
+        /// <summary><paramref name="markdown"/> as the clipboard holds it: as written, as words, and as a page.</summary>
+        public static ContentCopy Copied(string markdown)
+        {
 
         var shown = LayoutExport.Exported(markdown, Occasion);
 

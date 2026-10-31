@@ -73,13 +73,13 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
-    /// Starts writing <paramref name="source"/>, with nothing laid for it yet. Where the document held already says exactly that — a
-    /// control made again for new colours, showing what was being written — it is taken up as it is, with what can be taken back and
-    /// whether it was saved; otherwise it is loaded in its place.
+    /// Starts writing <paramref name="source"/>, with nothing laid for it yet. Where the document held already says exactly that, or
+    /// nothing is said — a control made again for new colours, showing what was being written — it is taken up as it is, with what can
+    /// be taken back and whether it was saved; otherwise it is loaded in its place.
     /// </summary>
-    internal void Start(string source)
+    internal void Start(string? source)
     {
-        if (!string.Equals(source, this.EditedDocument.Current.ToString(), StringComparison.Ordinal))
+        if (source is not null && !this.EditedDocument.Current.HoldsExactly(source))
         {
             this.Taking(() =>
             {
@@ -167,7 +167,7 @@ public sealed partial class ContentEngine
         }
         catch (Exception error)
         {
-            return Unreadable(state.Source, 0, Str.Format("Text.Content.CouldNotRead", error.Message), _style, only, Room);
+            return Unreadable(state.Document.ToString(), 0, Str.Format("Text.Content.CouldNotRead", error.Message), _style, only, Room);
         }
     }
 
@@ -296,7 +296,7 @@ public sealed partial class ContentEngine
 
     private int Snap(int offset)
     {
-        var clamped = Math.Clamp(offset, 0, _state.Source.Length);
+        var clamped = Math.Clamp(offset, 0, _state.Document.Length);
 
         // Inside the stretch being written every character is its own stop, so the caret goes exactly where it was put; the
         // settled content snaps to the places a caret may rest.
@@ -445,7 +445,7 @@ public sealed partial class ContentEngine
         // Asked before the end of the source is: past the last thing written in a diagram is its end, and a delete handed back to
         // the document from there takes whatever the document has next.
         if (Edited(EditKind.Deleting, string.Empty, Landing) is { } erased) { Apply(erased, notify: true); return true; }
-        if (_state.Caret >= _state.Source.Length && !_state.HasSelection) return false;
+        if (_state.Caret >= _state.Document.Length && !_state.HasSelection) return false;
 
         Apply(_state.Delete(), notify: true);
         return true;
@@ -651,7 +651,7 @@ public sealed partial class ContentEngine
         // were never written here, so the place they would be dropped at is no offset of the source. Refused here and
         // the drawing stands as it was, which is what every other write does when it cannot be spelled — rather than
         // being handed on to be cut out of a source that is shorter than the cut.
-        if (change.Writes.Any(write => write.Start < 0 || write.End > _state.Source.Length)) return null;
+        if (change.Writes.Any(write => write.Start < 0 || write.End > _state.Document.Length)) return null;
 
         return new Moved(_state.Made(change), change, Wrote(change));
     }
@@ -684,7 +684,7 @@ public sealed partial class ContentEngine
         }
 
         var ranges = _state.Selection
-            .Where(range => range.Length > 0 && range.Start >= 0 && range.End <= _state.Source.Length)
+            .Where(range => range.Length > 0 && range.Start >= 0 && range.End <= _state.Document.Length)
             .OrderBy(range => range.Start)
             .ToList();
 

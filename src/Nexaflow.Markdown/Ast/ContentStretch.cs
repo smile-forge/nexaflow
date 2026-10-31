@@ -189,9 +189,11 @@ public sealed class ContentUnits
     /// <paramref name="edited"/>, the characters as they are now.
     ///
     /// <para>
-    /// The units before the change are kept as they are. The change is read from the unit before the one it falls in, because the
-    /// first line of a block can change what the block before it is — a <c>===</c> under a paragraph makes it a heading — and
-    /// nothing further back. It is read on only until a unit stops where one of the old units after the change started, moved
+    /// The units before the change are kept as they are. A change on the first line of the unit it falls in is read from the unit
+    /// before, because the first line of a block can change what the block before it is — a <c>===</c> under a paragraph makes it a
+    /// heading — and nothing further back; one further into its unit is read from the unit's own start, since what the unit before
+    /// stopped in is the same. So writing just after a long fence never reads the fence again. It is read on only until a unit stops
+    /// where one of the old units after the change started, moved
     /// along, and stops in exactly the state that unit started in: from there every old unit reads as it did, and is kept as it
     /// is — its offsets are its own, so nothing in it moves. A change that leaves a fence open, or an RTF group, simply reads on
     /// further, as far as it reaches. What was not read before is still not read.
@@ -211,7 +213,8 @@ public sealed class ContentUnits
     {
         if (this.Count == 0) return (new ContentUnits(this.Language), 0, 0);
 
-        var kept = Math.Max(_units.IndexAt(changedFrom) - 1, 0);
+        var holding = _units.IndexAt(changedFrom);
+        var kept = holding > 0 && Opening(edited, _units[holding].Start, changedFrom) ? holding - 1 : holding;
         var (first, from) = _units[kept];
         var begun = first.Begun;
         var next = Math.Max(_units.IndexAt(changedTo), kept);
@@ -239,5 +242,14 @@ public sealed class ContentUnits
 
             (from, begun) = (stop, read.Ended);
         }
+    }
+
+    /// <summary>Whether <paramref name="at"/> is on the first line of what starts at <paramref name="start"/>: no line break stands between them.</summary>
+    private static bool Opening(IContentCharacters characters, int start, int at)
+    {
+        foreach (var chunk in characters.Chunks(start, Math.Min(at, characters.Length)))
+            if (chunk.Span.IndexOfAny('\n', '\r') >= 0) return false;
+
+        return true;
     }
 }

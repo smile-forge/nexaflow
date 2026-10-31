@@ -84,7 +84,7 @@ public class MarkdownExportTests
     [TestMethod]
     public void ACopyCarriesTheWordsAndTheMarkedUpTextOfWhatWasCopied() => UiThread.Run(() =>
     {
-        var copy = MarkdownClipboard.Copied("# Title\n\nSome **bold** and `code`.\n", null);
+        var copy = MarkdownClipboard.Copied("# Title\n\nSome **bold** and `code`.\n");
 
         Assert.AreEqual("Title\n\nSome bold and code.\n", copy.Text);
         StringAssert.Contains(copy.Html, "<!--StartFragment--><h1 id=\"title\">Title</h1>");

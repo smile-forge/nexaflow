@@ -541,7 +541,7 @@ public class FoldingDiagramTests
         var surface = Grown(out _);
         var header = Placed(surface, MermaidPiece.Words).FirstOrDefault(where => Says(surface, where, "graph"));
 
-        var written = surface.Shown.Source;
+        var written = surface.Shown.Document.ToString();
 
         surface.Shown.BeginPointerSelect(new Point(header.X + 1, header.Y + (header.Height / 2)),
                                          System.Windows.Input.ModifierKeys.None);
@@ -556,6 +556,6 @@ public class FoldingDiagramTests
         surface.Shown.EndPointerSelect();
         Settled(surface);
 
-        Assert.AreEqual(written, surface.Shown.Source, "not a character of it is written");
+        Assert.AreEqual(written, surface.Shown.Document.ToString(), "not a character of it is written");
     });
 }

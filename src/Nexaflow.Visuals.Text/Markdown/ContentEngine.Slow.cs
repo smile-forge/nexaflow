@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Pipeline;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -29,7 +30,7 @@ public sealed partial class ContentEngine
     private static readonly Queue<Kept> LandedOrder = new();
 
     /// <summary>What slow work is kept by: the language, the stage whose finding it is (none, for a second reading), and the characters.</summary>
-    private readonly record struct Kept(ContentLanguage Language, string? Stage, string Text);
+    private readonly record struct Kept(ContentLanguage Language, string? Stage, ContentDocument Text);
 
     /// <summary>Slow work under way, with every engine to tell when each lands — held only while it is worked out.</summary>
     private static readonly Dictionary<Kept, List<ContentEngine>> Waiting = [];
@@ -60,14 +61,14 @@ public sealed partial class ContentEngine
     /// <paramref name="parse"/> — starting the second reading where the language has one and nobody has asked for it yet.
     /// </summary>
     private ContentParse Read(ContentLanguage language, Func<string, ContentParse> parse, string text) =>
-        language.SlowParser is { } slow && Later(new(language, null, text), () => slow(text)) is ContentParse landed ? landed : parse(text);
+        language.SlowParser is { } slow && Later(new(language, null, ContentDocument.Of(text)), () => slow(text)) is ContentParse landed ? landed : parse(text);
 
     /// <summary>
     /// A slow stage, where it stands among the stages <paramref name="read"/> is worked over by: what it found hung on the tree where
     /// that has landed, and otherwise the tree as it is, with the finding started.
     /// </summary>
     private IAstStage Staging(Parsed read, ISlowStage slow) =>
-        new AstStage(slow.Name, tree => Later(new(read.Language, slow.Name, read.Text), () => slow.Find(tree)) is { } found ? slow.Apply(tree, found) : tree);
+        new AstStage(slow.Name, tree => Later(new(read.Language, slow.Name, read.Document), () => slow.Find(tree)) is { } found ? slow.Apply(tree, found) : tree);
 
     /// <summary>
     /// What the slow work kept by <paramref name="key"/> came to, where it has landed — or null, starting <paramref name="work"/>

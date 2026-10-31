@@ -262,5 +262,5 @@ internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
     private static string Said(long bits) => bits.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>The line ending the packet is written with.</summary>
-    private static string Newline(ContentEdit edit) => edit.Source.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+    private static string Newline(ContentEdit edit) => edit.State.Document.LineEnding;
 }

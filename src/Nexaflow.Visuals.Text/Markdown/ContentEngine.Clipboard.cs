@@ -47,7 +47,7 @@ public sealed partial class ContentEngine
 
             return new MarkdownClipboard.ContentCopy(words, words, string.Empty);
         }
-        if (Stretch() is not { } chosen) return MarkdownClipboard.Copied(_state.Source, null);
+        if (Stretch() is not { } chosen) return MarkdownClipboard.Copied(_state.Document, null);
 
         if (Blocked(chosen.Start) is { } block)
         {
@@ -55,7 +55,7 @@ public sealed partial class ContentEngine
             if (CopyWritten(block, chosen) is { } written) return written;
         }
 
-        return MarkdownClipboard.Copied(_state.Source, chosen);
+        return MarkdownClipboard.Copied(_state.Document, chosen);
     }
 
     /// <summary>
@@ -64,7 +64,7 @@ public sealed partial class ContentEngine
     /// </summary>
     internal MarkdownClipboard.ContentCopy CopyOf(ContentPart block)
     {
-        var copy = MarkdownClipboard.Copied(_state.Source, (block.Start, block.Length));
+        var copy = MarkdownClipboard.Copied(_state.Document, (block.Start, block.Length));
 
         return KeepsAPicture(block) && this.Events?.OnPicture(block) is { } drawn ? copy with { Picture = drawn } : copy;
     }
@@ -85,7 +85,7 @@ public sealed partial class ContentEngine
         if (language?.Editing.ShowsWhatWasWritten != true || body is null) return null;
         if (chosen.Start < body.Start || chosen.Start + chosen.Length > body.End) return null;
 
-        var characters = _state.Source.Substring(chosen.Start, chosen.Length);
+        var characters = _state.Document.Slice(chosen.Start, chosen.Length);
 
         return new MarkdownClipboard.ContentCopy(characters, characters, string.Empty);
     }
@@ -94,7 +94,7 @@ public sealed partial class ContentEngine
     internal bool Cut()
     {
         if (_readOnly || Stretch() is not { } chosen) return false;
-        if (this.Events?.OnCopy(MarkdownClipboard.Copied(_state.Source, chosen)) != true) return false;
+        if (this.Events?.OnCopy(MarkdownClipboard.Copied(_state.Document, chosen)) != true) return false;
 
         Replace(_state.Write(string.Empty));
         return true;

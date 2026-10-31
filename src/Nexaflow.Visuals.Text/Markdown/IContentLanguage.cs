@@ -158,8 +158,8 @@ public enum ClipboardOffers
 /// picked out.
 /// </summary>
 /// <param name="Named">What the fence called itself.</param>
-/// <param name="Source">The characters, exactly as the writer typed them.</param>
-public sealed record ContentAsk(string Named, string Source)
+/// <param name="Document">The document, as the version it is at: the characters exactly as the writer typed them, read a stretch at a time.</param>
+public sealed record ContentAsk(string Named, Nexaflow.Markdown.Editing.ContentDocument Document)
 {
     /// <summary>The part of the content's tree the gesture landed on, where it landed on one.</summary>
     public Nexaflow.Markdown.Ast.ContentPart? Part { get; init; }
@@ -170,7 +170,7 @@ public sealed record ContentAsk(string Named, string Source)
     /// <summary>The root of <see cref="Part"/>'s tree: the content in this language, all of it.</summary>
     public Nexaflow.Markdown.Ast.ContentPart? Root { get; init; }
 
-    /// <summary>What is picked out, where anything is — offsets into <see cref="Source"/>.</summary>
+    /// <summary>What is picked out, where anything is — from where the content in this language starts (where <see cref="Root"/> starts).</summary>
     public (int Start, int Length)? Chosen { get; init; }
 
     /// <summary>Where the caret stands, where nothing is picked out — in the document's offsets, as every part names them — or null.</summary>
