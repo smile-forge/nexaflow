@@ -486,12 +486,15 @@ public class ContentElement : FrameworkElement
     private const double PointerReach = 4.0;
 
     /// <summary>
-    /// What the pointer is over <paramref name="at"/>: a bar over what can be written in and an arrow elsewhere, and whatever
-    /// the piece there says while it is pointed at (<see cref="Roles.Tip"/>).
+    /// What the pointer is over <paramref name="at"/>: what the language says a press there would take hold of, a bar over what can be
+    /// written in and an arrow elsewhere — and whatever the piece there says while it is pointed at (<see cref="Roles.Tip"/>).
     /// </summary>
     protected virtual Cursor Pointing(LayoutPoint at)
     {
-        Tip(Says(Laid.Root.PieceAt(at)));
+        var piece = Laid.Root.PieceAt(at);
+        Tip(Says(piece));
+
+        if (!IsReadOnly && _engine.Gripping(piece, at) is { } grip) return grip;
 
         return !IsReadOnly && Laid.Root.Writable(at, PointerReach) ? Cursors.IBeam : Cursors.Arrow;
     }

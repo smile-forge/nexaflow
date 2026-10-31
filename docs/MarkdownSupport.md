@@ -1193,8 +1193,9 @@ right-click and by dragging it, never by typing a number.
 A right-click on a field opens a ribbon of how many bits it takes — a box holding its length that any whole number typed
 in replaces, the usual lengths dropped down beside it — and buttons putting a field in before or after it and taking it
 out; anywhere else in the packet, a field after everything written. With whole fields picked out, Delete takes them out
-and Insert puts one in above them, and a field carried and let go on another takes its place. The end of a field — the
-edge of its box where its last bit ends — is taken hold of and dragged: let go over a bit, the field ends there. Whatever changes, every field is numbered
+and Insert puts one in above them. A field is dragged by its box — with every chosen field, where it is one of them — and
+let go on another takes its place. The end of a field — the edge of its box where its last bit ends, where the pointer
+turns to say it moves across — is taken hold of and dragged: let go over a bit, the field ends there. Whatever changes, every field is numbered
 again from bit 0 and keeps its length and the form it is written in — a range, one bit, or a count — and only its numbers
 are written over ([`PacketWriting`](../src/Nexaflow.Markdown/Packet/PacketWriting.cs)). In a label or the title a
 right-click offers to cut, copy and paste, a paste spelled for where it lands; over whole fields, only to copy them.

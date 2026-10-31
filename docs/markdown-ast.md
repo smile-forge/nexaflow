@@ -418,7 +418,8 @@ sees. A language says otherwise through **`IOnMove`** (`IContentLanguage.OnMove`
 layout knows neither — where a press began and where a drop landed are only pieces and the parts they were drawn from.
 Every press is put to it (`Lift`, told the piece, the part and the point), and it answers explicitly: what is picked out,
 carried as the engine carries it (`ContentLift.Selection`), or a carry of its own (`ContentCarry`) that this press alone
-picks up, with nothing picked out first — the end of a packet's field. Wherever the carry goes it is told what is carried and
+picks up, with nothing picked out first — a packet's field by its box, or the end of one — and whose `Pointer` is what the
+pointer shows over where it would be taken from, asked only as the pointer arrives on another piece. Wherever the carry goes it is told what is carried and
 where it is being let go (`ContentMove`: the stretches or its own carry, the piece, the part and the point) rather than left
 to work either out from the selection — because the case that needs it is the one where what is carried stands for a place
 in a structure: a slice of a pie, a column of a matrix, a field's end. A carry of its own is let go only in its own content,

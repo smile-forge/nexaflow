@@ -28,6 +28,9 @@ public sealed record MiniRibbonButton(string Id, string Name, Func<ContentEdit, 
 {
     /// <summary>Its picture in a sixteen-by-sixteen box, filled in the ink of whatever shows it — or null, to be named.</summary>
     public Geometry? Shape { get; init; }
+
+    /// <summary>Whether it takes something away — drawn in the theme's colour for danger, as what takes something away is.</summary>
+    public bool Warns { get; init; }
 }
 
 /// <summary>

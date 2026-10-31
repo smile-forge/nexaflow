@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 
+using System.Windows.Input;
 using Nexaflow.Icons;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout.Mermaid;
 using Nexaflow.Markdown.Layout.Packet;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Packet;
@@ -64,7 +66,7 @@ internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
         EditKind.Typing => DiagramWriting.Typed(edit, Escaping),
         EditKind.Settling => DiagramWriting.Typed(edit, Escaping),
         EditKind.Pasting => Pasted(edit),
-        EditKind.Erasing or EditKind.Deleting => Chosen(edit) is { Count: > 0 } chosen ? PacketWriting.Removed(edit.Root, chosen) : Unescaped(edit),
+        EditKind.Erasing or EditKind.Deleting => Chosen(edit) is { Count: > 0 } chosen ? PacketWriting.Removed(edit.Root, chosen) : Erased(edit),
         EditKind.Inserting => Chosen(edit) is [var first, ..] ? PacketWriting.Inserted(edit.Root, first, after: false, Newline(edit)) : null,
         _ => null,
     };
@@ -88,8 +90,8 @@ internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
                      static edit => Over(edit) is { } over ? PacketWriting.Inserted(edit.Root, over, after: false, Newline(edit)) : null),
             Pressing(After, "Text.Packet.Field.After", "table_stack_right",
                      static edit => Over(edit) is { } over ? PacketWriting.Inserted(edit.Root, over, after: true, Newline(edit)) : null),
-            Pressing(Delete, "Text.Packet.Field.Delete", "table_delete_column",
-                     static edit => Over(edit) is { } over ? PacketWriting.Removed(edit.Root, [over]) : null),
+            Pressing(Delete, "Text.Packet.Field.Delete", "delete",
+                     static edit => Over(edit) is { } over ? PacketWriting.Removed(edit.Root, [over]) : null) with { Warns = true },
         ];
 
         // Done to the field under the pointer, so each stands beside the rest of what is done to it as its icon — never behind a
@@ -150,14 +152,29 @@ internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
         });
 
     /// <summary>
-    /// A press on the end of a field picks up its length, with nothing picked out first; anywhere else, what is picked out — whole
-    /// fields — as the engine carries it.
+    /// A press on the end of a field picks up its length; one on a field's box, away from its words, picks the field up at once — with
+    /// every chosen field, where it is one of them — so a field is dragged in one gesture, picked out first or not. Anywhere else, what
+    /// is picked out, as the engine carries it.
     /// </summary>
-    public ContentLift Lift(ContentGrip grip) =>
-        grip.Piece.Kind == PacketPiece.End && PacketWriting.FieldOf(grip.Part) is { } field ? new Ending(field) : ContentLift.Selection;
+    public ContentLift Lift(ContentGrip grip)
+    {
+        if (PacketWriting.FieldOf(grip.Part) is not { } field) return ContentLift.Selection;
+        if (grip.Piece.Kind == PacketPiece.End) return new Ending(field);
+        if (grip.Piece.Kind != MermaidPiece.Shape) return ContentLift.Selection;
+
+        var chosen = Picked(grip.Root, grip.State);
+        return new FieldsCarried(chosen.Contains(field) ? chosen : [field]);
+    }
 
     /// <summary>The end of a field, carried: the bit it is let go over is the bit the field then ends at.</summary>
-    private sealed record Ending(ContentPart Field) : ContentCarry;
+    private sealed record Ending(ContentPart Field) : ContentCarry
+    {
+        /// <summary>A field's end moves across the row, so the pointer over it says so.</summary>
+        public override Cursor? Pointer => Cursors.SizeWE;
+    }
+
+    /// <summary>Whole fields, carried: let go on another field, they and it change places.</summary>
+    private sealed record FieldsCarried(IReadOnlyList<ContentPart> Fields) : ContentCarry;
 
     /// <summary>
     /// A field's end let go over a bit: the field made long enough to end there, every field after it numbered on — or nothing, over no
@@ -180,6 +197,7 @@ internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
     public ContentChange? Move(ContentMove move)
     {
         if (move.Carry is Ending ending) return Ended(move, ending.Field);
+        if (move.Carry is FieldsCarried carried) return PacketWriting.FieldOf(move.Part) is { } on ? PacketWriting.Moved(move.Root, carried.Fields, on) : null;
         if (!move.Holds) return null;
         if (move.Carrying().Where(part => PacketWriting.FieldOf(part) == part).ToList() is not { Count: > 0 } chosen) return null;
         if (PacketWriting.FieldOf(move.Part) is not { } over) return ContentChange.Stay(move.State);
@@ -209,17 +227,23 @@ internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
     }
 
     /// <summary>
-    /// A key taking a character out of a label where the character is half of what a backslash keeps: the backslash and what it keeps
-    /// go together. Half of one is a backslash keeping the quote that ends the label, or the character after it, which is never what was
-    /// meant. Null anywhere else, where a key takes one character as it does in any words.
+    /// A key taking a character out of a label where the character is one the label cannot lose: a quote round it — a label still to
+    /// write is its quotes and nothing else, and one taken leaves a label that never ends — so nothing is taken; or half of what a
+    /// backslash keeps, so the backslash and what it keeps go together. Null anywhere else, where a key takes one character as it does in
+    /// any words.
     /// </summary>
-    private static ContentChange? Unescaped(ContentEdit edit)
+    private static ContentChange? Erased(ContentEdit edit)
     {
         var state = edit.State;
         if (state.HasSelection || edit.Part is not { } part || PacketParser.LabelOf(part) is not { } label) return null;
 
         var caret = state.Caret;
         var erasing = edit.Kind == EditKind.Erasing;
+
+        if (erasing
+                ? label.Children.FirstOrDefault(child => child.Role == Roles.Open) is { } open && caret <= open.End
+                : label.Children.LastOrDefault(child => child.Role == Roles.Close) is { } close && caret >= close.Start)
+            return ContentChange.Stay(state);
 
         foreach (var escape in label.SelfAndDescendants())
             if (escape.Kind == PacketKinds.Escape && (erasing ? escape.Start < caret && caret <= escape.End : escape.Start <= caret && caret < escape.End))
@@ -229,8 +253,11 @@ internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
     }
 
     /// <summary>The fields whose whole stretch of characters is picked out.</summary>
-    private static List<ContentPart> Chosen(ContentEdit edit) =>
-        [.. PacketWriting.Fields(edit.Root).Where(field => edit.State.Selection.Any(range => range.Start <= field.Start && field.End <= range.End))];
+    private static List<ContentPart> Chosen(ContentEdit edit) => Picked(edit.Root, edit.State);
+
+    /// <summary>The fields of <paramref name="root"/> whose whole stretch of characters <paramref name="state"/> has picked out.</summary>
+    private static List<ContentPart> Picked(ContentPart root, EditState state) =>
+        [.. PacketWriting.Fields(root).Where(field => state.Selection.Any(range => range.Start <= field.Start && field.End <= range.End))];
 
     private static string Said(long bits) => bits.ToString(CultureInfo.InvariantCulture);
 

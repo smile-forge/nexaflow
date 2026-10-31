@@ -192,6 +192,50 @@ public class ContentOffersTests
     });
 
     [TestMethod]
+    public void AValueEnteredOrAButtonPressedTakesTheRibbonAway_AChoiceLeavesItOpen() => UiThread.Run(() =>
+    {
+        var window = new Window { ShowActivated = false, WindowStyle = WindowStyle.None, Left = -10000, Top = -10000, Width = 10, Height = 10 };
+        window.Show();
+
+        try
+        {
+            foreach (var (control, used) in new (MiniRibbonControl, string)[]
+                     {
+                         (new MiniRibbonButton("go", "Go", _ => null), "Diagram_Ribbon_go"),
+                         (new MiniRibbonEntry("bits", "Bits", ["8"], "4", (_, _) => null), "Diagram_Ribbon_bits.8"),
+                         (new MiniRibbonChoice("size", "Size", [new("s", "Small"), new("l", "Large")], (_, _) => null), "Diagram_Ribbon_size.l"),
+                     })
+            {
+                var ribbon = new DiagramRibbon([control], made => made(null!));
+                var shown = new System.Windows.Controls.Primitives.Popup { Child = ribbon, PlacementTarget = window, StaysOpen = true, IsOpen = true };
+
+                Press(Descendants(ribbon).OfType<Button>().Single(button => Id(button) == used));
+
+                Assert.AreEqual(control is MiniRibbonChoice, shown.IsOpen, $"{control.Id}: a choice stays open for the next, anything else is done");
+                shown.IsOpen = false;
+            }
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [TestMethod]
+    public void AButtonThatTakesSomethingAwayIsDrawnInTheColourForDanger() => UiThread.Run(() =>
+    {
+        var ribbon = new DiagramRibbon([new MiniRibbonButton("delete", "Delete", _ => null) { Warns = true }, new MiniRibbonButton("copy", "Copy", _ => null)], _ => { });
+        var buttons = Descendants(ribbon).OfType<Button>().ToList();
+        var danger = Application.Current?.TryFindResource("DangerBrush") as System.Windows.Media.SolidColorBrush;
+
+        var warned = (System.Windows.Media.SolidColorBrush)buttons.Single(button => Id(button) == "Diagram_Ribbon_delete").Foreground;
+        var plain = (System.Windows.Media.SolidColorBrush)buttons.Single(button => Id(button) == "Diagram_Ribbon_copy").Foreground;
+
+        Assert.AreEqual(danger?.Color ?? System.Windows.Media.Colors.Firebrick, warned.Color);
+        Assert.AreNotEqual(warned.Color, plain.Color);
+    });
+
+    [TestMethod]
     [CoversNode("markdown-context-menu")]
     public void NothingIsOfferedToAReaderWhoMayNotWrite() =>
         Assert.AreEqual(0, ContentLanguages.Markdown.Editing.Ribbon(new ContentAsk(string.Empty, "words\n") { IsReadOnly = true }).Count);

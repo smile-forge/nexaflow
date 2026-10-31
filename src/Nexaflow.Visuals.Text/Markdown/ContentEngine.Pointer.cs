@@ -174,7 +174,7 @@ public sealed partial class ContentEngine
             // of its own that this press alone picks up — the edge of a box — with nothing picked out first.
             if (!Unwritable)
             {
-                var (lift, root) = Lifted(at);
+                var (lift, root) = Lifted(_anchorNode, at);
 
                 if (lift is ContentCarry carry)
                 {
@@ -210,13 +210,13 @@ public sealed partial class ContentEngine
     }
 
         /// <summary>
-        /// What a press at <paramref name="at"/> picks up, as the language it landed in answers (<see cref="IOnMove.Lift"/>), and the content
-        /// it landed in. What is picked out, where the language is not asked — it has no <see cref="IOnMove"/> — and where it falls over
-        /// being asked.
+        /// What a press on <paramref name="pressed"/> at <paramref name="at"/> picks up, as the language it landed in answers
+        /// (<see cref="IOnMove.Lift"/>), and the content it landed in. What is picked out, where the language is not asked — it has no
+        /// <see cref="IOnMove"/> — and where it falls over being asked.
         /// </summary>
-        private (ContentLift Lift, ContentNode? Root) Lifted(LayoutPoint at)
+        private (ContentLift Lift, ContentNode? Root) Lifted(LayoutPiece pressed, LayoutPoint at)
         {
-            var (piece, part, root) = Reached(Landing, _anchorNode);
+            var (piece, part, root) = Reached(Landing, pressed);
             if (part is null || ContentLanguages.WrittenIn(root)?.Editing.OnMove is not { } onMove) return (ContentLift.Selection, null);
 
             try
@@ -227,6 +227,24 @@ public sealed partial class ContentEngine
             {
                 return (ContentLift.Selection, null);
             }
+        }
+
+        /// <summary>The piece the pointer was last over, and what it shows there — asked of the language again only once it is over another.</summary>
+        private (LayoutPiece Piece, Cursor? Pointer) _hovered;
+
+        /// <summary>
+        /// What the pointer shows over <paramref name="piece"/> where a press there would pick up a carry of the language's own
+        /// (<see cref="ContentCarry.Pointer"/>), and while one is carried — or null for the pointer the place has anyway. The language is
+        /// asked only as the pointer arrives on another piece, never as it moves along one.
+        /// </summary>
+        internal Cursor? Gripping(LayoutPiece piece, LayoutPoint at)
+        {
+            if (_moving && _carry is { } carried) return carried.Pointer;
+            if (Unwritable) return null;
+            if (piece == _hovered.Piece) return _hovered.Pointer;
+
+            _hovered = (piece, Lifted(piece, at).Lift is ContentCarry carry ? carry.Pointer : null);
+            return _hovered.Pointer;
         }
 
     /// <summary>Adds what a press lands on to what is chosen — or, where all of it is chosen already, takes it back out.</summary>

@@ -112,7 +112,7 @@
   "Text.Packet.Field.After": "Insérer après",
   "Text.Packet.Field.End": "Insérer un champ à la fin",
   "Text.Packet.Field.Delete": "Supprimer le champ",
-  "Text.Packet.Bits": "Bits",
+  "Text.Packet.Bits": "Taille",
 
   "Text.Language.Qr": "Code QR",
   "Text.Language.Aztec": "Code Aztec",

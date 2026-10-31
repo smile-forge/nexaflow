@@ -255,6 +255,21 @@ public class PacketEditingTests
         }, Three));
 
     [TestMethod]
+    [DataRow(Key.Back)]
+    [DataRow(Key.Delete)]
+    public void ALabelStillToWriteKeepsItsQuotes_WhateverKeyTakesACharacter(Key key) => UiThread.Run(() =>
+        InADocument((editor, packet) =>
+        {
+            Click(Ribbon(editor, Box(packet, "A")), "packet.insert.after");
+            var written = packet.Source;
+
+            Press(editor, key);
+
+            Assert.AreEqual(written, packet.Source, "the quotes hold the field's label, so there is nothing in it to take");
+            Assert.AreEqual(0, packet.Diagnostics.Count, Trouble(packet));
+        }, Three));
+
+    [TestMethod]
     public void DeleteTakesAChosenFieldOut() => UiThread.Run(() =>
         InADocument((editor, packet) =>
         {
@@ -302,6 +317,55 @@ public class PacketEditingTests
             MarkdownEditorHarness.Pump();
 
             StringAssert.Contains(packet.Source, "```packet\n0-7: \"B\"\n8-11: \"A\"\n12-15: \"C\"\n```", packet.Source);
+        }, Three));
+
+    /// <summary>
+    /// A chosen field pressed anywhere on its box — here near its far edge, where the nearest place for a caret is in the next field's
+    /// label — and carried onto the next: the press is on what is picked out, so it carries it.
+    /// </summary>
+    [TestMethod]
+    public void AChosenFieldPressedAnywhereOnItsBoxIsCarried() => UiThread.Run(() =>
+        InADocument((editor, packet) =>
+        {
+            ChooseTheField(packet, "B");
+
+            var b = Box(packet, "B");
+            var from = new Point(b.Right - 10, b.Top + 3);
+            var to = Middle(Box(packet, "C"));
+
+            packet.BeginPointerSelect(from);
+            for (var x = from.X; x <= to.X; x += 2) packet.ExtendPointerSelect(new Point(x, from.Y));
+            packet.ExtendPointerSelect(to);
+            packet.EndPointerSelect();
+            MarkdownEditorHarness.Pump();
+
+            StringAssert.Contains(packet.Source, "```packet\n0-3: \"A\"\n4-7: \"C\"\n8-15: \"B\"\n```", packet.Source);
+        }, Three));
+
+    [TestMethod]
+    public void AFieldNotPickedOutIsCarriedByAPressAndADragInOneGesture() => UiThread.Run(() =>
+        InADocument((editor, packet) =>
+        {
+            Assert.AreEqual(0, packet.SelectionLength, "nothing is picked out first");
+
+            var from = Inside(Box(packet, "A"));
+            var to = Middle(Box(packet, "C"));
+
+            packet.BeginPointerSelect(from);
+            for (var x = from.X; x <= to.X; x += 2) packet.ExtendPointerSelect(new Point(x, from.Y));
+            packet.ExtendPointerSelect(to);
+            packet.EndPointerSelect();
+            MarkdownEditorHarness.Pump();
+
+            StringAssert.Contains(packet.Source, "```packet\n0-7: \"B\"\n8-11: \"C\"\n12-15: \"A\"\n```", packet.Source);
+        }, Three));
+
+    [TestMethod]
+    public void ThePointerOverTheEndOfAFieldSaysItMovesAcross_AndOverItsBoxSaysNothingMore() => UiThread.Run(() =>
+        InADocument((editor, packet) =>
+        {
+            Assert.AreEqual(Cursors.SizeWE, packet.PointerCursor(Middle(End(packet, "A"))), "a field's end is taken hold of and moved across");
+            Assert.AreEqual(Cursors.Arrow, packet.PointerCursor(Inside(Box(packet, "B"))), "a box is pressed, not written in");
         }, Three));
 
     // ── The clipboard ───────────────────────────────────────────────────────

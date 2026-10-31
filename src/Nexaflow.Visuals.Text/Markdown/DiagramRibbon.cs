@@ -68,11 +68,11 @@ internal sealed class DiagramRibbon : UserControl
                     break;
 
                 case MiniRibbonEntry entry:
-                    settings.Children.Add(Entering(entry, use));
+                    settings.Children.Add(Entering(entry, use, Dismiss));
                     break;
 
                 case MiniRibbonButton button:
-                    actions.Children.Add(Pressing(button, use));
+                    actions.Children.Add(Pressing(button, use, Dismiss));
                     break;
             }
         }
@@ -97,17 +97,39 @@ internal sealed class DiagramRibbon : UserControl
     /// <summary>What it is offering, in the order it offers them.</summary>
     public IReadOnlyList<MiniRibbonControl> Controls { get; }
 
+    /// <summary>
+    /// Takes the ribbon away from over the content — what a button pressed or a value entered is done with. A choice leaves it open, so
+    /// the next option can be tried against the last.
+    /// </summary>
+    private void Dismiss()
+    {
+        for (DependencyObject? up = this; up is not null; up = LogicalTreeHelper.GetParent(up))
+            if (up is Popup shown)
+            {
+                shown.IsOpen = false;
+                return;
+            }
+    }
+
     // ── Buttons ─────────────────────────────────────────────────────────────
 
-    /// <summary>Something done at once: its picture where it has one, else its name.</summary>
-    private static FrameworkElement Pressing(MiniRibbonButton offer, Action<Func<ContentEdit, ContentChange?>> use)
+    /// <summary>
+    /// Something done at once: its picture where it has one, else its name — in the theme's colour for danger where it takes something
+    /// away. Pressed, it is done, and so is the ribbon.
+    /// </summary>
+    private static FrameworkElement Pressing(MiniRibbonButton offer, Action<Func<ContentEdit, ContentChange?>> use, Action done)
     {
         var button = Flat(offer.Shape is null ? new Thickness(8, 5, 8, 5) : new Thickness(6, 4, 6, 4));
-        button.Foreground = Brush("TextBrush", Colors.Black);
+        button.Foreground = offer.Warns ? Brush("DangerBrush", Colors.Firebrick) : Brush("TextBrush", Colors.Black);
         button.Content = offer.Shape is { } shape ? Pictured(shape, button) : new TextBlock { Text = offer.Name, FontSize = 12 };
         Said(button, offer.Name, offer.Id);
 
-        button.Click += (_, _) => use(offer.Pressed);
+        button.Click += (_, _) =>
+        {
+            use(offer.Pressed);
+            done();
+        };
+
         return button;
     }
 
@@ -218,9 +240,9 @@ internal sealed class DiagramRibbon : UserControl
     /// <summary>
     /// A value typed into a box or picked from the usual ones dropped down beside it, as a font's size is: the box holds the value the
     /// content has now, and Enter on a value the language takes, or a value picked from the list, hands the entry's callback to be run
-    /// with it. A value it refuses goes nowhere.
+    /// with it and takes the ribbon away. A value it refuses goes nowhere. Its name stands before the box.
     /// </summary>
-    private static FrameworkElement Entering(MiniRibbonEntry entry, Action<Func<ContentEdit, ContentChange?>> use)
+    private static FrameworkElement Entering(MiniRibbonEntry entry, Action<Func<ContentEdit, ContentChange?>> use, Action done)
     {
         var box = new TextBox
         {
@@ -276,29 +298,47 @@ internal sealed class DiagramRibbon : UserControl
         box.GotKeyboardFocus += (_, _) => box.SelectAll();
         opener.Click += (_, _) => list.IsOpen = !list.IsOpen;
 
-        return new Grid
+        // Its name before it, as a box of a font's size is read: a number alone says nothing of what it is the number of.
+        return new StackPanel
         {
+            Orientation = Orientation.Horizontal,
             Margin = new Thickness(0, 0, 6, 0),
             VerticalAlignment = VerticalAlignment.Center,
             Children =
             {
-                new Border
+                new TextBlock
                 {
-                    CornerRadius = new CornerRadius(4),
-                    BorderThickness = new Thickness(1),
-                    BorderBrush = Brush("BorderBrush", Colors.Gray),
-                    Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { box, opener } },
+                    Text = entry.Name,
+                    FontSize = 12,
+                    Margin = new Thickness(2, 0, 6, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = Brush("TextBrush", Colors.Black),
                 },
-                list,
+                new Grid
+                {
+                    Children =
+                    {
+                        new Border
+                        {
+                            CornerRadius = new CornerRadius(4),
+                            BorderThickness = new Thickness(1),
+                            BorderBrush = Brush("BorderBrush", Colors.Gray),
+                            Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { box, opener } },
+                        },
+                        list,
+                    },
+                },
             },
         };
 
+        // A value entered is done with, and so is the ribbon.
         void Entered()
         {
             var value = box.Text.Trim();
             if (entry.Accepts is { } accepts && !accepts(value)) return;
 
             use(edit => entry.Entered(edit, value));
+            done();
         }
     }
 

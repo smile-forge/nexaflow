@@ -135,7 +135,14 @@ public abstract record ContentLift
 /// — picked up by the press that answered it and handed back to that language's <see cref="IOnMove.Move"/> wherever it is carried.
 /// What it holds is the language's alone; the engine only carries it.
 /// </summary>
-public abstract record ContentCarry : ContentLift;
+public abstract record ContentCarry : ContentLift
+{
+    /// <summary>
+    /// What the pointer is over what a press would pick this up from, and while it is carried — a field's end moving across, say — or
+    /// null for the pointer the place has anyway. Asked when the pointer arrives on a piece, never as it moves along one.
+    /// </summary>
+    public virtual System.Windows.Input.Cursor? Pointer => null;
+}
 
 /// <summary>
 /// A press, told to the language it landed in: the piece pressed, the part of that language's syntax tree it was drawn from (or its
