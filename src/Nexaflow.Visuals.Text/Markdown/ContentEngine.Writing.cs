@@ -169,7 +169,7 @@ public sealed partial class ContentEngine
     /// </param>
     internal void Apply(EditState next, bool notify, int at = -1)
     {
-        next = Held(Arrived(Left(next)));
+        next = Held(Left(next));
 
         // A host that owns what is written may refuse it. Asked only where the words themselves would change: the caret moving, or
         // a stretch being shown as the characters it was written with, is not a change to what is written.
@@ -222,13 +222,15 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
-    /// Shows words drawn other than as written — a value as its format sets it — as the characters written once the caret has come into
-    /// them by a key, as a press on them does; so a step into a value finds the number it is about to type into, not what it is drawn as.
-    /// Only a caret moving: what is written changing lays the content out again, and the caret then lands among what that drew.
+    /// The content with the caret put at <paramref name="offset"/>, as a press or a step puts it: what was shown as written and is left
+    /// behind drawn again, and words drawn other than as written — a value as its format sets it — shown as the characters written where
+    /// the caret has come into them, as a press on them shows them; so a step into a value finds the number it is about to type into, not
+    /// what it is drawn as. Only where the caret is put: nothing picked out or written goes through here.
     /// </summary>
-    private EditState Arrived(EditState next)
+    private EditState CaretPlaced(int offset)
     {
-        if (_readOnly || next.Raw is not null || next.HasSelection || next.Source != _state.Source) return next;
+        var next = Left(_state.MoveCaretTo(offset));
+        if (_readOnly || next.Raw is not null) return next;
 
         return _laid.Root.RestatedAt(next.Caret) is { Part: { } part } ? next with { Raw = new RawZone(part.Start, part.End()) } : next;
     }
@@ -261,7 +263,7 @@ public sealed partial class ContentEngine
     /// <summary>Puts the caret at one particular place — what a press and a step both mean — or, at -1, the innermost of the places at <paramref name="offset"/>.</summary>
     internal void TakeCaret(int offset, int at = -1)
     {
-        Apply(_state.MoveCaretTo(Snap(offset)), notify: false, at);
+        Apply(CaretPlaced(Snap(offset)), notify: false, at);
         CaretTaken?.Invoke(this, EventArgs.Empty);
     }
 
@@ -313,7 +315,7 @@ public sealed partial class ContentEngine
         if (!extend && Unpick()) Chosen();
 
         if (extend) ExtendSelectionTo(offset);
-        else Apply(_state.MoveCaretTo(offset), notify: false, at);
+        else Apply(CaretPlaced(offset), notify: false, at);
     }
 
     private int Snap(int offset)
