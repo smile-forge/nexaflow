@@ -70,8 +70,9 @@ flowchart TD
     p -.-> mask[LayerMask<br/>8-bit coverage tiles]
 ```
 
-`LayeredPicture` is an immutable record: canvas `Width`/`Height`, `Dpi`, a background (transparent, white or a colour,
-shown only — it is not a layer), the `LayerStack`, the active layer's id, the `RegionSelection` (§6), and what was read
+`LayeredPicture` is an immutable record: canvas `Width`/`Height`, `Dpi`, a background (transparent, white or a colour;
+it is not a layer, but it is drawn beneath them on screen, in Export and in the `.ora`'s `mergedimage.png`, and kept as
+`nexaflow:background`), the `LayerStack`, the active layer's id, the `RegionSelection` (§6), and what was read
 from the `.ora` and not understood (§8.3). Every edit makes a new `LayeredPicture` sharing everything it did not touch,
 so `SnapshotHistory<LayeredPicture>` keeps undo as it keeps the recipe's today.
 
@@ -90,7 +91,8 @@ Krita's *inherit alpha*), and an optional `Mask` (§4.2).
 
 A picture layer's recipe is the photo editor's own, in its own coordinates; the layer's placement maps it into the
 canvas. So everything the photo editor does keeps working on one layer, and a photo opened and given a second layer
-becomes a picture layer with its recipe intact.
+becomes a picture layer with its recipe intact. While Crop or Before is out on a picture layer, the canvas shows that
+layer alone, as the photo editor shows the photo, so the crop frame and the comparison are in its own pixels.
 
 **Rasterize** turns a picture or markup layer into a pixel layer (what the brush needs); it is a step in the history like
 any other.
@@ -141,7 +143,8 @@ in the document (default 1 GB, Options → Images), not in steps; `SnapshotHisto
   that rectangle of each group above it, bottom to top.
 - **Groups.** An isolated group composites its children onto a transparent surface (`SKCanvas.SaveLayer` with the
   group's opacity and blend); a pass-through group draws its children onto its parent with its opacity multiplied in,
-  as OpenRaster defines `isolation="auto"`.
+  as OpenRaster defines `isolation="auto"`. A pass-through group with a mask is drawn as an isolated one, since its mask
+  needs a surface of its own to apply to.
 - **Masks and clipping.** A masked layer is drawn into its own surface, `DstIn` its mask's coverage, then composited
   with its opacity and blend. A layer that `ClipsToBelow` is composited `SrcATop` onto what its group holds beneath it,
   with its blend applied to the colour — the clip governs coverage, the blend the colour.
@@ -210,7 +213,7 @@ canvas pixels through `EditCanvas.SourceToCanvas`.
 | Erase (Retouch tile) | is the erase mask, filled by AI, content-aware fill or the healing brush as today |
 | Cut out | becomes the cut-out on a picture layer; on a pixel layer, deletes what lies outside it |
 | Mask from selection | the active layer's mask made from it, or hiding it (§4.2) |
-| Crop to selection | crops the canvas to its bounds |
+| Crop to selection | crops the canvas to its bounds, and lets the selection go, as Canvas size does |
 | Brush, eraser | paint only inside it, by its coverage |
 
 ### 6.4 In the photo editor (no layers)
@@ -305,7 +308,10 @@ the same in Krita.
 ### 8.4 A layered-format contract
 
 `IImageDecoder` returns one picture, so a layered format gets a contract of its own beside it, in the Images feature:
-`ILayeredPictureFormat` — `Reads(container)`, `ReadAsync(stream) → LayeredPicture`, `WriteAsync(LayeredPicture, stream)`.
+`ILayeredPictureFormat` — `Reads(container)`, `Extension`, `ReadAsync(path) → LayeredPictureRead` (the picture, and whether
+it holds a layer no reader draws), `WriteAsync(LayeredPicture, path, renderer)`. It takes a path in the
+`IVirtualFileSystem`, not a stream, so a read opens only the entries it needs (§8.2) and a write is one atomic package
+write; the renderer draws each layer's pixels and the merged image at full size.
 OpenRaster is the first; PSD (§13) would be the second, with nothing in the editor changed. `ImageContainer` gains
 `OpenRaster` (sniffed by the `mimetype` entry), and the editor opens a container that has a layered format as a
 `LayeredPicture`, any other as a photo.
@@ -315,8 +321,9 @@ OpenRaster is the first; PSD (§13) would be the second, with nothing in the edi
 Standard OpenRaster any reader draws correctly, with what only Nexaflow uses beside it under its own namespace
 (`xmlns:nexaflow` on `<image>`), so a file Nexaflow wrote reads back exactly:
 
-- **A picture layer** is its rendered pixels (`data/layerN.png`), with `nexaflow:source="data/nexaflow/sourceN.<ext>"`
-  (the original file, as it was) and `nexaflow:recipe="data/nexaflow/recipeN.nfedit"`.
+- **A picture layer** is its rendered pixels (`data/layerN.png`), with
+  `nexaflow:source="data/nexaflow/source-<hash>.<ext>"` (the original file, as it was, named by its content so a picture
+  two layers show is stored once) and `nexaflow:recipe="data/nexaflow/recipeN.nfedit"`.
 - **A markup layer** is its pixels, with `nexaflow:markup="data/nexaflow/markupN.json"` in `ImageRecipeJson`'s markup
   form.
 - **A masked layer** is an isolated `<stack nexaflow:role="masked">` carrying the layer's name, opacity, visibility,
@@ -333,8 +340,9 @@ Standard OpenRaster any reader draws correctly, with what only Nexaflow uses bes
 
 ### 8.6 Opening, saving and the file map
 
-- `.ora` joins `DecodablePictures.Extensions` and the `/image` and `/image/edit` criteria in `default-filemap.json`, so it
-  opens in Images from the file view and previews like any picture.
+- `.ora` joins `ImageFileTypes.Extensions` — what Images opens — and the `/image` and `/image/edit` criteria in
+  `default-filemap.json`, so it opens in Images from the file view like any picture. `DecodablePictures` stays what
+  Windows' imaging decodes, since the PDF and Scratchpad features decode those files themselves.
 - Opening an `.ora` for editing opens the layered document; in the viewer it shows the merged picture.
 - **The saved look.** A file holding a layer Nexaflow cannot draw (§8.3) opens in the editor showing its
   `mergedimage.png` — the picture as the application that wrote it drew it — with a bar saying which layers cannot be
@@ -346,8 +354,9 @@ Standard OpenRaster any reader draws correctly, with what only Nexaflow uses bes
   Until one is chosen, editing anything chooses *Edit the layers*. A file Nexaflow can draw whole never shows the bar.
 - Save writes the whole package through the VFS's atomic write (§8.2), debounced as the recipe sidecar is; a large
   document saves in the background through the existing `ImageSaveTask`.
-- **New picker**: *Layered picture (.ora)* (`IFileCreateAction`) creates a blank `.ora` at a chosen size in the folder
-  and opens it for editing.
+- **New picker**: *Layered picture (.ora)* (`IFileCreateWithOptions`) creates a blank `.ora` in the folder and opens it
+  for editing, its size and background set up in the picker by `CanvasSetup` — the presets, units, dpi, orientation and
+  background of the start screen's New picture (§9.1), which uses the same.
 
 ## 9. The start screen and generation
 

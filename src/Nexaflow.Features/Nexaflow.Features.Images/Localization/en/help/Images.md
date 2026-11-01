@@ -6,7 +6,7 @@ Opens one picture, a selection, or every picture in a folder.
 
 ## Opening pictures
 
-- Double-click a picture in the [File System](help:FileSystem) page. PNG, JPEG, GIF, BMP, ICO, TIFF and WebP open here.
+- Double-click a picture in the [File System](help:FileSystem) page. PNG, JPEG, GIF, BMP, ICO, TIFF, WebP and OpenRaster (.ora) open here.
 - Open several as one set: select them and choose **As Image**.
 - A picture inside an archive opens the same way.
 - Where a folder holds a fair share of pictures, its actions offer **Slideshow** and **Album**, taking that folder's pictures in name order.
@@ -97,6 +97,25 @@ Open the editor with **Edit** at the top right, with E, or from **Edit** among a
 - **Done**, or Esc, leaves the editor; the edits stay. Ctrl+Z and Ctrl+Y undo and redo, and Ctrl+S and Ctrl+Shift+S save, while editing. [Show me](locate:Image_EditDone)
 - In the File System page a picture's edits go wherever it goes: copying, moving, renaming and deleting it take them along, a copy that is renamed to avoid a clash keeps its own, and dragging it to another program brings them too. **Revert edits** appears among the actions of an edited picture.
 - If a picture is changed by another program after you edited it, the viewer asks whether to keep your edits on the new picture or discard them. A picture inside an archive can be edited, but its edits last only while it is open — save a copy to keep them.
+
+## Layers
+
+- **Add layer** on the editor's toolbar makes the picture a layered picture: the photo becomes its bottom layer, with its edits, and an empty layer goes above it. **Paste as layer** does the same with the picture on the clipboard. The photo itself is never written over — the layered picture is kept apart from it until you save it. [Show me](locate:Image_EditAddLayer,Image_EditPasteLayer)
+- **New → Layered picture (.ora)** in the [File System](help:FileSystem) page makes a blank canvas in the folder and opens it in the editor. Pick a size by name — the screen's, a square, Full HD, 4K, A4 or Letter at 300 dpi, a social post — or type a width and height in pixels, millimetres or inches at a resolution, turn it a quarter with ⇄, and choose a transparent, white or coloured background.
+- The **Layers** panel beside the tools lists the layers, top first. Click a layer's thumbnail to make it the one the tools work on, and drag its row, or use the arrows, to move it. The eye hides and shows it. Name it, set its opacity and blend, **Clip** it to the layer beneath, **Keep transparency** so fill stays where it already has pixels, or **Lock** it so nothing changes it. **Layer**, **Notes**, **Group**, **Duplicate** and **Delete** sit at the top; a group can be **Isolated**, its layers blended among themselves before what is beneath. [Show me](locate:Image_LayersPanel,Image_LayersAddPixel,Image_LayersOpacity,Image_LayersBlend)
+- Crop, Adjust, Retouch, Cut out and Resize work on the active picture layer — a photo, with its own edits. On a layer of pixels, **Erase** in Retouch and **Remove background** in Cut out change the pixels themselves.
+- A selection — the Marquee, the Lasso, Select subject, or Ctrl+A for everything — lies over the whole canvas. **Fill** (Shift+F5) fills it on the active layer with the ink chosen in Markup, Delete clears it, Ctrl+C copies it, Ctrl+Shift+C copies what shows of every layer, Ctrl+X cuts it, and Ctrl+V pastes as a new layer. [Show me](locate:Image_LayersPixelsSection)
+- **Mask** hides part of a layer without erasing it: reveal or hide all of it, make it from the selection, from the layer's transparency or from what Cut out picked, invert it, apply it to the pixels, or delete it. Click the mask's thumbnail and Fill and Delete work on the mask; Alt-click shows the mask alone, Ctrl-click loads it as the selection, and Shift-click turns it off. [Show me](locate:Image_LayersMaskSection)
+- **Rasterize** turns notes or a picture layer into pixels, **Merge down** joins a layer with the one beneath, and **Flatten** makes one layer of them all.
+- **Canvas** sets a new canvas size, anchored at any of nine points, or crops the canvas to the selection. [Show me](locate:Image_LayersCanvasSection)
+- Undo and redo step through layers and selections as through edits. How much history a layered picture keeps is set in the Images options.
+- **Save** keeps a layered picture as OpenRaster, asking where the first time — beside the photo it was made from to start with — and saving it there again as you work. **Save as copy** exports it flattened, as a PNG or any format the editor saves.
+
+## OpenRaster files
+
+- An .ora from Krita, GIMP, MyPaint or Pinta shows the picture saved inside it, like any picture. Opened for editing, its layers come back with their opacity, blends, visibility, locks, masks and groups, and what Nexaflow saves those applications open.
+- A file holding a layer Nexaflow cannot draw — a filter layer from Krita, say — opens on the look the application that wrote it saved, with a bar naming the layer. **Use the saved look** replaces the layers with one showing it, its effects baked in; **Edit the layers** shows what Nexaflow draws and keeps the layer it cannot draw, saving it back as it was. Editing anything first chooses Edit the layers. [Show me](locate:Image_SavedLookUse,Image_SavedLookEditLayers)
+- In the File System page an .ora also opens as a folder, as any package does.
 
 ## Converting a page to Markdown
 

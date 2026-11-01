@@ -452,6 +452,15 @@
                 <!-- Editing: history, compare, revert, save, done -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"
                             Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}">
+                    <!-- Layers: one added makes the photo a layered picture, kept apart from it. -->
+                    <Button Command="{Binding AddLayerCommand}" ToolTip="{loc:Str Images.Edit.AddLayerTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,0"
+                            AutomationProperties.AutomationId="Image_EditAddLayer">
+                        <TextBlock Text="{loc:Str Images.Edit.AddLayer}"/>
+                    </Button>
+                    <Button Command="{Binding PasteAsLayerCommand}" ToolTip="{loc:Str Images.Edit.PasteLayerTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,10,0"
+                            AutomationProperties.AutomationId="Image_EditPasteLayer">
+                        <TextBlock Text="{loc:Str Images.Edit.PasteLayer}"/>
+                    </Button>
                     <Button Command="{Binding UndoEditCommand}" ToolTip="{loc:Str Images.Edit.UndoTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,0"
                             AutomationProperties.AutomationId="Image_EditUndo">
                         <TextBlock Text="↶" FontSize="14"/>
@@ -549,6 +558,23 @@
                         </Button>
                     </StackPanel>
                     <TextBlock Text="{loc:Str Images.Edit.Notice.SourceChanged}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                </DockPanel>
+            </Border>
+            <!-- A layered picture opened on the look the application that wrote it saved: which layers cannot be drawn, and the two ways on. -->
+            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                    Visibility="{Binding ShowsSavedLookBar, Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Command="{Binding UseSavedLookCommand}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,0"
+                                ToolTip="{loc:Str Images.Layers.UseSavedLookTip}" AutomationProperties.AutomationId="Image_SavedLookUse">
+                            <TextBlock Text="{loc:Str Images.Layers.UseSavedLook}"/>
+                        </Button>
+                        <Button Command="{Binding EditTheLayersCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                                ToolTip="{loc:Str Images.Layers.EditTheLayersTip}" AutomationProperties.AutomationId="Image_SavedLookEditLayers">
+                            <TextBlock Text="{loc:Str Images.Layers.EditTheLayers}"/>
+                        </Button>
+                    </StackPanel>
+                    <TextBlock Text="{Binding SavedLookNotice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
                 </DockPanel>
             </Border>
             <!-- Edits that last only for the session. -->

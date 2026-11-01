@@ -29,6 +29,9 @@ public sealed class PhotoEraser : ToolEdit<EraseSteps>
     /// <summary>Whether picture erasing is here now, ready to fill a step.</summary>
     public bool ErasesByAiNow => _erasing is { State: ToolModelsState.Ready };
 
+    /// <summary>Picture erasing, where the app has it — what fills a pixel layer's erasing by AI.</summary>
+    internal IPictureErasing? Erasing => _erasing;
+
     protected override IReadOnlyList<IToolModels?> Needs(EraseSteps ask)
         => [.. ask.Steps.Any(s => s.Fill == EraseFill.Ai) ? [_erasing] : Array.Empty<IToolModels?>(),
             .. ask.Steps.Any(s => s.Pick is not null) ? [_selection] : Array.Empty<IToolModels?>()];
@@ -44,7 +47,7 @@ public sealed class PhotoEraser : ToolEdit<EraseSteps>
     protected override Task<string> MakeAsync(string photo, EraseSteps ask, IProgress<double> progress, CancellationToken ct)
         => Services.Erased.MakeAsync(Services, photo, ask, VersionOf(Needs(ask))!, _erasing, _selection, progress, ct);
 
-    protected override string? UsedPath(ImageEditSession session) => session.ErasedPath;
+    protected override string? UsedPath(PictureRendering session) => session.ErasedPath;
 
-    protected override void Use(ImageEditSession session, string? path) => session.UseErased(path);
+    protected override void Use(PictureRendering session, string? path) => session.UseErased(path);
 }

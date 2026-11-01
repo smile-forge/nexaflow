@@ -246,6 +246,10 @@ public sealed partial class VirtualFileSystem
                                         System.IProgress<TransferProgress>? progress = null, CancellationToken ct = default)
         => OffThread(() => CreateArchive(archivePath, sourcePaths, progress, ct), archivePath, ct);
 
+    public ValueTask CreateArchiveAsync(string archivePath, IReadOnlyList<ArchiveWriteEntry> entries,
+                                        System.IProgress<TransferProgress>? progress = null, CancellationToken ct = default)
+        => OffThread(() => CreateArchive(archivePath, entries, progress, ct), archivePath, ct);
+
     public ValueTask RepackageAsync(string sourcePath, string targetPath, ArchiveWriteOptions? options = null, CancellationToken ct = default)
         => OffThread(() => Repackage(sourcePath, targetPath, options), sourcePath, ct);
 

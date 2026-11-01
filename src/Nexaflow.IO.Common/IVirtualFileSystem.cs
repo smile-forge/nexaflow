@@ -127,6 +127,14 @@ public interface IVirtualFileSystem
     void CreateArchive(string archivePath, IReadOnlyList<string> sourcePaths,
                        IProgress<TransferProgress>? progress = null, CancellationToken ct = default);
 
+    /// <summary>Creates a new archive at <paramref name="archivePath"/> holding <paramref name="entries"/>, in the order given,
+    /// each compressed as it asks; their content is read as it is written, so it streams from wherever it is to the archive
+    /// without being staged. The archive is built beside its destination and swapped in, so a reader never meets a
+    /// half-written one. The format is chosen by the archive file's extension; throws if no registered handler can create it.</summary>
+    [BlocksOnIo(nameof(CreateArchiveAsync))]
+    void CreateArchive(string archivePath, IReadOnlyList<ArchiveWriteEntry> entries,
+                       IProgress<TransferProgress>? progress = null, CancellationToken ct = default);
+
     /// <summary>True if a registered handler can <b>create</b> an archive of the given file name's format.</summary>
     bool CanCreate(string archiveFileName);
 
@@ -287,6 +295,10 @@ public interface IVirtualFileSystem
 
     /// <summary>As <see cref="CreateArchive(string, IReadOnlyList{string}, IProgress{TransferProgress}?, CancellationToken)"/>.</summary>
     ValueTask CreateArchiveAsync(string archivePath, IReadOnlyList<string> sourcePaths,
+                                 IProgress<TransferProgress>? progress = null, CancellationToken ct = default);
+
+    /// <summary>As <see cref="CreateArchive(string, IReadOnlyList{ArchiveWriteEntry}, IProgress{TransferProgress}?, CancellationToken)"/>.</summary>
+    ValueTask CreateArchiveAsync(string archivePath, IReadOnlyList<ArchiveWriteEntry> entries,
                                  IProgress<TransferProgress>? progress = null, CancellationToken ct = default);
 
     /// <summary>As <see cref="Repackage"/>.</summary>

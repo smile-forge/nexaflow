@@ -165,6 +165,10 @@ public sealed class LocationFileSystem : IVirtualFileSystem
         _shared.CreateArchive(Local(archivePath), sourcePaths, progress, ct);
     }
 
+    public void CreateArchive(string archivePath, IReadOnlyList<ArchiveWriteEntry> entries,
+                              IProgress<TransferProgress>? progress = null, CancellationToken ct = default)
+        => _shared.CreateArchive(Local(archivePath), entries, progress, ct);
+
     public bool CanCreate(string archiveFileName) => _shared.CanCreate(archiveFileName);
 
     public void Repackage(string sourcePath, string targetPath, ArchiveWriteOptions? options = null)
@@ -431,6 +435,10 @@ public sealed class LocationFileSystem : IVirtualFileSystem
         foreach (var source in sourcePaths) ArchiveLocal(source);
         return _shared.CreateArchiveAsync(ArchiveLocal(archivePath), sourcePaths, progress, ct);
     }
+
+    public ValueTask CreateArchiveAsync(string archivePath, IReadOnlyList<ArchiveWriteEntry> entries,
+                                        IProgress<TransferProgress>? progress = null, CancellationToken ct = default)
+        => _shared.CreateArchiveAsync(ArchiveLocal(archivePath), entries, progress, ct);
 
     public ValueTask RepackageAsync(string sourcePath, string targetPath, ArchiveWriteOptions? options = null, CancellationToken ct = default)
         => _shared.RepackageAsync(ArchiveLocal(sourcePath), ArchiveLocal(targetPath), options, ct);

@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Text.Json.Serialization;
+using Nexaflow.Features.Images.Editing.Selection;
 
 namespace Nexaflow.Features.Images.Editing.Recipe;
 
@@ -32,6 +33,7 @@ public enum RegionMode
 [JsonDerivedType(typeof(RegionFeather), "feather")]
 [JsonDerivedType(typeof(RegionGrow), "grow")]
 [JsonDerivedType(typeof(RegionSmooth), "smooth")]
+[JsonDerivedType(typeof(RegionCoverage), "coverage")]
 public abstract record RegionStep
 {
     /// <summary>The step as text, the same for the same step: part of what a mask made from it is filed by.</summary>
@@ -112,6 +114,49 @@ public sealed record RegionGrow(double By) : RegionStep
 public sealed record RegionSmooth(double Radius) : RegionStep
 {
     public override string Describe() => $"smooth:{Number(Radius)}";
+}
+
+/// <summary>
+/// A selection made other than by drawing — from a layer's mask or transparency, or carried onto a picture layer from its
+/// canvas's selection — as coverage over the oriented source, meeting what is selected as <see cref="Mode"/> says. The
+/// coverage is kept in the package holding the recipe, as a grey PNG at <see cref="File"/>; a recipe kept on its own, beside a
+/// photo, never holds one, and one whose coverage is not here selects nothing.
+/// </summary>
+public sealed record RegionCoverage : RegionStep
+{
+    private string? _hash;
+
+    public RegionMode Mode { get; init; }
+
+    /// <summary>The coverage, over the oriented source; null where it was not read with the recipe.</summary>
+    [JsonIgnore]
+    public TiledCoverage? Coverage
+    {
+        get => _coverage;
+        init
+        {
+            _coverage = value;
+            _hash = null;
+        }
+    }
+
+    private readonly TiledCoverage? _coverage;
+
+    /// <summary>Where the package holding the recipe keeps the coverage.</summary>
+    public string File { get; init; } = "";
+
+    /// <summary>What the coverage is, the same for the same coverage: a hash of its bytes, worked out once.</summary>
+    [JsonIgnore]
+    public string Hash => _hash ??= Coverage is { } coverage
+        ? Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(coverage.ToBytes()))[..32] + $"@{coverage.Width}x{coverage.Height}"
+        : $"file:{File}";
+
+    public bool Equals(RegionCoverage? other)
+        => other is not null && Mode == other.Mode && (ReferenceEquals(Coverage, other.Coverage) || Hash == other.Hash);
+
+    public override int GetHashCode() => HashCode.Combine(Mode, Coverage?.Width, Coverage?.Height);
+
+    public override string Describe() => $"coverage:{Mode}:{Hash}";
 }
 
 /// <summary>

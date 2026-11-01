@@ -80,22 +80,40 @@ public partial class ImageView : UserControl, IPageView
             case Key.I when Keyboard.Modifiers == ModifierKeys.None:
                 ViewModel.Details.IsOpen = !ViewModel.Details.IsOpen;
                 break;
+            // A layered picture: what a selection does to the active layer, wherever the tools are.
+            case Key.Delete or Key.Back when ViewModel.IsEditing && ViewModel.IsLayered && editor.RegionMarks.Draft.Count == 0
+                                             && !(editor.IsMarkupTool && editor.HasSelection):
+                ViewModel.Layers.DeleteSelectedCommand.Execute(null);
+                break;
+            case Key.F5 when shift && ViewModel.IsEditing && ViewModel.IsLayered:
+                ViewModel.Layers.FillCommand.Execute(null);
+                break;
+            case Key.C when ctrl && ViewModel.IsEditing && ViewModel.IsLayered:
+                (shift ? ViewModel.Layers.CopyMergedCommand : ViewModel.Layers.CopyCommand).Execute(null);
+                break;
+            case Key.X when ctrl && ViewModel.IsEditing && ViewModel.IsLayered:
+                ViewModel.Layers.CutCommand.Execute(null);
+                break;
+            case Key.V when ctrl && ViewModel.IsEditing:
+                if (ViewModel.IsLayered) ViewModel.Layers.PasteCommand.Execute(null);
+                else ViewModel.PasteAsLayerCommand.Execute(null);
+                break;
             case Key.Delete when ViewModel.IsEditing && editor.IsMarkupTool:
                 editor.DeleteSelectedCommand.Execute(null);
                 break;
-            case Key.M when Keyboard.Modifiers == ModifierKeys.None && ViewModel.IsEditing && editor.TakesSelection:
+            case Key.M when Keyboard.Modifiers == ModifierKeys.None && ViewModel.IsEditing && (editor.TakesSelection || ViewModel.IsLayered):
                 editor.ChooseMarquee();
                 break;
-            case Key.L when Keyboard.Modifiers == ModifierKeys.None && ViewModel.IsEditing && editor.TakesSelection:
+            case Key.L when Keyboard.Modifiers == ModifierKeys.None && ViewModel.IsEditing && (editor.TakesSelection || ViewModel.IsLayered):
                 editor.ChooseLasso();
                 break;
-            case Key.A when ctrl && !shift && ViewModel.IsEditing && editor.TakesSelection:
+            case Key.A when ctrl && !shift && ViewModel.IsEditing && (editor.TakesSelection || ViewModel.IsLayered):
                 editor.RegionMarks.SelectAllCommand.Execute(null);
                 break;
-            case Key.D when ctrl && !shift && ViewModel.IsEditing && editor.TakesSelection:
+            case Key.D when ctrl && !shift && ViewModel.IsEditing && (editor.TakesSelection || ViewModel.IsLayered):
                 editor.RegionMarks.DeselectCommand.Execute(null);
                 break;
-            case Key.I when ctrl && shift && ViewModel.IsEditing && editor.TakesSelection:
+            case Key.I when ctrl && shift && ViewModel.IsEditing && (editor.TakesSelection || ViewModel.IsLayered):
                 editor.RegionMarks.InvertCommand.Execute(null);
                 break;
             case Key.Back when ViewModel.IsEditing && editor.RegionMarks.Draft.Count > 0:

@@ -8,6 +8,9 @@ using SkiaSharp;
 using System.IO;
 using Nexaflow.Features.Images.Editing.CuttingOut;
 using Nexaflow.Features.Images.Editing.Erasing;
+using Nexaflow.IO.Common.Locations;
+using Nexaflow.Features.Images.Editing.Layers;
+using Nexaflow.Features.Images.Editing.Kept;
 
 namespace Nexaflow.Features.Images.Editing;
 
@@ -36,7 +39,9 @@ public sealed class ImageEditingServices : IDisposable
         var webp = new WebpMetadata();
         Metadata = new MetadataTransfer([jpeg, png, webp, new TiffMetadata()], [jpeg, png, webp]);
 
-        Decoders    = new ImageDecoders([new SkiaImageDecoder(), new WicImageDecoder()]);
+        var skia = new SkiaImageDecoder();
+        Decoders    = new ImageDecoders([skia, new OpenRasterDecoder(skia), new WicImageDecoder()]);
+        LayeredFormats = [new OpenRasterFormat(vfs)];
         Encoders    = new ImageEncoders([new SkiaImageEncoder(Metadata), new TiffImageEncoder(), new WicImageEncoder()]);
         Adjustments = new AdjustmentFilter();
         Markup      = new MarkupPainter();
@@ -54,6 +59,42 @@ public sealed class ImageEditingServices : IDisposable
     public MarkupPainter Markup { get; }
     public ImageRecipeStore Recipes { get; }
     public ImageExporter Exporter { get; }
+
+    /// <summary>The formats that hold layers — OpenRaster — each read and written as a layered picture.</summary>
+    public IReadOnlyList<ILayeredPictureFormat> LayeredFormats { get; }
+
+    /// <summary>The layered format the file at <paramref name="path"/> is, by its first bytes; null where it is none.</summary>
+    public async Task<ILayeredPictureFormat?> LayeredFormatOfAsync(string path, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var stream = await FileSystem.OpenReadAsync(path, ReadIntent.Sequential, ct);
+            var header = new byte[ImageContainers.HeaderLength];
+            int read = await stream.ReadAtLeastAsync(header, header.Length, throwOnEndOfStream: false, ct);
+            var container = ImageContainers.Sniff(header.AsSpan(0, read));
+            return LayeredFormats.FirstOrDefault(f => f.Reads(container));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The layered format a file named <paramref name="path"/> is written in, by its extension; null for none.</summary>
+    public ILayeredPictureFormat? LayeredFormatFor(string path)
+        => LayeredFormats.FirstOrDefault(f => string.Equals(f.Extension, Path.GetExtension(path), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Writes a layered picture made here and not opened yet — a blank canvas — at <paramref name="path"/> in the format its
+    /// extension names; its picture layers, where it has any, drawn by their recipes without the picture tools.
+    /// </summary>
+    /// <exception cref="NotSupportedException">No layered format writes that extension.</exception>
+    public async Task WriteLayeredAsync(LayeredPicture picture, string path, CancellationToken ct = default)
+    {
+        var format = LayeredFormatFor(path) ?? throw new NotSupportedException($"No layered format writes {Path.GetExtension(path)}.");
+        using var renderer = await LayeredRenderer.PrepareAsync(picture, _ => MadeByTools.None, this, ct);
+        await format.WriteAsync(picture, path, renderer, ct);
+    }
 
     /// <summary>The restorations the picture tools made, kept on disk.</summary>
     public RestoredPictures Restored { get; }

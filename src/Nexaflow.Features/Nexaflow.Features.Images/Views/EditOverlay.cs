@@ -187,8 +187,11 @@ public sealed class EditOverlay : FrameworkElement
     /// the box drawn round it, or being drawn; the marquee or lasso being drawn. Gives whether ants were drawn.</summary>
     private bool DrawRegion(DrawingContext dc, ImageEditorViewModel editor)
     {
-        if (_viewer?.Canvas is not { } canvas || PhotoSize is not { } source) return false;
+        if (_viewer?.Canvas is not { } canvas) return false;
+        // The selection lies over the document — the photo, or a layered picture's canvas; the picks over the picture they pick from.
         var toCanvas = canvas.SourceToCanvas;
+        var documentToCanvas = canvas.DocumentToCanvas;
+        var document = canvas.Document;
         double px = 1 / _zoom;
         var marks = editor.RegionMarks;
         var cutter = editor.Cutter;
@@ -198,10 +201,10 @@ public sealed class EditOverlay : FrameworkElement
         bool marching = false;
         if (marks.Shown is { IsEmpty: false } shown)
         {
-            dc.PushTransform(Transform(toCanvas));
-            dc.DrawImage(Tint(shown), new Rect(0, 0, source.Width, source.Height));
+            dc.PushTransform(Transform(documentToCanvas));
+            dc.DrawImage(Tint(shown), new Rect(0, 0, document.Width, document.Height));
             dc.Pop();
-            var outline = Outline(shown, marks.ShownScale, toCanvas);
+            var outline = Outline(shown, marks.ShownScale, documentToCanvas);
             dc.DrawGeometry(null, new Pen(Brush("OnAccentBrush"), 1.5 * px), outline);
             dc.DrawGeometry(null, new Pen(Brush("AccentBrush"), 1.5 * px) { DashStyle = _ants }, outline);
             marching = true;
@@ -234,10 +237,10 @@ public sealed class EditOverlay : FrameworkElement
             drawing = marks.Marquee == MarqueeShape.Ellipse ? new EllipseGeometry(drawn) : new RectangleGeometry(drawn);
         }
         else if (_gesture == Gesture.Lasso && _freehand.Count > 1)
-            drawing = Polyline(_freehand.Select(p => Wpf(toCanvas.MapPoint(new SKPoint((float)p.X, (float)p.Y)))), closed: false);
+            drawing = Polyline(_freehand.Select(p => Wpf(documentToCanvas.MapPoint(new SKPoint((float)p.X, (float)p.Y)))), closed: false);
         else if (marks.Draft.Count > 0 && editor.DrawsLasso)
         {
-            var points = marks.Draft.Select(p => Wpf(toCanvas.MapPoint(new SKPoint((float)p.X, (float)p.Y)))).ToList();
+            var points = marks.Draft.Select(p => Wpf(documentToCanvas.MapPoint(new SKPoint((float)p.X, (float)p.Y)))).ToList();
             if (_pointer is { } pointer) points.Add(pointer);
             drawing = Polyline(points, closed: false);
             var first = points[0];
@@ -298,8 +301,6 @@ public sealed class EditOverlay : FrameworkElement
     }
 
     private static MatrixTransform Transform(SKMatrix m) => new(m.ScaleX, m.SkewY, m.SkewX, m.ScaleY, m.TransX, m.TransY);
-
-    private SKSize? PhotoSize => _viewer?.CurrentSession?.Proxy?.SourceSize;
 
     /// <summary>The Erase tool's marks: the strokes, tinted where they mark and outlined where they take marking back; where the
     /// healing brush copies from, and where it copies from for the brush's place now; the brush's outline under the pointer.</summary>
@@ -425,7 +426,7 @@ public sealed class EditOverlay : FrameworkElement
             _regionMode = ModeHeld(Keyboard.Modifiers, editor.RegionMarks.Mode);
             Begin(Gesture.Marquee, e);
         }
-        else if (editor.DrawsLasso && canvas.SourceToCanvas.TryInvert(out var lassoToSource))
+        else if (editor.DrawsLasso && canvas.DocumentToCanvas.TryInvert(out var lassoToSource))
         {
             var under = lassoToSource.MapPoint(p);
             var marks = editor.RegionMarks;
@@ -438,7 +439,7 @@ public sealed class EditOverlay : FrameworkElement
                 return;
             }
             // Click to click: the first click begins it, one on its first point or a double-click closes it.
-            if (marks.Draft.Count > 0 && (e.ClickCount >= 2 || NearFirstDraftPoint(marks, at, canvas.SourceToCanvas))) marks.CloseDraft();
+            if (marks.Draft.Count > 0 && (e.ClickCount >= 2 || NearFirstDraftPoint(marks, at, canvas.DocumentToCanvas))) marks.CloseDraft();
             else marks.AddDraftPoint(new MarkupPoint(under.X, under.Y), ModeHeld(Keyboard.Modifiers, marks.Mode));
             e.Handled = true;
         }
@@ -489,9 +490,9 @@ public sealed class EditOverlay : FrameworkElement
                 _regionTo = at;
                 InvalidateVisual();
                 break;
-            case Gesture.Lasso when _viewer?.Canvas is { } canvas && canvas.SourceToCanvas.TryInvert(out var toSource):
+            case Gesture.Lasso when _viewer?.Canvas is { } canvas && canvas.DocumentToCanvas.TryInvert(out var toSource):
                 var traced = toSource.MapPoint(Sk(at));
-                double reach = StrokeStep / _zoom * CropGeometry.SourcePixelsPerCanvasPixel(canvas.SourceToCanvas);
+                double reach = StrokeStep / _zoom * CropGeometry.SourcePixelsPerCanvasPixel(canvas.DocumentToCanvas);
                 var last = _freehand[^1];
                 if (Math.Abs(traced.X - last.X) < reach && Math.Abs(traced.Y - last.Y) < reach) break;
                 _freehand.Add(new MarkupPoint(traced.X, traced.Y));
@@ -614,13 +615,13 @@ public sealed class EditOverlay : FrameworkElement
     /// mode that replaces, selects nothing.</summary>
     private void MarqueeReleased(ImageEditorViewModel editor)
     {
-        if (_viewer?.Canvas is not { } canvas || !canvas.SourceToCanvas.TryInvert(out var toSource)) return;
+        if (_viewer?.Canvas is not { } canvas || !canvas.DocumentToCanvas.TryInvert(out var toSource)) return;
         if ((_regionTo - _regionFrom).Length * _zoom <= DragReach)
         {
             if (_regionMode == RegionMode.Replace) editor.RegionMarks.DeselectCommand.Execute(null);
             return;
         }
-        editor.RegionMarks.Add(MarqueeIn(MarqueeRect(), editor.RegionMarks.Marquee, _regionMode, canvas.SourceToCanvas, toSource));
+        editor.RegionMarks.Add(MarqueeIn(MarqueeRect(), editor.RegionMarks.Marquee, _regionMode, canvas.DocumentToCanvas, toSource));
     }
 
     /// <summary>The marquee as dragged: from where it began to the pointer — square with Shift, and out from where it began

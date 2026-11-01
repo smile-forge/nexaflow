@@ -13,11 +13,18 @@ public enum ImageContainer
     Bmp,
     Ico,
     Tiff,
+
+    /// <summary>An OpenRaster package: a zip whose first entry, stored, says <c>image/openraster</c>.</summary>
+    OpenRaster,
 }
 
 public static class ImageContainers
 {
-    /// <summary>The container <paramref name="header"/> (the file's first bytes; 12 are enough) belongs to.</summary>
+    /// <summary>How many of a file's first bytes <see cref="Sniff"/> needs to know every container: an OpenRaster package's stored
+    /// <c>mimetype</c> lies past its zip header.</summary>
+    public const int HeaderLength = 64;
+
+    /// <summary>The container <paramref name="header"/> (the file's first <see cref="HeaderLength"/> bytes) belongs to.</summary>
     public static ImageContainer Sniff(ReadOnlySpan<byte> header)
     {
         if (header.Length >= 3 && header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF) return ImageContainer.Jpeg;
@@ -28,7 +35,19 @@ public static class ImageContainers
         if (header.Length >= 4 && header[0] == 0 && header[1] == 0 && header[2] == 1 && header[3] == 0) return ImageContainer.Ico;
         if (header.Length >= 4 && ((header[0] == 'I' && header[1] == 'I' && header[2] == 42 && header[3] == 0)
                                 || (header[0] == 'M' && header[1] == 'M' && header[2] == 0 && header[3] == 42))) return ImageContainer.Tiff;
+    if (IsOpenRaster(header)) return ImageContainer.OpenRaster;
         return ImageContainer.Unknown;
+    }
+
+    /// <summary>An OpenRaster package's first bytes: a zip's first local header, for an entry named <c>mimetype</c> whose stored
+    /// content is <c>image/openraster</c> — which is why the format keeps it first and stored.</summary>
+    private static bool IsOpenRaster(ReadOnlySpan<byte> header)
+    {
+        if (header.Length < 30 || !header[..4].SequenceEqual((ReadOnlySpan<byte>)[0x50, 0x4B, 0x03, 0x04])) return false;
+        int nameLength = BinaryPrimitives.ReadUInt16LittleEndian(header[26..]), extraLength = BinaryPrimitives.ReadUInt16LittleEndian(header[28..]);
+        if (header.Length < 30 + nameLength || !header.Slice(30, nameLength).SequenceEqual("mimetype"u8)) return false;
+        int content = 30 + nameLength + extraLength;
+        return header.Length >= content + 16 && header.Slice(content, 16).SequenceEqual("image/openraster"u8);
     }
 
     /// <summary>True for a WebP whose picture is stored losslessly (a <c>VP8L</c> bitstream), which a save keeps lossless.</summary>
@@ -58,6 +77,7 @@ public static class ImageContainers
         ImageContainer.Bmp  => ".bmp",
         ImageContainer.Ico  => ".ico",
         ImageContainer.Tiff => ".tif",
+        ImageContainer.OpenRaster => ".ora",
         _                   => string.Empty,
     };
 
@@ -71,6 +91,7 @@ public static class ImageContainers
         ".bmp"             => ImageContainer.Bmp,
         ".ico"             => ImageContainer.Ico,
         ".tif" or ".tiff"  => ImageContainer.Tiff,
+        ".ora"             => ImageContainer.OpenRaster,
         _                  => ImageContainer.Unknown,
     };
 }

@@ -27,6 +27,7 @@ public static class RegionRaster
                 RegionFeather feather => coverage.Feathered(feather.Radius * scale),
                 RegionGrow grow => coverage.Grown(grow.By * scale),
                 RegionSmooth smooth => coverage.Smoothed(smooth.Radius * scale),
+                RegionCoverage kept => kept.Coverage is { } held ? coverage.Combined(held.Resampled(coverage.Width, coverage.Height), kept.Mode) : coverage,
                 _ => throw new NotSupportedException($"No way to apply a {step.GetType().Name}."),
             };
         return coverage;

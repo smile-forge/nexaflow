@@ -38,6 +38,26 @@ public enum LassoShape
 }
 
 /// <summary>
+/// The selection a layered picture keeps over its canvas, as the hand-drawn selection works on it: each shape and refinement
+/// applied to it at once, as a step of the picture's history.
+/// </summary>
+public interface IDocumentSelection
+{
+    /// <summary>The canvas's size.</summary>
+    SKSizeI Size { get; }
+
+    /// <summary>What is selected, over the canvas.</summary>
+    TiledCoverage Selection { get; }
+
+    /// <summary>Makes <paramref name="selection"/> what is selected — one step of the picture's history.</summary>
+    void Select(TiledCoverage selection);
+
+    /// <summary>What picture selection picked on the active picture layer — at the size it is shown, its bounds in that layer's
+    /// pixels — carried onto the canvas; null where the active layer is no picture layer.</summary>
+    TiledCoverage? FromPicture(PictureMask picked);
+}
+
+/// <summary>
 /// The selection drawn by hand in the photo editor, before Cut out or Erase takes it: marquee and lasso shapes, and
 /// refinements of everything selected so far, in the order they were made — the region a recipe keeps
 /// (<see cref="RecipeRegion"/>). It starts from what the cut-out tool has picked, so the two together are the one selection
@@ -54,6 +74,8 @@ public sealed partial class RegionMarking : ObservableObject
     private readonly List<RegionStep> _steps = [];
     private readonly List<MarkupPoint> _draft = [];
     private string? _photo;
+
+    private IDocumentSelection? _document;
 
     /// <param name="cutter">The cut-out tool, whose picks the selection starts from.</param>
     /// <param name="photoSize">The photo's size as it stands, once it is read; null before.</param>
@@ -117,9 +139,30 @@ public sealed partial class RegionMarking : ObservableObject
         Clear();
     }
 
+    /// <summary>
+    /// A layered picture's selection to work on from now on — each shape and refinement applied to it at once, over the
+    /// canvas — or, with none, the photo editor's way again: a region kept as the steps it was made by.
+    /// </summary>
+    public void Attach(IDocumentSelection? document)
+    {
+        if (ReferenceEquals(document, _document)) return;
+        _document = document;
+        _steps.Clear();
+        _draft.Clear();
+        Changed();
+    }
+
+    /// <summary>The layered picture's selection moved — an edit, an undo: what shows follows.</summary>
+    public void DocumentChanged() => Reshow();
+
     /// <summary>A shape drawn: one that replaces the selection lets what was picked and drawn before go.</summary>
     public void Add(RegionShape shape)
     {
+        if (_document is { } document)
+        {
+            document.Select(RegionRaster.Apply(document.Selection, new RecipeRegion { Steps = [shape] }, 1));
+            return;
+        }
         if (shape.Mode == RegionMode.Replace)
         {
             _steps.Clear();
@@ -183,7 +226,8 @@ public sealed partial class RegionMarking : ObservableObject
     [RelayCommand]
     private void SelectAll()
     {
-        if (_photoSize() is { } size) Add(new RegionRectangle(0, 0, size.Width, size.Height) { Mode = RegionMode.Replace });
+        if (_document is { } document) document.Select(TiledCoverage.Covered(document.Size.Width, document.Size.Height));
+        else if (_photoSize() is { } size) Add(new RegionRectangle(0, 0, size.Width, size.Height) { Mode = RegionMode.Replace });
     }
 
     /// <summary>Nothing selected: what is picked and drawn let go.</summary>
@@ -192,6 +236,7 @@ public sealed partial class RegionMarking : ObservableObject
     {
         _cutter.ClearCommand.Execute(null);
         Clear();
+        if (_document is { } document && !document.Selection.IsEmpty) document.Select(TiledCoverage.Clear(document.Size.Width, document.Size.Height));
     }
 
     [RelayCommand]
@@ -217,6 +262,12 @@ public sealed partial class RegionMarking : ObservableObject
         if (_photoSize() is not { } size) return;
         Clear();
         await _cutter.BoxedAsync(new PictureBox(0, 0, size.Width, size.Height));
+        // In a layered picture, the subject picked on the active picture layer becomes the canvas's selection.
+        if (_document is { } document && _cutter.Shown is { Bounds: not null } picked && document.FromPicture(picked) is { } selection)
+        {
+            _cutter.ClearCommand.Execute(null);
+            document.Select(selection);
+        }
     }
 
     private bool CanSelectSubject() => _cutter.CanPick && !_cutter.IsWorking;
@@ -226,6 +277,11 @@ public sealed partial class RegionMarking : ObservableObject
 
     private void Refine(RegionStep step)
     {
+        if (_document is { } document)
+        {
+            document.Select(RegionRaster.Apply(document.Selection, new RecipeRegion { Steps = [step] }, 1));
+            return;
+        }
         _steps.Add(step);
         Changed();
     }
@@ -239,6 +295,20 @@ public sealed partial class RegionMarking : ObservableObject
     /// <summary>What is selected, shown again: the picks at the size the cut-out tool shows them, the region over them.</summary>
     private void Reshow()
     {
+        if (_document is { } document)
+        {
+            // A layered picture's selection, as it shows: at most the shown long side, over the canvas.
+            var selected = document.Selection;
+            if (selected.IsEmpty)
+            {
+                Shown = null;
+                return;
+            }
+            var (w, h) = PictureCutter.ShownSize(document.Size.Width, document.Size.Height);
+            ShownScale = (double)w / document.Size.Width;
+            Shown = new RegionSelection(selected.Resampled(w, h));
+            return;
+        }
         var picked = _cutter.Shown is { Bounds: not null } mask ? mask : null;
         if (_photoSize() is not { } photo || photo.Width < 1 || photo.Height < 1 || (picked is null && _steps.Count == 0))
         {

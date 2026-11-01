@@ -19,16 +19,18 @@ namespace Nexaflow.Features.Images.ViewModels;
 /// work from a picture another edit makes (<see cref="Input"/>).
 /// </summary>
 /// <typeparam name="TAsk">The recipe's section that asks for it.</typeparam>
-public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer where TAsk : class
+public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer, IDisposable where TAsk : class
 {
     private readonly IReadOnlyList<IToolModels?> _tools;
     private readonly Func<Action, Task> _runOnUi;
     private readonly string _texts;
-    private ImageEditSession? _session;
+    private PictureRendering? _session;
     private CancellationTokenSource? _making;
     private (string Photo, TAsk Ask)? _makingFor;
     private (string Photo, TAsk Ask)? _shown;
     private (string Photo, TAsk Ask)? _failedFor;
+
+    private readonly EventHandler _toolsChanged;
 
     /// <param name="tools">The tool's models, where the app has them.</param>
     /// <param name="runOnUi">Hops to the UI thread, where the session and this are read.</param>
@@ -46,8 +48,9 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer 
         _tools = tools;
         _runOnUi = runOnUi;
         _texts = texts;
+        _toolsChanged = (_, _) => _ = _runOnUi(() => Follow(_session));
         foreach (var tool in tools)
-            if (tool is not null) tool.Changed += (_, _) => _ = _runOnUi(() => Follow(_session));
+            if (tool is not null) tool.Changed += _toolsChanged;
     }
 
     protected ImageEditingServices Services { get; }
@@ -72,7 +75,7 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer 
 
     /// <summary>The picture the edit is made from: the photo, unless it is made from what another edit makes — then null
     /// until that is made.</summary>
-    protected virtual string? Input(ImageEditSession session) => session.Path;
+    protected virtual string? Input(PictureRendering session) => session.Path;
 
     /// <summary>What names the models of <paramref name="tools"/> together, once every one of them is here; "" for none.</summary>
     protected static string? VersionOf(IReadOnlyList<IToolModels?> tools)
@@ -128,15 +131,15 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer 
     protected abstract Task<string> MakeAsync(string photo, TAsk ask, IProgress<double> progress, CancellationToken ct);
 
     /// <summary>The result the session shows; null where it shows none.</summary>
-    protected abstract string? UsedPath(ImageEditSession session);
+    protected abstract string? UsedPath(PictureRendering session);
 
     /// <summary>Has the session show <paramref name="path"/>'s result, or none.</summary>
-    protected abstract void Use(ImageEditSession session, string? path);
+    protected abstract void Use(PictureRendering session, string? path);
 
     // ── Following the photo ─────────────────────────────────────────────────
 
     /// <summary>The photo whose recipe to follow; called again whenever its recipe moves.</summary>
-    public void Follow(ImageEditSession? session)
+    public void Follow(PictureRendering? session)
     {
         if (!ReferenceEquals(session, _session))
         {
@@ -205,7 +208,7 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer 
     private bool Same((string Photo, TAsk Ask)? key, string photo, TAsk ask) => key is { } k && k.Photo == photo && MakesSame(k.Ask, ask);
 
     /// <summary>The photo shows without it, for now, and the banner says why.</summary>
-    private void Unshown(ImageEditSession session, string? notice)
+    private void Unshown(PictureRendering session, string? notice)
     {
         Use(session, null);
         _shown = null;
@@ -214,7 +217,7 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer 
 
     /// <summary>The kept result would not decode — let go of since it was found: it is made again.</summary>
     [LocalDiskOnly("what the tools made, kept in the app's cache")]
-    public void Lost(ImageEditSession session)
+    public void Lost(PictureRendering session)
     {
         if (!ReferenceEquals(session, _session)) return;
         Use(session, null);
@@ -224,7 +227,7 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer 
         Follow(session);
     }
 
-    private void Make(ImageEditSession session, string input, TAsk ask)
+    private void Make(PictureRendering session, string input, TAsk ask)
     {
         var cts = new CancellationTokenSource();
         _making = cts;
@@ -325,5 +328,14 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer 
             Made -= OnMade;
             PropertyChanged -= OnChanged;
         }
+    }
+
+    /// <summary>Stops following: what is being made is let go, and the tools are no longer listened to.</summary>
+    public void Dispose()
+    {
+        Stop();
+        _session = null;
+        foreach (var tool in _tools)
+            if (tool is not null) tool.Changed -= _toolsChanged;
     }
 }

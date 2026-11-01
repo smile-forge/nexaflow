@@ -36,7 +36,7 @@ public sealed class BackgroundRemover : ToolEdit<RecipeCutOut>
     /// <summary>Removing the background is always offered: a region drawn by hand cuts out on any machine.</summary>
     public override bool Available => true;
 
-    protected override string? UsedPath(ImageEditSession session) => session.CutOutPath;
+    protected override string? UsedPath(PictureRendering session) => session.CutOutPath;
 
-    protected override void Use(ImageEditSession session, string? path) => session.UseCutOut(path);
+    protected override void Use(PictureRendering session, string? path) => session.UseCutOut(path);
 }

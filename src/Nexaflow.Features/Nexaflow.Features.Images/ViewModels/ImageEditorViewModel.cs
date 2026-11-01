@@ -3,8 +3,11 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.Editing.Codecs;
+using Nexaflow.Features.Images.Editing.Erasing;
+using Nexaflow.Features.Images.Editing.Layers;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
+using Nexaflow.Features.Images.Editing.Selection;
 using Nexaflow.Features.Images.Services;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Common.Theming;
@@ -75,7 +78,38 @@ public partial class ImageEditorViewModel : ObservableObject
 
     /// <summary>What is selected as a recipe's cut-out: what the cut-out tool picked and the region drawn over it; null where
     /// neither is.</summary>
-    private RecipeCutOut? MarkedCutOut => RegionMarks.Region is { } region ? (Cutter.PickedCutOut ?? new RecipeCutOut()) with { Region = region } : Cutter.PickedCutOut;
+    private RecipeCutOut? MarkedCutOut => MarkedRegion is { } region ? (Cutter.PickedCutOut ?? new RecipeCutOut()) with { Region = region } : Cutter.PickedCutOut;
+
+    /// <summary>
+    /// The selection drawn by hand as the recipe of the picture the tools work on keeps it: the photo editor's region; in a
+    /// layered picture, the canvas's selection carried onto the active picture layer's pixels as coverage — joining what is
+    /// picked there, or alone.
+    /// </summary>
+    private RecipeRegion? MarkedRegion => _viewer.CurrentDocument is { } document ? CarriedRegion(document) : RegionMarks.Region;
+
+    // The canvas's selection last carried onto a picture layer, kept while neither changes: carrying it is a full-size resample.
+    private (TiledCoverage Selection, PictureLayer Layer, bool Picks, RecipeRegion? Region)? _carried;
+
+    private RecipeRegion? CarriedRegion(LayeredSession document)
+    {
+        var picture = document.Picture;
+        if (picture.Selection.IsEmpty || picture.Active is not PictureLayer layer || document.RenderingOf(layer.Id)?.Proxy is not { } proxy) return null;
+        bool picks = Cutter.PickedCutOut is not null;
+        if (_carried is { } carried && ReferenceEquals(carried.Selection, picture.Selection) && ReferenceEquals(carried.Layer, layer) && carried.Picks == picks)
+            return carried.Region;
+        var source = proxy.SourceSize;
+        RecipeRegion? region = null;
+        if (LayeredSession.SourceToCanvas(layer, source).TryInvert(out var toSource))
+        {
+            var coverage = CoverageMapping.Map(picture.Selection, toSource, (int)Math.Round(source.Width), (int)Math.Round(source.Height));
+            region = new RecipeRegion { Steps = [new RegionCoverage { Coverage = coverage, Mode = picks ? RegionMode.Add : RegionMode.Replace }] };
+        }
+        _carried = (picture.Selection, layer, picks, region);
+        return region;
+    }
+
+    /// <summary>The active layer of a layered picture, where it is a pixel layer the tools may edit; null otherwise.</summary>
+    private PixelLayer? ActivePixels => _viewer.CurrentDocument?.Picture.Active as PixelLayer is { Locked: false } layer ? layer : null;
 
     /// <summary>How the Cut out tool marks what to keep; another way lets go of an outline half drawn.</summary>
     [ObservableProperty]
@@ -119,16 +153,22 @@ public partial class ImageEditorViewModel : ObservableObject
     /// <summary>Whether the open tool takes a selection — Cut out and Erase do.</summary>
     public bool TakesSelection => IsCutOutTool || IsRetouchTool;
 
-    /// <summary>Keeps only what is selected in the photo itself — what the cut-out tool has picked and the region drawn over
-    /// it — an edit like any other, undone or put back by Keep background; the mask is made at full size in the background and
-    /// kept.</summary>
+    /// <summary>Keeps only what is selected — what the cut-out tool has picked and the region drawn over it — in the photo or
+    /// picture layer itself, an edit like any other, undone or put back by Keep background; the mask is made at full size in the
+    /// background and kept. On a pixel layer, what lies outside the selection is deleted.</summary>
     [RelayCommand(CanExecute = nameof(CanRemoveBackground))]
     private void RemoveBackground()
     {
+        if (_viewer.CurrentDocument is { } document && ActivePixels is { } pixels)
+        {
+            document.Commit(p => p.WithLayer(pixels.Id, l => ((PixelLayer)l) with { Pixels = ((PixelLayer)l).Pixels.KeptWhere(p.Selection) }));
+            return;
+        }
         if (MarkedCutOut is { } cutOut) Commit(r => r with { CutOut = cutOut });
     }
 
-    private bool CanRemoveBackground() => !Cutter.IsWorking && MarkedCutOut is { } cutOut && cutOut != Recipe.CutOut;
+    private bool CanRemoveBackground() => ActivePixels is not null ? _viewer.CurrentDocument!.Picture.Selection.IsEmpty == false
+                                          : !Cutter.IsWorking && MarkedCutOut is { } cutOut && cutOut != Recipe.CutOut;
 
     /// <summary>What is selected copied cut out of the photo: transparent round it, as selected as each pixel is, cropped to it.</summary>
     [RelayCommand(CanExecute = nameof(CanKeepCutOut))]
@@ -136,7 +176,7 @@ public partial class ImageEditorViewModel : ObservableObject
     {
         try
         {
-            if (await Cutter.CutOutAsync(RegionMarks.Region, CancellationToken.None) is { } png)
+            if (await Cutter.CutOutAsync(MarkedRegion, CancellationToken.None) is { } png)
             {
                 PictureClipboard.CopyPng(png);
                 _shell?.ShowNotification(Str.Get("Images.CutOut.Copied"));
@@ -159,7 +199,7 @@ public partial class ImageEditorViewModel : ObservableObject
         if (destination is null) return;
         try
         {
-            if (await Cutter.CutOutAsync(RegionMarks.Region, CancellationToken.None) is not { } png) return;
+            if (await Cutter.CutOutAsync(MarkedRegion, CancellationToken.None) is not { } png) return;
             await _services.FileSystem.WriteAllBytesAsync(Path.ChangeExtension(destination, ".png"), png);
             _shell.ShowNotification(Str.Format("Images.CutOut.SavedFormat", Path.GetFileName(destination)));
         }
@@ -179,16 +219,63 @@ public partial class ImageEditorViewModel : ObservableObject
     public EraseMarking EraseMarks { get; }
 
     /// <summary>Erases what is marked — what the cut-out tool has picked, the region drawn over it, and the strokes — as one
-    /// step of the recipe, undone like any other; the marks go once it is.</summary>
+    /// step of the recipe, undone like any other; on a pixel layer, the selection and the strokes filled straight into its pixels.
+    /// The marks go once it is.</summary>
     [RelayCommand(CanExecute = nameof(CanErase))]
-    private void Erase()
+    private async Task Erase()
     {
-        if (EraseMarks.Step(Cutter.PickedCutOut, RegionMarks.Region) is not { } step) return;
+        if (_viewer.CurrentDocument is { } document && ActivePixels is { } pixels)
+        {
+            await ErasePixelsAsync(document, pixels);
+            return;
+        }
+        if (EraseMarks.Step(Cutter.PickedCutOut, MarkedRegion) is not { } step) return;
         Commit(r => r with { Erasures = r.Erasures.Add(step) });
         ClearMarks();
     }
 
-    private bool CanErase() => !Cutter.IsWorking && EraseMarks.Step(Cutter.PickedCutOut, RegionMarks.Region) is not null;
+    /// <summary>A pixel layer erased where the selection and the strokes mark it — off the UI thread — as one step of the picture.</summary>
+    private async Task ErasePixelsAsync(LayeredSession document, PixelLayer layer)
+    {
+        var picture = document.Picture;
+        if (PixelEraseMask(picture) is not { } mask) return;
+        IsErasingPixels = true;
+        try
+        {
+            var erased = await LayerErasing.EraseAsync(layer.Pixels, mask, picture.Width, picture.Height, EraseMarks.Fill, EraseMarks.HealOffset,
+                                                       _eraser.Erasing, null, CancellationToken.None);
+            if (!ReferenceEquals(document.Picture, picture)) return;   // edited meanwhile: the result is of a picture gone
+            document.Commit(p => p.WithLayer(layer.Id, l => ((PixelLayer)l) with { Pixels = erased }));
+            ClearMarks();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _shell?.ShowError(Str.Format("Images.Erase.Failed", ex.Message));
+        }
+        finally
+        {
+            IsErasingPixels = false;
+        }
+    }
+
+    /// <summary>What erasing a pixel layer erases: the selection, half selected or more, and the strokes over the canvas; null where
+    /// nothing is marked.</summary>
+    private byte[]? PixelEraseMask(LayeredPicture picture)
+    {
+        var mask = picture.Selection.IsEmpty ? new byte[picture.Width * picture.Height] : picture.Selection.ToBytes();
+        for (int i = 0; i < mask.Length; i++) mask[i] = mask[i] >= 128 ? (byte)255 : (byte)0;
+        if (EraseMarks.Strokes.Count > 0) EraseMasks.Paint(mask, picture.Width, picture.Height, EraseMarks.Strokes);
+        return Array.IndexOf(mask, (byte)255) >= 0 ? mask : null;
+    }
+
+    /// <summary>A pixel layer is being erased.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(EraseCommand))]
+    private bool _isErasingPixels;
+
+    private bool CanErase() => ActivePixels is not null
+        ? !IsErasingPixels && (_viewer.CurrentDocument!.Picture.Selection.IsEmpty == false || EraseMarks.Strokes.Any(s => s.Marks && !s.Points.IsEmpty))
+        : !Cutter.IsWorking && EraseMarks.Step(Cutter.PickedCutOut, MarkedRegion) is not null;
 
     /// <summary>Lets everything marked go: the strokes, where the healing brush copies from, what is picked and what is drawn.</summary>
     [RelayCommand]
@@ -299,8 +386,10 @@ public partial class ImageEditorViewModel : ObservableObject
     }
 
     private ImageEditSession? Session => _viewer.CurrentSession;
-    private ImageRecipe Recipe => Session?.Recipe ?? ImageRecipe.Identity;
-    private SKSize? Source => Session?.Proxy?.SourceSize;
+    /// <summary>The picture the tools work on: the photo, or the active picture layer of a layered picture.</summary>
+    private IRecipeEditing? Target => _viewer.EditTarget;
+    private ImageRecipe Recipe => Target?.Recipe ?? ImageRecipe.Identity;
+    private SKSize? Source => Target?.Rendering.Proxy?.SourceSize;
 
     // ── Panels ────────────────────────────────────────────────────────────
 
@@ -351,8 +440,8 @@ public partial class ImageEditorViewModel : ObservableObject
         if (editing)
         {
             _cropSessionStart = IsCropTool ? Recipe.Geometry : null;
-        Cutter.Follow(Session?.Path);
-        RegionMarks.Follow(Session?.Path);
+        Cutter.Follow(Target?.Rendering.Path);
+        RegionMarks.Follow(Target?.Rendering.Path);
         return;
         }
         Cutter.Close();   // the photo read for picking is let go with the editor
@@ -373,8 +462,8 @@ public partial class ImageEditorViewModel : ObservableObject
     _cropSessionStart = IsCropTool ? Recipe.Geometry : null;
         if (_viewer.IsEditing)
         {
-            Cutter.Follow(Session?.Path);
-            RegionMarks.Follow(Session?.Path);   // marks are of the photo they were made on
+            Cutter.Follow(Target?.Rendering.Path);
+            RegionMarks.Follow(Target?.Rendering.Path);   // marks are of the photo they were made on
         }
         OnRecipeChanged();
     }
@@ -394,7 +483,7 @@ public partial class ImageEditorViewModel : ObservableObject
     private void CancelOpenGestures()
     {
         EndTextEdit();
-        if (Session?.History.InGesture == true) Session.History.EndGesture();
+        if (Target?.InGesture == true) _viewer.EndEditGesture();
         _cropHandle = CropHandle.None;
         _drawing = null;
         _moving = false;
@@ -407,7 +496,7 @@ public partial class ImageEditorViewModel : ObservableObject
     /// <summary>A continuous change begins — a slider drag — and lasts as one undo step until <see cref="EndGesture"/>.</summary>
     public void BeginGesture()
     {
-        Session?.History.BeginGesture();
+        _viewer.BeginEditGesture();
         _straightenGesture = true;
         _straightenBase = Recipe.Geometry.Crop;
     }
@@ -416,7 +505,7 @@ public partial class ImageEditorViewModel : ObservableObject
     {
         _straightenGesture = false;
         _straightenBase = null;
-        Session?.History.EndGesture();
+        _viewer.EndEditGesture();
     }
 
     private void Commit(Func<ImageRecipe, ImageRecipe> change) => _viewer.Edit(change);
@@ -501,7 +590,7 @@ public partial class ImageEditorViewModel : ObservableObject
     public void BeginCropDrag(CropHandle handle, SKPoint point)
     {
         if (handle == CropHandle.None || ShownCrop is not { } shown || Source is not { } source) return;
-        Session?.History.BeginGesture();
+        _viewer.BeginEditGesture();
         _cropHandle     = handle;
         _cropStart      = CropGeometry.EffectiveCrop(Recipe.Geometry, source);
         _cropStartShown = shown;
@@ -528,7 +617,7 @@ public partial class ImageEditorViewModel : ObservableObject
     {
         if (_cropHandle == CropHandle.None) return;
         _cropHandle = CropHandle.None;
-        Session?.History.EndGesture();
+        _viewer.EndEditGesture();
     }
 
     // ── Adjust ────────────────────────────────────────────────────────────
@@ -606,7 +695,7 @@ public partial class ImageEditorViewModel : ObservableObject
     [RelayCommand]
     private void AutoEnhance()
     {
-        if (Session is not { } session || session.OutputSize(Recipe) is not { } output) return;
+        if (Target?.Rendering is not { } session || session.OutputSize(Recipe) is not { } output) return;
         double scale = Math.Min(1, 512.0 / Math.Max(output.Width, output.Height));
         using var picture = session.Snapshot(Recipe, new RenderRequest(RenderFrame.Output, scale, Adjustments: false, Markup: false));
         if (picture is null) return;
@@ -676,7 +765,7 @@ public partial class ImageEditorViewModel : ObservableObject
     {
         if (Selected is { } element)
         {
-            uint ink = Argb(value);
+            uint ink = SpecColours.Argb(value);
             Replace(element switch
             {
                 MarkupStroke { Style: StrokeStyle.Highlighter } s => s with { Color = HighlighterInk(ink) },
@@ -685,6 +774,9 @@ public partial class ImageEditorViewModel : ObservableObject
             });
         }
     }
+
+    /// <summary>The colour chosen for markup, as a fill on a layer lays it down.</summary>
+    internal SKColor InkSkColour => new(SpecColours.Argb(InkColour));
 
     partial void OnWeightChanged(double value)
     {
@@ -718,7 +810,7 @@ public partial class ImageEditorViewModel : ObservableObject
     /// </summary>
     public void MarkupPress(SKPoint at, float tolerance)
     {
-        if (Session is not { } session) return;
+        if (Target is not { } session) return;
         EndTextEdit();   // a press elsewhere finishes the text being typed
         _markupFrom = at;
 
@@ -728,13 +820,13 @@ public partial class ImageEditorViewModel : ObservableObject
             SelectedId = hit?.Id;
             if (hit is null) return;
             PullStyleFrom(hit);
-            session.History.BeginGesture();
+            session.BeginGesture();
             _moving = true;
             return;
         }
 
         var point = new MarkupPoint(at.X, at.Y);
-        uint ink = Argb(InkColour);
+        uint ink = SpecColours.Argb(InkColour);
         MarkupElement created = MarkupTool switch
         {
             MarkupTool.Arrow => new MarkupArrow { From = point, To = point, Color = ink, StrokeWidth = StrokeFor(false) },
@@ -748,7 +840,7 @@ public partial class ImageEditorViewModel : ObservableObject
             },
         };
 
-        session.History.BeginGesture();
+        session.BeginGesture();
         Commit(r => r with { Markup = r.Markup.Add(created) });
         _drawing = created.Id;
         SelectedId = created.Id;
@@ -783,11 +875,11 @@ public partial class ImageEditorViewModel : ObservableObject
     /// <summary>The button came up: the gesture is one step — or none, for a shape too small to have been meant.</summary>
     public void MarkupRelease()
     {
-        if (Session is not { } session) return;
+        if (Target is not { } session) return;
         if (_moving)
         {
             _moving = false;
-            session.History.EndGesture();
+            session.EndGesture();
             return;
         }
         if (_drawing is not { } id) return;
@@ -803,23 +895,23 @@ public partial class ImageEditorViewModel : ObservableObject
         };
         if (tooSmall)
         {
-            session.History.CancelGesture();
+            session.CancelGesture();
             SelectedId = null;
         }
-        else session.History.EndGesture();
+        else session.EndGesture();
     }
 
     /// <summary>Typing into a new text annotation finished: kept as one step, or dropped if nothing was typed.</summary>
     public void EndTextEdit()
     {
-        if (Session is not { } session || _drawing is not { } id) return;
+        if (Target is not { } session || _drawing is not { } id) return;
         _drawing = null;
         if (Recipe.Markup.FirstOrDefault(e => e.Id == id) is MarkupText { Text.Length: 0 })
         {
-            session.History.CancelGesture();
+            session.CancelGesture();
             SelectedId = null;
         }
-        else session.History.EndGesture();
+        else session.EndGesture();
     }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
@@ -874,18 +966,6 @@ public partial class ImageEditorViewModel : ObservableObject
 
     /// <summary>Text placed on a turned or straightened picture is turned back, so it reads upright as it was typed.</summary>
     private double UprightTextRotation() => -(Recipe.Geometry.QuarterTurns * 90 + Recipe.Geometry.StraightenDegrees);
-
-    /// <summary>The ink as a fixed colour: a swatch is resolved now, so a theme change never recolours an annotation.</summary>
-    private static uint Argb(ColorSpec spec)
-    {
-        var colour = spec.Kind switch
-        {
-            ColorSpecKind.Swatch => (SwatchPalette.Resolve(spec.SwatchKey) as SolidColorBrush)?.Color ?? Colors.Red,
-            ColorSpecKind.Custom => spec.Color,
-            _                    => Colors.Red,
-        };
-        return (uint)colour.A << 24 | (uint)colour.R << 16 | (uint)colour.G << 8 | colour.B;
-    }
 
     private static uint HighlighterInk(uint ink) => 0x66000000u | (ink & 0x00FFFFFF);
     private static uint Wash(uint ink) => 0x40000000u | (ink & 0x00FFFFFF);
@@ -1020,13 +1100,14 @@ public partial class ImageEditorViewModel : ObservableObject
     private SaveCapability Capability =>
         _services.Exporter.Capability(SourceContainer, Session?.Proxy?.IsAnimated == true, SourceContainer);
 
-    /// <summary>The photo can be overwritten in place (Save), not only copied: its format can be written, and holds the
-    /// transparency a removed background leaves.</summary>
-    public bool CanSaveInPlace => Session is { IsFileBacked: true, Proxy: not null } && Capability is { CanSaveInPlace: true } capability
-                                  && (Recipe.CutOut is null || capability.KeepsTransparency);
+    /// <summary>The picture can be saved in place (Save), not only copied: a layered picture always — where it is kept — and a
+    /// photo whose format can be written and holds the transparency a removed background leaves.</summary>
+    public bool CanSaveInPlace => _viewer.IsLayered
+                                  || Session is { IsFileBacked: true, Proxy: not null } && Capability is { CanSaveInPlace: true } capability
+                                     && (Recipe.CutOut is null || capability.KeepsTransparency);
 
     /// <summary>Why Save is unavailable, or what it will not keep; null when there is nothing to say.</summary>
-    public string? SaveNote => Session switch
+    public string? SaveNote => _viewer.IsLayered ? null : Session switch
     {
         null or { Proxy: null }             => null,
         { IsFileBacked: false }             => Str.Get("Images.Edit.Save.NoteArchive"),
@@ -1043,14 +1124,25 @@ public partial class ImageEditorViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(SaveCopyCommand))]
     private bool _isSaving;
 
-    /// <summary>The photo can be written: not saving already, and what its recipe asks of the picture tools made.</summary>
-    private bool CanSave() => !IsSaving && CanSaveInPlace && !_restorer.IsPending && !_remover.IsPending && !_eraser.IsPending;
-    private bool CanSaveCopy() => !IsSaving && Session?.Proxy is not null && !_restorer.IsPending && !_remover.IsPending && !_eraser.IsPending;
+    /// <summary>The picture can be written: not saving already, and what its recipe asks of the picture tools made — a layered
+    /// picture where it is kept, or somewhere asked for.</summary>
+    private bool CanSave() => !IsSaving && (_viewer.CurrentDocument is { } document ? document.IsComplete
+                                            : CanSaveInPlace && !_restorer.IsPending && !_remover.IsPending && !_eraser.IsPending);
+    private bool CanSaveCopy() => !IsSaving && (_viewer.CurrentDocument is { } document ? document.IsComplete
+                                                : Session?.Proxy is not null && !_restorer.IsPending && !_remover.IsPending && !_eraser.IsPending);
 
     /// <summary>Bakes the edits into the original after a confirmation; the recipe is then spent.</summary>
     [RelayCommand(CanExecute = nameof(CanSave))]
     private async Task Save()
     {
+        if (_viewer.IsLayered)
+        {
+            // A layered picture is written where it is kept — a draft asks where first — never over the photo it was made from.
+            IsSaving = true;
+            try { await _viewer.SaveDocumentAsAsync(askWhere: false); }
+            finally { IsSaving = false; }
+            return;
+        }
         if (_shell is null || Session is not { } session) return;
         var name = Path.GetFileName(session.Path);
         if (!await _shell.ConfirmAsync(Str.Get("Images.Edit.Save.ConfirmTitle"), Str.Format("Images.Edit.Save.ConfirmMessageFormat", name)))
@@ -1069,6 +1161,12 @@ public partial class ImageEditorViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanSaveCopy))]
     private async Task SaveCopy()
     {
+        if (_viewer.IsLayered)
+        {
+            // Export: the layered picture flattened into a file of a common format.
+            await _viewer.ExportDocumentAsync();
+            return;
+        }
         if (_shell is null || Session is not { } session) return;
         var source = SourceContainer;
         // A photo whose background is removed is offered as a PNG unless its own format holds the transparency.

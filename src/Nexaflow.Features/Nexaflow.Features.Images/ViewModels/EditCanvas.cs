@@ -27,7 +27,8 @@ namespace Nexaflow.Features.Images.ViewModels;
 /// <summary>
 /// What a presented frame is a picture of: the recipe and frame it was rendered for, and the matrices from the
 /// straightened frame and from the source to its layout (device-independent) coordinates — what anything drawn over
-/// the picture, the crop handles and markup selection, is placed with.
+/// the picture, the crop handles and markup selection, is placed with — and from the document to them: the photo's own
+/// source in the photo editor, the canvas in a layered picture, where its selection lies.
 /// </summary>
 public sealed record EditCanvas(ImageRecipe Recipe, RenderFrame Frame, SKSize Source, double LayoutScale, SKSizeI Size,
-                                SKMatrix StraightenedToCanvas, SKMatrix SourceToCanvas);
+                                SKMatrix StraightenedToCanvas, SKMatrix SourceToCanvas, SKSize Document, SKMatrix DocumentToCanvas);

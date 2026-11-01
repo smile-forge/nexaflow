@@ -106,6 +106,54 @@ public sealed class TiledCoverage
                && (_tiles[slot] is not null || Outside == other.Outside);
     }
 
+    /// <summary>The bytes of the tiles this coverage holds of its own that <paramref name="other"/> does not share — what keeping
+    /// it as an undo step costs beside it. The tiles every coverage shares cost nothing.</summary>
+    public long BytesNotIn(TiledCoverage? other)
+    {
+        long bytes = 0;
+        bool comparable = other is not null && other.Width == Width && other.Height == Height;
+        for (int slot = 0; slot < _tiles.Length; slot++)
+        {
+            var tile = _tiles[slot];
+            if (tile is null || ReferenceEquals(tile, CoveredTile) || ReferenceEquals(tile, ClearTile)) continue;
+            if (comparable && ReferenceEquals(tile, other!._tiles[slot])) continue;
+            bytes += TileArea;
+        }
+        return bytes;
+    }
+
+    /// <summary>This coverage drawn at <paramref name="width"/> × <paramref name="height"/>: averaged down, or smoothly up.</summary>
+    public TiledCoverage Resampled(int width, int height)
+    {
+        if (width == Width && height == Height) return this;
+        if (IsEmpty) return Clear(width, height);
+        using var source = SKImage.FromPixelCopy(new SKImageInfo(Width, Height, SKColorType.Alpha8, SKAlphaType.Premul), ToBytes())
+                           ?? throw new InvalidOperationException("The coverage could not be made an image.");
+        var info = new SKImageInfo(width, height, SKColorType.Alpha8, SKAlphaType.Premul);
+        using var scaled = new SKBitmap(info);
+        using (var pixmap = scaled.PeekPixels())
+            if (!source.ScalePixels(pixmap, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear)))
+                throw new InvalidOperationException("The coverage could not be resampled.");
+        var bytes = new byte[width * height];
+        var origin = scaled.GetPixels();
+        for (int y = 0; y < height; y++)
+            System.Runtime.InteropServices.Marshal.Copy(origin + y * scaled.RowBytes, bytes, y * width, width);
+        return FromBytes(bytes, width, height);
+    }
+
+    /// <summary>
+    /// This coverage moved by whole pixels onto a <paramref name="width"/> × <paramref name="height"/> canvas: what lands on it
+    /// kept as it was, the rest of the new canvas <see cref="Outside"/> — a mask that reveals all still reveals the canvas grown.
+    /// </summary>
+    public TiledCoverage Shifted(int dx, int dy, int width, int height)
+    {
+        if (dx == 0 && dy == 0 && width == Width && height == Height) return this;
+        var shifted = new TiledCoverage(width, height, Outside, NewSlots(width, height));
+        var from = SKRectI.Intersect(new SKRectI(0, 0, Width, Height), new SKRectI(-dx, -dy, width - dx, height - dy));
+        if (from.IsEmpty) return shifted;
+        return shifted.Written(new SKRectI(from.Left + dx, from.Top + dy, from.Right + dx, from.Bottom + dy), Read(from));
+    }
+
     /// <summary>The whole canvas, a byte a pixel, row by row.</summary>
     public byte[] ToBytes() => Read(new SKRectI(0, 0, Width, Height));
 

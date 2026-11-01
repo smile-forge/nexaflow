@@ -121,11 +121,243 @@
           }
         ]
       }
+    },
+    "images-layers": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Layers/LayeredPicture.cs",
+          "class": "LayeredPicture"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Layers/Layer.cs",
+          "class": "Layer"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Layers/TiledPixels.cs",
+          "class": "TiledPixels"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Layers/LayerCompositor.cs",
+          "class": "LayerCompositor"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Layers/LayeredSession.cs",
+          "class": "LayeredSession"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Layers/LayerEdits.cs",
+          "class": "LayerEdits"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Erasing/LayerErasing.cs",
+          "class": "LayerErasing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
+          "class": "ImageViewModel",
+          "method": "MakeLayered"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ImagesConfig.cs",
+          "class": "ImagesConfig"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "title_path": [
+            "Images",
+            "Layers"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageLayersTests.cs",
+            "class": "ImageLayersTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageLayeredDocumentTests.cs",
+            "class": "ImageLayeredDocumentTests",
+            "method": "APhoto_MadeLayered_IsKeptApartUntilSaved_ThenReopensAsTheLayersItWasSavedAs"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesLayersJourneyTests.cs",
+            "class": "ImagesLayersJourneyTests",
+            "method": "APhoto_BecomesLayersFromTheEditorsToolbar"
+          }
+        ]
+      }
+    },
+    "images-layers-panel": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/LayersViewModel.cs",
+          "class": "LayersViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/LayerItem.cs",
+          "class": "LayerItem"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/LayersPanel.xaml.cs",
+          "class": "LayersPanel"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "title_path": [
+            "Images",
+            "Layers"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageLayeredDocumentTests.cs",
+            "class": "ImageLayeredDocumentTests",
+            "method": "FillClearAndTheCanvasSize_AreEachOneStep_UndoneInTurn"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesLayersJourneyTests.cs",
+            "class": "ImagesLayersJourneyTests",
+            "method": "ACanvasFromTheNewPicker_IsMadeOpenedAndTakenThroughItsLayers"
+          }
+        ]
+      }
+    },
+    "images-layer-masks": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Layers/Layer.cs",
+          "class": "LayerMask"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/LayersViewModel.cs",
+          "class": "LayersViewModel",
+          "method": "SetMask"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "title_path": [
+            "Images",
+            "Layers"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageLayersTests.cs",
+            "class": "ImageLayersTests",
+            "method": "AMask_ShowsItsLayerWhereWhite_UnlessItIsDisabled_OnAGroupToo"
+          }
+        ]
+      }
+    },
+    "images-ora": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/OpenRaster/OpenRasterPackage.cs",
+          "class": "OpenRasterPackage"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Codecs/OpenRasterFormat.cs",
+          "class": "OpenRasterFormat"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Codecs/OpenRasterDecoder.cs",
+          "class": "OpenRasterDecoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Codecs/LayeredFormat.cs",
+          "class": "ILayeredPictureFormat"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Compressed/Handlers/ZipCentralDirectory.cs",
+          "class": "ZipCentralDirectory"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/FileActions/LayeredPictureCreateAction.cs",
+          "class": "LayeredPictureCreateAction"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/NewLayeredPictureOptions.cs",
+          "class": "NewLayeredPictureOptions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/CanvasSetup.cs",
+          "class": "CanvasSetup"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "title_path": [
+            "Images",
+            "OpenRaster files"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageOpenRasterTests.cs",
+            "class": "ImageOpenRasterTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageLayeredDocumentTests.cs",
+            "class": "ImageLayeredDocumentTests",
+            "method": "ACanvasFromTheNewPicker_IsWrittenAtItsSize_AndOpenedForEditing"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesLayersJourneyTests.cs",
+            "class": "ImagesLayersJourneyTests",
+            "method": "AFileHoldingALayerNoReaderDraws_IsEditedOnItsSavedLook"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 8,
+  "changed_sets": 16,
   "touched_nodes": [
+    "images-layer-masks",
+    "images-layers",
+    "images-layers-panel",
+    "images-ora",
     "images-selection",
     "images-selection-lasso",
     "images-selection-marquee",

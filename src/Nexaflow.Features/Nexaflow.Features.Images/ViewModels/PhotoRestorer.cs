@@ -29,7 +29,7 @@ public sealed class PhotoRestorer : ToolEdit<RecipeRestore>
 
     /// <summary>The photo as erased, where the recipe erases from it — the restoration is of that, so it waits until it is
     /// made — else the photo.</summary>
-    protected override string? Input(ImageEditSession session) => session.Recipe.Erasures.IsEmpty ? session.Path : session.ErasedPath;
+    protected override string? Input(PictureRendering session) => session.Recipe.Erasures.IsEmpty ? session.Path : session.ErasedPath;
 
     protected override bool MakesSame(RecipeRestore ask, RecipeRestore other) => ask.MakesSameAs(other);
 
@@ -40,7 +40,7 @@ public sealed class PhotoRestorer : ToolEdit<RecipeRestore>
     protected override Task<string> MakeAsync(string photo, RecipeRestore ask, IProgress<double> progress, CancellationToken ct)
         => Services.Restored.MakeAsync(Services, photo, ask, _tools!, progress, ct);
 
-    protected override string? UsedPath(ImageEditSession session) => session.RestoredPath;
+    protected override string? UsedPath(PictureRendering session) => session.RestoredPath;
 
-    protected override void Use(ImageEditSession session, string? path) => session.UseRestored(path);
+    protected override void Use(PictureRendering session, string? path) => session.UseRestored(path);
 }

@@ -25,7 +25,14 @@
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="300"/>
+            <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
+
+        <!-- ══ Layers: a layered picture's, beside the tools ══ -->
+        <Border Grid.Column="2" Width="260" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0"
+                Visibility="{Binding IsLayered, Converter={StaticResource BoolToVis}}" Thumb.DragStarted="Slider_DragStarted" Thumb.DragCompleted="Slider_DragCompleted">
+            <views:LayersPanel DataContext="{Binding Layers}"/>
+        </Border>
 
         <!-- ══ Canvas: the picture and the editing chrome over it, on the shared pan/zoom surface ══ -->
         <Grid x:Name="CanvasHost" Grid.Column="0" ClipToBounds="True" SizeChanged="CanvasHost_SizeChanged">

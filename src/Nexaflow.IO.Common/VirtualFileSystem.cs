@@ -741,15 +741,17 @@ public sealed partial class VirtualFileSystem : IVirtualFileSystem
             foreach (var e in session.Entries)
             {
                 if (e.IsDirectory) { rebuilt.Add(new ArchiveWriteEntry { Path = e.Name, IsDirectory = true, Modified = e.Modified }); continue; }
+                // Each entry keeps the method it was read with — a package's stored mimetype stays stored — in the order it was read.
+                var compression = string.Equals(e.Method, "Stored", System.StringComparison.OrdinalIgnoreCase) ? ArchiveEntryCompression.Stored : ArchiveEntryCompression.Default;
                 if (PathEquals(e.Name, target))
                 {
-                    rebuilt.Add(new ArchiveWriteEntry { Path = e.Name, Modified = System.DateTime.Now, OpenContent = () => new MemoryStream(newContent) });
+                    rebuilt.Add(new ArchiveWriteEntry { Path = e.Name, Modified = System.DateTime.Now, OpenContent = () => new MemoryStream(newContent), Compression = compression });
                     written = true;
                 }
                 else
                 {
                     var bytes = ReadEntryBytes(session, e.Name);
-                    rebuilt.Add(new ArchiveWriteEntry { Path = e.Name, Modified = e.Modified, OpenContent = () => new MemoryStream(bytes) });
+                    rebuilt.Add(new ArchiveWriteEntry { Path = e.Name, Modified = e.Modified, OpenContent = () => new MemoryStream(bytes), Compression = compression });
                 }
             }
         }
@@ -875,6 +877,16 @@ public sealed partial class VirtualFileSystem : IVirtualFileSystem
         }
 
         WriteNewArchive(real, handler, name, entries, new ArchiveProgressReporter(progress, ct));
+    }
+
+    public void CreateArchive(string archivePath, IReadOnlyList<ArchiveWriteEntry> entries,
+                              System.IProgress<TransferProgress>? progress = null, CancellationToken ct = default)
+    {
+        if (entries is null || entries.Count == 0)
+            throw new System.ArgumentException("At least one entry is required.", nameof(entries));
+        var (real, handler, name) = ResolveArchiveWriter(archivePath);
+        WriteNewArchive(real, handler, name, [.. entries], new ArchiveProgressReporter(progress, ct));
+        InvalidateContainer(real);
     }
 
     /// <summary>Resolves the archive path to a real one and picks the handler that can create its format.

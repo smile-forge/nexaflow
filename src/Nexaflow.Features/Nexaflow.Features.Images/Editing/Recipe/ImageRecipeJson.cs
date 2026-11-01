@@ -62,5 +62,22 @@ public static class ImageRecipeJson
             return new(RecipeReadStatus.Unreadable, null);
         }
     }
+
+    /// <summary>Annotations as a markup layer keeps them: the same form as a recipe's markup.</summary>
+    public static string SerializeMarkup(IReadOnlyList<MarkupElement> elements)
+        => JsonSerializer.Serialize(elements.ToList(), Options);
+
+    /// <summary>Annotations read back; null where the text is not a list of them.</summary>
+    public static System.Collections.Immutable.ImmutableArray<MarkupElement>? DeserializeMarkup(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<List<MarkupElement>>(json, Options) is { } elements ? [.. elements] : null;
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException)
+        {
+            return null;
+        }
+    }
 }
 

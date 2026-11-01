@@ -18,7 +18,7 @@ public sealed class ZipArchiveHandler : IArchiveHandler
     {
         ".zip", ".jar", ".war", ".ear", ".apk", ".aar", ".kmz", ".epub",
         ".odt", ".ods", ".odp", ".odg", ".docx", ".xlsx", ".pptx",
-        ".nupkg", ".vsix", ".appx", ".xpi", ".whl", ".crx", ".mdz",
+        ".nupkg", ".vsix", ".appx", ".xpi", ".whl", ".crx", ".mdz", ".ora",
     };
 
     public string Name => "Zip";
@@ -43,11 +43,12 @@ public sealed class ZipArchiveHandler : IArchiveHandler
             _       => CompressionLevel.Optimal,
         };
 
+        // In the order given — a package's mimetype first — each stored where it asks to be, whatever the level.
         using var zip = new ZipArchive(target, ZipArchiveMode.Create, leaveOpen: true);
         foreach (var e in entries)
         {
             if (e.IsDirectory || e.OpenContent is null) continue;  // zip directories are implicit
-            var entry = zip.CreateEntry(NormalizeForWrite(e.Path), level);
+            var entry = zip.CreateEntry(NormalizeForWrite(e.Path), e.Compression == ArchiveEntryCompression.Stored ? CompressionLevel.NoCompression : level);
             entry.LastWriteTime = e.Modified == default ? System.DateTimeOffset.Now : e.Modified;
             using var src = e.OpenContent();
             using var dst = entry.Open();
@@ -62,8 +63,11 @@ public sealed class ZipArchiveHandler : IArchiveHandler
         private readonly ZipArchive _zip;
         public ZipSession(Stream container)
         {
+            // Each entry's own method, read from the central directory: the zip reader does not say it.
+            var methods = container.CanSeek ? ZipCentralDirectory.Methods(container) : null;
+            if (container.CanSeek) container.Position = 0;
             _zip = new ZipArchive(container, ZipArchiveMode.Read, leaveOpen: false);
-            Entries = _zip.Entries.Select(ToEntry).ToList();
+            Entries = _zip.Entries.Select(e => ToEntry(e, methods)).ToList();
         }
 
         public IReadOnlyList<VirtualEntry> Entries { get; }
@@ -80,13 +84,15 @@ public sealed class ZipArchiveHandler : IArchiveHandler
 
         public void Dispose() => _zip.Dispose();
 
-        private static VirtualEntry ToEntry(ZipArchiveEntry e)
+        private static VirtualEntry ToEntry(ZipArchiveEntry e, IReadOnlyDictionary<string, ushort>? methods)
         {
             var full = e.FullName.Replace('\\', '/');
             bool isDir = full.EndsWith('/') || e.Name.Length == 0;
-            string method = e.CompressedLength < e.Length ? "Deflate" : "Stored";
+            string method = methods is not null && methods.TryGetValue(e.FullName, out var written)
+                ? ZipCentralDirectory.NameOf(written)
+                : e.CompressedLength < e.Length ? "Deflate" : "Stored";
             return new VirtualEntry(full.TrimEnd('/'), isDir, e.Length, e.CompressedLength,
-                                    e.LastWriteTime.LocalDateTime, Crc: 0, method);
+                                    e.LastWriteTime.LocalDateTime, Crc: e.Crc32, method);
         }
     }
 }

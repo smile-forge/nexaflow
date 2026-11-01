@@ -21,7 +21,7 @@ public sealed class ImageDecoders(IReadOnlyList<IImageDecoder> decoders)
 
     public DecodedImage Decode(byte[] data, int? maxLongEdge)
     {
-        var container = ImageContainers.Sniff(data.AsSpan(0, Math.Min(data.Length, 16)));
+        var container = ImageContainers.Sniff(data.AsSpan(0, Math.Min(data.Length, ImageContainers.HeaderLength)));
         var decoder = decoders.FirstOrDefault(d => d.Decodes(container))
             ?? throw new ImageDecodeException($"No decoder reads {container} images.");
         return decoder.Decode(data, container, maxLongEdge);

@@ -92,4 +92,34 @@ public class SnapshotHistoryTests
         history.EndGesture();
         Assert.IsFalse(history.CanUndo, "a gesture back to an equal snapshot adds nothing");
     }
+
+    [TestMethod]
+    public void StepsPastTheBudget_FallOffOldestFirst()
+    {
+        var history = new SnapshotHistory<int>(0, cost: (_, _) => 100, budget: 250);
+        for (int i = 1; i <= 5; i++) history.Commit(i);
+        Assert.AreEqual(2, history.UndoCount, "two steps of 100 fit a budget of 250");
+        Assert.AreEqual(200L, history.Cost);
+        history.Undo();
+        history.Undo();
+        Assert.AreEqual(3, history.Current, "the oldest went");
+        Assert.IsFalse(history.Undo());
+
+        history.Budget = 100;
+        Assert.AreEqual(100L, history.Cost, "lowering the budget lets the farthest steps go at once");
+    }
+
+    [TestMethod]
+    public void AnAmendedState_IsCurrent_WithoutAStepOfItsOwn()
+    {
+        var history = new SnapshotHistory<int>(0);
+        history.Commit(1);
+        history.Amend(2);
+        Assert.AreEqual(2, history.Current);
+        Assert.AreEqual(1, history.UndoCount, "no step for the amendment");
+        history.Undo();
+        Assert.AreEqual(0, history.Current);
+        history.Redo();
+        Assert.AreEqual(2, history.Current, "redo comes back to the state as amended");
+    }
 }
