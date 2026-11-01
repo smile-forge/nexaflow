@@ -339,6 +339,7 @@
   "Shell.Config.Shell.PrestartAtLogin": "Start with Windows",
   "Shell.Config.Shell.DisableAnimationsOnBattery": "Disable background animations on battery",
   "Shell.Config.Shell.EnhancedAiProtection": "Enhanced AI Protection Mode",
+  "Shell.Config.Shell.SafetyLogging": "Enable safety logging",
 
   "Shell.Config.Security": "Security",
   "Shell.Config.Security.AllowWindowAccess": "Allow AI to view other windows",
@@ -426,6 +427,9 @@
   "Shell.Options.Shell.Protection": "AI protection",
   "Shell.Options.Shell.AiProtection": "Enhanced AI Protection Mode",
   "Shell.Options.Shell.AiProtectionNote": "Reinforces protection against adult and sensitive content.",
+  "Shell.Options.Shell.Diagnostics": "Diagnostics",
+  "Shell.Options.Shell.SafetyLogging": "Enable safety logging",
+  "Shell.Options.Shell.SafetyLoggingNote": "Writes each session's startup and shutdown, and any part of the shell that fails to load, to a log in %LOCALAPPDATA%\\Smile\\nexaflow\\logs, with the AI host's log beside it. Files are kept 10 days and stop at 8MB. Takes effect immediately; the AI host follows the next time it starts.",
   "Shell.Options.Abilities.Title": "AI Ability Assignments",
   "Shell.Options.Abilities.AddColumn": "+ Add Provider / Model",
   "Shell.Options.Abilities.AddColumnTitle": "Add a provider / model column",

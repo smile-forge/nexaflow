@@ -41,7 +41,7 @@ security settings.
   heard back, and a picture drawn. The button says which step it is on.
 - Throughout, it reads how much memory each graphics card holds, and compares that with what the models were expected to hold.
 - It ends by opening its report in a tab — the machine, where each model ran, how long each step took, and the memory.
-  The report and its picture are kept in the reports folder beside the AI host's logs, ready to be sent to whoever
+  The report and its picture are kept in the reports folder under the AI folder, ready to be sent to whoever
   looks into the machine.
 
 ## Searching the facts

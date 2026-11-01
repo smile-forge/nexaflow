@@ -125,6 +125,11 @@ public partial class App : Application
         OpenTabKind = openTabIdx >= 0 && openTabIdx + 1 < e.Args.Length ? e.Args[openTabIdx + 1] : null;
         OpenTabParams = TabParams(e.Args);
 
+        // Held by the safety log until the shell config says whether this session keeps one (InitializeApp).
+        ShellSafetyLog.Instance.Step(prestart ? "startup as the login daemon (--prestart)"
+                                   : UiTest   ? "startup under UI automation (--uiTest)"
+                                   : "startup");
+
         // Opt-in startup profiling (see StartupTimings). --timing bypasses the single-instance guard and the
         // setup wizard so a harness can cold-start repeatedly, but does NOT force the eager feature load the
         // way --uiTest does — so it measures the real lazy-startup path.
@@ -169,6 +174,8 @@ public partial class App : Application
                 // Honour --context "Name" from a taskbar JumpList and --open "path" from Explorer's menu.
                 ActOnLaunch(activityManager, LaunchRequest.Parse(e.Args), activate: false);
             }
+            ShellSafetyLog.Instance.Step(prestart ? "startup complete; windowless until a window is asked for"
+                                                  : "startup complete; first window created");
         }
         catch (Exception ex)
         {
@@ -242,6 +249,9 @@ public partial class App : Application
         // ── 1. Shell config ──────────────────────────────────────────────────
         var shellConfig = new ShellConfig();
         ConfigManager.Instance.Register(shellConfig, shellConfig.ConfigName);
+
+        // From here this session knows whether it keeps a safety log: what startup held so far is written out or dropped.
+        ShellSafetyLog.Instance.Apply(shellConfig.SafetyLogging);
         ThemeManager.Apply(shellConfig.Theme);
 
         // Gate the theme's animated backdrop on the power state, before the first window is built - a
@@ -422,7 +432,8 @@ public partial class App : Application
     private static AiHostClient StartAiHost(int memoryShare)
     {
         _aiHost = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"),
-                                                             ModelAssetStore.DefaultRoot(), memoryShare));
+                                                             ModelAssetStore.DefaultRoot(), memoryShare,
+                                                             () => ShellSafetyLog.Instance.Folder));
         _aiHost.HostExited += (_, e) => CrashLog.Instance.Record(new AiHostException(AiHostFailure.Lost, e.Reason));
         return _aiHost;
     }
@@ -453,13 +464,26 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        ShellSafetyLog.Instance.Step($"shutdown begun (exit code {e.ApplicationExitCode})");
         CrashLog.Instance.Flush();   // a burst still collapsing at shutdown would otherwise go unrecorded
 
-        _residency?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2));
+        if (_residency is not null && !_residency.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2)))
+            ShellSafetyLog.Instance.Step("shutdown: model residency did not finish within 2 s");
         // Closing the pipe ends the host; it is killed if it lingers. The job object is the backstop for a crash.
-        _aiHost?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(6));
+        if (_aiHost is not null && !_aiHost.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(6)))
+            ShellSafetyLog.Instance.Step("shutdown: the AI host did not close within 6 s");
         _singleInstance.Dispose();
+
+        ShellSafetyLog.Instance.Close();
         base.OnExit(e);
+    }
+
+    /// <summary>Windows is signing out or shutting down. Recorded before anything else, since what follows may be the
+    /// process being ended without an <see cref="OnExit"/>.</summary>
+    protected override void OnSessionEnding(SessionEndingCancelEventArgs e)
+    {
+        ShellSafetyLog.Instance.Step($"Windows is ending the session ({e.ReasonSessionEnding})");
+        base.OnSessionEnding(e);
     }
 
     /// <summary>

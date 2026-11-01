@@ -64,6 +64,14 @@ public sealed class ShellConfig : IFeatureConfig
     public bool EnhancedAiProtection { get; set; } = true;
 
     /// <summary>
+    /// Safety logging: while it is on, each session's startup and shutdown, and every load or activation failure the shell
+    /// meets, are written to a file of their own under <c>%LOCALAPPDATA%\Smile\nexaflow\logs</c> (<c>ShellSafetyLog</c>), and
+    /// the AI host keeps its log beside them. Off by default. Applies live; the AI host follows the next time it starts.
+    /// </summary>
+    [ConfigDisplayName("Shell.Config.Shell.SafetyLogging")]
+    public bool SafetyLogging { get; set; }
+
+    /// <summary>
     /// Assembly version of the last run that reached the main window. Compared to the current version
     /// to decide whether to show the "What's New" wizard step after an update. Not user-editable
     /// (ShellConfig renders via <c>ShellConfigControl</c>, so this property never appears in the grid);

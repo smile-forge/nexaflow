@@ -45,7 +45,21 @@ public class RealHostTests
         Assert.IsNotNull(description);
         StringAssert.StartsWith(description.RuntimeVersion, "1.");
         CollectionAssert.Contains(description.ExecutionProviders.ToArray(), "CPUExecutionProvider");
-        Assert.IsTrue(Directory.EnumerateFiles(Path.Combine(_aiDir, "logs"), "aihost-*.log").Any(), "the host keeps a log");
+        Assert.IsFalse(Directory.EnumerateFiles(_aiDir, "aihost-*.log", SearchOption.AllDirectories).Any(),
+                       "with no log folder named — safety logging off — the host keeps no log");
+    }
+
+    [TestMethod]
+    public async Task TheHostLogs_InTheFolderTheAppNames()
+    {
+        var logs = Path.Combine(_aiDir, "safety-logs");
+        await using (var client = new AiHostClient(new ProcessAiHostLauncher(HostPath, _aiDir, logDirectory: () => logs)))
+            await foreach (var _ in client.SendAsync(id => new DescribeHost(id), TimeSpan.FromSeconds(30))) { }
+
+        var kept = Directory.EnumerateFiles(logs, "aihost-*.log").ToList();
+        Assert.AreEqual(1, kept.Count, "one file for the host's process, in the folder it was handed");
+        using var reader = new StreamReader(new FileStream(kept[0], FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete));
+        StringAssert.Contains(reader.ReadToEnd(), "connected", "what the host did is in it");
     }
 
     [TestMethod]
