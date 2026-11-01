@@ -161,14 +161,14 @@ public sealed class WorkspaceManager
             catch (Exception ex)
             {
                 // A locked file leaves the folder in place rather than crashing startup — retried next launch.
-                Debug.WriteLine($"[WorkspaceManager] orphan quarantine skipped '{name}': {ex.Message}");
+                ShellSafetyLog.Instance.Failed($"quarantining the orphaned workspace folder '{name}'", ex);
             }
         }
 
         ForgetOrphanedLocalFolders(live);
 
         if (moved.Count > 0)
-            Debug.WriteLine($"[WorkspaceManager] quarantined {moved.Count} orphaned workspace folder(s) into '{OrphanQuarantineDir}': {string.Join(", ", moved)}");
+            ShellSafetyLog.Instance.Step($"workspaces: quarantined {moved.Count} orphaned workspace folder(s) into '{OrphanQuarantineDir}': {string.Join(", ", moved)}");
 
         return moved;
     }
@@ -187,7 +187,7 @@ public sealed class WorkspaceManager
             if (live.Contains(Path.GetFileName(dir))) continue;
 
             try { Directory.Delete(dir, recursive: true); }
-            catch (Exception ex) { Debug.WriteLine($"[WorkspaceManager] orphaned local folder kept '{dir}': {ex.Message}"); }
+            catch (Exception ex) { ShellSafetyLog.Instance.Failed($"removing the orphaned local workspace folder '{dir}'", ex); }
         }
     }
 

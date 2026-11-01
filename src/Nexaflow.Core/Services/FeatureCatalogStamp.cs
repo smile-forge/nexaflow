@@ -70,7 +70,7 @@ public static class FeatureCatalogStamp
         {
             // An unreadable directory yields an empty stamp, which matches nothing — so the catalog rescans
             // rather than trusting an index it cannot verify.
-            Debug.WriteLine($"[FeatureCatalog] stamp capture failed: {ex.Message}");
+            ShellSafetyLog.Instance.Failed("stamping the feature assemblies for the catalog cache", ex);
             return [];
         }
 

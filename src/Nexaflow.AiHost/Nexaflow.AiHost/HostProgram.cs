@@ -25,7 +25,7 @@ internal static class HostProgram
         string? aiDir    = Argument(args, AiHostProtocol.AiDirArgument);
         if (pipeName is null || aiDir is null) return 2;
 
-        using var log = new HostLog(Path.Combine(aiDir, "logs"));
+        using var log = new HostLog(Argument(args, AiHostProtocol.LogDirArgument));
         try
         {
             string token = (await Console.In.ReadLineAsync())?.Trim() ?? "";

@@ -51,6 +51,7 @@ public partial class ShellConfigControl : UserControl, ICustomConfigApply, IConf
             cfg.PrestartAtLogin            = _vm.PrestartAtLogin;
             cfg.DisableAnimationsOnBattery = _vm.DisableAnimationsOnBattery;
             cfg.EnhancedAiProtection       = _vm.EnhancedAiProtection;
+            cfg.SafetyLogging              = _vm.SafetyLogging;
 
             // Sync the HKCU Run entry to the toggle (takes effect next login).
             LoginAutoStartService.Set(_vm.PrestartAtLogin);
@@ -62,6 +63,9 @@ public partial class ShellConfigControl : UserControl, ICustomConfigApply, IConf
             // Also live: every text surface binds the size through TextTypography, so open tabs re-lay out
             // on the spot rather than waiting to be reopened.
             TextTypography.BaseFontSize = _vm.TextFontSize;
+
+            // Live as well: the session's log opens or closes now; the AI host's follows the next time the host starts.
+            ShellSafetyLog.Instance.Apply(_vm.SafetyLogging);
 
             _vm.AcceptAsSaved();
         }
@@ -96,6 +100,7 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _prestartAtLogin;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _disableAnimationsOnBattery;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _enhancedAiProtection;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _safetyLogging;
     [ObservableProperty] private IReadOnlyList<Color> _swatches = [];
 
     public ThemeOption Theme    => Enum.Parse<ThemeOption>(SelectedTheme);
@@ -103,9 +108,11 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
 
     /// <summary>Every choice the page saves, as one value, so the page and its saved state compare whole.</summary>
     private readonly record struct Choices(
-        string Theme, string Language, double TextFontSize, bool PrestartAtLogin, bool DisableAnimationsOnBattery, bool EnhancedAiProtection);
+        string Theme, string Language, double TextFontSize, bool PrestartAtLogin, bool DisableAnimationsOnBattery, bool EnhancedAiProtection,
+        bool SafetyLogging);
 
-    private Choices Current => new(SelectedTheme, SelectedLanguage, TextFontSize, PrestartAtLogin, DisableAnimationsOnBattery, EnhancedAiProtection);
+    private Choices Current => new(SelectedTheme, SelectedLanguage, TextFontSize, PrestartAtLogin, DisableAnimationsOnBattery, EnhancedAiProtection,
+                                   SafetyLogging);
 
     // What the page last saved, or opened on — taken after the language and size were snapped onto offered values,
     // since a config the page had to normalise is not an edit the user made.
@@ -135,6 +142,7 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
         _prestartAtLogin            = cfg.PrestartAtLogin;
         _disableAnimationsOnBattery = cfg.DisableAnimationsOnBattery;
         _enhancedAiProtection       = cfg.EnhancedAiProtection;
+        _safetyLogging              = cfg.SafetyLogging;
         _saved                      = Current;
         LoadSwatches(cfg.Theme);
     }

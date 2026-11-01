@@ -170,6 +170,11 @@ public class OptionsJourneyTests : OptionsOverlayJourney
             WaitForId("ShellAiProtectionToggle", 5)?.Patterns.Toggle.PatternOrDefault?.ToggleState.Value == ToggleState.On);
         Check("Its switch turns it off", () => SetToggle("ShellAiProtectionToggle", false));
         Check("And on again", () => SetToggle("ShellAiProtectionToggle", true));
+
+        Check("Safety logging is off until the user turns it on", () =>
+            WaitForId("ShellSafetyLoggingToggle", 5)?.Patterns.Toggle.PatternOrDefault?.ToggleState.Value == ToggleState.Off);
+        Check("Its switch turns it on", () => SetToggle("ShellSafetyLoggingToggle", true));
+        Check("And off again", () => SetToggle("ShellSafetyLoggingToggle", false));
     }
 
     /// <summary>
