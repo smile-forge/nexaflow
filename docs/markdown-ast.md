@@ -353,8 +353,9 @@ every language and so answered once, as Word's outline view answers it. A langua
 hanging an outline part on it (`Kinds.Outline`, `OutlineMark`: how high it ranks, what its words call it, what it says) —
 markdown a heading (`WithOutline`); a language promoting nothing has an outline of blocks alone. The engine gathers each
 unit's entries as the unit is worked over (`OutlineUnit`, a function of the unit's parts alone, so a unit kept keeps
-them), into an index kept in step with the units that sums their characters and the blocks they show and gathers the
-highest rank in each. From it:
+them), into an index kept in step with every unit read — laid or not, since a unit not laid is worked over in the
+background for what it says (§11), and one not worked over yet stands for its characters alone — that sums their
+characters and the blocks they show and gathers the highest rank in each. From it:
 
 - **sections** — a heading stands over the blocks up to the next ranked as high or higher, wherever in the document that
   is, so where a section ends, how many blocks it holds and which sections hold a place are each one path down the index;
@@ -384,7 +385,9 @@ says that nothing laid before is to be set down again as it was.
 **What is slow is never waited on** (`ContentEngine.Slow`). A `SlowParser` and an `ISlowStage` are the engine's to run,
 never a language's. The content is laid without them first; the engine starts the work, keeps what it comes to by the
 language, the stage and the characters — a few hundred deep, for every engine, so content shown again is shown as it
-was left — and says so when it lands (`Reread`). Whatever shows the content moves to its own thread and lays it again.
+was left — and says so when it lands (`Reread`). Whatever shows the content moves to its own thread and lays again what
+waited on it (`RelayLanded`): each unit that asked, wherever it stands — worked over again where it was a slow stage's
+finding — and nothing else.
 
 ## 9. Editing
 
@@ -542,24 +545,44 @@ where it did not. A document holding readings nested three deep, written in at e
 every level, reads (`WindowedReadingTests`) and lays out (`WindowedLayoutTests`) as the document it became does read
 whole.
 
+**Only what the reader is near is laid.** Every unit read stands on the page at a height: the one it was laid at, where a
+laying of it stands — kept while the unit is read, on screen or not — and otherwise its characters at the height a
+character of what is laid comes to; what is not read yet stands the same way. So the page is as long as the whole
+document from the start. Each laying out lays the units the screen and a screen either side of it reach, the caret's and
+the one either side of it, each end of what is picked out and wherever the reader went (`ContentEngine.Uncover`: a place
+found, a deep link, a line gone to), at the places the heights put them, and goes on while that moved what the screen
+reaches. A jump to the end of a document lays its end and nothing before it. **What the reader is looking at stays
+still**: the first unit laid on screen holds the page, and where laying changes the height of anything above it — an
+estimate becoming a height — the engine says how far it moved (`Shifted`) and the surface scrolls by as much, unless the
+page is on its way to a place brought onto it (`ScreenMoving`). The background reads what is not read yet and works every
+unit read over on its own, with nothing a host said, for what it says to the rest of the document (`UnitFacts`: its
+outline entries and what it defines), so the outline, the names headings answer to and what a link names reach the whole
+document, not what happens to be laid.
+
 **Working over and laying are a unit at a time** (`ContentEngine.Stage`, `Composed`). Each unit laid is worked over by its
 language's stages from its own tree — offsets its own, the showing standing where the unit starts — and laid on its own from
 a reading of it placed there; both are kept, the working over while the unit's tree, the style, whether it is written in,
 the stretch shown as written within it and the inputs stand, and the laying while the room, whether it is only read and the
-folds reaching into it do. What is laid is a document piece holding one mount per unit (`LayoutMount`), each where its unit
-now starts, its parts restated only when asked, and the gap at each seam said by the language from the blocks either side
-(`ContentLanguage.Seam`, from what each unit laid says it began and ended with: `Laid.Ends`). Content read whole is one unit,
-laid as it always was. What one unit says reaches the others through the engine, never by one unit reading another:
+folds reaching into it do. What is laid is a document piece holding a mount for each unit laid (`LayoutMount`), each where
+the heights above it put it and shifted to where its unit now starts, its parts restated only when asked, and the gap at
+each seam between two laid units said by the language from the blocks either side (`ContentLanguage.Seam`, from what each
+unit laid says it began and ended with: `Laid.Ends`); the units not laid leave room for their estimate. A tree made of
+mounts puts its caret places together from each unit's own (`MountedList`), and says the first place below a height from
+the first unit reaching down that far (`StopBelow`). Content read whole is one unit, laid as it always was. What one unit
+says reaches the others through the engine, never by one unit reading another:
 
-- **what it defines** — each unit's stages say it into link targets of their own (`LinkTargets(document)`), gathered into
-  the document's in order; every name and kind a unit's stages ask about is remembered with its answer, so a definition
-  that comes to mean something else works over again only the units that asked about it;
+- **what it defines** — each unit's stages say it into link targets of their own (`LinkTargets(document)`), gathered from
+  every unit read into the document's in order, again only where a unit now says something else; every name and kind a
+  unit's stages ask about is remembered with its answer, so a definition that comes to mean something else works over
+  again only the units that asked about it;
 - **what its blocks come to** — gathered into the outline (§8) from the unit's own worked-over parts; a unit kept keeps
   what it said, and only the names the change reaches are numbered again;
-- **which diagram is which** — counted unit by unit, so what the reader opened in each stays with it.
+- **which diagram is which** — counted unit by unit from the units' read trees, so what the reader opened in each stays
+  with it.
 
-The document read as blocks is its units: what asks for the block at a place asks the unit holding it. What spares a unit
-laid again is reuse inside it, keyed on identity, never on a guess about what an edit touched:
+The document read as blocks is its units: what asks for the block at a place asks the unit holding it, worked over then
+where nothing has laid it. What spares a unit laid again is reuse inside it, keyed on identity, never on a guess about
+what an edit touched:
 
 - **A block written as it was is read as it was.** The engine keeps a parse per document (`MarkdownParser.Parsing`)
   that hands back every block written exactly as last time beside the same definitions as the very block it handed out

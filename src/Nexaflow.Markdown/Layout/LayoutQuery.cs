@@ -673,15 +673,7 @@ public static class LayoutQuery
     /// Where a caret may rest, ascending — the offsets of the places, with the several at one offset counted
     /// once. What snapping an arbitrary offset onto the content works from.
     /// </summary>
-    public static IReadOnlyList<int> CaretStops(this LayoutPiece root)
-    {
-        var stops = new List<int>();
-
-        foreach (var place in Index(root))
-            if (stops.Count == 0 || stops[^1] != place.Offset) stops.Add(place.Offset);
-
-        return stops;
-    }
+    public static IReadOnlyList<int> CaretStops(this LayoutPiece root) => root.Tree?.Stops ?? [];
 
     /// <summary>
     /// The first place in the document that stands wholly below <paramref name="above"/>, wherever across the page
@@ -698,11 +690,28 @@ public static class LayoutQuery
     /// </summary>
     public static int StopBelow(this LayoutPiece root, double above)
     {
-        foreach (var place in Index(root))
-        {
-            var where = place.Against.Bounds;
+        var places = Index(root);
+        var from = 0;
 
-            if (!where.IsEmpty && where.Top >= above - Hair) return place.Offset;
+        // A tree made of the trees it mounts stacks them down the page in the order their places come, so no place of a tree ending above
+        // is the first below: only the places from the first reaching down that far are looked at.
+        if (places is MountedList<CaretPlace> mounted && root.Tree is { } tree && root.At == 0)
+        {
+            from = places.Count;
+
+            for (var part = 0; part < mounted.Parts; part++)
+                if (new LayoutPiece(tree, part + 1).Bounds.Bottom >= above - Hair)
+                {
+                    from = mounted.StartOf(part);
+                    break;
+                }
+        }
+
+        for (var index = from; index < places.Count; index++)
+        {
+            var where = places[index].Against.Bounds;
+
+            if (!where.IsEmpty && where.Top >= above - Hair) return places[index].Offset;
         }
 
         return -1;

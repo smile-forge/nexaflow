@@ -29,7 +29,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// <para>
 /// <strong>What a slower reading changes.</strong> A body read before its language's second reading landed
 /// (<see cref="ContentParse.Provisional"/>) is read again once it has — looked into only after something has landed
-/// (<see cref="Forget"/>), never on every laying out.
+/// (<see cref="RelayLanded"/>), never on every laying out.
 /// </para>
 /// </summary>
 public sealed partial class ContentEngine
@@ -43,7 +43,13 @@ public sealed partial class ContentEngine
     /// <summary>How many times what was read has been said to be stale (<see cref="Forget"/>), which a provisional body is checked against.</summary>
     private int _forgotten;
 
-    /// <summary>Each provisional body, with how many times what was read had been said to be stale when it was last looked into.</summary>
+    /// <summary>
+    /// How many times what was read has been said to be stale (<see cref="Forget"/>), or a slower reading has landed
+    /// (<see cref="RelayLanded"/>) — which a provisional body is checked against.
+    /// </summary>
+    private int _landings;
+
+    /// <summary>Each provisional body, with how many landings there had been when it was last looked into.</summary>
     private readonly ConditionalWeakTable<ContentBody, StrongBox<int>> _checked = new();
 
     /// <summary>Each body's stretch of the document, as a document of its own: made the first time it is laid, and kept as long as the body is.</summary>
@@ -66,7 +72,6 @@ public sealed partial class ContentEngine
             whole = new ContentWindow(language, document, new ContentUnits(named ?? string.Empty).ReadOn(reads, document, int.MaxValue), reads)
             {
                 Length = int.MaxValue,
-                Taken = 1,
             };
         }
         else if (!ReferenceEquals(whole.Document, document))
@@ -81,7 +86,7 @@ public sealed partial class ContentEngine
                 (units, _, _) = units.Edited(from, to, by, after, whole.Parse, int.MaxValue, bounds: language.Bounds);
             }
 
-            whole = new ContentWindow(language, document, units, whole.Parse) { Length = int.MaxValue, Taken = 1 };
+            whole = new ContentWindow(language, document, units, whole.Parse) { Length = int.MaxValue };
         }
 
         _whole = whole;
@@ -126,9 +131,9 @@ public sealed partial class ContentEngine
         if (body.Units is not { Count: 1 } units || !units[0].Unit.Provisional) return false;
 
         var seen = _checked.GetValue(body, static _ => new StrongBox<int>(-1));
-        if (seen.Value == _forgotten) return false;
+        if (seen.Value == _landings) return false;
 
-        seen.Value = _forgotten;
+        seen.Value = _landings;
         return HasLanded(new Kept(language, null, ContentDocument.Of(body.Space.Slice(0, body.Space.Length))));
     }
 

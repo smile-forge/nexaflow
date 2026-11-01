@@ -53,6 +53,12 @@ internal sealed class MountedList<T> : IReadOnlyList<T>
 
     public int Count { get; }
 
+    /// <summary>How many trees it is put together from.</summary>
+    public int Parts => _from.Length;
+
+    /// <summary>Where in this list the items of the tree at <paramref name="part"/> begin.</summary>
+    public int StartOf(int part) => _from[part];
+
     public T this[int index]
     {
         get

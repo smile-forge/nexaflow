@@ -18,31 +18,30 @@ using Nexaflow.Visuals.Text.Painting;
 namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
-/// A large document shown a stretch at a time: read by its language's windowed parse (<see cref="ContentLanguage.Windowed"/>),
-/// and laid out only as far as the reader has looked — the screen, a screen past it, and wherever the caret has gone.
+/// A large document shown a stretch at a time: read by its language's windowed parse (<see cref="ContentLanguage.Windowed"/>), and
+/// laid out only where the reader is — the screen and a screen either side of it, the caret, and wherever the reader went.
 ///
 /// <para>
-/// <strong>The window is the engine's.</strong> The element says what is on screen (<see cref="OnScreen"/>) and nothing else;
-/// how much is read, how much is laid and when more is, are decided here.
+/// <strong>The window is the engine's.</strong> The element says what is on screen (<see cref="OnScreen"/>) and nothing else; how much
+/// is read, which units are laid and when more are, are decided here.
 /// </para>
 /// <para>
-/// <strong>What is laid is one reading.</strong> The stretches taken into the layout are stitched into one tree, what is not
-/// taken yet standing after them as one leaf of trivia, and that tree goes through the pipeline as any content does — its
-/// stages, then its builder. Laying further takes another stretch into the tree and lays it again, and every block that reads
-/// as it did is set down as it was laid (<see cref="Nexaflow.Markdown.Layout.Prose.WithUnchanged"/>), so only the new blocks are laid — and the block
-/// the new ones follow is in the same reading, so what stands between them is the builder's to say, as it always is.
+/// <strong>Every unit read stands on the page, laid or not.</strong> A unit laid stands at the height it was laid at; one not laid at
+/// what its characters come to, going by what is laid, and what is not read yet the same. Each laying out lays the units the screen,
+/// the caret and what the reader went to reach where the page now puts them, and goes on while laying them moved what the screen
+/// reaches. So the page is as long as the whole document from the start, and a jump to its end lays its end and nothing before it.
 /// </para>
 /// <para>
-/// <strong>What is not taken yet is read in the background</strong> — its tree only — so the stretches the reader scrolls to
-/// are already read. What lands is taken in the next time the content is laid, and whatever shows the content is told
-/// (<see cref="Grew"/>) so that is soon.
+/// <strong>What the reader is looking at stays still.</strong> The first unit laid on screen holds the page: where laying changes the
+/// height of anything above it — an estimate becoming a height — the engine says how far it moved (<see cref="Shifted"/>) and whatever
+/// shows the content scrolls by as much, so the scrollbar settles and the page does not.
 /// </para>
 /// <para>
-/// <strong>And worked over there, where its stages say what its links can name</strong> (<see cref="LinkTargets"/>): what a
-/// definition at the bottom says, or where a heading three pages down is, is known before anything there is laid. All of what
-/// is read is worked over by the content's stages, with nothing a host said — so nothing of the host's is asked off its thread
-/// — and what they found stands for everything past what is laid (<see cref="LinkTargets.Further"/>). Where that changes what a
-/// name means, the content is laid again, and every block reading as it did is set down as it was.
+/// <strong>What is not read yet is read in the background</strong>, and every unit read is worked over there on its own by the
+/// content's stages, with nothing a host said — so nothing of the host's is asked off its thread — for what it says to the rest of the
+/// document (<see cref="UnitFacts"/>): its headings, for the outline, and what it defines, for its links. So the outline, the names
+/// the headings answer to and what a link names reach the whole document, not what happens to be laid. What lands is taken in the next
+/// time the content is laid, and whatever shows the content is told (<see cref="Grew"/>) so that is soon.
 /// </para>
 /// </summary>
 public sealed partial class ContentEngine
@@ -59,6 +58,9 @@ public sealed partial class ContentEngine
     /// <summary>How long one laying out spends on what the reader has moved towards before showing what it has and going on.</summary>
     private static readonly TimeSpan Spent = TimeSpan.FromMilliseconds(40);
 
+    /// <summary>How many units the background works over between saying there is more to lay, so what it finds is taken in a batch at a time.</summary>
+    private const int WorkedBetween = 16;
+
     /// <summary>The window over the content being shown, where it is shown a stretch at a time.</summary>
     private ContentWindow? _window;
 
@@ -69,13 +71,19 @@ public sealed partial class ContentEngine
     /// </summary>
     internal event EventHandler? Grew;
 
+    /// <summary>
+    /// Raised as the content is laid when what the reader was looking at has moved down the page by as much as it says — up, where it
+    /// is less than nothing — because what stands above it came to another height than it was taken to. Whatever shows the content
+    /// scrolls by as much, so what the reader is looking at stays where it was on the screen. In the content's own units.
+    /// </summary>
+    internal event EventHandler<double>? Shifted;
+
     /// <summary>Whether a raised <see cref="Grew"/> is still to be answered, so the reader moving again does not raise it twice.</summary>
     private int _growing;
 
     /// <summary>
-    /// How far a long document has to be laid for what the reader moved to to be on the page: set where the caret, or what is
-    /// picked out, went past what was laid, and let go once that is laid. Where a document merely starts with its caret at
-    /// the end, nothing is laid to it.
+    /// Where in a long document the reader moved to: set where the caret, a place found or a link went somewhere not laid, and let go
+    /// once it is. Where a document merely starts with its caret at the end, nothing is laid there.
     /// </summary>
     private int? _reveal;
 
@@ -83,14 +91,24 @@ public sealed partial class ContentEngine
     private int? _revealed;
 
     /// <summary>
-    /// Whether content shown a stretch at a time has more to lay than it has laid — false once it is all laid, and for content
-    /// laid whole.
+    /// Whether whatever shows the content is moving the screen — a place brought onto the page, or the page put somewhere — and has not said
+    /// where it came to: the page is not held still by what was on screen, which the reader is leaving. Set where the engine brings a place
+    /// onto the page, and by whatever moves the screen itself; let go when the screen is next said (<see cref="OnScreen"/>), and by whatever
+    /// shows the content once the move is done.
     /// </summary>
-    internal bool Unlaid => _window is { } window && window.LaidTo < window.Document.Length;
+    internal bool ScreenMoving { get; set; }
 
     /// <summary>
-    /// The reading of a windowed document away from the thread that lays it, done once all of it is read and taken in at the
-    /// next laying out — done already where nothing is reading.
+    /// Whether content shown a stretch at a time has more to lay than it has laid — a unit not laid, or not read — false once it is all
+    /// laid, and for content laid whole.
+    /// </summary>
+    internal bool Unlaid =>
+        _window is { } window
+        && (!window.Units.Done || _standing.Length != _units.Count || Enumerable.Range(0, _units.Count).Any(index => !_standing[index] && this.Shows(index)));
+
+    /// <summary>
+    /// The reading of a windowed document away from the thread that lays it, done once all of it is read and worked over — done
+    /// already where nothing is reading.
     /// </summary>
     internal Task ReadingRest => _window?.Read ?? Task.CompletedTask;
 
@@ -98,9 +116,9 @@ public sealed partial class ContentEngine
     private bool Windows(ContentLanguage language, ContentDocument document) => language.Windowed is not null && document.Length >= WindowedFrom;
 
     /// <summary>
-    /// <paramref name="state"/>'s source laid out as far as the reader has looked — and as far as the caret has been moved —
-    /// taking a stretch at a time into the reading that is laid, reading it first where it has not been read, and starting the
-    /// rest reading in the background.
+    /// <paramref name="state"/>'s source laid out where the reader is: reading on where the page reaches past what is read, laying the
+    /// units the screen, the caret and what the reader went to reach, and again while that moved what the screen reaches — keeping what
+    /// the reader is looking at still (<see cref="Shifted"/>) — and starting what is left to read and work over in the background.
     /// </summary>
     private Laid Windowed(ContentLanguage language, EditState state, LayoutStyle style, double room, bool readOnly)
     {
@@ -112,86 +130,138 @@ public sealed partial class ContentEngine
         Received(window);
 
         var spent = Stopwatch.StartNew();
-        var reach = Reach();
-        var needed = _reveal ?? -1;
+        var shifted = 0.0;
         Laid laid;
-
-        // Short of where it has to reach when last laid: more is taken before anything is laid, so every laying out goes further,
-        // however long laying what is taken already takes.
-        if (window.Bottom > 0 && Short(window, reach, needed)) Took(window, reach, needed);
 
         while (true)
         {
-            laid = LaidFrom(language, _named, window, state, style, room, readOnly, new KeptInContent(window, state.Document));
-            window.Bottom = laid.Size.Height;
+            this.ReadFurther(window);
 
-            if (!Short(window, reach, needed) || spent.Elapsed > Spent || !Took(window, reach, needed)) break;
-        }
+            var anchor = ScreenMoving ? null : this.StillPoint();
+            laid = LaidFrom(language, _named, window, state, style, room, readOnly, new KeptInContent(window, state.Document), tops => this.Wanted(state, tops));
 
-        if (_reveal is { } target && window.LaidTo > target) (_revealed, _reveal) = (target, null);
-        if (Short(window, reach, needed)) Grow();
-        if (window.Reading is null && (!window.Units.Done || (window.Unstaged && _targets.Reported))) Background(window, style);
-
-        // The page is as long as the whole document, going by what a character of what is laid came to.
-        var (to, bottom) = (window.LaidTo, window.Bottom);
-        if (to <= 0 || to >= window.Document.Length) return laid;
-
-        return laid with { Height = bottom + ((window.Document.Length - to) * (bottom / to)) };
-    }
-
-    /// <summary>
-    /// Takes more stretches into the reading that is laid — as many as the page has room for going by what a character came to
-    /// so far, and enough to reach <paramref name="needed"/>, a few at most — reading what is not read yet; and says whether there
-    /// was more.
-    /// </summary>
-    private bool Took(ContentWindow window, double reach, int needed)
-    {
-        var (to, bottom) = (window.LaidTo, window.Bottom);
-        var wanted = bottom > 0 && to > 0 ? to + (int)Math.Min((reach - bottom) * (to / bottom), int.MaxValue / 2) : to + 1;
-        var took = false;
-
-        // A few stretches at most each time, so a jump far down is laid a pass at a time and the page is shown between them.
-        var most = to + (4 * StretchLength);
-
-        while (window.LaidTo < Math.Min(Math.Max(wanted, needed + 1), most) || !took)
-        {
-            if (window.Taken >= window.Units.Count)
+            // The screen moves with what the reader is looking at, so what it reaches is asked of the page as it now stands.
+            if (this.Moved(anchor) is var by && by != 0 && _showing is { } screen)
             {
-                if (window.Units.Done) break;
-
-                window.Units = window.Units.ReadOn(window.Parse, window.Document, StretchLength);
-                window.Altered();
+                _showing = new LayoutRect(screen.X, screen.Y + by, screen.Width, screen.Height);
+                shifted += by;
             }
 
-            window.Taken++;
-            took = true;
+            if (!this.Short(window, state) || spent.Elapsed > Spent) break;
         }
 
-        return took;
+        if (_reveal is { } target && this.Holding(target) is >= 0 and var at && _standing[at]) (_revealed, _reveal) = (target, null);
+        if (this.Short(window, state)) Grow();
+
+        // A background reading done since this began has handed back what it did: taken in before asking what is left to do.
+        if (window.Read is { IsCompleted: true } && Received(window)) Grow();
+        if (window.Read is not { IsCompleted: false } && (!window.Units.Done || this.Unworked())) Background(window, style);
+        if (shifted != 0) Shifted?.Invoke(this, shifted);
+
+        return laid;
     }
-
-    /// <summary>Whether what is laid falls short of where it has to reach, with more of the document still to lay.</summary>
-    private static bool Short(ContentWindow window, double reach, int needed) =>
-        window.LaidTo < window.Document.Length && (window.Bottom < reach || window.LaidTo <= needed);
-
-    /// <summary>The furthest the caret or anything picked out reaches, which has to be laid for either to be shown.</summary>
-    private static int Needed(EditState state) =>
-        state.Selection.Count == 0 ? state.Caret : Math.Max(state.Caret, state.Selection.Max(range => range.End));
 
     /// <summary>
-    /// Whether <paramref name="state"/>'s caret, or what it picks out, reaches past what the window has laid — remembering how
-    /// far, which the next laying out lays to.
+    /// The units to lay, at the places on the page <paramref name="tops"/> gives them: those the screen and a screen either side of it
+    /// reach, the caret's and the one either side of it — so it steps into the next as it steps through its own — each end of what is
+    /// picked out, and what the reader went to.
     /// </summary>
-    private bool Reaches(EditState state)
+    private SortedSet<int> Wanted(EditState state, double[] tops)
     {
-        if (_window is not { Taken: > 0 } window || !Short(window, double.NegativeInfinity, Needed(state))) return false;
+        var wanted = new SortedSet<int>();
+        var (top, bottom) = this.Reach();
 
-        _reveal = Needed(state);
+        for (var index = Reaching(tops, top); index < _units.Count && tops[index] < bottom; index++) wanted.Add(index);
 
-        return true;
+        if (this.Holding(state.Caret) is >= 0 and var caret)
+            for (var at = Math.Max(caret - 1, 0); at <= Math.Min(caret + 1, _units.Count - 1); at++) wanted.Add(at);
+
+        foreach (var range in state.Selection)
+            foreach (var end in new[] { range.Start, range.End })
+                if (this.Holding(end) is >= 0 and var at) wanted.Add(at);
+
+        if (_reveal is { } target && this.Holding(target) is >= 0 and var revealed) wanted.Add(revealed);
+
+        return wanted;
     }
 
-    /// <summary>Lays a long document as far as <paramref name="offset"/>, and brings what stands there onto the page once it is.</summary>
+    /// <summary>Which of the units placed at <paramref name="tops"/> is the first reaching below <paramref name="y"/> — their count, where none does.</summary>
+    private static int Reaching(double[] tops, double y)
+    {
+        var (low, high) = (0, tops.Length - 1);
+
+        while (low < high)
+        {
+            var middle = (low + high) / 2;
+            if (tops[middle + 1] > y) high = middle;
+            else low = middle + 1;
+        }
+
+        return low;
+    }
+
+    /// <summary>
+    /// Whether what is laid falls short of what it has to reach: a unit to lay that is not laid, the page reaching past what is read,
+    /// or what the reader went to not read yet.
+    /// </summary>
+    private bool Short(ContentWindow window, EditState state)
+    {
+        if (_standing.Length != _units.Count) return true;
+
+        foreach (var index in this.Wanted(state, _tops))
+            if (!_standing[index] && this.Shows(index)) return true;
+
+        return !window.Units.Done && (this.Reach().Bottom > _tops[^1] || _reveal >= window.Units.Reached);
+    }
+
+    /// <summary>
+    /// Reads on — a few stretches at most, so a jump far down is laid a pass at a time and the page is shown between them — where the
+    /// page reaches past what is read, going by what a character comes to, or what the reader went to is not read yet.
+    /// </summary>
+    private void ReadFurther(ContentWindow window)
+    {
+        var (bottom, most) = (_tops[^1], window.Units.Reached + (4 * StretchLength));
+        var perCharacter = _perCharacter > 0 ? _perCharacter : Unsaid(_style, Room);
+        var reach = this.Reach().Bottom;
+
+        while (!window.Units.Done && window.Units.Reached < most && (bottom < reach || _reveal >= window.Units.Reached))
+        {
+            var reached = window.Units.Reached;
+            window.Units = window.Units.ReadOn(window.Parse, window.Document, StretchLength);
+            window.Altered();
+
+            bottom += (window.Units.Reached - reached) * perCharacter;
+        }
+    }
+
+    /// <summary>
+    /// What the page holds still as it is laid: where the first unit laid on screen started, and where on the page it stood — the first
+    /// on screen, where none of it is laid — or null where nothing is on screen.
+    /// </summary>
+    private (int Start, double Top)? StillPoint()
+    {
+        if (_showing is not { } screen || _standing.Length != _units.Count || _units.Count == 0) return null;
+
+        int? first = null;
+
+        for (var index = Reaching(_tops, screen.Y); index < _units.Count && _tops[index] < screen.Bottom; index++)
+        {
+            first ??= index;
+            if (_standing[index]) return (_units[index].Start, _tops[index]);
+        }
+
+        return first is { } at ? (_units[at].Start, _tops[at]) : null;
+    }
+
+    /// <summary>How far down the page the unit <paramref name="anchor"/> names has moved since it was taken — nothing, where no unit starts there now.</summary>
+    private double Moved((int Start, double Top)? anchor)
+    {
+        if (anchor is not var (start, top) || this.Holding(start) is not (>= 0 and var index) || _units[index].Start != start) return 0;
+
+        return _tops[index] - top;
+    }
+
+    /// <summary>Lays a long document where <paramref name="offset"/> is, and brings what stands there onto the page once it is.</summary>
     private void Uncovering(int offset)
     {
         _reveal = offset;
@@ -199,13 +269,14 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
-    /// Lays a long document as far as <paramref name="offset"/> where it is not laid that far yet, and brings what stands there
-    /// onto the page once it is — for a place found, or gone to, that the reader has not scrolled anywhere near. False where
-    /// there is nothing to lay: the content is laid past it already, or is not shown a stretch at a time.
+    /// Lays the unit of a long document holding <paramref name="offset"/>, where it is not laid — and nothing before it — and brings what
+    /// stands there onto the page once it is: for a place found, or gone to, that the reader has not scrolled anywhere near. False where
+    /// there is nothing to lay: it is laid already, or the content is not shown a stretch at a time.
     /// </summary>
     internal bool Uncover(int offset)
     {
-        if (_window is not { } window || offset < window.LaidTo || offset > window.Document.Length) return false;
+        if (_window is not { } window || offset < 0 || offset > window.Document.Length) return false;
+        if (this.Holding(offset) is >= 0 and var at && at < _standing.Length && _standing[at]) return false;
 
         Uncovering(offset);
 
@@ -213,10 +284,25 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
-    /// How far down the content has to be laid: a screen past the bottom of what is on screen, or two widths of room where
-    /// nothing has said what is on screen yet.
+    /// Whether <paramref name="state"/>'s caret is somewhere a long document has not laid — remembering it, so the next laying out lays
+    /// it and brings it onto the page.
     /// </summary>
-    private double Reach() => _showing is { } showing ? showing.Bottom + Math.Max(showing.Height, 1) : Room * 2;
+    private bool Reaches(EditState state)
+    {
+        if (_window is null) return false;
+        if (this.Holding(state.Caret) is >= 0 and var at && at < _standing.Length && _standing[at]) return false;
+
+        _reveal = state.Caret;
+
+        return true;
+    }
+
+    /// <summary>
+    /// What the content has to be laid across, down the page: a screen either side of what is on screen, or two widths of room from the
+    /// top where nothing has said what is on screen yet.
+    /// </summary>
+    private (double Top, double Bottom) Reach() =>
+        _showing is { } showing ? (showing.Y - Math.Max(showing.Height, 1), showing.Bottom + Math.Max(showing.Height, 1)) : (0, Room * 2);
 
     /// <summary>Starts showing <paramref name="document"/> a stretch at a time, stopping whatever was reading the content before.</summary>
     private ContentWindow Opened(ContentLanguage language, ContentDocument document)
@@ -224,18 +310,19 @@ public sealed partial class ContentEngine
         _window?.Reading?.Cancel();
         _targets.Forget();
         _whole = null;
+        (_tops, _standing, _perCharacter) = ([0], [], 0);
 
         var parse = language.Windowed!();
         var first = ContentUnit.Read(parse, document, 0, StretchLength, null);
         var named = (first.Tree as BlockNode)?.Language ?? _named ?? string.Empty;
 
-        return _window = new ContentWindow(language, document, new ContentUnits(named).Added(first), parse) { Taken = 1, Length = StretchLength };
+        return _window = new ContentWindow(language, document, new ContentUnits(named).Added(first), parse) { Length = StretchLength };
     }
 
     /// <summary>
     /// The window over what the document says now it has been written in: read again from where each change since is
-    /// (<see cref="ContentUnits.Edited"/>), and as much of it taken into the reading that is laid as was before — so the
-    /// blocks laid before the change, and every one after it that reads as it did, are set down as they were laid.
+    /// (<see cref="ContentUnits.Edited"/>) — a stretch past the change at most, the rest left to read again as the page reaches it or
+    /// in the background — so every unit the change did not reach is the one it was, laid as it was laid.
     ///
     /// <para>
     /// <strong>Read again from the changes, not from the two documents.</strong> Every version the engine moves the document to
@@ -243,40 +330,24 @@ public sealed partial class ContentEngine
     /// read again is where each change wrote. Only a version made some other way — loaded, or handed in whole — is compared with
     /// the one the window holds, once, for the one stretch where they differ.
     /// </para>
-    /// <para>
-    /// What was found past what is laid is moved along with it. Where the change read again past what is laid — a fence left
-    /// open — what is there may define otherwise than it did, and all of it is worked over again.
-    /// </para>
     /// </summary>
     private ContentWindow Rewritten(ContentWindow window, ContentDocument document)
     {
         window.Reading?.Cancel();
 
-        // What the background had read of the document as it was is the document still, after the change.
+        // What the background had read and worked over of the document as it was is the document still, after the change.
         Received(window);
 
         var changes = window.Following(document) ?? [(document.ChangesFrom(window.Document).Forward, document)];
-        var (units, laidTo, unstaged) = (window.Units, window.LaidTo, window.Unstaged);
-        var taken = window.Taken;
+        var units = window.Units;
 
         foreach (var (change, after) in changes)
         {
             var (from, to, by) = Spanned(change);
-
-            // Read again as far as what is laid, and a stretch past it, at most: the rest is the background's to read.
-            (units, var kept, var read) = units.Edited(from, to, by, after, window.Parse, StretchLength, laidTo + by + StretchLength,
-                                                       window.Language.Bounds);
-
-            _targets.Moved(laidTo, by);
-            laidTo += by;
-
-            taken = Math.Clamp(units.IndexAt(Math.Max(laidTo - 1, 0)) + 1, 1, units.Count);
-
-            // Read again past what is laid: what is there may define otherwise than it did.
-            unstaged |= kept + read > taken;
+            (units, _, _) = units.Edited(from, to, by, after, window.Parse, StretchLength, to + by + StretchLength, window.Language.Bounds);
         }
 
-        return _window = new ContentWindow(window.Language, document, units, window.Parse) { Taken = taken, Length = StretchLength, Unstaged = unstaged };
+        return _window = new ContentWindow(window.Language, document, units, window.Parse) { Length = StretchLength };
     }
 
     /// <summary>Where <paramref name="change"/> wrote, in the document it was made to — from its first write to the end of its last — and how far it moved what is after.</summary>
@@ -295,11 +366,13 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
-    /// Takes in what the background reading of <paramref name="window"/> has read and found since it was last asked; and says
-    /// whether what was found changes what any name past what is laid means.
+    /// Takes in what the background reading of <paramref name="window"/> has read and worked over since it was last asked — what a unit
+    /// laid here already said is kept — and says whether anything came.
     /// </summary>
     private bool Received(ContentWindow window)
     {
+        var came = false;
+
         // Read in the background from where the reading stood when it started; what was read here since is in already.
         while (window.Arrived.TryDequeue(out var arrived))
         {
@@ -307,20 +380,27 @@ public sealed partial class ContentEngine
 
             window.Units = window.Units.Added(arrived.Unit);
             window.Altered();
+            came = true;
         }
 
-        var further = false;
-
-        while (window.Staged.TryDequeue(out var staged))
+        while (window.Worked.TryDequeue(out var worked))
         {
-            further |= _targets.Further(staged.Reach, staged.Targets);
-            if (staged.Whole) window.Unstaged = false;
+            if (_facts.TryGetValue(worked.Tree, out _)) continue;
+
+            _facts.Add(worked.Tree, worked.Facts);
+            came = true;
         }
 
-        // What the rest of the document defines can make a name in a unit laid mean something: every unit that asked is asked again.
-        if (further) _defined++;
+        return came;
+    }
 
-        return further;
+    /// <summary>Whether a unit read has not been worked over yet, here or in the background, for what it says to the rest of the document.</summary>
+    private bool Unworked()
+    {
+        foreach (var (unit, _) in _units)
+            if (!_facts.TryGetValue(unit.Tree, out _)) return true;
+
+        return false;
     }
 
     /// <summary>Says there is more to lay, once until it is laid.</summary>
@@ -329,12 +409,10 @@ public sealed partial class ContentEngine
         if (Interlocked.Exchange(ref _growing, 1) == 0) Grew?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Says there is more to lay where what is on screen has come within a screen of what is not laid yet.</summary>
+    /// <summary>Says there is more to lay where what is on screen has come to a unit not laid, or past what is read.</summary>
     private void Approached()
     {
-        if (_window is { Taken: > 0 } window && _showing is { } showing
-            && Short(window, showing.Bottom + Math.Max(showing.Height, 1), -1))
-            Grow();
+        if (_window is { } window && _showing is not null && this.Short(window, _state)) Grow();
     }
 
     /// <summary>
@@ -349,7 +427,7 @@ public sealed partial class ContentEngine
             if (_window is { } window) return window.Words ??= DrawnText.Of(Everything(window));
 
             // Content read whole is one unit, as it was worked over.
-            var tree = _laidUnits.Count > 0 ? _laidUnits[0].Unit.Tree : NothingRead.Node;
+            var tree = _units.Count > 0 && _staged.TryGetValue(_units[0].Unit.Tree, out var staged) ? staged.Tree : NothingRead.Node;
             if (!ReferenceEquals(_wordsOf, tree)) (_words, _wordsOf) = (DrawnText.Of(tree), tree);
 
             return _words!;
@@ -367,7 +445,7 @@ public sealed partial class ContentEngine
         {
             window.Read?.Wait();
 
-            // What working all of it over found may make a name laid already mean something: it is laid again.
+            // What the background found may say something new of the document: it is laid again.
             if (Received(window)) Grow();
 
             while (!window.Units.Done) window.Units = window.Units.ReadOn(window.Parse, window.Document, window.Length);
@@ -379,19 +457,27 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
-    /// Where on the page what stands at <paramref name="offset"/> would come, going by what is laid — for what a long document
-    /// has not laid yet; null where it is laid, or the content is laid whole.
+    /// Where on the page what stands at <paramref name="offset"/> would come, going by where the unit holding it stands — for what a
+    /// long document has not laid; null where it is laid, or the content is laid whole.
     /// </summary>
-    internal double? UnlaidTop(int offset) =>
-        _window is { LaidTo: > 0 } window && offset >= window.LaidTo
-            ? window.Bottom + ((offset - window.LaidTo) * (window.Bottom / window.LaidTo))
-            : null;
+    internal double? UnlaidTop(int offset)
+    {
+        if (_window is not { } window || _standing.Length != _units.Count) return null;
+
+        if (this.Holding(offset) is not (>= 0 and var at))
+            return _tops[^1] + ((offset - window.Units.Reached) * (_perCharacter > 0 ? _perCharacter : Unsaid(_style, Room)));
+
+        if (_standing[at]) return null;
+
+        var (unit, start) = _units[at];
+
+        return _tops[at] + ((_tops[at + 1] - _tops[at]) * (offset - start) / Math.Max(unit.Width, 1));
+    }
 
     /// <summary>
-    /// Reads the rest of <paramref name="window"/> away from the thread that lays content out — its tree only, a stretch at a
-    /// time, each handed back as it is read — and, where the content's stages say what its links can name, works all of what is
-    /// read over with them: each time as much again has been read, so what the first stretches define is known early and all of
-    /// it costs no more than working the whole over twice, and once it is all read. Says so when it is done.
+    /// Reads the rest of <paramref name="window"/> away from the thread that lays content out — its tree only, a stretch at a time,
+    /// each handed back as it is read — and works every unit read that nothing has worked over yet over on its own, in order, for what
+    /// it says to the rest of the document, handing that back too. Says so when it is done.
     /// </summary>
     private void Background(ContentWindow window, LayoutStyle style)
     {
@@ -402,54 +488,65 @@ public sealed partial class ContentEngine
         // read there never disturbs what is laid here.
         var (read, document) = (window.Units, window.Document);
         var (language, named, length) = (window.Language, _named ?? string.Empty, StretchLength);
-        var staging = window.Unstaged && _targets.Reported;
-        var parse = language.Windowed!();
+        var (facts, parse) = (_facts, language.Windowed!());
 
         window.Read = Task.Run(() =>
         {
-            var staged = 0;
+            var (looked, worked) = (0, 0);
 
-            while (!cancel.IsCancellationRequested && !read.Done)
+            while (!cancel.IsCancellationRequested)
             {
-                var start = read.Reached;
+                foreach (var (unit, start) in read.From(looked))
+                {
+                    if (cancel.IsCancellationRequested) return;
+
+                    looked++;
+                    if (facts.TryGetValue(unit.Tree, out _)) continue;
+
+                    window.Worked.Enqueue((unit.Tree, Worked(language, named, style, unit, start)));
+                    if (++worked % WorkedBetween == 0) Grow();
+                }
+
+                if (read.Done) break;
+
+                var reached = read.Reached;
                 read = read.ReadOn(parse, document, length);
-                window.Arrived.Enqueue((start, read[read.Count - 1].Unit));
-
-                if (staging && !read.Done && read.Reached >= 2 * staged) staged = Staged();
+                window.Arrived.Enqueue((reached, read[read.Count - 1].Unit));
             }
 
-            if (staging && !cancel.IsCancellationRequested) Staged();
             if (!cancel.IsCancellationRequested) Grew?.Invoke(this, EventArgs.Empty);
-
-            // Everything read so far worked over from its top, as the reading that is laid is, with nothing the host said.
-            int Staged()
-            {
-                var targets = new LinkTargets();
-                var showing = new ContentShowing(named, style, false, null, 0, ContentInputs.None) { Reads = ContentLanguages.Reads, Targets = targets };
-                var tree = read.Tree(document);
-                var stages = language.Stages(tree, showing).OfType<IAstStage>().Where(stage => stage is not ISlowStage).ToList();
-
-                var worked = stages.Count > 0 ? new AstPipeline(stages).Run(tree) : tree;
-
-                // What a link can name past what is laid: what the stages found defined, and the name every heading answers to.
-                var outline = ContentOutline.Of(worked);
-                var names = outline[0].Unit.Entries.Select((_, at) => new LinkTarget(Kinds.Outline, outline.Name(0, at), outline.Name(0, at), outline.StartOf(0, at)));
-
-                window.Staged.Enqueue(new ContentStaging(targets.Reach, [.. targets.Targets.Concat(names).OrderBy(target => target.At)], read.Done));
-                Grow();
-
-                return read.Reached;
-            }
         }, cancel.Token);
+    }
+
+    /// <summary>
+    /// What <paramref name="unit"/>, starting at <paramref name="start"/>, says to the rest of its document: its tree worked over on its
+    /// own by <paramref name="language"/>'s stages that are not slow, with nothing the host said and nothing any other unit defines. A
+    /// unit its stages cannot work over says nothing, as it shows nothing but itself written.
+    /// </summary>
+    private static UnitFacts Worked(ContentLanguage language, string named, LayoutStyle style, ContentUnit unit, int start)
+    {
+        try
+        {
+            var targets = new LinkTargets(new LinkTargets());
+            var showing = new ContentShowing(named, style, false, null, start, ContentInputs.None) { Reads = ContentLanguages.Reads, Targets = targets };
+            var stages = language.Stages(unit.Tree, showing).OfType<IAstStage>().Where(stage => stage is not ISlowStage).ToList();
+
+            var worked = stages.Count > 0 ? new AstPipeline(stages).Run(unit.Tree) : unit.Tree;
+
+            return new UnitFacts(OutlineUnit.Of(worked.Children, unit.Width), targets.Reported, targets.Defined);
+        }
+        catch (Exception)
+        {
+            return new UnitFacts(OutlineUnit.Of([], unit.Width), false, []);
+        }
     }
 }
 
 /// <summary>
-/// Content being shown, and what has been read of it: a large document a stretch at a time — how much of what is read is taken
-/// into the reading that is laid, and what the background reading has handed back that is not taken in yet — or content read
-/// whole, as one unit always taken. Either way read again from each change the engine makes to it (<see cref="Wrote"/>), with the
-/// readings of what is written inside it attached to their holders (<see cref="ContentUnit.Bodies"/>). The engine's, and only the
-/// engine's.
+/// Content being shown, and what has been read of it: a large document a stretch at a time — with what the background reading has
+/// read and worked over, waiting to be taken in — or content read whole, as one unit. Either way read again from each change the engine
+/// makes to it (<see cref="Wrote"/>), with the readings of what is written inside it attached to their holders
+/// (<see cref="ContentUnit.Bodies"/>). The engine's, and only the engine's.
 /// </summary>
 internal sealed class ContentWindow(ContentLanguage language, ContentDocument document, ContentUnits units, Func<ContentStretch, ContentParse> parse)
 {
@@ -476,23 +573,11 @@ internal sealed class ContentWindow(ContentLanguage language, ContentDocument do
     /// <summary>How far a stretch is read before it looks for somewhere to stop.</summary>
     public required int Length { get; init; }
 
-    /// <summary>How many of the chunks, from the first, are taken into the reading that is laid.</summary>
-    public int Taken { get; set; }
-
-    /// <summary>How far down the page what is laid reaches, as it was last laid.</summary>
-    public double Bottom { get; set; }
-
     /// <summary>What the background reading has read, waiting to be taken in.</summary>
     public ConcurrentQueue<(int Start, ContentUnit Unit)> Arrived { get; } = new();
 
-    /// <summary>What working over all that the background reading had read found, waiting to be taken in.</summary>
-    public ConcurrentQueue<ContentStaging> Staged { get; } = new();
-
-    /// <summary>
-    /// Whether what the whole document defines is still to be found by working all of it over — until the background has, and
-    /// again once a change has read again past what is laid.
-    /// </summary>
-    public bool Unstaged { get; set; } = true;
+    /// <summary>What the background has worked the units read over into, by the tree each was read into, waiting to be taken in.</summary>
+    public ConcurrentQueue<(ContentNode Tree, UnitFacts Facts)> Worked { get; } = new();
 
     /// <summary>What stops the background reading, once one has started.</summary>
     public CancellationTokenSource? Reading { get; set; }
@@ -502,9 +587,6 @@ internal sealed class ContentWindow(ContentLanguage language, ContentDocument do
 
     /// <summary>What all of it reads as, made when something asks for it and let go when another chunk is read.</summary>
     public DrawnText? Words { get; set; }
-
-    /// <summary>Where what is laid ends in the document: the end of the last unit taken into it.</summary>
-    public int LaidTo => Taken == 0 ? 0 : Units[Taken - 1] is var (unit, start) ? start + unit.Width : 0;
 
     /// <summary>
     /// Says the document went from <paramref name="before"/> to <paramref name="after"/>: a change to read again from, where it was
@@ -531,6 +613,3 @@ internal sealed class ContentWindow(ContentLanguage language, ContentDocument do
     /// <summary>Lets go of everything made of what was read, because more has been read, or read again.</summary>
     public void Altered() => Words = null;
 }
-
-/// <summary>What working over a windowed document as far as <paramref name="Reach"/> found its links can name — all of it, where <paramref name="Whole"/>.</summary>
-internal sealed record ContentStaging(int Reach, IReadOnlyList<LinkTarget> Targets, bool Whole);

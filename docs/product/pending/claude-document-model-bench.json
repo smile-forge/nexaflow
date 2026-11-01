@@ -142,12 +142,6 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Pipeline/LinkTargets.cs",
-          "class": "LinkTargets",
-          "method": "Further"
-        },
-        {
-          "type": "code",
           "doc": "src/Nexaflow.Markdown/Ast/ContentIndex.cs",
           "class": "ContentIndex"
         },
@@ -188,6 +182,71 @@
           "type": "code",
           "doc": "src/Nexaflow.Markdown/Layout/Prose/MarkdownGaps.cs",
           "class": "MarkdownGaps"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Window.cs",
+          "class": "ContentEngine",
+          "method": "Wanted"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Window.cs",
+          "class": "ContentEngine",
+          "method": "StillPoint"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Window.cs",
+          "class": "ContentEngine",
+          "method": "Uncover"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Window.cs",
+          "class": "ContentEngine",
+          "method": "Worked"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Window.cs",
+          "class": "ContentEngine",
+          "method": "UnlaidTop"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Units.cs",
+          "class": "ContentEngine",
+          "method": "Placed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Units.cs",
+          "class": "ContentEngine",
+          "method": "Defined"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Units.cs",
+          "class": "UnitFacts"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Slow.cs",
+          "class": "ContentEngine",
+          "method": "RelayLanded"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs",
+          "class": "MarkdownSurface",
+          "method": "Shift"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutQuery.cs",
+          "class": "LayoutQuery",
+          "method": "StopBelow"
         }
       ],
       "concerns": {
@@ -524,6 +583,12 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Markdown/MarkdownJourneyTests.cs",
             "class": "MarkdownJourneyTests",
             "method": "Markdown_Controls_RespondInOnePass"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/WindowedLayoutTests.cs",
+            "class": "WindowedLayoutTests",
+            "method": "TheOutlineOfALongDocument_HoldsEveryHeading_WithOnlyTheFirstScreenLaid"
           }
         ]
       }

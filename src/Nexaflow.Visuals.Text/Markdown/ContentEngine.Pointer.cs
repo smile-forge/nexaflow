@@ -76,6 +76,13 @@ public sealed partial class ContentEngine
     /// <summary>Raised to bring a stretch of the laid content into view — the heading a link into the content goes to.</summary>
     internal event EventHandler<LayoutRect>? Revealing;
 
+    /// <summary>Brings <paramref name="at"/> onto the page: whatever shows the content scrolls to it, and the page is not held still meanwhile.</summary>
+    private void Reveal(LayoutRect at)
+    {
+        ScreenMoving = true;
+        Revealing?.Invoke(this, at);
+    }
+
     /// <summary>The content as it would read if what is being carried were let go where it is now, with what is carried, or null.</summary>
     internal (Laid Laid, int Start, int End)? Preview => _preview is { } preview ? (preview, _previewMoved.Start, _previewMoved.End) : null;
 
@@ -618,9 +625,9 @@ _preview = carried is { } laid && _marked is null ? LaidOut(new EditState(laid.S
         if (act.Intent is not { Verb: LayoutVerbs.Navigate, Target: { } where }) return false;
         if (!MarkdownAnchors.IsInPage(where, out var anchor)) return false;
 
-        // A long document may not have laid the heading yet; what its stages found says where it is, and so where to lay to.
-        if (Sought(_laid, anchor) is { Exists: true } heading) Revealing?.Invoke(this, heading.Bounds);
-        else if (_window is not null && MarkdownAnchors.Written(_targets, anchor) is { } written) Uncovering(written);
+        // A long document may not have laid the heading yet; the outline says where it is, and so where to lay.
+        if (Sought(_laid, anchor) is { Exists: true } heading) Reveal(heading.Bounds);
+        else if (_window is not null && _outline.Named(anchor) is { } named) Uncovering(_outline.StartOf(named.Unit, named.Entry));
 
         return true;
     }

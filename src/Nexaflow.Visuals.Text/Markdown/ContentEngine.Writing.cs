@@ -137,7 +137,7 @@ public sealed partial class ContentEngine
             _revealed = null;
 
             var at = _laid.Root.CaretRect(shown);
-            if (!at.IsEmpty) Revealing?.Invoke(this, at);
+            if (!at.IsEmpty) Reveal(at);
         }
     }
 

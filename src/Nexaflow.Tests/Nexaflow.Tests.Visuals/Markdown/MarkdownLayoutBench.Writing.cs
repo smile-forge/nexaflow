@@ -236,8 +236,8 @@ public partial class MarkdownLayoutBench
 // something further down lays it, since a caret is not put past what is laid. Getting there is timed on its own (reachMs),
 // and a place is skipped where getting there, scaled from the farthest place reached so far — in the size before, or
 // earlier in this one, which is all there is when only this size is measured — would take longer than the budget: scaled
-// as the square of the distance, since laying further lays again what is laid. What was typed at one place moves every
-// place after it along.
+// in proportion to the distance, since getting there lays the unit there and reads to it where nothing has yet. What was
+// typed at one place moves every place after it along.
 var keystrokes = new Dictionary<string, object>();
 var typed = 0;
 farthest = null;
@@ -246,10 +246,10 @@ foreach (var (place, at) in places)
 {
     var wanted = at + typed;
 
-    if (reached is { Offset: > 0 } before && before.Ms * Math.Pow((double)wanted / before.Offset, 2) is var expected
+    if (reached is { Offset: > 0 } before && before.Ms * ((double)wanted / before.Offset) is var expected
         && expected > OpenBudget.TotalMilliseconds)
     {
-        keystrokes[place] = $"skipped: laying down to offset {wanted} would take about {expected / 1000:0} s, scaled as the square of "
+        keystrokes[place] = $"skipped: getting to offset {wanted} would take about {expected / 1000:0} s, scaled in proportion to "
                             + $"the distance from {before.Ms / 1000:0.0} s to reach {before.Offset}, past the {OpenBudget.TotalSeconds:0} s budget";
         said($"{name}: keystrokes - {place}: skipped");
         continue;
@@ -331,7 +331,9 @@ foreach (var (place, at) in places)
 
     void Undo() => engine.Input(new ContentKey(Key.Z, ModifierKeys.Control));
 
-            object Source() => engine.State.Document.ToString();
+            // The version written to: every change makes another, so a step changed the document where the version is another one —
+            // asked without building the characters, which for a long document would be what the steps were timed paying for.
+            object Source() => engine.State.Document;
         }
         finally
         {

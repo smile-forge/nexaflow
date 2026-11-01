@@ -65,9 +65,6 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// <summary>The parse each language keeps for the content asked for, and the one for what is written inside it.</summary>
     private readonly Dictionary<ContentLanguage, Func<string, ContentParse>> _parses = [];
     private readonly Dictionary<ContentLanguage, Func<string, ContentParse>> _nestedParses = [];
-    /// <summary>What the reader has opened in each diagram, by where its body starts.</summary>
-    private readonly Dictionary<int, DiagramViewState> _views = [];
-
     /// <summary>
     /// What the reader has opened and chosen in each diagram, in the order the diagrams are written — kept for as long as the
     /// engine is, so it outlives every reading of the content an edit or a press causes.
@@ -95,32 +92,44 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         var language = Language(named);
         var whole = ReadAgain(language, named, state.Document);
 
-        return LaidFrom(language, named, whole, state, style, room, readOnly, new KeptInContent(whole, state.Document));
+        return LaidFrom(language, named, whole, state, style, room, readOnly, new KeptInContent(whole, state.Document), static tops => [.. Enumerable.Range(0, tops.Length - 1)]);
     }
 
     /// <summary>
-    /// The units <paramref name="window"/> has taken, laid out: each worked over and laid on its own where what it was worked over and
-    /// laid with no longer stands (<see cref="Stage"/>, <see cref="Composed"/>), what their blocks come to brought into the outline, and
-    /// what the reader folded away of it worked out — the whole put together as one layout.
+    /// What <paramref name="window"/> has read, laid out: every unit standing on the page at a height (<see cref="Placed"/>), and the units
+    /// <paramref name="wanted"/> picks out at those places worked over and laid on their own where what they were worked over and laid
+    /// with no longer stands (<see cref="Stage"/>, <see cref="Composed"/>), what every unit read says brought into the outline, and what
+    /// the reader folded away of it worked out — the whole put together as one layout.
     /// </summary>
     private Laid LaidFrom(ContentLanguage language, string? named, ContentWindow window, EditState state, LayoutStyle style, double room,
-                          bool readOnly, Keeping holding)
+                          bool readOnly, Keeping holding, Func<double[], IReadOnlyCollection<int>> wanted)
     {
-        var units = window.Units.From(0).Take(window.Taken).ToList();
+        _units = [.. window.Units.From(0)];
+        _unitsIn = window.Document;
 
         // What the reader opened in each diagram, or in the content itself where it is a diagram.
-        Views(language, units);
+        Views(language);
         if (_top is { } opened) style = style with { Expansion = opened.Expansion };
 
         var showing = Showing(named ?? string.Empty, style, !readOnly, state.Raw, 0) with { Unchanged = _unchanged, Targets = _targets };
+    var asked = new SortedSet<int>(wanted(Placed(language, showing, room, readOnly).Tops));
 
-        Stage(language, units, showing, window.Document);
+        // A unit a slower reading landed for is laid again wherever it stands, as it would have been laid had the reading been there.
+        if (_relanded.Count > 0)
+        {
+            for (var index = 0; index < _units.Count; index++)
+                if (_relanded.Contains(_units[index].Unit.Tree)) asked.Add(index);
 
-        // What its blocks come to across the units laid, and what of that the reader folded away.
+            _relanded.Clear();
+        }
+
+        Stage(language, asked, showing);
+
+        // What every unit read says to the outline, and what of that the reader folded away.
         InStep();
         Fold();
 
-        return Composed(language, showing, room, readOnly, holding);
+        return Composed(language, showing, room, readOnly, holding, asked, window.Units.Done ? 0 : window.Document.Length - window.Units.Reached);
     }
 
 
@@ -148,7 +157,8 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     {
         _unchanged.Forget();
         _unkept = true;
-        _forgotten++;
+    _forgotten++;
+        _landings++;
 
         if (_whole?.Units is { Count: 1 } units && units[0].Unit.Provisional) _whole = null;
     }
@@ -305,7 +315,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// </summary>
     public DiagramViewState? Opened(ContentPart holder) =>
         holder.Parent is null ? _top
-        : holder.Part(Roles.Body) is { } body && _views.TryGetValue(body.Start, out var view) ? view : null;
+        : holder.Part(Roles.Body) is { } body ? Diagram(body.Start) : null;
 
     /// <summary>
     /// What <paramref name="holder"/> holds in another language, read by that language, worked over and laid out at

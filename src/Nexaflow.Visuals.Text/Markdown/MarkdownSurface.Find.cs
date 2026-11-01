@@ -317,21 +317,34 @@ public sealed partial class MarkdownSurface
     {
         if (offset < 0 || _scroller.ViewportHeight <= 0) return false;
 
+        // A long document lays where it is asked, and nothing before it, first.
+        _engine.Uncover(offset);
+
         var root = _shown.Laid.Root;
 
         // Where the page can stand from that character on. The character itself is often one the page draws
         // nothing for — a heading's hashes, the line a fence opens with — and a caret put there stands at the end
         // of whatever came before it, which is a line or a whole paragraph too early.
-        var drawn = root.CaretStops().FirstOrDefault(stop => stop >= offset, -1);
-        if (drawn < 0) return false;
+        var stops = root.CaretStops();
+        var (low, high) = (0, stops.Count);
 
-        var at = root.CaretRect(drawn);
+        while (low < high)
+        {
+            var middle = (low + high) / 2;
+            if (stops[middle] >= offset) high = middle;
+            else low = middle + 1;
+        }
+
+        if (low >= stops.Count) return false;
+
+        var at = root.CaretRect(stops[low]);
         if (at.IsEmpty) return false;
 
         // How far below the top of the page it stands now, which is how much further down the document to stand.
         var below = _shown.TranslatePoint(new Point(0, at.Y * _shown.Zoom), _scroller).Y;
 
         _scroller.ScrollToVerticalOffset(_scroller.VerticalOffset + below);
+        PageMoving(scrolling: false);
 
         return true;
     }

@@ -26,11 +26,4 @@ public static class MarkdownAnchors
         anchor = Uri.UnescapeDataString(url[1..]);
         return true;
     }
-
-    /// <summary>
-    /// Where the heading answering to <paramref name="anchor"/> is written, going by what working the whole document over found
-    /// (<see cref="LinkTargets"/>) — for one not laid out yet — or null where none does.
-    /// </summary>
-    public static int? Written(LinkTargets targets, string anchor) =>
-        targets.Named(Kinds.Outline, anchor.ToLowerInvariant())?.At;
 }

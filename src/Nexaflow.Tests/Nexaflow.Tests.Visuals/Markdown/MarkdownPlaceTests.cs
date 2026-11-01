@@ -76,6 +76,30 @@ public class MarkdownPlaceTests
 
     [TestMethod]
     [CoversNode("markdown-surface")]
+    [CoversNode("windowed-reading")]
+    public void InALongDocument_ThePageStaysWhereItWasPut_AsWhatIsAboveItIsLaid() => UiThread.Run(() =>
+    {
+        // Long enough to be laid a stretch at a time, so everything above the place is an estimate until the page is put there.
+        var filler = string.Concat(Enumerable.Repeat("filler paragraph line\n\n", 4000));
+        var doc = "top of the document\n\n" + filler + "ZEBRA stands alone\n\n" + filler;
+        var marker = doc.IndexOf("ZEBRA", StringComparison.Ordinal);
+
+        MarkdownEditorHarness.Run(doc, editor =>
+        {
+            Assert.IsTrue(editor.ShowFrom(marker), "there is a place in the laid-out page for it to stand at");
+
+            for (var turn = 0; turn < 20; turn++)
+            {
+                editor.UpdateLayout();
+                MarkdownEditorHarness.Pump();
+            }
+
+            Assert.AreEqual(marker, editor.ShownFrom, "what stands above it came to its height and the page went with it");
+        });
+    });
+
+    [TestMethod]
+    [CoversNode("markdown-surface")]
     public void AndACharacterItDrawsNothingForStandsWhereThatLineDoes() => UiThread.Run(() =>
     {
         // A heading's hashes are written but never drawn, so the page has no place for the '#' itself. It has to

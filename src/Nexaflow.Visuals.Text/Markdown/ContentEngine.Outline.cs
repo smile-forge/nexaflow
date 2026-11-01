@@ -20,8 +20,8 @@ public sealed partial class ContentEngine
     /// <summary>What the content laid comes to across its units.</summary>
     private readonly ContentOutline _outline = new();
 
-    /// <summary>The units the outline is in step with, one for each of its own.</summary>
-    private readonly List<StagedUnit> _outlined = [];
+    /// <summary>What each unit the outline is in step with said to it, one for each of its own.</summary>
+    private readonly List<OutlineUnit> _outlined = [];
 
     /// <summary>The sections folded away as last laid, in the order written — none inside another, whose heading is not laid.</summary>
     private List<OutlineSection> _folded = [];
@@ -29,7 +29,7 @@ public sealed partial class ContentEngine
     /// <summary>Says that a heading of the content laid came, went, or now says or answers to something else.</summary>
     internal event EventHandler? OutlineChanged;
 
-    /// <summary>Every heading of the content's own blocks laid, in the order written — what an outline panel lists.</summary>
+    /// <summary>Every heading of the content's own blocks read, in the order written — what an outline panel lists.</summary>
     internal IReadOnlyList<OutlineHeading> Headings => [.. _outline.Headings()];
 
     /// <summary>Where the heading a list of them handed on now stands, or null where no heading answers to its name any more.</summary>
@@ -205,29 +205,33 @@ public sealed partial class ContentEngine
         block is { Parent: { Parent: null } } && _outline.EntryAt(block.Start) is { } entry ? _outline.Section(entry.Unit, entry.Entry) : null;
 
     /// <summary>
-    /// Brings the outline into step with the units laid: the units either end of it that are the ones it was in step with are kept,
-    /// and every unit between says what its blocks — worked over on their own — say to it. Says so (<see cref="OutlineChanged"/>)
-    /// where a heading came, went, or now says or answers to something else.
+    /// Brings the outline into step with every unit read: what each unit says to it is what working it over found, or its width alone where
+    /// nothing has worked it over yet, so the outline's offsets hold for the whole of what is read. The units either end that say what they
+    /// said when it was last in step are kept, and those between replace what stood there. Says so (<see cref="OutlineChanged"/>) where a
+    /// heading came, went, or now says or answers to something else.
     /// </summary>
     private void InStep()
     {
-        var units = _laidUnits;
+        var units = new List<OutlineUnit>(_units.Count);
+
+        foreach (var (unit, _) in _units)
+            units.Add(_facts.TryGetValue(unit.Tree, out var facts) ? facts.Outline : _unworked.GetValue(unit.Tree, _ => OutlineUnit.Of([], unit.Width)));
 
         var first = 0;
-        while (first < units.Count && first < _outlined.Count && ReferenceEquals(units[first].Unit, _outlined[first])) first++;
+        while (first < units.Count && first < _outlined.Count && ReferenceEquals(units[first], _outlined[first])) first++;
 
         var last = 0;
-        while (last < units.Count - first && last < _outlined.Count - first && ReferenceEquals(units[^(last + 1)].Unit, _outlined[^(last + 1)])) last++;
+        while (last < units.Count - first && last < _outlined.Count - first && ReferenceEquals(units[^(last + 1)], _outlined[^(last + 1)])) last++;
 
         if (first == units.Count && first == _outlined.Count) return;
 
-        var gathered = units.Skip(first).Take(units.Count - first - last).Select(laid => laid.Unit.Outline).ToList();
+        var gathered = units.GetRange(first, units.Count - first - last);
 
         var was = Enumerable.Range(first, _outlined.Count - last - first).SelectMany(index => Listed(_outline[index].Unit)).ToList();
         var renamed = _outline.Replaced(first, _outlined.Count - last, gathered);
 
         _outlined.RemoveRange(first, _outlined.Count - last - first);
-        _outlined.InsertRange(first, units.Skip(first).Take(gathered.Count).Select(laid => laid.Unit));
+        _outlined.InsertRange(first, gathered);
 
         if (renamed.Count > 0 || !was.SequenceEqual(gathered.SelectMany(Listed))) OutlineChanged?.Invoke(this, EventArgs.Empty);
     }

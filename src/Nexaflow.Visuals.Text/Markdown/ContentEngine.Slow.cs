@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 
@@ -37,12 +38,24 @@ public sealed partial class ContentEngine
 
     /// <summary>
     /// Raised, on any thread, when a second reading of something this engine read has landed. Whatever shows the content moves to
-    /// its own thread and lays it again (<see cref="Refresh"/>).
+    /// its own thread and lays again what waited on it (<see cref="RelayLanded"/>).
     /// </summary>
     internal event EventHandler? Reread;
 
     /// <summary>How many second readings this engine has asked for and has not yet been told the end of.</summary>
     private int _reading;
+
+    /// <summary>The unit being worked over or laid — whatever slow work it asks for and has to wait on, it is the one laid again when that lands.</summary>
+    private ContentNode? _asking;
+
+    /// <summary>Which units, by the tree each was read into, wait on each piece of slow work this engine asked for.</summary>
+    private readonly Dictionary<Kept, List<ContentNode>> _waits = [];
+
+    /// <summary>The units, by the tree each was read into, that slow work landed for since they were last laid — laid again wherever they stand.</summary>
+    private readonly HashSet<ContentNode> _relanded = new(ReferenceEqualityComparer.Instance);
+
+    /// <summary>The slow work this engine asked for that has been done since it last laid what waited on it, landed or failed.</summary>
+    private readonly ConcurrentQueue<Kept> _landed = new();
 
     /// <summary>
     /// Whether a second reading this content asked for is still to land — code fenced in a grammar, a spelling being
@@ -88,6 +101,7 @@ public sealed partial class ContentEngine
             if (Waiting.TryGetValue(key, out var waiting))
             {
                 if (!waiting.Contains(this)) { waiting.Add(this); _reading++; }
+                this.Waits(key);
                 return null;
             }
 
@@ -95,8 +109,57 @@ public sealed partial class ContentEngine
             _reading++;
         }
 
+        this.Waits(key);
         ThreadPool.QueueUserWorkItem(static job => Land(job.Key, job.Work), (Key: key, Work: work), preferLocal: false);
         return null;
+    }
+
+    /// <summary>Remembers that the unit being worked over or laid, if any, waits on the slow work kept by <paramref name="key"/>.</summary>
+    private void Waits(Kept key)
+    {
+        if (_asking is not { } unit) return;
+
+        if (!_waits.TryGetValue(key, out var asked)) _waits[key] = asked = [];
+        if (!asked.Contains(unit)) asked.Add(unit);
+    }
+
+    /// <summary>
+    /// Lays again what the slow work that has landed since was asked for by, and nothing else: each unit that asked is laid afresh — and
+    /// worked over again, where what landed is a slow stage's finding — and every body read before its second reading landed is read again
+    /// where it is next laid. Content read whole whose own reading landed is read again.
+    /// </summary>
+    internal void RelayLanded()
+    {
+        var landed = false;
+
+        while (_landed.TryDequeue(out var key))
+        {
+            landed = true;
+            if (!_waits.Remove(key, out var asked)) continue;
+
+            foreach (var read in asked)
+            {
+                if (!_staged.TryGetValue(read, out var staged)) continue;
+
+                _unchanged.Forget(staged.Tree, static _ => true);
+                staged.Laid = null;
+                staged.Stale |= key.Stage is not null;
+                _relanded.Add(read);
+            }
+        }
+
+        if (!landed) return;
+
+        _landings++;
+
+        if (_whole?.Units is { Count: 1 } units && units[0].Unit.Provisional)
+        {
+            _whole = null;
+            _unchanged.Forget();
+            _unkept = true;
+        }
+
+        Relay();
     }
 
     /// <summary>Whether the slow work kept by <paramref name="key"/> has landed — asking for nothing to be started.</summary>
@@ -126,8 +189,12 @@ public sealed partial class ContentEngine
             Waiting.Remove(key, out told);
 
             // Asked for and answered, whatever it came to: an engine is no longer reading this even where the work
-            // failed and there is nothing new to tell it about.
-            foreach (var engine in told ?? []) engine._reading--;
+            // failed and there is nothing new to tell it about — nor waiting on it.
+            foreach (var engine in told ?? [])
+            {
+                engine._reading--;
+                engine._landed.Enqueue(key);
+            }
 
             if (done is null) return;
 

@@ -51,23 +51,15 @@ public sealed class DiagramViewState
 public sealed class DiagramViewStates
 {
     private readonly List<DiagramViewState> _states = [];
-    private int _next;
 
-    /// <summary>Starts a render pass. Call before building a document.</summary>
-    public void Rewind() => _next = 0;
-
-    /// <summary>The state for the next diagram in document order, created on first sight.</summary>
-    public DiagramViewState Next()
+    /// <summary>The state for the diagram at <paramref name="ordinal"/> in document order, created on first sight.</summary>
+    public DiagramViewState At(int ordinal)
     {
-        while (_states.Count <= _next) _states.Add(new DiagramViewState());
-        return _states[_next++];
+        while (_states.Count <= ordinal) _states.Add(new DiagramViewState());
+        return _states[ordinal];
     }
 
     /// <summary>Forgets everything, so the next render starts fitted and unselected. For a host
     /// command that means "start over" — collapsing a whole tree, or loading a different one.</summary>
-    public void Clear()
-    {
-        _states.Clear();
-        _next = 0;
-    }
+    public void Clear() => _states.Clear();
 }

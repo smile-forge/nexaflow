@@ -139,7 +139,15 @@ public class ContentElement : FrameworkElement
         Dispatcher.BeginInvoke(() => _engine.Rebind(changed));
 
     /// <summary>A slower reading of what is shown landed on whatever thread read it; the content is laid out again here, on this element's.</summary>
-    private void OnReread(object? sender, EventArgs args) => Dispatcher.BeginInvoke(Refresh);
+    private void OnReread(object? sender, EventArgs args) => Dispatcher.BeginInvoke(Relanded);
+
+    /// <summary>Lays again what a slower reading that landed was asked for by, and nothing else.</summary>
+    private void Relanded()
+    {
+        _engine.RelayLanded();
+        InvalidateMeasure();
+        InvalidateVisual();
+    }
 
     /// <summary>
     /// A long document has more to lay — the reader came near what was not laid yet, or more of it has been read — on whatever

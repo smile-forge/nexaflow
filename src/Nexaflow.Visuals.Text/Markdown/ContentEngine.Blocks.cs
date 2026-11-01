@@ -61,6 +61,8 @@ public sealed partial class ContentEngine
         get => _showing;
         set
         {
+            // Told where the screen is, wherever it was being moved to has been reached.
+            ScreenMoving = false;
             if (_showing == value) return;
 
             _showing = value;
@@ -190,8 +192,8 @@ public sealed partial class ContentEngine
 
         var seen = false;
 
-        for (var at = UnitAt(holding.Start); at < _laidUnits.Count; at++)
-            foreach (var block in Inside(PlacedAt(at)))
+        for (var at = Holding(holding.Start); at >= 0 && at < _units.Count; at++)
+            foreach (var block in PlacedAt(at) is { } reading ? Inside(reading) : [])
             {
                 if (seen) return block;
                 seen = ReferenceEquals(block.Node, holding.Node);

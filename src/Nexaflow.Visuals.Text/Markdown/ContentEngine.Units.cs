@@ -13,64 +13,93 @@ using Nexaflow.Visuals.Text.Painting;
 namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
-/// The content laid a unit at a time: each unit of its reading worked over by its language's stages from its own tree, and laid
-/// from that on its own, kept while what it was worked over and laid with stands — so a keystroke works over and lays the unit
-/// it fell in, and every other unit is set down again where it now stands.
+/// The content laid a unit at a time. Every unit of its reading stands on the page at a height — the one it was laid at, where a
+/// laying of it stands, and otherwise what its characters come to at the height a character of what is laid came to — and only the
+/// units the caller asks for are worked over by the language's stages and laid, each from its own tree, and kept while what it was
+/// worked over and laid with stands. So a keystroke works over and lays the unit it fell in, and a jump to the end lays the end.
 ///
 /// <para>
-/// <strong>What one unit says reaches the others through the engine.</strong> What a unit defines is gathered into the
-/// document's link targets, in order, and a unit's stages are answered from those, every question remembered — so a definition
-/// that changes what it means works over again only the units that asked about it. What a unit's blocks come to across the
-/// document is the outline's (<see cref="ContentOutline"/>), and which diagram is which, for what the reader opened in each, is
-/// counted unit by unit.
+/// <strong>What one unit says reaches the others through the engine.</strong> What every unit read says to the rest of the document —
+/// what it defines, and what its blocks say to the outline — is known whether or not it is laid (<see cref="UnitFacts"/>): from the
+/// stages that worked it over to lay it, or from working it over in the background. What the units define is gathered into the
+/// document's link targets, in order, and a unit's stages are answered from those, every question remembered — so a definition that
+/// changes what it means works over again only the units that asked about it.
 /// </para>
 /// <para>
-/// <strong>The document is its units.</strong> What is laid is a document piece holding one mount per unit, the gap at each seam
-/// said by the language from the blocks either side; what reads the document as blocks asks the unit holding the place, through a
-/// reading of that unit placed where it starts.
+/// <strong>The document is its units.</strong> What is laid is a document piece holding a mount for each unit laid, put down where the
+/// heights above it put it, the gap at each seam between two laid units said by the language from the blocks either side. What reads
+/// the document as blocks asks the unit holding the place, through a reading of that unit placed where it starts — worked over then,
+/// where nothing has yet.
 /// </para>
 /// </summary>
 public sealed partial class ContentEngine
 {
-    /// <summary>The units laid, each as it was worked over, with where it starts — in order.</summary>
-    private List<(StagedUnit Unit, int Start)> _laidUnits = [];
+    /// <summary>Every unit of the reading shown, with where it starts, in order.</summary>
+    private List<(ContentUnit Unit, int Start)> _units = [];
 
-    /// <summary>The version of the document the units were last laid from.</summary>
-    private ContentDocument _laidIn = ContentDocument.Of(string.Empty);
+    /// <summary>The version of the document the units are of.</summary>
+    private ContentDocument _unitsIn = ContentDocument.Of(string.Empty);
+
+    /// <summary>Each unit worked over, by the tree it was read into — kept while that tree is read, laid or not, so its height outlives being off screen.</summary>
+    private Dictionary<ContentNode, StagedUnit> _staged = new(ReferenceEqualityComparer.Instance);
+
+    /// <summary>What each unit read says to the rest of the document, by the tree it was read into, once something has worked it over.</summary>
+    private readonly ConditionalWeakTable<ContentNode, UnitFacts> _facts = new();
+
+    /// <summary>What a unit nothing has worked over yet says to the outline: how wide it is, and nothing more.</summary>
+    private readonly ConditionalWeakTable<ContentNode, OutlineUnit> _unworked = new();
+
+    /// <summary>Where on the page each unit stood as last laid — and, one past the last, where what is read ends.</summary>
+    private double[] _tops = [0];
+
+    /// <summary>Which units stood laid as last laid, the laying of each standing.</summary>
+    private bool[] _standing = [];
+
+    /// <summary>How tall a character of what was laid came to, as last laid — or zero before anything has been.</summary>
+    private double _perCharacter;
+
+    /// <summary>The language and showing the units were last worked over in, which a unit worked over to be read rather than laid is worked over in too.</summary>
+    private (ContentLanguage Language, ContentShowing Showing)? _stagedBy;
 
     /// <summary>How many times what the units define has come to mean something else — what a unit kept was last held to.</summary>
     private int _defined;
 
-    /// <summary>What the units defined, as it means, when it last changed.</summary>
-    private string _definedMeant = string.Empty;
+    /// <summary>What each unit said of itself when what the units define was last gathered, in order — null for a unit nothing had worked over.</summary>
+    private List<UnitFacts?> _definedBy = [];
+
+    /// <summary>How many diagrams are written in the units before each, in order — which diagram is which, for what the reader opened in it.</summary>
+    private int[] _diagramsBefore = [];
 
     /// <summary>The places in each unit's reading where a diagram's body starts, in order, by the unit's tree.</summary>
     private static readonly ConditionalWeakTable<ContentNode, int[]> DiagramsIn = new();
 
     /// <summary>
-    /// Brings what each unit of <paramref name="units"/> was worked over into up to date: a unit whose tree, showing and the
+    /// Brings what the units <paramref name="wanted"/> picks out were worked over into up to date: a unit whose tree, showing and the
     /// answers it was given stand is kept, and every other is worked over again, the blocks of those it replaces handed to
-    /// <see cref="WithUnchanged"/> first. What the units define is gathered into the document's link targets, and a unit kept that
-    /// asked about a definition now meaning something else is worked over again.
+    /// <see cref="WithUnchanged"/> first. Every unit no longer read is let go. What the units define is gathered into the document's link
+    /// targets, and a unit wanted that asked about a definition now meaning something else is worked over again.
     /// </summary>
-    private void Stage(ContentLanguage language, List<(ContentUnit Unit, int Start)> units, ContentShowing showing, ContentDocument document)
+    private void Stage(ContentLanguage language, IReadOnlyCollection<int> wanted, ContentShowing showing)
     {
-        var was = new Dictionary<ContentNode, StagedUnit>(ReferenceEqualityComparer.Instance);
-        foreach (var (staged, _) in _laidUnits) was.TryAdd(staged.Read, staged);
+        var now = new Dictionary<ContentNode, StagedUnit>(ReferenceEqualityComparer.Instance);
+        foreach (var (unit, _) in _units)
+            if (_staged.Remove(unit.Tree, out var kept)) now[unit.Tree] = kept;
 
-        var now = new StagedUnit?[units.Count];
-        var leaving = new List<StagedUnit>();
+        // What is no longer read — read again from a change — is what the units read in its place are matched against.
+        var leaving = new List<StagedUnit>(_staged.Values);
+        var again = new List<int>();
 
-        for (var index = 0; index < units.Count; index++)
+        foreach (var index in wanted)
         {
-            var (unit, start) = units[index];
-            if (!was.Remove(unit.Tree, out var kept)) continue;
+            var (unit, start) = _units[index];
+            if (now.TryGetValue(unit.Tree, out var kept) && kept.Key == this.KeyFor(showing, start, unit.Width) && !kept.Stale) continue;
 
-            if (kept.Key == this.KeyFor(showing, start, unit.Width) && !kept.Stale) now[index] = kept;
-            else leaving.Add(kept);
+            if (kept is not null) leaving.Add(kept);
+            again.Add(index);
         }
 
-        leaving.AddRange(was.Values);
+        _staged = now;
+        _stagedBy = (language, showing);
 
         // Blocks of the units leaving are what the blocks of the units replacing them are matched against — none, once told that
         // nothing laid is to be set down as it was.
@@ -80,78 +109,111 @@ public sealed partial class ContentEngine
 
         _unkept = false;
 
-        for (var index = 0; index < units.Count; index++)
-            now[index] ??= this.Staged(language, units[index].Unit, units[index].Start, showing, document);
+        foreach (var index in again) this.Restaged(language, index, showing);
 
-        // What the units define, gathered — and a unit that asked about something now meaning otherwise, worked over again. A unit
-        // defines what its own characters say, so working one over again changes nothing it defines, and once is enough.
-        this.Defined(units, now);
+        // What the units define, gathered — and a unit wanted that asked about something now meaning otherwise, worked over again. A
+        // unit defines what its own characters say, so working one over again changes nothing it defines, and once is enough.
+        this.Defined();
 
-        for (var index = 0; index < units.Count; index++)
+        foreach (var index in wanted)
+        {
+            var staged = _staged[_units[index].Unit.Tree];
+            if (staged.Defined == _defined) continue;
+
+            if (staged.Targets.Answered())
             {
-                var staged = now[index]!;
-                if (staged.Defined == _defined) continue;
-
-                if (staged.Targets.Answered())
-                {
-                    staged.Defined = _defined;
-                    continue;
-                }
-
-                _unchanged.Leaving(staged.Tree);
-                now[index] = this.Staged(language, units[index].Unit, units[index].Start, showing, document);
+                staged.Defined = _defined;
+                continue;
             }
 
-        _unchanged.Settle();
+            _unchanged.Leaving(staged.Tree);
+            this.Restaged(language, index, showing);
+        }
 
-        _laidUnits = [.. now.Select((staged, index) => (staged!, units[index].Start))];
-        _laidIn = document;
+        _unchanged.Settle();
+    }
+
+    /// <summary>The unit at <paramref name="index"/> worked over afresh, kept, and what it says to the rest of the document said.</summary>
+    private StagedUnit Restaged(ContentLanguage language, int index, ContentShowing showing)
+    {
+        var (unit, start) = _units[index];
+        var staged = this.Staged(language, unit, start, showing, _unitsIn);
+
+        _staged[unit.Tree] = staged;
+        return staged;
     }
 
     /// <summary>
     /// <paramref name="unit"/>'s own tree, starting at <paramref name="start"/> in <paramref name="document"/>, worked over by its
     /// language's stages: offsets the unit's own, the showing standing where it starts, and link targets of its own over the
-    /// document's.
+    /// document's — and what that says to the rest of the document, said (<see cref="UnitFacts"/>).
     /// </summary>
     private StagedUnit Staged(ContentLanguage language, ContentUnit unit, int start, ContentShowing showing, ContentDocument document)
     {
-        var tree = Bound(language, unit.Tree);
-        var targets = new LinkTargets(_targets);
-        var own = showing with { At = start, Targets = targets };
+        var asking = _asking;
+        _asking = unit.Tree;
 
-        var stages = language.Stages(tree, own).OfType<IAstStage>()
-                             .Select(stage => stage is ISlowStage slow ? Staging(language, document.Stretch(start, unit.Width), slow) : stage)
-                             .ToList();
+        try
+        {
+            var tree = Bound(language, unit.Tree);
+            var targets = new LinkTargets(_targets);
+            var own = showing with { At = start, Targets = targets };
 
-        var worked = stages.Count == 0 ? tree : new AstPipeline(stages).Run(tree);
+            var stages = language.Stages(tree, own).OfType<IAstStage>()
+                                 .Select(stage => stage is ISlowStage slow ? Staging(language, document.Stretch(start, unit.Width), slow) : stage)
+                                 .ToList();
 
-        return new StagedUnit(unit.Tree, worked, unit.Width, this.KeyFor(showing, start, unit.Width), targets, _defined,
-                              OutlineUnit.Of(worked.Children, unit.Width));
+            var worked = stages.Count == 0 ? tree : new AstPipeline(stages).Run(tree);
+
+            this.Said(unit.Tree, new UnitFacts(OutlineUnit.Of(worked.Children, unit.Width), targets.Reported, targets.Defined));
+
+            return new StagedUnit(unit.Tree, worked, unit.Width, this.KeyFor(showing, start, unit.Width), targets, _defined);
+        }
+        finally
+        {
+            _asking = asking;
+        }
+    }
+
+    /// <summary>Keeps what the unit read into <paramref name="read"/> says of itself — the one it said before, where it says the same.</summary>
+    private void Said(ContentNode read, UnitFacts facts)
+    {
+        if (_facts.TryGetValue(read, out var said) && said.Same(facts)) return;
+
+        _facts.AddOrUpdate(read, facts);
     }
 
     /// <summary>
-    /// Gathers what the units define into the document's link targets, in order, each where it now stands — counting it as a change
-    /// to what the units define where it now means something it did not.
+    /// Gathers what every unit read defines into the document's link targets, in order — again only where a unit now says something
+    /// other than it did, and counted as a change to what the units define only where that means something else. A unit nothing has
+    /// worked over yet defines nothing until something has.
     /// </summary>
-    private void Defined(List<(ContentUnit Unit, int Start)> units, StagedUnit?[] now)
+    private void Defined()
     {
-        if (!now.Any(staged => staged!.Targets.Reported)) return;
+        var by = new List<UnitFacts?>(_units.Count);
+        foreach (var (unit, _) in _units) by.Add(_facts.TryGetValue(unit.Tree, out var facts) ? facts : null);
+
+        var first = 0;
+        while (first < by.Count && first < _definedBy.Count && ReferenceEquals(by[first], _definedBy[first])) first++;
+
+        var last = 0;
+        while (last < by.Count - first && last < _definedBy.Count - first && ReferenceEquals(by[^(last + 1)], _definedBy[^(last + 1)])) last++;
+
+        var was = _definedBy;
+        _definedBy = by;
+
+        if (first == by.Count && first == was.Count) return;
+        if (UnitFacts.Meant(was.Skip(first).Take(was.Count - first - last)) == UnitFacts.Meant(by.Skip(first).Take(by.Count - first - last))) return;
+        if (!by.Any(facts => facts?.Reports == true)) return;
 
         var defined = new List<LinkTarget>();
-        var reach = 0;
 
-        for (var index = 0; index < units.Count; index++)
-        {
-            var (unit, start) = units[index];
-            foreach (var target in now[index]!.Targets.Defined) defined.Add(target with { At = target.At + start });
+        for (var index = 0; index < by.Count; index++)
+            foreach (var target in by[index]?.Defined ?? [])
+                defined.Add(target with { At = target.At + _units[index].Start });
 
-            reach = start + unit.Width;
-        }
-
-        _targets.Report(reach, defined);
-
-        var meant = string.Join('\n', defined.Select(target => $"{target.Kind}\t{target.Name}\t{target.Meaning}\t{target.Title}"));
-        if (meant != _definedMeant) (_definedMeant, _defined) = (meant, _defined + 1);
+        _targets.Report(_unitsIn.Length, defined);
+        _defined++;
     }
 
     /// <summary>What a unit starting at <paramref name="start"/>, <paramref name="width"/> long, is worked over with.</summary>
@@ -161,62 +223,147 @@ public sealed partial class ContentEngine
             _forgotten);
 
     /// <summary>
-    /// Lays out every unit laid whose laying no longer stands, and puts them together: a document piece holding each unit's tree,
-    /// mounted where its unit now starts, the gap at each seam said by the language. One unit standing where it was laid is the
-    /// whole of what was laid.
+    /// Whether the unit at <paramref name="index"/> shows anything: one with no block of its own — trivia between blocks, a document's
+    /// closing marks — takes no room and is laid only where it is the whole of the content, which shows something whatever it holds.
+    /// One nothing has worked over yet is taken to.
     /// </summary>
-    private Laid Composed(ContentLanguage language, ContentShowing showing, double room, bool readOnly, Keeping holding)
+    private bool Shows(int index) =>
+        _units.Count == 1 || !_facts.TryGetValue(_units[index].Unit.Tree, out var facts) || facts.Outline.Blocks > 0;
+
+    /// <summary>
+    /// What the unit at <paramref name="index"/> was laid into, where that laying still stands: worked over as it would be now, and laid
+    /// at <paramref name="room"/>, only read or not as it is to be, and with the folds that reach into it as they now are.
+    /// </summary>
+    private LaidUnit? Standing(int index, ContentShowing showing, double room, bool readOnly)
     {
-        // A unit with no block of its own to show — trivia between blocks, a document's closing marks — is laid only where it is
-        // the whole of the content, which shows something whatever it holds.
-        bool Shows(StagedUnit staged) => _laidUnits.Count == 1 || staged.Outline.Blocks > 0;
+        var (unit, start) = _units[index];
 
-        foreach (var (staged, start) in _laidUnits)
+        return _staged.TryGetValue(unit.Tree, out var staged) && !staged.Stale && staged.Key == this.KeyFor(showing, start, unit.Width)
+               && staged.Laid is { } laid && laid.Room == room && laid.ReadOnly == readOnly && laid.Folds == this.Folds(start, unit.Width)
+            ? laid
+            : null;
+    }
+
+    /// <summary>Whether <paramref name="laid"/> laid any block of its unit: one all trivia, definitions, or folded away, laid nothing.</summary>
+    private static bool Drew(ContentLanguage language, LaidUnit laid) =>
+        laid.Laid.Exists && (language.Seam is null || laid.Laid.Ends.First is not null);
+
+    /// <summary>
+    /// Where each unit stands on the page: the units whose laying stands, at the height each was laid at, the gap at a seam between two
+    /// of them said by the language; every other at an estimate — its height when last laid, where it was, and otherwise its characters
+    /// at the height a character of what stands laid comes to. With, for each unit, its laying where that stands, and that height.
+    /// </summary>
+    private (double[] Tops, LaidUnit?[] Laid, double PerCharacter) Placed(ContentLanguage language, ContentShowing showing, double room, bool readOnly)
+    {
+        var count = _units.Count;
+        var laid = new LaidUnit?[count];
+        var (high, wide) = (0.0, 0L);
+
+        for (var index = 0; index < count; index++)
         {
-            if (!Shows(staged)) continue;
+            if (!this.Shows(index) || this.Standing(index, showing, room, readOnly) is not { } standing) continue;
 
-            var folds = this.Folds(start, staged.Width);
-            if (staged.Laid is { } kept && kept.Room == room && kept.ReadOnly == readOnly && kept.Folds == folds) continue;
-
-            var reading = staged.Placed(start, _laidIn);
-            _readings.AddOrUpdate(staged.Tree, holding.Address);
-
-            staged.Laid = new LaidUnit(Builder(language, reading, showing, LayoutStanding.Alone, holding, Folding).Lay(room), start, reading.Root,
-                                       room, readOnly, folds);
+            laid[index] = standing;
+            if (Drew(language, standing)) (high, wide) = (high + standing.Laid.Height, wide + _units[index].Unit.Width);
         }
 
-        if (_laidUnits is [var (only, at)] && only.Laid!.Start == at) return only.Laid.Laid;
+        var perCharacter = wide > 0 ? high / wide : Unsaid(showing.Style, room);
+        var tops = new double[count + 1];
+        var (y, above) = (0.0, (ContentPart?)null);
 
-        var into = new LayoutBuilder(WpfMedium.OnThisThread, _laidUnits.Count + 1);
+        for (var index = 0; index < count; index++)
+        {
+            tops[index] = y;
+            if (!this.Shows(index)) continue;
+
+            if (laid[index] is not { } standing)
+            {
+                var (unit, _) = _units[index];
+                y += _staged.TryGetValue(unit.Tree, out var staged) && staged.Laid is { } was ? was.Laid.Height : unit.Width * perCharacter;
+                above = null;
+                continue;
+            }
+
+            if (!Drew(language, standing)) continue;
+
+            if (above is not null && standing.Laid.Ends.First is { } first && language.Seam is { } seam) y += seam(above, first, showing.Style);
+
+            tops[index] = y;
+            y += standing.Laid.Height;
+            above = standing.Laid.Ends.Last ?? above;
+        }
+
+        tops[count] = y;
+        return (tops, laid, perCharacter);
+    }
+
+    /// <summary>
+    /// How tall a character comes to before anything is laid to say: a line one and a half times the text size for every line's worth
+    /// of characters, each half the text size wide, across <paramref name="room"/>.
+    /// </summary>
+    private static double Unsaid(LayoutStyle style, double room) => 0.75 * style.TextSize * style.TextSize / Math.Max(room, 1);
+
+    /// <summary>
+    /// Lays out every unit <paramref name="wanted"/> picks out whose laying no longer stands, and puts the units together: a document
+    /// piece holding the tree of each unit laid, mounted where its unit stands on the page and shifted to where it now starts, every
+    /// other unit — and the <paramref name="unread"/> characters past what is read — leaving room for what it is estimated to come to.
+    /// One unit standing where it was laid is the whole of what was laid.
+    /// </summary>
+    private Laid Composed(ContentLanguage language, ContentShowing showing, double room, bool readOnly, Keeping holding, IReadOnlyCollection<int> wanted,
+                          int unread)
+    {
+        foreach (var index in wanted)
+        {
+            if (!this.Shows(index) || this.Standing(index, showing, room, readOnly) is not null) continue;
+
+            var (unit, start) = _units[index];
+            var staged = _staged[unit.Tree];
+            var reading = staged.Placed(start, _unitsIn);
+            _readings.AddOrUpdate(staged.Tree, holding.Address);
+
+            var asking = _asking;
+            _asking = unit.Tree;
+
+            try
+            {
+                staged.Laid = new LaidUnit(Builder(language, reading, showing, LayoutStanding.Alone, holding, Folding).Lay(room), start, reading.Root,
+                                           room, readOnly, this.Folds(start, unit.Width));
+            }
+            finally
+            {
+                _asking = asking;
+            }
+        }
+
+        var (tops, laid, perCharacter) = this.Placed(language, showing, room, readOnly);
+        (_tops, _standing, _perCharacter) = (tops, [.. laid.Select(standing => standing is not null)], perCharacter);
+
+        if (_units.Count == 1 && unread == 0 && laid[0] is { } only && only.Start == _units[0].Start) return only.Laid;
+
+        var into = new LayoutBuilder(WpfMedium.OnThisThread, _units.Count + 1);
         // Standing for the whole document, as the root of the reading laid whole stands for it.
-        into.Open(LayoutPieces.Document, new SourceSpan(0, _laidIn.Length), stops: LayoutStops.None);
+        into.Open(LayoutPieces.Document, new SourceSpan(0, _unitsIn.Length), stops: LayoutStops.None);
 
-        var (y, reach, above) = (0.0, 0.0, (ContentPart?)null);
+        var reach = 0.0;
         var trouble = new List<LayoutDiagnostic>();
 
-        foreach (var (staged, start) in _laidUnits)
+        for (var index = 0; index < _units.Count; index++)
         {
-            if (!Shows(staged) || staged.Laid is not { } laid) continue;
-            // A unit that laid none of its blocks — all trivia, definitions, or folded away — takes no room, whatever least size its
-            // builder gave what it laid; a language with a seam says which blocks a unit laid (Laid.Ends).
-            if (!laid.Laid.Exists || (language.Seam is not null && laid.Laid.Ends.First is null)) continue;
+            if (laid[index] is not { } standing || !Drew(language, standing)) continue;
 
-            if (above is not null && laid.Laid.Ends.First is { } first && language.Seam is { } seam) y += seam(above, first, showing.Style);
+            var by = _units[index].Start - standing.Start;
+            var mount = by == 0 ? new LayoutMount(standing.Laid.Tree) : new LayoutMount(standing.Laid.Tree, standing.Root, by);
+            into.Mount(mount, new LayoutPoint(0, tops[index]));
 
-            var by = start - laid.Start;
-            var mount = by == 0 ? new LayoutMount(laid.Laid.Tree) : new LayoutMount(laid.Laid.Tree, laid.Root, by);
-            into.Mount(mount, new LayoutPoint(0, y));
-
-            foreach (var said in laid.Laid.Trouble)
+            foreach (var said in standing.Laid.Trouble)
                 trouble.Add(by == 0 ? said : said with { Start = said.Start + by, Part = mount.Restated(said.Part) });
 
-            (y, reach) = (y + laid.Laid.Height, Math.Max(reach, laid.Laid.Width));
-            above = laid.Laid.Ends.Last ?? above;
+            reach = Math.Max(reach, standing.Laid.Width);
         }
 
         into.Close();
 
-        return new Laid(into.Seal(), Math.Max(reach, 1), Math.Max(y, 1), trouble);
+        return new Laid(into.Seal(), Math.Max(reach, 1), Math.Max(tops[^1] + (unread * perCharacter), 1), trouble);
     }
 
     /// <summary>
@@ -236,21 +383,36 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
-    /// Numbers what the reader opened in each diagram in the order the diagrams are written, a unit at a time — or, for content that
-    /// is itself a diagram, takes what was opened in it.
+    /// Counts the diagrams written in each unit, in order, so which one a body is can be said where it is asked for — or, for content
+    /// that is itself a diagram, takes what was opened in it.
     /// </summary>
-    private void Views(ContentLanguage language, List<(ContentUnit Unit, int Start)> units)
+    private void Views(ContentLanguage language)
     {
-        _views.Clear();
-        _opened.Rewind();
-
-        _top = language == ContentLanguages.Markdown ? null : _opened.Next();
+        _top = language == ContentLanguages.Markdown ? null : _opened.At(0);
+        _diagramsBefore = new int[_units.Count];
         if (_top is not null) return;
 
-        foreach (var (unit, start) in units)
-            foreach (var at in DiagramsIn.GetValue(unit.Tree, static tree => Diagrams(tree)))
-                _views[start + at] = _opened.Next();
+        var count = 0;
+
+        for (var index = 0; index < _units.Count; index++)
+        {
+            _diagramsBefore[index] = count;
+            count += DiagramsOf(_units[index].Unit.Tree).Length;
+        }
     }
+
+    /// <summary>What the reader opened in the diagram whose body starts at <paramref name="start"/>, counted in the order the diagrams are written — or null where none does.</summary>
+    private DiagramViewState? Diagram(int start)
+    {
+        if (_top is not null || this.Holding(start) is not (>= 0 and var index) || index >= _diagramsBefore.Length) return null;
+
+        var at = Array.BinarySearch(DiagramsOf(_units[index].Unit.Tree), start - _units[index].Start);
+
+        return at >= 0 ? _opened.At(_diagramsBefore[index] + at) : null;
+    }
+
+    /// <summary>Where in <paramref name="tree"/>, a unit's reading, each diagram's body starts, in order — found once for each tree.</summary>
+    private static int[] DiagramsOf(ContentNode tree) => DiagramsIn.GetValue(tree, static tree => Diagrams(tree));
 
     /// <summary>Where in <paramref name="tree"/>, a unit's reading, each diagram's body starts, in order.</summary>
     private static int[] Diagrams(ContentNode tree)
@@ -285,41 +447,65 @@ public sealed partial class ContentEngine
 
     // ── The document as its units ───────────────────────────────────────────
 
-    /// <summary>The units laid, each as a reading of it placed where it starts, in order.</summary>
-    internal IEnumerable<ContentPart> Readings => _laidUnits.Select(laid => laid.Unit.Placed(laid.Start, _laidIn).Root);
+    /// <summary>Every unit worked over, each as a reading of it placed where it starts, in order.</summary>
+    internal IEnumerable<ContentPart> Readings =>
+        _units.Where(read => _staged.ContainsKey(read.Unit.Tree)).Select(read => _staged[read.Unit.Tree].Placed(read.Start, _unitsIn).Root);
 
-    /// <summary>The reading of the unit laid holding <paramref name="offset"/>, placed where it starts — or null where nothing is laid.</summary>
-    private ContentPart? UnitHolding(int offset) => this.UnitAt(offset) is var index and >= 0 ? this.PlacedAt(index) : null;
+    /// <summary>The reading of the unit holding <paramref name="offset"/>, placed where it starts — or null where nothing is read.</summary>
+    private ContentPart? UnitHolding(int offset) => this.Holding(offset) is >= 0 and var index ? this.PlacedAt(index) : null;
 
-    /// <summary>Which of the units laid holds <paramref name="offset"/> — the last starting at or before it — or -1 where none is laid.</summary>
-    private int UnitAt(int offset)
+    /// <summary>
+    /// Which unit holds <paramref name="offset"/> — the last starting at or before it, the end of what is read held by the last — or -1
+    /// where it is past what is read, or nothing is.
+    /// </summary>
+    private int Holding(int offset)
     {
-        if (_laidUnits.Count == 0) return -1;
+        if (_units.Count == 0 || offset < 0) return -1;
 
-        var (low, high) = (0, _laidUnits.Count - 1);
+        var (last, start) = _units[^1];
+        if (offset > start + last.Width) return -1;
+
+        var (low, high) = (0, _units.Count - 1);
 
         while (low < high)
         {
             var middle = (low + high + 1) / 2;
-            if (_laidUnits[middle].Start <= offset) low = middle;
+            if (_units[middle].Start <= offset) low = middle;
             else high = middle - 1;
         }
 
         return low;
     }
 
-    /// <summary>The reading of the unit laid at <paramref name="index"/>, placed where it starts.</summary>
-    private ContentPart PlacedAt(int index) => _laidUnits[index].Unit.Placed(_laidUnits[index].Start, _laidIn).Root;
+    /// <summary>
+    /// The reading of the unit at <paramref name="index"/>, placed where it starts — worked over now where nothing has yet, as the units
+    /// laid were; null before anything has been laid to say how.
+    /// </summary>
+    private ContentPart? PlacedAt(int index)
+    {
+        var (unit, start) = _units[index];
+        if (_staged.TryGetValue(unit.Tree, out var staged)) return staged.Placed(start, _unitsIn).Root;
+        if (_stagedBy is not var (language, showing)) return null;
 
-    /// <summary>The content's own blocks laid, starting from <paramref name="from"/> up to <paramref name="to"/>, in order across its units.</summary>
+        // What it says to the rest of the document may be new: the outline and the link targets take it in when next laid.
+        staged = this.Restaged(language, index, showing);
+        Grow();
+
+        return staged.Placed(start, _unitsIn).Root;
+    }
+
+    /// <summary>The content's own blocks, starting from <paramref name="from"/> up to <paramref name="to"/>, in order across its units.</summary>
     private IEnumerable<ContentPart> Tops(int from = 0, int to = int.MaxValue)
     {
-        foreach (var (staged, start) in _laidUnits)
+        for (var index = Math.Max(this.Holding(from), 0); index < _units.Count; index++)
         {
+            var (unit, start) = _units[index];
             if (start >= to) yield break;
-            if (start + staged.Width <= from && staged.Width > 0) continue;
+            if (start + unit.Width <= from && unit.Width > 0) continue;
 
-            foreach (var part in Inside(staged.Placed(start, _laidIn).Root))
+            if (this.PlacedAt(index) is not { } reading) yield break;
+
+            foreach (var part in Inside(reading))
                 if (part.Start >= from && part.Start < to) yield return part;
         }
     }
@@ -327,12 +513,12 @@ public sealed partial class ContentEngine
     /// <summary>The written block — not trivia, nothing derived — that <paramref name="offset"/> is in, or the one starting there.</summary>
     private ContentPart? WrittenAt(int offset)
     {
-        var index = this.UnitAt(offset);
+        var index = this.Holding(offset);
         if (index < 0) return null;
 
         // The block it is in is in the unit holding it — or, where it stands at that unit's very end, the next unit's first.
-        for (var at = index; at < _laidUnits.Count && at <= index + 1; at++)
-            foreach (var block in Inside(this.PlacedAt(at)))
+        for (var at = index; at < _units.Count && at <= index + 1; at++)
+            foreach (var block in this.PlacedAt(at) is { } reading ? Inside(reading) : [])
                 if (block.End > offset) return block.Start <= offset ? block : null;
 
         return null;
@@ -358,7 +544,7 @@ public sealed partial class ContentEngine
     /// </summary>
     private void Unkeep(Func<ContentNode, bool> which, bool reread = false)
     {
-        foreach (var (staged, _) in _laidUnits)
+        foreach (var staged in _staged.Values)
         {
             var forgot = _unchanged.Forget(staged.Tree, which);
             if (!forgot && !(reread && staged.Tree.Children.Any(which))) continue;
@@ -378,7 +564,7 @@ public sealed partial class ContentEngine
     private readonly record struct StagingKey(LayoutStyle Style, bool Writing, RawZone? Shown, int Forgotten);
 
     /// <summary>A unit as its language's stages worked it over, kept by the tree it was read into, with what it was laid into.</summary>
-    private sealed class StagedUnit(ContentNode read, ContentNode tree, int width, StagingKey key, LinkTargets targets, int defined, OutlineUnit outline)
+    private sealed class StagedUnit(ContentNode read, ContentNode tree, int width, StagingKey key, LinkTargets targets, int defined)
     {
         /// <summary>Its tree as read — what it is kept by.</summary>
         public ContentNode Read { get; } = read;
@@ -397,10 +583,7 @@ public sealed partial class ContentEngine
         /// <summary>The version of what the units define it was last held to.</summary>
         public int Defined { get; set; } = defined;
 
-        /// <summary>What its blocks say to the outline.</summary>
-        public OutlineUnit Outline { get; } = outline;
-
-        /// <summary>What it was last laid into, or null before it is.</summary>
+        /// <summary>What it was last laid into, or null before it is — kept off screen, where its height is where it stands.</summary>
         public LaidUnit? Laid { get; set; }
 
         /// <summary>Whether something its stages read into it, which its characters do not say, has changed since — so it is worked over again.</summary>
@@ -426,4 +609,23 @@ public sealed partial class ContentEngine
     /// laid with — kept while the unit is, and the room, whether it is only read and the folds reaching into it are as they were.
     /// </summary>
     private sealed record LaidUnit(Laid Laid, int Start, ContentPart Root, double Room, bool ReadOnly, string Folds);
+}
+
+/// <summary>
+/// What a unit read says to the rest of its document, worked over by its language's stages on its own — with nothing a host said, which
+/// no heading or definition turns on — whether or not it is laid: what its blocks say to the outline, and what it defines.
+/// </summary>
+/// <param name="Outline">What its blocks say to the outline.</param>
+/// <param name="Reports">Whether a stage said what it defines — never, for content in a language none of whose stages look.</param>
+/// <param name="Defined">What it defines, in the order written, where in the unit each stands.</param>
+internal sealed record UnitFacts(OutlineUnit Outline, bool Reports, IReadOnlyList<LinkTarget> Defined)
+{
+    /// <summary>Whether <paramref name="other"/> says the same of the same unit.</summary>
+    public bool Same(UnitFacts other) =>
+        Reports == other.Reports && Outline.Blocks == other.Outline.Blocks && Outline.Entries.SequenceEqual(other.Outline.Entries)
+        && Defined.SequenceEqual(other.Defined);
+
+    /// <summary>What the units <paramref name="said"/> define means, compared by value: what each target means and is called, not where it stands.</summary>
+    public static string Meant(IEnumerable<UnitFacts?> said) =>
+        string.Join('\n', said.SelectMany(facts => facts?.Defined ?? []).Select(target => $"{target.Kind}\t{target.Name}\t{target.Meaning}\t{target.Title}"));
 }

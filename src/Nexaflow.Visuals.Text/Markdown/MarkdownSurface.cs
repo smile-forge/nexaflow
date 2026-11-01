@@ -72,6 +72,11 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
         _engine.Reread += Landed;
         _engine.OutlineChanged += Outlined;
 
+        // What the reader is looking at stays where it is on the screen while what stands above it comes to its height; and while
+        // the page is being moved to a place brought onto it, it is not held to where it was.
+        _engine.Shifted += (_, by) => Shift(by);
+        _engine.Revealing += (_, _) => PageMoving(scrolling: false);
+
         // And everything it asks of whatever shows the content, which is this: see IContentEvents.
         _engine.Events = this;
 
@@ -118,6 +123,36 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
             (Parent as UIElement ?? VisualTreeHelper.GetParent(this) as UIElement)?.RaiseEvent(
                 new MouseWheelEventArgs(args.MouseDevice, args.Timestamp, args.Delta) { RoutedEvent = MouseWheelEvent, Source = this });
         };
+    }
+
+    /// <summary>Where the page has been told to scroll to and has not reached yet — what a further shift adds to — or null once it has.</summary>
+    private double? _scrolling;
+
+    /// <summary>
+    /// Scrolls the page by <paramref name="by"/>, in the document's own units, on top of wherever it was last told to scroll and has not
+    /// reached yet — a scroll is done at the next layout pass, so the offset the page says until then is where it was.
+    /// </summary>
+    private void Shift(double by)
+    {
+        _scrolling = (_scrolling ?? _scroller.VerticalOffset) + (by * _shown.Zoom);
+        _scroller.ScrollToVerticalOffset(_scrolling.Value);
+
+        PageMoving(scrolling: true);
+    }
+
+    /// <summary>
+    /// Says the page is on its way somewhere — told to scroll (<paramref name="scrolling"/>), or a place brought onto it — and lets go of
+    /// that once the layout pass that takes it there is done, whether or not it moved at all.
+    /// </summary>
+    private void PageMoving(bool scrolling)
+    {
+        if (!scrolling) _engine.ScreenMoving = true;
+
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        {
+            _scrolling = null;
+            _engine.ScreenMoving = false;
+        });
     }
 
     // ── What it is ──────────────────────────────────────────────────────────

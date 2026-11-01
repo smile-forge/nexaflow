@@ -106,16 +106,105 @@ public class WindowedLayoutTests
 
     [TestMethod]
     [CoversNode("windowed-reading")]
-    public void ACaretSentToTheEnd_IsLaidOutTo()
+    public void ACaretSentToTheEnd_IsLaidThere_AndNothingBetween()
     {
         var text = Paragraphs(4000);
         var engine = Shown(text, null, new ContentEngine());
 
         engine.Apply(engine.State.MoveCaretTo(text.Length), notify: false);
-        for (var pass = 0; pass < 10_000 && engine.Unlaid; pass++) engine.Relay();
+        for (var pass = 0; pass < 10_000 && engine.UnlaidTop(text.Length) is not null; pass++) engine.Relay();
 
-        Assert.IsFalse(engine.Unlaid);
+        Assert.IsNull(engine.UnlaidTop(text.Length), "The end was never laid.");
         Assert.IsFalse(engine.Laid.Root.CaretRect(text.Length).IsEmpty, "The end has nowhere to put the caret.");
+        Assert.IsTrue(engine.Unlaid, "Everything before the end was laid too.");
+        Assert.IsTrue(engine.Laid.Tree.Count < Whole(text, null).Tree.Count / 2, $"Laid {engine.Laid.Tree.Count} pieces for the first screen and the end.");
+    }
+
+    [TestMethod]
+    [CoversNode("windowed-reading")]
+    public void WhatTheReaderIsLookingAt_StaysStill_AsWhatStandsAboveItIsLaid()
+    {
+        var text = Paragraphs(4000);
+        var engine = Shown(text, null, new ContentEngine { StretchLength = 1024 });
+        var far = text.IndexOf("Paragraph 3501 ", StringComparison.Ordinal);
+
+        Assert.IsTrue(engine.Uncover(far), "It was laid already.");
+        for (var pass = 0; pass < 10_000 && engine.UnlaidTop(far) is not null; pass++) engine.Relay();
+
+        // The first words of the unit laid there, nothing above it laid yet.
+        var start = engine.Readings.Last(unit => unit.Start <= far).Start;
+        var inside = text.IndexOf("Paragraph ", start, StringComparison.Ordinal) + 1;
+        var at = engine.Laid.Root.CaretRect(inside);
+
+        var shifted = 0.0;
+        engine.Shifted += (_, by) => shifted += by;
+
+        // The reader looks at them, so what stands a screen above them, estimated so far, is laid.
+        engine.OnScreen = new LayoutRect(0, at.Y - 10, Room, 400);
+        for (var pass = 0; pass < 20; pass++) engine.Relay();
+
+        Assert.AreNotEqual(0, shifted, "What stands above it came to the height it was estimated at, to the hair.");
+        Assert.AreEqual(at.Y + shifted, engine.Laid.Root.CaretRect(inside).Y, 1e-6, "What the reader was looking at moved by other than the page was told.");
+    }
+
+    [TestMethod]
+    [CoversNode("windowed-reading")]
+    [CoversNode("markdown-outline")]
+    public void TheOutlineOfALongDocument_HoldsEveryHeading_WithOnlyTheFirstScreenLaid()
+    {
+        var text = Paragraphs(4000);
+        var engine = Shown(text, null, new ContentEngine());
+
+        for (var round = 0; round < 3; round++)
+        {
+            Assert.IsTrue(engine.ReadingRest.Wait(Patience), "The rest was never read.");
+            engine.Relay();
+        }
+
+        Assert.IsTrue(engine.Unlaid, "All of it was laid.");
+        CollectionAssert.AreEqual(Enumerable.Range(0, 80).Select(at => $"Part {at}").ToList(), engine.Headings.Select(heading => heading.Title).ToList());
+    }
+
+    [TestMethod]
+    [CoversNode("windowed-reading")]
+    public void ASlowerReadingLanding_LaysAgainOnlyTheUnitThatAskedForIt()
+    {
+        var engine = new ContentEngine { WindowedFrom = 0, StretchLength = 512 };
+        Shown(Paragraphs(60), null, engine);
+        engine.OnScreen = new LayoutRect(0, 0, Room, 1e12);
+        Settled(engine);
+
+        // A fence written in the middle, whose reading nothing has asked for: the one slower reading still to land.
+        var middle = engine.State.Document.ToString().IndexOf("Paragraph 30 ", StringComparison.Ordinal);
+        var fence = ContentChange.Write(middle, 0, $"```csharp\n// {Guid.NewGuid():N}\nclass A {{ int B() => 1; }}\n```\n\n");
+        engine.Apply(engine.State with { Document = engine.State.Document.Apply(fence), Caret = 0, Selected = null }, notify: false);
+        for (var pass = 0; pass < 1000 && engine.Unlaid; pass++) engine.Relay();
+
+        Assert.IsTrue(SpinWait.SpinUntil(() => !engine.Rereading, Patience), "The fence's reading never landed.");
+
+        var before = Trees(engine.Laid);
+        engine.RelayLanded();
+        var after = Trees(engine.Laid);
+
+        Assert.AreEqual(before.Count, after.Count, "Units were laid or let go.");
+        Assert.AreEqual(1, after.Count(tree => !before.Contains(tree)), "Not just the unit holding the fence was laid again.");
+        Assert.IsTrue(engine.Laid.Root.SelfAndDescendants().Any(piece => piece.Kind == "keyword"), "The fence is not drawn as its reading read it.");
+
+        static List<LayoutTree> Trees(Laid laid) => [.. laid.Root.Children.Select(piece => piece.Tree!).Distinct()];
+    }
+
+    /// <summary><paramref name="engine"/> with all it is to lay laid, and every slower reading it asked for landed and laid.</summary>
+    private static void Settled(ContentEngine engine)
+    {
+        for (var round = 0; round < 8; round++)
+        {
+            for (var pass = 0; pass < 1000 && engine.Unlaid; pass++) engine.Relay();
+
+            Assert.IsTrue(SpinWait.SpinUntil(() => !engine.Rereading, Patience), "A slower reading never landed.");
+            engine.RelayLanded();
+
+            if (!engine.Rereading && !engine.Unlaid) return;
+        }
     }
 
     [TestMethod]
