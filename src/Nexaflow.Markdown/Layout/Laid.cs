@@ -68,10 +68,8 @@ public sealed record Laid(LayoutTree Tree, double Width, double Height, IReadOnl
     // The questions that need more than the tree: where the content ends, which is what makes a press past the right-hand edge mean
     // the end rather than whatever happens to be drawn nearest to it. Every other question about a pointer is asked of the root.
 
-    /// <summary>Where a caret is allowed to rest, ascending. Worked out once.</summary>
-    public IReadOnlyList<int> Stops => _stops ??= Root.CaretStops();
-
-    private IReadOnlyList<int>? _stops;
+    /// <summary>Where a caret is allowed to rest, ascending (<see cref="LayoutTree.Stops"/>).</summary>
+    public IReadOnlyList<int> Stops => Tree.Stops;
 
     /// <summary>Moves <paramref name="offset"/> to the nearest place a caret may rest.</summary>
     public int NearestStop(int offset)
@@ -176,10 +174,7 @@ public sealed record Laid(LayoutTree Tree, double Width, double Height, IReadOnl
 
     /// <summary>
     /// The places still waiting to be written in, in reading order — an argument left empty that the builder drew a box for. Empty for
-    /// content with no notion of an unfilled argument, which is most of it.
+    /// content with no notion of an unfilled argument, which is most of it (<see cref="LayoutTree.Holes"/>).
     /// </summary>
-    public IReadOnlyList<LayoutPiece> Holes =>
-        _holes ??= [.. Root.SelfAndDescendants().Where(piece => piece.Part is { Length: 0 }).OrderBy(piece => piece.Sits().Start)];
-
-    private IReadOnlyList<LayoutPiece>? _holes;
+    public IReadOnlyList<LayoutPiece> Holes => Tree.Holes;
 }

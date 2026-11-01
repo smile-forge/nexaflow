@@ -157,9 +157,72 @@ public sealed class LayoutTree
     /// <summary>
     /// Everywhere a caret may rest in this tree, in the order the right arrow visits them. Worked out on the first ask rather than at
     /// seal time, since a place is a mark on the page and a tree is settled onto the page only after it is sealed — and kept, since
-    /// stepping the caret, snapping an offset to a stop and deciding what a press means all read this same list.
+    /// stepping the caret, snapping an offset to a stop and deciding what a press means all read this same list. A tree that is only
+    /// the trees it mounts puts it together from theirs, each worked out once and kept with its tree (<see cref="MountedList{T}"/>).
     /// </summary>
-    public IReadOnlyList<CaretPlace> Places => _places ??= LayoutQuery.PlacesIn(Root);
+    public IReadOnlyList<CaretPlace> Places => _places ??=
+        this.Mounted<CaretPlace>(static tree => tree.Places,
+                                 static (mount, within) => place => new CaretPlace(new LayoutPiece(mount.Tree, place.Against.At, within), place.Trailing),
+                                 static (before, place) => before.Offset == place.Offset && LayoutQuery.Drawn(before, place))
+        ?? LayoutQuery.PlacesIn(Root);
+
+    /// <summary>Every offset a caret may rest at, ascending, each once — the offsets of <see cref="Places"/>, put together the same way.</summary>
+    public IReadOnlyList<int> Stops => _stops ??=
+        this.Mounted<int>(static tree => tree.Stops, static (mount, _) => offset => offset + mount.Shift, static (before, offset) => before == offset)
+        ?? Stopped(this.Places);
+
+    /// <summary>
+    /// The pieces still waiting to be written in, in reading order — an argument left empty that the builder drew a box for — put
+    /// together the same way.
+    /// </summary>
+    public IReadOnlyList<LayoutPiece> Holes => _holes ??=
+        this.Mounted<LayoutPiece>(static tree => tree.Holes, static (mount, within) => hole => new LayoutPiece(mount.Tree, hole.At, within), static (_, _) => false)
+        ?? Root.SelfAndDescendants().Where(piece => piece.Part is { Length: 0 }).OrderBy(piece => piece.Sits().Start).ToList();
+
+    private IReadOnlyList<int>? _stops;
+    private IReadOnlyList<LayoutPiece>? _holes;
+
+    /// <summary>
+    /// What this tree says of itself where it is only a piece holding the trees it mounts — none of which mounts any in turn — put
+    /// together from what each of them says, kept with it, seen where it is put down; null where it holds anything else.
+    /// </summary>
+    private IReadOnlyList<T>? Mounted<T>(Func<LayoutTree, IReadOnlyList<T>> own, Func<LayoutMount, LayoutMounted, Func<T, T>> seen, Func<T, T, bool> same)
+    {
+        if (this.Count < 2 || this.Root.Stops != LayoutStops.None) return null;
+
+        var parts = new List<(IReadOnlyList<T> Own, Func<T, T> Seen)>(this.Count - 1);
+
+        for (var at = 1; at < this.Count; at++)
+        {
+            if (this.MountOf(at) is not { } mount || mount.Tree.HasMounts) return null;
+            parts.Add((own(mount.Tree), seen(mount, new LayoutMounted(this, at, null))));
+        }
+
+        return new MountedList<T>(parts, same);
+    }
+
+    /// <summary>The offsets of <paramref name="places"/>, each once.</summary>
+    private static List<int> Stopped(IReadOnlyList<CaretPlace> places)
+    {
+        var stops = new List<int>();
+
+        foreach (var place in places)
+            if (stops.Count == 0 || stops[^1] != place.Offset) stops.Add(place.Offset);
+
+        return stops;
+    }
+
+    /// <summary>Whether any piece of it is a tree put down inside it.</summary>
+    private bool HasMounts
+    {
+        get
+        {
+            for (var at = 0; at < this.Count; at++)
+                if (this.MountOf(at) is not null) return true;
+
+            return false;
+        }
+    }
 
     private IReadOnlyList<CaretPlace>? _places;
 

@@ -509,24 +509,27 @@ public static class LayoutQuery
     /// </summary>
     internal static IReadOnlyList<CaretPlace> PlacesIn(LayoutPiece root)
     {
-        var declared = new List<(int Offset, int Edge, int Depth, LayoutPiece Piece)>();
+        var declared = new List<(int Offset, int Edge, int Depth, int Order, LayoutPiece Piece)>();
 
         foreach (var piece in root.SelfAndDescendants())
         {
             if (!piece.Stands()) continue;
 
             var at = piece.Sits();
-            if (piece.Stops.HasFlag(LayoutStops.After)) declared.Add((at.End, 0, piece.Depth, piece));
-            if (piece.Stops.HasFlag(LayoutStops.Before)) declared.Add((at.Start, 1, piece.Depth, piece));
+            if (piece.Stops.HasFlag(LayoutStops.After)) declared.Add((at.End, 0, piece.Depth, declared.Count, piece));
+            if (piece.Stops.HasFlag(LayoutStops.Before)) declared.Add((at.Start, 1, piece.Depth, declared.Count, piece));
         }
 
+        // Ties go in the order the pieces were walked: a sort that left them as it found them would give the same places for the same
+        // pieces however much else stood in the list, and the places after them are kept or dropped by which comes first.
         declared.Sort((a, b) =>
             a.Offset != b.Offset ? a.Offset.CompareTo(b.Offset)
             : a.Edge != b.Edge ? a.Edge.CompareTo(b.Edge)
-            : b.Depth.CompareTo(a.Depth));
+            : a.Depth != b.Depth ? b.Depth.CompareTo(a.Depth)
+            : a.Order.CompareTo(b.Order));
 
         var places = new List<CaretPlace>();
-        foreach (var (offset, edge, _, piece) in declared)
+        foreach (var (offset, edge, _, _, piece) in declared)
         {
             var place = new CaretPlace(piece, Trailing: edge == 0);
             if (places.Count > 0 && places[^1].Offset == offset && Drawn(places[^1], place)) continue;
@@ -545,7 +548,7 @@ public static class LayoutQuery
     /// without the split, <c>12g</c> would offer two overlapping places between the 2 and the g, since the g
     /// has a descender.
     /// </summary>
-    private static bool Drawn(CaretPlace already, CaretPlace next)
+    internal static bool Drawn(CaretPlace already, CaretPlace next)
     {
         var (standing, coming) = (already.CaretRect(), next.CaretRect());
 

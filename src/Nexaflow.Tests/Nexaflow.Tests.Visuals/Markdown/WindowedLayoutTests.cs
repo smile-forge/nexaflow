@@ -346,8 +346,14 @@ public class WindowedLayoutTests
             Assert.AreEqual(Span(a.Part), Span(b.Part), $"{what}: what piece {at} ({a.Kind}) stands for");
         }
 
-        CollectionAssert.AreEqual(expected.Places.Select(place => (place.Offset, place.Trailing)).ToList(),
-                                  actual.Places.Select(place => (place.Offset, place.Trailing)).ToList(), $"{what}: caret places");
+        var (wanted, found) = (expected.Places.ToList(), actual.Places.ToList());
+        var differs = Enumerable.Range(0, Math.Min(wanted.Count, found.Count)).FirstOrDefault(at => (wanted[at].Offset, wanted[at].Trailing) != (found[at].Offset, found[at].Trailing), -1);
+        if (differs < 0 && wanted.Count != found.Count) differs = Math.Min(wanted.Count, found.Count);
+
+        string Around(List<CaretPlace> places) =>
+            string.Join("; ", places.Skip(Math.Max(0, differs - 3)).Take(7).Select(place => $"{place.Offset}{(place.Trailing ? "]" : "[")} {place.Against.Kind}/{place.Against.Depth} x{place.CaretRect().X:0.#}"));
+
+        Assert.AreEqual(-1, differs, $"{what}: caret places part at {differs} of {wanted.Count} and {found.Count} — laid whole: {(differs < 0 ? "" : Around(wanted))} — a stretch at a time: {(differs < 0 ? "" : Around(found))}");
 
         CollectionAssert.AreEquivalent(expected.Trouble.Select(Said).ToList(), actual.Trouble.Select(Said).ToList(), $"{what}: trouble");
 
