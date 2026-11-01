@@ -323,6 +323,18 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
 
     // ── Edits of the picture the tools work on ────────────────────────────
 
+    /// <summary>Opens one step of the picture's history — the layered picture's, or the photo's — for everything done until it is
+    /// disposed, gestures among it included: changes said at once, undone at once.</summary>
+    public IDisposable Batch() => CurrentDocument?.History.Batch() ?? CurrentSession?.History.Batch() ?? NothingShown.Instance;
+
+    /// <summary>The batch of a stage showing nothing: there is no history to fold into.</summary>
+    private sealed class NothingShown : IDisposable
+    {
+        public static NothingShown Instance { get; } = new();
+
+        public void Dispose() { }
+    }
+
     /// <summary>Applies <paramref name="change"/> to the recipe of the picture the tools work on — the photo, or the active
     /// picture layer — as one undoable step.</summary>
     public void Edit(Func<ImageRecipe, ImageRecipe> change)

@@ -51,14 +51,17 @@ public sealed class ArtistTabRegistration : IPageRegistration
     public IReadOnlyList<PageParameter> Parameters =>
     [
         new("path", "Full path of the picture to edit — a photo, or an .ora layered picture. Omit for the start screen: a blank canvas, a picture drawn into one, the clipboard's picture, or a picture opened.", Required: false, OnDisk: true),
-        new("tool", "The editor's tool to open on: crop, adjust, retouch, cutout, markup, resize, paint or move.", Required: false),
+        new("tool", "The editor's tool to open on: reshape, adjust, retouch, cutout, markup, resize, paint or move.", Required: false),
     ];
 
     /// <summary>The start screen opens with no picture at all, so Artist is offered wherever pages are launched.</summary>
     public bool CanBeContextItem => true;
 
-    /// <summary>Maps a "tool" page param to the editor's tool it opens on — "cutout" for Cut out; none, the editor's own.</summary>
-    public static EditTool? ParseTool(string? tool) => Enum.TryParse<EditTool>(tool, ignoreCase: true, out var parsed) ? parsed : null;
+    /// <summary>Maps a "tool" page param to the editor's tool it opens on — "cutout" for Cut out, "reshape" (or "crop") for Reshape;
+    /// none, the editor's own.</summary>
+    public static EditTool? ParseTool(string? tool) =>
+        string.Equals(tool, "reshape", StringComparison.OrdinalIgnoreCase) ? EditTool.Crop
+        : Enum.TryParse<EditTool>(tool, ignoreCase: true, out var parsed) ? parsed : null;
 
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {

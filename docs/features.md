@@ -296,7 +296,7 @@ reflect the tab's current state (set it after in-tab navigation so `FindTab` and
 | Dicom | `path` (a `DICOMDIR`, a folder of instances, or one `.dcm`) or `paths` (pipe-separated selection) |
 | Hdf5 | `path` (an `.h5`, `.hdf5` or `.he5` file, on disk or inside an archive; a path continuing into the file also selects that object), `node` (optional — the object to select, e.g. `/group/dataset`; location, not identity: an open re-points the tab) |
 | Images | `paths` (pipe-separated), `view` (`carousel` \| `album` \| `explore` \| `collage`), `scope` (`folder` = whole-folder view) |
-| Artist | `path` (one picture; none = the start screen), `tool` (`crop` \| `adjust` \| `retouch` \| `cutout` \| `markup` \| `resize` \| `paint` \| `move`), `draft` (the folder a draft's Save as starts in) |
+| Artist | `path` (one picture; none = the start screen), `tool` (`reshape` \| `adjust` \| `retouch` \| `cutout` \| `markup` \| `resize` \| `paint` \| `move`), `draft` (the folder a draft's Save as starts in) |
 | Audio | `paths` (pipe-separated queue), `index`, `autoplay`, `scope` (`folder` = whole-folder queue) |
 | Font | `paths` (pipe-separated font files; omit for the standalone "System Fonts" compare mode) |
 | ProductManager | `path` (folder holding/initialising `.product/`) |

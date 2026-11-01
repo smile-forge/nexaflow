@@ -725,13 +725,148 @@
           }
         ]
       }
+    },
+    "images-edit-ai": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ClientTools/ArtistTools.cs",
+          "class": "ArtistTools"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ArtistToolsTests.cs",
+            "class": "ArtistToolsTests"
+          }
+        ]
+      }
+    },
+    "images-edit-ai-describe": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ClientTools/ArtistTools.cs",
+          "class": "ArtistTools",
+          "method": "Describe"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ArtistToolsTests.cs",
+            "class": "ArtistToolsTests",
+            "method": "DescribePicture_GivesAPhotosWholeState_InTheToolsCoordinates"
+          }
+        ]
+      }
+    },
+    "images-edit-ai-capture": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ClientTools/ArtistTools.cs",
+          "class": "ArtistTools",
+          "method": "CaptureAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ArtistToolsTests.cs",
+            "class": "ArtistToolsTests",
+            "method": "CaptureImage_ShowsAPartOfThePhoto_InItsOwnPixels"
+          }
+        ]
+      }
+    },
+    "images-edit-ai-edit-picture": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ClientTools/ArtistTools.cs",
+          "class": "ArtistTools",
+          "method": "EditPictureAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ArtistToolsTests.cs",
+            "class": "ArtistToolsTests",
+            "method": "EditPicture_AppliesEverythingAskedAsOneStep_AndAnswersWithTheEdits"
+          }
+        ]
+      }
+    },
+    "images-edit-ai-edit-layers": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ClientTools/ArtistTools.cs",
+          "class": "ArtistTools",
+          "method": "EditLayersAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ArtistToolsTests.cs",
+            "class": "ArtistToolsTests",
+            "method": "EditLayers_AppliesItsOperationsInOrder_AsOneStep_AndAnswersWithTheLayers"
+          }
+        ]
+      }
+    },
+    "images-edit-ai-generate-layer": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ClientTools/ArtistTools.cs",
+          "class": "ArtistTools",
+          "method": "GenerateLayerAsync"
+        }
+      ]
+    },
+    "images-edit-ai-history": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ClientTools/ArtistTools.cs",
+          "class": "ArtistTools",
+          "method": "HistoryAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ArtistToolsTests.cs",
+            "class": "ArtistToolsTests",
+            "method": "History_StepsBackAndForth_SayingWhatIsLeft"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 34,
+  "changed_sets": 47,
   "touched_nodes": [
     "images-ai-act-select-in-picture",
     "images-edit",
+    "images-edit-ai",
+    "images-edit-ai-capture",
+    "images-edit-ai-describe",
+    "images-edit-ai-edit-layers",
+    "images-edit-ai-edit-picture",
+    "images-edit-ai-generate-layer",
+    "images-edit-ai-history",
     "images-edit-banner",
     "images-edit-revert",
     "images-flip",

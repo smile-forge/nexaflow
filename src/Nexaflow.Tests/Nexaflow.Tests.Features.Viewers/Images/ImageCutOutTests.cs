@@ -222,10 +222,10 @@ public class ImageCutOutTests
         Until(() => vm.CurrentSession is not null);
         var tool = vm.GetClientTools().Single(t => t.Name == "select_in_picture");
 
-        var result = await tool.InvokeAsync(new System.Text.Json.Nodes.JsonObject { ["what"] = "mug" }, CancellationToken.None);
+        var result = await tool.InvokeAsync(new System.Text.Json.Nodes.JsonObject { ["find"] = "mug" }, CancellationToken.None);
 
         Assert.IsTrue(result.Success, result.ModelText);
-        StringAssert.Contains(result.ModelText, "Picked out 2 \"mug\"");
+        StringAssert.Contains(result.ModelText, "Found 2 \"mug\"");
         StringAssert.Contains(result.ModelText, "4,2,12,10");
         Assert.IsTrue(_ui.Invoke(() => vm.IsEditing && vm.Editor.IsCutOutTool), "the editor opens on Cut out");
         Assert.AreEqual("mug", _ui.Invoke(() => vm.Cutter.Found));
@@ -281,7 +281,7 @@ public class ImageCutOutTests
         var vm = Editing(new Patch { State = ToolModelsState.NotDownloaded });
 
         var result = await vm.GetClientTools().Single(t => t.Name == "select_in_picture")
-                             .InvokeAsync(new System.Text.Json.Nodes.JsonObject { ["what"] = "mug" }, CancellationToken.None);
+                             .InvokeAsync(new System.Text.Json.Nodes.JsonObject { ["find"] = "mug" }, CancellationToken.None);
 
         Assert.IsFalse(result.Success);
         StringAssert.Contains(result.ModelText, "Settings > Local > Tools");

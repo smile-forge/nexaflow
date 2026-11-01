@@ -215,6 +215,25 @@ public sealed partial class LayerArranging : ObservableObject
         OnPropertyChanged(nameof(Frame));
     }
 
+    /// <summary>
+    /// A transform said rather than dragged: the active layer — or what is selected on it, lifted — scaled by
+    /// <paramref name="scaleX"/> and <paramref name="scaleY"/> (negative flips), turned <paramref name="degrees"/> clockwise about its
+    /// middle and moved by <paramref name="offset"/>, applied as one step, as the frame's handles would leave it. False where there
+    /// was nothing to transform.
+    /// </summary>
+    internal bool TransformBy(double scaleX, double scaleY, double degrees, SKPoint offset)
+    {
+        Transform();
+        if (!IsTransforming) return false;
+        (_scaleX, _scaleY, _degrees, _offset) = (scaleX, scaleY, degrees, offset);
+        Show();
+        Apply();
+        return true;
+    }
+
+    /// <summary>Where <paramref name="layer"/>'s content lies on the canvas; null where it has none.</summary>
+    internal SKRect? BoundsOf(Layer layer) => _viewer.CurrentDocument is { } document ? ContentBounds(document, layer) : null;
+
     [RelayCommand(CanExecute = nameof(IsTransforming))]
     private void FlipHorizontal() => Change(() => _scaleX = -_scaleX);
 

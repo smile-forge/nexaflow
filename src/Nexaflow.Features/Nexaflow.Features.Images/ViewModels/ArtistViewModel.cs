@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.Images.ClientTools;
 using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.Editing.Codecs;
 using Nexaflow.Features.Images.Editing.Layers;
@@ -33,9 +34,6 @@ namespace Nexaflow.Features.Images.ViewModels;
 /// </summary>
 public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, IDisposable
 {
-    /// <summary>The longest side the assistant is shown, in pixels.</summary>
-    private const int CaptureEdge = 2048;
-
     /// <summary>How long after the last change a layered picture is written, so a burst of edits is one write.</summary>
     private static readonly TimeSpan DocumentSaveDelay = TimeSpan.FromSeconds(1.5);
 
@@ -47,6 +45,9 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     private readonly ImagesConfig _config;
     private readonly CancellationTokenSource _cts = new();
     private readonly DispatcherTimer _documentSave;
+
+    /// <summary>What the assistant can do here.</summary>
+    private readonly ArtistTools _tools;
 
     /// <summary>The photo edited — the merged image of a layered picture, which opens over it — and its history; null on the start screen.</summary>
     private ImageEditSession? _session;
@@ -102,6 +103,8 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
             if (Arranging.IsTransforming) Arranging.Apply();
             else if (Arranging.HasFloating) Arranging.Drop();
         };
+
+        _tools = new ArtistTools(this, shell, editing);
 
         if (path is { Length: > 0 }) ShowPath(path);
         else _ = Start.RefreshAsync();
@@ -582,12 +585,9 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     public string GetContext()
     {
         if (IsStarting) return "Artist: no picture open yet — the start screen, where a blank canvas is set up, a picture drawn into one, or a picture opened.";
-        var layered = CurrentDocument is { } document
-            ? $" It is a layered picture of {document.Picture.All.Count()} layer(s); the active one is '{document.Picture.Active?.Name}'."
-            : string.Empty;
-        var edited = IsEdited ? " It has edits, shown as they would be saved." : string.Empty;
-        return $"Artist, editing '{CurrentFileName}' — {DescribeCurrentImage()}, with the {Editor.Tool} tool out.{layered}{edited} "
-             + "Call capture_image to see the picture itself, or get_image_info for its metadata.";
+        var kind = CurrentDocument is { } document ? $"a layered picture of {document.Picture.All.Count()} layer(s)" : "a photo";
+        return $"Artist, editing '{CurrentFileName}' — {kind}{(IsEdited ? ", with edits" : "")}, the {ArtistTools.ToolName(Editor.Tool)} tool out. "
+             + "Call describe_picture for its whole state, and capture_image to see it.";
     }
 
     public string? GetSecurityContext() => CurrentPath;
@@ -596,392 +596,15 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     public ContextGrant GetContextGrant() => ContextGrant.OfFiles(CurrentPath is { } path ? [path] : []);
 
     public string? GetAiSystemPromptGuidance() =>
-        "A picture is open in Artist, the image editor. To see it, call capture_image — it returns the picture as edited to you as a "
-      + "vision attachment. Its tools pick things out of it, cut them out, restore it and erase from it; each edit is a step the user "
-      + "can undo.";
+        "A picture is open in Artist, the image editor. describe_picture gives its whole state — edits, layers with their ids, the selection, "
+      + "the history — and capture_image shows it. edit_picture changes its edits, select_in_picture sets the selection, edit_layers takes a "
+      + "list of layer operations; each is one step the user can undo, and answers with the state it left. Saving is the user's.";
 
-    public IReadOnlyList<IClientTool> GetClientTools() =>
-    [
-        new DelegateClientTool(
-            "capture_image",
-            "Return the picture the user is editing, as edited, so you can see it — the way to answer any question about what it shows.",
-            [],
-            ToolSafety.SafeOperation,
-            async (_, _) =>
-            {
-                var png = await EncodeCurrentPngAsync();
-                if (png is not { Length: > 0 })
-                    return ToolResult.Error("Couldn't capture the picture.", "No picture is open, or it is not drawn yet.");
-                return ToolResult.Ok($"Captured '{CurrentFileName}'.", $"The picture \"{CurrentFileName}\" is attached for you to look at.")
-                       with { Images = [new ContextImage(png, "image/png", CurrentFileName)] };
-            },
-            exemptFromRepeatGuard: true) { Needs = [AiAbility.ImageRecognition] },
-
-        new DelegateClientTool(
-            "get_image_info",
-            "Get the picture's filename, format, pixel dimensions and file size.",
-            [],
-            ToolSafety.SafeOperation,
-            (_, _) => Task.FromResult(IsStarting
-                ? ToolResult.Error("No picture is open.")
-                : ToolResult.Ok($"{CurrentFileName}: {DescribeCurrentImage()}.", DescribeImageInfo())),
-            parallelizable: true),
-
-        new DelegateClientTool(
-            "select_in_picture",
-            "Pick out everything 'what' names in the picture — \"the mug\", \"woman with red hair\" — and show it selected in the "
-          + "editor's Cut out tool, where the user can copy it or save it without its background. Says how many it found, how surely "
-          + "and where, in the picture's pixels.",
-            [new ClientToolParameter("what", "What to pick out, in a few words: a noun phrase like \"dog\" or \"red car\".")],
-            ToolSafety.SafeOperation,
-            async (args, _) => await SelectNamedAsync(ToolArgs.Str(args, "what"))),
-
-        new DelegateClientTool(
-            "cut_out",
-            "Cut something out of the picture — everything 'what' names, or the thing inside 'box' — into a new PNG, transparent "
-          + "around it and cropped to it, opened for the user in a new Artist tab to save where they choose; the picture itself is "
-          + "untouched.",
-            [
-                new ClientToolParameter("what", "What to cut out, in a few words: a noun phrase like \"dog\" or \"red car\". Not needed with 'box'.", Required: false),
-                new ClientToolParameter("box", "A box round the one thing to cut out, in the picture's pixels: left,top,right,bottom.", Required: false),
-            ],
-            ToolSafety.SafeOperation,
-            async (args, ct) => await CutOutToolAsync(ToolArgs.Str(args, "what"), ToolArgs.Str(args, "box"), ct)),
-
-        new DelegateClientTool(
-            "restore_picture",
-            "Restore the picture with the picture tools on this machine — softness, noise and JPEG blocks cleaned up, the faces in it "
-          + "repaired — kept at its size or made twice or four times as large, as one of its edits (AI enhance and AI upscale): shown "
-          + "at once, undone with Undo, saved when the user saves.",
-            [
-                new ClientToolParameter("scale", "1 keeps its size, 2 or 4 makes it that many times as large. 1 when not given.", Required: false, Choices: ["1", "2", "4"]),
-                new ClientToolParameter("faces", "Whether the faces in it are repaired. Yes when not given.", Required: false, Choices: ["yes", "no"]),
-                new ClientToolParameter("strength", "How much of the restoration shows over the picture as it was, 0 to 100. 100 when not given.", Required: false),
-            ],
-            ToolSafety.SafeOperation,
-            async (args, ct) => await RestoreToolAsync(ToolArgs.Str(args, "scale"), ToolArgs.Str(args, "faces"), ToolArgs.Str(args, "strength"), ct)),
-
-        new DelegateClientTool(
-            "erase_in_picture",
-            "Erase from the picture everything 'what' names — \"the sign\", \"people in the background\" — or the thing inside 'box', "
-          + "and fill where it was from what is round it, as a step of its edits: shown at once, undone with Undo, saved when the user "
-          + "saves. Says what it erased and where.",
-            [
-                new ClientToolParameter("what", "What to erase, in a few words: a noun phrase like \"sign\" or \"man in a red coat\". Not needed with 'box'.", Required: false),
-                new ClientToolParameter("box", "A box round the one thing to erase, in the picture's pixels: left,top,right,bottom.", Required: false),
-                new ClientToolParameter("fill", "How to fill where it was: 'ai' (LaMa, best where an edge or shape runs through it) or "
-                                              + "'content-aware' (the picture's own texture). AI where it is downloaded, else content-aware.",
-                                        Required: false, Choices: ["ai", "content-aware"]),
-            ],
-            ToolSafety.SafeOperation,
-            async (args, ct) => await EraseNamedAsync(ToolArgs.Str(args, "what"), ToolArgs.Str(args, "box"), ToolArgs.Str(args, "fill"), ct)),
-    ];
+    /// <summary>What the assistant can do here: <see cref="ArtistTools"/>.</summary>
+    public IReadOnlyList<IClientTool> GetClientTools() => _tools.All();
 
     /// <summary>The tab editing the picture, set by its view: what opens beside it opens in its window.</summary>
     public IPageView? Host { get; set; }
-
-    /// <summary>Runs <paramref name="action"/> on the UI thread, as the tools — which run off it — must to touch the editor.</summary>
-    private Task OnUi(Action action) => _shell is null ? RunHere(action) : _shell.RunOnUiAsync(action);
-
-    private static Task RunHere(Action action)
-    {
-        action();
-        return Task.CompletedTask;
-    }
-
-    /// <summary>The assistant's select_in_picture: the Cut out tool out, and everything <paramref name="what"/> names picked out there.</summary>
-    private async Task<ToolResult> SelectNamedAsync(string? what)
-    {
-        if (string.IsNullOrWhiteSpace(what)) return ToolResult.Error("nothing named", "Say what to pick out as 'what'.");
-        if (!Cutter.Available) return ToolResult.Error("picture selection unavailable", "This machine cannot run picture selection.");
-        if (!Cutter.CanPick)
-            return ToolResult.Error("picture selection not downloaded",
-                "Picture selection is not on this machine yet: the user can download it in Settings > Local > Tools, or from the editor's Cut out.");
-
-        Task<IReadOnlyList<PictureFind>>? finding = null;
-        await OnUi(() =>
-        {
-            if (!IsEditing) return;
-            Editor.Tool = EditTool.CutOut;
-            finding = Cutter.FindNamedAsync(what.Trim());
-        });
-        if (finding is null) return ToolResult.Error("no picture", "No picture is open to pick from.");
-
-        var finds = await finding;
-        if (Cutter.Failed) return ToolResult.Error("could not pick it out", Cutter.Notice);
-        if (finds.Count == 0) return ToolResult.Ok($"found no {what}", $"Nothing in '{CurrentFileName}' is \"{what}\".");
-        var where = string.Join("; ", finds.Select(f => string.Create(CultureInfo.InvariantCulture,
-            $"{f.Score:P0} sure at {f.Box.Left:F0},{f.Box.Top:F0},{f.Box.Right:F0},{f.Box.Bottom:F0}")));
-        return ToolResult.Ok($"picked out {finds.Count} × {what}",
-            $"Picked out {finds.Count} \"{what}\" in '{CurrentFileName}' ({where}); they show selected in the editor's Cut out tool, where the user can copy or save them.");
-    }
-
-    /// <summary>restore_picture: the picture restored as AI enhance and AI upscale restore it — the recipe's restore section set,
-    /// the tool showing it out — answered once the restoration is made.</summary>
-    private async Task<ToolResult> RestoreToolAsync(string? scale, string? faces, string? strength, CancellationToken ct)
-    {
-        int times = scale switch { null or "" or "1" => 1, "2" => 2, "4" => 4, _ => 0 };
-        if (times == 0) return ToolResult.Error("no such scale", "The scale is 1, 2 or 4.");
-        bool repair = !string.Equals(faces, "no", StringComparison.OrdinalIgnoreCase);
-        double shown = 1;
-        if (strength is { Length: > 0 })
-        {
-            if (!double.TryParse(strength, NumberStyles.Float, CultureInfo.InvariantCulture, out var percent) || percent is < 0 or > 100)
-                return ToolResult.Error("no such strength", "The strength is from 0 to 100.");
-            shown = percent / 100;
-        }
-        if (!Restorer.Available) return ToolResult.Error("picture tools unavailable", "This machine cannot run the picture tools.");
-        if (!Restorer.RestoresNow)
-            return ToolResult.Error("picture tools not downloaded",
-                "The picture tools are not on this machine yet: the user can download them in Settings > Local > Tools, or from the editor's AI enhance.");
-
-        var wanted = new RecipeRestore { Scale = times, Faces = repair, Strength = shown };
-        string? refused = null;
-        Task<string?>? made = null;
-        bool already = false;
-        await OnUi(() =>
-        {
-            if (CurrentSession is not { Proxy: { } proxy } session)
-            {
-                refused = "No picture is open to restore.";
-                return;
-            }
-            if (!Restorer.Restores((int)Math.Round(proxy.SourceSize.Width), (int)Math.Round(proxy.SourceSize.Height), times))
-            {
-                refused = $"'{CurrentFileName}' is too large to restore at {times}x; try a smaller scale.";
-                return;
-            }
-            Editor.Tool = times > 1 ? EditTool.Resize : EditTool.Adjust;
-            if (session.Recipe.Restore == wanted && session.RestoredPath is not null)
-            {
-                already = true;
-                return;
-            }
-            made = Restorer.NextMadeAsync(ct);
-            session.History.Commit(session.Recipe with { Restore = wanted });
-        });
-        if (refused is not null) return ToolResult.Error("could not restore it", refused);
-        if (!already && await made! is { } failure) return ToolResult.Error("could not restore it", failure);
-        return ToolResult.Ok($"restored {CurrentFileName}",
-            $"Restored '{CurrentFileName}'{(times > 1 ? $" at {times}x its size" : "")}{(repair ? ", faces repaired" : "")}, shown at {shown:P0} strength, "
-          + "as one of its edits; the user can undo it or save it.");
-    }
-
-    /// <summary>
-    /// erase_in_picture: what <paramref name="what"/> names — found first, as Cut out finds it, so nothing is erased when nothing is
-    /// — or what <paramref name="box"/> holds, erased as a step of the recipe with the Retouch tool out, filled by picture erasing
-    /// where it is here or asked, else content-aware fill; answered once it is made.
-    /// </summary>
-    private async Task<ToolResult> EraseNamedAsync(string? what, string? box, string? fill, CancellationToken ct)
-    {
-        what = what?.Trim();
-        if (!TryBox(box, out var boxed)) return ToolResult.Error("no such box", "Give 'box' as left,top,right,bottom in the picture's pixels.");
-        if (string.IsNullOrEmpty(what) && boxed is null) return ToolResult.Error("nothing named", "Say what to erase as 'what', or give a 'box' round it.");
-        if (!Cutter.Available) return ToolResult.Error("picture selection unavailable", "This machine cannot run picture selection, which finds what to erase.");
-        if (!Cutter.CanPick)
-            return ToolResult.Error("picture selection not downloaded",
-                "Picture selection, which finds what to erase, is not on this machine yet: the user can download it in Settings > Local > Tools, or from the editor's Erase.");
-        var by = fill switch
-        {
-            null or "" => Eraser.ErasesByAiNow ? EraseFill.Ai : EraseFill.ContentAware,
-            _ when fill.Equals("ai", StringComparison.OrdinalIgnoreCase) => EraseFill.Ai,
-            _ when fill.Equals("content-aware", StringComparison.OrdinalIgnoreCase) => EraseFill.ContentAware,
-            _ => (EraseFill?)null,
-        };
-        if (by is not { } chosen) return ToolResult.Error("no such fill", "Fill with 'ai' or 'content-aware'.");
-        if (chosen == EraseFill.Ai && !Eraser.ErasesByAiNow)
-            return ToolResult.Error("picture erasing not downloaded",
-                "Picture erasing (LaMa) is not on this machine yet: the user can download it in Settings > Local > Tools, or erase with fill 'content-aware'.");
-
-        Task<IReadOnlyList<PictureFind>>? finding = null;
-        bool open = false;
-        await OnUi(() =>
-        {
-            if (!IsEditing) return;
-            open = true;
-            Editor.Tool = EditTool.Retouch;
-            if (!string.IsNullOrEmpty(what)) finding = Cutter.FindNamedAsync(what);
-        });
-        if (!open) return ToolResult.Error("no picture", "No picture is open to erase from.");
-
-        string said;
-        if (finding is not null)
-        {
-            var finds = await finding;
-            if (Cutter.Failed) return ToolResult.Error("could not find it", Cutter.Notice);
-            if (finds.Count == 0) return ToolResult.Ok($"found no {what}", $"Nothing in '{CurrentFileName}' is \"{what}\"; nothing was erased.");
-            said = $"{finds.Count} \"{what}\" at " + string.Join("; ", finds.Select(f => string.Create(CultureInfo.InvariantCulture,
-                $"{f.Box.Left:F0},{f.Box.Top:F0},{f.Box.Right:F0},{f.Box.Bottom:F0}")));
-        }
-        else said = string.Create(CultureInfo.InvariantCulture, $"the thing in {boxed!.Left:F0},{boxed.Top:F0},{boxed.Right:F0},{boxed.Bottom:F0}");
-
-        var step = new RecipeErase
-        {
-            Fill = chosen,
-            Pick = !string.IsNullOrEmpty(what) ? new RecipeCutOut { Phrase = what } : new RecipeCutOut { Box = new RecipeCutBox(boxed!.Left, boxed.Top, boxed.Right, boxed.Bottom) },
-        };
-        var made = Eraser.NextMadeAsync(ct);
-        await OnUi(() =>
-        {
-            if (CurrentSession is not { } session) return;
-            session.History.Commit(session.Recipe with { Erasures = session.Recipe.Erasures.Add(step) });
-            Cutter.ClearCommand.Execute(null);
-        });
-
-        if (await made is { } failure) return ToolResult.Error("could not erase it", failure);
-        return ToolResult.Ok($"erased {(string.IsNullOrEmpty(what) ? "the boxed thing" : what)}",
-            $"Erased {said} from '{CurrentFileName}', filled {(chosen == EraseFill.Ai ? "by AI" : "content-aware")}, as a step of its edits; the user can undo it or save it.");
-    }
-
-    /// <summary>A tool's 'box' — left,top,right,bottom in the picture's pixels — read; none given is a box of null, and false
-    /// is one that does not read.</summary>
-    private static bool TryBox(string? text, out PictureBox? box)
-    {
-        box = null;
-        if (string.IsNullOrWhiteSpace(text)) return true;
-        var parts = text.Split(',', StringSplitOptions.TrimEntries);
-        var v = new double[4];
-        for (int i = 0; i < parts.Length && i < 4; i++)
-            if (!double.TryParse(parts[i], NumberStyles.Float, CultureInfo.InvariantCulture, out v[i])) return false;
-        if (parts.Length != 4 || v[2] <= v[0] || v[3] <= v[1]) return false;
-        box = new PictureBox(v[0], v[1], v[2], v[3]);
-        return true;
-    }
-
-    /// <summary>
-    /// cut_out: what <paramref name="what"/> names, or what <paramref name="box"/> holds, picked as Cut out picks it and made a PNG
-    /// — transparent around it, cropped to it — opened as a draft in an Artist tab of its own, which the user saves where they
-    /// choose. The assistant is told only that the tab opened: the new picture is its to work on once the user gives it that tab.
-    /// </summary>
-    private async Task<ToolResult> CutOutToolAsync(string? what, string? box, CancellationToken ct)
-    {
-        what = what?.Trim();
-        if (!TryBox(box, out var boxed)) return ToolResult.Error("no such box", "Give 'box' as left,top,right,bottom in the picture's pixels.");
-        if (string.IsNullOrEmpty(what) && boxed is null) return ToolResult.Error("nothing named", "Say what to cut out as 'what', or give a 'box' round it.");
-        if (!Cutter.Available) return ToolResult.Error("picture selection unavailable", "This machine cannot run picture selection.");
-        if (!Cutter.CanPick)
-            return ToolResult.Error("picture selection not downloaded",
-                "Picture selection is not on this machine yet: the user can download it in Settings > Local > Tools, or from the editor's Cut out.");
-
-        Task<IReadOnlyList<PictureFind>>? finding = null;
-        Task<bool>? picking = null;
-        string? photo = null;
-        await OnUi(() =>
-        {
-            if (CurrentSession is not { } session) return;
-            photo = session.Path;
-            Editor.Tool = EditTool.CutOut;
-            if (!string.IsNullOrEmpty(what)) finding = Cutter.FindNamedAsync(what);
-            else picking = Cutter.BoxedAsync(boxed!);
-        });
-        if (photo is null) return ToolResult.Error("no picture", "No picture is open to cut out of.");
-
-        string said;
-        if (finding is not null)
-        {
-            var finds = await finding;
-            if (Cutter.Failed) return ToolResult.Error("could not cut it out", Cutter.Notice);
-            if (finds.Count == 0) return ToolResult.Ok($"found no {what}", $"Nothing in '{CurrentFileName}' is \"{what}\"; nothing was saved.");
-            said = $"{finds.Count} \"{what}\"";
-        }
-        else
-        {
-            if (!await picking!) return Cutter.Failed ? ToolResult.Error("could not cut it out", Cutter.Notice)
-                                                      : ToolResult.Ok("found nothing in the box", "Nothing stands out inside that box; nothing was saved.");
-            said = "the thing in the box";
-        }
-
-        byte[]? png;
-        try
-        {
-            png = await Cutter.CutOutAsync(ct);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return ToolResult.Error("could not cut it out", ex.Message);
-        }
-        if (png is null) return ToolResult.Ok("found nothing to keep", "What was picked has no pixels in this picture; nothing was saved.");
-
-        // A draft: the tab gives the assistant the picture, never its folder, so nothing is written beside it. The user keeps the
-        // cut-out where they choose, Save as starting beside the picture.
-        var saved = DraftLocation.NewFile(Path.GetFileNameWithoutExtension(photo) + Str.Get("Images.CutOut.FileSuffix") + ".png");
-        await _editing.FileSystem.WriteAllBytesAsync(saved, png, ct);
-        _shell?.OpenTab(ArtistTabRegistration.StaticPageKind, new Dictionary<string, string>
-        {
-            ["path"]                      = saved,
-            [DraftFile.PageParameterName] = ImageEditingServices.IsFileBacked(photo) ? Path.GetDirectoryName(photo) ?? "" : "",
-        });
-        return ToolResult.Ok($"cut out of {CurrentFileName}",
-            $"Cut out {said} from '{CurrentFileName}' and opened it for the user in a new Artist tab, not saved yet: they save it where they choose.");
-    }
-
-    /// <summary>Format + pixel size + byte size of the picture, best-effort (any part may be unknown).</summary>
-    private string DescribeCurrentImage()
-    {
-        var parts = new List<string> { CurrentFormat() };
-        if (CurrentPixelSize() is { } px) parts.Add($"{px.Width}×{px.Height}px");
-        var size = CurrentFileSize();
-        if (size >= 0) parts.Add(Nexaflow.Visuals.Common.Formatting.SizeFormatter.FormatBytes(size));
-        return string.Join(", ", parts);
-    }
-
-    /// <summary>Multi-line metadata block returned by get_image_info.</summary>
-    private string DescribeImageInfo()
-    {
-        var lines = new List<string>
-        {
-            $"File: {CurrentFileName}",
-            $"Format: {CurrentFormat()}",
-        };
-        if (CurrentPixelSize() is { } px) lines.Add($"Dimensions: {px.Width}×{px.Height} px{(IsEdited ? " (as edited)" : string.Empty)}");
-        var size = CurrentFileSize();
-        if (size >= 0) lines.Add($"Size: {Nexaflow.Visuals.Common.Formatting.SizeFormatter.FormatBytes(size)}");
-        if (CurrentDocument is { } document) lines.Add($"Layers: {document.Picture.All.Count()}");
-        return string.Join("\n", lines);
-    }
-
-    /// <summary>The picture's size as edited — a layered picture's canvas — once it is decoded.</summary>
-    private SKSizeI? CurrentPixelSize() => CurrentDocument is { } document
-        ? new SKSizeI(document.Picture.Width, document.Picture.Height)
-        : CurrentSession?.OutputSize(CurrentRecipe);
-
-    /// <summary>Upper-case format name from the file's extension (e.g. PNG, ORA); "image" if none.</summary>
-    private string CurrentFormat()
-    {
-        var ext = Path.GetExtension(CurrentFileName);
-        return string.IsNullOrEmpty(ext) ? "image" : ext.TrimStart('.').ToUpperInvariant();
-    }
-
-    /// <summary>On-disk size of the picture in bytes, or -1 when it can't be determined (e.g. in-archive).</summary>
-    [LocalDiskOnly("the size of a picture on this disk, for the assistant; none for one anywhere else")]
-    private long CurrentFileSize()
-    {
-        if (CurrentPath is not { } path) return -1;
-        try { return File.Exists(path) ? new FileInfo(path).Length : -1; }
-        catch { return -1; }
-    }
-
-    /// <summary>
-    /// The picture as edited, as PNG bytes for the model to view — a layered picture's composite, a photo through the same pipeline
-    /// as the screen — at most <see cref="CaptureEdge"/> on its longer side; null when nothing is drawn yet. Safe off the UI thread.
-    /// </summary>
-    private async Task<byte[]?> EncodeCurrentPngAsync()
-    {
-        if (CurrentDocument is { } document)
-        {
-            var picture = document.Picture;
-            double fit = Math.Min(1, (double)CaptureEdge / Math.Max(picture.Width, picture.Height));
-            using var renderer = await document.RendererForAsync(picture);
-            using var composite = renderer?.Composite(fit);
-            using var encoded = composite?.Encode(SKEncodedImageFormat.Png, 100);
-            return encoded?.ToArray();
-        }
-        if (CurrentSession is not { } session || session.OutputSize(session.Recipe) is not { } output) return null;
-        double scale = Math.Min(1, (double)CaptureEdge / Math.Max(output.Width, output.Height));
-        using var snapshot = session.Snapshot(session.Recipe, new RenderRequest(RenderFrame.Output, scale));
-        using var data = snapshot?.Encode(SKEncodedImageFormat.Png, 100);
-        return data?.ToArray();
-    }
 
     public void Dispose()
     {

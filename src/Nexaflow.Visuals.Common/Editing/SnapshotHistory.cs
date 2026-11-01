@@ -16,6 +16,10 @@ namespace Nexaflow.Visuals.Common.Editing;
 /// the gesture leaves one entry, or none when it ended where it began.
 /// </para>
 /// <para>
+/// A batch — several changes said at once, an assistant's say — is one step too: inside <see cref="Batch"/> every commit, and
+/// every gesture with its own begin and end, folds into the one entry the outermost scope leaves when it is disposed.
+/// </para>
+/// <para>
 /// Steps are kept up to a count and, where the history is given a cost, a budget: each kept snapshot costs what it holds
 /// that the snapshot beside it does not — the tiles a layered picture's step changed — and the oldest steps fall off once
 /// the kept ones together cost more than the budget.
@@ -32,6 +36,8 @@ public sealed class SnapshotHistory<T> where T : notnull
     private readonly Func<T, T, long>? _cost;
     private bool _inGesture;
     private T _gestureStart = default!;
+    private int _batchDepth;
+    private T _batchStart = default!;
 
     /// <summary>A kept snapshot and what keeping it costs.</summary>
     private readonly record struct Entry(T Snapshot, long Cost);
@@ -54,8 +60,12 @@ public sealed class SnapshotHistory<T> where T : notnull
 
     public T Current { get; private set; }
 
-    public bool CanUndo => _undo.Count > 0 || (_inGesture && !_comparer.Equals(_gestureStart, Current));
-    public bool CanRedo => _redo.Count > 0 && !_inGesture;
+    public bool CanUndo => _undo.Count > 0 || (_batchDepth > 0 ? !_comparer.Equals(_batchStart, Current)
+                                                               : _inGesture && !_comparer.Equals(_gestureStart, Current));
+    public bool CanRedo => _redo.Count > 0 && !_inGesture && _batchDepth == 0;
+
+    /// <summary>A batch is open: what is committed folds into one step.</summary>
+    public bool InBatch => _batchDepth > 0;
     public bool InGesture => _inGesture;
 
     /// <summary>What the kept steps may cost together; lowering it lets the oldest go at once.</summary>
@@ -87,7 +97,7 @@ public sealed class SnapshotHistory<T> where T : notnull
         if (_comparer.Equals(next, Current)) return;
         var previous = Current;
         Current = next;
-        if (!_inGesture)
+        if (!_inGesture && _batchDepth == 0)
         {
             Push(_undo, previous, Current);
             _redo.Clear();
@@ -118,7 +128,7 @@ public sealed class SnapshotHistory<T> where T : notnull
     {
         if (!_inGesture) return;
         var start = TakeGestureStart();
-        if (!_comparer.Equals(start, Current))
+        if (_batchDepth == 0 && !_comparer.Equals(start, Current))
         {
             Push(_undo, start, Current);
             _redo.Clear();
@@ -135,10 +145,53 @@ public sealed class SnapshotHistory<T> where T : notnull
         Changed?.Invoke();
     }
 
+    /// <summary>
+    /// Opens one step for everything committed until the scope is disposed — gestures among it included — so changes said at once
+    /// are undone at once. Scopes nest: the outermost leaves the step, or none where it ended where it began. Undo and redo wait
+    /// while one is open.
+    /// </summary>
+    public IDisposable Batch()
+    {
+        if (_batchDepth++ == 0)
+        {
+            EndGesture();
+            _batchStart = Current;
+        }
+        return new BatchScope(this);
+    }
+
+    private void EndBatch()
+    {
+        if (_batchDepth == 0 || --_batchDepth > 0) return;
+        if (_inGesture) TakeGestureStart();   // a gesture still open is part of the batch
+        var start = _batchStart;
+        _batchStart = default!;
+        if (!_comparer.Equals(start, Current))
+        {
+            Push(_undo, start, Current);
+            _redo.Clear();
+            Trim();
+        }
+        Changed?.Invoke();
+    }
+
+    /// <summary>Ends its batch once, however often it is disposed.</summary>
+    private sealed class BatchScope(SnapshotHistory<T> history) : IDisposable
+    {
+        private bool _ended;
+
+        public void Dispose()
+        {
+            if (_ended) return;
+            _ended = true;
+            history.EndBatch();
+        }
+    }
+
     public bool Undo()
     {
         EndGesture();
-        if (_undo.Count == 0) return false;
+        if (_undo.Count == 0 || _batchDepth > 0) return false;
         var restored = Pop(_undo);
         Push(_redo, Current, restored);
         Current = restored;
@@ -149,7 +202,7 @@ public sealed class SnapshotHistory<T> where T : notnull
     public bool Redo()
     {
         EndGesture();
-        if (_redo.Count == 0) return false;
+        if (_redo.Count == 0 || _batchDepth > 0) return false;
         var restored = Pop(_redo);
         Push(_undo, Current, restored);
         Current = restored;
@@ -174,6 +227,7 @@ public sealed class SnapshotHistory<T> where T : notnull
         _undo.Clear();
         _redo.Clear();
         Current = snapshot;
+        if (_batchDepth > 0) _batchStart = snapshot;
         Changed?.Invoke();
     }
 

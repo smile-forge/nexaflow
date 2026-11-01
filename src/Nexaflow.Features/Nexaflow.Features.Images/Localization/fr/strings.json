@@ -127,8 +127,8 @@
   "Images.Edit.DoneTip": "Quitter l'édition (Échap) — les modifications restent, appliquées à chaque affichage",
   "Images.Edit.ResetTip": "Double-cliquer pour réinitialiser",
 
-  "Images.Edit.Tool.Crop": "Recadrer",
-  "Images.Edit.Tool.CropTip": "Cadrez l'image : recadrer, pivoter, retourner et redresser",
+  "Images.Edit.Tool.Crop": "Remodeler",
+  "Images.Edit.Tool.CropTip": "Remodelez l'image : recadrer, pivoter, retourner et redresser",
   "Images.Edit.Tool.Adjust": "Réglages",
   "Images.Edit.Tool.AdjustTip": "Corrigez la lumière et la couleur — d'un geste, ou curseur par curseur",
   "Images.Edit.Tool.Retouch": "Retoucher",

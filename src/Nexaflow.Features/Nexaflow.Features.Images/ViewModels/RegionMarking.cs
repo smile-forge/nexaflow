@@ -263,11 +263,20 @@ public sealed partial class RegionMarking : ObservableObject
         Clear();
         await _cutter.BoxedAsync(new PictureBox(0, 0, size.Width, size.Height));
         // In a layered picture, the subject picked on the active picture layer becomes the canvas's selection.
-        if (_document is { } document && _cutter.Shown is { Bounds: not null } picked && document.FromPicture(picked) is { } selection)
-        {
-            _cutter.ClearCommand.Execute(null);
-            document.Select(selection);
-        }
+        TakePicked();
+    }
+
+    /// <summary>
+    /// In a layered picture, what picture selection picked on the active picture layer made part of the canvas's selection — meeting
+    /// what is selected as <paramref name="mode"/> says — and let go as a pick. False where nothing was picked, or the picture is a
+    /// photo, whose picks stay picks.
+    /// </summary>
+    internal bool TakePicked(RegionMode mode = RegionMode.Replace)
+    {
+        if (_document is not { } document || _cutter.Shown is not { Bounds: not null } picked || document.FromPicture(picked) is not { } coverage) return false;
+        _cutter.ClearCommand.Execute(null);
+        document.Select(mode == RegionMode.Replace ? coverage : document.Selection.Combined(coverage, mode));
+        return true;
     }
 
     private bool CanSelectSubject() => _cutter.CanPick && !_cutter.IsWorking;

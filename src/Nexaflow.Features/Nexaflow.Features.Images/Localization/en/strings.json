@@ -125,8 +125,8 @@
   "Images.Edit.DoneTip": "Leave editing (Esc) — the edits stay, shown whenever the image is viewed",
   "Images.Edit.ResetTip": "Double-click to reset",
 
-  "Images.Edit.Tool.Crop": "Crop",
-  "Images.Edit.Tool.CropTip": "Frame the picture: crop, rotate, flip and straighten",
+  "Images.Edit.Tool.Crop": "Reshape",
+  "Images.Edit.Tool.CropTip": "Reshape the picture: crop, rotate, flip and straighten",
   "Images.Edit.Tool.Adjust": "Adjust",
   "Images.Edit.Tool.AdjustTip": "Fix the light and colour — in one press, or slider by slider",
   "Images.Edit.Tool.Retouch": "Retouch",

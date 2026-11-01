@@ -122,4 +122,65 @@ public class SnapshotHistoryTests
         history.Redo();
         Assert.AreEqual(2, history.Current, "redo comes back to the state as amended");
     }
+
+    [TestMethod]
+    public void ABatch_IsOneStep_ItsGesturesFoldedIn()
+    {
+        var history = new SnapshotHistory<int>(0);
+        history.Commit(1);
+        using (history.Batch())
+        {
+            history.Commit(2);
+            history.BeginGesture();
+            history.Commit(3);
+            history.Commit(4);
+            history.EndGesture();
+            Assert.IsTrue(history.CanUndo, "something to take back already");
+            Assert.IsFalse(history.Undo(), "but not until the batch is said");
+            history.Commit(5);
+        }
+
+        Assert.AreEqual(2, history.UndoCount, "the commit before, and the batch as one");
+        history.Undo();
+        Assert.AreEqual(1, history.Current);
+        history.Redo();
+        Assert.AreEqual(5, history.Current);
+    }
+
+    [TestMethod]
+    public void Batches_Nest_TheOutermostLeavingTheStep_AndOneThatChangesNothingLeavesNone()
+    {
+        var history = new SnapshotHistory<int>(0);
+        var outer = history.Batch();
+        using (history.Batch()) history.Commit(1);
+        Assert.AreEqual(0, history.UndoCount, "the inner scope leaves no step of its own");
+        history.Commit(2);
+        outer.Dispose();
+        outer.Dispose();
+        Assert.AreEqual(1, history.UndoCount);
+
+        using (history.Batch())
+        {
+            history.Commit(7);
+            history.Commit(2);
+        }
+        Assert.AreEqual(1, history.UndoCount, "ending where it began is no step");
+    }
+
+    [TestMethod]
+    public void AGestureCancelledInsideABatch_PutsBackOnlyWhatItDid()
+    {
+        var history = new SnapshotHistory<int>(0);
+        using (history.Batch())
+        {
+            history.Commit(1);
+            history.BeginGesture();
+            history.Commit(9);
+            history.CancelGesture();
+            Assert.AreEqual(1, history.Current);
+        }
+        Assert.AreEqual(1, history.UndoCount);
+        history.Undo();
+        Assert.AreEqual(0, history.Current);
+    }
 }
