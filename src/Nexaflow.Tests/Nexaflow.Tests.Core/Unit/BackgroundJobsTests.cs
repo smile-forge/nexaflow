@@ -277,6 +277,33 @@ public class BackgroundJobsTests
     });
 
     [TestMethod]
+    public void APictureWhoeverAskedTakesIn_IsHandedBackAsTheFileItWasSavedAs() => OnUi(async () =>
+    {
+        var tasks   = new BackgroundActivityManager();
+        var (svc, ws) = Assistant(tasks, [], new Model("unused"));
+        svc.Register("i1", new Painting());
+        var config = new AiConfig { Columns = [new ProviderModelPair { Id = "i1", ProviderName = "Painting", Model = "p", Kind = ModelKind.ImageGeneration }] };
+        config.Assignments["ImageGeneration"] = AbilityChain.Of("i1");
+        svc.LoadAbilityConfig(config);
+
+        var folder = Path.Combine(TestTemp.Root, "nexaflow-gen-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            var path = Path.Combine(folder, "fox.png");
+            var job = svc.MakePicture(new PictureAsked("A fox in the snow", path, HighQuality: false) { OpensWhenMade = false });
+
+            Assert.AreEqual(path, await job.Made, "the file it was saved as, for the canvas that asked to take it in");
+            Assert.IsFalse(job.IsRunning);
+            Assert.AreEqual(TaskStatus.Completed, tasks.Tasks.Single(t => t.Workspace == ws).Status, "one of the workspace's jobs, ended");
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    });
+
+    [TestMethod]
     public void APictureOrAClip_IsNotOffered_WhereNoModelMakesIt_AndOneAskedForAnywayIsRefused()
     {
         var (svc, _) = Assistant(new BackgroundActivityManager(), [], new Model("unused"));

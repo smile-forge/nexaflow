@@ -863,5 +863,10 @@
             <views:ImageEditView x:Name="EditSurface" Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}" Grid.Column="1"/>
 
         </Grid>
+
+        <!-- ── New picture: the tab holds no picture ── -->
+        <Grid Grid.RowSpan="3" Visibility="{Binding IsStarting, Converter={StaticResource BoolToVis}}">
+            <views:ImageStartView DataContext="{Binding Start}"/>
+        </Grid>
     </Grid>
 </UserControl>

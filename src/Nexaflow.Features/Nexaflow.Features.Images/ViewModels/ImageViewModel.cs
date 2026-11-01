@@ -72,7 +72,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     [ObservableProperty] private string _currentFileName = string.Empty;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ImageCountText))]
+    [NotifyPropertyChangedFor(nameof(ImageCountText), nameof(IsStarting))]
     private int _totalImages;
 
     /// <summary>The photo being shown, with its recipe and history; null while nothing is.</summary>
@@ -523,9 +523,12 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
 
         if (_paths.Count == 0)
         {
+            // The last picture gone, the tab shows New picture.
             ShowNothing();
             CurrentFileName = string.Empty;
             VisibleDots.Clear();
+            ViewMode = ImageViewMode.Carousel;
+            _ = Start.RefreshAsync();
             return;
         }
 
@@ -539,6 +542,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     public void OnActivated()
     {
         if (IsAuto) { _autoTimer.Interval = _autoIntervals[Math.Clamp(AutoSpeed, 0, 2)]; _autoTimer.Start(); }
+        if (IsStarting) _ = Start.RefreshAsync();   // the clipboard, the canvases still there, the models: changed while away
     }
 
     public void OnDeactivated()
@@ -629,6 +633,8 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         Editor = new ImageEditorViewModel(this, shell, _editing, Restorer, Remover, Cutter, Eraser, picking, erasingModels, restoring);
         Layers = new LayersViewModel(shell, runOnUi, () => Editor.InkSkColour);
         Layers.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(LayersViewModel.MaskAlone)) RequestRender(); };
+        Start = new ImageStartViewModel(this, shell, ai, _editing, _config);
+        Pictures = new CanvasPictures(this, shell, ai, _editing);
         _runOnUi = runOnUi;
         MakeVideo = new MakeVideoViewModel(ai,
             () => CurrentSession is { } session && session.OutputSize(session.Recipe) is { } size && size.Height > size.Width,
@@ -636,17 +642,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
             ReadPage = new ReadPageViewModel(reading, ai, shell, _editing, runOnUi, KeptByTools, () => Host);
             Details = new ImageDetailsViewModel(new PhotoDetailsReader(_editing.Metadata, _editing.FileSystem), runOnUi);
 
-        for (int i = 0; i < paths.Count; i++)
-        {
-            Dots.Add(new ImageDotItem { Index = i, IsCurrent = i == 0 });
-            Thumbnails.Add(new ImageThumbItem
-            {
-                Index    = i,
-                FilePath = paths[i],
-                FileName = Path.GetFileName(paths[i]),
-                IsSelected = i == 0,
-            });
-        }
+        AddPictureItems();
 
         _autoTimer = new DispatcherTimer(DispatcherPriority.Background);
         _autoTimer.Tick += (_, _) => Advance();
@@ -658,7 +654,24 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         LoadImage(0);
 
         // A single image has nothing to grid/scatter — the other modes only make sense with several.
-        if (paths.Count > 1 || initialMode == ImageViewMode.Edit) ViewMode = initialMode;   // setter requests thumbnails / layout as needed
+        if (paths.Count > 1 || initialMode == ImageViewMode.Edit && paths.Count > 0) ViewMode = initialMode;   // setter requests thumbnails / layout as needed
+        if (IsStarting) _ = Start.RefreshAsync();
+    }
+
+    /// <summary>A dot and a thumbnail for each picture, the first current.</summary>
+    private void AddPictureItems()
+    {
+        for (int i = 0; i < _paths.Count; i++)
+        {
+            Dots.Add(new ImageDotItem { Index = i, IsCurrent = i == 0 });
+            Thumbnails.Add(new ImageThumbItem
+            {
+                Index    = i,
+                FilePath = _paths[i],
+                FileName = Path.GetFileName(_paths[i]),
+                IsSelected = i == 0,
+            });
+        }
     }
 
     private static Task RunHere(Action action)
@@ -869,6 +882,15 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     /// <summary>The layers panel.</summary>
     public LayersViewModel Layers { get; }
 
+    /// <summary>New picture, shown while the tab holds no picture.</summary>
+    public ImageStartViewModel Start { get; }
+
+    /// <summary>Pictures brought into a layered picture as layers: dropped on the canvas, or drawn by the image model.</summary>
+    public CanvasPictures Pictures { get; }
+
+    /// <summary>The tab holds no picture: New picture shows.</summary>
+    public bool IsStarting => TotalImages == 0;
+
     /// <summary>The picture opened on the look the application that wrote it saved: a way on is offered.</summary>
     public bool ShowsSavedLookBar => CurrentDocument?.SavedLook is not null;
 
@@ -934,6 +956,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         var document = new LayeredSession(path, read.Picture, _editing, _config.HistoryBudget);
         if (read.HoldsUndrawable) document.ShowSavedLook(OpenRasterPackage.EntryPath(path, OpenRasterPackage.MergedImagePath));
         ShowDocument(document);
+        Start.Remember(path);
     }
 
     private void ShowDocument(LayeredSession document)
@@ -948,6 +971,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         FollowDocumentTools();
         Editor.OnSessionChanged();
         OnDocumentChanged();
+        Pictures.DocumentShown();
     }
 
     /// <summary>The layered picture let go — written first where it changed — and the photo shown again.</summary>
@@ -1064,6 +1088,16 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     internal async Task<bool> SaveDocumentAsAsync(bool askWhere)
     {
         if (_shell is null || CurrentDocument is not { } document) return false;
+        if (Draft is { } draft && string.Equals(draft.Path, document.Path, StringComparison.OrdinalIgnoreCase))
+        {
+            // The tab's own draft — a canvas made on its start screen — is kept by its Save as, and the tab becomes the file kept.
+            bool kept = false;
+            void OnKept(string _) => kept = true;
+            draft.Kept += OnKept;
+            try { await draft.SaveAsCommand.ExecuteAsync(null); }
+            finally { draft.Kept -= OnKept; }
+            return kept;
+        }
         var destination = document.Path;
         if (askWhere || document.IsDraft)
         {
@@ -1702,10 +1736,68 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         _sessions.Dispose();
         _display.Dispose();
         MakeVideo.Dispose();
+        Start.Dispose();
+        Pictures.Dispose();
 
         _cts.Dispose();
     }
 
     /// <summary>The Save as of a picture made for the user and not saved yet — the tab's draft — or null for pictures opened where they live.</summary>
-    public DraftSaving? Draft { get; init; }
+    [ObservableProperty] private DraftSaving? _draft;
+
+    /// <summary>Makes the Save as of a draft the tab comes to show — its path, and the folder Save as starts in — set by the page,
+    /// which becomes the file the draft is kept as.</summary>
+    public Func<string, string?, DraftSaving>? MakeDraft { get; init; }
+
+    /// <summary>Raised once the tab shows other pictures than it opened on — from its start screen — for its page to follow.</summary>
+    public event Action<ShownPictures>? PicturesReplaced;
+
+    /// <summary>
+    /// The tab shows <paramref name="paths"/> in place of what it held — from its start screen: a canvas made there, one opened
+    /// again, pictures opened — in <paramref name="mode"/>; a draft, with its Save as starting in the user's Pictures.
+    /// </summary>
+    internal void ShowPictures(IReadOnlyList<string> paths, ImageViewMode mode, bool draft = false)
+    {
+        if (paths.Count == 0) return;
+        CloseDocument();
+        ShowNothing();
+        _paths.Clear();
+        _paths.AddRange(paths);
+        Dots.Clear();
+        Thumbnails.Clear();
+        VisibleDots.Clear();
+        AddPictureItems();
+        _thumbsRequested = false;
+        _collageComputed = false;
+        _dotBlock        = -1;
+        var folder = draft ? ImageStartViewModel.DraftFolder : null;
+        Draft = draft ? MakeDraft?.Invoke(paths[0], folder) : null;
+        TotalImages = _paths.Count;
+        OnPropertyChanged(nameof(HasMultiple));
+        OnPropertyChanged(nameof(ShowsSubViewSelector));
+        if (CurrentIndex == 0) LoadImage(0);
+        else CurrentIndex = 0;
+        ViewMode = mode == ImageViewMode.Edit || _paths.Count > 1 ? mode : ImageViewMode.Carousel;
+        PicturesReplaced?.Invoke(new ShownPictures([.. _paths], ViewMode, Draft is not null, folder));
+    }
+
+    /// <summary>The layered picture at <paramref name="path"/> opened here for editing — <paramref name="draft"/>, as the draft it is.</summary>
+    internal void OpenCanvas(string path, bool draft) => ShowPictures([path], ImageViewMode.Edit, draft);
+
+    /// <summary>
+    /// Keeps the tab's draft at <paramref name="to"/>: a layered picture written there as it now stands, a picture copied with its
+    /// edits. What the draft's Save as does.
+    /// </summary>
+    /// <exception cref="IOException">A picture layer waits for the picture tools, or the file could not be written.</exception>
+    internal async Task KeepDraftAsync(string from, string to)
+    {
+        if (CurrentDocument is { } document && string.Equals(document.Path, from, StringComparison.OrdinalIgnoreCase))
+        {
+            if (document.Writing(to) is not { } write) throw new IOException(Str.Get("Images.Layers.WaitForTools"));
+            _documentSave.Stop();
+            await write(_cts.Token);
+            return;
+        }
+        await ImageDraftHandler.KeepAsync(_editing, from, to);
+    }
 }

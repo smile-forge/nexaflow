@@ -98,6 +98,14 @@ Open the editor with **Edit** at the top right, with E, or from **Edit** among a
 - In the File System page a picture's edits go wherever it goes: copying, moving, renaming and deleting it take them along, a copy that is renamed to avoid a clash keeps its own, and dragging it to another program brings them too. **Revert edits** appears among the actions of an edited picture.
 - If a picture is changed by another program after you edited it, the viewer asks whether to keep your edits on the new picture or discard them. A picture inside an archive can be edited, but its edits last only while it is open — save a copy to keep them.
 
+## New picture
+
+- An Images tab with no picture shows **New picture** — open one from the pages the ribbon editor adds, or close the last picture of a tab. [Show me](locate:Images_Start)
+- **Create** makes a blank canvas — a size by name or typed in pixels, millimetres or inches at a resolution, turned with ⇄, on a transparent, white or coloured background — and opens it in the editor in the same tab. It is a draft until you save it: **Save as** in the strip above it, or **Save**, asks where, and the tab becomes that file. [Show me](locate:Images_StartCreate)
+- **Generate a picture** describes what to draw, with what the workspace's image model offers; **Generate** makes the canvas and draws the picture into it as its first layer, in the proportions nearest the canvas's. While it draws, the layers panel shows it with **Stop**. A workspace that draws no pictures says so, with a way to its AI settings. [Show me](locate:Images_StartGenerate,Images_StartAiSettings)
+- **Paste from clipboard**, when the clipboard holds a picture, makes a canvas of its size with the picture as its layer; **Open picture…** shows pictures from disk here. [Show me](locate:Images_StartPaste,Images_StartOpen)
+- **Recent canvases** lists the layered pictures opened here lately, drafts not saved yet among them; click one to open it again. [Show me](locate:Images_StartRecentList)
+
 ## Layers
 
 - **Add layer** on the editor's toolbar makes the picture a layered picture: the photo becomes its bottom layer, with its edits, and an empty layer goes above it. **Paste as layer** does the same with the picture on the clipboard. The photo itself is never written over — the layered picture is kept apart from it until you save it. [Show me](locate:Image_EditAddLayer,Image_EditPasteLayer)
@@ -106,6 +114,7 @@ Open the editor with **Edit** at the top right, with E, or from **Edit** among a
 - Crop, Adjust, Retouch, Cut out and Resize work on the active picture layer — a photo, with its own edits. On a layer of pixels, **Erase** in Retouch and **Remove background** in Cut out change the pixels themselves.
 - A selection — the Marquee, the Lasso, Select subject, or Ctrl+A for everything — lies over the whole canvas. **Fill** (Shift+F5) fills it on the active layer with the ink chosen in Markup, Delete clears it, Ctrl+C copies it, Ctrl+Shift+C copies what shows of every layer, Ctrl+X cuts it, and Ctrl+V pastes as a new layer. [Show me](locate:Image_LayersPixelsSection)
 - **Mask** hides part of a layer without erasing it: reveal or hide all of it, make it from the selection, from the layer's transparency or from what Cut out picked, invert it, apply it to the pixels, or delete it. Click the mask's thumbnail and Fill and Delete work on the mask; Alt-click shows the mask alone, Ctrl-click loads it as the selection, and Shift-click turns it off. [Show me](locate:Image_LayersMaskSection)
+- **Generate layer**, above the layers, draws a new layer above the active one with the workspace's image model; it shows while it draws, with **Stop**, and arrives fitted to the canvas. Pictures dropped on the canvas become layers the same way — a photo becoming a layered picture first. [Show me](locate:Image_LayersGenerate)
 - **Rasterize** turns notes or a picture layer into pixels, **Merge down** joins a layer with the one beneath, and **Flatten** makes one layer of them all.
 - **Canvas** sets a new canvas size, anchored at any of nine points, or crops the canvas to the selection. [Show me](locate:Image_LayersCanvasSection)
 - Undo and redo step through layers and selections as through edits. How much history a layered picture keeps is set in the Images options.

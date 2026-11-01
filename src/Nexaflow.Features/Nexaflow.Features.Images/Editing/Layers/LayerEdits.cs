@@ -50,4 +50,20 @@ public static class LayerEdits
 
     /// <summary>The rectangle a coverage's covered pixels lie in, within the canvas; null where nothing is covered.</summary>
     public static SKRectI? CoveredArea(TiledCoverage coverage) => coverage.Bounds is { IsEmpty: false } bounds ? bounds : null;
+
+    /// <summary>
+    /// A picture layer named <paramref name="name"/> showing the picture at <paramref name="source"/> — <paramref name="size"/>
+    /// upright — fitted inside a <paramref name="width"/> × <paramref name="height"/> canvas and centred on it: at its own size
+    /// where it fits, scaled down where it does not.
+    /// </summary>
+    public static PictureLayer Fitted(PictureSource source, SKSize size, int width, int height, string name)
+    {
+        double scale = Math.Min(1, Math.Min(width / size.Width, height / size.Height));
+        return new PictureLayer
+        {
+            Name      = name,
+            Source    = source,
+            Placement = new LayerPlacement((width - size.Width * scale) / 2, (height - size.Height * scale) / 2, scale),
+        };
+    }
 }

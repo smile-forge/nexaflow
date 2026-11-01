@@ -367,26 +367,35 @@ Standard OpenRaster any reader draws correctly, with what only Nexaflow uses bes
 - **Size presets** — Screen (the monitor's size), Square 1024, Full HD, 4K, A4 and Letter at 300 dpi, Social (1080 ×
   1350) — and a custom width × height with units (px, mm, in) and dpi; orientation swap.
 - **Background**: transparent, white, or a colour.
-- **Create** makes the canvas as a draft `.ora` (one empty pixel layer) and opens it in edit mode.
+- **Create** makes the canvas as a draft `.ora` (one empty pixel layer) and opens it in edit mode, in the same tab: the
+  page takes the canvas's title and parameters, and the draft's Save as — the editor's Save asks it too — turns the tab
+  into the file kept, as any draft does.
 - **Generate a picture**: the prompt and the model's own choices (`IAIService.MakesPictures` — aspect, resolution,
   detail, seed, negative prompt, LoRA) with the canvas size picking the nearest aspect; the picture arrives as the
   canvas's first picture layer. Hidden when the workspace has no image model, with the reason and a link to its AI
   settings, as Gen Image does today.
 - **Paste from clipboard** (when it holds a picture) and **Open picture…**.
-- **Recent canvases**: the last `.ora` files and unsaved drafts opened here.
+- **Recent canvases**: the last `.ora` files and unsaved drafts opened here, kept in the Images settings
+  (`ImagesConfig.RecentCanvases`) so every tab and every session shares them.
 
-How it is reached: a *New picture* entry where pages are launched, the New picker's *Layered picture*, and an Images tab
-whose last picture is closed.
+How it is reached: *New picture* among the pages the ribbon editor adds (the registration is `CanBeContextItem`, its
+`paths` optional, as the Font viewer's are), an Images tab opened with no picture, and an Images tab whose last picture is
+closed. The New picker's *Layered picture* makes its canvas in the picker itself, with the same `CanvasSetup` (§8.6).
 
 ### 9.2 Generating into the canvas
 
 `IAIService.MakePicture` saves and opens; a canvas needs the picture handed back. `MakePicture` returns a
 `PictureJob` whose `Made` task completes with the saved path (null when stopped, withheld by the picture check, or
 failed), and `PictureAsked` gains `OpensWhenMade` (default true, as today). The canvas asks for a draft path, does not
-open it, and adds the picture as a picture layer when it arrives; until then a placeholder layer shows the job's
-progress and Stop. The job stays one of the workspace's background jobs, listed and stoppable as now.
+open it, and adds the picture as a picture layer, fitted to the canvas and centred, when it arrives — on the start screen
+beneath the empty layer, as the canvas's first. Until then a row above the layers panel (`CanvasPictures.Pending`)
+shows the job's progress (`PictureJob.Progress`, the step its model reports) and Stop; it is not a layer of the picture,
+so nothing of it is ever saved. A picture that arrives while its canvas is not shown is added once it is. The job stays
+one of the workspace's background jobs, listed and stoppable as now.
 
 - **Generate layer** (layers panel): the same, at the canvas size, into a new layer above the active one.
+- **Dropping pictures** on the canvas adds each as a picture layer above the active one, fitted and centred — a photo made
+  a layered picture first (§4.3).
 
 Generating into a selection (generative fill) waits for a local model that takes a mask (§13).
 

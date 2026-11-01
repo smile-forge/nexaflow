@@ -349,10 +349,78 @@
           }
         ]
       }
+    },
+    "images-start": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageStartViewModel.cs",
+          "class": "ImageStartViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/ImageStartView.xaml.cs",
+          "class": "ImageStartView"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/CanvasPictures.cs",
+          "class": "CanvasPictures"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/CanvasPicturesPanel.xaml.cs",
+          "class": "CanvasPicturesPanel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/MediaMaking.cs",
+          "class": "PictureJob"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/AIService.cs",
+          "class": "AIService",
+          "method": "MakePicture"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "title_path": [
+            "Images",
+            "New picture"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageStartTests.cs",
+            "class": "ImageStartTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesStartJourneyTests.cs",
+            "class": "ImagesStartJourneyTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesCanvasGenerateJourneyTests.cs",
+            "class": "ImagesCanvasGenerateJourneyTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/BackgroundJobsTests.cs",
+            "class": "BackgroundJobsTests",
+            "method": "APictureWhoeverAskedTakesIn_IsHandedBackAsTheFileItWasSavedAs"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 16,
+  "changed_sets": 18,
   "touched_nodes": [
     "images-layer-masks",
     "images-layers",
@@ -361,6 +429,7 @@
     "images-selection",
     "images-selection-lasso",
     "images-selection-marquee",
-    "images-selection-refine"
+    "images-selection-refine",
+    "images-start"
   ]
 }

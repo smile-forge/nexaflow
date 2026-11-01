@@ -31,11 +31,15 @@
         <!-- ══ Layers: a layered picture's, beside the tools ══ -->
         <Border Grid.Column="2" Width="260" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0"
                 Visibility="{Binding IsLayered, Converter={StaticResource BoolToVis}}" Thumb.DragStarted="Slider_DragStarted" Thumb.DragCompleted="Slider_DragCompleted">
-            <views:LayersPanel DataContext="{Binding Layers}"/>
+            <DockPanel>
+                <views:CanvasPicturesPanel DockPanel.Dock="Top" DataContext="{Binding Pictures}"/>
+                <views:LayersPanel DataContext="{Binding Layers}"/>
+            </DockPanel>
         </Border>
 
         <!-- ══ Canvas: the picture and the editing chrome over it, on the shared pan/zoom surface ══ -->
-        <Grid x:Name="CanvasHost" Grid.Column="0" ClipToBounds="True" SizeChanged="CanvasHost_SizeChanged">
+        <Grid x:Name="CanvasHost" Grid.Column="0" ClipToBounds="True" SizeChanged="CanvasHost_SizeChanged"
+              AllowDrop="True" DragOver="CanvasHost_DragOver" Drop="CanvasHost_Drop">
             <vcl:PanZoomSurface x:Name="Surface" Background="{StaticResource BgBrush}" AutomationProperties.AutomationId="Image_EditCanvas"
                                 ZoomOnPlainWheel="True" MinScale="0.1" MaxScale="8"/>
             <TextBlock Text="{loc:Str Images.LoadFailed}" Foreground="{StaticResource TextMutedBrush}"

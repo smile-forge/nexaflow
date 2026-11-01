@@ -96,6 +96,23 @@ public partial class ImageEditView : UserControl
 
     private void CanvasHost_SizeChanged(object sender, SizeChangedEventArgs e) => ReportViewport();
 
+    // Pictures dropped on the canvas become layers, the photo a layered picture first.
+    private void CanvasHost_DragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = DroppedPictures(e) is { Count: > 0 } ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private async void CanvasHost_Drop(object sender, DragEventArgs e)
+    {
+        if (_viewer is not { } viewer || DroppedPictures(e) is not { Count: > 0 } pictures) return;
+        e.Handled = true;
+        await viewer.Pictures.AddFilesAsync(pictures);
+    }
+
+    private static IReadOnlyList<string>? DroppedPictures(DragEventArgs e)
+        => e.Data.GetData(DataFormats.FileDrop) is string[] files ? [.. files.Where(ImageFileTypes.IsImage)] : null;
+
     private void ReportViewport()
     {
         if (_viewer is null || !IsVisible || CanvasHost.ActualWidth <= FitMargin || CanvasHost.ActualHeight <= FitMargin) return;

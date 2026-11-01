@@ -58,11 +58,14 @@ public sealed class ImageTabRegistration : IPageRegistration
 
     public IReadOnlyList<PageParameter> Parameters =>
     [
-        new("paths", "Pipe-separated full paths of the pictures to show.", OnDisk: true),
+        new("paths", "Pipe-separated full paths of the pictures to show. Omit for New picture: a blank canvas, a picture drawn into one, the clipboard's picture, or pictures opened.", Required: false, OnDisk: true),
         new("view", "How to show them: carousel (the default), album, explore, collage or edit.", Required: false),
         new("scope", "\"folder\" when the pictures are a whole folder.", Required: false),
         new("tool", "The image editor's tool to open on, with view edit: crop, adjust, retouch, cutout, markup or resize.", Required: false),
     ];
+
+    /// <summary>New picture opens with no picture at all, so it is offered wherever pages are launched.</summary>
+    public bool CanBeContextItem => true;
 
     /// <summary>Maps a "view" page param to its sub-view (carousel is the default; "slideshow" is an alias).</summary>
     public static ImageViewMode ParseView(string? view) => view?.ToLowerInvariant() switch
@@ -88,46 +91,76 @@ public sealed class ImageTabRegistration : IPageRegistration
         // "folder" = the whole-folder actions (slideshow/album); otherwise it's an explicit file selection.
         var wholeFolder = pageParams?.GetValueOrDefault("scope") == "folder";
 
-        var title = paths.Count == 1
-            ? Path.GetFileName(paths[0])
-            : Str.Format("Images.Page.TitleFormat", paths.Count);
-
-        var draft = Draft(pageParams, paths);
+        var draft = DraftOffered(pageParams, paths);
         var page = new Page
         {
-            Title       = title,
-            Icon        = "🖼",
-            ContentFactory = () =>
-            {
-                var viewer = new ImageViewModel(paths, _shell, mode, _editing, _ai, _pictures, _selection, _reading, _erasing, _config) { Draft = draft };
-                if (ParseTool(pageParams?.GetValueOrDefault("tool")) is { } tool) viewer.Editor.Tool = tool;
-                return new ImageView(viewer);
-            }
+            Title = TitleOf(paths),
+            Icon  = "🖼",
         };
-
-        // Single image → "folder › name"; a folder view → "folder › all image files"; a selection → "folder › N images".
-        if (paths.Count > 1)
-            page.SetMultiFileBreadcrumbs(paths, wholeFolder ? Str.Get("Images.Page.AllImageFiles") : Str.Format("Images.Page.SelectionFormat", paths.Count));
-        else
-            page.SetFileBreadcrumbs(paths.Count == 1 ? paths[0] : string.Empty, paths.Count == 1 ? title : Str.Get("Images.Page.Fallback"));
-
-        // A draft kept somewhere is that file from then on: it opens there, and the draft's tab goes.
-        if (draft is not null)
-            draft.Kept += kept =>
+        page.ContentFactory = () =>
+        {
+            ImageViewModel? viewer = null;
+            viewer = new ImageViewModel(paths, _shell, mode, _editing, _ai, _pictures, _selection, _reading, _erasing, _config)
             {
-                _shell.OpenTab(StaticPageKind, new Dictionary<string, string> { ["paths"] = kept });
-                _shell.CloseTab(page);
+                MakeDraft = (path, offered) => Drafted(page, viewer!, path, offered),
             };
-
+            if (draft is var (draftPath, offered)) viewer.Draft = Drafted(page, viewer, draftPath, offered);
+            if (ParseTool(pageParams?.GetValueOrDefault("tool")) is { } tool) viewer.Editor.Tool = tool;
+            viewer.PicturesReplaced += shown => Follow(page, shown);
+            return new ImageView(viewer);
+        };
+        SetBreadcrumbs(page, paths, wholeFolder);
         return page;
     }
 
-    /// <summary>The Save as of a draft — one picture made for the user in a temp folder, opened with a "draft" parameter
+    /// <summary>A single picture by its name, a set by its count, none as New picture.</summary>
+    private static string TitleOf(IReadOnlyList<string> paths) => paths.Count switch
+    {
+        0 => Str.Get("Images.Page.NewPicture"),
+        1 => Path.GetFileName(paths[0]),
+        _ => Str.Format("Images.Page.TitleFormat", paths.Count),
+    };
+
+    /// <summary>Single image → "folder › name"; a folder view → "folder › all image files"; a selection → "folder › N images".</summary>
+    private static void SetBreadcrumbs(Page page, IReadOnlyList<string> paths, bool wholeFolder)
+    {
+        if (paths.Count > 1)
+            page.SetMultiFileBreadcrumbs(paths, wholeFolder ? Str.Get("Images.Page.AllImageFiles") : Str.Format("Images.Page.SelectionFormat", paths.Count));
+        else
+            page.SetFileBreadcrumbs(paths.Count == 1 ? paths[0] : string.Empty, paths.Count == 1 ? Path.GetFileName(paths[0]) : Str.Get("Images.Page.Fallback"));
+    }
+
+    /// <summary>The page follows what its start screen opened: titled and found by it, and opened on it again.</summary>
+    private static void Follow(Page page, ShownPictures shown)
+    {
+        page.Title = TitleOf(shown.Paths);
+        SetBreadcrumbs(page, shown.Paths, wholeFolder: false);
+        var pageParams = new Dictionary<string, string> { ["paths"] = string.Join('|', shown.Paths) };
+        if (shown.Mode == ImageViewMode.Edit) pageParams["view"] = "edit";
+        if (shown.IsDraft) pageParams[DraftFile.PageParameterName] = shown.DraftFolder ?? string.Empty;
+        page.PageParams = pageParams;
+    }
+
+    /// <summary>The draft a page opens on — one picture made for the user in a temp folder, opened with a "draft" parameter
     /// naming the folder its Save as starts in — or null for pictures opened where they live.</summary>
-    private DraftSaving? Draft(Dictionary<string, string>? pageParams, IReadOnlyList<string> paths)
+    private static (string Path, string? Offered)? DraftOffered(Dictionary<string, string>? pageParams, IReadOnlyList<string> paths)
         => paths.Count == 1 && pageParams?.TryGetValue(DraftFile.PageParameterName, out var offered) == true
-            ? new DraftSaving(paths[0], offered is { Length: > 0 } ? offered : null,
-                              (name, extensions, folder) => _shell.PickSaveFileAsync(name, extensions, folder), _shell.ShowError,
-                              (from, to) => ImageDraftHandler.KeepAsync(_editing, from, to))
+            ? (paths[0], offered is { Length: > 0 } ? offered : null)
             : null;
+
+    /// <summary>
+    /// The Save as of a draft shown in <paramref name="page"/>: kept by the viewer — a layered picture written as it stands, a
+    /// picture copied with its edits — and that file from then on: it opens there, and the draft's tab goes.
+    /// </summary>
+    private DraftSaving Drafted(Page page, ImageViewModel viewer, string path, string? offered)
+    {
+        var draft = new DraftSaving(path, offered, (name, extensions, folder) => _shell.PickSaveFileAsync(name, extensions, folder), _shell.ShowError,
+                                    viewer.KeepDraftAsync);
+        draft.Kept += kept =>
+        {
+            _shell.OpenTab(StaticPageKind, new Dictionary<string, string> { ["paths"] = kept });
+            _shell.CloseTab(page);
+        };
+        return draft;
+    }
 }
