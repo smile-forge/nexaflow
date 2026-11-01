@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Pdf.Services;
+using Nexaflow.Icons;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -21,7 +22,7 @@ public sealed class ExtractImagesAction(IShellServices shell, IVirtualFileSystem
     public string ExperienceDescription => Str.Get("Pdf.Action.ExtractImagesDescription");
 
     public string DisplayName => Str.Get("Pdf.Action.ExtractImages");
-    public string Icon => "🖼";
+    public IconRef Icon => IconRef.Emoji("🖼");
     public string? Tooltip => Str.Get("Pdf.Action.ExtractImagesTip");
 
     public bool IsDestructive => false;

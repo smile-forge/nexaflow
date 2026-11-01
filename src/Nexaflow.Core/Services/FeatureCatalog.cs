@@ -134,7 +134,7 @@ public sealed class FeatureCatalog
         {
             _index = cached;
             rebuilt = false;
-            Debug.WriteLine($"[FeatureCatalog] cache hit ({_index.Assemblies.Count} assemblies); no feature DLLs scanned.");
+            ShellSafetyLog.Instance.Step($"feature catalog: cache hit ({_index.Assemblies.Count} assemblies); no feature DLLs scanned");
         }
         else
         {
@@ -144,7 +144,7 @@ public sealed class FeatureCatalog
             SaveCache(_index);
 #endif
             rebuilt = true;
-            Debug.WriteLine($"[FeatureCatalog] full scan of {_index.Assemblies.Count} assemblies in {sw.ElapsedMilliseconds} ms.");
+            ShellSafetyLog.Instance.Step($"feature catalog: full scan of {_index.Assemblies.Count} assemblies in {sw.ElapsedMilliseconds} ms");
         }
 
         lock (_lock)
@@ -208,7 +208,12 @@ public sealed class FeatureCatalog
 
         Type[] types;
         try { types = asm.GetTypes(); }
-        catch (ReflectionTypeLoadException ex) { types = ex.Types.Where(t => t is not null).ToArray()!; }
+        catch (ReflectionTypeLoadException ex)
+        {
+            // Indexed without the types that failed, so the rest of the assembly still works — but say which, and why.
+            ShellSafetyLog.Instance.Failed($"reading every type in {file}", ex);
+            types = ex.Types.Where(t => t is not null).ToArray()!;
+        }
 
         foreach (var t in types)
         {
@@ -316,7 +321,7 @@ public sealed class FeatureCatalog
             if (_activated.Add(file) && _byFile.TryGetValue(file, out var entry) && _onActivated is { } cb)
             {
                 try { cb(asm, entry); }
-                catch (Exception ex) { Debug.WriteLine($"[FeatureCatalog] activate {file} failed: {ex.Message}"); }
+                catch (Exception ex) { ShellSafetyLog.Instance.Failed($"activating {file}", ex); }
             }
             return asm;
         }
@@ -330,7 +335,7 @@ public sealed class FeatureCatalog
         if (existing is not null) return existing;
 
         try { return Assembly.LoadFrom(Path.Combine(_exeDir, file)); }
-        catch (Exception ex) { Debug.WriteLine($"[FeatureCatalog] load {file} failed: {ex.Message}"); return null; }
+        catch (Exception ex) { ShellSafetyLog.Instance.Failed($"loading {file}", ex); return null; }
     }
 
     /// <summary>Resolves a type by (assembly file, full name), loading + activating the assembly if needed.</summary>
@@ -468,7 +473,7 @@ public sealed class FeatureCatalog
             if (already) continue;
             try { EnsureLoaded(f); activated++; } catch { }
         }
-        Debug.WriteLine($"[FeatureCatalog] warm-up activated {activated} feature assembly(ies).");
+        ShellSafetyLog.Instance.Step($"feature catalog: warm-up activated {activated} feature assembly(ies)");
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -502,7 +507,7 @@ public sealed class FeatureCatalog
             if (File.Exists(CachePath))
                 return JsonSerializer.Deserialize<CatalogIndex>(File.ReadAllText(CachePath), _json);
         }
-        catch (Exception ex) { Debug.WriteLine($"[FeatureCatalog] cache read failed: {ex.Message}"); }
+        catch (Exception ex) { ShellSafetyLog.Instance.Failed("reading the feature catalog cache", ex); }
         return null;
     }
 
@@ -513,13 +518,13 @@ public sealed class FeatureCatalog
             Directory.CreateDirectory(Path.GetDirectoryName(CachePath)!);
             File.WriteAllText(CachePath, JsonSerializer.Serialize(idx, _json));
         }
-        catch (Exception ex) { Debug.WriteLine($"[FeatureCatalog] cache write failed: {ex.Message}"); }
+        catch (Exception ex) { ShellSafetyLog.Instance.Failed("writing the feature catalog cache", ex); }
     }
 
     /// <summary>Drops the on-disk index (Debug builds, which always rescan).</summary>
     private static void DeleteCache()
     {
         try { if (File.Exists(CachePath)) File.Delete(CachePath); }
-        catch (Exception ex) { Debug.WriteLine($"[FeatureCatalog] cache delete failed: {ex.Message}"); }
+        catch (Exception ex) { ShellSafetyLog.Instance.Failed("deleting the feature catalog cache", ex); }
     }
 }

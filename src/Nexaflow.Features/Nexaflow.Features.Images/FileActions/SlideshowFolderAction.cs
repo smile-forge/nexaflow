@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -10,6 +11,6 @@ public sealed class SlideshowFolderAction : ImageFolderAction
     public SlideshowFolderAction(IShellServices shell, IVirtualFileSystem vfs) : base(shell, vfs) { }
 
     protected override string ViewMode => "slideshow";
-    public override string Icon        => "🖼";
+    public override IconRef Icon       => IconRef.Emoji("🖼");
     public override string DisplayName => Str.Get("Images.Action.Slideshow");
 }

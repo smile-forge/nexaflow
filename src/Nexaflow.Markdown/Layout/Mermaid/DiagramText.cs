@@ -1,3 +1,4 @@
+using Nexaflow.Icons;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Layout.Prose;
@@ -177,6 +178,16 @@ internal sealed class DiagramText(ContentReading reading, EditState state, Layou
         new(Text(says, size, ink, weight, italic), part, null, Text("x", size, ink), ink, maps: false, writes: false);
 
     /// <summary>
+    /// A value written one way and set another — a number as the front matter's format sets it, <c>700000</c> as <c>$700,000</c>: set as
+    /// <paramref name="says"/> and pressed as the characters written, which it is then shown as and typed into, for as long as the
+    /// caret is in it. Words like any other written words, where they say what is written.
+    /// </summary>
+    public DiagramWords Formatted(ContentPart part, string says, double size, LayoutInk ink, int? weight = null, bool? italic = null) =>
+        WritingIn(part)
+            ? Written(part, null, size, ink, weight, italic)
+            : new DiagramWords(Text(says, size, ink, weight, italic), part, null, Letter(size, ink), ink, maps: false, writes: true);
+
+    /// <summary>
     /// The icon something names, set in the face its glyph is in and standing for what names it — or null where it names no
     /// icon the app draws (<see cref="WithIcons"/>), and what is drawn instead is the diagram's to say. What is asked about may
     /// be the icon's own words, or what holds it: a line naming an icon, or metadata setting one.
@@ -188,10 +199,23 @@ internal sealed class DiagramText(ContentReading reading, EditState state, Layou
         named ??= part?.SelfAndDescendants().FirstOrDefault(each => each.Node is RenderedIconNode);
         if (named?.Node is not RenderedIconNode icon) return null;
 
-        var face = icon.Family is null ? style.Face(BodyFont) : style.IconFace;
-        var glyph = medium.Shape(icon.Glyph, face, size, ink);
+        return Icon(icon.Icon, named, size, ink);
+    }
 
-        return new DiagramWords(glyph, named, null, Text("x", size, ink), ink, maps: false, writes: false);
+    /// <summary>
+    /// The icon <paramref name="icon"/>, <paramref name="size"/> big, standing for <paramref name="part"/>: an emoji in the body's font,
+    /// a Fluent icon as its glyph, and a pack's icon drawn as its outlines, its <c>currentColor</c> in <paramref name="ink"/> — or null
+    /// where nothing draws it.
+    /// </summary>
+    public DiagramWords? Icon(IconRef icon, ContentPart? part, double size, LayoutInk ink)
+    {
+        if (icon.IsIconify)
+            return IconPacks.Of(icon) is { } drawn ? new DiagramWords(DrawnIcon.Of(drawn, size, medium, ink), part, Text(string.Empty, size, ink), ink) : null;
+
+        if (!icon.IsFluent) return new DiagramWords(medium.Shape(icon.Value, style.Face(BodyFont), size, ink), part, null, Text("x", size, ink), ink, maps: false, writes: false);
+        if (FluentGlyphs.Of(icon) is not { } glyph) return null;
+
+        return new DiagramWords(medium.Shape(glyph, style.IconFace, size, ink), part, null, Text("x", size, ink), ink, maps: false, writes: false);
     }
 
     /// <summary>What the thing a name first writes is drawn with (<see cref="MermaidStyling.Style"/>) — nothing of its own, where no styling says.</summary>

@@ -97,7 +97,7 @@ characters (`MarkdownTokenizer`, `MarkdownDelimiters`) — **and** drawn by the 
 | Auto links | `MarkdownTokenizer` (bare addresses) | ✅ | ✅ | A bare `https://…` address is a link to itself. |
 | Definition lists | `DefinitionRule` | ✅ | ✅ | The term set apart from what it means. |
 | List extras | `ItemRule` (lettered) | ✅ | ✅ | `a.`/`A.` alphabetic and `i.`/`I.` roman ordered markers. |
-| Abbreviations | `AbbreviationRule`, `WithReferences` | ✅ | ✅ | `*[HTML]: HyperText…` defines an abbreviation wherever it is written; each occurrence is drawn with a dotted rule under it, and says what it stands for while the pointer rests on it — hung on the tree as a tip (`Roles.Tip`) and looked up only when the pointer arrives. The definition line is not drawn. |
+| Abbreviations | `AbbreviationRule`, `WithReferences` | ✅ | ✅ | `*[HTML]: HyperText…` defines an abbreviation wherever it is written; each occurrence is drawn with a dotted rule under it, and says what it stands for while the pointer rests on it — read by a stage (`Roles.Tip`) and put by the builder in the layout's tips beside the piece it draws (`LayoutBuilder.Tip`). The definition line is not drawn. |
 | Alert blocks | `AlertRule` | ✅ | ✅ | `> [!NOTE]` / `[!TIP]` / `[!IMPORTANT]` / `[!WARNING]` / `[!CAUTION]` → the kind's word and colour (`Accent`/`Success`/`Important`/`Warning`/`Danger`). |
 | YAML front matter | `FrontMatterRule` | ✅ (not drawn) | ✅ | What a document says about itself is not on the page — until the caret is put in it. |
 | Figures | `FigureRule` | ✅ | ✅ | `^^^` figure block, caption under the middle. |
@@ -129,6 +129,8 @@ JS/Mermaid.js, no browser).
 |---|---|---|
 | `nomnoml` | ✅ | ✅ — UML class notation on the shared layout tree; see [nomnoml](#nomnoml--sub-support) below |
 | `packet` | ✅ | ✅ — a packet or a register on the shared layout tree, written in place; see [packet](#packet--sub-support) below |
+| `treemap` | ✅ | ✅ — values as nested tiles on the shared layout tree, split, merged and grouped as boxes; see [treemap](#treemap--sub-support) below |
+| `treeview` | ✅ | ✅ — a folder tree on the shared layout tree, worked like an outline; see [tree view](#tree-view--sub-support) below |
 | `mermaid` | ⚠️ Partial | ✅ — see sub-types below |
 | `qr` | ✅ | ✅ — see [QR codes](#qr-codes--sub-support) below |
 | `barcode` | ✅ | ✅ — see [Barcodes](#barcodes--sub-support) below |
@@ -172,6 +174,8 @@ JS/Mermaid.js, no browser).
 | `C4Context` / `C4Container` / `C4Component` / `C4Dynamic` / `C4Deployment` | ✅ (shared layout tree; element cards, nested boundaries, a key, written in place) | ✅ grammar (`C4GrammarTests`) + elements, boundaries, relationships, styling + config (`C4StagesTests`) + draw and grading (`C4BuilderTests`) + writing (`C4EditingTests`) + sample render. See sub-features below. |
 | `C4Sequence` *(Nexaflow extension)* | ✅ (shared layout tree; element cards, boundaries, numbering and a key, written in place) | ✅ grammar (`C4SequenceGrammarTests`) + cards, boundaries, relationships + config (`C4StagesTests`) + draw (`C4SequenceBuilderTests`) + writing (`C4SequenceEditingTests`) + sample render. See sub-features below. |
 | `packet` / `packet-beta` | ✅ (handed whole to the `packet` language — see [packet](#packet--sub-support)) | ✅ — the packet language's own tests |
+| `treemap-beta` / `treemap` | ✅ (handed whole to the `treemap` language — see [treemap](#treemap--sub-support)) | ✅ — the treemap language's own tests |
+| `treeView-beta` | ✅ (handed whole to the `treeview` language — see [tree view](#tree-view--sub-support)) | ✅ — the tree view language's own tests |
 | `block-beta` | ✅ (shared layout tree; the author's own grid, nested composites, written in place) | ✅ grammar (`BlockGrammarTests`) + composites, styles + config (`BlockStagesTests`) + grid, links and draw (`BlockBuilderTests`) + writing (`BlockEditingTests`) + shapes (`MermaidShapesTests`) + sample render. See sub-features below. |
 
 **Flowchart sub-features** ([`FlowchartGrammar`](../src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartGrammar.cs) →
@@ -211,8 +215,9 @@ applied** ([`FlowchartConfig`](../src/Nexaflow.Markdown/Mermaid/Flowchart/Flowch
 anything else curves them), and the shared `markdownAutoWrap`. **Divergences from Mermaid:** a label is written on one line, where
 Mermaid lets a markdown string run across several — `<br/>` breaks a line here; `htmlLabels`, `defaultRenderer` and `useMaxWidth`
 have nothing to ask for, since labels are drawn by the layout tree, there is one layout, and the chart is drawn at the size its
-nodes come to; there is no icon pack to fetch, so an `icon:` node is drawn in its `form:` as the Fluent UI icon drawing the
-same thing ([`MermaidIcons`](../src/Nexaflow.Markdown/Mermaid/MermaidIcons.cs)) — `fa:user` a person, `mdi:account` too, the
+nodes come to; nothing is fetched, so an `icon:` node is drawn in its `form:` as an icon of a pack the app ships, where it names
+one — `material-icon-theme:rust` as itself — and otherwise as the Fluent UI icon drawing the same thing
+([`MermaidIcons`](../src/Nexaflow.Markdown/Mermaid/MermaidIcons.cs)) — `fa:user` a person, `mdi:account` too, the
 app's own `fluent:name` as itself — and as a question mark where the app draws none, which is what Mermaid draws for an icon it
 has no pack for, and `fa:fa-…` in a label is drawn as the characters written; an `img:` node is the
 picture the host finds by that name, found as a document's `![](…)` is (`WithDiagramPictures`), at the `w:`/`h:` it asks for
@@ -245,7 +250,9 @@ choose as they do in any diagram on the layout tree.
 the section/legend text sizes and colours, and `pieTitleTextColor`. A size or colour nobody wrote is the theme's.
 Each wedge **stands in its own shape**, so a press means the slice it lands in rather than whichever bounding box was
 asked first, and the gaps between slices are real gaps of even width. A wedge, the share written on it and its legend
-row all point at the same slice, so choosing one highlights all three. **Limitations:** `hover` highlighting needs a
+row all point at the same slice, so choosing one highlights all three. A wedge too thin to hold its share (under 5%)
+says, while pointed at, what its slice is called, what it is worth where `showData` shows values, and its share; a
+wedge showing its share says nothing more. **Limitations:** `hover` highlighting needs a
 pointer the layout does not yet report, so it picks out nothing; and a value is typed into only where the host makes
 the block editable.
 
@@ -435,8 +442,7 @@ time, and what `layout:` names is read and kept.
 **The front matter is applied** ([`MindmapConfig`](../src/Nexaflow.Markdown/Mermaid/Mindmap/MindmapConfig.cs)): `config:
 mindmap:` `padding` and `maxNodeWidth` (`useMaxWidth` read); and the `themeVariables:` `cScale0`…`cScale11`,
 `cScaleLabel0`…`cScaleLabel11` and `cScaleInv0`…`cScaleInv11` for the branches, with `git0` and `gitBranchLabel0` for the root.
-A colour nobody wrote is the theme's. **Not applied:** icons, since no icon font is shipped to draw `fa fa-book` with, and
-classes, since a mindmap declares none; markdown strings' formatting — `**bold**` is drawn as written, because what is drawn is
+A colour nobody wrote is the theme's. **Not applied:** classes, since a mindmap declares none; markdown strings' formatting — `**bold**` is drawn as written, because what is drawn is
 what is typed into, and hiding the asterisks would leave a caret nowhere to stand; titles written over several lines, which a
 line-by-line grammar does not see; and the `handDrawn` look.
 **Written in place:** a title is typed into where it is drawn, on whichever of its wrapped lines is pressed; a quote, a closing
@@ -465,8 +471,8 @@ each line standing for the characters it holds.
 `ticketBaseUrl` (a linked ticket drawn in the accent), `sectionWidth`, and `padding` and `useMaxWidth` (read); and the
 `themeVariables:` `cScale0`…`cScale11` and `cScaleLabel0`…`cScaleLabel11` for the columns — the first column taking the
 scale's third, as Mermaid numbers them — and `background`, `nodeBorder` and `textColor` for the cards. A colour nobody wrote
-is the theme's. **Not applied:** following a ticket's link (which wants a press on a piece to reach the host); icons, since no
-icon font is shipped to draw `fa fa-book` with, and classes, since a kanban board declares none; metadata written over several
+is the theme's. **Not applied:** following a ticket's link (which wants a press on a piece to reach the host); classes, since
+a kanban board declares none; metadata written over several
 lines, which a line-by-line grammar does not see; and the `handDrawn` look.
 **Written in place:** a column's or a card's title is typed into where it is drawn, on whichever of its lines is pressed; a
 quote, a closing bracket or a comment typed into a title in brackets puts it in quotes, and a bracket typed into a bare title
@@ -701,7 +707,8 @@ diagram is drawn the same way every time. Supported: `group id(icon)[Title]` nes
 `service id(icon)[Title] in group`, the icon being words of its own in quotes where it is; `junction`, drawn as the dot
 its edges meet at; edges `id{group}?:SIDE {<}?--{>}? SIDE:id{group}?` with a head at either end or both, the `{group}`
 that reaches the group a service is in, and `-[reads]-` to say what an edge is; `align row` and `align column`; a `title`
-and the accessibility lines. An icon is drawn as the Fluent UI icon drawing the same thing
+and the accessibility lines. An icon of a pack the app ships is drawn as itself — `material-icon-theme:docker` — and any
+other as the Fluent UI icon drawing the same thing
 ([`MermaidIcons`](../src/Nexaflow.Markdown/Mermaid/MermaidIcons.cs)) — the five Mermaid ships, `cloud`, `database`, `disk`,
 `internet` and `server`, and a pack's where the app has one, `fa:user` a person — and one the app draws none of is written out
 as what it is called, which says as much as a picture nobody has. **Everything drawn
@@ -1212,6 +1219,101 @@ right-click offers to cut, copy and paste, a paste spelled for where it lands; o
 - A packet wider than its room narrows its bits and sets labels on more lines, its rows growing to hold them, before it
   is drawn smaller; Mermaid's labels run past their boxes.
 - A `<br>` in a label breaks its line, as in every diagram here; Mermaid writes it as it stands.
+
+---
+
+## treemap — sub-support
+
+[Treemaps](https://mermaid.js.org/syntax/treemap.html) draw values as tiles, each as big as its share. A treemap is a
+language of its own here: a `treemap` fence names it, and a `mermaid` block headed `treemap-beta` or `treemap` is handed
+to it whole. It is read by a parser of its own ([`TreemapParser`](../src/Nexaflow.Markdown/Treemap/TreemapParser.cs)) —
+the frame every block written Mermaid's way has with Mermaid's own pieces, its items itself — and
+[`ResolveItems`](../src/Nexaflow.Markdown/Treemap/Stages/ResolveItems.cs) gathers each item with the items indented under
+it, so a section in the tree is the section with everything in it, and says what each comes to. It is drawn by
+[`TreemapBuilder`](../src/Nexaflow.Markdown/Layout/Treemap/TreemapBuilder.cs) as tiles inside tiles, laid as near square
+as they go, largest first ([`TreemapTiles`](../src/Nexaflow.Markdown/Layout/Treemap/TreemapTiles.cs)), coloured as Mermaid
+colours them: a section by its label, the colours handed out a level at a time from the top and the largest first, and a
+leaf in its section's colour, so the order items are written in changes no colour.
+
+| Written | Read as |
+|---|---|
+| `"Products"` | a section, holding the items indented under it |
+| `"Phones": 50` or `"Phones", 50` | a leaf and its value; `,` and `_` group a value's digits |
+| `:::name` after an item | the class it takes, styled by a `classDef` line |
+| `"…"` or `'…'` | a label, holding anything but its quote |
+| `title …` on a line of its own | the title |
+| `config: treemap:` | `padding`, `diagramPadding`, `showValues`, `nodeWidth`, `nodeHeight`, `borderWidth`, `valueFontSize`, `labelFontSize`, `valueFormat` (a d3 format, with Mermaid's `$` shorthands) |
+
+A label is typed into on its tile, and a value too — drawn as `valueFormat` sets it, and shown as written once the caret
+is in it, by a press or a key; while it is typed the tiles stay laid out as they were, and move once, when the caret leaves
+it. A section's total is worked out and never written in. A tile with no room for its value tells it when pointed at, and one
+with no room for its whole label tells its label and its value; a band does the same for its label and total. It is worked
+as boxes, not as an outline: where a tile is drawn
+follows from what it is worth, so the order lines are written in is nothing a reader sees, and nothing offered moves a line
+among its siblings. What the map adds up to is kept wherever a change can keep it. Enter ends the writing and picks the box
+out — but in the label of a box whose value is still to write it goes on into the value, so a box put in is made by its
+name, Enter, its value, Enter. A box put in has its value still to write (`"shoes":`) and waits under the map until it is
+given one, and a group left with nothing in it becomes such a box rather than something nothing can be given to.
+Backspace in an empty label takes the box back into the one before it, as it joins a line to the line before, so a split
+taken back is the box it was — and the only box in a group gives the group its value back. A right-click on a box offers
+to split it in two, each worth half, to merge the boxes picked out with Ctrl+click into it (greyed out
+until two are), to put it or the boxes picked out in a new group — a box on its own becomes the group, handing its value to
+a box in it — and to take it out; on a group's band, to add a box to it, to let its items out into the group around it,
+and to take it out; anywhere else, a box at the top. A box or group dragged by its tile goes into the group it is let go
+on — its band, or any box in it — and to the top on a box at the top; while it is carried the map stands still with that
+group outlined, and changes once, when it is let go. An item always goes with everything under it, and only its
+indentation and the values a change works out are written again
+([`TreemapWriting`](../src/Nexaflow.Markdown/Treemap/TreemapWriting.cs), through
+[`OutlineWriting`](../src/Nexaflow.Markdown/Mermaid/OutlineWriting.cs)).
+
+**Divergences from Mermaid**
+
+- An item worth nothing yet — a section with nothing in it, a leaf whose value is nought or still to write — is drawn as a
+  chip under the map, so it can still be written in; Mermaid draws nothing for it.
+- A label too long for its tile wraps, and as many lines as fit are drawn; Mermaid cuts it short with an ellipsis.
+
+---
+
+## tree view — sub-support
+
+[Tree views](https://mermaid.js.org/syntax/treeView.html) draw a folder tree, or any outline, as rows. A tree view is a
+language of its own here: a `treeview` fence names it, and a `mermaid` block headed `treeView-beta` is handed to it whole.
+It is read by a parser of its own ([`TreeViewParser`](../src/Nexaflow.Markdown/TreeView/TreeViewParser.cs)), the box
+drawing in front of a node held as written, and
+[`ResolveNodes`](../src/Nexaflow.Markdown/TreeView/Stages/ResolveNodes.cs) gathers each node with the nodes under it — by
+indentation, or by where its branch stands in a tree drawn with one. It is drawn by
+[`TreeViewBuilder`](../src/Nexaflow.Markdown/Layout/TreeView/TreeViewBuilder.cs) as a list of rows with the lines joining
+each folder to what is in it apart from them.
+
+| Written | Read as |
+|---|---|
+| indentation, or `├──` `└──` `│` (and their heavy forms) | how deep a node stands |
+| `src/` | a folder, drawn in bold; the slash is not drawn |
+| `index.js`, `"my file"`, `'it'` | a label, bare to the first annotation, or in quotes |
+| `:::highlight` | its row picked out |
+| `icon(pack:name)`, `icon(name)`, `icon(none)` | the icon it is drawn with — a shipped pack's by its full name, or by its name alone in the default pack — or none |
+| `## words` | words beside it, in italics |
+| `config: treeView:` | `rowIndent`, `paddingX`, `paddingY`, `lineThickness`, `showIcons`, `defaultIconPack`, `filenameIcons`, `extensionIcons` |
+| `config: themeVariables: treeView:` | `labelFontSize`, `labelColor`, `lineColor`, `iconColor`, `descriptionColor`, `highlightBg`, `highlightStroke` |
+
+A label and the words beside a node are typed into where they are drawn; a label stays bare for as long as nothing in it
+would read as something else, and is put in quotes when something would. It works like an outline: Enter adds a node
+after the one the caret is in, Tab moves it into the node before it, Page Up and Page Down move it among its siblings, and
+Backspace in an empty label takes it out. A right-click on a node offers to put one in before it, after it or inside it,
+to move it a level in or out where it can go, to take it out, to turn it into a folder or a file, and words beside it;
+anywhere in the tree, to show or hide the icons, which writes `showIcons` into the front matter. A node dragged by its row
+goes in front of, after or inside the node it is let go on, as the top, bottom or middle of that row says. A node always
+goes with everything under it, and in a tree drawn with a box drawing every branch and bar is drawn again round what
+changed ([`TreeViewWriting`](../src/Nexaflow.Markdown/TreeView/TreeViewWriting.cs)).
+
+**Divergences from Mermaid**
+
+- The [Material Icon Theme](https://icon-sets.iconify.design/material-icon-theme/), the pack Mermaid's own examples use, is
+  shipped and drawn as itself, every one of its icons in its own colours
+  ([`IconPacks`](../src/Nexaflow.Icons/IconPacks.cs)); nothing has to be registered. Another pack's name is drawn as the
+  Fluent icon of that name, where there is one, and otherwise as a folder's or a file's; Mermaid draws a question mark for a
+  pack the page has not registered.
+- With `showIcons: true` a folder and a file are drawn with the Fluent UI folder and document, where Mermaid draws its own two.
 
 ---
 
@@ -2152,7 +2254,7 @@ Sample fixtures (driving `MarkdownSampleRenderTests`) live in
 [`Nexaflow.Tests.Fixtures/MarkdownSamples.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Fixtures/MarkdownSamples.cs):
 the `mermaid-*` diagram docs (pie, flowchart, quadrant, sequence, gantt, git graph, mindmap, state, class,
 requirement, kanban, xychart, radar, ishikawa, sankey, er, venn, architecture, swimlane, cynefin, timeline, journey, block, C4),
-`packet.md`, and `extensions.md` (YAML front matter, emphasis extras, abbreviations, alert blocks).
+`packet.md`, `treemap.md`, `treeview.md`, and `extensions.md` (YAML front matter, emphasis extras, abbreviations, alert blocks).
 
 **Where coverage is thin:**
 

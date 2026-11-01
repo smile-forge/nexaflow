@@ -90,7 +90,8 @@ public sealed record ContentMove(IReadOnlyList<EditRange> Carried, int To, Landi
 /// What a language says a carry is in its own content: what a press there picks up, and what letting it go somewhere means.
 ///
 /// <para>
-/// <strong>The engine owns the gesture.</strong> Pressing, carrying, laying the content out as it would read after the drop, and
+/// <strong>The engine owns the gesture.</strong> Pressing, carrying, laying the content out as it would read after the drop — or,
+/// where the language names what a drop goes into (<see cref="DropTarget"/>), marking that out on the content as it stands — and
 /// letting it go are all the engine's. What is picked up and what a drop means are the language's, because the layout knows
 /// neither: where a press began and where a drop landed are only pieces drawn and the parts they were drawn from, which the
 /// language alone can read.
@@ -114,6 +115,14 @@ public interface IOnMove
     /// (<see cref="ContentMove.Carry"/>) is the language's to answer; null for it means it goes nowhere.
     /// </summary>
     ContentChange? Move(ContentMove move);
+
+    /// <summary>
+    /// For a carry of the language's own, the part it would go into let go as <paramref name="move"/> says — marked out on the content
+    /// as it stands while it is carried, which then stays as it is until it is let go — or null, the default, to show the content as
+    /// it would read once let go. Content laid out by what it says rather than where it is written answers it, since a finished result
+    /// would move under the pointer as it went: a treemap's tiles, placed by size.
+    /// </summary>
+    ContentPart? DropTarget(ContentMove move) => null;
 }
 
 /// <summary>

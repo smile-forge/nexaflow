@@ -37,6 +37,7 @@ public sealed class CrashLog
     private readonly Func<string>         _dir;
     private readonly Func<DateTimeOffset> _clock;
     private readonly string               _version;
+    private readonly ShellSafetyLog?      _session;
     private readonly object               _gate = new();
 
     private string?        _day;
@@ -47,18 +48,22 @@ public sealed class CrashLog
     private int            _burstCount;
     private int            _suppressed;
 
-    public CrashLog(Func<string> directory, Func<DateTimeOffset> clock, string version)
+    /// <param name="session">Told of each fault written in full, as one line, so the session's safety log says when and
+    /// what went wrong and points here for the trace. It decides for itself whether it is keeping anything.</param>
+    internal CrashLog(Func<string> directory, Func<DateTimeOffset> clock, string version, ShellSafetyLog? session = null)
     {
         _dir     = directory;
         _clock   = clock;
         _version = version;
+        _session = session;
     }
 
     /// <summary>The app-wide log, writing into whatever config root is active when the first fault lands.</summary>
     public static CrashLog Instance { get; } = new(
         () => ConfigManager.Instance.BaseDir,
         () => DateTimeOffset.Now,
-        typeof(CrashLog).Assembly.GetName().Version?.ToString() ?? "unknown");
+        typeof(CrashLog).Assembly.GetName().Version?.ToString() ?? "unknown",
+        ShellSafetyLog.Instance);
 
     /// <summary>Today's file. Named for the user, so it is the dated one even before anything has crashed.</summary>
     public string CurrentPath => Path.Combine(_dir(), FileNameFor(_clock().Date));
@@ -85,7 +90,10 @@ public sealed class CrashLog
             _burstCount++;
 
             if (_burstCount <= FullTracesPerBurst)
+            {
                 Append(now, $"[{now:O}] {ex}{Environment.NewLine}{Environment.NewLine}");
+                _session?.Step($"fault recorded in {FileNameFor(now.Date)}: {ShellSafetyLog.Describe(ex)}");
+            }
             else
                 _suppressed++;
 
@@ -96,6 +104,7 @@ public sealed class CrashLog
                       + $"{(now - _burstStart).TotalSeconds:F1}s. Handling it is what keeps it recurring (a "
                       + "render-pass fault re-throws on every frame), so the process is being allowed to "
                       + $"terminate instead of live-locking. ---{Environment.NewLine}{Environment.NewLine}");
+            _session?.Step($"the fault above repeated {_burstCount} times; the process is being let terminate rather than live-lock");
             _signature = null;   // a restart starts fresh
             return false;
         }

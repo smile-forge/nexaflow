@@ -1,42 +1,23 @@
+using Nexaflow.IO.Common.Logging;
+
 namespace Nexaflow.AiHost;
 
 /// <summary>
-/// The host's own log, one file a day under the AI folder's <c>logs</c>, kept a week. The host has no window and the
-/// app only sees its pipe, so this is where a load failure or a crash's last words end up.
+/// The host's own log, kept only while the app's safety logging is on: the app then names a folder
+/// (<see cref="Nexaflow.AiHost.Contracts.AiHostProtocol.LogDirArgument"/>) and the host writes a file of its own there
+/// beside the shell's, under the same retention and cap. The host has no window and the app only sees its pipe, so this
+/// is where a load failure or a crash's last words end up. With no folder named it keeps nothing.
 /// </summary>
 internal sealed class HostLog : IDisposable
 {
-    private static readonly TimeSpan Kept = TimeSpan.FromDays(7);
+    /// <summary>Names the host's files in the shared logs folder.</summary>
+    public const string FilePrefix = "aihost";
 
-    private readonly object _gate = new();
-    private readonly StreamWriter? _writer;
+    private readonly SessionLogFile? _file;
 
-    public HostLog(string directory)
-    {
-        try
-        {
-            Directory.CreateDirectory(directory);
-            foreach (var old in Directory.EnumerateFiles(directory, "aihost-*.log"))
-                if (DateTime.UtcNow - File.GetLastWriteTimeUtc(old) > Kept) File.Delete(old);
+    public HostLog(string? directory) => _file = directory is null ? null : new SessionLogFile(directory, FilePrefix);
 
-            var stream = new FileStream(Path.Combine(directory, $"aihost-{DateTime.Now:yyyyMMdd}.log"),
-                                        FileMode.Append, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
-            _writer = new StreamWriter(stream) { AutoFlush = true };
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            _writer = null;   // a host that cannot log still serves
-        }
-    }
+    public void Write(string line) => _file?.Write(line);
 
-    public void Write(string line)
-    {
-        if (_writer is null) return;
-        lock (_gate) _writer.WriteLine($"{DateTime.Now:HH:mm:ss.fff} [{Environment.ProcessId}] {line}");
-    }
-
-    public void Dispose()
-    {
-        lock (_gate) _writer?.Dispose();
-    }
+    public void Dispose() => _file?.Dispose();
 }

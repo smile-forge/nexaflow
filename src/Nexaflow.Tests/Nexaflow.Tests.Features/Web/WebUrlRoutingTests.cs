@@ -6,6 +6,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Web;
 using Nexaflow.Features.Web.RibbonHandlers;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Tests.Features.Web;
 
@@ -54,7 +55,7 @@ public class WebUrlRoutingTests
         Assert.IsNotNull(result);
         Assert.AreEqual("Html", result!.PageKind);
         Assert.AreEqual("example.com", result.Label, "the host is the readable label, not the whole URL");
-        Assert.AreEqual("🌐", result.Icon);
+        Assert.AreEqual(IconRef.Emoji("🌐"), result.Icon);
         Assert.AreEqual("https://example.com/docs/page?q=1", result.PageParams!["path"]);
     }
 

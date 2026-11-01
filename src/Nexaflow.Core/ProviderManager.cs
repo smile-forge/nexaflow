@@ -105,6 +105,8 @@ public sealed class ProviderManager
             var path = Path.Combine(baseDir, fileName);
             if (File.Exists(path))
                 LoadAssembly(path);
+            else
+                ShellSafetyLog.Instance.Step($"providers: {fileName} is configured but not installed; its columns have no provider");
         }
     }
 

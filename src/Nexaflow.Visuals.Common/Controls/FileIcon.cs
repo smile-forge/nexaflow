@@ -54,28 +54,23 @@ public sealed class FileIcon : FrameworkElement
 
     public FontFamily FontFamily { get => (FontFamily)GetValue(FontFamilyProperty); set => SetValue(FontFamilyProperty, value); }
 
-    private ImageSource? _icon;
-    private IDisposable? _pending;
-    private bool _stale = true;
+    private readonly ShellIconRequest _request;
 
     public FileIcon()
     {
+        _request = new ShellIconRequest(this);
         // A large icon drawn small on a monitor finer than the system's.
         RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.HighQuality);
-
-        // Out of the tree, nothing waits on its behalf; back in, it asks again.
-        Unloaded += (_, _) => { if (_pending is not null) Forget(); };
-        Loaded   += (_, _) => { if (_stale) InvalidateVisual(); };
     }
 
     private static DependencyProperty RegisterAsked(string name, Type type, object initial) => DependencyProperty.Register(
         name, type, typeof(FileIcon), new FrameworkPropertyMetadata(initial, FrameworkPropertyMetadataOptions.AffectsRender, Reask));
 
-    private static void Reask(DependencyObject owner, DependencyPropertyChangedEventArgs e) => ((FileIcon)owner).Forget();
+    private static void Reask(DependencyObject owner, DependencyPropertyChangedEventArgs e) => ((FileIcon)owner)._request.Forget();
 
     protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
     {
-        Forget();
+        _request.Forget();
         InvalidateVisual();
     }
 
@@ -85,12 +80,12 @@ public sealed class FileIcon : FrameworkElement
     {
         // Asked here rather than on each property change: a recycled row changes several at once and asks only once,
         // and a row that is never drawn never asks.
-        if (_stale) Ask();
+        if (_request.IsStale) Ask();
 
         double size = IconSize;
-        if (_icon is not null)
+        if (_request.Icon is { } icon)
         {
-            drawingContext.DrawImage(_icon, new Rect((RenderSize.Width - size) / 2, (RenderSize.Height - size) / 2, size, size));
+            drawingContext.DrawImage(icon, new Rect((RenderSize.Width - size) / 2, (RenderSize.Height - size) / 2, size, size));
             return;
         }
 
@@ -102,28 +97,14 @@ public sealed class FileIcon : FrameworkElement
 
     private void Ask()
     {
-        _stale = false;
-        _icon  = null;
-        if (string.IsNullOrEmpty(Path)) return;
+        if (string.IsNullOrEmpty(Path))
+        {
+            _request.Ask(null);
+            return;
+        }
 
-        var size   = ShellFileIcons.SizeFor(IconSize * VisualTreeHelper.GetDpi(this).DpiScaleX);
-        var lookup = ShellFileIcons.Shared.Request(new FileIconQuery(Path, IsFolder, NameOnly, Stamp.Ticks, size), Dispatcher, Arrived);
-        _icon    = lookup.Icon;
-        _pending = lookup.Pending;
-    }
-
-    private void Arrived(ImageSource icon)
-    {
-        _pending = null;
-        _icon    = icon;
-        InvalidateVisual();
-    }
-
-    /// <summary>Stops waiting for the icon asked for, and asks afresh on the next drawing.</summary>
-    private void Forget()
-    {
-        _pending?.Dispose();
-        _pending = null;
-        _stale   = true;
+        var size  = ShellFileIcons.SizeFor(IconSize * VisualTreeHelper.GetDpi(this).DpiScaleX);
+        var query = new FileIconQuery(Path, IsFolder, NameOnly, Stamp.Ticks, size);
+        _request.Ask(arrived => ShellFileIcons.Shared.Request(query, Dispatcher, arrived));
     }
 }

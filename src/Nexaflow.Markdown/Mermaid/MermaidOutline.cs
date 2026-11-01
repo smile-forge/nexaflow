@@ -1,4 +1,5 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Pipeline;
 
 namespace Nexaflow.Markdown.Mermaid;
 
@@ -177,5 +178,54 @@ public static class MermaidOutline
         return nested;
 
         int Deep(int indent) => floor ? Math.Max(indent, start) : indent;
+    }
+
+    /// <summary>
+    /// Gathers an outline that nests by how deep each line stands — a treemap's sections and leaves, a tree view's folders and files,
+    /// any number of them at the top — into a <paramref name="kind"/> for each item: its own line, then everything written under it,
+    /// each item under the nearest one before it standing less deep. So the tree says what is inside what, and an item picked out,
+    /// taken out or moved is the item with everything under it.
+    ///
+    /// <para>
+    /// A line that is no item — a blank line, a comment, a style — goes with the item written after it: inside the item it is written
+    /// under, between two of that item's children, and at the top where the next item is at the top. What follows the last item is
+    /// the block's. Nothing is moved past anything else, so the tree prints as it was written.
+    /// </para>
+    /// </summary>
+    /// <param name="depth">How deep a line of the block stands — its indentation, say — or null for a line that is no item.</param>
+    public static ContentNode Gather(ContentNode tree, Func<ContentNode, int?> depth, string kind) =>
+        AstRewrite.Regrouping(tree, (node, lines) => node.Kind == MermaidKinds.Block ? Gathered(lines, depth, kind) : null);
+
+    /// <summary>The lines of a block, each item gathered with what is written under it — or null where no line is an item.</summary>
+    private static List<ContentNode>? Gathered(IReadOnlyList<ContentNode> lines, Func<ContentNode, int?> depth, string kind)
+    {
+        var outermost = new List<ContentNode>(lines.Count);
+        var open = new Stack<(int Depth, List<ContentNode> Lines)>();
+        var waiting = new List<ContentNode>();
+
+        foreach (var line in lines)
+        {
+            if (depth(line) is not { } deep)
+            {
+                waiting.Add(line);
+                continue;
+            }
+
+            while (open.Count > 0 && open.Peek().Depth >= deep) Closed(open.Pop().Lines);
+
+            (open.Count > 0 ? open.Peek().Lines : outermost).AddRange(waiting);
+            waiting.Clear();
+            open.Push((deep, [line]));
+        }
+
+        if (open.Count == 0) return null;
+
+        while (open.Count > 0) Closed(open.Pop().Lines);
+        outermost.AddRange(waiting);
+
+        return outermost;
+
+        void Closed(List<ContentNode> item) =>
+            (open.Count > 0 ? open.Peek().Lines : outermost).Add(ContentNode.Branch(kind, item));
     }
 }

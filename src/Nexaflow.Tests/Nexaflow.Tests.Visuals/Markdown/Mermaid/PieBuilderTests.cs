@@ -265,4 +265,17 @@ public class PieBuilderTests : MermaidBuilderContract
 
         Assert.IsTrue(big.Height > plain.Height * 1.5, $"pieTitleTextSize 30 sets it bigger: {big.Height} against {plain.Height}");
     });
+
+    [TestMethod]
+    public void AWedgeTooThinForItsShareSaysTheSliceWhilePointedAt_AndOneWithItsShareSaysNothing() => UiThread.Run(() =>
+    {
+        const string written = "pie\n \"Big\" : 96\n \"Small\" : 4";
+
+        var wedges = Pieces(Build(written), PiePiece.Wedge);
+        Assert.IsNull(wedges[0].Tip, "its share is drawn on it, so it has nothing more to say");
+        Assert.AreEqual("Small\n4%", wedges[1].Tip, "what it is called and its share, which it has no room to show");
+
+        Assert.AreEqual("Small\n4\n4%", Pieces(Build("pie showData\n \"Big\" : 96\n \"Small\" : 4"), PiePiece.Wedge)[1].Tip,
+                        "and what it is worth, where values are shown");
+    });
 }

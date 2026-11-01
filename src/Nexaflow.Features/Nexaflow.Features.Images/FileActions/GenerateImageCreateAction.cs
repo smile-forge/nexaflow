@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.ViewModels;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Images.FileActions;
@@ -11,7 +12,7 @@ namespace Nexaflow.Features.Images.FileActions;
 /// </summary>
 public sealed class GenerateImageCreateAction(IAIService ai) : IFileCreateWithOptions, ICacheable
 {
-    public string Icon          => "🎨";
+    public IconRef Icon         => IconRef.Emoji("🎨");
     public string DisplayName   => Str.Get("Images.Create.GenImage");
     public string FileExtension => ".png";
 

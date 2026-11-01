@@ -153,5 +153,5 @@ public sealed record ContentShowing(string Named, LayoutStyle Style, bool Writin
 
     /// <summary><see cref="Shown"/> counted in this content's own source, or null where it is not inside it.</summary>
     public RawZone? Own(int length) =>
-        Shown is { } zone && zone.Start >= At && zone.End <= At + length ? new RawZone(zone.Start - At, zone.End - At) : null;
+        Shown is { } zone && zone.Start >= At && zone.End <= At + length ? zone with { Start = zone.Start - At, End = zone.End - At } : null;
 }

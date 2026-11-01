@@ -33,6 +33,8 @@ using Nexaflow.Markdown.Layout.Packet;
 using Nexaflow.Markdown.Layout.Plot;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Markdown.Layout.Scores;
+using Nexaflow.Markdown.Layout.Treemap;
+using Nexaflow.Markdown.Layout.TreeView;
 using Nexaflow.Markdown.Layout.WordCloud;
 using Nexaflow.Markdown.Mermaid;
 
@@ -59,6 +61,12 @@ public static class ContentLayouts
 
     /// <summary>A packet, or a register: its fields drawn as boxes along rows of bits.</summary>
     public static Type Packet => typeof(PacketBuilder);
+
+    /// <summary>A treemap: its items drawn as tiles as big as their shares, a section's holding the items in it.</summary>
+    public static Type Treemap => typeof(TreemapBuilder);
+
+    /// <summary>A tree view: its nodes drawn as rows set in by how deep they stand, joined by lines from each folder.</summary>
+    public static Type TreeView => typeof(TreeViewBuilder);
 
     /// <summary>A two-dimensional code — QR, Data Matrix, PDF417, Aztec — drawn as its modules.</summary>
     public static Type Matrix => typeof(MatrixBuilder);

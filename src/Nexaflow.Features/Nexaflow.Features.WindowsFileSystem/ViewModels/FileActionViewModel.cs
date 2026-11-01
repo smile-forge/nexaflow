@@ -7,7 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Windows.Input;
-using System.Windows.Media;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 /// <summary>
@@ -36,13 +36,13 @@ public partial class FileActionViewModel : ObservableObject
     /// <summary>Raised after the flash period ends for non-refresh actions — restores other buttons.</summary>
     public event Action<FileActionViewModel>? FlashEnded;
 
-    public string Icon          => _action.Icon;
+    public IconRef Icon         => _action.Icon;
     public string DisplayName   => _action.DisplayName;
 
     public string AutomationId => _action.AutomationId;
     public bool   IsDestructive => _action.IsDestructive;
     public bool   IsRibbonPinnable => _action.IsRibbonPinnable;
-    public ImageSource? IconImage => _action.IconImage;
+    public ShellIconRef? IconResource => _action.IconResource;
 
     /// <summary>True for registry-derived shell-verb entries — the view gives these a distinct
     /// border to signal they come from the Windows registry (and can be turned off in Options

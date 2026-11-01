@@ -71,6 +71,7 @@ licence shown; the full texts are in each project's repository. "via" names the 
 |-----------|---------|
 | [Bravura](https://github.com/steinbergmedia/bravura) — music notation font | OFL-1.1 |
 | [Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons) — ribbon, picker and diagram icons | MIT |
+| [Material Icon Theme](https://github.com/material-extensions/vscode-material-icon-theme) — file and folder icons diagrams draw, as [Iconify](https://github.com/iconify/icon-sets) packs them (`Nexaflow.Icons/Packs`) | MIT |
 | The Computer Modern and AMS faces LaTeX is set in — each with its licence in `Nexaflow.Visuals.Text/Markdown/Latex/Tex/Fonts/LICENSES.md` | OFL-1.1 and others |
 | [XAML-Math](https://github.com/ForNeVeR/xaml-math)'s TeX box model and metrics, modified (`Nexaflow.Markdown/Typesetting`, and its WPF fonts in `Nexaflow.Visuals.Text/Markdown/Latex/Tex`) | MIT |
 | [OpenJPEG.net](https://github.com/notBald/OpenJPEG.net), a C# port of [OpenJPEG](https://github.com/uclouvain/openjpeg) (`Nexaflow.Media/Jpeg2000`) | BSD-2-Clause |

@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System;
@@ -7,7 +8,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Media;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 
@@ -20,12 +20,12 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 public sealed class CustomAction : IFileAction
 {
     private readonly ExternalAppDefinition _def;
-    private readonly ImageSource?          _iconImage;
+    private readonly ShellIconRef?         _iconResource;
 
-    public CustomAction(ExternalAppDefinition def, ImageSource? iconImage = null)
+    public CustomAction(ExternalAppDefinition def, ShellIconRef? iconResource = null)
     {
-        _def       = def;
-        _iconImage = iconImage;
+        _def          = def;
+        _iconResource = iconResource;
     }
 
     /// <summary>The backing definition (same instance held in <see cref="ExternalAppsConfig.Apps"/>)
@@ -36,7 +36,7 @@ public sealed class CustomAction : IFileAction
 
     public bool   IsDestructive         => false;
     public bool   SupportsMultipleFiles => _def.MultiFile != MultiFileMode.SingleFileOnly;
-    public string Icon                  => "🛠";
+    public IconRef Icon                 => IconRef.Emoji("🛠");
     public string DisplayName           => _def.DisplayName;
 
     public string AutomationId => $"ExternalApp_{_def.Id}";
@@ -46,8 +46,8 @@ public sealed class CustomAction : IFileAction
     public bool   RequiresRefresh       => false;
     public bool   CanPerformAction      => true;
 
-    public ImageSource? IconImage => _iconImage;
-    public string?      Tooltip   => string.IsNullOrEmpty(_def.ApplicationPath) ? null : _def.ApplicationPath;
+    public ShellIconRef? IconResource => _iconResource;
+    public string?       Tooltip      => string.IsNullOrEmpty(_def.ApplicationPath) ? null : _def.ApplicationPath;
 
     /// <summary>A user-configured program is opaque to us — it may open sibling files, write next to the
     /// input, or use the working directory. Only offered where the folder genuinely exists on disk.</summary>

@@ -46,6 +46,8 @@ internal sealed partial class MarkdownSamples : ISampleSet
         SampleFile.Text("mermaid-c4.md",          C4),
         SampleFile.Text("nomnoml.md",             Nomnoml),
         SampleFile.Text("packet.md",              Packet),
+        SampleFile.Text("treemap.md",             Treemap),
+        SampleFile.Text("treeview.md",            TreeView),
         SampleFile.Text("extensions.md",          Extensions),
         SampleFile.Text("latex-math-symbols.md",    LatexMathSymbols),
         SampleFile.Text("latex-math-structures.md", LatexMathStructures),
@@ -1938,6 +1940,102 @@ internal sealed partial class MarkdownSamples : ISampleSet
         0-7: 'it\'s'
         8-15: "say \"hi\""
         16-31: "100%% sure"
+        ```
+        """;
+
+    private const string Treemap =
+        """
+        # treemap
+
+        A treemap draws values as tiles, each as big as its share: a section holds the items indented under it, and a leaf is a
+        label and its value. It is a language of its own, fenced as `treemap`, where it needs no header; a `mermaid` block
+        headed `treemap-beta` is the same diagram.
+
+        ```treemap
+        "Products"
+            "Electronics"
+                "Phones": 50
+                "Computers": 30
+                "Accessories": 20
+            "Clothing"
+                "Men's": 40
+                "Women's": 40
+        ```
+
+        ## Styled, and set as money
+
+        ```mermaid
+        ---
+        config:
+          treemap:
+            valueFormat: '$0,0'
+        ---
+        treemap-beta
+        "Budget"
+            "Operations":::core
+                "Salaries": 700000
+                "Equipment": 200000
+            "Marketing"
+                "Advertising": 400000
+                "Events": 100000
+
+        classDef core fill:#3b6ea5,color:#ffffff;
+        ```
+
+        ## Still being written
+
+        An item worth nothing yet waits under the map until it is given something.
+
+        ```treemap
+        "Done": 3
+        "Planned"
+        "Unsized":
+        ```
+        """;
+
+    private const string TreeView =
+        """
+        # tree view
+
+        A tree view draws a folder tree, or any outline, as rows set in by how deep each node stands. It is a language of its
+        own, fenced as `treeview`, where it needs no header; a `mermaid` block headed `treeView-beta` is the same diagram.
+
+        ```treeview
+        my-project/
+            src/
+                App.tsx :::highlight ## main component
+                index.js ## entry point
+            .env ## environment variables
+            package.json
+        ```
+
+        ## Drawn with a box drawing
+
+        ```mermaid
+        treeView-beta
+        ├── packages/
+        │   ├── mermaid/
+        │   │   ├── src/
+        │   │   │   ├── parser.ts
+        │   │   │   └── renderer.ts
+        │   │   └── package.json
+        │   └── parser/
+        │       └── src/
+        └── README.md
+        ```
+
+        ## Icons
+
+        ```treeview
+        ---
+        config:
+          treeView:
+            showIcons: true
+        ---
+        src/
+            index.js
+            notes.txt icon(none)
+        package.json
         ```
         """;
 

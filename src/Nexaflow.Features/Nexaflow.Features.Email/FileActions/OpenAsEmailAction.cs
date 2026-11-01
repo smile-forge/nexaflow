@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Email.FileActions;
@@ -16,7 +17,7 @@ public sealed class OpenAsEmailAction(IShellServices shell) : IFileAction, ICach
     public string ExperienceDescription => Str.Get("Email.Action.ExperienceDescription");
 
     public string DisplayName => Str.Get("Email.Action.AsEmail");
-    public string Icon => "✉️";
+    public IconRef Icon => IconRef.Emoji("✉️");
 
     public bool IsDestructive => false;
     public bool SupportsMultipleFiles => false;

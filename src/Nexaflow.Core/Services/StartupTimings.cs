@@ -38,9 +38,11 @@ public static class StartupTimings
         catch { return DateTime.Now; }
     }
 
-    /// <summary>Records a named milestone (ms since process start). No-op when disabled.</summary>
+    /// <summary>Records a named milestone (ms since process start), and hands it to the safety log, which keeps the
+    /// same milestones as the steps of a session's startup. The timing half is a no-op when disabled.</summary>
     public static void Mark(string name)
     {
+        ShellSafetyLog.Instance.Step($"startup: {name}");
         if (!Enabled) return;
         lock (_lock) _marks.Add((name, (DateTime.Now - _processStart).TotalMilliseconds));
     }

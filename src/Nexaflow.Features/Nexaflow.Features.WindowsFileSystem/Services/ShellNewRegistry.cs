@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Media;
 using Nexaflow.IO.Common;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Features.WindowsFileSystem.Services;
 
@@ -70,11 +71,7 @@ public sealed class ShellNewRegistry
                     var info = ShellTypeResolver.Resolve(name);
                     // No description of its own: left empty, and named at use (ShellNewCreateAction) in the active language.
                     string display = info?.ProgIdDescription ?? string.Empty;
-                    var image = string.IsNullOrEmpty(info?.DefaultIconSpec)
-                        ? null
-                        : ShellIconLoader.Load(info!.DefaultIconSpec!);
-
-                    list.Add(new ShellNewEntry(name.ToLowerInvariant(), display, image, spec));
+                    list.Add(new ShellNewEntry(name.ToLowerInvariant(), display, ShellIconRef.Parse(info?.DefaultIconSpec), spec));
                 }
                 catch { }
             }

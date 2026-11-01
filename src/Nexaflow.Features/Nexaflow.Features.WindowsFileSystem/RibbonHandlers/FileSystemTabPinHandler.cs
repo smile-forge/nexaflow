@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Ribbon;
 using Nexaflow.Features.WindowsFileSystem.Views;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
@@ -28,7 +29,7 @@ public sealed class FileSystemTabPinHandler : ITabPinHandler
             {
                 PageKind   = FileSystemPageRegistration.PageKind,
                 Label      = isThisPc ? Str.Get("WindowsFileSystem.ThisPc.Title") : System.IO.Path.GetFileName(path) is { Length: > 0 } n ? n : path,
-                Icon       = isThisPc ? "🖥" : "📁",
+                Icon       = IconRef.Emoji(isThisPc ? "🖥" : "📁"),
                 PageParams = isThisPc
                     ? new() { ["mode"] = "thispc" }
                     : new() { ["mode"] = "path", ["path"] = path }
@@ -40,7 +41,7 @@ public sealed class FileSystemTabPinHandler : ITabPinHandler
         {
             PageKind   = FileSystemPageRegistration.PageKind,
             Label      = tab.Title,
-            Icon       = tab.Icon,
+            Icon       = IconRef.Parse(tab.Icon),
             PageParams = tab.PageParams is not null ? new(tab.PageParams) : null
         };
     }

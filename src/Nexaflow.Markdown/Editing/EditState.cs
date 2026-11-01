@@ -15,6 +15,7 @@ public readonly record struct RawZone(int Start, int End)
     /// <summary>How many characters are raw.</summary>
     public int Length => End - Start;
 
+
     /// <summary>Whether the caret at <paramref name="offset"/> is inside or at either edge of the zone.</summary>
     public bool Holds(int offset) => offset >= Start && offset <= End;
 }
@@ -127,18 +128,18 @@ public sealed record EditState(
     /// <summary>
     /// What <paramref name="change"/> makes of this: every stretch it writes over written, the caret where it says and whatever it
     /// says is shown as written — or, for a change that writes nothing, only the caret moved, and what is picked out kept while the
-    /// caret stays where it was.
+    /// caret stays where it was. What the change picks out whole (<see cref="ContentChange.Chooses"/>) is picked out either way.
     /// </summary>
     public EditState Made(ContentChange change)
     {
         if (change.Writes.Count == 0)
         {
             var caret = Clamp(change.Caret);
-            return this with { Caret = caret, Raw = change.Raw, Selected = caret == Caret ? Selected : [] };
+            return this with { Caret = caret, Raw = change.Raw, Selected = change.Chooses ?? (caret == Caret ? Selected : []) };
         }
 
         var document = Document.Apply(change);
-        return new EditState(document, Math.Clamp(change.Caret, 0, document.Length), [], change.Raw);
+        return new EditState(document, Math.Clamp(change.Caret, 0, document.Length), change.Chooses ?? (IReadOnlyList<EditRange>)[], change.Raw);
     }
 
     // ── Typing ──────────────────────────────────────────────────────────────
@@ -320,8 +321,8 @@ public sealed record EditState(
     private static RawZone? Shift(RawZone? zone, int at, int by)
     {
         if (zone is not { } z) return null;
-        if (at <= z.Start) return new RawZone(z.Start + by, z.End + by);
-        return at < z.End ? new RawZone(z.Start, z.End + by) : z;
+        if (at <= z.Start) return z with { Start = z.Start + by, End = z.End + by };
+        return at < z.End ? z with { End = z.End + by } : z;
     }
 
     private int Clamp(int offset) => Math.Clamp(offset, 0, Document.Length);

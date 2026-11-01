@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.Threading;
@@ -17,7 +18,7 @@ public sealed class ShowTextAction : IFileAction, ICacheable
 
     public bool   IsDestructive          => false;
     public bool   SupportsMultipleFiles  => false;
-    public string Icon                   => "📄";
+    public IconRef Icon                  => IconRef.Emoji("📄");
     public string DisplayName            => Str.Get("Text.Viewer.Action.AsText");
     public static string? StaticExperienceId => "/text";
     public string ExperienceId           => "/text";

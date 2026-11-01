@@ -47,6 +47,12 @@ public readonly record struct ContentWrite(int Start, int Length, string Text)
 public sealed record ContentChange(IReadOnlyList<ContentWrite> Writes, int Caret, RawZone? Raw = null)
 {
     /// <summary>The key taken and nothing changed: what a key means where there is nothing here for it to do.</summary>
+    /// <summary>
+    /// What the change leaves picked out as whole things drawn — a box the reader has finished writing in — rather than a caret to
+    /// write at; or null, where it leaves the caret.
+    /// </summary>
+    public WholeRanges? Chooses { get; init; }
+
     public static ContentChange Stay(EditState state) => new([], state.Caret, state.Raw);
 
     /// <summary>
@@ -88,7 +94,7 @@ public sealed record ContentChange(IReadOnlyList<ContentWrite> Writes, int Caret
         static RawZone? Moved(RawZone? zone, int at, int by) => zone switch
         {
             null => null,
-            { } z when at <= z.Start => new RawZone(z.Start + by, z.End + by),
+            { } z when at <= z.Start => z with { Start = z.Start + by, End = z.End + by },
             { } z when at < z.End => z with { End = z.End + by },
             var z => z,
         };
@@ -107,3 +113,10 @@ public sealed record ContentChange(IReadOnlyList<ContentWrite> Writes, int Caret
         && this.Writes.Zip(other.Writes).All(pair => pair.First.Start == pair.Second.Start && pair.First.Length == pair.Second.Length
                                                      && string.Equals(pair.First.Text, pair.Second.Text, StringComparison.Ordinal));
 }
+
+/// <summary>
+/// Stretches picked out as whole things drawn — a box, a slice — rather than characters dragged over: nothing in them is being written
+/// in, so no caret stands there. What a change that ends the writing leaves picked out (<see cref="ContentChange.Chooses"/>), carried
+/// as the selection it makes so whatever shows it knows it was chosen whole.
+/// </summary>
+public sealed class WholeRanges(IList<EditRange> ranges) : System.Collections.ObjectModel.ReadOnlyCollection<EditRange>(ranges);

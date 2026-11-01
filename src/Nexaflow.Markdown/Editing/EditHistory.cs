@@ -121,6 +121,38 @@ public sealed class EditHistory
         return Taken(now.Document.Apply(step.Forward), step.After);
     }
 
+    /// <summary>
+    /// The document as it stood before the step <paramref name="now"/> is part of — what taking that step back would put back — and the one
+    /// stretch written over that makes <paramref name="now"/>'s document of it, where <paramref name="last"/> is where the last thing written
+    /// left it: the step still being written, where <paramref name="now"/> carries on from it, else <paramref name="last"/> itself. Null where
+    /// nothing is written since <paramref name="last"/> and no step is open.
+    /// </summary>
+    public (ContentDocument Before, ContentWrite Written)? Begun(EditState last, EditState now)
+    {
+        var open = _open is { } step && ReferenceEquals(_left, last.Document) && _undo.Count > 0 && ReferenceEquals(_undo[^1], step) ? step : null;
+
+        var forward = ReferenceEquals(last.Document, now.Document) ? null
+                    : now.Document.MadeFrom(last.Document) ? now.Document.Change!
+                    : now.Document.ChangesFrom(last.Document).Forward;
+
+        if (forward is null || forward.Writes.All(write => write.Length == 0 && write.Text.Length == 0))
+            return open is null ? null : (last.Document.Apply(open.Backward), Spanned(open.Forward, last.Document));
+
+        if (open is not null && open.After.Caret == last.Caret && Joined(open, forward, last) is { } joined)
+            return (last.Document.Apply(open.Backward), joined.Forward.Writes[0]);
+
+        return (last.Document, Spanned(forward, now.Document));
+    }
+
+    /// <summary>Every stretch <paramref name="change"/> writes over, as the one stretch from the first to the end of the last, what it says read from <paramref name="after"/>.</summary>
+    private static ContentWrite Spanned(ContentChange change, ContentDocument after)
+    {
+        var (from, to) = (change.Writes.Min(write => write.Start), change.Writes.Max(write => write.End));
+        var reached = to + change.Writes.Sum(write => write.Text.Length - write.Length);
+
+        return new ContentWrite(from, to - from, after.Slice(from, reached - from));
+    }
+
     /// <summary>Ends the step being written, so the next edit starts one of its own however near it lands.</summary>
     public void Break() => _open = null;
 

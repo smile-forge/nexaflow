@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Model3D.FileActions;
@@ -21,7 +22,7 @@ public sealed class ShowModel3DAction : IFileAction, ICacheable
 
     public bool IsDestructive => false;
     public bool SupportsMultipleFiles => false;
-    public string Icon => "🧊";
+    public IconRef Icon => IconRef.Emoji("🧊");
     public string DisplayName => Str.Get("Model3D.Action.As3DModel");
     public static string? StaticExperienceId => "/model3d";
     public string ExperienceId => "/model3d";

@@ -302,6 +302,12 @@ public class ContentElement : FrameworkElement
     public (int Start, int Length)? ShownAsWritten =>
         State.Raw is { Length: > 0 } zone ? (zone.Start, zone.Length) : null;
 
+    /// <summary>Where on the page what is being carried would go into stands, where its language outlines that rather than showing the result.</summary>
+    internal LayoutRect? Marking => _engine.Marking;
+
+    /// <summary>Whether what is being carried is shown as the content would read once let go.</summary>
+    internal bool ShowsCarriedResult => _engine.Preview is not null;
+
     // Somewhere written, or a hole standing where something is still to be written - which is somewhere to write too.
 
     /// <summary>Whether the caret belongs in this content at all. Asked of the tree rather than declared, since a piece naming a stretch of source is one somebody typed — a barcode that only prints a worked-out number has none.</summary>
@@ -490,7 +496,7 @@ public class ContentElement : FrameworkElement
 
     /// <summary>
     /// What the pointer is over <paramref name="at"/>: what the language says a press there would take hold of, a bar over what can be
-    /// written in and an arrow elsewhere — and whatever the piece there says while it is pointed at (<see cref="Roles.Tip"/>).
+    /// written in and an arrow elsewhere — and whatever the piece there says while it is pointed at (<see cref="LayoutPiece.Tip"/>).
     /// </summary>
     protected virtual Cursor Pointing(LayoutPoint at)
     {
@@ -503,26 +509,19 @@ public class ContentElement : FrameworkElement
     }
 
     /// <summary>
-    /// What <paramref name="piece"/> says while pointed at: all of its words, where they are set cut short to fit
-    /// (<see cref="IShapedText.CutShort"/>), else the tip hung on the part of the source it was drawn from, or on what holds that
-    /// part. Asked of the tree when the pointer arrives — nothing of it is laid out.
+    /// What <paramref name="piece"/> says while pointed at: the tip its builder put in the tree's tips for it, or for what it is drawn in
+    /// (<see cref="LayoutPiece.Tip"/>) — else all of its words, where they are set cut short to fit (<see cref="IShapedText.CutShort"/>).
+    /// Read off the layout alone, when the pointer arrives — nothing of it is laid out, and nothing is asked of the source.
     /// </summary>
     private static string? Says(LayoutPiece piece)
     {
         if (!piece.Exists) return null;
 
+        for (var at = piece; at.Exists; at = at.Parent)
+            if (at.Tip is { } tip) return tip;
+
         // Words set cut short to fit their room still hold all of what they say, so that is what they say when pointed at.
-        if (piece.Words is { Glyphs: { CutShort: true } cut }) return cut.Text;
-
-        if (piece.Naming().TreePart() is not { } named) return null;
-
-        for (var part = named; part is not null; part = part.Parent)
-            foreach (var child in part.Node.Children)
-                if (child.IsDerived)
-                    foreach (var held in child.Children)
-                        if (held.Role == Roles.Tip && held.Held is string tip) return tip;
-
-        return null;
+        return piece.Words is { Glyphs: { CutShort: true } cut } ? cut.Text : null;
     }
 
     /// <summary>What the piece under the pointer says while it is pointed at (<see cref="Tip"/>); null where it says nothing.</summary>
@@ -642,7 +641,8 @@ public class ContentElement : FrameworkElement
         // Claimed only where the content took the press, so a press it made nothing of is left unhandled and uncaptured
         // for whatever shows the content — which is how a viewport knows it may pan from there. Capturing regardless and
         // then losing it to the host is what left the drag going with no button-up ever coming to end it.
-        if (!BeginPointerSelect(e.GetPosition(this), ModifierKeys.None)) return;
+        // With the keys held as it was pressed: Ctrl adds what it lands on to what is picked out, and Shift picks out to it.
+        if (!BeginPointerSelect(e.GetPosition(this), Keyboard.Modifiers)) return;
 
         CaptureMouse();
         e.Handled = true;
@@ -780,6 +780,9 @@ public class ContentElement : FrameworkElement
         if (scaled) dc.Pop();
     }
 
+    /// <summary>How thick the outline round what a carry would go into is drawn, and how far outside it.</summary>
+    private const double MarkThickness = 2;
+
     private void PaintContent(DrawingContext dc)
     {
         var laid = Laid;
@@ -811,6 +814,10 @@ public class ContentElement : FrameworkElement
         Waves(dc, laid, _painted);
 
         PaintOver(dc);
+
+        // What a carry would go into, outlined on the content as it stands: the drop is chosen against what is on screen.
+        if (_engine.Marking is { } marked)
+            dc.DrawRectangle(null, new Pen(Palette.Accent.Brush(), MarkThickness), Rect.Inflate(marked.ToWpf(), MarkThickness, MarkThickness));
 
         var dropping = _engine.Dropping;
         if (!ShowsCaret || !_caretVisible) return;

@@ -52,7 +52,9 @@ public class MermaidFigureWriter
         ("Block diagram", "mermaid-block.png"),
         ("Architecture diagram", "mermaid-architecture.png"),
         ("Packet diagram", "mermaid-packet.png"),
+        ("Tree view", "mermaid-treeview.png"),
         ("Sankey diagram", "mermaid-sankey.png"),
+        ("Treemap", "mermaid-treemap.png"),
     ];
 
     /// <summary>The help pages the diagram examples live on, in the order a reader meets them.</summary>

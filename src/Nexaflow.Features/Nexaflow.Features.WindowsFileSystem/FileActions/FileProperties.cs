@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System;
@@ -14,7 +15,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
         public bool   IsDestructive          => false;
         public bool   SupportsMultipleFiles  => false;
-        public string Icon                   => "☶";
+        public IconRef Icon                  => IconRef.Emoji("☶");
         public string DisplayName            => Str.Get("WindowsFileSystem.Actions.Properties");
         public static string? StaticExperienceId => "/";
         public string ExperienceId           => "/";
@@ -26,7 +27,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
         bool   IFolderAction.IsDestructive       => false;
         bool   IFolderAction.SupportsMultipleFiles => false;
-        string IFolderAction.Icon                => "☶";
+        IconRef IFolderAction.Icon               => IconRef.Emoji("☶");
         string IFolderAction.DisplayName         => Str.Get("WindowsFileSystem.Actions.Properties");
         bool   IFolderAction.RequiresRefresh      => false;
         bool   IFolderAction.CanPerformAction     => true;

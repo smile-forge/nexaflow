@@ -1,253 +1,280 @@
 {
   "branch": "claude/mermaid-support-comparison-120b05",
   "nodes": {
-    "packet": {
+    "treemap": {
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Packet/PacketBuilder.cs",
-          "class": "PacketBuilder"
+          "doc": "src/Nexaflow.Markdown/Layout/Treemap/TreemapBuilder.cs",
+          "class": "TreemapBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Treemap/TreemapTiles.cs",
+          "class": "TreemapTiles"
         },
         {
           "type": "markdown",
           "doc": "docs/MarkdownSupport.md",
           "title_path": [
             "Markdown Support",
-            "packet \u2014 sub-support"
+            "treemap \u2014 sub-support"
           ]
         },
         {
           "type": "url",
-          "target": "https://mermaid.js.org/syntax/packet.html"
+          "target": "https://mermaid.js.org/syntax/treemap.html"
         }
       ],
       "concerns": {
         "tests": [
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Packet/PacketBuilderTests.cs",
-            "class": "PacketBuilderTests"
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Treemap/TreemapBuilderTests.cs",
+            "class": "TreemapBuilderTests"
           }
         ]
       }
     },
-    "packet-ast": {
+    "treemap-ast": {
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Packet/PacketParser.cs",
-          "class": "PacketParser"
+          "doc": "src/Nexaflow.Markdown/Treemap/TreemapParser.cs",
+          "class": "TreemapParser"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Packet/PacketPipeline.cs",
-          "class": "PacketPipeline"
+          "doc": "src/Nexaflow.Markdown/Treemap/TreemapPipeline.cs",
+          "class": "TreemapPipeline"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Packet/Stages/PlaceFields.cs",
-          "class": "PlaceFields"
+          "doc": "src/Nexaflow.Markdown/Treemap/Stages/ResolveItems.cs",
+          "class": "ResolveItems"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Packet/PacketNodes.cs",
-          "class": "PacketFieldNode"
+          "doc": "src/Nexaflow.Markdown/Treemap/TreemapNodes.cs",
+          "class": "TreemapNode"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Packet/PacketConfig.cs",
-          "class": "PacketConfig"
+          "doc": "src/Nexaflow.Markdown/Treemap/TreemapConfig.cs",
+          "class": "TreemapConfig"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Packet/PacketStandIns.cs",
-          "class": "PacketStandIns"
+          "doc": "src/Nexaflow.Markdown/Treemap/TreemapValues.cs",
+          "class": "TreemapValues"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidOutline.cs",
+          "class": "MermaidOutline"
         }
       ],
       "concerns": {
         "tests": [
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Packet/PacketParserTests.cs",
-            "class": "PacketParserTests"
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Treemap/TreemapParserTests.cs",
+            "class": "TreemapParserTests"
+          }
+        ]
+      }
+    },
+    "treemap-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Treemap/TreemapEdits.cs",
+          "class": "TreemapEdits"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Treemap/TreemapWriting.cs",
+          "class": "TreemapWriting"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/OutlineWriting.cs",
+          "class": "OutlineWriting"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Treemap/TreemapEditingTests.cs",
+            "class": "TreemapEditingTests"
           },
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Packet/PacketStagesTests.cs",
-            "class": "PacketStagesTests"
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Treemap/TreemapWritingTests.cs",
+            "class": "TreemapWritingTests"
           }
         ]
       }
     },
-    "packet-writing": {
+    "treeview": {
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/Packet/PacketEdits.cs",
-          "class": "PacketEdits"
+          "doc": "src/Nexaflow.Markdown/Layout/TreeView/TreeViewBuilder.cs",
+          "class": "TreeViewBuilder"
         },
         {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Packet/PacketWriting.cs",
-          "class": "PacketWriting"
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "tree view \u2014 sub-support"
+          ]
         },
         {
-          "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Packet/PacketPlaces.cs",
-          "class": "PacketPlaces",
-          "method": "BitAt"
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/treeView.html"
         }
       ],
       "concerns": {
         "tests": [
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Packet/PacketEditingTests.cs",
-            "class": "PacketEditingTests"
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/TreeView/TreeViewBuilderTests.cs",
+            "class": "TreeViewBuilderTests"
+          }
+        ]
+      }
+    },
+    "treeview-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/TreeView/TreeViewParser.cs",
+          "class": "TreeViewParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/TreeView/TreeViewPipeline.cs",
+          "class": "TreeViewPipeline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/TreeView/Stages/ResolveNodes.cs",
+          "class": "ResolveNodes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/TreeView/TreeViewNodes.cs",
+          "class": "TreeViewNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/TreeView/TreeViewConfig.cs",
+          "class": "TreeViewConfig"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/TreeView/TreeViewParserTests.cs",
+            "class": "TreeViewParserTests"
+          }
+        ]
+      }
+    },
+    "treeview-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/TreeView/TreeViewEdits.cs",
+          "class": "TreeViewEdits"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/TreeView/TreeViewWriting.cs",
+          "class": "TreeViewWriting"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/TreeView/TreeViewPlaces.cs",
+          "class": "TreeViewPlaces"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/FrontMatterWriting.cs",
+          "class": "FrontMatterWriting"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/TreeView/TreeViewEditingTests.cs",
+            "class": "TreeViewEditingTests"
           },
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Packet/PacketWritingTests.cs",
-            "class": "PacketWritingTests"
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/TreeView/TreeViewWritingTests.cs",
+            "class": "TreeViewWritingTests"
           }
         ]
       }
     },
-    "markdown-context-menu": {
+    "icons-packs": {
       "links": [
         {
-          "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.Menu.cs",
-          "class": "MarkdownSurface",
-          "method": "ShowContextRibbon"
+          "type": "url",
+          "target": "https://icon-sets.iconify.design/material-icon-theme/"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Editing/LinkedElement.cs",
-          "class": "LinkedElement",
-          "method": "BuildRibbon"
+          "doc": "src/Nexaflow.Icons/IconPacks.cs",
+          "class": "IconPacks"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/DiagramRibbon.cs",
-          "class": "DiagramRibbon"
+          "doc": "src/Nexaflow.Icons/IconBody.cs",
+          "class": "IconBody"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownEdits.cs",
-          "class": "MarkdownEdits",
-          "method": "Started"
+          "doc": "src/Nexaflow.Icons/VectorIcon.cs",
+          "class": "VectorIcon"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs",
-          "class": "ContentLanguages",
-          "method": "Insertable"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
-          "class": "Shipped",
-          "method": "Starting"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Editing/MiniRibbon.cs",
-          "class": "MiniRibbonControl"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownEdits.cs",
-          "class": "MarkdownEdits",
-          "method": "Ribbon"
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DrawnIcon.cs",
+          "class": "DrawnIcon"
         }
       ],
       "concerns": {
         "tests": [
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/ClipboardOffersTests.cs",
-            "class": "ClipboardOffersTests"
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Icons/IconPacksTests.cs",
+            "class": "IconPacksTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Icons/IconBodyTests.cs",
+            "class": "IconBodyTests"
           }
         ]
       }
-    },
-    "flowchart-writing": {
-      "links": [
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Flowchart/FlowchartEdits.cs",
-          "class": "FlowchartEdits",
-          "method": "Escaping"
-        },
-        {
-          "type": "code",
-          "status": "done",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Flowchart/FlowchartEdits.cs",
-          "class": "FlowchartEdits",
-          "method": "Edit"
-        },
-        {
-          "type": "code",
-          "status": "done",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/DiagramRibbon.cs",
-          "class": "DiagramRibbon"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Flowchart/FlowchartEdits.Choices.cs",
-          "class": "FlowchartEdits",
-          "method": "Ribbon"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Flowchart/FlowchartEdits.Choices.cs",
-          "class": "FlowchartEdits",
-          "method": "Shapes"
-        }
-      ]
-    },
-    "markdown-offers": {
-      "links": [
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/IContentLanguage.cs",
-          "class": "BlockCorner"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/IContentLanguage.cs",
-          "class": "IContentLanguage",
-          "method": "Ribbon"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Editing/MiniRibbon.cs",
-          "class": "MiniRibbonControl"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Writing.cs",
-          "class": "ContentEngine",
-          "method": "Used"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/DiagramRibbon.cs",
-          "class": "DiagramRibbon",
-          "method": "Entering"
-        }
-      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 10,
+  "changed_sets": 14,
   "touched_nodes": [
-    "flowchart-writing",
-    "markdown-context-menu",
-    "markdown-offers",
-    "packet",
-    "packet-ast",
-    "packet-writing"
+    "icons-packs",
+    "treemap",
+    "treemap-ast",
+    "treemap-writing",
+    "treeview",
+    "treeview-ast",
+    "treeview-writing"
   ]
 }

@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,7 +26,7 @@ public sealed class ShowPdfAction(IShellServices shell) : IFileAction, ICacheabl
     public string ExperienceDescription => Str.Get("Pdf.Action.AsPdfDescription");
 
     public string DisplayName => Str.Get("Pdf.Action.AsPdf");
-    public string Icon => "📕";
+    public IconRef Icon => IconRef.Emoji("📕");
     public string? Tooltip => Str.Get("Pdf.Action.AsPdfTip");
 
     public bool IsDestructive => false;

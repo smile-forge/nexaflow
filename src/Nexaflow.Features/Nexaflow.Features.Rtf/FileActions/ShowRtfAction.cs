@@ -1,6 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Rtf.FileActions;
@@ -16,7 +17,7 @@ public sealed class ShowRtfAction(IShellServices shell) : IFileAction, ICacheabl
     public string ExperienceDescription => Str.Get("Rtf.Action.AsRtfDescription");
 
     public string DisplayName => Str.Get("Rtf.Action.AsRtf");
-    public string Icon => "📝";
+    public IconRef Icon => IconRef.Emoji("📝");
     public string? Tooltip => Str.Get("Rtf.Action.AsRtfTip");
 
     public bool IsDestructive => false;

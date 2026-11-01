@@ -220,6 +220,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         {
             Pictures = Pictured,
             Links = Linked,
+            ShownBefore = ShownBefore,
         };
 
     /// <summary>The picture a part was found to name — an image, a diagram node's, a cloud's mask — as the medium draws it.</summary>
@@ -378,7 +379,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
             // between its lines are not among.
             var showing = Showing(named, style, writing,
                                   shown is { } zone && ContentNested.Holds(body, zone.Start, zone.End)
-                                      ? new RawZone(body.Start + placed.OwnAt(zone.Start - body.Start), body.Start + placed.OwnAt(zone.End - body.Start))
+                                      ? zone with { Start = body.Start + placed.OwnAt(zone.Start - body.Start), End = body.Start + placed.OwnAt(zone.End - body.Start) }
                                       : null,
                                   body.Start);
 

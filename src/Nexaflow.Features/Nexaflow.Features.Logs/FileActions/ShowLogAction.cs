@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.Threading;
@@ -16,7 +17,7 @@ public sealed class ShowLogAction : IFileAction, ICacheable
     public ShowLogAction(IShellServices shellServices) => _shellServices = shellServices;
 
     public string DisplayName           => Str.Get("Logs.Action.AsLog");
-    public string Icon                  => "📋";
+    public IconRef Icon                 => IconRef.Emoji("📋");
     public static string? StaticExperienceId => "/text/log";
     public string ExperienceId          => "/text/log";
     public string ExperienceDescription => Str.Get("Logs.Action.AsLogDescription");

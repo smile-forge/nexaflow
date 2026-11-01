@@ -13,7 +13,8 @@ public static class AiHostProtocol
     /// app's pipe before giving up.</summary>
     public static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(30);
 
-    /// <summary>The host's command line: <c>--pipe &lt;name&gt; --ai-dir &lt;folder&gt; [--runtime-pack &lt;folder&gt;]</c>.
+    /// <summary>The host's command line: <c>--pipe &lt;name&gt; --ai-dir &lt;folder&gt; [--runtime-pack &lt;folder&gt;]
+    /// [--memory-share &lt;percent&gt;] [--log-dir &lt;folder&gt;]</c>.
     /// The token arrives on standard input, so it never shows in a process listing.</summary>
     public const string PipeArgument = "--pipe";
 
@@ -24,6 +25,10 @@ public static class AiHostProtocol
 
     /// <summary>The share of this machine's memory, in percent, models on the host's CPU may hold.</summary>
     public const string MemoryShareArgument = "--memory-share";
+
+    /// <summary>The folder the host keeps its log in — named only while the shell's safety logging is on. Without it the
+    /// host keeps no log.</summary>
+    public const string LogDirArgument = "--log-dir";
 
     /// <summary>The share of memory models on the CPU hold unless the app says otherwise.</summary>
     public const int DefaultMemoryShare = 50;

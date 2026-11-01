@@ -114,6 +114,34 @@ Electricity,Losses,50
 
 ---
 
+## Treemap
+
+Values as tiles, each as big as its share: a section holds the items indented under it, with its total in its band, and a
+leaf is a label and its value. Labels and values are typed into where they are drawn, and `valueFormat` under
+`config: treemap:` sets how values read. You work with the boxes: right-click a group's band to add a box, type its name,
+press Enter, type its value and press Enter again. While you type a value the tiles hold still, and they move once you
+are done. Right-click a box to split it in two, to merge the boxes you have picked out with Ctrl+click, or to put it in a
+new group; right-click a group's band to ungroup it. Drag a tile onto a group to move it in — the group it would go into
+is outlined, and nothing moves until you let go. A box with no value yet waits under the map until you give it one.
+
+````markdown
+```mermaid
+treemap-beta
+"Products"
+    "Electronics"
+        "Phones": 50
+        "Computers": 30
+        "Accessories": 20
+    "Clothing"
+        "Men's": 40
+        "Women's": 40
+```
+````
+
+![A treemap of products, electronics and clothing sections each holding tiles sized by value](images/markdown/mermaid-treemap.png)
+
+---
+
 ## Ishikawa (fishbone) diagram
 
 Cause-and-effect / root-cause analysis: an effect on the spine, with categories and nested causes

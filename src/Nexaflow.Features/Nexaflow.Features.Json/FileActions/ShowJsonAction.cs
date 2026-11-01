@@ -1,6 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Json.FileActions;
@@ -13,7 +14,7 @@ public sealed class ShowJsonAction : IFileAction, ICacheable
 
     public bool   IsDestructive         => false;
     public bool   SupportsMultipleFiles => false;
-    public string Icon                  => "{}";
+    public IconRef Icon                 => IconRef.Emoji("{}");
     public string DisplayName           => Str.Get("Json.Action.AsJson");
     public static string? StaticExperienceId => "/text/json";
     public string ExperienceId          => "/text/json";

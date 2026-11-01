@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Visuals.Common.Shell;
 
@@ -40,6 +41,9 @@ internal static class ShellInterop
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr SHGetFileInfo(string pszPath, uint dwFileAttributes, ref SHFILEINFO psfi, uint cbFileInfo, InfoFlags uFlags);
 
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern int SHDefExtractIcon(string pszIconFile, int iIndex, uint uFlags, out IntPtr phiconLarge, IntPtr phiconSmall, uint nIconSize);
+
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool DestroyIcon(IntPtr hIcon);
@@ -75,6 +79,21 @@ internal static class ShellInterop
     /// with the shortcut arrow, a customised folder's. Reads the disk, so only ever called off the UI thread.</summary>
     public static BitmapSource? PathIcon(string path, ShellIconSize size) =>
         Icon(path, 0, InfoFlags.LinkOverlay | SizeFlag(size));
+
+    /// <summary>
+    /// The icon <paramref name="icon"/> names, drawn <paramref name="pixels"/> wide — the file's icon at that index or, for a
+    /// negative index, the one with that resource id, as the shell reads a <c>DefaultIcon</c>. Reads the disk, so only ever
+    /// called off the UI thread.
+    /// </summary>
+    public static BitmapSource? ResourceIcon(ShellIconRef icon, int pixels)
+    {
+        var file = Environment.ExpandEnvironmentVariables(icon.File);
+        // The size's low word is the large icon's; with no small icon asked for, the high word is unread.
+        if (SHDefExtractIcon(file, icon.Index, 0, out var hIcon, IntPtr.Zero, (uint)pixels) != 0 || hIcon == IntPtr.Zero)
+            return null;
+        try { return Detached(hIcon); }
+        finally { DestroyIcon(hIcon); }
+    }
 
     private static BitmapSource? Icon(string path, uint attributes, InfoFlags flags)
     {

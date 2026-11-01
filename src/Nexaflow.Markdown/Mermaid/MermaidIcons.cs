@@ -9,10 +9,12 @@ namespace Nexaflow.Markdown.Mermaid;
 /// <para>
 /// Mermaid takes Font Awesome's classes (<c>fa fa-book</c>, <c>fa-solid fa-book</c>), an icon pack's <c>pack:name</c>
 /// (<c>fa:fa-user</c>, <c>mdi:account</c>, <c>logos:aws</c>) and, in an architecture diagram, five of its own
-/// (<c>cloud</c>, <c>database</c>, <c>disk</c>, <c>internet</c>, <c>server</c>). None of those packs is here, so a name is
-/// read as the Fluent icon drawing the same thing: the Fluent icon of that name, or the one another pack's name stands for
-/// where they differ. The app's own <c>fluent:name</c> and <c>fluent-filled:name</c> name one directly. A name nothing here
-/// draws is no icon, and what was written is what is drawn.
+/// (<c>cloud</c>, <c>database</c>, <c>disk</c>, <c>internet</c>, <c>server</c>). A pack shipped with the app
+/// (<see cref="IconPacks"/>) is drawn as itself: <c>material-icon-theme:rust</c> is that pack's icon, and so is a bare
+/// <c>rust</c> where the diagram makes it its default pack. Any other pack's name is read as the Fluent icon drawing the same
+/// thing: the Fluent icon of that name, or the one another pack's name stands for where they differ. The app's own
+/// <c>fluent:name</c> and <c>fluent-filled:name</c> name one directly. A name nothing here draws is no icon, and what was
+/// written is what is drawn.
 /// </para>
 /// </summary>
 public static class MermaidIcons
@@ -45,8 +47,12 @@ public static class MermaidIcons
         ["bullseye"] = "target", ["crosshairs"] = "target", ["download"] = "arrow_download", ["upload"] = "arrow_upload",
     };
 
-    /// <summary>The icon written — or null where nothing the app draws is called that.</summary>
-    public static IconRef? Of(string? written)
+    /// <summary>
+    /// The icon written — or null where nothing the app draws is called that. A shipped pack's <c>pack:name</c> is its icon, or
+    /// nothing where it has none of that name; a bare name is the icon of that name in <paramref name="defaultPack"/>, where the
+    /// diagram names one and it has the icon — after the names Mermaid draws itself (<see cref="Drawn"/>), which win.
+    /// </summary>
+    public static IconRef? Of(string? written, string? defaultPack = null)
     {
         // Metadata may quote it either way.
         var said = (written ?? string.Empty).Trim().Trim('"', '\'').Trim();
@@ -59,15 +65,27 @@ public static class MermaidIcons
         // Nothing but what no keyboard types is an emoji, which draws itself.
         if (said.All(character => !char.IsAscii(character) || char.IsWhiteSpace(character))) return IconRef.Emoji(said);
 
+        if (said.IndexOfAny([' ', '\t']) < 0 && said.IndexOf(':') is var colon)
+        {
+            if (colon > 0 && said[..colon] is var pack && IconPacks.Ships(pack))
+                return IconPacks.Has(pack, said[(colon + 1)..]) ? IconRef.Iconify(pack, said[(colon + 1)..]) : null;
+
+            if (colon < 0 && !MermaidDrawn.Contains(said) && defaultPack is { Length: > 0 } preferred && IconPacks.Has(preferred, said))
+                return IconRef.Iconify(preferred, said);
+        }
+
         // The last class written is the icon's own — "fa fa-book", "fa-solid fa-book" — and what follows a pack's colon is its name.
         var name = said[(said.LastIndexOfAny([' ', '\t']) + 1)..];
         name = name[(name.LastIndexOf(':') + 1)..];
-        foreach (var pack in (ReadOnlySpan<string>)["fa-", "mdi-"])
-            if (name.StartsWith(pack, StringComparison.OrdinalIgnoreCase)) name = name[pack.Length..];
+        foreach (var prefix in (ReadOnlySpan<string>)["fa-", "mdi-"])
+            if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) name = name[prefix.Length..];
 
         var fluent = name.Replace('-', '_').ToLowerInvariant();
         return Drawn(IconRef.Fluent(Aliases.GetValueOrDefault(fluent, fluent)));
     }
+
+    /// <summary>The icons Mermaid draws itself, which a bare name means before it means one of a default pack: a tree view's file and folder.</summary>
+    private static readonly HashSet<string> MermaidDrawn = new(StringComparer.Ordinal) { "file", "folder" };
 
     /// <summary>The icon, where the font has a glyph for it.</summary>
     private static IconRef? Drawn(IconRef icon) => FluentGlyphs.Of(icon) is null ? null : icon;

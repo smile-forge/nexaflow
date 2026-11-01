@@ -53,15 +53,18 @@ internal static class DiagramWriting
 
         var grown = writing.Text.Length - (writing.End - writing.Start);
 
-        // Where what was written in now stands, and what it says: the part typed into, the writing in it, or the stretch written
-        // over less the quotes put round it — read from the document either side of the writing, never all of it.
-        var ((start, end), said) = writing.Start == writing.End
-            ? ((part.Start, part.End + grown),
-               state.Document.Slice(part.Start, writing.Start - part.Start) + writing.Text + state.Document.Slice(writing.End, part.End - writing.End))
-            : ((writing.Start + 1, writing.Start + writing.Text.Length - 1), writing.Text[1..^1]);
+// Where what was written in now stands, and what it says: the part typed into, or the stretch written over — less the quotes,
+// where it was put in quotes, and the whole of it where it was written bare — read from the document either side of the
+// writing, never all of it.
+var quoted = writing.Text.Length >= 2 && writing.Text[0] is '"' or '\'' && writing.Text[^1] == writing.Text[0];
+var ((start, end), said) = writing.Start == writing.End
+    ? ((part.Start, part.End + grown),
+       state.Document.Slice(part.Start, writing.Start - part.Start) + writing.Text + state.Document.Slice(writing.End, part.End - writing.End))
+    : quoted ? ((writing.Start + 1, writing.Start + writing.Text.Length - 1), writing.Text[1..^1])
+    : ((writing.Start, writing.Start + writing.Text.Length), writing.Text);
 
-        RawZone? raw = state.Raw is { } zone && zone.Holds(caret) ? new RawZone(zone.Start, zone.End + grown)
-                     : MermaidText.Decode(said) != said ? new RawZone(start, end)
+RawZone? raw = state.Raw is { } zone && zone.Holds(caret) ? zone with { End = zone.End + grown }
+             : MermaidText.Decode(said) != said ? new RawZone(start, end)
                      : null;
 
         return ContentChange.Write(writing.Start, writing.End - writing.Start, writing.Text, writing.Caret, raw);

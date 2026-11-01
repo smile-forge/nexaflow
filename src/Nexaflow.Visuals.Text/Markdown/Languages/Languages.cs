@@ -40,6 +40,10 @@ using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Rtf;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Treemap;
+using Nexaflow.Visuals.Text.Markdown.Treemap;
+using Nexaflow.Markdown.TreeView;
+using Nexaflow.Visuals.Text.Markdown.TreeView;
 
 namespace Nexaflow.Visuals.Text.Markdown.Languages;
 
@@ -404,6 +408,63 @@ internal static class Shipped
                 ```packet
                 0-15: "Source Port"
                 16-31: "Destination Port"
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// A treemap — items nested in sections, each drawn as big as its share — read by a parser of its own (<see cref="TreemapParser"/>).
+    /// Written Mermaid's way, so a <c>mermaid</c> block headed <c>treemap-beta</c> is handed here, and fenced as itself it needs no
+    /// header.
+    /// </summary>
+    public static readonly ContentLanguage Treemap = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && TreemapParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(TreemapParser.Parse(source)),
+        Stages: static (tree, show) => TreemapPipeline.Of(tree, show.Writing),
+        Builder: ContentLayouts.Treemap)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new TreemapEdits()),
+            Transpile = Transpiles.By<TreemapParser>(),
+            Name = TreemapParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.Treemap"),
+            Icon = IconRef.Fluent("data_treemap"),
+            DefaultBlock = """
+                ```treemap
+                "Products"
+                    "Phones": 50
+                    "Computers": 30
+                "Services"
+                    "Support": 20
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// A tree view — a folder tree, or any outline drawn as one — read by a parser of its own (<see cref="TreeViewParser"/>). Written
+    /// Mermaid's way, so a <c>mermaid</c> block headed <c>treeView-beta</c> is handed here, and fenced as itself it needs no header.
+    /// </summary>
+    public static readonly ContentLanguage TreeView = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && (said.Equals(TreeViewParser.Language, StringComparison.OrdinalIgnoreCase)
+                                  || TreeViewParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase))),
+        Parser: static () => static source => ContentParse.Of(TreeViewParser.Parse(source)),
+        Stages: static (tree, show) => TreeViewPipeline.Of(tree, show.Writing),
+        Builder: ContentLayouts.TreeView)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new TreeViewEdits()),
+            Transpile = Transpiles.By<TreeViewParser>(),
+            Name = TreeViewParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.TreeView"),
+            Icon = IconRef.Fluent("text_bullet_list_tree"),
+            DefaultBlock = """
+                ```treeview
+                my-project/
+                    src/
+                        index.ts
+                    package.json
                 ```
                 """,
         };

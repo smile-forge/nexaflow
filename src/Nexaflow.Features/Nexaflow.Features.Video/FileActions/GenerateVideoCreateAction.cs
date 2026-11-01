@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Video.ViewModels;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Video.FileActions;
@@ -11,7 +12,7 @@ namespace Nexaflow.Features.Video.FileActions;
 /// </summary>
 public sealed class GenerateVideoCreateAction(IAIService ai) : IFileCreateWithOptions, ICacheable
 {
-    public string Icon          => "🎬";
+    public IconRef Icon         => IconRef.Emoji("🎬");
     public string DisplayName   => Str.Get("Video.Create.GenVideo");
     public string FileExtension => ".mp4";
 

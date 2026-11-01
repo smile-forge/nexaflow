@@ -6,6 +6,7 @@ using Nexaflow.IO.Common;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Features.Compressed.FileActions;
 
@@ -18,7 +19,7 @@ public sealed class UnzipHereAction(IShellServices shell, IVirtualFileSystem vfs
     public string ExperienceDescription => Str.Get("Compressed.Experience.Archive");
 
     public string DisplayName => Str.Get("Compressed.Action.UnzipHere");
-    public string Icon => "📂";
+    public IconRef Icon => IconRef.Emoji("📂");
 
     public bool IsDestructive => false;
     public bool SupportsMultipleFiles => true;

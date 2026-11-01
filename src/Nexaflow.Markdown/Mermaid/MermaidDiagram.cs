@@ -37,6 +37,18 @@ public enum MermaidDiagram
     /// </summary>
     Packet,
 
+    /// <summary>
+    /// <c>treemap-beta</c> or <c>treemap</c>: a language of its own (<see cref="Nexaflow.Markdown.Treemap.TreemapParser"/>), named only
+    /// so a <c>mermaid</c> block headed by it is handed to it.
+    /// </summary>
+    Treemap,
+
+    /// <summary>
+    /// <c>treeView-beta</c>: a language of its own (<see cref="Nexaflow.Markdown.TreeView.TreeViewParser"/>), named only so a
+    /// <c>mermaid</c> block headed by it is handed to it.
+    /// </summary>
+    TreeView,
+
     /// <summary><c>C4Context</c>, <c>C4Container</c>, <c>C4Component</c>, <c>C4Dynamic</c>, <c>C4Deployment</c>.</summary>
     C4,
     C4Sequence,
@@ -235,5 +247,7 @@ public static class MermaidDiagrams
         ("swimlane", MermaidDiagram.Swimlane),
         ("block", MermaidDiagram.Block),
         ("packet", MermaidDiagram.Packet),
+        ("treemap", MermaidDiagram.Treemap),
+        ("treeview", MermaidDiagram.TreeView),
     ];
 }

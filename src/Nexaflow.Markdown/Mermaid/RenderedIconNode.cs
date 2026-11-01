@@ -1,19 +1,17 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Markdown.Mermaid;
 
 /// <summary>
-/// Something naming an icon (<see cref="MermaidKinds.Icon"/>), as <see cref="WithIcons"/> read it: the glyph it is drawn with,
-/// and the family of the font that glyph is in — or none for an emoji, which takes the font of the words round it. It prints
-/// as what was written.
+/// Something naming an icon (<see cref="MermaidKinds.Icon"/>), as <see cref="WithIcons"/> read it: the icon the app draws it with —
+/// an emoji, a Fluent icon, or a pack's. It prints as what was written.
 /// </summary>
 internal sealed class RenderedIconNode : ContentNode
 {
-    internal RenderedIconNode(ContentNode written, string? family, string glyph) : base(written) => (this.Family, this.Glyph) = (family, glyph);
+    internal RenderedIconNode(ContentNode written, IconRef icon) : base(written) => this.Icon = icon;
 
-    public string? Family { get; }
+    public IconRef Icon { get; }
 
-    public string Glyph { get; }
-
-    protected override ContentNode Reshaped(ContentNode shape) => new RenderedIconNode(shape, this.Family, this.Glyph);
+    protected override ContentNode Reshaped(ContentNode shape) => new RenderedIconNode(shape, this.Icon);
 }

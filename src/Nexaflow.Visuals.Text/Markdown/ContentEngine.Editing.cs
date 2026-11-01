@@ -135,6 +135,7 @@ public sealed partial class ContentEngine
                 Piece = edit.Piece,
                 Root = edit.Root,
                 Chosen = chosen,
+                Selection = state.Selection,
                 Caret = state.HasSelection ? null : state.Caret,
                 IsReadOnly = _readOnly,
             };

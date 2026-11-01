@@ -54,6 +54,7 @@ public sealed class RibbonItemButton : Button
     // ── What the template draws ──────────────────────────────────────────────
 
     private static readonly DependencyPropertyKey IconKey          = ReadOnly<IconRef>(nameof(Icon), default);
+    private static readonly DependencyPropertyKey IconResourceKey  = ReadOnly<ShellIconRef?>(nameof(IconResource), null);
     private static readonly DependencyPropertyKey CaptionKey       = ReadOnly<string>(nameof(Caption), string.Empty);
     private static readonly DependencyPropertyKey FrameGeometryKey = ReadOnly<Geometry?>(nameof(FrameGeometry), null);
     private static readonly DependencyPropertyKey BadgeGeometryKey = ReadOnly<Geometry?>(nameof(BadgeGeometry), null);
@@ -68,6 +69,7 @@ public sealed class RibbonItemButton : Button
     private static readonly DependencyPropertyKey HasBadgeForegroundKey = ReadOnly<bool>(nameof(HasBadgeForeground), false);
 
     public static readonly DependencyProperty IconProperty           = IconKey.DependencyProperty;
+    public static readonly DependencyProperty IconResourceProperty   = IconResourceKey.DependencyProperty;
     public static readonly DependencyProperty CaptionProperty        = CaptionKey.DependencyProperty;
     public static readonly DependencyProperty FrameGeometryProperty  = FrameGeometryKey.DependencyProperty;
     public static readonly DependencyProperty BadgeGeometryProperty  = BadgeGeometryKey.DependencyProperty;
@@ -82,6 +84,7 @@ public sealed class RibbonItemButton : Button
     public static readonly DependencyProperty HasBadgeForegroundProperty = HasBadgeForegroundKey.DependencyProperty;
 
     public IconRef Icon           => (IconRef)GetValue(IconProperty);
+    public ShellIconRef? IconResource => (ShellIconRef?)GetValue(IconResourceProperty);
     public string Caption         => (string)GetValue(CaptionProperty);
     public Geometry? FrameGeometry => (Geometry?)GetValue(FrameGeometryProperty);
     public Geometry? BadgeGeometry => (Geometry?)GetValue(BadgeGeometryProperty);
@@ -129,6 +132,7 @@ public sealed class RibbonItemButton : Button
         if (Item is not { } item) return;
 
         SetValue(IconKey, item.Icon);
+        SetValue(IconResourceKey, item.IconResource);
         SetValue(CaptionKey, DisplayLabel(item.Label));
         ToolTip = item.Label;
         // A preview names itself in markup; on the ribbon a button is found by its label.

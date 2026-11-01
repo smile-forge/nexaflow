@@ -1,0 +1,65 @@
+{
+  "branch": "claude/safety-logging",
+  "nodes": {
+    "safety-log": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/ShellSafetyLog.cs",
+          "class": "ShellSafetyLog"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Logging/SessionLogFile.cs",
+          "class": "SessionLogFile"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/HostLog.cs",
+          "class": "HostLog"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ShellConfig.cs",
+          "class": "ShellConfig",
+          "method": "SafetyLogging"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ShellSafetyLogTests.cs",
+            "class": "ShellSafetyLogTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/SessionLogFileTests.cs",
+            "class": "SessionLogFileTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/RealHostTests.cs",
+            "class": "RealHostTests",
+            "method": "TheHostLogs_InTheFolderTheAppNames"
+          }
+        ],
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/en/strings.json"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/fr/strings.json"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 3,
+  "touched_nodes": [
+    "safety-log"
+  ]
+}

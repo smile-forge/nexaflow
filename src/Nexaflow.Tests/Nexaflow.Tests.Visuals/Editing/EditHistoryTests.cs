@@ -216,5 +216,29 @@ public class EditHistoryTests
         while (history.Undo(state) is { } back) { state = back; undone++; }
 
         Assert.AreEqual(3, undone, "four steps of a third of the limit each hold more than it, so the oldest goes");
+}
+
+[TestMethod]
+public void WhereTheStepBeingWrittenBeganIsWhatTakingItBackWouldPutBack()
+{
+    var history = new EditHistory();
+    var first = new EditState("Total: 10", 9);
+
+    Assert.IsNull(history.Begun(first, first), "nothing written, and no step open");
+
+    var once = first.Write("0");
+    Assert.AreEqual("Total: 10", history.Begun(first, once)?.Before.ToString(), "the first letter of a step: where it starts from");
+    history.Record(first, once);
+
+    var twice = once.Write("0");
+    var begun = history.Begun(once, twice);
+    Assert.AreEqual("Total: 10", begun?.Before.ToString(), "carrying on: where the step began, not the letter before");
+    Assert.AreEqual((9, 0, "00"), (begun!.Value.Written.Start, begun.Value.Written.Length, begun.Value.Written.Text), "and the step's writing as one stretch");
+    history.Record(once, twice);
+
+    Assert.AreEqual("Total: 10", history.Begun(twice, twice)?.Before.ToString(), "and so while nothing more is written");
+
+    history.Break();
+    Assert.IsNull(history.Begun(twice, twice), "the step ended: nothing is being written");
     }
 }

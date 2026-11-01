@@ -1,0 +1,340 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.TreeView;
+using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Visuals.Text.Painting;
+
+namespace Nexaflow.Tests.Visuals.Markdown.TreeView;
+
+/// <summary>
+/// Working with a tree view through the editor that hosts it, as with a folder tree: labels written where they are drawn — bare for
+/// as long as they can be — Enter putting a node in, Tab taking it into the node before it, the right-click and a drag putting nodes
+/// where they go, and a tree drawn with a box drawing drawn again round every change.
+/// </summary>
+[TestClass]
+[TestCategory("Desktop")]
+[DoNotParallelize]
+[CoversNode("treeview-writing")]
+public class TreeViewEditingTests
+{
+    private const string Tree = "src/\n    a.ts\n    b.ts\nREADME.md";
+
+    private const string Drawn = "├── src/\n│   ├── a.ts\n│   └── b.ts\n└── README.md";
+
+    /// <summary>The tree inside a document, fenced as itself, with the editor handing its keys to it.</summary>
+    private static void InADocument(Action<MarkdownSurface, DocumentBlock> test, string tree = Tree) =>
+        MarkdownEditorHarness.Run("Files:\n\n```treeview\n" + tree + "\n```\n", editor =>
+        {
+            var block = MarkdownEditorHarness.Block(editor);
+            Assert.IsNotNull(block, "the tree view did not render as content");
+
+            test(editor, block!);
+        });
+
+    [TestMethod]
+    public void TypingInALabelChangesTheLabel_AndASpaceKeepsItBare() => UiThread.Run(() =>
+        InADocument((editor, tree) =>
+        {
+            Assert.IsFalse(tree.IsReadOnly, "a tree view's labels are written in");
+
+            PressPast(tree, "a.ts");
+            Write(editor, " ");
+            Write(editor, "x");
+
+            StringAssert.Contains(tree.Source, "    a.ts x\n", tree.Source);
+            Assert.AreEqual(0, tree.Diagnostics.Count, Trouble(tree));
+        }));
+
+    [TestMethod]
+    public void WhatWouldReadAsSomethingElseInABareLabelPutsItInQuotes() => UiThread.Run(() =>
+        InADocument((editor, tree) =>
+        {
+            PressPast(tree, "a.ts");
+            MarkdownEditorHarness.Type(editor, " ## x");
+            MarkdownEditorHarness.Pump();
+
+            StringAssert.Contains(tree.Source, "    \"a.ts ## x\"\n", tree.Source);
+            Assert.AreEqual(0, tree.Diagnostics.Count, Trouble(tree));
+        }));
+
+    [TestMethod]
+    public void EnterPutsANodeInAfterIt_AndWhatIsTypedNamesItBare() => UiThread.Run(() =>
+        InADocument((editor, tree) =>
+        {
+            PressPast(tree, "a.ts");
+            Press(editor, Key.Enter);
+            MarkdownEditorHarness.Type(editor, "c.ts");
+            MarkdownEditorHarness.Pump();
+
+            StringAssert.Contains(tree.Source, "    a.ts\n    c.ts\n    b.ts", tree.Source);
+            Assert.AreEqual(0, tree.Diagnostics.Count, Trouble(tree));
+        }));
+
+    [TestMethod]
+    public void InADrawnTreeEnterDrawsTheTreeAgainRoundTheNewNode() => UiThread.Run(() =>
+        InADocument((editor, tree) =>
+        {
+            PressPast(tree, "b.ts");
+            Press(editor, Key.Enter);
+            MarkdownEditorHarness.Type(editor, "c.ts");
+            MarkdownEditorHarness.Pump();
+
+            StringAssert.Contains(tree.Source, "├── src/\n│   ├── a.ts\n│   ├── b.ts\n│   └── c.ts\n└── README.md", tree.Source);
+        }, Drawn));
+
+    [TestMethod]
+    public void TabTakesANodeIntoTheOneBeforeIt() => UiThread.Run(() =>
+        InADocument((editor, tree) =>
+        {
+            PressPast(tree, "README.md");
+            Press(editor, Key.Tab);
+
+            StringAssert.Contains(tree.Source, "src/\n    a.ts\n    b.ts\n    README.md", tree.Source);
+            Assert.IsTrue(tree.HasCaret, "the caret stays in the label it was in");
+        }));
+
+    [TestMethod]
+    public void BackspaceInALabelWithNothingInItTakesTheNodeOut() => UiThread.Run(() =>
+        InADocument((editor, tree) =>
+        {
+            PressPast(tree, "a.ts");
+            Press(editor, Key.Enter);
+            Press(editor, Key.Back);
+
+            StringAssert.Contains(tree.Source, "```treeview\n" + Tree + "\n```", tree.Source);
+        }));
+
+    [TestMethod]
+    public void BackspaceAtTheStartOfABareLabelTakesNothingOfWhatSaysWhereItStands() => UiThread.Run(() =>
+        InADocument((editor, tree) =>
+        {
+            var written = tree.Source;
+            tree.TakeCaret(tree.Source.IndexOf("a.ts", tree.Start, StringComparison.Ordinal));
+            Press(editor, Key.Back);
+
+            Assert.AreEqual(written, tree.Source);
+        }));
+
+    [TestMethod]
+    public void ARightClickOnANodeOffersWhatCanBeDoneToIt_AndWhatItCanBeTurnedInto() => UiThread.Run(() =>
+        InADocument((editor, tree) =>
+        {
+            var ribbon = Ribbon(editor, Row(tree, "a.ts"));
+            var ids = ribbon.Controls.Select(control => control.Id).ToArray();
+
+            CollectionAssert.IsSubsetOf(new[] { "treeview.kind", "treeview.insert.before", "treeview.insert.after", "treeview.insert.inside", "treeview.level.in",
+                                                "treeview.level.out", "treeview.describe", "treeview.icons", "treeview.delete" }, ids);
+
+            var file = Offered(ribbon, "treeview.kind");
+            Assert.AreEqual(Str.Get("Text.TreeView.Node.As"), file.Caption, "drawn as \"As\" and what it would turn the node into");
+            Assert.AreEqual(Str.Get("Text.TreeView.Node.AsFolder"), file.Name, "a file is offered to be made a folder");
+            Assert.AreEqual(Str.Get("Text.TreeView.Node.AsFile"), Offered(Ribbon(editor, Row(tree, "src")), "treeview.kind").Name, "and a folder a file");
+        }));
+
+    [TestMethod]
+    public void AsAFolderAndAsAFileTurnANodeIntoTheOtherByItsSlash() => UiThread.Run(() =>
+        InADocument((editor, tree) =>
+        {
+            Click(Ribbon(editor, Row(tree, "README.md")), "treeview.kind");
+            StringAssert.Contains(tree.Source, "\nREADME.md/\n", tree.Source);
+
+            Click(Ribbon(editor, Row(tree, "src")), "treeview.kind");
+            StringAssert.StartsWith(tree.Source[(tree.Source.IndexOf("```treeview\n", StringComparison.Ordinal) + 12)..], "src\n", tree.Source);
+        }));
+
+    [TestMethod]
+    public void MovingALevelInOrOutIsOfferedOnlyWhereTheNodeCanGo() => UiThread.Run(() =>
+        InADocument((editor, tree) =>
+        {
+            // a.ts is the first under src: nothing before it to go under, but src to come out of.
+            var first = Ribbon(editor, Row(tree, "a.ts"));
+            Assert.IsFalse(Pressable(first, "treeview.level.in"), "the first node of its level has nothing to go into");
+            Assert.IsTrue(Pressable(first, "treeview.level.out"));
+
+            // README.md is at the top, after src: src to go into, and nothing to come out of.
+            var top = Ribbon(editor, Row(tree, "README.md"));
+            Assert.IsTrue(Pressable(top, "treeview.level.in"));
+            Assert.IsFalse(Pressable(top, "treeview.level.out"), "a node at the top has nothing to come out of");
+
+            // b.ts can go both ways.
+            var both = Ribbon(editor, Row(tree, "b.ts"));
+            Assert.IsTrue(Pressable(both, "treeview.level.in") && Pressable(both, "treeview.level.out"));
+        }));
+
+    [TestMethod]
+    public void ShowIconsAndHideIconsWriteTheFrontMatter_AndAreOfferedAnywhereInTheTree() => UiThread.Run(() =>
+        InADocument((editor, tree) =>
+        {
+            var ribbon = Ribbon(editor, Row(tree, "a.ts"));
+            Assert.AreEqual(Str.Get("Text.TreeView.Icons.Show"), Offered(ribbon, "treeview.icons").Name);
+
+            Click(ribbon, "treeview.icons");
+            StringAssert.Contains(tree.Source, "---\nconfig:\n  treeView:\n    showIcons: true\n---\nsrc/", tree.Source);
+            Assert.AreEqual(string.Empty, Trouble(tree));
+
+            var shown = Ribbon(editor, Row(tree, "README.md"));
+            Assert.AreEqual(Str.Get("Text.TreeView.Icons.Hide"), Offered(shown, "treeview.icons").Name, "with icons shown, it hides them");
+
+            Click(shown, "treeview.icons");
+            StringAssert.Contains(tree.Source, "    showIcons: false\n", tree.Source);
+            StringAssert.DoesNotMatch(tree.Source, new System.Text.RegularExpressions.Regex("showIcons: true"), "the one field written again, not another");
+        }));
+
+    [TestMethod]
+    public void AddingADescriptionPutsTheCaretWhereItIsWritten() => UiThread.Run(() =>
+        InADocument((editor, tree) =>
+        {
+            Click(Ribbon(editor, Row(tree, "a.ts")), "treeview.describe");
+            MarkdownEditorHarness.Type(editor, "the a");
+            MarkdownEditorHarness.Pump();
+
+            StringAssert.Contains(tree.Source, "    a.ts ## the a\n", tree.Source);
+        }));
+
+    [TestMethod]
+    public void AButtonPressedOnTheRibbonGivesTheKeyboardBackWithTheCaretWhereTheReaderWritesNext() => UiThread.Run(() =>
+        InADocument((editor, tree) =>
+        {
+            Assert.IsTrue(editor.ShowContextRibbon(Clear(tree, Row(tree, "a.ts"), 0.5)), "a right-click on a node opens the ribbon");
+            var shown = editor.ContextRibbon!;
+            var button = Logical(shown.Child).OfType<Button>()
+                .Single(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "Diagram_Ribbon_treeview.insert.after");
+
+            // What a press on it does first: the button takes the keyboard.
+            Assert.IsTrue(button.Focus(), "a button on the ribbon takes the keyboard when pressed");
+            Assert.IsFalse(MarkdownEditorHarness.HasKeyboard(editor));
+
+            button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            MarkdownEditorHarness.Pump();
+
+            Assert.IsFalse(shown.IsOpen, "a button pressed takes the ribbon away");
+            Assert.IsTrue(MarkdownEditorHarness.HasKeyboard(editor), "the document has the keyboard again");
+            Assert.IsTrue(tree.HasCaret, "with the caret in the node put in");
+            Assert.AreEqual(tree.Source.IndexOf("\"\"", StringComparison.Ordinal) + 1, tree.Caret);
+        }));
+
+    [TestMethod]
+    public void ANodeDraggedOntoTheMiddleOfAnotherGoesInsideIt_AndOntoItsTopInFrontOfIt() => UiThread.Run(() =>
+        InADocument((editor, tree) =>
+        {
+            Drag(tree, Row(tree, "README.md"), Row(tree, "b.ts"), 0.5);
+            StringAssert.Contains(tree.Source, "    b.ts\n        README.md", tree.Source);
+        }));
+
+    [TestMethod]
+    public void ANodeDraggedOntoTheTopOfAnotherGoesInFrontOfIt() => UiThread.Run(() =>
+        InADocument((editor, tree) =>
+        {
+            Drag(tree, Row(tree, "b.ts"), Row(tree, "a.ts"), 0.1);
+            StringAssert.Contains(tree.Source, "src/\n    b.ts\n    a.ts\nREADME.md", tree.Source);
+        }));
+
+    [TestMethod]
+    public void DeleteTakesAChosenFolderOutWithEverythingInIt() => UiThread.Run(() =>
+        InADocument((editor, tree) =>
+        {
+            tree.BeginPointerSelect(Clear(tree, Row(tree, "src"), 0.5));
+            tree.EndPointerSelect();
+            Assert.IsTrue(tree.SelectionLength > 0, "a press on a row chooses its node");
+
+            Press(editor, Key.Delete);
+
+            StringAssert.Contains(tree.Source, "```treeview\nREADME.md\n```", tree.Source);
+        }));
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+
+    /// <summary>Presses just inside the end of the label <paramref name="words"/>.</summary>
+    private static void PressPast(DocumentBlock tree, string words)
+    {
+        var at = tree.Source.IndexOf(words, tree.Start, StringComparison.Ordinal);
+        var piece = tree.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == TreeViewPiece.Label && piece.Words is not null && piece.Sits().Start == at);
+
+        tree.BeginPointerSelect(new Point(piece.Bounds.Right - 1, piece.Bounds.Y + (piece.Bounds.Height / 2)));
+        tree.EndPointerSelect();
+        Assert.IsTrue(tree.HasCaret, $"a press on {words} takes the caret");
+    }
+
+    /// <summary>Where the row of the node labelled <paramref name="label"/> is drawn.</summary>
+    private static Rect Row(DocumentBlock tree, string label) =>
+        tree.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == TreeViewPiece.Row
+                                                           && piece.SelfAndDescendants().Any(inner => inner.Kind == TreeViewPiece.Label && inner.Words?.Glyphs.Text == label))
+            .Bounds.ToWpf();
+
+    /// <summary>
+    /// A point on a row, clear of its words and its ends — halfway between where its words end and where the row does —
+    /// <paramref name="down"/> of the way down it.
+    /// </summary>
+    private static Point Clear(DocumentBlock tree, Rect row, double down)
+    {
+        var words = tree.Laid.Root.SelfAndDescendants().Where(piece => piece.Words is not null && piece.Bounds.ToWpf() is var at && at.Top >= row.Top - 0.5 && at.Bottom <= row.Bottom + 0.5);
+        var end = words.Max(piece => piece.Bounds.Right);
+
+        return new(end + ((row.Right - end) / 2), row.Top + (row.Height * down));
+    }
+
+    private static void Drag(DocumentBlock tree, Rect from, Rect to, double down)
+    {
+        var start = Clear(tree, from, 0.5);
+        var end = Clear(tree, to, down);
+
+        tree.BeginPointerSelect(start);
+        tree.ExtendPointerSelect(new Point(start.X, (start.Y + end.Y) / 2));
+        tree.ExtendPointerSelect(end);
+        tree.EndPointerSelect();
+        MarkdownEditorHarness.Pump();
+    }
+
+    private static void Write(MarkdownSurface editor, string text)
+    {
+        MarkdownEditorHarness.RaiseTextInput(editor, text);
+        MarkdownEditorHarness.Pump();
+    }
+
+    private static void Press(MarkdownSurface editor, Key key)
+    {
+        MarkdownEditorHarness.RaiseKey(editor, key);
+        MarkdownEditorHarness.Pump();
+    }
+
+    private static string Trouble(DocumentBlock tree) => string.Join(" | ", tree.Diagnostics.Select(diagnostic => diagnostic.Message));
+
+    private static DiagramRibbon Ribbon(MarkdownSurface editor, Rect over)
+    {
+        var ribbon = editor.Shown.BuildRibbon(new Point(over.Right - 3, over.Top + (over.Height / 2))) as DiagramRibbon;
+        Assert.IsNotNull(ribbon, "a right-click opens the ribbon");
+        return ribbon!;
+    }
+
+    private static void Click(DiagramRibbon ribbon, string named)
+    {
+        var button = Logical(ribbon).OfType<Button>().Single(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "Diagram_Ribbon_" + named);
+        button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+        MarkdownEditorHarness.Pump();
+    }
+
+    private static MiniRibbonButton Offered(DiagramRibbon ribbon, string id) => ribbon.Controls.OfType<MiniRibbonButton>().Single(button => button.Id == id);
+
+    /// <summary>Whether the button <paramref name="named"/> is drawn so it can be pressed.</summary>
+    private static bool Pressable(DiagramRibbon ribbon, string named) =>
+        Logical(ribbon).OfType<Button>().Single(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "Diagram_Ribbon_" + named).IsEnabled;
+
+    private static IEnumerable<DependencyObject> Logical(DependencyObject from)
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(from).OfType<DependencyObject>())
+        {
+            yield return child;
+            foreach (var further in Logical(child)) yield return further;
+        }
+    }
+}

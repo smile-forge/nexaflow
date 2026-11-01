@@ -150,7 +150,7 @@ public sealed class DefaultFileOpener
             case DefaultActionKind.ExternalApp:
                 var def = ExternalAppRegistry.Instance.FindById(ov.TargetId);
                 if (def is null) return (false, false);
-                await new CustomAction(def, ExternalAppRegistry.ResolveIcon(def)).PerformActionAsync(RealizeForShell(filePath));
+                await new CustomAction(def).PerformActionAsync(RealizeForShell(filePath));
                 return (true, false);
 
             case DefaultActionKind.WindowsVerb:
