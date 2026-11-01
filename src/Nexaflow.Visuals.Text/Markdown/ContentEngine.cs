@@ -74,6 +74,9 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// <summary>What the reader has opened in the content itself, where it is a diagram rather than a document holding some.</summary>
     private DiagramViewState? _top;
 
+    /// <summary>The style last laid in, and what the reader opened in the content itself laid in it — see <see cref="OpenedIn"/>.</summary>
+    private (LayoutStyle From, LayoutStyle Opened)? _openedStyle;
+
     /// <summary>
     /// Which of a markdown document's sections the reader has folded away, by the name each heading answers to — kept for as long
     /// as the engine is, so a section stays folded through every edit and every reading, and handed to the document's builder the
@@ -110,7 +113,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
 
         // What the reader opened in each diagram, or in the content itself where it is a diagram.
         Views(language);
-        if (_top is { } opened) style = style with { Expansion = opened.Expansion };
+        if (_top is { } opened) style = this.OpenedIn(style, opened);
 
     var showing = Showing(named ?? string.Empty, style, !readOnly, state.Raw, 0) with
         {
@@ -136,6 +139,20 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         Fold();
 
         return Composed(language, showing, room, readOnly, holding, asked, window.Units.Done ? 0 : window.Document.Length - window.Units.Reached);
+    }
+
+    /// <summary>
+    /// <paramref name="style"/> with what the reader opened in the content itself — the same style while both stand, since what is kept
+    /// by the style it was laid in (a unit's height, said once) is kept only while that is the same style.
+    /// </summary>
+    private LayoutStyle OpenedIn(LayoutStyle style, DiagramViewState opened)
+    {
+        if (_openedStyle is { } kept && ReferenceEquals(kept.From, style) && ReferenceEquals(kept.Opened.Expansion, opened.Expansion)) return kept.Opened;
+
+        var made = style with { Expansion = opened.Expansion };
+        _openedStyle = (style, made);
+
+        return made;
     }
 
 

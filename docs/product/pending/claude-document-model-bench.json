@@ -669,6 +669,18 @@
           "doc": "src/Nexaflow.Syntax/CodeHighlighter.cs",
           "class": "CodeHighlighter",
           "method": "Parse"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Pipeline/IAstStage.cs",
+          "class": "ISlowStage",
+          "method": "TakesTurnsWith"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Slow.cs",
+          "class": "ContentEngine",
+          "method": "TakeTurns"
         }
       ],
       "concerns": {

@@ -19,6 +19,11 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// whatever shows the content moves to its own thread and lays again the units that waited on it. What landed is kept for every engine
 /// by the language, the stage, the characters and what else the stage turns on, a few hundred deep.
 /// </para>
+/// <para>
+/// <strong>Work that takes turns is done a piece at a time, newest first</strong> (<see cref="ISlowStage.TakesTurnsWith"/>): a reading
+/// typed in asks again with every keystroke, and each version is parsed from the last, so the pieces asked for one reading wait for
+/// the one being done rather than each holding a thread, and the version shown is found before the ones it replaced.
+/// </para>
 /// </summary>
 public sealed partial class ContentEngine
 {
@@ -37,6 +42,9 @@ public sealed partial class ContentEngine
 
     /// <summary>Slow work under way, with every engine to tell when each lands — held only while it is worked out.</summary>
     private static readonly Dictionary<Kept, List<ContentEngine>> Waiting = [];
+
+    /// <summary>Work taking turns, by what it takes turns with, the newest asked on top — held only while a piece of it is being done.</summary>
+    private static readonly Dictionary<object, Stack<(Kept Key, Func<object?> Work)>> SlowTurns = [];
 
     /// <summary>
     /// Raised, on any thread, when slow work this engine asked for has landed. Whatever shows the content moves to its own thread and
@@ -82,14 +90,18 @@ public sealed partial class ContentEngine
     /// there, once it has landed, applied — and until then, the tree as it was.
     /// </summary>
     private IAstStage Staging(ContentLanguage language, ContentDocument text, ISlowStage slow) =>
-        new AstStage(slow.Name, tree => Later(new(language, slow.Name, text, slow.Basis), () => slow.Find(tree)) is { } found ? slow.Apply(tree, found) : slow.Meanwhile(tree));
+        new AstStage(slow.Name, tree => Later(new(language, slow.Name, text, slow.Basis), slow.TakesTurnsWith, () => slow.Find(tree)) is { } found
+                                            ? slow.Apply(tree, found)
+                                            : slow.Meanwhile(tree));
 
     /// <summary>
     /// What the slow work kept by <paramref name="key"/> came to, where it has landed — or null, starting <paramref name="work"/>
-    /// where nobody has, and saying so to this engine when it lands.
+    /// where nobody has, in turn with what else takes turns with <paramref name="turns"/>, and saying so to this engine when it lands.
     /// </summary>
-    private object? Later(Kept key, Func<object?> work)
+    private object? Later(Kept key, object? turns, Func<object?> work)
     {
+        var begins = false;
+
         lock (Slow)
         {
             if (Landed.TryGetValue(key, out var landed)) return landed;
@@ -103,11 +115,49 @@ public sealed partial class ContentEngine
 
             Waiting[key] = [this];
             _reading++;
+
+            // Work taking turns waits on top of what is waiting already, where a piece of it is being done; otherwise it is the first.
+            if (turns is not null)
+            {
+                if (!SlowTurns.TryGetValue(turns, out var turn))
+                {
+                    SlowTurns[turns] = turn = new();
+                    begins = true;
+                }
+
+                turn.Push((key, work));
+            }
         }
 
         this.Waits(key);
-        ThreadPool.QueueUserWorkItem(static job => Land(job.Key, job.Work), (Key: key, Work: work), preferLocal: false);
+
+        if (turns is null) ThreadPool.QueueUserWorkItem(static job => Land(job.Key, job.Work), (Key: key, Work: work), preferLocal: false);
+        else if (begins) ThreadPool.QueueUserWorkItem(static turns => TakeTurns(turns), turns, preferLocal: false);
+
         return null;
+    }
+
+    /// <summary>Does the work taking turns with <paramref name="turns"/>, a piece at a time and the newest asked first, until none is waiting.</summary>
+    private static void TakeTurns(object turns)
+    {
+        while (true)
+        {
+            (Kept Key, Func<object?> Work) next;
+
+            lock (Slow)
+            {
+                var turn = SlowTurns[turns];
+                if (turn.Count == 0)
+                {
+                    SlowTurns.Remove(turns);
+                    return;
+                }
+
+                next = turn.Pop();
+            }
+
+            Land(next.Key, next.Work);
+        }
     }
 
     /// <summary>Remembers that the unit being worked over or laid, if any, waits on the slow work kept by <paramref name="key"/>.</summary>
@@ -130,15 +180,13 @@ public sealed partial class ContentEngine
 
     /// <summary>
     /// Says of every unit the slow work that has landed since was asked for by, and of every unit what it found reaches, that it is to
-    /// be worked over and laid again where it is next laid — and whether anything had landed. What <see cref="RelayLanded"/> lays.
+    /// be worked over and laid again where it is next laid — and whether anything is to be laid again: work that came to nothing, or landed
+    /// only for units since read again, lays nothing. What <see cref="RelayLanded"/> lays.
     /// </summary>
     internal bool MarkLanded()
     {
-        var landed = false;
-
         while (_landed.TryDequeue(out var key))
         {
-            landed = true;
 
             // What finding it changed past the units that asked — code parsed again — is found again where those units are worked over.
             object? found;
@@ -161,7 +209,7 @@ public sealed partial class ContentEngine
             }
         }
 
-        return landed;
+        return _relanded.Count > 0;
     }
 
     /// <summary>Each unit worked over that <paramref name="stretches"/> of the reading laid reach, worked over and laid again wherever it stands.</summary>

@@ -64,6 +64,13 @@ public interface ISlowStage : IAstStage
     /// </summary>
     object? Basis => null;
 
+    /// <summary>
+    /// What this stage's work takes turns with — a whole reading, each version of which is parsed from the last — or null where each piece
+    /// is done on its own. Work taking turns with the same thing is done one piece at a time, the newest asked for first: the newer a piece,
+    /// the likelier it is what is shown, and the likelier the pieces asked before it were replaced, which <see cref="Find"/> says at once.
+    /// </summary>
+    object? TakesTurnsWith => null;
+
     /// <summary><paramref name="tree"/> as it is shown until what this stage finds in it lands: as it was, unless the stage can say something already.</summary>
     ContentNode Meanwhile(ContentNode tree) => tree;
 }

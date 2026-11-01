@@ -399,9 +399,13 @@ says that nothing laid before is to be set down again as it was.
 content is laid without what it finds first — or with what the stage can say meanwhile (`Meanwhile`) — the engine starts
 the work and keeps what it comes to by the language, the stage, the characters and what else the stage says it turns on
 (`Basis`: for code, the version of the reading and where the unit stands in it), a few hundred deep, and says so when it
-lands (`Reread`). Whatever shows the content moves to its own thread and lays again what waited on it (`RelayLanded`): each
-unit that asked, wherever it stands, worked over again — and each unit what it found reaches, where it says it reaches
-further (`ISlowFindingReaches`) — and nothing else.
+lands (`Reread`). Work a stage says takes turns with something (`TakesTurnsWith`: for code, the reading, each version of
+which is parsed from the last) is done a piece at a time, the newest asked for first, so a reading typed in asks again with
+every keystroke without holding a thread per keystroke, and the version shown is found before the versions it replaced,
+which then answer at once that they are not worth finding. Whatever shows the content moves to its own thread and lays
+again what waited on it (`RelayLanded`): each unit that asked, wherever it stands, worked over again — and each unit what
+it found reaches, where it says it reaches further (`ISlowFindingReaches`) — and nothing else; work that came to nothing,
+or landed only for units read again since, lays nothing.
 
 ## 9. Editing
 

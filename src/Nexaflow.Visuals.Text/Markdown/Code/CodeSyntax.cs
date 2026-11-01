@@ -56,6 +56,9 @@ internal sealed class CodeSyntax : IReadingSyntax
     /// <summary>Whether <paramref name="other"/> is a version of the same reading.</summary>
     public bool Shares(CodeSyntax other) => ReferenceEquals(_history, other._history);
 
+    /// <summary>What every version of the reading shares, which finding what any of them is coloured as takes turns with (<see cref="ISlowStage.TakesTurnsWith"/>).</summary>
+    public object TakesTurnsWith => _history;
+
     public IReadingSyntax Edited(int from, int to, int by, IContentCharacters edited)
     {
         var edit = new CodeEdit(from, to, to + by, Point(this.Characters, from), Point(this.Characters, to), Point(edited, to + by));
@@ -69,8 +72,11 @@ internal sealed class CodeSyntax : IReadingSyntax
     /// </summary>
     public CodeFound? Find(int start, int end)
     {
-        if (this.Characters.Length >= PausedFrom)
+        // A version parsed already is only read; one a later version replaced already is not worth the wait.
+        if (this.Characters.Length >= PausedFrom && !_history.Parsed(this.Version))
         {
+            if (_history.Latest != this.Version) return null;
+
             Thread.Sleep(Pause);
             if (_history.Latest != this.Version) return null;
         }
@@ -133,6 +139,12 @@ internal sealed class CodeSyntax : IReadingSyntax
 
                 return version;
             }
+        }
+
+        /// <summary>Whether <paramref name="version"/> is the last tree parsed.</summary>
+        public bool Parsed(int version)
+        {
+            lock (_gate) return _parsed?.Version == version;
         }
 
         public CodeFound? Find(CodeSyntax syntax, int start, int end) => CodeSpans.WithReader(grammar, reader =>

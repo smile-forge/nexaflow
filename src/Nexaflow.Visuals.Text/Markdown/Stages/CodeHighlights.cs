@@ -27,6 +27,8 @@ internal sealed class CodeHighlights(CodeSyntax syntax, int at) : ISlowStage
 
     public object? Basis { get; } = (syntax, at);
 
+    public object? TakesTurnsWith => syntax.TakesTurnsWith;
+
     public object? Find(ContentNode tree) => syntax.Find(at, at + tree.Width);
 
     public ContentNode Apply(ContentNode tree, object found) => this.Coloured(tree, ((CodeFound)found).Spans);
