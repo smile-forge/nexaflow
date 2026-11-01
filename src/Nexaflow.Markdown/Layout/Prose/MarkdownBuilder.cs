@@ -146,7 +146,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
         if (!shown && laid?.Last is { } last && last.Room == room && last.IsReadOnly == IsReadOnly && last.At(part) is { } moved)
         {
-            var tree = last.Tree.Parted(moved.Parts);
+            var tree = last.Tree.Parted(moved.Parts, moved.Mounts);
 
             into.Graft(tree, new LayoutPoint(0, _y));
             _borrowed.AddRange(moved.Trouble);

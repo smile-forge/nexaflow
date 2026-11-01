@@ -41,6 +41,16 @@ public sealed class LayoutMount
         _moved = shift == 0 ? null : new MovedParts(drawnFrom, shift);
     }
 
+    /// <summary>
+    /// A tree laid from <paramref name="drawnFrom"/>, put down for <paramref name="now"/> — the same, as a later reading reads it, written and
+    /// worked out exactly as it was — each part the tree names found again in <paramref name="now"/> only when it is asked after.
+    /// </summary>
+    public LayoutMount(LayoutTree tree, ContentPart drawnFrom, ContentPart now) : this(tree)
+    {
+        this.Shift = now.Start - drawnFrom.Start;
+        _moved = ReferenceEquals(drawnFrom, now) ? null : new MovedParts(drawnFrom, now);
+    }
+
     /// <summary>The tree put down.</summary>
     public LayoutTree Tree { get; }
 

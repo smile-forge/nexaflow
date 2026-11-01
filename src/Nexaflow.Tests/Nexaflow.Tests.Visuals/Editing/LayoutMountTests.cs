@@ -1,5 +1,7 @@
 using System.Linq;
 
+using System.Windows;
+using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Tests.Fixtures;
@@ -100,13 +102,55 @@ public class LayoutMountTests
         }
     });
 
+    [TestMethod]
+    public void AMountedTree_IsPaintedWhereItIsPutDown_ItsTopAsItWasLaid() => UiThread.Run(() =>
+    {
+        var was = ContentPart.Of(Lines);
+
+        // The lines in a tree whose top keeps its picture once painted — as a line of code is laid — put down inside a unit put down in turn.
+        var inner = Laid("inner", was, default, new LayoutPaint(Kept: new LayoutKept()));
+        var outerBuild = new LayoutBuilder(WpfMedium.OnThisThread);
+        outerBuild.Open("unit", stops: LayoutStops.None);
+        outerBuild.Mount(new LayoutMount(inner, was, 14), new LayoutPoint(0, 60));
+        outerBuild.Close();
+        var outer = outerBuild.Seal();
+
+        var mounted = Page(build => build.Mount(new LayoutMount(outer, ContentPart.Of(ContentNode.Branch("lines", [], offset: 0)), 10), Down));
+        var laidThere = Page(build => Blocks(build, ContentPart.Of(Lines, 24), new LayoutPoint(Down.X, Down.Y + 60)));
+
+        CollectionAssert.AreEqual(Pixels(laidThere), Pixels(mounted), "what is painted, and where");
+
+        // And a piece painted on its own, where it sits on the page.
+        foreach (var (want, got) in laidThere.Children.Zip(mounted.Children))
+            Assert.AreEqual(PaintedOne(want), PaintedOne(got), $"{want.Kind} {want.Part?.Start} painted on its own");
+    });
+
+    /// <summary>The page painted black on white, pixel by pixel.</summary>
+    private static int[] Pixels(LayoutPiece page)
+    {
+        var picture = WpfPainter.Painted(page, new Rect(0, 0, 160, 160), 1, Brushes.Black, Brushes.White)!;
+        var pixels = new int[picture.PixelWidth * picture.PixelHeight];
+        picture.CopyPixels(pixels, picture.PixelWidth * 4, 0);
+
+        return pixels;
+    }
+
+    /// <summary>Where <paramref name="piece"/> is painted when it is painted on its own.</summary>
+    private static Rect PaintedOne(LayoutPiece piece)
+    {
+        var drawn = new DrawingGroup();
+        using (var dc = drawn.Open()) WpfPainter.PaintOne(dc, piece, Brushes.Black);
+
+        return drawn.Bounds;
+    }
+
     private static string Said(LayoutPiece piece) => piece.Exists ? $"{piece.Kind} {piece.Part?.Start}+{piece.Part?.Length} {piece.Bounds}" : "nothing";
 
-    /// <summary>A tree whose top is called <paramref name="kind"/> holding a piece for each of <paramref name="reading"/>'s parts.</summary>
-    private static LayoutTree Laid(string kind, ContentPart reading, LayoutPoint at)
+    /// <summary>A tree whose top is called <paramref name="kind"/>, painted as <paramref name="paints"/> says, holding a piece for each of <paramref name="reading"/>'s parts.</summary>
+    private static LayoutTree Laid(string kind, ContentPart reading, LayoutPoint at, LayoutPaint? paints = null)
     {
         var build = new LayoutBuilder(WpfMedium.OnThisThread);
-        build.Open(kind, stops: LayoutStops.None);
+        build.Open(kind, stops: LayoutStops.None, paints: paints);
         Blocks(build, reading, at);
         build.Close();
 
@@ -121,7 +165,7 @@ public class LayoutMountTests
         foreach (var part in reading.Children)
         {
             build.Open("line", part, new LayoutPoint(at.X, y));
-            build.Covers(new LayoutRect(0, 0, 40 + (10 * part.Length), 14));
+            build.Draw(new RuleMark(new LayoutRect(0, 0, 40 + (10 * part.Length), 14), null));
             build.Close();
 
             y += 16;

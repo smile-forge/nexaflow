@@ -13,8 +13,14 @@ namespace Nexaflow.Markdown.Ast;
 /// </summary>
 public sealed class ContentPart : ISourcePart
 {
-    /// <summary>Its parts, sized once: a reading makes one of these for every node of the tree, and most of them are leaves.</summary>
-    private readonly ContentPart[] _children;
+    /// <summary>
+    /// Its parts, made the first time anything asks for them (<see cref="ChildParts"/>): a reading is made for every unit worked over or
+    /// laid, and most of what it holds — the words of every line a keystroke did not touch — nothing ever asks about.
+    /// </summary>
+    private ContentPart[]? _children;
+
+    /// <summary>How far along the source its node's own offsets stand, which its parts are placed by.</summary>
+    private readonly int _shift;
 
     /// <summary>The span this part reports instead of its own, or nothing where it was written.</summary>
     private readonly int? _derived;
@@ -41,17 +47,27 @@ public sealed class ContentPart : ISourcePart
         this.Parent = parent;
         this._derived = inherited;
         this.Start = stood ?? inherited ?? start;
+        this._shift = shift;
+    }
 
+    /// <summary>Its parts, each placed after the one before — made once, on first asking, whichever thread asks.</summary>
+    private ContentPart[] ChildParts()
+    {
+        if (this._children is { } made) return made;
+
+        var node = this.Node;
+        var parts = node.Children.Count == 0 ? [] : new ContentPart[node.Children.Count];
         var at = this.Start;
-        this._children = node.Children.Count == 0 ? [] : new ContentPart[node.Children.Count];
 
-        for (var index = 0; index < this._children.Length; index++)
+        for (var index = 0; index < parts.Length; index++)
         {
             var child = node.Children[index];
 
-            this._children[index] = new ContentPart(child, at, this, inherited, shift, index);
-            if (inherited is null) at = (child.Offset is { } begins ? begins + shift : at) + child.Width;
+            parts[index] = new ContentPart(child, at, this, this._derived, this._shift, index);
+            if (this._derived is null) at = (child.Offset is { } begins ? begins + this._shift : at) + child.Width;
         }
+
+        return Interlocked.CompareExchange(ref this._children, parts, null) ?? parts;
     }
 
     /// <summary>
@@ -90,7 +106,7 @@ public sealed class ContentPart : ISourcePart
     /// </summary>
     public int Order { get; }
 
-    public IReadOnlyList<ContentPart> Children => this._children;
+    public IReadOnlyList<ContentPart> Children => this.ChildParts();
 
     public string Role => this.Node.Role;
 
@@ -137,7 +153,7 @@ public sealed class ContentPart : ISourcePart
     /// </para>
     /// </summary>
     public bool IsWrapper =>
-        this._children.Any(child => child.Role is Roles.Open or Roles.Close or Roles.Separator);
+        this.ChildParts().Any(child => child.Role is Roles.Open or Roles.Close or Roles.Separator);
 
     /// <summary>
     /// What is written inside it, without its punctuation — the same span for anything that is not a
@@ -154,19 +170,20 @@ public sealed class ContentPart : ISourcePart
     {
         get
         {
-            if (!this.IsWrapper || this._children.Length == 0) return this.Span;
+            var children = this.ChildParts();
+            if (!this.IsWrapper || children.Length == 0) return this.Span;
 
             var from = this.Start;
             var to = this.End;
 
             // What a stage or a parser hangs on a part prints as nothing and stands nowhere, so it is no delimiter.
             var first = 0;
-            var last = this._children.Length - 1;
-            while (first < last && this._children[first].Derived) first++;
-            while (last > first && this._children[last].Derived) last--;
+            var last = children.Length - 1;
+            while (first < last && children[first].Derived) first++;
+            while (last > first && children[last].Derived) last--;
 
-            if (this._children[first].Role == Roles.Open) from = this._children[first].End;
-            if (this._children[last].Role is Roles.Close or Roles.Separator) to = this._children[last].Start;
+            if (children[first].Role == Roles.Open) from = children[first].End;
+            if (children[last].Role is Roles.Close or Roles.Separator) to = children[last].Start;
 
             return from <= to ? (from, to - from) : this.Span;
         }
@@ -184,7 +201,7 @@ public sealed class ContentPart : ISourcePart
     {
         get
         {
-            var inside = this._children
+            var inside = this.ChildParts()
                 .Where(child => child.Role is not (Roles.Open or Roles.Close or Roles.Separator))
                 .ToList();
 
@@ -201,7 +218,7 @@ public sealed class ContentPart : ISourcePart
     /// <summary>The first part with this role, or null.</summary>
     public ContentPart? Part(string role)
     {
-        foreach (var child in this._children)
+        foreach (var child in this.ChildParts())
             if (child.Role == role) return child;
 
         return null;
@@ -220,7 +237,8 @@ public sealed class ContentPart : ISourcePart
             var part = waiting.Pop();
             yield return part;
 
-            for (var at = part._children.Length - 1; at >= 0; at--) waiting.Push(part._children[at]);
+            var parts = part.ChildParts();
+            for (var at = parts.Length - 1; at >= 0; at--) waiting.Push(parts[at]);
         }
     }
 
@@ -242,7 +260,7 @@ public sealed class ContentPart : ISourcePart
     /// </para>
     /// </summary>
     public IEnumerable<ContentPart> Parts =>
-        this._children.Where(child => child.Kind is not (Kinds.Space or Kinds.Comment)
+        this.ChildParts().Where(child => child.Kind is not (Kinds.Space or Kinds.Comment)
                                       && child.Role is not (Roles.Name or Roles.Open or Roles.Close
                                                             or Roles.Separator or Roles.Trivia
                                                             or Roles.Derived));

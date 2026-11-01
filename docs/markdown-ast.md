@@ -183,7 +183,9 @@ from what holds it; what the parse changed (`GetChangedRanges`) colours again ev
 colours land, it is coloured as it was last found, moved along by every change since. Units are cut at line ends because
 code is laid line by line and nothing wraps; what the code means never turns on where a unit stops. Inside a unit each
 line is a block of its own (`CodeKinds.Line`), so a line reading as it did — the same characters coloured the same — is
-set down as it was laid (`WithUnchanged`, `LaidBlocks`), and a keystroke lays the line it was typed on. A line is coloured
+set down as it was laid (`WithUnchanged`, `LaidBlocks`), and a keystroke lays the line it was typed on. Each line is laid as
+a tree of its own, its picture kept once painted, and put down in the unit's by a mount (`LayoutMount`), so a line kept
+costs one piece whatever it holds, and what it stands for is found again only when asked. A line is coloured
 and cut in one pass (`CodeParser.InLines`), and one said and coloured as a line the reading was cut into before is that
 line again (`CodeLinePool`), moved along where it now stands — so colours landing for a unit make only the lines they
 changed, and a block kept is hashed once (`WithUnchanged` keeps what each node it asked about came to).
@@ -581,8 +583,11 @@ folds reaching into it do. What is laid is a document piece holding a mount for 
 the heights above it put it and shifted to where its unit now starts, its parts restated only when asked, and the gap at
 each seam between two laid units said by the language from the blocks either side (`ContentLanguage.Seam`, from what each
 unit laid says it began and ended with: `Laid.Ends`); the units not laid leave room for their estimate. A tree made of
-mounts puts its caret places together from each unit's own (`MountedList`), and says the first place below a height from
-the first unit reaching down that far (`StopBelow`). Content read whole is one unit, laid as it always was. What one unit
+mounts puts its caret places together from each unit's own (`MountedList`) — through a mount inside a mount as well, the
+code lines inside a unit — and says the first place below a height from the first unit reaching down that far
+(`StopBelow`). A mount and the top of the tree it puts down are no pieces any question of the layout meets, but the top is
+drawn as it was laid — where it stands, how it is painted and the picture it keeps — so painting walks what a piece holds
+as drawn (`LayoutPiece.DrawnChildren`), meeting each mounted tree's top, where every other walk goes straight through it. Content read whole is one unit, laid as it always was. What one unit
 says reaches the others through the engine, never by one unit reading another:
 
 - **what it defines** — each unit's stages say it into link targets of their own (`LinkTargets(document)`), gathered from

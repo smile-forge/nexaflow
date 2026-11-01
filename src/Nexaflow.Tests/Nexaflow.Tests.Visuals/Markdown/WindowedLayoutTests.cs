@@ -145,8 +145,8 @@ public class WindowedLayoutTests
         Assert.AreEqual(before.Count, after.Count, "Lines came or went.");
         Assert.AreEqual(1, after.Count(line => !before.Contains(line)), "Not just the line typed on was laid again.");
 
-        // A line's picture, kept with what it was laid as, is the same picture wherever that laying is set down again.
-        static List<LayoutKept> Lines(Laid laid) => [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == CodeKinds.Line).Select(piece => piece.Painting!.Kept!)];
+        // A line is put down as the tree it was laid as, wherever it now stands: every line but the one typed on is the same tree.
+        static List<LayoutTree> Lines(Laid laid) => [.. Enumerable.Range(1, laid.Tree.Count - 1).Select(at => laid.Tree.MountOf(at)?.Tree).OfType<LayoutTree>()];
     }
 
     [TestMethod]

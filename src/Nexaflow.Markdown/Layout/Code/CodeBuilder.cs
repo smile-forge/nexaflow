@@ -38,7 +38,7 @@ public sealed class CodeBuilder(ContentReading reading, EditState state, LayoutS
         // A stretch the next carries on from ends where the next begins, which stands for that place: a caret is not put after it too.
         var carriedOn = CodeSetting.CarriedOn(Reading.Root.Node);
 
-        var into = new LayoutBuilder(Medium);
+        var into = new LayoutBuilder(Medium, Reading.Root.Children.Count + 1);
         var (y, wide) = (0.0, 0.0);
 
         into.Open(CodeKinds.Code, Reading.Root, stops: carriedOn ? LayoutStops.Before : LayoutStops.Both);
@@ -48,8 +48,8 @@ public sealed class CodeBuilder(ContentReading reading, EditState state, LayoutS
             var line = Reading.Root.Children[at];
             if (line.Kind != CodeKinds.Line) continue;
 
-            var (tree, reach) = this.Line(line, laid?.For(at), height);
-            into.Graft(tree, new LayoutPoint(0, y));
+            var (mount, reach) = this.Line(line, laid?.For(at), height);
+            into.Mount(mount, new LayoutPoint(0, y));
 
             wide = Math.Max(wide, reach);
             if (line.Children.Count > 0 && line.Children[^1].Kind == CodeKinds.LineEnd) y += height;
@@ -63,19 +63,14 @@ public sealed class CodeBuilder(ContentReading reading, EditState state, LayoutS
     }
 
     /// <summary>
-    /// One line, as a tree of its own standing at the top of its own frame, its picture kept once painted, and how far across it reaches:
-    /// what it was laid as last time where it reads exactly as it did — only what its pieces stand for moved along — and otherwise each of
-    /// its pieces set in the ink its kind is given, the line end taking no room. Code does not wrap, so the room never changes a line.
+    /// One line, as a tree of its own standing at the top of its own frame, its picture kept once painted, put down whole — and how far
+    /// across it reaches: the tree it was laid as last time, where it reads exactly as it did, each part it names found again in this
+    /// reading only when asked after; and otherwise each of its pieces set in the ink its kind is given, the line end taking no room.
+    /// Code does not wrap, so the room never changes a line.
     /// </summary>
-    private (LayoutTree Tree, double Reach) Line(ContentPart line, LaidBlock? laid, double height)
+    private (LayoutMount Mount, double Reach) Line(ContentPart line, LaidBlock? laid, double height)
     {
-        if (laid?.Last is { } last && last.IsReadOnly == IsReadOnly && last.At(line) is { } moved)
-        {
-            var kept = last.Tree.Parted(moved.Parts);
-            laid.Last = last with { Part = line, Tree = kept };
-
-            return (kept, last.Reach);
-        }
+        if (laid?.Last is { } last && last.IsReadOnly == IsReadOnly) return (new LayoutMount(last.Tree, last.Part, line), last.Reach);
 
         var characters = Characters;
         var apart = new LayoutBuilder(Medium);
@@ -107,7 +102,7 @@ public sealed class CodeBuilder(ContentReading reading, EditState state, LayoutS
         var made = apart.Seal();
         if (laid is not null) laid.Last = new KeptLaying(line, made, height, x, [], Room, IsReadOnly);
 
-        return (made, x);
+        return (new LayoutMount(made), x);
     }
 
     protected override LayoutCharacters Characters => CodeSetting.Mono(Style);

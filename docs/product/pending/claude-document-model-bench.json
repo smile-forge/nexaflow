@@ -259,6 +259,12 @@
           "doc": "src/Nexaflow.Markdown/Layout/Code/CodeSetting.cs",
           "class": "CodeSetting",
           "method": "HeightOf"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutTree.cs",
+          "class": "LayoutPiece",
+          "method": "DrawnChildren"
         }
       ],
       "concerns": {

@@ -385,6 +385,7 @@ public sealed class LayoutBuilder
         _words.Clear();
         _acts.Clear();
         _tips.Clear();
+        _mounts.Clear();
         _marks.Clear();
         _runs.Clear();
         _sides.Clear();

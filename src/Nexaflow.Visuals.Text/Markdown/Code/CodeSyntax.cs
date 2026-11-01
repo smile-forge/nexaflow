@@ -208,8 +208,7 @@ internal sealed class CodeSyntax : IReadingSyntax
                         var (at, past) = carried;
 
                         var (cutLow, cutHigh) = (Math.Max(at, start), Math.Min(past, end));
-                        if (cutHigh > cutLow && !covered.Any(taken => taken.Start <= cutLow && cutHigh <= taken.End))
-                            spans.Add(new HighlightSpan(cutLow, cutHigh - cutLow, span.Capture));
+                        if (cutHigh > cutLow && !Covered(covered, cutLow, cutHigh)) spans.Add(new HighlightSpan(cutLow, cutHigh - cutLow, span.Capture));
                     }
 
                     covered.Add((low, high));
@@ -218,6 +217,15 @@ internal sealed class CodeSyntax : IReadingSyntax
 
             // In the order found, so the later of two spans over the same characters still wins.
             return spans;
+        }
+
+        /// <summary>Whether a newer finding already said what the stretch from <paramref name="start"/> to <paramref name="end"/> is.</summary>
+        private static bool Covered(List<(int Start, int End)> covered, int start, int end)
+        {
+            foreach (var (low, high) in covered)
+                if (low <= start && end <= high) return true;
+
+            return false;
         }
 
         public IEnumerable<(int Start, int End)> Mapped(int from, int to, IReadOnlyList<(int Start, int End)> changed)

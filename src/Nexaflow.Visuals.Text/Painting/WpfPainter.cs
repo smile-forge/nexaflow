@@ -72,7 +72,7 @@ public static class WpfPainter
 
         var foreground = WpfMedium.OnThisThread.Ink(ink);
         var above = new List<LayoutPiece>();
-        foreach (var up in piece.Ancestors()) above.Add(up);
+        for (var up = piece.DrawnHolder; up.Exists; up = up.DrawnHolder) above.Add(up);
 
         var offset = default(Vector);
         var pushed = 0;
@@ -176,7 +176,7 @@ public static class WpfPainter
             foreach (var mark in piece.Marks)
                 if (mark is WashMark == washes) PaintMark(dc, mark, foreground.Brush, offset);
 
-            foreach (var child in piece.Children) Descend(dc, child, foreground, washes, offset, near, far);
+            foreach (var child in piece.DrawnChildren) Descend(dc, child, foreground, washes, offset, near, far);
         }
 
         for (var at = 0; at < pushed; at++) dc.Pop();
@@ -198,12 +198,12 @@ public static class WpfPainter
         foreach (var mark in piece.Marks)
             if (mark is WashMark) PaintMark(dc, mark, foreground.Brush, default);
 
-        foreach (var child in piece.Children) Descend(dc, child, foreground, washes: true, default);
+        foreach (var child in piece.DrawnChildren) Descend(dc, child, foreground, washes: true, default);
 
         foreach (var mark in piece.Marks)
             if (mark is not WashMark) PaintMark(dc, mark, foreground.Brush, default);
 
-        foreach (var child in piece.Children) Descend(dc, child, foreground, washes: false, default);
+        foreach (var child in piece.DrawnChildren) Descend(dc, child, foreground, washes: false, default);
     }
 
     /// <summary>A kept picture, set down where its piece stands.</summary>

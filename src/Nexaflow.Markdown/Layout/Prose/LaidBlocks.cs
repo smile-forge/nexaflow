@@ -59,22 +59,36 @@ internal sealed record KeptLaying(ContentPart Part, LayoutTree Tree, double Heig
                               IReadOnlyList<LayoutDiagnostic> Trouble, double Room, bool IsReadOnly)
 {
     /// <summary>
-    /// What every piece stands for, and what the languages inside said, as the block reads now — <paramref name="now"/>
-    /// being the same block in the new reading. Null where anything cannot be found again, so the block is laid afresh.
+    /// What every piece stands for, and what the languages inside said, as the block reads now — <paramref name="now"/> being the same
+    /// block in the new reading — and every tree put down inside it, put down again with what each of its pieces stands for now. Null
+    /// where anything cannot be found again, so the block is laid afresh.
     ///
     /// <para>
-    /// The block reads exactly as it did, so it is the same parts; only where they stand has moved, and by the one
-    /// amount — everything before an edit stays where it was, and everything after moves by what was typed
-    /// (<see cref="MovedParts"/>).
+    /// The block reads exactly as it did, so it is the same parts; only where they stand has moved, and by the one amount — everything
+    /// before an edit stays where it was, and everything after moves by what was typed (<see cref="MovedParts"/>). A tree put down
+    /// inside it — code's lines in a fence — names its parts through its mount, and is parted again the same way, so nothing kept names a
+    /// reading older than the one it is set down from.
     /// </para>
     /// </summary>
-    public (ISourcePart?[] Parts, List<LayoutDiagnostic> Trouble)? At(ContentPart now)
+    public (ISourcePart?[] Parts, List<LayoutDiagnostic> Trouble, Dictionary<int, LayoutMount>? Mounts)? At(ContentPart now)
     {
         var moved = new MovedParts(Part, now);
+        (bool Found, ISourcePart? Now) Found(ISourcePart? part) => moved.Try(part, out var to) ? (true, to) : (false, null);
 
         var parts = new ISourcePart?[Tree.Count];
+        Dictionary<int, LayoutMount>? mounts = null;
+
         for (var piece = 0; piece < Tree.Count; piece++)
+        {
+            if (Tree.MountOf(piece) is { } mount)
+            {
+                if (Restated(mount, Found) is not { } again) return null;
+                (mounts ??= [])[piece] = again;
+                continue;
+            }
+
             if (!moved.Try(Tree.PartOf(piece), out parts[piece])) return null;
+        }
 
         var trouble = new List<LayoutDiagnostic>(Trouble.Count);
         foreach (var said in Trouble)
@@ -83,6 +97,36 @@ internal sealed record KeptLaying(ContentPart Part, LayoutTree Tree, double Heig
             trouble.Add(said with { Start = said.Start + moved.By, Part = part });
         }
 
-        return (parts, trouble);
+        return (parts, trouble, mounts);
+    }
+
+    /// <summary>
+    /// <paramref name="mount"/>'s tree put down again, each part it names — through the mount, then <paramref name="outward"/> — standing
+    /// for what it stands for now, and every tree it puts down in turn the same; null where a part cannot be found again.
+    /// </summary>
+    private static LayoutMount? Restated(LayoutMount mount, Func<ISourcePart?, (bool Found, ISourcePart? Now)> outward)
+    {
+        (bool Found, ISourcePart? Now) Through(ISourcePart? part) => outward(mount.Restated(part));
+
+        var tree = mount.Tree;
+        var parts = new ISourcePart?[tree.Count];
+        Dictionary<int, LayoutMount>? mounts = null;
+
+        for (var piece = 0; piece < tree.Count; piece++)
+        {
+            if (tree.MountOf(piece) is { } inner)
+            {
+                if (Restated(inner, Through) is not { } again) return null;
+                (mounts ??= [])[piece] = again;
+                continue;
+            }
+
+            var (found, now) = Through(tree.PartOf(piece));
+            if (!found) return null;
+
+            parts[piece] = now;
+        }
+
+        return new LayoutMount(tree.Parted(parts, mounts));
     }
 }
