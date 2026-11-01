@@ -32,6 +32,28 @@ public class MarkdownTargetsTests
 
     [TestMethod]
     [CoversNode("reference-links")]
+    public void AUnitsTargets_SayWhatItDefines_AnswerFromTheDocument_AndRememberWhatWasAsked()
+    {
+        var document = new LinkTargets();
+        document.Report(100, [new LinkTarget(MarkdownKinds.Reference, "a", "/a", 10), new LinkTarget(MarkdownKinds.Abbreviation, "HTML", "markup", 60)]);
+
+        var unit = new LinkTargets(document);
+        unit.Report(20, [new LinkTarget(MarkdownKinds.Reference, "b", "/b", 5)]);
+
+        Assert.AreEqual("/a", unit.Named(MarkdownKinds.Reference, "a")?.Meaning, "a unit is answered from the whole document");
+        Assert.AreEqual(1, unit.Every(MarkdownKinds.Abbreviation).Count());
+        CollectionAssert.AreEqual(new[] { "b" }, unit.Defined.Select(target => target.Name).ToArray(), "and says only what it defines itself");
+        Assert.IsTrue(unit.Answered());
+
+        document.Report(130, [new LinkTarget(MarkdownKinds.Reference, "a", "/a", 40), new LinkTarget(MarkdownKinds.Abbreviation, "HTML", "markup", 90)]);
+        Assert.IsTrue(unit.Answered(), "moved along by writing before them, the definitions mean what they did");
+
+        document.Report(130, [new LinkTarget(MarkdownKinds.Reference, "a", "/elsewhere", 40), new LinkTarget(MarkdownKinds.Abbreviation, "HTML", "markup", 90)]);
+        Assert.IsFalse(unit.Answered(), "defined again, a name the unit asked about does not");
+    }
+
+    [TestMethod]
+    [CoversNode("reference-links")]
     public void ALinkByName_GoesWhereItsDefinitionSays_WhereverTheDefinitionIsWritten()
     {
         foreach (var source in new[]

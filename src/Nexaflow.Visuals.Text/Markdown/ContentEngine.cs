@@ -53,6 +53,9 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
 
     private readonly WithUnchanged _unchanged = new();
 
+    /// <summary>Whether the engine was told that nothing laid is to be set down again as it was, since it last laid anything.</summary>
+    private bool _unkept;
+
     /// <summary>
     /// The places the links of the content being shown can name, as its stages found them (<see cref="LinkTargets"/>) — and, for a
     /// long document laid a stretch at a time, as working all of it over found them past what is laid.
@@ -114,7 +117,12 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         if (_top is { } opened) style = style with { Expansion = opened.Expansion };
 
         var showing = Showing(named ?? string.Empty, style, !readOnly, state.Raw, 0) with { Unchanged = _unchanged, Targets = _targets };
+    // The blocks of the reading laid last are what this one's are matched against — none, once told nothing is as it was.
+        if (Reading is { } last && !_unkept) _unchanged.Leaving(last.Root.Node);
+        _unkept = false;
+
         var staged = Staged(top, showing);
+        _unchanged.Settle();
 
         // What its blocks come to across the units laid, and what of that the reader folded away.
         InStep(window, staged);
@@ -150,6 +158,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     public void Forget()
     {
         _unchanged.Forget();
+        _unkept = true;
         _forgotten++;
 
         if (_whole?.Units is { Count: 1 } units && units[0].Unit.Provisional) _whole = null;

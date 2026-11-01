@@ -575,7 +575,7 @@ public sealed partial class ContentEngine
 
         if (diagram is not null && Expand(diagram, key, open)) return true;
 
-        _unchanged.Forget(held => ReferenceEquals(held, block.Node));
+        _unchanged.Forget(ReadRoot.Node, held => ReferenceEquals(held, block.Node));
         Relay();
 
         return true;
