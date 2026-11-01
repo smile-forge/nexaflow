@@ -267,6 +267,20 @@ public sealed class TiledCoverage
         return new(Width, Height, (byte)(255 - Outside), tiles);
     }
 
+    /// <summary>This coverage with <paramref name="value"/> laid over it as much as <paramref name="where"/> covers — a mask filled
+    /// with a grey where something is selected.</summary>
+    public TiledCoverage LaidOver(TiledCoverage where, byte value)
+        => Combined(where, RegionMode.Subtract).Combined(where.ScaledBy(value), RegionMode.Add);
+
+    /// <summary>Every value times <paramref name="factor"/> / 255.</summary>
+    public TiledCoverage ScaledBy(byte factor)
+    {
+        if (factor == 255) return this;
+        var bytes = ToBytes();
+        for (int i = 0; i < bytes.Length; i++) bytes[i] = (byte)((bytes[i] * factor + 127) / 255);
+        return FromBytes(bytes, Width, Height);
+    }
+
     /// <summary>The edge softened: blurred so it fades over about <paramref name="radius"/> pixels each way — a Gaussian
     /// whose spread is half the radius. The canvas's edge is no edge: what touches it stays as covered there.</summary>
     public TiledCoverage Feathered(double radius)

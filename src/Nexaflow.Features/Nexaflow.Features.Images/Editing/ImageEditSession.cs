@@ -54,13 +54,13 @@ public sealed class ImageEditSession : PictureRendering, IRecipeEditing
 
     void IRecipeEditing.Commit(ImageRecipe next) => History.Commit(next);
 
-    void IRecipeEditing.BeginGesture() => History.BeginGesture();
+    void IMarkupEditing.BeginGesture() => History.BeginGesture();
 
-    void IRecipeEditing.EndGesture() => History.EndGesture();
+    void IMarkupEditing.EndGesture() => History.EndGesture();
 
-    void IRecipeEditing.CancelGesture() => History.CancelGesture();
+    void IMarkupEditing.CancelGesture() => History.CancelGesture();
 
-    bool IRecipeEditing.InGesture => History.InGesture;
+    bool IMarkupEditing.InGesture => History.InGesture;
 
     /// <summary>Raised on the UI thread whenever the recipe changes, by an edit, an undo or a reload.</summary>
     public event Action? RecipeChanged;

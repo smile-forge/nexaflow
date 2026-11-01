@@ -26,6 +26,7 @@ public partial class ImageEditView : UserControl
 
     private readonly Image _picture = new() { Stretch = Stretch.Fill };
     private readonly EditOverlay _overlay = new();
+    private readonly LayerToolsOverlay _layerTools = new();
     private readonly Grid _content = new();
     private ImageViewModel? _viewer;
     private SKSizeI _contentSize;
@@ -38,6 +39,7 @@ public partial class ImageEditView : UserControl
         RenderOptions.SetBitmapScalingMode(_picture, BitmapScalingMode.HighQuality);
         _content.Children.Add(_picture);
         _content.Children.Add(_overlay);
+        _content.Children.Add(_layerTools);   // over the chrome, taking the pointer only while Paint or Move is out
 
         DataContextChanged += (_, e) => Attach(e.NewValue as ImageViewModel);
         IsVisibleChanged   += (_, _) => ReportViewport();
@@ -54,6 +56,7 @@ public partial class ImageEditView : UserControl
             old.PropertyChanged -= OnViewerChanged;
             old.Editor.TextEditRequested -= FocusMarkupText;
             _overlay.Detach();
+            _layerTools.Detach();
         }
         _viewer = viewer;
         if (viewer is null) return;
@@ -61,6 +64,7 @@ public partial class ImageEditView : UserControl
         viewer.PropertyChanged += OnViewerChanged;
         viewer.Editor.TextEditRequested += FocusMarkupText;
         _overlay.Attach(viewer);
+        _layerTools.Attach(viewer);
         _picture.Source = viewer.CurrentImage;
         if (viewer.Canvas is { } canvas) ShowCanvas(canvas);
     }
@@ -130,6 +134,7 @@ public partial class ImageEditView : UserControl
         if (zoom <= 0 || Math.Abs(zoom - _zoom) < 0.001) return;
         _zoom = zoom;
         _overlay.Zoom = zoom;
+        _layerTools.Zoom = zoom;
         _viewer?.SetEditZoom(zoom);
     }
 

@@ -1,12 +1,14 @@
 using Nexaflow.Features.Images.Editing.Recipe;
+using SkiaSharp;
+using System.Collections.Immutable;
 
 namespace Nexaflow.Features.Images.Editing;
 
 /// <summary>
 /// The picture the editor's tools work on — a photo in its own session, or a picture layer of a layered picture: how it is
-/// drawn, its recipe, and how an edit to the recipe is made and gathered into undo steps.
+/// drawn, its recipe, and how an edit to the recipe is made and gathered into undo steps. Its annotations are its recipe's.
 /// </summary>
-public interface IRecipeEditing
+public interface IRecipeEditing : IMarkupEditing
 {
     PictureRendering Rendering { get; }
 
@@ -15,13 +17,10 @@ public interface IRecipeEditing
     /// <summary>Makes <paramref name="next"/> the recipe — one undo step, or part of the open gesture's.</summary>
     void Commit(ImageRecipe next);
 
-    /// <summary>A continuous change begins — a drag — and lasts as one undo step until <see cref="EndGesture"/>.</summary>
-    void BeginGesture();
+    ImmutableArray<MarkupElement> IMarkupEditing.Markup => Recipe.Markup;
 
-    void EndGesture();
+    void IMarkupEditing.CommitMarkup(Func<ImmutableArray<MarkupElement>, ImmutableArray<MarkupElement>> change)
+        => Commit(Recipe with { Markup = change(Recipe.Markup) });
 
-    /// <summary>Abandons the open gesture, restoring the recipe it began from.</summary>
-    void CancelGesture();
-
-    bool InGesture { get; }
+    SKSize? IMarkupEditing.Extent => Rendering.Proxy?.SourceSize;
 }

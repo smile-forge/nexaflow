@@ -630,22 +630,12 @@ public sealed partial class LayersViewModel : ObservableObject
         {
             // The colour's grey, laid over the mask as much as the selection covers.
             byte grey = (byte)Math.Round(0.2126 * colour.Red + 0.7152 * colour.Green + 0.0722 * colour.Blue);
-            var white = mask.Coverage.Combined(selected, Editing.Recipe.RegionMode.Subtract);
-            var laid = white.Combined(Scaled(selected, grey), Editing.Recipe.RegionMode.Add);
+            var laid = mask.Coverage.LaidOver(selected, grey);
             document.Commit(p => p.WithLayer(layer.Id, l => l with { Mask = mask with { Coverage = laid } }));
             return;
         }
         if (layer is not PixelLayer pixels) return;
         document.Commit(p => p.WithLayer(layer.Id, _ => pixels with { Pixels = pixels.Pixels.Filled(selected, colour, keepAlpha: layer.AlphaLocked) }));
-    }
-
-    /// <summary>Coverage with every pixel's coverage times <paramref name="grey"/> / 255.</summary>
-    private static TiledCoverage Scaled(TiledCoverage coverage, byte grey)
-    {
-        if (grey == 255) return coverage;
-        var bytes = coverage.ToBytes();
-        for (int i = 0; i < bytes.Length; i++) bytes[i] = (byte)((bytes[i] * grey + 127) / 255);
-        return TiledCoverage.FromBytes(bytes, coverage.Width, coverage.Height);
     }
 
     private bool CanPaint() => Active is { Locked: false } layer && (layer is PixelLayer || Picture?.EditsMask == true && layer.Mask is not null);

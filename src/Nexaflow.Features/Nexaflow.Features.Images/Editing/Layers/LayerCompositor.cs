@@ -243,6 +243,7 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
                 break;
             case MarkupLayer marks when !marks.Elements.IsEmpty:
                 if (paint is not null) canvas.SaveLayer(paint);
+                canvas.Concat(marks.Placement.ToMatrix());
                 foreach (var element in marks.Elements) markup.Paint(canvas, element);
                 if (paint is not null) canvas.Restore();
                 break;

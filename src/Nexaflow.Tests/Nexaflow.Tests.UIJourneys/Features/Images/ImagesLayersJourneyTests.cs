@@ -133,6 +133,13 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         File.Copy(sample, Path.Combine(_folder, "photo.png"));
         OpenEditorOnTheFolder();
 
+        // A photo has no layer to paint on or move: the Paint and Move tools offer one.
+        Check("Paint offers a layer to paint on", () => SelectRadio("Image_EditToolPaint") && WaitForFs(() => Exists("Image_PaintPanel"), 3)
+              && WaitForFs(() => Exists("Image_PaintAddLayer"), 3));
+        Check("Move offers a layer to move", () => SelectRadio("Image_EditToolMove") && WaitForFs(() => Exists("Image_ArrangePanel"), 3)
+              && WaitForFs(() => Exists("Image_ArrangeAddLayer"), 3));
+        Check("Back to the crop", () => SelectRadio("Image_EditToolCrop"));
+
         CheckDoes("Add layer makes the photo a layered picture, with a layer above it", "Image_EditAddLayer",
                   () => WaitForFs(() => Exists("Image_LayersPanel"), 5) && LayersBecome(2));
         Check("The photo is untouched beside it: nothing is written until it is saved", () => !File.Exists(Path.Combine(_folder, "photo.ora")));
@@ -169,6 +176,84 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
                   () => WaitForGone("Image_SavedLookEditLayers", 5) && LayersBecome(2));
 
         AssertJourney();
+    }
+
+    [TestMethod]
+    [CoversNode("images-paint")]
+    public void ACanvas_IsPaintedOn_ItsLayerMovedAndTransformed_AndPrintIsSetUp()
+    {
+        WriteCanvas(Path.Combine(_folder, "canvas.ora"));
+        OpenEditorOnTheFolder();
+        Check("It opens on its layers", () => WaitForFs(() => Exists("Image_LayersPanel"), 10) && LayersBecome(1));
+
+        // ── Paint ──
+        Check("Paint is chosen, its panel showing", () => SelectRadio("Image_EditToolPaint") && WaitForFs(() => Exists("Image_PaintPanel"), 3));
+        Check("The brush", () => SelectRadio("Image_PaintBrush"));
+        foreach (var slider in new[] { "Image_PaintSize", "Image_PaintHardness", "Image_PaintOpacity", "Image_PaintFlow", "Image_PaintSpacing" })
+            Check($"{slider} moves", () => MoveSlider(slider));
+        Check("Pen pressure sets the size, and back", () => ToggleAndBack("Image_PaintPressureSize"));
+        Check("Pen pressure sets the opacity, and back", () => ToggleAndBack("Image_PaintPressureOpacity"));
+        Check("A stroke is painted, one step of the history", () => FitCanvas() && DragOnCanvas(-30, -10, 30, 10) && WaitForFs(() => Enabled("Image_EditUndo"), 3));
+        Check("The eraser takes some away", () => SelectRadio("Image_PaintEraser") && DragOnCanvas(-10, -10, 10, 10));
+        Check("The fill", () => SelectRadio("Image_PaintFill") && WaitForFs(() => Exists("Image_PaintTolerance"), 2));
+        Check("Its tolerance moves", () => MoveSlider("Image_PaintTolerance"));
+        Check("Joined only, and back", () => ToggleAndBack("Image_PaintContiguous"));
+        Check("A click fills", ClickCanvas);
+        Check("The eyedropper", () => SelectRadio("Image_PaintEyedropper") && WaitForFs(() => Exists("Image_PaintSampleMerged"), 2));
+        Check("It picks from every layer, or the active one", () => ToggleAndBack("Image_PaintSampleMerged"));
+        Check("A click picks a colour", ClickCanvas);
+
+        // ── Move and transform ──
+        Check("Move is chosen, its panel showing", () => SelectRadio("Image_EditToolMove") && WaitForFs(() => Exists("Image_ArrangePanel"), 3));
+        Check("A drag moves the layer", () => DragOnCanvas(0, 0, 20, 10));
+        Check("What is selected floats once it is moved", () => SelectAllOnCanvas() && DragOnCanvas(0, 0, -10, -5)
+              && WaitForFs(() => Exists("Image_ArrangeDrop"), 3) && LayersBecome(2));
+        CheckDoes("Drop lays it back into its layer", "Image_ArrangeDrop", () => LayersBecome(1));
+        CheckDoes("Transform shows its frame and the panel's turns and flips", "Image_ArrangeTransform", () => WaitForFs(() => Exists("Image_ArrangeApply"), 3));
+        CheckInvoke("Flip across", "Image_ArrangeFlipHorizontal");
+        CheckInvoke("Flip upside down", "Image_ArrangeFlipVertical");
+        CheckInvoke("Turn left", "Image_ArrangeRotateLeft");
+        CheckInvoke("Turn right", "Image_ArrangeRotateRight");
+        CheckDoes("Cancel puts it back", "Image_ArrangeCancel", () => WaitForGone("Image_ArrangeApply", 3));
+        CheckDoes("Transform again", "Image_ArrangeTransform", () => WaitForFs(() => Exists("Image_ArrangeApply"), 3));
+        CheckInvoke("Turn right", "Image_ArrangeRotateRight");
+        CheckDoes("Apply keeps it", "Image_ArrangeApply", () => WaitForGone("Image_ArrangeApply", 3));
+
+        // ── Print ──
+        CheckDoes("Print opens its options", "Image_Print", () => WaitForFs(() => FindInAppWindows("Image_PrintOptions") is not null, 3));
+        Check("Fill the page", () => SelectRadio("Image_PrintFill"));
+        Check("Actual size", () => SelectRadio("Image_PrintActual"));
+        Check("A width", () => SelectRadio("Image_PrintWidth") && TypeInto("Image_PrintWidthMillimetres", "120"));
+        Check("Fit to page", () => SelectRadio("Image_PrintFit"));
+        Check("Landscape, portrait, or as the picture suggests", () => SelectRadio("Image_PrintLandscape") && SelectRadio("Image_PrintPortrait") && SelectRadio("Image_PrintAuto"));
+        Check("Margins typed", () => TypeInto("Image_PrintMargins", "12"));
+        Check("Centred, and back", () => ToggleAndBack("Image_PrintCentre"));
+        Check("Print… chooses the printer", () => Enabled("Image_PrintGo"));
+        CheckDoes("Close puts the options away", "Image_PrintClose", () => WaitForFs(() => FindInAppWindows("Image_PrintOptions") is null, 3));
+
+        AssertJourney();
+    }
+
+    /// <summary>A small OpenRaster canvas: one layer of the sample picture's pixels, and its merged image.</summary>
+    private static void WriteCanvas(string path)
+    {
+        var png = File.ReadAllBytes(TestSampleData.Files("images").First(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase)));
+        int width  = png[16] << 24 | png[17] << 16 | png[18] << 8 | png[19];
+        int height = png[20] << 24 | png[21] << 16 | png[22] << 8 | png[23];
+        using var zip = ZipFile.Open(path, ZipArchiveMode.Create);
+        using (var mime = new StreamWriter(zip.CreateEntry("mimetype", CompressionLevel.NoCompression).Open(), new UTF8Encoding(false)))
+            mime.Write("image/openraster");
+        using (var xml = new StreamWriter(zip.CreateEntry("stack.xml").Open(), new UTF8Encoding(false)))
+            xml.Write($"""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <image version="0.0.6" w="{width}" h="{height}">
+                 <stack>
+                  <layer src="data/base.png" x="0" y="0" name="Base"/>
+                 </stack>
+                </image>
+                """);
+        using (var layer = zip.CreateEntry("data/base.png").Open()) layer.Write(png);
+        using (var merged = zip.CreateEntry("mergedimage.png").Open()) merged.Write(png);
     }
 
     /// <summary>The folder's pictures shown, and the editor opened on the first.</summary>

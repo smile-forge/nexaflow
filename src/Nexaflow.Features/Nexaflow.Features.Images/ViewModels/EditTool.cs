@@ -18,7 +18,8 @@ using System.Windows.Media;
 
 namespace Nexaflow.Features.Images.ViewModels;
 
-/// <summary>The edit mode's tools, in the order a picture is usually worked on: framed, corrected, cleaned up, picked apart, annotated, sized.</summary>
+/// <summary>The edit mode's tools, in the order a picture is usually worked on: framed, corrected, cleaned up, picked apart,
+/// annotated, painted on, arranged, sized.</summary>
 public enum EditTool
 {
     Crop,
@@ -26,5 +27,7 @@ public enum EditTool
     Retouch,
     CutOut,
     Markup,
+    Paint,
+    Move,
     Resize,
 }

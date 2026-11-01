@@ -14,6 +14,7 @@ using Nexaflow.Visuals.Common.Theming;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -388,6 +389,11 @@ public partial class ImageEditorViewModel : ObservableObject
     private ImageEditSession? Session => _viewer.CurrentSession;
     /// <summary>The picture the tools work on: the photo, or the active picture layer of a layered picture.</summary>
     private IRecipeEditing? Target => _viewer.EditTarget;
+
+    /// <summary>The annotations the Markup tool works on: the photo's or a picture layer's, or a markup layer's own.</summary>
+    private IMarkupEditing? Notes => _viewer.MarkupTarget;
+
+    private ImmutableArray<MarkupElement> Markup => Notes?.Markup ?? [];
     private ImageRecipe Recipe => Target?.Recipe ?? ImageRecipe.Identity;
     private SKSize? Source => Target?.Rendering.Proxy?.SourceSize;
 
@@ -400,6 +406,7 @@ public partial class ImageEditorViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsCutOutTool))]
     [NotifyPropertyChangedFor(nameof(IsMarkupTool))]
     [NotifyPropertyChangedFor(nameof(IsResizeTool))]
+    [NotifyPropertyChangedFor(nameof(IsPaintTool), nameof(IsMoveTool))]
     [NotifyPropertyChangedFor(nameof(Frame))]
     [NotifyPropertyChangedFor(nameof(DrawsMarquee), nameof(DrawsLasso), nameof(DrawsShapes), nameof(PicksByModel), nameof(TakesSelection))]
     private EditTool _tool = EditTool.Crop;
@@ -410,6 +417,8 @@ public partial class ImageEditorViewModel : ObservableObject
     public bool IsCutOutTool  => Tool == EditTool.CutOut;
     public bool IsMarkupTool  => Tool == EditTool.Markup;
     public bool IsResizeTool  => Tool == EditTool.Resize;
+    public bool IsPaintTool   => Tool == EditTool.Paint;
+    public bool IsMoveTool    => Tool == EditTool.Move;
     /// <summary>What the canvas shows: the uncropped picture while cropping, so the frame can be dragged over all of it.</summary>
     public RenderFrame Frame => IsCropTool ? RenderFrame.CropEditing : RenderFrame.Output;
 
@@ -471,7 +480,7 @@ public partial class ImageEditorViewModel : ObservableObject
     /// <summary>The recipe moved — by an edit, undo, redo or another window: every panel re-reads it.</summary>
     internal void OnRecipeChanged()
     {
-        if (SelectedId is { } id && !Recipe.Markup.Any(e => e.Id == id)) SelectedId = null;
+        if (SelectedId is { } id && !Markup.Any(e => e.Id == id)) SelectedId = null;
         OnPropertyChanged(string.Empty);
         SaveCommand.NotifyCanExecuteChanged();
         SaveCopyCommand.NotifyCanExecuteChanged();
@@ -483,7 +492,7 @@ public partial class ImageEditorViewModel : ObservableObject
     private void CancelOpenGestures()
     {
         EndTextEdit();
-        if (Target?.InGesture == true) _viewer.EndEditGesture();
+        if (Target?.InGesture == true || Notes?.InGesture == true) _viewer.EndEditGesture();
         _cropHandle = CropHandle.None;
         _drawing = null;
         _moving = false;
@@ -739,7 +748,7 @@ public partial class ImageEditorViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(DeleteSelectedCommand))]
     private Guid? _selectedId;
 
-    public MarkupElement? Selected => SelectedId is { } id ? Recipe.Markup.FirstOrDefault(e => e.Id == id) : null;
+    public MarkupElement? Selected => SelectedId is { } id ? Markup.FirstOrDefault(e => e.Id == id) : null;
     public bool HasSelection => Selected is not null;
     public bool IsTextSelected => Selected is MarkupText;
 
@@ -810,13 +819,13 @@ public partial class ImageEditorViewModel : ObservableObject
     /// </summary>
     public void MarkupPress(SKPoint at, float tolerance)
     {
-        if (Target is not { } session) return;
+        if (Notes is not { } session) return;
         EndTextEdit();   // a press elsewhere finishes the text being typed
         _markupFrom = at;
 
         if (MarkupTool == MarkupTool.Select)
         {
-            var hit = Recipe.Markup.Reverse().FirstOrDefault(e => _services.Markup.HitTest(e, at, tolerance));
+            var hit = Markup.Reverse().FirstOrDefault(e => _services.Markup.HitTest(e, at, tolerance));
             SelectedId = hit?.Id;
             if (hit is null) return;
             PullStyleFrom(hit);
@@ -841,7 +850,7 @@ public partial class ImageEditorViewModel : ObservableObject
         };
 
         session.BeginGesture();
-        Commit(r => r with { Markup = r.Markup.Add(created) });
+        session.CommitMarkup(m => m.Add(created));
         _drawing = created.Id;
         SelectedId = created.Id;
         if (created is MarkupText) TextEditRequested?.Invoke();   // its gesture ends when the typing does
@@ -857,7 +866,7 @@ public partial class ImageEditorViewModel : ObservableObject
             Replace(moved);
             return;
         }
-        if (_drawing is not { } id || Recipe.Markup.FirstOrDefault(e => e.Id == id) is not { } drawing) return;
+        if (_drawing is not { } id || Markup.FirstOrDefault(e => e.Id == id) is not { } drawing) return;
 
         var point = new MarkupPoint(at.X, at.Y);
         switch (drawing)
@@ -875,7 +884,7 @@ public partial class ImageEditorViewModel : ObservableObject
     /// <summary>The button came up: the gesture is one step — or none, for a shape too small to have been meant.</summary>
     public void MarkupRelease()
     {
-        if (Target is not { } session) return;
+        if (Notes is not { } session) return;
         if (_moving)
         {
             _moving = false;
@@ -883,7 +892,7 @@ public partial class ImageEditorViewModel : ObservableObject
             return;
         }
         if (_drawing is not { } id) return;
-        var drawn = Recipe.Markup.FirstOrDefault(e => e.Id == id);
+        var drawn = Markup.FirstOrDefault(e => e.Id == id);
         if (drawn is MarkupText) return;   // still being typed
         _drawing = null;
 
@@ -904,9 +913,9 @@ public partial class ImageEditorViewModel : ObservableObject
     /// <summary>Typing into a new text annotation finished: kept as one step, or dropped if nothing was typed.</summary>
     public void EndTextEdit()
     {
-        if (Target is not { } session || _drawing is not { } id) return;
+        if (Notes is not { } session || _drawing is not { } id) return;
         _drawing = null;
-        if (Recipe.Markup.FirstOrDefault(e => e.Id == id) is MarkupText { Text.Length: 0 })
+        if (Markup.FirstOrDefault(e => e.Id == id) is MarkupText { Text.Length: 0 })
         {
             session.CancelGesture();
             SelectedId = null;
@@ -918,7 +927,7 @@ public partial class ImageEditorViewModel : ObservableObject
     private void DeleteSelected()
     {
         if (SelectedId is not { } id) return;
-        Commit(r => r with { Markup = r.Markup.RemoveAll(e => e.Id == id) });
+        Notes?.CommitMarkup(m => m.RemoveAll(e => e.Id == id));
         SelectedId = null;
     }
 
@@ -926,7 +935,7 @@ public partial class ImageEditorViewModel : ObservableObject
     private void ClearMarkup()
     {
         SelectedId = null;
-        Commit(r => r with { Markup = [] });
+        Notes?.CommitMarkup(_ => []);
     }
 
     /// <summary>The selected annotation's outline on the canvas (layout coordinates), for the selection to be drawn around.</summary>
@@ -935,7 +944,7 @@ public partial class ImageEditorViewModel : ObservableObject
         : null;
 
     private void Replace(MarkupElement element) =>
-        Commit(r => r with { Markup = [.. r.Markup.Select(e => e.Id == element.Id ? element : e)] });
+        Notes?.CommitMarkup(m => [.. m.Select(e => e.Id == element.Id ? element : e)]);
 
     /// <summary>Selecting an annotation shows its style, so the next change starts from what it has.</summary>
     private void PullStyleFrom(MarkupElement element)
@@ -960,7 +969,7 @@ public partial class ImageEditorViewModel : ObservableObject
         SelectedId = held;
     }
 
-    private double? LongEdge => Source is { } s ? Math.Max(s.Width, s.Height) : null;
+    private double? LongEdge => Notes?.Extent is { } s ? Math.Max(s.Width, s.Height) : null;
 
     private double StrokeFor(bool highlighter) => Math.Max(1, Weight * WeightUnit * (LongEdge ?? 1000) * (highlighter ? 4 : 1));
 

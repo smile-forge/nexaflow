@@ -66,6 +66,7 @@ public class ImagesStartJourneyTests : ImageEditJourneyBase
         CheckPresent("Its canvas is set up as New's is", "Images_CanvasSetup");
         CheckPresent("No model draws here: the workspace's AI settings are offered", "Images_StartAiSettings");
         CheckPresent("Pictures can be opened from disk", "Images_StartOpen");
+        Check("Print is there, with nothing to print", () => Exists("Image_Print") && !Enabled("Image_Print"));
         Check("A size typed by hand", () => TypeInto("Images_CanvasWidth", "320") && TypeInto("Images_CanvasHeight", "200"));
         CheckDoes("Create opens the canvas in the editor", "Images_StartCreate",
                   () => WaitForFs(() => Exists("Image_LayersPanel"), 15) && WaitForGone("Images_Start", 3));

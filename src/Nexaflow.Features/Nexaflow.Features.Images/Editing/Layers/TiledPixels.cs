@@ -348,4 +348,53 @@ public sealed class TiledPixels
         }
         return converted;
     }
+
+    /// <summary>
+    /// These pixels drawn through <paramref name="matrix"/> onto a <paramref name="width"/> × <paramref name="height"/> canvas —
+    /// scaled, turned, flipped — resampled once, as one picture so no seam shows between tiles; what falls off the canvas goes.
+    /// </summary>
+    public TiledPixels Transformed(SKMatrix matrix, int width, int height)
+    {
+        if (IsEmpty) return this;
+        var bounds = Bounds;
+        var mapped = matrix.MapRect(SKRect.Create(bounds.Left, bounds.Top, bounds.Width, bounds.Height));
+        var area = SKRectI.Intersect(SKRectI.Round(SKRect.Inflate(mapped, 1, 1)), new SKRectI(0, 0, width, height));
+        if (area.IsEmpty) return Empty;
+        using var source = ToBitmap(bounds);
+        using var target = new SKBitmap(new SKImageInfo(area.Width, area.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        target.Erase(SKColors.Transparent);
+        using (var canvas = new SKCanvas(target))
+        using (var image = SKImage.FromBitmap(source))
+        using (var paint = new SKPaint { IsAntialias = true })
+        {
+            canvas.Translate(-area.Left, -area.Top);
+            canvas.Concat(matrix);
+            canvas.DrawImage(image, bounds.Left, bounds.Top, new SKSamplingOptions(SKCubicResampler.Mitchell), paint);
+        }
+        return FromBitmap(target, area.Left, area.Top);
+    }
+
+    /// <summary>These pixels with <paramref name="above"/> laid over them, as a layer merged down onto this one at full opacity
+    /// lays its pixels — only the tiles it holds are touched.</summary>
+    public TiledPixels MergedWith(TiledPixels above)
+    {
+        if (above.IsEmpty) return this;
+        var tiles = _tiles.ToBuilder();
+        foreach (var (key, top) in above._tiles)
+        {
+            if (!_tiles.TryGetValue(key, out var bottom))
+            {
+                Put(tiles, key, top);
+                continue;
+            }
+            var merged = new byte[TileBytes];
+            for (int i = 0; i < TileBytes; i += 4)
+            {
+                int keep = 255 - top[i + 3];
+                for (int c = 0; c < 4; c++) merged[i + c] = (byte)(top[i + c] + (bottom[i + c] * keep + 127) / 255);
+            }
+            Put(tiles, key, merged);
+        }
+        return new TiledPixels(tiles.ToImmutable());
+    }
 }

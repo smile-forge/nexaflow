@@ -149,12 +149,12 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
                 {
                     Source = new PictureSource(OpenRasterPackage.EntryPath(package, source), null),
                     Recipe = WithCoverages(recipe, file => coverages.GetValueOrDefault(file)),
-                    Placement = PlacementOf(Own(entry.Kept, "placement")) ?? new LayerPlacement(entry.X, entry.Y),
+                    Placement = PlacementOf(Own(entry.Kept, "placement")) ?? LayerPlacement.At(entry.X, entry.Y),
                 };
             }
             if (current && Own(entry.Kept, "markup") is { } markupFile && await BytesAsync(markupFile) is { } markupBytes
                 && ImageRecipeJson.DeserializeMarkup(Encoding.UTF8.GetString(markupBytes)) is { } elements)
-                return new MarkupLayer { Elements = elements };
+                return new MarkupLayer { Elements = elements, Placement = PlacementOf(Own(entry.Kept, "placement")) ?? LayerPlacement.Origin };
             return new PixelLayer { Pixels = png is null ? TiledPixels.Empty : PixelsOf(png, entry.X, entry.Y) };
         }
 
@@ -206,13 +206,18 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
         return TiledPixels.FromBitmap(bitmap, x, y);
     }
 
+    /// <summary>A placement as <see cref="PlacementText"/> writes it — its six terms — or null where it is not one.</summary>
     private static LayerPlacement? PlacementOf(string? text)
     {
         var parts = text?.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts is not { Length: 4 }) return null;
+        if (parts is not { Length: 6 }) return null;
         var values = parts.Select(p => double.TryParse(p, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : double.NaN).ToArray();
-        return values.Any(double.IsNaN) ? null : new LayerPlacement(values[0], values[1], values[2], values[3]);
+        return values.Any(v => !double.IsFinite(v)) ? null : new LayerPlacement(values[0], values[1], values[2], values[3], values[4], values[5]);
     }
+
+    /// <summary>A placement as <c>nexaflow:placement</c> keeps it: scale x, skew x, offset x, skew y, scale y, offset y.</summary>
+    private static string PlacementText(LayerPlacement p)
+        => string.Create(CultureInfo.InvariantCulture, $"{p.ScaleX:R} {p.SkewX:R} {p.OffsetX:R} {p.SkewY:R} {p.ScaleY:R} {p.OffsetY:R}");
 
     /// <summary>Nexaflow's own attribute of the element; null where it has none.</summary>
     private static string? Own(OpenRasterKept kept, string name)
@@ -394,8 +399,7 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
             var recipeFile = $"data/nexaflow/recipe{++_recipes}.nfedit";
             Add(recipeFile, Encoding.UTF8.GetBytes(ImageRecipeJson.Serialize(recipe)), stored: false);
 
-            var p = layer.Placement;
-            var placement = string.Create(CultureInfo.InvariantCulture, $"{p.OffsetX:R} {p.OffsetY:R} {p.Scale:R} {p.RotationDegrees:R}");
+            var placement = PlacementText(layer.Placement);
             return new OpenRasterLayerEntry
             {
                 Source = file, X = at.X, Y = at.Y,
@@ -420,7 +424,10 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
             return new OpenRasterLayerEntry
             {
                 Source = file, X = at.X, Y = at.Y,
-                Kept = new OpenRasterKept { Attributes = [new(Ns, "markup", markupFile), new(Ns, "pixels", HashOf(png))] },
+                Kept = new OpenRasterKept
+                {
+                    Attributes = [new(Ns, "markup", markupFile), new(Ns, "placement", PlacementText(layer.Placement)), new(Ns, "pixels", HashOf(png))],
+                },
             };
         }
 

@@ -72,7 +72,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     [ObservableProperty] private string _currentFileName = string.Empty;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ImageCountText), nameof(IsStarting))]
+    [NotifyPropertyChangedFor(nameof(ImageCountText), nameof(IsStarting), nameof(ShowsBrowsingTools))]
     private int _totalImages;
 
     /// <summary>The photo being shown, with its recipe and history; null while nothing is.</summary>
@@ -107,7 +107,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     [NotifyPropertyChangedFor(nameof(IsExplore))]
     [NotifyPropertyChangedFor(nameof(IsCollage))]
     [NotifyPropertyChangedFor(nameof(IsEditing))]
-    [NotifyPropertyChangedFor(nameof(IsBrowsing))]
+    [NotifyPropertyChangedFor(nameof(IsBrowsing), nameof(ShowsBrowsingTools))]
     [NotifyPropertyChangedFor(nameof(ShowsSubViewSelector))]
     [NotifyPropertyChangedFor(nameof(ShowsEditedMark))]
     [NotifyPropertyChangedFor(nameof(ShowsSessionOnlyNotice))]
@@ -320,10 +320,15 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     [RelayCommand(CanExecute = nameof(CanUndoEdit))]
     private void UndoEdit()
     {
+        if (Arranging.IsTransforming)
+        {
+            Arranging.Cancel();   // an open transform is what undo takes back first
+            return;
+        }
         if (CurrentDocument is { } document) document.History.Undo();
         else CurrentSession?.History.Undo();
     }
-    private bool CanUndoEdit() => CurrentDocument?.History.CanUndo ?? CurrentSession?.History.CanUndo == true;
+    private bool CanUndoEdit() => Arranging.IsTransforming || (CurrentDocument?.History.CanUndo ?? CurrentSession?.History.CanUndo == true);
 
     [RelayCommand(CanExecute = nameof(CanRedoEdit))]
     private void RedoEdit()
@@ -331,7 +336,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         if (CurrentDocument is { } document) document.History.Redo();
         else CurrentSession?.History.Redo();
     }
-    private bool CanRedoEdit() => CurrentDocument?.History.CanRedo ?? CurrentSession?.History.CanRedo == true;
+    private bool CanRedoEdit() => !Arranging.IsTransforming && (CurrentDocument?.History.CanRedo ?? CurrentSession?.History.CanRedo == true);
 
     /// <summary>The photo changed since its edits were made: keep them, anchored to the photo as it is now.</summary>
     [RelayCommand]
@@ -388,6 +393,10 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     /// <summary>The picture the editor's tools work on: the photo, or — in a layered picture — its active picture layer; null
     /// where there is none.</summary>
     internal IRecipeEditing? EditTarget => CurrentDocument is { } document ? document.ActivePicture : CurrentSession;
+
+    /// <summary>The annotations the Markup tool works on: the photo's, or — in a layered picture — the active picture layer's or
+    /// markup layer's; null where there are none.</summary>
+    internal IMarkupEditing? MarkupTarget => CurrentDocument is { } document ? document.ActiveNotes : CurrentSession;
 
     // ── Position-indicator paging (20 dots per block) ─────────────────────
 
@@ -635,6 +644,16 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         Layers.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(LayersViewModel.MaskAlone)) RequestRender(); };
         Start = new ImageStartViewModel(this, shell, ai, _editing, _config);
         Pictures = new CanvasPictures(this, shell, ai, _editing);
+        Painting = new LayerPainting(this, Editor);
+        Arranging = new LayerArranging(this, _editing);
+        Printing = new PicturePrinting(this, _editing, shell);
+        Editor.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(ImageEditorViewModel.Tool) || Editor.IsMoveTool) return;
+            // Leaving Move: an open transform is applied, and what floats is dropped back into its layer.
+            if (Arranging.IsTransforming) Arranging.Apply();
+            else if (Arranging.HasFloating) Arranging.Drop();
+        };
         _runOnUi = runOnUi;
         MakeVideo = new MakeVideoViewModel(ai,
             () => CurrentSession is { } session && session.OutputSize(session.Recipe) is { } size && size.Height > size.Width,
@@ -888,6 +907,18 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     /// <summary>Pictures brought into a layered picture as layers: dropped on the canvas, or drawn by the image model.</summary>
     public CanvasPictures Pictures { get; }
 
+    /// <summary>The Paint tool: brush, eraser, eyedropper and fill on the active pixel layer or its mask.</summary>
+    public LayerPainting Painting { get; }
+
+    /// <summary>The Move tool: layers and what is selected moved, and transformed.</summary>
+    public LayerArranging Arranging { get; }
+
+    /// <summary>Print: the picture shown, or the canvas, laid on paper.</summary>
+    public PicturePrinting Printing { get; }
+
+    /// <summary>The browsing tools show: the tab is browsing pictures, not on its start screen.</summary>
+    public bool ShowsBrowsingTools => IsBrowsing && !IsStarting;
+
     /// <summary>The tab holds no picture: New picture shows.</summary>
     public bool IsStarting => TotalImages == 0;
 
@@ -1011,6 +1042,8 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         RedoEditCommand.NotifyCanExecuteChanged();
         Layers.Follow(CurrentDocument);
         Editor.RegionMarks.DocumentChanged();
+        Painting.Refresh();
+        Arranging.Refresh();
         FollowDocumentTools();
         Editor.OnRecipeChanged();
         RequestRender();

@@ -1,0 +1,103 @@
+<UserControl x:Class="Nexaflow.Features.Images.Views.PaintPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
+             AutomationProperties.AutomationId="Image_PaintPanel">
+
+    <!-- The Paint tool's panel, bound to a LayerPainting: its way, the colour, the tip, the fill's reach, the eyedropper's sampling. -->
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="ImageViewStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
+            <cv:InverseBoolToVisibilityConverter x:Key="NotBoolVis"/>
+            <cv:EnumToBoolConverter x:Key="EnumToBool"/>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Paint.Title}"/>
+        <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Text="{loc:Str Images.Paint.Intro}"/>
+
+        <StackPanel Visibility="{Binding CanPaint, Converter={StaticResource NotBoolVis}}" Margin="0,8,0,0">
+            <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Foreground="{StaticResource WarningBrush}" Text="{Binding Notice}"/>
+            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding AddLayerCommand}" HorizontalAlignment="Left" Margin="0,6,0,0"
+                    Visibility="{Binding OffersLayer, Converter={StaticResource BoolVis}}"
+                    ToolTip="{loc:Str Images.Edit.AddLayerTip}" AutomationProperties.AutomationId="Image_PaintAddLayer">
+                <TextBlock Text="{loc:Str Images.Edit.AddLayer}"/>
+            </Button>
+        </StackPanel>
+
+        <UniformGrid Columns="4" Margin="0,10,0,0">
+            <RadioButton GroupName="PaintTool" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Paint.Brush}" ToolTip="{loc:Str Images.Paint.BrushTip}"
+                         IsChecked="{Binding Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Brush}" AutomationProperties.AutomationId="Image_PaintBrush"/>
+            <RadioButton GroupName="PaintTool" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Paint.Eraser}" ToolTip="{loc:Str Images.Paint.EraserTip}"
+                         IsChecked="{Binding Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Eraser}" AutomationProperties.AutomationId="Image_PaintEraser"/>
+            <RadioButton GroupName="PaintTool" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Paint.Eyedropper}" ToolTip="{loc:Str Images.Paint.EyedropperTip}"
+                         IsChecked="{Binding Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Eyedropper}" AutomationProperties.AutomationId="Image_PaintEyedropper"/>
+            <RadioButton GroupName="PaintTool" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Paint.Fill}" ToolTip="{loc:Str Images.Paint.FillTip}"
+                         IsChecked="{Binding Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Fill}" AutomationProperties.AutomationId="Image_PaintFill"/>
+        </UniformGrid>
+
+        <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Paint.Colour}"/>
+        <vcc:ColorPicker AutomationPrefix="Image_PaintColour" AllowDefault="False" Value="{Binding Colour, Mode=TwoWay}"/>
+
+        <StackPanel Visibility="{Binding PaintsWithTip, Converter={StaticResource BoolVis}}">
+            <DockPanel Margin="0,10,0,0">
+                <TextBlock DockPanel.Dock="Right" Style="{StaticResource EditCaption}" Text="{Binding Size, StringFormat={}{0:0} px}"/>
+                <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Paint.Size}"/>
+            </DockPanel>
+            <Slider Minimum="1" Maximum="500" SmallChange="1" LargeChange="10" Value="{Binding Size, Mode=TwoWay}"
+                    AutomationProperties.AutomationId="Image_PaintSize" AutomationProperties.Name="{loc:Str Images.Paint.Size}"/>
+            <DockPanel Margin="0,6,0,0">
+                <TextBlock DockPanel.Dock="Right" Style="{StaticResource EditCaption}" Text="{Binding Hardness, StringFormat={}{0:0}%}"/>
+                <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Paint.Hardness}"/>
+            </DockPanel>
+            <Slider Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Hardness, Mode=TwoWay}"
+                    AutomationProperties.AutomationId="Image_PaintHardness" AutomationProperties.Name="{loc:Str Images.Paint.Hardness}"/>
+            <DockPanel Margin="0,6,0,0">
+                <TextBlock DockPanel.Dock="Right" Style="{StaticResource EditCaption}" Text="{Binding Opacity, StringFormat={}{0:0}%}"/>
+                <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Paint.Opacity}"/>
+            </DockPanel>
+            <Slider Minimum="1" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Opacity, Mode=TwoWay}"
+                    AutomationProperties.AutomationId="Image_PaintOpacity" AutomationProperties.Name="{loc:Str Images.Paint.Opacity}"/>
+            <DockPanel Margin="0,6,0,0">
+                <TextBlock DockPanel.Dock="Right" Style="{StaticResource EditCaption}" Text="{Binding Flow, StringFormat={}{0:0}%}"/>
+                <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Paint.Flow}"/>
+            </DockPanel>
+            <Slider Minimum="1" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Flow, Mode=TwoWay}"
+                    AutomationProperties.AutomationId="Image_PaintFlow" AutomationProperties.Name="{loc:Str Images.Paint.Flow}"/>
+            <DockPanel Margin="0,6,0,0">
+                <TextBlock DockPanel.Dock="Right" Style="{StaticResource EditCaption}" Text="{Binding Spacing, StringFormat={}{0:0}%}"/>
+                <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Paint.Spacing}"/>
+            </DockPanel>
+            <Slider Minimum="1" Maximum="200" SmallChange="1" LargeChange="10" Value="{Binding Spacing, Mode=TwoWay}"
+                    AutomationProperties.AutomationId="Image_PaintSpacing" AutomationProperties.Name="{loc:Str Images.Paint.Spacing}"/>
+            <CheckBox Margin="0,8,0,0" Foreground="{StaticResource TextBrush}" IsChecked="{Binding PressureSizes, Mode=TwoWay}"
+                      Content="{loc:Str Images.Paint.PressureSize}" AutomationProperties.AutomationId="Image_PaintPressureSize"/>
+            <CheckBox Margin="0,4,0,0" Foreground="{StaticResource TextBrush}" IsChecked="{Binding PressureOpacity, Mode=TwoWay}"
+                      Content="{loc:Str Images.Paint.PressureOpacity}" AutomationProperties.AutomationId="Image_PaintPressureOpacity"/>
+        </StackPanel>
+
+        <StackPanel Visibility="{Binding IsFill, Converter={StaticResource BoolVis}}">
+            <DockPanel Margin="0,10,0,0">
+                <TextBlock DockPanel.Dock="Right" Style="{StaticResource EditCaption}" Text="{Binding Tolerance, StringFormat={}{0:0}}"/>
+                <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Paint.Tolerance}"/>
+            </DockPanel>
+            <Slider Minimum="0" Maximum="255" SmallChange="1" LargeChange="16" Value="{Binding Tolerance, Mode=TwoWay}"
+                    AutomationProperties.AutomationId="Image_PaintTolerance" AutomationProperties.Name="{loc:Str Images.Paint.Tolerance}"/>
+            <CheckBox Margin="0,8,0,0" Foreground="{StaticResource TextBrush}" IsChecked="{Binding Contiguous, Mode=TwoWay}"
+                      Content="{loc:Str Images.Paint.Contiguous}" AutomationProperties.AutomationId="Image_PaintContiguous"/>
+        </StackPanel>
+
+        <CheckBox Margin="0,10,0,0" Foreground="{StaticResource TextBrush}" IsChecked="{Binding SampleMerged, Mode=TwoWay}"
+                  Visibility="{Binding IsEyedropper, Converter={StaticResource BoolVis}}"
+                  Content="{loc:Str Images.Paint.SampleMerged}" AutomationProperties.AutomationId="Image_PaintSampleMerged"/>
+
+        <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Margin="0,10,0,0" Text="{loc:Str Images.Paint.Keys}"/>
+    </StackPanel>
+</UserControl>

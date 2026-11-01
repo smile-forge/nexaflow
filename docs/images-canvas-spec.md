@@ -243,9 +243,14 @@ Small and deliberate: enough to touch up, mask, sketch and arrange.
 - **Eyedropper** (I, or Alt with the brush): the composite's or the active layer's colour.
 - **Fill** (G): flood by tolerance, or the selection.
 - **Move** (V): moves the active layer, or the selection's contents when there is one (lifted into a floating layer
-  until committed).
+  until committed — *Drop*, Enter, or leaving the tool lays it back).
 - **Transform** (Ctrl+T): scale, rotate and flip with handles, on a layer or the selection's contents; a picture layer
-  keeps its source and is resampled from it, so repeated transforms do not soften it.
+  keeps its source and is resampled from it, so repeated transforms do not soften it. A markup layer has a placement of
+  its own, as a picture layer does, so its annotations are transformed as a whole and stay sharp and editable — the Markup
+  tool draws on the layer through it. A placement is a full affine (scale, flip, rotation, skew and offset), kept in the
+  `.ora` as `nexaflow:placement`'s six terms. Undo during a transform cancels it.
+- Painting needs a pixel layer or a mask: on a photo, or with a picture or markup layer active, the Paint panel says so
+  and offers *Add layer* (or rasterizing). The colour is markup's ink, one choice for both.
 
 ## 8. OpenRaster
 
@@ -409,7 +414,9 @@ theirs.
 - **Size**: fit to page (default), fill page (cropped), actual size at the picture's dpi (tiled across pages when
   larger), or a set width.
 - **Orientation**: automatic from the picture's shape, or as chosen; margins; centre on page.
-- Renders at the printer's resolution through the full-size path, never the screen preview.
+- Renders at the printer's resolution through the full-size path, never the screen preview: no more pixels than the
+  printer lays down at the printed size. A photo's actual size is at 72 dpi, the resolution taken for any picture whose
+  file says none; a layered picture's is its own.
 
 The button is enabled only while there is something to print — a picture shown, or a canvas — so on the start screen it
 is there and disabled.

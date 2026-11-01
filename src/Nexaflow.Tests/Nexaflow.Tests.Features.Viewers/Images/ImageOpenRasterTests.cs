@@ -88,7 +88,7 @@ public class ImageOpenRasterTests
             Name = "Photo",
             Source = new PictureSource(photo, null),
             Recipe = ImageRecipe.Identity with { Adjustments = RecipeAdjustments.Identity with { Exposure = 0.5 } },
-            Placement = new LayerPlacement(5, 4),
+            Placement = LayerPlacement.FromMatrix(SKMatrix.CreateScale(-1.5f, 0.5f).PostConcat(SKMatrix.CreateRotationDegrees(30)).PostConcat(SKMatrix.CreateTranslation(5, 4))),
             Kept = new OpenRasterKept { Attributes = [new OpenRasterAttribute("urn:elsewhere", "thing", "kept")] },
         };
         var red = new PixelLayer

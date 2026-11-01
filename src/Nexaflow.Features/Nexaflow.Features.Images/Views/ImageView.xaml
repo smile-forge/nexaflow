@@ -23,6 +23,7 @@
 
             <BooleanToVisibilityConverter x:Key="BoolToVis"/>
             <cv:EnumToBoolConverter x:Key="EnumToBool"/>
+            <cv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis"/>
             <cv:NullToCollapsedConverter x:Key="NullToCollapsed"/>
 
             <Style x:Key="NavArrowStyle" TargetType="Button">
@@ -287,12 +288,69 @@
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
                     <!-- Details: what the picture's file says about it, in a panel on the left (I) — browsing and editing alike -->
                     <ToggleButton IsChecked="{Binding Details.IsOpen, Mode=TwoWay}" ToolTip="{loc:Str Images.Details.Tip}" Style="{StaticResource ToolbarToggleStyle}" Margin="0,0,8,0"
+                                  Visibility="{Binding IsStarting, Converter={StaticResource InverseBoolToVis}}"
                                   AutomationProperties.AutomationId="Image_Details" AutomationProperties.Name="{loc:Str Images.Details.Title}">
                         <StackPanel Orientation="Horizontal">
                             <icons:IconGlyph Icon="fluent:info" FontSize="14" VerticalAlignment="Center"/>
                             <TextBlock Text="{loc:Str Images.Details.Title}" Margin="6,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
                     </ToggleButton>
+
+                    <!-- Print (Ctrl+P): the picture as edited, or the canvas; there on the start screen, with nothing to print -->
+                    <ToggleButton x:Name="PrintButton" IsChecked="{Binding Printing.IsOpen, Mode=TwoWay}" IsEnabled="{Binding Printing.CanPrint}"
+                                  ToolTip="{loc:Str Images.Print.ButtonTip}" Style="{StaticResource ToolbarToggleStyle}" Margin="0,0,8,0"
+                                  AutomationProperties.AutomationId="Image_Print" AutomationProperties.Name="{loc:Str Images.Print.Button}">
+                        <StackPanel Orientation="Horizontal">
+                            <icons:IconGlyph Icon="fluent:print" FontSize="14" VerticalAlignment="Center"/>
+                            <TextBlock Text="{loc:Str Images.Print.Button}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </ToggleButton>
+                    <Popup IsOpen="{Binding Printing.IsOpen, Mode=TwoWay}" PlacementTarget="{Binding ElementName=PrintButton}" Placement="Bottom"
+                           StaysOpen="False" AllowsTransparency="True">
+                        <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                                Padding="12" Width="300" DataContext="{Binding Printing}" AutomationProperties.AutomationId="Image_PrintOptions">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Print.Size}" Margin="0,0,0,6"/>
+                                <UniformGrid Columns="4">
+                                    <RadioButton GroupName="PrintSize" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Print.Size.Fit}"
+                                                 IsChecked="{Binding Size, Converter={StaticResource EnumToBool}, ConverterParameter=Fit}" AutomationProperties.AutomationId="Image_PrintFit"/>
+                                    <RadioButton GroupName="PrintSize" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Print.Size.Fill}"
+                                                 IsChecked="{Binding Size, Converter={StaticResource EnumToBool}, ConverterParameter=Fill}" AutomationProperties.AutomationId="Image_PrintFill"/>
+                                    <RadioButton GroupName="PrintSize" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Print.Size.Actual}"
+                                                 IsChecked="{Binding Size, Converter={StaticResource EnumToBool}, ConverterParameter=Actual}" AutomationProperties.AutomationId="Image_PrintActual"/>
+                                    <RadioButton GroupName="PrintSize" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Print.Size.Width}"
+                                                 IsChecked="{Binding Size, Converter={StaticResource EnumToBool}, ConverterParameter=Width}" AutomationProperties.AutomationId="Image_PrintWidth"/>
+                                </UniformGrid>
+                                <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Margin="0,6,0,0" Text="{Binding ActualNote}"
+                                           Visibility="{Binding IsActual, Converter={StaticResource BoolToVis}}"/>
+                                <StackPanel Visibility="{Binding SetsWidth, Converter={StaticResource BoolToVis}}" Margin="0,6,0,0">
+                                    <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Print.WidthMillimetres}"/>
+                                    <TextBox Text="{Binding WidthMillimetres, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBox}"
+                                             AutomationProperties.AutomationId="Image_PrintWidthMillimetres" AutomationProperties.Name="{loc:Str Images.Print.WidthMillimetres}"/>
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Print.Orientation}"/>
+                                <UniformGrid Columns="3">
+                                    <RadioButton GroupName="PrintOrientation" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Print.Orientation.Auto}"
+                                                 IsChecked="{Binding Orientation, Converter={StaticResource EnumToBool}, ConverterParameter=Auto}" AutomationProperties.AutomationId="Image_PrintAuto"/>
+                                    <RadioButton GroupName="PrintOrientation" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Print.Orientation.Portrait}"
+                                                 IsChecked="{Binding Orientation, Converter={StaticResource EnumToBool}, ConverterParameter=Portrait}" AutomationProperties.AutomationId="Image_PrintPortrait"/>
+                                    <RadioButton GroupName="PrintOrientation" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Print.Orientation.Landscape}"
+                                                 IsChecked="{Binding Orientation, Converter={StaticResource EnumToBool}, ConverterParameter=Landscape}" AutomationProperties.AutomationId="Image_PrintLandscape"/>
+                                </UniformGrid>
+                                <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Print.Margins}" Margin="0,8,0,0"/>
+                                <TextBox Text="{Binding MarginMillimetres, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBox}"
+                                         AutomationProperties.AutomationId="Image_PrintMargins" AutomationProperties.Name="{loc:Str Images.Print.Margins}"/>
+                                <CheckBox Margin="0,8,0,0" Foreground="{StaticResource TextBrush}" IsChecked="{Binding Centre, Mode=TwoWay}"
+                                          Content="{loc:Str Images.Print.Centre}" AutomationProperties.AutomationId="Image_PrintCentre"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                    <Button Content="{loc:Str Images.Print.Go}" Click="PrintGo_Click" Padding="12,4" Margin="0,0,6,0"
+                                            ToolTip="{loc:Str Images.Print.GoTip}" AutomationProperties.AutomationId="Image_PrintGo"/>
+                                    <Button Content="{loc:Str Images.Print.Cancel}" Command="{Binding CloseCommand}" Padding="12,4"
+                                            AutomationProperties.AutomationId="Image_PrintClose"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
 
                     <!-- Sub-view selector (browsing only) -->
                     <Border x:Name="SubViewSelector" VerticalAlignment="Center"
@@ -347,7 +405,7 @@
 
                 <!-- Browsing: edit, then the playback controls -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"
-                            Visibility="{Binding IsBrowsing, Converter={StaticResource BoolToVis}}">
+                            Visibility="{Binding ShowsBrowsingTools, Converter={StaticResource BoolToVis}}">
                     <Button Command="{Binding EnterEditModeCommand}" ToolTip="{loc:Str Images.Toolbar.EditTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,8,0"
                             AutomationProperties.AutomationId="Image_EditMode">
                         <StackPanel Orientation="Horizontal">
@@ -865,7 +923,7 @@
         </Grid>
 
         <!-- ── New picture: the tab holds no picture ── -->
-        <Grid Grid.RowSpan="3" Visibility="{Binding IsStarting, Converter={StaticResource BoolToVis}}">
+        <Grid Grid.Row="1" Grid.RowSpan="2" Visibility="{Binding IsStarting, Converter={StaticResource BoolToVis}}">
             <views:ImageStartView DataContext="{Binding Start}"/>
         </Grid>
     </Grid>

@@ -129,7 +129,7 @@ public sealed class EditOverlay : FrameworkElement
             DrawLevelLine(dc);
         if (editor.IsMarkupTool && editor.SelectedOutline is { } outline)
             DrawSelection(dc, outline);
-        bool marching = editor.TakesSelection && DrawRegion(dc, editor);
+        bool marching = (editor.TakesSelection || _viewer!.IsLayered) && DrawRegion(dc, editor);   // a layered picture's selection shows to every tool
         March(marching);
         if (editor.IsRetouchTool)
             DrawErase(dc, editor.EraseMarks);

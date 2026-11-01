@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Nexaflow.Features.Images.Editing.Codecs;
 using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Images.Editing.Recipe;
@@ -62,6 +63,10 @@ public sealed class LayeredSession : IPictureLayerImages, IDisposable
     /// <summary>The active layer, where it is a picture layer, as the editor's tools edit it; null otherwise.</summary>
     public IRecipeEditing? ActivePicture => Picture.Active is PictureLayer layer && RenderingOf(layer.Id) is { } rendering
         ? new LayerRecipeEditing(this, layer.Id, rendering) : null;
+
+    /// <summary>The annotations the Markup tool works on: the active markup layer's own, through its placement, or the active
+    /// picture layer's, as its recipe keeps them; null where the active layer has none to edit.</summary>
+    public IMarkupEditing? ActiveNotes => Picture.Active is MarkupLayer layer ? new MarkupLayerEditing(this, layer.Id) : ActivePicture;
 
     /// <summary>The picture is kept somewhere else from now on — saved as another package.</summary>
     public void MovedTo(string path)
@@ -329,5 +334,33 @@ public sealed class LayeredSession : IPictureLayerImages, IDisposable
         public override bool Equals(object? obj) => obj is LayerRecipeEditing other && ReferenceEquals(other.Rendering, rendering);
 
         public override int GetHashCode() => rendering.GetHashCode();
+    }
+
+    /// <summary>A markup layer's annotations as the Markup tool edits them: each change a step of the picture's history, none on a
+    /// locked layer; sized against the canvas.</summary>
+    private sealed class MarkupLayerEditing(LayeredSession session, Guid id) : IMarkupEditing
+    {
+        public ImmutableArray<MarkupElement> Markup => (session.Picture.Find(id) as MarkupLayer)?.Elements ?? [];
+
+        public void CommitMarkup(Func<ImmutableArray<MarkupElement>, ImmutableArray<MarkupElement>> change)
+            => session.Commit(p => p.WithLayer(id, l => l is MarkupLayer markup && !markup.Locked ? markup with { Elements = change(markup.Elements) } : l));
+
+        public SKSize? Extent => new SKSize(session.Picture.Width, session.Picture.Height);
+
+        public void BeginGesture() => session.History.BeginGesture();
+
+        public void EndGesture() => session.History.EndGesture();
+
+        public void CancelGesture() => session.History.CancelGesture();
+
+        public bool InGesture => session.History.InGesture;
+
+        public override bool Equals(object? obj) => obj is MarkupLayerEditing other && ReferenceEquals(other.Session, session) && other.Id == id;
+
+        public override int GetHashCode() => HashCode.Combine(session, id);
+
+        private LayeredSession Session => session;
+
+        private Guid Id => id;
     }
 }

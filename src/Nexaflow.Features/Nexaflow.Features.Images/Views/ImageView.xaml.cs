@@ -8,6 +8,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Controls.Primitives;
+using System.Printing;
 
 namespace Nexaflow.Features.Images.Views;
 
@@ -74,8 +75,40 @@ public partial class ImageView : UserControl, IPageView
             case Key.S when ctrl && ViewModel.IsEditing:
                 editor.SaveCommand.Execute(null);
                 break;
+            case Key.P when ctrl && !shift:
+                if (ViewModel.Printing.CanPrint) ViewModel.Printing.IsOpen = true;
+                break;
             case Key.E when Keyboard.Modifiers == ModifierKeys.None && (ViewModel.IsCarousel || ViewModel.IsExplore):
                 ViewModel.EnterEditModeCommand.Execute(null);
+                break;
+            // Painting and arranging, in the editor: B the brush, E the eraser, I the eyedropper, G the fill, V move, Ctrl+T transform.
+            case Key.B when Keyboard.Modifiers == ModifierKeys.None && ViewModel.IsEditing:
+                ChoosePaint(PaintTool.Brush);
+                break;
+            case Key.E when Keyboard.Modifiers == ModifierKeys.None && ViewModel.IsEditing:
+                ChoosePaint(PaintTool.Eraser);
+                break;
+            case Key.I when Keyboard.Modifiers == ModifierKeys.None && ViewModel.IsEditing:
+                ChoosePaint(PaintTool.Eyedropper);
+                break;
+            case Key.G when Keyboard.Modifiers == ModifierKeys.None && ViewModel.IsEditing:
+                ChoosePaint(PaintTool.Fill);
+                break;
+            case Key.V when Keyboard.Modifiers == ModifierKeys.None && ViewModel.IsEditing:
+                editor.Tool = EditTool.Move;
+                break;
+            case Key.T when ctrl && !shift && ViewModel.IsEditing && ViewModel.IsLayered:
+                editor.Tool = EditTool.Move;
+                ViewModel.Arranging.TransformCommand.Execute(null);
+                break;
+            case Key.Enter when ViewModel.IsEditing && ViewModel.Arranging.IsTransforming:
+                ViewModel.Arranging.Apply();
+                break;
+            case Key.Escape when ViewModel.IsEditing && ViewModel.Arranging.IsTransforming:
+                ViewModel.Arranging.Cancel();
+                break;
+            case Key.Enter when ViewModel.IsEditing && ViewModel.Arranging.HasFloating:
+                ViewModel.Arranging.Drop();
                 break;
             case Key.I when Keyboard.Modifiers == ModifierKeys.None:
                 ViewModel.Details.IsOpen = !ViewModel.Details.IsOpen;
@@ -142,6 +175,34 @@ public partial class ImageView : UserControl, IPageView
                 return;
         }
         e.Handled = true;
+    }
+
+    /// <summary>The Paint tool out, in the way <paramref name="tool"/> says.</summary>
+    private void ChoosePaint(PaintTool tool)
+    {
+        ViewModel.Editor.Tool = EditTool.Paint;
+        ViewModel.Painting.Tool = tool;
+    }
+
+    // ── Print: the options set, the printer chosen, the pages drawn from the picture at full size ──
+
+    private async void PrintGo_Click(object sender, RoutedEventArgs e)
+    {
+        var printing = ViewModel.Printing;
+        printing.IsOpen = false;
+        var dialog = new PrintDialog { UserPageRangeEnabled = false };
+        dialog.PrintTicket.PageOrientation = printing.PrintsLandscape ? PageOrientation.Landscape : PageOrientation.Portrait;
+        if (dialog.ShowDialog() != true) return;
+        try
+        {
+            double printerDpi = dialog.PrintTicket.PageResolution?.X ?? 600;
+            if (await printing.PaginatorAsync(new Size(dialog.PrintableAreaWidth, dialog.PrintableAreaHeight), printerDpi) is not { } paginator) return;
+            dialog.PrintDocument(paginator, printing.Title);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            printing.Failed(ex.Message);
+        }
     }
 
     // ── The save options' quality slider: a drag is one undo step, as in the tool panel ──

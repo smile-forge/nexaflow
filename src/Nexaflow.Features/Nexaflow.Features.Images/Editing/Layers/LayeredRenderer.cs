@@ -55,9 +55,11 @@ public sealed class LayeredRenderer : ILayeredPictureRenderer, IPictureLayerImag
             }
             case MarkupLayer { Elements.IsEmpty: false } markup:
             {
-                var bounds = markup.Elements.Select(_markup.Bounds).Aggregate(SKRect.Union);
+                var toCanvas = markup.Placement.ToMatrix();
+                var bounds = toCanvas.MapRect(markup.Elements.Select(_markup.Bounds).Aggregate(SKRect.Union));
                 return Draw(bounds, canvas =>
                 {
+                    canvas.Concat(toCanvas);
                     foreach (var element in markup.Elements) _markup.Paint(canvas, element);
                 });
             }

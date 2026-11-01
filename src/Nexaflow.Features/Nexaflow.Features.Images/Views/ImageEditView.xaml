@@ -93,6 +93,22 @@
                         </StackPanel>
                     </RadioButton>
                     <RadioButton GroupName="EditTool" Style="{StaticResource EditToolTileStyle}"
+                                 ToolTip="{loc:Str Images.Edit.Tool.PaintTip}" AutomationProperties.AutomationId="Image_EditToolPaint" AutomationProperties.Name="{loc:Str Images.Edit.Tool.Paint}"
+                                 IsChecked="{Binding Editor.Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Paint}">
+                        <StackPanel>
+                            <icons:IconGlyph Style="{StaticResource EditToolTileIcon}" Icon="fluent:paint_brush"/>
+                            <TextBlock Style="{StaticResource EditToolTileLabel}" Text="{loc:Str Images.Edit.Tool.Paint}"/>
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton GroupName="EditTool" Style="{StaticResource EditToolTileStyle}"
+                                 ToolTip="{loc:Str Images.Edit.Tool.MoveTip}" AutomationProperties.AutomationId="Image_EditToolMove" AutomationProperties.Name="{loc:Str Images.Edit.Tool.Move}"
+                                 IsChecked="{Binding Editor.Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Move}">
+                        <StackPanel>
+                            <icons:IconGlyph Style="{StaticResource EditToolTileIcon}" Icon="fluent:arrow_move"/>
+                            <TextBlock Style="{StaticResource EditToolTileLabel}" Text="{loc:Str Images.Edit.Tool.Move}"/>
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton GroupName="EditTool" Style="{StaticResource EditToolTileStyle}"
                                  ToolTip="{loc:Str Images.Edit.Tool.ResizeTip}" AutomationProperties.AutomationId="Image_EditToolResize" AutomationProperties.Name="{loc:Str Images.Edit.Tool.Resize}"
                                  IsChecked="{Binding Editor.Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Resize}">
                         <StackPanel>
@@ -343,6 +359,16 @@
                         </StackPanel>
 
                         <!-- ── Resize ── -->
+                        <!-- ── Paint ── -->
+                        <StackPanel Visibility="{Binding Editor.IsPaintTool, Converter={StaticResource BoolToVis}}">
+                            <views:PaintPanel DataContext="{Binding Painting}"/>
+                        </StackPanel>
+
+                        <!-- ── Move & transform ── -->
+                        <StackPanel Visibility="{Binding Editor.IsMoveTool, Converter={StaticResource BoolToVis}}">
+                            <views:ArrangePanel DataContext="{Binding Arranging}"/>
+                        </StackPanel>
+
                         <StackPanel Visibility="{Binding Editor.IsResizeTool, Converter={StaticResource BoolToVis}}">
                             <TextBlock Style="{StaticResource EditPanelTitle}" Text="{loc:Str Images.Edit.Tool.Resize}"/>
                             <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Edit.Tool.ResizeTip}"/>

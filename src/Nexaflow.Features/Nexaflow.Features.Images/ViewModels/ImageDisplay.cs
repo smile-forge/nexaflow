@@ -237,6 +237,13 @@ public sealed class ImageDisplay : IDisposable
             canvas = new EditCanvas(layerActive.Recipe, RenderFrame.Output, source, layoutScale, layout,
                                     straightened.PostConcat(placement), sourceToOutput.PostConcat(placement), documentSize, documentToLayout);
         }
+        else if (picture.Active is MarkupLayer notes)
+        {
+            // A markup layer's annotations lie in its own coordinates, placed on the canvas: the Markup tool works through that.
+            var placement = notes.Placement.ToMatrix().PostConcat(documentToLayout);
+            canvas = new EditCanvas(ImageRecipe.Identity, RenderFrame.Output, documentSize, layoutScale, layout, placement, placement,
+                                    documentSize, documentToLayout);
+        }
         else
         {
             canvas = new EditCanvas(ImageRecipe.Identity, RenderFrame.Output, documentSize, layoutScale, layout, documentToLayout, documentToLayout,

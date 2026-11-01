@@ -69,16 +69,35 @@ public readonly record struct LayerBlend(string Op)
 /// </summary>
 public sealed record LayerMask(TiledCoverage Coverage, bool Enabled = true, bool Linked = true);
 
-/// <summary>Where a picture layer's finished picture lies on the canvas: its top-left, its scale, and its turn about that corner.</summary>
-public readonly record struct LayerPlacement(double OffsetX, double OffsetY, double Scale = 1, double RotationDegrees = 0)
+/// <summary>
+/// Where a layer's own coordinates lie on the canvas — a picture's pixels, a markup layer's annotations — as an affine map:
+/// scale (negative for a flip), rotation and skew in the first four, the offset in the last two. A transform composes onto it,
+/// so the layer is drawn afresh from what it holds rather than from pixels already resampled.
+/// </summary>
+public readonly record struct LayerPlacement(double ScaleX, double SkewX, double OffsetX, double SkewY, double ScaleY, double OffsetY)
 {
-    public static LayerPlacement Origin { get; } = new(0, 0);
+    public static LayerPlacement Origin { get; } = new(1, 0, 0, 0, 1, 0);
 
-    /// <summary>The picture's pixels to canvas pixels.</summary>
-    public SKMatrix ToMatrix()
-        => SKMatrix.CreateScale((float)Scale, (float)Scale)
-                   .PostConcat(SKMatrix.CreateRotationDegrees((float)RotationDegrees))
-                   .PostConcat(SKMatrix.CreateTranslation((float)OffsetX, (float)OffsetY));
+    /// <summary>At (<paramref name="x"/>, <paramref name="y"/>), scaled by <paramref name="scale"/> and turned clockwise by
+    /// <paramref name="rotationDegrees"/> about its own origin.</summary>
+    public static LayerPlacement At(double x, double y, double scale = 1, double rotationDegrees = 0)
+        => FromMatrix(SKMatrix.CreateScale((float)scale, (float)scale)
+                              .PostConcat(SKMatrix.CreateRotationDegrees((float)rotationDegrees))
+                              .PostConcat(SKMatrix.CreateTranslation((float)x, (float)y)));
+
+    public static LayerPlacement FromMatrix(SKMatrix m) => new(m.ScaleX, m.SkewX, m.TransX, m.SkewY, m.ScaleY, m.TransY);
+
+    /// <summary>The layer's coordinates to canvas pixels.</summary>
+    public SKMatrix ToMatrix() => new((float)ScaleX, (float)SkewX, (float)OffsetX, (float)SkewY, (float)ScaleY, (float)OffsetY, 0, 0, 1);
+
+    /// <summary>This placement, then <paramref name="after"/> on the canvas.</summary>
+    public LayerPlacement Then(SKMatrix after) => FromMatrix(ToMatrix().PostConcat(after));
+
+    /// <summary>Moved by (<paramref name="dx"/>, <paramref name="dy"/>) on the canvas.</summary>
+    public LayerPlacement Translated(double dx, double dy) => this with { OffsetX = OffsetX + dx, OffsetY = OffsetY + dy };
+
+    /// <summary>The scale it amounts to over an area: how many canvas pixels a pixel of the layer covers, along a side.</summary>
+    public double Scale => Math.Sqrt(Math.Abs(ScaleX * ScaleY - SkewX * SkewY));
 }
 
 /// <summary>The picture a picture layer shows: a file the file system reads — a photo, or the copy a package keeps — and
@@ -156,6 +175,10 @@ public sealed record MarkupLayer : Layer
     }
 
     private readonly ImmutableArray<MarkupElement> _elements = [];
+
+    /// <summary>Where the annotations' coordinates lie on the canvas: moved and transformed as a whole, the annotations kept
+    /// as drawn, sharp and editable.</summary>
+    public LayerPlacement Placement { get; init; } = LayerPlacement.Origin;
 }
 
 /// <summary>Layers held together, bottom first: composited onto a surface of their own (<see cref="Isolated"/>), or straight

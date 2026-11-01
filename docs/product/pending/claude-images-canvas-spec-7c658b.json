@@ -417,19 +417,184 @@
           }
         ]
       }
+    },
+    "images-paint": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/LayerPainting.cs",
+          "class": "LayerPainting"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Painting/PaintStroke.cs",
+          "class": "PaintStroke"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Painting/FloodFill.cs",
+          "class": "FloodFill"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/PaintPanel.xaml.cs",
+          "class": "PaintPanel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/LayerToolsOverlay.cs",
+          "class": "LayerToolsOverlay"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "title_path": [
+            "Images",
+            "Layers"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagePaintTests.cs",
+            "class": "ImagePaintTests",
+            "method": "AStroke_BuildsToItsOpacity_AndNoFurther_OnlyInsideTheSelection"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagePaintTests.cs",
+            "class": "ImagePaintTests",
+            "method": "AStrokeInTheEditor_IsOneUndoStep_AndTheEyedropperPicksTheLayersColour"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesLayersJourneyTests.cs",
+            "class": "ImagesLayersJourneyTests",
+            "method": "ACanvas_IsPaintedOn_ItsLayerMovedAndTransformed_AndPrintIsSetUp"
+          }
+        ]
+      }
+    },
+    "images-transform": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/LayerArranging.cs",
+          "class": "LayerArranging"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Layers/LayerEdits.cs",
+          "class": "LayerEdits",
+          "method": "Transformed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Layers/Layer.cs",
+          "class": "LayerPlacement"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/IMarkupEditing.cs",
+          "class": "IMarkupEditing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/ArrangePanel.xaml.cs",
+          "class": "ArrangePanel"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "title_path": [
+            "Images",
+            "Layers"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagePaintTests.cs",
+            "class": "ImagePaintTests",
+            "method": "ATransform_TurnsAndFlipsPixels_AsOneStep_AndCancelledLeavesThemAsTheyWere"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagePaintTests.cs",
+            "class": "ImagePaintTests",
+            "method": "AMarkupLayer_TakesNotesFromTheMarkupTool_AndATransformPlacesThemAfresh"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesLayersJourneyTests.cs",
+            "class": "ImagesLayersJourneyTests",
+            "method": "ACanvas_IsPaintedOn_ItsLayerMovedAndTransformed_AndPrintIsSetUp"
+          }
+        ]
+      }
+    },
+    "images-print": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PicturePrinting.cs",
+          "class": "PicturePrinting"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Services/Printing/PicturePrintLayout.cs",
+          "class": "PicturePrintLayout"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Services/Printing/PicturePaginator.cs",
+          "class": "PicturePaginator"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "title_path": [
+            "Images",
+            "Printing"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagePaintTests.cs",
+            "class": "ImagePaintTests",
+            "method": "APicture_IsLaidOnPaper_FittedFilledAtActualSizeOrAtAWidth"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesLayersJourneyTests.cs",
+            "class": "ImagesLayersJourneyTests",
+            "method": "ACanvas_IsPaintedOn_ItsLayerMovedAndTransformed_AndPrintIsSetUp"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 18,
+  "changed_sets": 24,
   "touched_nodes": [
     "images-layer-masks",
     "images-layers",
     "images-layers-panel",
     "images-ora",
+    "images-paint",
+    "images-print",
     "images-selection",
     "images-selection-lasso",
     "images-selection-marquee",
     "images-selection-refine",
-    "images-start"
+    "images-start",
+    "images-transform"
   ]
 }
