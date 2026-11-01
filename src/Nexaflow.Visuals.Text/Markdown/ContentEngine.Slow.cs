@@ -50,8 +50,14 @@ public sealed partial class ContentEngine
     /// <summary>The unit being worked over or laid — whatever slow work it asks for and has to wait on, it is the one laid again when that lands.</summary>
     private ContentNode? _asking;
 
+    /// <summary>
+    /// Whether the unit asking is being laid — slow work its laying asks for is a body's inside it, which its tree does not show — rather
+    /// than worked over, where what lands changes its tree and every block reading as it did is still set down as it was.
+    /// </summary>
+    private bool _askingLays;
+
     /// <summary>Which units, by the tree each was read into, wait on each piece of slow work this engine asked for.</summary>
-    private readonly Dictionary<Kept, List<ContentNode>> _waits = [];
+    private readonly Dictionary<Kept, List<(ContentNode Unit, bool Laying)>> _waits = [];
 
     /// <summary>The units, by the tree each was read into, that slow work landed for since they were last laid — laid again wherever they stand.</summary>
     private readonly HashSet<ContentNode> _relanded = new(ReferenceEqualityComparer.Instance);
@@ -110,7 +116,7 @@ public sealed partial class ContentEngine
         if (_asking is not { } unit) return;
 
         if (!_waits.TryGetValue(key, out var asked)) _waits[key] = asked = [];
-        if (!asked.Contains(unit)) asked.Add(unit);
+        if (!asked.Contains((unit, _askingLays))) asked.Add((unit, _askingLays));
     }
 
     /// <summary>
@@ -141,13 +147,16 @@ public sealed partial class ContentEngine
 
             if (!_waits.Remove(key, out var asked)) continue;
 
-            foreach (var read in asked)
+            foreach (var (read, laying) in asked)
             {
                 if (!_staged.TryGetValue(read, out var staged)) continue;
 
-                _unchanged.Forget(staged.Tree, static _ => true);
+                // Asked for by a body laid inside it, which nothing in its blocks shows: none of them is set down as it was. Asked for
+                // by its own working over: worked over again, every block reading as it did still set down as it was.
+                if (laying) _unchanged.Forget(staged.Tree, static _ => true);
+                else staged.Stale = true;
+
                 staged.Laid = null;
-                staged.Stale = true;
                 _relanded.Add(read);
             }
         }
@@ -168,7 +177,6 @@ public sealed partial class ContentEngine
                 var read = _units[index].Unit.Tree;
                 if (!_staged.TryGetValue(read, out var staged)) continue;
 
-                _unchanged.Forget(staged.Tree, static _ => true);
                 staged.Laid = null;
                 staged.Stale = true;
                 _relanded.Add(read);

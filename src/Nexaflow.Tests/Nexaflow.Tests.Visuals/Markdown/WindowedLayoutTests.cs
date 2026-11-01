@@ -132,6 +132,25 @@ public class WindowedLayoutTests
 
     [TestMethod]
     [CoversNode("windowed-reading")]
+    public void AKeystrokeInCode_LaysTheLineItWasTypedOn_AndSetsDownEveryOtherAsItWasLaid()
+    {
+        var text = MarkdownLayoutBench.GeneratedCode(8 * 1024);
+        var engine = Shown(text, NoGrammar, new ContentEngine());
+        var before = Lines(engine.Laid);
+
+        var at = text.IndexOf('\n', text.Length / 2) + 1;
+        engine.Apply(engine.State with { Document = engine.State.Document.Apply(ContentChange.Write(at, 0, "x")), Caret = at + 1, Selected = null }, notify: false);
+        var after = Lines(engine.Laid);
+
+        Assert.AreEqual(before.Count, after.Count, "Lines came or went.");
+        Assert.AreEqual(1, after.Count(line => !before.Contains(line)), "Not just the line typed on was laid again.");
+
+        // A line's picture, kept with what it was laid as, is the same picture wherever that laying is set down again.
+        static List<LayoutKept> Lines(Laid laid) => [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == CodeKinds.Line).Select(piece => piece.Painting!.Kept!)];
+    }
+
+    [TestMethod]
+    [CoversNode("windowed-reading")]
     public void ColouredCodeWrittenIn_IsColouredAsTheCodeItBecameLaidWhole()
     {
         // A comment opened, a string opened and each closed again, far from most of what they colour: every unit the change reaches

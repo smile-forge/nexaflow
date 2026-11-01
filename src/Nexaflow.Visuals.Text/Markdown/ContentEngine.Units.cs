@@ -156,8 +156,8 @@ public sealed partial class ContentEngine
     /// </summary>
     private StagedUnit Staged(ContentLanguage language, ContentUnit unit, int start, ContentShowing showing, ContentDocument document)
     {
-        var asking = _asking;
-        _asking = unit.Tree;
+        var asking = (_asking, _askingLays);
+        (_asking, _askingLays) = (unit.Tree, false);
 
         try
         {
@@ -177,7 +177,7 @@ public sealed partial class ContentEngine
         }
         finally
         {
-            _asking = asking;
+            (_asking, _askingLays) = asking;
         }
     }
 
@@ -338,8 +338,8 @@ public sealed partial class ContentEngine
             var reading = staged.Placed(start, _unitsIn);
             _readings.AddOrUpdate(staged.Tree, holding.Address);
 
-            var asking = _asking;
-            _asking = unit.Tree;
+            var asking = (_asking, _askingLays);
+            (_asking, _askingLays) = (unit.Tree, true);
 
             try
             {
@@ -348,7 +348,7 @@ public sealed partial class ContentEngine
             }
             finally
             {
-                _asking = asking;
+                (_asking, _askingLays) = asking;
             }
         }
 

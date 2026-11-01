@@ -10,7 +10,9 @@ namespace Nexaflow.Visuals.Text.Markdown.Stages;
 
 /// <summary>
 /// Cuts a stretch of code at its line ends: every piece of it that runs across one — a comment over three lines, or the whole
-/// of it while no grammar has read it — is cut there, and each line end is a piece of its own (<see cref="CodeKinds.LineEnd"/>).
+/// of it while no grammar has read it — is cut there, each line end is a piece of its own (<see cref="CodeKinds.LineEnd"/>), and
+/// each line is a part of the stretch's own (<see cref="CodeKinds.Line"/>) — the block a keystroke lays again, every other line
+/// that reads as it did set down as it was laid.
 ///
 /// <para>
 /// A stage, because where one line stops and the next starts is a fact about the characters that the builder would otherwise
@@ -22,29 +24,50 @@ public sealed class CodeLines : IAstStage
 {
     public string Name => "code:lines";
 
-    /// <summary>Every body of the stretch cut at its line ends — one, or one for each stretch of a body read a stretch at a time.</summary>
+    /// <summary>
+    /// Every body of the stretch — one, or one for each stretch of a body read a stretch at a time — cut at its line ends into lines, each a
+    /// part of the stretch's own holding its pieces and the line end closing it.
+    /// </summary>
     public ContentNode Run(ContentNode tree)
     {
-        ContentNode[]? parts = null;
+        List<ContentNode>? parts = null;
 
         for (var at = 0; at < tree.Children.Count; at++)
         {
             var body = tree.Children[at];
-            if (body.Role != Roles.Body) continue;
+
+            if (body.Role != Roles.Body)
+            {
+                parts?.Add(body);
+                continue;
+            }
+
+            parts ??= [.. tree.Children.Take(at)];
 
             var pieces = new List<ContentNode>();
-            var cut = false;
+            foreach (var token in body.IsLeaf ? [body] : body.Children) Cut(token, pieces);
 
-            foreach (var token in body.IsLeaf ? [body] : body.Children)
-                cut |= Cut(token, pieces);
-
-            if (!cut) continue;
-
-            parts ??= [.. tree.Children];
-            parts[at] = ContentNode.Branch(Kinds.Sequence, pieces, Roles.Body, body.Offset);
+            Lines(pieces, parts);
         }
 
         return parts is null ? tree : tree.With(parts);
+    }
+
+    /// <summary>Adds <paramref name="pieces"/> to <paramref name="into"/> a line at a time, each line closed by the line end after it.</summary>
+    private static void Lines(List<ContentNode> pieces, List<ContentNode> into)
+    {
+        var line = new List<ContentNode>();
+
+        foreach (var piece in pieces)
+        {
+            line.Add(piece);
+            if (piece.Kind != CodeKinds.LineEnd) continue;
+
+            into.Add(ContentNode.Branch(CodeKinds.Line, line, Roles.Element, line[0].Offset));
+            line = [];
+        }
+
+        if (line.Count > 0) into.Add(ContentNode.Branch(CodeKinds.Line, line, Roles.Element, line[0].Offset));
     }
 
     /// <summary>
@@ -74,7 +97,7 @@ public sealed class CodeLines : IAstStage
             (from, cut) = (at + 1, true);
         }
 
-        if (from == 0) into.Add(token);
+        if (from == 0) into.Add(token.As(role));
         else if (from < text.Length) into.Add(ContentNode.Leaf(token.Kind, text[from..], role, offset: token.Offset + from));
 
         return cut;

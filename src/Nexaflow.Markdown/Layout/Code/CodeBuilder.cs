@@ -17,6 +17,10 @@ namespace Nexaflow.Markdown.Layout.Code;
 /// Lines are kept and nothing wraps. Code that reflowed would be code that lied about where a statement ended, and a reader counting
 /// columns is the whole reason it is set in a monospaced face.
 /// </para>
+/// <para>
+/// A line is a block (<see cref="CodeKinds.Line"/>): one that reads exactly as it did last time — the same characters coloured the same
+/// — is set down as it was laid (<see cref="LaidBlocks"/>), so a keystroke lays the line it was typed on.
+/// </para>
 /// </summary>
 public sealed class CodeBuilder(ContentReading reading, EditState state, LayoutStyle style, bool isReadOnly, ILayoutMedium medium,
                                         LayoutHost host)
@@ -28,24 +32,60 @@ public sealed class CodeBuilder(ContentReading reading, EditState state, LayoutS
     {
         if (Reading.Root.Length == 0) return null;
 
-        var characters = Characters;
         var height = CodeSetting.LineHeight(Style, Medium);
-
-        var into = new LayoutBuilder(Medium);
-        var (x, y, wide) = (0.0, 0.0, 0.0);
+        var laid = LaidBlocks.Of(Reading.Root);
 
         // A stretch the next carries on from ends where the next begins, which stands for that place: a caret is not put after it too.
         var carriedOn = CodeSetting.CarriedOn(Reading.Root.Node);
+
+        var into = new LayoutBuilder(Medium);
+        var (y, wide) = (0.0, 0.0);
+
         into.Open(CodeKinds.Code, Reading.Root, stops: carriedOn ? LayoutStops.Before : LayoutStops.Both);
 
-        foreach (var token in Tokens())
+        for (var at = 0; at < Reading.Root.Children.Count; at++)
         {
-            if (token.Kind == CodeKinds.LineEnd)
-            {
-                y += height;
-                x = 0;
-                continue;
-            }
+            var line = Reading.Root.Children[at];
+            if (line.Kind != CodeKinds.Line) continue;
+
+            var (tree, reach) = this.Line(line, laid?.For(at), height);
+            into.Graft(tree, new LayoutPoint(0, y));
+
+            wide = Math.Max(wide, reach);
+            if (line.Children.Count > 0 && line.Children[^1].Kind == CodeKinds.LineEnd) y += height;
+        }
+
+        into.Close();
+
+        // The line after the last line end is a line of its own — where a caret goes after a closing line feed — unless the next
+        // stretch carries on from this one, whose first line it is.
+        return new Laid(into.Seal(), Math.Max(wide, 1), Math.Max(carriedOn ? y : y + height, height), []);
+    }
+
+    /// <summary>
+    /// One line, as a tree of its own standing at the top of its own frame, its picture kept once painted, and how far across it reaches:
+    /// what it was laid as last time where it reads exactly as it did — only what its pieces stand for moved along — and otherwise each of
+    /// its pieces set in the ink its kind is given, the line end taking no room. Code does not wrap, so the room never changes a line.
+    /// </summary>
+    private (LayoutTree Tree, double Reach) Line(ContentPart line, LaidBlock? laid, double height)
+    {
+        if (laid?.Last is { } last && last.IsReadOnly == IsReadOnly && last.At(line) is { } moved)
+        {
+            var kept = last.Tree.Parted(moved.Parts);
+            laid.Last = last with { Part = line, Tree = kept };
+
+            return (kept, last.Reach);
+        }
+
+        var characters = Characters;
+        var apart = new LayoutBuilder(Medium);
+        var x = 0.0;
+
+        apart.Open(CodeKinds.Line, line, stops: LayoutStops.None, paints: new LayoutPaint(Kept: new LayoutKept()));
+
+        foreach (var token in line.Children)
+        {
+            if (token.Kind == CodeKinds.LineEnd) continue;
 
             var ink = Ink(token.Kind);
             var glyphs = Medium.Shape(token.Text, characters.Face, characters.Size, ink);
@@ -57,41 +97,20 @@ public sealed class CodeBuilder(ContentReading reading, EditState state, LayoutS
 
             // The piece is called what the grammar called it, so what a reader pressed and what the theme coloured are the same question
             // asked of the same piece.
-            LayoutText.Words(into, glyphs, new LayoutPoint(x, y), along + 1, LayoutAlign.Left, token, token.Kind, maps: true, ink: ink);
+            LayoutText.Words(apart, glyphs, new LayoutPoint(x, 0), along + 1, LayoutAlign.Left, token, token.Kind, maps: true, ink: ink);
 
             x += along;
-            wide = Math.Max(wide, x);
         }
 
-        into.Close();
+        apart.Close();
 
-        // The line after the last line end is a line of its own — where a caret goes after a closing line feed — unless the next
-        // stretch carries on from this one, whose first line it is.
-        return new Laid(into.Seal(), Math.Max(wide, 1), Math.Max(carriedOn ? y : y + height, height), []);
+        var made = apart.Seal();
+        if (laid is not null) laid.Last = new KeptLaying(line, made, height, x, [], Room, IsReadOnly);
+
+        return (made, x);
     }
 
     protected override LayoutCharacters Characters => CodeSetting.Mono(Style);
-
-    /// <summary>
-    /// The pieces to set, a line at a time with a line end between: what a grammar found, where one has been read against this — and
-    /// otherwise the body held as written, which is the uncoloured case and the same path. A body read a stretch at a time is a body for
-    /// each stretch, one after another.
-    /// </summary>
-    private IEnumerable<ContentPart> Tokens()
-    {
-        foreach (var body in Reading.Root.Children)
-        {
-            if (body.Role != Roles.Body) continue;
-
-            if (body.Children.Count == 0)
-            {
-                yield return body;
-                continue;
-            }
-
-            foreach (var token in body.Children) yield return token;
-        }
-    }
 
     /// <summary>
     /// What a kind is drawn in. A kind the style says nothing about is body text — which is every kind when the grammar has not been

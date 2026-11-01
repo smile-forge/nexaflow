@@ -181,7 +181,9 @@ in the background — and for a reading past 128 KB only once typing pauses. A s
 (`CodeHighlights`, see [§8](#8-the-engine)), the query limited to the unit's range and an embedded language parsed whole
 from what holds it; what the parse changed (`GetChangedRanges`) colours again every unit it reaches. Until a unit's
 colours land, it is coloured as it was last found, moved along by every change since. Units are cut at line ends because
-code is laid line by line and nothing wraps; what the code means never turns on where a unit stops.
+code is laid line by line and nothing wraps; what the code means never turns on where a unit stops. Inside a unit each
+line is a block of its own (`CodeKinds.Line`), so a line reading as it did — the same characters coloured the same — is
+set down as it was laid (`WithUnchanged`, `LaidBlocks`), and a keystroke lays the line it was typed on.
 
 ## 4. Stages
 

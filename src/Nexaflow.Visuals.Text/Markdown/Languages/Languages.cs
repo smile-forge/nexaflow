@@ -746,7 +746,14 @@ internal static class Shipped
     private static ContentLanguage Coded(string? grammar) => new(
         Reads: word => grammar is not null && string.Equals(CodeGrammars.For(word), grammar, StringComparison.OrdinalIgnoreCase),
         Parser: () => source => ContentParse.Of(CodeParser.Parse(source, grammar ?? string.Empty)),
-        Stages: static (_, show) => [show.Syntax is { Syntax: CodeSyntax syntax } read ? new CodeHighlights(syntax, read.At) : null, new CodeLines()],
+        Stages: static (_, show) =>
+        [
+            show.Syntax is { Syntax: CodeSyntax syntax } read ? new CodeHighlights(syntax, read.At) : null,
+            new CodeLines(),
+
+            // Last, because a line is only the same as it was when what it is coloured as is too.
+            show.Unchanged,
+        ],
         Builder: ContentLayouts.Code)
         {
             Editing = CodeEdits,
