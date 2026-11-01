@@ -113,8 +113,7 @@ public sealed partial class LayersViewModel : ObservableObject
             item.IsActive = picture.ActiveId == layer.Id;
             item.IsMaskActive = item.IsActive && picture.EditsMask && layer.Mask is not null;
             item.Detail = DetailOf(layer);
-            if (!ReferenceEquals(item.Shown, layer)) stale.Add((item, layer));
-            item.Shown = layer;
+            if (!ReferenceEquals(item.Shown, layer)) stale.Add((item, layer));   // drawn once its thumbnail lands, not before
         }
         while (Items.Count > rows.Count) Items.RemoveAt(Items.Count - 1);
         if (MaskAlone is { } alone && picture.Find(alone)?.Mask is null) MaskAlone = null;
@@ -159,14 +158,23 @@ public sealed partial class LayersViewModel : ObservableObject
                 using var picture = document.ThumbnailOf(layer, ThumbnailSide);
                 var thumbnail = picture is null ? null : SkiaWpf.ToFrozenBitmap(picture);
                 var mask = layer.Mask is { } m ? MaskThumbnail(m.Coverage, width, height) : null;
+                // A picture layer not decoded yet has nothing to show: it stays to be drawn once it is (RedrawThumbnails).
+                bool drawn = thumbnail is not null || layer is not PictureLayer;
                 _ = _runOnUi(() =>
                 {
                     if (cts.IsCancellationRequested) return;
                     item.Thumbnail = thumbnail;
                     item.MaskThumbnail = mask;
+                    if (drawn) item.Shown = layer;
                 });
             }
         });
+    }
+
+    /// <summary>A layer's picture has pixels now — its first decode — so the thumbnails not drawn yet are drawn.</summary>
+    internal void RedrawThumbnails()
+    {
+        if (_document is not null) Rebuild();
     }
 
     private static BitmapSource MaskThumbnail(TiledCoverage coverage, int width, int height)

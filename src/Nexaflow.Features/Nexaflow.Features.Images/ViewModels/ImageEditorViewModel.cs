@@ -1136,7 +1136,7 @@ public partial class ImageEditorViewModel : ObservableObject
     /// <summary>The picture can be written: not saving already, and what its recipe asks of the picture tools made — a layered
     /// picture where it is kept, or somewhere asked for.</summary>
     private bool CanSave() => !IsSaving && (_viewer.CurrentDocument is { } document ? document.IsComplete
-                                            : CanSaveInPlace && !_restorer.IsPending && !_remover.IsPending && !_eraser.IsPending);
+                                             : CanSaveInPlace && !Recipe.IsIdentity && !_restorer.IsPending && !_remover.IsPending && !_eraser.IsPending);
     private bool CanSaveCopy() => !IsSaving && (_viewer.CurrentDocument is { } document ? document.IsComplete
                                                 : Session?.Proxy is not null && !_restorer.IsPending && !_remover.IsPending && !_eraser.IsPending);
 

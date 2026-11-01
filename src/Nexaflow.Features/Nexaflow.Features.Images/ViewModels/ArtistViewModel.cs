@@ -269,6 +269,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     private void OnDecoded(PictureRendering rendering)
     {
         if (CurrentDocument is null || ReferenceEquals(rendering, EditTarget?.Rendering)) Editor.OnSessionChanged();
+        if (CurrentDocument is not null) Layers.RedrawThumbnails();
     }
 
     private void NotifyHistory()

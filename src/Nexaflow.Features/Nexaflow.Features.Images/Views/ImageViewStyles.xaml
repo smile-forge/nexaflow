@@ -61,6 +61,30 @@
         </Setter>
     </Style>
 
+    <!-- A layer's visibility, as a layers panel shows it: an open eye while it shows, a closed one while it is hidden. -->
+    <Style x:Key="LayerVisibilityToggle" TargetType="CheckBox">
+        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <Border Background="Transparent" Padding="2">
+                        <icons:IconGlyph x:Name="Eye" Icon="fluent:eye_off" FontSize="14" Foreground="{TemplateBinding Foreground}" Opacity="0.6"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Eye" Property="Icon" Value="fluent:eye"/>
+                            <Setter TargetName="Eye" Property="Opacity" Value="1"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- A thumbnail that is pressed: the picture in a thin frame, the frame in the accent under the pointer. -->
     <Style x:Key="ThumbnailButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="{StaticResource Surface2Brush}"/>

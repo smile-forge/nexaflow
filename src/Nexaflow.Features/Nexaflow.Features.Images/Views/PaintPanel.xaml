@@ -35,20 +35,20 @@
 
         <UniformGrid Columns="4" Margin="0,10,0,0">
             <RadioButton GroupName="PaintTool" Style="{StaticResource SegRadioStyle}" ToolTip="{loc:Str Images.Paint.BrushTip}"
-                         IsChecked="{Binding Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Brush}" AutomationProperties.AutomationId="Image_PaintBrush">
-                <icons:IconLabel Icon="fluent:paint_brush" Text="{loc:Str Images.Paint.Brush}"/>
+                         IsChecked="{Binding Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Brush}" AutomationProperties.AutomationId="Image_PaintBrush" AutomationProperties.Name="{loc:Str Images.Paint.Brush}">
+                <icons:IconLabel Icon="fluent:paint_brush"/>
             </RadioButton>
             <RadioButton GroupName="PaintTool" Style="{StaticResource SegRadioStyle}" ToolTip="{loc:Str Images.Paint.EraserTip}"
-                         IsChecked="{Binding Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Eraser}" AutomationProperties.AutomationId="Image_PaintEraser">
-                <icons:IconLabel Icon="fluent:eraser" Text="{loc:Str Images.Paint.Eraser}"/>
+                         IsChecked="{Binding Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Eraser}" AutomationProperties.AutomationId="Image_PaintEraser" AutomationProperties.Name="{loc:Str Images.Paint.Eraser}">
+                <icons:IconLabel Icon="fluent:eraser"/>
             </RadioButton>
             <RadioButton GroupName="PaintTool" Style="{StaticResource SegRadioStyle}" ToolTip="{loc:Str Images.Paint.EyedropperTip}"
-                         IsChecked="{Binding Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Eyedropper}" AutomationProperties.AutomationId="Image_PaintEyedropper">
-                <icons:IconLabel Icon="fluent:eyedropper" Text="{loc:Str Images.Paint.Eyedropper}"/>
+                         IsChecked="{Binding Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Eyedropper}" AutomationProperties.AutomationId="Image_PaintEyedropper" AutomationProperties.Name="{loc:Str Images.Paint.Eyedropper}">
+                <icons:IconLabel Icon="fluent:eyedropper"/>
             </RadioButton>
             <RadioButton GroupName="PaintTool" Style="{StaticResource SegRadioStyle}" ToolTip="{loc:Str Images.Paint.FillTip}"
-                         IsChecked="{Binding Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Fill}" AutomationProperties.AutomationId="Image_PaintFill">
-                <icons:IconLabel Icon="fluent:paint_bucket" Text="{loc:Str Images.Paint.Fill}"/>
+                         IsChecked="{Binding Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Fill}" AutomationProperties.AutomationId="Image_PaintFill" AutomationProperties.Name="{loc:Str Images.Paint.Fill}">
+                <icons:IconLabel Icon="fluent:paint_bucket"/>
             </RadioButton>
         </UniformGrid>
 

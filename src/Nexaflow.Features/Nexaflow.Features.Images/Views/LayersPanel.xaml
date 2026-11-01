@@ -198,7 +198,7 @@
                     <Border x:Name="Row" Padding="2,3" CornerRadius="4" Background="Transparent">
                         <DockPanel>
                             <Border DockPanel.Dock="Left" Width="{Binding Indent}"/>
-                            <CheckBox DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,4,0"
+                            <CheckBox DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,4,0" Style="{StaticResource LayerVisibilityToggle}"
                                       IsChecked="{Binding Visible, Mode=OneWay}" Command="{Binding DataContext.ToggleVisibleCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                                       CommandParameter="{Binding}" ToolTip="{loc:Str Images.Layers.VisibleTip}" AutomationProperties.AutomationId="Image_LayersVisible"
                                       AutomationProperties.Name="{loc:Str Images.Layers.VisibleTip}"/>
