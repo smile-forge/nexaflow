@@ -61,7 +61,8 @@ public sealed partial class CanvasSetup : ObservableObject
             new(CanvasUnit.Inches, Str.Get("Images.Canvas.Unit.Inches")),
         ];
         _unit = Units[0];
-        Preset = Presets[1];
+        Preset = Presets[1];   // Full HD until the screen's size is known, which is then chosen instead
+        _chosen = false;
     }
 
     private static int PrintPixels(double inches) => (int)Math.Round(inches * PrintDpi);
@@ -79,6 +80,7 @@ public sealed partial class CanvasSetup : ObservableObject
 
     partial void OnPresetChanged(CanvasPreset? value)
     {
+        _chosen = true;
         if (value is not { IsCustom: false }) return;
         Show(() =>
         {
@@ -190,22 +192,30 @@ public sealed partial class CanvasSetup : ObservableObject
     // The screen's size, where it is offered.
     private CanvasPreset? _screen;
 
-    /// <summary>Offers the screen's size, first, as the screen shows it in pixels — known once the setup is on one.</summary>
+    // Whether a size has been chosen — named, or typed — since the setup was made: until one is, the screen's is chosen once known.
+    private bool _chosen;
+
+    /// <summary>Offers the screen's size, first, as the screen shows it in pixels — known once the setup is on one — and chooses
+    /// it where no size has been chosen yet: a canvas the size of the screen is what most want who have nothing else in mind.</summary>
     public void UseScreen(SKSizeI pixels)
     {
         if (pixels.Width < 1 || pixels.Height < 1) return;
         var screen = new CanvasPreset(Str.Get("Images.Canvas.Preset.Screen"), pixels.Width, pixels.Height, LayeredPicture.DefaultDpi);
         if (_screen is not { } offered)
         {
+            bool chosen = _chosen;
             _screen = screen;
             Presets.Insert(0, screen);
+            if (chosen) return;
+            Preset = screen;
+            _chosen = false;
             return;
         }
         if (offered == screen) return;
-        bool chosen = ReferenceEquals(Preset, offered);
+        bool following = ReferenceEquals(Preset, offered);
         _screen = screen;
         Presets[Presets.IndexOf(offered)] = screen;
-        if (chosen) Preset = screen;
+        if (following) Preset = screen;
     }
 
     /// <summary>What fills the canvas behind its layers: shown, never a layer.</summary>

@@ -216,6 +216,22 @@ public class ImageLayeredDocumentTests
     }
 
     [TestMethod]
+    [CoversNode("images-start")]
+    public void TheCanvasSetup_StartsOnTheScreensSize_UnlessASizeWasChosenFirst()
+    {
+        var untouched = new CanvasSetup();
+        untouched.UseScreen(new SKSizeI(2560, 1440));
+        Assert.AreSame(untouched.Presets[0], untouched.Preset, "nothing chosen yet: the screen's size is");
+        Assert.AreEqual((2560, 1440), (untouched.PixelWidth, untouched.PixelHeight));
+
+        var chosen = new CanvasSetup();
+        var square = chosen.Presets.Single(p => p.Width == 1024 && p.Height == 1024);
+        chosen.Preset = square;
+        chosen.UseScreen(new SKSizeI(2560, 1440));
+        Assert.AreSame(square, chosen.Preset, "a size chosen first is kept; the screen's is offered beside it");
+    }
+
+    [TestMethod]
     [CoversNode("images-layers-panel")]
     public void FillClearAndTheCanvasSize_AreEachOneStep_UndoneInTurn()
     {

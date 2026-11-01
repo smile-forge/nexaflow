@@ -365,7 +365,8 @@ Standard OpenRaster any reader draws correctly, with what only Nexaflow uses bes
 `paths` becomes optional on `ImageTabRegistration`. With none, the page shows **New picture**:
 
 - **Size presets** — Screen (the monitor's size), Square 1024, Full HD, 4K, A4 and Letter at 300 dpi, Social (1080 ×
-  1350) — and a custom width × height with units (px, mm, in) and dpi; orientation swap.
+  1350) — and a custom width × height with units (px, mm, in) and dpi; orientation swap. Screen is chosen to start with,
+  once the screen's size is known: someone starting from nothing has a size to answer, and the screen's is the likeliest.
 - **Background**: transparent, white, or a colour.
 - **Create** makes the canvas as a draft `.ora` (one empty pixel layer) and opens it in edit mode, in the same tab: the
   page takes the canvas's title and parameters, and the draft's Save as — the editor's Save asks it too — turns the tab
