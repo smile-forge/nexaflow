@@ -2,14 +2,16 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing.Recipe;
 using SkiaSharp;
 using Nexaflow.IO.Common.Imaging;
+using Nexaflow.Features.Images.Editing.Selection;
 
 namespace Nexaflow.Features.Images.Editing.Erasing;
 
 /// <summary>
 /// What one step of erasing erases, as a mask at the photo's full size — 255 where erased, 0 where kept: the thing it
 /// picks, as picture selection picks it for a cut-out (kept in <see cref="CuttingOut.CutOutMasks"/>, so a pick is made
-/// once whichever tool asked), grown by <see cref="PickGrowth"/> past its edge, then each stroke painted over it in the
-/// order it was made — one that takes marking back clearing what it covers.
+/// once whichever tool asked), grown by <see cref="PickGrowth"/> past its edge; then the region drawn by hand over that,
+/// what it leaves half selected or more erased; then each stroke painted over it in the order it was made — one that takes
+/// marking back clearing what it covers.
 /// </summary>
 public static class EraseMasks
 {
@@ -37,8 +39,17 @@ public static class EraseMasks
             Grow(picked, width, height, PickGrowthFor(width, height));
             for (int i = 0; i < mask.Length; i++) mask[i] |= picked[i];
         }
+        if (step.Region is { } region) await Task.Run(() => Select(mask, width, height, region), ct);
         if (!step.Strokes.IsEmpty) Paint(mask, width, height, step.Strokes);
         return mask;
+    }
+
+    /// <summary><paramref name="region"/> applied to <paramref name="mask"/> as it stands: what it leaves half selected or
+    /// more marked 255, everything else 0.</summary>
+    public static void Select(byte[] mask, int width, int height, RecipeRegion region)
+    {
+        var selected = RegionRaster.Apply(TiledCoverage.FromBytes(mask, width, height), region, 1).ToBytes();
+        for (int i = 0; i < mask.Length; i++) mask[i] = selected[i] >= 128 ? (byte)255 : (byte)0;
     }
 
     /// <summary>Every pixel within <paramref name="radius"/> of a marked one, each way, marked 255 too — a square, by running

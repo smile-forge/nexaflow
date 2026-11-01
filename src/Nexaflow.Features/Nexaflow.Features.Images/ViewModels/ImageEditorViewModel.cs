@@ -66,18 +66,110 @@ public partial class ImageEditorViewModel : ObservableObject
     /// <summary>The cut-out tool: a thing in the photo picked out and copied or saved cut out of its background.</summary>
     public PictureCutter Cutter { get; }
 
-    /// <summary>The photo's background is removed: only what was picked is kept, the rest transparent.</summary>
+    /// <summary>The photo's background is removed: only what was selected is kept, the rest transparent.</summary>
     public bool RemovesBackground => Recipe.CutOut is not null;
 
-    /// <summary>Keeps only what the cut-out tool has picked in the photo itself — an edit like any other, undone or put back
-    /// by Keep background; the mask is made at full size in the background and kept.</summary>
+    /// <summary>The selection drawn by hand — marquee, lasso and refinements — over what the cut-out tool picks: the one
+    /// selection Cut out and Erase both take.</summary>
+    public RegionMarking RegionMarks { get; }
+
+    /// <summary>What is selected as a recipe's cut-out: what the cut-out tool picked and the region drawn over it; null where
+    /// neither is.</summary>
+    private RecipeCutOut? MarkedCutOut => RegionMarks.Region is { } region ? (Cutter.PickedCutOut ?? new RecipeCutOut()) with { Region = region } : Cutter.PickedCutOut;
+
+    /// <summary>How the Cut out tool marks what to keep; another way lets go of an outline half drawn.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DrawsMarquee), nameof(DrawsLasso), nameof(DrawsShapes), nameof(PicksByModel))]
+    private CutOutMarkWay _cutOutWay = CutOutMarkWay.Pick;
+
+    partial void OnCutOutWayChanged(CutOutMarkWay value) => RegionMarks.CancelDraft();
+
+    /// <summary>The open tool draws on the photo with the marquee.</summary>
+    public bool DrawsMarquee => IsCutOutTool && CutOutWay == CutOutMarkWay.Marquee || IsRetouchTool && EraseMarks.Way == EraseMarkWay.Marquee;
+
+    /// <summary>The open tool draws on the photo with the lasso.</summary>
+    public bool DrawsLasso => IsCutOutTool && CutOutWay == CutOutMarkWay.Lasso || IsRetouchTool && EraseMarks.Way == EraseMarkWay.Lasso;
+
+    /// <summary>The open tool picks things out of the photo by picture selection.</summary>
+    public bool PicksByModel => IsCutOutTool && CutOutWay == CutOutMarkWay.Pick || IsRetouchTool && EraseMarks.IsPicking;
+
+    /// <summary>The open tool draws on the photo with the marquee or the lasso.</summary>
+    public bool DrawsShapes => DrawsMarquee || DrawsLasso;
+
+    /// <summary>The marquee (M): taken up — or, held already, turned from one shape to the other.</summary>
+    public void ChooseMarquee()
+    {
+        if (DrawsMarquee) RegionMarks.Marquee = RegionMarks.Marquee == MarqueeShape.Rectangle ? MarqueeShape.Ellipse : MarqueeShape.Rectangle;
+        else MarkBy(CutOutMarkWay.Marquee, EraseMarkWay.Marquee);
+    }
+
+    /// <summary>The lasso (L): taken up — or, held already, turned from freehand to polygon and back.</summary>
+    public void ChooseLasso()
+    {
+        if (DrawsLasso) RegionMarks.Lasso = RegionMarks.Lasso == LassoShape.Freehand ? LassoShape.Polygon : LassoShape.Freehand;
+        else MarkBy(CutOutMarkWay.Lasso, EraseMarkWay.Lasso);
+    }
+
+    private void MarkBy(CutOutMarkWay cutOut, EraseMarkWay erase)
+    {
+        if (IsCutOutTool) CutOutWay = cutOut;
+        else if (IsRetouchTool) EraseMarks.Way = erase;
+    }
+
+    /// <summary>Whether the open tool takes a selection — Cut out and Erase do.</summary>
+    public bool TakesSelection => IsCutOutTool || IsRetouchTool;
+
+    /// <summary>Keeps only what is selected in the photo itself — what the cut-out tool has picked and the region drawn over
+    /// it — an edit like any other, undone or put back by Keep background; the mask is made at full size in the background and
+    /// kept.</summary>
     [RelayCommand(CanExecute = nameof(CanRemoveBackground))]
     private void RemoveBackground()
     {
-        if (Cutter.PickedCutOut is { } cutOut) Commit(r => r with { CutOut = cutOut });
+        if (MarkedCutOut is { } cutOut) Commit(r => r with { CutOut = cutOut });
     }
 
-    private bool CanRemoveBackground() => !Cutter.IsWorking && Cutter.PickedCutOut is { } cutOut && cutOut != Recipe.CutOut;
+    private bool CanRemoveBackground() => !Cutter.IsWorking && MarkedCutOut is { } cutOut && cutOut != Recipe.CutOut;
+
+    /// <summary>What is selected copied cut out of the photo: transparent round it, as selected as each pixel is, cropped to it.</summary>
+    [RelayCommand(CanExecute = nameof(CanKeepCutOut))]
+    private async Task CopyCutOut()
+    {
+        try
+        {
+            if (await Cutter.CutOutAsync(RegionMarks.Region, CancellationToken.None) is { } png)
+            {
+                PictureClipboard.CopyPng(png);
+                _shell?.ShowNotification(Str.Get("Images.CutOut.Copied"));
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or InvalidDataException or System.Runtime.InteropServices.ExternalException)
+        {
+            _shell?.ShowError(Str.Format("Images.CutOut.Failed", ex.Message));
+        }
+    }
+
+    /// <summary>What is selected saved cut out of the photo, as a PNG where the reader chooses — beside the photo to start with.</summary>
+    [RelayCommand(CanExecute = nameof(CanKeepCutOut))]
+    private async Task SaveCutOut()
+    {
+        if (_shell is null || Session?.Path is not { } photo) return;
+        var suggested = Path.GetFileNameWithoutExtension(photo) + Str.Get("Images.CutOut.FileSuffix") + ".png";
+        var folder = ImageEditingServices.IsFileBacked(photo) ? Path.GetDirectoryName(photo) : null;
+        var destination = await _shell.PickSaveFileAsync(suggested, [".png"], folder);
+        if (destination is null) return;
+        try
+        {
+            if (await Cutter.CutOutAsync(RegionMarks.Region, CancellationToken.None) is not { } png) return;
+            await _services.FileSystem.WriteAllBytesAsync(Path.ChangeExtension(destination, ".png"), png);
+            _shell.ShowNotification(Str.Format("Images.CutOut.SavedFormat", Path.GetFileName(destination)));
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            _shell.ShowError(Str.Format("Images.CutOut.Failed", ex.Message));
+        }
+    }
+
+    private bool CanKeepCutOut() => !Cutter.IsWorking && RegionMarks.HasSelection;
 
     /// <summary>Puts the photo's background back.</summary>
     [RelayCommand(CanExecute = nameof(RemovesBackground))]
@@ -86,23 +178,24 @@ public partial class ImageEditorViewModel : ObservableObject
     /// <summary>The Erase tool's marks: brush strokes, the fill, where the healing brush copies from.</summary>
     public EraseMarking EraseMarks { get; }
 
-    /// <summary>Erases what is marked — what the cut-out tool has picked, and the strokes — as one step of the recipe,
-    /// undone like any other; the marks go once it is.</summary>
+    /// <summary>Erases what is marked — what the cut-out tool has picked, the region drawn over it, and the strokes — as one
+    /// step of the recipe, undone like any other; the marks go once it is.</summary>
     [RelayCommand(CanExecute = nameof(CanErase))]
     private void Erase()
     {
-        if (EraseMarks.Step(Cutter.PickedCutOut) is not { } step) return;
+        if (EraseMarks.Step(Cutter.PickedCutOut, RegionMarks.Region) is not { } step) return;
         Commit(r => r with { Erasures = r.Erasures.Add(step) });
         ClearMarks();
     }
 
-    private bool CanErase() => !Cutter.IsWorking && EraseMarks.Step(Cutter.PickedCutOut) is not null;
+    private bool CanErase() => !Cutter.IsWorking && EraseMarks.Step(Cutter.PickedCutOut, RegionMarks.Region) is not null;
 
-    /// <summary>Lets everything marked go: the strokes, where the healing brush copies from, and what is picked.</summary>
+    /// <summary>Lets everything marked go: the strokes, where the healing brush copies from, what is picked and what is drawn.</summary>
     [RelayCommand]
     private void ClearMarks()
     {
         EraseMarks.Clear();
+        RegionMarks.Clear();
         Cutter.ClearCommand.Execute(null);
     }
 
@@ -125,11 +218,12 @@ public partial class ImageEditorViewModel : ObservableObject
         RestoringModels.IsWanted = editing && Tool is EditTool.Adjust or EditTool.Resize;
     }
 
-    /// <summary>Retouch marks and fills only with what is here: picking waits for picture selection and AI fill for picture
-    /// erasing, so each gives way to the brush and to content-aware fill until they are.</summary>
+    /// <summary>Cut out and Retouch mark and fill only with what is here: picking waits for picture selection and AI fill for
+    /// picture erasing, so each gives way — to the marquee, the brush and content-aware fill — until they are.</summary>
     private void SettleRetouchChoices()
     {
         if (EraseMarks.IsPicking && !PickingModels.IsReady) EraseMarks.Way = EraseMarkWay.Brush;
+        if (CutOutWay == CutOutMarkWay.Pick && !PickingModels.IsReady) CutOutWay = CutOutMarkWay.Marquee;
         if (EraseMarks.Fill == EraseFill.Ai && !ErasingModels.IsReady) EraseMarks.Fill = EraseFill.ContentAware;
     }
 
@@ -147,22 +241,37 @@ public partial class ImageEditorViewModel : ObservableObject
         ErasingModels   = erasing;
         RestoringModels = restoring;
         EraseMarks = new EraseMarking(erasing.IsReady);
+        RegionMarks = new RegionMarking(cutter, () => Source);
         // A restoration, a cut-out mask or an erased photo arriving lets the photo be saved.
         restorer.Made += ToolMade;
         remover.Made  += ToolMade;
         eraser.Made   += ToolMade;
-        // What is picked is what Remove background keeps, and part of what Erase erases.
+        // What is picked and drawn is what Remove background keeps and what is copied, and part of what Erase erases.
         cutter.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName is nameof(PictureCutter.Shown) or nameof(PictureCutter.IsWorking))
-            {
-                RemoveBackgroundCommand.NotifyCanExecuteChanged();
-                EraseCommand.NotifyCanExecuteChanged();
-            }
+            if (e.PropertyName is nameof(PictureCutter.Shown) or nameof(PictureCutter.IsWorking)) SelectionMoved();
         };
-        EraseMarks.PropertyChanged += (_, _) => EraseCommand.NotifyCanExecuteChanged();
+        RegionMarks.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(RegionMarking.Region) or nameof(RegionMarking.Shown)) SelectionMoved();
+        };
+        EraseMarks.PropertyChanged += (_, e) =>
+        {
+            EraseCommand.NotifyCanExecuteChanged();
+            if (e.PropertyName != nameof(EraseMarking.Way)) return;
+            RegionMarks.CancelDraft();
+            OnPropertyChanged(nameof(DrawsMarquee));
+            OnPropertyChanged(nameof(DrawsLasso));
+            OnPropertyChanged(nameof(DrawsShapes));
+            OnPropertyChanged(nameof(PicksByModel));
+        };
         // Models arriving, or going, change what the controls that need them allow.
-        picking.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(ModelsGate.IsReady)) SettleRetouchChoices(); };
+        picking.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(ModelsGate.IsReady)) return;
+            SettleRetouchChoices();
+            RegionMarks.PickingChanged();
+        };
         erasing.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(ModelsGate.IsReady)) SettleRetouchChoices(); };
         restoring.PropertyChanged += (_, e) =>
         {
@@ -180,6 +289,15 @@ public partial class ImageEditorViewModel : ObservableObject
         SaveCopyCommand.NotifyCanExecuteChanged();
     }
 
+    /// <summary>What is selected moved: what takes it may be offered or not.</summary>
+    private void SelectionMoved()
+    {
+        RemoveBackgroundCommand.NotifyCanExecuteChanged();
+        EraseCommand.NotifyCanExecuteChanged();
+        CopyCutOutCommand.NotifyCanExecuteChanged();
+        SaveCutOutCommand.NotifyCanExecuteChanged();
+    }
+
     private ImageEditSession? Session => _viewer.CurrentSession;
     private ImageRecipe Recipe => Session?.Recipe ?? ImageRecipe.Identity;
     private SKSize? Source => Session?.Proxy?.SourceSize;
@@ -194,6 +312,7 @@ public partial class ImageEditorViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsMarkupTool))]
     [NotifyPropertyChangedFor(nameof(IsResizeTool))]
     [NotifyPropertyChangedFor(nameof(Frame))]
+    [NotifyPropertyChangedFor(nameof(DrawsMarquee), nameof(DrawsLasso), nameof(DrawsShapes), nameof(PicksByModel), nameof(TakesSelection))]
     private EditTool _tool = EditTool.Crop;
 
     public bool IsCropTool    => Tool == EditTool.Crop;
@@ -208,6 +327,7 @@ public partial class ImageEditorViewModel : ObservableObject
     partial void OnToolChanged(EditTool value)
     {
         CancelOpenGestures();
+        RegionMarks.CancelDraft();
         IsLevelTool = false;
         if (value != EditTool.Markup) SelectedId = null;
         _cropSessionStart = value == EditTool.Crop ? Recipe.Geometry : null;
@@ -231,10 +351,12 @@ public partial class ImageEditorViewModel : ObservableObject
         if (editing)
         {
             _cropSessionStart = IsCropTool ? Recipe.Geometry : null;
-            Cutter.Follow(Session?.Path);
-            return;
+        Cutter.Follow(Session?.Path);
+        RegionMarks.Follow(Session?.Path);
+        return;
         }
         Cutter.Close();   // the photo read for picking is let go with the editor
+        RegionMarks.Follow(null);
         EraseMarks.Clear();
         CancelOpenGestures();
         ShowOriginal = false;
@@ -249,7 +371,11 @@ public partial class ImageEditorViewModel : ObservableObject
         SelectedId = null;
         EraseMarks.Clear();   // marks are of the photo they were made on
     _cropSessionStart = IsCropTool ? Recipe.Geometry : null;
-        if (_viewer.IsEditing) Cutter.Follow(Session?.Path);
+        if (_viewer.IsEditing)
+        {
+            Cutter.Follow(Session?.Path);
+            RegionMarks.Follow(Session?.Path);   // marks are of the photo they were made on
+        }
         OnRecipeChanged();
     }
 

@@ -153,12 +153,32 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
                                                                                           && Exists("Image_RestoringModelsDownload"));
             Check("AI upscale stays off", () => SelectRadio("Image_EditUpscaleOff"));
 
-            // Cut out: picture selection is never here (the AI folder is the journey's own), so everything that picks waits for it,
-            // saying why; the AI tools journey picks where it is here.
-            Check("Cut out waits for picture selection: what picks is disabled", () => SelectRadio("Image_EditToolCutOut")
-                  && WaitForFs(() => Exists("Image_CutOutPhrase"), 3) && !Enabled("Image_CutOutPhrase") && !Enabled("Image_CutOutFind")
-                  && !Enabled("Image_CutOutRemoveBackground") && !Enabled("Image_CutOutCopy") && !Enabled("Image_CutOutSave"));
-            CheckInvoke("Clear what is picked", "Image_CutOutClear");
+            // Cut out: picture selection is never here (the AI folder is the journey's own), so picking waits for it, saying why, and
+            // the tool opens on the marquee, which needs nothing; the AI tools journey picks where it is here.
+            Check("Cut out opens on the marquee: picking waits for picture selection, and nothing is selected to take",
+                  () => SelectRadio("Image_EditToolCutOut") && WaitForFs(() => Exists("Image_RegionMarqueeRectangle"), 3)
+                        && !Enabled("Image_CutOutMarkPick") && !Enabled("Image_RegionSelectSubject") && !Enabled("Image_RegionFeather")
+                        && !Enabled("Image_CutOutCopy") && !Enabled("Image_CutOutSave"));
+            Check("The marquee draws an ellipse or a rectangle", () => SelectRadio("Image_RegionMarqueeEllipse") && SelectRadio("Image_RegionMarqueeRectangle"));
+            Check("Each shape adds, subtracts, intersects or starts the selection again",
+                  () => SelectRadio("Image_RegionModeAdd") && SelectRadio("Image_RegionModeSubtract") && SelectRadio("Image_RegionModeIntersect")
+                        && SelectRadio("Image_RegionModeReplace"));
+            // A marquee has to start on the photo: fit it to the canvas first, so the canvas's centre is on the photo.
+            Check("A marquee dragged on the photo selects, and what takes the selection is offered",
+                  () => FitCanvas() && DragOnCanvas(-20, -12, 20, 12)
+                        && WaitForFs(() => Enabled("Image_CutOutCopy"), 3) && Enabled("Image_CutOutSave") && Enabled("Image_CutOutRemoveBackground"));
+            Check("Refine by moves", () => MoveSlider("Image_RegionRefineBy"));
+            CheckInvoke("Feather the selection", "Image_RegionFeather");
+            CheckInvoke("Grow it", "Image_RegionGrow");
+            CheckInvoke("Shrink it", "Image_RegionShrink");
+            CheckInvoke("Smooth it", "Image_RegionSmooth");
+            CheckInvoke("Invert it", "Image_RegionInvert");
+            CheckInvoke("Select all of the photo", "Image_RegionSelectAll");
+            Check("The lasso draws freehand or click to click", () => SelectRadio("Image_CutOutMarkLasso")
+                  && WaitForFs(() => Exists("Image_RegionLassoPolygon"), 3) && SelectRadio("Image_RegionLassoPolygon") && SelectRadio("Image_RegionLassoFreehand"));
+            CheckDoes("Select nothing, and nothing is offered to take it", "Image_RegionDeselect", () => WaitForFs(() => !Enabled("Image_CutOutCopy"), 3));
+            Check("Back to the marquee", () => SelectRadio("Image_CutOutMarkMarquee"));
+            CheckInvoke("Clear what is selected", "Image_CutOutClear");
             CheckDoes("Keep background puts it back; the kept edits' banner goes, and the panel's offer of picture selection takes over",
                       "Image_CutOutKeepBackground",
                       () => WaitForGone("Image_RemoveBackgroundAction", 3) && WaitForFs(() => WaitForId("Image_PickingModelsDownload", 1)?.IsEnabled == true, 3));
@@ -168,6 +188,9 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
             // and fills by AI where they are here.
             Check("Retouch opens on the brush: picking waits for picture selection", () => SelectRadio("Image_EditToolRetouch")
                   && WaitForFs(() => Exists("Image_EraseBrushSize"), 3) && SelectRadio("Image_EraseMarkBrush") && !Enabled("Image_EraseMarkPick"));
+            Check("Retouch marks with the marquee or the lasso too, as Cut out does", () => SelectRadio("Image_EraseMarkMarquee")
+                  && WaitForFs(() => Exists("Image_RegionMarqueeRectangle"), 3) && SelectRadio("Image_EraseMarkLasso")
+                  && WaitForFs(() => Exists("Image_RegionLassoFreehand"), 3) && SelectRadio("Image_EraseMarkBrush"));
             Check("AI fill waits for picture erasing, offered over the picture", () => !Enabled("Image_EraseFillAi")
                   && WaitForFs(() => WaitForId("Image_ErasingModelsDownload", 1)?.IsEnabled == true, 3));
             Check("Brush size slider moves", () => MoveSlider("Image_EraseBrushSize"));

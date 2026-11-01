@@ -40,4 +40,42 @@ public static class PictureCutOut
             }
         return (cut, w, h);
     }
+
+    /// <summary>
+    /// The pixels of <paramref name="rgba"/> — interleaved 8-bit straight-alpha RGBA, <paramref name="width"/> ×
+    /// <paramref name="height"/> — as much as <paramref name="coverage"/> (a byte a pixel, 255 wholly) selects each: its alpha
+    /// scaled by that, so a feathered edge fades out; cropped to the box round what is selected at all; null where nothing is.
+    /// </summary>
+    public static (byte[] Rgba, int Width, int Height)? Through(ReadOnlySpan<byte> rgba, int width, int height, ReadOnlySpan<byte> coverage)
+    {
+        if (rgba.Length != width * height * 4) throw new ArgumentException("The pixels are not the size given.", nameof(rgba));
+        if (coverage.Length != width * height) throw new ArgumentException("The coverage is not the picture's size.", nameof(coverage));
+
+        int left = width, top = height, right = -1, bottom = -1;
+        for (int y = 0; y < height; y++)
+        {
+            var row = coverage.Slice(y * width, width);
+            int first = row.IndexOfAnyExcept((byte)0);
+            if (first < 0) continue;
+            left = Math.Min(left, first);
+            right = Math.Max(right, row.LastIndexOfAnyExcept((byte)0));
+            top = Math.Min(top, y);
+            bottom = y;
+        }
+        if (right < 0) return null;
+
+        int w = right - left + 1, h = bottom - top + 1;
+        var cut = new byte[w * h * 4];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                int from = (y + top) * width + x + left;
+                byte selected = coverage[from];
+                if (selected == 0) continue;
+                var into = cut.AsSpan((y * w + x) * 4, 4);
+                rgba.Slice(from * 4, 4).CopyTo(into);
+                into[3] = (byte)((into[3] * selected + 127) / 255);
+            }
+        return (cut, w, h);
+    }
 }

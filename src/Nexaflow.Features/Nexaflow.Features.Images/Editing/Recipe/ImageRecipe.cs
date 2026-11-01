@@ -16,9 +16,10 @@ namespace Nexaflow.Features.Images.Editing.Recipe;
 public sealed record ImageRecipe
 {
     /// <summary>The newest format version this build reads and writes. A recipe from a newer build is left alone, never
-    /// rewritten. Version 2 added <see cref="Restore"/>, version 3 <see cref="CutOut"/> and version 4 <see cref="Erasures"/>;
+    /// rewritten. Version 2 added <see cref="Restore"/>, version 3 <see cref="CutOut"/>, version 4 <see cref="Erasures"/> and
+    /// version 5 a <see cref="RecipeRegion"/> on a cut-out and an erasing step;
     /// a recipe is written as the oldest version that holds what is in it, so a build from before reads every recipe it can.</summary>
-    public const int CurrentVersion = 4;
+    public const int CurrentVersion = 5;
 
     public static ImageRecipe Identity { get; } = new();
 
@@ -66,7 +67,10 @@ public sealed record ImageRecipe
 
     /// <summary>The version a file of this recipe is written as: the oldest that holds everything in it.</summary>
     [JsonIgnore]
-    public int WrittenVersion => !Erasures.IsEmpty ? 4 : CutOut is not null ? 3 : Restore is not null ? 2 : 1;
+    public int WrittenVersion => UsesRegion ? 5 : !Erasures.IsEmpty ? 4 : CutOut is not null ? 3 : Restore is not null ? 2 : 1;
+
+    /// <summary>Whether anything in it selects by a region drawn by hand.</summary>
+    private bool UsesRegion => CutOut?.Region is not null || Erasures.Any(e => e.Region is not null || e.Pick?.Region is not null);
 
     /// <summary>True when applying the recipe changes nothing — such a recipe is not worth a file.</summary>
     [JsonIgnore]
@@ -244,9 +248,10 @@ public sealed record RecipeCutClick(double X, double Y, bool Include);
 public sealed record RecipeCutBox(double Left, double Top, double Right, double Bottom);
 
 /// <summary>
-/// The photo cut out of its background: only what picture selection picks by these is kept, the rest made clear — by
-/// clicks on the thing and off it and a box round it, or everything a phrase names. Kept as what was asked rather than as
-/// the mask, so it reads the same at any size and is picked again by newer models.
+/// The photo cut out of its background: only what is selected is kept, the rest made clear — what picture selection picks
+/// by clicks on the thing and off it and a box round it, or everything a phrase names, then the <see cref="Region"/> drawn
+/// by hand over that. Kept as what was asked rather than as the mask, so it reads the same at any size and is picked again
+/// by newer models.
 /// </summary>
 public sealed record RecipeCutOut
 {
@@ -266,17 +271,28 @@ public sealed record RecipeCutOut
     /// <summary>What the kept things are called — everything it names is kept — instead of clicks and a box.</summary>
     public string? Phrase { get; init; }
 
-    public bool Equals(RecipeCutOut? other) =>
-        other is not null && Clicks.AsSpan().SequenceEqual(other.Clicks.AsSpan()) && Box == other.Box && Phrase == other.Phrase;
+    /// <summary>The selection drawn by hand, starting from what picture selection picks — or from nothing, where it is asked
+    /// for nothing; null where none was drawn.</summary>
+    public RecipeRegion? Region { get; init; }
 
-    public override int GetHashCode() => HashCode.Combine(Clicks.Length, Box, Phrase);
+    /// <summary>Whether picture selection is asked to pick anything: a phrase, a click or a box.</summary>
+    [JsonIgnore]
+    public bool AsksPictureSelection => Phrase is not null || !Clicks.IsEmpty || Box is not null;
+
+    public bool Equals(RecipeCutOut? other) =>
+        other is not null && Clicks.AsSpan().SequenceEqual(other.Clicks.AsSpan()) && Box == other.Box && Phrase == other.Phrase && Region == other.Region;
+
+    public override int GetHashCode() => HashCode.Combine(Clicks.Length, Box, Phrase, Region);
 
     /// <summary>The cut-out as one line of text, the same for the same cut-out: what its kept mask is filed by.</summary>
     public string Describe()
-        => Phrase is { } phrase
+    {
+        var picked = Phrase is { } phrase
             ? $"phrase:{phrase}"
             : string.Create(System.Globalization.CultureInfo.InvariantCulture,
                 $"clicks:{string.Join(";", Clicks.Select(c => $"{c.X:R},{c.Y:R},{(c.Include ? 1 : 0)}"))}|box:{(Box is { } b ? $"{b.Left:R},{b.Top:R},{b.Right:R},{b.Bottom:R}" : "")}");
+        return Region is { } region ? $"{picked}|region:{region.Describe()}" : picked;
+    }
 }
 
 /// <summary>How an erased place is filled.</summary>
@@ -322,8 +338,9 @@ public sealed record RecipeEraseStroke
 }
 
 /// <summary>
-/// One step of erasing: what it erases — a thing picked as the cut-out tool picks it (<see cref="Pick"/>), brush
-/// strokes, or both — and how the place is filled. A step erases from the photo as the steps before it left it.
+/// One step of erasing: what it erases — a thing picked as the cut-out tool picks it (<see cref="Pick"/>), a selection
+/// drawn by hand over that (<see cref="Region"/>), brush strokes over both, or any of them — and how the place is filled.
+/// A step erases from the photo as the steps before it left it.
 /// </summary>
 public sealed record RecipeErase
 {
@@ -331,6 +348,10 @@ public sealed record RecipeErase
 
     /// <summary>The thing picked to erase, by clicks and a box or by a phrase; null where only strokes mark it.</summary>
     public RecipeCutOut? Pick { get; init; }
+
+    /// <summary>The selection drawn by hand, starting from what is picked, grown past its edge — or from nothing; null where
+    /// none was drawn.</summary>
+    public RecipeRegion? Region { get; init; }
 
     /// <summary>The strokes, in the order they were made, over what is picked.</summary>
     /// <remarks>Never default: a step read from a file that names no strokes has none.</remarks>
@@ -347,18 +368,21 @@ public sealed record RecipeErase
 
     /// <summary>Whether the step marks anything to erase.</summary>
     [JsonIgnore]
-    public bool MarksAnything => Pick is not null || Strokes.Any(s => s.Marks && !s.Points.IsEmpty);
+    public bool MarksAnything => Pick is not null || Region is { IsEmpty: false } || Strokes.Any(s => s.Marks && !s.Points.IsEmpty);
 
     public bool Equals(RecipeErase? other)
-        => other is not null && Fill == other.Fill && Pick == other.Pick && HealFrom == other.HealFrom
+        => other is not null && Fill == other.Fill && Pick == other.Pick && Region == other.Region && HealFrom == other.HealFrom
            && Strokes.AsSpan().SequenceEqual(other.Strokes.AsSpan());
 
-    public override int GetHashCode() => HashCode.Combine(Fill, Pick, Strokes.Length, HealFrom);
+    public override int GetHashCode() => HashCode.Combine(Fill, Pick, Region, Strokes.Length, HealFrom);
 
     /// <summary>The step as one line of text, the same for the same step: what what it makes is filed by.</summary>
     public string Describe()
-        => string.Create(System.Globalization.CultureInfo.InvariantCulture,
+    {
+        var step = string.Create(System.Globalization.CultureInfo.InvariantCulture,
             $"fill:{Fill}|pick:{Pick?.Describe()}|strokes:{string.Join("/", Strokes.Select(s => s.Describe()))}|from:{(HealFrom is { } f ? $"{f.X:R},{f.Y:R}" : "")}");
+        return Region is { } region ? $"{step}|region:{region.Describe()}" : step;
+    }
 }
 
 /// <summary>What a save writes besides the pixels.</summary>

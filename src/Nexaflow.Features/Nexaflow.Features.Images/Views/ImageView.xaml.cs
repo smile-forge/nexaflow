@@ -83,10 +83,32 @@ public partial class ImageView : UserControl, IPageView
             case Key.Delete when ViewModel.IsEditing && editor.IsMarkupTool:
                 editor.DeleteSelectedCommand.Execute(null);
                 break;
+            case Key.M when Keyboard.Modifiers == ModifierKeys.None && ViewModel.IsEditing && editor.TakesSelection:
+                editor.ChooseMarquee();
+                break;
+            case Key.L when Keyboard.Modifiers == ModifierKeys.None && ViewModel.IsEditing && editor.TakesSelection:
+                editor.ChooseLasso();
+                break;
+            case Key.A when ctrl && !shift && ViewModel.IsEditing && editor.TakesSelection:
+                editor.RegionMarks.SelectAllCommand.Execute(null);
+                break;
+            case Key.D when ctrl && !shift && ViewModel.IsEditing && editor.TakesSelection:
+                editor.RegionMarks.DeselectCommand.Execute(null);
+                break;
+            case Key.I when ctrl && shift && ViewModel.IsEditing && editor.TakesSelection:
+                editor.RegionMarks.InvertCommand.Execute(null);
+                break;
+            case Key.Back when ViewModel.IsEditing && editor.RegionMarks.Draft.Count > 0:
+                editor.RegionMarks.RemoveDraftPoint();
+                break;
+            case Key.Enter when ViewModel.IsEditing && editor.RegionMarks.Draft.Count > 0:
+                editor.RegionMarks.CloseDraft();
+                break;
             case Key.Enter when ViewModel.IsEditing && editor.IsCropTool:
                 editor.Tool = EditTool.Adjust;   // the crop is applied: show the cropped picture
                 break;
             case Key.Escape when ViewModel.IsEditing:
+                if (editor.RegionMarks.CancelDraft()) break;   // an outline half drawn goes first
                 if (!(editor.IsCropTool && editor.CancelCrop())) ViewModel.ExitEditModeCommand.Execute(null);
                 break;
             case Key.Escape:

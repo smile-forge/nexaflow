@@ -75,7 +75,7 @@ public sealed partial class PictureCutter : ObservableObject
     /// bounds are in the photo's pixels. Null where nothing is picked yet.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelection))]
-    [NotifyCanExecuteChangedFor(nameof(CopyCommand), nameof(SaveCutOutCommand))]
+    
     private PictureMask? _shown;
 
     /// <summary>Something is picked, to copy or save.</summary>
@@ -308,7 +308,8 @@ public sealed partial class PictureCutter : ObservableObject
         };
     }
 
-    private static (int Width, int Height) ShownSize(int width, int height)
+    /// <summary>The size what is picked in a <paramref name="width"/> × <paramref name="height"/> photo is shown at.</summary>
+    internal static (int Width, int Height) ShownSize(int width, int height)
     {
         double scale = Math.Min(1.0, (double)ShownLongSide / Math.Max(width, height));
         return (Math.Max(1, (int)Math.Round(width * scale)), Math.Max(1, (int)Math.Round(height * scale)));
@@ -340,49 +341,31 @@ public sealed partial class PictureCutter : ObservableObject
             : null, ct);
     }
 
-    private static byte[] Png(byte[] rgba, int width, int height, SKColorSpace space)
+    /// <summary>
+    /// What is selected — what is picked, and <paramref name="region"/> drawn by hand over it — cut out of the photo at its full
+    /// size: transparent around it, as selected as each pixel is, cropped to it, as a PNG; null where nothing is selected. The
+    /// mask is made as a cut-out's is, and kept.
+    /// </summary>
+    internal async Task<byte[]?> CutOutAsync(RecipeRegion? region, CancellationToken ct)
+    {
+        if (region is null) return await CutOutAsync(ct);
+        if (_photo is not { } photo) return null;
+        var cutOut = (PickedCutOut ?? new RecipeCutOut()) with { Region = region };
+        var kept = await _services.CutOuts.MakeAsync(_services, photo, cutOut, _selection, null, ct);
+        var upright = await Task.Run(() => _services.ReadUprightAsync(photo, ct), ct);
+        return await Task.Run(() =>
+        {
+            var mask = Editing.CuttingOut.CutOutMasks.ReadGrey(kept, upright.Width, upright.Height);
+            return PictureCutOut.Through(upright.Rgba, upright.Width, upright.Height, mask) is var (rgba, w, h) ? Png(rgba, w, h, upright.Space) : null;
+        }, ct);
+    }
+
+    internal static byte[] Png(byte[] rgba, int width, int height, SKColorSpace space)
     {
         using var bitmap = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul, space));
         System.Runtime.InteropServices.Marshal.Copy(rgba, 0, bitmap.GetPixels(), rgba.Length);
         using var image = SKImage.FromBitmap(bitmap);
         using var data = image.Encode(SKEncodedImageFormat.Png, 100);
         return data.ToArray();
-    }
-
-    [RelayCommand(CanExecute = nameof(HasSelection))]
-    private async Task Copy()
-    {
-        try
-        {
-            if (await CutOutAsync(CancellationToken.None) is { } png)
-            {
-                PictureClipboard.CopyPng(png);
-                _shell?.ShowNotification(Str.Get("Images.CutOut.Copied"));
-            }
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or IOException or System.Runtime.InteropServices.ExternalException)
-        {
-            _shell?.ShowError(Str.Format("Images.CutOut.Failed", ex.Message));
-        }
-    }
-
-    [RelayCommand(CanExecute = nameof(HasSelection))]
-    private async Task SaveCutOut()
-    {
-        if (_shell is null || _photo is null) return;
-        var suggested = Path.GetFileNameWithoutExtension(_photo) + Str.Get("Images.CutOut.FileSuffix") + ".png";
-        var folder = ImageEditingServices.IsFileBacked(_photo) ? Path.GetDirectoryName(_photo) : null;
-        var destination = await _shell.PickSaveFileAsync(suggested, [".png"], folder);
-        if (destination is null) return;
-        try
-        {
-            if (await CutOutAsync(CancellationToken.None) is not { } png) return;
-            await _services.FileSystem.WriteAllBytesAsync(Path.ChangeExtension(destination, ".png"), png);
-            _shell.ShowNotification(Str.Format("Images.CutOut.SavedFormat", Path.GetFileName(destination)));
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
-        {
-            _shell.ShowError(Str.Format("Images.CutOut.Failed", ex.Message));
-        }
     }
 }

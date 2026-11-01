@@ -11,6 +11,12 @@ public enum EraseMarkWay
 
     /// <summary>Brushed over: left to mark, right to take marking back.</summary>
     Brush,
+
+    /// <summary>A rectangle or an ellipse dragged out — the selection the Cut out tool draws too.</summary>
+    Marquee,
+
+    /// <summary>An outline drawn round it, freehand or click to click — the selection the Cut out tool draws too.</summary>
+    Lasso,
 }
 
 /// <summary>
@@ -104,20 +110,21 @@ public sealed partial class EraseMarking : ObservableObject
     }
 
     /// <summary>
-    /// The step that erases what is marked — <paramref name="pick"/>, what the cut-out tool has picked, and the strokes —
-    /// filled as chosen; null where nothing is marked, or the healing brush has nowhere to copy from. A pick with no
-    /// stroke after the source anchors the healing brush at its first click on the thing, or its box's centre.
+    /// The step that erases what is marked — <paramref name="pick"/>, what the cut-out tool has picked, <paramref name="region"/>,
+    /// the selection drawn by hand over it, and the strokes — filled as chosen; null where nothing is marked, or the healing
+    /// brush has nowhere to copy from. With no stroke after the source, the healing brush is anchored at the pick's first click
+    /// on the thing, else its box's centre, else the middle of the first shape drawn.
     /// </summary>
-    public RecipeErase? Step(RecipeCutOut? pick)
+    public RecipeErase? Step(RecipeCutOut? pick, RecipeRegion? region)
     {
-        var step = new RecipeErase { Fill = Fill, Pick = pick, Strokes = [.. _strokes] };
+        var step = new RecipeErase { Fill = Fill, Pick = pick, Region = region, Strokes = [.. _strokes] };
         if (!step.MarksAnything) return null;
         if (Fill != EraseFill.Heal) return step;
         if (HealSource is not { } source) return null;
         var anchor = _healAnchor
                      ?? (pick?.Clicks.FirstOrDefault(c => c.Include) is { } click ? new MarkupPoint(click.X, click.Y)
                          : pick?.Box is { } box ? new MarkupPoint((box.Left + box.Right) / 2, (box.Top + box.Bottom) / 2)
-                         : (MarkupPoint?)null);
+                         : region?.Centre);
         return anchor is { } a ? step with { HealFrom = new MarkupPoint(source.X - a.X, source.Y - a.Y) } : null;
     }
 

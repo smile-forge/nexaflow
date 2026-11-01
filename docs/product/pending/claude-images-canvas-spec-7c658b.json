@@ -1,0 +1,134 @@
+{
+  "branch": "claude/images-canvas-spec-7c658b",
+  "nodes": {
+    "images-selection": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Selection/RegionSelection.cs",
+          "class": "RegionSelection"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Selection/TiledCoverage.cs",
+          "class": "TiledCoverage"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Selection/RegionRaster.cs",
+          "class": "RegionRaster"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Selection/CoverageOutline.cs",
+          "class": "CoverageOutline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Recipe/RecipeRegion.cs",
+          "class": "RecipeRegion"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/RegionMarking.cs",
+          "class": "RegionMarking"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/RegionMarkingPanel.xaml.cs",
+          "class": "RegionMarkingPanel"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "title_path": [
+            "Images",
+            "Editing"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSelectionTests.cs",
+            "class": "ImageSelectionTests"
+          }
+        ]
+      }
+    },
+    "images-selection-marquee": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/EditOverlay.cs",
+          "class": "EditOverlay",
+          "method": "MarqueeIn"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSelectionTests.cs",
+            "class": "ImageSelectionTests",
+            "method": "AMarquee_RemovesTheBackground_WithoutPictureSelection"
+          }
+        ]
+      }
+    },
+    "images-selection-lasso": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/RegionMarking.cs",
+          "class": "RegionMarking",
+          "method": "CloseDraft"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/EditOverlay.cs",
+          "class": "EditOverlay",
+          "method": "OnMouseLeftButtonDown"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSelectionTests.cs",
+            "class": "ImageSelectionTests",
+            "method": "ALassoedSpot_IsErased_ByContentAwareFill"
+          }
+        ]
+      }
+    },
+    "images-selection-refine": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Selection/CoverageFilters.cs",
+          "class": "CoverageFilters"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSelectionTests.cs",
+            "class": "ImageSelectionTests",
+            "method": "GrowAndShrink_MoveTheEdgeByTheirAmount_RoundingCorners"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 8,
+  "touched_nodes": [
+    "images-selection",
+    "images-selection-lasso",
+    "images-selection-marquee",
+    "images-selection-refine"
+  ]
+}

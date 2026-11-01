@@ -387,17 +387,17 @@ public class ImageEraseTests
     {
         var marks = new EraseMarking(aiOffered: false);
         Assert.AreEqual(EraseFill.ContentAware, marks.Fill, "without picture erasing, content-aware fill is the start");
-        Assert.IsNull(marks.Step(null), "nothing marked");
+        Assert.IsNull(marks.Step(null, null), "nothing marked");
 
         marks.BeginStroke(new MarkupPoint(5, 5), marks: false);
         marks.EndStroke();
-        Assert.IsNull(marks.Step(null), "a stroke that only takes marking back erases nothing");
+        Assert.IsNull(marks.Step(null, null), "a stroke that only takes marking back erases nothing");
 
         marks.BeginStroke(new MarkupPoint(6, 6), marks: true);
         marks.ContinueStroke(new MarkupPoint(6.2, 6.1), step: 1);
         marks.ContinueStroke(new MarkupPoint(9, 6), step: 1);
         marks.EndStroke();
-        var step = marks.Step(null)!;
+        var step = marks.Step(null, null)!;
         Assert.AreEqual(2, step.Strokes.Length);
         Assert.AreEqual(2, step.Strokes[1].Points.Length, "a point nearer than a step to the last is not kept");
     }

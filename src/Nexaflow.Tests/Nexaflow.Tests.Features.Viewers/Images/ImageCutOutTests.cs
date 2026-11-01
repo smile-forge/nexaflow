@@ -154,9 +154,9 @@ public class ImageCutOutTests
         var selection = new Patch();
         var vm = Editing(selection, Shell(saveAs: saved));
         OnUi(() => vm.Cutter.Click(10, 8, include: true));
-        Until(() => vm.Cutter.SaveCutOutCommand.CanExecute(null));
+        Until(() => vm.Editor.SaveCutOutCommand.CanExecute(null));
 
-        await _ui.Invoke(() => vm.Cutter.SaveCutOutCommand.ExecuteAsync(null));
+        await _ui.Invoke(() => vm.Editor.SaveCutOutCommand.ExecuteAsync(null));
 
         using var cut = SKBitmap.Decode(saved);
         Assert.AreEqual((Patch.Right - Patch.Left, Patch.Bottom - Patch.Top), (cut.Width, cut.Height), "cropped to the patch");

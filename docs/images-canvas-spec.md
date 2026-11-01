@@ -216,10 +216,18 @@ canvas pixels through `EditCanvas.SourceToCanvas`.
 ### 6.4 In the photo editor (no layers)
 
 Marquee and lasso are offered in Cut out and in Erase as two more ways of marking, beside Pick and Brush
-(`EraseMarkWay`), so a photo edit benefits without becoming layered. They stay non-destructive: recipe **version 5**
-adds a `Region` to `RecipeCutOut` and `RecipeErase` — the shapes as drawn (rectangle, ellipse, polygon, each with its
-mode), in oriented-source pixels as every recipe value is, combined with the SAM finds and brush strokes already there.
-`WrittenVersion` writes version 4 for a recipe that uses no region.
+(`EraseMarkWay`, `CutOutMarkWay`), with the refinements beside them, so a photo edit benefits without becoming layered.
+Cut out and Erase share one selection: what Pick has picked, with the region drawn over it.
+
+They stay non-destructive: recipe **version 5** adds a `Region` (`RecipeRegion`) to `RecipeCutOut` and `RecipeErase`
+— the steps the selection was made by, in order, in oriented-source pixels as every recipe value is: each shape as drawn
+(rectangle, ellipse, polygon, each with its mode) and each refinement (invert, feather, grow or shrink, smooth, each with
+its radius). A region starts from the SAM finds beside it — on an erasing step grown past their edge as today — and each
+step works on what the ones before it left; a shape that replaces the selection starts it again, so drawing one lets the
+picks go too. An erasing step's brush strokes are painted over the result. A marquee drawn on a straightened photo is kept
+as the outline drawn, a polygon, since a rectangle or ellipse square to the screen is not square to the source. Select all
+is a replacing rectangle over the whole photo; Select subject is a SAM box round it. `WrittenVersion` writes version 4
+for a recipe that uses no region, and a cut-out with no region is filed under the same kept-mask name as before.
 
 ## 7. Painting and moving
 
