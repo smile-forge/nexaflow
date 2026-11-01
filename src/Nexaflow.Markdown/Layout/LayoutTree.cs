@@ -93,6 +93,7 @@ public sealed class LayoutTree
     private readonly LayoutWords?[] _words;
     private readonly IReadOnlyDictionary<int, LayoutActions>? _acts;
     private readonly IReadOnlyDictionary<int, string>? _tips;
+    private readonly IReadOnlyDictionary<int, LayoutMount>? _mounts;
     private readonly int[] _across;
     private readonly int[] _acrossAt;
     private readonly int[] _down;
@@ -101,8 +102,8 @@ public sealed class LayoutTree
 
     internal LayoutTree(ILayoutMedium medium, LayoutStored[] pieces, LayoutMark[] marks, ISourcePart?[] parts, string[] kinds,
                           LayoutPaint?[] paints, LayoutShape?[] regions, LayoutWords?[] words,
-                          IReadOnlyDictionary<int, LayoutActions>? acts, IReadOnlyDictionary<int, string>? tips, int[] across, int[] acrossAt,
-                          int[] down, int[] downAt, int[][] runs)
+                          IReadOnlyDictionary<int, LayoutActions>? acts, IReadOnlyDictionary<int, string>? tips,
+                          IReadOnlyDictionary<int, LayoutMount>? mounts, int[] across, int[] acrossAt, int[] down, int[] downAt, int[][] runs)
     {
         Medium = medium;
         _pieces = pieces;
@@ -114,6 +115,7 @@ public sealed class LayoutTree
         _words = words;
         _acts = acts;
         _tips = tips;
+        _mounts = mounts;
         _across = across;
         _acrossAt = acrossAt;
         _down = down;
@@ -134,6 +136,7 @@ public sealed class LayoutTree
         _words = tree._words;
         _acts = tree._acts;
         _tips = tree._tips;
+        _mounts = tree._mounts;
         _across = tree._across;
         _acrossAt = tree._acrossAt;
         _down = tree._down;
@@ -192,6 +195,9 @@ public sealed class LayoutTree
     /// <summary>What the piece at <paramref name="at"/> says while it is pointed at, as its builder put it in the tips, or null where it says nothing.</summary>
     internal string? TipOf(int at) => _tips is not null && _tips.TryGetValue(at, out var tip) ? tip : null;
 
+    /// <summary>The tree put down as the piece at <paramref name="at"/> (<see cref="LayoutMount"/>), or null for a piece of this tree's own.</summary>
+    internal LayoutMount? MountOf(int at) => _mounts is not null && _mounts.TryGetValue(at, out var mount) ? mount : null;
+
     internal ReadOnlySpan<LayoutMark> MarksOf(int at) => _marks.AsSpan(_pieces[at].Marks, _pieces[at].MarkCount);
 
     internal LayoutFrame PlacingOf(int at)
@@ -241,8 +247,12 @@ public sealed class LayoutTree
         return to < 0 || to >= members.Length ? -1 : members[to];
     }
 
-    /// <summary>Every piece of a subtree with where it sits, the frame carried down rather than climbed to.</summary>
-    internal IEnumerable<(int At, LayoutRect Where)> Within(int from)
+    /// <summary>
+    /// Every piece of a subtree with where it sits, the frame carried down rather than climbed to — on the page, or through
+    /// <paramref name="outer"/>, where this tree is put down inside another (<see cref="LayoutMount"/>). A tree put down inside this
+    /// one is its mount here, and is walked by whatever walks the mounts (<see cref="LayoutPiece.Placed"/>).
+    /// </summary>
+    internal IEnumerable<(int At, LayoutRect Where)> Within(int from, LayoutFrame? outer = null)
     {
         if (from < 0 || from >= _pieces.Length) yield break;
 
@@ -250,7 +260,7 @@ public sealed class LayoutTree
         List<LayoutMatrix>? shapes = null;
 
         var up = _pieces[from].Parent;
-        var start = up < 0 ? default : FrameOf(up);
+        var start = up < 0 ? outer ?? default : Placed(outer, FrameOf(up));
         if (start.Shaped is { } first) (shapes = []).Add(first);
 
         frames[0] = (from + _pieces[from].Extent, start.Anchor, shapes is null ? -1 : 0);
@@ -292,6 +302,15 @@ public sealed class LayoutTree
             if (++top >= frames.Length) Array.Resize(ref frames, frames.Length * 2);
             frames[top] = (at + piece.Extent, anchor, shaped);
         }
+    }
+
+    /// <summary><paramref name="local"/>, a frame measured from this tree's nought, as it stands through <paramref name="outer"/>.</summary>
+    private static LayoutFrame Placed(LayoutFrame? outer, LayoutFrame local)
+    {
+        if (outer is not { } frame) return local;
+
+        var anchor = (LayoutVector)frame.Out(new LayoutPoint(local.Anchor.X, local.Anchor.Y));
+        return new LayoutFrame(anchor, local.Shaped is { } inner ? (frame.Shaped is { } shaped ? inner * shaped : inner) : frame.Shaped);
     }
 
     internal int RunOf(int at, bool vertical) => vertical ? _down[at] : _across[at];
@@ -336,28 +355,34 @@ public sealed class LayoutTree
 }
 
 /// <summary>
-/// One piece of a <see cref="LayoutTree"/>, seen: a handle, the tree and an index. Everything a piece is lives in the tree; this
-/// is how it is asked.
+/// One piece of a <see cref="LayoutTree"/>, seen: a handle, the tree and an index — and, for a piece of a tree put down inside another
+/// (<see cref="LayoutMount"/>), the mount it is seen through. Everything a piece is lives in the tree; this is how it is asked, and through
+/// the mount it is placed on the page and names its part as the tree holding it sees it.
 /// </summary>
 public readonly record struct LayoutPiece
 {
     private readonly LayoutTree? _tree;
     private readonly int _at;
+    private readonly LayoutMounted? _in;
 
-    internal LayoutPiece(LayoutTree tree, int at)
+    internal LayoutPiece(LayoutTree tree, int at, LayoutMounted? within = null)
     {
         _tree = at < 0 ? null : tree;
         _at = at < 0 ? -1 : at;
+        _in = at < 0 ? null : within;
     }
 
     /// <summary>Whether this is a piece at all, rather than the nothing a question that found none answers with.</summary>
     public bool Exists => _tree is not null;
 
-    /// <summary>The tree it belongs to, or nothing.</summary>
+    /// <summary>The tree it belongs to, or nothing — for a piece seen through a mount, the mounted tree.</summary>
     public LayoutTree? Tree => _tree;
 
     /// <summary>Where it stands in its tree — how a handle is made, and the only thing an index means.</summary>
     public int At => _at;
+
+    /// <summary>The mount it is seen through, or null for a piece of the tree it is asked of.</summary>
+    internal LayoutMounted? Within => _in;
 
     /// <summary>Where its frame begins, relative to its parent's.</summary>
     public LayoutVector Offset => _tree is null ? default : _tree.Piece(_at).Offset;
@@ -366,10 +391,20 @@ public readonly record struct LayoutPiece
     public LayoutRect Box => _tree is null ? LayoutRect.Empty : _tree.Piece(_at).Box;
 
     /// <summary>Where it sits on the page — worked out by climbing, so a question about many pieces walks <see cref="Placed"/> instead.</summary>
-    public LayoutRect Bounds => _tree is null ? LayoutRect.Empty : _tree.WhereIs(_at);
+    public LayoutRect Bounds
+    {
+        get
+        {
+            if (_tree is null) return LayoutRect.Empty;
+            if (_in is null) return _tree.WhereIs(_at);
 
-    /// <summary>What it was drawn from, or nothing for a piece drawn from nothing anybody wrote.</summary>
-    public ISourcePart? Part => _tree?.PartOf(_at);
+            var box = _tree.Piece(_at).Box;
+            return box.IsEmpty ? box : LayoutMounted.Composed(_in, _tree.PlacingOf(_at)).Out(box);
+        }
+    }
+
+    /// <summary>What it was drawn from, or nothing for a piece drawn from nothing anybody wrote — as the tree it is asked of names it.</summary>
+    public ISourcePart? Part => _tree is null ? null : _in is null ? _tree.PartOf(_at) : _in.Restated(_tree.PartOf(_at));
 
     /// <summary>What it is, as its builder named it.</summary>
     public string Kind => _tree is null ? "" : _tree.KindOf(_at);
@@ -391,7 +426,7 @@ public readonly record struct LayoutPiece
     /// Whether this piece stands for a place in the source. Naming a part is enough — the part need not cover any characters, so an
     /// argument nobody has written yet is still a place with nothing in it, exactly where a caret can go and text land.
     /// </summary>
-    public bool Stands() => Part is not null;
+    public bool Stands() => _tree is not null && _tree.PartOf(_at) is not null;
 
     /// <summary>
     /// Where this piece sits in the source: a piece drawn from a part is that part's stretch of it; one drawn from nothing anybody wrote
@@ -439,22 +474,22 @@ public readonly record struct LayoutPiece
     public string? Tip => _tree?.TipOf(_at);
 
     /// <summary>Where its anchor is on the page — the nought its box is measured from.</summary>
-    internal LayoutVector Anchor => _tree is null ? default : _tree.AnchorOf(_at);
+    internal LayoutVector Anchor => _tree is null ? default : (LayoutVector)LayoutMounted.Composed(_in, _tree.PlacingOf(_at)).Out(default(LayoutPoint));
 
     /// <summary>
     /// The frame its marks, words, shape and children are measured in, and how that stands on the page — what a press comes back
     /// through into the piece, and what a caret, a wash or its shape goes out through.
     /// </summary>
-    internal LayoutFrame Frame => _tree is null ? default : _tree.FrameOf(_at);
+    internal LayoutFrame Frame => _tree is null ? default : LayoutMounted.Composed(_in, _tree.FrameOf(_at));
 
-    /// <summary>What holds it, or nothing at the root.</summary>
-    public LayoutPiece Parent => _tree is null ? default : _tree.At(_tree.Piece(_at).Parent);
+    /// <summary>What holds it, or nothing at the root — through the mount it is seen through, where it stands at the mounted tree's top.</summary>
+    public LayoutPiece Parent => _tree is null ? default : Up(_tree, _tree.Piece(_at).Parent, _in);
 
-    /// <summary>What it holds, in reading order.</summary>
-    public PieceChildren Children => new(_tree, _at);
+    /// <summary>What it holds, in reading order — and what any tree put down inside it holds, as though it were its own.</summary>
+    public PieceChildren Children => new(_tree, _at, _in);
 
-    /// <summary>It and everything inside it, parents first — a slice of the tree, not a walk of it.</summary>
-    public PieceSubtree SelfAndDescendants() => new(_tree, _at);
+    /// <summary>It and everything inside it, parents first — a slice of the tree, and of every tree put down inside it.</summary>
+    public PieceSubtree SelfAndDescendants() => new(_tree, _at, _in);
 
     /// <summary>Its parent, grandparent and so on, nearest first.</summary>
     public IEnumerable<LayoutPiece> Ancestors()
@@ -474,25 +509,44 @@ public readonly record struct LayoutPiece
     }
 
     /// <summary>Whether this is the drawing itself rather than a group holding it.</summary>
-    public bool IsLeaf => _tree is null || _tree.Piece(_at).Extent == 1;
+    public bool IsLeaf => _tree is null || (_tree.Piece(_at).Extent == 1 && _tree.MountOf(_at) is null);
 
     /// <summary>How many pieces hold it. Nought at the root.</summary>
-    public int Depth => _tree is null ? 0 : _tree.DepthOf(_at);
+    public int Depth => _tree is null ? 0 : LayoutMounted.Seen(_in, _tree.DepthOf(_at));
 
     /// <summary>
     /// It and everything inside it, each with where it sits on the page — the walk to use whenever the question is about more than one
     /// piece, since it carries the frame down rather than climbing to it for each.
     /// </summary>
-    public IEnumerable<(LayoutPiece Piece, LayoutRect Where)> Placed()
+    public IEnumerable<(LayoutPiece Piece, LayoutRect Where)> Placed() =>
+        _tree is null ? [] : Walked(_tree, _at, _in, _in?.Frame);
+
+    /// <summary>Every piece from <paramref name="from"/> down in <paramref name="tree"/>, and down every tree put down inside it, placed.</summary>
+    private static IEnumerable<(LayoutPiece Piece, LayoutRect Where)> Walked(LayoutTree tree, int from, LayoutMounted? within, LayoutFrame? outer)
     {
-        if (_tree is null) yield break;
-        foreach (var (at, where) in _tree.Within(_at)) yield return (new LayoutPiece(_tree, at), where);
+        foreach (var (at, where) in tree.Within(from, outer))
+        {
+            if (tree.MountOf(at) is not { } mount)
+            {
+                yield return (new LayoutPiece(tree, at, within), where);
+                continue;
+            }
+
+            // The mount and the mounted tree's top are no pieces of their own: what the top holds is walked as though laid here.
+            var mounted = new LayoutMounted(tree, at, within);
+            var frame = mounted.Frame;
+            var inner = mount.Tree;
+
+            for (var child = 1; child < inner.Count; child += inner.Piece(child).Extent)
+                foreach (var placed in Walked(inner, child, mounted, frame))
+                    yield return placed;
+        }
     }
 
     /// <summary>
     /// Where a point of the page is in this piece's own frame — what a press is asked in against its shape or its words.
     /// </summary>
-    public LayoutPoint Local(LayoutPoint page) => _tree is null ? page : _tree.FrameOf(_at).Back(page);
+    public LayoutPoint Local(LayoutPoint page) => _tree is null ? page : this.Frame.Back(page);
 
     /// <summary>
     /// The pieces that read together with this one, in order — the notes of a tune, a verse of lyrics. Itself alone when it is on no
@@ -506,12 +560,13 @@ public readonly record struct LayoutPiece
         if (run.Length == 0) return [this];
 
         var members = new LayoutPiece[run.Length];
-        for (var at = 0; at < run.Length; at++) members[at] = new LayoutPiece(_tree, run[at]);
+        for (var at = 0; at < run.Length; at++) members[at] = new LayoutPiece(_tree, run[at], _in);
         return members;
     }
 
     /// <summary>One step along a run, or nothing at either end and for a piece on no run.</summary>
-    public LayoutPiece Along(bool vertical, bool forward) => _tree is null ? default : _tree.At(_tree.Along(_at, vertical, forward));
+    public LayoutPiece Along(bool vertical, bool forward) =>
+        _tree is null || _tree.Along(_at, vertical, forward) is var to && to < 0 ? default : new LayoutPiece(_tree, to, _in);
 
     /// <summary>Which run it reads along, or stacks in — an identity to compare, not a thing.</summary>
     public int RunOn(bool vertical) => _tree is null ? -1 : _tree.RunOf(_at, vertical);
@@ -519,10 +574,37 @@ public readonly record struct LayoutPiece
     public override string ToString() =>
         _tree is null ? "nothing" : $"{Kind}{(Part is { } p ? $"[{p.Start},{p.Length}]" : "")} {Bounds}";
 
-    /// <summary>The pieces one piece holds, walked without allocating.</summary>
-    public readonly struct PieceChildren(LayoutTree? tree, int at) : IEnumerable<LayoutPiece>
+    /// <summary>
+    /// The piece at <paramref name="parent"/> in <paramref name="tree"/>, seen through <paramref name="within"/> — or, where that is the top
+    /// of a tree put down inside another, which is no piece of its own, whatever holds its mount.
+    /// </summary>
+    private static LayoutPiece Up(LayoutTree tree, int parent, LayoutMounted? within)
     {
-        public Enumerator GetEnumerator() => new(tree, at);
+        if (parent < 0) return default;
+        if (parent > 0 || within is null) return new LayoutPiece(tree, parent, within);
+
+        return Up(within.Holder, within.Holder.Piece(within.At).Parent, within.In);
+    }
+
+    /// <summary>One run of pieces a walk is going along: a tree, the next index in it, where the run ends, and the mount it is seen through.</summary>
+    private struct Walk(LayoutTree tree, int next, int last, LayoutMounted? within)
+    {
+        public readonly LayoutTree Tree = tree;
+        public int Next = next;
+        public readonly int Last = last;
+        public readonly LayoutMounted? Within = within;
+    }
+
+    /// <summary>The pieces one piece holds, walked without allocating unless a tree is put down among them.</summary>
+    public readonly struct PieceChildren : IEnumerable<LayoutPiece>
+    {
+        private readonly LayoutTree? _tree;
+        private readonly int _at;
+        private readonly LayoutMounted? _within;
+
+        internal PieceChildren(LayoutTree? tree, int at, LayoutMounted? within) => (_tree, _at, _within) = (tree, at, within);
+
+        public Enumerator GetEnumerator() => new(_tree, _at, _within);
         IEnumerator<LayoutPiece> IEnumerable<LayoutPiece>.GetEnumerator() => GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
@@ -537,23 +619,49 @@ public readonly record struct LayoutPiece
             }
         }
 
-        /// <summary>The first child is the next piece along; the one after it is that child's whole subtree away.</summary>
-        public struct Enumerator(LayoutTree? tree, int at) : IEnumerator<LayoutPiece>
+        /// <summary>
+        /// The first child is the next piece along; the one after it is that child's whole subtree away. A mount among them is gone into:
+        /// what its tree's top holds is walked in its place.
+        /// </summary>
+        public struct Enumerator : IEnumerator<LayoutPiece>
         {
-            private readonly int _last = tree is null ? 0 : at + tree.Piece(at).Extent;
-            private int _next = tree is null ? 0 : at + 1;
-            private int _now = -1;
+            private Walk _walk;
+            private Stack<Walk>? _out;
+            private LayoutPiece _now;
 
-            public readonly LayoutPiece Current => tree!.At(_now);
+            internal Enumerator(LayoutTree? tree, int at, LayoutMounted? within) =>
+                _walk = tree is null ? default : new Walk(tree, at + 1, at + tree.Piece(at).Extent, within);
+
+            public readonly LayoutPiece Current => _now;
             readonly object IEnumerator.Current => Current;
 
             public bool MoveNext()
             {
-                if (tree is null || _next >= _last) return false;
+                while (true)
+                {
+                    if (_walk.Tree is null) return false;
 
-                _now = _next;
-                _next += tree.Piece(_now).Extent;
-                return true;
+                    if (_walk.Next >= _walk.Last)
+                    {
+                        if (_out is not { Count: > 0 }) return false;
+
+                        _walk = _out.Pop();
+                        continue;
+                    }
+
+                    var now = _walk.Next;
+                    _walk.Next += _walk.Tree.Piece(now).Extent;
+
+                    if (_walk.Tree.MountOf(now) is { } mount)
+                    {
+                        (_out ??= new()).Push(_walk);
+                        _walk = new Walk(mount.Tree, 1, mount.Tree.Count, new LayoutMounted(_walk.Tree, now, _walk.Within));
+                        continue;
+                    }
+
+                    _now = new LayoutPiece(_walk.Tree, now, _walk.Within);
+                    return true;
+                }
             }
 
             public void Reset() => throw new NotSupportedException();
@@ -561,22 +669,58 @@ public readonly record struct LayoutPiece
         }
     }
 
-    /// <summary>A piece and everything inside it — a contiguous run of the tree.</summary>
-    public readonly struct PieceSubtree(LayoutTree? tree, int at) : IEnumerable<LayoutPiece>
+    /// <summary>A piece and everything inside it — a contiguous run of the tree, and of every tree put down inside it.</summary>
+    public readonly struct PieceSubtree : IEnumerable<LayoutPiece>
     {
-        public Enumerator GetEnumerator() => new(tree, at);
+        private readonly LayoutTree? _tree;
+        private readonly int _at;
+        private readonly LayoutMounted? _within;
+
+        internal PieceSubtree(LayoutTree? tree, int at, LayoutMounted? within) => (_tree, _at, _within) = (tree, at, within);
+
+        public Enumerator GetEnumerator() => new(_tree, _at, _within);
         IEnumerator<LayoutPiece> IEnumerable<LayoutPiece>.GetEnumerator() => GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-        public struct Enumerator(LayoutTree? tree, int at) : IEnumerator<LayoutPiece>
+        public struct Enumerator : IEnumerator<LayoutPiece>
         {
-            private readonly int _last = tree is null ? 0 : at + tree.Piece(at).Extent;
-            private int _now = at - 1;
+            private Walk _walk;
+            private Stack<Walk>? _out;
+            private LayoutPiece _now;
 
-            public readonly LayoutPiece Current => tree!.At(_now);
+            internal Enumerator(LayoutTree? tree, int at, LayoutMounted? within) =>
+                _walk = tree is null ? default : new Walk(tree, at, at + tree.Piece(at).Extent, within);
+
+            public readonly LayoutPiece Current => _now;
             readonly object IEnumerator.Current => Current;
 
-            public bool MoveNext() => tree is not null && ++_now < _last;
+            public bool MoveNext()
+            {
+                while (true)
+                {
+                    if (_walk.Tree is null) return false;
+
+                    if (_walk.Next >= _walk.Last)
+                    {
+                        if (_out is not { Count: > 0 }) return false;
+
+                        _walk = _out.Pop();
+                        continue;
+                    }
+
+                    var now = _walk.Next++;
+
+                    if (_walk.Tree.MountOf(now) is { } mount)
+                    {
+                        (_out ??= new()).Push(_walk);
+                        _walk = new Walk(mount.Tree, 1, mount.Tree.Count, new LayoutMounted(_walk.Tree, now, _walk.Within));
+                        continue;
+                    }
+
+                    _now = new LayoutPiece(_walk.Tree, now, _walk.Within);
+                    return true;
+                }
+            }
 
             public void Reset() => throw new NotSupportedException();
             public readonly void Dispose() { }
