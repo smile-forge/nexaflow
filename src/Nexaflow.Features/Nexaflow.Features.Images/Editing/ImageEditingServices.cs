@@ -11,14 +11,17 @@ using Nexaflow.Features.Images.Editing.Erasing;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.Features.Images.Editing.Layers;
 using Nexaflow.Features.Images.Editing.Kept;
+using Nexaflow.Features.Common;
 
 namespace Nexaflow.Features.Images.Editing;
 
 /// <summary>
-/// The editing engine an Images registration shares across its tabs: codecs, metadata transfer, the adjustment
-/// program, the markup painter, the recipe store and the exporter. Stateless apart from the store's pending writes
-/// and the painter's typeface cache, so one instance serves every viewer at once.
+/// The editing engine a workspace runtime's Images tabs share: codecs, metadata transfer, the adjustment program, the
+/// markup painter, the recipe store and the exporter. Stateless apart from the store's pending writes and the painter's
+/// typeface cache, so one instance serves every tab at once — and must, so a photo open in two has one writer for its
+/// sidecar: a feature service, built once per runtime and disposed with it, its pending writes written.
 /// </summary>
+[FeatureService]
 public sealed class ImageEditingServices : IDisposable
 {
     public ImageEditingServices(IVirtualFileSystem vfs) : this(vfs, new ImageRecipeStore()) { }

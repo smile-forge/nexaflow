@@ -27,7 +27,7 @@ public sealed class ImageTabRegistration : IPageRegistration
     private readonly IPageReading? _reading;
     private readonly IPictureErasing? _erasing;
 
-    /// <summary>The editing engine every Images tab of this workspace shares: codecs, renderer and the recipe store.</summary>
+    /// <summary>The editing engine every Images tab of this runtime shares: codecs, renderer and the recipe store.</summary>
     private readonly ImageEditingServices _editing;
 
     /// <summary>The Images settings every tab shares.</summary>
@@ -37,14 +37,14 @@ public sealed class ImageTabRegistration : IPageRegistration
     /// <param name="pictures">The picture tools, which restore a photo — AI enhance and upscale — where the app has them.</param>
     /// <param name="selection">Picture selection, which picks things out of a photo — the editor's cut-out — where the app has it.</param>
     /// <param name="reading">Page reading, which reads a picture of a page into Markdown, where the app has it.</param>
-    /// <param name="vfs">The runtime's file system the pictures are read and saved through.</param>
+    /// <param name="editing">The runtime's editing engine, shared by its Images tabs: codecs, renderer and the recipe store.</param>
     /// <param name="config">The Images settings: what a layered picture's history may hold.</param>
-    public ImageTabRegistration(IShellServices shell, IAIService ai, IVirtualFileSystem vfs, IPictureTools? pictures = null,
+    public ImageTabRegistration(IShellServices shell, IAIService ai, ImageEditingServices editing, IPictureTools? pictures = null,
                                 IPictureSelection? selection = null, IPageReading? reading = null, IPictureErasing? erasing = null,
                                 ImagesConfig? config = null)
     {
         _config    = config ?? new ImagesConfig();
-        _editing   = new ImageEditingServices(vfs);
+        _editing   = editing;
         _shell     = shell;
         _ai        = ai;
         _pictures  = pictures;

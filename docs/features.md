@@ -313,6 +313,19 @@ reflect the tab's current state (set it after in-tab navigation so `FindTab` and
 
 ---
 
+## A feature's own services — `[FeatureService]`
+
+What a feature's registrations, handlers and actions share within one runtime — two page kinds working on the same
+files, say — is a class of the feature's own marked `[FeatureService]`, taken by constructor like `IShellServices`. The
+feature DI builds one per `WorkspaceRuntime`, with the same injection its consumers get (a service may take the shell,
+the AI, the runtime's file system, configs, tools or another feature service), and drops it with the instances that
+captured the runtime's services — when the runtime is reconfigured or closes, after its tabs have gone — disposing it
+when it is `IDisposable`. The Images tabs share `ImageEditingServices` this way, so a photo open in two of them has one
+recipe store writing its sidecar. A class that is not marked is not supplied: the DI builds only what a feature asks
+it to.
+
+---
+
 ## AI capabilities — `IAIService`
 
 Injected like `IShellServices` (the active workspace's instance). Use it from query handlers and tool code:
