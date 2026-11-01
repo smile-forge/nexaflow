@@ -22,28 +22,26 @@ namespace Nexaflow.Features.Images.ViewModels;
 /// <param name="IsDraft">A canvas made here and not saved yet: it opens as the draft it is.</param>
 public sealed record RecentCanvas(string Path, string Name, string Where, bool IsDraft);
 
-/// <summary>What an Images tab shows from its start screen on, for its page to follow: its pictures, how, and — a draft —
-/// where the draft's Save as starts.</summary>
-public sealed record ShownPictures(IReadOnlyList<string> Paths, ImageViewMode Mode, bool IsDraft, string? DraftFolder);
+
 
 /// <summary>
-/// New picture — what an Images tab holding no picture shows: a blank canvas of a size and background set up here, made as a
-/// draft <c>.ora</c> and opened for editing; a picture drawn by the workspace's image model into such a canvas as its first
-/// layer; the picture on the clipboard as a canvas of its own; pictures opened from disk; and the canvases opened here lately.
-/// Whatever it opens, the tab shows from then on.
+/// Artist's start screen — what an Artist tab holding no picture shows: a blank canvas of a size and background set up here,
+/// made as a draft <c>.ora</c> and opened for editing; a picture drawn by the workspace's image model into such a canvas as its
+/// first layer; the picture on the clipboard as a canvas of its own; a picture opened from disk; and the canvases opened here
+/// lately. Whatever it opens, the tab edits from then on.
 /// </summary>
 public sealed partial class ImageStartViewModel : ObservableObject, IDisposable
 {
     /// <summary>How many canvases are remembered.</summary>
     internal const int RecentKept = 8;
 
-    private readonly ImageViewModel _viewer;
+    private readonly ArtistViewModel _viewer;
     private readonly IShellServices? _shell;
     private readonly IAIService? _ai;
     private readonly ImageEditingServices _editing;
     private readonly ImagesConfig _config;
 
-    internal ImageStartViewModel(ImageViewModel viewer, IShellServices? shell, IAIService? ai, ImageEditingServices editing, ImagesConfig config)
+    internal ImageStartViewModel(ArtistViewModel viewer, IShellServices? shell, IAIService? ai, ImageEditingServices editing, ImagesConfig config)
     {
         _viewer  = viewer;
         _shell   = shell;
@@ -194,24 +192,23 @@ public sealed partial class ImageStartViewModel : ObservableObject, IDisposable
         {
             IsMaking = false;
         }
-        _viewer.OpenCanvas(path, draft: true);
+        _viewer.Open(path, draft: true);
         return path;
     }
 
-    /// <summary>Open picture: pictures from disk, shown here.</summary>
+    /// <summary>Open picture: a picture from disk — a photo, or a layered picture — edited here.</summary>
     [RelayCommand]
     private async Task OpenPicture()
     {
         if (_shell is null) return;
-        var paths = await _shell.PickOpenFilesAsync([.. ImageFileTypes.Extensions]);
-        if (paths.Count > 0) _viewer.ShowPictures(paths, ImageViewMode.Carousel);
+        if (await _shell.PickOpenFileAsync([.. ImageFileTypes.Extensions]) is { } path) _viewer.Open(path);
     }
 
     /// <summary>A canvas opened here lately, opened for editing again — a draft as the draft it is.</summary>
     [RelayCommand]
     private void OpenRecent(RecentCanvas? canvas)
     {
-        if (canvas is not null) _viewer.OpenCanvas(canvas.Path, canvas.IsDraft);
+        if (canvas is not null) _viewer.Open(canvas.Path, canvas.IsDraft);
     }
 
     /// <summary>The workspace's AI settings, where it draws no pictures.</summary>

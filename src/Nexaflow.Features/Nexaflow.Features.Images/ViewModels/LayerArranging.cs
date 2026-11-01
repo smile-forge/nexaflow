@@ -39,7 +39,7 @@ public sealed partial class LayerArranging : ObservableObject
     /// <summary>Turns snap to this many degrees while Shift is held.</summary>
     private const double SnapDegrees = 15;
 
-    private readonly ImageViewModel _viewer;
+    private readonly ArtistViewModel _viewer;
     private readonly ImageEditingServices _editing;
 
     // What is lifted from a pixel layer and floats above it, until it is dropped back.
@@ -56,7 +56,7 @@ public sealed partial class LayerArranging : ObservableObject
     // The open handle drag: the handle, where the pointer began, and the transform's terms then.
     private (ArrangeHandle Handle, SKPoint From, double ScaleX, double ScaleY, double Degrees, SKPoint Offset)? _drag;
 
-    internal LayerArranging(ImageViewModel viewer, ImageEditingServices editing)
+    internal LayerArranging(ArtistViewModel viewer, ImageEditingServices editing)
     {
         _viewer  = viewer;
         _editing = editing;

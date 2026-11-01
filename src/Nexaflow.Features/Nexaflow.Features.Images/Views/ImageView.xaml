@@ -7,7 +7,6 @@
              xmlns:vcl="clr-namespace:Nexaflow.Visuals.Common.Layout;assembly=Nexaflow.Visuals.Common"
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              xmlns:pages="clr-namespace:Nexaflow.Visuals.Text.Pages;assembly=Nexaflow.Visuals.Text"
-             xmlns:drafts="clr-namespace:Nexaflow.Visuals.Common.Drafts;assembly=Nexaflow.Visuals.Common"
              xmlns:icons="clr-namespace:Nexaflow.Visuals.Icons;assembly=Nexaflow.Visuals.Icons"
              AutomationProperties.AutomationId="ImageView"
              Focusable="True"
@@ -164,21 +163,21 @@
                         <DropShadowEffect BlurRadius="10" ShadowDepth="0" Opacity="0.4" Color="Black"/>
                     </Border.Effect>
                     <StackPanel Orientation="Horizontal" Margin="3">
-                        <Button Command="{Binding RotateLeftCommand}" ToolTip="{loc:Str Images.Tools.RotateLeft}" Style="{StaticResource FloatingToolButtonStyle}"
+                        <Button Command="{Binding Stage.RotateLeftCommand}" ToolTip="{loc:Str Images.Tools.RotateLeft}" Style="{StaticResource FloatingToolButtonStyle}"
                                 AutomationProperties.AutomationId="Image_RotateLeft">
                             <Grid Width="15" Height="15">
                                 <Path Data="M 7,1 A 6,6 0 1 0 13,7" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" Fill="Transparent" StrokeEndLineCap="Round"/>
                                 <Path Data="M 13,4 L 13,7 L 10,7" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" Fill="Transparent" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
                             </Grid>
                         </Button>
-                        <Button Command="{Binding RotateRightCommand}" ToolTip="{loc:Str Images.Tools.RotateRight}" Style="{StaticResource FloatingToolButtonStyle}"
+                        <Button Command="{Binding Stage.RotateRightCommand}" ToolTip="{loc:Str Images.Tools.RotateRight}" Style="{StaticResource FloatingToolButtonStyle}"
                                 AutomationProperties.AutomationId="Image_RotateRight">
                             <Grid Width="15" Height="15">
                                 <Path Data="M 7,1 A 6,6 0 1 1 1,7" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" Fill="Transparent" StrokeEndLineCap="Round"/>
                                 <Path Data="M 1,4 L 1,7 L 4,7" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" Fill="Transparent" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
                             </Grid>
                         </Button>
-                        <Button Command="{Binding FlipHorizontalCommand}" ToolTip="{loc:Str Images.Tools.FlipHorizontal}" Style="{StaticResource FloatingToolButtonStyle}"
+                        <Button Command="{Binding Stage.FlipHorizontalCommand}" ToolTip="{loc:Str Images.Tools.FlipHorizontal}" Style="{StaticResource FloatingToolButtonStyle}"
                                 AutomationProperties.AutomationId="Image_FlipHorizontal">
                             <!-- Two triangles mirrored about a dashed vertical axis. -->
                             <Grid Width="15" Height="15">
@@ -187,7 +186,7 @@
                                 <Path Data="M 9.5,3 L 14,11 L 9.5,11 Z" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
                             </Grid>
                         </Button>
-                        <Button Command="{Binding FlipVerticalCommand}" ToolTip="{loc:Str Images.Tools.FlipVertical}" Style="{StaticResource FloatingToolButtonStyle}"
+                        <Button Command="{Binding Stage.FlipVerticalCommand}" ToolTip="{loc:Str Images.Tools.FlipVertical}" Style="{StaticResource FloatingToolButtonStyle}"
                                 AutomationProperties.AutomationId="Image_FlipVertical">
                             <!-- The same, mirrored about a horizontal axis. -->
                             <Grid Width="15" Height="15">
@@ -268,7 +267,7 @@
 
                     <TextBlock Text="{loc:Str Images.LoadFailed}" Foreground="{StaticResource TextMutedBrush}"
                                HorizontalAlignment="Center" VerticalAlignment="Center"
-                               Visibility="{Binding LoadFailed, Converter={StaticResource BoolToVis}}"/>
+                               Visibility="{Binding Stage.LoadFailed, Converter={StaticResource BoolToVis}}"/>
                 </Grid>
             </ControlTemplate>
         </ResourceDictionary>
@@ -286,9 +285,9 @@
             <Grid Margin="12,0">
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
-                    <!-- Details: what the picture's file says about it, in a panel on the left (I) — browsing and editing alike -->
+                    <!-- Details: what the picture's file says about it, in a panel on the left (I) -->
                     <ToggleButton IsChecked="{Binding Details.IsOpen, Mode=TwoWay}" ToolTip="{loc:Str Images.Details.Tip}" Style="{StaticResource ToolbarToggleStyle}" Margin="0,0,8,0"
-                                  Visibility="{Binding IsStarting, Converter={StaticResource InverseBoolToVis}}"
+                                  Visibility="{Binding IsEmpty, Converter={StaticResource InverseBoolToVis}}"
                                   AutomationProperties.AutomationId="Image_Details" AutomationProperties.Name="{loc:Str Images.Details.Title}">
                         <StackPanel Orientation="Horizontal">
                             <icons:IconGlyph Icon="fluent:info" FontSize="14" VerticalAlignment="Center"/>
@@ -296,67 +295,10 @@
                         </StackPanel>
                     </ToggleButton>
 
-                    <!-- Print (Ctrl+P): the picture as edited, or the canvas; there on the start screen, with nothing to print -->
-                    <ToggleButton x:Name="PrintButton" IsChecked="{Binding Printing.IsOpen, Mode=TwoWay}" IsEnabled="{Binding Printing.CanPrint}"
-                                  ToolTip="{loc:Str Images.Print.ButtonTip}" Style="{StaticResource ToolbarToggleStyle}" Margin="0,0,8,0"
-                                  AutomationProperties.AutomationId="Image_Print" AutomationProperties.Name="{loc:Str Images.Print.Button}">
-                        <StackPanel Orientation="Horizontal">
-                            <icons:IconGlyph Icon="fluent:print" FontSize="14" VerticalAlignment="Center"/>
-                            <TextBlock Text="{loc:Str Images.Print.Button}" Margin="6,0,0,0" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </ToggleButton>
-                    <Popup IsOpen="{Binding Printing.IsOpen, Mode=TwoWay}" PlacementTarget="{Binding ElementName=PrintButton}" Placement="Bottom"
-                           StaysOpen="False" AllowsTransparency="True">
-                        <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6"
-                                Padding="12" Width="300" DataContext="{Binding Printing}" AutomationProperties.AutomationId="Image_PrintOptions">
-                            <StackPanel>
-                                <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Print.Size}" Margin="0,0,0,6"/>
-                                <UniformGrid Columns="4">
-                                    <RadioButton GroupName="PrintSize" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Print.Size.Fit}"
-                                                 IsChecked="{Binding Size, Converter={StaticResource EnumToBool}, ConverterParameter=Fit}" AutomationProperties.AutomationId="Image_PrintFit"/>
-                                    <RadioButton GroupName="PrintSize" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Print.Size.Fill}"
-                                                 IsChecked="{Binding Size, Converter={StaticResource EnumToBool}, ConverterParameter=Fill}" AutomationProperties.AutomationId="Image_PrintFill"/>
-                                    <RadioButton GroupName="PrintSize" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Print.Size.Actual}"
-                                                 IsChecked="{Binding Size, Converter={StaticResource EnumToBool}, ConverterParameter=Actual}" AutomationProperties.AutomationId="Image_PrintActual"/>
-                                    <RadioButton GroupName="PrintSize" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Print.Size.Width}"
-                                                 IsChecked="{Binding Size, Converter={StaticResource EnumToBool}, ConverterParameter=Width}" AutomationProperties.AutomationId="Image_PrintWidth"/>
-                                </UniformGrid>
-                                <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Margin="0,6,0,0" Text="{Binding ActualNote}"
-                                           Visibility="{Binding IsActual, Converter={StaticResource BoolToVis}}"/>
-                                <StackPanel Visibility="{Binding SetsWidth, Converter={StaticResource BoolToVis}}" Margin="0,6,0,0">
-                                    <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Print.WidthMillimetres}"/>
-                                    <TextBox Text="{Binding WidthMillimetres, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBox}"
-                                             AutomationProperties.AutomationId="Image_PrintWidthMillimetres" AutomationProperties.Name="{loc:Str Images.Print.WidthMillimetres}"/>
-                                </StackPanel>
-                                <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Print.Orientation}"/>
-                                <UniformGrid Columns="3">
-                                    <RadioButton GroupName="PrintOrientation" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Print.Orientation.Auto}"
-                                                 IsChecked="{Binding Orientation, Converter={StaticResource EnumToBool}, ConverterParameter=Auto}" AutomationProperties.AutomationId="Image_PrintAuto"/>
-                                    <RadioButton GroupName="PrintOrientation" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Print.Orientation.Portrait}"
-                                                 IsChecked="{Binding Orientation, Converter={StaticResource EnumToBool}, ConverterParameter=Portrait}" AutomationProperties.AutomationId="Image_PrintPortrait"/>
-                                    <RadioButton GroupName="PrintOrientation" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Print.Orientation.Landscape}"
-                                                 IsChecked="{Binding Orientation, Converter={StaticResource EnumToBool}, ConverterParameter=Landscape}" AutomationProperties.AutomationId="Image_PrintLandscape"/>
-                                </UniformGrid>
-                                <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Print.Margins}" Margin="0,8,0,0"/>
-                                <TextBox Text="{Binding MarginMillimetres, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBox}"
-                                         AutomationProperties.AutomationId="Image_PrintMargins" AutomationProperties.Name="{loc:Str Images.Print.Margins}"/>
-                                <CheckBox Margin="0,8,0,0" Foreground="{StaticResource TextBrush}" IsChecked="{Binding Centre, Mode=TwoWay}"
-                                          Content="{loc:Str Images.Print.Centre}" AutomationProperties.AutomationId="Image_PrintCentre"/>
-                                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                                    <Button Click="PrintGo_Click" Style="{StaticResource ToolbarPrimaryButtonStyle}" Padding="12,4" Margin="0,0,6,0"
-                                            ToolTip="{loc:Str Images.Print.GoTip}" AutomationProperties.AutomationId="Image_PrintGo">
-                                        <icons:IconLabel Icon="fluent:print" Text="{loc:Str Images.Print.Go}"/>
-                                    </Button>
-                                    <Button Command="{Binding CloseCommand}" Style="{StaticResource ToolbarButtonStyle}" Padding="12,4"
-                                            AutomationProperties.AutomationId="Image_PrintClose">
-                                        <icons:IconLabel Icon="fluent:dismiss" Text="{loc:Str Images.Print.Cancel}"/>
-                                    </Button>
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
-                    </Popup>
+                    <!-- Print (Ctrl+P): the picture as edited -->
+                    <views:PicturePrintView DataContext="{Binding Printing}" Margin="0,0,8,0" VerticalAlignment="Center"/>
 
-                    <!-- Sub-view selector (browsing only) -->
+                    <!-- Sub-view selector: several pictures -->
                     <Border x:Name="SubViewSelector" VerticalAlignment="Center"
                             BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
                             Visibility="{Binding ShowsSubViewSelector, Converter={StaticResource BoolToVis}}">
@@ -407,15 +349,12 @@
                     <TextBlock Text="{loc:Str Images.Edit.Edited}" Foreground="{StaticResource AccentBrush}" FontSize="11"/>
                 </Border>
 
-                <!-- Browsing: edit, then the playback controls -->
+                <!-- Edit in Artist, then the playback controls -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"
-                            Visibility="{Binding ShowsBrowsingTools, Converter={StaticResource BoolToVis}}">
-                    <Button Command="{Binding EnterEditModeCommand}" ToolTip="{loc:Str Images.Toolbar.EditTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,8,0"
-                            AutomationProperties.AutomationId="Image_EditMode">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="✎" FontSize="12" VerticalAlignment="Center"/>
-                            <TextBlock Text="{loc:Str Images.Toolbar.Edit}" Margin="6,0,0,0" VerticalAlignment="Center"/>
-                        </StackPanel>
+                            Visibility="{Binding IsEmpty, Converter={StaticResource InverseBoolToVis}}">
+                    <Button Command="{Binding OpenInArtistCommand}" ToolTip="{loc:Str Images.Toolbar.EditTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,8,0"
+                            AutomationProperties.AutomationId="Image_Edit">
+                        <icons:IconLabel Icon="fluent:paint_brush" Text="{loc:Str Images.Toolbar.Edit}"/>
                     </Button>
                     <!-- Make a video from this picture: enabled where the workspace has a model that carries a picture on, and saying how to
                          enable it where it has none -->
@@ -511,216 +450,12 @@
                     </Button>
                 </StackPanel>
 
-                <!-- Editing: history, compare, revert, save, done -->
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"
-                            Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}">
-                    <!-- Layers: one added makes the photo a layered picture, kept apart from it. -->
-                    <Button Command="{Binding AddLayerCommand}" ToolTip="{loc:Str Images.Edit.AddLayerTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,0"
-                            AutomationProperties.AutomationId="Image_EditAddLayer">
-                        <icons:IconLabel Icon="fluent:layer_diagonal_add" Text="{loc:Str Images.Edit.AddLayer}"/>
-                    </Button>
-                    <Button Command="{Binding PasteAsLayerCommand}" ToolTip="{loc:Str Images.Edit.PasteLayerTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,10,0"
-                            AutomationProperties.AutomationId="Image_EditPasteLayer">
-                        <icons:IconLabel Icon="fluent:clipboard_paste" Text="{loc:Str Images.Edit.PasteLayer}"/>
-                    </Button>
-                    <Button Command="{Binding UndoEditCommand}" ToolTip="{loc:Str Images.Edit.UndoTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,0"
-                            AutomationProperties.AutomationId="Image_EditUndo">
-                        <TextBlock Text="↶" FontSize="14"/>
-                    </Button>
-                    <Button Command="{Binding RedoEditCommand}" ToolTip="{loc:Str Images.Edit.RedoTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,10,0"
-                            AutomationProperties.AutomationId="Image_EditRedo">
-                        <TextBlock Text="↷" FontSize="14"/>
-                    </Button>
-                    <ToggleButton IsChecked="{Binding Editor.ShowOriginal, Mode=TwoWay}" ToolTip="{loc:Str Images.Edit.CompareTip}" Style="{StaticResource ToolbarToggleStyle}" Margin="0,0,4,0"
-                                  AutomationProperties.AutomationId="Image_EditCompare">
-                        <TextBlock Text="{loc:Str Images.Edit.Compare}"/>
-                    </ToggleButton>
-                    <Button Command="{Binding RevertEditsCommand}" ToolTip="{loc:Str Images.Edit.RevertTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,10,0"
-                            AutomationProperties.AutomationId="Image_EditRevert">
-                        <TextBlock Text="{loc:Str Images.Edit.Revert}"/>
-                    </Button>
-                    <Button Command="{Binding Editor.SaveCommand}" ToolTip="{loc:Str Images.Edit.SaveTip}" Style="{StaticResource ToolbarPrimaryButtonStyle}" Margin="0,0,4,0"
-                            AutomationProperties.AutomationId="Image_EditSave">
-                        <TextBlock Text="{loc:Str Images.Edit.Save}"/>
-                    </Button>
-                    <Button Command="{Binding Editor.SaveCopyCommand}" ToolTip="{loc:Str Images.Edit.SaveCopyTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,0"
-                            AutomationProperties.AutomationId="Image_EditSaveCopy">
-                        <TextBlock Text="{loc:Str Images.Edit.SaveCopy}"/>
-                    </Button>
-                    <!-- Save options: what a save keeps and the quality it writes — decided where saving is, not among the tools -->
-                    <Grid Margin="0,0,10,0">
-                        <Button x:Name="SaveOptionsButton" Command="{Binding Editor.OpenSaveOptionsCommand}" ToolTip="{loc:Str Images.Edit.SaveOptions.Tip}"
-                                Style="{StaticResource ToolbarButtonStyle}"
-                                AutomationProperties.AutomationId="Image_EditSaveOptions" AutomationProperties.Name="{loc:Str Images.Edit.SaveOptions.Title}">
-                            <Grid>
-                                <icons:IconGlyph Icon="fluent:settings" FontSize="14"/>
-                                <!-- What Save will not do is said inside: marked here so it is not missed. -->
-                                <Ellipse Width="6" Height="6" Fill="{StaticResource WarningBrush}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-3,-5,0"
-                                         Visibility="{Binding Editor.SaveNote, Converter={StaticResource NullToCollapsed}}"/>
-                            </Grid>
-                        </Button>
-                        <Popup IsOpen="{Binding Editor.IsSaveOptionsOpen, Mode=TwoWay}" StaysOpen="False"
-                               PlacementTarget="{Binding ElementName=SaveOptionsButton}" Placement="Bottom"
-                               AllowsTransparency="True" PopupAnimation="Fade">
-                            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                                    BorderThickness="1" CornerRadius="6" Margin="0,6,0,0" Padding="14,0,14,14" Width="320"
-                                    Thumb.DragStarted="SaveOptions_DragStarted" Thumb.DragCompleted="SaveOptions_DragCompleted">
-                                <StackPanel>
-                                    <TextBlock Style="{StaticResource EditPanelTitle}" Text="{loc:Str Images.Edit.SaveOptions.Title}"/>
-                                    <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Edit.Export.Hint}"/>
-
-                                    <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Export.MetadataHeader}"/>
-                                    <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Editor.StripMetadata, Mode=TwoWay}"
-                                              Content="{loc:Str Images.Edit.Export.Strip}" AutomationProperties.AutomationId="Image_EditStripMetadata"/>
-                                    <TextBlock Style="{StaticResource EditCaption}" Margin="0,4,0,0" Text="{loc:Str Images.Edit.Export.StripHint}"/>
-
-                                    <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Export.Quality}"/>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <views:AdjustmentSlider Minimum="50" Maximum="100" SmallChange="1" LargeChange="5" DefaultValue="92" VerticalAlignment="Center"
-                                                                IsSnapToTickEnabled="True" TickFrequency="1"
-                                                                Value="{Binding Editor.Quality, Mode=TwoWay}" AutomationProperties.AutomationId="Image_EditQuality"/>
-                                        <TextBlock Grid.Column="1" Style="{StaticResource EditCaption}" Margin="8,0,0,0" Text="{Binding Editor.Quality}"/>
-                                    </Grid>
-                                    <TextBlock Style="{StaticResource EditCaption}" Margin="0,4,0,0" Text="{loc:Str Images.Edit.Export.QualityHint}"/>
-
-                                    <TextBlock Style="{StaticResource EditCaption}" Margin="0,14,0,0" Foreground="{StaticResource WarningBrush}"
-                                               Text="{Binding Editor.SaveNote}" Visibility="{Binding Editor.SaveNote, Converter={StaticResource NullToCollapsed}}"/>
-                                </StackPanel>
-                            </Border>
-                        </Popup>
-                    </Grid>
-                    <Button Command="{Binding ExitEditModeCommand}" ToolTip="{loc:Str Images.Edit.DoneTip}" Style="{StaticResource ToolbarButtonStyle}"
-                            AutomationProperties.AutomationId="Image_EditDone">
-                        <TextBlock Text="{loc:Str Images.Edit.Done}"/>
-                    </Button>
-                </StackPanel>
             </Grid>
         </Border>
 
-        <!-- ══ Recipe notices ══ -->
+        <!-- ══ Notices ══ -->
         <StackPanel Grid.Row="1">
-            <!-- A picture made for the user and not saved yet: its Save as. -->
-            <drafts:DraftBanner DataContext="{Binding Draft}"/>
-            <!-- The photo changed since its edits were made. -->
-            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource WarningBrush}" BorderThickness="0,0,0,1" Padding="12,6"
-                    Visibility="{Binding HasChangedSourceNotice, Converter={StaticResource BoolToVis}}">
-                <DockPanel>
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                        <Button Command="{Binding KeepChangedEditsCommand}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,0"
-                                AutomationProperties.AutomationId="Image_EditKeepChanged">
-                            <TextBlock Text="{loc:Str Images.Edit.Notice.Keep}"/>
-                        </Button>
-                        <Button Command="{Binding DiscardChangedEditsCommand}" Style="{StaticResource ToolbarButtonStyle}"
-                                AutomationProperties.AutomationId="Image_EditDiscardChanged">
-                            <TextBlock Text="{loc:Str Images.Edit.Notice.Discard}"/>
-                        </Button>
-                    </StackPanel>
-                    <TextBlock Text="{loc:Str Images.Edit.Notice.SourceChanged}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
-                </DockPanel>
-            </Border>
-            <!-- A layered picture opened on the look the application that wrote it saved: which layers cannot be drawn, and the two ways on. -->
-            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
-                    Visibility="{Binding ShowsSavedLookBar, Converter={StaticResource BoolToVis}}">
-                <DockPanel>
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                        <Button Command="{Binding UseSavedLookCommand}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,0"
-                                ToolTip="{loc:Str Images.Layers.UseSavedLookTip}" AutomationProperties.AutomationId="Image_SavedLookUse">
-                            <icons:IconLabel Icon="fluent:image" Text="{loc:Str Images.Layers.UseSavedLook}"/>
-                        </Button>
-                        <Button Command="{Binding EditTheLayersCommand}" Style="{StaticResource ToolbarButtonStyle}"
-                                ToolTip="{loc:Str Images.Layers.EditTheLayersTip}" AutomationProperties.AutomationId="Image_SavedLookEditLayers">
-                            <icons:IconLabel Icon="fluent:layer_diagonal" Text="{loc:Str Images.Layers.EditTheLayers}"/>
-                        </Button>
-                    </StackPanel>
-                    <TextBlock Text="{Binding SavedLookNotice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
-                </DockPanel>
-            </Border>
-            <!-- Edits that last only for the session. -->
-            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
-                    Visibility="{Binding ShowsSessionOnlyNotice, Converter={StaticResource BoolToVis}}">
-                <TextBlock Text="{Binding SessionOnlyNotice}" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
-            </Border>
-            <!-- The photo's AI enhance: being made, waiting on the picture tools, or why it shows as it was. -->
-            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
-                    Visibility="{Binding Restorer.HasNotice, Converter={StaticResource BoolToVis}}">
-                <DockPanel>
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                        <Button Command="{Binding Restorer.ActCommand}" Style="{StaticResource ToolbarButtonStyle}"
-                                Visibility="{Binding Restorer.HasAction, Converter={StaticResource BoolToVis}}"
-                                AutomationProperties.AutomationId="Image_RestoreAction" AutomationProperties.Name="{Binding Restorer.ActionLabel}">
-                            <TextBlock Text="{Binding Restorer.ActionLabel}"/>
-                        </Button>
-                    </StackPanel>
-                    <TextBlock Text="{Binding Restorer.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
-                </DockPanel>
-            </Border>
-            <!-- The photo's erasing: being made, waiting on a tool, or why the photo shows as it is. -->
-            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
-                    Visibility="{Binding Eraser.HasNotice, Converter={StaticResource BoolToVis}}">
-                <DockPanel>
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                        <Button Command="{Binding Eraser.ActCommand}" Style="{StaticResource ToolbarButtonStyle}"
-                                Visibility="{Binding Eraser.HasAction, Converter={StaticResource BoolToVis}}"
-                                AutomationProperties.AutomationId="Image_EraseAction" AutomationProperties.Name="{Binding Eraser.ActionLabel}">
-                            <TextBlock Text="{Binding Eraser.ActionLabel}"/>
-                        </Button>
-                    </StackPanel>
-                    <TextBlock Text="{Binding Eraser.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
-                </DockPanel>
-            </Border>
-
-            <!-- The photo's removed background: being made, waiting on picture selection, or why it shows whole. -->
-            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
-                    Visibility="{Binding Remover.HasNotice, Converter={StaticResource BoolToVis}}">
-                <DockPanel>
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                        <Button Command="{Binding Remover.ActCommand}" Style="{StaticResource ToolbarButtonStyle}"
-                                Visibility="{Binding Remover.HasAction, Converter={StaticResource BoolToVis}}"
-                                AutomationProperties.AutomationId="Image_RemoveBackgroundAction" AutomationProperties.Name="{Binding Remover.ActionLabel}">
-                            <TextBlock Text="{Binding Remover.ActionLabel}"/>
-                        </Button>
-                    </StackPanel>
-                    <TextBlock Text="{Binding Remover.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
-                </DockPanel>
-            </Border>
-            <!-- The open panel's tools wait for models not here yet: their download, offered once. -->
-            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
-                    Visibility="{Binding Editor.PickingModels.ShowsOffer, Converter={StaticResource BoolToVis}}">
-                <DockPanel>
-                    <Button DockPanel.Dock="Right" Command="{Binding Editor.PickingModels.DownloadCommand}" Style="{StaticResource ToolbarButtonStyle}"
-                            Visibility="{Binding Editor.PickingModels.CanDownload, Converter={StaticResource BoolToVis}}"
-                            AutomationProperties.AutomationId="Image_PickingModelsDownload" AutomationProperties.Name="{loc:Str Images.Models.Download}">
-                        <TextBlock Text="{loc:Str Images.Models.Download}"/>
-                    </Button>
-                    <TextBlock Text="{Binding Editor.PickingModels.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
-                </DockPanel>
-            </Border>
-            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
-                    Visibility="{Binding Editor.ErasingModels.ShowsOffer, Converter={StaticResource BoolToVis}}">
-                <DockPanel>
-                    <Button DockPanel.Dock="Right" Command="{Binding Editor.ErasingModels.DownloadCommand}" Style="{StaticResource ToolbarButtonStyle}"
-                            Visibility="{Binding Editor.ErasingModels.CanDownload, Converter={StaticResource BoolToVis}}"
-                            AutomationProperties.AutomationId="Image_ErasingModelsDownload" AutomationProperties.Name="{loc:Str Images.Models.Download}">
-                        <TextBlock Text="{loc:Str Images.Models.Download}"/>
-                    </Button>
-                    <TextBlock Text="{Binding Editor.ErasingModels.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
-                </DockPanel>
-            </Border>
-            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
-                    Visibility="{Binding Editor.RestoringModels.ShowsOffer, Converter={StaticResource BoolToVis}}">
-                <DockPanel>
-                    <Button DockPanel.Dock="Right" Command="{Binding Editor.RestoringModels.DownloadCommand}" Style="{StaticResource ToolbarButtonStyle}"
-                            Visibility="{Binding Editor.RestoringModels.CanDownload, Converter={StaticResource BoolToVis}}"
-                            AutomationProperties.AutomationId="Image_RestoringModelsDownload" AutomationProperties.Name="{loc:Str Images.Models.Download}">
-                        <TextBlock Text="{loc:Str Images.Models.Download}"/>
-                    </Button>
-                    <TextBlock Text="{Binding Editor.RestoringModels.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
-                </DockPanel>
-            </Border>
+            <views:PictureNotices DataContext="{Binding Stage}"/>
             <!-- Converting the page to Markdown: how far it has got, its download, or why it could not -->
             <pages:PageConversionBar DataContext="{Binding ReadPage.Conversion}"/>
         </StackPanel>
@@ -921,14 +656,13 @@
                 </vcl:PanZoomSurface.SurfaceContent>
             </vcl:PanZoomSurface>
 
-            <!-- ── Edit: the photo on an editing canvas, with the tools beside it ── -->
-            <views:ImageEditView x:Name="EditSurface" Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}" Grid.Column="1"/>
+
 
         </Grid>
 
-        <!-- ── New picture: the tab holds no picture ── -->
-        <Grid Grid.Row="1" Grid.RowSpan="2" Visibility="{Binding IsStarting, Converter={StaticResource BoolToVis}}">
-            <views:ImageStartView DataContext="{Binding Start}"/>
-        </Grid>
+        <!-- ── Every picture deleted: the tab says so ── -->
+        <TextBlock Grid.Row="1" Grid.RowSpan="2" Text="{loc:Str Images.Empty}" Foreground="{StaticResource TextMutedBrush}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}"/>
     </Grid>
 </UserControl>

@@ -67,9 +67,9 @@ public class ImageCutOutTests
         return shell;
     }
 
-    private ImageViewModel Editing(Patch selection, IShellServices? shell = null, string? photo = null)
+    private ArtistViewModel Editing(Patch selection, IShellServices? shell = null, string? photo = null)
     {
-        var vm = new ImageViewModel([photo ?? _photo], shell ?? Shell(), ImageViewMode.Edit, _services, selection: selection);
+        var vm = new ArtistViewModel(photo ?? _photo, shell ?? Shell(), _services, selection: selection);
         Until(() => vm.Canvas is not null);
         Assert.IsNotNull(vm.Canvas, "the photo was never decoded and presented");
         OnUi(() => vm.Editor.Tool = EditTool.CutOut);
@@ -78,7 +78,7 @@ public class ImageCutOutTests
 
     /// <summary>Picks the patch with a click and removes the photo's background around it, then waits for its mask to be
     /// made and drawn through.</summary>
-    private void RemoveBackgroundAroundAClick(ImageViewModel vm)
+    private void RemoveBackgroundAroundAClick(ArtistViewModel vm)
     {
         OnUi(() => vm.Cutter.Click(10, 8, include: true));
         Until(() => vm.Editor.RemoveBackgroundCommand.CanExecute(null));
@@ -166,14 +166,14 @@ public class ImageCutOutTests
     }
 
     [TestMethod]
-    public void LeavingTheEditor_LetsTheReadingGo()
+    public void ClosingTheEditor_LetsTheReadingGo()
     {
         var selection = new Patch();
         var vm = Editing(selection);
         OnUi(() => vm.Cutter.Click(10, 8, include: true));
         Until(() => vm.Cutter.HasSelection);
 
-        OnUi(() => vm.ExitEditModeCommand.Execute(null));
+        OnUi(vm.Dispose);
         Until(() => selection.Ended);
 
         Assert.IsTrue(selection.Ended, "the selection on the photo ends with the editor");
@@ -215,10 +215,10 @@ public class ImageCutOutTests
     }
 
     [TestMethod]
-    public async Task TheAssistant_PicksOutWhatItNames_InTheEditorsCutOut_FromBrowsing()
+    public async Task TheAssistant_PicksOutWhatItNames_InTheEditorsCutOut()
     {
         var selection = new Patch();
-        var vm = new ImageViewModel([_photo], Shell(), ImageViewMode.Carousel, _services, selection: selection);
+        var vm = new ArtistViewModel(_photo, Shell(), _services, selection: selection);
         Until(() => vm.CurrentSession is not null);
         var tool = vm.GetClientTools().Single(t => t.Name == "select_in_picture");
 
@@ -236,7 +236,7 @@ public class ImageCutOutTests
     {
         var shell = Shell();
         var opened = new List<Dictionary<string, string>>();
-        shell.When(s => s.OpenTab("Images", Arg.Any<Dictionary<string, string>>(), Arg.Any<IPageView?>(), Arg.Any<bool>()))
+        shell.When(s => s.OpenTab("Artist", Arg.Any<Dictionary<string, string>>(), Arg.Any<IPageView?>(), Arg.Any<bool>()))
              .Do(call => opened.Add(call.ArgAt<Dictionary<string, string>>(1)));
         var vm = Editing(new Patch(), shell);
         var args = new System.Text.Json.Nodes.JsonObject { ["what"] = "mug" };
@@ -246,12 +246,12 @@ public class ImageCutOutTests
 
         Assert.IsFalse(result.IsError, result.ModelText);
         var tab = opened.Single();
-        var saved = tab["paths"];
+        var saved = tab["path"];
         Assert.AreEqual("mug" + suffix + ".png", Path.GetFileName(saved), "named after the picture");
         StringAssert.StartsWith(saved, DraftLocation.Root, "a draft, kept in a temp folder until the user saves it");
         Assert.AreEqual(_dir, tab[DraftFile.PageParameterName], "its Save as starts beside the picture");
         Assert.AreEqual(0, Directory.GetFiles(_dir, "*" + suffix + "*").Length, "nothing is written beside the picture: its folder was never given");
-        StringAssert.Contains(result.ModelText, "opened it for the user in a new tab");
+        StringAssert.Contains(result.ModelText, "opened it for the user in a new Artist tab");
         Assert.IsFalse(result.ModelText.Contains(saved, StringComparison.OrdinalIgnoreCase), "the assistant is told the tab opened, not where the file is");
         Assert.AreEqual(0, result.Images?.Count ?? 0, "nor shown the new picture");
         using (var cut = SKBitmap.Decode(saved))
@@ -259,7 +259,7 @@ public class ImageCutOutTests
 
         await vm.GetClientTools().Single(t => t.Name == "cut_out").InvokeAsync(args, CancellationToken.None);
         Assert.AreEqual(2, opened.Count);
-        Assert.IsTrue(File.Exists(opened[0]["paths"]) && File.Exists(opened[1]["paths"]) && opened[0]["paths"] != opened[1]["paths"],
+        Assert.IsTrue(File.Exists(opened[0]["path"]) && File.Exists(opened[1]["path"]) && opened[0]["path"] != opened[1]["path"],
                       "a second cut-out does not overwrite the first");
     }
 
@@ -294,13 +294,13 @@ public class ImageCutOutTests
     [DataRow("retouch", EditTool.Retouch)]
     [DataRow("resize", EditTool.Resize)]
     public void ATabAskedToOpenOnATool_OpensTheEditorThere(string asked, EditTool tool)
-        => Assert.AreEqual(tool, Nexaflow.Features.Images.ImageTabRegistration.ParseTool(asked));
+        => Assert.AreEqual(tool, Nexaflow.Features.Images.ArtistTabRegistration.ParseTool(asked));
 
     [TestMethod]
     public void ATabAskedForNoTool_OrOneThatIsNot_OpensTheEditorAsItWould()
     {
-        Assert.IsNull(Nexaflow.Features.Images.ImageTabRegistration.ParseTool(null));
-        Assert.IsNull(Nexaflow.Features.Images.ImageTabRegistration.ParseTool("lasso"));
+        Assert.IsNull(Nexaflow.Features.Images.ArtistTabRegistration.ParseTool(null));
+        Assert.IsNull(Nexaflow.Features.Images.ArtistTabRegistration.ParseTool("lasso"));
     }
 
     // ── Remove background: what is picked kept in the photo itself ──────────

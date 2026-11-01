@@ -39,7 +39,7 @@ public partial class ImageEditorViewModel : ObservableObject
     /// <summary>A drawn arrow or box shorter than this, in source pixels, was a click and is dropped.</summary>
     private const double MinShape = 4;
 
-    private readonly ImageViewModel _viewer;
+    private readonly ArtistViewModel _viewer;
     private readonly IShellServices? _shell;
     private readonly ImageEditingServices _services;
 
@@ -315,7 +315,7 @@ public partial class ImageEditorViewModel : ObservableObject
         if (EraseMarks.Fill == EraseFill.Ai && !ErasingModels.IsReady) EraseMarks.Fill = EraseFill.ContentAware;
     }
 
-    internal ImageEditorViewModel(ImageViewModel viewer, IShellServices? shell, ImageEditingServices services, PhotoRestorer restorer, BackgroundRemover remover,
+    internal ImageEditorViewModel(ArtistViewModel viewer, IShellServices? shell, ImageEditingServices services, PhotoRestorer restorer, BackgroundRemover remover,
                                   PictureCutter cutter, PhotoEraser eraser, ModelsGate picking, ModelsGate erasing, ModelsGate restoring)
     {
         _viewer   = viewer;

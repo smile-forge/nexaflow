@@ -66,27 +66,30 @@ public class ImageEditorTests
     }
 
     /// <summary>The viewer in edit mode over the copied photo, once a frame of it is on screen.</summary>
-    private ImageViewModel Editing(IShellServices? shell = null)
+    private ArtistViewModel Editing(IShellServices? shell = null)
     {
-        var vm = new ImageViewModel([_photo], shell ?? Shell(), ImageViewMode.Edit, new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1))));
+        var vm = new ArtistViewModel(_photo, shell ?? Shell(), new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1))));
         Settle(vm);
         Assert.IsNotNull(vm.Canvas, "the photo was never decoded and presented");
         return vm;
     }
 
     /// <summary>Waits for whatever render the last change asked for to land.</summary>
-    private static void Settle(ImageViewModel vm, Func<bool>? until = null)
+    private static void Settle(ArtistViewModel vm, Func<bool>? until = null) => Settle(vm.Stage, until, () => vm.Editor.ShowOriginal);
+
+    /// <summary>Waits until the stage has drawn the picture as its recipe stands — the photo as it was, while the original is shown.</summary>
+    private static void Settle(PictureStage stage, Func<bool>? until = null, Func<bool>? original = null)
     {
         var clock = System.Diagnostics.Stopwatch.StartNew();
         while (clock.Elapsed < TimeSpan.FromSeconds(10))
         {
-            if (vm.Canvas is { } canvas && canvas.Recipe.Equals(vm.IsEditing && vm.Editor.ShowOriginal ? ImageRecipe.Identity : vm.CurrentRecipe)
+            if (stage.Canvas is { } canvas && canvas.Recipe.Equals(original?.Invoke() == true ? ImageRecipe.Identity : stage.CurrentRecipe)
                 && (until?.Invoke() ?? true)) return;
             Thread.Sleep(10);
         }
     }
 
-    private static int Steps(ImageViewModel vm)
+    private static int Steps(ArtistViewModel vm)
     {
         int steps = 0;
         while (vm.UndoEditCommand.CanExecute(null)) { vm.UndoEditCommand.Execute(null); steps++; }
@@ -364,7 +367,7 @@ public class ImageEditorTests
     public void BeforeShowsThePhotoAsItIsOnDisk()
     {
         var vm = Editing();
-        vm.RotateRightCommand.Execute(null);
+        vm.Stage.RotateRightCommand.Execute(null);
         Settle(vm);
         Assert.AreEqual(1, vm.Canvas!.Recipe.Geometry.QuarterTurns);
 
@@ -376,20 +379,14 @@ public class ImageEditorTests
 
     [TestMethod]
     [CoversNode("images-edit-revert")]
-    [CoversNode("images-edit-done")]
-    public void RevertIsUndoable_AndDoneLeavesTheEdits()
+    public void RevertIsUndoable()
     {
         var vm = Editing();
-        vm.RotateRightCommand.Execute(null);
-        vm.RevertEditsCommand.Execute(null);
+        vm.Stage.RotateRightCommand.Execute(null);
+        vm.Stage.RevertEditsCommand.Execute(null);
         Assert.IsFalse(vm.IsEdited);
         vm.UndoEditCommand.Execute(null);
         Assert.IsTrue(vm.IsEdited);
-
-        vm.ExitEditModeCommand.Execute(null);
-        Assert.IsFalse(vm.IsEditing);
-        Assert.IsTrue(vm.IsCarousel);
-        Assert.IsTrue(vm.IsEdited, "leaving the editor keeps the edits, shown on view");
     }
 
     [TestMethod]
@@ -398,7 +395,7 @@ public class ImageEditorTests
     public async Task SaveWritesTheEditsIntoThePhoto_AndSpendsTheRecipe()
     {
         var vm = Editing();
-        vm.RotateRightCommand.Execute(null);
+        vm.Stage.RotateRightCommand.Execute(null);
         Assert.IsTrue(vm.Editor.SaveCommand.CanExecute(null));
 
         await vm.Editor.SaveCommand.ExecuteAsync(null);
@@ -418,7 +415,7 @@ public class ImageEditorTests
     {
         var copy = Path.Combine(_dir, "copy.png");
         var vm = Editing(Shell(saveAs: copy));
-        vm.RotateRightCommand.Execute(null);
+        vm.Stage.RotateRightCommand.Execute(null);
         var original = File.ReadAllBytes(_photo);
 
         await vm.Editor.SaveCopyCommand.ExecuteAsync(null);
@@ -463,9 +460,9 @@ public class ImageEditorTests
             """{ "version": 1, "source": { "length": 1, "lastWriteUtc": "2000-01-01T00:00:00Z", "contentHash": "00" }, "geometry": { "quarterTurns": 1 } }""");
         var vm = Editing();
 
-        Assert.IsTrue(vm.HasChangedSourceNotice);
-        vm.KeepChangedEditsCommand.Execute(null);
-        Assert.IsFalse(vm.HasChangedSourceNotice);
+        Assert.IsTrue(vm.Stage.HasChangedSourceNotice);
+        vm.Stage.KeepChangedEditsCommand.Execute(null);
+        Assert.IsFalse(vm.Stage.HasChangedSourceNotice);
         Assert.AreEqual(1, vm.CurrentRecipe.Geometry.QuarterTurns, "kept");
     }
 
@@ -477,8 +474,8 @@ public class ImageEditorTests
     {
         var vm = new ImageViewModel([_photo], Shell(), ImageViewMode.Carousel, new ImageEditingServices(VirtualFileSystem.Instance));
         vm.SetViewport(16, 16, 1);
-        vm.RotateRightCommand.Execute(null);
-        Settle(vm, () => vm.CurrentImage is not null);
+        vm.Stage.RotateRightCommand.Execute(null);
+        Settle(vm.Stage, () => vm.CurrentImage is not null);
 
         var (width, height) = _ui.Invoke(() => (vm.CurrentImage!.PixelWidth, vm.CurrentImage.PixelHeight));
         Assert.AreEqual(16, Math.Max(width, height), "fitted to the 16 px viewport");
@@ -490,7 +487,7 @@ public class ImageEditorTests
     public async Task CaptureImage_HandsTheAssistantTheEditedPicture()
     {
         var vm = Editing();
-        vm.RotateRightCommand.Execute(null);
+        vm.Stage.RotateRightCommand.Execute(null);
         var capture = vm.GetClientTools().Single(t => t.Name == "capture_image");
 
         var result = await capture.InvokeAsync(new JsonObject(), CancellationToken.None);
@@ -506,15 +503,14 @@ public class ImageEditorTests
     [CoversNode("images-header")]
     public void AnEditedPhoto_IsMarkedSo_WhereItIsShownAlone()
     {
-        var vm = Editing();
+        var vm = new ImageViewModel([_photo], Shell(), ImageViewMode.Carousel, new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1))));
+        vm.SetViewport(64, 64, 1);
+        Settle(vm.Stage);
         Assert.IsFalse(vm.ShowsEditedMark, "nothing edited yet");
 
-        vm.RotateRightCommand.Execute(null);
-        Settle(vm);
-        Assert.IsTrue(vm.ShowsEditedMark, "edited, in the editor");
-
-        vm.ViewMode = ImageViewMode.Carousel;
-        Assert.IsTrue(vm.ShowsEditedMark, "and shown on its own");
+        vm.Stage.RotateRightCommand.Execute(null);
+        Settle(vm.Stage);
+        Assert.IsTrue(vm.ShowsEditedMark, "edited, and shown on its own");
 
         vm.ViewMode = ImageViewMode.Album;
         Assert.IsFalse(vm.ShowsEditedMark, "a grid of pictures is about none of them");
@@ -524,11 +520,15 @@ public class ImageEditorTests
 
     [TestMethod]
     [CoversNode("images-open-edit")]
-    public async Task TheEditAction_OpensTheImagesStraightIntoTheEditor()
+    public async Task TheEditAction_OpensEachImageInArtist()
     {
         var shell = Shell();
-        Assert.IsTrue(await new EditImageAction(shell).PerformActionAsync([_photo, Path.Combine(_dir, "notes.txt")]));
-        shell.Received().OpenTab("Images", Arg.Is<Dictionary<string, string>>(p => p["view"] == "edit" && p["paths"] == _photo));
+        var other = Path.Combine(_dir, "other.png");
+        File.Copy(_photo, other);
+        Assert.IsTrue(await new EditImageAction(shell).PerformActionAsync([_photo, Path.Combine(_dir, "notes.txt"), other]));
+        shell.Received(1).OpenTab("Artist", Arg.Is<Dictionary<string, string>>(p => p["path"] == _photo));
+        shell.Received(1).OpenTab("Artist", Arg.Is<Dictionary<string, string>>(p => p["path"] == other));
+        shell.Received(2).OpenTab(Arg.Any<string>(), Arg.Any<Dictionary<string, string>>());
     }
 
     [TestMethod]

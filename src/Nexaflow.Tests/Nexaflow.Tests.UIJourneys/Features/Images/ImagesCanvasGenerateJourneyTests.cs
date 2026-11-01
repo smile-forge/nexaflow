@@ -9,7 +9,7 @@ using Nexaflow.Tests.UIJourneys.Infrastructure;
 namespace Nexaflow.Tests.Features.Images.UI;
 
 /// <summary>
-/// Pictures drawn into a canvas, the user driving. In a workspace that draws pictures with Z-Image Turbo, New picture draws
+/// Pictures drawn into a canvas, the user driving. In a workspace that draws pictures with Z-Image Turbo, Artist's start screen draws
 /// what is described into the canvas it makes — shown in the layers panel with its Stop while it draws, its first layer once it
 /// arrives — and Generate layer draws a layer above the active one, which can be set up and let go, or stopped while it draws.
 /// <para>
@@ -28,7 +28,7 @@ public class ImagesCanvasGenerateJourneyTests : ImageEditJourneyBase
 
     private string _aiDir = "";
 
-    protected override string? LaunchTabKind => "Images";
+    protected override string? LaunchTabKind => "Artist";
 
     /// <summary>The first picture loads Z-Image's parts before it draws.</summary>
     protected override TimeSpan JourneyBudget => TimeSpan.FromMinutes(6);
@@ -66,7 +66,7 @@ public class ImagesCanvasGenerateJourneyTests : ImageEditJourneyBase
     [TestMethod]
     public void APictureDrawnIntoACanvas_ArrivesAsALayer_AndGenerateLayerCanBeLetGoOrStopped()
     {
-        CheckPresent("New picture shows", "Images_Start", 15);
+        CheckPresent("The start screen shows", "Images_Start", 15);
         Check("What to draw is described", () => TypeInto("Images_GeneratePrompt", "A lighthouse on a cliff at dusk, oil painting"));
         CheckDoes("Generate opens the canvas, the picture shown drawing in its layers", "Images_StartGenerate",
                   () => WaitForFs(() => Exists("Image_LayersPanel"), 15) && WaitForFs(() => Exists("Image_LayersPendingStop"), 5));

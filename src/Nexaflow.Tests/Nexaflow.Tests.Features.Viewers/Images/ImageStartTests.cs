@@ -71,7 +71,7 @@ public class ImageStartTests
     {
         var shell = Substitute.For<IShellServices>();
         shell.RunOnUiAsync(Arg.Any<Action>()).Returns(call => _ui.Run(call.Arg<Action>()));
-        shell.PickOpenFilesAsync(Arg.Any<IReadOnlyList<string>?>(), Arg.Any<string?>()).Returns(opened ?? []);
+        shell.PickOpenFileAsync(Arg.Any<IReadOnlyList<string>?>(), Arg.Any<string?>()).Returns(opened?.FirstOrDefault());
         return shell;
     }
 
@@ -90,8 +90,8 @@ public class ImageStartTests
         return ai;
     }
 
-    private ImageViewModel Viewer(IReadOnlyList<string> paths, ImageViewMode mode, IShellServices? shell = null, IAIService? ai = null)
-        => _ui.Invoke(() => new ImageViewModel(paths, shell ?? Shell(), mode, _services, ai: ai, config: _config)
+    private ArtistViewModel Artist(string? path, IShellServices? shell = null, IAIService? ai = null)
+        => _ui.Invoke(() => new ArtistViewModel(path, shell ?? Shell(), _services, ai: ai, config: _config)
         {
             MakeDraft = (path, folder) => new DraftSaving(path, folder, (_, _, _) => Task.FromResult<string?>(null), _ => { }, (_, _) => Task.CompletedTask),
         });
@@ -104,7 +104,7 @@ public class ImageStartTests
         return path;
     }
 
-    private LayeredPicture Picture(ImageViewModel vm) => _ui.Invoke(() => vm.CurrentDocument!.Picture);
+    private LayeredPicture Picture(ArtistViewModel vm) => _ui.Invoke(() => vm.CurrentDocument!.Picture);
 
     private void OnUi(Action action) => _ui.Run(action).GetAwaiter().GetResult();
 
@@ -114,7 +114,7 @@ public class ImageStartTests
         while (clock.Elapsed < TimeSpan.FromSeconds(10) && !_ui.Invoke(done)) Thread.Sleep(10);
     }
 
-    private void SetSize(ImageViewModel vm, int width, int height) => OnUi(() =>
+    private void SetSize(ArtistViewModel vm, int width, int height) => OnUi(() =>
     {
         vm.Start.Setup.Preset = vm.Start.Setup.Custom;
         vm.Start.Setup.WidthText = width.ToString();
@@ -125,10 +125,10 @@ public class ImageStartTests
     [CoversNode("images-start")]
     public async Task ATabWithNoPicture_MakesABlankCanvasAsADraft_AndBecomesIt()
     {
-        var vm = Viewer([], ImageViewMode.Carousel);
-        ShownPictures? shown = null;
-        vm.PicturesReplaced += s => shown = s;
-        Assert.IsTrue(_ui.Invoke(() => vm.IsStarting), "no picture: New picture shows");
+        var vm = Artist(null);
+        ArtistPicture? shown = null;
+        vm.PictureReplaced += s => shown = s;
+        Assert.IsTrue(_ui.Invoke(() => vm.IsStarting), "no picture: the start screen shows");
 
         SetSize(vm, 64, 48);
         await _ui.Invoke(() => vm.Start.CreateCommand.ExecuteAsync(null));
@@ -140,8 +140,8 @@ public class ImageStartTests
         Assert.AreEqual((64, 48), (picture.Width, picture.Height));
         Assert.IsInstanceOfType<PixelLayer>(picture.Layers.Single(), "one empty pixel layer");
         Assert.IsNotNull(shown);
-        Assert.IsTrue(shown!.IsDraft && shown.Mode == ImageViewMode.Edit, "the page follows: a draft, in the editor");
-        var draft = shown.Paths.Single();
+        Assert.IsTrue(shown!.IsDraft, "the page follows: a draft");
+        var draft = shown.Path;
         StringAssert.StartsWith(draft, DraftLocation.Root, "kept as a draft in the temp folder");
         Assert.AreEqual(draft, _ui.Invoke(() => vm.Draft?.Path), "with its Save as");
         Assert.AreEqual(draft, _config.RecentCanvases.First(), "remembered for New picture");
@@ -155,7 +155,7 @@ public class ImageStartTests
     [CoversNode("images-start")]
     public async Task APictureDrawnOnTheStartScreen_ArrivesAsTheCanvasesFirstLayer_InTheProportionsNearestIt()
     {
-        var vm = Viewer([], ImageViewMode.Carousel, ai: Ai());
+        var vm = Artist(null, ai: Ai());
         SetSize(vm, 90, 160);
         OnUi(() => vm.Start.Generation!.Prompt = "a lighthouse at dusk over a stormy sea");
         Until(() => vm.Start.GenerateCommand.CanExecute(null));
@@ -186,7 +186,7 @@ public class ImageStartTests
     {
         var path = Path.Combine(_dir, "canvas.ora");
         _services.WriteLayeredAsync(LayeredPicture.Blank(40, 36, LayerBackground.Transparent, "Layer 1"), path).GetAwaiter().GetResult();
-        var vm = Viewer([path], ImageViewMode.Edit, ai: Ai());
+        var vm = Artist(path, ai: Ai());
         Until(() => vm.CurrentDocument is not null);
         var bottom = Picture(vm).ActiveId;
 
@@ -223,7 +223,7 @@ public class ImageStartTests
     [CoversNode("images-layers")]
     public async Task PicturesDroppedOnAPhoto_BecomeLayersFittedToTheCanvas()
     {
-        var vm = Viewer([_photo], ImageViewMode.Edit);
+        var vm = Artist(_photo);
         Until(() => vm.Canvas is not null);
         var big = Png("big.png", 64, 48);
 
@@ -240,19 +240,18 @@ public class ImageStartTests
 
     [TestMethod]
     [CoversNode("images-start")]
-    public async Task PicturesOpenedFromTheStartScreen_AreShownInPlace()
+    public async Task APictureOpenedFromTheStartScreen_IsEditedInPlace()
     {
-        var other = Png("other.png", 16, 12);
-        var vm = Viewer([], ImageViewMode.Carousel, Shell(opened: [_photo, other]));
-        ShownPictures? shown = null;
-        vm.PicturesReplaced += s => shown = s;
+        var vm = Artist(null, Shell(opened: [_photo]));
+        ArtistPicture? shown = null;
+        vm.PictureReplaced += s => shown = s;
 
         await _ui.Invoke(() => vm.Start.OpenPictureCommand.ExecuteAsync(null));
         Until(() => vm.CurrentSession is not null);
 
-        Assert.AreEqual(2, _ui.Invoke(() => vm.TotalImages));
         Assert.IsFalse(_ui.Invoke(() => vm.IsStarting));
-        CollectionAssert.AreEqual(new[] { _photo, other }, shown!.Paths.ToArray());
+        Assert.AreEqual(_photo, _ui.Invoke(() => vm.CurrentPath));
+        Assert.AreEqual(_photo, shown!.Path);
         Assert.IsFalse(shown.IsDraft);
         Assert.IsNull(_ui.Invoke(() => vm.Draft), "pictures opened where they live are no draft");
     }

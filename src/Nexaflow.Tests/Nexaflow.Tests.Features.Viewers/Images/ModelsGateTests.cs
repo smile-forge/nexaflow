@@ -128,7 +128,7 @@ public class ModelsGateTests
             var erasing = Missing<IPictureErasing>(210L << 20);
             var pictures = Missing<IPictureTools>(640L << 20);
             pictures.Restores(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>()).Returns(true);
-            var vm = new ImageViewModel([photo], shell, ImageViewMode.Edit, new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1))),
+            var vm = new ArtistViewModel(photo, shell, new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1))),
                                         pictures: pictures, selection: selection, erasing: erasing);
             Until(() => vm.Canvas is not null);
             var editor = vm.Editor;
@@ -150,13 +150,13 @@ public class ModelsGateTests
             OnUi(() => editor.Tool = EditTool.CutOut);
             Assert.IsTrue(editor.PickingModels.ShowsOffer);
 
-            OnUi(() => vm.ViewMode = ImageViewMode.Carousel);
-            Assert.IsFalse(editor.PickingModels.ShowsOffer, "out of the editor, nothing is offered");
+            OnUi(() => editor.Tool = EditTool.Crop);
+            Assert.IsFalse(editor.PickingModels.ShowsOffer, "a panel needing no model offers none");
 
             selection.State.Returns(ToolModelsState.Ready);
             selection.Changed += Raise.Event();
             Until(() => ui.Invoke(() => editor.PickingModels.IsReady));
-            OnUi(() => vm.ViewMode = ImageViewMode.Edit);
+            OnUi(() => editor.Tool = EditTool.CutOut);
             Assert.IsFalse(editor.PickingModels.ShowsOffer, "here now, so nothing to offer");
             vm.Dispose();
         }

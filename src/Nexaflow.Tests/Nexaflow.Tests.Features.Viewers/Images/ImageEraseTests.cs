@@ -73,9 +73,9 @@ public class ImageEraseTests
         return shell;
     }
 
-    private ImageViewModel Editing(IPictureErasing? erasing = null, IPictureSelection? selection = null, IPictureTools? pictures = null)
+    private ArtistViewModel Editing(IPictureErasing? erasing = null, IPictureSelection? selection = null, IPictureTools? pictures = null)
     {
-        var vm = new ImageViewModel([_photo], Shell(), ImageViewMode.Edit, _services, pictures: pictures, selection: selection, erasing: erasing);
+        var vm = new ArtistViewModel(_photo, Shell(), _services, pictures: pictures, selection: selection, erasing: erasing);
         Until(() => vm.Canvas is not null);
         Assert.IsNotNull(vm.Canvas, "the photo was never decoded and presented");
         OnUi(() => vm.Editor.Tool = EditTool.Retouch);
@@ -83,7 +83,7 @@ public class ImageEraseTests
     }
 
     /// <summary>Brushes a dab of <paramref name="width"/> over the red square's centre, filled as <paramref name="fill"/>.</summary>
-    private void BrushOverTheSpot(ImageViewModel vm, EraseFill fill, double width = 8)
+    private void BrushOverTheSpot(ArtistViewModel vm, EraseFill fill, double width = 8)
     {
         OnUi(() =>
         {
@@ -95,7 +95,7 @@ public class ImageEraseTests
         });
     }
 
-    private void Erase(ImageViewModel vm)
+    private void Erase(ArtistViewModel vm)
     {
         Until(() => vm.Editor.EraseCommand.CanExecute(null));
         OnUi(() => vm.Editor.EraseCommand.Execute(null));
@@ -278,7 +278,7 @@ public class ImageEraseTests
         AssertNear(Ground, new SKColor(pixel[2], pixel[1], pixel[0]), because: "the square is erased in the thumbnail");
     }
 
-    private static Task<ToolResult> EraseInPicture(ImageViewModel vm, string? what = null, string? box = null, string? fill = null)
+    private static Task<ToolResult> EraseInPicture(ArtistViewModel vm, string? what = null, string? box = null, string? fill = null)
     {
         var args = new System.Text.Json.Nodes.JsonObject();
         if (what is not null) args["what"] = what;

@@ -63,7 +63,7 @@ public sealed class NewLayeredPictureOptions : ObservableObject, IFileCreateOpti
             _shell.ShowError(Str.Format("Images.Canvas.FailedFormat", Path.GetFileName(path), ex.Message));
             return;
         }
-        _shell.OpenTab(ImageTabRegistration.StaticPageKind, new Dictionary<string, string> { ["paths"] = path, ["view"] = "edit" });
+        _shell.OpenTab(ArtistTabRegistration.StaticPageKind, new Dictionary<string, string> { ["path"] = path });
     }
 
     public void Dispose() => Setup.PropertyChanged -= SetupChanged;

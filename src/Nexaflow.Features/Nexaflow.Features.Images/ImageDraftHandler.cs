@@ -10,7 +10,7 @@ namespace Nexaflow.Features.Images;
 
 /// <summary>
 /// Claims a <see cref="DraftFile"/> that is a picture — one drawn, or cut out, for the user — from
-/// <see cref="IShellServices.HandleObject"/> and opens it as a draft Images tab, with Save as to keep it; and keeps a
+/// <see cref="IShellServices.HandleObject"/> and opens it as a draft in Artist, with Save as to keep it; and keeps a
 /// draft picture where the user picks, with its edits.
 /// </summary>
 public sealed class ImageDraftHandler(IShellServices shell) : IGenericObjectHandler
@@ -20,9 +20,9 @@ public sealed class ImageDraftHandler(IShellServices shell) : IGenericObjectHand
     public void Handle(object obj)
     {
         if (obj is not DraftFile draft) return;
-        shell.OpenTab(ImageTabRegistration.StaticPageKind, new Dictionary<string, string>
+        shell.OpenTab(ArtistTabRegistration.StaticPageKind, new Dictionary<string, string>
         {
-            ["paths"]                     = draft.Path,
+            ["path"]                      = draft.Path,
             [DraftFile.PageParameterName] = draft.OfferedFolder ?? string.Empty,
         });
     }

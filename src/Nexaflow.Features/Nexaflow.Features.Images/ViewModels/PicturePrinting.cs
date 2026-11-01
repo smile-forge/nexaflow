@@ -21,22 +21,22 @@ namespace Nexaflow.Features.Images.ViewModels;
 /// </summary>
 public sealed partial class PicturePrinting : ObservableObject
 {
-    private readonly ImageViewModel _viewer;
+    private readonly PictureStage _stage;
     private readonly ImageEditingServices _editing;
     private readonly IShellServices? _shell;
 
-    internal PicturePrinting(ImageViewModel viewer, ImageEditingServices editing, IShellServices? shell)
+    internal PicturePrinting(PictureStage stage, ImageEditingServices editing, IShellServices? shell)
     {
-        _viewer  = viewer;
+        _stage   = stage;
         _editing = editing;
         _shell   = shell;
-        viewer.PropertyChanged += OnViewerChanged;
+        stage.PropertyChanged += OnStageChanged;
     }
 
-    private void OnViewerChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnStageChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(ImageViewModel.CurrentSession) or nameof(ImageViewModel.CurrentDocument) or nameof(ImageViewModel.IsStarting)
-                           or nameof(ImageViewModel.Canvas) or nameof(ImageViewModel.CurrentImage))
+        if (e.PropertyName is nameof(PictureStage.CurrentSession) or nameof(PictureStage.CurrentDocument)
+                           or nameof(PictureStage.Canvas) or nameof(PictureStage.CurrentImage))
         {
             OnPropertyChanged(nameof(CanPrint));
             OnPropertyChanged(nameof(ActualNote));
@@ -65,8 +65,8 @@ public sealed partial class PicturePrinting : ObservableObject
     /// <summary>The print options are open.</summary>
     [ObservableProperty] private bool _isOpen;
 
-    /// <summary>Something is shown to print: a photo decoded, or a layered picture. Never on the start screen.</summary>
-    public bool CanPrint => !_viewer.IsStarting && (_viewer.CurrentDocument is not null || _viewer.CurrentSession?.Proxy is not null);
+    /// <summary>Something is shown to print: a photo decoded, or a layered picture.</summary>
+    public bool CanPrint => _stage.CurrentDocument is not null || _stage.CurrentSession?.Proxy is not null;
 
     /// <summary>Opens the print options, or closes them.</summary>
     [RelayCommand(CanExecute = nameof(CanPrint))]
@@ -78,21 +78,21 @@ public sealed partial class PicturePrinting : ObservableObject
     internal PrintOptions Options => new(Size, WidthMillimetres, Orientation, MarginMillimetres, Centre);
 
     /// <summary>The picture's resolution: a layered picture's own; a photo's, at the resolution pictures are taken to have.</summary>
-    internal double Dpi => _viewer.CurrentDocument?.Picture.Dpi ?? LayeredPicture.DefaultDpi;
+    internal double Dpi => _stage.CurrentDocument?.Picture.Dpi ?? LayeredPicture.DefaultDpi;
 
     /// <summary>What actual size means for this picture.</summary>
     public string ActualNote => Str.Format("Images.Print.ActualNote", Dpi);
 
     /// <summary>The picture's size in pixels, as it prints; null while there is none.</summary>
-    internal SKSizeI? PictureSize => _viewer.CurrentDocument is { } document
+    internal SKSizeI? PictureSize => _stage.CurrentDocument is { } document
         ? new SKSizeI(document.Picture.Width, document.Picture.Height)
-        : _viewer.CurrentSession is { } session ? session.OutputSize(session.Recipe) : null;
+        : _stage.CurrentSession is { } session ? session.OutputSize(session.Recipe) : null;
 
     /// <summary>Whether the page is turned landscape for this picture.</summary>
     public bool PrintsLandscape => PictureSize is { } size && PicturePrintLayout.Landscape(size, Options);
 
     /// <summary>What the print job is called: the picture's file name.</summary>
-    public string Title => Path.GetFileName(_viewer.CurrentDocument?.Path ?? _viewer.CurrentSession?.Path ?? string.Empty);
+    public string Title => Path.GetFileName(_stage.CurrentDocument?.Path ?? _stage.CurrentSession?.Path ?? string.Empty);
 
     /// <summary>
     /// The pages to print on a printable area of <paramref name="printable"/> device-independent pixels at
@@ -131,12 +131,12 @@ public sealed partial class PicturePrinting : ObservableObject
     // The picture at full size, through the same path a save takes; null where a picture tool it needs has not made its part yet.
     private async Task<SKImage?> RenderAsync()
     {
-        if (_viewer.CurrentDocument is { } document)
+        if (_stage.CurrentDocument is { } document)
         {
             using var renderer = await document.RendererForAsync(document.Picture);
             return renderer?.Composite(1);
         }
-        if (_viewer.CurrentSession is not { } session || !session.Made.Serves(session.Recipe)) return null;
+        if (_stage.CurrentSession is not { } session || !session.Made.Serves(session.Recipe)) return null;
         return await _editing.Exporter.RenderAsync(session.Path, session.Recipe, session.Made);
     }
 

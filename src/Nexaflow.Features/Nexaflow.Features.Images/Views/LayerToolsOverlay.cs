@@ -27,7 +27,7 @@ public sealed class LayerToolsOverlay : FrameworkElement
         Handle,
     }
 
-    private ImageViewModel? _viewer;
+    private ArtistViewModel? _viewer;
     private double _zoom = 1;
     private Point? _pointer;
     private Drag _drag;
@@ -45,7 +45,7 @@ public sealed class LayerToolsOverlay : FrameworkElement
         set { _zoom = Math.Max(0.01, value); InvalidateVisual(); }
     }
 
-    public void Attach(ImageViewModel viewer)
+    public void Attach(ArtistViewModel viewer)
     {
         _viewer = viewer;
         viewer.PropertyChanged += OnChanged;

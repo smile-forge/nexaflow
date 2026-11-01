@@ -63,8 +63,8 @@ public class DraftHandlerTests
         new ImageDraftHandler(shell).Handle(new DraftFile(picture, @"C:\Pictures"));
         new VideoDraftHandler(shell).Handle(new DraftFile(clip));
 
-        shell.Received(1).OpenTab("Images", Arg.Is<Dictionary<string, string>>(p =>
-            p["paths"] == picture && p[DraftFile.PageParameterName] == @"C:\Pictures"), Arg.Any<IPageView?>(), Arg.Any<bool>());
+        shell.Received(1).OpenTab("Artist", Arg.Is<Dictionary<string, string>>(p =>
+            p["path"] == picture && p[DraftFile.PageParameterName] == @"C:\Pictures"), Arg.Any<IPageView?>(), Arg.Any<bool>());
         shell.Received(1).OpenTab("Video", Arg.Is<Dictionary<string, string>>(p =>
             p["path"] == clip && p[DraftFile.PageParameterName] == ""), Arg.Any<IPageView?>(), Arg.Any<bool>());
     }

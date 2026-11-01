@@ -15,7 +15,7 @@ using Nexaflow.Tests.UIJourneys.Infrastructure;
 namespace Nexaflow.Tests.Features.Images.UI;
 
 /// <summary>
-/// New picture, the user driving: an Images tab opened with no picture shows it — a blank canvas set up and created, the
+/// Artist's start screen, the user driving: an Artist tab opened with no picture shows it — a blank canvas set up and created, the
 /// clipboard's picture pasted as a canvas of its own, and a canvas opened here before opened again — each turning the tab into
 /// the canvas, in the editor with its layers. The workspace here draws no pictures, so the start screen says so and offers its
 /// AI settings; drawing into a canvas is <see cref="ImagesCanvasGenerateJourneyTests"/>'s.
@@ -26,7 +26,7 @@ namespace Nexaflow.Tests.Features.Images.UI;
 [CoversNode("images-start")]
 public class ImagesStartJourneyTests : ImageEditJourneyBase
 {
-    protected override string? LaunchTabKind => "Images";
+    protected override string? LaunchTabKind => "Artist";
 
     private string _folder = "";
     private string _recent = "";
@@ -75,7 +75,7 @@ public class ImagesStartJourneyTests : ImageEditJourneyBase
     [TestMethod]
     public void ABlankCanvas_SetUpAndCreated_OpensInTheEditor()
     {
-        CheckPresent("An Images tab with no picture shows New picture", "Images_Start", 15);
+        CheckPresent("An Artist tab with no picture shows its start screen", "Images_Start", 15);
         CheckPresent("Its canvas is set up as New's is", "Images_CanvasSetup");
         CheckPresent("No model draws here: the workspace's AI settings are offered", "Images_StartAiSettings");
         CheckPresent("Pictures can be opened from disk", "Images_StartOpen");
@@ -90,7 +90,7 @@ public class ImagesStartJourneyTests : ImageEditJourneyBase
     [TestMethod]
     public void TheClipboardsPicture_PastedAsACanvas_OpensInTheEditor()
     {
-        CheckPresent("New picture offers what the clipboard holds", "Images_StartPaste", 15);
+        CheckPresent("The start screen offers what the clipboard holds", "Images_StartPaste", 15);
         CheckDoes("Paste opens it as a canvas of its own", "Images_StartPaste", () => WaitForFs(() => Exists("Image_LayersPanel"), 15));
 
         AssertJourney();

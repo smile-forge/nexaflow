@@ -29,7 +29,7 @@ public enum PaintTool
 /// </summary>
 public sealed partial class LayerPainting : ObservableObject
 {
-    private readonly ImageViewModel _viewer;
+    private readonly ArtistViewModel _viewer;
     private readonly ImageEditorViewModel _editor;
 
     private PaintStroke? _stroke;
@@ -37,7 +37,7 @@ public sealed partial class LayerPainting : ObservableObject
     // What the open stroke lands on, as it was when it began.
     private (LayeredSession Document, Guid Layer, bool Mask, TiledPixels? Pixels, TiledCoverage? Coverage)? _strokeOn;
 
-    internal LayerPainting(ImageViewModel viewer, ImageEditorViewModel editor)
+    internal LayerPainting(ArtistViewModel viewer, ImageEditorViewModel editor)
     {
         _viewer = viewer;
         _editor = editor;

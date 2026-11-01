@@ -25,6 +25,24 @@ public class ImagesViewModelTests
     private static ImageViewModel Make(params string[] paths)
         => new(paths, Substitute.For<IShellServices>(), ImageViewMode.Carousel, Editing);
 
+    // ── Edit: the picture on show handed to Artist ─────────────────────────
+
+    [TestMethod]
+    [CoversNode("images-toolbar-edit")]
+    public void Edit_OpensThePictureOnShow_InAnArtistTabOfItsOwn()
+    {
+        var shell = Substitute.For<IShellServices>();
+        var vm = new ImageViewModel(["a.png", "b.png"], shell, ImageViewMode.Carousel, Editing);
+        vm.StepNext();
+
+        Assert.IsTrue(vm.OpenInArtistCommand.CanExecute(null));
+        vm.OpenInArtistCommand.Execute(null);
+
+        shell.Received(1).OpenTab("Artist", Arg.Is<Dictionary<string, string>>(p => p.Count == 1 && p["path"] == "b.png"));
+        Assert.AreEqual(2, vm.TotalImages, "the viewer's set stays where it was");
+        Assert.AreEqual(1, vm.CurrentIndex);
+    }
+
     // ── Rotation (90° steps, wrapping both ways) ──────────────────────────
 
     [TestMethod]
@@ -32,16 +50,16 @@ public class ImagesViewModelTests
     public void RotateRight_IsAQuarterTurnInTheRecipe_AndWrapsAfterFour()
     {
         var vm = Make("a.png");
-        Assert.AreEqual(0, vm.CurrentRecipe.Geometry.QuarterTurns);
+        Assert.AreEqual(0, vm.Stage.CurrentRecipe.Geometry.QuarterTurns);
 
-        vm.RotateRightCommand.Execute(null);
-        Assert.AreEqual(1, vm.CurrentRecipe.Geometry.QuarterTurns);
+        vm.Stage.RotateRightCommand.Execute(null);
+        Assert.AreEqual(1, vm.Stage.CurrentRecipe.Geometry.QuarterTurns);
         Assert.IsTrue(vm.IsEdited, "a turn is an edit, remembered with the photo");
 
-        vm.RotateRightCommand.Execute(null);
-        vm.RotateRightCommand.Execute(null);
-        vm.RotateRightCommand.Execute(null);   // four quarters: no turn at all
-        Assert.AreEqual(0, vm.CurrentRecipe.Geometry.QuarterTurns);
+        vm.Stage.RotateRightCommand.Execute(null);
+        vm.Stage.RotateRightCommand.Execute(null);
+        vm.Stage.RotateRightCommand.Execute(null);   // four quarters: no turn at all
+        Assert.AreEqual(0, vm.Stage.CurrentRecipe.Geometry.QuarterTurns);
         Assert.IsFalse(vm.IsEdited);
     }
 
@@ -52,13 +70,13 @@ public class ImagesViewModelTests
     public void RotateLeftAndFlips_AreUndoableEditsOfThePhoto()
     {
         var vm = Make("a.png");
-        vm.RotateLeftCommand.Execute(null);
-        Assert.AreEqual(3, vm.CurrentRecipe.Geometry.QuarterTurns, "a quarter anticlockwise is three clockwise");
+        vm.Stage.RotateLeftCommand.Execute(null);
+        Assert.AreEqual(3, vm.Stage.CurrentRecipe.Geometry.QuarterTurns, "a quarter anticlockwise is three clockwise");
 
-        vm.FlipHorizontalCommand.Execute(null);
-        Assert.IsTrue(vm.CurrentRecipe.Geometry.FlipHorizontal);
-        vm.FlipVerticalCommand.Execute(null);
-        Assert.AreEqual(new RecipeGeometry { QuarterTurns = 1 }, vm.CurrentRecipe.Geometry, "both flips are a half turn");
+        vm.Stage.FlipHorizontalCommand.Execute(null);
+        Assert.IsTrue(vm.Stage.CurrentRecipe.Geometry.FlipHorizontal);
+        vm.Stage.FlipVerticalCommand.Execute(null);
+        Assert.AreEqual(new RecipeGeometry { QuarterTurns = 1 }, vm.Stage.CurrentRecipe.Geometry, "both flips are a half turn");
 
         Assert.IsTrue(vm.UndoEditCommand.CanExecute(null));
         vm.UndoEditCommand.Execute(null);
@@ -67,7 +85,7 @@ public class ImagesViewModelTests
         Assert.IsFalse(vm.IsEdited);
         Assert.IsFalse(vm.UndoEditCommand.CanExecute(null));
         vm.RedoEditCommand.Execute(null);
-        Assert.AreEqual(3, vm.CurrentRecipe.Geometry.QuarterTurns);
+        Assert.AreEqual(3, vm.Stage.CurrentRecipe.Geometry.QuarterTurns);
     }
 
     // ── Fit ↔ actual size ─────────────────────────────────────────────────

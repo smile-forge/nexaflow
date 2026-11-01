@@ -12,7 +12,7 @@ using System.Windows.Threading;
 namespace Nexaflow.Features.Images.Views;
 
 /// <summary>
-/// Edit mode: the picture and its editing chrome on the shared pan/zoom surface, and the tool panel beside it.
+/// Artist's editor: the picture and its editing chrome on the shared pan/zoom surface, and the tool panel beside it.
 /// </summary>
 /// <remarks>
 /// The picture is laid out at the size the viewer chose for it (<see cref="EditCanvas.Size"/>) and rendered at the
@@ -28,7 +28,7 @@ public partial class ImageEditView : UserControl
     private readonly EditOverlay _overlay = new();
     private readonly LayerToolsOverlay _layerTools = new();
     private readonly Grid _content = new();
-    private ImageViewModel? _viewer;
+    private ArtistViewModel? _viewer;
     private SKSizeI _contentSize;
     private RenderFrame? _contentFrame;
     private double _zoom;
@@ -41,14 +41,14 @@ public partial class ImageEditView : UserControl
         _content.Children.Add(_overlay);
         _content.Children.Add(_layerTools);   // over the chrome, taking the pointer only while Paint or Move is out
 
-        DataContextChanged += (_, e) => Attach(e.NewValue as ImageViewModel);
+        DataContextChanged += (_, e) => Attach(e.NewValue as ArtistViewModel);
         IsVisibleChanged   += (_, _) => ReportViewport();
         Surface.LayoutUpdated += (_, _) => FollowZoom();
         Unloaded += (_, _) => Attach(null);
-        Loaded   += (_, _) => Attach(DataContext as ImageViewModel);
+        Loaded   += (_, _) => Attach(DataContext as ArtistViewModel);
     }
 
-    private void Attach(ImageViewModel? viewer)
+    private void Attach(ArtistViewModel? viewer)
     {
         if (ReferenceEquals(viewer, _viewer)) return;
         if (_viewer is { } old)
@@ -74,13 +74,13 @@ public partial class ImageEditView : UserControl
         if (_viewer is null) return;
         switch (e.PropertyName)
         {
-            case nameof(ImageViewModel.CurrentImage):
+            case nameof(ArtistViewModel.CurrentImage):
                 _picture.Source = _viewer.CurrentImage;
                 break;
-            case nameof(ImageViewModel.Canvas) when _viewer.Canvas is { } canvas && _viewer.IsEditing:
+            case nameof(ArtistViewModel.Canvas) when _viewer.Canvas is { } canvas && _viewer.IsEditing:
                 ShowCanvas(canvas);
                 break;
-            case nameof(ImageViewModel.IsEditing) when _viewer.IsEditing:
+            case nameof(ArtistViewModel.IsEditing) when _viewer.IsEditing:
                 ReportViewport();
                 break;
         }

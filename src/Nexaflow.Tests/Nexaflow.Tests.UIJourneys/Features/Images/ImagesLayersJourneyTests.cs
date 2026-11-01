@@ -263,7 +263,7 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         using (var merged = zip.CreateEntry("mergedimage.png").Open()) merged.Write(png);
     }
 
-    /// <summary>The folder's pictures shown, and the editor opened on the first.</summary>
+    /// <summary>The folder's pictures shown, and the first opened in Artist.</summary>
     private void OpenEditorOnTheFolder()
     {
         NavigateFileBrowserTo(_folder);
@@ -271,7 +271,7 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         Assert.IsNotNull(slideshow, "The 'Slideshow' folder action did not appear for the journey's folder.");
         slideshow!.AsButton().Invoke();
         Assert.IsNotNull(WaitForId("ImageView", 15), "Slideshow did not open the image viewer.");
-        CheckDoes("Edit opens the editor", "Image_EditMode", () => WaitForFs(() => Exists("ImageEditView"), 5));
+        CheckDoes("Edit opens the picture in an Artist tab", "Image_Edit", () => WaitForFs(() => Exists("ArtistView") && Exists("ImageEditView"), 8));
     }
 
     /// <summary>

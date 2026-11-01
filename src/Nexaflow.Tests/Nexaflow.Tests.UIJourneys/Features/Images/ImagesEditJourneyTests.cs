@@ -89,8 +89,8 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
             CheckInvoke("Flip horizontally", "Image_FlipHorizontal");
             CheckInvoke("Flip vertically", "Image_FlipVertical");
 
-            // ── Into edit mode ──
-            CheckDoes("Edit opens the editor", "Image_EditMode", () => WaitForFs(() => Exists("ImageEditView"), 5));
+            // ── Into Artist ──
+            CheckDoes("Edit opens the photo in an Artist tab", "Image_Edit", () => WaitForFs(() => Exists("ArtistView") && Exists("ImageEditView"), 8));
 
             // Crop & rotate (the default panel)
             CheckInvoke("Edit: rotate left", "Image_EditRotateLeft");
@@ -228,7 +228,6 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
                 Exists("Image_EditSave") && PressSave()
                 && WaitForFs(() => !File.Exists(photo + ".nfedit") && !File.ReadAllBytes(photo).SequenceEqual(before), 10));
 
-            CheckDoes("Done leaves the editor", "Image_EditDone", () => WaitForFs(() => !Exists("ImageEditView") || Exists("Image_Next"), 5));
 
             AssertJourney();
         }

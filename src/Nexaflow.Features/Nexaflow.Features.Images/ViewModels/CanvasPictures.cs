@@ -56,12 +56,12 @@ public sealed partial class CanvasPictures : ObservableObject, IDisposable
     /// <summary>How many words of what was asked for name a drawn layer.</summary>
     private const int NameWords = 5;
 
-    private readonly ImageViewModel _viewer;
+    private readonly ArtistViewModel _viewer;
     private readonly IShellServices? _shell;
     private readonly IAIService? _ai;
     private readonly ImageEditingServices _editing;
 
-    internal CanvasPictures(ImageViewModel viewer, IShellServices? shell, IAIService? ai, ImageEditingServices editing)
+    internal CanvasPictures(ArtistViewModel viewer, IShellServices? shell, IAIService? ai, ImageEditingServices editing)
     {
         _viewer  = viewer;
         _shell   = shell;

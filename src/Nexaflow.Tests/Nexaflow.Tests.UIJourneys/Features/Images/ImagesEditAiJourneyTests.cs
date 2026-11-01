@@ -53,7 +53,7 @@ public class ImagesEditAiJourneyTests : ImageEditJourneyBase
             var photo = Path.Combine(folder, OrientedPhotoSample.FileName);
             File.Copy(TestSampleData.Path("images", OrientedPhotoSample.FileName), photo);
             Assert.IsNotNull(OpenFileVia(folder, OrientedPhotoSample.FileName, "ShowImageAction", "ImageView"), "ImageView did not open via the 'As Image' action.");
-            CheckDoes("Edit opens the editor", "Image_EditMode", () => WaitForFs(() => Exists("ImageEditView"), 5));
+            CheckDoes("Edit opens the photo in an Artist tab", "Image_Edit", () => WaitForFs(() => Exists("ArtistView") && Exists("ImageEditView"), 8));
 
             // Adjust: AI enhance, made once its strength and faces are set; the photo can be saved once it is.
             Check("Adjust panel", () => SelectRadio("Image_EditToolAdjust"));

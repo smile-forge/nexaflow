@@ -293,9 +293,9 @@ public class ImageSelectionTests
         return shell;
     }
 
-    private ImageViewModel Editing(EditTool tool, IPictureSelection? selection = null, IShellServices? shell = null)
+    private ArtistViewModel Editing(EditTool tool, IPictureSelection? selection = null, IShellServices? shell = null)
     {
-        var vm = new ImageViewModel([_photo], shell ?? Shell(), ImageViewMode.Edit, _services, selection: selection);
+        var vm = new ArtistViewModel(_photo, shell ?? Shell(), _services, selection: selection);
         Until(() => vm.Canvas is not null);
         Assert.IsNotNull(vm.Canvas, "the photo was never decoded and presented");
         OnUi(() => vm.Editor.Tool = tool);
@@ -328,7 +328,8 @@ public class ImageSelectionTests
         Assert.IsTrue(_ui.Invoke(() => vm.Editor.RegionMarks.HasSelection));
         Until(() => vm.Editor.RemoveBackgroundCommand.CanExecute(null));
         OnUi(() => vm.Editor.RemoveBackgroundCommand.Execute(null));
-        Until(() => vm.CurrentSession!.CutOutPath is not null);
+        // The mask is attached once decoded, after its path is known: what a snapshot draws is the mask, so that is what is waited on.
+        Until(() => vm.CurrentSession!.CutOutMask is not null);
 
         var session = vm.CurrentSession!;
         Assert.IsNotNull(session.CutOutPath, "the mask is made with no models at all");
@@ -357,7 +358,8 @@ public class ImageSelectionTests
         var cutOut = _ui.Invoke(() => vm.CurrentSession!.Recipe.CutOut)!;
         Assert.AreEqual(1, cutOut.Clicks.Length, "the pick is kept as asked");
         Assert.AreEqual(1, cutOut.Region!.Steps.Length, "and the region drawn over it");
-        Until(() => vm.CurrentSession!.CutOutPath is not null);
+        // The mask is attached once decoded, after its path is known: what a snapshot draws is the mask, so that is what is waited on.
+        Until(() => vm.CurrentSession!.CutOutMask is not null);
         var session = vm.CurrentSession!;
         CollectionAssert.AreEqual(new[] { 0, 255 }, new int[] { Shown(session, 8, 8).Alpha, Shown(session, 12, 8).Alpha }, "the photo is cut out by both together");
 

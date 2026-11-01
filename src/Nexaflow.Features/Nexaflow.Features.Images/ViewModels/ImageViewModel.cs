@@ -5,18 +5,13 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Images.Details;
 using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.Editing.Codecs;
-using Nexaflow.Features.Images.Editing.Erasing;
 using Nexaflow.Features.Images.Editing.Kept;
-using Nexaflow.Features.Images.Editing.Layers;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
-using Nexaflow.Features.Images.Editing.Selection;
 using Nexaflow.Features.Images.Editing.Wpf;
 using Nexaflow.Features.Images.Services;
 using Nexaflow.Features.Images.Views;
 using Nexaflow.IO.Common;
-using Nexaflow.IO.Common.OpenRaster;
-using Nexaflow.Visuals.Common.Drafts;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Pages;
@@ -24,7 +19,6 @@ using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -57,47 +51,20 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     private bool _thumbsRequested;
     private bool _collageComputed;
 
-    // ── Editing ───────────────────────────────────────────────────────────
+    // ── The picture on show ───────────────────────────────────────────────
 
     private readonly ImageEditingServices _editing;
     private readonly ImageSessionCache _sessions;
-    private readonly ImageDisplay _display;
     private readonly DispatcherTimer _thumbRefresh;
-    private IFileWatch? _sidecarWatch;
-    private ImageViewMode _modeBeforeEdit = ImageViewMode.Carousel;
 
     [ObservableProperty] private int _currentIndex;
-    [ObservableProperty] private BitmapSource? _currentImage;
 
     [ObservableProperty] private string _currentFileName = string.Empty;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ImageCountText), nameof(IsStarting), nameof(ShowsBrowsingTools))]
+    [NotifyPropertyChangedFor(nameof(ImageCountText), nameof(IsEmpty))]
     private int _totalImages;
 
-    /// <summary>The photo being shown, with its recipe and history; null while nothing is.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CurrentRecipe))]
-    [NotifyPropertyChangedFor(nameof(HasChangedSourceNotice))]
-    [NotifyPropertyChangedFor(nameof(SessionOnlyNotice))]
-    [NotifyPropertyChangedFor(nameof(HasSessionOnlyNotice))]
-    [NotifyPropertyChangedFor(nameof(IsEdited))]
-    [NotifyPropertyChangedFor(nameof(ShowsEditedMark))]
-    [NotifyPropertyChangedFor(nameof(ShowsSessionOnlyNotice))]
-    [NotifyCanExecuteChangedFor(nameof(RotateLeftCommand))]
-    [NotifyCanExecuteChangedFor(nameof(RotateRightCommand))]
-    [NotifyCanExecuteChangedFor(nameof(FlipHorizontalCommand))]
-    [NotifyCanExecuteChangedFor(nameof(FlipVerticalCommand))]
-    [NotifyCanExecuteChangedFor(nameof(RevertEditsCommand))]
-    [NotifyCanExecuteChangedFor(nameof(UndoEditCommand))]
-    [NotifyCanExecuteChangedFor(nameof(RedoEditCommand))]
-    private ImageEditSession? _currentSession;
-
-    /// <summary>What the presented frame is a picture of; drawn over by the edit canvas.</summary>
-    [ObservableProperty] private EditCanvas? _canvas;
-
-    /// <summary>The current photo could not be decoded.</summary>
-    [ObservableProperty] private bool _loadFailed;
 
     // ── View mode ─────────────────────────────────────────────────────────
 
@@ -106,29 +73,21 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     [NotifyPropertyChangedFor(nameof(IsAlbum))]
     [NotifyPropertyChangedFor(nameof(IsExplore))]
     [NotifyPropertyChangedFor(nameof(IsCollage))]
-    [NotifyPropertyChangedFor(nameof(IsEditing))]
-    [NotifyPropertyChangedFor(nameof(IsBrowsing), nameof(ShowsBrowsingTools))]
-    [NotifyPropertyChangedFor(nameof(ShowsSubViewSelector))]
     [NotifyPropertyChangedFor(nameof(ShowsEditedMark))]
-    [NotifyPropertyChangedFor(nameof(ShowsSessionOnlyNotice))]
     private ImageViewMode _viewMode = ImageViewMode.Carousel;
 
     public bool IsCarousel => ViewMode == ImageViewMode.Carousel;
     public bool IsAlbum    => ViewMode == ImageViewMode.Album;
     public bool IsExplore  => ViewMode == ImageViewMode.Explore;
     public bool IsCollage  => ViewMode == ImageViewMode.Collage;
-    public bool IsEditing  => ViewMode == ImageViewMode.Edit;
-
-    /// <summary>Any view but the editor — where the browsing controls (sub-views, slideshow, full screen) belong.</summary>
-    public bool IsBrowsing => !IsEditing;
 
     /// <summary>"1 image" / "N images": the context preview's caption.</summary>
     public string ImageCountText => TotalImages == 1
         ? Str.Get("Images.Header.ImageCountOne")
         : Str.Format("Images.Header.ImageCountManyFormat", TotalImages);
 
-    /// <summary>The tools of edit mode, over the same photo.</summary>
-    public ImageEditorViewModel Editor { get; }
+    /// <summary>The picture on show, with its edits, as the screen draws it.</summary>
+    public PictureStage Stage { get; }
 
     /// <summary>Making a video from the picture on screen, where the workspace can.</summary>
     public MakeVideoViewModel MakeVideo { get; }
@@ -147,40 +106,25 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     /// <summary>When true the current image is presented full-screen in a borderless window.</summary>
     [ObservableProperty] private bool _isFullScreen;
 
-    // ── The recipe, as the viewer shows it ────────────────────────────────
+    // ── What the toolbar shows ────────────────────────────────────────────
 
-    /// <summary>The edits of the picture the tools work on — the photo, or the active picture layer — nothing while there is none.</summary>
-    public ImageRecipe CurrentRecipe => EditTarget?.Recipe ?? ImageRecipe.Identity;
+    /// <summary>The photo on show; null while nothing is.</summary>
+    public ImageEditSession? CurrentSession => Stage.CurrentSession;
+
+    /// <summary>The frame presented, as the screen shows it.</summary>
+    public BitmapSource? CurrentImage => Stage.CurrentImage;
 
     /// <summary>The current photo carries edits — what the "edited" badge says.</summary>
-    public bool IsEdited => !CurrentRecipe.IsIdentity;
+    public bool IsEdited => Stage.IsEdited;
 
-    /// <summary>The photo changed after its edits were made; the user decides whether they still apply.</summary>
-    public bool HasChangedSourceNotice => CurrentSession?.LoadStatus == RecipeLoadStatus.SourceChanged;
-
-    /// <summary>Why edits to this photo last only as long as the viewer, or null when they are kept beside it.</summary>
-    public string? SessionOnlyNotice => CurrentSession switch
-    {
-        null                                                    => null,
-        { CanPersist: true }                                    => null,
-        { IsFileBacked: false }                                 => Str.Get("Images.Edit.Notice.Archive"),
-        { LoadStatus: RecipeLoadStatus.Newer }                  => Str.Get("Images.Edit.Notice.Newer"),
-        { LoadStatus: RecipeLoadStatus.Unreadable }             => Str.Get("Images.Edit.Notice.Unreadable"),
-        _                                                       => null,
-    };
-
-    public bool HasSessionOnlyNotice => SessionOnlyNotice is not null;
-
-    // ── What the toolbar and notices show, by view ────────────────────────
-
-    /// <summary>The sub-view selector: several images, and not editing.</summary>
-    public bool ShowsSubViewSelector => HasMultiple && IsBrowsing;
+    /// <summary>The sub-view selector: several images.</summary>
+    public bool ShowsSubViewSelector => HasMultiple;
 
     /// <summary>The "edited" mark beside the heading, where one photo is featured.</summary>
-    public bool ShowsEditedMark => IsEdited && (IsCarousel || IsExplore || IsEditing);
+    public bool ShowsEditedMark => IsEdited && (IsCarousel || IsExplore);
 
-    /// <summary>The session-only notice, once it matters: while editing, or once there are edits to lose.</summary>
-    public bool ShowsSessionOnlyNotice => HasSessionOnlyNotice && (IsEditing || IsEdited);
+    /// <summary>The tab holds no picture any more — the last deleted: a note says so.</summary>
+    public bool IsEmpty => TotalImages == 0;
 
     // ── Auto-advance ──────────────────────────────────────────────────────
 
@@ -217,19 +161,12 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
 
     partial void OnCurrentIndexChanged(int value) => LoadImage(value);
 
-    partial void OnViewModeChanged(ImageViewMode oldValue, ImageViewMode newValue)
+    partial void OnViewModeChanged(ImageViewMode value)
     {
-        if (newValue is ImageViewMode.Album or ImageViewMode.Explore or ImageViewMode.Collage)
+        if (value is ImageViewMode.Album or ImageViewMode.Explore or ImageViewMode.Collage)
             EnsureThumbnailsRequested();
-        if (newValue == ImageViewMode.Collage)
+        if (value == ImageViewMode.Collage)
             EnsureCollageLayout();
-        if (newValue == ImageViewMode.Edit)
-        {
-            _modeBeforeEdit = oldValue;
-            IsAuto = false;
-        }
-        Editor.OnEditModeChanged(newValue == ImageViewMode.Edit);
-        if (newValue == ImageViewMode.Edit && CurrentSession is { } session) _ = OpenLayeredAsync(session.Path);
         RequestRender();
     }
 
@@ -301,102 +238,25 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
             CurrentIndex = index;
     }
 
-    // ── Edits the viewer offers everywhere (each remembered in the photo's recipe) ──
-
-    private bool HasSession() => CurrentSession is not null;
-
-    [RelayCommand(CanExecute = nameof(HasSession))]
-    private void RotateLeft() => Edit(r => r with { Geometry = r.Geometry.Turned(-1) });
-
-    [RelayCommand(CanExecute = nameof(HasSession))]
-    private void RotateRight() => Edit(r => r with { Geometry = r.Geometry.Turned(1) });
-
-    [RelayCommand(CanExecute = nameof(HasSession))]
-    private void FlipHorizontal() => Edit(r => r with { Geometry = r.Geometry.Flipped(horizontal: true) });
-
-    [RelayCommand(CanExecute = nameof(HasSession))]
-    private void FlipVertical() => Edit(r => r with { Geometry = r.Geometry.Flipped(horizontal: false) });
+    // ── Turns and flips (on the stage, each remembered in the photo's recipe), their history, and Edit ──
 
     [RelayCommand(CanExecute = nameof(CanUndoEdit))]
-    private void UndoEdit()
-    {
-        if (Arranging.IsTransforming)
-        {
-            Arranging.Cancel();   // an open transform is what undo takes back first
-            return;
-        }
-        if (CurrentDocument is { } document) document.History.Undo();
-        else CurrentSession?.History.Undo();
-    }
-    private bool CanUndoEdit() => Arranging.IsTransforming || (CurrentDocument?.History.CanUndo ?? CurrentSession?.History.CanUndo == true);
+    private void UndoEdit() => Stage.Undo();
+    private bool CanUndoEdit() => Stage.CanUndo;
 
     [RelayCommand(CanExecute = nameof(CanRedoEdit))]
-    private void RedoEdit()
+    private void RedoEdit() => Stage.Redo();
+    private bool CanRedoEdit() => Stage.CanRedo;
+
+    /// <summary>Edit: the picture on show opened in an Artist tab of its own, the viewer's set left where it was.</summary>
+    [RelayCommand(CanExecute = nameof(CanOpenInArtist))]
+    private void OpenInArtist()
     {
-        if (CurrentDocument is { } document) document.History.Redo();
-        else CurrentSession?.History.Redo();
+        if (_shell is null || CurrentPath is not { } path) return;
+        _editing.Recipes.Flush();   // a turn just made lands before the editor reads the recipe
+        _shell.OpenTab(ArtistTabRegistration.StaticPageKind, new Dictionary<string, string> { ["path"] = path });
     }
-    private bool CanRedoEdit() => !Arranging.IsTransforming && (CurrentDocument?.History.CanRedo ?? CurrentSession?.History.CanRedo == true);
-
-    /// <summary>The photo changed since its edits were made: keep them, anchored to the photo as it is now.</summary>
-    [RelayCommand]
-    private void KeepChangedEdits() => CurrentSession?.KeepEditsForChangedSource();
-
-    /// <summary>The photo changed since its edits were made: drop them.</summary>
-    [RelayCommand]
-    private void DiscardChangedEdits()
-    {
-        if (CurrentSession is not { } session) return;
-        session.Revert();
-        session.KeepEditsForChangedSource();
-    }
-
-    /// <summary>Back to the photo as it is on disk — one undoable step; the sidecar goes with it.</summary>
-    [RelayCommand(CanExecute = nameof(HasSession))]
-    private void RevertEdits() => CurrentSession?.Revert();
-
-    [RelayCommand]
-    private void EnterEditMode()
-    {
-        if (CurrentSession is not null) ViewMode = ImageViewMode.Edit;
-    }
-
-    /// <summary>Done: back to the view edit mode was entered from, with the edits applied on view.</summary>
-    [RelayCommand]
-    private void ExitEditMode()
-    {
-        if (!IsEditing) return;
-        ViewMode = HasMultiple || _modeBeforeEdit == ImageViewMode.Carousel ? _modeBeforeEdit : ImageViewMode.Carousel;
-    }
-
-    /// <summary>Applies <paramref name="change"/> to the recipe of the picture the tools work on — the photo, or the active
-    /// picture layer — as one undoable step.</summary>
-    internal void Edit(Func<ImageRecipe, ImageRecipe> change)
-    {
-        if (EditTarget is { } target) target.Commit(change(target.Recipe));
-    }
-
-    /// <summary>A continuous change begins — a slider drag — and lasts as one undo step of the photo's, or the layered
-    /// picture's, history until <see cref="EndEditGesture"/>.</summary>
-    internal void BeginEditGesture()
-    {
-        if (CurrentDocument is { } document) document.History.BeginGesture();
-        else CurrentSession?.History.BeginGesture();
-    }
-
-    internal void EndEditGesture()
-    {
-        if (CurrentDocument is { } document) document.History.EndGesture();
-        else CurrentSession?.History.EndGesture();
-    }
-
-    /// <summary>The picture the editor's tools work on: the photo, or — in a layered picture — its active picture layer; null
-    /// where there is none.</summary>
-    internal IRecipeEditing? EditTarget => CurrentDocument is { } document ? document.ActivePicture : CurrentSession;
-
-    /// <summary>The annotations the Markup tool works on: the photo's, or — in a layered picture — the active picture layer's or
-    /// markup layer's; null where there are none.</summary>
-    internal IMarkupEditing? MarkupTarget => CurrentDocument is { } document ? document.ActiveNotes : CurrentSession;
+    private bool CanOpenInArtist() => CurrentSession is not null;
 
     // ── Position-indicator paging (20 dots per block) ─────────────────────
 
@@ -493,7 +353,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         var (recipe, made) = _sessions.Peek(path) is { } session
             ? (session.Recipe, session.Made)
             : _editing.Recipes.Load(path) is { Status: RecipeLoadStatus.Loaded, Recipe: { } kept }
-                ? (kept, KeptByTools(path, kept))
+                ? (kept, Stage.KeptByTools(path, kept))
                 : (ImageRecipe.Identity, MadeByTools.None);
         try
         {
@@ -532,12 +392,11 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
 
         if (_paths.Count == 0)
         {
-            // The last picture gone, the tab shows New picture.
+            // The last picture gone, the tab says so.
             ShowNothing();
             CurrentFileName = string.Empty;
             VisibleDots.Clear();
             ViewMode = ImageViewMode.Carousel;
-            _ = Start.RefreshAsync();
             return;
         }
 
@@ -551,7 +410,6 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     public void OnActivated()
     {
         if (IsAuto) { _autoTimer.Interval = _autoIntervals[Math.Clamp(AutoSpeed, 0, 2)]; _autoTimer.Start(); }
-        if (IsStarting) _ = Start.RefreshAsync();   // the clipboard, the canvases still there, the models: changed while away
     }
 
     public void OnDeactivated()
@@ -562,104 +420,35 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
 
     // ── Construction ──────────────────────────────────────────────────────
 
-    /// <summary>What gives the photo on screen the restoration its recipe asks for, and says what it is doing.</summary>
-    public PhotoRestorer Restorer { get; }
-
-    /// <summary>What gives the photo on screen the removed background its recipe asks for, and says what it is doing.</summary>
-    public BackgroundRemover Remover { get; }
-
-    /// <summary>The erasing the photo's recipe asks for, made and shown in the photo's place.</summary>
-    public PhotoEraser Eraser { get; }
-
-    /// <summary>What picks things out of the photo for the editor's cut-out tool.</summary>
-    public PictureCutter Cutter { get; }
 
     /// <param name="ai">The workspace's AI, through which the user makes a video from the picture on screen; none, none made.</param>
     /// <param name="pictures">The picture tools, where the app has them: what restores a photo whose recipe asks for it.</param>
-    /// <param name="selection">Picture selection, where the app has it: what the editor's cut-out tool picks things out with.</param>
+    /// <param name="selection">Picture selection, where the app has it: what removes the background a photo's recipe asks to.</param>
+    /// <param name="erasing">Picture erasing, where the app has it: what fills what a photo's recipe erases.</param>
     /// <param name="editing">The editing engine the registration shares across its tabs; the viewer does not own it.</param>
     public ImageViewModel(IReadOnlyList<string> paths, IShellServices? shell, ImageViewMode initialMode, ImageEditingServices editing,
     IAIService? ai = null, IPictureTools? pictures = null, IPictureSelection? selection = null,
-    IPageReading? reading = null, IPictureErasing? erasing = null, ImagesConfig? config = null)
+    IPageReading? reading = null, IPictureErasing? erasing = null)
     {
-        _config = config ?? new ImagesConfig();
-        (_pictures, _selection, _erasing) = (pictures, selection, erasing);
         _paths      = [.. paths];   // mutable copy — images can be deleted from the viewer
         _shell      = shell;
         _editing    = editing;
         TotalImages = _paths.Count;
 
         _sessions = new ImageSessionCache(_editing);
-        Func<Action, Task> runOnUi = action => _shell is null ? RunHere(action) : _shell.RunOnUiAsync(action);
-        _display  = new ImageDisplay(_editing, runOnUi, _cts.Token);
-        _display.ImageChanged += image => CurrentImage = image;
-        _display.Presented    += canvas => Canvas = canvas;
-        _display.Decoded      += OnDecoded;
-        _documentSave = new DispatcherTimer(DispatcherPriority.Background) { Interval = DocumentSaveDelay };
-        _documentSave.Tick += (_, _) => { _documentSave.Stop(); SaveDocument(); };
-        _display.DecodeFailed += rendering => { if (ReferenceEquals(CurrentSession, rendering)) LoadFailed = true; };
-
-        Restorer = new PhotoRestorer(_editing, pictures, runOnUi);
-        Restorer.Made += RequestRender;
-        _display.RestoredDecodeFailed += rendering =>
-        {
-            Restorer.Lost(rendering);
-            foreach (var tools in _layerTools.Values) tools.Restorer.Lost(rendering);
-        };
-
-        Remover = new BackgroundRemover(_editing, selection, runOnUi);
-        Remover.Made += RequestRender;
-        _display.CutOutDecodeFailed += rendering =>
-        {
-            Remover.Lost(rendering);
-            foreach (var tools in _layerTools.Values) tools.Remover.Lost(rendering);
-        };
-
-        // The restoration is of the photo as erased: it follows each erasing as it is made.
-        Eraser = new PhotoEraser(_editing, erasing, selection, runOnUi);
-        Eraser.Made += () =>
-        {
-            Restorer.Follow(EditTarget?.Rendering);
-            RequestRender();
-        };
-        _display.ErasedDecodeFailed += rendering =>
-        {
-            Eraser.Lost(rendering);
-            foreach (var tools in _layerTools.Values) tools.Eraser.Lost(rendering);
-        };
-
-        Cutter = new PictureCutter(_editing, selection, shell, runOnUi);
-
-        // What each model-backed control waits for, and the download offered while a panel that needs it is open — unless a
-        // picture tool's banner, for an edit the recipe asks for, is offering the same.
-        var picking = new ModelsGate(selection, "Images.Models.Picking.", runOnUi);
-        var erasingModels = new ModelsGate(erasing, "Images.Models.Erasing.", runOnUi);
-        var restoring = new ModelsGate(pictures, "Images.Models.Restoring.", runOnUi);
-        picking.Defer(Remover, Eraser);
-        erasingModels.Defer(Eraser);
-        restoring.Defer(Restorer);
-
-        Editor = new ImageEditorViewModel(this, shell, _editing, Restorer, Remover, Cutter, Eraser, picking, erasingModels, restoring);
-        Layers = new LayersViewModel(shell, runOnUi, () => Editor.InkSkColour);
-        Layers.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(LayersViewModel.MaskAlone)) RequestRender(); };
-        Start = new ImageStartViewModel(this, shell, ai, _editing, _config);
-        Pictures = new CanvasPictures(this, shell, ai, _editing);
-        Painting = new LayerPainting(this, Editor);
-        Arranging = new LayerArranging(this, _editing);
-        Printing = new PicturePrinting(this, _editing, shell);
-        Editor.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName != nameof(ImageEditorViewModel.Tool) || Editor.IsMoveTool) return;
-            // Leaving Move: an open transform is applied, and what floats is dropped back into its layer.
-            if (Arranging.IsTransforming) Arranging.Apply();
-            else if (Arranging.HasFloating) Arranging.Drop();
-        };
-        _runOnUi = runOnUi;
+        Stage = new PictureStage(_editing, shell, () => new ImageDisplayMode(false, false, RenderFrame.Output, FitToWindow), _cts.Token,
+                                 pictures, selection, erasing);
+        Stage.PropertyChanged += OnStagePropertyChanged;
+        Stage.SessionShown    += OnSessionShown;
+        Stage.Changed         += OnRecipeChanged;
+        Stage.Decoded         += OnDecoded;
+        var runOnUi = Stage.RunOnUi;
         MakeVideo = new MakeVideoViewModel(ai,
             () => CurrentSession is { } session && session.OutputSize(session.Recipe) is { } size && size.Height > size.Width,
-                EncodeCurrentPng);
-            ReadPage = new ReadPageViewModel(reading, ai, shell, _editing, runOnUi, KeptByTools, () => Host);
-            Details = new ImageDetailsViewModel(new PhotoDetailsReader(_editing.Metadata, _editing.FileSystem), runOnUi);
+            EncodeCurrentPng);
+        ReadPage = new ReadPageViewModel(reading, ai, shell, _editing, runOnUi, Stage.KeptByTools, () => Host);
+        Details = new ImageDetailsViewModel(new PhotoDetailsReader(_editing.Metadata, _editing.FileSystem), runOnUi);
+        Printing = new PicturePrinting(Stage, _editing, shell);
 
         AddPictureItems();
 
@@ -673,8 +462,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         LoadImage(0);
 
         // A single image has nothing to grid/scatter — the other modes only make sense with several.
-        if (paths.Count > 1 || initialMode == ImageViewMode.Edit && paths.Count > 0) ViewMode = initialMode;   // setter requests thumbnails / layout as needed
-        if (IsStarting) _ = Start.RefreshAsync();
+        if (paths.Count > 1) ViewMode = initialMode;   // setter requests thumbnails / layout as needed
     }
 
     /// <summary>A dot and a thumbnail for each picture, the first current.</summary>
@@ -693,6 +481,21 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         }
     }
 
+    /// <summary>Print: the picture on show, as edited, laid on paper.</summary>
+    public PicturePrinting Printing { get; }
+
+    private static readonly HashSet<string> RaisedStageProperties =
+    [
+        nameof(PictureStage.CurrentImage), nameof(PictureStage.IsEdited),
+    ];
+
+    private void OnStagePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not { } name || !RaisedStageProperties.Contains(name)) return;
+        OnPropertyChanged(name);
+        if (name == nameof(PictureStage.IsEdited)) OnPropertyChanged(nameof(ShowsEditedMark));
+    }
+
     private static Task RunHere(Action action)
     {
         action();
@@ -705,19 +508,9 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     {
         if (_thumbsRequested || _shell is null || Thumbnails.Count == 0) return;
         _thumbsRequested = true;
-        _shell.QueueBackgroundTask(new ThumbnailLoadTask([.. Thumbnails], ThumbSize, _shell, _editing, KeptByTools), ct: _cts.Token);
+        _shell.QueueBackgroundTask(new ThumbnailLoadTask([.. Thumbnails], ThumbSize, _shell, _editing, Stage.KeptByTools), ct: _cts.Token);
     }
 
-    /// <summary>What the tools made and kept for <paramref name="photo"/>'s recipe — its restoration made from the photo as
-    /// erased, where it erases — for thumbnails and the page reader.</summary>
-    private MadeByTools KeptByTools(string photo, ImageRecipe recipe)
-    {
-        var erased = recipe.Erasures.IsEmpty ? null : Eraser.KeptFor(photo, new EraseSteps(recipe.Erasures));
-        var restoredFrom = recipe.Erasures.IsEmpty ? photo : erased;
-        return new(recipe.Restore is { } restore && restoredFrom is not null ? Restorer.KeptFor(restoredFrom, restore) : null,
-                   recipe.CutOut is { } cutOut ? Remover.KeptFor(photo, cutOut) : null,
-                   erased);
-    }
 
     /// <summary>The current photo's thumbnail, redrawn with its edits — once the grids have thumbnails to show.</summary>
     private void RefreshCurrentThumbnail()
@@ -787,433 +580,43 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         ShowSession(_sessions.Open(path));
     }
 
-    private void ShowSession(ImageEditSession session)
+    private void ShowSession(ImageEditSession session) => Stage.Show(session);
+
+    private void OnSessionShown()
     {
-        if (ReferenceEquals(CurrentSession, session) && session.Proxy is not null) { RequestRender(); return; }
-        CloseDocument();
-
-        if (CurrentSession is { } previous) previous.RecipeChanged -= OnRecipeChanged;
-        _sidecarWatch?.Dispose();
-        _sidecarWatch = null;
-
-        CurrentSession = session;
-        _display.Show(session);
-        session.RecipeChanged += OnRecipeChanged;
-        LoadFailed = false;
-        Canvas = null;
-        Editor.OnSessionChanged();
-        Eraser.Follow(session);
-        Restorer.Follow(session);
-        Remover.Follow(session);
-        ReadPage.Follow(session);
+        ReadPage.Follow(CurrentSession);
         FollowDetails();
-
-        if (session.CanPersist && _shell is not null)
-            _sidecarWatch = _shell.WatchFile(ImageRecipeStore.SidecarPath(session.Path), () => CurrentSession?.ReloadFromSidecar());
-
-    RequestRender();
-    if (IsEditing) _ = OpenLayeredAsync(session.Path);
+        RotateNotify();
+        OpenInArtistCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CurrentSession));
     }
 
     private void CloseSession(string path)
     {
-    if (_sessions.Remove(path) is not { } session) return;
-    if (ReferenceEquals(CurrentSession, session))
-    {
-        session.RecipeChanged -= OnRecipeChanged;
-        _sidecarWatch?.Dispose();
-        _sidecarWatch = null;
-        _display.Show(null);
-        CurrentSession = null;
-        Eraser.Follow(null);
-        Restorer.Follow(null);
-        Remover.Follow(null);
-        ReadPage.Follow(null);
-        FollowDetails();
-        Cutter.Close();
-    }
-    session.Dispose();
-    }
-
-    /// <summary>Closes and reopens the current photo — after a save has replaced the file under it.</summary>
-    internal void ReloadCurrent()
-    {
-        if (CurrentSession is not { } session) return;
-        CloseSession(session.Path);
-        LoadImage(CurrentIndex);
+        if (_sessions.Remove(path) is not { } session) return;
+        if (ReferenceEquals(CurrentSession, session)) Stage.Show(null);
+        session.Dispose();
     }
 
     private void ShowNothing()
     {
         if (CurrentSession is { } session) CloseSession(session.Path);
-        _display.Clear();
-        Canvas = null;
+        Stage.Show(null);
+    }
+
+    private void RotateNotify()
+    {
+        UndoEditCommand.NotifyCanExecuteChanged();
+        RedoEditCommand.NotifyCanExecuteChanged();
     }
 
     private void OnRecipeChanged()
     {
-        OnPropertyChanged(nameof(CurrentRecipe));
-        OnPropertyChanged(nameof(IsEdited));
-        OnPropertyChanged(nameof(HasChangedSourceNotice));
-        OnPropertyChanged(nameof(SessionOnlyNotice));
-        OnPropertyChanged(nameof(HasSessionOnlyNotice));
-        OnPropertyChanged(nameof(ShowsEditedMark));
-        OnPropertyChanged(nameof(ShowsSessionOnlyNotice));
-        UndoEditCommand.NotifyCanExecuteChanged();
-        RedoEditCommand.NotifyCanExecuteChanged();
-        Eraser.Follow(CurrentSession);
-        Restorer.Follow(CurrentSession);
-        Remover.Follow(CurrentSession);
-        Editor.OnRecipeChanged();
+        RotateNotify();
         FollowDetails();
-        RequestRender();
 
         _thumbRefresh.Stop();
         _thumbRefresh.Start();
-    }
-
-    // ── Layered pictures ──────────────────────────────────────────────────
-
-    /// <summary>How long after the last change a layered picture is written, so a burst of edits is one write.</summary>
-    private static readonly TimeSpan DocumentSaveDelay = TimeSpan.FromSeconds(1.5);
-
-    /// <summary>A layered picture this many pixels, layers counted, or more, saves among the workspace's jobs, with its progress.</summary>
-    private const long LargeDocumentPixels = 64L * 1024 * 1024;
-
-    private readonly ImagesConfig _config;
-    private readonly IPictureTools? _pictures;
-    private readonly IPictureSelection? _selection;
-    private readonly IPictureErasing? _erasing;
-    private readonly Func<Action, Task> _runOnUi;
-    private readonly DispatcherTimer _documentSave;
-
-    /// <summary>What the picture tools make for each picture layer other than the active one, quietly, by layer.</summary>
-    private readonly Dictionary<Guid, PictureToolEdits> _layerTools = [];
-
-    /// <summary>The layered picture being shown and edited, in place of the photo; null while a photo is.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsLayered), nameof(ShowsSavedLookBar))]
-    private LayeredSession? _currentDocument;
-
-    /// <summary>A layered picture is open.</summary>
-    public bool IsLayered => CurrentDocument is not null;
-
-    /// <summary>The layers panel.</summary>
-    public LayersViewModel Layers { get; }
-
-    /// <summary>New picture, shown while the tab holds no picture.</summary>
-    public ImageStartViewModel Start { get; }
-
-    /// <summary>Pictures brought into a layered picture as layers: dropped on the canvas, or drawn by the image model.</summary>
-    public CanvasPictures Pictures { get; }
-
-    /// <summary>The Paint tool: brush, eraser, eyedropper and fill on the active pixel layer or its mask.</summary>
-    public LayerPainting Painting { get; }
-
-    /// <summary>The Move tool: layers and what is selected moved, and transformed.</summary>
-    public LayerArranging Arranging { get; }
-
-    /// <summary>Print: the picture shown, or the canvas, laid on paper.</summary>
-    public PicturePrinting Printing { get; }
-
-    /// <summary>The browsing tools show: the tab is browsing pictures, not on its start screen.</summary>
-    public bool ShowsBrowsingTools => IsBrowsing && !IsStarting;
-
-    /// <summary>The tab holds no picture: New picture shows.</summary>
-    public bool IsStarting => TotalImages == 0;
-
-    /// <summary>The picture opened on the look the application that wrote it saved: a way on is offered.</summary>
-    public bool ShowsSavedLookBar => CurrentDocument?.SavedLook is not null;
-
-    /// <summary>Which layers of the open picture no reader can draw, by name, for the saved look's bar.</summary>
-    public string SavedLookNotice => CurrentDocument is { } document
-        ? Str.Format("Images.Layers.SavedLookFormat", string.Join(", ", document.Picture.All.OfType<UndrawableLayer>().Select(l => l.Name)))
-        : "";
-
-    /// <summary>
-    /// The photo on screen made the first layer of a layered picture its size — a picture layer holding it and its recipe — kept
-    /// in a draft until the first Save asks where; the photo itself is never written over. Gives the picture; null where no
-    /// photo is ready.
-    /// </summary>
-    internal LayeredSession? MakeLayered()
-    {
-        if (CurrentDocument is { } open) return open;
-        if (CurrentSession is not { Proxy: { } proxy } session) return null;
-        var size = CropGeometry.OutputSize(session.Recipe, proxy.SourceSize);
-        var name = Path.GetFileNameWithoutExtension(session.Path);
-        var picture = LayeredPicture.OfPhoto(new PictureSource(session.Path, session.Recipe.Source), session.Recipe, size.Width, size.Height, name);
-        var document = new LayeredSession(DraftLocation.NewFile(name + OpenRasterPackage.Extension), picture, _editing, _config.HistoryBudget);
-        document.KeptAsDraft(session.IsFileBacked ? Path.GetDirectoryName(session.Path) : null);
-        ShowDocument(document);
-        ScheduleDocumentSave();
-        return document;
-    }
-
-    /// <summary>A new pixel layer above the active one — the photo made a layered picture first, where it is not one yet.</summary>
-    [RelayCommand(CanExecute = nameof(HasSession))]
-    private void AddLayer()
-    {
-        if (MakeLayered() is null) return;
-        Layers.AddPixelLayerCommand.Execute(null);
-    }
-
-    /// <summary>The picture on the clipboard as a new layer — the photo made a layered picture first, where it is not one yet.</summary>
-    [RelayCommand(CanExecute = nameof(HasSession))]
-    private void PasteAsLayer()
-    {
-        if (!PictureClipboard.HoldsPicture() || MakeLayered() is null) return;
-        Layers.PasteCommand.Execute(null);
-    }
-
-    /// <summary>
-    /// The layered picture at <paramref name="path"/> opened for editing in place of its merged image — on its saved look where it
-    /// holds a layer no reader can draw. Nothing where it is not one, or where the viewer moved on while it was read.
-    /// </summary>
-    private async Task OpenLayeredAsync(string path)
-    {
-        if (CurrentDocument is { } open && string.Equals(open.Path, path, StringComparison.OrdinalIgnoreCase)) return;
-        if (await _editing.LayeredFormatOfAsync(path) is not { } format) return;
-        LayeredPictureRead read;
-        try
-        {
-            read = await format.ReadAsync(path);
-        }
-        catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException or ArgumentOutOfRangeException)
-        {
-            _shell?.ShowError(Str.Format("Images.Layers.OpenFailedFormat", Path.GetFileName(path), ex.Message));
-            return;
-        }
-        if (!IsEditing || !string.Equals(CurrentSession?.Path, path, StringComparison.OrdinalIgnoreCase)) return;
-        var document = new LayeredSession(path, read.Picture, _editing, _config.HistoryBudget);
-        if (read.HoldsUndrawable) document.ShowSavedLook(OpenRasterPackage.EntryPath(path, OpenRasterPackage.MergedImagePath));
-        ShowDocument(document);
-        Start.Remember(path);
-    }
-
-    private void ShowDocument(LayeredSession document)
-    {
-        CloseDocument();
-        CurrentDocument = document;
-        document.PictureChanged += OnDocumentChanged;
-        _display.ShowDocument(document);
-        Canvas = null;
-        Layers.Follow(document);
-        Editor.RegionMarks.Attach(new DocumentSelection(document));
-        FollowDocumentTools();
-        Editor.OnSessionChanged();
-        OnDocumentChanged();
-        Pictures.DocumentShown();
-    }
-
-    /// <summary>The layered picture let go — written first where it changed — and the photo shown again.</summary>
-    private void CloseDocument()
-    {
-        if (CurrentDocument is not { } document) return;
-        if (_documentSave.IsEnabled)
-        {
-            _documentSave.Stop();
-            SaveDocument();
-        }
-        document.PictureChanged -= OnDocumentChanged;
-        CurrentDocument = null;
-        foreach (var tools in _layerTools.Values) tools.Dispose();
-        _layerTools.Clear();
-        document.Dispose();
-        Layers.Follow(null);
-        Editor.RegionMarks.Attach(null);
-        Canvas = null;
-        if (CurrentSession is { } session)
-        {
-            _display.Show(session);
-            FollowDocumentTools();
-            Editor.OnSessionChanged();
-        }
-        else _display.Clear();
-        RequestRender();
-    }
-
-    private void OnDocumentChanged()
-    {
-        OnPropertyChanged(nameof(CurrentRecipe));
-        OnPropertyChanged(nameof(IsEdited));
-        OnPropertyChanged(nameof(ShowsSavedLookBar));
-        OnPropertyChanged(nameof(SavedLookNotice));
-        UndoEditCommand.NotifyCanExecuteChanged();
-        RedoEditCommand.NotifyCanExecuteChanged();
-        Layers.Follow(CurrentDocument);
-        Editor.RegionMarks.DocumentChanged();
-        Painting.Refresh();
-        Arranging.Refresh();
-        FollowDocumentTools();
-        Editor.OnRecipeChanged();
-        RequestRender();
-        if (CurrentDocument?.History.CanUndo == true) ScheduleDocumentSave();
-    }
-
-    /// <summary>
-    /// The picture tools follow what is shown: the viewer's own — whose banners speak — the picture the tools work on; each other
-    /// picture layer of a layered picture its own, quietly, so it is drawn as its recipe asks too.
-    /// </summary>
-    private void FollowDocumentTools()
-    {
-        var target = EditTarget?.Rendering;
-        Eraser.Follow(target);
-        Restorer.Follow(target);
-        Remover.Follow(target);
-        if (CurrentDocument is not { } document)
-        {
-            foreach (var tools in _layerTools.Values) tools.Dispose();
-            _layerTools.Clear();
-            return;
-        }
-        var seen = new HashSet<Guid>();
-        foreach (var layer in document.Picture.All.OfType<PictureLayer>())
-        {
-            if (document.RenderingOf(layer.Id) is not { } rendering || ReferenceEquals(rendering, target)) continue;
-            seen.Add(layer.Id);
-            if (!_layerTools.TryGetValue(layer.Id, out var tools))
-                _layerTools[layer.Id] = tools = new PictureToolEdits(_editing, _pictures, _selection, _erasing, _runOnUi, () =>
-                {
-                    RequestRender();
-                    ScheduleDocumentSave();
-                });
-            tools.Follow(rendering);
-        }
-        foreach (var gone in _layerTools.Keys.Where(id => !seen.Contains(id)).ToList())
-        {
-            _layerTools[gone].Dispose();
-            _layerTools.Remove(gone);
-        }
-    }
-
-    /// <summary>The layered picture is written once its edits pause.</summary>
-    private void ScheduleDocumentSave()
-    {
-        if (CurrentDocument is null) return;
-        _documentSave.Stop();
-        _documentSave.Start();
-    }
-
-    /// <summary>
-    /// The layered picture written where it is kept — its package, or its draft — whole and at once; a large one among the
-    /// workspace's jobs. A picture layer still waiting for the picture tools puts it off until they have made it.
-    /// </summary>
-    private void SaveDocument()
-    {
-        if (CurrentDocument is not { } document || document.Writing(document.Path) is not { } write) return;
-        var picture = document.Picture;
-        var task = new ImageSaveTask(document.Path, write);
-        void Done()
-        {
-            if (task.Failure is { } failure)
-                _shell?.ShowError(Str.Format("Images.Edit.Save.FailedFormat", Path.GetFileName(task.Destination), failure.Message));
-        }
-        if (_shell is not null && (long)picture.Width * picture.Height * Math.Max(1, picture.All.Count()) >= LargeDocumentPixels)
-        {
-            _shell.QueueBackgroundTask(task, onComplete: finished => _ = _shell.RunOnUiAsync(Done));
-            return;
-        }
-        _ = Task.Run(() => task.RunAsync(_cts.Token)).ContinueWith(_ => _runOnUi(Done), TaskScheduler.Default);
-    }
-
-    /// <summary>Save, for a layered picture: written now where it is kept — or, a draft, saved somewhere first, as a package
-    /// beside the photo it was made from to start with. Gives whether it was written.</summary>
-    internal async Task<bool> SaveDocumentAsAsync(bool askWhere)
-    {
-        if (_shell is null || CurrentDocument is not { } document) return false;
-        if (Draft is { } draft && string.Equals(draft.Path, document.Path, StringComparison.OrdinalIgnoreCase))
-        {
-            // The tab's own draft — a canvas made on its start screen — is kept by its Save as, and the tab becomes the file kept.
-            bool kept = false;
-            void OnKept(string _) => kept = true;
-            draft.Kept += OnKept;
-            try { await draft.SaveAsCommand.ExecuteAsync(null); }
-            finally { draft.Kept -= OnKept; }
-            return kept;
-        }
-        var destination = document.Path;
-        if (askWhere || document.IsDraft)
-        {
-            var name = Path.GetFileNameWithoutExtension(document.Path) + OpenRasterPackage.Extension;
-            destination = await _shell.PickSaveFileAsync(name, [OpenRasterPackage.Extension], document.DraftFolder ?? Path.GetDirectoryName(document.Path));
-            if (destination is null) return false;
-            destination = Path.ChangeExtension(destination, OpenRasterPackage.Extension);
-        }
-        if (document.Writing(destination) is not { } write)
-        {
-            _shell.ShowNotification(Str.Get("Images.Layers.WaitForTools"));
-            return false;
-        }
-        _documentSave.Stop();
-        var task = new ImageSaveTask(destination, write);
-        await task.RunAsync(_cts.Token);
-        if (task.Failure is { } failure)
-        {
-            _shell.ShowError(Str.Format("Images.Edit.Save.FailedFormat", Path.GetFileName(destination), failure.Message));
-            return false;
-        }
-        document.MovedTo(destination);
-        _shell.ShowNotification(Str.Format("Images.Edit.Save.CopyDoneFormat", Path.GetFileName(destination)));
-        return true;
-    }
-
-    /// <summary>Export: the layered picture flattened into a file of a common format — the bottom picture layer's photo's
-    /// metadata carried — the package left as it is.</summary>
-    internal async Task ExportDocumentAsync()
-    {
-        if (_shell is null || CurrentDocument is not { } document) return;
-        var suggested = Path.GetFileNameWithoutExtension(document.Path) + ImageContainer.Png.Extension();
-        var extensions = ImageExporter.CopyFormats.Select(c => c.Extension()).Prepend(ImageContainer.Png.Extension()).Distinct().ToList();
-        var destination = await _shell.PickSaveFileAsync(suggested, extensions, document.DraftFolder ?? Path.GetDirectoryName(document.Path));
-        if (destination is null) return;
-        var target = ImageContainers.FromExtension(destination);
-        if (!_editing.Encoders.CanEncode(target)) destination = Path.ChangeExtension(destination, (target = ImageContainer.Png).Extension());
-        var export = (document.Picture.All.OfType<PictureLayer>().FirstOrDefault()?.Recipe.Export) ?? RecipeExport.Default;
-        if (document.Exporting(destination, target, export) is not { } write)
-        {
-            _shell.ShowNotification(Str.Get("Images.Layers.WaitForTools"));
-            return;
-        }
-        var task = new ImageSaveTask(destination, write);
-        _shell.QueueBackgroundTask(task, onComplete: finished => _ = _shell.RunOnUiAsync(() =>
-        {
-            if (task.Failure is { } failure) _shell.ShowError(Str.Format("Images.Edit.Save.FailedFormat", Path.GetFileName(destination), failure.Message));
-            else _shell.ShowNotification(Str.Format("Images.Edit.Save.CopyDoneFormat", Path.GetFileName(destination)));
-        }));
-    }
-
-    /// <summary>Use the saved look: the picture's layers replaced by one picture layer showing its merged image, kept as a file of its own.</summary>
-    [RelayCommand]
-    private async Task UseSavedLook()
-    {
-        if (CurrentDocument is not { SavedLook: { } look } document) return;
-        var copy = DraftLocation.NewFile(Path.GetFileNameWithoutExtension(document.Path) + " " + Str.Get("Images.Layers.SavedLookFileName") + ".png");
-        await _editing.FileSystem.WriteAllBytesAsync(copy, await _editing.FileSystem.ReadAllBytesAsync(look.Path));
-        document.UseSavedLook(copy, Str.Get("Images.Layers.SavedLookName"));
-    }
-
-    /// <summary>Edit the layers: what Nexaflow draws shown from now on, the layers it cannot draw left out and kept.</summary>
-    [RelayCommand]
-    private void EditTheLayers() => CurrentDocument?.EditTheLayers();
-
-    /// <summary>A layered picture's selection, as the editor's hand-drawn selection works on it: each change a step of its history.</summary>
-    private sealed class DocumentSelection(LayeredSession document) : IDocumentSelection
-    {
-        public SKSizeI Size => new(document.Picture.Width, document.Picture.Height);
-
-        public TiledCoverage Selection => document.Picture.Selection;
-
-        public void Select(TiledCoverage selection) => document.Commit(p => p with { Selection = selection });
-
-        public TiledCoverage? FromPicture(PictureMask picked)
-        {
-            var picture = document.Picture;
-            if (picture.Active is not PictureLayer layer || document.RenderingOf(layer.Id)?.Proxy is not { } proxy) return null;
-            var source = proxy.SourceSize;
-            var shownToSource = SKMatrix.CreateScale((float)(source.Width / picked.Width), (float)(source.Height / picked.Height));
-            var shown = TiledCoverage.FromBytes(picked.Pixels, picked.Width, picked.Height);
-            return CoverageMapping.Map(shown, shownToSource.PostConcat(LayeredSession.SourceToCanvas(layer, source)), picture.Width, picture.Height);
-        }
     }
 
     // ── Rendering ─────────────────────────────────────────────────────────
@@ -1221,34 +624,19 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     /// <summary>The surface the current image is shown on changed size (device-independent pixels) or density.</summary>
     public void SetViewport(double width, double height, double pixelsPerDip)
     {
-    if (_display.SetViewport(width, height, pixelsPerDip)) RequestRender();
+        if (Stage.SetViewport(width, height, pixelsPerDip)) RequestRender();
     }
 
-    /// <summary>The edit canvas was zoomed: render more (or fewer) pixels for the same layout.</summary>
-    public void SetEditZoom(double zoom)
-    {
-    if (_display.SetEditZoom(zoom) && IsEditing) RequestRender();
-    }
+    /// <summary>Renders what is shown, fitted or at 100%.</summary>
+    internal void RequestRender() => Stage.Render();
 
-    /// <summary>Renders what is shown for the way it is being shown: on the edit canvas or not, before or after, fitted or at 100%,
-    /// a layer's mask alone.</summary>
-    internal void RequestRender() =>
-        _display.Render(new ImageDisplayMode(IsEditing, IsEditing && Editor.ShowOriginal, Editor.Frame, FitToWindow, Layers.MaskAlone));
-
-    /// <summary>A picture shown has pixels — its first decode, a sharper one, or what a tool made: the editor and the frame catch up.</summary>
+    /// <summary>A picture shown has pixels    /// <summary>A picture shown has pixels — its first decode, a sharper one, or what a tool made: the editor and the frame catch up.</summary>
     private void OnDecoded(PictureRendering rendering)
     {
-        if (CurrentDocument is not null)
-        {
-            if (ReferenceEquals(rendering, EditTarget?.Rendering)) Editor.OnSessionChanged();
-            RequestRender();
-            return;
-        }
         if (rendering is not ImageEditSession session || !ReferenceEquals(CurrentSession, session)) return;
-        Editor.OnSessionChanged();
         ReadPage.PictureDecoded(session);
         FollowDetails();
-        RequestRender();
+        OpenInArtistCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>The Details panel follows the picture on screen: its file, its size upright once decoded, and the size its edits save it at.</summary>
@@ -1288,7 +676,6 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
             ImageViewMode.Album   => "album grid",
             ImageViewMode.Explore => "explore",
             ImageViewMode.Collage => "collage",
-            ImageViewMode.Edit    => "editing",
             _                     => "carousel",
         };
         var position = TotalImages == 1 ? string.Empty : $" ({CurrentIndex + 1} of {TotalImages})";
@@ -1303,9 +690,10 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     public ContextGrant GetContextGrant() => ContextGrant.OfFiles(_paths);
 
     public string? GetAiSystemPromptGuidance() =>
-        "One or more images are open. To see the picture the user is looking at, call capture_image — it "
+        "One or more images are open in the viewer. To see the picture the user is looking at, call capture_image — it "
       + "returns the current image to you as a vision attachment, with any edits applied. Use next_image / "
-      + "previous_image to move through a multi-image set, and get_image_info for dimensions, format and size.";
+      + "previous_image to move through a multi-image set, and get_image_info for dimensions, format and size. "
+      + "Editing a picture happens in Artist, which the user opens with Edit.";
 
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
@@ -1356,58 +744,6 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
             ToolSafety.SafeOperation,
             async (_, _) => await StepAsync(forward: false)),
 
-        // ── Selection: things picked out of the picture on screen, shown in the editor's Cut out ──
-        new DelegateClientTool(
-            "select_in_picture",
-            "Pick out everything 'what' names in the picture on screen — \"the mug\", \"woman with red hair\" — and show it selected "
-          + "in the image editor's Cut out tool, where the user can copy it or save it without its background. Says how many it "
-          + "found, how surely and where, in the picture's pixels.",
-            [new ClientToolParameter("what", "What to pick out, in a few words: a noun phrase like \"dog\" or \"red car\".")],
-            ToolSafety.SafeOperation,
-            async (args, _) => await SelectNamedAsync(ToolArgs.Str(args, "what"))),
-
-        new DelegateClientTool(
-            "cut_out",
-          "Cut something out of the picture on screen — everything 'what' names, or the thing inside 'box' — into a new PNG, "
-          + "transparent around it and cropped to it, opened for the user in a new tab to save where they choose; the picture "
-          + "itself is untouched.",
-            [
-                new ClientToolParameter("what", "What to cut out, in a few words: a noun phrase like \"dog\" or \"red car\". Not needed with 'box'.", Required: false),
-                new ClientToolParameter("box", "A box round the one thing to cut out, in the picture's pixels: left,top,right,bottom.", Required: false),
-            ],
-            ToolSafety.SafeOperation,
-            async (args, ct) => await CutOutToolAsync(ToolArgs.Str(args, "what"), ToolArgs.Str(args, "box"), ct)),
-
-        // ── Restoring: the picture on screen cleaned or upscaled, as one of its edits ──
-        new DelegateClientTool(
-            "restore_picture",
-            "Restore the picture on screen with the picture tools on this machine — softness, noise and JPEG blocks cleaned up, the "
-          + "faces in it repaired — kept at its size or made twice or four times as large, as one of the picture's edits in the "
-          + "image editor (AI enhance and AI upscale): shown at once, undone with Undo, saved when the user saves.",
-            [
-                new ClientToolParameter("scale", "1 keeps its size, 2 or 4 makes it that many times as large. 1 when not given.", Required: false, Choices: ["1", "2", "4"]),
-                new ClientToolParameter("faces", "Whether the faces in it are repaired. Yes when not given.", Required: false, Choices: ["yes", "no"]),
-                new ClientToolParameter("strength", "How much of the restoration shows over the picture as it was, 0 to 100. 100 when not given.", Required: false),
-            ],
-            ToolSafety.SafeOperation,
-            async (args, ct) => await RestoreToolAsync(ToolArgs.Str(args, "scale"), ToolArgs.Str(args, "faces"), ToolArgs.Str(args, "strength"), ct)),
-
-        // ── Erasing: things rubbed out of the picture on screen, as a step of its edits ──
-        new DelegateClientTool(
-            "erase_in_picture",
-            "Erase from the picture on screen everything 'what' names — \"the sign\", \"people in the background\" — or the thing "
-          + "inside 'box', and fill where it was from what is round it, as a step of the picture's edits in the image editor: "
-          + "shown at once, undone with Undo, saved when the user saves. Says what it erased and where.",
-            [
-                new ClientToolParameter("what", "What to erase, in a few words: a noun phrase like \"sign\" or \"man in a red coat\". Not needed with 'box'.", Required: false),
-                new ClientToolParameter("box", "A box round the one thing to erase, in the picture's pixels: left,top,right,bottom.", Required: false),
-                new ClientToolParameter("fill", "How to fill where it was: 'ai' (LaMa, best where an edge or shape runs through it) or "
-                                              + "'content-aware' (the picture's own texture). AI where it is downloaded, else content-aware.",
-                                        Required: false, Choices: ["ai", "content-aware"]),
-            ],
-            ToolSafety.SafeOperation,
-            async (args, ct) => await EraseNamedAsync(ToolArgs.Str(args, "what"), ToolArgs.Str(args, "box"), ToolArgs.Str(args, "fill"), ct)),
-
         // ── Page reading: the picture on screen read as a page of writing ──
         new DelegateClientTool(
             "read_page",
@@ -1452,248 +788,6 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
             $"Now showing '{CurrentFileName}' ({CurrentIndex + 1} of {TotalImages}).");
     }
 
-    /// <summary>The assistant's select_in_picture: the editor opened on the Cut out tool, and everything <paramref name="what"/>
-    /// names picked out there.</summary>
-    private async Task<ToolResult> SelectNamedAsync(string? what)
-    {
-        if (string.IsNullOrWhiteSpace(what)) return ToolResult.Error("nothing named", "Say what to pick out as 'what'.");
-        if (!Cutter.Available) return ToolResult.Error("picture selection unavailable", "This machine cannot run picture selection.");
-        if (!Cutter.CanPick)
-            return ToolResult.Error("picture selection not downloaded",
-                "Picture selection is not on this machine yet: the user can download it in Settings > Local > Tools, or from the image editor's Cut out.");
-
-        Task<IReadOnlyList<PictureFind>>? finding = null;
-        void Start()
-        {
-            EnterEditMode();
-            if (!IsEditing) return;
-            Editor.Tool = EditTool.CutOut;
-            finding = Cutter.FindNamedAsync(what.Trim());
-        }
-        if (_shell is not null) await _shell.RunOnUiAsync(Start);
-        else Start();
-        if (finding is null) return ToolResult.Error("no picture", "No picture is open to pick from.");
-
-        var finds = await finding;
-        if (Cutter.Failed) return ToolResult.Error("could not pick it out", Cutter.Notice);
-        if (finds.Count == 0) return ToolResult.Ok($"found no {what}", $"Nothing in '{CurrentFileName}' is \"{what}\".");
-        var where = string.Join("; ", finds.Select(f => string.Create(CultureInfo.InvariantCulture,
-            $"{f.Score:P0} sure at {f.Box.Left:F0},{f.Box.Top:F0},{f.Box.Right:F0},{f.Box.Bottom:F0}")));
-        return ToolResult.Ok($"picked out {finds.Count} × {what}",
-            $"Picked out {finds.Count} \"{what}\" in '{CurrentFileName}' ({where}); they show selected in the editor's Cut out tool, where the user can copy or save them.");
-    }
-
-    /// <summary>restore_picture: the picture on screen restored as the editor's AI enhance and AI upscale restore it — the
-    /// recipe's restore section set, the editor opened on it — answered once the restoration is made.</summary>
-    private async Task<ToolResult> RestoreToolAsync(string? scale, string? faces, string? strength, CancellationToken ct)
-    {
-        int times = scale switch { null or "" or "1" => 1, "2" => 2, "4" => 4, _ => 0 };
-        if (times == 0) return ToolResult.Error("no such scale", "The scale is 1, 2 or 4.");
-        bool repair = !string.Equals(faces, "no", StringComparison.OrdinalIgnoreCase);
-        double shown = 1;
-        if (strength is { Length: > 0 })
-        {
-            if (!double.TryParse(strength, NumberStyles.Float, CultureInfo.InvariantCulture, out var percent) || percent is < 0 or > 100)
-                return ToolResult.Error("no such strength", "The strength is from 0 to 100.");
-            shown = percent / 100;
-        }
-        if (!Restorer.Available) return ToolResult.Error("picture tools unavailable", "This machine cannot run the picture tools.");
-        if (!Restorer.RestoresNow)
-            return ToolResult.Error("picture tools not downloaded",
-                "The picture tools are not on this machine yet: the user can download them in Settings > Local > Tools, or from the image editor's AI enhance.");
-
-        var wanted = new RecipeRestore { Scale = times, Faces = repair, Strength = shown };
-        string? refused = null;
-        Task<string?>? made = null;
-        bool already = false;
-        void Start()
-        {
-            EnterEditMode();
-            if (!IsEditing || CurrentSession is not { Proxy: { } proxy } session)
-            {
-                refused = "No picture is open to restore.";
-                return;
-            }
-            if (!Restorer.Restores((int)Math.Round(proxy.SourceSize.Width), (int)Math.Round(proxy.SourceSize.Height), times))
-            {
-                refused = $"'{CurrentFileName}' is too large to restore at {times}x; try a smaller scale.";
-                return;
-            }
-            Editor.Tool = times > 1 ? EditTool.Resize : EditTool.Adjust;
-            if (session.Recipe.Restore == wanted && session.RestoredPath is not null)
-            {
-                already = true;
-                return;
-            }
-            made = Restorer.NextMadeAsync(ct);
-            session.History.Commit(session.Recipe with { Restore = wanted });
-        }
-        if (_shell is not null) await _shell.RunOnUiAsync(Start);
-        else Start();
-        if (refused is not null) return ToolResult.Error("could not restore it", refused);
-        if (!already && await made! is { } failure) return ToolResult.Error("could not restore it", failure);
-        return ToolResult.Ok($"restored {CurrentFileName}",
-            $"Restored '{CurrentFileName}'{(times > 1 ? $" at {times}x its size" : "")}{(repair ? ", faces repaired" : "")}, shown at {shown:P0} strength, "
-          + "as one of its edits in the image editor; the user can undo it or save it.");
-    }
-
-    /// <summary>
-    /// erase_in_picture: what <paramref name="what"/> names — found first, as the editor's Cut out finds it, so nothing is
-    /// erased when nothing is — or what <paramref name="box"/> holds, erased as a step of the recipe with the Erase tool on
-    /// screen, filled by picture erasing where it is here or asked, else content-aware fill; answered once it is made.
-    /// </summary>
-    private async Task<ToolResult> EraseNamedAsync(string? what, string? box, string? fill, CancellationToken ct)
-    {
-        what = what?.Trim();
-        if (!TryBox(box, out var boxed)) return ToolResult.Error("no such box", "Give 'box' as left,top,right,bottom in the picture's pixels.");
-        if (string.IsNullOrEmpty(what) && boxed is null) return ToolResult.Error("nothing named", "Say what to erase as 'what', or give a 'box' round it.");
-        if (!Cutter.Available) return ToolResult.Error("picture selection unavailable", "This machine cannot run picture selection, which finds what to erase.");
-        if (!Cutter.CanPick)
-            return ToolResult.Error("picture selection not downloaded",
-                "Picture selection, which finds what to erase, is not on this machine yet: the user can download it in Settings > Local > Tools, or from the image editor's Erase.");
-        var by = fill switch
-        {
-            null or "" => Eraser.ErasesByAiNow ? EraseFill.Ai : EraseFill.ContentAware,
-            _ when fill.Equals("ai", StringComparison.OrdinalIgnoreCase) => EraseFill.Ai,
-            _ when fill.Equals("content-aware", StringComparison.OrdinalIgnoreCase) => EraseFill.ContentAware,
-            _ => (EraseFill?)null,
-        };
-        if (by is not { } chosen) return ToolResult.Error("no such fill", "Fill with 'ai' or 'content-aware'.");
-        if (chosen == EraseFill.Ai && !Eraser.ErasesByAiNow)
-            return ToolResult.Error("picture erasing not downloaded",
-                "Picture erasing (LaMa) is not on this machine yet: the user can download it in Settings > Local > Tools, or erase with fill 'content-aware'.");
-
-        Task<IReadOnlyList<PictureFind>>? finding = null;
-        bool open = false;
-        void Start()
-        {
-            EnterEditMode();
-            if (!IsEditing) return;
-            open = true;
-            Editor.Tool = EditTool.Retouch;
-            if (!string.IsNullOrEmpty(what)) finding = Cutter.FindNamedAsync(what);
-        }
-        if (_shell is not null) await _shell.RunOnUiAsync(Start);
-        else Start();
-        if (!open) return ToolResult.Error("no picture", "No picture is open to erase from.");
-
-        string said;
-        if (finding is not null)
-        {
-            var finds = await finding;
-            if (Cutter.Failed) return ToolResult.Error("could not find it", Cutter.Notice);
-            if (finds.Count == 0) return ToolResult.Ok($"found no {what}", $"Nothing in '{CurrentFileName}' is \"{what}\"; nothing was erased.");
-            said = $"{finds.Count} \"{what}\" at " + string.Join("; ", finds.Select(f => string.Create(CultureInfo.InvariantCulture,
-                $"{f.Box.Left:F0},{f.Box.Top:F0},{f.Box.Right:F0},{f.Box.Bottom:F0}")));
-        }
-        else said = string.Create(CultureInfo.InvariantCulture, $"the thing in {boxed!.Left:F0},{boxed.Top:F0},{boxed.Right:F0},{boxed.Bottom:F0}");
-
-        var step = new RecipeErase
-        {
-            Fill = chosen,
-            Pick = !string.IsNullOrEmpty(what) ? new RecipeCutOut { Phrase = what } : new RecipeCutOut { Box = new RecipeCutBox(boxed!.Left, boxed.Top, boxed.Right, boxed.Bottom) },
-        };
-        var made = Eraser.NextMadeAsync(ct);
-        void Commit()
-        {
-            if (CurrentSession is not { } session) return;
-            session.History.Commit(session.Recipe with { Erasures = session.Recipe.Erasures.Add(step) });
-            Cutter.ClearCommand.Execute(null);
-        }
-        if (_shell is not null) await _shell.RunOnUiAsync(Commit);
-        else Commit();
-
-        if (await made is { } failure) return ToolResult.Error("could not erase it", failure);
-        return ToolResult.Ok($"erased {(string.IsNullOrEmpty(what) ? "the boxed thing" : what)}",
-            $"Erased {said} from '{CurrentFileName}', filled {(chosen == EraseFill.Ai ? "by AI" : "content-aware")}, as a step of its edits in the image editor; the user can undo it or save it.");
-    }
-
-    /// <summary>A tool's 'box' — left,top,right,bottom in the picture's pixels — read; none given is a box of null, and false
-    /// is one that does not read.</summary>
-    private static bool TryBox(string? text, out PictureBox? box)
-    {
-        box = null;
-        if (string.IsNullOrWhiteSpace(text)) return true;
-        var parts = text.Split(',', StringSplitOptions.TrimEntries);
-        var v = new double[4];
-        for (int i = 0; i < parts.Length && i < 4; i++)
-            if (!double.TryParse(parts[i], NumberStyles.Float, CultureInfo.InvariantCulture, out v[i])) return false;
-        if (parts.Length != 4 || v[2] <= v[0] || v[3] <= v[1]) return false;
-        box = new PictureBox(v[0], v[1], v[2], v[3]);
-        return true;
-    }
-
-    /// <summary>
-    /// cut_out: what <paramref name="what"/> names, or what <paramref name="box"/> holds, picked as the editor's Cut out picks
-    /// it and made a PNG — transparent around it, cropped to it — opened as a draft in a tab of its own, which the user saves
-    /// where they choose. The assistant is told only that the tab opened: the new picture is its
-    /// to work on once the user gives it that tab.
-    /// </summary>
-    private async Task<ToolResult> CutOutToolAsync(string? what, string? box, CancellationToken ct)
-    {
-        what = what?.Trim();
-        if (!TryBox(box, out var boxed)) return ToolResult.Error("no such box", "Give 'box' as left,top,right,bottom in the picture's pixels.");
-        if (string.IsNullOrEmpty(what) && boxed is null) return ToolResult.Error("nothing named", "Say what to cut out as 'what', or give a 'box' round it.");
-        if (!Cutter.Available) return ToolResult.Error("picture selection unavailable", "This machine cannot run picture selection.");
-        if (!Cutter.CanPick)
-            return ToolResult.Error("picture selection not downloaded",
-                "Picture selection is not on this machine yet: the user can download it in Settings > Local > Tools, or from the image editor's Cut out.");
-
-        Task<IReadOnlyList<PictureFind>>? finding = null;
-        Task<bool>? picking = null;
-        string? photo = null;
-        void Start()
-        {
-            EnterEditMode();
-            if (!IsEditing || CurrentSession is not { } session) return;
-            photo = session.Path;
-            Editor.Tool = EditTool.CutOut;
-            if (!string.IsNullOrEmpty(what)) finding = Cutter.FindNamedAsync(what);
-            else picking = Cutter.BoxedAsync(boxed!);
-        }
-        if (_shell is not null) await _shell.RunOnUiAsync(Start);
-        else Start();
-        if (photo is null) return ToolResult.Error("no picture", "No picture is open to cut out of.");
-
-        string said;
-        if (finding is not null)
-        {
-            var finds = await finding;
-            if (Cutter.Failed) return ToolResult.Error("could not cut it out", Cutter.Notice);
-            if (finds.Count == 0) return ToolResult.Ok($"found no {what}", $"Nothing in '{CurrentFileName}' is \"{what}\"; nothing was saved.");
-            said = $"{finds.Count} \"{what}\"";
-        }
-        else
-        {
-            if (!await picking!) return Cutter.Failed ? ToolResult.Error("could not cut it out", Cutter.Notice)
-                                                      : ToolResult.Ok("found nothing in the box", "Nothing stands out inside that box; nothing was saved.");
-            said = "the thing in the box";
-        }
-
-        byte[]? png;
-        try
-        {
-            png = await Cutter.CutOutAsync(ct);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return ToolResult.Error("could not cut it out", ex.Message);
-        }
-        if (png is null) return ToolResult.Ok("found nothing to keep", "What was picked has no pixels in this picture; nothing was saved.");
-
-        // A draft: the picture's tab gives the assistant the picture, never its folder, so nothing is written beside it. The user
-        // keeps the cut-out where they choose, Save as starting beside the picture.
-        var saved = DraftLocation.NewFile(Path.GetFileNameWithoutExtension(photo) + Str.Get("Images.CutOut.FileSuffix") + ".png");
-        await _editing.FileSystem.WriteAllBytesAsync(saved, png, ct);
-        _shell?.OpenTab(ImageTabRegistration.StaticPageKind, new Dictionary<string, string>
-        {
-            ["paths"]                     = saved,
-            [DraftFile.PageParameterName] = ImageEditingServices.IsFileBacked(photo) ? Path.GetDirectoryName(photo) ?? "" : "",
-        });
-        return ToolResult.Ok($"cut out of {CurrentFileName}",
-            $"Cut out {said} from '{CurrentFileName}' and opened it for the user in a new tab, not saved yet: they save it where they choose.");
-    }
-
     /// <summary>Format + pixel size + byte size of the current image, best-effort (any part may be unknown).</summary>
     private string DescribeCurrentImage()
     {
@@ -1720,7 +814,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     }
 
     /// <summary>The picture's size as shown — edits applied — once it is decoded.</summary>
-    private SKSizeI? CurrentPixelSize() => CurrentSession?.OutputSize(CurrentRecipe);
+    private SKSizeI? CurrentPixelSize() => CurrentSession?.OutputSize(Stage.CurrentRecipe);
 
     /// <summary>Upper-case format name from the current file's extension (e.g. PNG, JPEG); "image" if none.</summary>
     private string CurrentFormat()
@@ -1759,78 +853,12 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     public void Dispose()
     {
         _autoTimer.Stop();
-        Cutter.Close();
         _thumbRefresh.Stop();
-        CloseDocument();
-        _documentSave.Stop();
         _cts.Cancel();
-        _sidecarWatch?.Dispose();
-        if (CurrentSession is { } current) CloseSession(current.Path);
+        Stage.Show(null);
         _sessions.Dispose();
-        _display.Dispose();
+        Stage.Dispose();
         MakeVideo.Dispose();
-        Start.Dispose();
-        Pictures.Dispose();
-
         _cts.Dispose();
-    }
-
-    /// <summary>The Save as of a picture made for the user and not saved yet — the tab's draft — or null for pictures opened where they live.</summary>
-    [ObservableProperty] private DraftSaving? _draft;
-
-    /// <summary>Makes the Save as of a draft the tab comes to show — its path, and the folder Save as starts in — set by the page,
-    /// which becomes the file the draft is kept as.</summary>
-    public Func<string, string?, DraftSaving>? MakeDraft { get; init; }
-
-    /// <summary>Raised once the tab shows other pictures than it opened on — from its start screen — for its page to follow.</summary>
-    public event Action<ShownPictures>? PicturesReplaced;
-
-    /// <summary>
-    /// The tab shows <paramref name="paths"/> in place of what it held — from its start screen: a canvas made there, one opened
-    /// again, pictures opened — in <paramref name="mode"/>; a draft, with its Save as starting in the user's Pictures.
-    /// </summary>
-    internal void ShowPictures(IReadOnlyList<string> paths, ImageViewMode mode, bool draft = false)
-    {
-        if (paths.Count == 0) return;
-        CloseDocument();
-        ShowNothing();
-        _paths.Clear();
-        _paths.AddRange(paths);
-        Dots.Clear();
-        Thumbnails.Clear();
-        VisibleDots.Clear();
-        AddPictureItems();
-        _thumbsRequested = false;
-        _collageComputed = false;
-        _dotBlock        = -1;
-        var folder = draft ? ImageStartViewModel.DraftFolder : null;
-        Draft = draft ? MakeDraft?.Invoke(paths[0], folder) : null;
-        TotalImages = _paths.Count;
-        OnPropertyChanged(nameof(HasMultiple));
-        OnPropertyChanged(nameof(ShowsSubViewSelector));
-        if (CurrentIndex == 0) LoadImage(0);
-        else CurrentIndex = 0;
-        ViewMode = mode == ImageViewMode.Edit || _paths.Count > 1 ? mode : ImageViewMode.Carousel;
-        PicturesReplaced?.Invoke(new ShownPictures([.. _paths], ViewMode, Draft is not null, folder));
-    }
-
-    /// <summary>The layered picture at <paramref name="path"/> opened here for editing — <paramref name="draft"/>, as the draft it is.</summary>
-    internal void OpenCanvas(string path, bool draft) => ShowPictures([path], ImageViewMode.Edit, draft);
-
-    /// <summary>
-    /// Keeps the tab's draft at <paramref name="to"/>: a layered picture written there as it now stands, a picture copied with its
-    /// edits. What the draft's Save as does.
-    /// </summary>
-    /// <exception cref="IOException">A picture layer waits for the picture tools, or the file could not be written.</exception>
-    internal async Task KeepDraftAsync(string from, string to)
-    {
-        if (CurrentDocument is { } document && string.Equals(document.Path, from, StringComparison.OrdinalIgnoreCase))
-        {
-            if (document.Writing(to) is not { } write) throw new IOException(Str.Get("Images.Layers.WaitForTools"));
-            _documentSave.Stop();
-            await write(_cts.Token);
-            return;
-        }
-        await ImageDraftHandler.KeepAsync(_editing, from, to);
     }
 }

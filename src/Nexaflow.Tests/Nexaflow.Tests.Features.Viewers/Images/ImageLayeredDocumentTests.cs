@@ -73,15 +73,15 @@ public class ImageLayeredDocumentTests
     }
 
     /// <summary>The editor open on <paramref name="path"/>: a photo shown, or a layered picture read.</summary>
-    private ImageViewModel Editing(string path, IShellServices? shell = null)
+    private ArtistViewModel Editing(string path, IShellServices? shell = null)
     {
-        var vm = new ImageViewModel([path], shell ?? Shell(), ImageViewMode.Edit, _services, config: new ImagesConfig());
+        var vm = new ArtistViewModel(path, shell ?? Shell(), _services, config: new ImagesConfig());
         Until(() => vm.CurrentDocument is not null || vm.Canvas is not null && path.EndsWith(".png", StringComparison.OrdinalIgnoreCase));
         return vm;
     }
 
     /// <summary>A blank canvas — one empty pixel layer — written at <paramref name="name"/> and opened in the editor, the ink chosen.</summary>
-    private ImageViewModel BlankCanvas(string name, int width, int height)
+    private ArtistViewModel BlankCanvas(string name, int width, int height)
     {
         var path = Path.Combine(_dir, name);
         _services.WriteLayeredAsync(LayeredPicture.Blank(width, height, LayerBackground.Transparent, "Layer 1"), path).GetAwaiter().GetResult();
@@ -91,9 +91,9 @@ public class ImageLayeredDocumentTests
         return vm;
     }
 
-    private LayeredPicture Picture(ImageViewModel vm) => _ui.Invoke(() => vm.CurrentDocument!.Picture);
+    private LayeredPicture Picture(ArtistViewModel vm) => _ui.Invoke(() => vm.CurrentDocument!.Picture);
 
-    private TiledPixels ActivePixels(ImageViewModel vm) => ((PixelLayer)Picture(vm).Active!).Pixels;
+    private TiledPixels ActivePixels(ArtistViewModel vm) => ((PixelLayer)Picture(vm).Active!).Pixels;
 
     private static SKColor PixelOf(TiledPixels pixels, int x, int y)
     {
@@ -101,7 +101,7 @@ public class ImageLayeredDocumentTests
         return new SKColor(rgba[0], rgba[1], rgba[2], rgba[3]);
     }
 
-    private void Select(ImageViewModel vm, float left, float top, float right, float bottom)
+    private void Select(ArtistViewModel vm, float left, float top, float right, float bottom)
         => OnUi(() => vm.Editor.RegionMarks.Add(new RegionRectangle(left, top, right, bottom) { Mode = RegionMode.Replace }));
 
     private void Run(System.Windows.Input.ICommand command)
@@ -174,8 +174,7 @@ public class ImageLayeredDocumentTests
         Assert.AreEqual((120, 80, 150.0), (read.Picture.Width, read.Picture.Height, read.Picture.Dpi));
         Assert.AreEqual(LayerBackground.White, read.Picture.Background);
         Assert.IsInstanceOfType<PixelLayer>(read.Picture.Layers.Single(), "one empty pixel layer");
-        shell.Received(1).OpenTab(ImageTabRegistration.StaticPageKind,
-                                  Arg.Is<Dictionary<string, string>>(p => p["paths"] == path && p["view"] == "edit"));
+        shell.Received(1).OpenTab(ArtistTabRegistration.StaticPageKind, Arg.Is<Dictionary<string, string>>(p => p["path"] == path));
     }
 
     [TestMethod]

@@ -36,16 +36,12 @@ public sealed class EditImageAction : IFileAction, ICacheable
 
     public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default) => PerformActionAsync([filePath], ct);
 
-    /// <summary>A selection opens together, the first image in the editor and the rest a step away.</summary>
+    /// <summary>Each picture of a selection edited in an Artist tab of its own: Artist edits one picture at a time.</summary>
     public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
     {
         var images = filePaths.Where(ImageFileTypes.IsImage).ToList();
-        if (images.Count == 0) return Task.FromResult(false);
-        _shellServices.OpenTab(ImageTabRegistration.StaticPageKind, new Dictionary<string, string>
-        {
-            ["paths"] = string.Join('|', images),
-            ["view"]  = "edit",
-        });
-        return Task.FromResult(true);
+        foreach (var image in images)
+            _shellServices.OpenTab(ArtistTabRegistration.StaticPageKind, new Dictionary<string, string> { ["path"] = image });
+        return Task.FromResult(images.Count > 0);
     }
 }

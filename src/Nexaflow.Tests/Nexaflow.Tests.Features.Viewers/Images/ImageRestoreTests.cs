@@ -70,10 +70,9 @@ public class ImageRestoreTests
         return shell;
     }
 
-    private ImageViewModel Editing(Opposites tools, IShellServices? shell = null)
+    private ArtistViewModel Editing(Opposites tools, IShellServices? shell = null)
     {
-        var vm = new ImageViewModel([_photo], shell ?? Shell(), ImageViewMode.Edit,
-                                    new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1)), _restored), pictures: tools);
+        var vm = new ArtistViewModel(_photo, shell ?? Shell(), new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1)), _restored), pictures: tools);
         Until(() => vm.Canvas is not null);
         Assert.IsNotNull(vm.Canvas, "the photo was never decoded and presented");
         return vm;

@@ -161,8 +161,8 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
-          "class": "ImageViewModel",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ArtistViewModel.cs",
+          "class": "ArtistViewModel",
           "method": "MakeLayered"
         },
         {
@@ -172,9 +172,9 @@
         },
         {
           "type": "markdown",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Artist.md",
           "title_path": [
-            "Images",
+            "Artist",
             "Layers"
           ]
         }
@@ -220,9 +220,9 @@
         },
         {
           "type": "markdown",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Artist.md",
           "title_path": [
-            "Images",
+            "Artist",
             "Layers"
           ]
         }
@@ -259,9 +259,9 @@
         },
         {
           "type": "markdown",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Artist.md",
           "title_path": [
-            "Images",
+            "Artist",
             "Layers"
           ]
         }
@@ -321,9 +321,9 @@
         },
         {
           "type": "markdown",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Artist.md",
           "title_path": [
-            "Images",
+            "Artist",
             "OpenRaster files"
           ]
         }
@@ -385,10 +385,10 @@
         },
         {
           "type": "markdown",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Artist.md",
           "title_path": [
-            "Images",
-            "New picture"
+            "Artist",
+            "The start screen"
           ]
         }
       ],
@@ -447,9 +447,9 @@
         },
         {
           "type": "markdown",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Artist.md",
           "title_path": [
-            "Images",
+            "Artist",
             "Layers"
           ]
         }
@@ -507,9 +507,9 @@
         },
         {
           "type": "markdown",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Artist.md",
           "title_path": [
-            "Images",
+            "Artist",
             "Layers"
           ]
         }
@@ -579,22 +579,176 @@
           }
         ]
       }
+    },
+    "images-edit": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/ImageEditView.xaml.cs",
+          "class": "ImageEditView"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ArtistTabRegistration.cs",
+          "class": "ArtistTabRegistration"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ArtistViewModel.cs",
+          "class": "ArtistViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/ArtistView.xaml.cs",
+          "class": "ArtistView"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PictureStage.cs",
+          "class": "PictureStage"
+        }
+      ],
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Artist.md",
+            "title_path": [
+              "Artist"
+            ]
+          }
+        ]
+      }
+    },
+    "images-toolbar-edit": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
+          "class": "ImageViewModel",
+          "method": "OpenInArtist"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagesViewModelTests.cs",
+            "class": "ImagesViewModelTests",
+            "method": "Edit_OpensThePictureOnShow_InAnArtistTabOfItsOwn"
+          }
+        ]
+      }
+    },
+    "images-edit-banner": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PictureStage.cs",
+          "class": "PictureStage",
+          "method": "KeepChangedEdits"
+        }
+      ]
+    },
+    "images-flip": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PictureStage.cs",
+          "class": "PictureStage",
+          "method": "FlipHorizontal"
+        }
+      ]
+    },
+    "images-rotate": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PictureStage.cs",
+          "class": "PictureStage",
+          "method": "RotateLeft"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PictureStage.cs",
+          "class": "PictureStage",
+          "method": "RotateRight"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesJourneyTests.cs",
+          "class": "ImagesJourneyTests"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagesViewModelTests.cs",
+          "class": "ImagesViewModelTests"
+        }
+      ]
+    },
+    "images-edit-revert": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageEditorTests.cs",
+            "class": "ImageEditorTests",
+            "method": "RevertIsUndoable"
+          }
+        ]
+      }
+    },
+    "images-open-edit": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageEditorTests.cs",
+            "class": "ImageEditorTests",
+            "method": "TheEditAction_OpensEachImageInArtist"
+          }
+        ]
+      }
+    },
+    "images-ai-act-select-in-picture": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageCutOutTests.cs",
+            "class": "ImageCutOutTests",
+            "method": "TheAssistant_PicksOutWhatItNames_InTheEditorsCutOut"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 24,
+  "changed_sets": 34,
   "touched_nodes": [
+    "images-ai-act-select-in-picture",
+    "images-edit",
+    "images-edit-banner",
+    "images-edit-revert",
+    "images-flip",
     "images-layer-masks",
     "images-layers",
     "images-layers-panel",
+    "images-open-edit",
     "images-ora",
     "images-paint",
     "images-print",
+    "images-rotate",
     "images-selection",
     "images-selection-lasso",
     "images-selection-marquee",
     "images-selection-refine",
     "images-start",
+    "images-toolbar-edit",
     "images-transform"
   ]
 }

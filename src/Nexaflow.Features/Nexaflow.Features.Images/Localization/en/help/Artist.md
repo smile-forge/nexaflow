@@ -1,0 +1,102 @@
+# Artist
+
+Edits one picture: a photo, with edits kept beside it until you save them, or a layered picture you paint and arrange. Or, with
+no picture yet, makes one.
+
+---
+
+## Opening a picture
+
+- **Edit** at the top right of the [Images](help:Images) viewer, or E there, opens the picture you are on in an Artist tab of its own; the viewer stays where it was.
+- **Edit** among a picture's actions in the [File System](help:FileSystem) page opens it here too — each picture of a selection in a tab of its own — and double-clicking an OpenRaster file (.ora) opens it here.
+- The tab is named for the picture, and the breadcrumb names its folder.
+
+## The start screen
+
+- **Artist** on the ribbon opens a tab with no picture, which shows the start screen: what to make. [Show me](locate:Images_Start)
+- **Create** makes a blank canvas — the screen's size to start with, or another by name or typed in pixels, millimetres or inches at a resolution, turned with ⇄, on a transparent, white or coloured background — and opens it for editing in the same tab. It is a draft until you save it: **Save as** in the strip above it, or **Save**, asks where, and the tab becomes that file. [Show me](locate:Images_StartCreate)
+- **Generate a picture** describes what to draw, with what the workspace's image model offers; **Generate** makes the canvas and draws the picture into it as its first layer, in the proportions nearest the canvas's. While it draws, the layers panel shows it with **Stop**. A workspace that draws no pictures says so, with a way to its AI settings. [Show me](locate:Images_StartGenerate,Images_StartAiSettings)
+- **Paste from clipboard**, when the clipboard holds a picture, makes a canvas of its size with the picture as its layer; **Open picture…** edits a picture from disk here. [Show me](locate:Images_StartPaste,Images_StartOpen)
+- **Recent canvases** lists the layered pictures opened here lately, drafts not saved yet among them; click one to open it again. [Show me](locate:Images_StartRecentList)
+
+## Editing
+
+The picture sits on a canvas you can pan and zoom, with eight tools beside it in the order a picture is usually worked on — **Crop**, **Adjust**, **Retouch**, **Cut out**, **Markup**, **Paint**, **Move** and **Resize** — each saying at the head of its panel what it is for. [Show me](locate:Image_EditToolCrop)
+
+- Edits never touch the file until you save. They are kept beside the picture in a hidden file named after it, and every view shows the picture with them applied — the carousel, the thumbnails, full screen, and what the assistant is shown. A picture with edits is marked *edited* beside its name.
+- **Crop** shows the whole picture with a frame over it. Drag the corners or edges, or drag inside to move it; it stops at the edge of the picture. Choose a shape — free, the picture's own, square, 4:3 or 16:9 — and flip it upright with **Portrait**. A rule-of-thirds grid helps placing. Enter applies the crop; Esc puts it back as it was when you opened the crop tool. [Show me](locate:Image_EditToolCrop,Image_EditAspectFree,Image_EditAspectPortrait)
+- **Straighten** with the slider, or turn on **Level line** and drag along something that should be level — a horizon, a shelf — or upright, and the picture turns to match. The crop shrinks to keep empty corners out of the picture, and grows back if you turn back. [Show me](locate:Image_EditStraighten,Image_EditLevel)
+- **Adjust** opens on the quick fixes: **Auto enhance** reads the picture and sets the sliders for you, so any of them can still be changed after. Below them are the light — exposure, contrast, highlights and shadows — and the colour — saturation, temperature and tint. Double-click a slider to reset it, or **Reset** them all. [Show me](locate:Image_EditToolAdjust,Image_EditAuto)
+- **AI enhance** cleans the picture up — softness, noise and JPEG blocks — with the picture tools on this machine, and repairs the faces in it as it goes; **Strength** mixes it with the picture as it was. The first time, the tools are a download of about 640 MB, offered in the banner above the picture. An enhanced picture is made once and kept, so coming back to it is instant. [Show me](locate:Image_EditToolAdjust,Image_EditAiEnhance)
+- **Markup** draws arrows, boxes, text, pen lines and highlighter. Pick a tool and drag on the picture; for text, click where it goes and type in the panel. **Select** picks an annotation to move it, restyle it or delete it with Del. Annotations stay on what they mark if you crop again later. [Show me](locate:Image_EditToolMarkup,Image_EditMarkupArrow,Image_EditMarkupText)
+- **Cut out** keeps what you select. **Pick** picks something out with picture selection on this machine: click the thing
+  to keep, right-click (or Alt-click) what to leave out, or drag a box round it — or type what it is, like "mug" or "child
+  in a red vest", and press **Find** to pick out every one. The first time, picture selection is a download of about
+  1.8 GB, offered above the picture. **Marquee** and **Lasso** select by hand, and need nothing downloaded. **Copy** puts
+  what is selected on the clipboard without its background, and **Save cut-out** saves it as a PNG, transparent around it
+  and cropped to it; the picture itself is untouched. [Show me](locate:Image_EditToolCutOut,Image_CutOutMarkPick,Image_CutOutSave)
+  **Remove background** keeps what is selected in the picture itself and makes everything else transparent — an edit like
+  any other, undone or put back with **Keep background**. A JPEG can't be transparent, so it is then saved as a copy,
+    offered as a PNG. [Show me](locate:Image_EditToolCutOut,Image_CutOutRemoveBackground)
+    - **Selecting by hand**, in **Cut out** and **Retouch** alike, is one selection both take, starting from whatever **Pick**
+      has picked. The **Marquee** (M, and M again for an ellipse) drags out a rectangle or an ellipse: Shift once you are
+      dragging makes it square or round, Alt draws it out from its centre. The **Lasso** (L, and L again to switch) draws
+      round something freehand, or click to click as a **Polygon** — click its first point, double-click or press Enter to
+      close it; Backspace or a right-click takes the last point back, and Esc lets it go. Each shape starts the selection
+      again (**New**), or **Add**s to it, **Subtract**s from it or keeps only where they **Intersect** — or hold Shift, Alt
+      or both as you begin it. **All** (Ctrl+A), **None** (Ctrl+D), **Invert** (Ctrl+Shift+I) and **Subject**, which has
+      picture selection pick the picture's subject, act on the whole selection; **Feather**, **Grow**, **Shrink** and
+      **Smooth** refine its edge by the pixels **Refine by** says. What you select is kept with the edit it is used for, so a
+      cut-out or an erase made from it can be undone and redone as it was drawn. [Show me](locate:Image_CutOutMarkMarquee,Image_RegionModeAdd,Image_RegionFeather)
+  - **Retouch** rubs things out of the picture — scratches, dust, wires, people, signs — and fills where they were. Mark what
+    to erase with **Pick**, which picks a thing as Cut out does, with **Brush** — brush over it, and right-drag to take
+    marking back — or with the **Marquee** or **Lasso**. Everything selected is erased with what you brush, so pick a person
+    and brush their shadow, or lasso a wire and feather it. Then choose how to
+    fill it: **AI** fills from what is round it and is best where an edge or shape runs through what you erase; the first
+    time it is a download of about 210 MB, offered above the picture. **Content-aware** copies the picture's own texture in,
+    sharp on grass, walls, road, sky and fabric, and needs nothing downloaded. **Heal** copies texture from where you
+    Alt-click, matched to the light and colour round what you heal. **Erase** makes it one step of your edits — undone like
+    any other — and a picture restored with AI enhance is restored as erased. [Show me](locate:Image_EditToolRetouch,Image_EraseMarkBrush,Image_EraseFillAi,Image_EraseApply)
+- Tools that need a model this PC hasn't downloaded yet — picking in **Cut out** and **Retouch**, **AI fill**, **AI enhance** and **AI upscale** — are greyed out until it is: hover one to see what it needs and how big the download is, and the bar above the picture offers the download while its panel is open. Until then **Cut out** opens on the **Marquee**, and **Retouch** on **Brush** and **Content-aware**, which need nothing. [Show me](locate:Image_EditToolCutOut,Image_EditToolRetouch)
+- **Resize** sets the size the picture is saved at, as a percentage or in pixels, keeping its proportions unless you say otherwise. [Show me](locate:Image_EditToolResize)
+- **AI upscale** makes the picture twice or four times its size with the picture tools, restoring detail rather than stretching it, and turns AI enhance on. Crops and annotations stay where they were. A picture too large to make four times its size is offered twice only. [Show me](locate:Image_EditToolResize,Image_EditUpscaleTwice)
+- **Save options**, beside **Save as copy**, choose whether saving keeps the camera details, location, dates and descriptions, or removes them, and set the quality of a JPEG or WebP. The colour profile is always kept. A dot on the button means Save has something to tell you — why this picture can only be saved as a copy, or what saving it will drop — said inside. [Show me](locate:Image_EditSaveOptions)
+- **Undo** and **Redo** step through everything you did to the picture while it has been open — a slider drag, a crop drag or a pen line counts as one step. **Before** shows the picture as it is on disk, to compare. **Revert** removes every edit, and can itself be undone. [Show me](locate:Image_EditUndo,Image_EditRedo,Image_EditCompare,Image_EditRevert)
+- **Save** writes the edits into the picture, after asking: the original pixels are replaced, the picture is saved upright, and its camera details are kept unless you chose to remove them. **Save as copy** writes a new file in the format its name asks for and leaves the original and its edits as they are. A picture inside an archive, an animated GIF or WebP, or an icon can only be saved as a copy. [Show me](locate:Image_EditSave,Image_EditSaveCopy)
+- Ctrl+Z and Ctrl+Y undo and redo, and Ctrl+S and Ctrl+Shift+S save. Closing the tab keeps the edits, beside the picture as ever.
+- In the File System page a picture's edits go wherever it goes: copying, moving, renaming and deleting it take them along, a copy that is renamed to avoid a clash keeps its own, and dragging it to another program brings them too. **Revert edits** appears among the actions of an edited picture.
+- If a picture is changed by another program after you edited it, Artist asks whether to keep your edits on the new picture or discard them. A picture inside an archive can be edited, but its edits last only while it is open — save a copy to keep them.
+
+## Layers
+
+- **Add layer** on the editor's toolbar makes the picture a layered picture: the photo becomes its bottom layer, with its edits, and an empty layer goes above it. **Paste as layer** does the same with the picture on the clipboard. The photo itself is never written over — the layered picture is kept apart from it until you save it. [Show me](locate:Image_EditAddLayer,Image_EditPasteLayer)
+- **New → Layered picture (.ora)** in the [File System](help:FileSystem) page makes a blank canvas in the folder and opens it in the editor. Pick a size by name — the screen's, a square, Full HD, 4K, A4 or Letter at 300 dpi, a social post — or type a width and height in pixels, millimetres or inches at a resolution, turn it a quarter with ⇄, and choose a transparent, white or coloured background.
+- The **Layers** panel beside the tools lists the layers, top first. Click a layer's thumbnail to make it the one the tools work on, and drag its row, or use the arrows, to move it. The eye hides and shows it. Name it, set its opacity and blend, **Clip** it to the layer beneath, **Keep transparency** so fill stays where it already has pixels, or **Lock** it so nothing changes it. **Layer**, **Notes**, **Group**, **Duplicate** and **Delete** sit at the top; a group can be **Isolated**, its layers blended among themselves before what is beneath. [Show me](locate:Image_LayersPanel,Image_LayersAddPixel,Image_LayersOpacity,Image_LayersBlend)
+- Crop, Adjust, Retouch, Cut out and Resize work on the active picture layer — a photo, with its own edits. On a layer of pixels, **Erase** in Retouch and **Remove background** in Cut out change the pixels themselves.
+- A selection — the Marquee, the Lasso, Select subject, or Ctrl+A for everything — lies over the whole canvas. **Fill** (Shift+F5) fills it on the active layer with the ink chosen in Markup, Delete clears it, Ctrl+C copies it, Ctrl+Shift+C copies what shows of every layer, Ctrl+X cuts it, and Ctrl+V pastes as a new layer. [Show me](locate:Image_LayersPixelsSection)
+- **Mask** hides part of a layer without erasing it: reveal or hide all of it, make it from the selection, from the layer's transparency or from what Cut out picked, invert it, apply it to the pixels, or delete it. Click the mask's thumbnail and Fill and Delete work on the mask; Alt-click shows the mask alone, Ctrl-click loads it as the selection, and Shift-click turns it off. [Show me](locate:Image_LayersMaskSection)
+- **Generate layer**, above the layers, draws a new layer above the active one with the workspace's image model; it shows while it draws, with **Stop**, and arrives fitted to the canvas. Pictures dropped on the canvas become layers the same way — a photo becoming a layered picture first. [Show me](locate:Image_LayersGenerate)
+- **Paint** works on the active pixel layer — or, while its mask is edited, on the mask in greys — and only inside the selection, where there is one. The **Brush** (B) lays the colour chosen in Markup down, round, with its size, hardness, opacity, flow and spacing; a stroke passed over itself never covers more than its opacity, and a pen's pressure can set the size and the opacity. The **Eraser** (E) takes away, and on a mask shows the layer again. **Pick** (I, or Alt-click while painting) takes a colour from what shows or from the active layer, and **Fill** (G) floods what is near the colour clicked, joined to it or anywhere. Each stroke is one step of the history. A photo has nothing to paint on until a layer is added. [Show me](locate:Image_EditToolPaint,Image_PaintBrush)
+- **Move** (V) drags the active layer; on a pixel layer with a selection, what is selected lifts off to float above it, and **Drop** (or Enter) lays it back. **Transform** (Ctrl+T) puts a frame round the layer, or what is selected: drag a side or corner to scale — Shift keeps the proportions — the round handle to turn it — Shift turns by 15° — and inside it to move it; **Flip** and **Turn** sit in the panel. **Apply** (Enter) keeps it as one step, **Cancel** (Esc) puts it back. A photo or a notes layer is placed afresh rather than resampled, so transforming it again never softens it. [Show me](locate:Image_EditToolMove,Image_ArrangeTransform)
+- On a **Notes** layer, the Markup tool's arrows, boxes, text and pen work on the layer itself, wherever it has been moved or transformed to.
+- **Rasterize** turns notes or a picture layer into pixels, **Merge down** joins a layer with the one beneath, and **Flatten** makes one layer of them all.
+- **Canvas** sets a new canvas size, anchored at any of nine points, or crops the canvas to the selection. [Show me](locate:Image_LayersCanvasSection)
+- Undo and redo step through layers and selections as through edits. How much history a layered picture keeps is set in the Images options.
+- **Save** keeps a layered picture as OpenRaster, asking where the first time — beside the photo it was made from to start with — and saving it there again as you work. **Save as copy** exports it flattened, as a PNG or any format the editor saves.
+
+## OpenRaster files
+
+- Double-click an .ora — from Krita, GIMP, MyPaint or Pinta, or saved here — and it opens in Artist: its layers come back with their opacity, blends, visibility, locks, masks and groups, and what Nexaflow saves those applications open.
+- A file holding a layer Nexaflow cannot draw — a filter layer from Krita, say — opens on the look the application that wrote it saved, with a bar naming the layer. **Use the saved look** replaces the layers with one showing it, its effects baked in; **Edit the layers** shows what Nexaflow draws and keeps the layer it cannot draw, saving it back as it was. Editing anything first chooses Edit the layers. [Show me](locate:Image_SavedLookUse,Image_SavedLookEditLayers)
+- In the File System page an .ora also opens as a folder, as any package does.
+
+## Printing
+
+- **Print** (Ctrl+P) at the top left prints the picture as edited, or a layered picture as it shows. Fit it to the page, fill the page — cropping what overflows — print it at actual size, at its resolution, or at a width in millimetres; a picture larger than the page runs across pages. The page turns to suit the picture unless you choose portrait or landscape; set the margins and whether it sits in the middle. **Print…** then chooses the printer. The picture is drawn at full size for the printer, never from what is on screen. [Show me](locate:Image_Print)
+
+## Drafts and the assistant
+
+- A picture made for you — drawn by the assistant with nowhere asked to save it, cut out, or a frame taken from a video — opens here as a draft, with a strip over it saying it is not saved yet. **Save as** keeps it, with any edits you made to it, and the tab becomes that file; a draft you never save is kept only until Windows clears its temporary files. [Show me](locate:Draft_SaveAs)
+- The assistant can look at the picture as edited, and works on it and nothing else.
+- Ask it to pick something out — "select the dog", "find the woman with red hair" — and Cut out opens with every one it found picked, ready to copy or save. Ask it to cut something out and the cut-out opens in an Artist tab of its own, as a draft: **Save as** keeps it where you choose, starting beside the picture.
+- Ask it to clean up or enlarge the picture, or to erase something from it — "remove the sign", "get rid of the people in the background" — and it does it as one of your edits, which you can undo or save.

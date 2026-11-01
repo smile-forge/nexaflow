@@ -21,18 +21,18 @@ public class ImagesDraftJourneyTests : UiJourneyTestBase
 
     private readonly string _draft = Drafted(Sample);
 
-    protected override string? LaunchTabKind => "Images";
+    protected override string? LaunchTabKind => "Artist";
 
     protected override IReadOnlyDictionary<string, string> LaunchTabParams => new Dictionary<string, string>
     {
-        ["paths"] = _draft,
+        ["path"]  = _draft,
         ["draft"] = Path.GetDirectoryName(Sample)!,
     };
 
     [TestMethod]
     public void ADraft_ShowsItsSaveAs()
     {
-        Check("The draft opens in the image viewer", () => WaitForId("ImageView", 15) is not null);
+        Check("The draft opens in Artist", () => WaitForId("ArtistView", 15) is not null);
         CheckPresent("The draft's Save as", "Draft_SaveAs");
 
         AssertJourney();

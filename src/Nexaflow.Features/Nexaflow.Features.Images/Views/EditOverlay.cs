@@ -32,7 +32,7 @@ public sealed class EditOverlay : FrameworkElement
     /// <summary>How strongly what the cut-out tool picks is tinted, of 255.</summary>
     private const byte TintAlpha = 110;
 
-    private ImageViewModel? _viewer;
+    private ArtistViewModel? _viewer;
     private Gesture _gesture;
     private Point _levelFrom, _levelTo;
     private double _zoom = 1;
@@ -85,7 +85,7 @@ public sealed class EditOverlay : FrameworkElement
         set { _alignmentGrid = value; InvalidateVisual(); }
     }
 
-    public void Attach(ImageViewModel viewer)
+    public void Attach(ArtistViewModel viewer)
     {
         _viewer = viewer;
         viewer.PropertyChanged += OnChanged;

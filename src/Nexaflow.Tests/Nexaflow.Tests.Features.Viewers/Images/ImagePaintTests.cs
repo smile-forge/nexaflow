@@ -149,20 +149,20 @@ public class ImagePaintTests
 
     // ── In the editor ───────────────────────────────────────────────────────
 
-    private ImageViewModel Canvas(LayeredPicture picture, string name = "canvas.ora")
+    private ArtistViewModel Canvas(LayeredPicture picture, string name = "canvas.ora")
     {
         var path = Path.Combine(_dir, name);
         _services.WriteLayeredAsync(picture, path).GetAwaiter().GetResult();
         var shell = Substitute.For<IShellServices>();
         shell.RunOnUiAsync(Arg.Any<Action>()).Returns(call => _ui.Run(call.Arg<Action>()));
-        var vm = _ui.Invoke(() => new ImageViewModel([path], shell, ImageViewMode.Edit, _services, config: new ImagesConfig()));
+        var vm = _ui.Invoke(() => new ArtistViewModel(path, shell, _services, config: new ImagesConfig()));
         Until(() => vm.CurrentDocument is not null);
         Assert.IsNotNull(_ui.Invoke(() => vm.CurrentDocument), "the canvas was never read as a layered picture");
         OnUi(() => vm.Editor.InkColour = ColorSpec.Custom(Color.FromRgb(Red.Red, Red.Green, Red.Blue)));
         return vm;
     }
 
-    private LayeredPicture Picture(ImageViewModel vm) => _ui.Invoke(() => vm.CurrentDocument!.Picture);
+    private LayeredPicture Picture(ArtistViewModel vm) => _ui.Invoke(() => vm.CurrentDocument!.Picture);
 
     private void OnUi(Action action) => _ui.Run(action).GetAwaiter().GetResult();
 
