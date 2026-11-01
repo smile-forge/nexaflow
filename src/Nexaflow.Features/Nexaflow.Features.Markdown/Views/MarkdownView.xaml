@@ -20,6 +20,49 @@
 
     <UserControl.Resources>
         <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
+        <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
+
+        <!-- A row of the outline: washed under the pointer, marked once it is the heading the reader went to — and still marked
+             while the panel is unfocused, which is when the reading it was for happens. -->
+        <Style x:Key="OutlineRow" TargetType="ListBoxItem">
+            <Setter Property="Background"                 Value="Transparent"/>
+            <Setter Property="BorderThickness"            Value="0"/>
+            <Setter Property="Padding"                    Value="8,4"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+
+            <!-- Pinned to the viewport's width, so a long title is trimmed rather than widening the list past the panel. -->
+            <Setter Property="MaxWidth"
+                    Value="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ScrollContentPresenter}}"/>
+
+            <!-- Button-down, on the container, and left unhandled: a row captures the mouse on button-down, so the up never
+                 reaches a handler on its child, and marking it handled would keep the list from selecting the row. -->
+            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="OutlineRow_Click"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="3"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Stretch"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="IsSelected"  Value="False"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Surface2Brush}"/>
+                            </MultiTrigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentSubtleBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
         <!-- ══════════════════════════════════════════════════════════════════
              VIEW-MODE SLIDER — three stops, Rendered · Split · Source
@@ -179,8 +222,16 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- File name + the search chip an AI-bar "?" search leaves behind -->
+                <!-- The outline toggle, the file name, and the search chip an AI-bar "?" search leaves behind -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- The document's headings in a panel at the left, collapsed until asked for -->
+                    <Button Style="{StaticResource TbBtn}"
+                            Margin="0,0,10,0"
+                            ToolTip="{loc:Str Markdown.Toolbar.OutlineTip}"
+                            AutomationProperties.AutomationId="Markdown_ToggleOutline"
+                            Command="{Binding ToggleOutlineCommand}">
+                        <TextBlock Text="▤" FontSize="12"/>
+                    </Button>
                     <TextBlock Text="{Binding FileName}"
                                Foreground="{StaticResource TextBrush}"
                                FontSize="13"
@@ -332,15 +383,100 @@
              ══════════════════════════════════════════════════════════ -->
         <Grid Grid.Row="1" Background="{StaticResource BgBrush}">
             <Grid.ColumnDefinitions>
+                <!-- The outline panel and its drag handle take no room while it is closed: the code-behind sets their widths,
+                     and keeps the width the panel was left at for when it opens again. -->
+                <ColumnDefinition x:Name="OutlineColumn"         Width="0"/>
+                <ColumnDefinition x:Name="OutlineSplitterColumn" Width="0"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="14"/>
             </Grid.ColumnDefinitions>
+
+            <!-- OUTLINE — the rendered document's headings, each indented by how far below the highest it ranks; a press on one
+                 goes to it. Laid out by the rendered surface, so shown only beside it. -->
+            <Border Grid.Column="0"
+                    Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,0,1,0"
+                    Visibility="{Binding ShowOutline, Converter={StaticResource BoolVis}}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="{loc:Str Markdown.Outline.Title}"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Margin="14,10,14,4"/>
+
+                    <TextBox Grid.Row="1"
+                             Style="{StaticResource SelectableText}"
+                             AutomationProperties.AutomationId="Markdown_OutlineEmpty"
+                             Margin="14,6,14,0"
+                             VerticalAlignment="Top"
+                             FontSize="12"
+                             Foreground="{StaticResource TextMutedBrush}"
+                             Text="{loc:Str Markdown.Outline.None}"
+                             Visibility="{Binding HasOutline, Converter={StaticResource InvBoolVis}}"/>
+
+                    <!-- A ListBox rather than an ItemsControl, so the heading the reader picked stays selected and they can see
+                         where they went. -->
+                    <ListBox Grid.Row="1"
+                             ItemsSource="{Binding Outline}"
+                             AutomationProperties.AutomationId="Markdown_Outline"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             Margin="6,0,6,12"
+                             ItemContainerStyle="{StaticResource OutlineRow}"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             Visibility="{Binding HasOutline, Converter={StaticResource BoolVis}}">
+                        <ListBox.Resources>
+                            <!-- WPF falls back to SystemColors for selection the moment focus leaves the list or the window
+                                 deactivates; the theme's keeps the row the reader went to marked while they read. -->
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}"                      Color="{DynamicResource Surface2Color}"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}"                  Color="{DynamicResource TextColor}"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}"     Color="{DynamicResource Surface2Color}"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="{DynamicResource TextColor}"/>
+                        </ListBox.Resources>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <!-- The indent lives inside the row rather than as a margin on it, so every row is as wide as the
+                                     panel and a long title is trimmed rather than pushed past its edge. -->
+                                <Grid Background="Transparent">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Width="{Binding IndentWidth}"/>
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding Title}"
+                                               Foreground="{StaticResource TextBrush}"
+                                               FontSize="12"
+                                               TextTrimming="CharacterEllipsis"
+                                               ToolTipService.ShowDuration="30000"
+                                               ToolTip="{Binding Title}"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+
+            <!-- Drag it to give the outline more of the pane, or less. -->
+            <GridSplitter Grid.Column="1"
+                          Width="4"
+                          HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                          ResizeBehavior="PreviousAndNext" ResizeDirection="Columns"
+                          Background="{StaticResource BorderBrush}"
+                          Visibility="{Binding ShowOutline, Converter={StaticResource BoolVis}}"/>
 
             <!-- Source on the left, rendered on the right — the order the split reads in, and the order the
                  columns keep when one of them has the pane to itself. A hidden surface's column goes to zero
                  as well as the surface, so the one showing gets the whole width rather than half of it; the
                  code-behind sets the three widths and holds the ratio the drag handle was left at. -->
-            <Grid Grid.Column="0">
+            <Grid Grid.Column="2">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition x:Name="SourceColumn"   Width="0"/>
                     <ColumnDefinition x:Name="SplitterColumn" Width="0"/>
@@ -389,7 +525,7 @@
 
             <!-- Minimap match strip: proportional tick marks for the current search's matches -->
             <ed:MiniMapStrip x:Name="MiniMapCanvas"
-                             Grid.Column="1"
+                             Grid.Column="3"
                              Background="{StaticResource DeepBgBrush}"/>
         </Grid>
 

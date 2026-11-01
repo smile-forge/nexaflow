@@ -170,6 +170,12 @@ public sealed record ContentAsk(string Named, Nexaflow.Markdown.Editing.ContentD
     /// <summary>The root of <see cref="Part"/>'s tree: the content in this language, all of it.</summary>
     public Nexaflow.Markdown.Ast.ContentPart? Root { get; init; }
 
+    /// <summary>
+    /// The section <see cref="Part"/> heads in the outline of the content shown (<see cref="Nexaflow.Markdown.Ast.ContentOutline"/>) — its
+    /// name and how much it holds — or null where it heads none.
+    /// </summary>
+    public Nexaflow.Markdown.Ast.OutlineSection? Section { get; init; }
+
     /// <summary>What is picked out, where anything is — from where the content in this language starts (where <see cref="Root"/> starts).</summary>
     public (int Start, int Length)? Chosen { get; init; }
 

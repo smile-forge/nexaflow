@@ -61,6 +61,12 @@ public partial class MarkdownView : UserControl, IPageView
         // Laid out again — folded, opened, laid further, written in — so where the matches stand is read again.
         Editor.PreRender += (_, _) => viewModel.RenderedLaidOut();
 
+        // A heading came, went or now says something else: the outline lists the rendered document's headings again, while it shows.
+        Editor.OutlineChanged += (_, _) =>
+        {
+            if (ViewModel.ShowOutline) ViewModel.TakeOutline(Editor.Headings);
+        };
+
         // The raw half: the document's text, kept in step with it both ways; the theme's caret; and the wash a search paints.
         TakeDocument();
         viewModel.Document.Changed += OnDocumentChanged;
@@ -189,7 +195,12 @@ public partial class MarkdownView : UserControl, IPageView
     /// </summary>
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
-
+        // The outline opened or closed: its column and handle take their room, or give it back, and it lists what the document has now.
+        if (e.PropertyName == nameof(MarkdownViewModel.ShowOutline))
+        {
+            ApplyOutlineWidth();
+            if (ViewModel.ShowOutline) ViewModel.TakeOutline(Editor.Headings);
+        }
 
         // Saved as a file somewhere else: its pictures are read beside that one now.
         if (e.PropertyName == nameof(MarkdownViewModel.DocumentFolder))
@@ -221,6 +232,37 @@ public partial class MarkdownView : UserControl, IPageView
             ArriveAt(at, fromSource);
             Dispatcher.BeginInvoke(ViewModel.CarrySearchToShownSurface, System.Windows.Threading.DispatcherPriority.Background);
         }, System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    /// <summary>How wide the outline panel was left, to be given back when it opens again.</summary>
+    private double _outlineWidth = 260;
+
+    /// <summary>
+    /// Gives the outline panel and its drag handle their room while it shows, and none while it does not: a collapsed panel leaves its
+    /// column standing, so the column itself is closed, the width it was left at kept.
+    /// </summary>
+    private void ApplyOutlineWidth()
+    {
+        if (ViewModel.ShowOutline)
+        {
+            OutlineColumn.MinWidth = 160;
+            OutlineColumn.Width = new GridLength(_outlineWidth);
+            OutlineSplitterColumn.Width = new GridLength(4);
+
+            return;
+        }
+
+        if (OutlineColumn.ActualWidth > 0) _outlineWidth = OutlineColumn.ActualWidth;
+
+        OutlineColumn.MinWidth = 0;
+        OutlineColumn.Width = new GridLength(0);
+        OutlineSplitterColumn.Width = new GridLength(0);
+    }
+
+    /// <summary>A press on a row of the outline goes to its heading, wherever it now stands in the rendered document.</summary>
+    private void OutlineRow_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: MarkdownOutlineItem item }) Editor.Show(item.Heading);
     }
 
     /// <summary>What the columns were last laid out for. The XAML starts them on <see cref="MarkdownViewMode.Rendered"/>.</summary>

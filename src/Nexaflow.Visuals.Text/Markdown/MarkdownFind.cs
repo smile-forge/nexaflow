@@ -171,19 +171,6 @@ public static class MarkdownFind
         return line;
     }
 
-    /// <summary>
-    /// Where a saved reference leads in this document — or, where it no longer leads all the way, as far as
-    /// it still does. A deep link into a section somebody has reorganised should still land in the section.
-    /// </summary>
-    public static (int Start, int Length)? Followed(ContentPart? root, ContentPath path)
-    {
-        if (path.In(root) is not { } found) return null;
-
-        var written = found.Written;
-
-        return written.Length > 0 ? written : (found.Start, found.Length);
-    }
-
     private static (int Start, int Length) Ending(string text, int at)
     {
         var from = Math.Clamp(at, 0, text.Length);

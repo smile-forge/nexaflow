@@ -59,6 +59,7 @@ internal static class MarkdownShape
     public static List<MarkdownConstruct> Of(ContentNode reading, string source)
     {
         var shape = new List<MarkdownConstruct>();
+        var outline = ContentOutline.Of(reading);
         Walk(reading, reading.Offset ?? 0, words: false);
         return shape;
 
@@ -72,7 +73,7 @@ internal static class MarkdownShape
             if (!ReferenceEquals(node, reading) && Kind(node, words) is { } kind)
             {
                 var (start, end) = Extent(node, stands);
-                shape.Add(new MarkdownConstruct(kind, Math.Clamp(start, 0, source.Length), Math.Clamp(end, start, source.Length), Facts(node, kind)));
+                shape.Add(new MarkdownConstruct(kind, Math.Clamp(start, 0, source.Length), Math.Clamp(end, start, source.Length), Facts(node, kind, outline)));
                 if (Closed.Contains(kind)) return;
             }
 
@@ -150,9 +151,10 @@ internal static class MarkdownShape
         _ => Same.Contains(node.Kind) ? node.Kind : null,
     };
 
-    private static string Facts(ContentNode node, string kind) => kind switch
+    private static string Facts(ContentNode node, string kind, ContentOutline outline) => kind switch
     {
-        MarkdownKinds.Heading => Facts(("rank", Said(node, MarkdownKinds.Rank)), ("id", Said(node, MarkdownKinds.Anchor))),
+        MarkdownKinds.Heading => Facts(("rank", Said(node, MarkdownKinds.Rank)),
+                                       ("id", outline.EntryAt(node.Offset ?? 0) is { } entry ? outline.Name(entry.Unit, entry.Entry) : null)),
         MarkdownKinds.List => Facts(("counts", (Said(node, MarkdownKinds.Numbering) ?? (node.Part(Roles.Body) is { } items ? Said(items, MarkdownKinds.Numbering) : null))
                                          is MarkdownNumbering n ? $"{n.Bullet}{n.Start.ToString(CultureInfo.InvariantCulture)}" : null),
                                     ("loose", (Said(node, MarkdownKinds.Loose) ?? (node.Part(Roles.Body) is { } held ? Said(held, MarkdownKinds.Loose) : null)) is true)),

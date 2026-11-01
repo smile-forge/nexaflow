@@ -92,13 +92,11 @@ internal sealed partial class MarkdownEdits : IContentLanguage, IOnEdit
     /// </summary>
     public BlockCorner Corner(ContentAsk ask)
     {
-        if (ask.Part is not { Kind: MarkdownKinds.Heading } heading || ask.Root is not { } root) return BlockCorner.Usual;
+        if (ask.Part is not { Kind: MarkdownKinds.Heading }) return BlockCorner.Usual;
 
-        foreach (var section in MarkdownSections.Of(root.Node).All())
-            if (section.Holds && section.Anchor is { } key && ReferenceEquals(root.Node.Children[section.Heading], heading.Node))
-                return BlockCorner.None with { Adds = [new LayoutIntent(LayoutVerbs.Collapse, key, "Fold this section")] };
-
-        return BlockCorner.None;
+        return ask.Section is { Holds: true } section
+            ? BlockCorner.None with { Adds = [new LayoutIntent(LayoutVerbs.Collapse, section.Name, "Fold this section")] }
+            : BlockCorner.None;
     }
 
     /// <summary>What the choice of a block to start is known by on the ribbon.</summary>

@@ -98,7 +98,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         var language = Language(named);
         var top = ReadAgain(language, named, state.Document);
 
-        return LaidFrom(language, named, top, state, style, room, readOnly, new KeptInContent(_whole!, state.Document));
+        return LaidFrom(language, named, top, _whole!, state, style, room, readOnly, new KeptInContent(_whole!, state.Document));
     }
 
     /// <summary>
@@ -106,20 +106,24 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// <paramref name="room"/>: worked over by the language's stages and laid by its builder, as any content is — the bodies written
     /// inside it kept in <paramref name="holding"/>.
     /// </summary>
-    private Laid LaidFrom(ContentLanguage language, string? named, Parsed top, EditState state, LayoutStyle style, double room, bool readOnly,
-                          Keeping holding)
+    private Laid LaidFrom(ContentLanguage language, string? named, Parsed top, ContentWindow window, EditState state, LayoutStyle style,
+                          double room, bool readOnly, Keeping holding)
     {
         Views(top);
-        // What the reader opened in a diagram, or folded away of a document.
-        if ((_top ?? (top.Language == ContentLanguages.Markdown ? _sections : null)) is { } opened) style = style with { Expansion = opened.Expansion };
+        // What the reader opened in the content, where it is a diagram.
+        if (_top is { } opened) style = style with { Expansion = opened.Expansion };
 
         var showing = Showing(named ?? string.Empty, style, !readOnly, state.Raw, 0) with { Unchanged = _unchanged, Targets = _targets };
         var staged = Staged(top, showing);
 
+        // What its blocks come to across the units laid, and what of that the reader folded away.
+        InStep(window, staged);
+        Fold();
+
         Reading = ContentReading.Of(staged, 0, top.Document);
         _readings.AddOrUpdate(staged, holding.Address);
 
-        return Builder(language, Reading, showing, LayoutStanding.Alone, holding).Lay(room);
+        return Builder(language, Reading, showing, LayoutStanding.Alone, holding, Folding).Lay(room);
     }
 
 
@@ -201,13 +205,13 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// whether it is only looked at, what it is laid out in, and what hosts it.
     /// </summary>
     private ContentBuilder Builder(ContentLanguage language, ContentReading reading, ContentShowing showing, LayoutStanding standing,
-                                   Keeping holding)
+                                   Keeping holding, Func<ContentPart, LayoutFold>? folds = null)
     {
         var readOnly = !(language.Writable && showing.Writing);
 
         return Makers.GetOrAdd(language.Builder, Maker)(
             reading, EditState.For(reading.Document) with { Raw = showing.Shown }, showing.Style, readOnly, WpfMedium.OnThisThread,
-            Hosting(showing, standing, writing: !readOnly, holding));
+            Hosting(showing, standing, writing: !readOnly, holding, folds));
     }
 
     /// <summary>
@@ -215,13 +219,18 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// language — found in <paramref name="holding"/>, shown as written where this showing is, and written in where it is — and what the
     /// stages found its parts to name.
     /// </summary>
-    private LayoutHost Hosting(ContentShowing showing, LayoutStanding standing, bool writing, Keeping holding) =>
-        new(standing, (holder, room, asked) => Nested(holder, room, asked, showing.Style, showing.Shown, writing, holding))
+    private LayoutHost Hosting(ContentShowing showing, LayoutStanding standing, bool writing, Keeping holding,
+                               Func<ContentPart, LayoutFold>? folds = null)
+    {
+        var host = new LayoutHost(standing, (holder, room, asked) => Nested(holder, room, asked, showing.Style, showing.Shown, writing, holding))
         {
             Pictures = Pictured,
             Links = Linked,
             ShownBefore = ShownBefore,
         };
+
+        return folds is null ? host : host with { Folds = folds };
+    }
 
     /// <summary>The picture a part was found to name — an image, a diagram node's, a cloud's mask — as the medium draws it.</summary>
     private static LayoutPicture? Pictured(ContentPart part) =>
@@ -371,9 +380,8 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
                                        : ContentSpace.Of(holding.Document, body.Start, body.Node);
             Keeping within = holding.Held(at) == reading ? new KeptInBody(holding, at, body.Start, placed) : new KeptNowhere(holding.Document);
 
-            // Its own openings, or those of the diagram holding it — never the sections of the document it is written in.
+            // Its own openings, or those of the diagram holding it.
             if (Opened(holder) is { } view) style = style with { Expansion = view.Expansion };
-            else if (ReferenceEquals(style.Expansion, _sections.Expansion)) style = style with { Expansion = null };
 
             // What is shown as written is where it is among the characters the language was handed, which a container's marks
             // between its lines are not among.

@@ -25,6 +25,18 @@ internal static class Laying
                            bool writing = false, RawZone? shown = null, ContentInputs? inputs = null) =>
         new ContentEngine(inputs).Lay(language, EditState.For(source) with { Raw = shown }, style ?? WpfStyles.Dark, room, readOnly: !writing);
 
+    /// <summary>
+    /// <paramref name="source"/> laid out read-only as <see cref="Lay"/> lays it, with the engine that laid it — for what only the engine
+    /// showing content can say of it, such as which heading a name answers to.
+    /// </summary>
+    public static (ContentEngine Engine, Laid Laid) LaidBy(string? language, string source, double room = double.PositiveInfinity,
+                                                           LayoutStyle? style = null, ContentInputs? inputs = null)
+    {
+        var engine = new ContentEngine(inputs);
+
+        return (engine, engine.Lay(language, EditState.For(source), style ?? WpfStyles.Dark, room, readOnly: true));
+    }
+
     /// <summary><paramref name="source"/> read and worked over as the engine works it over for a builder, with nothing laid out.</summary>
     public static ContentReading Read(string? language, string source, bool writing = false) =>
         new ContentEngine().Read(language, source, writing);

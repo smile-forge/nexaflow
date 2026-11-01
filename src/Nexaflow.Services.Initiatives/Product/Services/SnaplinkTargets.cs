@@ -1,4 +1,6 @@
 using System.Text.RegularExpressions;
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Prose;
 using Nexaflow.Syntax;
 
 namespace Nexaflow.Services.Initiatives.Product.Services;
@@ -18,8 +20,6 @@ public static class SnaplinkTargets
     private const long MaxBytes = 2_000_000;
 
     private static readonly CodeStructureExtractor Extractor = new();
-    private static readonly Regex HeadingRx = new(@"^(#{1,6})\s+(.+?)\s*#*$", RegexOptions.Compiled);
-
     public static bool IsMarkdown(string fileName) =>
         fileName.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
         || fileName.EndsWith(".markdown", StringComparison.OrdinalIgnoreCase);
@@ -35,36 +35,22 @@ public static class SnaplinkTargets
         catch { return null; }
     }
 
-    /// <summary>Every heading as (level, text), skipping fenced code blocks.</summary>
-    public static IEnumerable<(int Level, string Text)> Headings(string markdown)
-    {
-        var fenced = false;
-        foreach (var raw in markdown.Replace("\r", "").Split('\n'))
-        {
-            var line = raw.Trim();
-            if (line.StartsWith("```") || line.StartsWith("~~~")) { fenced = !fenced; continue; }
-            if (fenced) continue;
-            var m = HeadingRx.Match(line);
-            if (m.Success) yield return (m.Groups[1].Value.Length, m.Groups[2].Value.Trim());
-        }
-    }
+    /// <summary>
+    /// The outline of a markdown document (<see cref="ContentOutline"/>): its headings, ranked, titled and named, read as the Markdown tab
+    /// reads them — so what a snaplink is made from, what it is judged by and where it lands are one reading.
+    /// </summary>
+    public static ContentOutline MarkdownOutline(string markdown) => ContentOutline.Of(MarkdownParser.Worked(markdown));
 
     /// <summary>Each heading's full ancestor path — the shape a markdown snaplink's <c>title_path</c> records.</summary>
-    public static IEnumerable<IReadOnlyList<string>> HeadingPaths(string markdown)
-    {
-        var stack = new List<(int Level, string Text)>();
-        foreach (var (level, heading) in Headings(markdown))
-        {
-            while (stack.Count > 0 && stack[^1].Level >= level) stack.RemoveAt(stack.Count - 1);
-            var path = stack.Select(s => s.Text).Append(heading).ToList();
-            stack.Add((level, heading));
-            yield return path;
-        }
-    }
+    public static IEnumerable<IReadOnlyList<string>> HeadingPaths(string markdown) =>
+        MarkdownOutline(markdown).TitlePaths().Select(heading => heading.Titles);
 
-    /// <summary>True when the document still contains this heading path (an empty path means "whole file").</summary>
-    public static bool HasHeadingPath(string markdown, IReadOnlyList<string> path) =>
-        path.Count == 0 || HeadingPaths(markdown).Any(p => p.SequenceEqual(path, StringComparer.Ordinal));
+    /// <summary>
+    /// True when <paramref name="outline"/> still holds this heading path (an empty path means "whole file") — each title read as the
+    /// markdown it was written as, and matched as the Markdown tab finds it, so a link judged sound is one that lands.
+    /// </summary>
+    public static bool HasHeadingPath(ContentOutline outline, IReadOnlyList<string> path) =>
+        path.Count == 0 || outline.Titled([.. path.Select(WithOutline.Titled)]) is not null;
 
     /// <summary>
     /// The structural outline of a source file, or <c>null</c> when no tree-sitter grammar covers its

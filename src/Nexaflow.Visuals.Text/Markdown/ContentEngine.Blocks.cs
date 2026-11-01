@@ -354,8 +354,11 @@ public sealed partial class ContentEngine
             return Language(named).Editing.Corner(new ContentAsk(named, _state.Document) { Part = block, IsReadOnly = _readOnly });
 
         // A heading of the document's own offers what its section can do, as markdown says.
-        if (Sectioned(block) is not null)
-            return Language(null).Editing.Corner(new ContentAsk(MarkdownParser.Language, _state.Document) { Part = block, Root = ReadRoot, IsReadOnly = _readOnly });
+        if (Headed(block) is { } section)
+            return Language(null).Editing.Corner(new ContentAsk(MarkdownParser.Language, _state.Document)
+            {
+                Part = block, Root = ReadRoot, Section = section, IsReadOnly = _readOnly,
+            });
 
         // Prose is read rather than handled: it is no picture to keep, and copying it is what selecting it is for.
         return BlockCorner.None;
@@ -552,8 +555,8 @@ public sealed partial class ContentEngine
     {
         if (act.Intent.Target is not { Length: > 0 } key) return false;
 
-        // A section of the document, folded by the name its heading answers to: the document's own, not any block's.
-        if (Sectioned(act.Node) is not null)
+        // A section of the content's outline, folded by the name its heading answers to: the content's own, not any block's.
+        if (Headed(act.Node) is not null)
         {
             _sections.Expansion[key] = open;
             Relay();
@@ -578,40 +581,32 @@ public sealed partial class ContentEngine
         return true;
     }
 
-    /// <summary>The heading of one of a markdown document's own sections, where <paramref name="part"/> is one; null otherwise.</summary>
-    private ContentPart? Sectioned(ContentPart? part) =>
-        _named is null && part is { Kind: MarkdownKinds.Heading, Parent.Parent: null } ? part : null;
-
     /// <summary>
     /// Opens every section of the document folded away over <paramref name="offset"/>, so what was asked for — a hit found, a
     /// reference followed — is somewhere to be shown, and lays the document again where it did. False where nothing folded holds it.
     /// </summary>
     internal bool Unfolded(int offset)
     {
-        if (_named is not null) return false;
-
         var root = ReadRoot;
-        var at = -1;
+        ContentPart? block = null;
 
-        for (var index = 0; index < root.Children.Count; index++)
+        foreach (var part in root.Children)
         {
-            var part = root.Children[index];
             if (part.Derived || offset < part.Start || offset >= part.End) continue;
 
-            at = index;
+            block = part;
             break;
         }
 
-        if (at < 0) return false;
+        if (block is null) return false;
 
         var opened = false;
 
-        foreach (var section in MarkdownSections.Of(root.Node).All())
+        foreach (var section in _outline.Holding(block.Start))
         {
-            if (section.Anchor is not { } key || at <= section.Heading || at >= section.End) continue;
-            if (!_sections.Expansion.TryGetValue(key, out var open) || open) continue;
+            if (!_sections.Expansion.TryGetValue(section.Name, out var open) || open) continue;
 
-            _sections.Expansion[key] = true;
+            _sections.Expansion[section.Name] = true;
             opened = true;
         }
 

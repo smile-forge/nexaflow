@@ -2088,7 +2088,8 @@ single staff, dynamics and MIDI playback remain on the roadmap (tracked as `shou
 ## Extensions — not read
 
 Extensions other markdown readers offer that this one has no rule for. None are supported, so none are tested. Heading
-anchors are not among them: every heading is named GitHub's way as the document is worked over (`WithTargets`).
+anchors are not among them: every heading is named GitHub's way, numbered over the whole document by its outline
+(`WithOutline`, `ContentOutline`).
 
 | Extension | What you lose |
 |---|---|

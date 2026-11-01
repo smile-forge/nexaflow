@@ -28,7 +28,22 @@ public sealed record LayoutHost(LayoutStanding Standing, LayoutNesting Nesting)
     /// it, as the host's undo history has it — null where it has nothing to say.
     /// </summary>
     public Func<string?> ShownBefore { get; init; } = static () => null;
+
+    /// <summary>
+    /// What the reader's folding says of one of the blocks of the content laid — hidden in a section folded away, or the heading of
+    /// one — as the outline of what the host shows says (<see cref="ContentOutline"/>); nothing, for content laid inside another.
+    /// </summary>
+    public Func<ContentPart, LayoutFold> Folds { get; init; } = static _ => default;
 }
+
+/// <summary>
+/// What the reader's folding says of one of the blocks a builder lays: that it stands in a section folded away and is not laid, that it
+/// heads one — with how many blocks wait behind it — or neither.
+/// </summary>
+/// <param name="Hidden">Whether it stands in a section folded away.</param>
+/// <param name="Folded">For the heading of a section folded away, the name it answers to — what opening it again asks by.</param>
+/// <param name="Behind">For such a heading, how many blocks wait behind it.</param>
+public readonly record struct LayoutFold(bool Hidden, string? Folded = null, int Behind = 0);
 
 /// <summary>
 /// What every builder onto the renderer-free layout tree has in common, which is one promise: <strong>laying something out always
@@ -81,6 +96,9 @@ public abstract class ContentBuilder
     /// it is typed — or null where the host has nothing to say.
     /// </summary>
     protected string? ShownBefore => _host.ShownBefore();
+
+    /// <summary>What the reader's folding says of the block <paramref name="part"/> (<see cref="LayoutHost.Folds"/>).</summary>
+    protected LayoutFold FoldOf(ContentPart part) => _host.Folds(part);
 
     /// <summary>The content this is laying out, read and worked over before it ever got here.</summary>
     protected ContentReading Reading { get; }

@@ -132,29 +132,6 @@ public class MarkdownTargetsTests
         Assert.AreEqual("/a", targets.Named(MarkdownKinds.Reference, WithTargets.Label("a"))?.Meaning);
     }
 
-    [TestMethod]
-    [CoversNode("markdown-anchors")]
-    public void TwoHeadingsSayingTheSame_AreToldApartByTheOrderTheyAreWrittenIn()
-    {
-        var targets = new LinkTargets();
-        var tree = Worked("# Notes\n\n## Notes\n\n### `Notes` & *more*\n", targets);
-
-        CollectionAssert.AreEqual(new[] { "notes", "notes-1", "notes--more" },
-                                  targets.Every(MarkdownKinds.Anchor).Select(target => target.Name).ToArray());
-        Assert.AreEqual(3, tree.SelfAndDescendants().Count(node => node.Kind == MarkdownKinds.Anchor && node.Held is string));
-    }
-
-    [TestMethod]
-    [CoversNode("markdown-anchors")]
-    public void TypographyAndEmojiInAHeading_MoveNoAnchor_ItIsNamedByWhatWasWritten()
-    {
-        // GitHub names a heading by what was written, so a link to one keeps working whether or not it is drawn curled.
-        var targets = new LinkTargets();
-        Worked("# Don't \"panic\" -- :rocket: launch\n", targets);
-
-        CollectionAssert.AreEqual(new[] { "dont-panic----rocket-launch" }, targets.Every(MarkdownKinds.Anchor).Select(target => target.Name).ToArray());
-    }
-
     /// <summary><paramref name="source"/> read, and worked over as a document's links are.</summary>
     private static ContentNode Worked(string source, LinkTargets? targets = null)
     {

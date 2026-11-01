@@ -1,5 +1,6 @@
 using System.Text;
 
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Prose;
 
 namespace Nexaflow.IO.Documents.Processing;
@@ -12,7 +13,7 @@ namespace Nexaflow.IO.Documents.Processing;
 /// <param name="Title">What the section's heading says, or the document's title.</param>
 /// <param name="Said">What was said of it — empty where it says nothing of its own and nothing is under it.</param>
 /// <param name="Under">What was said of the sections under it, in the order written.</param>
-public sealed record SectionResult(MarkdownSection? Section, string Title, string Said, IReadOnlyList<SectionResult> Under);
+public sealed record SectionResult(ContentSection? Section, string Title, string Said, IReadOnlyList<SectionResult> Under);
 
 /// <summary>What a question asked of one part of a document is closed with.</summary>
 /// <param name="Whole">Whether the part is the whole document.</param>
@@ -106,7 +107,7 @@ public sealed class SectionPass(IDocumentModel model, IDocumentNotes notes, ISec
     }
 
     /// <summary>What is said of <paramref name="sections"/>, standing under the headings <paramref name="path"/> names.</summary>
-    private async Task<IReadOnlyList<SectionResult>> UnderAsync(DocumentReading reading, DocumentGist gist, IReadOnlyList<MarkdownSection> sections,
+    private async Task<IReadOnlyList<SectionResult>> UnderAsync(DocumentReading reading, DocumentGist gist, IReadOnlyList<ContentSection> sections,
                                                               IReadOnlyList<string> path, CancellationToken ct)
     {
         var made = new List<SectionResult>();

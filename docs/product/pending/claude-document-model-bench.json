@@ -251,15 +251,281 @@
           }
         ]
       }
+    },
+    "markdown-anchors": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Pointer.cs",
+          "class": "ContentEngine",
+          "method": "Anchored"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/WithOutline.cs",
+          "class": "WithOutline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentOutline.cs",
+          "class": "ContentOutline",
+          "method": "Named"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Outline.cs",
+          "class": "ContentEngine",
+          "method": "Sought"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownLinkTests.cs",
+            "class": "MarkdownLinkTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/MarkdownOutlineTests.cs",
+            "class": "MarkdownOutlineTests",
+            "method": "TwoHeadingsSayingTheSame_AreToldApartByTheOrderTheyAreWrittenIn"
+          }
+        ]
+      }
+    },
+    "markdown-heading-scroll": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/MarkdownTabRegistration.cs",
+          "class": "MarkdownTabRegistration",
+          "method": "CreatePageDefinition"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.Find.cs",
+          "class": "MarkdownSurface",
+          "method": "ScrollToHeading"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentOutline.cs",
+          "class": "ContentOutline",
+          "method": "Titled"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Outline.cs",
+          "class": "ContentEngine",
+          "method": "Titled"
+        }
+      ]
+    },
+    "markdown-sections": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentOutline.cs",
+          "class": "ContentOutline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentSections.cs",
+          "class": "ContentSections"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Outline.cs",
+          "class": "ContentEngine",
+          "method": "InStep"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/MarkdownSectionsTests.cs",
+            "class": "MarkdownSectionsTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/MarkdownOutlineTests.cs",
+            "class": "MarkdownOutlineTests",
+            "method": "KeptAUnitAtATime_ItIsTheOutlineOfTheDocumentItBecame"
+          }
+        ]
+      }
+    },
+    "markdown-section-fold": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Outline.cs",
+          "class": "ContentEngine",
+          "method": "Folding"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Blocks"
+        }
+      ]
+    },
+    "smartypants": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/MarkdownInlineTests.cs",
+            "class": "MarkdownInlineTests",
+            "method": "QuotesThatPairAreTypographyFacingEachOther"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/MarkdownInlineTests.cs",
+            "class": "MarkdownInlineTests",
+            "method": "QuotesArePairedAcrossEmphasis_AsMarkdigPairsThem"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownBuilderTests.cs",
+            "class": "MarkdownBuilderTests",
+            "method": "TypographyAndAnEmojiAreDrawnAsWhatTheyStandForAndSaySo"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/MarkdownTranspileTests.cs",
+            "class": "MarkdownTranspileTests",
+            "method": "QuotesDashesAnEllipsisAndAnEmojisNameGoInAsTyped"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/MarkdownOutlineTests.cs",
+            "class": "MarkdownOutlineTests",
+            "method": "TypographyAndEmojiInAHeading_MoveNoAnchor_ItIsNamedByWhatWasWritten"
+          }
+        ]
+      }
+    },
+    "markdown-finding": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentPath.cs",
+          "class": "ContentPath"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownFind.cs",
+          "class": "MarkdownFind"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownFind.cs",
+          "class": "MarkdownFind",
+          "method": "Shown"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownElement.cs",
+          "class": "MarkdownElement",
+          "method": "Show"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Outline.cs",
+          "class": "ContentEngine",
+          "method": "Located"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Outline.cs",
+          "class": "ContentEngine",
+          "method": "PathTo"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownFindTests.cs",
+            "class": "MarkdownFindTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/ContentDeepLinkTests.cs",
+            "class": "ContentDeepLinkTests"
+          }
+        ]
+      }
+    },
+    "markdown-outline": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/ViewModels/MarkdownViewModel.cs",
+          "class": "MarkdownViewModel",
+          "method": "TakeOutline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/ViewModels/MarkdownOutlineItem.cs",
+          "class": "MarkdownOutlineItem"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Views/MarkdownView.xaml.cs",
+          "class": "MarkdownView",
+          "method": "OutlineRow_Click"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.Find.cs",
+          "class": "MarkdownSurface",
+          "method": "Show"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Markdown/MarkdownViewModelTests.cs",
+            "class": "MarkdownViewModelTests",
+            "method": "TheOutline_IsCollapsedUntilAskedFor_AndShownOnlyBesideTheRenderedDocument"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/ContentDeepLinkTests.cs",
+            "class": "ContentDeepLinkTests",
+            "method": "TheOutlineSaysItChanged_OnlyWhenAHeadingDid"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Markdown/MarkdownJourneyTests.cs",
+            "class": "MarkdownJourneyTests",
+            "method": "Markdown_Controls_RespondInOnePass"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 8,
+  "changed_sets": 19,
   "touched_nodes": [
     "diagram-nesting",
+    "markdown-anchors",
     "markdown-block-undo",
     "markdown-dirty-tracking",
+    "markdown-finding",
+    "markdown-heading-scroll",
     "markdown-long-writing",
+    "markdown-outline",
+    "markdown-section-fold",
+    "markdown-sections",
+    "smartypants",
     "windowed-reading"
   ]
 }

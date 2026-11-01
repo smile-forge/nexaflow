@@ -48,6 +48,13 @@ public class MarkdownJourneyTests : UiJourneyTestBase
             && WaitForId("Markdown_Editor", 3) is not null
             && WaitForId("Markdown_SourceBox", 1) is null);
 
+        // The outline: collapsed until asked for, then the document's headings in a panel at the left — or a word saying it has none.
+        Check("Outline collapsed by default", () => WaitForId("Markdown_Outline", 1) is null && WaitForId("Markdown_OutlineEmpty", 1) is null);
+        CheckDoes("Outline opens", "Markdown_ToggleOutline",
+                  () => WaitForId("Markdown_Outline", 3) is not null || WaitForId("Markdown_OutlineEmpty", 1) is not null);
+        CheckDoes("Outline closes again", "Markdown_ToggleOutline",
+                  () => WaitForId("Markdown_Outline", 1) is null && WaitForId("Markdown_OutlineEmpty", 1) is null);
+
         // Zoom, in the footer. The label is a TextBlock with a MouseLeftButtonUp handler rather than a Button,
         // so it supports no Invoke pattern — the base class falls back to a real click, which is what opens the
         // popup. The presets only exist in the UIA tree while it is open.

@@ -348,13 +348,34 @@ time, and what the reader has opened in each diagram. A surface keeps its
 engine for as long as it shows content, so none of that is lost when a change of colours or of who may write makes its
 element again.
 
+**What a reading's blocks come to across its units is the engine's outline** (`ContentOutline`), the same question in
+every language and so answered once, as Word's outline view answers it. A language's stages promote a piece into it by
+hanging an outline part on it (`Kinds.Outline`, `OutlineMark`: how high it ranks, what its words call it, what it says) —
+markdown a heading (`WithOutline`); a language promoting nothing has an outline of blocks alone. The engine gathers each
+unit's entries as the unit is worked over (`OutlineUnit`, a function of the unit's parts alone, so a unit kept keeps
+them), into an index kept in step with the units that sums their characters and the blocks they show and gathers the
+highest rank in each. From it:
+
+- **sections** — a heading stands over the blocks up to the next ranked as high or higher, wherever in the document that
+  is, so where a section ends, how many blocks it holds and which sections hold a place are each one path down the index;
+  a heading inside a block (in a quote, a list item) is named but heads nothing;
+- **names** — numbered over the whole document in order, GitHub's way, a name already taken numbered `-1`, `-2`; every
+  entry remembers the names it tried, so units changed set off only the entries after them that tried a name now taken or
+  freed, and typing in a heading renames only the headings sharing its name. Nothing about a name is in the tree, so a
+  heading renumbered stages nothing again;
+- **deep links** — a `ContentPath` is only an address; the engine follows it (`ContentEngine.Located`): a heading step is
+  the heading answering to that name, the steps after it are looked for in its section, and a link lands as far as it
+  still goes. A title path (`Guide > Setup`, what a snaplink records) is matched on the whole chain of headings holding
+  one (`ContentEngine.Titled`), each title read as the markdown it was written as. A heading a list already holds — an
+  outline panel's row — is handed back as itself (`OutlineHeading`, `MarkdownSurface.Show`), never as a path.
+
 **What the reader has folded away of a document is the engine's too**, kept by the name each heading answers to, so a
 section stays folded through every edit. A heading of the document's own offers to fold its section in its corner
-(`MarkdownEdits.Corner`); the document's builder lays nothing a folded section holds — which blocks those are is
-`WithSections`' answer, never worked out from where they are written — and puts a marker under its heading saying how
-many wait there, a press on which opens it as a diagram's chip opens a node. Whatever has to show a place inside a folded
-section opens it first (`ContentEngine.Unfolded`). Nothing nested is folded by the document's sections: a diagram in it
-has openings of its own.
+(`MarkdownEdits.Corner`, told the section it heads as `ContentAsk.Section`); the document's builder lays nothing a folded
+section holds — which blocks those are is the outline's answer, handed to it by its host (`LayoutHost.Folds`), never
+worked out from where they are written — and puts a marker under its heading saying how many wait there, a press on which
+opens it as a diagram's chip opens a node. Whatever has to show a place inside a folded section opens it first
+(`ContentEngine.Unfolded`). Nothing nested is folded by the document's sections: a diagram in it has openings of its own.
 
 **What the host says that the source does not** — where pictures are found, how links look, what diagrams are bound
 against — is the engine's `Inputs` (`ContentInputs`), and what a language's stages read. Setting them, or `Forget`,
@@ -521,6 +542,9 @@ where it did not. A document holding readings nested three deep, written in at e
 every level, reads (`WindowedReadingTests`) and lays out (`WindowedLayoutTests`) as the document it became does read
 whole.
 
+**What the blocks come to across the document is kept a unit at a time** (§8): a unit read again is gathered into the
+outline again, a unit kept keeps what it said, and only the names the change reaches are numbered again.
+
 **Laying is not yet a unit at a time.** What is laid is one tree, from the top down to as far as the reader has looked,
 worked over by the stages and laid again on every change; what spares it is reuse, keyed on identity, never on a guess
 about what an edit touched:
@@ -581,7 +605,8 @@ is loose — as derived parts.
 A block's reading is a function of its characters and what stands in front of its first line, and nothing else
 (`RereadingTests`): `MarkdownBlocks` keeps each block's reading by `(lead, written)`, so a keystroke reads one block and
 moves the rest along (`FurtherOn`). Nothing document-wide is resolved by the parser — what a name means is the stages'
-(`WithTargets`, `WithReferences`). `Checked` is the last guard: a reading that does not print back as what it was read from
+(`WithTargets`, `WithReferences`) and the outline's (`WithOutline`, `ContentOutline`). `Checked` is the last guard: a
+reading that does not print back as what it was read from
 is shown as written, and the corpus tests fail on every one.
 
 **A block's lines inside its containers (`MarkdownLines`).** A block's content is a list of line ranges in the document,
@@ -638,7 +663,7 @@ language implied, and `$x$` is that shape small, framed by words instead of by l
 
 | Stage | What it works out |
 |---|---|
-| `WithSections` | the sections the headings make — which of the document's parts each heading stands over, up to the next heading as deep or deeper (`MarkdownSections`) — after the headings are named, since a section is kept by its heading's name |
+| `WithOutline` | every heading promoted into the outline: its rank, what its words call it GitHub's way, and what it says — the outline numbering the names and answering the sections (`ContentOutline`) |
 | `WithImages` | the picture an `![alt](where)` names, where this showing can find one (`MarkdownPictures`) |
 | `WithLinks` | how this showing wants each link to look |
 | `WithUnchanged` | which blocks read exactly as they did last time |
@@ -673,9 +698,10 @@ and its list of sections are a question about words, not looks, and read the rea
 turns its offsets into places on the page, through every nested language, since each is laid at the offset its body
 starts at. What is drawn as other than what was typed — an entity, a renumbered marker — says so on its run and is
 found the same way. **A saved reference says what a thing is, not where it sits**
-(`heading:getting-started/list/item#2`), and lands as far as it still goes. **A link into the document is the
-element's**: which heading `#notes-1` means is settled by the order the headings were written in, so following one is
-never handed to the host.
+(`heading:getting-started/list/item#2`, the second item of the list under Getting Started), is followed by the engine
+against the outline (§8), and lands as far as it still goes. **A link into the document is the element's**: which
+heading `#notes-1` means is settled by the order the headings were written in, so following one is never handed to the
+host.
 
 ### LaTeX
 

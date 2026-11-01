@@ -1,5 +1,6 @@
 using System.Text.Json;
 
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Prose;
 
 namespace Nexaflow.IO.Documents.Processing;
@@ -53,7 +54,7 @@ public sealed record DocumentRecord(DocumentGist Gist, SectionResult Said)
         [.. sections.Select(section => new KeptSection(section.Said, KeptOf(section.Under)))];
 
     /// <summary>What was kept of <paramref name="sections"/>, matched to them part for part; null where it does not match.</summary>
-    private static List<SectionResult>? Attached(DocumentReading reading, IReadOnlyList<MarkdownSection> sections, IReadOnlyList<KeptSection>? kept)
+    private static List<SectionResult>? Attached(DocumentReading reading, IReadOnlyList<ContentSection> sections, IReadOnlyList<KeptSection>? kept)
     {
         if (kept is null || kept.Count != sections.Count) return null;
 

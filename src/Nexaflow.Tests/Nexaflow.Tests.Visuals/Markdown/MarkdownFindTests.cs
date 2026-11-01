@@ -175,44 +175,6 @@ public class MarkdownFindTests
     // ── A saved reference ───────────────────────────────────────────────────
 
     [TestMethod]
-    public void AReferenceSaysWhatSomethingIsRatherThanWhereItHappensToSit()
-    {
-        var read = Read(Doc);
-        var third = Item(read, 2);
-
-        var path = ContentPath.Of(third);
-
-        StringAssert.Contains(path.ToString(), "list");
-        StringAssert.Contains(path.ToString(), "item#2");
-    }
-
-    [TestMethod]
-    public void AndFollowingItLandsBackOnTheSameThing()
-    {
-        var read = Read(Doc);
-        var third = Item(read, 2);
-
-        var found = ContentPath.Of(third).In(read);
-
-        Assert.IsNotNull(found);
-        Assert.AreEqual(third.Start, found!.Start);
-    }
-
-    [TestMethod]
-    public void AndItStillLandsThereAfterTheDocumentHasBeenWrittenInAbove()
-    {
-        // The whole point of not saving a line number: everything has moved and the third item of the list
-        // is still the third item of the list.
-        var path = ContentPath.Of(Item(Read(Doc), 2));
-
-        var edited = "Another paragraph entirely.\n\nAnd one more.\n\n" + Doc;
-        var found = path.In(Read(edited));
-
-        Assert.IsNotNull(found);
-        Assert.AreEqual("three", found!.Print().Trim().TrimStart('-', ' '));
-    }
-
-    [TestMethod]
     public void AReferenceReadsBackFromHowItWasWrittenDown()
     {
         // The same shape a snaplink names a declaration with, because it is the same question asked of a
@@ -229,37 +191,6 @@ public class MarkdownFindTests
     }
 
     [TestMethod]
-    public void AndAReferenceThatNoLongerLeadsAllTheWayLandsAsFarAsItDoes()
-    {
-        // A deep link into a section somebody has reorganised should still land in the section, which is
-        // the difference between a reference that ages and one that breaks.
-        var read = Read(Doc);
-        var found = ContentPath.Read("list/item#40").In(read);
-
-        Assert.IsNotNull(found);
-        Assert.AreEqual(MarkdownKinds.List, found!.Kind, "as far as it got, which is the list");
-
-        Assert.IsNull(ContentPath.Read("nothing-is-called-this").In(read), "and nothing at all where it never started");
-    }
-
-    [TestMethod]
-    public void AndItReachesInsideATableAndInsideADiagramWithNothingAddedForEither()
-    {
-        // The kinds are open strings and the walk is one walk, so pointing at a cell or at a slice needed no
-        // more code than pointing at a heading did.
-        var table = Read("| a | b |\n|---|---|\n| one | two |\n");
-        var cell = ContentPath.Read("table/row#1/cell#1").In(table);
-
-        Assert.IsNotNull(cell);
-        StringAssert.Contains(cell!.Print(), "two");
-
-        var chart = Read("```mermaid\npie\n  \"chrome\" : 40\n  \"firefox\" : 12\n```\n");
-        var slice = ContentPath.Of(chart.SelfAndDescendants().First(part => ContentNested.Language(part) is not null));
-
-        Assert.IsNotNull(ContentPath.Read(slice.ToString()).In(chart));
-    }
-
-    [TestMethod]
     public void AName​IsKeptWholeHoweverItWasWritten()
     {
         // A path is written with / and :, so a name holding either is put beyond their use and comes back
@@ -273,7 +204,4 @@ public class MarkdownFindTests
 
     private static ContentPart Read(string source) =>
         ContentPart.Of(MarkdownParser.Parsing()(source).Tree);
-
-    private static ContentPart Item(ContentPart root, int at) =>
-        root.SelfAndDescendants().Where(part => part.Kind == MarkdownKinds.Item).ElementAt(at);
 }

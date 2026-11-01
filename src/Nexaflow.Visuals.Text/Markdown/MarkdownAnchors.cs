@@ -27,37 +27,10 @@ public static class MarkdownAnchors
         return true;
     }
 
-    /// <summary>The name a heading answers to, where the document's working over gave it one (<see cref="WithTargets"/>) — for what reads a page's headings before it is shown.</summary>
-    public static string? IdOf(ContentNode heading)
-    => MarkdownSections.AnchorOf(heading);
-
     /// <summary>
-    /// The piece a <c>#id</c> points at, on a laid-out document — the heading the reader wrote that name on,
-    /// or nothing where the document has no such heading.
-    /// </summary>
-    public static LayoutPiece Sought(Laid laid, string anchor)
-    {
-        foreach (var piece in laid.Root.SelfAndDescendants())
-            if (piece.Part is ContentPart part && Named(part) is { } id
-                && string.Equals(id, anchor, StringComparison.OrdinalIgnoreCase))
-                return piece;
-
-        return default;
-    }
-
-    /// <summary>
-    /// Where the heading answering to <paramref name="anchor"/> is written, going by what the document's stages found
+    /// Where the heading answering to <paramref name="anchor"/> is written, going by what working the whole document over found
     /// (<see cref="LinkTargets"/>) — for one not laid out yet — or null where none does.
     /// </summary>
     public static int? Written(LinkTargets targets, string anchor) =>
-        targets.Named(MarkdownKinds.Anchor, anchor.ToLowerInvariant())?.At;
-
-    /// <summary>The name a heading answers to, where the document's working over gave it one.</summary>
-    private static string? Named(ContentPart part)
-    {
-        for (var at = part; at is not null; at = at.Parent)
-            if (at.Kind == MarkdownKinds.Heading) return IdOf(at.Node);
-
-        return null;
-    }
+        targets.Named(Kinds.Outline, anchor.ToLowerInvariant())?.At;
 }

@@ -135,7 +135,7 @@ public sealed class MarkdownParser : ITranspile
     {
         var targets = new LinkTargets();
 
-        return new AstPipeline(new WithTargets(targets), new WithReferences(targets), new WithSections()).Run(Parsing()(source ?? string.Empty).Tree);
+        return new AstPipeline(new WithTargets(targets), new WithReferences(targets), new WithOutline()).Run(Parsing()(source ?? string.Empty).Tree);
     }
 
     /// <summary>

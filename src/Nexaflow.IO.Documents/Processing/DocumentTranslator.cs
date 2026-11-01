@@ -158,8 +158,8 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
     /// </summary>
     private static string Anchored(DocumentReading original, string translated)
     {
-        var was = original.Sections.All().Select(section => section.Anchor).ToList();
-        var now = DocumentReading.Of(translated).Sections.All().Select(section => section.Anchor).ToList();
+        var was = original.Sections.All().Select(section => section.Name).ToList();
+        var now = DocumentReading.Of(translated).Sections.All().Select(section => section.Name).ToList();
         if (was.Count != now.Count) throw new InvalidOperationException("A translation's headings are not the document's.");
 
         var renamed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -460,7 +460,7 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
 
         return passages;
 
-        void Name(IReadOnlyList<MarkdownSection> sections, string? above)
+        void Name(IReadOnlyList<ContentSection> sections, string? above)
         {
             foreach (var section in sections)
             {

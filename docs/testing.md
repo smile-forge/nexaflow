@@ -33,8 +33,8 @@ usually a few lines and leaves the control thinner:
 - **Markdown's formatting** — the heading / quote / code-fence text rule is `MarkdownBlockFormat` (pure
   `(block, …) → (newBlock, caret)`); the surface only finds the block the caret is in and writes the result.
 - **Markdown's scroll-to-heading deep link** — the interesting part is matching a `>`-joined heading path
-  against the block list (so duplicate names under different parents stay distinct), not the
-  `ScrollToVerticalOffset`, so it is `MarkdownBlocks.FindHeadingBlock`.
+  against the document's outline (so duplicate names under different parents stay distinct), not the scroll, so it
+  is `ContentOutline.Titled`, asked through the engine that laid the document (`ContentEngine.Titled`).
 - **Code's `.xshd` theming** — the name→role heuristic is in `SyntaxTokenMap` beside the tree-sitter
   capture→role map, not in `XshdTheming`. One role palette, both engines, both testable.
 - **SysInfo's health colouring** — `StatusToBrushConverter.Convert` exposes the status→`TextSwatch.*` mapping as

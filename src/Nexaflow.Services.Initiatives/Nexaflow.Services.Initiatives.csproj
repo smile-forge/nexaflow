@@ -24,6 +24,8 @@
     <ProjectReference Include="..\Nexaflow.Syntax\Nexaflow.Syntax.csproj" />
     <!-- Hashing: content-hash each code file for the incremental graph cache. -->
     <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <!-- MarkdownParser, ContentOutline: a markdown snaplink's heading path, read as the Markdown tab reads it. -->
+    <ProjectReference Include="..\Nexaflow.Markdown\Nexaflow.Markdown.csproj" />
   </ItemGroup>
 
 </Project>

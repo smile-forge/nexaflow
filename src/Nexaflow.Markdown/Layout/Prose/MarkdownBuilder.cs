@@ -77,14 +77,16 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
         var whole = holder.Parent is null;
         var laid = whole ? LaidBlocks.Of(holder) : null;
-        var folded = whole ? Folded(holder) : null;
 
         for (var at = 0; at < holder.Children.Count; at++)
         {
             var part = holder.Children[at];
             if (part.Derived || part.Role == Roles.Trivia || part.Kind is MarkdownKinds.Task or MarkdownKinds.Marker) continue;
             if (part.Kind is MarkdownKinds.FrontMatter or MarkdownKinds.Reference) continue;
-            if (folded is not null && folded.Hidden[at]) continue;
+
+            // What the reader folded away of the document: nothing a folded section holds is laid, and its heading says how much waits.
+            var fold = whole ? FoldOf(part) : default;
+            if (fold.Hidden) continue;
 
             if (above is not null) _y += Between(above, part);
             above = part;
@@ -92,36 +94,8 @@ public sealed partial class MarkdownBuilder : ContentBuilder
             if (whole) Whole(into, part, x, room, laid?.For(at));
             else Block(into, part, x, room);
 
-            if (folded is not null && folded.Behind.TryGetValue(at, out var fold)) Fold(into, part, fold.Key, fold.Blocks, x);
+            if (fold.Folded is { } key) Fold(into, part, key, fold.Behind, x);
         }
-    }
-
-    private SectionFolds? Folded(ContentPart document)
-    {
-        if (Style.Expansion is not { Count: > 0 } said) return null;
-
-        var sections = MarkdownSections.Of(document.Node);
-        if (sections.Sections.Count == 0) return null;
-
-        var folds = new SectionFolds(document.Children.Count);
-
-        foreach (var section in sections.All())
-        {
-            if (section.Anchor is not { } key || !section.Holds || folds.Hidden[section.Heading]) continue;
-            if (!said.TryGetValue(key, out var open) || open) continue;
-
-            var blocks = 0;
-            for (var at = section.Heading + 1; at < section.End; at++)
-            {
-                folds.Hidden[at] = true;
-                if (document.Children[at] is { Derived: false } part && part.Role != Roles.Trivia
-                    && part.Kind is not (MarkdownKinds.FrontMatter or MarkdownKinds.Reference)) blocks++;
-            }
-
-            folds.Behind[section.Heading] = (key, blocks);
-        }
-
-        return folds.Behind.Count == 0 ? null : folds;
     }
 
     private void Fold(LayoutBuilder into, ContentPart heading, string key, int blocks, double x)
@@ -142,13 +116,6 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
         _y += box.Bounds.Height;
         Reached(x + box.Bounds.Width);
-    }
-
-    private sealed class SectionFolds(int parts)
-    {
-        public bool[] Hidden { get; } = new bool[parts];
-
-        public Dictionary<int, (string Key, int Blocks)> Behind { get; } = [];
     }
 
     private double Between(ContentPart above, ContentPart below)

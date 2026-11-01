@@ -28,14 +28,14 @@ public class MarkdownAnchorTests
     [TestMethod]
     public void Headings_CarryGitHubStyleIds_ARepeatNumbered() => UiThread.Run(() =>
     {
-        var laid = Laying.Lay(null, Doc, 640, WpfStyles.Dark);
+        var (engine, laid) = Laying.LaidBy(null, Doc, 640, WpfStyles.Dark);
 
         foreach (var id in new[] { "intro", "opening-and-closing-help", "searching", "searching-1" })
-            Assert.IsTrue(MarkdownAnchors.Sought(laid, id).Exists, $"a heading answers to #{id}");
+            Assert.IsTrue(engine.Sought(laid, id).Exists, $"a heading answers to #{id}");
 
-        Assert.IsTrue(MarkdownAnchors.Sought(laid, "Searching").Exists, "an anchor matches whatever its case");
-        Assert.IsFalse(MarkdownAnchors.Sought(laid, "searching-2").Exists, "and there are only as many as were written");
-        Assert.IsFalse(MarkdownAnchors.Sought(laid, "nowhere").Exists);
+        Assert.IsTrue(engine.Sought(laid, "Searching").Exists, "an anchor matches whatever its case");
+        Assert.IsFalse(engine.Sought(laid, "searching-2").Exists, "and there are only as many as were written");
+        Assert.IsFalse(engine.Sought(laid, "nowhere").Exists);
     });
 
     [TestMethod]

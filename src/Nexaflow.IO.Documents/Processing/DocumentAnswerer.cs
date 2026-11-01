@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Prose;
 
 namespace Nexaflow.IO.Documents.Processing;
@@ -10,7 +11,7 @@ namespace Nexaflow.IO.Documents.Processing;
 /// <param name="Where">Where it stands among the headings; empty for what comes before the first.</param>
 /// <param name="Section">Its section, or null for what comes before the first heading.</param>
 /// <param name="Cited">Whether the answer cites it.</param>
-public sealed record DocumentAnswerPart(int Number, string Where, MarkdownSection? Section, bool Cited);
+public sealed record DocumentAnswerPart(int Number, string Where, ContentSection? Section, bool Cited);
 
 /// <summary>What a question about a whole document was answered with, and the parts of it the answer was read from.</summary>
 /// <param name="Said">The answer, citing the parts it comes from as <c>[n]</c>; empty where no part bears on the question.</param>

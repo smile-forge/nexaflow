@@ -17,6 +17,9 @@ using Nexaflow.Markdown.Packaging;
 using System.Globalization;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Ast;
+using System.Collections.ObjectModel;
+using Nexaflow.Markdown.Prose;
 
 namespace Nexaflow.Features.Markdown.ViewModels;
 
@@ -130,6 +133,8 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     [NotifyPropertyChangedFor(nameof(ShowRendered))]
     [NotifyPropertyChangedFor(nameof(ShowSource))]
     [NotifyPropertyChangedFor(nameof(IsSplit))]
+    [NotifyPropertyChangedFor(nameof(ShowOutline))]
+    [NotifyCanExecuteChangedFor(nameof(ToggleOutlineCommand))]
     private MarkdownViewMode _viewMode;
 
     /// <summary>The rendered surface is on screen - alone, or as the right half of the split.</summary>
@@ -149,6 +154,40 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     {
         get => (double)(int)ViewMode;
         set => ViewMode = (MarkdownViewMode)Math.Clamp((int)Math.Round(value), 0, 2);
+    }
+
+    // ── Outline ───────────────────────────────────────────────────────────────
+
+    /// <summary>Whether the reader has opened the outline panel: collapsed until they ask for it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowOutline))]
+    private bool _isOutlineOpen;
+
+    /// <summary>
+    /// The outline panel is on screen: opened, beside the rendered document whose headings it lists. The raw source alone is not laid
+    /// out, so it has no outline to list.
+    /// </summary>
+    public bool ShowOutline => IsOutlineOpen && ShowRendered;
+
+    /// <summary>The document's headings, in the order written, as the outline panel lists them.</summary>
+    public ObservableCollection<MarkdownOutlineItem> Outline { get; } = [];
+
+    /// <summary>Whether the document has any heading to list.</summary>
+    [ObservableProperty] private bool _hasOutline;
+
+    /// <summary>Opens the outline panel, or closes it.</summary>
+    [RelayCommand(CanExecute = nameof(ShowRendered))]
+    private void ToggleOutline() => IsOutlineOpen = !IsOutlineOpen;
+
+    /// <summary>Lists <paramref name="headings"/> — the rendered document's, as it was last laid out — as the outline.</summary>
+    public void TakeOutline(IReadOnlyList<OutlineHeading> headings)
+    {
+        Outline.Clear();
+
+        var highest = headings.Count > 0 ? headings.Min(heading => heading.Rank) : 1;
+        foreach (var heading in headings) Outline.Add(new MarkdownOutlineItem(heading, highest));
+
+        HasOutline = Outline.Count > 0;
     }
 
     // ── Footer stats ──────────────────────────────────────────────────────────
@@ -603,7 +642,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         sb.Append($"Markdown file '{FileName}' at '{FilePath}'{dirty}. ");
         sb.Append($"Showing the {mode} view — {lines} line(s), {src.Length} char(s).");
 
-        var outline = Outline(src);
+        var outline = Headings(src);
         sb.Append(outline.Length > 0 ? $"\nOutline:\n{outline}" : " No headings.");
         sb.Append("\n(Use read_document for the full source.)");
         return sb.ToString();
@@ -644,25 +683,21 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
 
     // ── Heading outline (ATX headings, code-fence aware) ──────────────────
 
-    private static string Outline(string md)
+    /// <summary>
+    /// The document's headings as an indented outline of at most thirty lines — each as its outline titles it, indented by how many
+    /// headings hold it.
+    /// </summary>
+    private static string Headings(string md)
     {
         var sb = new StringBuilder();
-        bool fenced = false;
-        int shown = 0;
-        foreach (var raw in md.Split('\n'))
-        {
-            var t = raw.TrimEnd('\r').TrimStart();
-            if (t.StartsWith("```") || t.StartsWith("~~~")) { fenced = !fenced; continue; }
-            if (fenced) continue;
+        var shown = 0;
 
-            int h = 0;
-            while (h < t.Length && t[h] == '#') h++;
-            if (h is >= 1 and <= 6 && h < t.Length && t[h] == ' ')
-            {
-                if (shown++ == 30) { sb.Append("  …\n"); break; }
-                sb.Append(' ', (h - 1) * 2).Append(t[(h + 1)..].Trim()).Append('\n');
-            }
+        foreach (var (_, _, titles) in ContentOutline.Of(MarkdownParser.Worked(md)).TitlePaths())
+        {
+            if (shown++ == 30) { sb.Append("  …\n"); break; }
+            sb.Append(' ', (titles.Count - 1) * 2).Append(titles[^1]).Append('\n');
         }
+
         return sb.ToString().TrimEnd('\n');
     }
 

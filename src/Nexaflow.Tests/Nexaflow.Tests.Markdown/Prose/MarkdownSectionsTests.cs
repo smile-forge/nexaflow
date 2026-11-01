@@ -7,7 +7,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Markdown.Prose;
 
 /// <summary>
-/// A document's headings make its sections (<see cref="WithSections"/>): each heading stands over the blocks after it up to
+/// A document's headings make its sections (<see cref="ContentSections"/>): each heading stands over the blocks after it up to
 /// the next heading as deep or deeper, and a section says which blocks those are by their places among the document's parts.
 /// </summary>
 [TestClass]
@@ -19,7 +19,7 @@ public class MarkdownSectionsTests
     {
         const string Source = "intro\n\n# One\n\nfirst\n\n## One a\n\nnested\n\n# Two\n\nsecond\n";
         var root = MarkdownParser.Worked(Source);
-        var sections = MarkdownSections.Of(root);
+        var sections = ContentSections.Of(root);
 
         Assert.AreEqual(2, sections.Sections.Count);
         var (one, two) = (sections.Sections[0], sections.Sections[1]);
@@ -37,7 +37,7 @@ public class MarkdownSectionsTests
     [TestMethod]
     public void AHeadingSkippingARank_StillStandsUnderTheNearestOneAboveIt()
     {
-        var sections = MarkdownSections.Of(MarkdownParser.Worked("# Top\n\n### Deep\n\ntext\n\n## Middle\n"));
+        var sections = ContentSections.Of(MarkdownParser.Worked("# Top\n\n### Deep\n\ntext\n\n## Middle\n"));
 
         var top = sections.Sections.Single();
         CollectionAssert.AreEqual(new[] { 3, 2 }, top.Sections.Select(section => section.Rank).ToArray());
@@ -46,15 +46,15 @@ public class MarkdownSectionsTests
     [TestMethod]
     public void ASection_CarriesTheNameItsHeadingAnswersTo_RepeatsToldApart()
     {
-        var sections = MarkdownSections.Of(MarkdownParser.Worked("# Notes\n\na\n\n# Notes\n\nb\n"));
+        var sections = ContentSections.Of(MarkdownParser.Worked("# Notes\n\na\n\n# Notes\n\nb\n"));
 
-        CollectionAssert.AreEqual(new[] { "notes", "notes-1" }, sections.All().Select(section => section.Anchor).ToArray());
+        CollectionAssert.AreEqual(new[] { "notes", "notes-1" }, sections.All().Select(section => section.Name).ToArray());
     }
 
     [TestMethod]
     public void AHeadingInAQuoteOrAList_HeadsNothing()
     {
-        var sections = MarkdownSections.Of(MarkdownParser.Worked("> # Quoted\n\n- # Listed\n\ntext\n"));
+        var sections = ContentSections.Of(MarkdownParser.Worked("> # Quoted\n\n- # Listed\n\ntext\n"));
 
         Assert.AreEqual(0, sections.Sections.Count);
     }
@@ -62,7 +62,7 @@ public class MarkdownSectionsTests
     [TestMethod]
     public void ASetextHeading_MakesASectionAsAnAtxOneDoes()
     {
-        var sections = MarkdownSections.Of(MarkdownParser.Worked("Title\n=====\n\ntext\n\nPart\n----\n\nmore\n"));
+        var sections = ContentSections.Of(MarkdownParser.Worked("Title\n=====\n\ntext\n\nPart\n----\n\nmore\n"));
 
         var title = sections.Sections.Single();
         Assert.AreEqual(1, title.Rank);
@@ -75,7 +75,7 @@ public class MarkdownSectionsTests
         const string Source = "just words\n\nand more\n";
         var root = MarkdownParser.Worked(Source);
 
-        Assert.AreSame(MarkdownSections.None, MarkdownSections.Of(root));
+        Assert.AreSame(ContentSections.None, ContentSections.Of(root));
         Assert.AreEqual(Source, root.Print());
     }
 
@@ -90,7 +90,7 @@ public class MarkdownSectionsTests
     [TestMethod]
     public void AHeadingWithNothingUnderIt_HoldsNothing()
     {
-        var sections = MarkdownSections.Of(MarkdownParser.Worked("# Empty\n\n# Full\n\ntext\n"));
+        var sections = ContentSections.Of(MarkdownParser.Worked("# Empty\n\n# Full\n\ntext\n"));
 
         Assert.IsFalse(sections.Sections[0].Holds);
         Assert.IsTrue(sections.Sections[1].Holds);

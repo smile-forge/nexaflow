@@ -43,12 +43,12 @@ public class MarkdownLinkTests
     [TestMethod]
     public void AHeadingAnswersToTheNameALinkCanPointAt() => UiThread.Run(() =>
     {
-        var laid = Lay("## Getting Started\n\nwords\n");
+        var (engine, laid) = Laying.LaidBy(null, "## Getting Started\n\nwords\n", 480);
 
-        Assert.IsTrue(MarkdownAnchors.Sought(laid, "getting-started").Exists);
-        Assert.IsTrue(MarkdownAnchors.Sought(laid, "Getting-Started").Exists, "a name is not case a reader has to match");
+        Assert.IsTrue(engine.Sought(laid, "getting-started").Exists);
+        Assert.IsTrue(engine.Sought(laid, "Getting-Started").Exists, "a name is not case a reader has to match");
 
-        Assert.IsFalse(MarkdownAnchors.Sought(laid, "nothing-is-called-this").Exists);
+        Assert.IsFalse(engine.Sought(laid, "nothing-is-called-this").Exists);
     });
 
     [TestMethod]
@@ -56,10 +56,10 @@ public class MarkdownLinkTests
     {
         // Which one a name means is settled by reading the whole document, and nothing looking at one
         // heading's characters could see it.
-        var laid = Lay("## Notes\n\none\n\n## Notes\n\ntwo\n");
+        var (engine, laid) = Laying.LaidBy(null, "## Notes\n\none\n\n## Notes\n\ntwo\n", 480);
 
-        var first = MarkdownAnchors.Sought(laid, "notes");
-        var second = MarkdownAnchors.Sought(laid, "notes-1");
+        var first = engine.Sought(laid, "notes");
+        var second = engine.Sought(laid, "notes-1");
 
         Assert.IsTrue(first.Exists);
         Assert.IsTrue(second.Exists);

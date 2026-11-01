@@ -38,7 +38,7 @@ public class DocumentAnswererTests
 
         var part = answer.Parts.Single();
         Assert.AreEqual("Numbers › Complex › Polar", part.Where);
-        Assert.AreEqual("polar", part.Section?.Anchor, "it leads back to its section");
+        Assert.AreEqual("polar", part.Section?.Name, "it leads back to its section");
         Assert.IsTrue(part.Cited);
         Assert.IsFalse(answer.InBrief);
 
@@ -130,7 +130,7 @@ public class DocumentAnswererTests
         Assert.AreEqual(Gist, record.Gist);
         Assert.AreEqual(result.Said, record.Said.Said);
         var complex = record.Said.Under[0].Under[1];
-        Assert.AreEqual(("Complex", "complex", "S(Numbers › Complex)"), (complex.Title, complex.Section?.Anchor, complex.Said), "matched to the document's own sections");
+        Assert.AreEqual(("Complex", "complex", "S(Numbers › Complex)"), (complex.Title, complex.Section?.Name, complex.Said), "matched to the document's own sections");
         CollectionAssert.AreEqual(new[] { "Polar", "Algebra" }, complex.Under.Select(node => node.Title).ToArray());
 
         var edited = Numbers.Replace("Dogs bark.", "Dogs howl.");

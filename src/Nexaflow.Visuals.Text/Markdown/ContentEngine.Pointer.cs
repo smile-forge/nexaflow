@@ -619,7 +619,7 @@ _preview = carried is { } laid && _marked is null ? LaidOut(new EditState(laid.S
         if (!MarkdownAnchors.IsInPage(where, out var anchor)) return false;
 
         // A long document may not have laid the heading yet; what its stages found says where it is, and so where to lay to.
-        if (MarkdownAnchors.Sought(_laid, anchor) is { Exists: true } heading) Revealing?.Invoke(this, heading.Bounds);
+        if (Sought(_laid, anchor) is { Exists: true } heading) Revealing?.Invoke(this, heading.Bounds);
         else if (_window is not null && MarkdownAnchors.Written(_targets, anchor) is { } written) Uncovering(written);
 
         return true;

@@ -68,8 +68,8 @@ internal static class Shipped
             new WithTargets(show.Targets),
             new WithReferences(show.Targets),
 
-            // After the headings are named, since a section is reached by its heading's name.
-            new WithSections(),
+            // Every heading promoted into the outline, which its sections and the names its headings answer to are read from.
+            new WithOutline(),
 
             new WithImages(show.Inputs.Pictures),
             new WithLinks(show.Inputs.Links),

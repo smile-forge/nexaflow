@@ -16,6 +16,7 @@ using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
 using Nexaflow.Markdown.Editing;
+using System.Windows.Threading;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -72,6 +73,7 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
 
         _engine.PreRender += Laid;
         _engine.Reread += Landed;
+        _engine.OutlineChanged += Outlined;
 
         // And everything it asks of whatever shows the content, which is this: see IContentEvents.
         _engine.Events = this;
@@ -459,7 +461,29 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     // ── Links ───────────────────────────────────────────────────────────────
 
     /// <summary>Scrolls the heading a <c>#anchor</c> link names into view; false where the document has no such heading.</summary>
-    public bool ScrollToAnchor(string anchor) => GoTo(ContentPath.Read($"{MarkdownKinds.Heading}:{anchor}"));
+    public bool ScrollToAnchor(string anchor) => GoTo(new ContentPath([new ContentStep(MarkdownKinds.Heading, anchor)]));
+
+    /// <summary>
+    /// Says that a heading of the document came, went, or now says or answers to something else — once the change is laid out, and once
+    /// however many changes came together.
+    /// </summary>
+    public event EventHandler? OutlineChanged;
+
+    /// <summary>Whether the outline has changed since it was last said to have.</summary>
+    private bool _outlineChanging;
+
+    /// <summary>Says the outline changed, once the laying out that changed it is done.</summary>
+    private void Outlined(object? sender, EventArgs e)
+    {
+        if (_outlineChanging) return;
+
+        _outlineChanging = true;
+        Dispatcher.BeginInvoke(() =>
+        {
+            _outlineChanging = false;
+            OutlineChanged?.Invoke(this, EventArgs.Empty);
+        }, DispatcherPriority.Background);
+    }
 
     // ── What a block offers ─────────────────────────────────────────────────
 

@@ -124,7 +124,7 @@ public sealed partial class ContentEngine
         {
             var taken = new Parsed(language, _named ?? string.Empty, state.Document, window.Units.Tree(window.Document, window.Taken));
 
-            laid = LaidFrom(language, _named, taken, state, style, room, readOnly, new KeptInContent(window, state.Document));
+            laid = LaidFrom(language, _named, taken, window, state, style, room, readOnly, new KeptInContent(window, state.Document));
             window.Bottom = laid.Size.Height;
 
             if (!Short(window, reach, needed) || spent.Elapsed > Spent || !Took(window, reach, needed)) break;
@@ -426,9 +426,13 @@ public sealed partial class ContentEngine
                 var tree = read.Tree(document);
                 var stages = language.Stages(tree, showing).OfType<IAstStage>().Where(stage => stage is not ISlowStage).ToList();
 
-                if (stages.Count > 0) new AstPipeline(stages).Run(tree);
+                var worked = stages.Count > 0 ? new AstPipeline(stages).Run(tree) : tree;
 
-                window.Staged.Enqueue(new ContentStaging(targets.Reach, targets.Targets, read.Done));
+                // What a link can name past what is laid: what the stages found defined, and the name every heading answers to.
+                var outline = ContentOutline.Of(worked);
+                var names = outline[0].Unit.Entries.Select((_, at) => new LinkTarget(Kinds.Outline, outline.Name(0, at), outline.Name(0, at), outline.StartOf(0, at)));
+
+                window.Staged.Enqueue(new ContentStaging(targets.Reach, [.. targets.Targets.Concat(names).OrderBy(target => target.At)], read.Done));
                 Grow();
 
                 return read.Reached;

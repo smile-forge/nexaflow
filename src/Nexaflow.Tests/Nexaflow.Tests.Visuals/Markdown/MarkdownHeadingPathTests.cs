@@ -4,82 +4,55 @@ using Nexaflow.Visuals.Text.Markdown;
 namespace Nexaflow.Tests.Visuals.Markdown;
 
 /// <summary>
-/// The heading resolution behind the Markdown tab's scroll-to-heading deep link
-/// (<see cref="MarkdownBlocks.FindHeadingBlock"/>): a snaplink carries a '&gt;'-joined heading path and the
-/// editor scrolls to the block that path names. Matching is on the whole ancestor hierarchy, so repeated
-/// heading names under different parents stay distinct — the case a document-wide text match gets wrong.
-/// WPF-free; the scroll itself is one <c>ScrollToVerticalOffset</c> on the resolved block.
+/// The heading resolution behind the Markdown tab's scroll-to-heading deep link: a snaplink carries a '&gt;'-joined heading path, and
+/// the outline of the document laid finds the heading that path names (<see cref="ContentEngine.Titled"/>). Matching is on the whole
+/// ancestor hierarchy, so repeated heading names under different parents stay distinct — the case a document-wide text match gets wrong.
 /// </summary>
 [TestClass]
+[TestCategory("UI")]
 [CoversNode("markdown-heading-scroll")]
 public class MarkdownHeadingPathTests
 {
-    private static readonly List<string> Doc = MarkdownBlocks.Split(
-        """
-        # Guide
-
-        Intro text.
-
-        ## Setup
-
-        Install it.
-
-        ### Overview
-
-        Setup overview.
-
-        ## Usage
-
-        ### Overview
-
-        Usage overview.
-        """);
+    private const string Doc =
+        "# Guide\n\nIntro text.\n\n## Setup\n\nInstall it.\n\n### Overview\n\nSetup overview.\n\n## Usage\n\n### Overview\n\nUsage overview.\n";
 
     [TestMethod]
-    public void FindsATopLevelHeading()
-        => Assert.AreEqual("# Guide", Doc[MarkdownBlocks.FindHeadingBlock(Doc, ["Guide"])]);
+    public void FindsATopLevelHeading() => UiThread.Run(() => Assert.AreEqual("# Guide", Found(Doc, ["Guide"])));
 
     [TestMethod]
-    public void FindsANestedHeading_ByItsFullPath()
-        => Assert.AreEqual("## Setup", Doc[MarkdownBlocks.FindHeadingBlock(Doc, ["Guide", "Setup"])]);
+    public void FindsANestedHeading_ByItsFullPath() => UiThread.Run(() => Assert.AreEqual("## Setup", Found(Doc, ["Guide", "Setup"])));
 
     [TestMethod]
-    public void DuplicateHeadingNames_ResolveByTheirParent()
+    public void DuplicateHeadingNames_ResolveByTheirParent() => UiThread.Run(() =>
     {
-        int underSetup = MarkdownBlocks.FindHeadingBlock(Doc, ["Guide", "Setup", "Overview"]);
-        int underUsage = MarkdownBlocks.FindHeadingBlock(Doc, ["Guide", "Usage", "Overview"]);
+        var engine = Laid(Doc);
+        var underSetup = engine.Titled(["Guide", "Setup", "Overview"])!.Value.Start;
+        var underUsage = engine.Titled(["Guide", "Usage", "Overview"])!.Value.Start;
 
-        Assert.AreNotEqual(underSetup, underUsage, "Both 'Overview' headings resolved to the same block.");
-        Assert.AreEqual("Setup overview.", Doc[underSetup + 1]);
-        Assert.AreEqual("Usage overview.", Doc[underUsage + 1]);
-    }
-
-    [TestMethod]
-    public void MatchIsCaseAndWhitespaceInsensitive()
-        => Assert.AreEqual(MarkdownBlocks.FindHeadingBlock(Doc, ["Guide", "Setup"]),
-                           MarkdownBlocks.FindHeadingBlock(Doc, [" guide ", "SETUP"]));
+        Assert.AreEqual(Doc.IndexOf("### Overview"), underSetup);
+        Assert.AreEqual(Doc.LastIndexOf("### Overview"), underUsage);
+    });
 
     [TestMethod]
-    public void PartialPath_DoesNotMatch()
-        => Assert.AreEqual(-1, MarkdownBlocks.FindHeadingBlock(Doc, ["Setup"]),
-                           "A leaf name alone must not match a heading that has ancestors.");
+    public void MatchIsCaseAndWhitespaceInsensitive() => UiThread.Run(() =>
+        Assert.AreEqual(Found(Doc, ["Guide", "Setup"]), Found(Doc, [" guide ", "SETUP"])));
 
     [TestMethod]
-    public void UnknownHeading_ReturnsMinusOne()
-        => Assert.AreEqual(-1, MarkdownBlocks.FindHeadingBlock(Doc, ["Guide", "Nope"]));
+    public void PartialPath_DoesNotMatch() => UiThread.Run(() =>
+        Assert.IsNull(Found(Doc, ["Setup"]), "A leaf name alone must not match a heading that has ancestors."));
 
     [TestMethod]
-    public void EmptyOrNullPath_ReturnsMinusOne()
-    {
-        Assert.AreEqual(-1, MarkdownBlocks.FindHeadingBlock(Doc, null));
-        Assert.AreEqual(-1, MarkdownBlocks.FindHeadingBlock(Doc, []));
-    }
+    public void UnknownHeading_IsNowhere() => UiThread.Run(() => Assert.IsNull(Found(Doc, ["Guide", "Nope"])));
 
     [TestMethod]
-    public void ClosedAtxHeading_IsMatchedOnItsText()
-    {
-        var doc = MarkdownBlocks.Split("## Closed ##\n\nbody");
+    public void EmptyPath_IsNowhere() => UiThread.Run(() => Assert.IsNull(Found(Doc, [])));
 
-        Assert.AreEqual(0, MarkdownBlocks.FindHeadingBlock(doc, ["Closed"]));
-    }
+    [TestMethod]
+    public void ClosedAtxHeading_IsMatchedOnItsText() => UiThread.Run(() =>
+        Assert.AreEqual("## Closed ##", Found("## Closed ##\n\nbody\n", ["Closed"])));
+
+    private static ContentEngine Laid(string source) => Laying.LaidBy(null, source, 480).Engine;
+
+    private static string? Found(string source, IReadOnlyList<string> titles) =>
+        Laid(source).Titled(titles) is { } at ? source.Substring(at.Start, at.Length).TrimEnd('\r', '\n') : null;
 }

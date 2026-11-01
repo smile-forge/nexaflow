@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Syntax;
 
@@ -54,6 +55,7 @@ public sealed class SnaplinkValidator
     {
         private CodeOutline? _outline;
         private bool _parsed;
+        private ContentOutline? _headings;
 
         public bool Exists => exists;
         public string? Text => text;
@@ -67,6 +69,9 @@ public sealed class SnaplinkValidator
                 _outline = SnaplinkTargets.Outline(fullPath, text, Path.GetDirectoryName(fullPath));
             return _outline;
         }
+
+        /// <summary>A markdown document's headings, read on first request — once for every link into it.</summary>
+        public ContentOutline Headings() => _headings ??= SnaplinkTargets.MarkdownOutline(text ?? string.Empty);
     }
 
     private readonly Dictionary<string, FileFacts> _cache = new(StringComparer.OrdinalIgnoreCase);
@@ -428,7 +433,7 @@ public sealed class SnaplinkValidator
         if (facts.Text is null) return LinkCheck.Unverifiable();   // exists but unreadable/huge
 
         if (link.Type == "markdown")
-            return link.TitlePath is { Count: > 0 } path && !SnaplinkTargets.HasHeadingPath(facts.Text, path)
+            return link.TitlePath is { Count: > 0 } path && !SnaplinkTargets.HasHeadingPath(facts.Headings(), path)
                 ? LinkCheck.Broken(IntegrityKind.MissingHeading, $"heading '{string.Join(" › ", path)}' not found in {link.Doc}")
                 : LinkCheck.Sound();
 

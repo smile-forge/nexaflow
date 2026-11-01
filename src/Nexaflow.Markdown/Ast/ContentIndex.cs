@@ -1,16 +1,28 @@
 namespace Nexaflow.Markdown.Ast;
 
-/// <summary>Something that stands for a number of characters, laid end to end with others like it in a <see cref="ContentIndex{T}"/>.</summary>
+/// <summary>
+/// What a thing held in a <see cref="ContentIndex{T}"/> measures: how many characters it stands for, which is what the index is
+/// indexed by, and two measures summed and gathered alongside — so a question about either is answered down one path too.
+/// </summary>
 public interface IContentWidth
 {
     /// <summary>How many characters it stands for.</summary>
     int Width { get; }
 
     /// <summary>
-    /// How many characters it spreads over in what holds it: its <see cref="Width"/>, where nothing stands between its characters —
-    /// more, where something else's characters do, as a container's marks stand between the lines of a fence written in a quote.
+    /// A second count summed alongside its <see cref="Width"/>, and its width where it says nothing else. A run of a body's characters
+    /// counts the characters it spreads over in what holds it: more than its own where something else's stand between them, as a
+    /// container's marks stand between the lines of a fence written in a quote (<see cref="ContentSpace"/>). A unit of an outline
+    /// counts the blocks it shows (<see cref="OutlineUnit"/>).
     /// </summary>
     int Spread => this.Width;
+
+    /// <summary>
+    /// The least of what it ranks, gathered as the least of everything under a node — so the first thing ranked at most so high, or the
+    /// last ranked higher than something, is found down one path; <see cref="int.MaxValue"/> for a thing that ranks nothing. A unit of an
+    /// outline ranks its headings (<see cref="OutlineUnit"/>).
+    /// </summary>
+    int Least => int.MaxValue;
 }
 
 /// <summary>
@@ -175,6 +187,69 @@ public sealed class ContentIndex<T> where T : IContentWidth
         return index - 1;
     }
 
+    /// <summary>
+    /// The first thing from <paramref name="index"/> on whose least (<see cref="IContentWidth.Least"/>) is at most <paramref name="most"/>,
+    /// or <see cref="Count"/> where none is — passing over every node whose least is higher without looking inside it.
+    /// </summary>
+    public int NextAtMost(int index, int most) =>
+        _root is null || index >= _root.Count || Next(_root, Math.Max(index, 0), most) is not (>= 0 and var found) ? this.Count : found;
+
+    /// <summary>
+    /// The last thing before <paramref name="index"/> whose least (<see cref="IContentWidth.Least"/>) is below <paramref name="under"/>, or
+    /// -1 where none is.
+    /// </summary>
+    public int LastBelow(int index, int under) => _root is null ? -1 : Last(_root, Math.Min(index, _root.Count), under);
+
+    /// <summary>Where in <paramref name="node"/> the first thing from <paramref name="skip"/> on with a least at most <paramref name="most"/> is, or -1.</summary>
+    private static int Next(Node node, int skip, int most)
+    {
+        if (node.Least > most) return -1;
+
+        if (node is Leaf leaf)
+        {
+            for (var at = skip; at < leaf.Items.Length; at++)
+                if (leaf.Items[at].Least <= most) return at;
+
+            return -1;
+        }
+
+        var taken = 0;
+
+        foreach (var child in ((Branch)node).Children)
+        {
+            if (skip < taken + child.Count && Next(child, Math.Max(skip - taken, 0), most) is >= 0 and var found) return taken + found;
+
+            taken += child.Count;
+        }
+
+        return -1;
+    }
+
+    /// <summary>Where in <paramref name="node"/> the last thing before <paramref name="end"/> with a least below <paramref name="under"/> is, or -1.</summary>
+    private static int Last(Node node, int end, int under)
+    {
+        if (node.Least >= under || end <= 0) return -1;
+
+        if (node is Leaf leaf)
+        {
+            for (var at = Math.Min(end, leaf.Items.Length) - 1; at >= 0; at--)
+                if (leaf.Items[at].Least < under) return at;
+
+            return -1;
+        }
+
+        var children = ((Branch)node).Children;
+        var start = node.Count;
+
+        for (var child = children.Length - 1; child >= 0; child--)
+        {
+            start -= children[child].Count;
+            if (start < end && Last(children[child], end - start, under) is >= 0 and var found) return start + found;
+        }
+
+        return -1;
+    }
+
     /// <summary>The same, with <paramref name="item"/> after the last.</summary>
     public ContentIndex<T> Added(T item) => new(Joined(_root, new Leaf([item])));
 
@@ -225,7 +300,7 @@ public sealed class ContentIndex<T> where T : IContentWidth
 
     // ── The tree ────────────────────────────────────────────────────────────
 
-    private abstract class Node(int count, int width, int spread, int height)
+    private abstract class Node(int count, int width, int spread, int least, int height)
     {
         public int Count { get; } = count;
 
@@ -233,12 +308,15 @@ public sealed class ContentIndex<T> where T : IContentWidth
 
         public int Spread { get; } = spread;
 
+        /// <summary>The least of what everything under it ranks (<see cref="IContentWidth.Least"/>).</summary>
+        public int Least { get; } = least;
+
         public int Height { get; } = height;
 
         public abstract bool Filled { get; }
     }
 
-    private sealed class Leaf(T[] items) : Node(items.Length, Summed(items, false), Summed(items, true), 0)
+    private sealed class Leaf(T[] items) : Node(items.Length, Summed(items, false), Summed(items, true), Ranked(items), 0)
     {
         public T[] Items { get; } = items;
 
@@ -251,10 +329,19 @@ public sealed class ContentIndex<T> where T : IContentWidth
 
             return width;
         }
+
+        private static int Ranked(T[] items)
+        {
+            var least = int.MaxValue;
+            foreach (var item in items) least = Math.Min(least, item.Least);
+
+            return least;
+        }
     }
 
     private sealed class Branch(Node[] children)
-        : Node(children.Sum(child => child.Count), children.Sum(child => child.Width), children.Sum(child => child.Spread), children[0].Height + 1)
+        : Node(children.Sum(child => child.Count), children.Sum(child => child.Width), children.Sum(child => child.Spread),
+               children.Min(child => child.Least), children[0].Height + 1)
     {
         public Node[] Children { get; } = children;
 

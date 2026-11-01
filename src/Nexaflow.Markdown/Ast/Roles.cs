@@ -233,4 +233,11 @@ public static class Kinds
     /// nothing draws, until the units before it reach it (<see cref="ContentUnits"/>).
     /// </summary>
     public const string Unreached = "unreached";
+
+    /// <summary>
+    /// What a stage hangs on a piece it promotes into its reading's outline (<see cref="OutlineMark"/>) — a heading, a declaration, a
+    /// subgraph: derived, standing for nothing, and gathered by the engine into the outline every language's sections and names are
+    /// answered from (<see cref="ContentOutline"/>). Also the kind a link target found for one is said as (<see cref="Pipeline.LinkTarget"/>).
+    /// </summary>
+    public const string Outline = "outline";
 }

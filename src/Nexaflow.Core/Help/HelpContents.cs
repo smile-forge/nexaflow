@@ -48,13 +48,12 @@ internal static partial class HelpContents
     private static List<(int Line, string Id)> Sections(string markdown)
     {
         var sections = new List<(int Line, string Id)>();
+        var root = MarkdownParser.Worked(markdown);
+        var blocks = ContentPart.Of(root).Children;
 
-        foreach (var block in ContentPart.Of(MarkdownParser.Worked(markdown)).Children)
-        {
-            if (block.Kind != MarkdownKinds.Heading || block.Node.Said(MarkdownRoles.Rank) != "2") continue;
-
-            sections.Add((markdown.AsSpan(0, block.Start).Count('\n'), MarkdownAnchors.IdOf(block.Node) ?? ""));
-        }
+        foreach (var section in ContentSections.Of(root).All())
+            if (section.Rank == 2)
+                sections.Add((markdown.AsSpan(0, blocks[section.Heading].Start).Count('\n'), section.Name));
 
         return sections;
     }
