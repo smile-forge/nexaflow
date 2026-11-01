@@ -22,6 +22,12 @@ public sealed record LayoutHost(LayoutStanding Standing, LayoutNesting Nesting)
 
     /// <summary>How the host wants a link to look — null where it says nothing.</summary>
     public Func<ContentPart, LayoutLinkLook?> Links { get; init; } = static _ => null;
+
+    /// <summary>
+    /// What the stretch being shown as written (<see cref="EditState.Raw"/>) said before the reader began the step they are writing in
+    /// it, as the host's undo history has it — null where it has nothing to say.
+    /// </summary>
+    public Func<string?> ShownBefore { get; init; } = static () => null;
 }
 
 /// <summary>
@@ -69,6 +75,12 @@ public abstract class ContentBuilder
 
     /// <summary>How the host wants the link <paramref name="part"/> is to look — or null where it says nothing.</summary>
     protected LayoutLinkLook? LinkOf(ContentPart part) => _host.Links(part);
+
+    /// <summary>
+    /// What the stretch being shown as written said before the step being written in it began — so what it sizes can stand still while
+    /// it is typed — or null where the host has nothing to say.
+    /// </summary>
+    protected string? ShownBefore => _host.ShownBefore();
 
     /// <summary>The content this is laying out, read and worked over before it ever got here.</summary>
     protected ContentReading Reading { get; }

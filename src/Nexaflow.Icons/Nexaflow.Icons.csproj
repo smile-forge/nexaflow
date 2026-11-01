@@ -1,10 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Icons as names, WPF-free: what an icon is (IconRef — an emoji, or a face of the Fluent UI System Icons font and one of
-    its names) and which glyph each Fluent name draws, read from the font's own name map. Nothing here draws: the font
-    itself, and the pickers, are Nexaflow.Visuals.Icons'. It sits under anything headless that has to say which glyph an
-    icon is — the ribbon's saved layout, and a diagram's stages naming the icon a node is drawn with.
+    Icons as names, WPF-free: what an icon is (IconRef — an emoji, a face of the Fluent UI System Icons font and one of
+    its names, or an icon of a pack shipped here) and what each draws: the glyph a Fluent name is, read from the font's own
+    name map, and the outlines and paints a pack's icon is, read from its SVG (IconPacks). Nothing here draws: the font
+    itself, and the pickers, are Nexaflow.Visuals.Icons', and a pack's outlines are drawn by whatever lays them out. It sits
+    under anything headless that has to say which icon is which — the ribbon's saved layout, and a diagram's stages naming
+    the icon a node is drawn with.
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -20,6 +22,9 @@
     <!-- The Fluent font's name map (MIT, microsoft/fluentui-system-icons, fonts/), which goes with the font in
          Nexaflow.Visuals.Icons: updating the font is swapping the two files. -->
     <EmbeddedResource Include="FluentSystemIcons-Resizable.json" LogicalName="Nexaflow.Icons.FluentSystemIcons-Resizable.json" />
+    <!-- Icon packs, each an Iconify JSON set with its licence beside it (Packs/<prefix>.json, Packs/<prefix>.LICENSE): updating a
+         pack is swapping its file, and shipping another is adding one. IconPacks finds them by this name. -->
+    <EmbeddedResource Include="Packs\*.json" LogicalName="Nexaflow.Icons.Packs.%(Filename).json" />
   </ItemGroup>
 
 </Project>

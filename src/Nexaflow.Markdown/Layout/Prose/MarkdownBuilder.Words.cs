@@ -40,7 +40,7 @@ public sealed partial class MarkdownBuilder
     }
 
     private readonly record struct Run(string Text, ContentPart Part, Face Face, bool Maps, LayoutAsk? Act = null,
-                                       LayoutInset? Inset = null, bool Tab = false);
+                                       LayoutInset? Inset = null, bool Tab = false, string? Tip = null);
 
     private void Text(LayoutBuilder into, ContentPart words, double x, double room, Face face, ParagraphLook? look = null)
     {
@@ -126,7 +126,7 @@ public sealed partial class MarkdownBuilder
                 return;
 
             case MarkdownKinds.Abbreviation when part.Part(Roles.Body) is { } word:
-                runs.Add(new Run(word.Text, part, face with { Dotted = true, Ink = Style.Text }, Maps: true));
+                runs.Add(new Run(word.Text, part, face with { Dotted = true, Ink = Style.Text }, Maps: true, Tip: part.Node.HeldAs(Roles.Tip) as string));
                 return;
 
             case MarkdownKinds.Html:
@@ -580,7 +580,7 @@ public sealed partial class MarkdownBuilder
             into.Close();
         }
 
-        if (run.Act is not { } act)
+        if (run.Act is null && run.Tip is null)
         {
             LayoutText.Words(into, glyphs, new LayoutPoint(x, top), double.PositiveInfinity, LayoutAlign.Left,
                                part, LayoutPieces.Words, maps: run.Maps, writes: !run.Maps, ink: run.Face.Ink ?? Style.Text);
@@ -588,8 +588,10 @@ public sealed partial class MarkdownBuilder
             return;
         }
 
+        // What it answers to and what it says while pointed at go on a piece of its own round its words.
         into.Open(LayoutPieces.Block, part, new LayoutPoint(x, top));
-        into.Acts(new LayoutActions { Click = act });
+        if (run.Act is { } act) into.Acts(new LayoutActions { Click = act });
+        if (run.Tip is { } tip) into.Tip(tip);
 
         LayoutText.Words(into, glyphs, default, double.PositiveInfinity, LayoutAlign.Left,
                            part, LayoutPieces.Words, maps: run.Maps, writes: !run.Maps, ink: run.Face.Ink ?? Style.Text);

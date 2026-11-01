@@ -36,6 +36,8 @@ public static class ContentLanguages
         .. Shipped.Diagrams,
         Shipped.Nomnoml,
         Shipped.Packet,
+        Shipped.Treemap,
+        Shipped.TreeView,
         Shipped.Qr,
         Shipped.Barcode,
         Shipped.Abc,

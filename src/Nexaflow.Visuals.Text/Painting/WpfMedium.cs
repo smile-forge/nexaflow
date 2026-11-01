@@ -258,6 +258,31 @@ public sealed class WpfMedium : ILayoutMedium
         return new WpfInk(ink);
     }
 
+    public LayoutInk LinearGradient(IReadOnlyList<(LayoutColor Color, double At)> stops, LayoutPoint from, LayoutPoint to, LayoutMatrix transform) =>
+        Measured(new LinearGradientBrush { MappingMode = BrushMappingMode.Absolute, StartPoint = from.ToWpf(), EndPoint = to.ToWpf() }, stops, transform);
+
+    public LayoutInk RadialGradient(IReadOnlyList<(LayoutColor Color, double At)> stops, LayoutPoint centre, double radiusX, double radiusY, LayoutPoint focus,
+                                    LayoutMatrix transform) =>
+        Measured(new RadialGradientBrush
+        {
+            MappingMode = BrushMappingMode.Absolute,
+            Center = centre.ToWpf(),
+            GradientOrigin = focus.ToWpf(),
+            RadiusX = radiusX,
+            RadiusY = radiusY,
+        }, stops, transform);
+
+    /// <summary>A gradient measured where what it fills is drawn: its stops, carried by <paramref name="transform"/>, and frozen.</summary>
+    private static WpfInk Measured(GradientBrush ink, IReadOnlyList<(LayoutColor Color, double At)> stops, LayoutMatrix transform)
+    {
+        foreach (var (color, at) in stops) ink.GradientStops.Add(new GradientStop(Color.FromArgb(color.A, color.R, color.G, color.B), at));
+        if (!transform.IsIdentity)
+            ink.Transform = new MatrixTransform(transform.M11, transform.M12, transform.M21, transform.M22, transform.OffsetX, transform.OffsetY);
+
+        ink.Freeze();
+        return new WpfInk(ink);
+    }
+
     public LayoutShape Combine(LayoutShape a, LayoutShape b, ShapeCombine combine) =>
         WpfShape.Of(new CombinedGeometry(combine switch
         {

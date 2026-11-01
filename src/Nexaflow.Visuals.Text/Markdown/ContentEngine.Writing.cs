@@ -175,6 +175,9 @@ public sealed partial class ContentEngine
         // a stretch being shown as the characters it was written with, is not a change to what is written.
         if (next.Source != _state.Source && this.Events?.OnBeforeChange(_state, next) == false) return;
 
+        // What an edit leaves picked out as whole things is chosen as a press on them chooses them: no caret stands in it.
+        if (next.Selected is WholeRanges) _chosenWhole = next.Selection;
+
         var before = _state;
         var resized = next.Source != before.Source || next.Raw != before.Raw;
         var was = (before.Caret, _at);
@@ -218,12 +221,49 @@ public sealed partial class ContentEngine
         return run ? next with { Raw = null } : next;
     }
 
+    /// <summary>
+    /// The content with the caret put at <paramref name="offset"/>, as a press or a step puts it: what was shown as written and is left
+    /// behind drawn again, and words drawn other than as written — a value as its format sets it — shown as the characters written where
+    /// the caret has come into them, as a press on them shows them; so a step into a value finds the number it is about to type into, not
+    /// what it is drawn as. Only where the caret is put: nothing picked out or written goes through here.
+    /// </summary>
+    private EditState CaretPlaced(int offset)
+    {
+        var next = Left(_state.MoveCaretTo(offset));
+        if (_readOnly || next.Raw is not null) return next;
+
+        return _laid.Root.RestatedAt(next.Caret) is { Part: { } part } ? next with { Raw = new RawZone(part.Start, part.End()) } : next;
+    }
+
+    /// <summary>
+    /// What the stretch shown as written said before the step being written in it began — read from what taking that step back would
+    /// put back (<see cref="EditHistory.Begun"/>), so a drawing sized by it can stand still while it is typed. Null where nothing is shown
+    /// as written, or the step wrote somewhere else.
+    /// </summary>
+    private string? ShownBefore()
+    {
+        if (_state.Raw is not { } zone || _history.Begun(_last, _state) is not { } begun) return null;
+
+        var change = SourceDifference.Between(begun.Source, _state.Source);
+        if (change.None) return _state.Source[zone.Start..zone.End];
+        if (change.Start > zone.End || change.Start + change.Added < zone.Start) return null;
+
+        // Each end of the stretch where it stood before the step: as it is in front of what was written, moved back past it after it,
+        // and at its start within it — a value begun after its colon was written with the space before it.
+        int Back(int at, bool end) => at <= change.Start ? at
+                                    : at >= change.Start + change.Added ? at - change.Added + change.Removed
+                                    : change.Start + (end ? change.Removed : 0);
+
+        var (from, to) = (Back(zone.Start, end: false), Back(zone.End, end: true));
+        return from <= to && to <= begun.Source.Length ? begun.Source[from..to] : null;
+    }
+
     // ── The caret ───────────────────────────────────────────────────────────
 
     /// <summary>Puts the caret at one particular place — what a press and a step both mean — or, at -1, the innermost of the places at <paramref name="offset"/>.</summary>
     internal void TakeCaret(int offset, int at = -1)
     {
-        Apply(_state.MoveCaretTo(Snap(offset)), notify: false, at);
+        Apply(CaretPlaced(Snap(offset)), notify: false, at);
         CaretTaken?.Invoke(this, EventArgs.Empty);
     }
 
@@ -275,7 +315,7 @@ public sealed partial class ContentEngine
         if (!extend && Unpick()) Chosen();
 
         if (extend) ExtendSelectionTo(offset);
-        else Apply(_state.MoveCaretTo(offset), notify: false, at);
+        else Apply(CaretPlaced(offset), notify: false, at);
     }
 
     private int Snap(int offset)
@@ -644,18 +684,15 @@ public sealed partial class ContentEngine
     /// </summary>
     private ContentChange? Carried(int to)
     {
-        var (piece, part, root) = Reached(Landing, _dropOver);
-
         // A carry of a language's own is that language's to let go, and only in its own content: anywhere else it goes nowhere.
         if (_carry is { } carry)
         {
-            if (part is null || !ReferenceEquals(root.Node, _carriedIn)
-                || ContentLanguages.WrittenIn(root) is not { } own || own.Editing.OnMove is not { } onMove) return null;
+            if (OwnMove(carry, to) is not var (onMove, ownMove, own)) return null;
 
             ContentChange? answered;
             try
             {
-                answered = onMove.Move(new ContentMove([], to, Landing, piece, part, root) { Carry = carry, At = _dropPoint });
+                answered = onMove.Move(ownMove);
             }
             catch
             {
@@ -672,6 +709,7 @@ public sealed partial class ContentEngine
 
         if (ranges.Count == 0) return null;
 
+        var (piece, part, root) = Reached(Landing, _dropOver);
         var move = new ContentMove(ranges, to, Landing, piece, part, root) { At = _dropPoint };
 
         var language = part is null ? null : ContentLanguages.WrittenIn(root);
@@ -693,6 +731,46 @@ public sealed partial class ContentEngine
         return said is null || !said.Writes.Any(write => write.Meant) ? said
              : language is null ? null
              : Spelling(said, _state, language);
+    }
+
+    /// <summary>
+    /// A carry of a language's own let go at <paramref name="to"/>: that language, what it answers moves with, and the move told to it —
+    /// null where it is over anything but the content it was picked up in, where it goes nowhere.
+    /// </summary>
+    private (IOnMove OnMove, ContentMove Move, ContentLanguage Own)? OwnMove(ContentCarry carry, int to)
+    {
+        var (piece, part, root) = Reached(Landing, _dropOver);
+
+        if (part is null || !ReferenceEquals(root.Node, _carriedIn)
+            || ContentLanguages.WrittenIn(root) is not { } own || own.Editing.OnMove is not { } onMove) return null;
+
+        return (onMove, new ContentMove([], to, Landing, piece, part, root) { Carry = carry, At = _dropPoint }, own);
+    }
+
+    /// <summary>
+    /// Where on the page the part a carry of a language's own would go into stands, let go at <paramref name="to"/>, as the language names
+    /// it (<see cref="IOnMove.DropTarget"/>) — or null, where the carry is shown by what it would come to instead.
+    /// </summary>
+    private LayoutRect? Target(int to)
+    {
+        if (_carry is not { } carry || OwnMove(carry, to) is not var (onMove, move, _)) return null;
+
+        ContentPart? target;
+        try
+        {
+            target = onMove.DropTarget(move);
+        }
+        catch
+        {
+            return null;
+        }
+
+        if (target is null) return null;
+
+        foreach (var (piece, where) in _laid.Root.Placed())
+            if (ReferenceEquals(piece.Part, target)) return where;
+
+        return null;
     }
 
     /// <summary>

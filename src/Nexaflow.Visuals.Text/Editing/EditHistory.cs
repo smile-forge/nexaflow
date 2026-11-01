@@ -69,6 +69,19 @@ public sealed class EditHistory
     /// <summary>The state to go forward to again from <paramref name="now"/>, or null where nothing was taken back.</summary>
     public EditState? Redo(EditState now) => Step(_redo, _undo, now);
 
+    /// <summary>
+    /// The document as it stood before the step <paramref name="now"/> is part of — what taking that step back would put back — where
+    /// <paramref name="last"/> is where the last thing written left it: the step still being written, where <paramref name="now"/> carries
+    /// on from it, else <paramref name="last"/> itself. Null where nothing is written since <paramref name="last"/> and no step is open.
+    /// </summary>
+    public EditState? Begun(EditState last, EditState now)
+    {
+        var open = _open is { } step && ReferenceEquals(step, last) && _undo.Count > 0;
+        if (string.Equals(last.Source, now.Source, StringComparison.Ordinal)) return open ? _undo[^1] : null;
+
+        return open && Carries(last, now) ? _undo[^1] : last;
+    }
+
     /// <summary>Ends the step being written, so the next edit starts one of its own however near it lands.</summary>
     public void Break() => _open = null;
 

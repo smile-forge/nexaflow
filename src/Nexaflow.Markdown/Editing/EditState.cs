@@ -15,6 +15,7 @@ public readonly record struct RawZone(int Start, int End)
     /// <summary>How many characters are raw.</summary>
     public int Length => End - Start;
 
+
     /// <summary>Whether the caret at <paramref name="offset"/> is inside or at either edge of the zone.</summary>
     public bool Holds(int offset) => offset >= Start && offset <= End;
 }
@@ -307,8 +308,8 @@ public sealed record EditState(
     private static RawZone? Shift(RawZone? zone, int at, int by)
     {
         if (zone is not { } z) return null;
-        if (at <= z.Start) return new RawZone(z.Start + by, z.End + by);
-        return at < z.End ? new RawZone(z.Start, z.End + by) : z;
+        if (at <= z.Start) return z with { Start = z.Start + by, End = z.End + by };
+        return at < z.End ? z with { End = z.End + by } : z;
     }
 
     private int Clamp(int offset) => Math.Clamp(offset, 0, Source.Length);

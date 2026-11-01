@@ -191,6 +191,20 @@ public static class LayoutQuery
     }
 
     /// <summary>
+    /// The words at <paramref name="offset"/> drawn other than as they are written, yet written in — a value as its format sets it — or
+    /// nothing. A caret come into them is shown them as written; <see cref="WordsAt"/> finds the words drawn as they are written.
+    /// </summary>
+    public static LayoutPiece RestatedAt(this LayoutPiece root, int offset)
+    {
+        foreach (var piece in SittingIn(root, offset, offset))
+            if (piece is { Words: { Maps: false, Writes: true } } && piece.Part is { Length: > 0 } part
+                && offset >= part.Start && offset <= part.End())
+                return piece;
+
+        return default;
+    }
+
+    /// <summary>
     /// A point of the content as a whole, in one piece's own frame: past its anchor, and back through however it — and whatever
     /// holds it — is turned or scaled.
     /// </summary>

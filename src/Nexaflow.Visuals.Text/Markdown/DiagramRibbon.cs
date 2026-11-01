@@ -114,15 +114,22 @@ internal sealed class DiagramRibbon : UserControl
     // ── Buttons ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Something done at once: its picture where it has one, else its name — in the theme's colour for danger where it takes something
-    /// away. Pressed, it is done, and so is the ribbon.
+    /// Something done at once: its picture where it has one, after its caption where it has one, else its name — in the theme's colour
+    /// for danger where it takes something away, and faded where it can do nothing. Pressed, it is done, and so is the ribbon.
     /// </summary>
     private static FrameworkElement Pressing(MiniRibbonButton offer, Action<Func<ContentEdit, ContentChange?>> use, Action done)
     {
         var button = Flat(offer.Shape is null ? new Thickness(8, 5, 8, 5) : new Thickness(6, 4, 6, 4));
         button.Foreground = offer.Warns ? Brush("DangerBrush", Colors.Firebrick) : Brush("TextBrush", Colors.Black);
-        button.Content = offer.Shape is { } shape ? Pictured(shape, button) : new TextBlock { Text = offer.Name, FontSize = 12 };
+        button.Content = ButtonFace(offer, button);
         Said(button, offer.Name, offer.Id);
+
+        if (offer.Disabled)
+        {
+            button.IsEnabled = false;
+            button.Cursor = Cursors.Arrow;
+            ToolTipService.SetShowOnDisabled(button, true);
+        }
 
         button.Click += (_, _) =>
         {
@@ -131,6 +138,18 @@ internal sealed class DiagramRibbon : UserControl
         };
 
         return button;
+    }
+
+    /// <summary>What a button is drawn as on <paramref name="button"/>: its picture, its caption before it where it has one — else its name.</summary>
+    private static UIElement ButtonFace(MiniRibbonButton offer, Button button)
+    {
+        if (offer.Shape is not { } shape) return new TextBlock { Text = offer.Name, FontSize = 12 };
+        if (offer.Caption is not { Length: > 0 } caption) return Pictured(shape, button);
+
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(new TextBlock { Text = caption, FontSize = 12, Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
+        row.Children.Add(Pictured(shape, button));
+        return row;
     }
 
     // ── Choices ─────────────────────────────────────────────────────────────
@@ -468,6 +487,10 @@ internal sealed class DiagramRibbon : UserControl
         var pressed = new Trigger { Property = ButtonBase.IsPressedProperty, Value = true };
         pressed.Setters.Add(new Setter(Border.BackgroundProperty, Brush("BorderBrush", Colors.Gray), "Surface"));
         template.Triggers.Add(pressed);
+
+        var off = new Trigger { Property = IsEnabledProperty, Value = false };
+        off.Setters.Add(new Setter(OpacityProperty, 0.4, "Surface"));
+        template.Triggers.Add(off);
 
         return template;
     });
