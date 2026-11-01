@@ -43,8 +43,8 @@
             <vcl:PanZoomSurface x:Name="Surface" Background="{StaticResource BgBrush}" AutomationProperties.AutomationId="Image_EditCanvas"
                                 ZoomOnPlainWheel="True" MinScale="0.1" MaxScale="8"/>
             <TextBlock Text="{loc:Str Images.LoadFailed}" Foreground="{StaticResource TextMutedBrush}"
-                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                       Visibility="{Binding LoadFailed, Converter={StaticResource BoolToVis}}"/>
+                       HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
+                       Visibility="{Binding Stage.LoadFailed, Converter={StaticResource BoolToVis}}"/>
         </Grid>
 
         <!-- ══ Tools ══ -->
@@ -128,19 +128,19 @@
                             <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Edit.Tool.CropTip}"/>
                             <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Crop.RotateHeader}"/>
                             <StackPanel Orientation="Horizontal">
-                                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding RotateLeftCommand}" Margin="0,0,6,0"
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Stage.RotateLeftCommand}" Margin="0,0,6,0"
                                         ToolTip="{loc:Str Images.Tools.RotateLeft}" AutomationProperties.AutomationId="Image_EditRotateLeft">
                                     <TextBlock Text="⟲" FontSize="14"/>
                                 </Button>
-                                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding RotateRightCommand}" Margin="0,0,6,0"
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Stage.RotateRightCommand}" Margin="0,0,6,0"
                                         ToolTip="{loc:Str Images.Tools.RotateRight}" AutomationProperties.AutomationId="Image_EditRotateRight">
                                     <TextBlock Text="⟳" FontSize="14"/>
                                 </Button>
-                                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding FlipHorizontalCommand}" Margin="0,0,6,0"
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Stage.FlipHorizontalCommand}" Margin="0,0,6,0"
                                         ToolTip="{loc:Str Images.Tools.FlipHorizontal}" AutomationProperties.AutomationId="Image_EditFlipHorizontal">
                                     <TextBlock Text="⇆" FontSize="14"/>
                                 </Button>
-                                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding FlipVerticalCommand}"
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Stage.FlipVerticalCommand}"
                                         ToolTip="{loc:Str Images.Tools.FlipVertical}" AutomationProperties.AutomationId="Image_EditFlipVertical">
                                     <TextBlock Text="⇅" FontSize="14"/>
                                 </Button>

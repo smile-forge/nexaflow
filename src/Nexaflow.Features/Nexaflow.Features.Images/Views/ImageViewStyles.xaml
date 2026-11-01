@@ -38,8 +38,10 @@
         </Setter>
     </Style>
 
-    <!-- The primary action of a strip (Save): the same chip, in the accent. -->
+    <!-- The primary action of a strip (Save): the same chip, in the accent. Its content takes the Button's own Foreground — an
+         element given as content is the Button's logical child, so it inherits from the Button, not from the presenter. -->
     <Style x:Key="ToolbarPrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource ToolbarButtonStyle}">
+        <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">

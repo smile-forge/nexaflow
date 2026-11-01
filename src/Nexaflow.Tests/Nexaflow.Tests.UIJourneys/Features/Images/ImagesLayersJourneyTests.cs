@@ -227,7 +227,7 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         CheckDoes("Apply keeps it", "Image_ArrangeApply", () => WaitForGone("Image_ArrangeApply", 3));
 
         // ── Print ──
-        Check("Print opens its options", () => SetToggle("Image_Print", true) && WaitForFs(() => FindInAppWindows("Image_PrintOptions") is not null, 3));
+        Check("Print opens its options", () => SetToggle("Image_Print", true) && WaitForFs(() => FindInAppWindows("Image_PrintFit") is not null, 3));
         Check("Fill the page", () => SelectRadio("Image_PrintFill"));
         Check("Actual size", () => SelectRadio("Image_PrintActual"));
         Check("A width", () => SelectRadio("Image_PrintWidth") && TypeInto("Image_PrintWidthMillimetres", "120"));
@@ -236,7 +236,7 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         Check("Margins typed", () => TypeInto("Image_PrintMargins", "12"));
         Check("Centred, and back", () => ToggleAndBack("Image_PrintCentre"));
         Check("Print… chooses the printer", () => Enabled("Image_PrintGo"));
-        CheckDoes("Close puts the options away", "Image_PrintClose", () => WaitForFs(() => FindInAppWindows("Image_PrintOptions") is null, 3));
+        CheckDoes("Close puts the options away", "Image_PrintClose", () => WaitForFs(() => FindInAppWindows("Image_PrintFit") is null, 3));
 
         AssertJourney();
     }

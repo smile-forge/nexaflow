@@ -51,7 +51,8 @@ public class ImagesStartJourneyTests : ImageEditJourneyBase
             }
             """);
 
-        // A workspace that draws no pictures, nor waits on a model to download one: the start screen offers its AI settings.
+        // A workspace with no image model chosen. It settles onto Nexaflow's own as it loads, where this machine can run one, so the
+        // start screen offers that model's download — or, where there is none to download, the workspace's AI settings.
         var abilities = Path.Combine(configDir, "Contexts", "Default", "ai-abilities");
         Directory.CreateDirectory(abilities);
         File.WriteAllText(Path.Combine(abilities, $"config_{version}.json"), """
@@ -77,7 +78,8 @@ public class ImagesStartJourneyTests : ImageEditJourneyBase
     {
         CheckPresent("An Artist tab with no picture shows its start screen", "Images_Start", 15);
         CheckPresent("Its canvas is set up as New's is", "Images_CanvasSetup");
-        CheckPresent("No model draws here: the workspace's AI settings are offered", "Images_StartAiSettings");
+        Check("No model draws yet: its download is offered, or else the workspace's AI settings",
+              () => WaitForFs(() => Exists("Images_GenerateDownload") || Exists("Images_StartAiSettings"), 5));
         CheckPresent("Pictures can be opened from disk", "Images_StartOpen");
         Check("Print is there, with nothing to print", () => Exists("Image_Print") && !Enabled("Image_Print"));
         Check("A size typed by hand", () => TypeInto("Images_CanvasWidth", "320") && TypeInto("Images_CanvasHeight", "200"));
