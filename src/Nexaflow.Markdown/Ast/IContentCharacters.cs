@@ -27,4 +27,10 @@ public interface IContentCharacters
 
     /// <summary>The characters from <paramref name="start"/> to <paramref name="end"/> — to the last where it says nothing — as the stretches they are held in, in order.</summary>
     IEnumerable<ReadOnlyMemory<char>> Chunks(int start = 0, int? end = null);
+
+    /// <summary>Which line, counting from nought, <paramref name="offset"/> is on — a line ending where a line feed does.</summary>
+    int LineOf(int offset);
+
+    /// <summary>Where the line <paramref name="line"/>, counting from nought, starts.</summary>
+    int OffsetOf(int line);
 }

@@ -140,6 +140,15 @@ public sealed class ContentSpace : IContentCharacters
     }
 
     /// <summary>
+    /// Which of the body's own lines <paramref name="offset"/> is on: as many as the holder's lines between where the body starts and
+    /// where that character stands, since every own line is one of the holder's with the marks in front of it left out.
+    /// </summary>
+    public int LineOf(int offset) => this.Holder.LineOf(this.Start + this.HolderAt(Math.Clamp(offset, 0, this.Length))) - this.Holder.LineOf(this.Start);
+
+    /// <summary>Where the body's own line <paramref name="line"/> starts: past the marks in front of the holder's line it is.</summary>
+    public int OffsetOf(int line) => this.OwnAt(this.Holder.OffsetOf(this.Holder.LineOf(this.Start) + line) - this.Start);
+
+    /// <summary>
     /// Every mark a container put in front of a run starting from <paramref name="from"/> up to <paramref name="to"/> among the body's
     /// own characters, with the own character it stands in front of — in the order they are written. None stands in front of the end:
     /// what follows the last own character is the closing delimiter's line.

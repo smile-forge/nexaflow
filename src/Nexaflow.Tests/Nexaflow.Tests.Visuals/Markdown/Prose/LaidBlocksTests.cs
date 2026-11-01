@@ -53,14 +53,11 @@ public class LaidBlocksTests
 
             foreach (var edited in edits)
             {
-                // Both sides have to be laid from the same reading of these characters. What a slower reading comes to is
-                // kept for every engine by the language, the stage and the characters, so letting it land once here on an
-                // engine of its own means both lays below find it kept and neither waits on anything — while the one being
-                // laid again keeps the blocks whose reuse is the point of the test.
-                Settled(new ContentEngine(), edited, style);
-
-                var again = content.Lay(null, EditState.For(edited), WpfStyles.Dark, Room, false);
-                var fresh = new ContentEngine().Lay(null, EditState.For(edited), style, Room, false);
+                // Both sides are laid with every slower reading of these characters landed. A code reading's colours are its own,
+                // found in its own syntax, so each side lets its own land — the one laid again laying only what landed, and
+                // keeping the blocks whose reuse is the point of the test.
+                var again = Settled(content, edited, style);
+                var fresh = Settled(new ContentEngine(), edited, style);
 
                 Same(fresh, again, Path.GetFileName(path));
             }
@@ -73,9 +70,9 @@ public class LaidBlocksTests
     /// calls <c>Refresh</c>, and refreshing is forgetting and laying again).
     ///
     /// <para>
-    /// Code is read twice: as written at once, and by its grammar a moment later, away from the thread that draws. A
-    /// layout kept from before the second reading landed is not the layout the same characters make afresh once it has,
-    /// and neither of them is wrong — so comparing the two means letting every reading land first.
+    /// Code is read as written at once, and coloured by its grammar a moment later, away from the thread that draws. A
+    /// layout kept from before its colours landed is not the layout the same characters make once they have, and neither
+    /// of them is wrong — so comparing the two means letting everything land first, on each side.
     /// </para>
     /// <para>
     /// Waits on <see cref="ContentEngine.Rereading"/> rather than on the <c>Reread</c> event, because the event says one
@@ -99,8 +96,9 @@ public class LaidBlocksTests
             {
                 if (engine.Rereading) landed.Wait(Patience);
 
+                // What landed is laid again, and nothing else: every block that reads as it did is still set down as it was laid.
                 landed.Reset();
-                engine.Forget();
+                engine.MarkLanded();
                 laid = engine.Lay(null, EditState.For(text), style, Room, false);
             }
 
@@ -130,10 +128,9 @@ public class LaidBlocksTests
 
         Assert.IsFalse(engine.Rereading, "nothing of it is still being read a second time");
 
-        // And nothing left to land is what makes the two sides of the test above comparable at all: the same
-        // characters laid afresh now find every reading kept, so they come out piece for piece the same.
-        Same(settled, new ContentEngine().Lay(null, EditState.For(text), WpfStyles.Dark, Room, false),
-             "mixed-content.md");
+        // And nothing left to land is what makes the two sides of the test above comparable at all: the same characters laid
+        // afresh, every reading of theirs landed too, come out piece for piece the same.
+        Same(settled, Settled(new ContentEngine(), text, WpfStyles.Dark), "mixed-content.md");
     }
 
     [TestMethod]

@@ -40,6 +40,9 @@ public sealed partial class ContentEngine
     /// <summary>The version of the document the units are of.</summary>
     private ContentDocument _unitsIn = ContentDocument.Of(string.Empty);
 
+    /// <summary>What the reading the units are of keeps of all of it (<see cref="ContentUnits.Syntax"/>), as last laid.</summary>
+    private IReadingSyntax? _readingSyntax;
+
     /// <summary>Each unit worked over, by the tree it was read into — kept while that tree is read, laid or not, so its height outlives being off screen.</summary>
     private Dictionary<ContentNode, StagedUnit> _staged = new(ReferenceEqualityComparer.Instance);
 
@@ -48,6 +51,9 @@ public sealed partial class ContentEngine
 
     /// <summary>What a unit nothing has worked over yet says to the outline: how wide it is, and nothing more.</summary>
     private readonly ConditionalWeakTable<ContentNode, OutlineUnit> _unworked = new();
+
+    /// <summary>How tall each unit read comes to as its language says (<see cref="ContentLanguage.UnitHeight"/>), with the style it was said in, by the tree it was read into.</summary>
+    private readonly ConditionalWeakTable<ContentNode, StrongBox<(LayoutStyle? Style, double Height)>> _heights = new();
 
     /// <summary>Where on the page each unit stood as last laid — and, one past the last, where what is read ends.</summary>
     private double[] _tops = [0];
@@ -157,7 +163,7 @@ public sealed partial class ContentEngine
         {
             var tree = Bound(language, unit.Tree);
             var targets = new LinkTargets(_targets);
-            var own = showing with { At = start, Targets = targets };
+            var own = showing with { At = start, Targets = targets, Syntax = showing.Syntax is { } read ? (read.Syntax, start) : null };
 
             var stages = language.Stages(tree, own).OfType<IAstStage>()
                                  .Select(stage => stage is ISlowStage slow ? Staging(language, document.Stretch(start, unit.Width), slow) : stage)
@@ -279,7 +285,9 @@ public sealed partial class ContentEngine
             if (laid[index] is not { } standing)
             {
                 var (unit, _) = _units[index];
-                y += _staged.TryGetValue(unit.Tree, out var staged) && staged.Laid is { } was ? was.Laid.Height : unit.Width * perCharacter;
+                y += language.UnitHeight is { } saying ? this.HeightSaid(unit.Tree, showing.Style, saying)
+                   : _staged.TryGetValue(unit.Tree, out var staged) && staged.Laid is { } was ? was.Laid.Height
+                   : unit.Width * perCharacter;
                 above = null;
                 continue;
             }
@@ -302,6 +310,15 @@ public sealed partial class ContentEngine
     /// of characters, each half the text size wide, across <paramref name="room"/>.
     /// </summary>
     private static double Unsaid(LayoutStyle style, double room) => 0.75 * style.TextSize * style.TextSize / Math.Max(room, 1);
+
+    /// <summary>How tall the unit read into <paramref name="tree"/> comes to in <paramref name="style"/>, as its language says — said once for each style.</summary>
+    private double HeightSaid(ContentNode tree, LayoutStyle style, Func<ContentNode, LayoutStyle, ILayoutMedium, double> height)
+    {
+        var said = _heights.GetValue(tree, static _ => new StrongBox<(LayoutStyle? Style, double Height)>());
+        if (!ReferenceEquals(said.Value.Style, style)) said.Value = (style, height(tree, style, WpfMedium.OnThisThread));
+
+        return said.Value.Height;
+    }
 
     /// <summary>
     /// Lays out every unit <paramref name="wanted"/> picks out whose laying no longer stands, and puts the units together: a document
@@ -340,9 +357,17 @@ public sealed partial class ContentEngine
 
         if (_units.Count == 1 && unread == 0 && laid[0] is { } only && only.Start == _units[0].Start) return only.Laid;
 
+        // Standing for the whole reading as the root of it laid whole stands for it: what its units are laid as.
+        var kind = LayoutPieces.Document;
+        for (var index = 0; index < _units.Count; index++)
+            if (laid[index] is { } first && Drew(language, first))
+            {
+                kind = first.Laid.Root.Kind;
+                break;
+            }
+
         var into = new LayoutBuilder(WpfMedium.OnThisThread, _units.Count + 1);
-        // Standing for the whole document, as the root of the reading laid whole stands for it.
-        into.Open(LayoutPieces.Document, new SourceSpan(0, _unitsIn.Length), stops: LayoutStops.None);
+        into.Open(kind, new SourceSpan(0, _unitsIn.Length), stops: LayoutStops.None);
 
         var reach = 0.0;
         var trouble = new List<LayoutDiagnostic>();

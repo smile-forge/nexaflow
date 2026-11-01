@@ -106,12 +106,18 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     {
         _units = [.. window.Units.From(0)];
         _unitsIn = window.Document;
+        _readingSyntax = window.Units.Syntax;
 
         // What the reader opened in each diagram, or in the content itself where it is a diagram.
         Views(language);
         if (_top is { } opened) style = style with { Expansion = opened.Expansion };
 
-        var showing = Showing(named ?? string.Empty, style, !readOnly, state.Raw, 0) with { Unchanged = _unchanged, Targets = _targets };
+    var showing = Showing(named ?? string.Empty, style, !readOnly, state.Raw, 0) with
+        {
+            Unchanged = _unchanged,
+            Targets = _targets,
+            Syntax = _readingSyntax is { } syntax ? (syntax, 0) : null,
+        };
     var asked = new SortedSet<int>(wanted(Placed(language, showing, room, readOnly).Tops));
 
         // A unit a slower reading landed for is laid again wherever it stands, as it would have been laid had the reading been there.
@@ -149,18 +155,13 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     }
 
     /// <summary>
-    /// Forgets what was laid, so the next layout lays everything again — for content shown against something else, or read again because
-    /// a slower reading of it has landed. What was read before that slower reading landed is read again: the content itself, at once,
-    /// and each body as it is next laid (<see cref="LandedSince"/>).
+    /// Forgets what was laid, so the next layout works over and lays everything again — for content shown against something else.
     /// </summary>
     public void Forget()
     {
         _unchanged.Forget();
         _unkept = true;
-    _forgotten++;
-        _landings++;
-
-        if (_whole?.Units is { Count: 1 } units && units[0].Unit.Provisional) _whole = null;
+        _forgotten++;
     }
 
     /// <summary>
@@ -201,7 +202,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     {
         if (!_parses.TryGetValue(language, out var parse)) _parses[language] = parse = language.Parser();
 
-        return new Parsed(language, named ?? string.Empty, document, Read(language, parse, document.ToString()).Tree);
+        return new Parsed(language, named ?? string.Empty, document, parse(document.ToString()).Tree);
     }
 
     private ContentShowing Showing(string named, LayoutStyle style, bool writing, RawZone? shown, int at) =>
@@ -359,7 +360,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
                                   shown is { } zone && ContentNested.Holds(body, zone.Start, zone.End)
                                       ? zone with { Start = body.Start + placed.OwnAt(zone.Start - body.Start), End = body.Start + placed.OwnAt(zone.End - body.Start) }
                                       : null,
-                                  body.Start);
+                                  body.Start) with { Syntax = reading.Units.Syntax is { } syntax ? (syntax, 0) : null };
 
             // What it read is given those marks back where they stand, so every part names its characters in the document.
             var read = new Parsed(language, named, Stretched(reading, holding.Document, body), reading.Tree);

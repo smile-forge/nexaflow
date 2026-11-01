@@ -247,6 +247,18 @@
           "doc": "src/Nexaflow.Markdown/Layout/LayoutQuery.cs",
           "class": "LayoutQuery",
           "method": "StopBelow"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeParser.cs",
+          "class": "CodeParser",
+          "method": "Windowed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Code/CodeSetting.cs",
+          "class": "CodeSetting",
+          "method": "HeightOf"
         }
       ],
       "concerns": {
@@ -266,6 +278,24 @@
             "status": "should",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Ast/ContentIndexTests.cs",
             "class": "ContentIndexTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/WindowedLayoutTests.cs",
+            "class": "WindowedLayoutTests",
+            "method": "Code_LaidAStretchAtATime_IsTheCodeLaidWhole"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/WindowedLayoutTests.cs",
+            "class": "WindowedLayoutTests",
+            "method": "ColouredCodeWrittenIn_IsColouredAsTheCodeItBecameLaidWhole"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/WindowedLayoutTests.cs",
+            "class": "WindowedLayoutTests",
+            "method": "LongCode_StandsAsTallAsItIs_BeforeAnyMoreOfItIsLaid"
           }
         ]
       }
@@ -592,11 +622,113 @@
           }
         ]
       }
+    },
+    "background-reading": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Slow.cs",
+          "class": "ContentEngine",
+          "method": "Later"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Pipeline/IAstStage.cs",
+          "class": "ISlowStage"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeSyntax.cs",
+          "class": "CodeSyntax"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/CodeHighlights.cs",
+          "class": "CodeHighlights"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Slow.cs",
+          "class": "ContentEngine",
+          "method": "MarkLanded"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Syntax/CodeHighlighter.cs",
+          "class": "CodeHighlighter",
+          "method": "Parse"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/SlowStageTests.cs",
+            "class": "SlowStageTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Code/CodeLanguageTests.cs",
+            "class": "CodeLanguageTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/WindowedLayoutTests.cs",
+            "class": "WindowedLayoutTests",
+            "method": "StringsAndCommentsRunningAcrossStretches_AreColouredAsInTheCodeLaidWhole"
+          }
+        ]
+      }
+    },
+    "md-code-highlighting": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeSpans.cs",
+          "class": "CodeSpans"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeGrammars.cs",
+          "class": "CodeGrammars"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Code/CodeKinds.cs",
+          "class": "CodeKinds"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
+          "class": "Shipped"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/CodeLines.cs",
+          "class": "CodeLines"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeParser.cs",
+          "class": "CodeParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeSyntax.cs",
+          "class": "CodeSyntax"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/CodeHighlights.cs",
+          "class": "CodeHighlights"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 19,
+  "changed_sets": 22,
   "touched_nodes": [
+    "background-reading",
     "diagram-nesting",
     "markdown-anchors",
     "markdown-block-undo",
@@ -607,6 +739,7 @@
     "markdown-outline",
     "markdown-section-fold",
     "markdown-sections",
+    "md-code-highlighting",
     "smartypants",
     "windowed-reading"
   ]

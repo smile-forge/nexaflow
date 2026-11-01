@@ -263,10 +263,4 @@ public sealed record ContentParse(ContentNode Tree)
     /// yet, short of the end of the reading — what it read is to be thrown away, and the stretch read again from a longer window.
     /// </summary>
     public bool NeedsMore { get; init; }
-
-    /// <summary>
-    /// Whether the language will read the same characters again, more fully, once a slower reading of them lands
-    /// (<c>ContentLanguage.SlowParser</c>) — so what was read here stands until then, and is read again when it has.
-    /// </summary>
-    public bool Provisional { get; init; }
 }

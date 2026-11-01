@@ -52,7 +52,6 @@ public sealed record ContentUnit(int Width, object? Begun, object? Ended, bool L
         this.Last = original.Last;
         this.Tree = original.Tree;
         this.Bodies = original.Bodies;
-        this.Provisional = original.Provisional;
     }
 
     /// <summary>
@@ -60,9 +59,6 @@ public sealed record ContentUnit(int Width, object? Begun, object? Ended, bool L
     /// those read so far: a body is read when something asks for it (<see cref="ContentBody"/>).
     /// </summary>
     public IReadOnlyList<(int At, ContentBody Body)> Bodies { get; init; } = [];
-
-    /// <summary>Whether its language will read it again once a slower reading lands (<see cref="ContentParse.Provisional"/>).</summary>
-    public bool Provisional { get; init; }
 
     /// <summary>The reading of the body held by the holder starting at <paramref name="at"/> in the unit, or null where none is read.</summary>
     public ContentBody? Body(int at)
@@ -141,7 +137,7 @@ public sealed record ContentUnit(int Width, object? Begun, object? Ended, bool L
             // Read as one unit, a reading is held as it was read; read a unit at a time, what a body holds stands for its characters.
             var tree = softMaxLength == int.MaxValue ? read.Tree : Standing(read.Tree, characters, from);
 
-            return new ContentUnit(read.Stopped ?? length, begun, read.Resume, read.Stopped is null, tree) { Provisional = read.Provisional };
+            return new ContentUnit(read.Stopped ?? length, begun, read.Resume, read.Stopped is null, tree);
         }
     }
 
@@ -197,13 +193,23 @@ public sealed class ContentUnits
     private readonly ContentIndex<ContentUnit> _units;
 
     /// <summary>Nothing read yet of a reading in <paramref name="language"/>.</summary>
-    public ContentUnits(string language) : this(language, ContentIndex<ContentUnit>.Empty) { }
+    public ContentUnits(string language) : this(language, ContentIndex<ContentUnit>.Empty, null) { }
 
-    private ContentUnits(string language, ContentIndex<ContentUnit> units)
+    private ContentUnits(string language, ContentIndex<ContentUnit> units, IReadingSyntax? syntax)
     {
         this.Language = language;
         _units = units;
+        this.Syntax = syntax;
     }
+
+    /// <summary>
+    /// What the reading's language keeps of all of it beside its units — code's syntax tree — carried through every change, or null for a
+    /// language that keeps nothing.
+    /// </summary>
+    public IReadingSyntax? Syntax { get; }
+
+    /// <summary>The same reading keeping <paramref name="syntax"/> of all of it beside its units.</summary>
+    public ContentUnits WithSyntax(IReadingSyntax? syntax) => new(this.Language, _units, syntax);
 
     /// <summary>The language the reading is written in, which its tree says.</summary>
     public string Language { get; }
@@ -241,7 +247,7 @@ public sealed class ContentUnits
         var index = _units.IndexAt(at);
         var (unit, start) = _units[index];
 
-        return new(this.Language, _units.Replaced(index, index + 1, [unit.Holding(at - start, body)]));
+        return new(this.Language, _units.Replaced(index, index + 1, [unit.Holding(at - start, body)]), this.Syntax);
     }
 
     /// <summary>
@@ -267,7 +273,7 @@ public sealed class ContentUnits
     {
         if (this.Done) throw new InvalidOperationException("A unit cannot follow one that read to the end of the reading.");
 
-        return new(this.Language, _units.Added(unit));
+        return new(this.Language, _units.Added(unit), this.Syntax);
     }
 
     /// <summary>The same, with the next unit of <paramref name="characters"/> read by <paramref name="parse"/> — or itself, once everything is read.</summary>
@@ -350,14 +356,17 @@ public sealed class ContentUnits
                                                  Func<ContentStretch, ContentParse> parse, int softMaxLength, int enough = int.MaxValue,
                                                  IBodyBounds? bounds = null)
     {
-        if (this.Count == 0) return (new ContentUnits(this.Language), 0, 0);
+        // What the language keeps of the whole reading is told of the change, whatever of the units is read again.
+        var syntax = this.Syntax?.Edited(changedFrom, changedTo, by, edited);
+
+        if (this.Count == 0) return (new ContentUnits(this.Language).WithSyntax(syntax), 0, 0);
 
         var holding = _units.IndexAt(changedFrom);
 
         // Written inside a body another reading reads, which its holder's language says still ends where it did: nothing is read
         // again, and the unit holding it only stands for more or fewer characters.
         if (bounds is not null && this.Grown(holding, changedFrom, changedTo, by, edited, bounds) is { } grown)
-            return (new(this.Language, _units.Replaced(holding, holding + 1, [grown])), holding, 0);
+            return (new(this.Language, _units.Replaced(holding, holding + 1, [grown]), syntax), holding, 0);
 
         var kept = holding > 0 && Opening(edited, _units[holding].Start, changedFrom) ? holding - 1 : holding;
         var (first, from) = _units[kept];
@@ -376,15 +385,15 @@ public sealed class ContentUnits
             var read = ContentUnit.Read(parse, edited, from, length, begun);
             reread.Add(read);
 
-            if (read.Last) return this.Reread(kept, this.Count, reread, changedFrom, changedTo, by, edited);
+            if (read.Last) return this.Reread(kept, this.Count, reread, changedFrom, changedTo, by, edited, syntax);
 
             var stop = from + read.Width;
 
             if (next < this.Count && _units[next] is var (old, start) && start + by == stop && Equals(old.Begun, read.Ended))
-                return this.Reread(kept, next, reread, changedFrom, changedTo, by, edited);
+                return this.Reread(kept, next, reread, changedFrom, changedTo, by, edited, syntax);
 
             if ((!this.Done && stop >= this.Reached + by) || stop >= enough)
-                return this.Reread(kept, this.Count, reread, changedFrom, changedTo, by, edited);
+                return this.Reread(kept, this.Count, reread, changedFrom, changedTo, by, edited, syntax);
 
             (from, begun) = (stop, read.Ended);
         }
@@ -395,7 +404,7 @@ public sealed class ContentUnits
     /// the bodies they held carried to the units read again — and how many units are kept before them and how many were read.
     /// </summary>
     private (ContentUnits Units, int Kept, int Read) Reread(int kept, int next, List<ContentUnit> reread, int from, int to, int by,
-                                                           IContentCharacters edited)
+                                                           IContentCharacters edited, IReadingSyntax? syntax)
     {
         var (start, left) = (_units[kept].Start, next - kept);
 
@@ -418,7 +427,7 @@ public sealed class ContentUnits
             }
         }
 
-        return (new(this.Language, _units.Replaced(kept, next, reread)), kept, reread.Count);
+        return (new(this.Language, _units.Replaced(kept, next, reread), syntax), kept, reread.Count);
     }
 
     /// <summary>
@@ -545,7 +554,7 @@ public sealed class ContentUnits
             bodies.Add((held, reading.Edited(ownFrom, ownTo, by, space, reading.Lead, reading.Width + by)));
         }
 
-        return new ContentUnit(unit.Width + by, unit.Begun, unit.Ended, unit.Last, grown) { Bodies = bodies, Provisional = unit.Provisional };
+        return new ContentUnit(unit.Width + by, unit.Begun, unit.Ended, unit.Last, grown) { Bodies = bodies };
     }
 
     /// <summary>How long the line ending closing <paramref name="line"/> is: two, one, or none.</summary>

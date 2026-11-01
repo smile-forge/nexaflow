@@ -29,12 +29,14 @@ public sealed class CodeBuilder(ContentReading reading, EditState state, LayoutS
         if (Reading.Root.Length == 0) return null;
 
         var characters = Characters;
-        var height = Medium.Shape(" ", characters.Face, characters.Size, Style.Text).Height;
+        var height = CodeSetting.LineHeight(Style, Medium);
 
         var into = new LayoutBuilder(Medium);
         var (x, y, wide) = (0.0, 0.0, 0.0);
 
-        into.Open(CodeKinds.Code, Reading.Root);
+        // A stretch the next carries on from ends where the next begins, which stands for that place: a caret is not put after it too.
+        var carriedOn = CodeSetting.CarriedOn(Reading.Root.Node);
+        into.Open(CodeKinds.Code, Reading.Root, stops: carriedOn ? LayoutStops.Before : LayoutStops.Both);
 
         foreach (var token in Tokens())
         {
@@ -63,27 +65,32 @@ public sealed class CodeBuilder(ContentReading reading, EditState state, LayoutS
 
         into.Close();
 
-        return new Laid(into.Seal(), Math.Max(wide, 1), Math.Max(y + height, height), []);
+        // The line after the last line end is a line of its own — where a caret goes after a closing line feed — unless the next
+        // stretch carries on from this one, whose first line it is.
+        return new Laid(into.Seal(), Math.Max(wide, 1), Math.Max(carriedOn ? y : y + height, height), []);
     }
 
-    protected override LayoutCharacters Characters => new(Style.Face(Style.MonoFont), Math.Max(1, Style.TextSize * 0.94), Style.Text);
+    protected override LayoutCharacters Characters => CodeSetting.Mono(Style);
 
     /// <summary>
     /// The pieces to set, a line at a time with a line end between: what a grammar found, where one has been read against this — and
-    /// otherwise the body held as written, which is the uncoloured case and the same path.
+    /// otherwise the body held as written, which is the uncoloured case and the same path. A body read a stretch at a time is a body for
+    /// each stretch, one after another.
     /// </summary>
     private IEnumerable<ContentPart> Tokens()
     {
-        if (Reading.Root.Part(Roles.Body) is not { } body) yield break;
-
-        if (body.Children.Count == 0)
+        foreach (var body in Reading.Root.Children)
         {
-            yield return body;
+            if (body.Role != Roles.Body) continue;
 
-            yield break;
+            if (body.Children.Count == 0)
+            {
+                yield return body;
+                continue;
+            }
+
+            foreach (var token in body.Children) yield return token;
         }
-
-        foreach (var token in body.Children) yield return token;
     }
 
     /// <summary>

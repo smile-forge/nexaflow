@@ -25,9 +25,9 @@ namespace Nexaflow.Tests.Visuals.Markdown.Code;
 ///
 /// <para>
 /// The whole point is the order. A document re-lays on every keystroke and compiling a grammar's query costs
-/// about fifteen milliseconds, so colouring is never on the way to drawing: code is read in two stages, as written
-/// at once and by its grammar away from the thread that draws, and colours itself when the second reading lands.
-/// These say both halves, and that the second one arrives.
+/// about fifteen milliseconds, so colouring is never on the way to drawing: code is read as written at once, and coloured
+/// from its reading's syntax away from the thread that draws, when what a stage finds there lands. These say both
+/// halves, and that the colours arrive.
 /// </para>
 /// </summary>
 [TestClass]
@@ -133,7 +133,10 @@ public class CodeLanguageTests
         // read from, and that what it says is held against the source. A tree printed in the order it was built
         // comes out the same whether its pieces know their places or not, so this asks them instead — and then
         // reverses the parts of every piece, which only still prints as the source if each of them does know.
-        var tree = new CodeLines().Run(CodeParser.Parse(Source, "c-sharp", CodeSpans.Read("c-sharp", Source)));
+        var found = CodeSyntax.Of("c-sharp", ContentDocument.Of(Source)).Find(0, Source.Length);
+        Assert.IsNotNull(found, "the grammar never read it");
+
+        var tree = new CodeLines().Run(CodeParser.Coloured(CodeParser.Parse(Source, "c-sharp"), found.Spans));
 
         var faults = AstOracle.Faults(Source, tree).ToList();
 

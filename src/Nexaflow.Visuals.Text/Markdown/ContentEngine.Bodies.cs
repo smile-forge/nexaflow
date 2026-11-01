@@ -26,11 +26,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// characters (<see cref="ContentSpace"/>) — a stretch at a time where it is long and its language reads that way — and is carried by
 /// every change from then on.
 /// </para>
-/// <para>
-/// <strong>What a slower reading changes.</strong> A body read before its language's second reading landed
-/// (<see cref="ContentParse.Provisional"/>) is read again once it has — looked into only after something has landed
-/// (<see cref="RelayLanded"/>), never on every laying out.
-/// </para>
+
 /// </summary>
 public sealed partial class ContentEngine
 {
@@ -40,17 +36,8 @@ public sealed partial class ContentEngine
     /// <summary>The content read whole, where it is too short to be shown a stretch at a time: what it read to, and from which version.</summary>
     private ContentWindow? _whole;
 
-    /// <summary>How many times what was read has been said to be stale (<see cref="Forget"/>), which a provisional body is checked against.</summary>
+    /// <summary>How many times the engine was told that nothing laid is to be set down again as it was (<see cref="Forget"/>).</summary>
     private int _forgotten;
-
-    /// <summary>
-    /// How many times what was read has been said to be stale (<see cref="Forget"/>), or a slower reading has landed
-    /// (<see cref="RelayLanded"/>) — which a provisional body is checked against.
-    /// </summary>
-    private int _landings;
-
-    /// <summary>Each provisional body, with how many landings there had been when it was last looked into.</summary>
-    private readonly ConditionalWeakTable<ContentBody, StrongBox<int>> _checked = new();
 
     /// <summary>Each body's stretch of the document, as a document of its own: made the first time it is laid, and kept as long as the body is.</summary>
     private readonly ConditionalWeakTable<ContentBody, ContentDocument> _stretches = new();
@@ -68,8 +55,8 @@ public sealed partial class ContentEngine
         {
             if (!_parses.TryGetValue(language, out var parse)) _parses[language] = parse = language.Parser();
 
-            var reads = ReadingWhole(language, parse);
-            whole = new ContentWindow(language, document, new ContentUnits(named ?? string.Empty).ReadOn(reads, document, int.MaxValue), reads)
+            var reads = ReadingWhole(parse);
+            whole = new ContentWindow(language, document, new ContentUnits(named ?? string.Empty).WithSyntax(language.Syntax?.Invoke(document)).ReadOn(reads, document, int.MaxValue), reads)
             {
                 Length = int.MaxValue,
             };
@@ -93,12 +80,8 @@ public sealed partial class ContentEngine
         return whole;
     }
 
-    /// <summary>
-    /// <paramref name="parse"/>, which reads a whole string, as a windowed parse reading its stretch to the end — by the language's second
-    /// reading where that has landed for these characters (<see cref="Read(ContentLanguage, Func{string, ContentParse}, string)"/>).
-    /// </summary>
-    private Func<ContentStretch, ContentParse> ReadingWhole(ContentLanguage language, Func<string, ContentParse> parse) =>
-        stretch => Read(language, parse, stretch.Window);
+    /// <summary><paramref name="parse"/>, which reads a whole string, as a windowed parse reading its stretch to the end.</summary>
+    private static Func<ContentStretch, ContentParse> ReadingWhole(Func<string, ContentParse> parse) => stretch => parse(stretch.Window);
 
     /// <summary>
     /// How a body <paramref name="length"/> characters long written in <paramref name="language"/> is read: a stretch at a time, where it
@@ -106,35 +89,22 @@ public sealed partial class ContentEngine
     /// </summary>
     private ContentReader Reader(ContentLanguage language, int length)
     {
-        if (language.Windowed is { } windowed && length >= WindowedFrom) return new(windowed(), StretchLength, language.Bounds);
+        if (language.Windowed is { } windowed && length >= WindowedFrom) return new(windowed(), StretchLength, language.Bounds, language.Syntax);
 
         if (!_nestedParses.TryGetValue(language, out var parse)) _nestedParses[language] = parse = language.Parser();
 
-        return new(ReadingWhole(language, parse), int.MaxValue, language.Bounds);
+        return new(ReadingWhole(parse), int.MaxValue, language.Bounds, language.Syntax);
     }
 
     /// <summary>
     /// The reading of the body held by the holder starting at <paramref name="at"/> in <paramref name="holding"/>, written in
-    /// <paramref name="language"/> and <paramref name="length"/> characters long: the one kept there, unless its language's second
-    /// reading has landed since it was read; and otherwise read now, and kept.
+    /// <paramref name="language"/> and <paramref name="length"/> characters long: the one kept there, and otherwise read now, and kept.
     /// </summary>
     private ContentBody? Body(Keeping holding, int at, string named, ContentLanguage language, int length)
     {
-        if (holding.Held(at) is { } kept && kept.Language == named && !LandedSince(kept, language)) return kept;
+        if (holding.Held(at) is { } kept && kept.Language == named) return kept;
 
         return holding.Read(at, named, Reader(language, length));
-    }
-
-    /// <summary>Whether <paramref name="body"/> was read before its language's second reading of it, which has landed since.</summary>
-    private bool LandedSince(ContentBody body, ContentLanguage language)
-    {
-        if (body.Units is not { Count: 1 } units || !units[0].Unit.Provisional) return false;
-
-        var seen = _checked.GetValue(body, static _ => new StrongBox<int>(-1));
-        if (seen.Value == _landings) return false;
-
-        seen.Value = _landings;
-        return HasLanded(new Kept(language, null, ContentDocument.Of(body.Space.Slice(0, body.Space.Length))));
     }
 
     /// <summary>

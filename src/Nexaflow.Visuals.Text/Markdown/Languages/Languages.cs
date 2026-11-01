@@ -45,6 +45,7 @@ using Nexaflow.Visuals.Text.Markdown.Treemap;
 using Nexaflow.Markdown.TreeView;
 using Nexaflow.Visuals.Text.Markdown.TreeView;
 using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Markdown.Layout.Code;
 
 namespace Nexaflow.Visuals.Text.Markdown.Languages;
 
@@ -745,11 +746,13 @@ internal static class Shipped
     private static ContentLanguage Coded(string? grammar) => new(
         Reads: word => grammar is not null && string.Equals(CodeGrammars.For(word), grammar, StringComparison.OrdinalIgnoreCase),
         Parser: () => source => ContentParse.Of(CodeParser.Parse(source, grammar ?? string.Empty)),
-        Stages: static (_, _) => [new CodeLines()],
+        Stages: static (_, show) => [show.Syntax is { Syntax: CodeSyntax syntax } read ? new CodeHighlights(syntax, read.At) : null, new CodeLines()],
         Builder: ContentLayouts.Code)
         {
             Editing = CodeEdits,
-            SlowParser = grammar is null ? null : source => ContentParse.Of(CodeParser.Parse(source, grammar, CodeSpans.Read(grammar, source))),
+            Windowed = () => CodeParser.Windowed(grammar ?? string.Empty),
+            UnitHeight = CodeSetting.HeightOf,
+            Syntax = grammar is null ? null : characters => CodeSyntax.Of(grammar, characters),
         };
 }
 

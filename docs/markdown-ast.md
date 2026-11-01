@@ -172,10 +172,16 @@ mean and nothing between one reading and the next. It marks an id only where the
 could be any string — a heading's title, the words in a `[label]` — it holds as the words it was written as. What any of
 it means is a stage's to work out (§4).
 
-**A language may have a second, slower parser.** `Parser` is fast; `SlowParser`, where a language has one, reads the
-same characters more fully. Code is the example: read as written at once, and by its grammar (tree-sitter) in the
-background, where every stretch becomes a piece of the kind the grammar called it. The engine runs it — see
-[§8](#8-the-engine).
+**A language may keep something of a whole reading beside its units** (`ContentLanguage.Syntax`, `IReadingSyntax`),
+carried through every change as the units are. Code keeps its syntax tree (`CodeSyntax`): its parser reads it as written,
+a unit at a time and stopping after a line end, and tree-sitter parses all of the reading, so a string or a comment
+running across units is one thing to it. A change records its edit with the reading's rows and columns; the tree is parsed
+again only when something asks what a stretch is coloured as, from the last tree with every edit since applied to a copy,
+in the background — and for a reading past 128 KB only once typing pauses. A stage colours each unit from it
+(`CodeHighlights`, see [§8](#8-the-engine)), the query limited to the unit's range and an embedded language parsed whole
+from what holds it; what the parse changed (`GetChangedRanges`) colours again every unit it reaches. Until a unit's
+colours land, it is coloured as it was last found, moved along by every change since. Units are cut at line ends because
+code is laid line by line and nothing wraps; what the code means never turns on where a unit stops.
 
 ## 4. Stages
 
@@ -382,12 +388,13 @@ opens it as a diagram's chip opens a node. Whatever has to show a place inside a
 against — is the engine's `Inputs` (`ContentInputs`), and what a language's stages read. Setting them, or `Forget`,
 says that nothing laid before is to be set down again as it was.
 
-**What is slow is never waited on** (`ContentEngine.Slow`). A `SlowParser` and an `ISlowStage` are the engine's to run,
-never a language's. The content is laid without them first; the engine starts the work, keeps what it comes to by the
-language, the stage and the characters — a few hundred deep, for every engine, so content shown again is shown as it
-was left — and says so when it lands (`Reread`). Whatever shows the content moves to its own thread and lays again what
-waited on it (`RelayLanded`): each unit that asked, wherever it stands — worked over again where it was a slow stage's
-finding — and nothing else.
+**What is slow is never waited on** (`ContentEngine.Slow`). An `ISlowStage` is the engine's to run, never a language's. The
+content is laid without what it finds first — or with what the stage can say meanwhile (`Meanwhile`) — the engine starts
+the work and keeps what it comes to by the language, the stage, the characters and what else the stage says it turns on
+(`Basis`: for code, the version of the reading and where the unit stands in it), a few hundred deep, and says so when it
+lands (`Reread`). Whatever shows the content moves to its own thread and lays again what waited on it (`RelayLanded`): each
+unit that asked, wherever it stands, worked over again — and each unit what it found reaches, where it says it reaches
+further (`ISlowFindingReaches`) — and nothing else.
 
 ## 9. Editing
 
@@ -546,8 +553,9 @@ every level, reads (`WindowedReadingTests`) and lays out (`WindowedLayoutTests`)
 whole.
 
 **Only what the reader is near is laid.** Every unit read stands on the page at a height: the one it was laid at, where a
-laying of it stands — kept while the unit is read, on screen or not — and otherwise its characters at the height a
-character of what is laid comes to; what is not read yet stands the same way. So the page is as long as the whole
+laying of it stands — kept while the unit is read, on screen or not — and otherwise the height its language says it comes
+to without laying it (`ContentLanguage.UnitHeight`; code says it exactly, a line height a line), or its characters at the
+height a character of what is laid comes to; what is not read yet stands the same way. So the page is as long as the whole
 document from the start. Each laying out lays the units the screen and a screen either side of it reach, the caret's and
 the one either side of it, each end of what is picked out and wherever the reader went (`ContentEngine.Uncover`: a place
 found, a deep link, a line gone to), at the places the heights put them, and goes on while that moved what the screen

@@ -16,6 +16,7 @@ using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Code;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -68,6 +69,136 @@ public class WindowedLayoutTests
                 Same(Whole(text, RtfParser.Language), Stretched(text, RtfParser.Language, length), $"{Path.GetFileName(path)} at {length}");
         }
     }
+
+    [TestMethod]
+    [CoversNode("windowed-reading")]
+    public void Code_LaidAStretchAtATime_IsTheCodeLaidWhole()
+    {
+        var code = MarkdownLayoutBench.GeneratedCode(48 * 1024);
+
+        foreach (var (text, said) in new[] { (code, "code"), (code.Replace("\n", "\r\n"), "code with returns"), (code.TrimEnd('\n'), "code ending mid-line") })
+            foreach (var length in Lengths(text))
+                Same(Whole(text, NoGrammar), Stretched(text, NoGrammar, length), $"{said} at {length}");
+    }
+
+    [TestMethod]
+    [CoversNode("windowed-reading")]
+    public void StringsAndCommentsRunningAcrossStretches_AreColouredAsInTheCodeLaidWhole()
+    {
+        // Code is read and laid a stretch at a time, cut where a line ends — which falls inside what runs over lines: a verbatim or raw
+        // string, a template literal, a triple-quoted string, a block comment, script and style written in a page. What each part is,
+        // is found in the whole of the code's syntax, so cut anywhere it must colour exactly as the code laid whole does.
+        var csharp = Repeated(at => $"class C{at}\n{{\n    string s = @\"one\n two \"\"quoted\"\"\n three\";\n    string r = \"\"\"\n        raw one\n        raw two\n        \"\"\";\n    /* block\n       comment */\n    int B() => {at};\n}}\n");
+        var javascript = Repeated(at => $"const t{at} = `one\n${{x}} two\nthree`;\n/* block\n   comment */\nconst re = /a+b/g; // {at}\nfunction f{at}() {{\n  return 'one';\n}}\n");
+        var python = Repeated(at => $"def f{at}():\n    \"\"\"A doc\n    over lines\n    \"\"\"\n    s = '''one\ntwo'''\n    return {at}  # done\n");
+        var html = Repeated(at => $"<div class=\"c{at}\">\n<script>\nconst a = `one\ntwo`;\n/* block\n comment */\n</script>\n<style>\n.c{at} {{\n  color: red;\n}}\n</style>\n</div>\n");
+
+        foreach (var (named, text) in new[] { ("csharp", csharp), ("javascript", javascript), ("python", python), ("html", html) })
+        {
+            // Coloured at all — a page's comments are its script's, so a page's are coloured only where what it embeds is read.
+            var whole = Whole(text, named);
+            var kinds = whole.Root.SelfAndDescendants().Select(piece => piece.Kind).ToHashSet();
+            Assert.IsTrue(kinds.Any(kind => kind.StartsWith("comment", StringComparison.Ordinal)) && kinds.Any(kind => kind.StartsWith("string", StringComparison.Ordinal)),
+                          $"{named} was never coloured: {string.Join(", ", kinds)}");
+
+            foreach (var length in new[] { 40, 150, 700 })
+                Same(whole, Stretched(text, named, length), $"{named} at {length}");
+        }
+
+        static string Repeated(Func<int, string> one) => string.Concat(Enumerable.Range(0, 24).Select(one));
+    }
+
+    [TestMethod]
+    [CoversNode("windowed-reading")]
+    public void CodeWrittenIn_IsLaidAsTheCodeItBecameLaidWhole()
+    {
+        var text = MarkdownLayoutBench.GeneratedCode(24 * 1024);
+        var engine = Shown(text, NoGrammar, new ContentEngine { WindowedFrom = 0, StretchLength = 1024 });
+        ToTheEnd(engine);
+
+        var lines = Enumerable.Range(0, text.Length).Where(at => at == 0 || text[at - 1] == '\n').ToList();
+
+        foreach (var at in lines.Where((_, index) => index % 37 == 0))
+            foreach (var (start, length, written) in new[] { (at, 0, "x"), (at, 0, "\n"), (Math.Max(at - 1, 0), 1, "") })
+            {
+                var after = engine.State.Document.Apply(ContentChange.Write(start, length, written));
+
+                engine.Apply(engine.State with { Document = after, Caret = 0, Selected = null }, notify: false);
+                Same(Whole(after.ToString(), NoGrammar), ToTheEnd(engine), $"{written.Replace("\n", "\\n")} written over {length} at {start}");
+
+                engine.Apply(engine.State with { Document = after.Apply(after.Inverse!), Caret = 0, Selected = null }, notify: false);
+            }
+    }
+
+    [TestMethod]
+    [CoversNode("windowed-reading")]
+    public void ColouredCodeWrittenIn_IsColouredAsTheCodeItBecameLaidWhole()
+    {
+        // A comment opened, a string opened and each closed again, far from most of what they colour: every unit the change reaches
+        // in the syntax is coloured again, not only the one written in.
+        var text = MarkdownLayoutBench.GeneratedCode(16 * 1024);
+        var engine = Shown(text, "csharp", new ContentEngine { WindowedFrom = 0, StretchLength = 1024 });
+        ToTheEnd(engine);
+
+        var middle = text.IndexOf('\n', text.Length / 3) + 1;
+        var later = text.IndexOf('\n', 2 * text.Length / 3) + 1;
+
+        foreach (var (at, written) in new[] { (middle, "/*"), (later, "*/"), (middle, "\""), (later, "\"") })
+        {
+            var after = engine.State.Document.Apply(ContentChange.Write(at, 0, written));
+            engine.Apply(engine.State with { Document = after, Caret = 0, Selected = null }, notify: false);
+
+            Same(Whole(after.ToString(), "csharp"), ToTheEnd(engine), $"{written} written at {at}");
+        }
+    }
+
+    [TestMethod]
+    [CoversNode("windowed-reading")]
+    public void LongCodeWrittenIn_KeepsItsColours_UntilTypingPauses()
+    {
+        var text = MarkdownLayoutBench.GeneratedCode(200 * 1024);
+        var engine = Shown(text, "csharp", new ContentEngine());
+        Settled(engine);
+
+        var at = text.IndexOf('\n', 2000) + 1;
+        engine.Apply(engine.State.MoveCaretTo(at), notify: false);
+        engine.Input(new ContentText("x"));
+
+        // Laid by the keystroke itself, before anything parsed since is taken in: what was written over is uncoloured, and the rest of
+        // its unit is not.
+        Assert.IsTrue(Called(engine.Laid).Count(kind => kind != Kinds.Verbatim && kind != CodeKinds.Code) > 100, "The unit written in lost its colours while it waited.");
+
+        // Once it has paused, every piece laid is what the same piece of the code laid whole is.
+        Settled(engine);
+
+        var whole = Whole(engine.State.Document.ToString(), "csharp").Root.SelfAndDescendants()
+                        .Where(piece => piece.Words is not null && piece.Part is not null)
+    .GroupBy(piece => Span(piece.Part))
+                        .ToDictionary(same => same.Key, same => same.Last().Kind);
+
+        foreach (var piece in engine.Laid.Root.SelfAndDescendants())
+            if (piece.Words is not null && piece.Part is { } part)
+                Assert.AreEqual(whole[Span(part)], piece.Kind, $"what {Span(part)} is coloured as once typing paused");
+
+        static List<string> Called(Laid laid) => [.. laid.Root.SelfAndDescendants().Select(piece => piece.Kind)];
+    }
+
+    [TestMethod]
+    [CoversNode("windowed-reading")]
+    public void LongCode_StandsAsTallAsItIs_BeforeAnyMoreOfItIsLaid()
+    {
+        var text = MarkdownLayoutBench.GeneratedCode(400 * 1024);
+        var engine = Shown(text, NoGrammar, new ContentEngine());
+
+        Assert.IsTrue(engine.ReadingRest.Wait(Patience), "The rest was never read.");
+        engine.Relay();
+
+        Assert.IsTrue(engine.Unlaid, "All of it was laid.");
+        Assert.AreEqual(Whole(text, NoGrammar).Size.Height, engine.Laid.Size.Height, 1e-6, "Code's lines say how tall it is, laid or not.");
+    }
+
+    /// <summary>Code in a language no grammar reads: drawn as written, so no slower reading lands to colour it.</summary>
+    private const string NoGrammar = "no-grammar-code";
 
     [TestMethod]
     [CoversNode("windowed-reading")]
@@ -196,15 +327,18 @@ public class WindowedLayoutTests
     /// <summary><paramref name="engine"/> with all it is to lay laid, and every slower reading it asked for landed and laid.</summary>
     private static void Settled(ContentEngine engine)
     {
-        for (var round = 0; round < 8; round++)
+        // Until a round lands nothing: what landed is laid, and laying it may ask for more — the units a parse changed — which lands in turn.
+        for (var round = 0; round < 16; round++)
         {
             for (var pass = 0; pass < 1000 && engine.Unlaid; pass++) engine.Relay();
 
             Assert.IsTrue(SpinWait.SpinUntil(() => !engine.Rereading, Patience), "A slower reading never landed.");
-            engine.RelayLanded();
+            if (!engine.MarkLanded()) return;
 
-            if (!engine.Rereading && !engine.Unlaid) return;
+            engine.Relay();
         }
+
+        Assert.Fail("Slower readings went on landing.");
     }
 
     [TestMethod]
@@ -360,7 +494,7 @@ public class WindowedLayoutTests
             if (engine.Rereading) landed.Wait(Patience);
 
             landed.Reset();
-            engine.Forget();
+            engine.MarkLanded();
             laid = engine.Lay(named, EditState.For(text), Style, Room, false);
         }
 
@@ -393,6 +527,9 @@ public class WindowedLayoutTests
             Assert.IsTrue(engine.ReadingRest.Wait(Patience), "The rest was never read.");
             engine.Relay();
         }
+
+        // Every slower reading it asked for landed and laid — what the same content laid whole is compared with.
+        Settled(engine);
 
         Assert.IsFalse(engine.Unlaid, "The end was never laid.");
 

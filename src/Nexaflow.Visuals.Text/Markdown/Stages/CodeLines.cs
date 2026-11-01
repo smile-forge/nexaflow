@@ -22,20 +22,29 @@ public sealed class CodeLines : IAstStage
 {
     public string Name => "code:lines";
 
+    /// <summary>Every body of the stretch cut at its line ends — one, or one for each stretch of a body read a stretch at a time.</summary>
     public ContentNode Run(ContentNode tree)
     {
-        if (tree.Part(Roles.Body) is not { } body) return tree;
+        ContentNode[]? parts = null;
 
-        var pieces = new List<ContentNode>();
-        var cut = false;
+        for (var at = 0; at < tree.Children.Count; at++)
+        {
+            var body = tree.Children[at];
+            if (body.Role != Roles.Body) continue;
 
-        foreach (var token in body.IsLeaf ? [body] : body.Children)
-            cut |= Cut(token, pieces);
+            var pieces = new List<ContentNode>();
+            var cut = false;
 
-        if (!cut) return tree;
+            foreach (var token in body.IsLeaf ? [body] : body.Children)
+                cut |= Cut(token, pieces);
 
-        var lined = ContentNode.Branch(Kinds.Sequence, pieces, Roles.Body, body.Offset);
-        return tree.With([.. tree.Children.Select(child => ReferenceEquals(child, body) ? lined : child)]);
+            if (!cut) continue;
+
+            parts ??= [.. tree.Children];
+            parts[at] = ContentNode.Branch(Kinds.Sequence, pieces, Roles.Body, body.Offset);
+        }
+
+        return parts is null ? tree : tree.With(parts);
     }
 
     /// <summary>

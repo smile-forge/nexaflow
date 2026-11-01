@@ -9,7 +9,8 @@ namespace Nexaflow.Markdown.Ast;
 /// How far a unit is read before it looks for somewhere to stop — <see cref="int.MaxValue"/> for a reading read as one unit.
 /// </param>
 /// <param name="Bounds">What the language says about a body it holds when something is written inside it, or null where it says nothing.</param>
-public sealed record ContentReader(Func<ContentStretch, ContentParse> Parse, int SoftMaxLength, IBodyBounds? Bounds = null);
+public sealed record ContentReader(Func<ContentStretch, ContentParse> Parse, int SoftMaxLength, IBodyBounds? Bounds = null,
+                                   Func<IContentCharacters, IReadingSyntax?>? Syntax = null);
 
 /// <summary>
 /// The reading of a body written in another language inside a reading — a fence's code, the markdown in a fence, a label in a diagram in
@@ -65,7 +66,7 @@ public sealed class ContentBody
     /// characters <paramref name="space"/>, read whole by <paramref name="reader"/> in the language called <paramref name="language"/>.
     /// </summary>
     public static ContentBody Read(string language, ContentSpace space, int lead, int width, ContentReader reader) =>
-        new(language, space, ReadOn(new ContentUnits(language), space, reader), lead, width, reader);
+        new(language, space, ReadOn(new ContentUnits(language).WithSyntax(reader.Syntax?.Invoke(space)), space, reader), lead, width, reader);
 
     /// <summary>
     /// The body once its own characters from <paramref name="from"/> to <paramref name="to"/> are written over, moving those after along

@@ -316,7 +316,7 @@ public sealed partial class ContentEngine
         var first = ContentUnit.Read(parse, document, 0, StretchLength, null);
         var named = (first.Tree as BlockNode)?.Language ?? _named ?? string.Empty;
 
-        return _window = new ContentWindow(language, document, new ContentUnits(named).Added(first), parse) { Length = StretchLength };
+        return _window = new ContentWindow(language, document, new ContentUnits(named).WithSyntax(language.Syntax?.Invoke(document)).Added(first), parse) { Length = StretchLength };
     }
 
     /// <summary>
