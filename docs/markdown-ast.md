@@ -183,7 +183,10 @@ from what holds it; what the parse changed (`GetChangedRanges`) colours again ev
 colours land, it is coloured as it was last found, moved along by every change since. Units are cut at line ends because
 code is laid line by line and nothing wraps; what the code means never turns on where a unit stops. Inside a unit each
 line is a block of its own (`CodeKinds.Line`), so a line reading as it did — the same characters coloured the same — is
-set down as it was laid (`WithUnchanged`, `LaidBlocks`), and a keystroke lays the line it was typed on.
+set down as it was laid (`WithUnchanged`, `LaidBlocks`), and a keystroke lays the line it was typed on. A line is coloured
+and cut in one pass (`CodeParser.InLines`), and one said and coloured as a line the reading was cut into before is that
+line again (`CodeLinePool`), moved along where it now stands — so colours landing for a unit make only the lines they
+changed, and a block kept is hashed once (`WithUnchanged` keeps what each node it asked about came to).
 
 ## 4. Stages
 
@@ -535,8 +538,9 @@ block scrolled far away is let go.
 ## 11. Speed
 
 **A change is read again from where it was written.** Every reading is units (`ContentUnits`): one unit for content
-read whole, units of about 32 KB (`StretchLength`) for one 128 KB long or more (`WindowedFrom`) — at every depth, since a
-body is windowed by its own length. The units are indexed by width (`ContentIndex`), so where one starts is the widths
+read whole, units of about 32 KB (`StretchLength`) for one as long as a unit or more (`WindowedFrom`) — so what a keystroke
+works over and lays is never much more than a unit, however long the reading — at every depth, since a body is windowed by
+its own length. The units are indexed by width (`ContentIndex`), so where one starts is the widths
 before it, and text written before a unit moves it without anything in it being rewritten. A change names what it wrote
 (`ContentChange`), and the reading is read again from the unit it fell in — from the unit before, where it fell on its
 unit's first line, since a block's first line can change what the block before it is — on until a unit stops where an

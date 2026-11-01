@@ -1,4 +1,5 @@
 
+using System.Runtime.CompilerServices;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Pipeline;
 
@@ -134,11 +135,17 @@ public sealed class WithUnchanged : IAstStage
     /// same one, so a block is only ever compared whole against the few it could be — worked out without printing it, since
     /// a document is every block of it on every keystroke.
     /// </summary>
-    private static int Shape(ContentNode node)
+    private static int Shape(ContentNode node) => Shapes.GetValue(node, static block => new StrongBox<int>(Shaped(block))).Value;
+
+    /// <summary>What <see cref="Shape"/> came to for each block asked about — a node never changes, so a block kept from one reading to the next is never walked again.</summary>
+    private static readonly ConditionalWeakTable<ContentNode, StrongBox<int>> Shapes = new();
+
+    /// <summary><see cref="Shape"/>, worked out.</summary>
+    private static int Shaped(ContentNode node)
     {
         var shape = HashCode.Combine(node.Kind, node.Role, node.Text);
 
-        for (var at = 0; at < node.Children.Count; at++) shape = HashCode.Combine(shape, Shape(node.Children[at]));
+        for (var at = 0; at < node.Children.Count; at++) shape = HashCode.Combine(shape, Shaped(node.Children[at]));
 
         return shape;
     }

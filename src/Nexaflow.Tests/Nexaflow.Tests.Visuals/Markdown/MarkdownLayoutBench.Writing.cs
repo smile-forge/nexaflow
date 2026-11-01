@@ -41,7 +41,7 @@ namespace Nexaflow.Tests.Visuals.Markdown;
 public partial class MarkdownLayoutBench
 {
     /// <summary>The sizes prose and code are generated at, in characters.</summary>
-    private static readonly int[] WritingSizes = [50 * 1024, 1024 * 1024, 50 * 1024 * 1024];
+    private static readonly int[] WritingSizes = [30 * 1024, 50 * 1024, 1024 * 1024, 50 * 1024 * 1024];
 
     /// <summary>The sizes of the code fence the nested documents hold, in characters.</summary>
     private static readonly int[] FenceSizes = [1024 * 1024, 5 * 1024 * 1024];

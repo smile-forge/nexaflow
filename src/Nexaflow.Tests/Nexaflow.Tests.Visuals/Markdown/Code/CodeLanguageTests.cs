@@ -136,7 +136,7 @@ public class CodeLanguageTests
         var found = CodeSyntax.Of("c-sharp", ContentDocument.Of(Source)).Find(0, Source.Length);
         Assert.IsNotNull(found, "the grammar never read it");
 
-        var tree = new CodeLines().Run(CodeParser.Coloured(CodeParser.Parse(Source, "c-sharp"), found.Spans));
+        var tree = CodeParser.InLines(CodeParser.Parse(Source, "c-sharp"), found.Spans);
 
         var faults = AstOracle.Faults(Source, tree).ToList();
 

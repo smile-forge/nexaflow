@@ -50,6 +50,9 @@ internal sealed class CodeSyntax : IReadingSyntax
     /// <summary>The reading's characters at this version.</summary>
     public IContentCharacters Characters { get; }
 
+    /// <summary>The lines the reading was last cut into, kept for every version of it (<see cref="CodeLinePool"/>).</summary>
+    public CodeLinePool Lines => _history.Lines;
+
     /// <summary>Whether <paramref name="other"/> is a version of the same reading.</summary>
     public bool Shares(CodeSyntax other) => ReferenceEquals(_history, other._history);
 
@@ -115,6 +118,9 @@ internal sealed class CodeSyntax : IReadingSyntax
 
         /// <summary>The newest version made.</summary>
         public int Latest { get; private set; }
+
+        /// <summary>The lines the reading was last cut into.</summary>
+        public CodeLinePool Lines { get; } = new();
 
         /// <summary>Makes the version <paramref name="edit"/> makes of <paramref name="before"/>.</summary>
         public int Edited(int before, CodeEdit edit)

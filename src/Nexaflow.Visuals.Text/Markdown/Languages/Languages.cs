@@ -112,6 +112,9 @@ internal static class Shipped
         Builder: ContentLayouts.Markdown)
         {
             Windowed = RtfParser.Windowed,
+
+            // Laid by the markdown builder, whose blocks say the room between them — at a seam between two units as anywhere.
+            Seam = MarkdownGaps.Between,
             Editing = new ReadAsDrawn(),
         };
 

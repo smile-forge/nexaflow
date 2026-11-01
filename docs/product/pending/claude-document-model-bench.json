@@ -733,6 +733,17 @@
           "doc": "src/Nexaflow.Markdown/Layout/Code/CodeBuilder.cs",
           "class": "CodeBuilder",
           "method": "Line"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeLinePool.cs",
+          "class": "CodeLinePool"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeParser.cs",
+          "class": "CodeParser",
+          "method": "InLines"
         }
       ]
     }

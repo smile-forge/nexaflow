@@ -47,10 +47,11 @@ namespace Nexaflow.Visuals.Text.Markdown;
 public sealed partial class ContentEngine
 {
     /// <summary>
-    /// How long, in characters, content has to be before it is read and laid a stretch at a time. Shorter content is read and
-    /// laid whole.
+    /// How long, in characters, content has to be before it is read and laid a stretch at a time — as long as one stretch, so no unit
+    /// worked over and laid on a keystroke is ever much longer than <see cref="StretchLength"/>, however long the content. Shorter content
+    /// is read and laid whole.
     /// </summary>
-    internal int WindowedFrom { get; set; } = 128 * 1024;
+    internal int WindowedFrom { get; set; } = 32 * 1024;
 
     /// <summary>How far a stretch is read before it looks for somewhere to stop (<see cref="ContentStretch.SoftMaxLength"/>).</summary>
     internal int StretchLength { get; set; } = 32 * 1024;

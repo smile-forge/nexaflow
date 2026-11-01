@@ -33,7 +33,10 @@ internal sealed class CodeHighlights(CodeSyntax syntax, int at) : ISlowStage
 
     public ContentNode Meanwhile(ContentNode tree) => this.Coloured(tree, syntax.Known(at, at + tree.Width));
 
-    /// <summary><paramref name="tree"/> cut into what <paramref name="spans"/>, standing among the reading's characters, call each part of it.</summary>
+    /// <summary>
+    /// <paramref name="tree"/> cut into lines, each into what <paramref name="spans"/>, standing among the reading's characters, call each
+    /// part of it — a line said and coloured as one the reading was cut into before being that line again.
+    /// </summary>
     private ContentNode Coloured(ContentNode tree, IReadOnlyList<HighlightSpan> spans) =>
-        spans.Count == 0 ? tree : CodeParser.Coloured(tree, [.. spans.Select(span => span with { Start = span.Start - at })]);
+        CodeParser.InLines(tree, [.. spans.Select(span => span with { Start = span.Start - at })], syntax.Lines);
 }
