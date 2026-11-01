@@ -42,10 +42,13 @@ public sealed record Laid(LayoutTree Tree, double Width, double Height, IReadOnl
 
     private bool? _draws;
 
-    private bool Drew()
+    private bool Drew() => Drew(Tree);
+
+    /// <summary>Whether anything in <paramref name="tree"/>, or in any tree put down in it, reached the page.</summary>
+    private static bool Drew(LayoutTree tree)
     {
-        for (var at = 0; at < Tree.Count; at++)
-            if (Tree.WordsOf(at) is not null || Tree.MarksOf(at).Length > 0) return true;
+        for (var at = 0; at < tree.Count; at++)
+            if (tree.WordsOf(at) is not null || tree.MarksOf(at).Length > 0 || (tree.MountOf(at) is { } mount && Drew(mount.Tree))) return true;
 
         return false;
     }
@@ -100,14 +103,26 @@ public sealed record Laid(LayoutTree Tree, double Width, double Height, IReadOnl
     private IEnumerable<LayoutPiece> Selectables() =>
         Root.Leaves().Select(leaf => leaf.Selectable()).Where(piece => piece.Exists);
 
-    /// <summary>The last thing a press could mean, in drawing order — found from the end.</summary>
-    private LayoutPiece LastSelectable()
-    {
-        if (!Exists) return default;
+    /// <summary>The last thing a press could mean, in drawing order — found from the end, through every tree put down on the way.</summary>
+    private LayoutPiece LastSelectable() => Exists ? Last(Tree, 0, Tree.Piece(0).Extent, null) : default;
 
-        for (var at = Tree.Piece(0).Extent - 1; at >= 0; at--)
-            if (Tree.At(at) is { IsLeaf: true } leaf && leaf.Selectable() is { Exists: true } selectable)
+    /// <summary>
+    /// The last thing a press could mean among the pieces from <paramref name="from"/> up to <paramref name="end"/> of
+    /// <paramref name="tree"/>, seen through <paramref name="within"/> — found from the end.
+    /// </summary>
+    private static LayoutPiece Last(LayoutTree tree, int from, int end, LayoutMounted? within)
+    {
+        for (var at = end - 1; at >= from; at--)
+        {
+            if (tree.MountOf(at) is { } mount)
+            {
+                if (Last(mount.Tree, 1, mount.Tree.Count, new LayoutMounted(tree, at, within)) is { Exists: true } inside) return inside;
+                continue;
+            }
+
+            if (new LayoutPiece(tree, at, within) is { IsLeaf: true } leaf && leaf.Selectable() is { Exists: true } selectable)
                 return selectable;
+        }
 
         return default;
     }

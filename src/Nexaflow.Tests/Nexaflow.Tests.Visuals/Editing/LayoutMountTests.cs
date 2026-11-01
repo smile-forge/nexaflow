@@ -67,6 +67,41 @@ public class LayoutMountTests
         Assert.IsTrue(page.Children.All(line => line.Parent == page), "each held by the page");
     });
 
+    [TestMethod]
+    public void EveryQuestionOfTheLayout_IsAnsweredThroughAMountAsThoughItsPiecesWereLaidThere() => UiThread.Run(() =>
+    {
+        var was = ContentPart.Of(Lines);
+        var unit = Laid("unit", was, default);
+
+        var mounted = Page(build => build.Mount(new LayoutMount(unit, was, 10), Down));
+        var laidThere = Page(build => Blocks(build, ContentPart.Of(Lines, 10), Down));
+
+        // A press anywhere — on a line, between two, past them all.
+        for (var y = 0.0; y < 90; y += 3)
+            for (var x = 0.0; x < 140; x += 7)
+            {
+                var at = new LayoutPoint(x, y);
+                Assert.AreEqual(Said(laidThere.PieceAt(at)), Said(mounted.PieceAt(at)), $"what a press at {at} lands on");
+                Assert.AreEqual(laidThere.OffsetAt(at), mounted.OffsetAt(at), $"what a press at {at} means");
+            }
+
+        // Every place a caret stands, and every stretch of the source.
+        CollectionAssert.AreEqual(laidThere.Tree!.Places.Select(place => (place.Offset, place.Trailing)).ToList(),
+                                  mounted.Tree!.Places.Select(place => (place.Offset, place.Trailing)).ToList(), "where a caret stands");
+
+        for (var offset = 0; offset <= 26; offset++)
+        {
+            Assert.AreEqual(laidThere.StopAt(offset), mounted.StopAt(offset), $"the stop at {offset}");
+            Assert.AreEqual(laidThere.CaretRect(offset), mounted.CaretRect(offset), $"the caret at {offset}");
+
+            for (var length = 0; offset + length <= 26; length += 3)
+                CollectionAssert.AreEqual(laidThere.RangeRects(offset, length).ToList(), mounted.RangeRects(offset, length).ToList(),
+                                          $"what {offset}+{length} covers");
+        }
+    });
+
+    private static string Said(LayoutPiece piece) => piece.Exists ? $"{piece.Kind} {piece.Part?.Start}+{piece.Part?.Length} {piece.Bounds}" : "nothing";
+
     /// <summary>A tree whose top is called <paramref name="kind"/> holding a piece for each of <paramref name="reading"/>'s parts.</summary>
     private static LayoutTree Laid(string kind, ContentPart reading, LayoutPoint at)
     {

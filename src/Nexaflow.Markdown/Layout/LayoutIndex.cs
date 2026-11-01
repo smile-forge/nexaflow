@@ -22,6 +22,11 @@ namespace Nexaflow.Markdown.Layout;
 /// that cannot answer is passed over whole: a question asks a few hundred runs and the blocks of the one or two that can.
 /// </para>
 /// <para>
+/// <strong>A tree put down inside this one is one piece here</strong> (<see cref="LayoutMount"/>): it reaches and sits in what its
+/// own index says of its top, placed where the mount stands. Whatever asks goes on into that tree's index, asking it in its own
+/// frame and its own source (<see cref="LayoutQuery"/>), so a tree kept from one laying out to the next keeps its index too.
+/// </para>
+/// <para>
 /// Made on the first question and kept with the tree, which does not change once sealed — save for being settled onto the
 /// page, which lets this go (<see cref="LayoutTree.Settle"/>).
 /// </para>
@@ -76,6 +81,19 @@ internal sealed class LayoutIndex
                 _reach[at] = reach;
 
                 var up = tree.Piece(at).Parent;
+
+                // A tree put down here reaches, and sits in, what its own index says its top does — placed where the mount stands,
+                // and as far along the source as the mount says what it was laid from now stands.
+                if (tree.MountOf(at) is { } mount)
+                {
+                    var held = mount.Tree.Indexed;
+                    var (first, last) = held.Span(0);
+
+                    _reach[at] = held.Reach(0) is { IsEmpty: false } inner ? tree.FrameOf(at).Out(inner) : where;
+                    named[at] = first + mount.Shift;
+                    (_first[at], _last[at]) = (first + mount.Shift, last + mount.Shift);
+                    continue;
+                }
 
                 if (tree.PartOf(at) is { } part)
                 {
