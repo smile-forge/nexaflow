@@ -42,6 +42,9 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
     /// </summary>
     private readonly string _aiDir = TestTemp.CreateSubdirectory("nexaflow-edit-ai-").FullName;
 
+    /// <summary>A hundred controls, each one look and its effect: more than the usual budget.</summary>
+    protected override TimeSpan JourneyBudget => TimeSpan.FromSeconds(200);
+
     protected override IReadOnlyDictionary<string, string> LaunchEnvironment =>
         new Dictionary<string, string> { ["NEXAFLOW_AI_DIR"] = _aiDir };
 
@@ -167,7 +170,8 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
             Check("A marquee dragged on the photo selects, and what takes the selection is offered",
                   () => FitCanvas() && DragOnCanvas(-20, -12, 20, 12)
                         && WaitForFs(() => Enabled("Image_CutOutCopy"), 3) && Enabled("Image_CutOutSave") && Enabled("Image_CutOutRemoveBackground"));
-            Check("Refine by moves", () => MoveSlider("Image_RegionRefineBy"));
+            // Moved to its far end and back to its least, so the small marquee outlasts Shrink.
+            Check("Refine by moves", () => MoveSlider("Image_RegionRefineBy") && MoveSlider("Image_RegionRefineBy"));
             CheckInvoke("Feather the selection", "Image_RegionFeather");
             CheckInvoke("Grow it", "Image_RegionGrow");
             CheckInvoke("Shrink it", "Image_RegionShrink");

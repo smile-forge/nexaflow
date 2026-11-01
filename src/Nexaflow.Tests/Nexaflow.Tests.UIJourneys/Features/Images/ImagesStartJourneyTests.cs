@@ -31,7 +31,8 @@ public class ImagesStartJourneyTests : ImageEditJourneyBase
     private string _folder = "";
     private string _recent = "";
 
-    /// <summary>A canvas opened here before, remembered by the Images settings, and a picture on the clipboard.</summary>
+    /// <summary>A canvas opened here before, remembered by the Images settings, a workspace that draws no pictures, and a
+    /// picture on the clipboard.</summary>
     protected override void SeedConfig(string configDir)
     {
         _folder = Path.Combine(TestTemp.Root, "nexaflow-start-journey-" + Guid.NewGuid().ToString("N"));
@@ -47,6 +48,18 @@ public class ImagesStartJourneyTests : ImageEditJourneyBase
               "ConfigName": "images",
               "HistoryMegabytes": 1024,
               "RecentCanvases": [ {{JsonSerializer.Serialize(_recent)}} ]
+            }
+            """);
+
+        // A workspace that draws no pictures, nor waits on a model to download one: the start screen offers its AI settings.
+        var abilities = Path.Combine(configDir, "Contexts", "Default", "ai-abilities");
+        Directory.CreateDirectory(abilities);
+        File.WriteAllText(Path.Combine(abilities, $"config_{version}.json"), """
+            {
+              "ConfigName": "ai-abilities",
+              "FriendlyName": "AI",
+              "Columns": [],
+              "Assignments": {}
             }
             """);
 

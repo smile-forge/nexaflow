@@ -1,5 +1,6 @@
 <UserControl x:Class="Nexaflow.Features.Images.Views.LayersPanel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:icons="clr-namespace:Nexaflow.Visuals.Icons;assembly=Nexaflow.Visuals.Icons"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:Nexaflow.Features.Images.ViewModels"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
@@ -27,33 +28,33 @@
         <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,6">
             <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding AddPixelLayerCommand}"
                     ToolTip="{loc:Str Images.Layers.AddPixelTip}" AutomationProperties.AutomationId="Image_LayersAddPixel">
-                <TextBlock Text="{loc:Str Images.Layers.AddPixel}" FontSize="11"/>
+                <icons:IconLabel Icon="fluent:layer_diagonal_add" Text="{loc:Str Images.Layers.AddPixel}" FontSize="11"/>
             </Button>
             <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding AddMarkupLayerCommand}"
                     ToolTip="{loc:Str Images.Layers.AddMarkupTip}" AutomationProperties.AutomationId="Image_LayersAddMarkup">
-                <TextBlock Text="{loc:Str Images.Layers.AddMarkup}" FontSize="11"/>
+                <icons:IconLabel Icon="fluent:note_add" Text="{loc:Str Images.Layers.AddMarkup}" FontSize="11"/>
             </Button>
             <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding GroupCommand}"
                     ToolTip="{loc:Str Images.Layers.GroupTip}" AutomationProperties.AutomationId="Image_LayersGroup">
-                <TextBlock Text="{loc:Str Images.Layers.Group}" FontSize="11"/>
+                <icons:IconLabel Icon="fluent:group" Text="{loc:Str Images.Layers.Group}" FontSize="11"/>
             </Button>
             <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding DuplicateCommand}"
-                    ToolTip="{loc:Str Images.Layers.DuplicateTip}" AutomationProperties.AutomationId="Image_LayersDuplicate">
-                <TextBlock Text="{loc:Str Images.Layers.Duplicate}" FontSize="11"/>
+                    ToolTip="{loc:Str Images.Layers.DuplicateTip}" AutomationProperties.AutomationId="Image_LayersDuplicate" AutomationProperties.Name="{loc:Str Images.Layers.Duplicate}">
+                <icons:IconLabel Icon="fluent:copy_add" FontSize="11"/>
             </Button>
             <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding DeleteCommand}"
-                    ToolTip="{loc:Str Images.Layers.DeleteTip}" AutomationProperties.AutomationId="Image_LayersDelete">
-                <TextBlock Text="{loc:Str Images.Layers.Delete}" FontSize="11"/>
+                    ToolTip="{loc:Str Images.Layers.DeleteTip}" AutomationProperties.AutomationId="Image_LayersDelete" AutomationProperties.Name="{loc:Str Images.Layers.Delete}">
+                <icons:IconLabel Icon="fluent:delete" FontSize="11"/>
             </Button>
             <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding MoveUpCommand}"
                     ToolTip="{loc:Str Images.Layers.MoveUpTip}" AutomationProperties.AutomationId="Image_LayersMoveUp"
                     AutomationProperties.Name="{loc:Str Images.Layers.MoveUpTip}">
-                <TextBlock Text="▲" FontSize="11"/>
+                <icons:IconLabel Icon="fluent:arrow_up"/>
             </Button>
             <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding MoveDownCommand}"
                     ToolTip="{loc:Str Images.Layers.MoveDownTip}" AutomationProperties.AutomationId="Image_LayersMoveDown"
                     AutomationProperties.Name="{loc:Str Images.Layers.MoveDownTip}">
-                <TextBlock Text="▼" FontSize="11"/>
+                <icons:IconLabel Icon="fluent:arrow_down"/>
             </Button>
         </WrapPanel>
 
@@ -87,32 +88,32 @@
         <StackPanel DockPanel.Dock="Bottom">
             <Expander Header="{loc:Str Images.Layers.Mask}" Foreground="{StaticResource TextBrush}" Margin="0,6,0,0" AutomationProperties.AutomationId="Image_LayersMaskSection">
                 <WrapPanel Margin="0,6,0,0">
-                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding RevealAllMaskCommand}" ToolTip="{loc:Str Images.Layers.RevealAllTip}" AutomationProperties.AutomationId="Image_LayersMaskRevealAll"><TextBlock Text="{loc:Str Images.Layers.RevealAll}" FontSize="11"/></Button>
-                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding HideAllMaskCommand}" ToolTip="{loc:Str Images.Layers.HideAllTip}" AutomationProperties.AutomationId="Image_LayersMaskHideAll"><TextBlock Text="{loc:Str Images.Layers.HideAll}" FontSize="11"/></Button>
-                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding MaskFromSelectionCommand}" ToolTip="{loc:Str Images.Layers.FromSelectionTip}" AutomationProperties.AutomationId="Image_LayersMaskFromSelection"><TextBlock Text="{loc:Str Images.Layers.FromSelection}" FontSize="11"/></Button>
-                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding MaskHidingSelectionCommand}" ToolTip="{loc:Str Images.Layers.HideSelectionTip}" AutomationProperties.AutomationId="Image_LayersMaskHideSelection"><TextBlock Text="{loc:Str Images.Layers.HideSelection}" FontSize="11"/></Button>
-                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding MaskFromTransparencyCommand}" ToolTip="{loc:Str Images.Layers.FromTransparencyTip}" AutomationProperties.AutomationId="Image_LayersMaskFromTransparency"><TextBlock Text="{loc:Str Images.Layers.FromTransparency}" FontSize="11"/></Button>
-                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding MaskFromCutOutCommand}" ToolTip="{loc:Str Images.Layers.FromCutOutTip}" AutomationProperties.AutomationId="Image_LayersMaskFromCutOut"><TextBlock Text="{loc:Str Images.Layers.FromCutOut}" FontSize="11"/></Button>
-                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding InvertMaskCommand}" ToolTip="{loc:Str Images.Layers.InvertMaskTip}" AutomationProperties.AutomationId="Image_LayersMaskInvert"><TextBlock Text="{loc:Str Images.Layers.InvertMask}" FontSize="11"/></Button>
-                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding ApplyMaskCommand}" ToolTip="{loc:Str Images.Layers.ApplyMaskTip}" AutomationProperties.AutomationId="Image_LayersMaskApply"><TextBlock Text="{loc:Str Images.Layers.ApplyMask}" FontSize="11"/></Button>
-                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding DeleteMaskCommand}" ToolTip="{loc:Str Images.Layers.DeleteMaskTip}" AutomationProperties.AutomationId="Image_LayersMaskDelete"><TextBlock Text="{loc:Str Images.Layers.DeleteMask}" FontSize="11"/></Button>
+                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding RevealAllMaskCommand}" ToolTip="{loc:Str Images.Layers.RevealAllTip}" AutomationProperties.AutomationId="Image_LayersMaskRevealAll"><icons:IconLabel Icon="fluent:eye" Text="{loc:Str Images.Layers.RevealAll}" FontSize="11"/></Button>
+                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding HideAllMaskCommand}" ToolTip="{loc:Str Images.Layers.HideAllTip}" AutomationProperties.AutomationId="Image_LayersMaskHideAll"><icons:IconLabel Icon="fluent:eye_off" Text="{loc:Str Images.Layers.HideAll}" FontSize="11"/></Button>
+                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding MaskFromSelectionCommand}" ToolTip="{loc:Str Images.Layers.FromSelectionTip}" AutomationProperties.AutomationId="Image_LayersMaskFromSelection"><icons:IconLabel Icon="fluent:select_object" Text="{loc:Str Images.Layers.FromSelection}" FontSize="11"/></Button>
+                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding MaskHidingSelectionCommand}" ToolTip="{loc:Str Images.Layers.HideSelectionTip}" AutomationProperties.AutomationId="Image_LayersMaskHideSelection"><icons:IconLabel Icon="fluent:shape_subtract" Text="{loc:Str Images.Layers.HideSelection}" FontSize="11"/></Button>
+                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding MaskFromTransparencyCommand}" ToolTip="{loc:Str Images.Layers.FromTransparencyTip}" AutomationProperties.AutomationId="Image_LayersMaskFromTransparency"><icons:IconLabel Icon="fluent:transparency_square" Text="{loc:Str Images.Layers.FromTransparency}" FontSize="11"/></Button>
+                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding MaskFromCutOutCommand}" ToolTip="{loc:Str Images.Layers.FromCutOutTip}" AutomationProperties.AutomationId="Image_LayersMaskFromCutOut"><icons:IconLabel Icon="fluent:cut" Text="{loc:Str Images.Layers.FromCutOut}" FontSize="11"/></Button>
+                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding InvertMaskCommand}" ToolTip="{loc:Str Images.Layers.InvertMaskTip}" AutomationProperties.AutomationId="Image_LayersMaskInvert"><icons:IconLabel Icon="fluent:arrow_swap" Text="{loc:Str Images.Layers.InvertMask}" FontSize="11"/></Button>
+                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding ApplyMaskCommand}" ToolTip="{loc:Str Images.Layers.ApplyMaskTip}" AutomationProperties.AutomationId="Image_LayersMaskApply"><icons:IconLabel Icon="fluent:checkmark" Text="{loc:Str Images.Layers.ApplyMask}" FontSize="11"/></Button>
+                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding DeleteMaskCommand}" ToolTip="{loc:Str Images.Layers.DeleteMaskTip}" AutomationProperties.AutomationId="Image_LayersMaskDelete"><icons:IconLabel Icon="fluent:delete" Text="{loc:Str Images.Layers.DeleteMask}" FontSize="11"/></Button>
                 </WrapPanel>
             </Expander>
             <Expander Header="{loc:Str Images.Layers.Pixels}" Foreground="{StaticResource TextBrush}" Margin="0,4,0,0" AutomationProperties.AutomationId="Image_LayersPixelsSection">
                 <StackPanel Margin="0,6,0,0">
                     <WrapPanel>
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding RasterizeCommand}" ToolTip="{loc:Str Images.Layers.RasterizeTip}" AutomationProperties.AutomationId="Image_LayersRasterize"><TextBlock Text="{loc:Str Images.Layers.Rasterize}" FontSize="11"/></Button>
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding MergeDownCommand}" ToolTip="{loc:Str Images.Layers.MergeDownTip}" AutomationProperties.AutomationId="Image_LayersMergeDown"><TextBlock Text="{loc:Str Images.Layers.MergeDown}" FontSize="11"/></Button>
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding FlattenCommand}" ToolTip="{loc:Str Images.Layers.FlattenTip}" AutomationProperties.AutomationId="Image_LayersFlatten"><TextBlock Text="{loc:Str Images.Layers.Flatten}" FontSize="11"/></Button>
+                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding RasterizeCommand}" ToolTip="{loc:Str Images.Layers.RasterizeTip}" AutomationProperties.AutomationId="Image_LayersRasterize"><icons:IconLabel Icon="fluent:image_edit" Text="{loc:Str Images.Layers.Rasterize}" FontSize="11"/></Button>
+                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding MergeDownCommand}" ToolTip="{loc:Str Images.Layers.MergeDownTip}" AutomationProperties.AutomationId="Image_LayersMergeDown"><icons:IconLabel Icon="fluent:merge" Text="{loc:Str Images.Layers.MergeDown}" FontSize="11"/></Button>
+                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding FlattenCommand}" ToolTip="{loc:Str Images.Layers.FlattenTip}" AutomationProperties.AutomationId="Image_LayersFlatten"><icons:IconLabel Icon="fluent:layer_diagonal" Text="{loc:Str Images.Layers.Flatten}" FontSize="11"/></Button>
                     </WrapPanel>
                     <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Layers.Selection}"/>
                     <WrapPanel>
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding FillCommand}" ToolTip="{loc:Str Images.Layers.FillTip}" AutomationProperties.AutomationId="Image_LayersFill"><TextBlock Text="{loc:Str Images.Layers.Fill}" FontSize="11"/></Button>
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding DeleteSelectedCommand}" ToolTip="{loc:Str Images.Layers.ClearTip}" AutomationProperties.AutomationId="Image_LayersClear"><TextBlock Text="{loc:Str Images.Layers.Clear}" FontSize="11"/></Button>
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding CopyCommand}" ToolTip="{loc:Str Images.Layers.CopyTip}" AutomationProperties.AutomationId="Image_LayersCopy"><TextBlock Text="{loc:Str Images.Layers.Copy}" FontSize="11"/></Button>
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding CopyMergedCommand}" ToolTip="{loc:Str Images.Layers.CopyMergedTip}" AutomationProperties.AutomationId="Image_LayersCopyMerged"><TextBlock Text="{loc:Str Images.Layers.CopyMerged}" FontSize="11"/></Button>
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding CutCommand}" ToolTip="{loc:Str Images.Layers.CutTip}" AutomationProperties.AutomationId="Image_LayersCut"><TextBlock Text="{loc:Str Images.Layers.Cut}" FontSize="11"/></Button>
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding PasteCommand}" ToolTip="{loc:Str Images.Layers.PasteTip}" AutomationProperties.AutomationId="Image_LayersPaste"><TextBlock Text="{loc:Str Images.Layers.Paste}" FontSize="11"/></Button>
+                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding FillCommand}" ToolTip="{loc:Str Images.Layers.FillTip}" AutomationProperties.AutomationId="Image_LayersFill"><icons:IconLabel Icon="fluent:paint_bucket" Text="{loc:Str Images.Layers.Fill}" FontSize="11"/></Button>
+                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding DeleteSelectedCommand}" ToolTip="{loc:Str Images.Layers.ClearTip}" AutomationProperties.AutomationId="Image_LayersClear"><icons:IconLabel Icon="fluent:eraser" Text="{loc:Str Images.Layers.Clear}" FontSize="11"/></Button>
+                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding CopyCommand}" ToolTip="{loc:Str Images.Layers.CopyTip}" AutomationProperties.AutomationId="Image_LayersCopy" AutomationProperties.Name="{loc:Str Images.Layers.Copy}"><icons:IconLabel Icon="fluent:copy" FontSize="11"/></Button>
+                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding CopyMergedCommand}" ToolTip="{loc:Str Images.Layers.CopyMergedTip}" AutomationProperties.AutomationId="Image_LayersCopyMerged"><icons:IconLabel Icon="fluent:copy_select" Text="{loc:Str Images.Layers.CopyMerged}" FontSize="11"/></Button>
+                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding CutCommand}" ToolTip="{loc:Str Images.Layers.CutTip}" AutomationProperties.AutomationId="Image_LayersCut" AutomationProperties.Name="{loc:Str Images.Layers.Cut}"><icons:IconLabel Icon="fluent:cut" FontSize="11"/></Button>
+                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding PasteCommand}" ToolTip="{loc:Str Images.Layers.PasteTip}" AutomationProperties.AutomationId="Image_LayersPaste" AutomationProperties.Name="{loc:Str Images.Layers.Paste}"><icons:IconLabel Icon="fluent:clipboard_paste" FontSize="11"/></Button>
                     </WrapPanel>
                 </StackPanel>
             </Expander>
@@ -173,8 +174,8 @@
                     <TextBlock Style="{StaticResource EditCaption}" Margin="0,2,0,0" TextWrapping="Wrap" Foreground="{StaticResource WarningBrush}"
                                Text="{loc:Str Images.Layers.CanvasTooLarge}" Visibility="{Binding CanvasTooLarge, Converter={StaticResource BoolToVis}}"/>
                     <WrapPanel Margin="0,6,0,0">
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding ResizeCanvasCommand}" ToolTip="{loc:Str Images.Layers.ResizeCanvasTip}" AutomationProperties.AutomationId="Image_LayersCanvasApply"><TextBlock Text="{loc:Str Images.Layers.ResizeCanvas}" FontSize="11"/></Button>
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding CropToSelectionCommand}" ToolTip="{loc:Str Images.Layers.CropToSelectionTip}" AutomationProperties.AutomationId="Image_LayersCropToSelection"><TextBlock Text="{loc:Str Images.Layers.CropToSelection}" FontSize="11"/></Button>
+                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding ResizeCanvasCommand}" ToolTip="{loc:Str Images.Layers.ResizeCanvasTip}" AutomationProperties.AutomationId="Image_LayersCanvasApply"><icons:IconLabel Icon="fluent:resize" Text="{loc:Str Images.Layers.ResizeCanvas}" FontSize="11"/></Button>
+                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding CropToSelectionCommand}" ToolTip="{loc:Str Images.Layers.CropToSelectionTip}" AutomationProperties.AutomationId="Image_LayersCropToSelection"><icons:IconLabel Icon="fluent:crop" Text="{loc:Str Images.Layers.CropToSelection}" FontSize="11"/></Button>
                     </WrapPanel>
                 </StackPanel>
             </Expander>

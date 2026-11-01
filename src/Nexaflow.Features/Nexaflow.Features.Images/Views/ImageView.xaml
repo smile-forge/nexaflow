@@ -343,10 +343,14 @@
                                 <CheckBox Margin="0,8,0,0" Foreground="{StaticResource TextBrush}" IsChecked="{Binding Centre, Mode=TwoWay}"
                                           Content="{loc:Str Images.Print.Centre}" AutomationProperties.AutomationId="Image_PrintCentre"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                                    <Button Content="{loc:Str Images.Print.Go}" Click="PrintGo_Click" Padding="12,4" Margin="0,0,6,0"
-                                            ToolTip="{loc:Str Images.Print.GoTip}" AutomationProperties.AutomationId="Image_PrintGo"/>
-                                    <Button Content="{loc:Str Images.Print.Cancel}" Command="{Binding CloseCommand}" Padding="12,4"
-                                            AutomationProperties.AutomationId="Image_PrintClose"/>
+                                    <Button Click="PrintGo_Click" Padding="12,4" Margin="0,0,6,0"
+                                            ToolTip="{loc:Str Images.Print.GoTip}" AutomationProperties.AutomationId="Image_PrintGo">
+                                        <icons:IconLabel Icon="fluent:print" Text="{loc:Str Images.Print.Go}"/>
+                                    </Button>
+                                    <Button Command="{Binding CloseCommand}" Padding="12,4"
+                                            AutomationProperties.AutomationId="Image_PrintClose">
+                                        <icons:IconLabel Icon="fluent:dismiss" Text="{loc:Str Images.Print.Cancel}"/>
+                                    </Button>
                                 </StackPanel>
                             </StackPanel>
                         </Border>
@@ -513,11 +517,11 @@
                     <!-- Layers: one added makes the photo a layered picture, kept apart from it. -->
                     <Button Command="{Binding AddLayerCommand}" ToolTip="{loc:Str Images.Edit.AddLayerTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,0"
                             AutomationProperties.AutomationId="Image_EditAddLayer">
-                        <TextBlock Text="{loc:Str Images.Edit.AddLayer}"/>
+                        <icons:IconLabel Icon="fluent:layer_diagonal_add" Text="{loc:Str Images.Edit.AddLayer}"/>
                     </Button>
                     <Button Command="{Binding PasteAsLayerCommand}" ToolTip="{loc:Str Images.Edit.PasteLayerTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,10,0"
                             AutomationProperties.AutomationId="Image_EditPasteLayer">
-                        <TextBlock Text="{loc:Str Images.Edit.PasteLayer}"/>
+                        <icons:IconLabel Icon="fluent:clipboard_paste" Text="{loc:Str Images.Edit.PasteLayer}"/>
                     </Button>
                     <Button Command="{Binding UndoEditCommand}" ToolTip="{loc:Str Images.Edit.UndoTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,0"
                             AutomationProperties.AutomationId="Image_EditUndo">
@@ -625,11 +629,11 @@
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                         <Button Command="{Binding UseSavedLookCommand}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,0"
                                 ToolTip="{loc:Str Images.Layers.UseSavedLookTip}" AutomationProperties.AutomationId="Image_SavedLookUse">
-                            <TextBlock Text="{loc:Str Images.Layers.UseSavedLook}"/>
+                            <icons:IconLabel Icon="fluent:image" Text="{loc:Str Images.Layers.UseSavedLook}"/>
                         </Button>
                         <Button Command="{Binding EditTheLayersCommand}" Style="{StaticResource ToolbarButtonStyle}"
                                 ToolTip="{loc:Str Images.Layers.EditTheLayersTip}" AutomationProperties.AutomationId="Image_SavedLookEditLayers">
-                            <TextBlock Text="{loc:Str Images.Layers.EditTheLayers}"/>
+                            <icons:IconLabel Icon="fluent:layer_diagonal" Text="{loc:Str Images.Layers.EditTheLayers}"/>
                         </Button>
                     </StackPanel>
                     <TextBlock Text="{Binding SavedLookNotice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>

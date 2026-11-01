@@ -1,5 +1,6 @@
 <UserControl x:Class="Nexaflow.Features.Images.Views.CanvasPicturesPanel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:icons="clr-namespace:Nexaflow.Visuals.Icons;assembly=Nexaflow.Visuals.Icons"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
@@ -22,7 +23,7 @@
         <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding AskForLayerCommand}" HorizontalAlignment="Left"
                 ToolTip="{loc:Str Images.Layers.GenerateTip}" AutomationProperties.AutomationId="Image_LayersGenerate"
                 Visibility="{Binding OffersGeneration, Converter={StaticResource BoolVis}}">
-            <TextBlock Text="{loc:Str Images.Layers.Generate}"/>
+            <icons:IconLabel Icon="fluent:sparkle" Text="{loc:Str Images.Layers.Generate}"/>
         </Button>
 
         <!-- Generate layer, being set up: what the model offers, the proportions the canvas's nearest. -->
@@ -31,10 +32,14 @@
             <StackPanel>
                 <ContentControl Content="{Binding Options.View}" Focusable="False"/>
                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                    <Button Content="{loc:Str Images.Layers.GenerateGo}" Command="{Binding GenerateLayerCommand}" Padding="12,4" Margin="0,0,6,0"
-                            AutomationProperties.AutomationId="Image_LayersGenerateGo"/>
-                    <Button Content="{loc:Str Images.Layers.GenerateCancel}" Command="{Binding CancelAskingCommand}" Padding="12,4"
-                            AutomationProperties.AutomationId="Image_LayersGenerateCancel"/>
+                    <Button Command="{Binding GenerateLayerCommand}" Padding="12,4" Margin="0,0,6,0"
+                            AutomationProperties.AutomationId="Image_LayersGenerateGo">
+                        <icons:IconLabel Icon="fluent:sparkle" Text="{loc:Str Images.Layers.GenerateGo}"/>
+                    </Button>
+                    <Button Command="{Binding CancelAskingCommand}" Padding="12,4"
+                            AutomationProperties.AutomationId="Image_LayersGenerateCancel">
+                        <icons:IconLabel Icon="fluent:dismiss" Text="{loc:Str Images.Layers.GenerateCancel}"/>
+                    </Button>
                 </StackPanel>
             </StackPanel>
         </Border>
@@ -48,7 +53,7 @@
                             <Button DockPanel.Dock="Right" Style="{StaticResource ToolbarButtonStyle}" Command="{Binding StopCommand}" VerticalAlignment="Center"
                                     ToolTip="{loc:Str Images.Layers.PendingStopTip}" AutomationProperties.AutomationId="Image_LayersPendingStop"
                                     AutomationProperties.Name="{loc:Str Images.Layers.PendingStopTip}">
-                                <TextBlock Text="{loc:Str Images.Layers.PendingStop}"/>
+                                <icons:IconLabel Icon="fluent:stop"/>
                             </Button>
                             <StackPanel Margin="0,0,6,0">
                                 <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis"/>

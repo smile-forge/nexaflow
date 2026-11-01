@@ -1,5 +1,6 @@
 <UserControl x:Class="Nexaflow.Features.Images.Views.PaintPanel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:icons="clr-namespace:Nexaflow.Visuals.Icons;assembly=Nexaflow.Visuals.Icons"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
@@ -28,19 +29,27 @@
             <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding AddLayerCommand}" HorizontalAlignment="Left" Margin="0,6,0,0"
                     Visibility="{Binding OffersLayer, Converter={StaticResource BoolVis}}"
                     ToolTip="{loc:Str Images.Edit.AddLayerTip}" AutomationProperties.AutomationId="Image_PaintAddLayer">
-                <TextBlock Text="{loc:Str Images.Edit.AddLayer}"/>
+                <icons:IconLabel Icon="fluent:layer_diagonal_add" Text="{loc:Str Images.Edit.AddLayer}"/>
             </Button>
         </StackPanel>
 
         <UniformGrid Columns="4" Margin="0,10,0,0">
-            <RadioButton GroupName="PaintTool" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Paint.Brush}" ToolTip="{loc:Str Images.Paint.BrushTip}"
-                         IsChecked="{Binding Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Brush}" AutomationProperties.AutomationId="Image_PaintBrush"/>
-            <RadioButton GroupName="PaintTool" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Paint.Eraser}" ToolTip="{loc:Str Images.Paint.EraserTip}"
-                         IsChecked="{Binding Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Eraser}" AutomationProperties.AutomationId="Image_PaintEraser"/>
-            <RadioButton GroupName="PaintTool" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Paint.Eyedropper}" ToolTip="{loc:Str Images.Paint.EyedropperTip}"
-                         IsChecked="{Binding Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Eyedropper}" AutomationProperties.AutomationId="Image_PaintEyedropper"/>
-            <RadioButton GroupName="PaintTool" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Paint.Fill}" ToolTip="{loc:Str Images.Paint.FillTip}"
-                         IsChecked="{Binding Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Fill}" AutomationProperties.AutomationId="Image_PaintFill"/>
+            <RadioButton GroupName="PaintTool" Style="{StaticResource SegRadioStyle}" ToolTip="{loc:Str Images.Paint.BrushTip}"
+                         IsChecked="{Binding Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Brush}" AutomationProperties.AutomationId="Image_PaintBrush">
+                <icons:IconLabel Icon="fluent:paint_brush" Text="{loc:Str Images.Paint.Brush}"/>
+            </RadioButton>
+            <RadioButton GroupName="PaintTool" Style="{StaticResource SegRadioStyle}" ToolTip="{loc:Str Images.Paint.EraserTip}"
+                         IsChecked="{Binding Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Eraser}" AutomationProperties.AutomationId="Image_PaintEraser">
+                <icons:IconLabel Icon="fluent:eraser" Text="{loc:Str Images.Paint.Eraser}"/>
+            </RadioButton>
+            <RadioButton GroupName="PaintTool" Style="{StaticResource SegRadioStyle}" ToolTip="{loc:Str Images.Paint.EyedropperTip}"
+                         IsChecked="{Binding Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Eyedropper}" AutomationProperties.AutomationId="Image_PaintEyedropper">
+                <icons:IconLabel Icon="fluent:eyedropper" Text="{loc:Str Images.Paint.Eyedropper}"/>
+            </RadioButton>
+            <RadioButton GroupName="PaintTool" Style="{StaticResource SegRadioStyle}" ToolTip="{loc:Str Images.Paint.FillTip}"
+                         IsChecked="{Binding Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Fill}" AutomationProperties.AutomationId="Image_PaintFill">
+                <icons:IconLabel Icon="fluent:paint_bucket" Text="{loc:Str Images.Paint.Fill}"/>
+            </RadioButton>
         </UniformGrid>
 
         <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Paint.Colour}"/>

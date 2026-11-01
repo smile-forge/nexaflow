@@ -1,5 +1,6 @@
 <UserControl x:Class="Nexaflow.Features.Images.Views.CanvasSetupView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:icons="clr-namespace:Nexaflow.Visuals.Icons;assembly=Nexaflow.Visuals.Icons"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
@@ -43,10 +44,12 @@
                          AutomationProperties.AutomationId="Images_CanvasWidth"
                          AutomationProperties.Name="{loc:Str Images.Canvas.Width}"/>
             </StackPanel>
-            <Button Grid.Column="1" Content="⇄" Command="{Binding SwapOrientationCommand}" VerticalAlignment="Bottom" Margin="6,0" Padding="8,3"
+            <Button Grid.Column="1" Command="{Binding SwapOrientationCommand}" VerticalAlignment="Bottom" Margin="6,0" Padding="8,3"
                     ToolTip="{loc:Str Images.Canvas.SwapTip}"
                     AutomationProperties.AutomationId="Images_CanvasSwap"
-                    AutomationProperties.Name="{loc:Str Images.Canvas.SwapTip}"/>
+                    AutomationProperties.Name="{loc:Str Images.Canvas.SwapTip}">
+                <icons:IconLabel Icon="fluent:arrow_swap"/>
+            </Button>
             <StackPanel Grid.Column="2">
                 <TextBlock Text="{loc:Str Images.Canvas.Height}" Style="{StaticResource OptionLabel}"/>
                 <TextBox Text="{Binding HeightText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBox}"

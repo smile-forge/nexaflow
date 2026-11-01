@@ -24,6 +24,9 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
 {
     private string _folder = "";
 
+    /// <summary>Every layers control and its effect: more than the usual budget.</summary>
+    protected override TimeSpan JourneyBudget => TimeSpan.FromSeconds(200);
+
     [TestInitialize]
     public void MakeFolder()
     {
@@ -91,17 +94,21 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
 
         // ── Masks ──
         Check("The mask section opens", () => Expand("Image_LayersMaskSection"));
+        // A layer has one mask: each way of making one is offered while it has none.
         CheckDoes("A mask that reveals the whole layer", "Image_LayersMaskRevealAll", () => WaitForFs(() => Exists("Image_LayersMaskThumbnail"), 3));
+        Check("With a mask, no other is made", () => !Enabled("Image_LayersMaskHideAll") && !Enabled("Image_LayersMaskFromSelection"));
         CheckInvoke("Edit the mask by its thumbnail", "Image_LayersMaskThumbnail");
-        CheckInvoke("Hide all of the layer", "Image_LayersMaskHideAll");
         CheckInvoke("Invert the mask", "Image_LayersMaskInvert");
-        CheckInvoke("A mask from the selection", "Image_LayersMaskFromSelection");
-        CheckInvoke("A mask hiding the selection", "Image_LayersMaskHideSelection");
-        CheckInvoke("A mask from the layer's transparency", "Image_LayersMaskFromTransparency");
-        Check("A mask from a cut-out waits for one picked", () => !Enabled("Image_LayersMaskFromCutOut"));
         CheckDoes("Apply the mask to the pixels", "Image_LayersMaskApply", () => WaitForGone("Image_LayersMaskThumbnail", 3));
-        CheckDoes("Another mask", "Image_LayersMaskRevealAll", () => WaitForFs(() => Exists("Image_LayersMaskThumbnail"), 3));
+        CheckDoes("A mask hiding the whole layer", "Image_LayersMaskHideAll", () => WaitForFs(() => Exists("Image_LayersMaskThumbnail"), 3));
         CheckDoes("Delete it", "Image_LayersMaskDelete", () => WaitForGone("Image_LayersMaskThumbnail", 3));
+        CheckDoes("A mask from the selection", "Image_LayersMaskFromSelection", () => WaitForFs(() => Exists("Image_LayersMaskThumbnail"), 3));
+        CheckDoes("Delete it", "Image_LayersMaskDelete", () => WaitForGone("Image_LayersMaskThumbnail", 3));
+        CheckDoes("A mask hiding the selection", "Image_LayersMaskHideSelection", () => WaitForFs(() => Exists("Image_LayersMaskThumbnail"), 3));
+        CheckDoes("Delete it", "Image_LayersMaskDelete", () => WaitForGone("Image_LayersMaskThumbnail", 3));
+        CheckDoes("A mask from the layer's transparency", "Image_LayersMaskFromTransparency", () => WaitForFs(() => Exists("Image_LayersMaskThumbnail"), 3));
+        CheckDoes("Delete it", "Image_LayersMaskDelete", () => WaitForGone("Image_LayersMaskThumbnail", 3));
+        Check("A mask from a cut-out waits for one picked", () => !Enabled("Image_LayersMaskFromCutOut"));
 
         // ── The canvas ──
         Check("The canvas section opens", () => Expand("Image_LayersCanvasSection"));
@@ -220,7 +227,7 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         CheckDoes("Apply keeps it", "Image_ArrangeApply", () => WaitForGone("Image_ArrangeApply", 3));
 
         // ── Print ──
-        CheckDoes("Print opens its options", "Image_Print", () => WaitForFs(() => FindInAppWindows("Image_PrintOptions") is not null, 3));
+        Check("Print opens its options", () => SetToggle("Image_Print", true) && WaitForFs(() => FindInAppWindows("Image_PrintOptions") is not null, 3));
         Check("Fill the page", () => SelectRadio("Image_PrintFill"));
         Check("Actual size", () => SelectRadio("Image_PrintActual"));
         Check("A width", () => SelectRadio("Image_PrintWidth") && TypeInto("Image_PrintWidthMillimetres", "120"));
@@ -327,10 +334,10 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         return WaitForFs(() => section.ExpandCollapseState.Value == ExpandCollapseState.Expanded, 2);
     }
 
-    /// <summary>Ctrl+A over the canvas: everything selected, whichever tool is out.</summary>
+    /// <summary>Ctrl+A over the canvas: everything selected, whichever tool is out — seen in the pixels section's Fill being offered.</summary>
     private bool SelectAllOnCanvas()
     {
-        if (!ClickCanvas()) return false;
+        if (!Expand("Image_LayersPixelsSection") || !ClickCanvas()) return false;
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Wait.UntilInputIsProcessed();
         return WaitForFs(() => Enabled("Image_LayersFill"), 2);
