@@ -44,7 +44,7 @@
                          AutomationProperties.AutomationId="Images_CanvasWidth"
                          AutomationProperties.Name="{loc:Str Images.Canvas.Width}"/>
             </StackPanel>
-            <Button Grid.Column="1" Command="{Binding SwapOrientationCommand}" VerticalAlignment="Bottom" Margin="6,0" Padding="8,3"
+            <Button Grid.Column="1" Command="{Binding SwapOrientationCommand}" Style="{StaticResource ToolbarButtonStyle}" VerticalAlignment="Bottom" Margin="6,0" Padding="8,3"
                     ToolTip="{loc:Str Images.Canvas.SwapTip}"
                     AutomationProperties.AutomationId="Images_CanvasSwap"
                     AutomationProperties.Name="{loc:Str Images.Canvas.SwapTip}">

@@ -66,11 +66,11 @@
                 </Button>
             </WrapPanel>
             <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                <Button Command="{Binding ApplyCommand}" Padding="12,4" Margin="0,0,6,0"
+                <Button Command="{Binding ApplyCommand}" Style="{StaticResource ToolbarPrimaryButtonStyle}" Padding="12,4" Margin="0,0,6,0"
                         ToolTip="{loc:Str Images.Arrange.ApplyTip}" AutomationProperties.AutomationId="Image_ArrangeApply">
                     <icons:IconLabel Icon="fluent:checkmark" Text="{loc:Str Images.Arrange.Apply}"/>
                 </Button>
-                <Button Command="{Binding CancelCommand}" Padding="12,4"
+                <Button Command="{Binding CancelCommand}" Style="{StaticResource ToolbarButtonStyle}" Padding="12,4"
                         ToolTip="{loc:Str Images.Arrange.CancelTip}" AutomationProperties.AutomationId="Image_ArrangeCancel">
                     <icons:IconLabel Icon="fluent:dismiss" Text="{loc:Str Images.Arrange.Cancel}"/>
                 </Button>

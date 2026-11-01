@@ -32,11 +32,11 @@
             <StackPanel>
                 <ContentControl Content="{Binding Options.View}" Focusable="False"/>
                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                    <Button Command="{Binding GenerateLayerCommand}" Padding="12,4" Margin="0,0,6,0"
+                    <Button Command="{Binding GenerateLayerCommand}" Style="{StaticResource ToolbarPrimaryButtonStyle}" Padding="12,4" Margin="0,0,6,0"
                             AutomationProperties.AutomationId="Image_LayersGenerateGo">
                         <icons:IconLabel Icon="fluent:sparkle" Text="{loc:Str Images.Layers.GenerateGo}"/>
                     </Button>
-                    <Button Command="{Binding CancelAskingCommand}" Padding="12,4"
+                    <Button Command="{Binding CancelAskingCommand}" Style="{StaticResource ToolbarButtonStyle}" Padding="12,4"
                             AutomationProperties.AutomationId="Image_LayersGenerateCancel">
                         <icons:IconLabel Icon="fluent:dismiss" Text="{loc:Str Images.Layers.GenerateCancel}"/>
                     </Button>

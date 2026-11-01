@@ -49,7 +49,7 @@
                     <StackPanel>
                         <TextBlock Text="{loc:Str Images.Start.Canvas}" Style="{StaticResource StartHeading}"/>
                         <views:CanvasSetupView DataContext="{Binding Setup}"/>
-                        <Button Command="{Binding CreateCommand}" HorizontalAlignment="Left" Margin="0,14,0,0" Padding="16,5"
+                        <Button Command="{Binding CreateCommand}" Style="{StaticResource ToolbarPrimaryButtonStyle}" HorizontalAlignment="Left" Margin="0,14,0,0" Padding="16,5"
                                 ToolTip="{loc:Str Images.Start.CreateTip}" AutomationProperties.AutomationId="Images_StartCreate">
                             <icons:IconLabel Icon="fluent:add" Text="{loc:Str Images.Start.Create}"/>
                         </Button>
@@ -62,14 +62,14 @@
                         <TextBlock Text="{loc:Str Images.Start.Generate}" Style="{StaticResource StartHeading}"/>
                         <StackPanel Visibility="{Binding OffersGeneration, Converter={StaticResource BoolVis}}">
                             <ContentControl Content="{Binding Generation.View}" Focusable="False"/>
-                            <Button Command="{Binding GenerateCommand}" HorizontalAlignment="Left" Margin="0,14,0,0" Padding="16,5"
+                            <Button Command="{Binding GenerateCommand}" Style="{StaticResource ToolbarPrimaryButtonStyle}" HorizontalAlignment="Left" Margin="0,14,0,0" Padding="16,5"
                                     ToolTip="{loc:Str Images.Start.GenerateTip}" AutomationProperties.AutomationId="Images_StartGenerate">
                                 <icons:IconLabel Icon="fluent:sparkle" Text="{loc:Str Images.Start.GenerateGo}"/>
                             </Button>
                         </StackPanel>
                         <StackPanel Visibility="{Binding OffersGeneration, Converter={StaticResource NotBoolVis}}">
                             <TextBlock Text="{loc:Str Images.Start.NoModel}" FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"/>
-                            <Button Command="{Binding OpenAiSettingsCommand}" HorizontalAlignment="Left" Margin="0,8,0,0" Padding="10,4"
+                            <Button Command="{Binding OpenAiSettingsCommand}" Style="{StaticResource ToolbarButtonStyle}" HorizontalAlignment="Left" Margin="0,8,0,0" Padding="10,4"
                                     AutomationProperties.AutomationId="Images_StartAiSettings">
                                 <icons:IconLabel Icon="fluent:settings" Text="{loc:Str Images.Start.AiSettings}"/>
                             </Button>
@@ -79,12 +79,12 @@
             </Grid>
 
             <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
-                <Button Command="{Binding PasteCommand}" Padding="12,5" Margin="0,0,8,0"
+                <Button Command="{Binding PasteCommand}" Style="{StaticResource ToolbarButtonStyle}" Padding="12,5" Margin="0,0,8,0"
                         Visibility="{Binding ClipboardHoldsPicture, Converter={StaticResource BoolVis}}"
                         ToolTip="{loc:Str Images.Start.PasteTip}" AutomationProperties.AutomationId="Images_StartPaste">
                     <icons:IconLabel Icon="fluent:clipboard_paste" Text="{loc:Str Images.Start.Paste}"/>
                 </Button>
-                <Button Command="{Binding OpenPictureCommand}" Padding="12,5"
+                <Button Command="{Binding OpenPictureCommand}" Style="{StaticResource ToolbarButtonStyle}" Padding="12,5"
                         ToolTip="{loc:Str Images.Start.OpenTip}" AutomationProperties.AutomationId="Images_StartOpen">
                     <icons:IconLabel Icon="fluent:folder_open" Text="{loc:Str Images.Start.Open}"/>
                 </Button>
@@ -98,8 +98,8 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <Button Command="{Binding DataContext.OpenRecentCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
-                                HorizontalContentAlignment="Left" Padding="10,5" Margin="0,0,0,4" Background="{StaticResource SurfaceBrush}"
-                                BorderBrush="{StaticResource BorderBrush}" ToolTip="{Binding Path}"
+                                Style="{StaticResource ToolbarButtonStyle}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="10,5" Margin="0,0,0,4"
+                                Background="{StaticResource SurfaceBrush}" ToolTip="{Binding Path}"
                                 AutomationProperties.AutomationId="Images_StartRecent" AutomationProperties.Name="{Binding Name}">
                             <StackPanel>
                                 <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}"/>

@@ -343,11 +343,11 @@
                                 <CheckBox Margin="0,8,0,0" Foreground="{StaticResource TextBrush}" IsChecked="{Binding Centre, Mode=TwoWay}"
                                           Content="{loc:Str Images.Print.Centre}" AutomationProperties.AutomationId="Image_PrintCentre"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                                    <Button Click="PrintGo_Click" Padding="12,4" Margin="0,0,6,0"
+                                    <Button Click="PrintGo_Click" Style="{StaticResource ToolbarPrimaryButtonStyle}" Padding="12,4" Margin="0,0,6,0"
                                             ToolTip="{loc:Str Images.Print.GoTip}" AutomationProperties.AutomationId="Image_PrintGo">
                                         <icons:IconLabel Icon="fluent:print" Text="{loc:Str Images.Print.Go}"/>
                                     </Button>
-                                    <Button Command="{Binding CloseCommand}" Padding="12,4"
+                                    <Button Command="{Binding CloseCommand}" Style="{StaticResource ToolbarButtonStyle}" Padding="12,4"
                                             AutomationProperties.AutomationId="Image_PrintClose">
                                         <icons:IconLabel Icon="fluent:dismiss" Text="{loc:Str Images.Print.Cancel}"/>
                                     </Button>

@@ -202,13 +202,11 @@
                                       IsChecked="{Binding Visible, Mode=OneWay}" Command="{Binding DataContext.ToggleVisibleCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                                       CommandParameter="{Binding}" ToolTip="{loc:Str Images.Layers.VisibleTip}" AutomationProperties.AutomationId="Image_LayersVisible"
                                       AutomationProperties.Name="{loc:Str Images.Layers.VisibleTip}"/>
-                            <Button DockPanel.Dock="Left" Click="Thumbnail_Click" Padding="0" Margin="0,0,3,0" BorderThickness="1" Background="{StaticResource Surface2Brush}"
-                                    BorderBrush="{StaticResource BorderBrush}" ToolTip="{loc:Str Images.Layers.ThumbnailTip}" AutomationProperties.AutomationId="Image_LayersThumbnail"
+                            <Button DockPanel.Dock="Left" Click="Thumbnail_Click" Style="{StaticResource ThumbnailButtonStyle}" Margin="0,0,3,0" ToolTip="{loc:Str Images.Layers.ThumbnailTip}" AutomationProperties.AutomationId="Image_LayersThumbnail"
                                     AutomationProperties.Name="{Binding Name}">
                                 <Image Source="{Binding Thumbnail}" Width="36" Height="28" Stretch="Uniform"/>
                             </Button>
-                            <Button DockPanel.Dock="Left" Click="MaskThumbnail_Click" Padding="0" Margin="0,0,4,0" BorderThickness="1" Background="{StaticResource Surface2Brush}"
-                                    BorderBrush="{StaticResource BorderBrush}" ToolTip="{loc:Str Images.Layers.MaskThumbnailTip}" AutomationProperties.AutomationId="Image_LayersMaskThumbnail"
+                            <Button DockPanel.Dock="Left" Click="MaskThumbnail_Click" Style="{StaticResource ThumbnailButtonStyle}" Margin="0,0,4,0" ToolTip="{loc:Str Images.Layers.MaskThumbnailTip}" AutomationProperties.AutomationId="Image_LayersMaskThumbnail"
                                     AutomationProperties.Name="{loc:Str Images.Layers.Mask}" Visibility="{Binding HasMask, Converter={StaticResource BoolToVis}}">
                                 <Grid>
                                     <Image Source="{Binding MaskThumbnail}" Width="28" Height="28" Stretch="Uniform"/>

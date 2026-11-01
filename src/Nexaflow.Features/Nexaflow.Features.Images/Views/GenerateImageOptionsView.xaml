@@ -22,7 +22,7 @@
         <!-- No model draws yet: why, and the download of one of Nexaflow's own where one waits on it. -->
         <StackPanel Visibility="{Binding IsReady, Converter={StaticResource NotBoolVis}}">
             <TextBlock Text="{loc:Str Images.Generate.NoModel}" FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"/>
-            <Button Content="{loc:Str Images.Generate.Download}" Command="{Binding DownloadCommand}" HorizontalAlignment="Left" Margin="0,8,0,0"
+            <Button Content="{loc:Str Images.Generate.Download}" Command="{Binding DownloadCommand}" Style="{StaticResource RowButton}" HorizontalAlignment="Left" Margin="0,8,0,0"
                     Padding="10,4" Visibility="{Binding IsWaiting, Converter={StaticResource BoolVis}}"
                     AutomationProperties.AutomationId="Images_GenerateDownload"/>
         </StackPanel>
