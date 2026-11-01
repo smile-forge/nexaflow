@@ -93,7 +93,7 @@ public class WindowedLayoutTests
         var grew = 0;
         engine.Grew += (_, _) => Interlocked.Increment(ref grew);
 
-        var laid = engine.Laid.Tree.Count;
+        var laid = engine.Laid.Root.SelfAndDescendants().Count();
         var bottom = engine.Laid.Root.Children.Max(piece => piece.Bounds.Bottom);
 
         engine.OnScreen = new LayoutRect(0, bottom - 200, Room, 400);
@@ -101,7 +101,7 @@ public class WindowedLayoutTests
         Assert.IsTrue(grew > 0, "Nothing said there was more to lay.");
 
         engine.Relay();
-        Assert.IsTrue(engine.Laid.Tree.Count > laid, "Laying again laid nothing more.");
+        Assert.IsTrue(engine.Laid.Root.SelfAndDescendants().Count() > laid, "Laying again laid nothing more.");
     }
 
     [TestMethod]
@@ -252,7 +252,7 @@ public class WindowedLayoutTests
 
         Assert.IsTrue(engine.Unlaid, "All of it was laid.");
 
-        var link = engine.Reading?.Root.SelfAndDescendants().FirstOrDefault(part => part.Kind == Kinds.Link && part.Print() == "[the site][site]");
+        var link = engine.Readings.SelectMany(unit => unit.SelfAndDescendants()).FirstOrDefault(part => part.Kind == Kinds.Link && part.Print() == "[the site][site]");
         Assert.IsNotNull(link, "What the end defines never reached the top.");
         Assert.AreEqual("https://example.com/site", MarkdownLinks.Goes(link!.Node));
     }
@@ -333,7 +333,7 @@ public class WindowedLayoutTests
     {
         var want = expected.Root.SelfAndDescendants().ToList();
         var got = actual.Root.SelfAndDescendants().ToList();
-        Assert.AreEqual(want.Count, got.Count, $"{what}: pieces{Diverged(want, got)}");
+        Assert.AreEqual(want.Count, got.Count, $"{what}: pieces{Diverged(want, got)} — past them: {string.Join(", ", got.Skip(want.Count).Select(piece => $"{piece.Kind} {Span(piece.Part)} {piece.Bounds.Y:0.#}"))}");
 
         for (var at = 0; at < want.Count; at++)
         {

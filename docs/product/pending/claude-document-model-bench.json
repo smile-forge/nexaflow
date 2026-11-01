@@ -171,6 +171,23 @@
           "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Bodies.cs",
           "class": "ContentEngine",
           "method": "ReadAgain"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Units.cs",
+          "class": "ContentEngine",
+          "method": "Stage"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Units.cs",
+          "class": "ContentEngine",
+          "method": "Composed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/MarkdownGaps.cs",
+          "class": "MarkdownGaps"
         }
       ],
       "concerns": {

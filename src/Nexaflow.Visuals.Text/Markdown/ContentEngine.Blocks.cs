@@ -52,12 +52,6 @@ public sealed partial class ContentEngine
     private IReadOnlyDictionary<int, LayoutIntent> _cornerOffers = new Dictionary<int, LayoutIntent>();
     private LayoutRect? _showing;
 
-    /// <summary>
-    /// The content as it was read — the tree the laid layout was drawn from — so every question about what it is made of is
-    /// asked of that one reading. A paragraph that needed no piece of its own is still a paragraph in it.
-    /// </summary>
-    internal ContentPart ReadRoot => Reading?.Root ?? NothingRead;
-
     /// <summary>The buttons in the corner of the block the pointer is over, laid out where they stand — or null where it is over none that offers any.</summary>
     internal Laid? Corner => _corner;
 
@@ -167,7 +161,7 @@ public sealed partial class ContentEngine
         if (piece.Exists && Blocked(piece.Sits().Start) is { } nearest && Holds(Where(nearest))) return nearest;
 
         // Content in one language is one block of it, and the whole of what was laid is that block.
-        if (_named is not null) return Holds(new LayoutRect(_laid.Size)) ? ReadRoot : null;
+        if (_named is not null) return Holds(new LayoutRect(_laid.Size)) ? Readings.FirstOrDefault() : null;
 
         foreach (var whole in LayoutQuery.ChildrenWhere(_laid.Root, (reach, _) => Holds(reach)))
         {
@@ -180,16 +174,11 @@ public sealed partial class ContentEngine
         return null;
     }
 
-    /// <summary>The block of the content an offset is in — the whole of it, where it is written in one language.</summary>
-    internal ContentPart? Blocked(int offset)
-    {
-        if (_named is not null) return ReadRoot;
-
-        var blocks = WrittenBlocks;
-        var at = Holding(blocks, offset);
-
-        return at < blocks.Count && blocks[at].Start <= offset ? blocks[at] : null;
-    }
+    /// <summary>
+    /// The written block <paramref name="offset"/> is in — the content itself, where it is content in one language — or null where it
+    /// is in none.
+    /// </summary>
+    internal ContentPart? Blocked(int offset) => _named is not null ? UnitHolding(offset) : WrittenAt(offset);
 
     /// <summary>
     /// The block after the one holding <paramref name="offset"/>, or null where none follows it. What a second
@@ -197,54 +186,19 @@ public sealed partial class ContentEngine
     /// </summary>
     internal ContentPart? BlockedAfter(int offset)
     {
-        if (_named is not null) return null;
+        if (_named is not null || WrittenAt(offset) is not { } holding) return null;
 
-        var blocks = WrittenBlocks;
-        var at = Holding(blocks, offset);
+        var seen = false;
 
-        return at + 1 < blocks.Count && blocks[at].Start <= offset ? blocks[at + 1] : null;
+        for (var at = UnitAt(holding.Start); at < _laidUnits.Count; at++)
+            foreach (var block in Inside(PlacedAt(at)))
+            {
+                if (seen) return block;
+                seen = ReferenceEquals(block.Node, holding.Node);
+            }
+
+        return null;
     }
-
-    /// <summary>
-    /// The document's own blocks — what somebody wrote, not what was worked out about it nor the space between — in the order
-    /// written, taken from the reading as it stands. Kept for that reading, since the pointer asks which block it is over every
-    /// time it moves, and a long document has thousands.
-    /// </summary>
-    private IReadOnlyList<ContentPart> WrittenBlocks
-    {
-        get
-        {
-            var root = ReadRoot;
-            if (!ReferenceEquals(_writtenIn, root))
-                (_writtenBlocks, _writtenIn) = ([.. root.Children.Where(block => !block.Derived && block.Role != Roles.Trivia)], root);
-
-            return _writtenBlocks;
-        }
-    }
-
-    /// <summary>The blocks <see cref="WrittenBlocks"/> last gave, and the reading they were taken from.</summary>
-    private IReadOnlyList<ContentPart> _writtenBlocks = [];
-    private ContentPart? _writtenIn;
-
-    /// <summary>
-    /// Where among <paramref name="blocks"/> the first one ending past <paramref name="offset"/> is — the one holding it, where any
-    /// does — or their count where none ends past it. Found by halving: written blocks follow one another without overlapping, so
-    /// where they end is in order too.
-    /// </summary>
-    private static int Holding(IReadOnlyList<ContentPart> blocks, int offset)
-    {
-        var (low, high) = (0, blocks.Count);
-
-        while (low < high)
-        {
-            var middle = low + ((high - low) / 2);
-            if (blocks[middle].End <= offset) low = middle + 1;
-            else high = middle;
-        }
-
-        return low;
-    }
-
     /// <summary>
     /// Where a block came out: the whole of what it drew, from its top to its bottom and across as much of the page as it
     /// reaches — which is what a picture of the block is, and so is the block's own width and not the page's.
@@ -357,7 +311,7 @@ public sealed partial class ContentEngine
         if (Headed(block) is { } section)
             return Language(null).Editing.Corner(new ContentAsk(MarkdownParser.Language, _state.Document)
             {
-                Part = block, Root = ReadRoot, Section = section, IsReadOnly = _readOnly,
+                Part = block, Root = RootOf(block), Section = section, IsReadOnly = _readOnly,
             });
 
         // Prose is read rather than handled: it is no picture to keep, and copying it is what selecting it is for.
@@ -575,7 +529,7 @@ public sealed partial class ContentEngine
 
         if (diagram is not null && Expand(diagram, key, open)) return true;
 
-        _unchanged.Forget(ReadRoot.Node, held => ReferenceEquals(held, block.Node));
+        Unkeep(held => ReferenceEquals(held, block.Node));
         Relay();
 
         return true;
@@ -587,18 +541,7 @@ public sealed partial class ContentEngine
     /// </summary>
     internal bool Unfolded(int offset)
     {
-        var root = ReadRoot;
-        ContentPart? block = null;
-
-        foreach (var part in root.Children)
-        {
-            if (part.Derived || offset < part.Start || offset >= part.End) continue;
-
-            block = part;
-            break;
-        }
-
-        if (block is null) return false;
+        if (PartHolding(offset) is not { } block) return false;
 
         var opened = false;
 

@@ -83,14 +83,22 @@ public sealed class WithUnchanged : IAstStage
 
     /// <summary>
     /// Says that something the characters do not say has changed about the blocks of <paramref name="tree"/>, a reading this worked over,
-    /// that <paramref name="which"/> picks out — so none of those is laid as it was, and every other block still is.
+    /// that <paramref name="which"/> picks out — so none of those is laid as it was, and every other block still is. Says whether any was.
     /// </summary>
-    public void Forget(ContentNode tree, Func<ContentNode, bool> which)
+    public bool Forget(ContentNode tree, Func<ContentNode, bool> which)
     {
-        if (Held(tree) is not { } laid) return;
+        if (Held(tree) is not { } laid) return false;
+
+        var any = false;
 
         for (var at = 0; at < tree.Children.Count; at++)
-            if (which(tree.Children[at]) && laid.For(at) is { } kept) kept.Last = null;
+            if (which(tree.Children[at]) && laid.For(at) is { } kept)
+            {
+                kept.Last = null;
+                any = true;
+            }
+
+        return any;
     }
 
     /// <summary>What this hung on <paramref name="tree"/> when it worked it over, or null where it did not.</summary>

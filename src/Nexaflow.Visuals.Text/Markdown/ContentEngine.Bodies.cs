@@ -56,7 +56,7 @@ public sealed partial class ContentEngine
     /// <paramref name="document"/> as <paramref name="language"/> reads it whole: read afresh the first time, and after that read again
     /// from where each change since was written — every body read inside it carried with it.
     /// </summary>
-    private Parsed ReadAgain(ContentLanguage language, string? named, ContentDocument document)
+    private ContentWindow ReadAgain(ContentLanguage language, string? named, ContentDocument document)
     {
         if (_whole is not { } whole || !ReferenceEquals(whole.Language, language))
         {
@@ -85,7 +85,7 @@ public sealed partial class ContentEngine
         }
 
         _whole = whole;
-        return new Parsed(language, named ?? string.Empty, document, whole.Units.Tree(document));
+        return whole;
     }
 
     /// <summary>

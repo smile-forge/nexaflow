@@ -122,9 +122,7 @@ public sealed partial class ContentEngine
 
         while (true)
         {
-            var taken = new Parsed(language, _named ?? string.Empty, state.Document, window.Units.Tree(window.Document, window.Taken));
-
-            laid = LaidFrom(language, _named, taken, window, state, style, room, readOnly, new KeptInContent(window, state.Document));
+            laid = LaidFrom(language, _named, window, state, style, room, readOnly, new KeptInContent(window, state.Document));
             window.Bottom = laid.Size.Height;
 
             if (!Short(window, reach, needed) || spent.Elapsed > Spent || !Took(window, reach, needed)) break;
@@ -319,6 +317,9 @@ public sealed partial class ContentEngine
             if (staged.Whole) window.Unstaged = false;
         }
 
+        // What the rest of the document defines can make a name in a unit laid mean something: every unit that asked is asked again.
+        if (further) _defined++;
+
         return further;
     }
 
@@ -347,7 +348,9 @@ public sealed partial class ContentEngine
         {
             if (_window is { } window) return window.Words ??= DrawnText.Of(Everything(window));
 
-            if (!ReferenceEquals(_wordsOf, Reading)) (_words, _wordsOf) = (DrawnText.Of((Reading?.Root ?? NothingRead).Node), Reading);
+            // Content read whole is one unit, as it was worked over.
+            var tree = _laidUnits.Count > 0 ? _laidUnits[0].Unit.Tree : NothingRead.Node;
+            if (!ReferenceEquals(_wordsOf, tree)) (_words, _wordsOf) = (DrawnText.Of(tree), tree);
 
             return _words!;
         }
@@ -355,7 +358,7 @@ public sealed partial class ContentEngine
 
     /// <summary>What <see cref="DrawnWords"/> came to, and the reading it was read from.</summary>
     private DrawnText? _words;
-    private ContentReading? _wordsOf;
+    private ContentNode? _wordsOf;
 
     /// <summary>All of a windowed document, read to its end — what the background reading has read taken in, and the rest read here.</summary>
     private ContentNode Everything(ContentWindow window)

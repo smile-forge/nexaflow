@@ -44,6 +44,7 @@ using Nexaflow.Markdown.Treemap;
 using Nexaflow.Visuals.Text.Markdown.Treemap;
 using Nexaflow.Markdown.TreeView;
 using Nexaflow.Visuals.Text.Markdown.TreeView;
+using Nexaflow.Markdown.Layout.Prose;
 
 namespace Nexaflow.Visuals.Text.Markdown.Languages;
 
@@ -85,6 +86,7 @@ internal static class Shipped
             Writable = true,
             Windowed = MarkdownParser.Windowed,
             Bounds = MarkdownParser.Bounds,
+            Seam = MarkdownGaps.Between,
             Editing = MarkdownEdits.Instance,
             Transpile = Transpiles.By<MarkdownParser>(),
         };

@@ -25,6 +25,9 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     private double _y;
     private double _reach;
 
+    /// <summary>The first and the last of the document's own blocks laid.</summary>
+    private (ContentPart? First, ContentPart? Last) _ends;
+
     public MarkdownBuilder(ContentReading reading, EditState state, LayoutStyle style, bool isReadOnly, ILayoutMedium medium,
                                    LayoutHost host)
         : base(reading, state, style, isReadOnly, medium, host)
@@ -51,7 +54,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         Blocks(into, Reading.Root, 0, Fits(Room));
         into.Close();
 
-        return new Laid(into.Seal(), Math.Max(_reach, 1), Math.Max(_y, 1), Trouble());
+        return new Laid(into.Seal(), Math.Max(_reach, 1), Math.Max(_y, 1), Trouble()) { Ends = _ends };
     }
 
     /// <summary>
@@ -91,7 +94,11 @@ public sealed partial class MarkdownBuilder : ContentBuilder
             if (above is not null) _y += Between(above, part);
             above = part;
 
-            if (whole) Whole(into, part, x, room, laid?.For(at));
+            if (whole)
+            {
+                Whole(into, part, x, room, laid?.For(at));
+                _ends = (_ends.First ?? part, part);
+            }
             else Block(into, part, x, room);
 
             if (fold.Folded is { } key) Fold(into, part, key, fold.Behind, x);
@@ -118,13 +125,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         Reached(x + box.Bounds.Width);
     }
 
-    private double Between(ContentPart above, ContentPart below)
-    {
-        var after = (above.Node.HeldAs(MarkdownRoles.Typeset) as ParagraphLook)?.After;
-        var before = (below.Node.HeldAs(MarkdownRoles.Typeset) as ParagraphLook)?.Before;
-
-        return after is null && before is null ? Gap : ((after ?? 0) + (before ?? 0)) * Style.TextSize;
-    }
+    private double Between(ContentPart above, ContentPart below) => MarkdownGaps.Between(above, below, Style);
 
     /// <summary>One block of the document, as a piece of its own standing at the top of its own frame, its picture kept once painted.</summary>
     /// <summary>
@@ -665,7 +666,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
     // ── Keeping count ───────────────────────────────────────────────────────
 
-    private double Gap => Style.TextSize * 0.72;
+    private double Gap => MarkdownGaps.Usual(Style);
 
     private void Reached(double x) => _reach = Math.Max(_reach, x);
 

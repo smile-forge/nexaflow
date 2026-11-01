@@ -21,7 +21,7 @@ public sealed partial class ContentEngine
     private readonly ContentOutline _outline = new();
 
     /// <summary>The units the outline is in step with, one for each of its own.</summary>
-    private readonly List<ContentUnit> _outlined = [];
+    private readonly List<StagedUnit> _outlined = [];
 
     /// <summary>The sections folded away as last laid, in the order written — none inside another, whose heading is not laid.</summary>
     private List<OutlineSection> _folded = [];
@@ -50,7 +50,6 @@ public sealed partial class ContentEngine
     /// </summary>
     internal (int Start, int Length)? Located(ContentPath path)
     {
-        var root = ReadRoot;
         var (from, to) = (0, int.MaxValue);
         ContentPart? at = null, found = null;
 
@@ -68,7 +67,7 @@ public sealed partial class ContentEngine
                 continue;
             }
 
-            if (Took(at is null ? Blocks(root, from, to) : Inside(at), step) is not { } next) break;
+            if (Took(at is null ? Tops(from, to) : Inside(at), step) is not { } next) break;
 
             found = at = next;
         }
@@ -82,10 +81,10 @@ public sealed partial class ContentEngine
     /// </summary>
     internal ContentPath PathTo(int offset)
     {
-        var root = ReadRoot;
         var holding = new List<ContentPart>();
 
-        for (var at = root; Inside(at).FirstOrDefault(part => part.Start <= offset && offset < part.End) is { } inner; at = inner) holding.Add(inner);
+        for (var at = UnitHolding(offset); at is not null && Inside(at).FirstOrDefault(part => part.Start <= offset && offset < part.End) is { } inner; at = inner)
+            holding.Add(inner);
         if (holding.Count == 0) return ContentPath.Nowhere;
 
         var block = holding[0];
@@ -101,7 +100,7 @@ public sealed partial class ContentEngine
             (from, to) = (section.Start + 1, section.End);
         }
 
-        var among = Blocks(root, from, to);
+        var among = Tops(from, to);
 
         foreach (var part in holding)
         {
@@ -118,15 +117,11 @@ public sealed partial class ContentEngine
     /// <summary>The part of the content laid starting at <paramref name="start"/> that was promoted into the outline, or null.</summary>
     private ContentPart? PartAt(int start)
     {
-        for (var at = ReadRoot; at.Children.FirstOrDefault(part => !part.Derived && part.Start <= start && (start < part.End || part.Start == start)) is { } inner; at = inner)
+        for (var at = UnitHolding(start); at?.Children.FirstOrDefault(part => !part.Derived && part.Start <= start && (start < part.End || part.Start == start)) is { } inner; at = inner)
             if (inner.Start == start && OutlineMark.Of(inner.Node) is not null) return inner;
 
         return null;
     }
-
-    /// <summary>The blocks of <paramref name="root"/> starting from <paramref name="from"/> up to <paramref name="to"/>.</summary>
-    private static IEnumerable<ContentPart> Blocks(ContentPart root, int from, int to) =>
-        Inside(root).Where(part => part.Start >= from && part.Start < to);
 
     /// <summary>The part of <paramref name="among"/> a step names — of its kind, by its name or at its place among those of its kind — or null.</summary>
     private static ContentPart? Took(IEnumerable<ContentPart> among, ContentStep step)
@@ -210,13 +205,13 @@ public sealed partial class ContentEngine
         block is { Parent: { Parent: null } } && _outline.EntryAt(block.Start) is { } entry ? _outline.Section(entry.Unit, entry.Entry) : null;
 
     /// <summary>
-    /// Brings the outline into step with the units of <paramref name="window"/> laid: the units either end of it that are the ones it
-    /// was in step with are kept, and every unit between is gathered from the parts <paramref name="staged"/> — what was laid, worked
-    /// over — holds of it. Says so (<see cref="OutlineChanged"/>) where a heading came, went, or now says or answers to something else.
+    /// Brings the outline into step with the units laid: the units either end of it that are the ones it was in step with are kept,
+    /// and every unit between says what its blocks — worked over on their own — say to it. Says so (<see cref="OutlineChanged"/>)
+    /// where a heading came, went, or now says or answers to something else.
     /// </summary>
-    private void InStep(ContentWindow window, ContentNode staged)
+    private void InStep()
     {
-        var units = window.Units.From(0).Take(window.Taken).ToList();
+        var units = _laidUnits;
 
         var first = 0;
         while (first < units.Count && first < _outlined.Count && ReferenceEquals(units[first].Unit, _outlined[first])) first++;
@@ -226,19 +221,13 @@ public sealed partial class ContentEngine
 
         if (first == units.Count && first == _outlined.Count) return;
 
-        var gathered = new List<OutlineUnit>(units.Count - first - last);
-
-        for (var index = first; index < units.Count - last; index++)
-        {
-            var (unit, start) = units[index];
-            gathered.Add(OutlineUnit.Of(units.Count == 1 ? staged.Children : Parts(staged, start, start + unit.Width), unit.Width, start));
-        }
+        var gathered = units.Skip(first).Take(units.Count - first - last).Select(laid => laid.Unit.Outline).ToList();
 
         var was = Enumerable.Range(first, _outlined.Count - last - first).SelectMany(index => Listed(_outline[index].Unit)).ToList();
         var renamed = _outline.Replaced(first, _outlined.Count - last, gathered);
 
         _outlined.RemoveRange(first, _outlined.Count - last - first);
-        _outlined.InsertRange(first, units.Skip(first).Take(gathered.Count).Select(placed => placed.Unit));
+        _outlined.InsertRange(first, units.Skip(first).Take(gathered.Count).Select(laid => laid.Unit));
 
         if (renamed.Count > 0 || !was.SequenceEqual(gathered.SelectMany(Listed))) OutlineChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -246,35 +235,6 @@ public sealed partial class ContentEngine
     /// <summary>What <paramref name="unit"/>'s headings say and how high they rank — what a list of them shows.</summary>
     private static IEnumerable<(string Title, int Rank, string Called)> Listed(OutlineUnit unit) =>
         unit.Entries.Where(entry => entry.Heads).Select(entry => (entry.Title, entry.Rank, entry.Called));
-
-    /// <summary>The parts of <paramref name="tree"/>, a reading laid a unit at a time, that stand from <paramref name="from"/> up to <paramref name="to"/>.</summary>
-    private static List<ContentNode> Parts(ContentNode tree, int from, int to)
-    {
-        var parts = tree.Children;
-
-        // Everything hung on the reading stands after what was written, and stands for nothing.
-        var written = parts.Count;
-        while (written > 0 && parts[written - 1].IsDerived) written--;
-
-        var (begin, end) = (Lower(parts, written, from), Lower(parts, written, to));
-
-        return [.. parts.Skip(begin).Take(end - begin)];
-    }
-
-    /// <summary>The first of the <paramref name="written"/> parts first in <paramref name="parts"/> that starts at or past <paramref name="offset"/>.</summary>
-    private static int Lower(IReadOnlyList<ContentNode> parts, int written, int offset)
-    {
-        var (low, high) = (0, written);
-
-        while (low < high)
-        {
-            var middle = (low + high) / 2;
-            if ((parts[middle].Offset ?? 0) < offset) low = middle + 1;
-            else high = middle;
-        }
-
-        return low;
-    }
 
     /// <summary>Works out which sections the reader has folded away, as the outline now stands.</summary>
     private void Fold()

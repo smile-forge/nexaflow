@@ -54,7 +54,7 @@ public class LongDocumentTests
     {
         var document = Document();
         var engine = LaidOut(document);
-        var written = engine.ReadRoot.Children.Where(block => !block.Derived && block.Role != Roles.Trivia).ToList();
+        var written = engine.Readings.SelectMany(unit => unit.Children).Where(block => !block.Derived && block.Role != Roles.Trivia).ToList();
 
         for (var offset = 0; offset <= document.Length; offset++)
         {
@@ -72,7 +72,7 @@ public class LongDocumentTests
         var engine = LaidOut(Document());
         var root = engine.Laid.Root;
 
-        foreach (var block in engine.ReadRoot.Children.Where(block => !block.Derived && block.Role != Roles.Trivia))
+        foreach (var block in engine.Readings.SelectMany(unit => unit.Children).Where(block => !block.Derived && block.Role != Roles.Trivia))
         {
             // The block's own piece: the first of the document's that first names something inside the block.
             var own = root.Children.FirstOrDefault(whole => whole.Kind == LayoutPieces.Whole

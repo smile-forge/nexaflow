@@ -69,11 +69,11 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
-    /// A slow stage, where it stands among the stages <paramref name="read"/> is worked over by: what it found hung on the tree where
-    /// that has landed, and otherwise the tree as it is, with the finding started.
+    /// <paramref name="slow"/> as the engine runs it over <paramref name="text"/>, read in <paramref name="language"/>: what it found
+    /// there, once it has landed, applied — and until then, the tree as it was.
     /// </summary>
-    private IAstStage Staging(Parsed read, ISlowStage slow) =>
-        new AstStage(slow.Name, tree => Later(new(read.Language, slow.Name, read.Document), () => slow.Find(tree)) is { } found ? slow.Apply(tree, found) : tree);
+    private IAstStage Staging(ContentLanguage language, ContentDocument text, ISlowStage slow) =>
+        new AstStage(slow.Name, tree => Later(new(language, slow.Name, text), () => slow.Find(tree)) is { } found ? slow.Apply(tree, found) : tree);
 
     /// <summary>
     /// What the slow work kept by <paramref name="key"/> came to, where it has landed — or null, starting <paramref name="work"/>

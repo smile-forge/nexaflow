@@ -50,7 +50,7 @@ public class SlowStageTests
     {
         var engine = new ContentEngine();
         var source = $"Nothing checked teh words of {Guid.NewGuid():N} yet.";
-        bool Marked() => engine.Reading!.Root.SelfAndDescendants().Any(part => part.Trouble == "Misspelt.");
+        bool Marked() => engine.Readings.SelectMany(unit => unit.SelfAndDescendants()).Any(part => part.Trouble == "Misspelt.");
 
         using var landed = new ManualResetEventSlim();
         engine.Reread += (_, _) => landed.Set();

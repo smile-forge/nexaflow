@@ -542,22 +542,34 @@ where it did not. A document holding readings nested three deep, written in at e
 every level, reads (`WindowedReadingTests`) and lays out (`WindowedLayoutTests`) as the document it became does read
 whole.
 
-**What the blocks come to across the document is kept a unit at a time** (§8): a unit read again is gathered into the
-outline again, a unit kept keeps what it said, and only the names the change reaches are numbered again.
+**Working over and laying are a unit at a time** (`ContentEngine.Stage`, `Composed`). Each unit laid is worked over by its
+language's stages from its own tree — offsets its own, the showing standing where the unit starts — and laid on its own from
+a reading of it placed there; both are kept, the working over while the unit's tree, the style, whether it is written in,
+the stretch shown as written within it and the inputs stand, and the laying while the room, whether it is only read and the
+folds reaching into it do. What is laid is a document piece holding one mount per unit (`LayoutMount`), each where its unit
+now starts, its parts restated only when asked, and the gap at each seam said by the language from the blocks either side
+(`ContentLanguage.Seam`, from what each unit laid says it began and ended with: `Laid.Ends`). Content read whole is one unit,
+laid as it always was. What one unit says reaches the others through the engine, never by one unit reading another:
 
-**Laying is not yet a unit at a time.** What is laid is one tree, from the top down to as far as the reader has looked,
-worked over by the stages and laid again on every change; what spares it is reuse, keyed on identity, never on a guess
-about what an edit touched:
+- **what it defines** — each unit's stages say it into link targets of their own (`LinkTargets(document)`), gathered into
+  the document's in order; every name and kind a unit's stages ask about is remembered with its answer, so a definition
+  that comes to mean something else works over again only the units that asked about it;
+- **what its blocks come to** — gathered into the outline (§8) from the unit's own worked-over parts; a unit kept keeps
+  what it said, and only the names the change reaches are numbered again;
+- **which diagram is which** — counted unit by unit, so what the reader opened in each stays with it.
+
+The document read as blocks is its units: what asks for the block at a place asks the unit holding it. What spares a unit
+laid again is reuse inside it, keyed on identity, never on a guess about what an edit touched:
 
 - **A block written as it was is read as it was.** The engine keeps a parse per document (`MarkdownParser.Parsing`)
   that hands back every block written exactly as last time beside the same definitions as the very block it handed out
   then, finished, so a keystroke reads and walks only the block it was typed in. `RereadingTests` holds such a reading
   to the same document read from nothing.
-- **A block that reads as it did is laid as it was.** `WithUnchanged` says which of this reading's blocks are one the
-  last reading had — the same characters *and* everything worked out about them, so a paragraph whose link was defined
-  again elsewhere is not the same. What the builder laid for such a block (`LaidBlocks`, by where the block comes among
-  the document's parts) is set down again, only what its pieces stand for moved along by the amount the edit moved
-  everything after it. A block shown as written is never kept. What a block means on the day it is read — a Gantt
+- **A block that reads as it did is laid as it was.** `WithUnchanged` says which of a unit's blocks are one a unit it
+  replaced had — handed over as those units leave (`Leaving`) — the same characters *and* everything worked out about
+  them, so a paragraph whose link was defined again elsewhere is not the same. What the builder laid for such a block
+  (`LaidBlocks`, by where the block comes among the unit's parts) is set down again, only what its pieces stand for moved
+  along by the amount the edit moved everything after it. A block shown as written is never kept. What a block means on the day it is read — a Gantt
   chart's today — is part of its reading, so it is laid again when it is read again. `LaidBlocksTests` holds every
   sample, typed into and taken back, to the same source laid from nothing.
 - **Slow work is never waited on** — see [§8](#8-the-engine).

@@ -70,6 +70,14 @@ public sealed record ContentLanguage(
     /// </summary>
     public IBodyBounds? Bounds { get; init; }
 
+    /// <summary>
+    /// The room between the last block of one unit laid and the first of the next, in the style they are drawn in — what two blocks
+    /// laid together would have between them — or null for a language whose units stand flush. Content read a unit at a time is laid
+    /// a unit at a time, and put back together with this at each seam. A language with one has a builder that says which of its blocks
+    /// it laid (<see cref="Laid.Ends"/>), so a unit that laid none takes no room.
+    /// </summary>
+    public Func<ContentPart, ContentPart, LayoutStyle, double>? Seam { get; init; }
+
     /// <summary>What an edit, a gesture and a block's corner mean in it — what they mean everywhere, unless it says otherwise.</summary>
     public IContentLanguage Editing { get; init; } = Usual.Editing;
 

@@ -87,51 +87,40 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     private ContentInputs _inputs = inputs ?? ContentInputs.None;
 
     /// <summary>
-    /// What the content read to when it was last laid out — its worked-over tree, the one the layout was drawn from — or null
-    /// before it has been.
-    /// </summary>
-    public ContentReading? Reading { get; private set; }
-
-    /// <summary>
     /// <paramref name="state"/>'s source laid out at <paramref name="room"/>, written in the language called
     /// <paramref name="named"/> — or in markdown, where nothing names one.
     /// </summary>
     public Laid Lay(string? named, EditState state, LayoutStyle style, double room, bool readOnly)
     {
         var language = Language(named);
-        var top = ReadAgain(language, named, state.Document);
+        var whole = ReadAgain(language, named, state.Document);
 
-        return LaidFrom(language, named, top, _whole!, state, style, room, readOnly, new KeptInContent(_whole!, state.Document));
+        return LaidFrom(language, named, whole, state, style, room, readOnly, new KeptInContent(whole, state.Document));
     }
 
     /// <summary>
-    /// What <paramref name="top"/> — <paramref name="state"/>'s source as its language read it — comes to laid out at
-    /// <paramref name="room"/>: worked over by the language's stages and laid by its builder, as any content is — the bodies written
-    /// inside it kept in <paramref name="holding"/>.
+    /// The units <paramref name="window"/> has taken, laid out: each worked over and laid on its own where what it was worked over and
+    /// laid with no longer stands (<see cref="Stage"/>, <see cref="Composed"/>), what their blocks come to brought into the outline, and
+    /// what the reader folded away of it worked out — the whole put together as one layout.
     /// </summary>
-    private Laid LaidFrom(ContentLanguage language, string? named, Parsed top, ContentWindow window, EditState state, LayoutStyle style,
-                          double room, bool readOnly, Keeping holding)
+    private Laid LaidFrom(ContentLanguage language, string? named, ContentWindow window, EditState state, LayoutStyle style, double room,
+                          bool readOnly, Keeping holding)
     {
-        Views(top);
-        // What the reader opened in the content, where it is a diagram.
+        var units = window.Units.From(0).Take(window.Taken).ToList();
+
+        // What the reader opened in each diagram, or in the content itself where it is a diagram.
+        Views(language, units);
         if (_top is { } opened) style = style with { Expansion = opened.Expansion };
 
         var showing = Showing(named ?? string.Empty, style, !readOnly, state.Raw, 0) with { Unchanged = _unchanged, Targets = _targets };
-    // The blocks of the reading laid last are what this one's are matched against — none, once told nothing is as it was.
-        if (Reading is { } last && !_unkept) _unchanged.Leaving(last.Root.Node);
-        _unkept = false;
 
-        var staged = Staged(top, showing);
-        _unchanged.Settle();
+        Stage(language, units, showing, window.Document);
 
         // What its blocks come to across the units laid, and what of that the reader folded away.
-        InStep(window, staged);
+        InStep();
         Fold();
 
-        Reading = ContentReading.Of(staged, 0, top.Document);
-        _readings.AddOrUpdate(staged, holding.Address);
-
-        return Builder(language, Reading, showing, LayoutStanding.Alone, holding, Folding).Lay(room);
+        return Composed(language, showing, room, readOnly, holding);
     }
 
 
@@ -304,48 +293,10 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     {
         var tree = Bound(read.Language, read.Tree);
         var stages = read.Language.Stages(tree, showing).OfType<IAstStage>()
-                         .Select(stage => stage is ISlowStage slow ? Staging(read, slow) : stage)
+                         .Select(stage => stage is ISlowStage slow ? Staging(read.Language, read.Document, slow) : stage)
                          .ToList();
 
         return stages.Count == 0 ? tree : new AstPipeline(stages).Run(tree);
-    }
-
-    /// <summary>
-    /// What the reader has opened in each diagram, handed out afresh in the order the diagrams are written: the one thing a
-    /// reading of the same document again keeps, where the source is exactly what may have changed. Content that is itself a
-    /// diagram, rather than a document holding some, is the first.
-    /// </summary>
-    private void Views(Parsed top)
-    {
-        _views.Clear();
-        _opened.Rewind();
-
-        _top = top.Language == ContentLanguages.Markdown ? null : _opened.Next();
-        if (_top is not null) return;
-
-        Held(top.Tree, 0);
-
-        void Held(ContentNode node, int at)
-        {
-            if (ContentNested.Language(node) is { } language)
-            {
-                if (!ContentLanguages.Reads(language)) return;
-
-                foreach (var child in node.Children)
-                {
-                    if (child.Kind == Kinds.Nested) { _views[at] = _opened.Next(); return; }
-                    at += child.Width;
-                }
-
-                return;
-            }
-
-            foreach (var child in node.Children)
-            {
-                Held(child, at);
-                at += child.Width;
-            }
-        }
     }
 
     /// <summary>

@@ -59,9 +59,6 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     /// </summary>
     private readonly ContentEngine _engine = new();
 
-    /// <summary>The document as it was read — the tree the laid layout was drawn from, as the engine last read it.</summary>
-    private ContentPart Read => _engine.ReadRoot;
-
     public MarkdownSurface()
     {
         Focusable = true;

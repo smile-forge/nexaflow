@@ -1,4 +1,5 @@
 using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Markdown.Layout;
 
@@ -29,6 +30,12 @@ public sealed record Laid(LayoutTree Tree, double Width, double Height, IReadOnl
 
     /// <summary>How much room it wants, across and down.</summary>
     public LayoutSize Size => new(Width, Height);
+
+    /// <summary>
+    /// The first and the last of the content's own blocks it laid — what the gap at a seam between it and content laid beside it is
+    /// said from, by the language; null where it laid none, or says nothing of its blocks.
+    /// </summary>
+    public (ContentPart? First, ContentPart? Last) Ends { get; init; }
 
     /// <summary>Whether anything was laid out.</summary>
     public bool Exists => Tree.Count > 0;
