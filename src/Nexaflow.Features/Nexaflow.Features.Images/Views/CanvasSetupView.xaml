@@ -76,6 +76,17 @@
         <TextBlock Text="{Binding SizeNote}" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"
                    Visibility="{Binding SizeNote, Converter={StaticResource NullToCollapsed}}"/>
 
+        <!-- What the pixels hold: colour or grey, and how deep each channel is. -->
+        <TextBlock Text="{loc:Str Images.Colour.Mode}" Style="{StaticResource OptionLabel}"/>
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+            <ComboBox ItemsSource="{Binding Models}" SelectedItem="{Binding Model, Mode=TwoWay}" DisplayMemberPath="Label"
+                      Style="{StaticResource DarkComboBox}" MinWidth="120" Height="28"
+                      AutomationProperties.AutomationId="Images_CanvasMode" AutomationProperties.Name="{loc:Str Images.Colour.Mode}"/>
+            <ComboBox ItemsSource="{Binding Depths}" SelectedItem="{Binding Depth, Mode=TwoWay}" DisplayMemberPath="Label"
+                      Style="{StaticResource DarkComboBox}" MinWidth="150" Height="28" Margin="8,0,0,0"
+                      AutomationProperties.AutomationId="Images_CanvasDepth" AutomationProperties.Name="{loc:Str Images.Colour.Depth}"/>
+        </StackPanel>
+
         <!-- The background, shown rather than named: see-through, white, or a colour of its own. -->
         <TextBlock Text="{loc:Str Images.Canvas.Background}" Style="{StaticResource OptionLabel}"/>
         <StackPanel Orientation="Horizontal">

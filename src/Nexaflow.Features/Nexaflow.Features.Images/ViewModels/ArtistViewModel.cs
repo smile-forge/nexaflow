@@ -90,8 +90,8 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         restoring.Defer(Stage.Restorer);
 
         Editor = new ImageEditorViewModel(this, shell, editing, Stage.Restorer, Stage.Remover, Cutter, Stage.Eraser, Stage.Models, picking, erasingModels, restoring);
-        Layers = new LayersViewModel(shell, runOnUi, () => Editor.InkSkColour);
-        Layers.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(LayersViewModel.MaskAlone)) RequestRender(); };
+        Layers = new LayersViewModel(shell, runOnUi, picture => Painting.InkIn(picture));
+        Layers.PropertyChanged += (_, e) => { if (e.PropertyName is nameof(LayersViewModel.MaskAlone) or nameof(LayersViewModel.ViewExposure)) RequestRender(); };
         Start = new ImageStartViewModel(this, shell, ai, editing, _config);
         Pictures = new CanvasPictures(this, shell, ai, editing);
         Painting = new LayerPainting(this, Editor);

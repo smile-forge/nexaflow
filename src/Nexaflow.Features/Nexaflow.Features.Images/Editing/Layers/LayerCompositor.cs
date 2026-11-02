@@ -88,6 +88,23 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
         => versions.Count == _drawnVersions.Count && versions.All(v => _drawnVersions.TryGetValue(v.Key, out var was) && was == v.Value);
 
     /// <summary>
+    /// The value the composite last rendered holds under <paramref name="at"/> (canvas pixels) — the picture's own, as deep as
+    /// it is held and before it is shown through a profile or an exposure, not premultiplied; null where nothing is rendered.
+    /// </summary>
+    public SKColorF? ShownAt(SKPoint at)
+    {
+        if (_composite is not { } composite || _drawn is not { } picture) return null;
+        int x = (int)Math.Floor(at.X * _drawnScale), y = (int)Math.Floor(at.Y * _drawnScale);
+        if (x < 0 || y < 0 || x >= composite.Width || y >= composite.Height) return null;
+        var info = new SKImageInfo(1, 1, SKColorType.RgbaF32, SKAlphaType.Unpremul, picture.Colour.ColourSpace);
+        using var pixel = new SKBitmap(info);
+        using var pixmap = composite.PeekPixels();
+        if (!pixmap.ReadPixels(info, pixel.GetPixels(), pixel.RowBytes, x, y)) return null;
+        var value = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(pixel.GetPixelSpan());
+        return new SKColorF(value[0], value[1], value[2], value[3]);
+    }
+
+    /// <summary>
     /// The rectangle of the output that differs between <paramref name="before"/> and <paramref name="after"/>: empty where the
     /// layers are the same, the tiles a pixel layer changed where that is all that changed, else null — draw it all again.
     /// </summary>

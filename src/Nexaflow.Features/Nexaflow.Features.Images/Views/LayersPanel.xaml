@@ -232,6 +232,33 @@
                                      AutomationProperties.Name="{loc:Str Images.Layers.Anchor.BottomRight}" ToolTip="{loc:Str Images.Layers.Anchor.BottomRight}"
                                      IsChecked="{Binding CanvasAnchor, Converter={StaticResource EnumToBool}, ConverterParameter=BottomRight}"/>
                     </UniformGrid>
+                    <!-- The colour the picture is held in: converted to another mode or depth as one step. -->
+                    <TextBlock Style="{StaticResource EditCaption}" Margin="0,8,0,2" Text="{loc:Str Images.Colour.Mode}"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <ComboBox ItemsSource="{Binding ColourModes}" SelectedItem="{Binding ColourMode, Mode=TwoWay}" DisplayMemberPath="Label"
+                                  Style="{StaticResource DarkComboBox}" Height="26"
+                                  AutomationProperties.AutomationId="Image_LayersColourMode" AutomationProperties.Name="{loc:Str Images.Colour.Mode}"/>
+                        <ComboBox Grid.Column="2" ItemsSource="{Binding ColourDepths}" SelectedItem="{Binding ColourDepth, Mode=TwoWay}" DisplayMemberPath="Label"
+                                  Style="{StaticResource DarkComboBox}" Height="26"
+                                  AutomationProperties.AutomationId="Image_LayersColourDepth" AutomationProperties.Name="{loc:Str Images.Colour.Depth}"/>
+                    </Grid>
+                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,4,0,0" HorizontalAlignment="Left" Command="{Binding ConvertColourCommand}"
+                            ToolTip="{loc:Str Images.Layers.ConvertColourTip}" AutomationProperties.AutomationId="Image_LayersConvertColour">
+                        <icons:IconLabel Icon="fluent:color" Text="{loc:Str Images.Layers.ConvertColour}" FontSize="11"/>
+                    </Button>
+                    <StackPanel Margin="0,6,0,0" Visibility="{Binding ShowsLight, Converter={StaticResource BoolToVis}}">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Style="{StaticResource EditCaption}" Text="{Binding ViewExposure, StringFormat={}{0:+0.0;-0.0;0}}"/>
+                            <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Layers.ViewExposure}"/>
+                        </DockPanel>
+                        <Slider Minimum="-8" Maximum="8" SmallChange="0.1" LargeChange="1" Value="{Binding ViewExposure, Mode=TwoWay}"
+                                AutomationProperties.AutomationId="Image_LayersViewExposure" AutomationProperties.Name="{loc:Str Images.Layers.ViewExposure}"/>
+                    </StackPanel>
                     <TextBlock Style="{StaticResource EditCaption}" Margin="0,6,0,0" TextWrapping="Wrap" Text="{Binding CanvasMemory}"/>
                     <TextBlock Style="{StaticResource EditCaption}" Margin="0,2,0,0" TextWrapping="Wrap" Foreground="{StaticResource WarningBrush}"
                                Text="{loc:Str Images.Layers.CanvasTooLarge}" Visibility="{Binding CanvasTooLarge, Converter={StaticResource BoolToVis}}"/>

@@ -87,6 +87,12 @@ public sealed partial class LayerPainting : ObservableObject
     /// <summary>The eyedropper picks what shows, every layer together; off, the active layer's own colour.</summary>
     [ObservableProperty] private bool _sampleMerged = true;
 
+    /// <summary>Stops of light past the colour picked that a 32-bit picture is painted with — 0 paints it as picked, 1 twice as bright.</summary>
+    [ObservableProperty] private double _intensity;
+
+    /// <summary>The picture is 32-bit: its colour is light, and Intensity applies.</summary>
+    public bool PaintsLight => _viewer.CurrentDocument?.Picture.Colour.IsLinear == true;
+
     /// <summary>The colour painted with: markup's, one choice for both.</summary>
     public ColorSpec Colour
     {
@@ -127,9 +133,20 @@ public sealed partial class LayerPainting : ObservableObject
         OnPropertyChanged(nameof(CanPaint));
         OnPropertyChanged(nameof(Notice));
         OnPropertyChanged(nameof(OffersLayer));
+        OnPropertyChanged(nameof(PaintsLight));
     }
 
-    private static byte Grey(SKColor colour) => (byte)Math.Round(0.2126 * colour.Red + 0.7152 * colour.Green + 0.0722 * colour.Blue);
+    /// <summary>
+    /// The colour painted with, in <paramref name="picture"/>'s values: the colour picked, made linear for a 32-bit picture and
+    /// brightened there by <see cref="Intensity"/> — light past white, as a 32-bit picture holds it.
+    /// </summary>
+    internal SKColorF InkIn(LayeredPicture picture)
+    {
+        var picked = picture.Colour.FromSrgb(_editor.InkSkColour);
+        if (!picture.Colour.IsLinear || Intensity == 0) return picked;
+        float gain = (float)Math.Pow(2, Intensity);
+        return new SKColorF(picked.Red * gain, picked.Green * gain, picked.Blue * gain, picked.Alpha);
+    }
 
     // ── Strokes ──────────────────────────────────────────────────────────────
 
@@ -155,12 +172,15 @@ public sealed partial class LayerPainting : ObservableObject
         var (document, id, mask, pixels, coverage) = on;
         var area = stroke.To(at, pressure);
         if (area.IsEmpty) return;
-        var colour = _editor.InkSkColour;
-        document.Commit(p => p.WithLayer(id, l => mask && l.Mask is { } m
-            ? l with { Mask = m with { Coverage = stroke.Drawn(coverage!, m.Coverage, area, Grey(colour)) } }
-            : l is PixelLayer layer
-                ? layer with { Pixels = stroke.Drawn(pixels!, layer.Pixels, area, colour, layer.AlphaLocked, p.Background.Colour) }
-                : l));
+        document.Commit(p =>
+        {
+            var colour = InkIn(p);
+            return p.WithLayer(id, l => mask && l.Mask is { } m
+                ? l with { Mask = m with { Coverage = stroke.Drawn(coverage!, m.Coverage, area, p.Colour.ShownGrey(colour)) } }
+                : l is PixelLayer layer
+                    ? layer with { Pixels = stroke.Drawn(pixels!, layer.Pixels, area, colour, layer.AlphaLocked, p.Colour.FromSrgb(p.Background.Colour)) }
+                    : l);
+        });
     }
 
     /// <summary>The stroke ended: it is one step.</summary>
@@ -195,57 +215,54 @@ public sealed partial class LayerPainting : ObservableObject
             : FloodFill.Reach(((PixelLayer)layer).Pixels, picture.Width, picture.Height, x, y, tolerance, Contiguous);
         if (!picture.Selection.IsEmpty) reach = reach.Combined(picture.Selection, RegionMode.Intersect);
         if (reach.IsEmpty) return;
-        var colour = _editor.InkSkColour;
-        document.Commit(p => p.WithLayer(layer.Id, l => mask && l.Mask is { } m
-            ? l with { Mask = m with { Coverage = m.Coverage.LaidOver(reach, Grey(colour)) } }
-            : l is PixelLayer pixels ? pixels with { Pixels = pixels.Pixels.Filled(reach, colour, keepAlpha: pixels.AlphaLocked) } : l));
+        document.Commit(p =>
+        {
+            var colour = InkIn(p);
+            return p.WithLayer(layer.Id, l => mask && l.Mask is { } m
+                ? l with { Mask = m with { Coverage = m.Coverage.LaidOver(reach, p.Colour.ShownGrey(colour)) } }
+                : l is PixelLayer pixels ? pixels with { Pixels = pixels.Pixels.Filled(reach, colour, keepAlpha: pixels.AlphaLocked) } : l);
+        });
     }
 
     // ── Eyedropper ───────────────────────────────────────────────────────────
 
-    /// <summary>The colour at <paramref name="at"/> becomes the colour painted with: what shows, or the active layer's own.</summary>
+    /// <summary>The colour at <paramref name="at"/> becomes the colour painted with: what shows, or the active layer's own. On a
+    /// 32-bit picture light past white is picked as a colour and an <see cref="Intensity"/>.</summary>
     public void PickAt(SKPoint at)
     {
-        if (Picked(at) is not { Alpha: > 0 } colour) return;
-        Colour = ColorSpec.Custom(Color.FromArgb(255, colour.Red, colour.Green, colour.Blue));
+        if (_viewer.CurrentDocument is not { } document || Picked(document, at) is not { Alpha: > 0 } value) return;
+        var colour = document.Picture.Colour;
+        float brightest = Math.Max(value.Red, Math.Max(value.Green, value.Blue));
+        double stops = colour.IsLinear && brightest > 1 ? Math.Log2(brightest) : 0;
+        float scale = (float)Math.Pow(2, -stops);
+        var shown = colour.ToSrgb(new SKColorF(value.Red * scale, value.Green * scale, value.Blue * scale, 1));
+        static byte Byte(float v) => (byte)Math.Clamp((int)MathF.Round(v * 255), 0, 255);
+        Colour = ColorSpec.Custom(Color.FromArgb(255, Byte(shown.Red), Byte(shown.Green), Byte(shown.Blue)));
+        if (colour.IsLinear) Intensity = Math.Round(stops, 2);
     }
 
-    private SKColor? Picked(SKPoint at)
+    /// <summary>The value at <paramref name="at"/>, in the picture's values, not premultiplied: what shows, every layer together,
+    /// or the active layer's own — or its mask's grey while the mask is edited.</summary>
+    private SKColorF? Picked(LayeredSession document, SKPoint at)
     {
         int x = (int)Math.Floor(at.X), y = (int)Math.Floor(at.Y);
-        if (!SampleMerged && _viewer.CurrentDocument is { } document && document.Picture.Active is { } layer)
+        var picture = document.Picture;
+        if (x < 0 || y < 0 || x >= picture.Width || y >= picture.Height) return null;
+        if (!SampleMerged && picture.Active is { } layer)
         {
-            var picture = document.Picture;
-            if (x < 0 || y < 0 || x >= picture.Width || y >= picture.Height) return null;
             var spot = new SKRectI(x, y, x + 1, y + 1);
             if (picture.EditsMask && layer.Mask is { } mask)
             {
-                byte value = mask.Coverage.Read(spot)[0];
-                return new SKColor(value, value, value);
+                float value = mask.Coverage.ReadValues(spot)[0];
+                return new SKColorF(value, value, value, 1);
             }
             if (layer is PixelLayer pixels)
             {
-                var rgba = pixels.Pixels.Read(spot);
-                return Straight(rgba[0], rgba[1], rgba[2], rgba[3]);
+                var premul = pixels.Pixels.ReadPremul(spot);
+                float a = premul[3];
+                return a <= 0 ? new SKColorF(0, 0, 0, 0) : new SKColorF(premul[0] / a, premul[1] / a, premul[2] / a, a);
             }
         }
-        return Shown(at);
+        return document.ShownAt(at);
     }
-
-    // What shows at a canvas point: the picture on screen, every layer together, at the zoom it is drawn at.
-    private SKColor? Shown(SKPoint at)
-    {
-        if (_viewer.CurrentImage is not BitmapSource image || _viewer.Canvas is not { } canvas || canvas.Size.Width <= 0 || canvas.Size.Height <= 0) return null;
-        var p = canvas.DocumentToCanvas.MapPoint(at);
-        int x = (int)Math.Floor(p.X * image.PixelWidth / canvas.Size.Width), y = (int)Math.Floor(p.Y * image.PixelHeight / canvas.Size.Height);
-        if (x < 0 || y < 0 || x >= image.PixelWidth || y >= image.PixelHeight) return null;
-        BitmapSource bgra = image.Format == PixelFormats.Pbgra32 || image.Format == PixelFormats.Bgra32 ? image : new FormatConvertedBitmap(image, PixelFormats.Bgra32, null, 0);
-        var pixel = new byte[4];
-        bgra.CopyPixels(new Int32Rect(x, y, 1, 1), pixel, 4, 0);
-        return bgra.Format == PixelFormats.Pbgra32 ? Straight(pixel[2], pixel[1], pixel[0], pixel[3]) : new SKColor(pixel[2], pixel[1], pixel[0], pixel[3]);
-    }
-
-    private static SKColor Straight(byte r, byte g, byte b, byte a)
-        => a == 0 ? SKColors.Transparent
-         : new SKColor((byte)Math.Min(255, r * 255 / a), (byte)Math.Min(255, g * 255 / a), (byte)Math.Min(255, b * 255 / a), a);
 }

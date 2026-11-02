@@ -26,9 +26,9 @@ public sealed class TileFormat
         new(new PictureColour(ColourModel.Rgb, ChannelDepth.U8)),
         new(new PictureColour(ColourModel.Rgb, ChannelDepth.U16)),
         new(new PictureColour(ColourModel.Rgb, ChannelDepth.F32)),
-        new(new PictureColour(ColourModel.Gray, ChannelDepth.U8)),
-        new(new PictureColour(ColourModel.Gray, ChannelDepth.U16)),
-        new(new PictureColour(ColourModel.Gray, ChannelDepth.F32)),
+        new(new PictureColour(ColourModel.Grey, ChannelDepth.U8)),
+        new(new PictureColour(ColourModel.Grey, ChannelDepth.U16)),
+        new(new PictureColour(ColourModel.Grey, ChannelDepth.F32)),
     ];
 
     private static readonly float[] ByteToUnit = Enumerable.Range(0, 256).Select(v => v / 255f).ToArray();
@@ -145,10 +145,10 @@ public sealed class TileFormat
                 }
                 break;
             }
-            case (ColourModel.Gray, ChannelDepth.U8):
+            case (ColourModel.Grey, ChannelDepth.U8):
                 for (int i = 0, p = 0; i < count; i++, p += 4) Grey(rgba, p, ByteToUnit[pixels[i * 2]], ByteToUnit[pixels[i * 2 + 1]]);
                 break;
-            case (ColourModel.Gray, ChannelDepth.U16):
+            case (ColourModel.Grey, ChannelDepth.U16):
             {
                 var samples = MemoryMarshal.Cast<byte, ushort>(pixels);
                 for (int i = 0, p = 0; i < count; i++, p += 4) Grey(rgba, p, samples[i * 2] / 65535f, samples[i * 2 + 1] / 65535f);
@@ -218,7 +218,7 @@ public sealed class TileFormat
                 }
                 break;
             }
-            case (ColourModel.Gray, ChannelDepth.U8):
+            case (ColourModel.Grey, ChannelDepth.U8):
                 for (int i = 0, p = 0; i < count; i++, p += 4)
                 {
                     var (grey, a) = GreyOf(rgba, p);
@@ -226,7 +226,7 @@ public sealed class TileFormat
                     pixels[i * 2 + 1] = ToByte(a);
                 }
                 break;
-            case (ColourModel.Gray, ChannelDepth.U16):
+            case (ColourModel.Grey, ChannelDepth.U16):
             {
                 var samples = MemoryMarshal.Cast<byte, ushort>(pixels);
                 for (int i = 0, p = 0; i < count; i++, p += 4)
@@ -349,8 +349,8 @@ public sealed class TileFormat
         SKImage? image = (Colour.Model, Colour.Depth) switch
         {
             (ColourModel.Rgb, _) => SKImage.FromPixelCopy(BitmapInfo(TileSize, TileSize), tile),
-            (ColourModel.Gray, ChannelDepth.U8) => SKImage.FromPixelCopy(new SKImageInfo(TileSize, TileSize, SKColorType.Rg88, SKAlphaType.Opaque), tile),
-            (ColourModel.Gray, ChannelDepth.U16) => SKImage.FromPixelCopy(new SKImageInfo(TileSize, TileSize, SKColorType.Rg1616, SKAlphaType.Opaque), tile),
+            (ColourModel.Grey, ChannelDepth.U8) => SKImage.FromPixelCopy(new SKImageInfo(TileSize, TileSize, SKColorType.Rg88, SKAlphaType.Opaque), tile),
+            (ColourModel.Grey, ChannelDepth.U16) => SKImage.FromPixelCopy(new SKImageInfo(TileSize, TileSize, SKColorType.Rg1616, SKAlphaType.Opaque), tile),
             _ => SpreadGrey(tile),
         };
         return image ?? throw new InvalidOperationException("A tile could not be made an image.");

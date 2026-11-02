@@ -171,59 +171,60 @@ public sealed class PaintStroke
     /// A layer's pixels with the stroke drawn through <paramref name="area"/>: <paramref name="before"/>, the pixels when the
     /// stroke began, with <paramref name="colour"/> laid over — or taken away, for the eraser — as much as the stroke covers;
     /// written into <paramref name="current"/>. A layer whose transparency is locked keeps it: the brush recolours what is painted,
-    /// the eraser paints <paramref name="background"/> into it.
+    /// the eraser paints <paramref name="background"/> into it. Both colours are in the picture's values, so the stroke lands as
+    /// deep as its pixels are held.
     /// </summary>
-    public TiledPixels Drawn(TiledPixels before, TiledPixels current, SKRectI area, SKColor colour, bool alphaLocked, SKColor background)
+    public TiledPixels Drawn(TiledPixels before, TiledPixels current, SKRectI area, SKColorF colour, bool alphaLocked, SKColorF background)
     {
         if (area.IsEmpty) return current;
         var strength = Strength(area);
-        var pixels = before.Read(area);
+        var pixels = before.ReadPremul(area);
         var ink = Kind == PaintKind.Brush ? colour : background;
-        float inkA = ink.Alpha / 255f;
+        float inkA = Math.Clamp(ink.Alpha, 0, 1);
         for (int p = 0, i = 0; p < strength.Length; p++, i += 4)
         {
             float s = strength[p];
             if (s <= 0) continue;
             if (Kind == PaintKind.Eraser && !alphaLocked)
             {
-                for (int c = 0; c < 4; c++) pixels[i + c] = (byte)Math.Round(pixels[i + c] * (1 - s));
+                for (int c = 0; c < 4; c++) pixels[i + c] *= 1 - s;
                 continue;
             }
             float srcA = inkA * s;
-            float r = ink.Red / 255f * srcA, g = ink.Green / 255f * srcA, b = ink.Blue / 255f * srcA;
+            float r = ink.Red * srcA, g = ink.Green * srcA, b = ink.Blue * srcA;
             if (alphaLocked)
             {
                 // Source atop: the ink only where the layer already is, its transparency kept.
-                float dstA = pixels[i + 3] / 255f;
-                pixels[i]     = (byte)Math.Round(Math.Clamp(r * 255 * dstA + pixels[i] * (1 - srcA), 0, 255));
-                pixels[i + 1] = (byte)Math.Round(Math.Clamp(g * 255 * dstA + pixels[i + 1] * (1 - srcA), 0, 255));
-                pixels[i + 2] = (byte)Math.Round(Math.Clamp(b * 255 * dstA + pixels[i + 2] * (1 - srcA), 0, 255));
+                float dstA = pixels[i + 3];
+                pixels[i]     = r * dstA + pixels[i] * (1 - srcA);
+                pixels[i + 1] = g * dstA + pixels[i + 1] * (1 - srcA);
+                pixels[i + 2] = b * dstA + pixels[i + 2] * (1 - srcA);
                 continue;
             }
-            pixels[i]     = (byte)Math.Round(Math.Clamp(r * 255 + pixels[i] * (1 - srcA), 0, 255));
-            pixels[i + 1] = (byte)Math.Round(Math.Clamp(g * 255 + pixels[i + 1] * (1 - srcA), 0, 255));
-            pixels[i + 2] = (byte)Math.Round(Math.Clamp(b * 255 + pixels[i + 2] * (1 - srcA), 0, 255));
-            pixels[i + 3] = (byte)Math.Round(Math.Clamp(srcA * 255 + pixels[i + 3] * (1 - srcA), 0, 255));
+            pixels[i]     = r + pixels[i] * (1 - srcA);
+            pixels[i + 1] = g + pixels[i + 1] * (1 - srcA);
+            pixels[i + 2] = b + pixels[i + 2] * (1 - srcA);
+            pixels[i + 3] = srcA + pixels[i + 3] * (1 - srcA);
         }
-        return current.Written(area, pixels);
+        return current.WrittenPremul(area, pixels);
     }
 
     /// <summary>
     /// A mask with the stroke drawn through <paramref name="area"/>: <paramref name="before"/>, the mask when the stroke began,
-    /// moved toward <paramref name="grey"/> — or, for the eraser, toward white, showing the layer again — as much as the stroke
-    /// covers; written into <paramref name="current"/>.
+    /// moved toward <paramref name="grey"/> (0 to 1) — or, for the eraser, toward white, showing the layer again — as much as the
+    /// stroke covers; written into <paramref name="current"/> as deep as it is held.
     /// </summary>
-    public TiledCoverage Drawn(TiledCoverage before, TiledCoverage current, SKRectI area, byte grey)
+    public TiledCoverage Drawn(TiledCoverage before, TiledCoverage current, SKRectI area, float grey)
     {
         if (area.IsEmpty) return current;
         var strength = Strength(area);
-        var values = before.Read(area);
-        byte toward = Kind == PaintKind.Brush ? grey : (byte)255;
+        var values = before.ReadValues(area);
+        float toward = Kind == PaintKind.Brush ? grey : 1;
         for (int p = 0; p < strength.Length; p++)
         {
             float s = strength[p];
-            if (s > 0) values[p] = (byte)Math.Round(values[p] + (toward - values[p]) * s);
+            if (s > 0) values[p] += (toward - values[p]) * s;
         }
-        return current.Written(area, values);
+        return current.WrittenValues(area, values);
     }
 }

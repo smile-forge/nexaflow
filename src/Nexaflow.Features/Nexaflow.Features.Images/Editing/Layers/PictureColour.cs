@@ -6,7 +6,7 @@ namespace Nexaflow.Features.Images.Editing.Layers;
 public enum ColourModel
 {
     Rgb,
-    Gray,
+    Grey,
 }
 
 /// <summary>How deep each channel of a layered picture's pixels is.</summary>
@@ -86,4 +86,12 @@ public readonly record struct PictureColour(ColourModel Model, ChannelDepth Dept
 
     /// <summary>A colour's grey: Rec. 709's weighting of red, green and blue.</summary>
     public static float GreyOf(float red, float green, float blue) => 0.2126f * red + 0.7152f * green + 0.0722f * blue;
+
+    /// <summary>How bright this picture's value <paramref name="colour"/> looks, 0 to 1 — its grey as shown — what it lays on
+    /// a mask, which holds coverage rather than light.</summary>
+    public float ShownGrey(SKColorF colour)
+    {
+        var shown = ToSrgb(colour);
+        return Math.Clamp(GreyOf(shown.Red, shown.Green, shown.Blue), 0, 1);
+    }
 }

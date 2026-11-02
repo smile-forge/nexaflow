@@ -20,12 +20,44 @@ public static class HealingBrush
     public static byte[] Heal(ReadOnlySpan<byte> rgba, int width, int height, ReadOnlySpan<byte> mask, int offsetX, int offsetY,
                               CancellationToken ct = default)
     {
-        if (width <= 0 || height <= 0) throw new ArgumentOutOfRangeException(nameof(width), "A picture has a size.");
-        if (rgba.Length != width * height * 4) throw new ArgumentException("The pixels are not the size given.", nameof(rgba));
-        if (mask.Length != width * height) throw new ArgumentException("The mask is not the picture's size.", nameof(mask));
+        Require(rgba.Length, width, height, mask.Length);
+        var source = new float[rgba.Length];
+        for (int i = 0; i < source.Length; i++) source[i] = rgba[i];
+        var healed = Healed(source, width, height, mask, offsetX, offsetY, rounds: true, ct);
+        var result = new byte[rgba.Length];
+        for (int i = 0; i < result.Length; i++) result[i] = (byte)healed[i];
+        return result;
+    }
 
-        var source = rgba.ToArray();
-        var result = rgba.ToArray();
+    /// <summary>
+    /// <paramref name="rgba"/> — interleaved red, green, blue and alpha, not premultiplied, 1 white, as deep as floats hold —
+    /// healed as the 8-bit brush heals, never rounded to its steps, and light past white kept.
+    /// </summary>
+    public static float[] Heal(ReadOnlySpan<float> rgba, int width, int height, ReadOnlySpan<byte> mask, int offsetX, int offsetY,
+                               CancellationToken ct = default)
+    {
+        Require(rgba.Length, width, height, mask.Length);
+        // Solved at the 8-bit brush's scale, which its tolerance is counted in.
+        var source = new float[rgba.Length];
+        for (int i = 0; i < source.Length; i++) source[i] = rgba[i] * 255;
+        var healed = Healed(source, width, height, mask, offsetX, offsetY, rounds: false, ct);
+        for (int i = 0; i < healed.Length; i++) healed[i] /= 255;
+        return healed;
+    }
+
+    private static void Require(int length, int width, int height, int maskLength)
+    {
+        if (width <= 0 || height <= 0) throw new ArgumentOutOfRangeException(nameof(width), "A picture has a size.");
+        if (length != width * height * 4) throw new ArgumentException("The pixels are not the size given.", "rgba");
+        if (maskLength != width * height) throw new ArgumentException("The mask is not the picture's size.", "mask");
+    }
+
+    /// <summary><paramref name="source"/> — four values a pixel, 0 to 255 white — healed into a copy; where
+    /// <paramref name="rounds"/>, each healed value is rounded to a whole step and clamped, as an 8-bit picture holds it.</summary>
+    private static float[] Healed(float[] source, int width, int height, ReadOnlySpan<byte> mask, int offsetX, int offsetY, bool rounds,
+                                  CancellationToken ct)
+    {
+        var result = (float[])source.Clone();
         var index = new int[width * height];
         var inside = new List<int>();
         for (int p = 0; p < mask.Length; p++)
@@ -50,7 +82,8 @@ public static class HealingBrush
             for (int i = 0; i < system.Count; i++)
             {
                 int p = system.Inside[i];
-                result[p * 4 + c] = (byte)Math.Clamp(Math.Round(Copied(p) + correction[i]), 0, 255);
+                double value = Copied(p) + correction[i];
+                result[p * 4 + c] = rounds ? (float)Math.Clamp(Math.Round(value), 0, 255) : (float)value;
             }
         }
         return result;

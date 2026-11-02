@@ -24,12 +24,12 @@ public class ImageColourDepthTests
 
     private static readonly PictureColour Rgb16 = new(ColourModel.Rgb, ChannelDepth.U16);
     private static readonly PictureColour Rgb32 = new(ColourModel.Rgb, ChannelDepth.F32);
-    private static readonly PictureColour Gray16 = new(ColourModel.Gray, ChannelDepth.U16);
-    private static readonly PictureColour Gray32 = new(ColourModel.Gray, ChannelDepth.F32);
+    private static readonly PictureColour Gray16 = new(ColourModel.Grey, ChannelDepth.U16);
+    private static readonly PictureColour Gray32 = new(ColourModel.Grey, ChannelDepth.F32);
 
     private static IEnumerable<object[]> EveryColour =>
     [
-        [PictureColour.Rgb8], [Rgb16], [Rgb32], [new PictureColour(ColourModel.Gray, ChannelDepth.U8)], [Gray16], [Gray32],
+        [PictureColour.Rgb8], [Rgb16], [Rgb32], [new PictureColour(ColourModel.Grey, ChannelDepth.U8)], [Gray16], [Gray32],
     ];
 
     private static LayeredPicture Picture(PictureColour colour, int width, int height, params Layer[] layers)
@@ -174,6 +174,41 @@ public class ImageColourDepthTests
 
         var changed = inserted.WithLayer(layer.Id, l => ((PixelLayer)l) with { Pixels = TiledPixels.Empty });
         Assert.AreEqual(Rgb16.Tiles, ((PixelLayer)changed.Find(layer.Id)!).Pixels.Format, "a change that hands back 8-bit pixels is carried too");
+    }
+
+    [TestMethod]
+    [CoversNode("images-colour-depth")]
+    public void TheFill_TellsSixteenBitStepsApart()
+    {
+        // Greys one 16-bit step apart, all inside one 8-bit step: a fill that compared bytes would take them all.
+        var format = Gray16.Tiles;
+        var greys = new ushort[] { 30000, 65535, 30001, 65535, 30002, 65535, 30000, 65535 };
+        var pixels = TiledPixels.EmptyIn(format).Written(new SKRectI(0, 0, 4, 1), MemoryMarshal.AsBytes(greys.AsSpan()));
+
+        var reach = Nexaflow.Features.Images.Editing.Painting.FloodFill.Reach(pixels, 4, 1, 0, 0, tolerance: 0, contiguous: false);
+        CollectionAssert.AreEqual(new byte[] { 255, 0, 0, 255 }, reach.ToBytes(), "only the greys equal to the one clicked are reached");
+    }
+
+    [TestMethod]
+    [CoversNode("images-colour-depth")]
+    public void ContentAwareFillAndHealing_OnFloats_KeepLightPastWhite()
+    {
+        const int side = 48;
+        var values = new float[side * side * 4];
+        for (int p = 0; p < values.Length; p += 4) (values[p], values[p + 1], values[p + 2], values[p + 3]) = (4f, 2f, 0.25f, 1f);
+        var mask = new byte[side * side];
+        for (int y = 20; y < 28; y++)
+            for (int x = 20; x < 28; x++) mask[y * side + x] = 255;
+
+        var filled = Nexaflow.IO.Common.Imaging.ContentAwareFill.Fill(values, side, side, mask);
+        var healed = Nexaflow.IO.Common.Imaging.HealingBrush.Heal(values, side, side, mask, 10, 0);
+        int at = (24 * side + 24) * 4;
+        foreach (var (result, how) in new[] { (filled, "filled"), (healed, "healed") })
+        {
+            Assert.AreEqual(4f, result[at], 1e-3, $"{how}: red at four times white stays so");
+            Assert.AreEqual(2f, result[at + 1], 1e-3, how);
+            Assert.AreEqual(0.25f, result[at + 2], 1e-3, $"{how}: and a value between 8-bit steps is kept between them");
+        }
     }
 
     // ── Compositing at depth ────────────────────────────────────────────────

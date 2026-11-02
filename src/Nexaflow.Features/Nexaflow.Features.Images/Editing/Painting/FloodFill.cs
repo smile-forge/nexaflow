@@ -7,7 +7,8 @@ namespace Nexaflow.Features.Images.Editing.Painting;
 /// <summary>
 /// What the Fill tool and selecting by colour reach from a pixel: every pixel within the tolerance of the one clicked — joined
 /// to it, where the reach is contiguous — as coverage over the canvas. Tiled pixels are read a tile at a time, as the reach
-/// comes to them, and the reach is written a tile at a time, so a fill costs what it covers.
+/// comes to them, and the reach is written a tile at a time, so a fill costs what it covers. Pixels and masks of any depth
+/// are compared as values, so a 16-bit picture's tolerance is as fine as its steps; the tolerance is in 8-bit steps, 0–255.
 /// </summary>
 public static class FloodFill
 {
@@ -19,75 +20,88 @@ public static class FloodFill
     /// transparency of each within <paramref name="tolerance"/> (0–255, on every channel) of the one there.</summary>
     public static TiledCoverage Reach(TiledPixels pixels, int width, int height, int x, int y, int tolerance, bool contiguous)
     {
-        var tiles = new Dictionary<(int, int), byte[]>();
-        uint Sample(int px, int py)
+        if (x < 0 || y < 0 || x >= width || y >= height) return TiledCoverage.Clear(width, height);
+        var tiles = new Dictionary<(int, int), float[]>();
+        float[] TileAt(int px, int py)
         {
             var key = (px >> TileShift, py >> TileShift);
             if (!tiles.TryGetValue(key, out var tile))
             {
                 var rect = new SkiaSharp.SKRectI(key.Item1 << TileShift, key.Item2 << TileShift,
                                                  Math.Min(width, (key.Item1 + 1) << TileShift), Math.Min(height, (key.Item2 + 1) << TileShift));
-                tiles[key] = tile = Padded(pixels.Read(rect), rect.Width, rect.Height, 4);
+                tiles[key] = tile = Padded(pixels.ReadPremul(rect), rect.Width, rect.Height, 4);
             }
-            int i = ((py & TileMask) * TileSize + (px & TileMask)) * 4;
-            return (uint)(tile[i] | tile[i + 1] << 8 | tile[i + 2] << 16 | tile[i + 3] << 24);
+            return tile;
         }
-        return Reach(width, height, x, y, contiguous, Sample, (a, b) => Within(a, b, tolerance, 4));
+        int seedAt = ((y & TileMask) * TileSize + (x & TileMask)) * 4;
+        var seedTile = TileAt(x, y);
+        float sr = seedTile[seedAt], sg = seedTile[seedAt + 1], sb = seedTile[seedAt + 2], sa = seedTile[seedAt + 3];
+        float reach = ToleranceOf(tolerance, pixels.Format.Colour.Depth);
+        bool Matches(int px, int py)
+        {
+            var tile = TileAt(px, py);
+            int i = ((py & TileMask) * TileSize + (px & TileMask)) * 4;
+            return Math.Abs(tile[i] - sr) <= reach && Math.Abs(tile[i + 1] - sg) <= reach
+                && Math.Abs(tile[i + 2] - sb) <= reach && Math.Abs(tile[i + 3] - sa) <= reach;
+        }
+        return Reach(width, height, x, y, contiguous, Matches);
     }
 
     /// <summary>What a fill at (<paramref name="x"/>, <paramref name="y"/>) reaches on a mask: each value within
-    /// <paramref name="tolerance"/> of the one there.</summary>
+    /// <paramref name="tolerance"/> (0–255) of the one there.</summary>
     public static TiledCoverage Reach(TiledCoverage mask, int x, int y, int tolerance, bool contiguous)
     {
-        var tiles = new Dictionary<(int, int), byte[]>();
-        uint Sample(int px, int py)
+        if (x < 0 || y < 0 || x >= mask.Width || y >= mask.Height) return TiledCoverage.Clear(mask.Width, mask.Height);
+        var tiles = new Dictionary<(int, int), float[]>();
+        float ValueAt(int px, int py)
         {
             var key = (px >> TileShift, py >> TileShift);
             if (!tiles.TryGetValue(key, out var tile))
             {
                 var rect = new SkiaSharp.SKRectI(key.Item1 << TileShift, key.Item2 << TileShift,
                                                  Math.Min(mask.Width, (key.Item1 + 1) << TileShift), Math.Min(mask.Height, (key.Item2 + 1) << TileShift));
-                tiles[key] = tile = Padded(mask.Read(rect), rect.Width, rect.Height, 1);
+                tiles[key] = tile = Padded(mask.ReadValues(rect), rect.Width, rect.Height, 1);
             }
             return tile[(py & TileMask) * TileSize + (px & TileMask)];
         }
-        return Reach(mask.Width, mask.Height, x, y, contiguous, Sample, (a, b) => Within(a, b, tolerance, 1));
+        float seed = ValueAt(x, y), reach = ToleranceOf(tolerance, mask.Depth);
+        return Reach(mask.Width, mask.Height, x, y, contiguous, (px, py) => Math.Abs(ValueAt(px, py) - seed) <= reach);
     }
 
     /// <summary>What a reach at (<paramref name="x"/>, <paramref name="y"/>) covers on a picture's pixels held whole — interleaved
     /// 8-bit RGBA, row after row, as a picture tool is handed them: each within <paramref name="tolerance"/> of the one there.</summary>
     public static TiledCoverage Reach(byte[] rgba, int width, int height, int x, int y, int tolerance, bool contiguous)
     {
-        uint Sample(int px, int py)
+        if (x < 0 || y < 0 || x >= width || y >= height) return TiledCoverage.Clear(width, height);
+        int seed = (y * width + x) * 4;
+        bool Matches(int px, int py)
         {
             int i = (py * width + px) * 4;
-            return (uint)(rgba[i] | rgba[i + 1] << 8 | rgba[i + 2] << 16 | rgba[i + 3] << 24);
+            for (int c = 0; c < 4; c++)
+                if (Math.Abs(rgba[i + c] - rgba[seed + c]) > tolerance) return false;
+            return true;
         }
-        return Reach(width, height, x, y, contiguous, Sample, (a, b) => Within(a, b, tolerance, 4));
+        return Reach(width, height, x, y, contiguous, Matches);
     }
 
-    private static bool Within(uint a, uint b, int tolerance, int channels)
-    {
-        for (int c = 0; c < channels; c++)
-            if (Math.Abs((int)(a >> (c * 8) & 0xFF) - (int)(b >> (c * 8) & 0xFF)) > tolerance) return false;
-        return true;
-    }
+    /// <summary>How far a value may lie from the one clicked: <paramref name="tolerance"/> 8-bit steps, and half a step of
+    /// <paramref name="depth"/> more, so a difference of exactly the tolerance is in and, at 0, only equal values are.</summary>
+    private static float ToleranceOf(int tolerance, ChannelDepth depth)
+        => tolerance / 255f + depth switch { ChannelDepth.U8 => 0.5f / 255, ChannelDepth.U16 => 0.5f / 65535, _ => 1e-6f };
 
     // A tile read at the canvas's edge, laid into a whole tile so it is indexed as any other.
-    private static byte[] Padded(byte[] read, int width, int height, int channels)
+    private static T[] Padded<T>(T[] read, int width, int height, int channels)
     {
         if (width == TileSize && height == TileSize) return read;
-        var tile = new byte[TileSize * TileSize * channels];
+        var tile = new T[TileSize * TileSize * channels];
         for (int row = 0; row < height; row++)
             Array.Copy(read, row * width * channels, tile, row * TileSize * channels, width * channels);
         return tile;
     }
 
-    private static TiledCoverage Reach(int width, int height, int x, int y, bool contiguous, Func<int, int, uint> sample, Func<uint, uint, bool> near)
+    private static TiledCoverage Reach(int width, int height, int x, int y, bool contiguous, Func<int, int, bool> matches)
     {
         var reached = TiledCoverage.Clear(width, height);
-        if (x < 0 || y < 0 || x >= width || y >= height) return reached;
-        uint seed = sample(x, y);
         var output = new Dictionary<(int, int), byte[]>();
         void Mark(int px, int py)
         {
@@ -105,10 +119,10 @@ public static class FloodFill
             while (pending.Count > 0)
             {
                 var (sx, sy) = pending.Pop();
-                if (visited[sy * width + sx] || !near(sample(sx, sy), seed)) continue;
+                if (visited[sy * width + sx] || !matches(sx, sy)) continue;
                 int left = sx, right = sx;
-                while (left > 0 && !visited[sy * width + left - 1] && near(sample(left - 1, sy), seed)) left--;
-                while (right < width - 1 && !visited[sy * width + right + 1] && near(sample(right + 1, sy), seed)) right++;
+                while (left > 0 && !visited[sy * width + left - 1] && matches(left - 1, sy)) left--;
+                while (right < width - 1 && !visited[sy * width + right + 1] && matches(right + 1, sy)) right++;
                 for (int px = left; px <= right; px++)
                 {
                     visited[sy * width + px] = true;
@@ -122,7 +136,7 @@ public static class FloodFill
         {
             for (int py = 0; py < height; py++)
                 for (int px = 0; px < width; px++)
-                    if (near(sample(px, py), seed)) Mark(px, py);
+                    if (matches(px, py)) Mark(px, py);
         }
 
         foreach (var ((column, row), tile) in output)

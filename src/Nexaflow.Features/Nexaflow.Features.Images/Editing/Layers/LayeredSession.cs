@@ -268,6 +268,13 @@ public sealed class LayeredSession : IPictureLayerImages, IDisposable
         }
     }
 
+    /// <summary>What shows at <paramref name="at"/> (canvas pixels) in the picture last rendered, every layer together, in the
+    /// picture's values; null where nothing is rendered there.</summary>
+    public SKColorF? ShownAt(SKPoint at)
+    {
+        lock (_gate) return _disposed ? null : _compositor.ShownAt(at);
+    }
+
     /// <summary>A one-off composite at <paramref name="scale"/> — a save, an export, a thumbnail — that leaves the display's kept
     /// one alone. The caller owns it; null once the session has closed.</summary>
     public SKImage? Snapshot(LayeredPicture picture, double scale, CompositeOptions options = default)
