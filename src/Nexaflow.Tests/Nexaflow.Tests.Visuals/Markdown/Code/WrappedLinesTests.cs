@@ -47,6 +47,40 @@ public class WrappedLinesTests
     });
 
     [TestMethod]
+    public void AnIndentedLineWrapped_CarriesOnUnderItsIndent() => UiThread.Run(() =>
+    {
+        var text = "    " + string.Join(' ', Enumerable.Range(0, 60).Select(word => $"word{word}"));
+        var root = Shown(text, wraps: true).Laid.Root;
+
+        LayoutRect Drawn(int at) => root.RangeRects(at, 1)[0];
+        var under = Drawn(4).X;
+        var rows = 1;
+
+        for (var at = 5; at < text.Length; at++)
+            if (Drawn(at).Y > Drawn(at - 1).Y)
+            {
+                rows++;
+                Assert.AreEqual(under, Drawn(at).X, 0.5, $"the row starting at {at} does not start under the line's indent");
+            }
+
+        Assert.IsTrue(rows >= 3, $"it came to {rows} rows");
+    });
+
+    [TestMethod]
+    public void ALongIndentedDocumentWrapped_StandsAsTallBeforeItsUnitsAreLaid_AsAfter() => UiThread.Run(() =>
+    {
+        var line = "    - " + string.Join(' ', Enumerable.Range(0, 40).Select(word => $"word{word}")) + "\n";
+        var text = string.Concat(Enumerable.Repeat(line, 400 * 1024 / line.Length));
+        var engine = Shown(text, wraps: true);
+        var before = engine.Laid.Size.Height;
+
+        engine.Uncover(text.Length);
+        for (var pass = 0; pass < 20; pass++) engine.Relay();
+
+        Assert.AreEqual(before, engine.Laid.Size.Height, 1e-6, "What was said of the indented units not laid is not what they came to.");
+    });
+
+    [TestMethod]
     public void ALongDocumentWrapped_StandsAsTallBeforeItsUnitsAreLaid_AsAfter() => UiThread.Run(() =>
     {
         var text = MarkdownLayoutBench.GeneratedProse(400 * 1024);

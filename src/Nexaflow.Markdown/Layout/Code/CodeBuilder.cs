@@ -66,12 +66,12 @@ public sealed class CodeBuilder(ContentReading reading, EditState state, LayoutS
 
             // A line takes the room its rows do, laid or not: one, where lines are kept, and where they wrap, as many as it breaks onto.
             var kept = this.Kept(laid?.For(at));
-            var breaks = WrapsLines && kept is null ? this.Breaks(line) : null;
-            var tall = !WrapsLines ? height : kept?.Height ?? (1 + breaks!.Count) * height;
+            var wrapped = WrapsLines && kept is null ? this.Breaks(line) : ((List<int> Starts, double Indent)?)null;
+            var tall = !WrapsLines ? height : kept?.Height ?? (1 + wrapped!.Value.Starts.Count) * height;
 
             if (asked is null || Reaches(asked, line, y, y + tall))
             {
-                var (mount, reach) = kept is not null ? (new LayoutMount(kept.Tree, kept.Part, line), kept.Reach) : this.Line(line, laid?.For(at), height, breaks);
+                var (mount, reach) = kept is not null ? (new LayoutMount(kept.Tree, kept.Part, line), kept.Reach) : this.Line(line, laid?.For(at), height, wrapped);
                 into.Mount(mount, new LayoutPoint(0, y));
                 wide = Math.Max(wide, reach);
                 lines.Add(new LaidLine(line.Start, y, tall));
@@ -121,14 +121,15 @@ public sealed class CodeBuilder(ContentReading reading, EditState state, LayoutS
     /// <summary>
     /// One line, as a tree of its own standing at the top of its own frame, its picture kept once painted, put down whole — and how far
     /// across it reaches: each of its pieces set in the ink its kind is given, the line end taking no room, and where it wraps, carrying
-    /// on at the left of the row beneath at each of <paramref name="breaks"/>, a token cut there laid as pieces standing for their share
-    /// of it. Kept as it was laid, to be set down again where it reads the same.
+    /// on under its indent in the row beneath where each row after the first starts, a token cut there laid as pieces standing for their
+    /// share of it. Kept as it was laid, to be set down again where it reads the same.
     /// </summary>
-    /// <param name="breaks">Where in the line each row after its first starts, or null where lines are kept whole.</param>
-    private (LayoutMount Mount, double Reach) Line(ContentPart line, LaidBlock? laid, double height, List<int>? breaks)
+    /// <param name="wrapped">Where in the line each row after its first starts, and how far in, or null where lines are kept whole.</param>
+    private (LayoutMount Mount, double Reach) Line(ContentPart line, LaidBlock? laid, double height, (List<int> Starts, double Indent)? wrapped)
     {
         var characters = Characters;
         var apart = new LayoutBuilder(Medium);
+        var (breaks, indent) = (wrapped?.Starts, wrapped?.Indent ?? 0);
         var (x, reach, row, next, along) = (0.0, 0.0, 0, 0, 0);
 
         apart.Open(CodeKinds.Line, line, stops: LayoutStops.None, paints: new LayoutPaint(Kept: new LayoutKept()));
@@ -142,8 +143,8 @@ public sealed class CodeBuilder(ContentReading reading, EditState state, LayoutS
 
             for (var from = 0; from < text.Length;)
             {
-                // A row starting here carries the line on at the left of the row beneath.
-                for (; breaks is not null && next < breaks.Count && breaks[next] <= along + from; next++) (x, row) = (0, row + 1);
+                // A row starting here carries the line on in the row beneath, under its indent.
+                for (; breaks is not null && next < breaks.Count && breaks[next] <= along + from; next++) (x, row) = (indent, row + 1);
 
                 var to = breaks is not null && next < breaks.Count ? Math.Min(breaks[next] - along, text.Length) : text.Length;
                 var whole = from == 0 && to == text.Length;
@@ -176,10 +177,10 @@ public sealed class CodeBuilder(ContentReading reading, EditState state, LayoutS
     }
 
     /// <summary>
-    /// Where in <paramref name="line"/> each row after its first starts: its characters measured in the face code is set in, and broken in
-    /// the room (<see cref="CodeRows"/>).
+    /// Where in <paramref name="line"/> each row after its first starts, and how far in those rows start: its characters measured in the
+    /// face code is set in, and broken in the room (<see cref="CodeRows"/>).
     /// </summary>
-    private List<int> Breaks(ContentPart line)
+    private (List<int> Starts, double Indent) Breaks(ContentPart line)
     {
         var breaks = new List<int>();
         var rows = new CodeRows(Room);
@@ -193,7 +194,7 @@ public sealed class CodeBuilder(ContentReading reading, EditState state, LayoutS
                 if (rows.Next(text[at], this.Advance(text, at)) is >= 0 and var starts) breaks.Add(starts);
         }
 
-        return breaks;
+        return (breaks, rows.Indent);
     }
 
     /// <summary>

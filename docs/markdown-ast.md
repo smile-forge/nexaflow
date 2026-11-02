@@ -197,7 +197,10 @@ for a reach that laying covers, and is laid again, every line already laid set d
 more of it — so landing anywhere in a unit thousands of lines long lays a screenful of them. The screen moving within such a
 unit counts as coming to more of it once the screen itself reaches past what was laid (`ContentEngine.Short`), so a scroll
 lays again only near the edge of what is laid, a screen either side giving it room. A caret sent somewhere not laid — the
-end of a long document — goes there as it is, and is laid there and brought onto the page (`ContentEngine.Snap`). A builder that cannot lay part
+end of a long document — goes there as it is, and is laid there and brought onto the page (`ContentEngine.Snap`). A place
+brought onto the page — found, gone to, laid to — is left where it stands if it is on the screen already, and otherwise stood
+half way down it, so what comes before and after it is there to read it by (`ContentElement.BringOnto`); a caret kept on the
+screen as it moves is brought only as far as it needs. A builder that cannot lay part
 of what it reads lays all of it, as every builder but code's does. A line is coloured
 and cut in one pass (`CodeParser.InLines`), and one said and coloured as a line the reading was cut into before is that
 line again (`CodeLinePool`), moved along where it now stands — so colours landing for a unit make only the lines they
@@ -206,7 +209,8 @@ changed, and a block kept is hashed once (`WithUnchanged` keeps what each node i
 **Text shown as typed** — a page's source beside the page, under `ContentLanguages.AsTyped`, which no language reads — is
 code with no grammar whose lines wrap (`LayoutHost.WrapsLines`, set by `MarkdownSurface.WrapsLines`): a line too long for
 the room carries on in rows beneath, broken after the last space that fits and a word wider than a row broken where the row
-ends, the spaces a row ends on hanging past it and no row ended after nothing but the line's indent (`CodeRows`). A token a row break cuts is laid as pieces standing for their
+ends, the spaces a row ends on hanging past it and no row ended after nothing but the line's indent, and the rows after
+the first carrying on under that indent — unless it takes half the room or more (`CodeRows`). A token a row break cuts is laid as pieces standing for their
 share of it (`PartSlice`), and a line is set down again only in the room it was laid in. A unit not laid is said as tall as
 the rows its characters break onto with each set at the face's advance (`CodeSetting.HeightOf`), counted where they are held
 — the same rule laying applies to each character measured, so for a monospaced face what is said is what is laid. Only the

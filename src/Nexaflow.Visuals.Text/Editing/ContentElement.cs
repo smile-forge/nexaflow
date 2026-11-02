@@ -175,8 +175,25 @@ public class ContentElement : FrameworkElement
 
     private void OnSourceChanged(object? sender, ContentSourceChange change) => SourceChanged?.Invoke(this, change);
 
-    private void OnRevealing(object? sender, LayoutRect shown) =>
-        BringIntoView(new Rect(shown.X * Zoom, shown.Y * Zoom, Math.Max(shown.Width * Zoom, 1), Math.Max(shown.Height * Zoom, 1)));
+    private void OnRevealing(object? sender, LayoutRect shown) => BringOnto(shown);
+
+    /// <summary>
+    /// Brings <paramref name="shown"/>, in the content's own units, onto the page as a place gone to is brought: left where it stands where it
+    /// is on the screen already, and otherwise stood half way down it, so what comes before and after it is there to read it by — or, taller
+    /// than the screen, its top at the top. A caret kept on the screen as it moves is brought only as far as it needs instead.
+    /// </summary>
+    internal void BringOnto(LayoutRect shown)
+    {
+        var box = new Rect(shown.X * Zoom, shown.Y * Zoom, Math.Max(shown.Width * Zoom, 1), Math.Max(shown.Height * Zoom, 1));
+
+        if (_onScreen is { } screen)
+        {
+            if (screen.Contains(box)) return;
+            if (box.Height < screen.Height) box = new Rect(box.X, box.Y + (box.Height / 2) - (screen.Height / 2), box.Width, screen.Height);
+        }
+
+        BringIntoView(box);
+    }
 
     /// <summary>The theme, for the ink, the accent and the two colours trouble is drawn in.</summary>
     protected LayoutStyle Palette { get; }

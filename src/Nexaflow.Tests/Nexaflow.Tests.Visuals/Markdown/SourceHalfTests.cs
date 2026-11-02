@@ -105,6 +105,55 @@ public class SourceHalfTests
 
     [TestMethod]
     [CoversNode("markdown-find")]
+    public void APlacePickedOutOffThePage_StandsHalfWayDownIt_AndOneOnItIsLeftWhereItIs() => UiThread.Run(() =>
+    {
+        var text = string.Concat(Enumerable.Range(0, 200).Select(line => $"line {line} of the source\n"));
+
+        Halves(text, (_, source) =>
+        {
+            Assert.IsTrue(source.PickOut((text.IndexOf("line 150 ", StringComparison.Ordinal), 8)));
+            ContentMarginTests.Settle(source);
+
+            AssertHalfWayDown(source, 151);
+
+            var from = source.ShownFrom;
+            var near = source.LinesShown()[2].Number - 1;
+            Assert.IsTrue(source.PickOut((text.IndexOf($"line {near} ", StringComparison.Ordinal), 4)));
+            ContentMarginTests.Settle(source);
+
+            Assert.AreEqual(from, source.ShownFrom, "a place on the page already moved the page");
+        });
+    });
+
+    [TestMethod]
+    [CoversNode("markdown-find")]
+    public void APlacePickedOutFarDownALongDocument_IsLaidThere_AndStandsHalfWayDownThePage() => UiThread.Run(() =>
+    {
+        var text = string.Concat(Enumerable.Range(0, 30_000).Select(line => $"line {line} of the document\n"));
+
+        Halves(text, (_, source) =>
+        {
+            Assert.IsTrue(source.PickOut((text.IndexOf("line 20000 ", StringComparison.Ordinal), 10)));
+            ContentMarginTests.Settle(source);
+
+            AssertHalfWayDown(source, 20_001);
+        });
+    });
+
+    /// <summary>Whether line <paramref name="number"/> stands half way down <paramref name="source"/>'s page, give or take a row.</summary>
+    private static void AssertHalfWayDown(MarkdownSurface source, int number)
+    {
+        var lines = source.LinesShown();
+        var line = lines.SingleOrDefault(shown => shown.Number == number);
+
+        Assert.AreEqual(number, line.Number, $"line {number} is not on the page: {string.Join(", ", lines.Select(shown => shown.Number))}");
+
+        var middle = (lines[0].Top + lines[^1].Top + lines[^1].Height) / 2;
+        Assert.AreEqual(middle, line.Top + (line.Height / 2), line.Height * 1.5, $"line {number} stands at {line.Top:0} on a page whose middle is {middle:0}");
+    }
+
+    [TestMethod]
+    [CoversNode("markdown-find")]
     public void APlaceFoundIsMarkedWhereItsRowStands_NotWhereItsLineComesInTheDocument() => UiThread.Run(() =>
     {
         // Two lines: the first a paragraph wrapping onto many rows, the second short. By line, the second is half way down.

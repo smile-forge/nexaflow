@@ -37,6 +37,36 @@ public class CodeRowsTests
         CollectionAssert.AreEqual(new[] { 5 }, Broken("  ab cde", 5));
 
     [TestMethod]
+    public void TheRowsAfterTheFirst_CarryOnUnderTheIndent_InTheRoomPastIt()
+    {
+        var (breaks, indent) = Wrapped("  aa bb cc", 6);
+
+        Assert.AreEqual(2, indent, "the rows after the first do not start under the indent");
+        CollectionAssert.AreEqual(new[] { 5, 8 }, breaks, "\"bb cc\" fits a row six wide, but not the four left past the indent");
+    }
+
+    [TestMethod]
+    public void AnIndentTakingHalfTheRoomOrMore_IsNotCarriedOn_SoTheRowsBeneathHaveRoomToHold()
+    {
+        var (breaks, indent) = Wrapped("      ab cd ef", 10);
+
+        Assert.AreEqual(0, indent);
+        CollectionAssert.AreEqual(new[] { 9 }, breaks);
+    }
+
+    /// <summary>Where each row of <paramref name="line"/> after its first starts, and how far in, every character a column wide in a room <paramref name="columns"/> wide.</summary>
+    private static (List<int> Breaks, double Indent) Wrapped(string line, int columns)
+    {
+        var rows = new CodeRows(columns);
+        var breaks = new List<int>();
+
+        foreach (var character in line)
+            if (rows.Next(character, 1) is >= 0 and var starts) breaks.Add(starts);
+
+        return (breaks, rows.Indent);
+    }
+
+    [TestMethod]
     public void ACharacterTakingNoRoom_NeverBreaksARow()
     {
         var rows = new CodeRows(3);

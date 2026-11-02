@@ -161,8 +161,7 @@ public sealed class MarkdownElement : LinkedElement
 
         var shown = Whole(what);
 
-        BringIntoView(new Rect(shown.X * Zoom, shown.Y * Zoom,
-                               Math.Max(shown.Width * Zoom, 1), Math.Max(shown.Height * Zoom, 1)));
+        BringOnto(new LayoutRect(shown.X, shown.Y, shown.Width, shown.Height));
 
         if (choose && what.Length > 0) Apply(State.Select(what.Start, what.Length), notify: false);
 

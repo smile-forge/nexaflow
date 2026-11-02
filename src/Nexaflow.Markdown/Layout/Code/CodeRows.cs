@@ -5,7 +5,8 @@ namespace Nexaflow.Markdown.Layout.Code;
 /// last space that fits, and a word wider than the row broken where the row ends. A space never breaks a row — the spaces a row ends on
 /// hang past it, as a text box lets them — and nor does a character that takes no room. Nor is a row ended after nothing but the
 /// line's indent: a row holding only spaces reads as a line with nothing on it, so a word too long to follow the indent is broken where
-/// the row ends instead.
+/// the row ends instead. The rows after the first carry on under the line's indent, as a wrapped line does in a text box, so an
+/// indented line still reads as indented however many rows it comes to (<see cref="Indent"/>).
 ///
 /// <para>
 /// Fed a line's characters one at a time, each with how wide it is set, so laying a line (<see cref="CodeBuilder"/>) and saying how
@@ -36,6 +37,18 @@ internal struct CodeRows(double room)
     /// <summary>Where in the line the next character stands.</summary>
     private int _at;
 
+    /// <summary>How far across the line's indent reaches: the spaces and tabs it starts with.</summary>
+    private double _indent;
+
+    /// <summary>Whether the line fed so far is nothing but its indent.</summary>
+    private bool _indenting = true;
+
+    /// <summary>
+    /// How far in each row after the first starts: under the line's indent — or at the left, where the indent takes half the room or more,
+    /// which would leave the rows beneath it too little to hold.
+    /// </summary>
+    public readonly double Indent => _indent < room / 2 ? _indent : 0;
+
     /// <summary>How many times the line fed so far has broken onto a row beneath.</summary>
     public int Breaks { get; private set; }
 
@@ -49,15 +62,19 @@ internal struct CodeRows(double room)
 
         if (character is ' ' or '\t')
         {
+            if (_indenting) _indent += wide;
+
             _across += wide;
             (_after, _since, _afterWords) = (at + 1, 0, _words);
 
             return -1;
         }
 
-        // A character fits where there is room for it, where it takes none, and where it is the first on its row — a row holds a
-        // character however narrow the room.
-        if (_across + wide <= room || wide == 0 || at == _start)
+        _indenting = false;
+
+        // A character fits where there is room for it — on a row after the first, the room past the indent — where it takes none, and
+        // where it is the first on its row: a row holds a character however narrow the room.
+        if (_across + wide <= (this.Breaks == 0 ? room : room - this.Indent) || wide == 0 || at == _start)
         {
             _across += wide;
             _since += wide;
@@ -78,5 +95,6 @@ internal struct CodeRows(double room)
     }
 
     /// <summary>The next line starts: a row of its own with nothing on it.</summary>
-    public void NewLine() => (_start, _after, _afterWords, _words, _across, _since, _at, this.Breaks) = (0, -1, false, false, 0, 0, 0, 0);
+    public void NewLine() =>
+        (_start, _after, _afterWords, _words, _across, _since, _at, _indent, _indenting, this.Breaks) = (0, -1, false, false, 0, 0, 0, 0, true, 0);
 }
