@@ -103,6 +103,11 @@
           "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.Find.cs",
           "class": "MarkdownSurface",
           "method": "ShowFound"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeIndenting.cs",
+          "class": "CodeIndenting"
         }
       ]
     },

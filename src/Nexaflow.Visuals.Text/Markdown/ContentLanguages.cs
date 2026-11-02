@@ -120,12 +120,14 @@ public static class ContentLanguages
     /// <summary>
     /// The language the tree holding <paramref name="part"/> was read in: the one its root names (<see cref="BlockNode"/>). Markdown is
     /// what content is written in where nothing names a language, so nothing in the table answers to it; its root is known by the
-    /// name its parser gives it.
+    /// name its parser gives it. Code no grammar reads is still code — what content is shown as where its language is one nothing reads
+    /// (<see cref="Code"/>) — so what is written in it is answered as code is.
     /// </summary>
     public static ContentLanguage? WrittenIn(ContentPart part) =>
         (part.Ancestors().LastOrDefault() ?? part).Node switch
         {
             BlockNode { Language: MarkdownParser.Language } => Markdown,
+            BlockNode { Kind: Nexaflow.Markdown.Code.CodeKinds.Code } block => For(block.Language) ?? Code,
             BlockNode block => For(block.Language),
             _ => null,
         };

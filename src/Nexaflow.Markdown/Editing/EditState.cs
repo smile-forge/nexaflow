@@ -135,11 +135,11 @@ public sealed record EditState(
         if (change.Writes.Count == 0)
         {
             var caret = Clamp(change.Caret);
-            return this with { Caret = caret, Raw = change.Raw, Selected = change.Chooses ?? (caret == Caret ? Selected : []) };
+            return this with { Caret = caret, Raw = change.Raw, Selected = change.Chooses ?? change.PicksOut ?? (caret == Caret ? Selected : []) };
         }
 
         var document = Document.Apply(change);
-        return new EditState(document, Math.Clamp(change.Caret, 0, document.Length), change.Chooses ?? (IReadOnlyList<EditRange>)[], change.Raw);
+        return new EditState(document, Math.Clamp(change.Caret, 0, document.Length), change.Chooses ?? change.PicksOut ?? (IReadOnlyList<EditRange>)[], change.Raw);
     }
 
     // ── Typing ──────────────────────────────────────────────────────────────
