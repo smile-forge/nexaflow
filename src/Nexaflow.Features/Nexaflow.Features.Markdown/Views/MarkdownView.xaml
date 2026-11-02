@@ -494,9 +494,13 @@
                                     IsReadOnly="False"
                                     BaseFontSize="{Binding Zoom.FontSize}"
                                     Background="{StaticResource DeepBgBrush}"
-                                    ContentPadding="40,24,40,48"
-                                    VerticalScrollBarVisibility="Auto"
-                                    Document="{Binding Document}"/>
+                                                        ContentPadding="4,24,40,48"
+                                                        VerticalScrollBarVisibility="Auto"
+                                                        Document="{Binding Document}">
+                                        <md:MarkdownSurface.LeadingMargins>
+                                            <md:LineNumberMargin/>
+                                        </md:MarkdownSurface.LeadingMargins>
+                                    </md:MarkdownSurface>
 
                 <!-- Only in the split: drag it to give either half more of the pane. -->
                 <GridSplitter Grid.Column="1"

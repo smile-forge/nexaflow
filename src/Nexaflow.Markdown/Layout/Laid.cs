@@ -43,6 +43,12 @@ public sealed record Laid(LayoutTree Tree, double Width, double Height, IReadOnl
     /// </summary>
     public LayoutReached? Reached { get; init; }
 
+    /// <summary>
+    /// Where each line it laid stands, in the order laid, for a builder that lays content line by line — what is drawn beside the page in
+    /// step with its lines, their numbers and the like, is said from it — or null for a builder that lays no lines.
+    /// </summary>
+    public IReadOnlyList<LaidLine>? Lines { get; init; }
+
     /// <summary>Whether anything was laid out.</summary>
     public bool Exists => Tree.Count > 0;
 

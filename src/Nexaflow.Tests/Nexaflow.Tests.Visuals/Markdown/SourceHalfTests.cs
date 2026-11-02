@@ -138,6 +138,27 @@ public class SourceHalfTests
     public void TextShownAsAPage_IsReadFromItsTop() => UiThread.Run(() => Halves(Document, (_, source) =>
         Assert.AreEqual(0, source.Engine.State.Caret, "a page of text is read from its top, not written at its end")));
 
+    [TestMethod]
+    [CoversNode("markdown-block-picture")]
+    public void TextShownAsAPage_OffersNoBlockCorner_ThoughTheSameTextInAFieldDoes() => UiThread.Run(() =>
+    {
+        bool Offered(bool page)
+        {
+            var engine = new ContentEngine { WrapsLines = page };
+            engine.Show(ContentLanguages.AsTyped, Nexaflow.Visuals.Text.Painting.WpfStyles.Dark);
+            engine.Start("one\ntwo\n");
+            engine.Fit(400);
+
+            var box = engine.Where(engine.Blocked(1)!);
+            engine.Input(new ContentHover(new Nexaflow.Markdown.Layout.LayoutPoint(box.X + (box.Width / 2), box.Y + (box.Height / 2))));
+
+            return engine.Corner is not null;
+        }
+
+        Assert.IsFalse(Offered(page: true), "a page of text offered a corner, as though it were a block on a page");
+        Assert.IsTrue(Offered(page: false), "the same text as a field of code lost its corner");
+    });
+
     /// <summary>
     /// <paramref name="text"/> in one document shown in a window as two halves — rendered, and as typed with its lines wrapped, as the
     /// page holding its source shows it — and <paramref name="test"/> run on them.

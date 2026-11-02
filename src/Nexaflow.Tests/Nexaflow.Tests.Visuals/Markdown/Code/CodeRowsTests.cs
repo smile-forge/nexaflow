@@ -29,6 +29,14 @@ public class CodeRowsTests
     public void TheSpacesARowEndsOn_HangPastIt_RatherThanStartingTheNext() => CollectionAssert.AreEqual(new[] { 7 }, Broken("abc    def", 3));
 
     [TestMethod]
+    public void ARowIsNeverEndedAfterNothingButTheIndent_AWordTooLongToFollowItBreaksWhereTheRowEnds() =>
+        CollectionAssert.AreEqual(new[] { 4 }, Broken("  abcdef", 4));
+
+    [TestMethod]
+    public void AfterTheIndent_TheRowStillBreaksAfterTheLastSpaceBetweenWords() =>
+        CollectionAssert.AreEqual(new[] { 5 }, Broken("  ab cde", 5));
+
+    [TestMethod]
     public void ACharacterTakingNoRoom_NeverBreaksARow()
     {
         var rows = new CodeRows(3);

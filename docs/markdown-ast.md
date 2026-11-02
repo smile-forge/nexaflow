@@ -194,7 +194,10 @@ the reader is, a unit lays only the lines the reader reaches (`LayoutHost.Reach`
 it, and the lines holding the caret, each end of what is picked out and wherever the reader went — every other line leaving
 the room it takes, so the unit stands as tall as all of it. What it laid it says (`Laid.Reached`); a unit stands laid only
 for a reach that laying covers, and is laid again, every line already laid set down as it was, when the reader comes to
-more of it — so landing anywhere in a unit thousands of lines long lays a screenful of them. A builder that cannot lay part
+more of it — so landing anywhere in a unit thousands of lines long lays a screenful of them. The screen moving within such a
+unit counts as coming to more of it once the screen itself reaches past what was laid (`ContentEngine.Short`), so a scroll
+lays again only near the edge of what is laid, a screen either side giving it room. A caret sent somewhere not laid — the
+end of a long document — goes there as it is, and is laid there and brought onto the page (`ContentEngine.Snap`). A builder that cannot lay part
 of what it reads lays all of it, as every builder but code's does. A line is coloured
 and cut in one pass (`CodeParser.InLines`), and one said and coloured as a line the reading was cut into before is that
 line again (`CodeLinePool`), moved along where it now stands — so colours landing for a unit make only the lines they
@@ -203,11 +206,20 @@ changed, and a block kept is hashed once (`WithUnchanged` keeps what each node i
 **Text shown as typed** — a page's source beside the page, under `ContentLanguages.AsTyped`, which no language reads — is
 code with no grammar whose lines wrap (`LayoutHost.WrapsLines`, set by `MarkdownSurface.WrapsLines`): a line too long for
 the room carries on in rows beneath, broken after the last space that fits and a word wider than a row broken where the row
-ends, the spaces a row ends on hanging past it (`CodeRows`). A token a row break cuts is laid as pieces standing for their
+ends, the spaces a row ends on hanging past it and no row ended after nothing but the line's indent (`CodeRows`). A token a row break cuts is laid as pieces standing for their
 share of it (`PartSlice`), and a line is set down again only in the room it was laid in. A unit not laid is said as tall as
 the rows its characters break onto with each set at the face's advance (`CodeSetting.HeightOf`), counted where they are held
 — the same rule laying applies to each character measured, so for a monospaced face what is said is what is laid. Only the
 content the engine shows wraps (`ContentShowing.WrapsLines`); content inside it keeps its lines.
+
+**What stands beside the page is drawn from the lines, not into the content.** A builder that lays content line by line says
+where each line it laid stands (`Laid.Lines`); the engine says which of them stand between two heights on the page, and
+their numbers, from the document's line index (`ContentEngine.LinesBetween`), laid whole or a unit at a time; and the
+surface says the ones on its visible page, in its own frame (`MarkdownSurface.LinesShown`). Margins — line numbers,
+breakpoints, a fold's handles — stand in a stack on each side of the page, outward from it in the order listed
+(`MarkdownSurface.LeadingMargins`, `TrailingMargins`), each a control of its own (`ContentMargin`) drawn again whenever the
+surface scrolls or lays out. Nothing a margin draws is content: no caret stands in it and no selection or search reaches
+it, and a margin that picks lines out asks the surface to, so what is picked out is the content's.
 
 ## 4. Stages
 

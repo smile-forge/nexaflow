@@ -51,6 +51,9 @@ public sealed class CodeBuilder(ContentReading reading, EditState state, LayoutS
         var asked = ReaderReach;
         var stretches = asked is null ? null : new List<(int Start, int End)>();
 
+        // Where each line laid stands, for what is drawn beside the page in step with them.
+        var lines = new List<LaidLine>();
+
         var into = new LayoutBuilder(Medium, Reading.Root.Children.Count + 1);
         var (y, wide, last) = (0.0, 0.0, height);
 
@@ -71,6 +74,7 @@ public sealed class CodeBuilder(ContentReading reading, EditState state, LayoutS
                 var (mount, reach) = kept is not null ? (new LayoutMount(kept.Tree, kept.Part, line), kept.Reach) : this.Line(line, laid?.For(at), height, breaks);
                 into.Mount(mount, new LayoutPoint(0, y));
                 wide = Math.Max(wide, reach);
+                lines.Add(new LaidLine(line.Start, y, tall));
 
                 if (stretches is not null)
                 {
@@ -92,6 +96,7 @@ public sealed class CodeBuilder(ContentReading reading, EditState state, LayoutS
         return new Laid(into.Seal(), Math.Max(wide, 1), all, [])
         {
             Reached = asked is null ? null : new LayoutReached(asked.Top, asked.Bottom, stretches!),
+            Lines = lines,
         };
     }
 

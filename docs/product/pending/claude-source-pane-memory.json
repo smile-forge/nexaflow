@@ -165,13 +165,50 @@
           "method": "SourceLaidOut"
         }
       ]
+    },
+    "content-margins": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentMargin.cs",
+          "class": "ContentMargin"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Window.cs",
+          "class": "ContentEngine",
+          "method": "LinesBetween"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs",
+          "class": "MarkdownSurface",
+          "method": "LinesShown"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LaidLine.cs",
+          "class": "LaidLine"
+        }
+      ]
+    },
+    "markdown-source-line-numbers": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/LineNumberMargin.cs",
+          "class": "LineNumberMargin"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 4,
+  "changed_sets": 6,
   "touched_nodes": [
+    "content-margins",
     "markdown-find",
     "markdown-source-box",
+    "markdown-source-line-numbers",
     "markdown-split",
     "windowed-reading"
   ]

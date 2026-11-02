@@ -385,12 +385,18 @@ public sealed partial class ContentEngine
     /// reaches — the screen and a screen either side of it, in the unit's own frame, and the caret, each end of what is picked out and where
     /// the reader went, where they are in it — or null where all of it is to be laid, as where the content is laid whole.
     /// </summary>
-    private LayoutReach? ReachOf(ContentWindow window, int index, double[] tops)
-    {
-        if (!_windowing) return null;
+    private LayoutReach? ReachOf(ContentWindow window, int index, double[] tops) => _windowing ? this.ReachIn(window, index, tops, this.Reach()) : null;
 
+    /// <summary>
+    /// What of the unit at <paramref name="index"/> of <paramref name="window"/>, standing where <paramref name="tops"/> puts it, the reader
+    /// reaches — <paramref name="band"/> of the page, in the unit's own frame, and the caret, each end of what is picked out and where the
+    /// reader went, where they are in it — whether or not the content is being laid where the reader is just now.
+    /// </summary>
+    /// <param name="band">The stretch of the page asked for: the screen and a screen either side of it to lay, the screen alone to have laid.</param>
+    private LayoutReach ReachIn(ContentWindow window, int index, double[] tops, (double Top, double Bottom) band)
+    {
         // A body not yet found on the page is laid from its start, as much of it as a screen either side would reach.
-        var (from, to) = this.Reach();
+        var (from, to) = band;
         var (top, bottom) = window.Placing is null ? (from, to)
                           : window.PageTop is { } stood ? (from - stood, to - stood)
                           : (0.0, Math.Max(_showing?.Height ?? Room, 1) * 2);
