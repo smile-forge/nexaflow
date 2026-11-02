@@ -20,6 +20,7 @@
     <None Include="Jpeg\README.ijg" />
     <None Include="Jbig2\LICENSE" />
     <None Include="Jbig2\NOTICE" />
+    <None Include="Photoshop\README.md" />
   </ItemGroup>
 
   <ItemGroup>
