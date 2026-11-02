@@ -394,7 +394,13 @@ folder is held only by a live host. `TempHygieneRulesTests` (Architecture) fails
     `VoiceConversationJourneyTests`, `MarkdownDocumentWorkJourneyTests`)* — the real app on Gemma 4 E4B and whatever else
     the journey's workspace assigns. `NEXAFLOW_TEST_AI_DIR` names an AI folder holding those models as the app keeps them,
     each file verified, which the app is started on as its `NEXAFLOW_AI_DIR`; seeded into the journey's own config, the
-    workspace's grid names them. Unset, they are **inconclusive**. They run in Windows Sandbox like any journey — it forwards
+    workspace's grid names them. Unset, they are **inconclusive**. A journey's app downloads nothing, so the folder holds
+    every part the journey meets — a journey that makes pictures needs the picture safety check too
+    (`tools\image-safety-classifier-m`), which every picture made passes, and `OwnedModelFolder` makes it inconclusive,
+    naming the part, where it is missing; a part the app offers for download on screen ends the journey there, inconclusive,
+    through `NeedsHere`, rather than leaving the rest to wait out timeouts on a model that cannot arrive. A seeded grid
+    sets `"LocalSeeded": true`, so the app's first-run setup gives no other model the folder holds a job the journey did
+    not — HiDream for high-quality pictures beside Z-Image, say. They run in Windows Sandbox like any journey — it forwards
     the variable and maps the folder in read-only — and assert the shape of what a model made, never its wording. A
     journey that meets a model without being about one — Convert to Markdown in the PDF and image viewers — starts its app
     on an `EmptyModelStore` instead: a model folder and a temp folder of its own, empty, so it meets the same app on every

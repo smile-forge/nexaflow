@@ -45,6 +45,7 @@ public class ImagesCanvasGenerateJourneyTests : ImageEditJourneyBase
             Assert.Inconclusive($"{AiDirVariable} names no folder of Nexaflow's own models on this machine.");
             return;
         }
+        OwnedModelFolder.RequirePictureCheck(aiDir, AiDirVariable);
         _aiDir = aiDir;
         var version = FileVersionInfo.GetVersionInfo(BuiltOutput.App).FileVersion ?? "1.0.0.0";
         var abilities = Path.Combine(configDir, "Contexts", "Default", "ai-abilities");

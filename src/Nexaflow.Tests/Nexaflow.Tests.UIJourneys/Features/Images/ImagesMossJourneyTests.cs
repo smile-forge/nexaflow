@@ -48,6 +48,7 @@ public class ImagesMossJourneyTests : UiJourneyTestBase
             Assert.Inconclusive($"{AiDirVariable} names no folder of Nexaflow's own models on this machine.");
             return;
         }
+        OwnedModelFolder.RequirePictureCheck(aiDir, AiDirVariable);
         _aiDir  = aiDir;
         _folder = Path.Combine(TestTemp.Root, "nexaflow-moss-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_folder);
@@ -83,7 +84,8 @@ public class ImagesMossJourneyTests : UiJourneyTestBase
               ],
               "Assignments": {
                 "HighQualityImageGeneration": [ "moss" ]
-              }
+              },
+              "LocalSeeded": true
             }
             """);
     }
@@ -98,7 +100,9 @@ public class ImagesMossJourneyTests : UiJourneyTestBase
     public void APictureDrawnWithTheFastLora_LandsInTheFolderUnderItsName()
     {
         CheckDoes("New opens the picker", "NewMenuAction", () => WaitForId("CreateFileNameBox", 6) is not null, 10);
-        CheckDoes("Gen Image shows what it draws with", "GenerateImageCreateAction", () => WaitForId("Images_GeneratePrompt", 6) is not null);
+        CheckDoes("Gen Image shows what it draws with", "GenerateImageCreateAction", () => WaitForId("Images_GenerateOptions", 6) is not null);
+        NeedsHere("Images_GenerateDownload", "MOSS-Image");
+        CheckPresent("What to draw is asked for", "Images_GeneratePrompt");
         CheckPresent("MOSS-Image is told what to keep out", "Images_GenerateKeepOut");
         Check("Its LoRAs are offered after none, none meant for adults only", () => LoraNames() is { Length: 8 } names
               && names.Contains("Fast (8 steps)") && names.Contains("Anime") && !names.Contains("Uncensored"));

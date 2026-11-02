@@ -101,10 +101,4 @@ public class ImagesEditAiJourneyTests : ImageEditJourneyBase
             try { Directory.Delete(folder, recursive: true); } catch (IOException) { /* still open in the app; the temp folder is cleaned by the OS */ }
         }
     }
-
-    /// <summary>The panel offers <paramref name="what"/> for download: the AI folder lacks it, and the journey cannot say more.</summary>
-    private void NeedsHere(string offer, string what)
-    {
-        if (Exists(offer)) Assert.Inconclusive($"{AiDirVariable} holds no {what}: the editor offers it for download.");
-    }
 }

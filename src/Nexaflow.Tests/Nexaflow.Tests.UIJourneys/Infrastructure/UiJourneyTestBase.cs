@@ -326,6 +326,16 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
     protected void CheckExists(string label, string automationId, int seconds = 5) =>
         Check($"{label} ('{automationId}' exists)", () => WaitForFs(() => Exists(automationId), Affordable(seconds)));
 
+    /// <summary>
+    /// Stops the journey, inconclusive, where the app offers <paramref name="what"/> for download at <paramref name="offer"/>: a
+    /// journey's app downloads nothing, so whatever follows would only wait out its timeouts on a model that cannot arrive. It says
+    /// the model folder lacks it, nothing about the app.
+    /// </summary>
+    protected void NeedsHere(string offer, string what)
+    {
+        if (FindInAppWindows(offer) is not null) Assert.Inconclusive($"The model folder holds no {what}: the app offers it for download, and a journey's app downloads nothing.");
+    }
+
     /// <summary>The rows of the list carrying <paramref name="automationId"/>, or 0 when it is not there.</summary>
     protected int ListCount(string automationId) =>
         MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId))

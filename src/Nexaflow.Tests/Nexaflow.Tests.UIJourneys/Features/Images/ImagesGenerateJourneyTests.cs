@@ -36,7 +36,10 @@ public class ImagesGenerateJourneyTests : UiJourneyTestBase
     protected override IReadOnlyDictionary<string, string> LaunchEnvironment =>
         new Dictionary<string, string> { ["NEXAFLOW_AI_DIR"] = _aiDir };
 
-    /// <summary>A workspace open on an empty folder, drawing pictures with Z-Image Turbo.</summary>
+    /// <summary>
+    /// A workspace open on an empty folder, drawing pictures with Z-Image Turbo alone: its own models already set up, so none the
+    /// folder also holds — HiDream for high quality — is given a job it was not.
+    /// </summary>
     protected override void SeedConfig(string configDir)
     {
         var aiDir = Environment.GetEnvironmentVariable(AiDirVariable);
@@ -45,6 +48,7 @@ public class ImagesGenerateJourneyTests : UiJourneyTestBase
             Assert.Inconclusive($"{AiDirVariable} names no folder of Nexaflow's own models on this machine.");
             return;
         }
+        OwnedModelFolder.RequirePictureCheck(aiDir, AiDirVariable);
         _aiDir  = aiDir;
         _folder = Path.Combine(TestTemp.Root, "nexaflow-gen-image-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_folder);
@@ -80,7 +84,8 @@ public class ImagesGenerateJourneyTests : UiJourneyTestBase
               ],
               "Assignments": {
                 "ImageGeneration": [ "draw" ]
-              }
+              },
+              "LocalSeeded": true
             }
             """);
     }
@@ -95,9 +100,9 @@ public class ImagesGenerateJourneyTests : UiJourneyTestBase
     public void APictureDrawnFromTheNewPicker_LandsInTheFolderUnderItsName()
     {
         CheckDoes("New opens the picker", "NewMenuAction", () => WaitForId("CreateFileNameBox", 6) is not null, 10);
-        CheckDoes("Gen Image shows what it draws with", "GenerateImageCreateAction", () => WaitForId("Images_GeneratePrompt", 6) is not null);
-        CheckPresent("Its options sit in the picker", "Images_GenerateOptions");
-        Check("Nothing to download: the model is here", () => FindInAppWindows("Images_GenerateDownload") is null);
+        CheckDoes("Gen Image shows what it draws with", "GenerateImageCreateAction", () => WaitForId("Images_GenerateOptions", 6) is not null);
+        NeedsHere("Images_GenerateDownload", "Z-Image Turbo");
+        CheckPresent("Its options sit in the picker", "Images_GeneratePrompt");
         Check("Z-Image is offered with no other quality, size, detail, keep-out or transparency", () =>
             FindInAppWindows("Images_GenerateQuality") is null && FindInAppWindows("Images_GenerateSize") is null
             && FindInAppWindows("Images_GenerateDetail") is null && FindInAppWindows("Images_GenerateKeepOut") is null
