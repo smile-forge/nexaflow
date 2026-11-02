@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 using System.Linq;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Layout;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -127,7 +128,9 @@ public static class MarkdownFind
         term is { Length: > 0 } looking ? drawn.Every(Looking(looking)) : [];
 
     /// <summary>
-    /// Where a line begins and how long it is, counting from one.
+    /// Where a line of <paramref name="document"/> begins and how long it is without its line ending, counting from one — asked of the
+    /// document's line index (<see cref="ContentDocument.OffsetOf"/>), never by reading what comes before it, so going to a line of a
+    /// document megabytes long costs what going to its first does.
     ///
     /// <para>
     /// A number past the end is the last line there is, rather than an empty place after it: a reference to
@@ -135,51 +138,19 @@ public static class MarkdownFind
     /// a reader meant by it and what they can actually be shown.
     /// </para>
     /// </summary>
-    public static (int Start, int Length) Line(string? source, int number)
+    public static (int Start, int Length) Line(ContentDocument document, int number)
     {
-        var text = source ?? string.Empty;
-        if (text.Length == 0) return (0, 0);
-
-        var wanted = Math.Max(number, 1);
-        var at = 0;
-        var last = 0;
-
-        for (var line = 1; line < wanted; line++)
-        {
-            var ends = text.IndexOf('\n', at);
-            if (ends < 0) break;
-
-            last = at;
-            at = ends + 1;
-        }
+        var line = Math.Clamp(number, 1, document.LineCount) - 1;
 
         // Past the end of a file that ends in a line ending, there is a place with nothing in it. The line
         // a reader was asking for is the one before it.
-        return Ending(text, at < text.Length ? at : last);
+        if (line > 0 && document.OffsetOf(line) == document.Length) line--;
+
+        var (start, end) = document.LineAt(document.OffsetOf(line));
+
+        return (start, end - start);
     }
 
-    /// <summary>Which line an offset is on, counting from one — the other way round, for saving a reference.</summary>
-    public static int LineAt(string? source, int offset)
-    {
-        var text = source ?? string.Empty;
-        var stop = Math.Clamp(offset, 0, text.Length);
-        var line = 1;
-
-        for (var at = 0; at < stop; at++)
-            if (text[at] == '\n') line++;
-
-        return line;
-    }
-
-    private static (int Start, int Length) Ending(string text, int at)
-    {
-        var from = Math.Clamp(at, 0, text.Length);
-        var ends = text.IndexOf('\n', from);
-
-        if (ends < 0) return (from, text.Length - from);
-
-        var stop = ends > from && text[ends - 1] == '\r' ? ends - 1 : ends;
-
-        return (from, stop - from);
-    }
+    /// <summary>Which line of <paramref name="document"/> an offset is on, counting from one — the other way round, for saving a reference.</summary>
+    public static int LineAt(ContentDocument document, int offset) => document.LineOf(offset) + 1;
 }

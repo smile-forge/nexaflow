@@ -335,7 +335,10 @@ public sealed class LayoutTree
     internal IEnumerable<(int At, LayoutMount Mount)> Mounts => _mounts is null ? [] : _mounts.Select(static pair => (pair.Key, pair.Value));
 
     /// <summary>Whether <paramref name="other"/> is this tree's drawing: this tree, or one parted from it (<see cref="Parted"/>), which shares its pieces.</summary>
-    internal bool SameDrawing(LayoutTree other) => ReferenceEquals(_pieces, other._pieces);
+    internal bool SameDrawing(LayoutTree other) => ReferenceEquals(this.Drawing, other.Drawing);
+
+    /// <summary>What this tree and every tree parted from it share (<see cref="SameDrawing"/>) — something to keep what was worked out of the drawing against.</summary>
+    internal object Drawing => _pieces;
 
     internal ReadOnlySpan<LayoutMark> MarksOf(int at) => _marks.AsSpan(_pieces[at].Marks, _pieces[at].MarkCount);
 

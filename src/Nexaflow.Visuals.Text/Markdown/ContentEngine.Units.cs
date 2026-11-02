@@ -217,7 +217,7 @@ public sealed partial class ContentEngine
     {
         var (unit, start) = window.Listed[index];
 
-        return window.Staged.TryGetValue(unit.Tree, out var staged) && !staged.Stale && staged.Key == this.KeyFor(showing, start, unit.Width)
+        return window.Staged.TryGetValue(unit.Tree, out var staged) && !staged.Stale && !staged.LaidStale && staged.Key == this.KeyFor(showing, start, unit.Width)
                && staged.Laid is { } laid && laid.Room == room && laid.ReadOnly == readOnly && laid.Folds == this.Folds(window, start, unit.Width)
             ? laid
             : null;
@@ -320,7 +320,8 @@ public sealed partial class ContentEngine
             {
                 Func<ContentPart, LayoutFold>? folds = window.Placing is null ? Folding : null;
                 staged.Laid = new LaidUnit(Builder(language, reading, Building(window, showing), standingAs, holding, folds).Lay(room), Where(window, start),
-                                           reading.Root, room, readOnly, this.Folds(window, start, unit.Width));
+                                                                      reading.Root, room, readOnly, this.Folds(window, start, unit.Width));
+                                           staged.LaidStale = false;
             }
             finally
             {
@@ -417,22 +418,14 @@ public sealed partial class ContentEngine
 
     /// <summary>
     /// What <paramref name="window"/> has read, laid where <paramref name="wanted"/> says: every unit standing at a height, those it picks out
-    /// — and each one slow work landed for — worked over and laid, and the whole put together (<see cref="Composed"/>). The content's own
+    /// worked over and laid where their laying no longer stands, and the whole put together (<see cref="Composed"/>). The content's own
     /// reading and a body's are laid the same way.
     /// </summary>
     private Laid Laying(ContentWindow window, ContentLanguage language, ContentShowing showing, double room, bool readOnly, Keeping holding,
                         LayoutStanding standingAs, Func<double[], IReadOnlyCollection<int>> wanted, int unread)
     {
+        // A unit a slower reading landed for is laid again where it is wanted, as the rest are: what is laid follows the screen.
         var asked = new SortedSet<int>(wanted(this.Placed(window, language, showing, room, readOnly).Tops));
-
-        // A unit a slower reading landed for is laid again wherever it stands, as it would have been laid had the reading been there.
-        if (window.Relanded.Count > 0)
-        {
-            for (var index = 0; index < window.Listed.Count; index++)
-                if (window.Relanded.Contains(window.Listed[index].Unit.Tree)) asked.Add(index);
-
-            window.Relanded.Clear();
-        }
 
         this.Stage(window, language, asked, showing);
 
@@ -643,7 +636,7 @@ public sealed partial class ContentEngine
             var forgot = _unchanged.Forget(staged.Tree, which);
             if (!forgot && !(reread && staged.Tree.Children.Any(which))) continue;
 
-            staged.Laid = null;
+            staged.LaidStale = true;
             staged.Stale |= reread;
         }
     }
@@ -679,6 +672,12 @@ public sealed partial class ContentEngine
 
         /// <summary>What it was last laid into, or null before it is — kept off screen, where its height is where it stands.</summary>
         public LaidUnit? Laid { get; set; }
+
+        /// <summary>
+        /// Whether what it was laid into no longer stands — something it shows has changed since — so it is laid again where it is next laid,
+        /// and stands at the height it was laid at until then.
+        /// </summary>
+        public bool LaidStale { get; set; }
 
         /// <summary>Whether something its stages read into it, which its characters do not say, has changed since — so it is worked over again.</summary>
         public bool Stale { get; set; }

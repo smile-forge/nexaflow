@@ -261,47 +261,55 @@ public sealed partial class ContentEngine
         }
 
         _unchanged.Forget(staged.Tree, node => ReferenceEquals(node, block));
-        staged.Laid = null;
-        holding.Relanded.Add(unit);
+    staged.LaidStale = true;
 
         if (holding.Placing is not null) this.Unlay(holding);
     }
 
     /// <summary>
     /// Finds every body read a stretch at a time that <paramref name="page"/> puts down, and where on the page each stands — going by a unit
-    /// of it laid, found down the trees put down in the page: its units, the units of bodies put down in those, and so on.
+    /// of it laid, found down the trees put down in the page: its units, the units of bodies put down in those, and so on, going into a unit
+    /// of a body only where it holds bodies of its own.
     /// </summary>
     private void FoundOnPage(LayoutTree page)
     {
         _onPage.Clear();
 
-        // Each unit of a body laid, by the tree it was laid as: a body is where any of them is put down, less where that unit stands in it.
-        var laidUnits = new List<(LayoutTree Tree, ContentWindow Body, int Index)>();
+        // Each unit of a body laid, by the drawing it was laid as: a body is where any of them is put down, less where that unit stands in it.
+        var laidUnits = new Dictionary<object, (ContentWindow Body, int Index)>(ReferenceEqualityComparer.Instance);
 
         foreach (var (_, body) in _bodies)
             for (var index = 0; index < body.Listed.Count && index < body.Standing.Length; index++)
                 if (body.Standing[index] && body.Staged.TryGetValue(body.Listed[index].Unit.Tree, out var staged) && staged.Laid is { } laid)
-                    laidUnits.Add((laid.Laid.Tree, body, index));
+                    laidUnits[laid.Laid.Tree.Drawing] = (body, index);
 
         if (laidUnits.Count > 0) Looked(page, null, units: true);
 
-        // A tree whose mounts are units is gone down into; in a unit, only the units of a body put down in it are.
+        // A tree whose mounts are units is gone down into; in a unit, only a unit of a body is, and that only where it holds bodies itself.
         void Looked(LayoutTree tree, LayoutMounted? within, bool units)
         {
             foreach (var (at, mount) in tree.Mounts)
             {
-                var found = laidUnits.FindIndex(unit => unit.Tree.SameDrawing(mount.Tree));
-                if (found < 0 && !units) continue;
+                var found = laidUnits.TryGetValue(mount.Tree.Drawing, out var unit);
+                if (!found && !units) continue;
 
                 var mounted = new LayoutMounted(tree, at, within);
 
-                if (found >= 0 && laidUnits[found] is var (_, body, index) && !_onPage.Contains(body))
+                if (!found)
+                {
+                    Looked(mount.Tree, mounted, units: false);
+                    continue;
+                }
+
+                var (body, index) = unit;
+
+                if (!_onPage.Contains(body))
                 {
                     body.PageTop = new LayoutPiece(mount.Tree, 0, mounted).Anchor.Y - body.Tops[index];
                     _onPage.Add(body);
                 }
 
-                Looked(mount.Tree, mounted, units: false);
+                if (body.Listed[index].Unit.Bodies.Count > 0) Looked(mount.Tree, mounted, units: false);
             }
         }
     }

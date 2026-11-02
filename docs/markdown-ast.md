@@ -403,9 +403,11 @@ lands (`Reread`). Work a stage says takes turns with something (`TakesTurnsWith`
 which is parsed from the last) is done a piece at a time, the newest asked for first, so a reading typed in asks again with
 every keystroke without holding a thread per keystroke, and the version shown is found before the versions it replaced,
 which then answer at once that they are not worth finding. Whatever shows the content moves to its own thread and lays
-again what waited on it (`RelayLanded`): each unit that asked, wherever it stands, worked over again — and each unit what
-it found reaches, where it says it reaches further (`ISlowFindingReaches`) — and nothing else; work that came to nothing,
-or landed only for units read again since, lays nothing.
+again what waited on it (`RelayLanded`): each unit that asked, worked over or laid again where it is next laid — and each
+unit what it found reaches, where it says it reaches further (`ISlowFindingReaches`) — and nothing else; work that came to
+nothing, or landed only for units read again since, lays nothing. A unit whose laying no longer stands keeps the height it
+was laid at until it is laid again (`StagedUnit.LaidStale`), and is laid again only where it is wanted, so what is laid
+follows the screen: work landing for a unit the reader has scrolled away from waits until the reader comes back.
 
 ## 9. Editing
 
@@ -501,7 +503,9 @@ engine holds.
 The engine keeps the content as it is being written — the document, the caret, the selection, what was written so it can be taken
 back, and the laid tree — and makes every edit to it. The document is one immutable version per edit (`ContentDocument`): an edit is
 a `ContentChange` made to a version, and the version it makes knows the change both ways, so what is kept to take an edit back and
-what whoever shows the content is told both read what changed rather than comparing two documents. It also lays out the buttons in the corner of the block
+what whoever shows the content is told both read what changed rather than comparing two documents. It knows where every line
+starts (`LineOf`, `OffsetOf`), so going to a line, and saying which line a place is on, asks the document rather than reading it
+(`MarkdownFind.Line`, `MarkdownSurface.GoTo`): a line far down a long document is found as quickly as the first, and laid there. It also lays out the buttons in the corner of the block
 the pointer is over, since only it knows both where the block came out and what its language offers
 (`ContentEngine.Corner`), and a press on one is a press like any other. The element paints all that and says where the
 reader is.
@@ -538,8 +542,10 @@ written — a number set to two places, a title without its quotes. A run saying
 showing it — the share a slice takes — is neither, and stepping never stops in it.
 
 **A block keeps the picture it was painted as** (`LayoutKept`), so a keystroke paints the block typed in and a caret
-blinking paints nothing. Only the blocks near the screen are painted (`ContentElement.OnScreen`), and the picture of a
-block scrolled far away is let go.
+blinking paints nothing. Only the blocks near the screen are painted (`ContentElement.OnScreen`), and a tree put down whole
+that stands nowhere near it — a unit, a line of code — is not gone into. A picture is held only while something draws it:
+what the page is drawn as holds the pictures on it, and the picture of a block scrolled far away is let go without anything
+going looking for it.
 
 ## 11. Speed
 

@@ -74,8 +74,8 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// <summary>What the reader has opened in the content itself, where it is a diagram rather than a document holding some.</summary>
     private DiagramViewState? _top;
 
-    /// <summary>The style last laid in, and what the reader opened in the content itself laid in it — see <see cref="OpenedIn"/>.</summary>
-    private (LayoutStyle From, LayoutStyle Opened)? _openedStyle;
+    /// <summary>For each style laid in and what the reader opened, by what was opened, that style with it — see <see cref="OpenedIn"/>.</summary>
+    private readonly ConditionalWeakTable<Dictionary<string, bool>, StrongBox<(LayoutStyle From, LayoutStyle Opened)>> _openedStyles = new();
 
     /// <summary>
     /// Which of a markdown document's sections the reader has folded away, by the name each heading answers to — kept for as long
@@ -125,17 +125,18 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     }
 
     /// <summary>
-    /// <paramref name="style"/> with what the reader opened in the content itself — the same style while both stand, since what is kept
-    /// by the style it was laid in (a unit's height, said once) is kept only while that is the same style.
+    /// <paramref name="style"/> with what the reader opened (<paramref name="opened"/>) — in the content itself, or in a diagram or body it
+    /// holds — the same style while both stand, since what is kept by the style it was laid in (a unit's height, said once) is kept only
+    /// while that is the same style.
     /// </summary>
     private LayoutStyle OpenedIn(LayoutStyle style, DiagramViewState opened)
     {
-        if (_openedStyle is { } kept && ReferenceEquals(kept.From, style) && ReferenceEquals(kept.Opened.Expansion, opened.Expansion)) return kept.Opened;
+        var kept = _openedStyles.GetValue(opened.Expansion, static _ => new StrongBox<(LayoutStyle From, LayoutStyle Opened)>());
+        if (ReferenceEquals(kept.Value.From, style)) return kept.Value.Opened;
 
-        var made = style with { Expansion = opened.Expansion };
-        _openedStyle = (style, made);
+        kept.Value = (style, style with { Expansion = opened.Expansion });
 
-        return made;
+        return kept.Value.Opened;
     }
 
 
@@ -352,7 +353,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
             Keeping within = holding.Held(at) == reading ? new KeptInBody(holding, at, body.Start, placed) : new KeptNowhere(holding.Document);
 
             // Its own openings, or those of the diagram holding it.
-            if (Opened(holder) is { } view) style = style with { Expansion = view.Expansion };
+            if (Opened(holder) is { } view) style = this.OpenedIn(style, view);
 
             // Read a stretch at a time, it is laid so too: its units put together, each the tree it was laid as, put down where it stands.
             if (!body.Supplied && reading.Reader.SoftMaxLength != int.MaxValue)

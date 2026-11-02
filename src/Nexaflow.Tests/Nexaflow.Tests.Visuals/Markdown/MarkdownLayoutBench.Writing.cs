@@ -10,6 +10,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 
+using System.Windows.Media;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
@@ -58,6 +59,12 @@ public partial class MarkdownLayoutBench
     /// <summary>What a paste brings in, in characters.</summary>
     private const int PasteSize = 1024 * 1024;
 
+    /// <summary>How many lines the page is sent to, spread down the document, each somewhere nothing is laid yet.</summary>
+    private const int LineJumps = 4;
+
+    /// <summary>How many steps the scrollbar is dragged past a fence in, each landing somewhere nothing is laid yet.</summary>
+    private const int ScrollSteps = 200;
+
     /// <summary>How long opening a size, or laying a document down to a place in it, may take before it is skipped.</summary>
     private static readonly TimeSpan OpenBudget = TimeSpan.FromSeconds(60);
 
@@ -102,7 +109,7 @@ public partial class MarkdownLayoutBench
 
             Kept(WritingIn($"prose-with-{fence / (1024 * 1024)}-mb-fence", "nested", text, null,
                            [("in the fence", WordStartNear(text, (start + end) / 2)), ("after the fence", WordStartNear(text, (end + text.Length) / 2))],
-                           null, Said, out _, out _));
+                           null, Said, out _, out _, past: (start, end)));
         }
 
         Said("done");
@@ -184,7 +191,8 @@ public partial class MarkdownLayoutBench
     /// </summary>
     private static Dictionary<string, object> WritingIn(string name, string kind, string text, string? writtenIn,
                                                         IReadOnlyList<(string Name, int At)> places, (int Offset, double Ms)? reached,
-                                                                                                            Action<string> said, out TimeSpan opened, out (int Offset, double Ms)? farthest)
+                                                                                                                                                                Action<string> said, out TimeSpan opened, out (int Offset, double Ms)? farthest,
+                                                                                                            (int Start, int End)? past = null)
     {
         var surface = new MarkdownSurface
         {
@@ -282,6 +290,35 @@ foreach (var (place, at) in places)
 
             row["keystroke"] = keystrokes;
 
+            // The page sent to a line a few times, spread down the document — where the line starts asked of the document, and what
+            // stands there laid and brought onto the page.
+            said($"{name}: going to lines");
+            var document = engine.State.Document;
+            var lines = Enumerable.Range(0, LineJumps).Select(jump => document.LineOf(document.Length * (2 * jump + 1) / (2 * LineJumps)) + 1).ToList();
+            var jumped = 0;
+
+            row["line"] = Taken(LineJumps, null, () => surface.GoTo(lines[jumped++]));
+            row["lines"] = lines;
+
+            // Dragged past what the fence stands for, the scrollbar's thumb a step at a time from where it starts to where it ends.
+            if (past is var (from, to))
+            {
+                said($"{name}: scrolling past");
+                var scroller = Scroller(surface);
+
+                Assert.IsTrue(surface.ShowFrom(to), "There is nowhere on the page past it.");
+                Settle();
+                var bottom = scroller.VerticalOffset;
+
+                Assert.IsTrue(surface.ShowFrom(from), "There is nowhere on the page for it to start.");
+                Settle();
+                var top = scroller.VerticalOffset;
+                var stepped = 0;
+
+                row["scrollPast"] = Taken(ScrollSteps, null, () => scroller.ScrollToVerticalOffset(top + ((bottom - top) * ++stepped / ScrollSteps)));
+                row["scrollPx"] = Round(bottom - top);
+            }
+
     // The last step taken back: a letter typed as a step of its own, untimed, then Ctrl+Z.
             said($"{name}: taking back the last step");
             row["undoLatest"] = Taken(5, () => { engine.History.Break(); engine.Input(new ContentText("x")); }, Undo, Source);
@@ -340,6 +377,22 @@ foreach (var (place, at) in places)
             window.Close();
             GC.Collect();
             GC.WaitForPendingFinalizers();
+        }
+    }
+
+    /// <summary>What scrolls <paramref name="surface"/>'s page, as the reader's scrollbar does.</summary>
+    private static ScrollViewer Scroller(MarkdownSurface surface)
+    {
+        ScrollViewer? found = null;
+        Looked(surface);
+
+        return found ?? throw new InvalidOperationException("The surface holds nothing that scrolls.");
+
+        void Looked(DependencyObject at)
+        {
+            if (at is ScrollViewer scroller) { found = scroller; return; }
+
+            for (var child = 0; child < VisualTreeHelper.GetChildrenCount(at) && found is null; child++) Looked(VisualTreeHelper.GetChild(at, child));
         }
     }
 

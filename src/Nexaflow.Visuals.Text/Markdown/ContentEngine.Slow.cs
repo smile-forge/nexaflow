@@ -215,8 +215,7 @@ public sealed partial class ContentEngine
                 if (laying) _unchanged.Forget(staged.Tree, static _ => true);
                 else staged.Stale = true;
 
-                staged.Laid = null;
-                window.Relanded.Add(read);
+                staged.LaidStale = true;
                 this.Unlay(window);
                 marked = true;
             }
@@ -225,7 +224,7 @@ public sealed partial class ContentEngine
         return marked;
     }
 
-    /// <summary>Each unit of <paramref name="window"/> worked over that <paramref name="stretches"/> of its reading reach, worked over and laid again wherever it stands — and whether there was any.</summary>
+    /// <summary>Each unit of <paramref name="window"/> worked over that <paramref name="stretches"/> of its reading reach, worked over and laid again where it is next laid — and whether there was any.</summary>
     private bool Unstaged(ContentWindow window, IEnumerable<(int Start, int End)> stretches)
     {
         var any = false;
@@ -240,9 +239,7 @@ public sealed partial class ContentEngine
                 var read = window.Listed[index].Unit.Tree;
                 if (!window.Staged.TryGetValue(read, out var staged)) continue;
 
-                staged.Laid = null;
-                staged.Stale = true;
-                window.Relanded.Add(read);
+            staged.Stale = true;
                 any = true;
             }
         }

@@ -9,6 +9,7 @@ using Nexaflow.Visuals.Text.Markdown.Prose;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -137,9 +138,9 @@ public class MarkdownFindTests
     {
         const string source = "one\ntwo\nthree\n";
 
-        Assert.AreEqual((0, 3), MarkdownFind.Line(source, 1));
-        Assert.AreEqual((4, 3), MarkdownFind.Line(source, 2));
-        Assert.AreEqual((8, 5), MarkdownFind.Line(source, 3));
+        Assert.AreEqual((0, 3), MarkdownFind.Line(ContentDocument.Of(source), 1));
+        Assert.AreEqual((4, 3), MarkdownFind.Line(ContentDocument.Of(source), 2));
+        Assert.AreEqual((8, 5), MarkdownFind.Line(ContentDocument.Of(source), 3));
     }
 
     [TestMethod]
@@ -149,11 +150,11 @@ public class MarkdownFindTests
         // left — which is a line with something on it, not the empty place after the last one.
         const string source = "one\ntwo\n";
 
-        Assert.AreEqual(MarkdownFind.Line(source, 2), MarkdownFind.Line(source, 900));
-        Assert.AreEqual("two", source.Substring(MarkdownFind.Line(source, 900).Start, MarkdownFind.Line(source, 900).Length));
+        Assert.AreEqual(MarkdownFind.Line(ContentDocument.Of(source), 2), MarkdownFind.Line(ContentDocument.Of(source), 900));
+        Assert.AreEqual("two", source.Substring(MarkdownFind.Line(ContentDocument.Of(source), 900).Start, MarkdownFind.Line(ContentDocument.Of(source), 900).Length));
 
-        Assert.AreEqual(MarkdownFind.Line(source, 1), MarkdownFind.Line(source, 0), "and there is no line nought");
-        Assert.AreEqual((0, 0), MarkdownFind.Line("", 1), "nor any line at all in nothing");
+        Assert.AreEqual(MarkdownFind.Line(ContentDocument.Of(source), 1), MarkdownFind.Line(ContentDocument.Of(source), 0), "and there is no line nought");
+        Assert.AreEqual((0, 0), MarkdownFind.Line(ContentDocument.Of(""), 1), "nor any line at all in nothing");
     }
 
     [TestMethod]
@@ -161,15 +162,15 @@ public class MarkdownFindTests
     {
         const string source = "one\ntwo\nthree\n";
 
-        Assert.AreEqual(1, MarkdownFind.LineAt(source, 0));
-        Assert.AreEqual(2, MarkdownFind.LineAt(source, 5));
-        Assert.AreEqual(3, MarkdownFind.LineAt(source, 9));
+        Assert.AreEqual(1, MarkdownFind.LineAt(ContentDocument.Of(source), 0));
+        Assert.AreEqual(2, MarkdownFind.LineAt(ContentDocument.Of(source), 5));
+        Assert.AreEqual(3, MarkdownFind.LineAt(ContentDocument.Of(source), 9));
     }
 
     [TestMethod]
     public void ALineEndingIsNotPartOfTheLineItEnds()
     {
-        Assert.AreEqual((0, 3), MarkdownFind.Line("one\r\ntwo\r\n", 1), "nor is the carriage return before it");
+        Assert.AreEqual((0, 3), MarkdownFind.Line(ContentDocument.Of("one\r\ntwo\r\n"), 1), "nor is the carriage return before it");
     }
 
     // ── A saved reference ───────────────────────────────────────────────────

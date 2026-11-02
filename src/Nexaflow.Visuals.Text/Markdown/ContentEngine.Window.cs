@@ -691,9 +691,6 @@ public sealed partial class ContentEngine
         /// <summary>What each unit said of itself when what the units define was last gathered, in order — null for a unit nothing had worked over.</summary>
         public List<UnitFacts?> DefinedBy { get; set; } = [];
 
-        /// <summary>The units, by the tree each was read into, that slow work landed for since they were last laid — laid again wherever they stand.</summary>
-        public HashSet<ContentNode> Relanded { get; } = new(ReferenceEqualityComparer.Instance);
-
         // ── A body's ────────────────────────────────────────────────────────────
 
         /// <summary>

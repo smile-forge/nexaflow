@@ -41,12 +41,10 @@ public static class WpfPainter
         if (!piece.Exists) return;
 
         var foreground = WpfMedium.OnThisThread.Ink(ink);
-
         var near = showing is { } shown ? Around(shown) : (Rect?)null;
-        var far = showing is { } seen ? Beyond(seen) : (Rect?)null;
 
-        Descend(dc, piece, foreground, washes: true, default, near, far);
-        Descend(dc, piece, foreground, washes: false, default, near, far);
+        Descend(dc, piece, foreground, washes: true, default, near);
+        Descend(dc, piece, foreground, washes: false, default, near);
     }
 
     /// <summary>
@@ -54,9 +52,6 @@ public static class WpfPainter
     /// scrolling shows what is already painted rather than asking for another paint.
     /// </summary>
     public static Rect Around(Rect showing) => new(-Wide, showing.Y - showing.Height, Wide * 2, showing.Height * 3);
-
-    /// <summary>How far from what is shown a piece has to be before the picture kept of it is let go.</summary>
-    private static Rect Beyond(Rect showing) => new(-Wide, showing.Y - (showing.Height * 4), Wide * 2, showing.Height * 9);
 
     /// <summary>Wider than any page, and finite: a rectangle running to infinity has no right-hand edge to be inside.</summary>
     private const double Wide = 1e9;
@@ -140,8 +135,7 @@ public static class WpfPainter
     /// <param name="offset">Where the frame <paramref name="piece"/> is measured in stands, against what was last pushed.</param>
     /// <param name="near">What is painted of the pieces keeping pictures, on the page — null for all of them.</param>
     /// <param name="far">Past this, a piece's kept picture is let go.</param>
-    private static void Descend(DrawingContext dc, LayoutPiece piece, WpfInk foreground, bool washes, Vector offset,
-                                Rect? near = null, Rect? far = null)
+    private static void Descend(DrawingContext dc, LayoutPiece piece, WpfInk foreground, bool washes, Vector offset, Rect? near = null)
     {
         var painting = piece.Painting;
 
@@ -152,31 +146,29 @@ public static class WpfPainter
         var standing = offset;
         var pushed = Enter(dc, painting, ref offset);
 
-        if (painting?.Turn is { Count: > 0 }) near = far = null;
-        else if (offset != standing)
+        if (painting?.Turn is { Count: > 0 }) near = null;
+        else if (offset != standing) near = Moved(near, offset - standing);
+
+        // A tree put down whole — a unit of a long document, a line of code — that stands nowhere near what is painted is not gone into: what
+        // it holds stands where it does, so none of it is near either, however much it holds.
+        var box = piece.Box.IsEmpty ? Rect.Empty : Rect.Offset(piece.Box.ToWpf(), offset);
+
+        if (piece is { At: 0, Within: not null } && near is { } around && !box.IsEmpty && !around.IntersectsWith(box))
         {
-            near = Moved(near, offset - standing);
-            far = Moved(far, offset - standing);
+            for (var at = 0; at < pushed; at++) dc.Pop();
+            return;
         }
 
         if (painting?.Kept is { } kept)
         {
-            if (washes)
-            {
-                var box = piece.Box.IsEmpty ? Rect.Empty : Rect.Offset(piece.Box.ToWpf(), offset);
-
-                if (near is not { } painted || painted.IntersectsWith(box))
-                    Recorded(dc, kept.For(foreground, () => Record(piece, foreground)), offset);
-                else if (far is { } beyond && !beyond.IntersectsWith(box))
-                    kept.Forget();
-            }
+            if (washes && (near is not { } painted || painted.IntersectsWith(box))) Recorded(dc, kept.For(foreground, () => Record(piece, foreground)), offset);
         }
         else
         {
             foreach (var mark in piece.Marks)
                 if (mark is WashMark == washes) PaintMark(dc, mark, foreground.Brush, offset);
 
-            foreach (var child in piece.DrawnChildren) Descend(dc, child, foreground, washes, offset, near, far);
+            foreach (var child in piece.DrawnChildren) Descend(dc, child, foreground, washes, offset, near);
         }
 
         for (var at = 0; at < pushed; at++) dc.Pop();

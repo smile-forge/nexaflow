@@ -50,9 +50,16 @@ public class LayoutPaintTests
         var kept = new LayoutKept();
         var bar = Bar(new LayoutPaint(Kept: kept, Clip: Clip(new Rect(0, 0, 30, 20))));
 
-        var first = Read(Painted(bar, Brushes.White));
-        Assert.IsTrue(kept.Holds, "the picture was kept");
+        // Kept while something draws it — however much is collected meanwhile.
+        var drawn = new DrawingGroup();
+        using (var dc = drawn.Open()) WpfPainter.Paint(dc, bar.Root, Brushes.White);
 
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        Assert.IsTrue(kept.Holds, "the picture was let go while something still drew it");
+        GC.KeepAlive(drawn);
+
+        var first = Read(Painted(bar, Brushes.White));
         var again = Read(Painted(bar, Brushes.White));
 
         foreach (var picture in new[] { first, again })

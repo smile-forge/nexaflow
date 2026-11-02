@@ -283,6 +283,12 @@
           "doc": "src/Nexaflow.Markdown/Layout/LayoutTree.cs",
           "class": "LayoutTree",
           "method": "Among"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownFind.cs",
+          "class": "MarkdownFind",
+          "method": "Line"
         }
       ],
       "concerns": {

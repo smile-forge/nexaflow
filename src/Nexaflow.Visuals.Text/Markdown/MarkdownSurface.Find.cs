@@ -149,9 +149,10 @@ public sealed partial class MarkdownSurface
 
         // A page read as what it draws is quoted as what it draws: its source is formatting nobody would recognise.
         if (_engine.ReadsAsDrawn) return _engine.DrawnWords.LineAt(start);
-        var line = MarkdownFind.Line(_shown.Markdown, MarkdownFind.LineAt(_shown.Markdown, start));
+        var document = _engine.State.Document;
+        var (from, length) = MarkdownFind.Line(document, MarkdownFind.LineAt(document, start));
 
-        return _shown.Markdown.Substring(line.Start, line.Length).Trim();
+        return document.Slice(from, length).Trim();
     }
 
     /// <summary>
@@ -235,7 +236,7 @@ public sealed partial class MarkdownSurface
     // ── Going to a place ────────────────────────────────────────────────────
 
     /// <summary>Goes to a line, counting from one — and to the whole of whatever drew it, where a line is inside a picture.</summary>
-    public bool GoTo(int line) => _shown.Show(MarkdownFind.Line(_shown.Markdown, line), choose: false);
+    public bool GoTo(int line) => _shown.Show(MarkdownFind.Line(_engine.State.Document, line), choose: false);
 
     /// <summary>
     /// Goes where a deep link leads (<see cref="ContentPath"/>) — a heading by the name it answers to, and what the link says under it in
