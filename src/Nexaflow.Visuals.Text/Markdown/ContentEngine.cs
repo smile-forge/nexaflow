@@ -93,7 +93,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     public Laid Lay(string? named, EditState state, LayoutStyle style, double room, bool readOnly)
     {
         var language = Language(named);
-        var whole = ReadAgain(language, named, state.Document);
+        var whole = _shown = ReadAgain(language, named, state.Document);
 
         return LaidFrom(language, named, whole, state, style, room, readOnly, new KeptInContent(whole, state.Document), static tops => [.. Enumerable.Range(0, tops.Length - 1)]);
     }
@@ -107,38 +107,21 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     private Laid LaidFrom(ContentLanguage language, string? named, ContentWindow window, EditState state, LayoutStyle style, double room,
                           bool readOnly, Keeping holding, Func<double[], IReadOnlyCollection<int>> wanted)
     {
-        _units = [.. window.Units.From(0)];
-        _unitsIn = window.Document;
-        _readingSyntax = window.Units.Syntax;
+        Listing(window);
 
         // What the reader opened in each diagram, or in the content itself where it is a diagram.
-        Views(language);
+        Views(window, language);
         if (_top is { } opened) style = this.OpenedIn(style, opened);
 
-    var showing = Showing(named ?? string.Empty, style, !readOnly, state.Raw, 0) with
+        var showing = Showing(named ?? string.Empty, style, !readOnly, state.Raw, 0) with
         {
             Unchanged = _unchanged,
-            Targets = _targets,
-            Syntax = _readingSyntax is { } syntax ? (syntax, 0) : null,
+            Targets = window.Targets,
+            Syntax = window.LaidSyntax is { } syntax ? (syntax, 0) : null,
         };
-    var asked = new SortedSet<int>(wanted(Placed(language, showing, room, readOnly).Tops));
 
-        // A unit a slower reading landed for is laid again wherever it stands, as it would have been laid had the reading been there.
-        if (_relanded.Count > 0)
-        {
-            for (var index = 0; index < _units.Count; index++)
-                if (_relanded.Contains(_units[index].Unit.Tree)) asked.Add(index);
-
-            _relanded.Clear();
-        }
-
-        Stage(language, asked, showing);
-
-        // What every unit read says to the outline, and what of that the reader folded away.
-        InStep();
-        Fold();
-
-        return Composed(language, showing, room, readOnly, holding, asked, window.Units.Done ? 0 : window.Document.Length - window.Units.Reached);
+        return this.Laying(window, language, showing, room, readOnly, holding, LayoutStanding.Alone, wanted,
+                           window.Units.Done ? 0 : window.Document.Length - window.Units.Reached);
     }
 
     /// <summary>
@@ -236,7 +219,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         var readOnly = !(language.Writable && showing.Writing);
 
         return Makers.GetOrAdd(language.Builder, Maker)(
-            reading, EditState.For(reading.Document) with { Raw = showing.Shown }, showing.Style, readOnly, WpfMedium.OnThisThread,
+            reading, EditState.For(reading.Document) with { Raw = showing.Shown }, showing.Style, readOnly, _medium,
             Hosting(showing, standing, writing: !readOnly, holding, folds));
     }
 
@@ -289,7 +272,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// <param name="at">Where <paramref name="source"/> begins in the document holding it, so what is said of it is said where it is.</param>
     private Laid Unreadable(string source, int at, string why, LayoutStyle style, bool readOnly, double room) =>
         Makers.GetOrAdd(typeof(UnreadBuilder), Maker)(
-            ContentReading.Of(ContentNode.Shown(source, why), at, ContentDocument.Of(source)), EditState.For(source), style, readOnly, WpfMedium.OnThisThread,
+            ContentReading.Of(ContentNode.Shown(source, why), at, ContentDocument.Of(source)), EditState.For(source), style, readOnly, _medium,
             new LayoutHost(LayoutStanding.Alone, static (_, _, _) => null)).Lay(room);
 
     /// <summary>Makes a builder from the six things every builder is made from.</summary>
@@ -370,6 +353,10 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
 
             // Its own openings, or those of the diagram holding it.
             if (Opened(holder) is { } view) style = style with { Expansion = view.Expansion };
+
+            // Read a stretch at a time, it is laid so too: its units put together, each the tree it was laid as, put down where it stands.
+            if (!body.Supplied && reading.Reader.SoftMaxLength != int.MaxValue)
+                return new LayoutInset(this.BodyLaid(reading, language, named, holder, body, placed, within, holding, style, shown, writing, standing, room));
 
             // What is shown as written is where it is among the characters the language was handed, which a container's marks
             // between its lines are not among.

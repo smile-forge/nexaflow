@@ -94,6 +94,22 @@ public sealed class LayoutBuilder
         return frame.At;
     }
 
+    /// <summary>Whether anything laid so far puts a tree down (<see cref="Mount"/>), copied in or mounted here.</summary>
+    internal bool PutsDown => _mounts.Count > 0;
+
+    /// <summary>
+    /// Says the piece open innermost is painted as <paramref name="paints"/> — for a builder that knows how only once it has laid what is
+    /// inside. Only what is not where anything stands: a paint that moves, turns or scales what it holds is said when the piece is opened.
+    /// </summary>
+    internal void PaintedAs(LayoutPaint paints)
+    {
+        if (paints.Applies) throw new ArgumentException("a paint that places what it holds is said when the piece is opened", nameof(paints));
+
+        var frame = _open.Peek();
+        frame.Paints = paints is { Matters: true } ? paints : null;
+        _paints[frame.At] = frame.Paints;
+    }
+
     public LayoutVector Anchor
     {
         get

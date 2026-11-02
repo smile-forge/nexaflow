@@ -212,9 +212,10 @@ public sealed partial class ContentEngine
     /// </summary>
     private void InStep()
     {
-        var units = new List<OutlineUnit>(_units.Count);
+        var listed = _shown?.Listed ?? [];
+        var units = new List<OutlineUnit>(listed.Count);
 
-        foreach (var (unit, _) in _units)
+        foreach (var (unit, _) in listed)
             units.Add(_facts.TryGetValue(unit.Tree, out var facts) ? facts.Outline : _unworked.GetValue(unit.Tree, _ => OutlineUnit.Of([], unit.Width)));
 
         var first = 0;

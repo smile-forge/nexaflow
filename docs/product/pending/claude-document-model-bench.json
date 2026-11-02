@@ -265,6 +265,24 @@
           "doc": "src/Nexaflow.Markdown/Layout/LayoutTree.cs",
           "class": "LayoutPiece",
           "method": "DrawnChildren"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Bodies.cs",
+          "class": "ContentEngine",
+          "method": "BodyLaid"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentBody.cs",
+          "class": "ContentBody",
+          "method": "Continuity"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutTree.cs",
+          "class": "LayoutTree",
+          "method": "Among"
         }
       ],
       "concerns": {

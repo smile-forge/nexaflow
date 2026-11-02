@@ -116,9 +116,17 @@ public static class ContentNested
     /// own characters stand in (<see cref="Own(ContentPart)"/>), and positioned from where the body starts, every part names the
     /// characters it was written as. A body that is one stretch of the document is handed back as it was read.
     /// </summary>
-    public static ContentNode Spliced(ContentNode read, ContentSpace space)
+    public static ContentNode Spliced(ContentNode read, ContentSpace space) => Spliced(read, space, 0, space.Length);
+
+    /// <summary>
+    /// <paramref name="read"/> — what a body's own characters from <paramref name="from"/> up to <paramref name="to"/> were read to, its
+    /// offsets counted from <paramref name="from"/> — with every mark <paramref name="space"/> puts in front of a run starting there put back
+    /// where it stands: so it names the holder's characters from where that stretch starts among them (<see cref="ContentSpace.HolderFrom"/>).
+    /// A unit of a body read a stretch at a time is placed so, on its own.
+    /// </summary>
+    public static ContentNode Spliced(ContentNode read, ContentSpace space, int from, int to)
     {
-        var cuts = space.Marks(0, space.Length).ToList();
+        var cuts = space.Marks(from, to).Select(cut => (cut.At - from, cut.Mark)).ToList();
         if (cuts.Count == 0) return read;
 
         var splice = new Splice(cuts, read.Offset ?? 0);

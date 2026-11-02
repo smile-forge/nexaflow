@@ -192,7 +192,7 @@ public sealed partial class ContentEngine
 
         var seen = false;
 
-        for (var at = Holding(holding.Start); at >= 0 && at < _units.Count; at++)
+        for (var at = Holding(holding.Start); at >= 0 && at < _shown!.Listed.Count; at++)
             foreach (var block in PlacedAt(at) is { } reading ? Inside(reading) : [])
             {
                 if (seen) return block;

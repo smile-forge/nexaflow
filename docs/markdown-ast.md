@@ -560,7 +560,8 @@ still ends where it did (`IBodyBounds`; markdown says so for its fences): the un
 characters, and the change is written into the body's reading, which reads again only its own units the change reached —
 and so on down. Where a unit holding a body is read again, the body's reading is carried to the holder that comes back in
 the same language at the same place, the change mapped through: kept as it was where the change missed it, written into
-where it did not. A document holding readings nested three deep, written in at every unit boundary and every line of
+where it did not. Each version of a body is another object, but the same body to whatever shows it
+(`ContentBody.Continuity`), from the version first read through every one carried on from it. A document holding readings nested three deep, written in at every unit boundary and every line of
 every level, reads (`WindowedReadingTests`) and lays out (`WindowedLayoutTests`) as the document it became does read
 whole.
 
@@ -583,16 +584,39 @@ document, not what happens to be laid.
 language's stages from its own tree — offsets its own, the showing standing where the unit starts — and laid on its own from
 a reading of it placed there; both are kept, the working over while the unit's tree, the style, whether it is written in,
 the stretch shown as written within it and the inputs stand, and the laying while the room, whether it is only read and the
-folds reaching into it do. What is laid is a document piece holding a mount for each unit laid (`LayoutMount`), each where
-the heights above it put it and shifted to where its unit now starts, its parts restated only when asked, and the gap at
-each seam between two laid units said by the language from the blocks either side (`ContentLanguage.Seam`, from what each
-unit laid says it began and ended with: `Laid.Ends`); the units not laid leave room for their estimate. A tree made of
-mounts puts its caret places together from each unit's own (`MountedList`) — through a mount inside a mount as well, the
-code lines inside a unit — and says the first place below a height from the first unit reaching down that far
-(`StopBelow`). A mount and the top of the tree it puts down are no pieces any question of the layout meets, but the top is
-drawn as it was laid — where it stands, how it is painted and the picture it keeps — so painting walks what a piece holds
-as drawn (`LayoutPiece.DrawnChildren`), meeting each mounted tree's top, where every other walk goes straight through it. Content read whole is one unit, laid as it always was. What one unit
-says reaches the others through the engine, never by one unit reading another:
+folds reaching into it do. What is kept of a reading's laying — its units worked over, where each stood and which stood
+laid, a character's height — is kept on the reading's window (`ContentWindow`), the same window from one version of the
+content to the next; every method that lays stays in the engine and takes the window, and it lays in whatever medium the
+engine is handed (`ILayoutMedium`), naming nothing of WPF. What is laid is a document piece holding a mount for each unit
+laid (`LayoutMount`), each where the heights above it put it and shifted to where its unit now starts, its parts restated
+only when asked, and the gap at each seam between two laid units said by the language from the blocks either side
+(`ContentLanguage.Seam`, from what each unit laid says it began and ended with: `Laid.Ends`); the units not laid leave room
+for their estimate. Content read whole is one unit, laid as it always was.
+
+A tree that puts trees down puts its caret places together from each mounted tree's own, worked out once and kept with that
+tree (`MountedList`): a tree made only of mounts, with what its top offers, and a tree with pieces of its own among them —
+a block holding a fence's lines — with its own pieces' places, one after another by where in the source each stands
+(`LayoutTree.Among`), the whole gathered afresh only where something of its own stands inside what a mounted tree stands
+for. It says the first place below a height from the first unit reaching down that far (`StopBelow`). A mount and the top of
+the tree it puts down are no pieces any question of the layout meets, but the top is drawn as it was laid — where it
+stands, how it is painted and the picture it keeps — and where a caret may rest at its edges is its tree's: painting, and
+gathering places, walk what a piece holds as drawn (`LayoutPiece.DrawnChildren`), meeting each mounted tree's top, where
+every other walk goes straight through it. A block that puts trees down keeps no picture of its own; the trees it puts down
+keep theirs, so only those near the screen are painted, however much the block holds.
+
+**A body read a stretch at a time is laid a unit at a time too** (`ContentEngine.BodyLaid`). It has a window of its own,
+kept against the body through every version of it (`ContentBody.Continuity`), laid by the same methods as the content's: its
+units worked over in its own characters and placed in the document through its space, a container's marks put back unit
+by unit (`ContentNested.Spliced`), and put together into a tree as tall as all of it — exact for code, estimated for prose
+— that its holder copies in: that tree's top, which stands for the whole body as the top of a body laid whole does, and a
+mount for each unit laid, so none of what the units hold is copied. Where the content is laid where the reader is, only the
+units the screen and a screen either side reach are laid, going by where the body stood on the page when last put down
+(found from its units' mounts), with the caret's, each end of what is picked out and wherever the reader went; laid whole,
+every unit is. When more of a body is to be laid, the block holding it is laid again and the rest of its unit set down as
+it was (`Unlay`), up through every body holding it; a slower reading landing for a unit of a body lays it so too.
+`Uncover` and the still point reach into a body as they reach into the content: a place inside one is laid only where the
+body's unit holding it is, and the first unit laid on screen of the innermost body the screen is over holds the page still.
+What one unit says reaches the others through the engine, never by one unit reading another:
 
 - **what it defines** — each unit's stages say it into link targets of their own (`LinkTargets(document)`), gathered from
   every unit read into the document's in order, again only where a unit now says something else; every name and kind a

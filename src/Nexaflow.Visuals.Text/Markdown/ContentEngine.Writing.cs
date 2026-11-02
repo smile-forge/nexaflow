@@ -31,6 +31,12 @@ public sealed partial class ContentEngine
 
     private string? _named;
     private LayoutStyle _style = WpfStyles.Dark;
+
+    /// <summary>
+    /// What the content is shaped, measured and inked in as it is laid out — the one place the host's medium is named, so laying the content
+    /// out turns on nothing but the medium it is handed.
+    /// </summary>
+    private readonly ILayoutMedium _medium = WpfMedium.OnThisThread;
     private bool _readOnly;
     private double _laidFor;
 

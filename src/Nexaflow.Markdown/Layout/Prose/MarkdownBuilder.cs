@@ -162,8 +162,12 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         (_y, _reach) = (0, 0);
 
         var apart = Rent();
-        apart.Open(LayoutPieces.Whole, stops: LayoutStops.None, paints: new LayoutPaint(Kept: new LayoutKept()));
+        apart.Open(LayoutPieces.Whole, stops: LayoutStops.None);
         Block(apart, part, x, room);
+
+        // A block keeps the picture it was painted as, unless it puts trees down — a fence's lines, a body's units — which keep their own,
+        // so only those of them near the screen are painted, however much the block holds.
+        if (!apart.PutsDown) apart.PaintedAs(new LayoutPaint(Kept: new LayoutKept()));
         apart.Close();
 
         var made = Sealed(apart);

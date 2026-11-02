@@ -30,7 +30,7 @@ public sealed record ContentReader(Func<ContentStretch, ContentParse> Parse, int
 /// </summary>
 public sealed class ContentBody
 {
-    private ContentBody(string language, ContentSpace space, ContentUnits units, int lead, int width, ContentReader reader)
+    private ContentBody(string language, ContentSpace space, ContentUnits units, int lead, int width, ContentReader reader, object continuity)
     {
         this.Language = language;
         this.Space = space;
@@ -38,6 +38,7 @@ public sealed class ContentBody
         this.Lead = lead;
         this.Width = width;
         this.Reader = reader;
+        this.Continuity = continuity;
     }
 
     /// <summary>The word the holder names its language by.</summary>
@@ -58,6 +59,13 @@ public sealed class ContentBody
     /// <summary>How it is read.</summary>
     public ContentReader Reader { get; }
 
+    /// <summary>
+    /// The same for every version of the body — from the one first read, through every change written into it and every reading of its
+    /// holder it is carried to — and different for every other body: what whatever shows it keeps what it worked out of it against, the body
+    /// itself being another at every version.
+    /// </summary>
+    public object Continuity { get; }
+
     /// <summary>What it read to, as one tree in its own characters' offsets.</summary>
     public ContentNode Tree => this.Units.Tree(this.Space);
 
@@ -66,7 +74,7 @@ public sealed class ContentBody
     /// characters <paramref name="space"/>, read whole by <paramref name="reader"/> in the language called <paramref name="language"/>.
     /// </summary>
     public static ContentBody Read(string language, ContentSpace space, int lead, int width, ContentReader reader) =>
-        new(language, space, ReadOn(new ContentUnits(language).WithSyntax(reader.Syntax?.Invoke(space)), space, reader), lead, width, reader);
+        new(language, space, ReadOn(new ContentUnits(language).WithSyntax(reader.Syntax?.Invoke(space)), space, reader), lead, width, reader, new object());
 
     /// <summary>
     /// The body once its own characters from <paramref name="from"/> to <paramref name="to"/> are written over, moving those after along
@@ -78,12 +86,12 @@ public sealed class ContentBody
     {
         var (units, _, _) = this.Units.Edited(from, to, by, space, this.Reader.Parse, this.Reader.SoftMaxLength, bounds: this.Reader.Bounds);
 
-        return new(this.Language, space, ReadOn(units, space, this.Reader), lead, width, this.Reader);
+        return new(this.Language, space, ReadOn(units, space, this.Reader), lead, width, this.Reader, this.Continuity);
     }
 
     /// <summary>The same body holding <paramref name="body"/> at <paramref name="at"/>, a holder's place among its own characters.</summary>
     public ContentBody Holding(int at, ContentBody body) =>
-        new(this.Language, this.Space, this.Units.Holding(at, body), this.Lead, this.Width, this.Reader);
+        new(this.Language, this.Space, this.Units.Holding(at, body), this.Lead, this.Width, this.Reader, this.Continuity);
 
     /// <summary>
     /// The reading of the body held by the holder starting at <paramref name="at"/> among this body's own characters, read by
@@ -92,7 +100,7 @@ public sealed class ContentBody
     /// </summary>
     public (ContentBody Holding, ContentBody Body)? Reading(int at, string language, ContentReader reader) =>
         this.Units.Reading(at, language, reader, this.Space) is var (units, body)
-            ? (new ContentBody(this.Language, this.Space, units, this.Lead, this.Width, this.Reader), body)
+            ? (new ContentBody(this.Language, this.Space, units, this.Lead, this.Width, this.Reader, this.Continuity), body)
             : null;
 
     /// <summary><paramref name="units"/> read on to the end of <paramref name="space"/>.</summary>

@@ -507,11 +507,19 @@ public static class LayoutQuery
     /// trailing edges before leading ones, with places that would draw as the same mark collapsed to one —
     /// so the reader never presses an arrow twice for a caret that doesn't appear to move.
     /// </summary>
-    internal static IReadOnlyList<CaretPlace> PlacesIn(LayoutPiece root)
+    // Every piece as it is drawn, the top of each tree put down among them too: no question meets a mounted tree's top as a piece, but
+    // where a caret may rest at its edges is its tree's, as it is where a tree of mounts puts its places together (MountedList).
+    internal static IReadOnlyList<CaretPlace> PlacesIn(LayoutPiece root) => Declared(SelfAndDrawn(root));
+
+    /// <summary>
+    /// Where a caret may rest against <paramref name="pieces"/> — walked parents first — in the order the right arrow visits them: each
+    /// piece's stops, sorted by where in the source they are, two that coincide on the page kept once.
+    /// </summary>
+    internal static List<CaretPlace> Declared(IEnumerable<LayoutPiece> pieces)
     {
         var declared = new List<(int Offset, int Edge, int Depth, int Order, LayoutPiece Piece)>();
 
-        foreach (var piece in root.SelfAndDescendants())
+        foreach (var piece in pieces)
         {
             if (!piece.Stands()) continue;
 
@@ -538,6 +546,27 @@ public static class LayoutQuery
         }
 
         return places;
+    }
+
+    /// <summary><paramref name="root"/> and everything it holds as it is drawn (<see cref="LayoutPiece.DrawnChildren"/>), parents first.</summary>
+    private static IEnumerable<LayoutPiece> SelfAndDrawn(LayoutPiece root)
+    {
+        yield return root;
+
+        var walking = new Stack<LayoutPiece.PieceDrawn.Enumerator>();
+        walking.Push(root.DrawnChildren.GetEnumerator());
+
+        while (walking.Count > 0)
+        {
+            var along = walking.Pop();
+            if (!along.MoveNext()) continue;
+
+            var piece = along.Current;
+            walking.Push(along);
+
+            yield return piece;
+            walking.Push(piece.DrawnChildren.GetEnumerator());
+        }
     }
 
     /// <summary>

@@ -4,6 +4,9 @@ using System.Runtime.CompilerServices;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Markdown.Pipeline;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -45,6 +48,12 @@ public sealed partial class ContentEngine
     /// <summary>Which reading each tree laid is the root of (<see cref="Keeping.Address"/>), so a carry knows the content it was picked up in.</summary>
     private readonly ConditionalWeakTable<ContentNode, object> _readings = new();
 
+    /// <summary>The window over each body read a stretch at a time, kept against the body through every version of it (<see cref="ContentBody.Continuity"/>).</summary>
+    private readonly ConditionalWeakTable<object, ContentWindow> _bodies = new();
+
+    /// <summary>The bodies read a stretch at a time that the page put down as it was last laid out where the reader is.</summary>
+    private readonly List<ContentWindow> _onPage = [];
+
     /// <summary>
     /// <paramref name="document"/> as <paramref name="language"/> reads it whole: read afresh the first time, and after that read again
     /// from where each change since was written — every body read inside it carried with it.
@@ -59,6 +68,7 @@ public sealed partial class ContentEngine
             whole = new ContentWindow(language, document, new ContentUnits(named ?? string.Empty).WithSyntax(language.Syntax?.Invoke(document)).ReadOn(reads, document, int.MaxValue), reads)
             {
                 Length = int.MaxValue,
+                Targets = _targets,
             };
         }
         else if (!ReferenceEquals(whole.Document, document))
@@ -73,7 +83,7 @@ public sealed partial class ContentEngine
                 (units, _, _) = units.Edited(from, to, by, after, whole.Parse, int.MaxValue, bounds: language.Bounds);
             }
 
-            whole = new ContentWindow(language, document, units, whole.Parse) { Length = int.MaxValue };
+            whole.Became(document, units);
         }
 
         _whole = whole;
@@ -122,6 +132,186 @@ public sealed partial class ContentEngine
     private ContentDocument Stretched(ContentBody reading, ContentDocument document, ContentPart body) =>
         _stretches.GetValue(reading, _ => body.Supplied ? ContentDocument.Of(body.Node.Print()[..ContentNested.Own(body).Length])
                                                         : document.Stretch(body.Start, ContentNested.Own(body).Length));
+
+    /// <summary>
+    /// A body read a stretch at a time, laid as the content is (<see cref="Laying"/>): its window kept against the body, the units near the
+    /// screen worked over and laid on their own — every unit, where the content is laid whole — the rest standing at their heights, and the
+    /// whole put together, as tall as all of it, into a tree holding each unit laid as the tree it was laid as: what its holder sets down
+    /// copies that tree's top and a piece for each unit, and none of what the units hold.
+    /// </summary>
+    private Laid BodyLaid(ContentBody reading, ContentLanguage language, string named, ContentPart holder, ContentPart body, ContentSpace placed,
+                          Keeping within, Keeping holding, LayoutStyle style, RawZone? shown, bool writing, LayoutStanding standing, double room)
+    {
+        var characters = Stretched(reading, holding.Document, body);
+
+        if (!_bodies.TryGetValue(reading.Continuity, out var window) || !ReferenceEquals(window.Language, language))
+        {
+            window = new ContentWindow(language, characters, reading.Units, reading.Reader.Parse)
+            {
+                Length = reading.Reader.SoftMaxLength,
+                Targets = new LinkTargets(),
+            };
+
+            _bodies.AddOrUpdate(reading.Continuity, window);
+        }
+        else if (!ReferenceEquals(window.Units, reading.Units))
+        {
+            window.Became(characters, reading.Units);
+        }
+
+        window.Placing = (placed, holding.Document);
+        window.Holder = _askingIn is { } held && _asking is { } unit && OwnIn(held, holder.Start) is { } at ? (held, unit, at) : null;
+        Listing(window);
+
+        // What is shown as written is where it is among the body's own characters, which its units are counted in.
+        var own = shown is { } zone && ContentNested.Holds(body, zone.Start, zone.End)
+            ? zone with { Start = placed.OwnAt(zone.Start - body.Start), End = placed.OwnAt(zone.End - body.Start) }
+            : (RawZone?)null;
+
+        var showing = Showing(named, style, writing, own, 0) with
+        {
+            Unchanged = _unchanged,
+            Targets = window.Targets,
+            Syntax = window.LaidSyntax is { } syntax ? (syntax, 0) : null,
+        };
+
+    return this.Laying(window, language, showing, room, !(language.Writable && writing), within, standing, tops => this.BodyWanted(window, tops), 0);
+    }
+
+    /// <summary>
+    /// The units of the body <paramref name="window"/> is over to lay, at the places <paramref name="tops"/> gives them among its own: every
+    /// one, where the content is laid whole; otherwise those the screen and a screen either side of it reach — going by where the body stood
+    /// on the page when last put down, and from its start before it has been — the caret's and the one either side, each end of what is
+    /// picked out, and what the reader went to.
+    /// </summary>
+    private SortedSet<int> BodyWanted(ContentWindow window, double[] tops)
+    {
+        var units = window.Listed;
+        var wanted = new SortedSet<int>();
+
+        if (!_windowing)
+        {
+            for (var index = 0; index < units.Count; index++) wanted.Add(index);
+            return wanted;
+        }
+
+        var reach = Math.Max(_showing?.Height ?? Room, 1);
+        var (top, bottom) = window.PageTop is { } stood && _showing is { } screen ? (screen.Y - reach - stood, screen.Bottom + reach - stood) : (0, reach * 2);
+
+        for (var index = Reaching(tops, top); index < units.Count && tops[index] < bottom; index++) wanted.Add(index);
+
+        if (OwnIn(window, _state.Caret) is { } caret && Holding(window, caret) is >= 0 and var holding)
+            for (var near = Math.Max(holding - 1, 0); near <= Math.Min(holding + 1, units.Count - 1); near++) wanted.Add(near);
+
+        foreach (var range in _state.Selection)
+            foreach (var end in new[] { range.Start, range.End })
+                if (OwnIn(window, end) is { } own && Holding(window, own) is >= 0 and var at) wanted.Add(at);
+
+        if (_reveal is { } target && OwnIn(window, target) is { } revealed && Holding(window, revealed) is >= 0 and var reached) wanted.Add(reached);
+
+        return wanted;
+    }
+
+    /// <summary>Whether the body <paramref name="window"/> is over, laid where the reader is, falls short of what it has to reach: a unit of it to lay that is not laid.</summary>
+    private bool BodyShort(ContentWindow window)
+    {
+        if (window.Standing.Length != window.Listed.Count) return true;
+
+        foreach (var index in this.BodyWanted(window, window.Tops))
+            if (!window.Standing[index] && this.Shows(window, index)) return true;
+
+        return false;
+    }
+
+    /// <summary>Says of every body on the page that falls short of what it has to reach that its holder is to be laid again (<see cref="Unlay"/>) — and whether any did.</summary>
+    private bool BodiesShort()
+    {
+        var any = false;
+
+        foreach (var body in _onPage)
+        {
+            if (!this.BodyShort(body)) continue;
+
+            this.Unlay(body);
+            any = true;
+        }
+
+        return any;
+    }
+
+    /// <summary>
+    /// Says the block holding the body <paramref name="window"/> is over is to be laid again where its unit is next laid — that block and
+    /// nothing else of its unit, which is set down as it was — and so on up through every body holding that one.
+    /// </summary>
+    private void Unlay(ContentWindow window)
+    {
+        if (window.Holder is not var (holding, unit, at) || !holding.Staged.TryGetValue(unit, out var staged)) return;
+
+        // The block of the unit's own the holder starts in, counted among the unit's own characters.
+        var inside = Holding(holding, at) is >= 0 and var index ? at - holding.Listed[index].Start : at;
+        ContentNode? block = null;
+        var from = 0;
+
+        foreach (var child in staged.Tree.Children)
+        {
+            var begins = child.Offset ?? from;
+            if (inside >= begins && inside < begins + child.Width) { block = child; break; }
+
+            from = begins + child.Width;
+        }
+
+        _unchanged.Forget(staged.Tree, node => ReferenceEquals(node, block));
+        staged.Laid = null;
+        holding.Relanded.Add(unit);
+
+        if (holding.Placing is not null) this.Unlay(holding);
+    }
+
+    /// <summary>
+    /// Finds every body read a stretch at a time that <paramref name="page"/> puts down, and where on the page each stands — going by a unit
+    /// of it laid, found down the trees put down in the page: its units, the units of bodies put down in those, and so on.
+    /// </summary>
+    private void FoundOnPage(LayoutTree page)
+    {
+        _onPage.Clear();
+
+        // Each unit of a body laid, by the tree it was laid as: a body is where any of them is put down, less where that unit stands in it.
+        var laidUnits = new List<(LayoutTree Tree, ContentWindow Body, int Index)>();
+
+        foreach (var (_, body) in _bodies)
+            for (var index = 0; index < body.Listed.Count && index < body.Standing.Length; index++)
+                if (body.Standing[index] && body.Staged.TryGetValue(body.Listed[index].Unit.Tree, out var staged) && staged.Laid is { } laid)
+                    laidUnits.Add((laid.Laid.Tree, body, index));
+
+        if (laidUnits.Count > 0) Looked(page, null, units: true);
+
+        // A tree whose mounts are units is gone down into; in a unit, only the units of a body put down in it are.
+        void Looked(LayoutTree tree, LayoutMounted? within, bool units)
+        {
+            foreach (var (at, mount) in tree.Mounts)
+            {
+                var found = laidUnits.FindIndex(unit => unit.Tree.SameDrawing(mount.Tree));
+                if (found < 0 && !units) continue;
+
+                var mounted = new LayoutMounted(tree, at, within);
+
+                if (found >= 0 && laidUnits[found] is var (_, body, index) && !_onPage.Contains(body))
+                {
+                    body.PageTop = new LayoutPiece(mount.Tree, 0, mounted).Anchor.Y - body.Tops[index];
+                    _onPage.Add(body);
+                }
+
+                Looked(mount.Tree, mounted, units: false);
+            }
+        }
+    }
+
+    /// <summary>The content's own reading and every body's read a stretch at a time.</summary>
+    private IEnumerable<ContentWindow> Windows()
+    {
+        if (_shown is { } shown) yield return shown;
+        foreach (var (_, body) in _bodies) yield return body;
+    }
 
     /// <summary>The reading <paramref name="root"/> was laid as the root of (<see cref="Keeping.Address"/>) — or the tree itself, where it was laid as none.</summary>
     private object ReadingOf(ContentNode root) => _readings.TryGetValue(root, out var address) ? address : root;

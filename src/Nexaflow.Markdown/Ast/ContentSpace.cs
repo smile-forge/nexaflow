@@ -126,6 +126,19 @@ public sealed class ContentSpace : IContentCharacters
     }
 
     /// <summary>
+    /// Where a stretch of the body's own characters starting at <paramref name="own"/> starts, counted from where the body starts among the
+    /// holder's characters — at the marks in front of its run, where it starts one, as the stretch read again with those marks put back
+    /// starts there (<see cref="ContentNested.Spliced(ContentNode, ContentSpace, int, int)"/>); and otherwise where the character stands.
+    /// </summary>
+    public int HolderFrom(int own)
+    {
+        if (_runs is null) return own;
+
+        var (run, start, spread) = _runs.Placed(_runs.IndexAt(own));
+        return own == start ? spread : spread + run.Marked + (own - start);
+    }
+
+    /// <summary>
     /// How many of the body's own characters stand in front of <paramref name="at"/>, a place counted from where the body starts among
     /// the holder's characters — what that place is to the language, which was handed its own characters and none of the marks.
     /// </summary>

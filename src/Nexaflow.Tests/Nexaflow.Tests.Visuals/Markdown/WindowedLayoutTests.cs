@@ -219,6 +219,11 @@ public class WindowedLayoutTests
     /// <summary>Code in a language no grammar reads: drawn as written, so no slower reading lands to colour it.</summary>
     private const string NoGrammar = "no-grammar-code";
 
+    /// <summary>Markdown, under a word a fence names to have what it holds read as markdown rather than shown as written.</summary>
+    private const string WindowedProse = "windowed-prose";
+
+    static WindowedLayoutTests() => ContentLanguages.Register(ContentLanguages.Markdown with { Reads = static word => word == WindowedProse });
+
     [TestMethod]
     [CoversNode("windowed-reading")]
     public void ALongDocument_IsLaidOnlyAsFarAsTheReaderHasLooked_OnAPageAsLongAsAllOfIt()
@@ -497,6 +502,139 @@ public class WindowedLayoutTests
         var link = engine.Readings.SelectMany(unit => unit.SelfAndDescendants()).FirstOrDefault(part => part.Kind == Kinds.Link && part.Print() == "[the site][site]");
         Assert.IsNotNull(link, "What the end defines never reached the top.");
         Assert.AreEqual("https://example.com/site", MarkdownLinks.Goes(link!.Node));
+    }
+
+    [TestMethod]
+    [CoversNode("windowed-reading")]
+    public void ALongFence_IsLaidOnlyWhereTheReaderIs_StandingAsTallAsAllOfIt()
+    {
+        var text = Fence(512 * 1024);
+        var engine = Shown(text, null, new ContentEngine());
+        var whole = Whole(text, null);
+
+        var (laid, all) = (Lines(engine.Laid), Lines(whole));
+        Assert.IsTrue(laid > 0 && laid < all / 4, $"Laid {laid} of the fence's {all} lines for one screen.");
+        Assert.AreEqual(whole.Size.Height, engine.Laid.Size.Height, 1e-6, "A fence of code stands as tall as its lines say, laid or not.");
+    }
+
+    [TestMethod]
+    [CoversNode("windowed-reading")]
+    public void AKeystrokeInALongFence_LaysTheUnitOfItTypedIn_AndSetsDownEveryOtherAsItWasLaid()
+    {
+        var text = Fence(512 * 1024);
+        var engine = Shown(text, null, new ContentEngine());
+        var at = text.IndexOf('\n', 2000) + 1;
+
+        // The caret in the fence first, so what it wants laid round it is laid before the keystroke as after.
+        engine.Apply(engine.State.MoveCaretTo(at), notify: false);
+        engine.Relay();
+        var before = CodeUnits(engine.Laid);
+
+        engine.Apply(engine.State with { Document = engine.State.Document.Apply(ContentChange.Write(at, 0, "x")), Caret = at + 1, Selected = null }, notify: false);
+        var after = CodeUnits(engine.Laid);
+
+        // The fence's window is found again from the body as the keystroke left it, so every unit of it laid before is still laid as it was.
+        Assert.AreEqual(before.Count, after.Count, "Units of the fence came or went.");
+        Assert.AreEqual(1, after.Count(unit => !before.Contains(unit)), "Not just the unit typed in was laid again.");
+    }
+
+    [TestMethod]
+    [CoversNode("windowed-reading")]
+    public void ACaretSentIntoTheMiddleOfALongFence_IsLaidThere_AndThenBroughtOntoThePage()
+    {
+        var text = Fence(512 * 1024);
+        var engine = Shown(text, null, new ContentEngine());
+        var brought = new List<LayoutRect>();
+        engine.Revealing += (_, at) => brought.Add(at);
+
+        var far = text.IndexOf('\n', text.Length / 2) + 1;
+        engine.Apply(engine.State.MoveCaretTo(far), notify: false);
+        for (var pass = 0; pass < 1000 && brought.Count == 0; pass++) engine.Relay();
+
+        Assert.AreEqual(1, brought.Count, "It was never brought onto the page.");
+        Assert.AreEqual(engine.Laid.Root.CaretRect(far), brought[0]);
+        Assert.IsTrue(Lines(engine.Laid) < Lines(Whole(text, null)) / 2, "The fence was laid from its start to there.");
+    }
+
+    [TestMethod]
+    [CoversNode("windowed-reading")]
+    public void TheReaderScrollingIntoALongFence_LaysWhatComesOnScreen_AndNothingBetween()
+    {
+        var text = Fence(512 * 1024);
+        var engine = Shown(text, null, new ContentEngine());
+        var middle = text.IndexOf('\n', text.Length / 2) + 1;
+
+        // Where the middle of the fence stands, going by the lines above it, which say how tall they are laid or not.
+        var top = engine.Laid.Size.Height * middle / text.Length;
+        engine.OnScreen = new LayoutRect(0, top - 200, Room, 400);
+        for (var pass = 0; pass < 20; pass++) engine.Relay();
+
+        Assert.IsFalse(engine.Laid.Root.CaretRect(middle).IsEmpty, "What came on screen was never laid.");
+        Assert.IsTrue(Lines(engine.Laid) < Lines(Whole(text, null)) / 2, "The fence was laid from its start to there.");
+    }
+
+    [TestMethod]
+    [CoversNode("windowed-reading")]
+    public void WhatTheReaderIsLookingAt_InsideALongFence_StaysStill_AsWhatStandsAboveItInTheFenceIsLaid()
+    {
+        var text = $"# Top\n\nSome words first.\n\n````{WindowedProse}\n" + Paragraphs(4000) + "````\n";
+        var engine = Shown(text, null, new ContentEngine { StretchLength = 1024 });
+        var far = text.IndexOf("Paragraph 3501 ", StringComparison.Ordinal);
+
+        Assert.IsTrue(engine.Uncover(far), "It was laid already.");
+        for (var pass = 0; pass < 100 && engine.Laid.Root.CaretRect(far + 1).IsEmpty; pass++) engine.Relay();
+
+        var at = engine.Laid.Root.CaretRect(far + 1);
+        Assert.IsFalse(at.IsEmpty, "It was never laid.");
+
+        var shifted = 0.0;
+        engine.Shifted += (_, by) => shifted += by;
+
+        // The reader looks at it, so what stands a screen above it inside the fence, estimated so far, is laid.
+        engine.OnScreen = new LayoutRect(0, at.Y - 10, Room, 400);
+        for (var pass = 0; pass < 20; pass++) engine.Relay();
+
+        Assert.AreNotEqual(0, shifted, "What stands above it came to the height it was estimated at, to the hair.");
+        Assert.AreEqual(at.Y + shifted, engine.Laid.Root.CaretRect(far + 1).Y, 1e-6, "What the reader was looking at moved by other than the page was told.");
+    }
+
+    /// <summary>A document that is one fence of C#, <paramref name="size"/> characters of it.</summary>
+    private static string Fence(int size) => $"```csharp\n{MarkdownLayoutBench.GeneratedCode(size)}```\n";
+
+    /// <summary>The trees every unit of code was laid as, as <paramref name="laid"/> puts them down, at any depth.</summary>
+    private static List<LayoutTree> CodeUnits(Laid laid)
+    {
+        var units = new List<LayoutTree>();
+        Gathered(laid.Tree);
+
+        return units;
+
+        void Gathered(LayoutTree tree)
+        {
+            foreach (var (_, mount) in tree.Mounts)
+            {
+                if (mount.Tree.Root.Kind == CodeKinds.Code) units.Add(mount.Tree);
+                else if (mount.Tree.Root.Kind != CodeKinds.Line) Gathered(mount.Tree);
+            }
+        }
+    }
+
+    /// <summary>How many lines of code <paramref name="laid"/> laid, at any depth.</summary>
+    private static int Lines(Laid laid)
+    {
+        var lines = 0;
+        Counted(laid.Tree);
+
+        return lines;
+
+        void Counted(LayoutTree tree)
+        {
+            foreach (var (_, mount) in tree.Mounts)
+            {
+                if (mount.Tree.Root.Kind == CodeKinds.Line) lines++;
+                else Counted(mount.Tree);
+            }
+        }
     }
 
     /// <summary><paramref name="text"/> laid whole, with every slower reading of it landed.</summary>

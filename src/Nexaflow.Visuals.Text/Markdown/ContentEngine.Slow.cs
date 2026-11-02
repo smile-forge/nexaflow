@@ -64,11 +64,11 @@ public sealed partial class ContentEngine
     /// </summary>
     private bool _askingLays;
 
+    /// <summary>The reading the unit being worked over or laid is a unit of — the content's own, or a body's.</summary>
+    private ContentWindow? _askingIn;
+
     /// <summary>Which units, by the tree each was read into, wait on each piece of slow work this engine asked for.</summary>
     private readonly Dictionary<Kept, List<(ContentNode Unit, bool Laying)>> _waits = [];
-
-    /// <summary>The units, by the tree each was read into, that slow work landed for since they were last laid — laid again wherever they stand.</summary>
-    private readonly HashSet<ContentNode> _relanded = new(ReferenceEqualityComparer.Instance);
 
     /// <summary>The slow work this engine asked for that has been done since it last laid what waited on it, landed or failed.</summary>
     private readonly ConcurrentQueue<Kept> _landed = new();
@@ -180,24 +180,35 @@ public sealed partial class ContentEngine
 
     /// <summary>
     /// Says of every unit the slow work that has landed since was asked for by, and of every unit what it found reaches, that it is to
-    /// be worked over and laid again where it is next laid — and whether anything is to be laid again: work that came to nothing, or landed
-    /// only for units since read again, lays nothing. What <see cref="RelayLanded"/> lays.
+    /// be worked over and laid again where it is next laid — in whichever reading it is a unit of, the holder of a body laid again with it —
+    /// and whether that said anything: work that came to nothing, or landed only for units since read again, lays nothing. What
+    /// <see cref="RelayLanded"/> lays.
     /// </summary>
     internal bool MarkLanded()
     {
+        var marked = false;
+
         while (_landed.TryDequeue(out var key))
         {
-
             // What finding it changed past the units that asked — code parsed again — is found again where those units are worked over.
             object? found;
             lock (Slow) Landed.TryGetValue(key, out found);
-            if (found is ISlowFindingReaches reaching && _readingSyntax is { } now) this.Unstaged(reaching.Reaches(now));
+
+            if (found is ISlowFindingReaches reaching)
+                foreach (var window in this.Windows())
+                    if (window.LaidSyntax is { } now && this.Unstaged(window, reaching.Reaches(now)))
+                    {
+                        this.Unlay(window);
+                        marked = true;
+                    }
 
             if (!_waits.Remove(key, out var asked)) continue;
 
             foreach (var (read, laying) in asked)
             {
-                if (!_staged.TryGetValue(read, out var staged)) continue;
+                if (this.Windows().FirstOrDefault(window => window.Staged.ContainsKey(read)) is not { } window) continue;
+
+                var staged = window.Staged[read];
 
                 // Asked for by a body laid inside it, which nothing in its blocks shows: none of them is set down as it was. Asked for
                 // by its own working over: worked over again, every block reading as it did still set down as it was.
@@ -205,31 +216,38 @@ public sealed partial class ContentEngine
                 else staged.Stale = true;
 
                 staged.Laid = null;
-                _relanded.Add(read);
+                window.Relanded.Add(read);
+                this.Unlay(window);
+                marked = true;
             }
         }
 
-        return _relanded.Count > 0;
+        return marked;
     }
 
-    /// <summary>Each unit worked over that <paramref name="stretches"/> of the reading laid reach, worked over and laid again wherever it stands.</summary>
-    private void Unstaged(IEnumerable<(int Start, int End)> stretches)
+    /// <summary>Each unit of <paramref name="window"/> worked over that <paramref name="stretches"/> of its reading reach, worked over and laid again wherever it stands — and whether there was any.</summary>
+    private bool Unstaged(ContentWindow window, IEnumerable<(int Start, int End)> stretches)
     {
+        var any = false;
+
         foreach (var (start, end) in stretches)
         {
-            var first = this.Holding(start);
+            var first = Holding(window, start);
             if (first < 0) continue;
 
-            for (var index = first; index < _units.Count && (index == first || _units[index].Start < end); index++)
+            for (var index = first; index < window.Listed.Count && (index == first || window.Listed[index].Start < end); index++)
             {
-                var read = _units[index].Unit.Tree;
-                if (!_staged.TryGetValue(read, out var staged)) continue;
+                var read = window.Listed[index].Unit.Tree;
+                if (!window.Staged.TryGetValue(read, out var staged)) continue;
 
                 staged.Laid = null;
                 staged.Stale = true;
-                _relanded.Add(read);
+                window.Relanded.Add(read);
+                any = true;
             }
         }
+
+        return any;
     }
 
     /// <summary>Does the slow work kept by <paramref name="key"/>, keeps what it came to, and tells every engine that asked for it.</summary>
