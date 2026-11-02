@@ -27,6 +27,20 @@ public sealed record LayeredPicture
 
     public LayerBackground Background { get; init; } = LayerBackground.Transparent;
 
+    /// <summary>What its pixels, masks and composite are held in — 8-bit colour unless it was made or read otherwise. Every
+    /// pixel layer and mask it holds is in it: a layer put in or changed is carried into it.</summary>
+    public PictureColour Colour { get; init; } = PictureColour.Rgb8;
+
+    /// <summary>The ICC profile the file named for its colours — its values shown through it, and written back; empty where
+    /// none was named, when they are sRGB's (linear sRGB's for 32 bits).</summary>
+    public ImmutableArray<byte> Profile
+    {
+        get => _profile.IsDefault ? [] : _profile;
+        init => _profile = value;
+    }
+
+    private readonly ImmutableArray<byte> _profile = [];
+
     /// <remarks>Never default: a canvas with no layers holds none.</remarks>
     public ImmutableArray<Layer> Layers
     {
@@ -51,14 +65,15 @@ public sealed record LayeredPicture
     /// <summary>The files the package held that Nexaflow does not read, by their path inside it, kept to be written back.</summary>
     public ImmutableDictionary<string, byte[]> KeptEntries { get; init; } = ImmutableDictionary<string, byte[]>.Empty;
 
-    /// <summary>A blank canvas: <paramref name="width"/> × <paramref name="height"/>, one empty pixel layer, nothing selected.</summary>
-    public static LayeredPicture Blank(int width, int height, LayerBackground background, string layerName, double dpi = DefaultDpi)
+    /// <summary>A blank canvas: <paramref name="width"/> × <paramref name="height"/> in <paramref name="colour"/> — 8-bit colour
+    /// unless named — one empty pixel layer, nothing selected.</summary>
+    public static LayeredPicture Blank(int width, int height, LayerBackground background, string layerName, double dpi = DefaultDpi, PictureColour colour = default)
     {
         RequireSize(width, height);
-        var layer = new PixelLayer { Name = layerName };
+        var layer = new PixelLayer { Name = layerName, Pixels = TiledPixels.EmptyIn(colour.Tiles) };
         return new LayeredPicture
         {
-            Width = width, Height = height, Dpi = dpi, Background = background,
+            Width = width, Height = height, Dpi = dpi, Background = background, Colour = colour,
             Layers = [layer], ActiveId = layer.Id, Selection = TiledCoverage.Clear(width, height),
         };
     }
@@ -121,7 +136,7 @@ public sealed record LayeredPicture
     // ── Changing layers ─────────────────────────────────────────────────────
 
     /// <summary>This picture with the layer of <paramref name="id"/> made what <paramref name="change"/> makes of it.</summary>
-    public LayeredPicture WithLayer(Guid id, Func<Layer, Layer> change) => this with { Layers = Changed(Layers, id, change) };
+    public LayeredPicture WithLayer(Guid id, Func<Layer, Layer> change) => this with { Layers = Changed(Layers, id, l => Conformed(change(l))) };
 
     private static ImmutableArray<Layer> Changed(ImmutableArray<Layer> layers, Guid id, Func<Layer, Layer> change)
     {
@@ -147,6 +162,7 @@ public sealed record LayeredPicture
     /// or at the top of the canvas where none is named or found — and made the active layer.</summary>
     public LayeredPicture Inserted(Layer layer, Guid? above)
     {
+        layer = Conformed(layer);
         var placed = above is { } id && Locate(id) is { } at
             ? WithSiblings(id, siblings => siblings.Insert(at.Index + 1, layer))
             : this with { Layers = Layers.Add(layer) };
@@ -174,6 +190,48 @@ public sealed record LayeredPicture
         if (parent is { } into)
             return taken.WithLayer(into, g => ((GroupLayer)g) with { Children = ((GroupLayer)g).Children.Insert(Math.Clamp(index, 0, ((GroupLayer)g).Children.Length), layer) });
         return taken with { Layers = taken.Layers.Insert(Math.Clamp(index, 0, taken.Layers.Length), layer) };
+    }
+
+    // ── Colour ──────────────────────────────────────────────────────────────
+
+    /// <summary>A pixel layer empty in this picture's colour, to paint on.</summary>
+    public PixelLayer NewPixelLayer(string name) => new() { Name = name, Pixels = TiledPixels.EmptyIn(Colour.Tiles) };
+
+    /// <summary>
+    /// <paramref name="layer"/> — and, a group, every layer in it — held in this picture's colour: pixels in its tile format,
+    /// masks at its depth. What is already in it is returned as it is, so a layer that needs nothing costs nothing.
+    /// </summary>
+    public Layer Conformed(Layer layer)
+    {
+        var format = Colour.Tiles;
+        var conformed = layer;
+        if (conformed is PixelLayer { Pixels: var pixels } pixel && pixels.Format != format)
+            conformed = pixel with { Pixels = pixels.ConvertedTo(format) };
+        if (conformed.Mask is { } mask && mask.Coverage.Depth != Colour.Depth)
+            conformed = conformed with { Mask = mask with { Coverage = mask.Coverage.AtDepth(Colour.Depth) } };
+        if (conformed is GroupLayer group)
+        {
+            var children = group.Children;
+            for (int i = 0; i < children.Length; i++)
+            {
+                var child = Conformed(children[i]);
+                if (!ReferenceEquals(child, children[i])) children = children.SetItem(i, child);
+            }
+            if (children != group.Children) conformed = group with { Children = children };
+        }
+        return conformed;
+    }
+
+    /// <summary>
+    /// This picture held in <paramref name="colour"/>: every pixel layer converted — colour made grey or grey spread to colour,
+    /// light made linear for 32 bits or encoded again from them, clamped where the new depth holds no more — and every mask
+    /// carried to the new depth. The background, an sRGB colour, stays as picked.
+    /// </summary>
+    public LayeredPicture ConvertedTo(PictureColour colour)
+    {
+        if (colour == Colour) return this;
+        var converted = this with { Colour = colour };
+        return converted with { Layers = [.. Layers.Select(converted.Conformed)] };
     }
 
     // ── What history keeps ──────────────────────────────────────────────────

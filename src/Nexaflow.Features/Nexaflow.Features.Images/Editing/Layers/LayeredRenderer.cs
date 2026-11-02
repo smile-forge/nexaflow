@@ -46,7 +46,7 @@ public sealed class LayeredRenderer : ILayeredPictureRenderer, IPictureLayerImag
             case PictureLayer picture when _pictures.TryGetValue(picture.Id, out var image):
             {
                 var toCanvas = picture.Placement.ToMatrix();
-                return Draw(toCanvas.MapRect(SKRect.Create(image.Width, image.Height)), canvas =>
+                return Draw(_picture.Colour, toCanvas.MapRect(SKRect.Create(image.Width, image.Height)), canvas =>
                 {
                     canvas.Concat(toCanvas);
                     using var paint = new SKPaint { IsAntialias = true };
@@ -57,7 +57,7 @@ public sealed class LayeredRenderer : ILayeredPictureRenderer, IPictureLayerImag
             {
                 var toCanvas = markup.Placement.ToMatrix();
                 var bounds = toCanvas.MapRect(markup.Elements.Select(_markup.Bounds).Aggregate(SKRect.Union));
-                return Draw(bounds, canvas =>
+                return Draw(_picture.Colour, bounds, canvas =>
                 {
                     canvas.Concat(toCanvas);
                     foreach (var element in markup.Elements) _markup.Paint(canvas, element);
@@ -68,12 +68,13 @@ public sealed class LayeredRenderer : ILayeredPictureRenderer, IPictureLayerImag
         }
     }
 
-    /// <summary>Pixels covering <paramref name="bounds"/> on the canvas, drawn by <paramref name="draw"/> in canvas pixels.</summary>
-    private static (SKBitmap Pixels, SKPointI At)? Draw(SKRect bounds, Action<SKCanvas> draw)
+    /// <summary>Pixels covering <paramref name="bounds"/> on the canvas, drawn by <paramref name="draw"/> in canvas pixels, as deep
+    /// as <paramref name="colour"/> holds them.</summary>
+    private static (SKBitmap Pixels, SKPointI At)? Draw(PictureColour colour, SKRect bounds, Action<SKCanvas> draw)
     {
         var area = SKRectI.Ceiling(bounds);
         if (area.IsEmpty) return null;
-        var bitmap = new SKBitmap(new SKImageInfo(area.Width, area.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        var bitmap = new SKBitmap(colour.SurfaceInfo(area.Width, area.Height));
         if (bitmap.GetPixels() == IntPtr.Zero)
         {
             bitmap.Dispose();
@@ -101,12 +102,12 @@ public sealed class LayeredRenderer : ILayeredPictureRenderer, IPictureLayerImag
         return compositor.Render(_picture, scale, this, options);
     }
 
-    /// <summary>The whole picture composited at full size over nothing, as the pixels of one layer.</summary>
+    /// <summary>The whole picture composited at full size over nothing, as the pixels of one layer in its colour.</summary>
     public TiledPixels Flattened()
     {
         using var image = Composite(1, new CompositeOptions(LeaveOutBackground: true));
         using var bitmap = SKBitmap.FromImage(image);
-        return TiledPixels.FromBitmap(bitmap, 0, 0);
+        return TiledPixels.FromBitmap(bitmap, 0, 0, _picture.Colour.Tiles);
     }
 
     PictureLayerImage? IPictureLayerImages.ImageOf(PictureLayer layer, double scale)

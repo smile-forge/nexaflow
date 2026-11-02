@@ -64,7 +64,7 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
 
         if (!cache)
         {
-            var once = NewBitmap(size);
+            var once = NewBitmap(picture.Colour, size);
             Draw(once, picture, scale, images, options, new SKRectI(0, 0, size.Width, size.Height));
             return ImageDecoders.Seal(once);
         }
@@ -76,7 +76,7 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
         if (dirty is null)
         {
             _composite?.Dispose();
-            _composite = NewBitmap(size);
+            _composite = NewBitmap(picture.Colour, size);
             dirty = new SKRectI(0, 0, size.Width, size.Height);
         }
         if (!dirty.Value.IsEmpty) Draw(_composite!, picture, scale, images, options, dirty.Value);
@@ -93,7 +93,7 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
     /// </summary>
     public static SKRectI? DirtyBetween(LayeredPicture before, LayeredPicture after, double scale, SKSizeI size)
     {
-        if (before.Width != after.Width || before.Height != after.Height || before.Background != after.Background) return null;
+        if (before.Width != after.Width || before.Height != after.Height || before.Background != after.Background || before.Colour != after.Colour) return null;
         if (before.Layers == after.Layers) return SKRectI.Empty;
         var dirty = SKRectI.Empty;
         return Compare(before.Layers, after.Layers, ref dirty) ? Scaled(dirty, scale, size) : null;
@@ -169,7 +169,7 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
         if (options.MaskAlone is { } id && picture.Find(id)?.Mask is { } mask)
         {
             canvas.Clear(SKColors.Black);
-            using var shown = NewSurface(rect);
+            using var shown = NewSurface(picture.Colour, rect);
             shown.Canvas.Clear(SKColors.White);
             band.ApplyCoverage(shown.Canvas, mask.Coverage, SKBlendMode.DstIn);
             using var white = shown.Snapshot();
@@ -200,7 +200,7 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
             return;
         }
 
-        using var paint = new SKPaint { BlendMode = layer.Blend.ToSkia(), Color = SKColors.Black.WithAlpha((byte)Math.Round(opacity * 255)) };
+        using var paint = new SKPaint { BlendMode = layer.Blend.ToSkia(), ColorF = new SKColorF(0, 0, 0, (float)opacity) };
         bool ownSurface = mask is not null || layer.ClipsToBelow || layer is GroupLayer;
         if (!ownSurface)
         {
@@ -208,7 +208,7 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
             return;
         }
 
-        using var surface = NewSurface(band.Rect);
+        using var surface = NewSurface(band.Picture.Colour, band.Rect);
         var canvas = surface.Canvas;
         canvas.Clear(SKColors.Transparent);
         var inner = new Target(canvas, surface.Snapshot);
@@ -264,13 +264,14 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
             ? new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear)
             : new SKSamplingOptions(SKCubicResampler.Mitchell);
 
-    private static SKSurface NewSurface(SKRectI rect)
-        => SKSurface.Create(new SKImageInfo(rect.Width, rect.Height, SKImageInfo.PlatformColorType, SKAlphaType.Premul))
+    /// <summary>A surface over <paramref name="rect"/> as deep as <paramref name="colour"/>, in its space.</summary>
+    private static SKSurface NewSurface(PictureColour colour, SKRectI rect)
+        => SKSurface.Create(colour.SurfaceInfo(rect.Width, rect.Height))
            ?? throw new InvalidOperationException($"No memory for a {rect.Width}×{rect.Height} layer.");
 
-    private static SKBitmap NewBitmap(SKSizeI size)
+    private static SKBitmap NewBitmap(PictureColour colour, SKSizeI size)
     {
-        var bitmap = new SKBitmap(new SKImageInfo(size.Width, size.Height, SKImageInfo.PlatformColorType, SKAlphaType.Premul));
+        var bitmap = new SKBitmap(colour.SurfaceInfo(size.Width, size.Height));
         if (bitmap.GetPixels() == IntPtr.Zero) throw new InvalidOperationException($"No memory for a {size.Width}×{size.Height} picture.");
         bitmap.Erase(SKColors.Transparent);
         return bitmap;
@@ -287,6 +288,7 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
     private sealed class Band(SKRectI rect, double scale, LayeredPicture picture, IReadOnlyDictionary<Guid, PictureLayerImage> images)
     {
         public SKRectI Rect { get; } = rect;
+        public LayeredPicture Picture { get; } = picture;
         public IReadOnlyDictionary<Guid, PictureLayerImage> Images { get; } = images;
 
         /// <summary>Canvas pixels to the band's own pixels.</summary>
@@ -317,8 +319,7 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
                 canvas.Restore();
                 return;
             }
-            using var alpha = SKImage.FromPixelCopy(new SKImageInfo(area.Width, area.Height, SKColorType.Alpha8, SKAlphaType.Premul), coverage.Read(area))
-                              ?? throw new InvalidOperationException("A mask could not be made an image.");
+            using var alpha = CoverageImage(coverage, area);
             // Past the coverage's area — past the canvas — nothing is covered.
             using (var outside = new SKPaint { BlendMode = blend, Color = SKColors.Transparent })
             {
@@ -332,6 +333,38 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
             using var paint = new SKPaint { BlendMode = blend };
             canvas.DrawImage(alpha, area.Left, area.Top, new SKSamplingOptions(SKFilterMode.Linear), paint);
             canvas.Restore();
+        }
+
+        /// <summary>The coverage of <paramref name="area"/> as an image whose alpha it is, as deep as it is held: a byte, 16 bits, or
+        /// the alpha of a float picture — Skia's half-float alpha holds fewer values than a 32-bit mask does.</summary>
+        private static SKImage CoverageImage(TiledCoverage coverage, SKRectI area)
+        {
+            SKImage? image;
+            switch (coverage.Depth)
+            {
+                case ChannelDepth.U8:
+                    image = SKImage.FromPixelCopy(new SKImageInfo(area.Width, area.Height, SKColorType.Alpha8, SKAlphaType.Premul), coverage.Read(area));
+                    break;
+                case ChannelDepth.U16:
+                {
+                    var values = coverage.ReadValues(area);
+                    var samples = new ushort[values.Length];
+                    for (int i = 0; i < values.Length; i++) samples[i] = (ushort)Math.Clamp((int)MathF.Round(values[i] * 65535), 0, 65535);
+                    image = SKImage.FromPixelCopy(new SKImageInfo(area.Width, area.Height, SKColorType.Alpha16, SKAlphaType.Premul),
+                                                  System.Runtime.InteropServices.MemoryMarshal.AsBytes(samples.AsSpan()));
+                    break;
+                }
+                default:
+                {
+                    var values = coverage.ReadValues(area);
+                    var premul = new float[values.Length * 4];
+                    for (int i = 0; i < values.Length; i++) premul[i * 4 + 3] = values[i];
+                    image = SKImage.FromPixelCopy(new SKImageInfo(area.Width, area.Height, SKColorType.RgbaF32, SKAlphaType.Premul),
+                                                  System.Runtime.InteropServices.MemoryMarshal.AsBytes(premul.AsSpan()));
+                    break;
+                }
+            }
+            return image ?? throw new InvalidOperationException("A mask could not be made an image.");
         }
     }
 }

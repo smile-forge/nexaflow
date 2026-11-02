@@ -251,6 +251,9 @@ public sealed class LayeredSession : IPictureLayerImages, IDisposable
 
     // ── Rendering ───────────────────────────────────────────────────────────
 
+    /// <summary>Stops of exposure a 32-bit picture is shown at — a view of its light, never written; 0 shows it as it is.</summary>
+    public double ViewExposure { get; set; }
+
     /// <summary>
     /// Composites <paramref name="picture"/> — the picture as it stood when the frame was asked for — at <paramref name="scale"/>
     /// and hands it to <paramref name="consume"/> while it is still valid. False once the session has closed.
@@ -260,7 +263,7 @@ public sealed class LayeredSession : IPictureLayerImages, IDisposable
         lock (_gate)
         {
             if (_disposed) return false;
-            consume(_compositor.Render(picture, scale, this, options));
+            PictureDisplay.Show(_compositor.Render(picture, scale, this, options), picture, ViewExposure, consume);
             return true;
         }
     }

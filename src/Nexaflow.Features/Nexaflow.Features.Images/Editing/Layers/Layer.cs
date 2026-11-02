@@ -64,7 +64,7 @@ public readonly record struct LayerBlend(string Op)
 }
 
 /// <summary>
-/// A layer's mask: 8-bit coverage over the canvas — white shows the layer, black hides it, grey shows it partly — with
+/// A layer's mask: coverage over the canvas, as deep as its picture — white shows the layer, black hides it, grey shows it partly — with
 /// whether it is used (<see cref="Enabled"/>) and whether it moves and transforms with its layer (<see cref="Linked"/>).
 /// </summary>
 public sealed record LayerMask(TiledCoverage Coverage, bool Enabled = true, bool Linked = true);
@@ -158,7 +158,7 @@ public sealed record PictureLayer : Layer
     public ImageRecipe Recipe { get; init; } = ImageRecipe.Identity;
 }
 
-/// <summary>Pixels, in canvas coordinates: what paint, paste and fill make.</summary>
+/// <summary>Pixels, in canvas coordinates, in their picture's colour: what paint, paste and fill make.</summary>
 public sealed record PixelLayer : Layer
 {
     public TiledPixels Pixels { get; init; } = TiledPixels.Empty;

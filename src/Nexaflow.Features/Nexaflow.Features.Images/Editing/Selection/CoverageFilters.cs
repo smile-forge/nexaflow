@@ -50,6 +50,46 @@ internal static class CoverageFilters
         Blur(pixels, width, height, EdgeSigma);
     }
 
+    /// <summary>The same blur over deeper coverage, 0 to 1 a pixel, kept as exact as floats hold it.</summary>
+    public static void Blur(float[] values, int width, int height, double sigma)
+    {
+        if (sigma <= 0) return;
+        var across = new float[values.Length];
+        foreach (int radius in BoxesFor(sigma))
+        {
+            if (radius == 0) continue;
+            BoxRows(values, across, width, height, radius);
+            BoxColumns(across, values, width, height, radius);
+        }
+    }
+
+    /// <summary>The same growing over deeper coverage, 0 to 1 a pixel.</summary>
+    public static void Grow(float[] values, int width, int height, double by)
+    {
+        var distance = DistanceTo(values, width, height, inside: true);
+        for (int i = 0; i < values.Length; i++)
+            values[i] = Math.Max(values[i], Share(by + 0.5 - distance[i]));
+    }
+
+    /// <summary>The same shrinking over deeper coverage, 0 to 1 a pixel.</summary>
+    public static void Shrink(float[] values, int width, int height, double by)
+    {
+        var distance = DistanceTo(values, width, height, inside: false);
+        for (int i = 0; i < values.Length; i++)
+            values[i] = Math.Min(values[i], Share(distance[i] - by - 0.5));
+    }
+
+    /// <summary>The same smoothing over deeper coverage, 0 to 1 a pixel.</summary>
+    public static void Smooth(float[] values, int width, int height, double sigma)
+    {
+        Blur(values, width, height, sigma);
+        for (int i = 0; i < values.Length; i++) values[i] = values[i] >= 0.5f ? 1 : 0;
+        Blur(values, width, height, EdgeSigma);
+    }
+
+    /// <summary>0…1, clamped.</summary>
+    private static float Share(double share) => (float)Math.Clamp(share, 0, 1);
+
     /// <summary>The blur that gives a cut edge back its anti-aliasing: about a pixel across.</summary>
     private const double EdgeSigma = 0.6;
 
@@ -103,6 +143,37 @@ internal static class CoverageFilters
         });
     }
 
+    private static void BoxRows(float[] from, float[] into, int width, int height, int radius)
+    {
+        int span = 2 * radius + 1;
+        Parallel.For(0, height, y =>
+        {
+            int row = y * width;
+            double sum = 0;
+            for (int x = -radius; x <= radius; x++) sum += from[row + Math.Clamp(x, 0, width - 1)];
+            for (int x = 0; x < width; x++)
+            {
+                into[row + x] = (float)(sum / span);
+                sum += from[row + Math.Min(x + radius + 1, width - 1)] - from[row + Math.Max(x - radius, 0)];
+            }
+        });
+    }
+
+    private static void BoxColumns(float[] from, float[] into, int width, int height, int radius)
+    {
+        int span = 2 * radius + 1;
+        Parallel.For(0, width, x =>
+        {
+            double sum = 0;
+            for (int y = -radius; y <= radius; y++) sum += from[Math.Clamp(y, 0, height - 1) * width + x];
+            for (int y = 0; y < height; y++)
+            {
+                into[y * width + x] = (float)(sum / span);
+                sum += from[Math.Min(y + radius + 1, height - 1) * width + x] - from[Math.Max(y - radius, 0) * width + x];
+            }
+        });
+    }
+
     // ── Distance ────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -115,7 +186,22 @@ internal static class CoverageFilters
         var squared = new float[pixels.Length];
         for (int i = 0; i < pixels.Length; i++)
             squared[i] = (pixels[i] >= Half) == inside ? 0 : Far;
+        return Distances(squared, width, height);
+    }
 
+    /// <summary>The same distances over deeper coverage, 0 to 1 a pixel: inside where half covered or more.</summary>
+    internal static float[] DistanceTo(float[] values, int width, int height, bool inside)
+    {
+        var squared = new float[values.Length];
+        for (int i = 0; i < values.Length; i++)
+            squared[i] = (values[i] >= 0.5f) == inside ? 0 : Far;
+        return Distances(squared, width, height);
+    }
+
+    /// <summary>Squared distances — 0 at every pixel measured from, <see cref="Far"/> elsewhere — made the distances
+    /// themselves: down every column, then along every row.</summary>
+    private static float[] Distances(float[] squared, int width, int height)
+    {
         Parallel.For(0, width, () => new Lines(height), (x, _, lines) =>
         {
             for (int y = 0; y < height; y++) lines.Values[y] = squared[y * width + x];
