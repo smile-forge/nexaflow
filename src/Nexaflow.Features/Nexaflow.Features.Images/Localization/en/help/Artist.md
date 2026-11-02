@@ -8,7 +8,7 @@ no picture yet, makes one.
 ## Opening a picture
 
 - **Edit** at the top right of the [Images](help:Images) viewer, or E there, opens the picture you are on in an Artist tab of its own; the viewer stays where it was.
-- **Edit** among a picture's actions in the [File System](help:FileSystem) page opens it here too — each picture of a selection in a tab of its own — and double-clicking an OpenRaster file (.ora) opens it here.
+- **Edit** among a picture's actions in the [File System](help:FileSystem) page opens it here too — each picture of a selection in a tab of its own — and double-clicking an OpenRaster file (.ora) or a Photoshop file (.psd, .psb) opens it here.
 - The tab is named for the picture, and the breadcrumb names its folder.
 
 ## The start screen
@@ -74,7 +74,7 @@ The picture sits on a canvas you can pan and zoom, with eight tools beside it in
 ## Layers
 
 - **Add layer** on the editor's toolbar makes the picture a layered picture: the photo becomes its bottom layer, with its edits, and an empty layer goes above it. **Paste as layer** does the same with the picture on the clipboard. The photo itself is never written over — the layered picture is kept apart from it until you save it. [Show me](locate:Image_EditAddLayer,Image_EditPasteLayer)
-- **New → Layered picture (.ora)** in the [File System](help:FileSystem) page makes a blank canvas in the folder and opens it in the editor. Pick a size by name — the screen's, a square, Full HD, 4K, A4 or Letter at 300 dpi, a social post — or type a width and height in pixels, millimetres or inches at a resolution, turn it a quarter with ⇄, and choose a transparent, white or coloured background.
+- **New → Layered picture (.ora)** in the [File System](help:FileSystem) page makes a blank canvas in the folder and opens it in the editor. Pick a size by name — the screen's, a square, Full HD, 4K, A4 or Letter at 300 dpi, a social post — or type a width and height in pixels, millimetres or inches at a resolution, turn it a quarter with ⇄, choose a transparent, white or coloured background, and choose its colour mode — colour or grey — and depth: 8 or 16 bits a channel, or 32-bit float for light brighter than white.
 - The **Layers** panel beside the tools lists the layers, top first. Click a layer's thumbnail to make it the one the tools work on, and drag its row, or use the arrows, to move it. The eye hides and shows it. Name it, set its opacity and blend, **Clip** it to the layer beneath, **Keep transparency** so fill stays where it already has pixels, or **Lock** it so nothing changes it. **Layer**, **Notes**, **Group**, **Duplicate** and **Delete** sit at the top; a group can be **Isolated**, its layers blended among themselves before what is beneath. [Show me](locate:Image_LayersPanel,Image_LayersAddPixel,Image_LayersOpacity,Image_LayersBlend)
 - Crop, Adjust, Retouch, Cut out and Resize work on the active picture layer — a photo, with its own edits. On a layer of pixels, **Erase** in Retouch and **Remove background** in Cut out change the pixels themselves.
 - A selection — the Marquee, the Lasso, Select subject, or Ctrl+A for everything — lies over the whole canvas. **Fill** (Shift+F5) fills it on the active layer with the ink chosen in Markup, Delete clears it, Ctrl+C copies it, Ctrl+Shift+C copies what shows of every layer, Ctrl+X cuts it, and Ctrl+V pastes as a new layer. [Show me](locate:Image_LayersPixelsSection)
@@ -84,15 +84,22 @@ The picture sits on a canvas you can pan and zoom, with eight tools beside it in
 - **Move** (V) drags what its panel names: the active layer, or — on a pixel layer with a selection — what is selected, lifted off to float above it; **Drop** (or Enter) lays it back. To move part of a photo, select it and press **Move** in Select. [Show me](locate:Image_ArrangeMoving) **Transform** (Ctrl+T) puts a frame round the layer, or what is selected: drag a side or corner to scale — Shift keeps the proportions — the round handle to turn it — Shift turns by 15° — and inside it to move it; **Flip** and **Turn** sit in the panel. **Apply** (Enter) keeps it as one step, **Cancel** (Esc) puts it back. A photo or a notes layer is placed afresh rather than resampled, so transforming it again never softens it. [Show me](locate:Image_EditToolMove,Image_ArrangeTransform)
 - On a **Notes** layer, the Markup tool's arrows, boxes, text and pen work on the layer itself, wherever it has been moved or transformed to.
 - **Rasterize** turns notes or a picture layer into pixels, **Merge down** joins a layer with the one beneath, and **Flatten** makes one layer of them all.
-- **Canvas** sets a new canvas size, anchored at any of nine points, or crops the canvas to the selection. [Show me](locate:Image_LayersCanvasSection)
+- **Canvas** sets a new canvas size, anchored at any of nine points, or crops the canvas to the selection. It also **converts** the picture to another colour mode or depth, as one step: a 16-bit heightmap stays smooth where 8 bits would band, and a 32-bit picture holds light past white. A 32-bit picture is shown at a **view exposure** you set there, and Paint gives its colour an **intensity** in stops past white. [Show me](locate:Image_LayersCanvasSection)
 - Undo and redo step through layers and selections as through edits. How much history a layered picture keeps is set in the Images options.
-- **Save** keeps a layered picture as OpenRaster, asking where the first time — beside the photo it was made from to start with — and saving it there again as you work. **Save as copy** exports it flattened, as a PNG or any format the editor saves.
+- **Save** keeps a layered picture as OpenRaster or Photoshop, asking where the first time — beside the photo it was made from to start with — and saving it there again as you work. OpenRaster holds 8 and 16 bits; a 32-bit picture is saved as Photoshop. **Save as copy** exports it flattened, as a PNG or any format the editor saves, 16-bit where PNG and TIFF hold it.
 
 ## OpenRaster files
 
 - Double-click an .ora — from Krita, GIMP, MyPaint or Pinta, or saved here — and it opens in Artist: its layers come back with their opacity, blends, visibility, locks, masks and groups, and what Nexaflow saves those applications open.
 - A file holding a layer Nexaflow cannot draw — a filter layer from Krita, say — opens on the look the application that wrote it saved, with a bar naming the layer. **Use the saved look** replaces the layers with one showing it, its effects baked in; **Edit the layers** shows what Nexaflow draws and keeps the layer it cannot draw, saving it back as it was. Editing anything first chooses Edit the layers. [Show me](locate:Image_SavedLookUse,Image_SavedLookEditLayers)
 - In the File System page an .ora also opens as a folder, as any package does.
+
+## Photoshop files
+
+- Double-click a .psd or .psb — RGB or grayscale, at 8, 16 or 32 bits — and it opens in Artist on its layers: pixels, groups, pass-through groups, opacity and fill, blends, visibility, locks and masks; a layer clipped to the one beneath stays clipped to it, shown as a group the base heads. Editing saves it back as Photoshop.
+- Text, smart objects and shapes open as the pixels Photoshop drew for them. Saved untouched, they go back to Photoshop as text, smart objects and shapes; painted on, they become pixels, as rasterizing them in Photoshop would.
+- Layer effects, vector masks and adjustment layers are kept and saved back as they were, but not drawn here: a file holding any opens on the look Photoshop saved, with the bar naming what is not drawn — the same choice as for OpenRaster files above.
+- CMYK, Lab, indexed and the other print and special modes don't open: convert the file to RGB or grayscale in Photoshop first.
 
 ## Printing
 

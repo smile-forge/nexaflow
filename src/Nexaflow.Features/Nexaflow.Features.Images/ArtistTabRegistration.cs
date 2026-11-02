@@ -50,7 +50,7 @@ public sealed class ArtistTabRegistration : IPageRegistration
 
     public IReadOnlyList<PageParameter> Parameters =>
     [
-        new("path", "Full path of the picture to edit — a photo, or an .ora layered picture. Omit for the start screen: a blank canvas, a picture drawn into one, the clipboard's picture, or a picture opened.", Required: false, OnDisk: true),
+        new("path", "Full path of the picture to edit — a photo, or an .ora, .psd or .psb layered picture. Omit for the start screen: a blank canvas, a picture drawn into one, the clipboard's picture, or a picture opened.", Required: false, OnDisk: true),
         new("tool", "The editor's tool to open on: reshape, adjust, retouch, cutout, markup, resize, paint or move.", Required: false),
     ];
 
