@@ -129,14 +129,15 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
         Patients = container.Patients;
         container.ApplyPhiMask(HidePatientInfo);
         StatusText = container.IsEmpty ? Str.Get("Dicom.Status.Empty") : container.DisplaySummary;
-        IsLoading = false;
-        OnPropertyChanged(nameof(IsContextReady));
 
-        // Auto-select the first image so the pane isn't blank.
+        // Auto-select the first image so the pane isn't blank — before saying it has loaded, so whoever waits for that finds it.
         if (container.Images.Count > 0)
             SelectedNode = container.Images[0];
         else if (container.Patients.Count > 0)
             container.Patients[0].IsExpanded = true;
+
+        IsLoading = false;
+        OnPropertyChanged(nameof(IsContextReady));
     }
 
     // ── Selection & rendering ─────────────────────────────────────────────
