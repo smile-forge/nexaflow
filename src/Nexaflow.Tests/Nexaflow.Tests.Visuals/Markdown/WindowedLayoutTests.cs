@@ -17,6 +17,8 @@ using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
 using Nexaflow.Markdown.Code;
+using Nexaflow.Markdown.Layout.Code;
+using Nexaflow.Visuals.Text.Markdown.Code;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -231,6 +233,28 @@ public class WindowedLayoutTests
         Assert.IsTrue(laid > 0 && laid < 400, $"Laid {laid} lines for the first screen.");
         Assert.AreEqual(Whole(text, NoGrammar).Size.Height, engine.Laid.Size.Height, 1e-6, "Laid in part, it stands as tall as all of it.");
     }
+
+    [TestMethod]
+    [CoversNode("windowed-reading")]
+    public void LongCode_ReadAUnitAtATime_StandsForTheDocumentsCharacters_AndStandsAsTallAsTheLinesTheyHold() => UiThread.Run(() =>
+    {
+        var document = ContentDocument.Of(MarkdownLayoutBench.GeneratedCode(400 * 1024));
+        var units = new ContentUnits(NoGrammar);
+        while (!units.Done) units = units.ReadOn(CodeParser.Windowed(NoGrammar), document, 32 * 1024);
+
+        var line = CodeSetting.LineHeight(WpfStyles.Dark, WpfMedium.OnThisThread);
+
+        Assert.IsTrue(units.Count > 1, "The code was read as one unit.");
+        for (var index = 0; index < units.Count; index++)
+        {
+            var (unit, start) = units[index];
+            var body = unit.Tree.Children.Single(child => child.Role == Roles.Body);
+            var lines = document.Slice(start, unit.Width).Count(character => character == '\n') + (CodeSetting.CarriedOn(unit.Tree) ? 0 : 1);
+
+            Assert.IsTrue(body.Stands, $"Unit {index} holds a copy of its characters.");
+            Assert.AreEqual(lines * line, CodeSetting.HeightOf(unit.Tree, WpfStyles.Dark, WpfMedium.OnThisThread), 1e-6, $"Unit {index} stands as tall as some other number of lines.");
+        }
+    });
 
     [TestMethod]
     [CoversNode("windowed-reading")]

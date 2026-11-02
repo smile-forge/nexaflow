@@ -1,0 +1,77 @@
+{
+  "branch": "claude/source-pane-memory",
+  "nodes": {
+    "windowed-reading": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentStretch.cs",
+          "class": "ContentChunks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentStretch.cs",
+          "class": "ContentStretch"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownParser.cs",
+          "class": "MarkdownParser",
+          "method": "Windowed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Rtf/RtfParser.cs",
+          "class": "RtfParser",
+          "method": "Windowed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Rtf/RtfResume.cs",
+          "class": "RtfResume"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Window.cs",
+          "class": "ContentEngine",
+          "method": "Windowed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentStretch.cs",
+          "class": "ContentChunks",
+          "method": "Edited"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/DrawnText.cs",
+          "class": "DrawnText",
+          "method": "Of"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Window.cs",
+          "class": "ContentEngine",
+          "method": "Background"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Pipeline/LinkTargets.cs",
+          "class": "LinkTargets",
+          "method": "Further"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentStretch.cs",
+          "class": "ContentUnit",
+          "method": "Standing"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 1,
+  "touched_nodes": [
+    "windowed-reading"
+  ]
+}

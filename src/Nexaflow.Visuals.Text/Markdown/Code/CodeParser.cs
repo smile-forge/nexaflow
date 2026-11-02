@@ -72,7 +72,7 @@ public static class CodeParser
             }
 
             parts ??= [.. tree.Children.Take(index)];
-            Lines(body.Text, from, spans, kept, parts);
+            Lines(body.TextAsRead(), from, spans, kept, parts);
         }
 
         return parts is null ? tree : tree.With(parts);

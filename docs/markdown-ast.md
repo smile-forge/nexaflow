@@ -76,9 +76,12 @@ when somebody asks (`ContentReading`, `ContentPart`), from where its unit starts
 characters stand in those of the reading holding it (`ContentSpace`).
 
 **A piece may stand for characters without holding them** (`ContentNode.Leaf(kind, characters, start, length)`): what a
-long reading has not read yet, and a body another reading reads. It is as wide as its characters, prints as them, and
-reads them only when something asks — from the version it was read from, so a unit kept through later changes still
-reads exactly what it read.
+long reading has not read yet, and, where a reading is read a unit at a time, every body its parser read — a body another
+reading reads, code read as written, a block's characters held as written (`ContentUnit.Standing`) — so a long reading does
+not hold its document a second time. It is as wide as its characters, prints as them, and reads them only when something
+asks — from the version it was read from, so a unit kept through later changes still reads exactly what it read. What it
+is asked for it keeps (`ContentNode.Text`); what reads a long body once to make something else of it, as code is cut into
+lines, reads it without the piece keeping it (`ContentNode.TextAsRead`).
 
 An offset means **where it was read from**, and nothing else. It is not a print position, not a hint, and not
 something an edit updates: an edit names the characters it changes, the engine writes them, and the content is read

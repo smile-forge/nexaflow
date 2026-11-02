@@ -19,7 +19,7 @@ public static class CodeSetting
         var lines = CarriedOn(tree) ? 0 : 1;
 
         foreach (var leaf in tree.Leaves())
-            lines += leaf.Text.AsSpan().Count('\n');
+            lines += leaf.TimesHeld('\n');
 
         return Math.Max(lines, 1) * LineHeight(style, medium);
     }
