@@ -1,5 +1,6 @@
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Code;
+using Nexaflow.Markdown.Lines;
 using Nexaflow.Syntax;
 using System;
 using System.Collections.Generic;
@@ -24,32 +25,9 @@ public static class CodeParser
     public static ContentNode Parse(string? source, string language) =>
         new BlockNode(language, [ContentNode.Leaf(Kinds.Verbatim, source ?? string.Empty, Roles.Body, offset: 0)], CodeKinds.Code, offset: 0);
 
-    /// <summary>
-    /// A parse reading code a stretch at a time (<see cref="ContentStretch"/>): once the stretch's length is behind, it stops after the
-    /// next line end that a line with something on it follows, carrying nothing — code read as written has nothing open where a line
-    /// starts. A stretch that stops says the next carries on from it (<see cref="CodeKinds.CarriedOn"/>); a line, or a run of empty
-    /// lines, longer than the window asks for a longer one.
-    /// </summary>
+    /// <summary>A parse reading code a stretch at a time, as everything read line by line is (<see cref="LineStretches"/>).</summary>
     /// <param name="language">The grammar the code is read against, or nothing for code in a language no grammar reads.</param>
-    public static Func<ContentStretch, ContentParse> Windowed(string language) => stretch => Stretched(stretch, language);
-
-    private static ContentParse Stretched(ContentStretch stretch, string language)
-    {
-        var window = stretch.Window;
-        var end = stretch.SoftMaxLength < window.Length ? window.IndexOf('\n', Math.Max(stretch.SoftMaxLength - 1, 0)) : -1;
-
-        // A stretch stops before a line with something written on it, so the next starts where a caret stands before words, as it does
-        // in the code read whole — an empty line has nothing for a caret to stand against.
-        while (end >= 0 && end + 1 < window.Length && window[end + 1] is '\n' or '\r') end = window.IndexOf('\n', end + 1);
-
-        if (end < 0 || end + 1 == window.Length)
-            return stretch.Ends ? ContentParse.Of(Parse(window, language)) : ContentParse.Of(Parse(null, language)) with { NeedsMore = true };
-
-        var stop = end + 1;
-        var read = Parse(window[..stop], language);
-
-        return ContentParse.Of(read.With([.. read.Children, ContentNode.Holding(CodeKinds.CarriedOn, Roles.Derived, true)])) with { Stopped = stop };
-    }
+    public static Func<ContentStretch, ContentParse> Windowed(string language) => stretch => LineStretches.Read(stretch, source => Parse(source, language));
 
     /// <summary>
     /// <paramref name="tree"/>, a stretch of code, with every body of it cut at its line ends into lines (<see cref="CodeKinds.Line"/>), each

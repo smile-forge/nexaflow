@@ -1,20 +1,20 @@
-namespace Nexaflow.Markdown.Layout.Code;
+namespace Nexaflow.Markdown.Layout.Lines;
 
 /// <summary>
-/// Where a line of code wraps onto rows in a room (<see cref="LayoutHost.WrapsLines"/>): as many characters as fit, broken after the
-/// last space that fits, and a word wider than the row broken where the row ends. A space never breaks a row — the spaces a row ends on
-/// hang past it, as a text box lets them — and nor does a character that takes no room. Nor is a row ended after nothing but the
-/// line's indent: a row holding only spaces reads as a line with nothing on it, so a word too long to follow the indent is broken where
-/// the row ends instead. The rows after the first carry on under the line's indent, as a wrapped line does in a text box, so an
-/// indented line still reads as indented however many rows it comes to (<see cref="Indent"/>).
+/// Where a line of content laid line by line — code, text shown as typed — wraps onto rows in a room (<see cref="LayoutHost.WrapsLines"/>):
+/// as many characters as fit, broken after the last space that fits, and a word wider than the row broken where the row ends. A space
+/// never breaks a row — the spaces a row ends on hang past it, as a text box lets them — and nor does a character that takes no room. Nor
+/// is a row ended after nothing but the line's indent: a row holding only spaces reads as a line with nothing on it, so a word too long to
+/// follow the indent is broken where the row ends instead. The rows after the first carry on under the line's indent, as a wrapped line
+/// does in a text box, so an indented line still reads as indented however many rows it comes to (<see cref="Indent"/>).
 ///
 /// <para>
-/// Fed a line's characters one at a time, each with how wide it is set, so laying a line (<see cref="CodeBuilder"/>) and saying how
-/// tall a stretch stands without laying it (<see cref="CodeSetting.HeightOf"/>) break it by the one rule — the first measuring each
+/// Fed a line's characters one at a time, each with how wide it is set, so laying a line (<see cref="LinedBuilder"/>) and saying how
+/// tall a stretch stands without laying it (<see cref="LinedSetting.HeightOf"/>) break it by the one rule — the first measuring each
 /// character, the second setting each at a monospaced face's advance, which for a monospaced face is the same thing.
 /// </para>
 /// </summary>
-internal struct CodeRows(double room)
+internal struct LineRows(double room)
 {
     /// <summary>Where in the line the row being filled starts.</summary>
     private int _start;

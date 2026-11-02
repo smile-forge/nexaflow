@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-using Nexaflow.Markdown.Layout.Code;
+using Nexaflow.Markdown.Layout.Lines;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Code;
@@ -13,7 +13,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Code;
 /// </summary>
 [TestClass]
 [CoversNode("markdown-source-box")]
-public class CodeRowsTests
+public class LineRowsTests
 {
     [TestMethod]
     public void ALineThatFits_IsOneRow() => CollectionAssert.AreEqual(Array.Empty<int>(), Broken("one two three", 13));
@@ -57,7 +57,7 @@ public class CodeRowsTests
     /// <summary>Where each row of <paramref name="line"/> after its first starts, and how far in, every character a column wide in a room <paramref name="columns"/> wide.</summary>
     private static (List<int> Breaks, double Indent) Wrapped(string line, int columns)
     {
-        var rows = new CodeRows(columns);
+        var rows = new LineRows(columns);
         var breaks = new List<int>();
 
         foreach (var character in line)
@@ -69,7 +69,7 @@ public class CodeRowsTests
     [TestMethod]
     public void ACharacterTakingNoRoom_NeverBreaksARow()
     {
-        var rows = new CodeRows(3);
+        var rows = new LineRows(3);
 
         foreach (var letter in "abc") Assert.AreEqual(-1, rows.Next(letter, 1));
 
@@ -83,7 +83,7 @@ public class CodeRowsTests
     [TestMethod]
     public void ANewLine_StartsOnARowOfItsOwn_WithNothingOnIt()
     {
-        var rows = new CodeRows(3);
+        var rows = new LineRows(3);
         foreach (var letter in "abcdef") rows.Next(letter, 1);
 
         Assert.AreEqual(1, rows.Breaks);
@@ -97,7 +97,7 @@ public class CodeRowsTests
     /// <summary>Where each row of <paramref name="line"/> after its first starts, every character a column wide in a room <paramref name="columns"/> wide.</summary>
     private static List<int> Broken(string line, int columns)
     {
-        var rows = new CodeRows(columns);
+        var rows = new LineRows(columns);
         var breaks = new List<int>();
 
         for (var at = 0; at < line.Length; at++)
