@@ -77,11 +77,11 @@
                         </StackPanel>
                     </RadioButton>
                     <RadioButton GroupName="EditTool" Style="{StaticResource EditToolTileStyle}"
-                                 ToolTip="{loc:Str Images.Edit.Tool.CutOutTip}" AutomationProperties.AutomationId="Image_EditToolCutOut" AutomationProperties.Name="{loc:Str Images.Edit.Tool.CutOut}"
-                                 IsChecked="{Binding Editor.Tool, Converter={StaticResource EnumToBool}, ConverterParameter=CutOut}">
+                                 ToolTip="{loc:Str Images.Edit.Tool.SelectTip}" AutomationProperties.AutomationId="Image_EditToolSelect" AutomationProperties.Name="{loc:Str Images.Edit.Tool.Select}"
+                                 IsChecked="{Binding Editor.Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Select}">
                         <StackPanel>
-                            <icons:IconGlyph Style="{StaticResource EditToolTileIcon}" Icon="fluent:lasso"/>
-                            <TextBlock Style="{StaticResource EditToolTileLabel}" Text="{loc:Str Images.Edit.Tool.CutOut}"/>
+                            <icons:IconGlyph Style="{StaticResource EditToolTileIcon}" Icon="fluent:select_object"/>
+                            <TextBlock Style="{StaticResource EditToolTileLabel}" Text="{loc:Str Images.Edit.Tool.Select}"/>
                         </StackPanel>
                     </RadioButton>
                     <RadioButton GroupName="EditTool" Style="{StaticResource EditToolTileStyle}"
@@ -432,27 +432,27 @@
                             </Button>
                         </StackPanel>
 
-                        <!-- ── Cut out ── -->
-                        <StackPanel Visibility="{Binding Editor.IsCutOutTool, Converter={StaticResource BoolToVis}}">
+                        <!-- ── Select: how a part of the picture is picked ── -->
+                        <StackPanel Visibility="{Binding Editor.IsSelectTool, Converter={StaticResource BoolToVis}}">
 
                             <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.CutOut.Mark}"/>
                             <UniformGrid Rows="1">
-                                <RadioButton GroupName="CutOutMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_CutOutMarkPick"
+                                <RadioButton GroupName="CutOutMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_CutOutMarkPick" AutomationProperties.Name="{loc:Str Images.CutOut.Pick}"
                                              ToolTip="{Binding Editor.PickingModels.DisabledReason, TargetNullValue={loc:Str Images.CutOut.PickTip}}"
                                              IsChecked="{Binding Editor.CutOutWay, Converter={StaticResource EnumToBool}, ConverterParameter=Pick}"
                                              IsEnabled="{Binding Editor.PickingModels.IsReady}"
                                              ToolTipService.ShowOnDisabled="True">
-                                    <TextBlock Text="{loc:Str Images.CutOut.Pick}" FontSize="11"/>
+                                <icons:IconGlyph Icon="fluent:cursor_click" FontSize="15"/>
                                 </RadioButton>
-                                <RadioButton GroupName="CutOutMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_CutOutMarkMarquee"
+                                <RadioButton GroupName="CutOutMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_CutOutMarkMarquee" AutomationProperties.Name="{loc:Str Images.Region.Marquee}"
                                              ToolTip="{loc:Str Images.Region.MarqueeTip}"
                                              IsChecked="{Binding Editor.CutOutWay, Converter={StaticResource EnumToBool}, ConverterParameter=Marquee}">
-                                    <TextBlock Text="{loc:Str Images.Region.Marquee}" FontSize="11"/>
+                                <icons:IconGlyph Icon="fluent:select_object" FontSize="15"/>
                                 </RadioButton>
-                                <RadioButton GroupName="CutOutMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_CutOutMarkLasso"
+                                <RadioButton GroupName="CutOutMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_CutOutMarkLasso" AutomationProperties.Name="{loc:Str Images.Region.Lasso}"
                                              ToolTip="{loc:Str Images.Region.LassoTip}"
                                              IsChecked="{Binding Editor.CutOutWay, Converter={StaticResource EnumToBool}, ConverterParameter=Lasso}">
-                                    <TextBlock Text="{loc:Str Images.Region.Lasso}" FontSize="11"/>
+                                <icons:IconGlyph Icon="fluent:lasso" FontSize="15"/>
                                 </RadioButton>
                             </UniformGrid>
 
@@ -494,27 +494,27 @@
 
                             <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Erase.Mark}"/>
                             <UniformGrid Rows="1">
-                                <RadioButton GroupName="EraseMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkPick"
+                                <RadioButton GroupName="EraseMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkPick" AutomationProperties.Name="{loc:Str Images.Erase.Pick}"
                                              ToolTip="{Binding Editor.PickingModels.DisabledReason, TargetNullValue={loc:Str Images.Erase.PickTip}}"
                                              IsChecked="{Binding Editor.EraseMarks.Way, Converter={StaticResource EnumToBool}, ConverterParameter=Pick}"
                                              IsEnabled="{Binding Editor.PickingModels.IsReady}"
                                              ToolTipService.ShowOnDisabled="True">
-                                    <TextBlock Text="{loc:Str Images.Erase.Pick}" FontSize="11"/>
+                                <icons:IconGlyph Icon="fluent:cursor_click" FontSize="15"/>
                                 </RadioButton>
-                                <RadioButton GroupName="EraseMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkBrush"
+                                <RadioButton GroupName="EraseMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkBrush" AutomationProperties.Name="{loc:Str Images.Erase.Brush}"
                                              ToolTip="{loc:Str Images.Erase.BrushTip}"
                                              IsChecked="{Binding Editor.EraseMarks.Way, Converter={StaticResource EnumToBool}, ConverterParameter=Brush}">
-                                    <TextBlock Text="{loc:Str Images.Erase.Brush}" FontSize="11"/>
+                                <icons:IconGlyph Icon="fluent:paint_brush" FontSize="15"/>
                                 </RadioButton>
-                                <RadioButton GroupName="EraseMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkMarquee"
+                                <RadioButton GroupName="EraseMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkMarquee" AutomationProperties.Name="{loc:Str Images.Region.Marquee}"
                                              ToolTip="{loc:Str Images.Region.MarqueeTip}"
                                              IsChecked="{Binding Editor.EraseMarks.Way, Converter={StaticResource EnumToBool}, ConverterParameter=Marquee}">
-                                    <TextBlock Text="{loc:Str Images.Region.Marquee}" FontSize="11"/>
+                                <icons:IconGlyph Icon="fluent:select_object" FontSize="15"/>
                                 </RadioButton>
-                                <RadioButton GroupName="EraseMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkLasso"
+                                <RadioButton GroupName="EraseMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkLasso" AutomationProperties.Name="{loc:Str Images.Region.Lasso}"
                                              ToolTip="{loc:Str Images.Region.LassoTip}"
                                              IsChecked="{Binding Editor.EraseMarks.Way, Converter={StaticResource EnumToBool}, ConverterParameter=Lasso}">
-                                    <TextBlock Text="{loc:Str Images.Region.Lasso}" FontSize="11"/>
+                                <icons:IconGlyph Icon="fluent:lasso" FontSize="15"/>
                                 </RadioButton>
                             </UniformGrid>
 
@@ -560,29 +560,42 @@
                         <!-- ── The selection Cut out and Retouch both take: shapes drawn, how they meet it, and refinements ── -->
                         <views:RegionMarkingPanel DataContext="{Binding Editor}" Visibility="{Binding TakesSelection, Converter={StaticResource BoolToVis}}"/>
 
-                        <!-- ── Cut out: what takes the selection ── -->
-                        <StackPanel Visibility="{Binding Editor.IsCutOutTool, Converter={StaticResource BoolToVis}}">
-                            <WrapPanel Margin="0,12,0,0">
-                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding Editor.CopyCutOutCommand}"
+                        <!-- ── Select: what is done with what is selected — kept apart from the picture, kept in it, moved, made a layer, erased ── -->
+                        <StackPanel Visibility="{Binding Editor.IsSelectTool, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Select.With}"/>
+                            <WrapPanel>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Editor.MoveSelectionCommand}"
+                                        ToolTip="{loc:Str Images.Select.MoveTip}" AutomationProperties.AutomationId="Image_SelectMove">
+                                    <icons:IconLabel Icon="fluent:arrow_move" Text="{loc:Str Images.Select.Move}" FontSize="11"/>
+                                </Button>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Editor.LayerFromSelectionCommand}"
+                                        ToolTip="{loc:Str Images.Select.NewLayerTip}" AutomationProperties.AutomationId="Image_SelectNewLayer">
+                                    <icons:IconLabel Icon="fluent:layer_diagonal_add" Text="{loc:Str Images.Select.NewLayer}" FontSize="11"/>
+                                </Button>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Editor.EraseSelectionCommand}"
+                                        ToolTip="{loc:Str Images.Select.EraseTip}" AutomationProperties.AutomationId="Image_SelectErase">
+                                    <icons:IconLabel Icon="fluent:eraser" Text="{loc:Str Images.Select.Erase}" FontSize="11"/>
+                                </Button>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Editor.CopyCutOutCommand}"
                                         ToolTip="{loc:Str Images.CutOut.CopyTip}" AutomationProperties.AutomationId="Image_CutOutCopy">
-                                    <TextBlock Text="{loc:Str Images.CutOut.Copy}" FontSize="11"/>
+                                    <icons:IconLabel Icon="fluent:copy" Text="{loc:Str Images.CutOut.Copy}" FontSize="11"/>
                                 </Button>
-                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding Editor.SaveCutOutCommand}"
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Editor.SaveCutOutCommand}"
                                         ToolTip="{loc:Str Images.CutOut.SaveTip}" AutomationProperties.AutomationId="Image_CutOutSave">
-                                    <TextBlock Text="{loc:Str Images.CutOut.Save}" FontSize="11"/>
+                                    <icons:IconLabel Icon="fluent:save" Text="{loc:Str Images.CutOut.Save}" FontSize="11"/>
                                 </Button>
-                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding Editor.RegionMarks.DeselectCommand}"
-                                        AutomationProperties.AutomationId="Image_CutOutClear">
-                                    <TextBlock Text="{loc:Str Images.CutOut.Clear}" FontSize="11"/>
-                                </Button>
-                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding Editor.RemoveBackgroundCommand}"
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Editor.RemoveBackgroundCommand}"
                                         ToolTip="{loc:Str Images.CutOut.RemoveBackgroundTip}" AutomationProperties.AutomationId="Image_CutOutRemoveBackground">
-                                    <TextBlock Text="{loc:Str Images.CutOut.RemoveBackground}" FontSize="11"/>
+                                    <icons:IconLabel Icon="fluent:image_off" Text="{loc:Str Images.CutOut.RemoveBackground}" FontSize="11"/>
                                 </Button>
-                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding Editor.KeepBackgroundCommand}"
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Editor.KeepBackgroundCommand}"
                                         Visibility="{Binding Editor.RemovesBackground, Converter={StaticResource BoolToVis}}"
                                         ToolTip="{loc:Str Images.CutOut.KeepBackgroundTip}" AutomationProperties.AutomationId="Image_CutOutKeepBackground">
-                                    <TextBlock Text="{loc:Str Images.CutOut.KeepBackground}" FontSize="11"/>
+                                    <icons:IconLabel Icon="fluent:image" Text="{loc:Str Images.CutOut.KeepBackground}" FontSize="11"/>
+                                </Button>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Editor.RegionMarks.DeselectCommand}"
+                                        AutomationProperties.AutomationId="Image_CutOutClear">
+                                    <icons:IconLabel Icon="fluent:dismiss" Text="{loc:Str Images.CutOut.Clear}" FontSize="11"/>
                                 </Button>
                             </WrapPanel>
                         </StackPanel>

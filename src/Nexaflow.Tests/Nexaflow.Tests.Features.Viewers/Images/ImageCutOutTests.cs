@@ -72,7 +72,7 @@ public class ImageCutOutTests
         var vm = new ArtistViewModel(photo ?? _photo, shell ?? Shell(), _services, selection: selection);
         Until(() => vm.Canvas is not null);
         Assert.IsNotNull(vm.Canvas, "the photo was never decoded and presented");
-        OnUi(() => vm.Editor.Tool = EditTool.CutOut);
+        OnUi(() => vm.Editor.Tool = EditTool.Select);
         return vm;
     }
 
@@ -227,7 +227,7 @@ public class ImageCutOutTests
         Assert.IsTrue(result.Success, result.ModelText);
         StringAssert.Contains(result.ModelText, "Found 2 \"mug\"");
         StringAssert.Contains(result.ModelText, "4,2,12,10");
-        Assert.IsTrue(_ui.Invoke(() => vm.IsEditing && vm.Editor.IsCutOutTool), "the editor opens on Cut out");
+        Assert.IsTrue(_ui.Invoke(() => vm.IsEditing && vm.Editor.IsSelectTool), "the editor opens on Cut out");
         Assert.AreEqual("mug", _ui.Invoke(() => vm.Cutter.Found));
     }
 
@@ -288,8 +288,8 @@ public class ImageCutOutTests
     }
 
     [TestMethod]
-    [DataRow("cutout", EditTool.CutOut)]
-    [DataRow("CutOut", EditTool.CutOut)]
+    [DataRow("select", EditTool.Select)]
+    [DataRow("Select", EditTool.Select)]
     [DataRow("crop", EditTool.Crop)]
     [DataRow("retouch", EditTool.Retouch)]
     [DataRow("resize", EditTool.Resize)]

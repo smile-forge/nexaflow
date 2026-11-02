@@ -71,7 +71,7 @@ public class ImagesEditAiJourneyTests : ImageEditJourneyBase
                   && SelectRadio("Image_EditToolAdjust") && SetToggle("Image_EditAiEnhance", false));
 
             // Cut out: a click picks what is under it; its background removed and put back.
-            Check("Cut out panel", () => SelectRadio("Image_EditToolCutOut") && FitCanvas());
+            Check("Select panel", () => SelectRadio("Image_EditToolSelect") && FitCanvas());
             NeedsHere("Image_PictureModelsDownload", "AI picture models");
             Check("Cut out picks by picture selection", () => SelectRadio("Image_CutOutMarkPick") && WaitForFs(() => Exists("Image_CutOutPhrase"), 3));
             Check("A phrase is typed, and Find looks for it", () => TypeInto("Image_CutOutPhrase", "square") && Enabled("Image_CutOutFind"));

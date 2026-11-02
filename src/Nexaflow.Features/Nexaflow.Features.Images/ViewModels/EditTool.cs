@@ -25,7 +25,7 @@ public enum EditTool
     Crop,
     Adjust,
     Retouch,
-    CutOut,
+    Select,
     Markup,
     Paint,
     Move,

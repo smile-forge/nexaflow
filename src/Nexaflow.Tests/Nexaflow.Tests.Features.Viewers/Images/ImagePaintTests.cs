@@ -19,6 +19,7 @@ using Nexaflow.Visuals.Common.Theming;
 using NSubstitute;
 using SkiaSharp;
 using static Nexaflow.Tests.Features.Images.EditingFixtures;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.Images;
 
@@ -230,6 +231,79 @@ public class ImagePaintTests
         OnUi(() => vm.UndoEditCommand.Execute(null));
         var back = ((PixelLayer)Picture(vm).Layers.Single()).Pixels;
         AssertNear(Red, PixelOf(back, 5, 5), because: "undo takes back the drop, then the lift and the move together");
+    }
+
+    [TestMethod]
+    [CoversNode("images-transform")]
+    public void WhatIsSelected_MadeANewLayer_IsCopiedAboveIt_TheLayerLeftWhole()
+    {
+        var blank = LayeredPicture.Blank(40, 30, LayerBackground.Transparent, "Layer 1");
+        var vm = Canvas(blank with { Layers = [((PixelLayer)blank.Layers[0]) with { Pixels = Solid(40, 30, Red, new SKRectI(2, 2, 8, 8)) }] });
+        OnUi(() => vm.Editor.Tool = EditTool.Select);
+        OnUi(() => vm.Editor.RegionMarks.Add(new RegionRectangle(0, 0, 10, 10) { Mode = RegionMode.Replace }));
+
+        _ui.Run(() => vm.Editor.LayerFromSelectionCommand.ExecuteAsync(null)).GetAwaiter().GetResult();
+        Until(() => vm.CurrentDocument!.Picture.Layers.Length == 2);
+
+        var picture = Picture(vm);
+        Assert.AreEqual(2, picture.Layers.Length, "a layer of its own");
+        var copy = (PixelLayer)picture.Active!;
+        AssertNear(Red, PixelOf(copy.Pixels, 5, 5), because: "what was selected is in it");
+        var under = (PixelLayer)picture.Layers.Single(l => l.Id != copy.Id);
+        AssertNear(Red, PixelOf(under.Pixels, 5, 5), because: "the layer it came from is left whole");
+        Assert.IsFalse(_ui.Invoke(() => vm.Arranging.HasFloating), "a new layer, not something to drag");
+        Assert.AreEqual(EditTool.Select, _ui.Invoke(() => vm.Editor.Tool));
+    }
+
+    [TestMethod]
+    [CoversNode("images-transform")]
+    public void WhatIsSelected_MovedFromSelect_FloatsOffItsLayer_AndMoveSaysSo()
+    {
+        var blank = LayeredPicture.Blank(40, 30, LayerBackground.Transparent, "Layer 1");
+        var vm = Canvas(blank with { Layers = [((PixelLayer)blank.Layers[0]) with { Pixels = Solid(40, 30, Red, new SKRectI(2, 2, 8, 8)) }] });
+        OnUi(() => vm.Editor.Tool = EditTool.Select);
+        OnUi(() => vm.Editor.RegionMarks.Add(new RegionRectangle(0, 0, 10, 10) { Mode = RegionMode.Replace }));
+
+        _ui.Run(() => vm.Editor.MoveSelectionCommand.ExecuteAsync(null)).GetAwaiter().GetResult();
+        Until(() => vm.Editor.Tool == EditTool.Move);
+
+        Assert.AreEqual(EditTool.Move, _ui.Invoke(() => vm.Editor.Tool), "Move taken up, to drag it");
+        Assert.IsTrue(_ui.Invoke(() => vm.Arranging.HasFloating), "it floats above its layer");
+        Assert.AreEqual(Str.Get("Images.Arrange.MovingSelection"), _ui.Invoke(() => vm.Arranging.Moving), "the panel says what a drag moves");
+        var under = (PixelLayer)Picture(vm).Layers.Single(l => l.Id != Picture(vm).ActiveId);
+        Assert.AreEqual(0, PixelOf(under.Pixels, 5, 5).Alpha, "lifted off its layer");
+    }
+
+    [TestMethod]
+    [CoversNode("images-transform")]
+    public void APhotosSelection_MovedFromSelect_BecomesALayer_ThePhotoHiddenThereByItsMask()
+    {
+        var photo = Path.Combine(_dir, "photo.png");
+        using (var bitmap = Flat(40, 30, new SKColor(40, 90, 200)))
+        {
+            using (var canvas = new SKCanvas(bitmap)) canvas.DrawRect(new SKRect(2, 2, 8, 8), new SKPaint { Color = Red });
+            File.WriteAllBytes(photo, EncodePng(bitmap));
+        }
+        var shell = Substitute.For<IShellServices>();
+        shell.RunOnUiAsync(Arg.Any<Action>()).Returns(call => _ui.Run(call.Arg<Action>()));
+        var vm = _ui.Invoke(() => new ArtistViewModel(photo, shell, _services, config: new ImagesConfig()));
+        Until(() => vm.Canvas is not null);
+        OnUi(() => vm.Editor.Tool = EditTool.Select);
+        OnUi(() => vm.Editor.RegionMarks.Add(new RegionRectangle(0, 0, 10, 10) { Mode = RegionMode.Replace }));
+
+        _ui.Run(() => vm.Editor.MoveSelectionCommand.ExecuteAsync(null)).GetAwaiter().GetResult();
+        Until(() => vm.Editor.Tool == EditTool.Move);
+
+        Assert.IsNotNull(_ui.Invoke(() => vm.CurrentDocument), "the photo became a layered picture");
+        var picture = Picture(vm);
+        Assert.AreEqual(2, picture.Layers.Length);
+        var lifted = (PixelLayer)picture.Active!;
+        AssertNear(Red, PixelOf(lifted.Pixels, 5, 5), because: "what was selected on the photo, lifted");
+        Assert.AreEqual(0, PixelOf(lifted.Pixels, 30, 20).Alpha, "and nothing else");
+        var kept = (PictureLayer)picture.Layers.Single(l => l.Id != lifted.Id);
+        Assert.IsNotNull(kept.Mask, "the photo keeps all it holds, hidden where the selection was");
+        Assert.AreEqual(0, kept.Mask!.Coverage.Read(new SKRectI(5, 5, 6, 6))[0], "hidden under what was lifted");
+        Assert.AreEqual(255, kept.Mask.Coverage.Read(new SKRectI(30, 20, 31, 21))[0], "shown everywhere else");
     }
 
     [TestMethod]

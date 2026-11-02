@@ -365,6 +365,19 @@ public sealed partial class PictureCutter : ObservableObject
         }, ct);
     }
 
+    /// <summary>
+    /// What <paramref name="cutOut"/> keeps of the photo — what is picked, and the region drawn over it — as a mask the photo's
+    /// upright size: how selected each pixel is, 0…255. Made at full size and kept, as a cut-out of it is; null with no photo.
+    /// </summary>
+    internal async Task<PictureMask?> MaskAsync(RecipeCutOut cutOut, CancellationToken ct)
+    {
+        if (_photo is not { } photo) return null;
+        var kept = await _services.CutOuts.MakeAsync(_services, photo, cutOut, _selection, null, ct);
+        var upright = await Task.Run(() => _services.ReadUprightAsync(photo, ct), ct);
+        var mask = await Task.Run(() => Editing.CuttingOut.CutOutMasks.ReadGrey(kept, upright.Width, upright.Height), ct);
+        return new PictureMask(mask, upright.Width, upright.Height, null);
+    }
+
     internal static byte[] Png(byte[] rgba, int width, int height, SKColorSpace space)
     {
         using var bitmap = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul, space));

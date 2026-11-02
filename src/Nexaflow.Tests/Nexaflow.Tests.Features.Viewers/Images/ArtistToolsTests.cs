@@ -201,6 +201,23 @@ public class ArtistToolsTests
     }
 
     [TestMethod]
+    public async Task EditLayers_LiftsWhatIsSelected_IntoALayerOfItsOwn()
+    {
+        var vm = Canvas();
+        await Call(vm, "select_in_picture", new JsonObject
+        {
+            ["shapes"] = new JsonArray(new JsonObject { ["shape"] = "rectangle", ["box"] = new JsonArray(10, 10, 40, 30) }),
+        });
+
+        var answer = await Call(vm, "edit_layers", new JsonObject { ["ops"] = new JsonArray(new JsonObject { ["op"] = "lift", ["copy"] = true }) });
+
+        Assert.IsTrue(answer.Success, answer.ModelText);
+        Until(() => _ui.Invoke(() => vm.CurrentDocument!.Picture.Layers.Length) == 2);
+        Assert.AreEqual(2, _ui.Invoke(() => vm.CurrentDocument!.Picture.Layers.Length), "a layer of its own");
+        Assert.IsFalse(_ui.Invoke(() => vm.Arranging.HasFloating), "the assistant's lift is a layer at once, nothing left floating");
+    }
+
+    [TestMethod]
     public async Task EditLayers_AppliesItsOperationsInOrder_AsOneStep_AndAnswersWithTheLayers()
     {
         var vm = Canvas();

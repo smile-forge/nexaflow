@@ -21,7 +21,7 @@ no picture yet, makes one.
 
 ## Editing
 
-The picture sits on a canvas you can pan and zoom, with eight tools beside it in the order a picture is usually worked on — **Reshape**, **Adjust**, **Retouch**, **Cut out**, **Markup**, **Paint**, **Move** and **Resize** — each saying at the head of its panel what it is for. [Show me](locate:Image_EditToolCrop)
+The picture sits on a canvas you can pan and zoom, with eight tools beside it in the order a picture is usually worked on — **Reshape**, **Adjust**, **Retouch**, **Select**, **Markup**, **Paint**, **Move** and **Resize** — each saying in its tooltip what it is for. [Show me](locate:Image_EditToolCrop)
 
 - Edits never touch the file until you save. They are kept beside the picture in a hidden file named after it, and every view shows the picture with them applied — the carousel, the thumbnails, full screen, and what the assistant is shown. A picture with edits is marked *edited* beside its name.
 - **Reshape** crops, turns, flips and straightens. It shows the whole picture with a crop frame over it. Drag the corners or edges, or drag inside to move it; it stops at the edge of the picture. Choose a shape — free, the picture's own, square, 4:3 or 16:9 — and flip it upright with **Portrait**. A rule-of-thirds grid helps placing. Enter applies the crop; Esc puts it back as it was when you opened the crop tool. [Show me](locate:Image_EditToolCrop,Image_EditAspectFree,Image_EditAspectPortrait)
@@ -29,17 +29,19 @@ The picture sits on a canvas you can pan and zoom, with eight tools beside it in
 - **Adjust** opens on the quick fixes: **Auto enhance** reads the picture and sets the sliders for you, so any of them can still be changed after. Below them are the light — exposure, contrast, highlights and shadows — and the colour — saturation, temperature and tint. Double-click a slider to reset it, or **Reset** them all. [Show me](locate:Image_EditToolAdjust,Image_EditAuto)
 - **AI enhance** cleans the picture up — softness, noise and JPEG blocks — on this machine, and repairs the faces in it as it goes; **Strength** mixes it with the picture as it was. The first time, it needs the AI picture models, offered in the banner above the picture. An enhanced picture is made once and kept, so coming back to it is instant. [Show me](locate:Image_EditToolAdjust,Image_EditAiEnhance)
 - **Markup** draws arrows, boxes, text, pen lines and highlighter. Pick a tool and drag on the picture; for text, click where it goes and type in the panel. **Select** picks an annotation to move it, restyle it or delete it with Del. Annotations stay on what they mark if you crop again later. [Show me](locate:Image_EditToolMarkup,Image_EditMarkupArrow,Image_EditMarkupText)
-- **Cut out** keeps what you select. **Pick** picks something out on this machine: click the thing
-  to keep, right-click (or Alt-click) what to leave out, or drag a box round it — or type what it is, like "mug" or "child
-  in a red vest", and press **Find** to pick out every one. The first time, it needs the AI picture models, offered
-  above the picture. **Marquee** and **Lasso** select by hand, and need nothing downloaded. **Copy** puts
-  what is selected on the clipboard without its background, and **Save cut-out** saves it as a PNG, transparent around it
-  and cropped to it; the picture itself is untouched. [Show me](locate:Image_EditToolCutOut,Image_CutOutMarkPick,Image_CutOutSave)
-  **Remove background** keeps what is selected in the picture itself and makes everything else transparent — an edit like
-  any other, undone or put back with **Keep background**. A JPEG can't be transparent, so it is then saved as a copy,
-    offered as a PNG. [Show me](locate:Image_EditToolCutOut,Image_CutOutRemoveBackground)
-    - **Selecting by hand**, in **Cut out** and **Retouch** alike, is one selection both take, starting from whatever **Pick**
-      has picked. The **Marquee** (M, and M again for an ellipse) drags out a rectangle or an ellipse: Shift once you are
+- **Select** picks out part of the picture, then does something with it. **Pick** picks something out on this machine:
+  click the thing to keep, right-click (or Alt-click) what to leave out, or drag a box round it — or type what it is, like
+  "mug" or "child in a red vest", and press **Find** to pick out every one. The first time, it needs the AI picture
+  models, offered above the picture. **Box** and **Lasso** select by hand, and need nothing downloaded. [Show me](locate:Image_EditToolSelect,Image_CutOutMarkPick)
+  - **With what's selected**: **Move** lifts it off its layer to float where you drag it — a photo becomes a layered picture
+    for it, and keeps all it holds, hidden where the selection was. **New layer** copies it into a layer of its own above,
+    leaving the picture whole. **Erase** takes it to **Retouch**, to rub it out and fill where it was. [Show me](locate:Image_SelectMove,Image_SelectNewLayer,Image_SelectErase)
+  - **Copy** puts what is selected on the clipboard without its background, and **Save cut-out** saves it as a PNG,
+    transparent around it and cropped to it; the picture itself is untouched. **Remove background** keeps what is selected
+    in the picture itself and makes everything else transparent — an edit like any other, undone or put back with **Keep
+    background**. A JPEG can't be transparent, so it is then saved as a copy, offered as a PNG. [Show me](locate:Image_CutOutSave,Image_CutOutRemoveBackground)
+    - **Selecting by hand**, in **Select** and **Retouch** alike, is one selection both take, starting from whatever **Pick**
+      has picked. The **Box** (M, and M again for an ellipse) drags out a rectangle or an ellipse: Shift once you are
       dragging makes it square or round, Alt draws it out from its centre. The **Lasso** (L, and L again to switch) draws
       round something freehand, or click to click as a **Polygon** — click its first point, double-click or press Enter to
       close it; Backspace or a right-click takes the last point back, and Esc lets it go. Each shape starts the selection
@@ -49,15 +51,15 @@ The picture sits on a canvas you can pan and zoom, with eight tools beside it in
       **Smooth** refine its edge by the pixels **Refine by** says. What you select is kept with the edit it is used for, so a
       cut-out or an erase made from it can be undone and redone as it was drawn. [Show me](locate:Image_CutOutMarkMarquee,Image_RegionModeAdd,Image_RegionFeather)
   - **Retouch** rubs things out of the picture — scratches, dust, wires, people, signs — and fills where they were. Mark what
-    to erase with **Pick**, which picks a thing as Cut out does, with **Brush** — brush over it, and right-drag to take
-    marking back — or with the **Marquee** or **Lasso**. Everything selected is erased with what you brush, so pick a person
+    to erase with **Pick**, which picks a thing as Select does, with **Brush** — brush over it, and right-drag to take
+    marking back — or with the **Box** or **Lasso**. Everything selected is erased with what you brush, so pick a person
     and brush their shadow, or lasso a wire and feather it. Then choose how to
     fill it: **AI** fills from what is round it and is best where an edge or shape runs through what you erase; the first
     time it is a download of about 210 MB, offered above the picture. **Content-aware** copies the picture's own texture in,
     sharp on grass, walls, road, sky and fabric, and needs nothing downloaded. **Heal** copies texture from where you
     Alt-click, matched to the light and colour round what you heal. **Erase** makes it one step of your edits — undone like
     any other — and a picture restored with AI enhance is restored as erased. [Show me](locate:Image_EditToolRetouch,Image_EraseMarkBrush,Image_EraseFillAi,Image_EraseApply)
-- Tools that need a model this PC hasn't downloaded yet — picking in **Cut out** and **Retouch**, **AI fill**, **AI enhance** and **AI upscale** — are greyed out until it is: hover one to see why. While its panel is open, the bar above the picture offers the AI picture models — every model AI picture editing uses, as one download. Until then **Cut out** opens on the **Marquee**, and **Retouch** on **Brush** and **Content-aware**, which need nothing. [Show me](locate:Image_EditToolCutOut,Image_EditToolRetouch)
+- Tools that need a model this PC hasn't downloaded yet — picking in **Select** and **Retouch**, **AI fill**, **AI enhance** and **AI upscale** — are greyed out until it is: hover one to see why. While its panel is open, the bar above the picture offers the AI picture models — every model AI picture editing uses, as one download. Until then **Select** opens on the **Box**, and **Retouch** on **Brush** and **Content-aware**, which need nothing. [Show me](locate:Image_EditToolSelect,Image_EditToolRetouch)
 - **Resize** sets the size the picture is saved at, as a percentage or in pixels, keeping its proportions unless you say otherwise. [Show me](locate:Image_EditToolResize)
 - **AI upscale** makes the picture twice or four times its size on this machine, restoring detail rather than stretching it, and turns AI enhance on. Crops and annotations stay where they were. A picture too large to make four times its size is offered twice only. [Show me](locate:Image_EditToolResize,Image_EditUpscaleTwice)
 - **Save options**, beside **Save as copy**, choose whether saving keeps the camera details, location, dates and descriptions, or removes them, and set the quality of a JPEG or WebP. The colour profile is always kept. A dot on the button means Save has something to tell you — why this picture can only be saved as a copy, or what saving it will drop — said inside. [Show me](locate:Image_EditSaveOptions)
@@ -77,7 +79,7 @@ The picture sits on a canvas you can pan and zoom, with eight tools beside it in
 - **Mask** hides part of a layer without erasing it: reveal or hide all of it, make it from the selection, from the layer's transparency or from what Cut out picked, invert it, apply it to the pixels, or delete it. Click the mask's thumbnail and Fill and Delete work on the mask; Alt-click shows the mask alone, Ctrl-click loads it as the selection, and Shift-click turns it off. [Show me](locate:Image_LayersMaskSection)
 - **Generate layer**, above the layers, draws a new layer above the active one with the workspace's image model; it shows while it draws, with **Stop**, and arrives fitted to the canvas. Pictures dropped on the canvas become layers the same way — a photo becoming a layered picture first. [Show me](locate:Image_LayersGenerate)
 - **Paint** works on the active pixel layer — or, while its mask is edited, on the mask in greys — and only inside the selection, where there is one. The **Brush** (B) lays the colour chosen in Markup down, round, with its size, hardness, opacity, flow and spacing; a stroke passed over itself never covers more than its opacity, and a pen's pressure can set the size and the opacity. The **Eraser** (E) takes away, and on a mask shows the layer again. **Pick** (I, or Alt-click while painting) takes a colour from what shows or from the active layer, and **Fill** (G) floods what is near the colour clicked, joined to it or anywhere. Each stroke is one step of the history. A photo has nothing to paint on until a layer is added. [Show me](locate:Image_EditToolPaint,Image_PaintBrush)
-- **Move** (V) drags the active layer; on a pixel layer with a selection, what is selected lifts off to float above it, and **Drop** (or Enter) lays it back. **Transform** (Ctrl+T) puts a frame round the layer, or what is selected: drag a side or corner to scale — Shift keeps the proportions — the round handle to turn it — Shift turns by 15° — and inside it to move it; **Flip** and **Turn** sit in the panel. **Apply** (Enter) keeps it as one step, **Cancel** (Esc) puts it back. A photo or a notes layer is placed afresh rather than resampled, so transforming it again never softens it. [Show me](locate:Image_EditToolMove,Image_ArrangeTransform)
+- **Move** (V) drags what its panel names: the active layer, or — on a pixel layer with a selection — what is selected, lifted off to float above it; **Drop** (or Enter) lays it back. To move part of a photo, select it and press **Move** in Select. [Show me](locate:Image_ArrangeMoving) **Transform** (Ctrl+T) puts a frame round the layer, or what is selected: drag a side or corner to scale — Shift keeps the proportions — the round handle to turn it — Shift turns by 15° — and inside it to move it; **Flip** and **Turn** sit in the panel. **Apply** (Enter) keeps it as one step, **Cancel** (Esc) puts it back. A photo or a notes layer is placed afresh rather than resampled, so transforming it again never softens it. [Show me](locate:Image_EditToolMove,Image_ArrangeTransform)
 - On a **Notes** layer, the Markup tool's arrows, boxes, text and pen work on the layer itself, wherever it has been moved or transformed to.
 - **Rasterize** turns notes or a picture layer into pixels, **Merge down** joins a layer with the one beneath, and **Flatten** makes one layer of them all.
 - **Canvas** sets a new canvas size, anchored at any of nine points, or crops the canvas to the selection. [Show me](locate:Image_LayersCanvasSection)

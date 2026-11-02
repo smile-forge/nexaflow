@@ -699,7 +699,7 @@ public sealed class EditOverlay : FrameworkElement
     protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseRightButtonDown(e);
-        if (Editor is not { ShowOriginal: false } editor || !(editor.IsCutOutTool || editor.IsRetouchTool) || _viewer?.Canvas is not { } canvas
+        if (Editor is not { ShowOriginal: false } editor || !(editor.IsSelectTool || editor.IsRetouchTool) || _viewer?.Canvas is not { } canvas
             || !canvas.SourceToCanvas.TryInvert(out var toSource)) return;
         // Drawing a polygon, a right-click takes its last point back.
         if (editor.DrawsMarquee || editor.DrawsLasso)
@@ -740,7 +740,7 @@ public sealed class EditOverlay : FrameworkElement
             };
         }
         if (editor.DrawsMarquee || editor.DrawsLasso) return Cursors.Cross;
-        if (editor.IsCutOutTool) return editor.PickingModels.IsReady ? Cursors.Cross : Cursors.SizeAll;
+        if (editor.IsSelectTool) return editor.PickingModels.IsReady ? Cursors.Cross : Cursors.SizeAll;
         if (editor.IsRetouchTool) return Cursors.Cross;
         if (editor.IsMarkupTool)
             return editor.MarkupTool switch

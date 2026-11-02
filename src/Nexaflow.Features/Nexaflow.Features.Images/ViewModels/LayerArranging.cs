@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.Editing.Layers;
+using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Selection;
 using Nexaflow.Visuals.Common.Localization;
 using SkiaSharp;
@@ -83,13 +84,14 @@ public sealed partial class LayerArranging : ObservableObject
         if (_floating is not null && Floating() is null) _floating = null;
         OnPropertyChanged(nameof(HasFloating));
         OnPropertyChanged(nameof(OffersLayer));
+        OnPropertyChanged(nameof(Moving));
         TransformCommand.NotifyCanExecuteChanged();
         DropCommand.NotifyCanExecuteChanged();
     }
 
-    private (LayeredSession Document, PixelLayer Floating, PixelLayer Source)? Floating()
+    private (LayeredSession Document, PixelLayer Floating, Layer Source)? Floating()
         => _floating is { } lifted && _viewer.CurrentDocument is { } document
-           && document.Picture.Find(lifted.Floating) is PixelLayer floating && document.Picture.Find(lifted.Source) is PixelLayer source
+           && document.Picture.Find(lifted.Floating) is PixelLayer floating && document.Picture.Find(lifted.Source) is { } source
             ? (document, floating, source) : null;
 
     // The layer moving and transforming reach: the active one, not locked, and one there is something of to move.
@@ -109,7 +111,62 @@ public sealed partial class LayerArranging : ObservableObject
         return true;
     }
 
-    /// <summary>Drop: what floats is laid back into the layer it was lifted from, where it now is — one step.</summary>
+    /// <summary>
+    /// What is selected on the active layer lifted into a layer of its own above it — <paramref name="cut"/>: floating, to be dragged
+    /// where it goes, the layer left without it; otherwise copied, the layer left whole. A pixel layer gives its own pixels; any
+    /// other — the photo, notes — is drawn to pixels for the lift and keeps all it holds, hidden by its mask where the selection was
+    /// when it is cut. One step. <paramref name="floats"/>: what is cut floats, for Move to drag and Drop to lay back; otherwise it
+    /// is a layer of its own at once. Gives whether anything was lifted.
+    /// </summary>
+    public async Task<bool> LiftSelectionAsync(bool cut, bool floats)
+    {
+        if (IsTransforming || _floating is not null || _viewer.CurrentDocument is not { } document) return false;
+        var picture = document.Picture;
+        if (picture.Selection.IsEmpty || Movable(picture) is not { } source) return false;
+
+        TiledPixels pixels;
+        if (source is PixelLayer own) pixels = own.Pixels;
+        else
+        {
+            using var renderer = await document.RendererForAsync(picture with
+            {
+                Layers = [source with { Visible = true, Opacity = 1, Blend = LayerBlend.Normal, ClipsToBelow = false, Mask = null }],
+            });
+            if (renderer is null) return false;   // a picture layer still waiting for what the picture tools make for it
+            pixels = await Task.Run(renderer.Flattened);
+            if (!ReferenceEquals(document.Picture, picture)) return false;   // edited meanwhile: the lift is of a picture gone
+        }
+
+        var lifted = new PixelLayer { Name = Str.Get(cut ? "Images.Arrange.FloatingName" : "Images.Select.LayerName"), Pixels = pixels.KeptWhere(picture.Selection) };
+        document.Commit(p =>
+        {
+            var left = !cut ? p
+                : source is PixelLayer ? p.WithLayer(source.Id, l => ((PixelLayer)l) with { Pixels = ((PixelLayer)l).Pixels.Cleared(p.Selection) })
+                : p.WithLayer(source.Id, l => l with { Mask = new LayerMask(HiddenWhere(l.Mask, p.Selection)) });
+            return left.Inserted(lifted, source.Id);
+        });
+        if (cut && floats) _floating = (lifted.Id, source.Id);
+        OnPropertyChanged(nameof(HasFloating));
+        OnPropertyChanged(nameof(Moving));
+        DropCommand.NotifyCanExecuteChanged();
+        TransformCommand.NotifyCanExecuteChanged();
+        return true;
+    }
+
+    /// <summary>A mask hiding <paramref name="selection"/>, within what <paramref name="mask"/> already hides.</summary>
+    private static TiledCoverage HiddenWhere(LayerMask? mask, TiledCoverage selection)
+        => mask is { Enabled: true } shown ? shown.Coverage.Combined(selection.Inverted(), RegionMode.Intersect) : selection.Inverted();
+
+    /// <summary>
+    /// What a drag moves now, as the panel says it: what floats, or what is selected on a pixel layer, as the selection; otherwise
+    /// the active layer, by its name. Null where there is nothing to move — no layered picture, or no layer that can be moved.
+    /// </summary>
+    public string? Moving => _viewer.CurrentDocument?.Picture is not { } picture || Movable(picture) is not { } layer ? null
+        : HasFloating || layer is PixelLayer && !picture.Selection.IsEmpty ? Str.Get("Images.Arrange.MovingSelection")
+        : Str.Format("Images.Arrange.MovingLayerFormat", layer.Name);
+
+    /// <summary>Drop: what floats is laid back into the pixel layer it was lifted from, where it now is — one step; lifted from
+    /// any other layer, it stays a layer of its own where it now is.</summary>
     [RelayCommand(CanExecute = nameof(CanDrop))]
     public void Drop()
     {
@@ -119,8 +176,10 @@ public sealed partial class LayerArranging : ObservableObject
             return;
         }
         var (document, floating, source) = held;
-        document.Commit(p => p.WithLayer(source.Id, l => l is PixelLayer pixels ? pixels with { Pixels = pixels.Pixels.MergedWith(floating.Pixels) } : l)
-                              .Without(floating.Id) with { ActiveId = source.Id, EditsMask = false });
+        // Lifted from pixels, it is laid back into them; lifted from a photo or notes, which keep their own, it stays the layer it is.
+        if (source is PixelLayer)
+            document.Commit(p => p.WithLayer(source.Id, l => l is PixelLayer pixels ? pixels with { Pixels = pixels.Pixels.MergedWith(floating.Pixels) } : l)
+                                  .Without(floating.Id) with { ActiveId = source.Id, EditsMask = false });
         _floating = null;
         OnPropertyChanged(nameof(HasFloating));
     }

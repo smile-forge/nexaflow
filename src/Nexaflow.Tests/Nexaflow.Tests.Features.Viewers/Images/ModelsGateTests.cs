@@ -178,7 +178,7 @@ public class ModelsGateTests
             Assert.IsFalse(editor.CanToggleAiEnhance, "AI enhance waits for the picture tools");
             Assert.IsFalse(editor.UpscaleTwiceOffered);
 
-            OnUi(() => editor.Tool = EditTool.CutOut);
+            OnUi(() => editor.Tool = EditTool.Select);
             Assert.IsTrue(editor.PickingModels.ShowsOffer);
 
             OnUi(() => editor.Tool = EditTool.Crop);
@@ -188,7 +188,7 @@ public class ModelsGateTests
             selection.State.Returns(ToolModelsState.Ready);
             selection.Changed += Raise.Event();
             Until(() => ui.Invoke(() => editor.PickingModels.IsReady));
-            OnUi(() => editor.Tool = EditTool.CutOut);
+            OnUi(() => editor.Tool = EditTool.Select);
             Assert.IsFalse(editor.PickingModels.ShowsOffer, "here now, so nothing to offer");
             vm.Dispose();
         }

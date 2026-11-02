@@ -119,6 +119,8 @@ internal sealed class ArtistTools(ArtistViewModel artist, IShellServices? shell,
           + "set {layer?, name?, visible?, opacity? 0-100, blend?, locked?, clip?, keep_transparency?, active?}; "
           + "move {layer?, above|below|into: layer, or to: top|bottom}; duplicate {layer?}; delete {layer?}; merge_down {layer?}; "
           + "flatten {}; rasterize {layer?}; "
+          + "lift {layer?, copy?: true}, what is selected into a layer of its own above — cut out of the layer unless copy; a photo or "
+          + "notes keep all they hold, hidden by their mask where it was; "
           + "transform {layer?, move: [dx, dy], scale: percent, rotate: degrees, flip: horizontal|vertical} about its middle; "
           + "fill {layer?, colour: #RRGGBB} and clear {layer?}, what is selected on a pixel layer or its mask; "
           + "mask {layer?, make: reveal_all|hide_all|from_selection|hiding_selection|from_transparency|invert|apply|delete|enable|disable}; "
@@ -598,7 +600,7 @@ internal sealed class ArtistTools(ArtistViewModel artist, IShellServices? shell,
         {
             if (!artist.IsEditing) return false;
             var editor = artist.Editor;
-            if (!artist.IsLayered && !editor.TakesSelection) editor.Tool = EditTool.CutOut;   // a photo's selection is Cut out's and Retouch's
+            if (!artist.IsLayered && !editor.TakesSelection) editor.Tool = EditTool.Select;   // a photo's selection is Cut out's and Retouch's
             var marks = editor.RegionMarks;
             switch (whole)
             {
@@ -687,7 +689,9 @@ internal sealed class ArtistTools(ArtistViewModel artist, IShellServices? shell,
     private async Task<ToolResult> EditLayersAsync(JsonArray? ops)
     {
         if (ops is not { Count: > 0 }) return ToolResult.Error("no operations", "Give 'ops', a list of operations.");
-        var made = await OnUiAsync(() => !artist.IsEditing ? "no picture" : artist.MakeLayered() is null ? "not ready" : null);
+        // A photo becomes a layered picture keeping what is selected on it, so a lift has something to lift.
+        var made = await OnUiAsync(() => artist.IsEditing ? null : "no picture");
+        if (made is null && await await OnUiAsync(artist.Editor.LayeredKeepingSelectionAsync) is null) made = "not ready";
         if (made == "no picture") return NoPicture();
         if (made is not null) return ToolResult.Error("not ready", "The picture is not drawn yet; try again in a moment.");
 
@@ -835,6 +839,14 @@ internal sealed class ArtistTools(ArtistViewModel artist, IShellServices? shell,
                 if (!layers.RasterizeCommand.CanExecute(null)) return Outcome.No("only a picture or notes layer is rasterized");
                 pending = layers.RasterizeCommand.ExecuteAsync(null);
                 return Outcome.Ok("rasterized");
+            case "lift":
+            {
+                if (Target(out var liftWhy) is not { } item) return Outcome.No(liftWhy!);
+                if (artist.CurrentDocument!.Picture.Selection.IsEmpty) return Outcome.No("nothing is selected: select it first with select_in_picture");
+                bool copy = op["copy"]?.GetValue<bool>() == true;
+                pending = artist.Arranging.LiftSelectionAsync(cut: !copy, floats: false);
+                return Outcome.Ok(copy ? $"copied what is selected on '{item.Name}' into a layer above it" : $"lifted what is selected off '{item.Name}' into a layer above it");
+            }
             case "transform":
             {
                 if (Target(out var why) is not { } item) return Outcome.No(why!);
@@ -1098,7 +1110,7 @@ internal sealed class ArtistTools(ArtistViewModel artist, IShellServices? shell,
         {
             if (artist.CurrentSession is not { } session) return;
             photo = session.Path;
-            artist.Editor.Tool = EditTool.CutOut;
+            artist.Editor.Tool = EditTool.Select;
             if (!string.IsNullOrEmpty(what)) finding = cutter.FindNamedAsync(what);
             else picking = cutter.BoxedAsync(boxed!);
         });

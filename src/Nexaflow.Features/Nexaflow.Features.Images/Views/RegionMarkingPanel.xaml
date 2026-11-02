@@ -1,4 +1,5 @@
 <UserControl x:Class="Nexaflow.Features.Images.Views.RegionMarkingPanel"
+xmlns:icons="clr-namespace:Nexaflow.Visuals.Icons;assembly=Nexaflow.Visuals.Icons"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
@@ -20,29 +21,29 @@
     <StackPanel>
         <!-- What the marquee draws. -->
         <UniformGrid Rows="1" Margin="0,8,0,0" Visibility="{Binding DrawsMarquee, Converter={StaticResource BoolToVis}}">
-            <RadioButton GroupName="RegionMarquee" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_RegionMarqueeRectangle"
+            <RadioButton GroupName="RegionMarquee" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_RegionMarqueeRectangle" AutomationProperties.Name="{loc:Str Images.Region.Rectangle}"
                          ToolTip="{loc:Str Images.Region.RectangleTip}"
                          IsChecked="{Binding RegionMarks.Marquee, Converter={StaticResource EnumToBool}, ConverterParameter=Rectangle}">
-                <TextBlock Text="{loc:Str Images.Region.Rectangle}" FontSize="11"/>
+            <icons:IconGlyph Icon="fluent:rectangle_landscape" FontSize="15"/>
             </RadioButton>
-            <RadioButton GroupName="RegionMarquee" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_RegionMarqueeEllipse"
+            <RadioButton GroupName="RegionMarquee" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_RegionMarqueeEllipse" AutomationProperties.Name="{loc:Str Images.Region.Ellipse}"
                          ToolTip="{loc:Str Images.Region.EllipseTip}"
                          IsChecked="{Binding RegionMarks.Marquee, Converter={StaticResource EnumToBool}, ConverterParameter=Ellipse}">
-                <TextBlock Text="{loc:Str Images.Region.Ellipse}" FontSize="11"/>
+            <icons:IconGlyph Icon="fluent:oval" FontSize="15"/>
             </RadioButton>
         </UniformGrid>
 
         <!-- How the lasso draws. -->
         <UniformGrid Rows="1" Margin="0,8,0,0" Visibility="{Binding DrawsLasso, Converter={StaticResource BoolToVis}}">
-            <RadioButton GroupName="RegionLasso" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_RegionLassoFreehand"
+            <RadioButton GroupName="RegionLasso" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_RegionLassoFreehand" AutomationProperties.Name="{loc:Str Images.Region.Freehand}"
                          ToolTip="{loc:Str Images.Region.FreehandTip}"
                          IsChecked="{Binding RegionMarks.Lasso, Converter={StaticResource EnumToBool}, ConverterParameter=Freehand}">
-                <TextBlock Text="{loc:Str Images.Region.Freehand}" FontSize="11"/>
+            <icons:IconGlyph Icon="fluent:hand_draw" FontSize="15"/>
             </RadioButton>
-            <RadioButton GroupName="RegionLasso" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_RegionLassoPolygon"
+            <RadioButton GroupName="RegionLasso" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_RegionLassoPolygon" AutomationProperties.Name="{loc:Str Images.Region.Polygon}"
                          ToolTip="{loc:Str Images.Region.PolygonTip}"
                          IsChecked="{Binding RegionMarks.Lasso, Converter={StaticResource EnumToBool}, ConverterParameter=Polygon}">
-                <TextBlock Text="{loc:Str Images.Region.Polygon}" FontSize="11"/>
+            <icons:IconGlyph Icon="fluent:pentagon" FontSize="15"/>
             </RadioButton>
         </UniformGrid>
 
@@ -50,25 +51,25 @@
         <StackPanel Visibility="{Binding DrawsShapes, Converter={StaticResource BoolToVis}}">
             <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Region.Mode}"/>
             <UniformGrid Rows="1">
-                <RadioButton GroupName="RegionMode" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_RegionModeReplace"
+                <RadioButton GroupName="RegionMode" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_RegionModeReplace" AutomationProperties.Name="{loc:Str Images.Region.Replace}"
                              ToolTip="{loc:Str Images.Region.ReplaceTip}"
                              IsChecked="{Binding RegionMarks.Mode, Converter={StaticResource EnumToBool}, ConverterParameter=Replace}">
-                    <TextBlock Text="{loc:Str Images.Region.Replace}" FontSize="11"/>
+                <icons:IconGlyph Icon="fluent:square" FontSize="15"/>
                 </RadioButton>
-                <RadioButton GroupName="RegionMode" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_RegionModeAdd"
+                <RadioButton GroupName="RegionMode" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_RegionModeAdd" AutomationProperties.Name="{loc:Str Images.Region.Add}"
                              ToolTip="{loc:Str Images.Region.AddTip}"
                              IsChecked="{Binding RegionMarks.Mode, Converter={StaticResource EnumToBool}, ConverterParameter=Add}">
-                    <TextBlock Text="{loc:Str Images.Region.Add}" FontSize="11"/>
+                <icons:IconGlyph Icon="fluent:shape_union" FontSize="15"/>
                 </RadioButton>
-                <RadioButton GroupName="RegionMode" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_RegionModeSubtract"
+                <RadioButton GroupName="RegionMode" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_RegionModeSubtract" AutomationProperties.Name="{loc:Str Images.Region.Subtract}"
                              ToolTip="{loc:Str Images.Region.SubtractTip}"
                              IsChecked="{Binding RegionMarks.Mode, Converter={StaticResource EnumToBool}, ConverterParameter=Subtract}">
-                    <TextBlock Text="{loc:Str Images.Region.Subtract}" FontSize="11"/>
+                <icons:IconGlyph Icon="fluent:shape_subtract" FontSize="15"/>
                 </RadioButton>
-                <RadioButton GroupName="RegionMode" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_RegionModeIntersect"
+                <RadioButton GroupName="RegionMode" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_RegionModeIntersect" AutomationProperties.Name="{loc:Str Images.Region.Intersect}"
                              ToolTip="{loc:Str Images.Region.IntersectTip}"
                              IsChecked="{Binding RegionMarks.Mode, Converter={StaticResource EnumToBool}, ConverterParameter=Intersect}">
-                    <TextBlock Text="{loc:Str Images.Region.Intersect}" FontSize="11"/>
+                <icons:IconGlyph Icon="fluent:shape_intersect" FontSize="15"/>
                 </RadioButton>
             </UniformGrid>
 

@@ -92,6 +92,17 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         CheckInvoke("Clear what is selected", "Image_LayersClear");
         CheckDoes("Merge it down", "Image_LayersMergeDown", () => LayersBecome(2));
 
+        // ── Select, then act on what is selected ──
+        Check("Select offers what to do with what is selected", () => SelectRadio("Image_EditToolSelect") && WaitForFs(() => Exists("Image_SelectNewLayer"), 3));
+        CheckInvoke("Select all of it", "Image_RegionSelectAll");
+        CheckDoes("New layer copies it into a layer of its own", "Image_SelectNewLayer", () => LayersBecome(3));
+        CheckDoes("Move lifts it to float, Move taken up and saying what it moves", "Image_SelectMove",
+                  () => WaitForFs(() => Exists("Image_ArrangeMoving") && Exists("Image_ArrangeDrop"), 5));
+        CheckDoes("Drop lays it back", "Image_ArrangeDrop", () => LayersBecome(3));
+        Check("Back in Select", () => SelectRadio("Image_EditToolSelect") && WaitForFs(() => Exists("Image_SelectErase"), 3));
+        CheckDoes("Erase takes it to Retouch", "Image_SelectErase", () => WaitForFs(() => Exists("Image_EraseApply"), 3));
+        CheckDoes("The copy goes again", "Image_LayersDelete", () => LayersBecome(2));
+
         // ── Masks ──
         Check("The mask section opens", () => Expand("Image_LayersMaskSection"));
         // A layer has one mask: each way of making one is offered while it has none.

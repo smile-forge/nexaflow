@@ -159,7 +159,7 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
             // Cut out: picture selection is never here (the AI folder is the journey's own), so picking waits for it, saying why, and
             // the tool opens on the marquee, which needs nothing; the AI tools journey picks where it is here.
             Check("Cut out opens on the marquee: picking waits for picture selection, and nothing is selected to take",
-                  () => SelectRadio("Image_EditToolCutOut") && WaitForFs(() => Exists("Image_RegionMarqueeRectangle"), 3)
+                  () => SelectRadio("Image_EditToolSelect") && WaitForFs(() => Exists("Image_RegionMarqueeRectangle"), 3)
                         && !Enabled("Image_CutOutMarkPick") && !Enabled("Image_RegionSelectSubject") && !Enabled("Image_RegionFeather")
                         && !Enabled("Image_CutOutCopy") && !Enabled("Image_CutOutSave"));
             Check("The marquee draws an ellipse or a rectangle", () => SelectRadio("Image_RegionMarqueeEllipse") && SelectRadio("Image_RegionMarqueeRectangle"));

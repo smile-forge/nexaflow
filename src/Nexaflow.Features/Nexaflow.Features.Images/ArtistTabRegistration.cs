@@ -57,7 +57,7 @@ public sealed class ArtistTabRegistration : IPageRegistration
     /// <summary>The start screen opens with no picture at all, so Artist is offered wherever pages are launched.</summary>
     public bool CanBeContextItem => true;
 
-    /// <summary>Maps a "tool" page param to the editor's tool it opens on — "cutout" for Cut out, "reshape" (or "crop") for Reshape;
+    /// <summary>Maps a "tool" page param to the editor's tool it opens on — "select" for Select, "reshape" (or "crop") for Reshape;
     /// none, the editor's own.</summary>
     public static EditTool? ParseTool(string? tool) =>
         string.Equals(tool, "reshape", StringComparison.OrdinalIgnoreCase) ? EditTool.Crop

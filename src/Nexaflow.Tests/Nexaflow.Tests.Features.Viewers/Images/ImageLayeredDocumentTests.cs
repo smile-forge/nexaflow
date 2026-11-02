@@ -295,7 +295,7 @@ public class ImageLayeredDocumentTests
         Assert.AreEqual(0, Picture(vm).All.OfType<PictureLayer>().Count(), "no recipe step: the pixels themselves");
 
         Select(vm, 4, 4, 12, 12);
-        OnUi(() => vm.Editor.Tool = EditTool.CutOut);
+        OnUi(() => vm.Editor.Tool = EditTool.Select);
         Run(vm.Editor.RemoveBackgroundCommand);
         Assert.AreEqual(255, PixelOf(ActivePixels(vm), 8, 8).Alpha, "what is selected is kept");
         Assert.AreEqual(0, PixelOf(ActivePixels(vm), 20, 20).Alpha, "what is not is deleted");

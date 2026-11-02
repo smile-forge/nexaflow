@@ -320,7 +320,7 @@ public class ImageSelectionTests
     [CoversNode("images-selection-marquee")]
     public void AMarquee_RemovesTheBackground_WithoutPictureSelection()
     {
-        var vm = Editing(EditTool.CutOut);
+        var vm = Editing(EditTool.Select);
         Assert.AreEqual(CutOutMarkWay.Marquee, _ui.Invoke(() => vm.Editor.CutOutWay), "without picture selection, Cut out marks with the marquee");
         Assert.IsTrue(_ui.Invoke(() => vm.Editor.DrawsMarquee));
 
@@ -344,7 +344,7 @@ public class ImageSelectionTests
     public void AShape_MeetsWhatIsPicked_AndOneThatReplacesLetsThePicksGo()
     {
         var square = new Square();
-        var vm = Editing(EditTool.CutOut, square);
+        var vm = Editing(EditTool.Select, square);
         OnUi(() => vm.Cutter.Click(8, 8, include: true));
         Until(() => vm.Editor.RegionMarks.HasSelection);
         Assert.AreEqual(255, _ui.Invoke(() => vm.Editor.RegionMarks.Shown!.Coverage[8, 8]), "what is picked is selected");
@@ -402,7 +402,7 @@ public class ImageSelectionTests
     public async Task SaveCutOut_TakesTheWholeSelection_ItsFeatheredEdgeKept()
     {
         var saved = Path.Combine(_dir, "wall cut out.png");
-        var vm = Editing(EditTool.CutOut, shell: Shell(saveAs: saved));
+        var vm = Editing(EditTool.Select, shell: Shell(saveAs: saved));
         OnUi(() =>
         {
             vm.Editor.RegionMarks.Add(new RegionRectangle(8, 4, 24, 20) { Mode = RegionMode.Replace });
@@ -424,7 +424,7 @@ public class ImageSelectionTests
     [CoversNode("images-selection-refine")]
     public void SelectAll_Invert_AndDeselect_ActOnTheWholeSelection()
     {
-        var vm = Editing(EditTool.CutOut);
+        var vm = Editing(EditTool.Select);
         OnUi(() => vm.Editor.RegionMarks.SelectAllCommand.Execute(null));
         Assert.AreEqual(255, _ui.Invoke(() => vm.Editor.RegionMarks.Shown!.Coverage[31, 23]), "all of the photo is selected");
         OnUi(() => vm.Editor.RegionMarks.InvertCommand.Execute(null));

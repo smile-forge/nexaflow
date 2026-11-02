@@ -333,6 +333,23 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         return document;
     }
 
+    /// <summary>
+    /// The picture as a layered one, what is selected on it carried over: open already, as it is; a photo, made the first layer of
+    /// one — what <paramref name="selected"/> picks and draws on it selected on the canvas, where it now stands. Null where no
+    /// photo is ready.
+    /// </summary>
+    internal async Task<LayeredSession?> LayeredKeepingSelectionAsync(RecipeCutOut? selected, CancellationToken ct)
+    {
+        if (CurrentDocument is { } open) return open;
+        if (CurrentSession is not { Proxy: { } proxy }) return null;
+        var source = proxy.SourceSize;
+        var mask = selected is null ? null : await Cutter.MaskAsync(selected, ct);
+        if (MakeLayered() is not { } document) return null;
+        if (mask is not null && document.Picture.Active is PictureLayer photo)
+            document.Commit(p => p with { Selection = DocumentSelection.OnCanvas(mask, photo, source, p) });
+        return document;
+    }
+
     /// <summary>A new pixel layer above the active one — the photo made a layered picture first, where it is not one yet.</summary>
     [RelayCommand(CanExecute = nameof(HasSession))]
     private void AddLayer()
@@ -524,7 +541,12 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         {
             var picture = document.Picture;
             if (picture.Active is not PictureLayer layer || document.RenderingOf(layer.Id)?.Proxy is not { } proxy) return null;
-            var source = proxy.SourceSize;
+            return OnCanvas(picked, layer, proxy.SourceSize, picture);
+        }
+
+        /// <summary><paramref name="picked"/> — a mask over a picture layer's photo, at any size — where it lies on the canvas.</summary>
+        internal static TiledCoverage OnCanvas(PictureMask picked, PictureLayer layer, SKSize source, LayeredPicture picture)
+        {
             var shownToSource = SKMatrix.CreateScale((float)(source.Width / picked.Width), (float)(source.Height / picked.Height));
             var shown = TiledCoverage.FromBytes(picked.Pixels, picked.Width, picked.Height);
             return CoverageMapping.Map(shown, shownToSource.PostConcat(LayeredSession.SourceToCanvas(layer, source)), picture.Width, picture.Height);

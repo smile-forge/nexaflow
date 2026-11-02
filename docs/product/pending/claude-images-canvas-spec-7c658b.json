@@ -868,10 +868,38 @@
           "class": "PictureModels"
         }
       ]
+    },
+    "images-edit-cutout": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PictureCutter.cs",
+          "class": "PictureCutter"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "title_path": [
+            "Images",
+            "Editing"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/EditOverlay.cs",
+          "class": "EditOverlay"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/LayerArranging.cs",
+          "class": "LayerArranging",
+          "method": "LiftSelectionAsync"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 48,
+  "changed_sets": 49,
   "touched_nodes": [
     "images-ai-act-select-in-picture",
     "images-edit",
@@ -883,6 +911,7 @@
     "images-edit-ai-generate-layer",
     "images-edit-ai-history",
     "images-edit-banner",
+    "images-edit-cutout",
     "images-edit-models",
     "images-edit-revert",
     "images-flip",

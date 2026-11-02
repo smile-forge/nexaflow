@@ -16,10 +16,14 @@
             </ResourceDictionary.MergedDictionaries>
             <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
             <cv:InverseBoolToVisibilityConverter x:Key="NotBoolVis"/>
+            <cv:NullToVisibilityConverter x:Key="NullToCollapsed"/>
         </ResourceDictionary>
     </UserControl.Resources>
 
     <StackPanel>
+        <!-- What a drag moves now: what is selected, or the layer by its name. -->
+        <TextBlock Style="{StaticResource EditSectionHeader}" Text="{Binding Moving}" TextTrimming="CharacterEllipsis"
+                   Visibility="{Binding Moving, Converter={StaticResource NullToCollapsed}}" AutomationProperties.AutomationId="Image_ArrangeMoving"/>
 
 
         <StackPanel Visibility="{Binding OffersLayer, Converter={StaticResource BoolVis}}" Margin="0,8,0,0">

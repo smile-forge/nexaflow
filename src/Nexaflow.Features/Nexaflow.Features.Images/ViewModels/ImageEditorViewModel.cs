@@ -120,13 +120,13 @@ public partial class ImageEditorViewModel : ObservableObject
     partial void OnCutOutWayChanged(CutOutMarkWay value) => RegionMarks.CancelDraft();
 
     /// <summary>The open tool draws on the photo with the marquee.</summary>
-    public bool DrawsMarquee => IsCutOutTool && CutOutWay == CutOutMarkWay.Marquee || IsRetouchTool && EraseMarks.Way == EraseMarkWay.Marquee;
+    public bool DrawsMarquee => IsSelectTool && CutOutWay == CutOutMarkWay.Marquee || IsRetouchTool && EraseMarks.Way == EraseMarkWay.Marquee;
 
     /// <summary>The open tool draws on the photo with the lasso.</summary>
-    public bool DrawsLasso => IsCutOutTool && CutOutWay == CutOutMarkWay.Lasso || IsRetouchTool && EraseMarks.Way == EraseMarkWay.Lasso;
+    public bool DrawsLasso => IsSelectTool && CutOutWay == CutOutMarkWay.Lasso || IsRetouchTool && EraseMarks.Way == EraseMarkWay.Lasso;
 
     /// <summary>The open tool picks things out of the photo by picture selection.</summary>
-    public bool PicksByModel => IsCutOutTool && CutOutWay == CutOutMarkWay.Pick || IsRetouchTool && EraseMarks.IsPicking;
+    public bool PicksByModel => IsSelectTool && CutOutWay == CutOutMarkWay.Pick || IsRetouchTool && EraseMarks.IsPicking;
 
     /// <summary>The open tool draws on the photo with the marquee or the lasso.</summary>
     public bool DrawsShapes => DrawsMarquee || DrawsLasso;
@@ -147,12 +147,12 @@ public partial class ImageEditorViewModel : ObservableObject
 
     private void MarkBy(CutOutMarkWay cutOut, EraseMarkWay erase)
     {
-        if (IsCutOutTool) CutOutWay = cutOut;
+        if (IsSelectTool) CutOutWay = cutOut;
         else if (IsRetouchTool) EraseMarks.Way = erase;
     }
 
     /// <summary>Whether the open tool takes a selection — Cut out and Erase do.</summary>
-    public bool TakesSelection => IsCutOutTool || IsRetouchTool;
+    public bool TakesSelection => IsSelectTool || IsRetouchTool;
 
     /// <summary>Keeps only what is selected — what the cut-out tool has picked and the region drawn over it — in the photo or
     /// picture layer itself, an edit like any other, undone or put back by Keep background; the mask is made at full size in the
@@ -215,6 +215,45 @@ public partial class ImageEditorViewModel : ObservableObject
     /// <summary>Puts the photo's background back.</summary>
     [RelayCommand(CanExecute = nameof(RemovesBackground))]
     private void KeepBackground() => Commit(r => r with { CutOut = null });
+
+    // ── With what is selected: moved, made a layer, or erased ─────────────────
+
+    /// <summary>Move it: what is selected lifted off its layer to float where Move drags it — a photo made a layered picture first,
+    /// what was selected on it carried over — and Move taken up.</summary>
+    [RelayCommand(CanExecute = nameof(CanKeepCutOut))]
+    private Task MoveSelection() => LiftSelectionAsync(cut: true);
+
+    /// <summary>New layer: what is selected copied into a layer of its own above its layer, which is left whole — a photo made a
+    /// layered picture first, what was selected on it carried over.</summary>
+    [RelayCommand(CanExecute = nameof(CanKeepCutOut))]
+    private Task LayerFromSelection() => LiftSelectionAsync(cut: false);
+
+    /// <summary>The picture as a layered one: open already, as it is; a photo, made one with what is picked and drawn on it selected on
+    /// its canvas. Null where no photo is ready.</summary>
+    internal Task<LayeredSession?> LayeredKeepingSelectionAsync()
+        => _viewer.LayeredKeepingSelectionAsync(_viewer.CurrentDocument is null ? MarkedCutOut : null, CancellationToken.None);
+
+    private async Task LiftSelectionAsync(bool cut)
+    {
+        try
+        {
+            if (await LayeredKeepingSelectionAsync() is null) return;
+            if (!await _viewer.Arranging.LiftSelectionAsync(cut, floats: cut))
+            {
+                _shell?.ShowNotification(Str.Get("Images.Select.NothingToLift"));
+                return;
+            }
+            if (cut) Tool = EditTool.Move;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or InvalidDataException)
+        {
+            _shell?.ShowError(Str.Format("Images.Select.LiftFailedFormat", ex.Message));
+        }
+    }
+
+    /// <summary>Erase it: Retouch, on what is selected — the fill to choose, then Erase.</summary>
+    [RelayCommand(CanExecute = nameof(CanKeepCutOut))]
+    private void EraseSelection() => Tool = EditTool.Retouch;
 
     /// <summary>The Erase tool's marks: brush strokes, the fill, where the healing brush copies from.</summary>
     public EraseMarking EraseMarks { get; }
@@ -307,7 +346,7 @@ public partial class ImageEditorViewModel : ObservableObject
     /// <summary>The models the open panel needs are offered over the picture while they are not here.</summary>
     private void WantModels(bool editing)
     {
-        PickingModels.IsWanted   = editing && Tool is EditTool.CutOut or EditTool.Retouch;
+        PickingModels.IsWanted   = editing && Tool is EditTool.Select or EditTool.Retouch;
         ErasingModels.IsWanted   = editing && Tool == EditTool.Retouch;
         RestoringModels.IsWanted = editing && Tool is EditTool.Adjust or EditTool.Resize;
     }
@@ -394,6 +433,9 @@ public partial class ImageEditorViewModel : ObservableObject
         EraseCommand.NotifyCanExecuteChanged();
         CopyCutOutCommand.NotifyCanExecuteChanged();
         SaveCutOutCommand.NotifyCanExecuteChanged();
+        MoveSelectionCommand.NotifyCanExecuteChanged();
+        LayerFromSelectionCommand.NotifyCanExecuteChanged();
+        EraseSelectionCommand.NotifyCanExecuteChanged();
     }
 
     private ImageEditSession? Session => _viewer.CurrentSession;
@@ -413,7 +455,7 @@ public partial class ImageEditorViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsCropTool))]
     [NotifyPropertyChangedFor(nameof(IsAdjustTool))]
     [NotifyPropertyChangedFor(nameof(IsRetouchTool))]
-    [NotifyPropertyChangedFor(nameof(IsCutOutTool))]
+    [NotifyPropertyChangedFor(nameof(IsSelectTool))]
     [NotifyPropertyChangedFor(nameof(IsMarkupTool))]
     [NotifyPropertyChangedFor(nameof(IsResizeTool))]
     [NotifyPropertyChangedFor(nameof(IsPaintTool), nameof(IsMoveTool))]
@@ -424,7 +466,7 @@ public partial class ImageEditorViewModel : ObservableObject
     public bool IsCropTool    => Tool == EditTool.Crop;
     public bool IsAdjustTool  => Tool == EditTool.Adjust;
     public bool IsRetouchTool => Tool == EditTool.Retouch;
-    public bool IsCutOutTool  => Tool == EditTool.CutOut;
+    public bool IsSelectTool  => Tool == EditTool.Select;
     public bool IsMarkupTool  => Tool == EditTool.Markup;
     public bool IsResizeTool  => Tool == EditTool.Resize;
     public bool IsPaintTool   => Tool == EditTool.Paint;
