@@ -139,11 +139,38 @@
           "method": "ShowsAtOnce"
         }
       ]
+    },
+    "markdown-find": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/ViewModels/MarkdownViewModel.Search.cs",
+          "class": "MarkdownViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/ViewModels/MarkdownViewModel.Search.cs",
+          "class": "MarkdownViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.Find.cs",
+          "class": "MarkdownSurface",
+          "method": "FindInRendered"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/ViewModels/MarkdownViewModel.Search.cs",
+          "class": "MarkdownViewModel",
+          "method": "SourceLaidOut"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 3,
+  "changed_sets": 4,
   "touched_nodes": [
+    "markdown-find",
     "markdown-source-box",
     "markdown-split",
     "windowed-reading"

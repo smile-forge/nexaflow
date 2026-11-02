@@ -52,11 +52,13 @@ public partial class MarkdownView : UserControl, IPageView
         viewModel.StepRendered          = Editor.StepSearch;
         viewModel.ClearRendered         = Editor.ClearSearch;
         viewModel.RenderedMarkPositions = Editor.SearchMarkPositions;
+        viewModel.SourceMarkPositions   = SourceBox.SearchMarkPositions;
         viewModel.SourceSelectionRequested += SelectInSource;
         viewModel.PropertyChanged += OnSearchPropertyChanged;
 
         // Laid out again — folded, opened, laid further, written in — so where the matches stand is read again.
         Editor.PreRender += (_, _) => viewModel.RenderedLaidOut();
+        SourceBox.PreRender += (_, _) => viewModel.SourceLaidOut();
 
         // A heading came, went or now says something else: the outline lists the rendered document's headings again, while it shows.
         Editor.OutlineChanged += (_, _) =>

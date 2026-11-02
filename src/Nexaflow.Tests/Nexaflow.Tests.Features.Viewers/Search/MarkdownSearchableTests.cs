@@ -284,6 +284,26 @@ public sealed class MarkdownSearchableTests : SearchableContentConformanceTests
     });
 
     [TestMethod]
+    public void InTheSourceView_TheMarksAreWhereTheSourceBoxStandsThem_AndAreReadAgainWhenItIsLaidOutAgain() => WithPage(async page =>
+    {
+        var vm = (MarkdownViewModel)page;
+        vm.ViewMode = MarkdownViewMode.Source;
+
+        IReadOnlyList<double> marks = [0.2, 0.3];
+        (IReadOnlyList<(int Offset, int Length)> Places, int At)? washed = null;
+        vm.SourceMarkPositions = () => washed is { Places.Count: > 0 } ? marks : [];
+        vm.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(MarkdownViewModel.SourceSearch)) washed = vm.SourceSearch; };
+
+        await vm.SearchAsync(new SearchRequest(LiteralTermInContent), display: true, default);
+        CollectionAssert.AreEqual(new[] { 0.2, 0.3 }, vm.MiniMapMarks.ToArray(), "the marks are read once the box has what it washes");
+
+        marks = [0.2, 0.9];   // laid further down, the second stands lower than its line said
+        vm.SourceLaidOut();
+
+        CollectionAssert.AreEqual(new[] { 0.2, 0.9 }, vm.MiniMapMarks.ToArray(), "the strip follows the box's page");
+    });
+
+    [TestMethod]
     public void ClearingSearch_LeavesTheViewModeUntouched() => WithPage(async page =>
     {
         var vm = (MarkdownViewModel)page;

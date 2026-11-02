@@ -70,6 +70,12 @@ public sealed partial class MarkdownViewModel : ISearchable
     /// <summary>The rendered surface's normalised match positions, for the minimap.</summary>
     public Func<IReadOnlyList<double>>? RenderedMarkPositions { get; set; }
 
+    /// <summary>
+    /// The source box's normalised positions of the places it washes, for the minimap: where each stands on its page, wrapped rows and
+    /// all, rather than which line it is on. Set by the view.
+    /// </summary>
+    public Func<IReadOnlyList<double>>? SourceMarkPositions { get; set; }
+
     private IReadOnlyList<double> _miniMapMarks = [];
 
     /// <summary>Normalised (0–1) positions of the matches for the minimap tick strip.</summary>
@@ -205,8 +211,8 @@ public sealed partial class MarkdownViewModel : ISearchable
         _sourceMatches   = [.. matches];
         _currentSource   = matches.Count > 0 ? Math.Max(0, matches.FindIndex(match => match.Offset >= from)) : -1;
         SearchMatchCount = matches.Count;
-        MiniMapMarks     = SourceMarks(matches);
         SourceSearch     = (_sourceMatches, _currentSource);
+        MiniMapMarks     = SourceMarkPositions?.Invoke() ?? [];
         if (_currentSource >= 0) Reveal(matches[_currentSource]);
         return matches.Count == 0 ? SearchOutcome.None() : SearchOutcome.Found(hits, matches.Count);
     }
@@ -249,8 +255,8 @@ public sealed partial class MarkdownViewModel : ISearchable
         _sourceMatches   = [.. matches];
         _currentSource   = matches.Count > 0 ? Math.Max(0, matches.FindIndex(match => match.Offset >= was)) : -1;
         SearchMatchCount = matches.Count;
-        MiniMapMarks     = SourceMarks(matches);
         SourceSearch     = (_sourceMatches, _currentSource);
+        MiniMapMarks     = SourceMarkPositions?.Invoke() ?? [];
     }
 
     private SearchOutcome ShowInRendered(TextSearchMatcher matcher, int from)
@@ -267,19 +273,15 @@ public sealed partial class MarkdownViewModel : ISearchable
         return matches.Count == 0 ? SearchOutcome.None() : SearchOutcome.Found(hits, matches.Count);
     }
 
-    // Source-mode minimap ticks: each match's source line as a fraction of the document's line count.
-    private IReadOnlyList<double> SourceMarks(IReadOnlyList<(int Offset, int Length)> matches)
+    /// <summary>
+    /// The source box has been laid out again — more of a long document laid, a row wrapped anew, a word written — so where the places it
+    /// washes stand on its page is read again, while it has the search. Called by the view.
+    /// </summary>
+    public void SourceLaidOut()
     {
-        var source = Markdown ?? string.Empty;
-        var total  = Math.Max(1, source.Count(c => c == '\n') + 1);
-        var marks  = new List<double>(matches.Count);
-        foreach (var (offset, _) in matches)
-        {
-            var line = 0;
-            for (var i = 0; i < offset && i < source.Length; i++) if (source[i] == '\n') line++;
-            marks.Add((double)line / total);
-        }
-        return marks;
+        if (_renderedActive || !IsSearchActive || _sourceMatches.Length == 0) return;
+
+        if (SourceMarkPositions?.Invoke() is { } marks && !marks.SequenceEqual(MiniMapMarks)) MiniMapMarks = marks;
     }
 
     // ShowResultsAsync is left at the interface default: a single-document page highlights in place rather

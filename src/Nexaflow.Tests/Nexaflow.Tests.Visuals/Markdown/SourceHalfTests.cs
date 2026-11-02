@@ -104,6 +104,24 @@ public class SourceHalfTests
     });
 
     [TestMethod]
+    [CoversNode("markdown-find")]
+    public void APlaceFoundIsMarkedWhereItsRowStands_NotWhereItsLineComesInTheDocument() => UiThread.Run(() =>
+    {
+        // Two lines: the first a paragraph wrapping onto many rows, the second short. By line, the second is half way down.
+        var text = string.Join(' ', Enumerable.Range(0, 400).Select(word => $"word{word}")) + "\nlast line\n";
+        var place = (text.IndexOf("last", StringComparison.Ordinal), 4);
+
+        Halves(text, (_, source) =>
+        {
+            source.ShowFound([place], 0);
+            MarkdownEditorHarness.Pump();
+
+            var mark = source.SearchMarkPositions().Single();
+            Assert.IsTrue(mark > 0.8, $"marked at {mark:0.##} of the page, as though every line were one row");
+        });
+    });
+
+    [TestMethod]
     [CoversNode("markdown-split")]
     public void AStretchStandsOnThePageAtOnce_WhereAllItsRowsDo() => UiThread.Run(() =>
     {
