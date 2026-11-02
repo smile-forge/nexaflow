@@ -121,8 +121,7 @@
   "Images.Edit.SaveTip": "Write the edits into this file (Ctrl+S)",
   "Images.Edit.SaveCopy": "Save as copy",
   "Images.Edit.SaveCopyTip": "Write the edited image to a new file, leaving this one as it is (Ctrl+Shift+S)",
-  "Images.Edit.Done": "Done",
-  "Images.Edit.DoneTip": "Leave editing (Esc) — the edits stay, shown whenever the image is viewed",
+
   "Images.Edit.ResetTip": "Double-click to reset",
 
   "Images.Edit.Tool.Crop": "Reshape",

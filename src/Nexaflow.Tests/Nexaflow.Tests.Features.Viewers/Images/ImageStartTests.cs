@@ -15,6 +15,7 @@ using Nexaflow.Visuals.Common.Drafts;
 using NSubstitute;
 using SkiaSharp;
 using static Nexaflow.Tests.Features.Images.EditingFixtures;
+using System.Text.Json.Nodes;
 
 namespace Nexaflow.Tests.Features.Images;
 
@@ -217,6 +218,29 @@ public class ImageStartTests
         var clouds = (PictureLayer)picture.Layers[1];
         Assert.AreEqual(clouds.Id, picture.ActiveId);
         Assert.AreEqual(0.5, clouds.Placement.Scale, 1e-9, "fitted to the canvas, scaled down");
+    }
+
+    [TestMethod]
+    [CoversNode("images-edit-ai-generate-layer")]
+    public async Task TheAssistant_DrawsALayer_AboveTheOneItNames_ArrivingFittedToTheCanvas()
+    {
+        var path = Path.Combine(_dir, "canvas.ora");
+        _services.WriteLayeredAsync(LayeredPicture.Blank(40, 36, LayerBackground.Transparent, "Layer 1"), path).GetAwaiter().GetResult();
+        var vm = Artist(path, ai: Ai());
+        Until(() => vm.CurrentDocument is not null);
+        var bottom = Picture(vm).ActiveId;
+        var generate = vm.GetClientTools().Single(t => t.Name == "generate_layer");
+
+        Assert.IsFalse((await generate.InvokeAsync([], CancellationToken.None)).Success, "nothing said to draw, nothing drawn");
+        var answer = await generate.InvokeAsync(new JsonObject { ["description"] = "clouds", ["above"] = "Layer 1" }, CancellationToken.None);
+
+        Assert.IsTrue(answer.Success, answer.ModelText);
+        Assert.AreEqual("clouds", _ui.Invoke(() => vm.Pictures.Pending.Single().Name), "it shows in the layers panel while it draws");
+        _jobs.Single().Made.SetResult(Png("clouds.png", 80, 30));
+        Until(() => vm.CurrentDocument!.Picture.Layers.Length == 2);
+        var picture = Picture(vm);
+        Assert.AreEqual(bottom, picture.Layers[0].Id, "above the layer it named");
+        Assert.AreEqual(0.5, ((PictureLayer)picture.Layers[1]).Placement.Scale, 1e-9, "fitted to the canvas");
     }
 
     [TestMethod]

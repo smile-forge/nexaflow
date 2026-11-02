@@ -40,10 +40,18 @@
         },
         {
           "type": "markdown",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Artist.md",
           "title_path": [
-            "Images",
+            "Artist",
             "Editing"
+          ]
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/images-canvas-spec.md",
+          "title_path": [
+            "Images: Layers, Selection and a Blank Canvas \u2014 Specification",
+            "6. Selection"
           ]
         }
       ],
@@ -177,6 +185,22 @@
             "Artist",
             "Layers"
           ]
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/images-canvas-spec.md",
+          "title_path": [
+            "Images: Layers, Selection and a Blank Canvas \u2014 Specification",
+            "4. The document"
+          ]
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/images-canvas-spec.md",
+          "title_path": [
+            "Images: Layers, Selection and a Blank Canvas \u2014 Specification",
+            "5. Compositing"
+          ]
         }
       ],
       "concerns": {
@@ -264,6 +288,15 @@
             "Artist",
             "Layers"
           ]
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/images-canvas-spec.md",
+          "title_path": [
+            "Images: Layers, Selection and a Blank Canvas \u2014 Specification",
+            "4. The document",
+            "4.2 Layer masks"
+          ]
         }
       ],
       "concerns": {
@@ -325,6 +358,14 @@
           "title_path": [
             "Artist",
             "OpenRaster files"
+          ]
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/images-canvas-spec.md",
+          "title_path": [
+            "Images: Layers, Selection and a Blank Canvas \u2014 Specification",
+            "8. OpenRaster"
           ]
         }
       ],
@@ -390,6 +431,14 @@
             "Artist",
             "The start screen"
           ]
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/images-canvas-spec.md",
+          "title_path": [
+            "Images: Layers, Selection and a Blank Canvas \u2014 Specification",
+            "9. The start screen and generation"
+          ]
         }
       ],
       "concerns": {
@@ -452,6 +501,14 @@
             "Artist",
             "Layers"
           ]
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/images-canvas-spec.md",
+          "title_path": [
+            "Images: Layers, Selection and a Blank Canvas \u2014 Specification",
+            "7. Painting and moving"
+          ]
         }
       ],
       "concerns": {
@@ -512,6 +569,14 @@
             "Artist",
             "Layers"
           ]
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/images-canvas-spec.md",
+          "title_path": [
+            "Images: Layers, Selection and a Blank Canvas \u2014 Specification",
+            "7. Painting and moving"
+          ]
         }
       ],
       "concerns": {
@@ -560,6 +625,14 @@
           "title_path": [
             "Images",
             "Printing"
+          ]
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/images-canvas-spec.md",
+          "title_path": [
+            "Images: Layers, Selection and a Blank Canvas \u2014 Specification",
+            "10. Print"
           ]
         }
       ],
@@ -715,6 +788,14 @@
       }
     },
     "images-ai-act-select-in-picture": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ClientTools/ArtistTools.cs",
+          "class": "ArtistTools",
+          "method": "SelectAsync"
+        }
+      ],
       "concerns": {
         "tests": [
           {
@@ -832,7 +913,17 @@
           "class": "ArtistTools",
           "method": "GenerateLayerAsync"
         }
-      ]
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageStartTests.cs",
+            "class": "ImageStartTests",
+            "method": "TheAssistant_DrawsALayer_AboveTheOneItNames_ArrivingFittedToTheCanvas"
+          }
+        ]
+      }
     },
     "images-edit-ai-history": {
       "links": [
@@ -866,6 +957,14 @@
           "type": "code",
           "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PictureModels.cs",
           "class": "PictureModels"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/ai-tools.md",
+          "title_path": [
+            "AI tools",
+            "The picture tools"
+          ]
         }
       ]
     },
@@ -878,9 +977,9 @@
         },
         {
           "type": "markdown",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Artist.md",
           "title_path": [
-            "Images",
+            "Artist",
             "Editing"
           ]
         },
@@ -894,6 +993,20 @@
           "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/LayerArranging.cs",
           "class": "LayerArranging",
           "method": "LiftSelectionAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ArtistViewModel.cs",
+          "class": "ArtistViewModel",
+          "method": "LayeredKeepingSelectionAsync"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/ai-tools.md",
+          "title_path": [
+            "AI tools",
+            "Picture selection"
+          ]
         }
       ]
     },
@@ -914,6 +1027,24 @@
           "type": "code",
           "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Recipe/RecipeRegion.cs",
           "class": "RegionColour"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ArtistViewModel.cs",
+          "class": "DocumentSelection",
+          "method": "ReachOfColourAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/CuttingOut/CutOutMasks.cs",
+          "class": "CutOutMasks",
+          "method": "MakeAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Erasing/EraseMasks.cs",
+          "class": "EraseMasks",
+          "method": "MakeAsync"
         }
       ],
       "concerns": {
@@ -926,12 +1057,306 @@
           }
         ]
       }
+    },
+    "images-edit-restore": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageRestoreTests.cs",
+            "class": "ImageRestoreTests"
+          }
+        ]
+      }
+    },
+    "images-copy": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagesSurfaceTests.cs",
+            "class": "ImagesSurfaceTests",
+            "method": "APictureThatCannotBeRead_IsReported_AndNothingIsCopied"
+          }
+        ]
+      }
+    },
+    "images-make-video": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/MakeVideoViewModelTests.cs",
+            "class": "MakeVideoViewModelTests"
+          }
+        ]
+      }
+    },
+    "images-ai-act-cut-out": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ClientTools/ArtistTools.cs",
+          "class": "ArtistTools",
+          "method": "CutOutAsync"
+        }
+      ]
+    },
+    "images-ai-act-restore-picture": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ClientTools/ArtistTools.cs",
+          "class": "ArtistTools",
+          "method": "RestoreAsync"
+        }
+      ]
+    },
+    "images-ai-act-erase-in-picture": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ClientTools/ArtistTools.cs",
+          "class": "ArtistTools",
+          "method": "EraseAsync"
+        }
+      ]
+    },
+    "images-ai-act-capture-image": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
+          "class": "ImageViewModel",
+          "method": "GetClientTools"
+        }
+      ]
+    },
+    "images-ai-act-get-image-info": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
+          "class": "ImageViewModel",
+          "method": "GetClientTools"
+        }
+      ]
+    },
+    "images-ai-act-next-image": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
+          "class": "ImageViewModel",
+          "method": "GetClientTools"
+        }
+      ]
+    },
+    "images-ai-act-previous-image": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
+          "class": "ImageViewModel",
+          "method": "GetClientTools"
+        }
+      ]
+    },
+    "images-header": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
+          "class": "ImageViewModel",
+          "method": "ShowsEditedMark"
+        }
+      ]
+    },
+    "images-fullscreen-btn": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
+          "class": "ImageViewModel",
+          "method": "EnterFullScreen"
+        }
+      ]
+    },
+    "images-fullscreen-nav": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/FullScreenImageWindow.xaml.cs",
+          "class": "FullScreenImageWindow"
+        }
+      ]
+    },
+    "images-collage-layout": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
+          "class": "ImageViewModel",
+          "method": "EnsureCollageLayout"
+        }
+      ]
+    },
+    "images-edit-erase": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Imaging/ContentAwareFill.cs",
+          "class": "ContentAwareFill"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Imaging/HealingBrush.cs",
+          "class": "HealingBrush"
+        },
+        {
+          "type": "node",
+          "target": "picture-erasing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PhotoEraser.cs",
+          "class": "PhotoEraser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/EraseMarking.cs",
+          "class": "EraseMarking"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Erasing/ErasedPictures.cs",
+          "class": "ErasedPictures"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Erasing/EraseMasks.cs",
+          "class": "EraseMasks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Recipe/ImageRecipe.cs",
+          "class": "RecipeErase"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageEditorViewModel.cs",
+          "class": "ImageEditorViewModel",
+          "method": "Erase"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ToolEdit.cs",
+          "class": "ToolEdit"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/ai-tools.md",
+          "title_path": [
+            "AI tools",
+            "Picture erasing"
+          ]
+        }
+      ],
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Artist.md",
+            "title_path": [
+              "Artist",
+              "Editing"
+            ]
+          }
+        ]
+      }
+    },
+    "images-read-page": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ReadPageViewModel.cs",
+          "class": "ReadPageViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Pages/PageConversionBar.xaml.cs",
+          "class": "PageConversionBar"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+          "title_path": [
+            "Images",
+            "Converting a page to Markdown"
+          ]
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/ai-tools.md",
+          "title_path": [
+            "AI tools",
+            "Page reading"
+          ]
+        }
+      ]
+    },
+    "images-edit-remove-background": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/BackgroundRemover.cs",
+          "class": "BackgroundRemover"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/CuttingOut/CutOutMasks.cs",
+          "class": "CutOutMasks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Recipe/ImageRecipe.cs",
+          "class": "RecipeCutOut"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ToolEdit.cs",
+          "class": "ToolEdit"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageEditorViewModel.cs",
+          "class": "ImageEditorViewModel",
+          "method": "RemoveBackground"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Artist.md",
+          "title_path": [
+            "Artist",
+            "Editing"
+          ]
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 51,
+  "changed_sets": 71,
   "touched_nodes": [
+    "images-ai-act-capture-image",
+    "images-ai-act-cut-out",
+    "images-ai-act-erase-in-picture",
+    "images-ai-act-get-image-info",
+    "images-ai-act-next-image",
+    "images-ai-act-previous-image",
+    "images-ai-act-restore-picture",
     "images-ai-act-select-in-picture",
+    "images-collage-layout",
+    "images-copy",
     "images-edit",
     "images-edit-ai",
     "images-edit-ai-capture",
@@ -942,16 +1367,24 @@
     "images-edit-ai-history",
     "images-edit-banner",
     "images-edit-cutout",
+    "images-edit-erase",
     "images-edit-models",
+    "images-edit-remove-background",
+    "images-edit-restore",
     "images-edit-revert",
     "images-flip",
+    "images-fullscreen-btn",
+    "images-fullscreen-nav",
+    "images-header",
     "images-layer-masks",
     "images-layers",
     "images-layers-panel",
+    "images-make-video",
     "images-open-edit",
     "images-ora",
     "images-paint",
     "images-print",
+    "images-read-page",
     "images-rotate",
     "images-selection",
     "images-selection-colour",

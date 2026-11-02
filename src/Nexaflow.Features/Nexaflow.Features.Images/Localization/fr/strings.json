@@ -123,8 +123,7 @@
   "Images.Edit.SaveTip": "Écrire les modifications dans ce fichier (Ctrl+S)",
   "Images.Edit.SaveCopy": "Enregistrer une copie",
   "Images.Edit.SaveCopyTip": "Écrire l'image modifiée dans un nouveau fichier, sans toucher à celui-ci (Ctrl+Maj+S)",
-  "Images.Edit.Done": "Terminé",
-  "Images.Edit.DoneTip": "Quitter l'édition (Échap) — les modifications restent, appliquées à chaque affichage",
+
   "Images.Edit.ResetTip": "Double-cliquer pour réinitialiser",
 
   "Images.Edit.Tool.Crop": "Remodeler",
