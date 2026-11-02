@@ -443,6 +443,12 @@ public sealed class EditOverlay : FrameworkElement
             else marks.AddDraftPoint(new MarkupPoint(under.X, under.Y), ModeHeld(Keyboard.Modifiers, marks.Mode));
             e.Handled = true;
         }
+        else if (editor.SelectsByColour && canvas.DocumentToCanvas.TryInvert(out var colourToSource))
+        {
+            var under = colourToSource.MapPoint(p);
+            _ = editor.RegionMarks.SelectColourAsync(new MarkupPoint(under.X, under.Y), ModeHeld(Keyboard.Modifiers, editor.RegionMarks.Mode));
+            e.Handled = true;
+        }
         else if (editor.PicksByModel)
         {
             if (!editor.PickingModels.IsReady) return;   // nothing picks until picture selection is here: the press pans
@@ -739,7 +745,7 @@ public sealed class EditOverlay : FrameworkElement
                 _                                            => Cursors.Arrow,
             };
         }
-        if (editor.DrawsMarquee || editor.DrawsLasso) return Cursors.Cross;
+        if (editor.DrawsMarquee || editor.DrawsLasso || editor.SelectsByColour) return Cursors.Cross;
         if (editor.IsSelectTool) return editor.PickingModels.IsReady ? Cursors.Cross : Cursors.SizeAll;
         if (editor.IsRetouchTool) return Cursors.Cross;
         if (editor.IsMarkupTool)

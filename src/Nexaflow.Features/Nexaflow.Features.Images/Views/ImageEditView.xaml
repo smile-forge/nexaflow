@@ -463,6 +463,11 @@
                                                  IsChecked="{Binding Editor.SelectBy, Converter={StaticResource EnumToBool}, ConverterParameter=Polygon}">
                                         <icons:IconGlyph Icon="fluent:pentagon" FontSize="15"/>
                                     </RadioButton>
+                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_SelectColour" AutomationProperties.Name="{loc:Str Images.Region.Colour}"
+                                                 ToolTip="{loc:Str Images.Region.ColourTip}"
+                                                 IsChecked="{Binding Editor.SelectBy, Converter={StaticResource EnumToBool}, ConverterParameter=Colour}">
+                                        <icons:IconGlyph Icon="fluent:color" FontSize="15"/>
+                                    </RadioButton>
                                 </StackPanel>
                             </Border>
 
@@ -536,6 +541,11 @@
                                                  ToolTip="{loc:Str Images.Region.PolygonTip}"
                                                  IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Polygon}">
                                         <icons:IconGlyph Icon="fluent:pentagon" FontSize="15"/>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseColour" AutomationProperties.Name="{loc:Str Images.Region.Colour}"
+                                                 ToolTip="{loc:Str Images.Region.ColourTip}"
+                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Colour}">
+                                        <icons:IconGlyph Icon="fluent:color" FontSize="15"/>
                                     </RadioButton>
                                 </StackPanel>
                             </Border>

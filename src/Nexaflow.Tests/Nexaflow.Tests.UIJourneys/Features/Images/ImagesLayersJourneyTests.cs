@@ -94,6 +94,8 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
 
         // ── Select, then act on what is selected ──
         Check("Select offers what to do with what is selected", () => SelectRadio("Image_EditToolSelect") && WaitForFs(() => Exists("Image_SelectNewLayer"), 3));
+        Check("By colour reads what shows, or the active layer alone", () => SelectRadio("Image_SelectColour")
+              && WaitForFs(() => Exists("Image_RegionEveryLayer"), 2) && ToggleAndBack("Image_RegionEveryLayer") && ClickCanvas());
         CheckInvoke("Select all of it", "Image_RegionSelectAll");
         CheckDoes("New layer copies it into a layer of its own", "Image_SelectNewLayer", () => LayersBecome(3));
         CheckDoes("Move lifts it to float, Move taken up and saying what it moves", "Image_SelectMove",

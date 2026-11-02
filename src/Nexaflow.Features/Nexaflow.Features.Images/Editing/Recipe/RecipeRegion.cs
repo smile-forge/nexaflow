@@ -22,8 +22,8 @@ public enum RegionMode
 }
 
 /// <summary>
-/// One step of a selection made by hand: a shape drawn on the photo, or a refinement of everything selected so far.
-/// Every length is in oriented-source pixels, as every recipe value is.
+/// One step of a selection made by hand: a shape drawn on the photo, a colour clicked on it, or a refinement of everything
+/// selected so far. Every length is in oriented-source pixels, as every recipe value is.
 /// </summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(RegionRectangle), "rectangle")]
@@ -34,6 +34,7 @@ public enum RegionMode
 [JsonDerivedType(typeof(RegionGrow), "grow")]
 [JsonDerivedType(typeof(RegionSmooth), "smooth")]
 [JsonDerivedType(typeof(RegionCoverage), "coverage")]
+[JsonDerivedType(typeof(RegionColour), "colour")]
 public abstract record RegionStep
 {
     /// <summary>The step as text, the same for the same step: part of what a mask made from it is filed by.</summary>
@@ -117,6 +118,29 @@ public sealed record RegionSmooth(double Radius) : RegionStep
 }
 
 /// <summary>
+/// What is near a colour: every pixel within <see cref="Tolerance"/> (0–255, on each channel) of the one clicked at
+/// (<see cref="X"/>, <see cref="Y"/>) — only those joined to it where <see cref="Joined"/> — meeting what is selected as
+/// <see cref="Mode"/> says. It is kept as the click, so the recipe stays small and reads back whole; what it reaches follows
+/// from the photo's pixels as it stands, worked out by <see cref="RegionColours"/> and carried as <see cref="Reach"/>.
+/// </summary>
+public sealed record RegionColour(double X, double Y, int Tolerance, bool Joined) : RegionStep
+{
+    public RegionMode Mode { get; init; }
+
+    /// <summary>What the colour reaches, over the oriented source, once worked out from its pixels; null until then.</summary>
+    [JsonIgnore]
+    public TiledCoverage? Reach { get; init; }
+
+    // What it reaches follows from the click and the photo, so two clicks alike are the same step, worked out or not.
+    public bool Equals(RegionColour? other)
+        => other is not null && X == other.X && Y == other.Y && Tolerance == other.Tolerance && Joined == other.Joined && Mode == other.Mode;
+
+    public override int GetHashCode() => HashCode.Combine(X, Y, Tolerance, Joined, Mode);
+
+    public override string Describe() => $"colour:{Mode}:{Number(X)},{Number(Y)}:{Tolerance}:{(Joined ? "joined" : "anywhere")}";
+}
+
+/// <summary>
 /// A selection made other than by drawing — from a layer's mask or transparency, or carried onto a picture layer from its
 /// canvas's selection — as coverage over the oriented source, meeting what is selected as <see cref="Mode"/> says. The
 /// coverage is kept in the package holding the recipe, as a grey PNG at <see cref="File"/>; a recipe kept on its own, beside a
@@ -161,7 +185,7 @@ public sealed record RegionCoverage : RegionStep
 
 /// <summary>
 /// A selection made by hand on the photo, kept as the steps it was made by, in order — shapes drawn with a marquee or a
-/// lasso, each meeting what is selected as its <see cref="RegionShape.Mode"/> says, and refinements of everything selected
+/// lasso and colours clicked, each meeting what is selected as its mode says, and refinements of everything selected
 /// so far — rather than as a mask, so it reads the same at any size. It starts from what picture selection picked beside
 /// it, where anything was; a shape that replaces the selection starts it again.
 /// </summary>
@@ -180,9 +204,14 @@ public sealed record RecipeRegion
     [JsonIgnore]
     public bool IsEmpty => Steps.IsEmpty;
 
-    /// <summary>The middle of the first shape drawn; null where no shape is.</summary>
+    /// <summary>The middle of the first shape drawn, or where the first colour was clicked; null where neither is.</summary>
     [JsonIgnore]
-    public MarkupPoint? Centre => Steps.OfType<RegionShape>().FirstOrDefault()?.Centre;
+    public MarkupPoint? Centre => Steps.Select(s => s switch
+    {
+        RegionShape shape => shape.Centre,
+        RegionColour colour => new MarkupPoint(colour.X, colour.Y),
+        _ => (MarkupPoint?)null,
+    }).FirstOrDefault(p => p is not null);
 
     public bool Equals(RecipeRegion? other) => other is not null && Steps.AsSpan().SequenceEqual(other.Steps.AsSpan());
 

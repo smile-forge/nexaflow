@@ -179,6 +179,9 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
             CheckInvoke("Invert it", "Image_RegionInvert");
             CheckInvoke("Select all of the photo", "Image_RegionSelectAll");
             Check("A lasso drawn freehand, or a polygon click to click", () => SelectRadio("Image_SelectPolygon") && SelectRadio("Image_SelectLasso"));
+            Check("By colour, with its tolerance and joined-only, a click selecting", () => SelectRadio("Image_SelectColour")
+                  && WaitForFs(() => Exists("Image_RegionTolerance"), 2) && MoveSlider("Image_RegionTolerance") && ToggleAndBack("Image_RegionJoined")
+                  && ClickCanvas() && WaitForFs(() => Enabled("Image_CutOutCopy"), 3));
             CheckDoes("Select nothing, and nothing is offered to take it", "Image_RegionDeselect", () => WaitForFs(() => !Enabled("Image_CutOutCopy"), 3));
             Check("Back to the rectangle", () => SelectRadio("Image_SelectRectangle"));
             CheckInvoke("Clear what is selected", "Image_CutOutClear");
@@ -192,7 +195,7 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
             Check("Retouch opens on the brush: picking waits for picture selection", () => SelectRadio("Image_EditToolRetouch")
                   && WaitForFs(() => Exists("Image_EraseBrushSize"), 3) && SelectRadio("Image_EraseMarkBrush") && !Enabled("Image_EraseMarkPick"));
             Check("Retouch marks with the shapes Select draws too", () => SelectRadio("Image_EraseRectangle") && SelectRadio("Image_EraseEllipse")
-                  && SelectRadio("Image_EraseLasso") && SelectRadio("Image_ErasePolygon") && SelectRadio("Image_EraseMarkBrush"));
+                  && SelectRadio("Image_EraseLasso") && SelectRadio("Image_ErasePolygon") && SelectRadio("Image_EraseColour") && SelectRadio("Image_EraseMarkBrush"));
             Check("AI fill waits for the AI picture models, offered over the picture", () => !Enabled("Image_EraseFillAi")
                   && WaitForFs(() => WaitForId("Image_PictureModelsDownload", 1)?.IsEnabled == true, 3));
             Check("Brush size slider moves", () => MoveSlider("Image_EraseBrushSize"));

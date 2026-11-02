@@ -218,6 +218,18 @@ public class ArtistToolsTests
     }
 
     [TestMethod]
+    public async Task SelectInPicture_SelectsWhatIsNearAColour()
+    {
+        var vm = Photo();
+
+        var answer = await Call(vm, "select_in_picture", new JsonObject { ["colour"] = new JsonObject { ["at"] = new JsonArray(5, 5), ["tolerance"] = 8 } });
+
+        Assert.IsTrue(answer.Success, answer.ModelText);
+        StringAssert.Contains(answer.ModelText, "[0,0,20,15]", "the quarter clicked, and no other");
+        Assert.IsFalse((await Call(vm, "select_in_picture", new JsonObject { ["colour"] = new JsonObject { ["at"] = new JsonArray(5) } })).Success, "a point is two numbers");
+    }
+
+    [TestMethod]
     public async Task EditLayers_AppliesItsOperationsInOrder_AsOneStep_AndAnswersWithTheLayers()
     {
         var vm = Canvas();

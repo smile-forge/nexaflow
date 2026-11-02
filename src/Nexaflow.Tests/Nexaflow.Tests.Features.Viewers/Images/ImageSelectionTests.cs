@@ -435,6 +435,98 @@ public class ImageSelectionTests
         Assert.IsNull(_ui.Invoke(() => vm.Editor.RegionMarks.Shown));
     }
 
+    [TestMethod]
+    [CoversNode("images-selection-colour")]
+    public void AColour_IsKeptAsItsClick_AndWorkedOutAgainFromThePhoto()
+    {
+        var colour = new RegionColour(15, 11, 16, Joined: true) { Mode = RegionMode.Replace };
+        var recipe = ImageRecipe.Identity with { CutOut = new RecipeCutOut { Region = new RecipeRegion { Steps = [colour] } } };
+
+        var json = ImageRecipeJson.Serialize(recipe);
+        StringAssert.Contains(json, "\"kind\": \"colour\"");
+        var read = ImageRecipeJson.Deserialize(json).Recipe!.CutOut!.Region!;
+        Assert.AreEqual(recipe.CutOut!.Region, read, "the click reads back as it was written");
+        Assert.IsNull(((RegionColour)read.Steps[0]).Reach, "what it reaches is not kept, but worked out");
+        Assert.ThrowsExactly<InvalidOperationException>(() => RegionRaster.Apply(TiledCoverage.Clear(32, 24), read, 1), "never taken for nothing");
+
+        var upright = _services.ReadUprightAsync(_photo).GetAwaiter().GetResult();
+        var reach = RegionRaster.Apply(TiledCoverage.Clear(32, 24), RegionColours.Resolved(read, upright), 1);
+        Assert.AreEqual(255, reach[15, 11], "the spot clicked");
+        Assert.AreEqual(255, reach[17, 13], "all of it");
+        Assert.AreEqual(0, reach[5, 5], "not the wall round it");
+    }
+
+    [TestMethod]
+    [CoversNode("images-selection-colour")]
+    public void AColour_ReachesWhatIsJoinedToTheClick_OrThatColourAnywhere()
+    {
+        // The wall with two spots of one colour apart, as straight RGBA rows.
+        const int width = 20, height = 10;
+        var rgba = new byte[width * height * 4];
+        for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+            {
+                var c = (x is >= 2 and < 5 || x is >= 14 and < 17) && y is >= 2 and < 5 ? Spot : Ground;
+                int i = (y * width + x) * 4;
+                (rgba[i], rgba[i + 1], rgba[i + 2], rgba[i + 3]) = (c.Red, c.Green, c.Blue, c.Alpha);
+            }
+        var photo = new UprightPixels(rgba, width, height, SKColorSpace.CreateSrgb());
+
+        var joined = RegionColours.ReachOn(new RegionColour(3, 3, 8, Joined: true), photo);
+        Assert.AreEqual((255, 0, 0), (joined[3, 3], joined[15, 3], joined[8, 8]), "joined: the spot clicked alone");
+
+        var anywhere = RegionColours.ReachOn(new RegionColour(3, 3, 8, Joined: false), photo);
+        Assert.AreEqual((255, 255, 0), (anywhere[3, 3], anywhere[15, 3], anywhere[8, 8]), "anywhere: the spot apart too, not the wall");
+
+        var wide = RegionColours.ReachOn(new RegionColour(3, 3, 255, Joined: true), photo);
+        Assert.AreEqual(255, wide[8, 8], "at the most tolerance, every colour");
+    }
+
+    [TestMethod]
+    [CoversNode("images-selection-colour")]
+    public async Task ByColour_RemovesTheBackground_AndTheCutOutRebuildsFromItsRecipeAlone()
+    {
+        var vm = Editing(EditTool.Select);
+        OnUi(() => vm.Editor.SelectBy = SelectionWay.Colour);
+        Assert.IsTrue(_ui.Invoke(() => vm.Editor.SelectsByColour && vm.Editor.ShowsRegionMode), "a way of selecting, meeting the selection by a mode");
+
+        await _ui.Invoke(() => vm.Editor.RegionMarks.SelectColourAsync(new MarkupPoint(15, 11), RegionMode.Replace));
+        Assert.IsTrue(_ui.Invoke(() => vm.Editor.RegionMarks.HasSelection));
+        Until(() => vm.Editor.RemoveBackgroundCommand.CanExecute(null));
+        OnUi(() => vm.Editor.RemoveBackgroundCommand.Execute(null));
+        Until(() => vm.CurrentSession!.CutOutMask is not null);
+
+        var session = vm.CurrentSession!;
+        Assert.AreEqual(255, Shown(session, 15, 11).Alpha, "the spot clicked is kept");
+        Assert.AreEqual(0, Shown(session, 5, 5).Alpha, "the wall round it is cleared");
+
+        // Read back with nothing but the photo beside it, the click is worked out again.
+        var read = ImageRecipeJson.Deserialize(ImageRecipeJson.Serialize(session.Recipe)).Recipe!;
+        var kept = await new CutOutMasks(Path.Combine(_dir, "cutouts-again"), CutOutMasks.DefaultBudget)
+            .MakeAsync(_services, _photo, read.CutOut!, null, null, CancellationToken.None);
+        var mask = CutOutMasks.ReadGrey(kept, 32, 24);
+        Assert.AreEqual((255, 0), (mask[11 * 32 + 15], mask[5 * 32 + 5]));
+
+        OnUi(() => vm.Editor.Tool = EditTool.Retouch);
+        OnUi(() => vm.Editor.ChooseColour());
+        Assert.AreEqual(SelectionWay.Colour, _ui.Invoke(() => vm.Editor.EraseBy), "W takes it up in Retouch too");
+    }
+
+    [TestMethod]
+    [CoversNode("images-selection-colour")]
+    public async Task AnEraseByColour_ReadBack_MarksTheSpotClicked()
+    {
+        var step = new RecipeErase
+        {
+            Fill = EraseFill.ContentAware,
+            Region = new RecipeRegion { Steps = [new RegionColour(15, 11, 16, Joined: true) { Mode = RegionMode.Replace }] },
+        };
+
+        var mask = await EraseMasks.MakeAsync(_services, _photo, step, null, 32, 24, CancellationToken.None);
+
+        Assert.AreEqual((255, 0), (mask[11 * 32 + 15], mask[5 * 32 + 5]));
+    }
+
     /// <summary>Picture selection that picks the square from (6, 6) to (16, 16) of whatever it is asked.</summary>
     private sealed class Square : IPictureSelection, IPictureSelectionSession
     {

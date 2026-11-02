@@ -307,6 +307,28 @@ public class ImagePaintTests
     }
 
     [TestMethod]
+    [CoversNode("images-selection-colour")]
+    public void ByColour_OnALayeredPicture_ReadsWhatShows_OrTheActiveLayerAlone()
+    {
+        var blank = LayeredPicture.Blank(40, 30, LayerBackground.Transparent, "Layer 1");
+        var bottom = ((PixelLayer)blank.Layers[0]) with { Pixels = Solid(40, 30, Red, new SKRectI(2, 2, 8, 8)) };
+        var top = new PixelLayer { Name = "Layer 2", Pixels = Solid(40, 30, new SKColor(30, 60, 220), new SKRectI(20, 10, 30, 20)) };
+        var vm = Canvas(blank with { Layers = [bottom, top], ActiveId = top.Id });
+        var marks = _ui.Invoke(() => vm.Editor.RegionMarks);
+        int At(int x, int y) => Picture(vm).Selection.Read(new SKRectI(x, y, x + 1, y + 1))[0];
+
+        _ui.Invoke(() => marks.SelectColourAsync(new MarkupPoint(5, 5), RegionMode.Replace)).GetAwaiter().GetResult();
+        Assert.AreEqual((255, 0), (At(5, 5), At(25, 15)), "what shows: the red square, joined to the click");
+
+        _ui.Invoke(() => marks.SelectColourAsync(new MarkupPoint(25, 15), RegionMode.Add)).GetAwaiter().GetResult();
+        Assert.AreEqual((255, 255), (At(5, 5), At(25, 15)), "the blue one added");
+
+        OnUi(() => marks.ColourEveryLayer = false);
+        _ui.Invoke(() => marks.SelectColourAsync(new MarkupPoint(5, 5), RegionMode.Replace)).GetAwaiter().GetResult();
+        Assert.AreEqual((255, 255, 0), (At(5, 5), At(35, 25), At(25, 15)), "the active layer alone: clear wherever its square is not, the red beneath unread");
+    }
+
+    [TestMethod]
     [CoversNode("images-transform")]
     public void ATransform_TurnsAndFlipsPixels_AsOneStep_AndCancelledLeavesThemAsTheyWere()
     {

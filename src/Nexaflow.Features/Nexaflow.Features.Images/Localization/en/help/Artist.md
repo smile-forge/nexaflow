@@ -44,15 +44,17 @@ The picture sits on a canvas you can pan and zoom, with eight tools beside it in
       has picked. The **Rectangle** and **Ellipse** (M, and M again for the other) drags out a rectangle or an ellipse: Shift once you are
       dragging makes it square or round, Alt draws it out from its centre. The **Lasso** (L, and L again to switch) draws
       round something freehand, or click to click as a **Polygon** — click its first point, double-click or press Enter to
-      close it; Backspace or a right-click takes the last point back, and Esc lets it go. Each shape starts the selection
+      close it; Backspace or a right-click takes the last point back, and Esc lets it go. **By colour** (W) selects what is near
+        the colour you click, within its **Tolerance** — only what touches where you click, unless you untick that; in a layered
+        picture it reads what shows, or the active layer alone. Each shape or colour starts the selection
       again (**New**), or **Add**s to it, **Subtract**s from it or keeps only where they **Intersect** — or hold Shift, Alt
       or both as you begin it. **All** (Ctrl+A), **None** (Ctrl+D), **Invert** (Ctrl+Shift+I) and **Subject**, which has
       picture selection pick the picture's subject, act on the whole selection; **Feather**, **Grow**, **Shrink** and
       **Smooth** refine its edge by the pixels **Refine by** says. What you select is kept with the edit it is used for, so a
-      cut-out or an erase made from it can be undone and redone as it was drawn. [Show me](locate:Image_SelectRectangle,Image_RegionModeAdd,Image_RegionFeather)
+      cut-out or an erase made from it can be undone and redone as it was drawn. [Show me](locate:Image_SelectRectangle,Image_SelectColour,Image_RegionModeAdd,Image_RegionFeather)
   - **Retouch** rubs things out of the picture — scratches, dust, wires, people, signs — and fills where they were. Mark what
     to erase with **Pick**, which picks a thing as Select does, with **Brush** — brush over it, and right-drag to take
-    marking back — or with the **Rectangle**, **Ellipse**, **Lasso** or **Polygon**. Everything selected is erased with what you brush, so pick a person
+    marking back — or with the **Rectangle**, **Ellipse**, **Lasso**, **Polygon** or **By colour**. Everything selected is erased with what you brush, so pick a person
     and brush their shadow, or lasso a wire and feather it. Then choose how to
     fill it: **AI** fills from what is round it and is best where an edge or shape runs through what you erase; the first
     time it is a download of about 210 MB, offered above the picture. **Content-aware** copies the picture's own texture in,

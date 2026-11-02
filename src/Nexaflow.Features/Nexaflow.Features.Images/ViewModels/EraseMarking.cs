@@ -17,6 +17,9 @@ public enum EraseMarkWay
 
     /// <summary>An outline drawn round it, freehand or click to click — the selection the Cut out tool draws too.</summary>
     Lasso,
+
+    /// <summary>What is near the colour clicked — the selection the Cut out tool makes so too.</summary>
+    Colour,
 }
 
 /// <summary>

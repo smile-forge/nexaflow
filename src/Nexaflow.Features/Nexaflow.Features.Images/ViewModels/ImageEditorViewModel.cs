@@ -115,6 +115,7 @@ public partial class ImageEditorViewModel : ObservableObject
     /// <summary>How the Cut out tool marks what to keep; another way lets go of an outline half drawn.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DrawsMarquee), nameof(DrawsLasso), nameof(DrawsShapes), nameof(PicksByModel))]
+    [NotifyPropertyChangedFor(nameof(SelectsByColour), nameof(ShowsRegionMode))]
     private CutOutMarkWay _cutOutWay = CutOutMarkWay.Pick;
 
     partial void OnCutOutWayChanged(CutOutMarkWay value)
@@ -123,13 +124,14 @@ public partial class ImageEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectBy));
     }
 
-    /// <summary>How Select picks, as one of its buttons: by picture selection, or a shape drawn by hand.</summary>
+    /// <summary>How Select picks, as one of its buttons: by picture selection, a shape drawn by hand, or a colour clicked.</summary>
     public SelectionWay SelectBy
     {
         get => CutOutWay switch
         {
             CutOutMarkWay.Marquee => DrawnBy(marquee: true),
             CutOutMarkWay.Lasso   => DrawnBy(marquee: false),
+            CutOutMarkWay.Colour  => SelectionWay.Colour,
             _                     => SelectionWay.Pick,
         };
         set
@@ -140,12 +142,13 @@ public partial class ImageEditorViewModel : ObservableObject
             {
                 SelectionWay.Rectangle or SelectionWay.Ellipse => CutOutMarkWay.Marquee,
                 SelectionWay.Lasso or SelectionWay.Polygon     => CutOutMarkWay.Lasso,
+                SelectionWay.Colour                            => CutOutMarkWay.Colour,
                 _                                              => CutOutMarkWay.Pick,
             };
         }
     }
 
-    /// <summary>How Retouch marks what to erase, as one of its buttons: picked, brushed, or a shape drawn by hand.</summary>
+    /// <summary>How Retouch marks what to erase, as one of its buttons: picked, brushed, a shape drawn by hand, or a colour clicked.</summary>
     public SelectionWay EraseBy
     {
         get => EraseMarks.Way switch
@@ -153,6 +156,7 @@ public partial class ImageEditorViewModel : ObservableObject
             EraseMarkWay.Brush   => SelectionWay.Brush,
             EraseMarkWay.Marquee => DrawnBy(marquee: true),
             EraseMarkWay.Lasso   => DrawnBy(marquee: false),
+            EraseMarkWay.Colour  => SelectionWay.Colour,
             _                    => SelectionWay.Pick,
         };
         set
@@ -163,6 +167,7 @@ public partial class ImageEditorViewModel : ObservableObject
                 SelectionWay.Brush                             => EraseMarkWay.Brush,
                 SelectionWay.Rectangle or SelectionWay.Ellipse => EraseMarkWay.Marquee,
                 SelectionWay.Lasso or SelectionWay.Polygon     => EraseMarkWay.Lasso,
+                SelectionWay.Colour                            => EraseMarkWay.Colour,
                 _                                              => EraseMarkWay.Pick,
             };
         }
@@ -192,6 +197,15 @@ public partial class ImageEditorViewModel : ObservableObject
     /// <summary>The open tool draws on the photo with the marquee or the lasso.</summary>
     public bool DrawsShapes => DrawsMarquee || DrawsLasso;
 
+    /// <summary>The open tool selects what is near the colour clicked.</summary>
+    public bool SelectsByColour => IsSelectTool && CutOutWay == CutOutMarkWay.Colour || IsRetouchTool && EraseMarks.Way == EraseMarkWay.Colour;
+
+    /// <summary>The open tool's way of selecting meets what is selected as a mode says: a shape drawn, or a colour clicked.</summary>
+    public bool ShowsRegionMode => DrawsShapes || SelectsByColour;
+
+    /// <summary>The picture is a layered one: a colour clicked may be read from what shows or from the active layer alone.</summary>
+    public bool EditsLayeredPicture => _viewer.IsLayered;
+
     /// <summary>The marquee (M): taken up — or, held already, turned from one shape to the other.</summary>
     public void ChooseMarquee()
     {
@@ -205,6 +219,9 @@ public partial class ImageEditorViewModel : ObservableObject
         if (DrawsLasso) RegionMarks.Lasso = RegionMarks.Lasso == LassoShape.Freehand ? LassoShape.Polygon : LassoShape.Freehand;
         else MarkBy(CutOutMarkWay.Lasso, EraseMarkWay.Lasso);
     }
+
+    /// <summary>Selecting by colour (W) taken up.</summary>
+    public void ChooseColour() => MarkBy(CutOutMarkWay.Colour, EraseMarkWay.Colour);
 
     private void MarkBy(CutOutMarkWay cutOut, EraseMarkWay erase)
     {
@@ -436,7 +453,7 @@ public partial class ImageEditorViewModel : ObservableObject
         ErasingModels   = erasing;
         RestoringModels = restoring;
         EraseMarks = new EraseMarking(erasing.IsReady);
-        RegionMarks = new RegionMarking(cutter, () => Source);
+        RegionMarks = new RegionMarking(cutter, () => Source, services.ReadUprightAsync);
         // A restoration, a cut-out mask or an erased photo arriving lets the photo be saved.
         restorer.Made += ToolMade;
         remover.Made  += ToolMade;
@@ -465,6 +482,8 @@ public partial class ImageEditorViewModel : ObservableObject
             OnPropertyChanged(nameof(DrawsMarquee));
             OnPropertyChanged(nameof(DrawsLasso));
             OnPropertyChanged(nameof(DrawsShapes));
+            OnPropertyChanged(nameof(SelectsByColour));
+            OnPropertyChanged(nameof(ShowsRegionMode));
             OnPropertyChanged(nameof(PicksByModel));
         };
         // The banner offers the models while any open panel waits on some of them.
@@ -529,6 +548,7 @@ public partial class ImageEditorViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsPaintTool), nameof(IsMoveTool))]
     [NotifyPropertyChangedFor(nameof(Frame))]
     [NotifyPropertyChangedFor(nameof(DrawsMarquee), nameof(DrawsLasso), nameof(DrawsShapes), nameof(PicksByModel), nameof(TakesSelection))]
+    [NotifyPropertyChangedFor(nameof(SelectsByColour), nameof(ShowsRegionMode))]
     private EditTool _tool = EditTool.Crop;
 
     public bool IsCropTool    => Tool == EditTool.Crop;

@@ -53,7 +53,8 @@ public sealed class CutOutMasks(string folder, long budgetBytes)
 
         var (picked, width, height) = await PickedAsync(services, photo, cutOut, selection, progress, ct);
         progress?.Report(0.8);
-        var mask = await Task.Run(() => RegionRaster.Apply(TiledCoverage.FromBytes(picked, width, height), cutOut.Region, 1).ToBytes(), ct);
+        var region = await RegionColours.ResolvedAsync(services, photo, cutOut.Region, ct);
+        var mask = await Task.Run(() => RegionRaster.Apply(TiledCoverage.FromBytes(picked, width, height), region, 1).ToBytes(), ct);
 
         progress?.Report(0.9);
         Directory.CreateDirectory(Folder);

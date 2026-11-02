@@ -896,10 +896,40 @@
           "method": "LiftSelectionAsync"
         }
       ]
+    },
+    "images-selection-colour": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/RegionMarking.cs",
+          "class": "RegionMarking",
+          "method": "SelectColourAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Selection/RegionColours.cs",
+          "class": "RegionColours"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Recipe/RecipeRegion.cs",
+          "class": "RegionColour"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSelectionTests.cs",
+            "class": "ImageSelectionTests",
+            "method": "ByColour_RemovesTheBackground_AndTheCutOutRebuildsFromItsRecipeAlone"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 49,
+  "changed_sets": 51,
   "touched_nodes": [
     "images-ai-act-select-in-picture",
     "images-edit",
@@ -924,6 +954,7 @@
     "images-print",
     "images-rotate",
     "images-selection",
+    "images-selection-colour",
     "images-selection-lasso",
     "images-selection-marquee",
     "images-selection-refine",

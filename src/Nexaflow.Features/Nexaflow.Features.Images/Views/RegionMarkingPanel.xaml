@@ -5,8 +5,9 @@
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
-    <!-- The selection drawn by hand, as Select and Retouch both take it: how a shape meets what is selected, and the
-         refinements. Bound to the editor; the shape drawn is a way of selecting of its own, chosen with the others. -->
+    <!-- The selection made by hand, as Select and Retouch both take it: how near a colour clicked reaches, how a shape or
+         colour meets what is selected, and the refinements. Bound to the editor; the shape drawn is a way of selecting of
+         its own, chosen with the others. -->
 
     <UserControl.Resources>
         <ResourceDictionary>
@@ -19,8 +20,23 @@
     </UserControl.Resources>
 
     <StackPanel>
-        <!-- How a shape meets what is selected: as set here, or as a key held as it is begun says. -->
-        <StackPanel Visibility="{Binding DrawsShapes, Converter={StaticResource BoolToVis}}">
+        <!-- By colour: how near it reaches, joined to the click or anywhere, and — layered — what it reads. -->
+        <StackPanel Margin="0,0,0,8" Visibility="{Binding SelectsByColour, Converter={StaticResource BoolToVis}}">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Right" Style="{StaticResource EditCaption}" Text="{Binding RegionMarks.ColourTolerance, StringFormat={}{0:0}}"/>
+                <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Paint.Tolerance}"/>
+            </DockPanel>
+            <Slider Minimum="0" Maximum="255" SmallChange="1" LargeChange="16" Value="{Binding RegionMarks.ColourTolerance, Mode=TwoWay}"
+                    AutomationProperties.AutomationId="Image_RegionTolerance" AutomationProperties.Name="{loc:Str Images.Paint.Tolerance}"/>
+            <CheckBox Margin="0,8,0,0" Foreground="{StaticResource TextBrush}" IsChecked="{Binding RegionMarks.ColourJoined, Mode=TwoWay}"
+                      Content="{loc:Str Images.Paint.Contiguous}" AutomationProperties.AutomationId="Image_RegionJoined"/>
+            <CheckBox Margin="0,6,0,0" Foreground="{StaticResource TextBrush}" IsChecked="{Binding RegionMarks.ColourEveryLayer, Mode=TwoWay}"
+                      Visibility="{Binding EditsLayeredPicture, Converter={StaticResource BoolToVis}}"
+                      Content="{loc:Str Images.Paint.SampleMerged}" AutomationProperties.AutomationId="Image_RegionEveryLayer"/>
+        </StackPanel>
+
+        <!-- How a shape or a colour meets what is selected: as set here, or as a key held as it is begun says. -->
+        <StackPanel Visibility="{Binding ShowsRegionMode, Converter={StaticResource BoolToVis}}">
             <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Region.Mode}"/>
             <Border Style="{StaticResource SegGroup}"><StackPanel Orientation="Horizontal">
                 <RadioButton GroupName="RegionMode" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_RegionModeReplace" AutomationProperties.Name="{loc:Str Images.Region.Replace}"

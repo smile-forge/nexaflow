@@ -120,6 +120,9 @@ public partial class ArtistView : UserControl, IPageView
             case Key.L when bare && selects:
                 editor.ChooseLasso();
                 break;
+            case Key.W when bare && selects:
+                editor.ChooseColour();
+                break;
             case Key.A when ctrl && !shift && selects:
                 editor.RegionMarks.SelectAllCommand.Execute(null);
                 break;

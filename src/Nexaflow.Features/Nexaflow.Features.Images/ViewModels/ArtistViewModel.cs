@@ -6,6 +6,7 @@ using Nexaflow.Features.Images.ClientTools;
 using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.Editing.Codecs;
 using Nexaflow.Features.Images.Editing.Layers;
+using Nexaflow.Features.Images.Editing.Painting;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
 using Nexaflow.Features.Images.Editing.Selection;
@@ -542,6 +543,27 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
             var picture = document.Picture;
             if (picture.Active is not PictureLayer layer || document.RenderingOf(layer.Id)?.Proxy is not { } proxy) return null;
             return OnCanvas(picked, layer, proxy.SourceSize, picture);
+        }
+
+        public async Task<TiledCoverage?> ReachOfColourAsync(SKPointI at, int tolerance, bool joined, bool everyLayer)
+        {
+            var picture = document.Picture;
+            var active = picture.Active;
+            if (!everyLayer && active is not null)
+            {
+                // The mask being painted, in its greys; a pixel layer, its own pixels read tile by tile as the reach comes to them.
+                if (picture.EditsMask && active.Mask is { } mask) return await Task.Run(() => FloodFill.Reach(mask.Coverage, at.X, at.Y, tolerance, joined));
+                if (active is PixelLayer own) return await Task.Run(() => FloodFill.Reach(own.Pixels, picture.Width, picture.Height, at.X, at.Y, tolerance, joined));
+            }
+            // What shows, or a picture or markup layer drawn alone, flattened at full size.
+            var read = everyLayer || active is null ? picture : picture with
+            {
+                Layers = [active with { Visible = true, Opacity = 1, Blend = LayerBlend.Normal, ClipsToBelow = false, Mask = null }],
+                Background = LayerBackground.Transparent,
+            };
+            using var renderer = await document.RendererForAsync(read);
+            if (renderer is null) return null;   // a picture layer still waiting for what the picture tools make for it
+            return await Task.Run(() => FloodFill.Reach(renderer.Flattened(), picture.Width, picture.Height, at.X, at.Y, tolerance, joined));
         }
 
         /// <summary><paramref name="picked"/> — a mask over a picture layer's photo, at any size — where it lies on the canvas.</summary>

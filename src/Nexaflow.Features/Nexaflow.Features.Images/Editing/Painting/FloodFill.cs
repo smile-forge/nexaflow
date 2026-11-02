@@ -5,9 +5,9 @@ using Nexaflow.Features.Images.Editing.Selection;
 namespace Nexaflow.Features.Images.Editing.Painting;
 
 /// <summary>
-/// What the Fill tool reaches from a pixel: every pixel within the tolerance of the one clicked — joined to it, where the fill
-/// is contiguous — as coverage over the canvas. Pixels are read a tile at a time, as the reach comes to them, and the reach is
-/// written a tile at a time, so a fill costs what it covers.
+/// What the Fill tool and selecting by colour reach from a pixel: every pixel within the tolerance of the one clicked — joined
+/// to it, where the reach is contiguous — as coverage over the canvas. Tiled pixels are read a tile at a time, as the reach
+/// comes to them, and the reach is written a tile at a time, so a fill costs what it covers.
 /// </summary>
 public static class FloodFill
 {
@@ -52,6 +52,18 @@ public static class FloodFill
             return tile[(py & TileMask) * TileSize + (px & TileMask)];
         }
         return Reach(mask.Width, mask.Height, x, y, contiguous, Sample, (a, b) => Within(a, b, tolerance, 1));
+    }
+
+    /// <summary>What a reach at (<paramref name="x"/>, <paramref name="y"/>) covers on a picture's pixels held whole — interleaved
+    /// 8-bit RGBA, row after row, as a picture tool is handed them: each within <paramref name="tolerance"/> of the one there.</summary>
+    public static TiledCoverage Reach(byte[] rgba, int width, int height, int x, int y, int tolerance, bool contiguous)
+    {
+        uint Sample(int px, int py)
+        {
+            int i = (py * width + px) * 4;
+            return (uint)(rgba[i] | rgba[i + 1] << 8 | rgba[i + 2] << 16 | rgba[i + 3] << 24);
+        }
+        return Reach(width, height, x, y, contiguous, Sample, (a, b) => Within(a, b, tolerance, 4));
     }
 
     private static bool Within(uint a, uint b, int tolerance, int channels)

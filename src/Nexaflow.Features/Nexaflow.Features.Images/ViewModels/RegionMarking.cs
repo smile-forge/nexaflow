@@ -1,6 +1,8 @@
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Selection;
 using SkiaSharp;
@@ -18,12 +20,15 @@ public enum CutOutMarkWay
 
     /// <summary>An outline drawn round it, freehand or click to click.</summary>
     Lasso,
+
+    /// <summary>What is near the colour clicked.</summary>
+    Colour,
 }
 
 /// <summary>
-/// A way of selecting as its button offers it: picked by picture selection, brushed (Retouch only), or drawn by hand — a
-/// rectangle, an ellipse, a lasso drawn freehand, or a polygon clicked point to point. One choice standing for the way and the
-/// shape it draws, so a panel offers each once.
+/// A way of selecting as its button offers it: picked by picture selection, brushed (Retouch only), drawn by hand — a
+/// rectangle, an ellipse, a lasso drawn freehand, or a polygon clicked point to point — or by the colour clicked. One choice
+/// standing for the way and the shape it draws, so a panel offers each once.
 /// </summary>
 public enum SelectionWay
 {
@@ -33,6 +38,7 @@ public enum SelectionWay
     Ellipse,
     Lasso,
     Polygon,
+    Colour,
 }
 
 /// <summary>What the marquee draws.</summary>
@@ -70,14 +76,22 @@ public interface IDocumentSelection
     /// <summary>What picture selection picked on the active picture layer — at the size it is shown, its bounds in that layer's
     /// pixels — carried onto the canvas; null where the active layer is no picture layer.</summary>
     TiledCoverage? FromPicture(PictureMask picked);
+
+    /// <summary>
+    /// What is near the colour at <paramref name="at"/> on the canvas — within <paramref name="tolerance"/> (0–255) on each
+    /// channel, joined to it where <paramref name="joined"/> — read from what shows where <paramref name="everyLayer"/>, else from
+    /// the active layer alone, or the mask being painted. The picture is read as it stands when asked, the reach worked out off
+    /// the UI thread; null where there is nothing to read yet.
+    /// </summary>
+    Task<TiledCoverage?> ReachOfColourAsync(SKPointI at, int tolerance, bool joined, bool everyLayer);
 }
 
 /// <summary>
-/// The selection drawn by hand in the photo editor, before Cut out or Erase takes it: marquee and lasso shapes, and
-/// refinements of everything selected so far, in the order they were made — the region a recipe keeps
+/// The selection drawn by hand in the photo editor, before Cut out or Erase takes it: marquee and lasso shapes, colours
+/// clicked, and refinements of everything selected so far, in the order they were made — the region a recipe keeps
 /// (<see cref="RecipeRegion"/>). It starts from what the cut-out tool has picked, so the two together are the one selection
-/// both tools take; a shape that replaces the selection lets the picks go too. Shown over the photo as
-/// <see cref="Shown"/>, at the size the cut-out tool shows its picks. Shapes are in the photo's pixels as it stands.
+/// both tools take; a shape or colour that replaces the selection lets the picks go too. Shown over the photo as
+/// <see cref="Shown"/>, at the size the cut-out tool shows its picks. Shapes and clicks are in the photo's pixels as it stands.
 /// </summary>
 public sealed partial class RegionMarking : ObservableObject
 {
@@ -86,18 +100,27 @@ public sealed partial class RegionMarking : ObservableObject
 
     private readonly PictureCutter _cutter;
     private readonly Func<SKSize?> _photoSize;
+    private readonly Func<string, CancellationToken, Task<UprightPixels>> _readUpright;
     private readonly List<RegionStep> _steps = [];
     private readonly List<MarkupPoint> _draft = [];
     private string? _photo;
 
     private IDocumentSelection? _document;
 
+    // The photo's pixels, read the first time a colour is clicked on it and kept while it is the photo: a click costs its reach.
+    private (string Photo, Task<UprightPixels> Read)? _upright;
+
+    // Each colour clicked counts; a reach worked out after a later click is let go.
+    private int _colourClicks;
+
     /// <param name="cutter">The cut-out tool, whose picks the selection starts from.</param>
     /// <param name="photoSize">The photo's size as it stands, once it is read; null before.</param>
-    public RegionMarking(PictureCutter cutter, Func<SKSize?> photoSize)
+    /// <param name="readUpright">Reads a photo's pixels at its full size as it stands, for what a colour clicked on it reaches.</param>
+    public RegionMarking(PictureCutter cutter, Func<SKSize?> photoSize, Func<string, CancellationToken, Task<UprightPixels>> readUpright)
     {
         _cutter = cutter;
         _photoSize = photoSize;
+        _readUpright = readUpright;
         cutter.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(PictureCutter.Shown)) Reshow();
@@ -123,6 +146,21 @@ public sealed partial class RegionMarking : ObservableObject
     {
         if (value < LeastRefine || value > MostRefine) RefineBy = Math.Clamp(value, LeastRefine, MostRefine);
     }
+
+    /// <summary>How near a colour clicked reaches: 0, the colour itself, to 255, every colour — on each channel.</summary>
+    [ObservableProperty] private double _colourTolerance = 32;
+
+    partial void OnColourToleranceChanged(double value)
+    {
+        if (value < 0 || value > 255) ColourTolerance = Math.Clamp(value, 0, 255);
+    }
+
+    /// <summary>A colour clicked reaches only what is joined to where it was clicked; otherwise that colour anywhere.</summary>
+    [ObservableProperty] private bool _colourJoined = true;
+
+    /// <summary>In a layered picture, a colour clicked is read from what shows, every layer together; otherwise from the active
+    /// layer alone.</summary>
+    [ObservableProperty] private bool _colourEveryLayer = true;
 
     /// <summary>The selection drawn by hand, as a recipe keeps it; null where nothing has been drawn or refined.</summary>
     public RecipeRegion? Region => _steps.Count == 0 ? null : new RecipeRegion { Steps = [.. _steps] };
@@ -151,6 +189,7 @@ public sealed partial class RegionMarking : ObservableObject
     {
         if (photo == _photo) return;
         _photo = photo;
+        _upright = null;
         Clear();
     }
 
@@ -178,12 +217,59 @@ public sealed partial class RegionMarking : ObservableObject
             document.Select(RegionRaster.Apply(document.Selection, new RecipeRegion { Steps = [shape] }, 1));
             return;
         }
-        if (shape.Mode == RegionMode.Replace)
+        AddStep(shape, shape.Mode);
+    }
+
+    /// <summary>
+    /// What is near the colour at <paramref name="at"/> selected, meeting what is selected as <paramref name="mode"/> says — within
+    /// <see cref="ColourTolerance"/>, joined to it where <see cref="ColourJoined"/>. On a photo it is a step of the region, kept as
+    /// the click; in a layered picture it is read from what shows, or the active layer alone (<see cref="ColourEveryLayer"/>), and
+    /// made part of the canvas's selection at once. A photo that cannot be read out leaves the selection as it was.
+    /// </summary>
+    public async Task SelectColourAsync(MarkupPoint at, RegionMode mode)
+    {
+        int click = ++_colourClicks, tolerance = (int)Math.Round(ColourTolerance);
+        if (_document is { } document)
+        {
+            var reach = await document.ReachOfColourAsync(new SKPointI((int)Math.Floor(at.X), (int)Math.Floor(at.Y)), tolerance, ColourJoined, ColourEveryLayer);
+            if (click != _colourClicks || !ReferenceEquals(document, _document) || reach is null) return;
+            document.Select(mode == RegionMode.Replace ? reach : document.Selection.Combined(reach, mode));
+            return;
+        }
+        if (_photo is not { } photo) return;
+        var colour = new RegionColour(at.X, at.Y, tolerance, ColourJoined) { Mode = mode };
+        TiledCoverage reached;
+        try
+        {
+            var pixels = await UprightAsync(photo);
+            reached = await Task.Run(() => RegionColours.ReachOn(colour, pixels));
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException)
+        {
+            return;   // the photo could not be read out: the selection stays as it was, and the next click reads it again
+        }
+        if (click != _colourClicks || photo != _photo || _document is not null) return;
+        AddStep(colour with { Reach = reached }, mode);
+    }
+
+    /// <summary>The photo's pixels as it stands: read once, and again only after a read that failed.</summary>
+    private Task<UprightPixels> UprightAsync(string photo)
+    {
+        if (_upright is { } held && held.Photo == photo && !held.Read.IsFaulted && !held.Read.IsCanceled) return held.Read;
+        var read = Task.Run(() => _readUpright(photo, CancellationToken.None));
+        _upright = (photo, read);
+        return read;
+    }
+
+    /// <summary>A step of the region added: one that replaces the selection lets what was picked and drawn before go.</summary>
+    private void AddStep(RegionStep step, RegionMode mode)
+    {
+        if (mode == RegionMode.Replace)
         {
             _steps.Clear();
             _cutter.ClearCommand.Execute(null);
         }
-        _steps.Add(shape);
+        _steps.Add(step);
         Changed();
     }
 

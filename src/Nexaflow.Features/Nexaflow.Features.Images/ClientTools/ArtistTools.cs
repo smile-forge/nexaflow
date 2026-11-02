@@ -95,7 +95,9 @@ internal sealed class ArtistTools(ArtistViewModel artist, IShellServices? shell,
             "select_in_picture",
             "Set the selection — what Cut out, Retouch, remove-background and, in a layered picture, fill, clear, masks and moves act on "
           + "— from any of: 'whole' (all, none or invert, first); 'find', everything a few words name, picked out by picture selection "
-          + "(\"the mug\", \"woman with red hair\"); 'shapes', rectangles and ellipses [{\"shape\": \"rectangle\"|\"ellipse\", \"box\": "
+          + "(\"the mug\", \"woman with red hair\"); 'colour', what is near the colour at a point {\"at\": [x, y], \"tolerance\": 0 to 255 "
+          + "(32), \"joined\": only what touches the point (true), \"every_layer\": read what shows, not the active layer alone (true), "
+          + "\"mode\"}; 'shapes', rectangles and ellipses [{\"shape\": \"rectangle\"|\"ellipse\", \"box\": "
           + "[l, t, r, b], \"mode\": \"replace\"|\"add\"|\"subtract\"|\"intersect\"}]; then 'refine' its edge in order [{\"how\": "
           + "\"feather\"|\"grow\"|\"shrink\"|\"smooth\", \"by\": pixels}]. 'mode' is how what 'find' picks meets what is selected. "
           + "Answers with what was found, how surely and where, and the selection's bounds. " + Coordinates,
@@ -104,6 +106,7 @@ internal sealed class ArtistTools(ArtistViewModel artist, IShellServices? shell,
                 new ClientToolParameter("find", "What to pick out, in a few words: a noun phrase like \"dog\" or \"red car\".", Required: false),
                 new ClientToolParameter("mode", "How what 'find' picks meets the selection: replace (the default), add, subtract or intersect.", Required: false,
                                         Choices: ["replace", "add", "subtract", "intersect"]),
+                new ClientToolParameter("colour", "What is near the colour at a point: at, tolerance, joined, every_layer and mode.", Required: false, Type: "object"),
                 new ClientToolParameter("shapes", "Rectangles and ellipses, each with its box and mode.", Required: false, Type: "array", ItemType: "object"),
                 new ClientToolParameter("refine", "Edge refinements, applied in order.", Required: false, Type: "array", ItemType: "object"),
             ],
@@ -581,6 +584,15 @@ internal sealed class ArtistTools(ArtistViewModel artist, IShellServices? shell,
                     ? new RegionEllipse(box.Left, box.Top, box.Right, box.Bottom) { Mode = mode }
                     : new RegionRectangle(box.Left, box.Top, box.Right, box.Bottom) { Mode = mode });
             }
+        (MarkupPoint At, double Tolerance, bool Joined, bool EveryLayer, RegionMode Mode)? colour = null;
+        if (args["colour"] is JsonObject asked)
+        {
+            if (asked["at"] is not JsonArray { Count: 2 } at || Number(at[0]) is not { } x || Number(at[1]) is not { } y
+                || (Number(asked["tolerance"]) ?? 32) is not (>= 0 and <= 255 and var tolerance))
+                return ToolResult.Error("no such colour", "colour is {\"at\": [x, y], \"tolerance\": 0 to 255, \"joined\": true|false, \"every_layer\": true|false, \"mode\": …}.");
+            if (Mode(asked["mode"]?.GetValue<string>()) is not { } colourMode) return ToolResult.Error("no such mode", "The colour's mode is replace, add, subtract or intersect.");
+            colour = (new MarkupPoint(x, y), tolerance, asked["joined"]?.GetValue<bool>() ?? true, asked["every_layer"]?.GetValue<bool>() ?? true, colourMode);
+        }
         var refinements = new List<(string How, double By)>();
         if (args["refine"] is JsonArray refine)
             foreach (var node in refine)
@@ -590,11 +602,11 @@ internal sealed class ArtistTools(ArtistViewModel artist, IShellServices? shell,
                     return ToolResult.Error("no such refinement", "Each refinement is {\"how\": feather|grow|shrink|smooth, \"by\": 1 to 250 pixels}.");
                 refinements.Add((how, by));
             }
-        if (string.IsNullOrEmpty(whole) && string.IsNullOrEmpty(find) && shapes.Count == 0 && refinements.Count == 0)
-            return ToolResult.Error("nothing to select", "Give whole, find, shapes or refine.");
+        if (string.IsNullOrEmpty(whole) && string.IsNullOrEmpty(find) && colour is null && shapes.Count == 0 && refinements.Count == 0)
+            return ToolResult.Error("nothing to select", "Give whole, find, colour, shapes or refine.");
         if (!string.IsNullOrEmpty(find) && PickingRefused() is { } refused) return refused;
 
-        // whole, then find — which waits on picture selection off the UI thread — then shapes and refinements.
+        // whole, then find — which waits on picture selection off the UI thread — then the colour, shapes and refinements.
         Task<IReadOnlyList<PictureFind>>? finding = null;
         var open = await OnUiAsync(() =>
         {
@@ -623,10 +635,21 @@ internal sealed class ArtistTools(ArtistViewModel artist, IShellServices? shell,
                 : $"Found {finds.Count} \"{find}\": " + string.Join("; ", finds.Select(f => string.Create(CultureInfo.InvariantCulture,
                       $"{f.Score:P0} sure at {f.Box.Left:F0},{f.Box.Top:F0},{f.Box.Right:F0},{f.Box.Bottom:F0}"))) + ". ";
         }
+        if (colour is { } near)
+        {
+            var reaching = await OnUiAsync(() =>
+            {
+                var marks = artist.Editor.RegionMarks;
+                if (finding is not null && artist.IsLayered) marks.TakePicked(findMode);
+                (marks.ColourTolerance, marks.ColourJoined, marks.ColourEveryLayer) = (near.Tolerance, near.Joined, near.EveryLayer);
+                return marks.SelectColourAsync(near.At, near.Mode);
+            });
+            await reaching;
+        }
         return await OnUiAsync(() =>
         {
             var marks = artist.Editor.RegionMarks;
-            if (finding is not null && artist.IsLayered) marks.TakePicked(findMode);
+            if (finding is not null && colour is null && artist.IsLayered) marks.TakePicked(findMode);
             foreach (var shape in shapes) marks.Add(shape);
             foreach (var (how, by) in refinements)
             {

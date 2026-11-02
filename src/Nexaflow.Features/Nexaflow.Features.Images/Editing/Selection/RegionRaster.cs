@@ -28,6 +28,8 @@ public static class RegionRaster
                 RegionGrow grow => coverage.Grown(grow.By * scale),
                 RegionSmooth smooth => coverage.Smoothed(smooth.Radius * scale),
                 RegionCoverage kept => kept.Coverage is { } held ? coverage.Combined(held.Resampled(coverage.Width, coverage.Height), kept.Mode) : coverage,
+                RegionColour colour => coverage.Combined((colour.Reach ?? throw new InvalidOperationException(
+                    "A colour is applied before what it reaches is worked out from the photo: see RegionColours.")).Resampled(coverage.Width, coverage.Height), colour.Mode),
                 _ => throw new NotSupportedException($"No way to apply a {step.GetType().Name}."),
             };
         return coverage;
