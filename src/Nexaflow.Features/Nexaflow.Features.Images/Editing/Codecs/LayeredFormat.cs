@@ -34,6 +34,13 @@ public interface ILayeredPictureFormat
     /// <summary>The usual file extension, with its dot.</summary>
     string Extension { get; }
 
+    /// <summary>Whether a picture held in <paramref name="colour"/> can be written as this format without losing what it holds.</summary>
+    bool HoldsColour(PictureColour colour);
+
+    /// <summary>The file the viewer decodes to show the picture at <paramref name="path"/> as the application that wrote it
+    /// drew it — its saved look, which a picture holding layers no reader draws opens on.</summary>
+    string SavedLookOf(string path);
+
     /// <exception cref="System.IO.InvalidDataException">It is not a picture of this format.</exception>
     Task<LayeredPictureRead> ReadAsync(string path, CancellationToken ct = default);
 

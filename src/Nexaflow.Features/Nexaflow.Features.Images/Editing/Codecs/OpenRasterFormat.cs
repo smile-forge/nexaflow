@@ -10,6 +10,7 @@ using Nexaflow.Features.Images.Editing.Selection;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.OpenRaster;
 using SkiaSharp;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Features.Images.Editing.Codecs;
 
@@ -33,7 +34,7 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
     private const string RoleMasked = "masked", RoleMask = "mask";
 
     /// <summary>Nexaflow's attributes, which it reads itself and writes afresh, so never keeps.</summary>
-    private static readonly HashSet<string> OwnAttributes = ["id", "source", "recipe", "markup", "placement", "pixels", "alpha-locked", "role", "mask-linked", "background"];
+    private static readonly HashSet<string> OwnAttributes = ["id", "source", "recipe", "markup", "placement", "pixels", "alpha-locked", "role", "mask-linked", "background", "colour"];
 
     /// <summary>The file system packages are read and written through.</summary>
     private IVirtualFileSystem FileSystem { get; } = fileSystem;
@@ -42,6 +43,12 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
 
     public bool Reads(ImageContainer container) => container == ImageContainer.OpenRaster;
 
+    /// <summary>8 and 16 bits, colour or grey — PNG's depths; not 32-bit float, which no PNG holds.</summary>
+    public bool HoldsColour(PictureColour colour) => colour.Depth != ChannelDepth.F32;
+
+    /// <summary>The package's <c>mergedimage.png</c>.</summary>
+    public string SavedLookOf(string path) => OpenRasterPackage.EntryPath(path, OpenRasterPackage.MergedImagePath);
+
     // ── Reading ─────────────────────────────────────────────────────────────
 
     public async Task<LayeredPictureRead> ReadAsync(string path, CancellationToken ct = default)
@@ -49,7 +56,8 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
         if (!await OpenRasterPackage.IsOpenRasterAsync(FileSystem, path, ct)) throw new InvalidDataException($"{path} is not an OpenRaster picture.");
         var image = await OpenRasterPackage.ReadStackAsync(FileSystem, path, ct);
         LayeredPicture.RequireSize(image.Width, image.Height);
-        var reading = new Reading(this, path, image.Width, image.Height, ct);
+        var held = ColourOf(Own(image.Kept, "colour")) ?? await ColourOfMergedImageAsync(path, ct);
+        var reading = new Reading(this, path, image.Width, image.Height, held.Tiles, ct);
         var layers = await reading.LayersAsync(image.Root.Children);
 
         var files = await OpenRasterPackage.FilesAsync(FileSystem, path, ct);
@@ -69,19 +77,53 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
             Height = image.Height,
             Dpi = image.XResolution ?? LayeredPicture.DefaultDpi,
             Background = background,
+            Colour = held,
             Layers = layers,
             ActiveId = reading.Active ?? TopmostOf(layers),
             Selection = TiledCoverage.Clear(image.Width, image.Height),
-            Kept = Foreign(image.Kept),
-            KeptEntries = keptFiles.ToImmutable(),
+            Kept = KeptFromFile.Of(new OpenRasterPictureKept(Foreign(image.Kept), keptFiles.ToImmutable())),
         };
         return new LayeredPictureRead(picture, reading.HoldsUndrawable);
     }
 
     private static Guid? TopmostOf(ImmutableArray<Layer> layers) => layers.IsEmpty ? null : layers[^1].Id;
 
+    /// <summary>A picture's colour as <c>nexaflow:colour</c> names it — <c>rgb16</c>, <c>grey8</c> — or null where it names none.</summary>
+    private static PictureColour? ColourOf(string? text) => text switch
+    {
+        "rgb8" => PictureColour.Rgb8,
+        "rgb16" => new PictureColour(ColourModel.Rgb, ChannelDepth.U16),
+        "grey8" => new PictureColour(ColourModel.Grey, ChannelDepth.U8),
+        "grey16" => new PictureColour(ColourModel.Grey, ChannelDepth.U16),
+        _ => null,
+    };
+
+    /// <summary>A picture's colour as <c>nexaflow:colour</c> writes it.</summary>
+    private static string ColourText(PictureColour colour) => $"{(colour.Model == ColourModel.Grey ? "grey" : "rgb")}{colour.Bits}";
+
+    /// <summary>
+    /// The colour of a picture another application wrote, from its merged image's PNG header: 16 bits a channel where it was
+    /// saved so, grey where it is grey — so a 16-bit picture from Krita opens at 16 bits. 8-bit colour where it says neither.
+    /// </summary>
+    private async Task<PictureColour> ColourOfMergedImageAsync(string package, CancellationToken ct)
+    {
+        var header = new byte[26];
+        try
+        {
+            await using var stream = await FileSystem.OpenReadAsync(OpenRasterPackage.EntryPath(package, OpenRasterPackage.MergedImagePath), ReadIntent.Sequential, ct);
+            if (await stream.ReadAtLeastAsync(header, header.Length, throwOnEndOfStream: false, ct) < header.Length) return PictureColour.Rgb8;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return PictureColour.Rgb8;
+        }
+        return DeepPng.HeaderOf(header) is { } png
+            ? new PictureColour(png.Grey ? ColourModel.Grey : ColourModel.Rgb, png.Bits == 16 ? ChannelDepth.U16 : ChannelDepth.U8)
+            : PictureColour.Rgb8;
+    }
+
     /// <summary>One package being read: the files it uses, the active layer, and whether any layer cannot be drawn.</summary>
-    private sealed class Reading(OpenRasterFormat format, string package, int width, int height, CancellationToken ct)
+    private sealed class Reading(OpenRasterFormat format, string package, int width, int height, TileFormat tiles, CancellationToken ct)
     {
         public HashSet<string> Used { get; } = new(StringComparer.Ordinal);
         public Guid? Active { get; private set; }
@@ -120,7 +162,7 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
                 ClipsToBelow = clips,
                 Locked = entry.EditLocked,
                 AlphaLocked = Own(entry.Kept, "alpha-locked") == "true",
-                Kept = Foreign(entry.Kept),
+                Kept = KeptOf(Foreign(entry.Kept)),
             };
             if (entry.Selected && Active is null) Active = read.Id;
             return read;
@@ -155,13 +197,13 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
             if (current && Own(entry.Kept, "markup") is { } markupFile && await BytesAsync(markupFile) is { } markupBytes
                 && ImageRecipeJson.DeserializeMarkup(Encoding.UTF8.GetString(markupBytes)) is { } elements)
                 return new MarkupLayer { Elements = elements, Placement = PlacementOf(Own(entry.Kept, "placement")) ?? LayerPlacement.Origin };
-            return new PixelLayer { Pixels = png is null ? TiledPixels.Empty : PixelsOf(png, entry.X, entry.Y) };
+            return new PixelLayer { Pixels = png is null ? TiledPixels.EmptyIn(tiles) : PixelsOf(png, entry.X, entry.Y, tiles) };
         }
 
         /// <summary>A mask from its layer — white, the mask as its alpha — over the canvas: what it does not reach hides.</summary>
         private async Task<LayerMask> MaskOfAsync(OpenRasterLayerEntry entry)
         {
-            var pixels = await BytesAsync(entry.Source) is { } png ? PixelsOf(png, entry.X, entry.Y) : TiledPixels.Empty;
+            var pixels = await BytesAsync(entry.Source) is { } png ? PixelsOf(png, entry.X, entry.Y, tiles) : TiledPixels.EmptyIn(tiles);
             return new LayerMask(pixels.Alpha(width, height), Enabled: entry.Visible, Linked: Own(entry.Kept, "mask-linked") != "false");
         }
 
@@ -200,10 +242,18 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
         return files;
     }
 
-    private static TiledPixels PixelsOf(byte[] png, int x, int y)
+    /// <summary>A layer's PNG as pixels in <paramref name="tiles"/>: a 16-bit PNG read exactly, every other through Skia.</summary>
+    private static TiledPixels PixelsOf(byte[] png, int x, int y, TileFormat tiles)
     {
+        if (DeepPng.IsDeep(png))
+        {
+            var (rgba, width, height) = DeepPng.Read(png);
+            var deep = TiledPixels.EmptyIn(TileFormat.Of(new PictureColour(ColourModel.Rgb, ChannelDepth.U16)))
+                                  .Written(new SKRectI(x, y, x + width, y + height), DeepPng.AsBytes(rgba));
+            return deep.ConvertedTo(tiles);
+        }
         using var bitmap = SKBitmap.Decode(png) ?? throw new InvalidDataException("A layer's pixels are not a picture.");
-        return TiledPixels.FromBitmap(bitmap, x, y);
+        return TiledPixels.FromBitmap(bitmap, x, y, tiles);
     }
 
     /// <summary>A placement as <see cref="PlacementText"/> writes it — its six terms — or null where it is not one.</summary>
@@ -231,12 +281,16 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
     private static OpenRasterKept Foreign(OpenRasterKept kept)
         => kept with { Attributes = [.. kept.Attributes.Where(a => !(a.Namespace == Ns && OwnAttributes.Contains(a.LocalName)))] };
 
+    /// <summary>What an element kept, as a layer keeps it: nothing where it kept nothing.</summary>
+    private static KeptFromFile KeptOf(OpenRasterKept kept) => kept.IsEmpty ? KeptFromFile.None : KeptFromFile.Of(kept);
+
     private static string HashOf(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
 
     // ── Writing ─────────────────────────────────────────────────────────────
 
     public async Task WriteAsync(LayeredPicture picture, string path, ILayeredPictureRenderer renderer, CancellationToken ct = default)
     {
+        if (!HoldsColour(picture.Colour)) throw new InvalidOperationException($"OpenRaster holds no {picture.Colour.Bits}-bit float picture.");
         // Each picture layer's source, the original file as it was, read before anything is written: the package being replaced may hold it.
         var sources = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         foreach (var layer in picture.All.OfType<PictureLayer>())
@@ -254,11 +308,14 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
 
         using (var merged = renderer.Composite(1)) writing.Add(OpenRasterPackage.MergedImagePath, Png(merged), stored: true);
         double thumbScale = Math.Min(1, (double)OpenRasterPackage.ThumbnailMaxSide / Math.Max(picture.Width, picture.Height));
-        using (var thumbnail = renderer.Composite(thumbScale)) writing.Add(OpenRasterPackage.ThumbnailPath, Png(thumbnail), stored: true);
-        foreach (var (file, bytes) in picture.KeptEntries)
+        using (var thumbnail = renderer.Composite(thumbScale)) writing.Add(OpenRasterPackage.ThumbnailPath, Png8(thumbnail), stored: true);
+        var pictureKept = picture.Kept.Get<OpenRasterPictureKept>();
+        foreach (var (file, bytes) in pictureKept?.Entries ?? ImmutableDictionary<string, byte[]>.Empty)
             if (!writing.Names(file)) writing.Add(file, bytes, stored: false);
 
-        var kept = picture.Kept;
+        var kept = pictureKept?.Image ?? OpenRasterKept.None;
+        if (picture.Colour != PictureColour.Rgb8)
+            kept = kept with { Attributes = kept.Attributes.Add(new OpenRasterAttribute(Ns, "colour", ColourText(picture.Colour))) };
         if (!picture.Background.IsTransparent)
             kept = kept with { Attributes = kept.Attributes.Add(new OpenRasterAttribute(Ns, "background", $"#{picture.Background.Argb:X8}")) };
         var image = new OpenRasterImage
@@ -320,6 +377,7 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
         private OpenRasterEntry Shared(OpenRasterEntry entry, Layer layer, string? role = null)
         {
             var blend = layer.Blend.Op ?? NormalOp;
+            var layerKept = layer.Kept.Get<OpenRasterKept>() ?? OpenRasterKept.None;
             bool normal = blend == NormalOp;
             var own = new List<OpenRasterAttribute> { new(Ns, "id", layer.Id.ToString("D")) };
             if (layer.AlphaLocked) own.Add(new OpenRasterAttribute(Ns, "alpha-locked", "true"));
@@ -332,7 +390,7 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
                 CompositeOp = layer.ClipsToBelow && normal ? ClipOp : blend,
                 Selected = picture.ActiveId == layer.Id,
                 EditLocked = layer.Locked,
-                Kept = layer.Kept with { Attributes = [.. own, .. entry.Kept.Attributes, .. layer.Kept.Attributes] },
+                Kept = layerKept with { Attributes = [.. own, .. entry.Kept.Attributes, .. layerKept.Attributes] },
             };
             return shared is OpenRasterLayerEntry layerEntry && layer.ClipsToBelow && !normal ? layerEntry with { AlphaPreserve = true } : shared;
         }
@@ -346,6 +404,18 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
             {
                 area = new SKRectI(0, 0, 1, 1);
                 png = Png(new byte[4], 1, 1);
+            }
+            else if (coverage.Depth == ChannelDepth.U16)
+            {
+                // A 16-bit mask as a 16-bit PNG: white, the mask as its alpha.
+                var values = coverage.ReadValues(area);
+                var rgba = new ushort[values.Length * 4];
+                for (int i = 0; i < values.Length; i++)
+                {
+                    rgba[i * 4] = rgba[i * 4 + 1] = rgba[i * 4 + 2] = ushort.MaxValue;
+                    rgba[i * 4 + 3] = (ushort)Math.Clamp((int)MathF.Round(values[i] * 65535), 0, 65535);
+                }
+                png = DeepPng.Write(rgba, area.Width, area.Height, grey: false);
             }
             else
             {
@@ -374,6 +444,14 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
                 area = new SKRectI(0, 0, 1, 1);
                 png = Png(new byte[4], 1, 1);
             }
+            else if (pixels.Format.Colour.Depth == ChannelDepth.U16)
+            {
+                // 16 bits a channel, written exactly as a 16-bit PNG — grey as 16-bit grey where it is opaque.
+                var rgba = pixels.Format.Colour.Model == ColourModel.Rgb
+                    ? MemoryMarshal.Cast<byte, ushort>(pixels.Read(area)).ToArray()
+                    : SpreadGrey(MemoryMarshal.Cast<byte, ushort>(pixels.Read(area)));
+                png = DeepPng.Write(rgba, area.Width, area.Height, grey: pixels.Format.Colour.Model == ColourModel.Grey);
+            }
             else
             {
                 using var bitmap = pixels.ToBitmap(area);
@@ -382,6 +460,18 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
             var file = NextLayerFile();
             Add(file, png, stored: true);
             return new OpenRasterLayerEntry { Source = file, X = area.Left, Y = area.Top };
+        }
+
+        /// <summary>16-bit grey and alpha spread to 16-bit colour and alpha.</summary>
+        private static ushort[] SpreadGrey(ReadOnlySpan<ushort> greyAlpha)
+        {
+            var rgba = new ushort[greyAlpha.Length * 2];
+            for (int i = 0; i < greyAlpha.Length / 2; i++)
+            {
+                rgba[i * 4] = rgba[i * 4 + 1] = rgba[i * 4 + 2] = greyAlpha[i * 2];
+                rgba[i * 4 + 3] = greyAlpha[i * 2 + 1];
+            }
+            return rgba;
         }
 
         private OpenRasterLayerEntry PictureEntry(PictureLayer layer)
@@ -472,6 +562,15 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
     {
         using var data = image.Encode(SKEncodedImageFormat.Png, 100) ?? throw new InvalidOperationException("A picture could not be written as PNG.");
         return data.ToArray();
+    }
+
+    /// <summary>A picture as an 8-bit PNG, whatever its depth — the thumbnail OpenRaster asks for.</summary>
+    private static byte[] Png8(SKImage image)
+    {
+        var info = new SKImageInfo(image.Width, image.Height, SKColorType.Rgba8888, SKAlphaType.Premul, SKColorSpace.CreateSrgb());
+        using var bitmap = new SKBitmap(info);
+        if (!image.ReadPixels(info, bitmap.GetPixels(), bitmap.RowBytes, 0, 0)) throw new InvalidOperationException("A picture could not be written as PNG.");
+        return Png(bitmap);
     }
 
     private static byte[] Png(SKBitmap bitmap)

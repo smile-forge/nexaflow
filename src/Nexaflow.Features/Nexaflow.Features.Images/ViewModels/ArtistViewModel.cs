@@ -387,7 +387,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         }
         if (!string.Equals(CurrentPath, path, StringComparison.OrdinalIgnoreCase)) return;
         var document = new LayeredSession(path, read.Picture, _editing, _config.HistoryBudget);
-        if (read.HoldsUndrawable) document.ShowSavedLook(OpenRasterPackage.EntryPath(path, OpenRasterPackage.MergedImagePath));
+        if (read.HoldsUndrawable) document.ShowSavedLook(format.SavedLookOf(path));
         ShowDocument(document);
         Start.Remember(path);
     }
@@ -433,6 +433,14 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     /// </summary>
     private void SaveDocument()
     {
+        if (CurrentDocument is { } held && _editing.LayeredFormatFor(held.Path) is { } format && !format.HoldsColour(held.Picture.Colour))
+        {
+            // Converted to a colour its own file cannot hold: kept as a draft in a format that does, until it is saved as one.
+            var name = Path.GetFileName(held.Path);
+            var extension = _editing.LayeredExtensionFor(held.Picture.Colour);
+            held.MovedToDraft(DraftLocation.NewFile(Path.GetFileNameWithoutExtension(held.Path) + extension));
+            _shell?.ShowNotification(Str.Format("Images.Layers.RedraftedFormat", name, extension));
+        }
         if (CurrentDocument is not { } document || document.Writing(document.Path) is not { } write) return;
         var picture = document.Picture;
         var task = new ImageSaveTask(document.Path, write);
@@ -467,10 +475,14 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         var destination = document.Path;
         if (askWhere || document.IsDraft)
         {
-            var name = Path.GetFileNameWithoutExtension(document.Path) + OpenRasterPackage.Extension;
-            destination = await _shell.PickSaveFileAsync(name, [OpenRasterPackage.Extension], document.DraftFolder ?? Path.GetDirectoryName(document.Path));
+            // The layered formats that hold the picture's colour, the one it is kept in first where it holds it.
+            var offered = _editing.LayeredFormatsHolding(document.Picture.Colour).Select(f => f.Extension).ToArray();
+            var current = Path.GetExtension(document.Path);
+            var extension = offered.FirstOrDefault(e => string.Equals(e, current, StringComparison.OrdinalIgnoreCase)) ?? offered[0];
+            var name = Path.GetFileNameWithoutExtension(document.Path) + extension;
+            destination = await _shell.PickSaveFileAsync(name, [extension, .. offered.Where(e => e != extension)], document.DraftFolder ?? Path.GetDirectoryName(document.Path));
             if (destination is null) return false;
-            destination = Path.ChangeExtension(destination, OpenRasterPackage.Extension);
+            if (!offered.Contains(Path.GetExtension(destination), StringComparer.OrdinalIgnoreCase)) destination = Path.ChangeExtension(destination, extension);
         }
         if (document.Writing(destination) is not { } write)
         {
@@ -520,7 +532,8 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     private async Task UseSavedLook()
     {
         if (CurrentDocument is not { SavedLook: { } look } document) return;
-        var copy = DraftLocation.NewFile(Path.GetFileNameWithoutExtension(document.Path) + " " + Str.Get("Images.Layers.SavedLookFileName") + ".png");
+        // The file the saved look is decoded from, copied as it is: a merged PNG, or the file that holds its own composite.
+        var copy = DraftLocation.NewFile(Path.GetFileNameWithoutExtension(document.Path) + " " + Str.Get("Images.Layers.SavedLookFileName") + Path.GetExtension(look.Path));
         await _editing.FileSystem.WriteAllBytesAsync(copy, await _editing.FileSystem.ReadAllBytesAsync(look.Path));
         document.UseSavedLook(copy, Str.Get("Images.Layers.SavedLookName"));
     }

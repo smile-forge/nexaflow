@@ -63,7 +63,7 @@ public sealed class ImageEditingServices : IDisposable
     public ImageRecipeStore Recipes { get; }
     public ImageExporter Exporter { get; }
 
-    /// <summary>The formats that hold layers — OpenRaster — each read and written as a layered picture.</summary>
+    /// <summary>The formats that hold layers, in the order they are offered, each read and written as a layered picture.</summary>
     public IReadOnlyList<ILayeredPictureFormat> LayeredFormats { get; }
 
     /// <summary>The layered format the file at <paramref name="path"/> is, by its first bytes; null where it is none.</summary>
@@ -86,6 +86,16 @@ public sealed class ImageEditingServices : IDisposable
     /// <summary>The layered format a file named <paramref name="path"/> is written in, by its extension; null for none.</summary>
     public ILayeredPictureFormat? LayeredFormatFor(string path)
         => LayeredFormats.FirstOrDefault(f => string.Equals(f.Extension, Path.GetExtension(path), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>The layered formats that hold a picture in <paramref name="colour"/>, in the order they are offered.</summary>
+    public IReadOnlyList<ILayeredPictureFormat> LayeredFormatsHolding(PictureColour colour) => [.. LayeredFormats.Where(f => f.HoldsColour(colour))];
+
+    /// <summary>The extension a picture in <paramref name="colour"/> is kept in where nothing names one — a draft, a new canvas:
+    /// the first format offered that holds it.</summary>
+    /// <exception cref="NotSupportedException">No layered format holds that colour.</exception>
+    public string LayeredExtensionFor(PictureColour colour)
+        => LayeredFormatsHolding(colour).FirstOrDefault()?.Extension
+           ?? throw new NotSupportedException($"No layered format holds a {colour.Bits}-bit {colour.Model} picture.");
 
     /// <summary>
     /// Writes a layered picture made here and not opened yet — a blank canvas — at <paramref name="path"/> in the format its

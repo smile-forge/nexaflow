@@ -59,11 +59,8 @@ public sealed record LayeredPicture
     /// <summary>What is selected, over the canvas; empty — selecting everything — where nothing is.</summary>
     public required TiledCoverage Selection { get; init; }
 
-    /// <summary>What the file's <c>image</c> element held that Nexaflow does not understand.</summary>
-    public OpenRasterKept Kept { get; init; } = OpenRasterKept.None;
-
-    /// <summary>The files the package held that Nexaflow does not read, by their path inside it, kept to be written back.</summary>
-    public ImmutableDictionary<string, byte[]> KeptEntries { get; init; } = ImmutableDictionary<string, byte[]>.Empty;
+    /// <summary>What the file it was read from held for the picture as a whole that Nexaflow does not understand, by format.</summary>
+    public KeptFromFile Kept { get; init; } = KeptFromFile.None;
 
     /// <summary>A blank canvas: <paramref name="width"/> × <paramref name="height"/> in <paramref name="colour"/> — 8-bit colour
     /// unless named — one empty pixel layer, nothing selected.</summary>

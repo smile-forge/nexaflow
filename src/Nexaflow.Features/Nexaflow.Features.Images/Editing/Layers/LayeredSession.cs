@@ -97,6 +97,15 @@ public sealed class LayeredSession : IPictureLayerImages, IDisposable
         DraftFolder = folder;
     }
 
+    /// <summary>The picture kept as a draft at <paramref name="draft"/> from now on — the file it was kept in can no longer hold
+    /// it — its Save as offered back in the folder that file is in.</summary>
+    public void MovedToDraft(string draft)
+    {
+        if (!IsDraft) DraftFolder = System.IO.Path.GetDirectoryName(Path);
+        Path = draft;
+        IsDraft = true;
+    }
+
     /// <summary>
     /// What writing the picture as it stands to <paramref name="destination"/> does — its layers drawn at full size, the package
     /// written whole — as work to run off the UI thread; null while a picture layer waits for what the picture tools make for it.
@@ -128,10 +137,21 @@ public sealed class LayeredSession : IPictureLayerImages, IDisposable
         return async ct =>
         {
             using var renderer = await LayeredRenderer.PrepareAsync(picture, l => made[l.Id], _services, ct);
-            using var flat = renderer.Composite(1);
-            var bytes = await _services.Exporter.EncodeAsync(flat, target, export, metadataFrom, ct);
+            using var composite = renderer.Composite(1);
+            // As deep as the picture is held, so a 16-bit PNG or TIFF keeps it; an 8-bit grey picture over a background as grey.
+            using var grey = picture.Colour is { Model: ColourModel.Grey, Depth: ChannelDepth.U8 } && !picture.Background.IsTransparent ? AsGrey(composite) : null;
+            var bytes = await _services.Exporter.EncodeAsync(grey ?? composite, target, export, metadataFrom, ct);
             await _services.FileSystem.ReplaceAsync(destination, bytes, ct);
         };
+    }
+
+    /// <summary>An 8-bit picture of greys as one grey channel, what a grey PNG or JPEG holds.</summary>
+    private static SKImage AsGrey(SKImage image)
+    {
+        var info = new SKImageInfo(image.Width, image.Height, SKColorType.Gray8, SKAlphaType.Opaque);
+        using var bitmap = new SKBitmap(info);
+        if (!image.ReadPixels(info, bitmap.GetPixels(), bitmap.RowBytes, 0, 0)) throw new InvalidOperationException("The picture could not be made grey.");
+        return SKImage.FromPixelCopy(info, bitmap.GetPixels(), bitmap.RowBytes) ?? throw new InvalidOperationException("The picture could not be made grey.");
     }
 
     /// <summary>What the picture tools made for each picture layer's recipe; null while any is still waiting.</summary>

@@ -313,6 +313,7 @@
   "Images.Layers.WaitForTools": "A picture layer is still waiting for what the picture tools make for it.",
   "Images.Layers.FailedFormat": "Couldn't do that: {0}",
   "Images.Layers.OpenFailedFormat": "Couldn't open {0} as a layered picture: {1}",
+  "Images.Layers.RedraftedFormat": "{0} can't hold the picture in its new colour: it is kept as a draft until you save it as {1}",
   "Images.Layers.SavedLookFormat": "Shown as it was saved: these layers can't be drawn here — {0}.",
   "Images.Layers.UseSavedLook": "Use the saved look",
   "Images.Layers.UseSavedLookTip": "Replace the layers with one layer showing the picture as it was saved, the effect baked in",

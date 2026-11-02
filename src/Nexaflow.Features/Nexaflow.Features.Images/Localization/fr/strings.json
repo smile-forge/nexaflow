@@ -315,6 +315,7 @@
   "Images.Layers.WaitForTools": "Un calque d'image attend encore ce que les outils d'image produisent pour lui.",
   "Images.Layers.FailedFormat": "Impossible : {0}",
   "Images.Layers.OpenFailedFormat": "Impossible d'ouvrir {0} comme image à calques : {1}",
+  "Images.Layers.RedraftedFormat": "{0} ne peut pas contenir l’image dans sa nouvelle couleur : elle est gardée en brouillon jusqu’à ce que vous l’enregistriez en {1}",
   "Images.Layers.SavedLookFormat": "Affichée telle qu'enregistrée : ces calques ne peuvent pas être dessinés ici — {0}.",
   "Images.Layers.UseSavedLook": "Utiliser l'aspect enregistré",
   "Images.Layers.UseSavedLookTip": "Remplacer les calques par un seul montrant l'image telle qu'enregistrée, l'effet incorporé",

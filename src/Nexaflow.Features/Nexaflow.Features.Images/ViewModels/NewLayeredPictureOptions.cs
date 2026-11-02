@@ -46,7 +46,10 @@ public sealed class NewLayeredPictureOptions : ObservableObject, IFileCreateOpti
     public string? Create(string fileName)
     {
         if (Setup.Make(Str.Format("Images.Layers.PixelName", 1)) is not { } picture) return null;
+        // Named as the picker names it, unless that format cannot hold the colour chosen: then as the first that can.
         var path = Path.Combine(_folder, fileName);
+        if (_editing.LayeredFormatFor(path) is not { } format || !format.HoldsColour(picture.Colour))
+            path = Path.ChangeExtension(path, _editing.LayeredExtensionFor(picture.Colour));
         _ = MakeAsync(picture, path);
         return path;
     }

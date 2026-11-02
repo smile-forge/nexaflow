@@ -145,7 +145,7 @@ public abstract record Layer
     public LayerMask? Mask { get; init; }
 
     /// <summary>What the file it was read from said of it that Nexaflow does not understand, written back as it was.</summary>
-    public OpenRasterKept Kept { get; init; } = OpenRasterKept.None;
+    public KeptFromFile Kept { get; init; } = KeptFromFile.None;
 }
 
 /// <summary>A picture — a photo, by its file — with its recipe, in its own coordinates, placed on the canvas.</summary>
