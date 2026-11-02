@@ -284,7 +284,7 @@ public class ImageOpenRasterTests
         Assert.IsInstanceOfType<UndrawableLayer>(picture.Layers[2]);
         Assert.AreEqual("applications:krita:levels", ((UndrawableLayer)picture.Layers[2]).Kind);
         var ex = picture.Layers[1];
-        Assert.AreEqual(("krita:exclusion", SKBlendMode.Exclusion), (ex.Blend.Op, ex.Blend.ToSkia()), "kept as written, drawn by Skia's blend of its name");
+        Assert.AreEqual(("krita:exclusion", (SKBlendMode?)SKBlendMode.Exclusion), (ex.Blend.Op, ex.Blend.SkiaMode), "kept as written, drawn by Skia's blend of its name");
         Assert.AreEqual(new SKRectI(2, 1, 6, 5), ((PixelLayer)ex).Pixels.Bounds, "at its place");
         var shaped = picture.Layers[0];
         Assert.AreEqual((true, "svg:multiply"), (shaped.ClipsToBelow, shaped.Blend.Op), "alpha-preserve beside another blend: clipped, with that blend");

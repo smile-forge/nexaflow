@@ -217,8 +217,10 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
             return;
         }
 
-        using var paint = new SKPaint { BlendMode = layer.Blend.ToSkia(), ColorF = new SKColorF(0, 0, 0, (float)opacity) };
-        bool ownSurface = mask is not null || layer.ClipsToBelow || layer is GroupLayer;
+        using var paint = new SKPaint { ColorF = new SKColorF(0, 0, 0, (float)opacity) };
+        layer.Blend.ApplyTo(paint);
+        // Dissolve scatters the layer's own pixels, so it needs them on a surface of their own first.
+        bool ownSurface = mask is not null || layer.ClipsToBelow || layer is GroupLayer || layer.Blend.IsDissolve;
         if (!ownSurface)
         {
             DrawContent(target.Canvas, layer, band, paint);
@@ -244,6 +246,13 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
         }
         using var drawn = surface.Snapshot();
         target.Canvas.ResetMatrix();
+        if (layer.Blend.IsDissolve)
+        {
+            using var dissolved = LayerBlenders.Dissolve(drawn, opacity, new SKPointI(band.Rect.Left, band.Rect.Top));
+            using var scattered = new SKPaint { Shader = dissolved };
+            target.Canvas.DrawRect(SKRect.Create(drawn.Width, drawn.Height), scattered);
+            return;
+        }
         target.Canvas.DrawImage(drawn, 0, 0, paint);
     }
 

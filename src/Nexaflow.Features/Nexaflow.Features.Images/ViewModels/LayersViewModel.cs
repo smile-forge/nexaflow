@@ -42,7 +42,7 @@ public sealed partial class LayersViewModel : ObservableObject
         _shell = shell;
         _runOnUi = runOnUi;
         _colour = colour;
-        BlendChoices = [.. LayerBlend.Offered.Select(o => new LayerBlendChoice(o.Blend, Str.Get($"Images.Layers.Blend.{o.Blend.Op[4..]}")))];
+        BlendChoices = [.. LayerBlend.Offered.Select(o => new LayerBlendChoice(o.Blend, Str.Get($"Images.Layers.Blend.{o.Blend.Key}")))];
     }
 
     public ObservableCollection<LayerItem> Items { get; } = [];
