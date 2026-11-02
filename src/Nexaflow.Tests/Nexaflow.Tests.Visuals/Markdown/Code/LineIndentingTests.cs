@@ -14,7 +14,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Code;
 [TestClass]
 [DoNotParallelize]
 [CoversNode("markdown-source-box")]
-public class CodeIndentingTests
+public class LineIndentingTests
 {
     [TestMethod]
     public void Enter_CarriesTheLinesIndentOnToTheNextLine() => UiThread.Run(() =>

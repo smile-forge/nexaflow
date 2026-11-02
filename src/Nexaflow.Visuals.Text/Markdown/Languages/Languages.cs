@@ -46,6 +46,8 @@ using Nexaflow.Markdown.TreeView;
 using Nexaflow.Visuals.Text.Markdown.TreeView;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Markdown.Layout.Code;
+using Nexaflow.Markdown.PlainText;
+using Nexaflow.Markdown.Layout.PlainText;
 
 namespace Nexaflow.Visuals.Text.Markdown.Languages;
 
@@ -744,6 +746,34 @@ internal static class Shipped
     /// and coloured once its grammar has read it, which is never on the way to drawing.
     /// </summary>
     public static readonly IReadOnlyList<ContentLanguage> Codes = [.. TreeSitterLanguages.Grammars.Select(grammar => Coded(grammar))];
+
+    /// <summary>What plain text answers when written in: the keys of everything written line by line.</summary>
+    private static readonly IContentLanguage TextEdits = new TextEditing();
+
+    /// <summary>
+    /// Plain text: its lines, the words in them, and nothing they draw — what a page's source is shown as beside the page
+    /// (<see cref="ContentLanguages.AsTyped"/>), and what a fence calling itself text holds. Read a stretch at a time, cut into lines
+    /// and words for the stretches being laid, and set as typed.
+    /// </summary>
+    public static readonly ContentLanguage Text = new(
+        Reads: word => word is not null && TextNames.Contains(word.Trim()),
+        Parser: () => source => ContentParse.Of(TextParser.Parse(source)),
+        Stages: static (_, show) =>
+        [
+            new TextIntoLines(),
+
+            // Last, because a line is only the same as it was when what it is cut into is too.
+            show.Unchanged,
+        ],
+        Builder: ContentLayouts.Text)
+    {
+        Editing = TextEdits,
+        Windowed = TextParser.Windowed,
+        UnitHeight = TextSetting.HeightOf,
+    };
+
+    /// <summary>The words a fence of plain text is written under.</summary>
+    private static readonly HashSet<string> TextNames = new([TextParser.Language, "txt", "plain", "plaintext"], StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Code in <paramref name="grammar"/>, or in none: read as written first, and by the grammar second (<see cref="CodeSpans"/>).</summary>
     private static ContentLanguage Coded(string? grammar) => new(

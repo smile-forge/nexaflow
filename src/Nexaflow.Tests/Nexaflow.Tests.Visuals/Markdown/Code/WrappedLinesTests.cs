@@ -6,6 +6,7 @@ using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Code;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Visuals.Text.Markdown.Languages;
 using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Code;
@@ -120,8 +121,8 @@ public class WrappedLinesTests
     });
 
     [TestMethod]
-    public void TheNameTextIsShownUnder_IsOneNoLanguageReads() =>
-        Assert.IsNull(ContentLanguages.For(ContentLanguages.AsTyped), "a language reads it, so it is not shown as typed");
+    public void TheNameTextIsShownUnder_IsPlainTexts() =>
+        Assert.AreSame(Shipped.Text, ContentLanguages.For(ContentLanguages.AsTyped), "what is shown as typed is read as plain text");
 
     /// <summary><paramref name="text"/> shown on a screen <see cref="Room"/> wide, read and laid — as typed unless a language is named.</summary>
     private static ContentEngine Shown(string text, bool wraps, string? language = ContentLanguages.AsTyped)

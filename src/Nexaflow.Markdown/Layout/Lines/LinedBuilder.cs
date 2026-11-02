@@ -43,6 +43,16 @@ public abstract class LinedBuilder(ContentReading reading, EditState state, Layo
     /// <summary>What a piece of a line the language calls <paramref name="kind"/> is drawn in.</summary>
     protected abstract LayoutInk Ink(string kind);
 
+    /// <summary>
+    /// The runs <paramref name="line"/> is set as, left to right, its line end left out: what each stands for, its characters, and what it is
+    /// called — every piece of the line a run of its own, unless the language sets several as one.
+    /// </summary>
+    protected virtual IEnumerable<(ISourcePart Part, string Text, string Kind)> Runs(ContentPart line)
+    {
+        foreach (var piece in line.Children)
+            if (piece.Kind != LineKinds.LineEnd) yield return (piece, piece.Text, piece.Kind);
+    }
+
     protected sealed override Laid? Build()
     {
         if (Reading.Root.Length == 0) return null;
@@ -140,12 +150,9 @@ public abstract class LinedBuilder(ContentReading reading, EditState state, Layo
 
         apart.Open(LineKind, line, stops: LayoutStops.None, paints: new LayoutPaint(Kept: new LayoutKept()));
 
-        foreach (var piece in line.Children)
+        foreach (var (part, text, kind) in this.Runs(line))
         {
-            if (piece.Kind == LineKinds.LineEnd) continue;
-
-            var ink = Ink(piece.Kind);
-            var text = piece.Text;
+            var ink = Ink(kind);
 
             for (var from = 0; from < text.Length;)
             {
@@ -163,7 +170,7 @@ public abstract class LinedBuilder(ContentReading reading, EditState state, Layo
                 // The piece is called what the language called it, so what a reader pressed and what the theme coloured are the same
                 // question asked of the same piece.
                 LayoutText.Words(apart, glyphs, new LayoutPoint(x, row * height), across + 1, LayoutAlign.Left,
-                                 whole ? piece : new PartSlice(piece, from, to - from), piece.Kind, maps: true, ink: ink);
+                                 whole ? part : new PartSlice(part, from, to - from), kind, maps: true, ink: ink);
 
                 x += across;
                 reach = Math.Max(reach, x);
@@ -190,11 +197,8 @@ public abstract class LinedBuilder(ContentReading reading, EditState state, Layo
         var breaks = new List<int>();
         var rows = new LineRows(Room);
 
-        foreach (var piece in line.Children)
+        foreach (var (_, text, _) in this.Runs(line))
         {
-            if (piece.Kind == LineKinds.LineEnd) continue;
-
-            var text = piece.Text;
             for (var at = 0; at < text.Length; at++)
                 if (rows.Next(text[at], this.Advance(text, at)) is >= 0 and var starts) breaks.Add(starts);
         }

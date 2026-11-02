@@ -6,7 +6,7 @@
         {
           "type": "code",
           "doc": "src/Nexaflow.Markdown/Ast/ContentStretch.cs",
-          "class": "ContentChunks"
+          "class": "ContentUnits"
         },
         {
           "type": "code",
@@ -39,7 +39,7 @@
         {
           "type": "code",
           "doc": "src/Nexaflow.Markdown/Ast/ContentStretch.cs",
-          "class": "ContentChunks",
+          "class": "ContentUnits",
           "method": "Edited"
         },
         {
@@ -90,8 +90,8 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/Code/CodeRows.cs",
-          "class": "CodeRows"
+          "doc": "src/Nexaflow.Markdown/Layout/Lines/LineRows.cs",
+          "class": "LineRows"
         },
         {
           "type": "code",
@@ -106,8 +106,8 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeIndenting.cs",
-          "class": "CodeIndenting"
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/LineIndenting.cs",
+          "class": "LineIndenting"
         }
       ]
     },

@@ -55,8 +55,8 @@ internal sealed class CodeEditing : IContentLanguage
     /// <summary>Colouring code is still showing it: every character a writer typed is on the page.</summary>
     public bool ShowsWhatWasWritten => true;
 
-    /// <summary>Enter carries a line's indent on, and Tab and Shift+Tab indent, as in a text editor (<see cref="CodeIndenting"/>).</summary>
-    public IOnEdit? OnEdit => CodeIndenting.Instance;
+    /// <summary>Enter carries a line's indent on, and Tab and Shift+Tab indent, as in a text editor (<see cref="LineIndenting"/>).</summary>
+    public IOnEdit? OnEdit => LineIndenting.Instance;
 
     /// <summary>
     /// Every way of the clipboard, as the engine does it: what its edits write beyond the characters typed is only indent, so every

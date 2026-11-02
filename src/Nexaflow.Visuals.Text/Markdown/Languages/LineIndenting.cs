@@ -5,17 +5,18 @@ using System.Linq;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Visuals.Text.Editing;
 
-namespace Nexaflow.Visuals.Text.Markdown.Code;
+namespace Nexaflow.Visuals.Text.Markdown.Languages;
 
 /// <summary>
-/// What Enter and Tab mean in code, and in text shown as typed, as they mean in a text editor: a line broken carries on at the indent of
-/// the line it was broken from; Tab writes a tab at the caret, or over lines picked out indents each of them, leaving them picked out so
-/// it can be pressed again; and Shift+Tab takes a level of indent — a tab, or as many as four spaces — off each line it covers.
+/// What Enter and Tab mean in content written line by line — code, plain text — as they mean in a text editor: a line broken carries on
+/// at the indent of the line it was broken from; Tab writes a tab at the caret, or over lines picked out indents each of them, leaving
+/// them picked out so it can be pressed again; and Shift+Tab takes a level of indent — a tab, or as many as four spaces — off each line
+/// it covers.
 /// </summary>
-internal sealed class CodeIndenting : IOnEdit
+internal sealed class LineIndenting : IOnEdit
 {
     /// <summary>The one there need ever be: it holds nothing.</summary>
-    public static CodeIndenting Instance { get; } = new();
+    public static LineIndenting Instance { get; } = new();
 
     /// <summary>How many spaces make a level of indent, for a line indented with spaces rather than a tab.</summary>
     private const int SpacesPerLevel = 4;

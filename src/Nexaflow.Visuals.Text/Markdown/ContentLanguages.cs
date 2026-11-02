@@ -7,6 +7,7 @@ using System.Linq;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Plot;
 using Nexaflow.Markdown.Prose;
+using Nexaflow.Markdown.PlainText;
 using Nexaflow.Visuals.Text.Markdown.Languages;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -52,6 +53,7 @@ public static class ContentLanguages
         Shipped.Plot(PlotFence.Bubble),
         Shipped.Plot(PlotFence.Heatmap),
         Shipped.Plot(PlotFence.Density2d),
+        Shipped.Text,
 
         // Last, and deliberately. Code answers to dozens of words, so a fence calling itself something a language of its own
         // already claims must reach that one first.
@@ -75,10 +77,10 @@ public static class ContentLanguages
     public static ContentLanguage Code => Shipped.Code;
 
     /// <summary>
-    /// The name content is shown under to be its characters and nothing they draw — what a page's source is shown as, beside the page. No
-    /// language reads it, so content under it falls to <see cref="Code"/>, with no grammar to colour it.
+    /// The name content is shown under to be its characters and nothing they draw — what a page's source is shown as, beside the page:
+    /// plain text's (<see cref="Shipped.Text"/>), read as its lines and the words in them.
     /// </summary>
-    public const string AsTyped = "text";
+    public const string AsTyped = TextParser.Language;
 
     /// <summary>
     /// Adds a language, or replaces one already registered under a name it answers to. Last in wins, which is what lets a host
@@ -120,14 +122,12 @@ public static class ContentLanguages
     /// <summary>
     /// The language the tree holding <paramref name="part"/> was read in: the one its root names (<see cref="BlockNode"/>). Markdown is
     /// what content is written in where nothing names a language, so nothing in the table answers to it; its root is known by the
-    /// name its parser gives it. Code no grammar reads is still code — what content is shown as where its language is one nothing reads
-    /// (<see cref="Code"/>) — so what is written in it is answered as code is.
+    /// name its parser gives it.
     /// </summary>
     public static ContentLanguage? WrittenIn(ContentPart part) =>
         (part.Ancestors().LastOrDefault() ?? part).Node switch
         {
             BlockNode { Language: MarkdownParser.Language } => Markdown,
-            BlockNode { Kind: Nexaflow.Markdown.Code.CodeKinds.Code } block => For(block.Language) ?? Code,
             BlockNode block => For(block.Language),
             _ => null,
         };

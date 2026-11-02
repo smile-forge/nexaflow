@@ -227,7 +227,7 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
         get
         {
             var style = _drawnIn ?? Drawn;
-            var mono = Nexaflow.Markdown.Layout.Code.CodeSetting.Mono(style);
+            var mono = Nexaflow.Markdown.Layout.PlainText.TextSetting.Characters(style);
 
             return (((WpfFace)mono.Face).Typeface, mono.Size * _shown.Zoom, ((WpfInk)style.Text).Brush);
         }
