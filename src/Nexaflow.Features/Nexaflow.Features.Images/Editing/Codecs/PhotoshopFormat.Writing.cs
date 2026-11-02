@@ -74,12 +74,37 @@ public sealed partial class PhotoshopFormat
                 GlobalLayerMask = kept?.GlobalLayerMask ?? ReadOnlyMemory<byte>.Empty,
                 GlobalBlocks = [.. blocks],
                 MergedChannels = colourChannels + 1,
-                // Colour, then transparency: channel c of each pixel's red, green, blue and alpha — a grey picture's grey its red.
+                // Colour, then transparency: channel c of each pixel's red, green, blue and alpha — a grey picture's grey its red —
+                // colour composited over white where it is partly transparent, as Photoshop writes a merged image.
                 Merged = (channel, y, into) =>
                 {
                     var row = merged.GetPixelSpan().Slice(y * merged.RowBytes, width * pixelBytes);
-                    int at = (channel < colourChannels ? channel : 3) * sampleBytes;
-                    for (int x = 0; x < width; x++) row.Slice(x * pixelBytes + at, sampleBytes).CopyTo(into[(x * sampleBytes)..]);
+                    bool isColour = channel < colourChannels;
+                    int at = (isColour ? channel : 3) * sampleBytes, alphaAt = 3 * sampleBytes;
+                    for (int x = 0; x < width; x++)
+                    {
+                        var pixel = row.Slice(x * pixelBytes, pixelBytes);
+                        var target = into.Slice(x * sampleBytes, sampleBytes);
+                        if (!isColour)
+                        {
+                            pixel.Slice(at, sampleBytes).CopyTo(target);
+                            continue;
+                        }
+                        switch (sampleBytes)
+                        {
+                            case 1:
+                                target[0] = (byte)Math.Round(PhotoshopDecoder.Matted(pixel[at] / 255f, pixel[alphaAt] / 255f) * 255);
+                                break;
+                            case 2:
+                                BinaryPrimitives.WriteUInt16LittleEndian(target, (ushort)Math.Round(PhotoshopDecoder.Matted(
+                                    BinaryPrimitives.ReadUInt16LittleEndian(pixel[at..]) / 65535f, BinaryPrimitives.ReadUInt16LittleEndian(pixel[alphaAt..]) / 65535f) * 65535));
+                                break;
+                            default:
+                                BinaryPrimitives.WriteSingleLittleEndian(target, PhotoshopDecoder.Matted(
+                                    BinaryPrimitives.ReadSingleLittleEndian(pixel[at..]), BinaryPrimitives.ReadSingleLittleEndian(pixel[alphaAt..])));
+                                break;
+                        }
+                    }
                 },
             };
         }

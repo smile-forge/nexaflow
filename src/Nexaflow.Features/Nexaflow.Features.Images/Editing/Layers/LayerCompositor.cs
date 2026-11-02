@@ -176,12 +176,7 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
                           CompositeOptions options, SKRectI rect)
     {
         using var canvas = new SKCanvas(slice);
-        var target = new Target(canvas, () =>
-        {
-            canvas.Flush();
-            return SKImage.FromPixelCopy(slice.Info, slice.GetPixels(), slice.RowBytes)
-                   ?? throw new InvalidOperationException("What lies beneath a layer could not be read.");
-        });
+        var target = new Target(canvas);
         var band = new Band(rect, scale, picture, images);
         if (options.MaskAlone is { } id && picture.Find(id)?.Mask is { } mask)
         {
@@ -197,12 +192,13 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
         foreach (var layer in picture.Layers) Composite(target, layer, band, 1);
     }
 
-    /// <summary>A surface being drawn onto, and how to read what it holds so far.</summary>
-    private sealed record Target(SKCanvas Canvas, Func<SKImage> Snapshot);
+    /// <summary>A surface being drawn onto.</summary>
+    private sealed record Target(SKCanvas Canvas);
 
     /// <summary>
     /// <paramref name="layer"/> composited onto <paramref name="target"/>, a surface over the band's rectangle: its opacity
-    /// times <paramref name="carried"/> — a pass-through group's — its blend, its mask, and its clip to what the target holds.
+    /// times <paramref name="carried"/> — a pass-through group's — its blend, its mask, and its clip to what the target holds,
+    /// source-atop, so a clipped layer never adds alpha to what lies beneath it.
     /// </summary>
     private void Composite(Target target, Layer layer, Band band, double carried)
     {
@@ -218,9 +214,9 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
         }
 
         using var paint = new SKPaint { ColorF = new SKColorF(0, 0, 0, (float)opacity) };
-        layer.Blend.ApplyTo(paint);
+        layer.Blend.ApplyTo(paint, clipped: layer.ClipsToBelow);
         // Dissolve scatters the layer's own pixels, so it needs them on a surface of their own first.
-        bool ownSurface = mask is not null || layer.ClipsToBelow || layer is GroupLayer || layer.Blend.IsDissolve;
+        bool ownSurface = mask is not null || layer is GroupLayer || layer.Blend.IsDissolve;
         if (!ownSurface)
         {
             DrawContent(target.Canvas, layer, band, paint);
@@ -230,26 +226,19 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
         using var surface = NewSurface(band.Picture.Colour, band.Rect);
         var canvas = surface.Canvas;
         canvas.Clear(SKColors.Transparent);
-        var inner = new Target(canvas, surface.Snapshot);
+        var inner = new Target(canvas);
         if (layer is GroupLayer group)
             foreach (var child in group.Children) Composite(inner, child, band, 1);
         else
             DrawContent(canvas, layer, band, null);
         if (mask is not null) band.ApplyCoverage(canvas, mask.Coverage, SKBlendMode.DstIn);
-        if (layer.ClipsToBelow)
-        {
-            // Kept only where what lies beneath it in its group is: the target as it stands, as alpha.
-            using var beneath = target.Snapshot();
-            using var keep = new SKPaint { BlendMode = SKBlendMode.DstIn };
-            canvas.ResetMatrix();
-            canvas.DrawImage(beneath, 0, 0, keep);
-        }
         using var drawn = surface.Snapshot();
         target.Canvas.ResetMatrix();
         if (layer.Blend.IsDissolve)
         {
             using var dissolved = LayerBlenders.Dissolve(drawn, opacity, new SKPointI(band.Rect.Left, band.Rect.Top));
             using var scattered = new SKPaint { Shader = dissolved };
+            if (layer.ClipsToBelow) LayerBlend.Normal.ApplyTo(scattered, clipped: true);
             target.Canvas.DrawRect(SKRect.Create(drawn.Width, drawn.Height), scattered);
             return;
         }

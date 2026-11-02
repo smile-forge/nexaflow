@@ -161,6 +161,7 @@ public sealed partial class PhotoshopFormat(IVirtualFileSystem fileSystem, bool 
         /// <summary>Every record, bottom first, as layers: groups closed where their divider opens them, clipping runs made groups.</summary>
         public ImmutableArray<Layer> Layers()
         {
+            DecodePixels();
             var levels = new Stack<List<Item>>();
             var current = new List<Item>();
             foreach (var record in document.Layers)
@@ -256,7 +257,7 @@ public sealed partial class PhotoshopFormat(IVirtualFileSystem fileSystem, bool 
                 var undrawable = new UndrawableLayer { Kind = $"photoshop:{adjustment.Key.TrimEnd()}" };
                 return new Item(Common(undrawable, record, 0, record.BlendKey, rawChannels: true), record.Clipping != 0);
             }
-            Layer layer = NexaflowContent(record, own) ?? new PixelLayer { Pixels = PixelsOf(record) };
+            Layer layer = NexaflowContent(record, own) ?? new PixelLayer { Pixels = DecodedPixelsOf(record) };
             return new Item(Common(layer, record, 0, record.BlendKey), record.Clipping != 0);
         }
 
@@ -363,7 +364,7 @@ public sealed partial class PhotoshopFormat(IVirtualFileSystem fileSystem, bool 
         /// A layer's pixels in the picture's tile format, read a band of rows at a time, every channel in step: colour from
         /// channels 0 and up, transparency from -1 — wholly opaque where the record has none.
         /// </summary>
-        private TiledPixels PixelsOf(PhotoshopLayerRecord record)
+        private TiledPixels PixelsOf(Stream stream, PhotoshopLayerRecord record)
         {
             var rect = record.Rect;
             if (rect.IsEmpty) return TiledPixels.EmptyIn(_tiles);
@@ -410,6 +411,13 @@ public sealed partial class PhotoshopFormat(IVirtualFileSystem fileSystem, bool 
         private void Interleave(Span<byte> line, byte[]? row, int channel, bool alpha, int width, int sampleBytes)
         {
             int pixelBytes = _tiles.PixelBytes, at = channel * sampleBytes;
+            if (sampleBytes == 1)
+            {
+                // 8 bits, the commonest: a byte a sample, laid without slicing.
+                byte missing = alpha ? (byte)0xFF : (byte)0;
+                for (int x = 0, p = at; x < width; x++, p += pixelBytes) line[p] = row is null ? missing : row[x];
+                return;
+            }
             for (int x = 0; x < width; x++)
             {
                 var into = line.Slice(x * pixelBytes + at, sampleBytes);
@@ -479,8 +487,64 @@ public sealed partial class PhotoshopFormat(IVirtualFileSystem fileSystem, bool 
         private string PixelsHashOf(PhotoshopLayerRecord record)
         {
             using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            foreach (var channel in record.Channels.Where(c => c.Id >= -1).OrderBy(c => c.Id)) hash.AppendData(RawChannel(channel));
+            if (_raw.TryGetValue(record, out var raw))
+                foreach (var channel in raw.Record.Channels.Where(c => c.Id >= -1).OrderBy(c => c.Id)) hash.AppendData(raw.Bytes, (int)channel.Offset, (int)channel.Length);
+            else
+                foreach (var channel in record.Channels.Where(c => c.Id >= -1).OrderBy(c => c.Id)) hash.AppendData(RawChannel(channel));
             return Convert.ToHexStringLower(hash.GetHashAndReset());
+        }
+
+        /// <summary>Each layer's colour and transparency channels as the file holds them — read in one pass, the file front to
+        /// back — and the record placing them in those bytes.</summary>
+        private readonly Dictionary<PhotoshopLayerRecord, (byte[] Bytes, PhotoshopLayerRecord Record)> _raw = new(ReferenceEqualityComparer.Instance);
+
+        /// <summary>Each pixel layer's pixels, decoded before the layers are built.</summary>
+        private readonly Dictionary<PhotoshopLayerRecord, TiledPixels> _decoded = new(ReferenceEqualityComparer.Instance);
+
+        /// <summary>
+        /// Every pixel layer's pixels: its channels' compressed bytes read from the file in one pass, then the layers decoded side by
+        /// side across the cores, each from its own bytes. A picture or markup layer Nexaflow wrote, its pixels as written, is not
+        /// decoded: it is drawn from what it describes.
+        /// </summary>
+        private void DecodePixels()
+        {
+            var pixelLayers = new List<PhotoshopLayerRecord>();
+            foreach (var record in document.Layers)
+            {
+                if (SectionOf(record) != 0 || record.Blocks.Any(b => AdjustmentKeys.Contains(b.Key)) || OwnOf(record)?["role"] is not null) continue;
+                var channels = record.Channels.Where(c => c.Id >= -1 && c.Length > 0).ToArray();
+                var bytes = new byte[channels.Sum(c => c.Length)];
+                var placed = new List<PhotoshopChannelData>(channels.Length);
+                long at = 0;
+                foreach (var channel in channels.OrderBy(c => c.Offset))
+                {
+                    stream.Position = channel.Offset;
+                    stream.ReadExactly(bytes, (int)at, (int)channel.Length);
+                    placed.Add(channel with { Offset = at });
+                    at += channel.Length;
+                }
+                _raw[record] = (bytes, record with { Channels = [.. placed] });
+                if (OwnOf(record) is { } own && own["kind"] is not null && own["pixels"]?.GetValue<string>() == PixelsHashOf(record)) continue;
+                pixelLayers.Add(record);
+            }
+            var decoded = new TiledPixels[pixelLayers.Count];
+            Parallel.For(0, pixelLayers.Count, new ParallelOptions { CancellationToken = ct }, i =>
+            {
+                var (bytes, placed) = _raw[pixelLayers[i]];
+                using var own = new MemoryStream(bytes, writable: false);
+                decoded[i] = PixelsOf(own, placed);
+            });
+            for (int i = 0; i < pixelLayers.Count; i++) _decoded[pixelLayers[i]] = decoded[i];
+        }
+
+        /// <summary>A layer's pixels as decoded side by side — or, one left undecoded as Nexaflow's own whose description cannot be
+        /// read after all, decoded now from its bytes.</summary>
+        private TiledPixels DecodedPixelsOf(PhotoshopLayerRecord record)
+        {
+            if (_decoded.TryGetValue(record, out var pixels)) return pixels;
+            var (bytes, placed) = _raw[record];
+            using var own = new MemoryStream(bytes, writable: false);
+            return _decoded[record] = PixelsOf(own, placed);
         }
     }
 

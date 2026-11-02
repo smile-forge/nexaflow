@@ -76,6 +76,8 @@ public sealed class PhotoshopDecoder(MarkupPainter markup) : IImageDecoder
             }
         });
 
+        // Photoshop composites its merged image's colour over white where it is partly transparent: taken off again here.
+        if (alphaChannel >= 0) Unmatted(values);
         var straight = new SKImageInfo(width, height, SKColorType.RgbaF32, SKAlphaType.Unpremul, colour.ColourSpace);
         var shown = colour.Depth == ChannelDepth.U8
             ? new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul, colour.ColourSpace)
@@ -90,6 +92,20 @@ public sealed class PhotoshopDecoder(MarkupPainter markup) : IImageDecoder
         }
         return bitmap;
     }
+
+    /// <summary>Colour composited over white — <c>m = c·a + (1 − a)</c> — as the straight colour it was: <c>c = (m − 1 + a) / a</c>.</summary>
+    internal static void Unmatted(Span<float> rgba)
+    {
+        for (int p = 0; p < rgba.Length; p += 4)
+        {
+            float a = rgba[p + 3];
+            if (a >= 1) continue;
+            for (int c = 0; c < 3; c++) rgba[p + c] = a <= 0 ? 0 : Math.Max(0, (rgba[p + c] - 1 + a) / a);
+        }
+    }
+
+    /// <summary>Straight colour composited over white, as Photoshop holds a merged image's colour where it is partly transparent.</summary>
+    internal static float Matted(float colour, float alpha) => alpha >= 1 ? colour : colour * alpha + (1 - alpha);
 
     /// <summary>The file's layers composited, as Nexaflow draws them — for a file whose merged image is blank.</summary>
     private SKBitmap Composited(Stream stream, PictureColour colour, int? maxLongEdge)

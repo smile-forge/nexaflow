@@ -84,6 +84,34 @@ public static class LayerBlenders
     }
 
     /// <summary>
+    /// <paramref name="blend"/> as a clipped layer composites: source-atop — Photoshop's clipping and Krita's inherit alpha — the
+    /// blend applied only where what lies beneath is, as much as it is, and the alpha left as it was. Built round the blend's own
+    /// blender: what it would composite, less the part of the layer that would land past what lies beneath.
+    /// </summary>
+    public static SKBlender ClippedFor(LayerBlend blend)
+        => Clipped.GetOrAdd(blend.Op ?? "", _ =>
+        {
+            var effect = Atop.Value;
+            var inner = blend.SkiaMode is { } mode ? SKBlender.CreateBlendMode(mode)
+                      : For(blend.Key) ?? SKBlender.CreateBlendMode(SKBlendMode.SrcOver);
+            var children = new SKRuntimeEffectChildren(effect) { ["inner"] = inner };
+            return effect.ToBlender(new SKRuntimeEffectUniforms(effect), children);
+        });
+
+    private const string AtopSource = """
+        uniform blender inner;
+        vec4 main(vec4 src, vec4 dst) {
+            vec4 over = inner.eval(src, dst);
+            return vec4(over.rgb - src.rgb * (1.0 - dst.a), dst.a);
+        }
+        """;
+
+    private static readonly Lazy<SKRuntimeEffect> Atop = new(() =>
+        SKRuntimeEffect.CreateBlender(AtopSource, out var error) ?? throw new InvalidOperationException($"The clipping blend did not build: {error}"));
+
+    private static readonly ConcurrentDictionary<string, SKBlender> Clipped = new();
+
+    /// <summary>
     /// <paramref name="layer"/> — a layer drawn on a surface of its own — dissolved at <paramref name="opacity"/>: a shader
     /// over the same pixels, each shown whole or not at all, chosen by where it lies on the output, <paramref name="origin"/>
     /// being where the surface's top-left lies there, so a pixel dissolves the same in every band and every redraw.

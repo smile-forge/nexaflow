@@ -96,11 +96,17 @@ public readonly record struct LayerBlend(string Op)
 
     /// <summary>
     /// <paramref name="paint"/> made to composite as this blend: through Skia's blend where it has one, else through Nexaflow's
-    /// own (<see cref="LayerBlenders"/>); one Nexaflow knows not as Normal. Dissolve, which no blend draws, is left to the
-    /// compositor and composites as Normal here.
+    /// own (<see cref="LayerBlenders"/>); one Nexaflow knows not as Normal. Where <paramref name="clipped"/>, as a layer clipped to
+    /// what lies beneath composites — source-atop, the alpha beneath kept (<see cref="LayerBlenders.ClippedFor"/>). Dissolve,
+    /// which no blend draws, is left to the compositor and composites as Normal here.
     /// </summary>
-    public void ApplyTo(SKPaint paint)
+    public void ApplyTo(SKPaint paint, bool clipped = false)
     {
+        if (clipped)
+        {
+            paint.Blender = LayerBlenders.ClippedFor(IsDissolve ? Normal : this);
+            return;
+        }
         if (SkiaMode is { } mode)
         {
             paint.BlendMode = mode;

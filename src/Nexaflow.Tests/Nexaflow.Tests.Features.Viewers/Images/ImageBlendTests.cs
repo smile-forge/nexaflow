@@ -95,6 +95,21 @@ public class ImageBlendTests
 
     [TestMethod]
     [CoversNode("images-layers")]
+    public void AClippedLayer_OverWhatIsPartlyTransparent_KeepsItsAlpha_AsPhotoshopAndKritaDo()
+    {
+        var colour = new PictureColour(ColourModel.Rgb, ChannelDepth.U16);
+        foreach (var blend in new[] { LayerBlend.Normal, new LayerBlend("svg:multiply"), new LayerBlend("krita:linear_burn") })
+        {
+            var beneath = Solid(colour, 4, new SKColorF(1, 1, 1, 0.5f));
+            var clipped = Solid(colour, 4, new SKColorF(1, 0, 0, 1), blend) with { ClipsToBelow = true };
+            var actual = Composite(Picture(colour, 4, beneath, clipped));
+            Assert.AreEqual(0.5f, actual[3], 1e-3, $"{blend.Key}: the alpha beneath, no more — source-atop");
+            if (blend == LayerBlend.Normal) Assert.AreEqual((1f, 0f, 0f), (actual[0], actual[1], actual[2]), $"{blend.Key}: the clipped colour where it shows");
+        }
+    }
+
+    [TestMethod]
+    [CoversNode("images-layers")]
     public void Dissolve_ShowsEachPixelWholeOrNotAtAll_AsManyAsItIsOpaque_AndTheSameEachTime()
     {
         const int side = 128;

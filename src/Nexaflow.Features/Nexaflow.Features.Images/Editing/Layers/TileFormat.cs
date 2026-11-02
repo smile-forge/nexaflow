@@ -97,13 +97,25 @@ public sealed class TileFormat
         };
     }
 
-    /// <summary>Whether any pixel of <paramref name="pixels"/> shows anything.</summary>
+    /// <summary>Whether any pixel of <paramref name="pixels"/> shows anything — read alpha by alpha, stepping over the colour.</summary>
     public bool AnyPainted(ReadOnlySpan<byte> pixels)
     {
-        int count = pixels.Length / PixelBytes;
-        for (int i = 0; i < count; i++)
-            if (!IsClearAt(pixels, i)) return true;
-        return false;
+        int alpha = (Channels - 1) * SampleBytes;
+        switch (SampleBytes)
+        {
+            case 1:
+                for (int i = alpha; i < pixels.Length; i += PixelBytes)
+                    if (pixels[i] != 0) return true;
+                return false;
+            case 2:
+                for (int i = alpha; i < pixels.Length; i += PixelBytes)
+                    if ((pixels[i] | pixels[i + 1]) != 0) return true;
+                return false;
+            default:
+                for (int i = alpha; i < pixels.Length; i += PixelBytes)
+                    if (BinaryPrimitives.ReadSingleLittleEndian(pixels[i..]) > 0) return true;
+                return false;
+        }
     }
 
     /// <summary>
