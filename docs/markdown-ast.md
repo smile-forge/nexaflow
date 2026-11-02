@@ -184,7 +184,8 @@ in the background — and for a reading past 128 KB only once typing pauses. A s
 (`CodeHighlights`, see [§8](#8-the-engine)), the query limited to the unit's range and an embedded language parsed whole
 from what holds it; what the parse changed (`GetChangedRanges`) colours again every unit it reaches. Until a unit's
 colours land, it is coloured as it was last found, moved along by every change since. Units are cut at line ends because
-code is laid line by line and nothing wraps; what the code means never turns on where a unit stops. Inside a unit each
+code is laid line by line, and a line that wraps wraps onto rows of its own; what the code means never turns on where a
+unit stops. Inside a unit each
 line is a block of its own (`CodeKinds.Line`), so a line reading as it did — the same characters coloured the same — is
 set down as it was laid (`WithUnchanged`, `LaidBlocks`), and a keystroke lays the line it was typed on. Each line is laid as
 a tree of its own, its picture kept once painted, and put down in the unit's by a mount (`LayoutMount`), so a line kept
@@ -198,6 +199,15 @@ of what it reads lays all of it, as every builder but code's does. A line is col
 and cut in one pass (`CodeParser.InLines`), and one said and coloured as a line the reading was cut into before is that
 line again (`CodeLinePool`), moved along where it now stands — so colours landing for a unit make only the lines they
 changed, and a block kept is hashed once (`WithUnchanged` keeps what each node it asked about came to).
+
+**Text shown as typed** — a page's source beside the page, under `ContentLanguages.AsTyped`, which no language reads — is
+code with no grammar whose lines wrap (`LayoutHost.WrapsLines`, set by `MarkdownSurface.WrapsLines`): a line too long for
+the room carries on in rows beneath, broken after the last space that fits and a word wider than a row broken where the row
+ends, the spaces a row ends on hanging past it (`CodeRows`). A token a row break cuts is laid as pieces standing for their
+share of it (`PartSlice`), and a line is set down again only in the room it was laid in. A unit not laid is said as tall as
+the rows its characters break onto with each set at the face's advance (`CodeSetting.HeightOf`), counted where they are held
+— the same rule laying applies to each character measured, so for a monospaced face what is said is what is laid. Only the
+content the engine shows wraps (`ContentShowing.WrapsLines`); content inside it keeps its lines.
 
 ## 4. Stages
 
@@ -525,8 +535,9 @@ whether it differs from what was last saved. The surface's engine writes in it a
 with the change itself, and the characters only when it saves them (`WriteTo`). Nothing hands the text back to the page as it is
 written. A page that only shows text binds it through `AsEditedDocument`, a document of its own for each text; a page loading or
 writing on the reader's behalf calls `Load` or `Write` on the document, and the engine takes the change up, carrying the caret
-through it; another view of the same document — the raw half beside a rendered one — writes through `MarkdownSurface.Write`, which
-writes as though the reader typed there. Being a plain object, the document, its history and whether it was saved stay where they
+through it; another view of the same document — the raw half beside a rendered one — is a second surface holding the same
+object, so what is written in either is taken up by both and taken back from either, with one history between them, and the
+text is held once. Being a plain object, the document, its history and whether it was saved stay where they
 are when what draws them does not.
 
 What happened is the engine's to say, and the surface says it again to the page as routed events: `SourceChanged` (what

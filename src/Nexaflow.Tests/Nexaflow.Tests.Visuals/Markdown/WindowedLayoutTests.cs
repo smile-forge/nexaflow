@@ -252,7 +252,7 @@ public class WindowedLayoutTests
             var lines = document.Slice(start, unit.Width).Count(character => character == '\n') + (CodeSetting.CarriedOn(unit.Tree) ? 0 : 1);
 
             Assert.IsTrue(body.Stands, $"Unit {index} holds a copy of its characters.");
-            Assert.AreEqual(lines * line, CodeSetting.HeightOf(unit.Tree, WpfStyles.Dark, WpfMedium.OnThisThread), 1e-6, $"Unit {index} stands as tall as some other number of lines.");
+            Assert.AreEqual(lines * line, CodeSetting.HeightOf(unit.Tree, WpfStyles.Dark, WpfMedium.OnThisThread, wrapsIn: null), 1e-6, $"Unit {index} stands as tall as some other number of lines.");
         }
     });
 

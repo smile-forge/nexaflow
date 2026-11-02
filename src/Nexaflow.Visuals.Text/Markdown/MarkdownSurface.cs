@@ -220,6 +220,20 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
         set => SetValue(EditAsSourceProperty, value);
     }
 
+    /// <summary>
+    /// Whether a line too long for the room carries on in rows beneath — for content shown as typed (<see cref="ContentLanguages.AsTyped"/>),
+    /// a page's source read as a page — rather than laid as its language lays it.
+    /// </summary>
+    public static readonly DependencyProperty WrapsLinesProperty = DependencyProperty.Register(
+        nameof(WrapsLines), typeof(bool), typeof(MarkdownSurface),
+        new PropertyMetadata(false, (surface, _) => ((MarkdownSurface)surface).Wrapped()));
+
+    public bool WrapsLines
+    {
+        get => (bool)GetValue(WrapsLinesProperty);
+        set => SetValue(WrapsLinesProperty, value);
+    }
+
     // ── How it is drawn ─────────────────────────────────────────────────────
 
     /// <summary>
@@ -385,9 +399,9 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     {
         
 
-        // A field holding one language is written at the end of what it holds; a document, and anything only read, is read
-        // from its top.
-        _shown.Restore(_shown.Current.MoveCaretTo(Named is null || IsReadOnly ? 0 : _shown.Current.Document.Length));
+        // A field holding one language is written at the end of what it holds; a document, text shown as a page, and anything only
+        // read, is read from its top.
+        _shown.Restore(_shown.Current.MoveCaretTo(Named is null || IsReadOnly || WrapsLines ? 0 : _shown.Current.Document.Length));
 
         HoldAsWritten();
         _engine.Begin();
@@ -489,6 +503,15 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
 
         _engine.HoldsWritten = EditAsSource;
     }
+
+    /// <summary>Lays what is shown again with its lines wrapped, or kept whole, as <see cref="WrapsLines"/> now says.</summary>
+    private void Wrapped()
+    {
+        _engine.WrapsLines = WrapsLines;
+        Remake();
+    }
+
+    protected override System.Windows.Automation.Peers.AutomationPeer OnCreateAutomationPeer() => new MarkdownSurfaceAutomationPeer(this);
 
     // ── Links ───────────────────────────────────────────────────────────────
 

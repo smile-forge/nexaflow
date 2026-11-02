@@ -71,10 +71,11 @@ public sealed record ContentLanguage(
     public Func<ContentPart, ContentPart, LayoutStyle, double>? Seam { get; init; }
 
     /// <summary>
-    /// How tall a unit of a reading in this language comes to laid in a style, said from its tree without laying it — or null for a
-    /// language only laying says, whose units not laid yet are estimated by what a character of what is laid came to.
+    /// How tall a unit of a reading in this language comes to laid in a style, said from its tree without laying it — and where its
+    /// lines wrap (<see cref="LayoutHost.WrapsLines"/>), in what room — or null for a language only laying says, whose units not laid yet
+    /// are estimated by what a character of what is laid came to.
     /// </summary>
-    public Func<ContentNode, LayoutStyle, ILayoutMedium, double>? UnitHeight { get; init; }
+    public Func<ContentNode, LayoutStyle, ILayoutMedium, double?, double>? UnitHeight { get; init; }
 
     /// <summary>
     /// Makes what the language keeps of a whole reading of the characters given beside its units (<see cref="ContentUnits.Syntax"/>) —
@@ -168,6 +169,12 @@ public sealed record ContentShowing(string Named, LayoutStyle Style, bool Writin
     /// reading's own characters the content starts — null where it keeps nothing.
     /// </summary>
     public (IReadingSyntax Syntax, int At)? Syntax { get; init; }
+
+    /// <summary>
+    /// Whether a line too long for the room carries on in rows beneath (<see cref="LayoutHost.WrapsLines"/>) — what the engine was asked of
+    /// the content it shows, shown as typed; never of content inside it, which keeps its lines.
+    /// </summary>
+    public bool WrapsLines { get; init; }
 
     /// <summary><see cref="Shown"/> counted in this content's own source, or null where it is not inside it.</summary>
     public RawZone? Own(int length) =>

@@ -41,6 +41,12 @@ public sealed record LayoutHost(LayoutStanding Standing, LayoutNesting Nesting)
     /// (<see cref="Laid.Reached"/>).
     /// </summary>
     public LayoutReach? Reach { get; init; }
+
+    /// <summary>
+    /// Whether a line too long for the room carries on in rows beneath — for text shown as typed, a page's source read as a page, rather
+    /// than code, whose lines are kept. A builder that heeds it is as tall as the rows it breaks its lines onto.
+    /// </summary>
+    public bool WrapsLines { get; init; }
 }
 
 /// <summary>
@@ -136,6 +142,9 @@ public abstract class ContentBuilder
 
     /// <summary>What of the content the reader reaches, where the host asks for only that much to be laid (<see cref="LayoutHost.Reach"/>) — null where it asks for all of it.</summary>
     protected LayoutReach? ReaderReach => _host.Reach;
+
+    /// <summary>Whether the host asks for a line too long for the room to carry on in rows beneath (<see cref="LayoutHost.WrapsLines"/>).</summary>
+    protected bool WrapsLines => _host.WrapsLines;
 
     /// <summary>Lays the source out. Never null, and never throws.</summary>
     public Laid Lay(double room = double.PositiveInfinity)

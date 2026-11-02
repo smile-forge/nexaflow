@@ -67,11 +67,85 @@
           "method": "Standing"
         }
       ]
+    },
+    "markdown-source-box": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Views/MarkdownView.xaml",
+          "class": "MarkdownView"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Markdown/MarkdownJourneyTests.cs",
+          "class": "MarkdownJourneyTests"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Markdown/MarkdownViewModelTests.cs",
+          "class": "MarkdownViewModelTests"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Code/CodeRows.cs",
+          "class": "CodeRows"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurfaceAutomationPeer.cs",
+          "class": "MarkdownSurfaceAutomationPeer"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.Find.cs",
+          "class": "MarkdownSurface",
+          "method": "ShowFound"
+        }
+      ]
+    },
+    "markdown-split": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Views/MarkdownView.xaml.cs",
+          "class": "MarkdownView",
+          "method": "ApplyViewMode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Views/MarkdownView.xaml.cs",
+          "class": "MarkdownView",
+          "method": "Paired"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.Find.cs",
+          "class": "MarkdownSurface",
+          "method": "ShowFrom"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.Find.cs",
+          "class": "MarkdownSurface",
+          "method": "ShowsWhole"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.Find.cs",
+          "class": "MarkdownSurface",
+          "method": "ShowsAtOnce"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 1,
+  "changed_sets": 3,
   "touched_nodes": [
+    "markdown-source-box",
+    "markdown-split",
     "windowed-reading"
   ]
 }

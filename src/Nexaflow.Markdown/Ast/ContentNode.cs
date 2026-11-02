@@ -109,13 +109,18 @@ public class ContentNode
     /// </summary>
     public int TimesHeld(char character)
     {
-        if (_stretch is not { } stretch) return this.Text.AsSpan().Count(character);
-
         var times = 0;
-        foreach (var chunk in stretch.Over.Chunks(stretch.Start, stretch.Start + stretch.Length)) times += chunk.Span.Count(character);
+        foreach (var run in this.CharacterRuns()) times += run.Span.Count(character);
 
         return times;
     }
+
+    /// <summary>
+    /// A leaf's characters a run at a time, read where they are held: its own, for a leaf holding them, and for one standing for a
+    /// stretch held elsewhere, the runs that stretch is held in — none of them copied.
+    /// </summary>
+    public IEnumerable<ReadOnlyMemory<char>> CharacterRuns() =>
+        _stretch is { } stretch ? stretch.Over.Chunks(stretch.Start, stretch.Start + stretch.Length) : [this.Text.AsMemory()];
 
     /// <summary>The parts, in the order they were written.</summary>
     public IReadOnlyList<ContentNode> Children { get; }

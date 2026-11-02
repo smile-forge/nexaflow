@@ -44,7 +44,7 @@ public sealed partial class ContentEngine
     private readonly ConditionalWeakTable<ContentNode, OutlineUnit> _unworked = new();
 
     /// <summary>How tall each unit read comes to as its language says (<see cref="ContentLanguage.UnitHeight"/>), with the style it was said in, by the tree it was read into.</summary>
-    private readonly ConditionalWeakTable<ContentNode, StrongBox<(LayoutStyle? Style, double Height)>> _heights = new();
+    private readonly ConditionalWeakTable<ContentNode, StrongBox<(LayoutStyle? Style, double? WrapsIn, double Height)>> _heights = new();
 
     /// <summary>How many diagrams are written in the units before each, in order — which diagram is which, for what the reader opened in it.</summary>
     private int[] _diagramsBefore = [];
@@ -259,7 +259,7 @@ public sealed partial class ContentEngine
             if (laid[index] is not { } standing)
             {
                 var (unit, _) = window.Listed[index];
-                y += language.UnitHeight is { } saying ? this.HeightSaid(unit.Tree, showing.Style, saying)
+                y += language.UnitHeight is { } saying ? this.HeightSaid(unit.Tree, showing.Style, showing.WrapsLines ? room : null, saying)
                    : window.Staged.TryGetValue(unit.Tree, out var staged) && staged.Laid is { } was ? was.Laid.Height
                    : unit.Width * perCharacter;
                 above = null;
@@ -286,10 +286,10 @@ public sealed partial class ContentEngine
     private static double Unsaid(LayoutStyle style, double room) => 0.75 * style.TextSize * style.TextSize / Math.Max(room, 1);
 
     /// <summary>How tall the unit read into <paramref name="tree"/> comes to in <paramref name="style"/>, as its language says — said once for each style.</summary>
-    private double HeightSaid(ContentNode tree, LayoutStyle style, Func<ContentNode, LayoutStyle, ILayoutMedium, double> height)
+    private double HeightSaid(ContentNode tree, LayoutStyle style, double? wrapsIn, Func<ContentNode, LayoutStyle, ILayoutMedium, double?, double> height)
     {
-        var said = _heights.GetValue(tree, static _ => new StrongBox<(LayoutStyle? Style, double Height)>());
-        if (!ReferenceEquals(said.Value.Style, style)) said.Value = (style, height(tree, style, _medium));
+        var said = _heights.GetValue(tree, static _ => new StrongBox<(LayoutStyle? Style, double? WrapsIn, double Height)>());
+        if (!ReferenceEquals(said.Value.Style, style) || said.Value.WrapsIn != wrapsIn) said.Value = (style, wrapsIn, height(tree, style, _medium, wrapsIn));
 
         return said.Value.Height;
     }

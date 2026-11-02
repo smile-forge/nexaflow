@@ -46,9 +46,6 @@ public partial class MarkdownLayoutBench
     /// <summary>How many keystrokes are typed into each half.</summary>
     private const int SourceKeys = 1000;
 
-    /// <summary>A language no grammar reads: drawn as written, which is what the raw half shows.</summary>
-    private const string AsWritten = "no-grammar-source";
-
     [TestMethod]
     public void WhatTheSourceHalfHolds() => UiThread.Run(() =>
     {
@@ -168,7 +165,8 @@ public partial class MarkdownLayoutBench
             IsReadOnly = false,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Palette = WpfStyles.Dark,
-            WrittenIn = AsWritten,
+            WrittenIn = ContentLanguages.AsTyped,
+            WrapsLines = true,
             Visibility = shown ? Visibility.Visible : Visibility.Collapsed,
         };
 

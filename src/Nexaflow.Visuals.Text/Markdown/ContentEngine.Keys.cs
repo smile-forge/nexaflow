@@ -262,6 +262,24 @@ public sealed partial class ContentEngine
         }
     }
 
+    /// <summary>
+    /// Whether a line of the content shown too long for the room carries on in rows beneath (<see cref="LayoutHost.WrapsLines"/>): text
+    /// shown as typed, rather than laid as its language lays it. What was laid the other way is laid again.
+    /// </summary>
+    internal bool WrapsLines
+    {
+        get => _wrapsLines;
+        set
+        {
+            if (_wrapsLines == value) return;
+
+            _wrapsLines = value;
+            Forget();
+        }
+    }
+
+    private bool _wrapsLines;
+
     /// <summary><paramref name="next"/>, held shown as written where the whole content is.</summary>
     private EditState Held(EditState next) => _holdsWritten ? next with { Raw = Whole(next) } : next;
 

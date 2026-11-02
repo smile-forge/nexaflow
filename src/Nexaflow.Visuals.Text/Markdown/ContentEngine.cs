@@ -118,6 +118,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
             Unchanged = _unchanged,
             Targets = window.Targets,
             Syntax = window.LaidSyntax is { } syntax ? (syntax, 0) : null,
+            WrapsLines = _wrapsLines,
         };
 
         return this.Laying(window, language, showing, room, readOnly, holding, LayoutStanding.Alone, wanted,
@@ -221,7 +222,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
 
         return Makers.GetOrAdd(language.Builder, Maker)(
             reading, EditState.For(reading.Document) with { Raw = showing.Shown }, showing.Style, readOnly, _medium,
-            Hosting(showing, standing, writing: !readOnly, holding, folds) with { Reach = reach });
+            Hosting(showing, standing, writing: !readOnly, holding, folds) with { Reach = reach, WrapsLines = showing.WrapsLines });
     }
 
     /// <summary>

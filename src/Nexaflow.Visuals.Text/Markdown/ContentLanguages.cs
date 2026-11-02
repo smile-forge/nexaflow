@@ -75,6 +75,12 @@ public static class ContentLanguages
     public static ContentLanguage Code => Shipped.Code;
 
     /// <summary>
+    /// The name content is shown under to be its characters and nothing they draw — what a page's source is shown as, beside the page. No
+    /// language reads it, so content under it falls to <see cref="Code"/>, with no grammar to colour it.
+    /// </summary>
+    public const string AsTyped = "text";
+
+    /// <summary>
     /// Adds a language, or replaces one already registered under a name it answers to. Last in wins, which is what lets a host
     /// override a language that ships.
     /// </summary>
