@@ -61,19 +61,13 @@ public class ImageRestoreTests
         var shell = Substitute.For<IShellServices>();
         shell.RunOnUiAsync(Arg.Any<Action>()).Returns(call => _ui.Run(call.Arg<Action>()));
         shell.PickSaveFileAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>?>(), Arg.Any<string?>(), Arg.Any<long>()).Returns(saveAs);
-        shell.When(s => s.QueueBackgroundTask(Arg.Any<IBackgroundTask>(), Arg.Any<Action<bool>?>(), Arg.Any<CancellationToken>()))
-             .Do(call =>
-             {
-                 call.Arg<IBackgroundTask>().RunAsync(CancellationToken.None).GetAwaiter().GetResult();
-                 call.Arg<Action<bool>?>()?.Invoke(true);
-             });
+        ViewerUiThread.RunQueuedTasksAtOnce(shell);
         return shell;
     }
 
-    private ImageViewModel Editing(Opposites tools, IShellServices? shell = null)
+    private ArtistViewModel Editing(Opposites tools, IShellServices? shell = null)
     {
-        var vm = new ImageViewModel([_photo], shell ?? Shell(), ImageViewMode.Edit,
-                                    new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1)), _restored), pictures: tools);
+        var vm = new ArtistViewModel(_photo, shell ?? Shell(), new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1)), _restored), pictures: tools);
         Until(() => vm.Canvas is not null);
         Assert.IsNotNull(vm.Canvas, "the photo was never decoded and presented");
         return vm;
@@ -157,7 +151,7 @@ public class ImageRestoreTests
 
         Assert.IsTrue(vm.Restorer.CanDownload);
         Assert.IsFalse(vm.Editor.SaveCopyCommand.CanExecute(null), "not until its restoration is made");
-        Assert.AreEqual(Str.Get("Images.Restore.Download"), vm.Restorer.ActionLabel);
+        Assert.AreEqual(Str.Get("Images.Models.Download"), vm.Restorer.ActionLabel);
         _ui.Run(() => vm.Restorer.ActCommand.Execute(null)).GetAwaiter().GetResult();
         Assert.AreEqual(1, tools.Downloads);
 
@@ -175,7 +169,7 @@ public class ImageRestoreTests
         vm.Editor.AiEnhance = true;
         Until(() => vm.Restorer.HasNotice);
 
-        Assert.AreEqual(Str.Format("Images.Restore.DownloadStopped", "the network went"), vm.Restorer.Notice);
+        Assert.AreEqual(Str.Format("Images.Models.StoppedFormat", "the network went"), vm.Restorer.Notice);
         Assert.IsTrue(vm.Restorer.CanDownload);
     }
 

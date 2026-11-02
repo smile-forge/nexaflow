@@ -643,7 +643,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
         Directory.CreateDirectory(FramesFolder);
         var path = Path.Combine(FramesFolder, $"{Path.GetFileNameWithoutExtension(_path)} {captured.TimeLabel.Replace(':', '.')}.png");
         await File.WriteAllBytesAsync(path, captured.Png);
-        await OnUi(() => _shell.OpenTab("Images", new Dictionary<string, string> { ["paths"] = path, ["view"] = "edit", ["tool"] = "cutout", [DraftFile.PageParameterName] = Path.GetDirectoryName(_path) ?? "" }));
+        await OnUi(() => _shell.OpenTab("Artist", new Dictionary<string, string> { ["path"] = path, ["tool"] = "select", [DraftFile.PageParameterName] = Path.GetDirectoryName(_path) ?? "" }));
     }
 
     // ── AI: read the parsed media facts / steer the playhead ────────────────

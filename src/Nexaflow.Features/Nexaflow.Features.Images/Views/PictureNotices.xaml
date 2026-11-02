@@ -1,0 +1,82 @@
+<UserControl x:Class="Nexaflow.Features.Images.Views.PictureNotices"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
+
+    <!-- What the picture on show says about its edits, as the viewer and Artist both show it. DataContext: PictureStage. -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="ImageViewStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <!-- The photo changed since its edits were made. -->
+        <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource WarningBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                Visibility="{Binding HasChangedSourceNotice, Converter={StaticResource BoolToVis}}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Command="{Binding KeepChangedEditsCommand}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,0"
+                            AutomationProperties.AutomationId="Image_EditKeepChanged">
+                        <TextBlock Text="{loc:Str Images.Edit.Notice.Keep}"/>
+                    </Button>
+                    <Button Command="{Binding DiscardChangedEditsCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                            AutomationProperties.AutomationId="Image_EditDiscardChanged">
+                        <TextBlock Text="{loc:Str Images.Edit.Notice.Discard}"/>
+                    </Button>
+                </StackPanel>
+                <TextBlock Text="{loc:Str Images.Edit.Notice.SourceChanged}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+            </DockPanel>
+        </Border>
+        <!-- Edits that last only for the session. -->
+        <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                Visibility="{Binding ShowsSessionOnlyNotice, Converter={StaticResource BoolToVis}}">
+            <TextBlock Text="{Binding SessionOnlyNotice}" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
+        </Border>
+        <!-- The photo's AI enhance: being made, waiting on the picture tools, or why it shows as it was. -->
+        <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                Visibility="{Binding Restorer.HasNotice, Converter={StaticResource BoolToVis}}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Command="{Binding Restorer.ActCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                            Visibility="{Binding Restorer.HasAction, Converter={StaticResource BoolToVis}}"
+                            AutomationProperties.AutomationId="Image_RestoreAction" AutomationProperties.Name="{Binding Restorer.ActionLabel}">
+                        <TextBlock Text="{Binding Restorer.ActionLabel}"/>
+                    </Button>
+                </StackPanel>
+                <TextBlock Text="{Binding Restorer.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+            </DockPanel>
+        </Border>
+        <!-- The photo's erasing: being made, waiting on a tool, or why the photo shows as it is. -->
+        <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                Visibility="{Binding Eraser.HasNotice, Converter={StaticResource BoolToVis}}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Command="{Binding Eraser.ActCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                            Visibility="{Binding Eraser.HasAction, Converter={StaticResource BoolToVis}}"
+                            AutomationProperties.AutomationId="Image_EraseAction" AutomationProperties.Name="{Binding Eraser.ActionLabel}">
+                        <TextBlock Text="{Binding Eraser.ActionLabel}"/>
+                    </Button>
+                </StackPanel>
+                <TextBlock Text="{Binding Eraser.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+            </DockPanel>
+        </Border>
+        <!-- The photo's removed background: being made, waiting on picture selection, or why it shows whole. -->
+        <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                Visibility="{Binding Remover.HasNotice, Converter={StaticResource BoolToVis}}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Command="{Binding Remover.ActCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                            Visibility="{Binding Remover.HasAction, Converter={StaticResource BoolToVis}}"
+                            AutomationProperties.AutomationId="Image_RemoveBackgroundAction" AutomationProperties.Name="{Binding Remover.ActionLabel}">
+                        <TextBlock Text="{Binding Remover.ActionLabel}"/>
+                    </Button>
+                </StackPanel>
+                <TextBlock Text="{Binding Remover.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+            </DockPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

@@ -107,7 +107,7 @@ public sealed class ErasedPictures(string folder, long budgetBytes)
     }
 
     /// <summary>What picture erasing makes of <paramref name="picture"/> under <paramref name="mask"/>, handed over by file.</summary>
-    private static async Task<byte[]> ByErasingAsync(IPictureErasing erasing, UprightPixels picture, byte[] mask, IProgress<double>? progress, CancellationToken ct)
+    internal static async Task<byte[]> ByErasingAsync(IPictureErasing erasing, UprightPixels picture, byte[] mask, IProgress<double>? progress, CancellationToken ct)
     {
         var work = Directory.CreateTempSubdirectory("nexaflow-erasing-").FullName;
         try

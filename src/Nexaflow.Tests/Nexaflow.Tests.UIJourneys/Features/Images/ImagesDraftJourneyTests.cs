@@ -21,19 +21,21 @@ public class ImagesDraftJourneyTests : UiJourneyTestBase
 
     private readonly string _draft = Drafted(Sample);
 
-    protected override string? LaunchTabKind => "Images";
+    protected override string? LaunchTabKind => "Artist";
 
     protected override IReadOnlyDictionary<string, string> LaunchTabParams => new Dictionary<string, string>
     {
-        ["paths"] = _draft,
+        ["path"]  = _draft,
         ["draft"] = Path.GetDirectoryName(Sample)!,
     };
 
+    /// <summary>Artist's Save asks where a draft goes, so the strip over it only says it is not saved.</summary>
     [TestMethod]
-    public void ADraft_ShowsItsSaveAs()
+    public void ADraft_SaysItIsNotSaved_AndSaveAsksWhere()
     {
-        Check("The draft opens in the image viewer", () => WaitForId("ImageView", 15) is not null);
-        CheckPresent("The draft's Save as", "Draft_SaveAs");
+        Check("The draft opens in Artist", () => WaitForId("ArtistView", 15) is not null);
+        CheckPresent("The draft says it is not saved", "Draft_Banner");
+        Check("The strip has no Save as of its own: Save is it", () => WaitForId("Image_EditSave", 5) is not null && FindInAppWindows("Draft_SaveAs") is null);
 
         AssertJourney();
     }

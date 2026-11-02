@@ -12,7 +12,7 @@
   "Common.ColorPicker.IsThemeDefault": "Défaut du thème",
   "Common.ColorPicker.IsSwatch": "Nuance du thème · {0}",
   "Common.ColorPicker.IsCustom": "Couleur personnalisée",
-  "Common.Draft.Notice": "Créé pour vous et pas encore enregistré : il n'est conservé que jusqu'à ce que Windows vide ses fichiers temporaires.",
+  "Common.Draft.Notice": "Nouveau fichier non enregistré",
   "Common.Draft.SaveAs": "Enregistrer sous…",
   "Common.Draft.SaveAsTip": "Le garder où vous voulez",
 

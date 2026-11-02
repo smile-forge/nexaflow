@@ -24,12 +24,11 @@ using System.Windows.Threading;
 
 namespace Nexaflow.Features.Images.ViewModels;
 
-/// <summary>The viewer's sub-views, selected by the toolbar's segmented toggle (and its Edit button).</summary>
+/// <summary>The viewer's sub-views, selected by the toolbar's segmented toggle.</summary>
 public enum ImageViewMode
 {
     Carousel,   // one image at a time
     Album,      // wrapping thumbnail grid
     Explore,    // thumbnail strip on the left, selected image on the right
     Collage,    // scattered, tilted thumbnails on a pan/zoom canvas
-    Edit,       // the current image on an editing canvas, with the tools beside it
 }

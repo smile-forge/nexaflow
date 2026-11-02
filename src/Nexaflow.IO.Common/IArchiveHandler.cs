@@ -33,8 +33,19 @@ public sealed class ArchiveWriteOptions
     public static ArchiveWriteOptions Default { get; } = new();
 }
 
+/// <summary>How one entry is compressed when an archive is written.</summary>
+public enum ArchiveEntryCompression
+{
+    /// <summary>As the whole archive is: at its write's compression level.</summary>
+    Default,
+
+    /// <summary>Stored as it is, uncompressed, whatever the archive's level — what a package's <c>mimetype</c> must be, so a
+    /// reader finds it at a fixed place, and what a file compressed already gains nothing from.</summary>
+    Stored,
+}
+
 /// <summary>One entry to write when (re)building an archive. Content is provided lazily so a rebuild
-/// never has to hold every entry in memory at once.</summary>
+/// never has to hold every entry in memory at once. Entries are written in the order they are given.</summary>
 public sealed class ArchiveWriteEntry
 {
     /// <summary>In-archive path, forward-slash separated (e.g. <c>"docs/readme.md"</c>).</summary>
@@ -47,6 +58,9 @@ public sealed class ArchiveWriteEntry
     /// <summary>Uncompressed byte length when known, so a write can report determinate progress.
     /// 0 means unknown, which reports as an item count rather than a byte total.</summary>
     public long Length { get; init; }
+
+    /// <summary>How the entry is compressed; a handler whose format compresses no entries alone takes it as a hint.</summary>
+    public ArchiveEntryCompression Compression { get; init; }
 }
 
 /// <summary>A read session over one opened archive. Disposing releases the underlying container stream.</summary>

@@ -1,3 +1,5 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+
 namespace Nexaflow.Features.Common;
 
 /// <summary>
@@ -63,6 +65,45 @@ public sealed record PictureAsked(string Prompt, string Path, bool HighQuality)
 
     /// <summary>The id of one of its <see cref="PictureChoices.Loras"/>; null for none.</summary>
     public string? Lora { get; init; }
+
+    /// <summary>Opened in the workspace's viewers once it is made, as a picture asked for in the file view is; false for one
+    /// whoever asked for it takes in themselves — a canvas, adding it as a layer.</summary>
+    public bool OpensWhenMade { get; init; } = true;
+}
+
+/// <summary>
+/// A picture being drawn for whoever asked for it — one of the workspace's background jobs, listed and stoppable with the
+/// others: what its drawing is doing, a way to stop it, and the file it makes.
+/// </summary>
+public sealed partial class PictureJob : ObservableObject
+{
+    private readonly Action _stop;
+
+    /// <param name="made">Completes with the file the picture was saved as; with null where it was stopped, withheld by the
+    /// picture check, or could not be drawn.</param>
+    /// <param name="stop">Stops the drawing; nothing it was making is kept.</param>
+    public PictureJob(Task<string?> made, Action stop)
+    {
+        Made  = made;
+        _stop = stop;
+        _ = made.ContinueWith(_ => OnPropertyChanged(nameof(IsRunning)), TaskScheduler.Default);
+    }
+
+    /// <summary>The file the picture was saved as, once it is; null where it was stopped, withheld or could not be drawn.</summary>
+    public Task<string?> Made { get; }
+
+    /// <summary>What the drawing is doing now, as its model says — the step it has reached — set by whoever draws it; null
+    /// until it says anything.</summary>
+    [ObservableProperty] private string? _progress;
+
+    /// <summary>The picture is still being drawn.</summary>
+    public bool IsRunning => !Made.IsCompleted;
+
+    /// <summary>Stops the drawing, where it still runs.</summary>
+    public void Stop()
+    {
+        if (IsRunning) _stop();
+    }
 }
 
 /// <summary>A size a clip is made at ("1080p"), and the only lengths it is made in there; empty where it is made in any.</summary>

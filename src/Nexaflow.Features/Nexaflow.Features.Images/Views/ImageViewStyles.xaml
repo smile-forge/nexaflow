@@ -14,11 +14,12 @@
         <Setter Property="Padding" Value="8,5"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
@@ -37,8 +38,10 @@
         </Setter>
     </Style>
 
-    <!-- The primary action of a strip (Save): the same chip, in the accent. -->
+    <!-- The primary action of a strip (Save): the same chip, in the accent. Its content takes the Button's own Foreground — an
+         element given as content is the Button's logical child, so it inherits from the Button, not from the presenter. -->
     <Style x:Key="ToolbarPrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource ToolbarButtonStyle}">
+        <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -51,6 +54,142 @@
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Bd" Property="Opacity" Value="0.3"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- What is see-through, shown as a checkerboard in the theme's own surface tones: behind a picture, in a swatch, in a
+         thumbnail. Its tile is 8 units; the canvas sizes it to stay 8 pixels on screen at any zoom. -->
+    <DrawingBrush x:Key="TransparencyChecker" TileMode="Tile" Stretch="None" Viewport="0,0,16,16" ViewportUnits="Absolute">
+        <DrawingBrush.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="{StaticResource Surface2Brush}">
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,16,16"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="{StaticResource BorderBrush}">
+                    <GeometryDrawing.Geometry>
+                        <GeometryGroup>
+                            <RectangleGeometry Rect="0,0,8,8"/>
+                            <RectangleGeometry Rect="8,8,8,8"/>
+                        </GeometryGroup>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingBrush.Drawing>
+    </DrawingBrush>
+
+    <!-- The same checkerboard at a swatch's size: finer, and in the muted text tone so it reads as see-through at a glance. -->
+    <DrawingBrush x:Key="SwatchChecker" TileMode="Tile" Stretch="None" Viewport="0,0,8,8" ViewportUnits="Absolute">
+        <DrawingBrush.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="{StaticResource Surface2Brush}">
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,8,8"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <DrawingGroup Opacity="0.55">
+                    <GeometryDrawing Brush="{StaticResource TextMutedBrush}">
+                        <GeometryDrawing.Geometry>
+                            <GeometryGroup>
+                                <RectangleGeometry Rect="0,0,4,4"/>
+                                <RectangleGeometry Rect="4,4,4,4"/>
+                            </GeometryGroup>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                </DrawingGroup>
+            </DrawingGroup>
+        </DrawingBrush.Drawing>
+    </DrawingBrush>
+
+    <!-- A choice shown by what it is rather than named: a small square swatch, ringed in the accent while chosen. Its name is
+         its tooltip and its automation name; its content is what fills the square. -->
+    <Style x:Key="SwatchRadio" TargetType="RadioButton">
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Margin" Value="0,0,8,0"/>
+        <Setter Property="Width" Value="28"/>
+        <Setter Property="Height" Value="28"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="Ring" CornerRadius="6" BorderThickness="2" BorderBrush="Transparent" Padding="2" Background="Transparent">
+                        <Border x:Name="Swatch" CornerRadius="4" BorderThickness="1" BorderBrush="{StaticResource BorderBrush}" ClipToBounds="True">
+                            <ContentPresenter/>
+                        </Border>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Ring" Property="BorderBrush" Value="{StaticResource TextMutedBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Ring" Property="BorderBrush" Value="{StaticResource TextMutedBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Ring" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A short entry — a size, a number — the height of a combo beside it. -->
+    <Style x:Key="FieldBox" TargetType="TextBox" BasedOn="{StaticResource DarkTextBox}">
+        <Setter Property="Padding" Value="6,2"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="MinHeight" Value="28"/>
+    </Style>
+
+    <!-- A layer's visibility, as a layers panel shows it: an open eye while it shows, a closed one while it is hidden. -->
+    <Style x:Key="LayerVisibilityToggle" TargetType="CheckBox">
+        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <Border Background="Transparent" Padding="2">
+                        <icons:IconGlyph x:Name="Eye" Icon="fluent:eye_off" FontSize="14" Foreground="{TemplateBinding Foreground}" Opacity="0.6"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Eye" Property="Icon" Value="fluent:eye"/>
+                            <Setter TargetName="Eye" Property="Opacity" Value="1"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A thumbnail that is pressed: the picture in a thin frame, the frame in the accent under the pointer. -->
+    <Style x:Key="ThumbnailButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource Surface2Brush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="2" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.4"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -142,13 +281,24 @@
                             <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentBrush}"/>
                             <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
                         </Trigger>
+                        <!-- Still legible, so what is not offered here can be read and its tooltip says why. -->
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="Bd" Property="Opacity" Value="0.3"/>
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.5"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!-- A row of segment buttons kept as small as what they hold — icons, a short word — in one bordered strip at the left,
+         rather than stretched across the panel. -->
+    <Style x:Key="SegGroup" TargetType="Border">
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="HorizontalAlignment" Value="Left"/>
+        <Setter Property="ClipToBounds" Value="True"/>
     </Style>
 
     <Style x:Key="SegDivider" TargetType="Border">
@@ -210,8 +360,8 @@
     <Style x:Key="EditToolTileStyle" TargetType="RadioButton">
         <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
         <Setter Property="Cursor" Value="Hand"/>
-        <Setter Property="Margin" Value="3"/>
-        <Setter Property="Padding" Value="4,8,4,6"/>
+        <Setter Property="Margin" Value="2"/>
+        <Setter Property="Padding" Value="2,6,2,5"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="RadioButton">
@@ -238,32 +388,25 @@
     </Style>
 
     <Style x:Key="EditToolTileIcon" TargetType="icons:IconGlyph">
-        <Setter Property="FontSize" Value="20"/>
+        <Setter Property="FontSize" Value="18"/>
         <Setter Property="HorizontalAlignment" Value="Center"/>
     </Style>
 
     <Style x:Key="EditToolTileLabel" TargetType="TextBlock">
         <Setter Property="FontSize" Value="11"/>
-        <Setter Property="Margin" Value="0,4,0,0"/>
+        <Setter Property="Margin" Value="0,3,0,0"/>
         <Setter Property="HorizontalAlignment" Value="Center"/>
         <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
     </Style>
 
-    <!-- Edit panel: a labelled check box. -->
-    <Style x:Key="EditCheckBox" TargetType="CheckBox">
-        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+    <!-- Edit panel: a labelled check box, the theme's own. -->
+    <Style x:Key="EditCheckBox" TargetType="CheckBox" BasedOn="{StaticResource DarkCheckBox}">
         <Setter Property="Margin" Value="0,4"/>
-        <Setter Property="Cursor" Value="Hand"/>
     </Style>
 
     <!-- Edit panel: a number box. -->
-    <Style x:Key="EditNumberBox" TargetType="TextBox">
-        <Setter Property="Background" Value="{StaticResource Surface2Brush}"/>
-        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
-        <Setter Property="Padding" Value="4,2"/>
+    <Style x:Key="EditNumberBox" TargetType="TextBox" BasedOn="{StaticResource FieldBox}">
         <Setter Property="Width" Value="72"/>
-        <Setter Property="VerticalContentAlignment" Value="Center"/>
     </Style>
 
     <!-- Edit panel sliders: a thin rail in the border tone and an accent thumb; double-click resets (AdjustmentSlider). -->
@@ -274,6 +417,43 @@
             <Setter.Value>
                 <ControlTemplate TargetType="RepeatButton">
                     <Border Background="Transparent"/>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Every plain slider in the Images views: the adjustment slider's rail and thumb, without its double-click reset. -->
+    <Style TargetType="Slider">
+        <Setter Property="Height" Value="22"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Slider">
+                    <Grid Background="Transparent">
+                        <Border Height="4" CornerRadius="2" VerticalAlignment="Center" Background="{StaticResource BorderBrush}"/>
+                        <Track x:Name="PART_Track">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="Slider.DecreaseLarge" Style="{StaticResource EditSliderRailButton}"/>
+                            </Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="Slider.IncreaseLarge" Style="{StaticResource EditSliderRailButton}"/>
+                            </Track.IncreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb Width="14" Height="14" Cursor="Hand">
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Ellipse Fill="{StaticResource AccentBrush}" Stroke="{StaticResource OnAccentBrush}" StrokeThickness="1"/>
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

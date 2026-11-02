@@ -11,7 +11,7 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <conv:InverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
         <conv:NullToVisibilityConverter x:Key="NullToVis"/>
-        <conv:NullToCollapsedConverter x:Key="NullToCollapsed"/>
+        <conv:NullToVisibleConverter x:Key="NullToVisible"/>
 
         <!-- One details row: a group header, or a label → value pair. -->
         <DataTemplate x:Key="DetailRowTemplate">
@@ -194,7 +194,7 @@
                     <TextBlock Text="{loc:Str Font.Details.Placeholder}"
                                HorizontalAlignment="Center" VerticalAlignment="Center"
                                Foreground="{StaticResource TextMutedBrush}" FontSize="12"
-                               Visibility="{Binding DataContext.SelectedFont, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource NullToCollapsed}}"/>
+                               Visibility="{Binding DataContext.SelectedFont, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource NullToVisible}}"/>
 
                     <!-- Details content: a scrolling top section, and the glyph map with its OWN scrollbar. -->
                     <Grid DataContext="{Binding SelectedFont}"

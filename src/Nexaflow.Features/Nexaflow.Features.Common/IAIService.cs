@@ -179,12 +179,13 @@ namespace Nexaflow.Features.Common
         /// <summary>
         /// Draws a picture as the user set it up, the way the assistant's own slow calls run: one of the workspace's background
         /// jobs — listed with the others and stoppable there, saved as <see cref="PictureAsked.Path"/> (beside it under another
-        /// number where that is taken) and opened when made, the user told when it ends. Returns once it has started; nothing is
-        /// asked first, the user having asked. What needs it is enabled by a gate on the image rows.
+        /// number where that is taken) and opened when made unless <see cref="PictureAsked.OpensWhenMade"/> says otherwise, the
+        /// user told when it ends. Returns once it has started, with the job — its progress, its Stop and the file it makes;
+        /// nothing is asked first, the user having asked. What needs it is enabled by a gate on the image rows.
         /// </summary>
         /// <exception cref="InvalidOperationException">The workspace draws no pictures or runs no background jobs, or the file's
         /// folder is not there.</exception>
-        void MakePicture(PictureAsked picture);
+        PictureJob MakePicture(PictureAsked picture);
 
         /// <summary>
         /// What the workspace makes a clip from a description with now — by the model <c>generate_video</c> makes one with; null

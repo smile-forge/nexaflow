@@ -58,27 +58,22 @@ public class ImageCutOutTests
         var shell = Substitute.For<IShellServices>();
         shell.RunOnUiAsync(Arg.Any<Action>()).Returns(call => _ui.Run(call.Arg<Action>()));
         shell.PickSaveFileAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>?>(), Arg.Any<string?>(), Arg.Any<long>()).Returns(saveAs);
-        shell.When(s => s.QueueBackgroundTask(Arg.Any<IBackgroundTask>(), Arg.Any<Action<bool>?>(), Arg.Any<CancellationToken>()))
-             .Do(call =>
-             {
-                 call.Arg<IBackgroundTask>().RunAsync(CancellationToken.None).GetAwaiter().GetResult();
-                 call.Arg<Action<bool>?>()?.Invoke(true);
-             });
+        ViewerUiThread.RunQueuedTasksAtOnce(shell);
         return shell;
     }
 
-    private ImageViewModel Editing(Patch selection, IShellServices? shell = null, string? photo = null)
+    private ArtistViewModel Editing(Patch selection, IShellServices? shell = null, string? photo = null)
     {
-        var vm = new ImageViewModel([photo ?? _photo], shell ?? Shell(), ImageViewMode.Edit, _services, selection: selection);
+        var vm = new ArtistViewModel(photo ?? _photo, shell ?? Shell(), _services, selection: selection);
         Until(() => vm.Canvas is not null);
         Assert.IsNotNull(vm.Canvas, "the photo was never decoded and presented");
-        OnUi(() => vm.Editor.Tool = EditTool.CutOut);
+        OnUi(() => vm.Editor.Tool = EditTool.Select);
         return vm;
     }
 
     /// <summary>Picks the patch with a click and removes the photo's background around it, then waits for its mask to be
     /// made and drawn through.</summary>
-    private void RemoveBackgroundAroundAClick(ImageViewModel vm)
+    private void RemoveBackgroundAroundAClick(ArtistViewModel vm)
     {
         OnUi(() => vm.Cutter.Click(10, 8, include: true));
         Until(() => vm.Editor.RemoveBackgroundCommand.CanExecute(null));
@@ -154,9 +149,9 @@ public class ImageCutOutTests
         var selection = new Patch();
         var vm = Editing(selection, Shell(saveAs: saved));
         OnUi(() => vm.Cutter.Click(10, 8, include: true));
-        Until(() => vm.Cutter.SaveCutOutCommand.CanExecute(null));
+        Until(() => vm.Editor.SaveCutOutCommand.CanExecute(null));
 
-        await _ui.Invoke(() => vm.Cutter.SaveCutOutCommand.ExecuteAsync(null));
+        await _ui.Invoke(() => vm.Editor.SaveCutOutCommand.ExecuteAsync(null));
 
         using var cut = SKBitmap.Decode(saved);
         Assert.AreEqual((Patch.Right - Patch.Left, Patch.Bottom - Patch.Top), (cut.Width, cut.Height), "cropped to the patch");
@@ -166,14 +161,14 @@ public class ImageCutOutTests
     }
 
     [TestMethod]
-    public void LeavingTheEditor_LetsTheReadingGo()
+    public void ClosingTheEditor_LetsTheReadingGo()
     {
         var selection = new Patch();
         var vm = Editing(selection);
         OnUi(() => vm.Cutter.Click(10, 8, include: true));
         Until(() => vm.Cutter.HasSelection);
 
-        OnUi(() => vm.ExitEditModeCommand.Execute(null));
+        OnUi(vm.Dispose);
         Until(() => selection.Ended);
 
         Assert.IsTrue(selection.Ended, "the selection on the photo ends with the editor");
@@ -191,9 +186,9 @@ public class ImageCutOutTests
         Thread.Sleep(100);
 
         Assert.AreEqual(0, selection.Opened);
-        Assert.IsFalse(vm.Cutter.HasAction, "the tool offers nothing of its own: picture selection is offered over the picture");
-        Assert.IsTrue(_ui.Invoke(() => vm.Editor.PickingModels.ShowsOffer), "the Cut out panel is open, so its models are offered");
-        OnUi(() => vm.Editor.PickingModels.DownloadCommand.Execute(null));
+        Assert.IsFalse(vm.Cutter.HasAction, "the tool offers nothing of its own: the AI picture models are offered over the picture");
+        Assert.IsTrue(_ui.Invoke(() => vm.Editor.ShowsModelsOffer), "the Cut out panel is open, so the models are offered");
+        OnUi(() => vm.Editor.Models.DownloadCommand.Execute(null));
         Assert.IsTrue(selection.Downloading);
     }
 
@@ -215,19 +210,19 @@ public class ImageCutOutTests
     }
 
     [TestMethod]
-    public async Task TheAssistant_PicksOutWhatItNames_InTheEditorsCutOut_FromBrowsing()
+    public async Task TheAssistant_PicksOutWhatItNames_InTheEditorsCutOut()
     {
         var selection = new Patch();
-        var vm = new ImageViewModel([_photo], Shell(), ImageViewMode.Carousel, _services, selection: selection);
+        var vm = new ArtistViewModel(_photo, Shell(), _services, selection: selection);
         Until(() => vm.CurrentSession is not null);
         var tool = vm.GetClientTools().Single(t => t.Name == "select_in_picture");
 
-        var result = await tool.InvokeAsync(new System.Text.Json.Nodes.JsonObject { ["what"] = "mug" }, CancellationToken.None);
+        var result = await tool.InvokeAsync(new System.Text.Json.Nodes.JsonObject { ["find"] = "mug" }, CancellationToken.None);
 
         Assert.IsTrue(result.Success, result.ModelText);
-        StringAssert.Contains(result.ModelText, "Picked out 2 \"mug\"");
+        StringAssert.Contains(result.ModelText, "Found 2 \"mug\"");
         StringAssert.Contains(result.ModelText, "4,2,12,10");
-        Assert.IsTrue(_ui.Invoke(() => vm.IsEditing && vm.Editor.IsCutOutTool), "the editor opens on Cut out");
+        Assert.IsTrue(_ui.Invoke(() => vm.IsEditing && vm.Editor.IsSelectTool), "the editor opens on Cut out");
         Assert.AreEqual("mug", _ui.Invoke(() => vm.Cutter.Found));
     }
 
@@ -236,7 +231,7 @@ public class ImageCutOutTests
     {
         var shell = Shell();
         var opened = new List<Dictionary<string, string>>();
-        shell.When(s => s.OpenTab("Images", Arg.Any<Dictionary<string, string>>(), Arg.Any<IPageView?>(), Arg.Any<bool>()))
+        shell.When(s => s.OpenTab("Artist", Arg.Any<Dictionary<string, string>>(), Arg.Any<IPageView?>(), Arg.Any<bool>()))
              .Do(call => opened.Add(call.ArgAt<Dictionary<string, string>>(1)));
         var vm = Editing(new Patch(), shell);
         var args = new System.Text.Json.Nodes.JsonObject { ["what"] = "mug" };
@@ -246,12 +241,12 @@ public class ImageCutOutTests
 
         Assert.IsFalse(result.IsError, result.ModelText);
         var tab = opened.Single();
-        var saved = tab["paths"];
+        var saved = tab["path"];
         Assert.AreEqual("mug" + suffix + ".png", Path.GetFileName(saved), "named after the picture");
         StringAssert.StartsWith(saved, DraftLocation.Root, "a draft, kept in a temp folder until the user saves it");
         Assert.AreEqual(_dir, tab[DraftFile.PageParameterName], "its Save as starts beside the picture");
         Assert.AreEqual(0, Directory.GetFiles(_dir, "*" + suffix + "*").Length, "nothing is written beside the picture: its folder was never given");
-        StringAssert.Contains(result.ModelText, "opened it for the user in a new tab");
+        StringAssert.Contains(result.ModelText, "opened it for the user in a new Artist tab");
         Assert.IsFalse(result.ModelText.Contains(saved, StringComparison.OrdinalIgnoreCase), "the assistant is told the tab opened, not where the file is");
         Assert.AreEqual(0, result.Images?.Count ?? 0, "nor shown the new picture");
         using (var cut = SKBitmap.Decode(saved))
@@ -259,7 +254,7 @@ public class ImageCutOutTests
 
         await vm.GetClientTools().Single(t => t.Name == "cut_out").InvokeAsync(args, CancellationToken.None);
         Assert.AreEqual(2, opened.Count);
-        Assert.IsTrue(File.Exists(opened[0]["paths"]) && File.Exists(opened[1]["paths"]) && opened[0]["paths"] != opened[1]["paths"],
+        Assert.IsTrue(File.Exists(opened[0]["path"]) && File.Exists(opened[1]["path"]) && opened[0]["path"] != opened[1]["path"],
                       "a second cut-out does not overwrite the first");
     }
 
@@ -281,26 +276,26 @@ public class ImageCutOutTests
         var vm = Editing(new Patch { State = ToolModelsState.NotDownloaded });
 
         var result = await vm.GetClientTools().Single(t => t.Name == "select_in_picture")
-                             .InvokeAsync(new System.Text.Json.Nodes.JsonObject { ["what"] = "mug" }, CancellationToken.None);
+                             .InvokeAsync(new System.Text.Json.Nodes.JsonObject { ["find"] = "mug" }, CancellationToken.None);
 
         Assert.IsFalse(result.Success);
         StringAssert.Contains(result.ModelText, "Settings > Local > Tools");
     }
 
     [TestMethod]
-    [DataRow("cutout", EditTool.CutOut)]
-    [DataRow("CutOut", EditTool.CutOut)]
+    [DataRow("select", EditTool.Select)]
+    [DataRow("Select", EditTool.Select)]
     [DataRow("crop", EditTool.Crop)]
     [DataRow("retouch", EditTool.Retouch)]
     [DataRow("resize", EditTool.Resize)]
     public void ATabAskedToOpenOnATool_OpensTheEditorThere(string asked, EditTool tool)
-        => Assert.AreEqual(tool, Nexaflow.Features.Images.ImageTabRegistration.ParseTool(asked));
+        => Assert.AreEqual(tool, Nexaflow.Features.Images.ArtistTabRegistration.ParseTool(asked));
 
     [TestMethod]
     public void ATabAskedForNoTool_OrOneThatIsNot_OpensTheEditorAsItWould()
     {
-        Assert.IsNull(Nexaflow.Features.Images.ImageTabRegistration.ParseTool(null));
-        Assert.IsNull(Nexaflow.Features.Images.ImageTabRegistration.ParseTool("lasso"));
+        Assert.IsNull(Nexaflow.Features.Images.ArtistTabRegistration.ParseTool(null));
+        Assert.IsNull(Nexaflow.Features.Images.ArtistTabRegistration.ParseTool("lasso"));
     }
 
     // ── Remove background: what is picked kept in the photo itself ──────────
@@ -431,7 +426,7 @@ public class ImageCutOutTests
         Until(() => vm.Remover.HasNotice);
 
         Assert.IsTrue(_ui.Invoke(() => vm.Remover.CanDownload));
-        Assert.AreEqual(Str.Get("Images.RemoveBackground.Download"), _ui.Invoke(() => vm.Remover.ActionLabel));
+        Assert.AreEqual(Str.Get("Images.Models.Download"), _ui.Invoke(() => vm.Remover.ActionLabel));
         Assert.IsFalse(_ui.Invoke(() => vm.Editor.SaveCopyCommand.CanExecute(null)), "not until its background is removed");
         OnUi(() => vm.Remover.ActCommand.Execute(null));
         Assert.IsTrue(selection.Downloading);

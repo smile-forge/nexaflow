@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.OpenRaster;
 using Nexaflow.Visuals.Common.Previews;
 
 namespace Nexaflow.Features.Images;
@@ -15,7 +16,8 @@ namespace Nexaflow.Features.Images;
 /// </summary>
 public static class ImageFileTypes
 {
-    public static readonly HashSet<string> Extensions = new(DecodablePictures.Extensions, StringComparer.OrdinalIgnoreCase);
+    /// <summary>What Windows' imaging decodes, and OpenRaster, which Images reads itself.</summary>
+    public static readonly HashSet<string> Extensions = new([.. DecodablePictures.Extensions, OpenRasterPackage.Extension], StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Globs (one per extension) for <see cref="Common.IFolderAction.ContainsFileGlobs"/>.</summary>
     public static readonly string[] Globs = Extensions.Select(e => "*" + e).ToArray();

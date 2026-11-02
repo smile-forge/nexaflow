@@ -274,6 +274,7 @@
     "ExperienceId": "/image",
     "Source": "User",
     "Criteria": [
+      { "Type": "OptionalExtension", "Value": "*.ora" },
       { "Type": "Extension", "Value": "*.png" },
       { "Type": "Extension", "Value": "*.jpg" },
       { "Type": "Extension", "Value": "*.jpeg" },
@@ -290,6 +291,7 @@
     "ExperienceId": "/image/edit",
     "Source": "User",
     "Criteria": [
+      { "Type": "Extension", "Value": "*.ora" },
       { "Type": "OptionalExtension", "Value": "*.png" },
       { "Type": "OptionalExtension", "Value": "*.jpg" },
       { "Type": "OptionalExtension", "Value": "*.jpeg" },

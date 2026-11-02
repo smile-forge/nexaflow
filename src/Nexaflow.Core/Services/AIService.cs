@@ -122,16 +122,16 @@ public sealed class AIService : IAIService
         };
     }
 
-    public void MakePicture(PictureAsked picture)
+    public PictureJob MakePicture(PictureAsked picture)
     {
         if (ImageGenerator is null && HighQualityImageGenerator is null)
             throw new InvalidOperationException("This workspace has no model that draws pictures.");
         var (shell, jobs, target) = UsersJob(picture.Path);
 
         // The call generate_image would be given, run as the assistant's slow calls run — but the user's, so nothing is asked.
-        // It saves only where the user named, and opens the picture once it is there.
+        // It saves only where the user named, and opens the picture once it is there unless whoever asked takes it in.
         var tool = new Generation.GenerateImageTool(ImageGenerator, HighQualityImageGenerator,
-                                                    Generation.GeneratedFiles.For(shell, new PathScope([], [Path.GetDirectoryName(target)!])),
+                                                    Generation.GeneratedFiles.For(shell, new PathScope([], [Path.GetDirectoryName(target)!]), picture.OpensWhenMade),
                                                     AllowsAdultContent, PictureCheck);
         var arguments = new JsonObject
         {
@@ -146,7 +146,26 @@ public sealed class AIService : IAIService
         if (picture.NegativePrompt is { Length: > 0 } keep)  arguments["negative_prompt"]        = keep;
         if (picture.TransparentBackground)                   arguments["transparent_background"] = true;
         if (picture.Lora is { Length: > 0 } lora)            arguments["lora"]                   = lora;
-        jobs.Start(tool, arguments, origin: null);
+        var (_, job, ended) = jobs.Start(tool, arguments, origin: null);
+        return PictureJobOf(job, ended);
+    }
+
+    /// <summary>The job a picture is drawn as, for whoever asked: its task's step as its progress, its Stop, and the file the
+    /// drawing saved — null where it was stopped, withheld or failed.</summary>
+    private static PictureJob PictureJobOf(BackgroundJobs.Job job, Task ended)
+    {
+        var made = ended.ContinueWith(_ => job.Result is { IsError: false, Attachments: [var saved, ..] } ? saved : null, TaskScheduler.Default);
+        var picture = new PictureJob(made, () => { if (job.Task.StopCommand.CanExecute(null)) job.Task.StopCommand.Execute(null); })
+        {
+            Progress = job.Task.Detail,
+        };
+        void Follow(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(BackgroundTask.Detail)) picture.Progress = job.Task.Detail;
+        }
+        job.Task.PropertyChanged += Follow;
+        _ = made.ContinueWith(_ => job.Task.PropertyChanged -= Follow, TaskScheduler.Default);
+        return picture;
     }
 
     public ClipChoices? MakesClips => Generation.GenerateVideoTool.FromDescriptionOf(VideoGenerator, HighQualityVideoGenerator) is not { } model

@@ -70,8 +70,9 @@ flowchart TD
     p -.-> mask[LayerMask<br/>8-bit coverage tiles]
 ```
 
-`LayeredPicture` is an immutable record: canvas `Width`/`Height`, `Dpi`, a background (transparent, white or a colour,
-shown only — it is not a layer), the `LayerStack`, the active layer's id, the `RegionSelection` (§6), and what was read
+`LayeredPicture` is an immutable record: canvas `Width`/`Height`, `Dpi`, a background (transparent, white or a colour;
+it is not a layer, but it is drawn beneath them on screen, in Export and in the `.ora`'s `mergedimage.png`, and kept as
+`nexaflow:background`), the `LayerStack`, the active layer's id, the `RegionSelection` (§6), and what was read
 from the `.ora` and not understood (§8.3). Every edit makes a new `LayeredPicture` sharing everything it did not touch,
 so `SnapshotHistory<LayeredPicture>` keeps undo as it keeps the recipe's today.
 
@@ -90,7 +91,8 @@ Krita's *inherit alpha*), and an optional `Mask` (§4.2).
 
 A picture layer's recipe is the photo editor's own, in its own coordinates; the layer's placement maps it into the
 canvas. So everything the photo editor does keeps working on one layer, and a photo opened and given a second layer
-becomes a picture layer with its recipe intact.
+becomes a picture layer with its recipe intact. While Crop or Before is out on a picture layer, the canvas shows that
+layer alone, as the photo editor shows the photo, so the crop frame and the comparison are in its own pixels.
 
 **Rasterize** turns a picture or markup layer into a pixel layer (what the brush needs); it is a step in the history like
 any other.
@@ -141,7 +143,8 @@ in the document (default 1 GB, Options → Images), not in steps; `SnapshotHisto
   that rectangle of each group above it, bottom to top.
 - **Groups.** An isolated group composites its children onto a transparent surface (`SKCanvas.SaveLayer` with the
   group's opacity and blend); a pass-through group draws its children onto its parent with its opacity multiplied in,
-  as OpenRaster defines `isolation="auto"`.
+  as OpenRaster defines `isolation="auto"`. A pass-through group with a mask is drawn as an isolated one, since its mask
+  needs a surface of its own to apply to.
 - **Masks and clipping.** A masked layer is drawn into its own surface, `DstIn` its mask's coverage, then composited
   with its opacity and blend. A layer that `ClipsToBelow` is composited `SrcATop` onto what its group holds beneath it,
   with its blend applied to the colour — the clip governs coverage, the blend the colour.
@@ -210,16 +213,24 @@ canvas pixels through `EditCanvas.SourceToCanvas`.
 | Erase (Retouch tile) | is the erase mask, filled by AI, content-aware fill or the healing brush as today |
 | Cut out | becomes the cut-out on a picture layer; on a pixel layer, deletes what lies outside it |
 | Mask from selection | the active layer's mask made from it, or hiding it (§4.2) |
-| Crop to selection | crops the canvas to its bounds |
+| Crop to selection | crops the canvas to its bounds, and lets the selection go, as Canvas size does |
 | Brush, eraser | paint only inside it, by its coverage |
 
 ### 6.4 In the photo editor (no layers)
 
 Marquee and lasso are offered in Cut out and in Erase as two more ways of marking, beside Pick and Brush
-(`EraseMarkWay`), so a photo edit benefits without becoming layered. They stay non-destructive: recipe **version 5**
-adds a `Region` to `RecipeCutOut` and `RecipeErase` — the shapes as drawn (rectangle, ellipse, polygon, each with its
-mode), in oriented-source pixels as every recipe value is, combined with the SAM finds and brush strokes already there.
-`WrittenVersion` writes version 4 for a recipe that uses no region.
+(`EraseMarkWay`, `CutOutMarkWay`), with the refinements beside them, so a photo edit benefits without becoming layered.
+Cut out and Erase share one selection: what Pick has picked, with the region drawn over it.
+
+They stay non-destructive: recipe **version 5** adds a `Region` (`RecipeRegion`) to `RecipeCutOut` and `RecipeErase`
+— the steps the selection was made by, in order, in oriented-source pixels as every recipe value is: each shape as drawn
+(rectangle, ellipse, polygon, each with its mode) and each refinement (invert, feather, grow or shrink, smooth, each with
+its radius). A region starts from the SAM finds beside it — on an erasing step grown past their edge as today — and each
+step works on what the ones before it left; a shape that replaces the selection starts it again, so drawing one lets the
+picks go too. An erasing step's brush strokes are painted over the result. A marquee drawn on a straightened photo is kept
+as the outline drawn, a polygon, since a rectangle or ellipse square to the screen is not square to the source. Select all
+is a replacing rectangle over the whole photo; Select subject is a SAM box round it. `WrittenVersion` writes version 4
+for a recipe that uses no region, and a cut-out with no region is filed under the same kept-mask name as before.
 
 ## 7. Painting and moving
 
@@ -232,9 +243,14 @@ Small and deliberate: enough to touch up, mask, sketch and arrange.
 - **Eyedropper** (I, or Alt with the brush): the composite's or the active layer's colour.
 - **Fill** (G): flood by tolerance, or the selection.
 - **Move** (V): moves the active layer, or the selection's contents when there is one (lifted into a floating layer
-  until committed).
+  until committed — *Drop*, Enter, or leaving the tool lays it back).
 - **Transform** (Ctrl+T): scale, rotate and flip with handles, on a layer or the selection's contents; a picture layer
-  keeps its source and is resampled from it, so repeated transforms do not soften it.
+  keeps its source and is resampled from it, so repeated transforms do not soften it. A markup layer has a placement of
+  its own, as a picture layer does, so its annotations are transformed as a whole and stay sharp and editable — the Markup
+  tool draws on the layer through it. A placement is a full affine (scale, flip, rotation, skew and offset), kept in the
+  `.ora` as `nexaflow:placement`'s six terms. Undo during a transform cancels it.
+- Painting needs a pixel layer or a mask: on a photo, or with a picture or markup layer active, the Paint panel says so
+  and offers *Add layer* (or rasterizing). The colour is markup's ink, one choice for both.
 
 ## 8. OpenRaster
 
@@ -297,7 +313,10 @@ the same in Krita.
 ### 8.4 A layered-format contract
 
 `IImageDecoder` returns one picture, so a layered format gets a contract of its own beside it, in the Images feature:
-`ILayeredPictureFormat` — `Reads(container)`, `ReadAsync(stream) → LayeredPicture`, `WriteAsync(LayeredPicture, stream)`.
+`ILayeredPictureFormat` — `Reads(container)`, `Extension`, `ReadAsync(path) → LayeredPictureRead` (the picture, and whether
+it holds a layer no reader draws), `WriteAsync(LayeredPicture, path, renderer)`. It takes a path in the
+`IVirtualFileSystem`, not a stream, so a read opens only the entries it needs (§8.2) and a write is one atomic package
+write; the renderer draws each layer's pixels and the merged image at full size.
 OpenRaster is the first; PSD (§13) would be the second, with nothing in the editor changed. `ImageContainer` gains
 `OpenRaster` (sniffed by the `mimetype` entry), and the editor opens a container that has a layered format as a
 `LayeredPicture`, any other as a photo.
@@ -307,8 +326,9 @@ OpenRaster is the first; PSD (§13) would be the second, with nothing in the edi
 Standard OpenRaster any reader draws correctly, with what only Nexaflow uses beside it under its own namespace
 (`xmlns:nexaflow` on `<image>`), so a file Nexaflow wrote reads back exactly:
 
-- **A picture layer** is its rendered pixels (`data/layerN.png`), with `nexaflow:source="data/nexaflow/sourceN.<ext>"`
-  (the original file, as it was) and `nexaflow:recipe="data/nexaflow/recipeN.nfedit"`.
+- **A picture layer** is its rendered pixels (`data/layerN.png`), with
+  `nexaflow:source="data/nexaflow/source-<hash>.<ext>"` (the original file, as it was, named by its content so a picture
+  two layers show is stored once) and `nexaflow:recipe="data/nexaflow/recipeN.nfedit"`.
 - **A markup layer** is its pixels, with `nexaflow:markup="data/nexaflow/markupN.json"` in `ImageRecipeJson`'s markup
   form.
 - **A masked layer** is an isolated `<stack nexaflow:role="masked">` carrying the layer's name, opacity, visibility,
@@ -325,8 +345,9 @@ Standard OpenRaster any reader draws correctly, with what only Nexaflow uses bes
 
 ### 8.6 Opening, saving and the file map
 
-- `.ora` joins `DecodablePictures.Extensions` and the `/image` and `/image/edit` criteria in `default-filemap.json`, so it
-  opens in Images from the file view and previews like any picture.
+- `.ora` joins `ImageFileTypes.Extensions` — what Images opens — and the `/image` and `/image/edit` criteria in
+  `default-filemap.json`, so it opens in Images from the file view like any picture. `DecodablePictures` stays what
+  Windows' imaging decodes, since the PDF and Scratchpad features decode those files themselves.
 - Opening an `.ora` for editing opens the layered document; in the viewer it shows the merged picture.
 - **The saved look.** A file holding a layer Nexaflow cannot draw (§8.3) opens in the editor showing its
   `mergedimage.png` — the picture as the application that wrote it drew it — with a bar saying which layers cannot be
@@ -338,8 +359,9 @@ Standard OpenRaster any reader draws correctly, with what only Nexaflow uses bes
   Until one is chosen, editing anything chooses *Edit the layers*. A file Nexaflow can draw whole never shows the bar.
 - Save writes the whole package through the VFS's atomic write (§8.2), debounced as the recipe sidecar is; a large
   document saves in the background through the existing `ImageSaveTask`.
-- **New picker**: *Layered picture (.ora)* (`IFileCreateAction`) creates a blank `.ora` at a chosen size in the folder
-  and opens it for editing.
+- **New picker**: *Layered picture (.ora)* (`IFileCreateWithOptions`) creates a blank `.ora` in the folder and opens it
+  for editing, its size and background set up in the picker by `CanvasSetup` — the presets, units, dpi, orientation and
+  background of the start screen's New picture (§9.1), which uses the same.
 
 ## 9. The start screen and generation
 
@@ -348,28 +370,38 @@ Standard OpenRaster any reader draws correctly, with what only Nexaflow uses bes
 `paths` becomes optional on `ImageTabRegistration`. With none, the page shows **New picture**:
 
 - **Size presets** — Screen (the monitor's size), Square 1024, Full HD, 4K, A4 and Letter at 300 dpi, Social (1080 ×
-  1350) — and a custom width × height with units (px, mm, in) and dpi; orientation swap.
+  1350) — and a custom width × height with units (px, mm, in) and dpi; orientation swap. Screen is chosen to start with,
+  once the screen's size is known: someone starting from nothing has a size to answer, and the screen's is the likeliest.
 - **Background**: transparent, white, or a colour.
-- **Create** makes the canvas as a draft `.ora` (one empty pixel layer) and opens it in edit mode.
+- **Create** makes the canvas as a draft `.ora` (one empty pixel layer) and opens it in edit mode, in the same tab: the
+  page takes the canvas's title and parameters, and the draft's Save as — the editor's Save asks it too — turns the tab
+  into the file kept, as any draft does.
 - **Generate a picture**: the prompt and the model's own choices (`IAIService.MakesPictures` — aspect, resolution,
   detail, seed, negative prompt, LoRA) with the canvas size picking the nearest aspect; the picture arrives as the
   canvas's first picture layer. Hidden when the workspace has no image model, with the reason and a link to its AI
   settings, as Gen Image does today.
 - **Paste from clipboard** (when it holds a picture) and **Open picture…**.
-- **Recent canvases**: the last `.ora` files and unsaved drafts opened here.
+- **Recent canvases**: the last `.ora` files and unsaved drafts opened here, kept in the Images settings
+  (`ImagesConfig.RecentCanvases`) so every tab and every session shares them.
 
-How it is reached: a *New picture* entry where pages are launched, the New picker's *Layered picture*, and an Images tab
-whose last picture is closed.
+How it is reached: *New picture* among the pages the ribbon editor adds (the registration is `CanBeContextItem`, its
+`paths` optional, as the Font viewer's are), an Images tab opened with no picture, and an Images tab whose last picture is
+closed. The New picker's *Layered picture* makes its canvas in the picker itself, with the same `CanvasSetup` (§8.6).
 
 ### 9.2 Generating into the canvas
 
 `IAIService.MakePicture` saves and opens; a canvas needs the picture handed back. `MakePicture` returns a
 `PictureJob` whose `Made` task completes with the saved path (null when stopped, withheld by the picture check, or
 failed), and `PictureAsked` gains `OpensWhenMade` (default true, as today). The canvas asks for a draft path, does not
-open it, and adds the picture as a picture layer when it arrives; until then a placeholder layer shows the job's
-progress and Stop. The job stays one of the workspace's background jobs, listed and stoppable as now.
+open it, and adds the picture as a picture layer, fitted to the canvas and centred, when it arrives — on the start screen
+beneath the empty layer, as the canvas's first. Until then a row above the layers panel (`CanvasPictures.Pending`)
+shows the job's progress (`PictureJob.Progress`, the step its model reports) and Stop; it is not a layer of the picture,
+so nothing of it is ever saved. A picture that arrives while its canvas is not shown is added once it is. The job stays
+one of the workspace's background jobs, listed and stoppable as now.
 
 - **Generate layer** (layers panel): the same, at the canvas size, into a new layer above the active one.
+- **Dropping pictures** on the canvas adds each as a picture layer above the active one, fitted and centred — a photo made
+  a layered picture first (§4.3).
 
 Generating into a selection (generative fill) waits for a local model that takes a mask (§13).
 
@@ -382,7 +414,9 @@ theirs.
 - **Size**: fit to page (default), fill page (cropped), actual size at the picture's dpi (tiled across pages when
   larger), or a set width.
 - **Orientation**: automatic from the picture's shape, or as chosen; margins; centre on page.
-- Renders at the printer's resolution through the full-size path, never the screen preview.
+- Renders at the printer's resolution through the full-size path, never the screen preview: no more pixels than the
+  printer lays down at the printed size. A photo's actual size is at 72 dpi, the resolution taken for any picture whose
+  file says none; a layered picture's is its own.
 
 The button is enabled only while there is something to print — a picture shown, or a canvas — so on the start screen it
 is there and disabled.

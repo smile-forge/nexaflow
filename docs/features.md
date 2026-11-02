@@ -296,6 +296,7 @@ reflect the tab's current state (set it after in-tab navigation so `FindTab` and
 | Dicom | `path` (a `DICOMDIR`, a folder of instances, or one `.dcm`) or `paths` (pipe-separated selection) |
 | Hdf5 | `path` (an `.h5`, `.hdf5` or `.he5` file, on disk or inside an archive; a path continuing into the file also selects that object), `node` (optional — the object to select, e.g. `/group/dataset`; location, not identity: an open re-points the tab) |
 | Images | `paths` (pipe-separated), `view` (`carousel` \| `album` \| `explore` \| `collage`), `scope` (`folder` = whole-folder view) |
+| Artist | `path` (one picture; none = the start screen), `tool` (`reshape` \| `adjust` \| `retouch` \| `select` \| `markup` \| `resize` \| `paint` \| `move`), `draft` (the folder a draft's Save as starts in) |
 | Audio | `paths` (pipe-separated queue), `index`, `autoplay`, `scope` (`folder` = whole-folder queue) |
 | Font | `paths` (pipe-separated font files; omit for the standalone "System Fonts" compare mode) |
 | ProductManager | `path` (folder holding/initialising `.product/`) |
@@ -310,6 +311,19 @@ reflect the tab's current state (set it after in-tab navigation so `FindTab` and
 | Hex | `path`, `offset` (optional, decimal or `0x` hex), `length` (optional — bytes to select) |
 | Pdf | `path`, `page` (optional, 1-based — opens at, or jumps to, that page) |
 | Help (Core) | `topic` (optional — the page kind whose help to show; omit for the list of every help page), `query` (optional — searched as it opens). Both are location, not identity: a window keeps one Help tab and an open re-points it |
+
+---
+
+## A feature's own services — `[FeatureService]`
+
+What a feature's registrations, handlers and actions share within one runtime — two page kinds working on the same
+files, say — is a class of the feature's own marked `[FeatureService]`, taken by constructor like `IShellServices`. The
+feature DI builds one per `WorkspaceRuntime`, with the same injection its consumers get (a service may take the shell,
+the AI, the runtime's file system, configs, tools or another feature service), and drops it with the instances that
+captured the runtime's services — when the runtime is reconfigured or closes, after its tabs have gone — disposing it
+when it is `IDisposable`. The Images tabs share `ImageEditingServices` this way, so a photo open in two of them has one
+recipe store writing its sidecar. A class that is not marked is not supplied: the DI builds only what a feature asks
+it to.
 
 ---
 

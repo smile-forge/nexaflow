@@ -41,15 +41,21 @@ public sealed partial class PictureCutter : ObservableObject
 
     /// <param name="selection">Picture selection, where the app has it.</param>
     /// <param name="runOnUi">Hops to the UI thread, where this is read.</param>
-    public PictureCutter(ImageEditingServices services, IPictureSelection? selection, IShellServices? shell, Func<Action, Task> runOnUi)
+    /// <param name="models">AI picture editing's models as one, which picking speaks of while it waits; null, picture selection alone.</param>
+    public PictureCutter(ImageEditingServices services, IPictureSelection? selection, IShellServices? shell, Func<Action, Task> runOnUi,
+                         PictureModels? models = null)
     {
         _services = services;
         _selection = selection;
         _shell = shell;
         _runOnUi = runOnUi;
+        _models = models ?? new PictureModels([selection], runOnUi);
         if (selection is not null) selection.Changed += (_, _) => _ = _runOnUi(Refresh);
+        _models.Changed += (_, _) => Refresh();
         Refresh();
     }
+
+    private readonly PictureModels _models;
 
     /// <summary>Whether this machine can pick things out of pictures at all — what the editor's tool shows for.</summary>
     public bool Available => _selection is { State: not ToolModelsState.Unavailable };
@@ -75,7 +81,7 @@ public sealed partial class PictureCutter : ObservableObject
     /// bounds are in the photo's pixels. Null where nothing is picked yet.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelection))]
-    [NotifyCanExecuteChangedFor(nameof(CopyCommand), nameof(SaveCutOutCommand))]
+    
     private PictureMask? _shown;
 
     /// <summary>Something is picked, to copy or save.</summary>
@@ -300,15 +306,15 @@ public sealed partial class PictureCutter : ObservableObject
         Notice = _selection?.State switch
         {
             null or ToolModelsState.Unavailable => Str.Get("Images.CutOut.Unavailable"),
-            ToolModelsState.NotDownloaded when _selection!.DownloadFailure is { } failure => Str.Format("Images.CutOut.DownloadStopped", failure),
-            ToolModelsState.NotDownloaded => Str.Format("Images.CutOut.NeedsTool", SizeFormatter.FormatBytes(_selection!.DownloadBytes)),
-            ToolModelsState.Downloading => Str.Format("Images.CutOut.Downloading", _selection!.DownloadPercent),
+            ToolModelsState.NotDownloaded or ToolModelsState.Downloading => _models.Status(Str.Format("Images.CutOut.NeedsTool", SizeFormatter.FormatBytes(_models.MissingBytes)))
+                                                                            ?? Str.Format("Images.CutOut.NeedsTool", SizeFormatter.FormatBytes(_models.MissingBytes)),
             _ when Shown?.Bounds is not null => Notice,
             _ => Str.Get("Images.CutOut.Hint"),
         };
     }
 
-    private static (int Width, int Height) ShownSize(int width, int height)
+    /// <summary>The size what is picked in a <paramref name="width"/> × <paramref name="height"/> photo is shown at.</summary>
+    internal static (int Width, int Height) ShownSize(int width, int height)
     {
         double scale = Math.Min(1.0, (double)ShownLongSide / Math.Max(width, height));
         return (Math.Max(1, (int)Math.Round(width * scale)), Math.Max(1, (int)Math.Round(height * scale)));
@@ -340,49 +346,44 @@ public sealed partial class PictureCutter : ObservableObject
             : null, ct);
     }
 
-    private static byte[] Png(byte[] rgba, int width, int height, SKColorSpace space)
+    /// <summary>
+    /// What is selected — what is picked, and <paramref name="region"/> drawn by hand over it — cut out of the photo at its full
+    /// size: transparent around it, as selected as each pixel is, cropped to it, as a PNG; null where nothing is selected. The
+    /// mask is made as a cut-out's is, and kept.
+    /// </summary>
+    internal async Task<byte[]?> CutOutAsync(RecipeRegion? region, CancellationToken ct)
+    {
+        if (region is null) return await CutOutAsync(ct);
+        if (_photo is not { } photo) return null;
+        var cutOut = (PickedCutOut ?? new RecipeCutOut()) with { Region = region };
+        var kept = await _services.CutOuts.MakeAsync(_services, photo, cutOut, _selection, null, ct);
+        var upright = await Task.Run(() => _services.ReadUprightAsync(photo, ct), ct);
+        return await Task.Run(() =>
+        {
+            var mask = Editing.CuttingOut.CutOutMasks.ReadGrey(kept, upright.Width, upright.Height);
+            return PictureCutOut.Through(upright.Rgba, upright.Width, upright.Height, mask) is var (rgba, w, h) ? Png(rgba, w, h, upright.Space) : null;
+        }, ct);
+    }
+
+    /// <summary>
+    /// What <paramref name="cutOut"/> keeps of the photo — what is picked, and the region drawn over it — as a mask the photo's
+    /// upright size: how selected each pixel is, 0…255. Made at full size and kept, as a cut-out of it is; null with no photo.
+    /// </summary>
+    internal async Task<PictureMask?> MaskAsync(RecipeCutOut cutOut, CancellationToken ct)
+    {
+        if (_photo is not { } photo) return null;
+        var kept = await _services.CutOuts.MakeAsync(_services, photo, cutOut, _selection, null, ct);
+        var upright = await Task.Run(() => _services.ReadUprightAsync(photo, ct), ct);
+        var mask = await Task.Run(() => Editing.CuttingOut.CutOutMasks.ReadGrey(kept, upright.Width, upright.Height), ct);
+        return new PictureMask(mask, upright.Width, upright.Height, null);
+    }
+
+    internal static byte[] Png(byte[] rgba, int width, int height, SKColorSpace space)
     {
         using var bitmap = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul, space));
         System.Runtime.InteropServices.Marshal.Copy(rgba, 0, bitmap.GetPixels(), rgba.Length);
         using var image = SKImage.FromBitmap(bitmap);
         using var data = image.Encode(SKEncodedImageFormat.Png, 100);
         return data.ToArray();
-    }
-
-    [RelayCommand(CanExecute = nameof(HasSelection))]
-    private async Task Copy()
-    {
-        try
-        {
-            if (await CutOutAsync(CancellationToken.None) is { } png)
-            {
-                PictureClipboard.CopyPng(png);
-                _shell?.ShowNotification(Str.Get("Images.CutOut.Copied"));
-            }
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or IOException or System.Runtime.InteropServices.ExternalException)
-        {
-            _shell?.ShowError(Str.Format("Images.CutOut.Failed", ex.Message));
-        }
-    }
-
-    [RelayCommand(CanExecute = nameof(HasSelection))]
-    private async Task SaveCutOut()
-    {
-        if (_shell is null || _photo is null) return;
-        var suggested = Path.GetFileNameWithoutExtension(_photo) + Str.Get("Images.CutOut.FileSuffix") + ".png";
-        var folder = ImageEditingServices.IsFileBacked(_photo) ? Path.GetDirectoryName(_photo) : null;
-        var destination = await _shell.PickSaveFileAsync(suggested, [".png"], folder);
-        if (destination is null) return;
-        try
-        {
-            if (await CutOutAsync(CancellationToken.None) is not { } png) return;
-            await _services.FileSystem.WriteAllBytesAsync(Path.ChangeExtension(destination, ".png"), png);
-            _shell.ShowNotification(Str.Format("Images.CutOut.SavedFormat", Path.GetFileName(destination)));
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
-        {
-            _shell.ShowError(Str.Format("Images.CutOut.Failed", ex.Message));
-        }
     }
 }

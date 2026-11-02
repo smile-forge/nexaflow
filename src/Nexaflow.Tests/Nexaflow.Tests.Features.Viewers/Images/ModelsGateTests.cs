@@ -15,8 +15,8 @@ using static Nexaflow.Tests.Features.Images.EditingFixtures;
 namespace Nexaflow.Tests.Features.Images;
 
 /// <summary>
-/// Controls that need models wait for them: disabled, saying why, while the panel that needs them offers the download
-/// over the picture — once, standing back where a picture tool's own banner already offers it.
+/// Controls that need models wait for them: disabled, saying why, while the panel that needs them offers AI picture editing's
+/// models over the picture — all of them as one, once, standing back where a picture tool's own banner already offers them.
 /// </summary>
 [TestClass]
 [CoversNode("images-edit-models")]
@@ -25,55 +25,80 @@ public class ModelsGateTests
     private static readonly Func<Action, Task> Here = action => { action(); return Task.CompletedTask; };
 
     [TestMethod]
-    public void ModelsNotHere_AreOfferedOnlyWhileWanted_AndDisableWithTheirSize()
+    public void AiPictureEditingsModels_AreOfferedAsOne_SizedTogether_AndOnlyWhatIsMissingIsFetched()
+    {
+        var selection = new Models { State = ToolModelsState.NotDownloaded, DownloadBytes = 1800L << 20 };
+        var erasing = new Models { State = ToolModelsState.NotDownloaded, DownloadBytes = 200L << 20 };
+        var tools = new Models { State = ToolModelsState.Ready };
+        var set = Set(selection, erasing, tools, null);
+
+        Assert.IsTrue(set.CanDownload);
+        Assert.AreEqual(2000L << 20, set.MissingBytes, "what is here, and what the app lacks, cost nothing");
+        Assert.AreEqual(Str.Format("Images.Models.OfferFormat", SizeFormatter.FormatBytes(2000L << 20)), set.Notice, "one offer, one size");
+
+        set.DownloadCommand.Execute(null);
+        Assert.AreEqual((1, 1, 0), (selection.Downloads, erasing.Downloads, tools.Downloads), "one press fetches every set not here");
+
+        selection.State = ToolModelsState.Downloading;
+        selection.DownloadPercent = 50;
+        erasing.State = ToolModelsState.Downloading;
+        erasing.DownloadPercent = 100;
+        selection.Raise();
+        Assert.AreEqual(Str.Format("Images.Models.DownloadingFormat", 55), set.Notice, "how far, each set by its share of what was left");
+
+        erasing.State = ToolModelsState.Ready;
+        selection.State = ToolModelsState.NotDownloaded;
+        selection.DownloadFailure = "the disk is full";
+        selection.Raise();
+        Assert.AreEqual(Str.Format("Images.Models.StoppedFormat", "the disk is full"), set.Notice);
+        Assert.IsTrue(set.CanDownload, "offered again");
+
+        selection.State = ToolModelsState.Ready;
+        selection.Raise();
+        Assert.IsNull(set.Notice, "all here: nothing to say");
+        Assert.IsFalse(set.CanDownload);
+    }
+
+    [TestMethod]
+    public void ModelsNotHere_AreOfferedOnlyWhileWanted_AndDisableTheirControls()
     {
         var models = new Models { State = ToolModelsState.NotDownloaded, DownloadBytes = 1800L << 20 };
-        var gate = new ModelsGate(models, "Images.Models.Picking.", Here);
+        var gate = new ModelsGate(models, Set(models), Here);
 
         Assert.IsTrue(gate.IsOffered, "this machine runs them, so their controls show");
         Assert.IsFalse(gate.IsReady);
         Assert.IsFalse(gate.ShowsOffer, "no panel wants them yet");
-        Assert.AreEqual(Str.Format("Images.Models.NeedsTipFormat", Str.Get("Images.Models.Picking.Name"), SizeFormatter.FormatBytes(1800L << 20)),
-                        gate.DisabledReason);
+        Assert.AreEqual(Str.Get("Images.Models.NeedsTip"), gate.DisabledReason, "the models, not which of them");
 
         gate.IsWanted = true;
         Assert.IsTrue(gate.ShowsOffer, "a panel that needs them is open");
-        StringAssert.Contains(gate.Notice!, SizeFormatter.FormatBytes(1800L << 20));
-
-        gate.DownloadCommand.Execute(null);
-        Assert.AreEqual(1, models.Downloads);
     }
 
     [TestMethod]
-    public void ModelsComing_SayHowFar_AndAStoppedDownloadSaysWhy()
+    public void ModelsComing_SayHowFar()
     {
         var models = new Models { State = ToolModelsState.Downloading, DownloadPercent = 42 };
-        var gate = new ModelsGate(models, "Images.Models.Restoring.", Here) { IsWanted = true };
+        var gate = new ModelsGate(models, Set(models), Here) { IsWanted = true };
 
-        Assert.IsFalse(gate.CanDownload, "already coming");
-        StringAssert.Contains(gate.Notice!, "42");
         StringAssert.Contains(gate.DisabledReason!, "42");
-
-        models.State = ToolModelsState.NotDownloaded;
-        models.DownloadFailure = "the disk is full";
-        models.Raise();
-        StringAssert.Contains(gate.Notice!, "the disk is full");
-        Assert.IsTrue(gate.CanDownload, "offered again");
+        Assert.IsTrue(gate.ShowsOffer, "the banner says how far they have come");
     }
 
     [TestMethod]
     public void ModelsHere_OrNeverRunnableHere_SayNothing()
     {
-        var ready = new ModelsGate(new Models { State = ToolModelsState.Ready }, "Images.Models.Erasing.", Here) { IsWanted = true };
+        var here = new Models { State = ToolModelsState.Ready };
+        var ready = new ModelsGate(here, Set(here), Here) { IsWanted = true };
         Assert.IsTrue(ready.IsReady);
         Assert.IsNull(ready.DisabledReason);
         Assert.IsFalse(ready.ShowsOffer);
 
-        var never = new ModelsGate(new Models { State = ToolModelsState.Unavailable }, "Images.Models.Erasing.", Here) { IsWanted = true };
+        var cannot = new Models { State = ToolModelsState.Unavailable };
+        var never = new ModelsGate(cannot, Set(cannot), Here) { IsWanted = true };
         Assert.IsFalse(never.IsOffered, "a machine that cannot run them does not show their controls");
         Assert.IsFalse(never.ShowsOffer);
 
-        var absent = new ModelsGate(null, "Images.Models.Erasing.", Here) { IsWanted = true };
+        var absent = new ModelsGate(null, Set(), Here) { IsWanted = true };
         Assert.IsFalse(absent.IsOffered);
         Assert.IsFalse(absent.ShowsOffer);
     }
@@ -82,7 +107,7 @@ public class ModelsGateTests
     public void ModelsArriving_FreeTheirControls_AndTheOfferGoes()
     {
         var models = new Models { State = ToolModelsState.NotDownloaded, DownloadBytes = 1 };
-        var gate = new ModelsGate(models, "Images.Models.Picking.", Here) { IsWanted = true };
+        var gate = new ModelsGate(models, Set(models), Here) { IsWanted = true };
         var changed = new List<string?>();
         gate.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
 
@@ -98,7 +123,8 @@ public class ModelsGateTests
     [TestMethod]
     public void ABannerAlreadyOfferingTheModels_HasTheGateStandBack()
     {
-        var gate = new ModelsGate(new Models { State = ToolModelsState.NotDownloaded, DownloadBytes = 1 }, "Images.Models.Picking.", Here) { IsWanted = true };
+        var models = new Models { State = ToolModelsState.NotDownloaded, DownloadBytes = 1 };
+        var gate = new ModelsGate(models, Set(models), Here) { IsWanted = true };
         var banner = new Offer();
         gate.Defer(banner);
         Assert.IsTrue(gate.ShowsOffer);
@@ -109,6 +135,8 @@ public class ModelsGateTests
         banner.CanDownload = false;
         Assert.IsTrue(gate.ShowsOffer);
     }
+
+    private static PictureModels Set(params IToolModels?[] sets) => new(sets, Here);
 
     // ── In the editor ───────────────────────────────────────────────────────
 
@@ -128,7 +156,7 @@ public class ModelsGateTests
             var erasing = Missing<IPictureErasing>(210L << 20);
             var pictures = Missing<IPictureTools>(640L << 20);
             pictures.Restores(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>()).Returns(true);
-            var vm = new ImageViewModel([photo], shell, ImageViewMode.Edit, new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1))),
+            var vm = new ArtistViewModel(photo, shell, new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1))),
                                         pictures: pictures, selection: selection, erasing: erasing);
             Until(() => vm.Canvas is not null);
             var editor = vm.Editor;
@@ -140,6 +168,9 @@ public class ModelsGateTests
             Assert.IsTrue(editor.PickingModels.ShowsOffer);
             Assert.IsTrue(editor.ErasingModels.ShowsOffer);
             Assert.IsFalse(editor.RestoringModels.ShowsOffer, "Retouch does not need the picture tools");
+            Assert.IsTrue(editor.ShowsModelsOffer, "the banner offers them");
+            Assert.AreEqual(Str.Format("Images.Models.OfferFormat", SizeFormatter.FormatBytes((1800L + 210 + 640) << 20)), editor.Models.Notice,
+                            "all of AI picture editing's models, as one");
 
             OnUi(() => editor.Tool = EditTool.Adjust);
             Assert.IsTrue(editor.RestoringModels.ShowsOffer);
@@ -147,16 +178,17 @@ public class ModelsGateTests
             Assert.IsFalse(editor.CanToggleAiEnhance, "AI enhance waits for the picture tools");
             Assert.IsFalse(editor.UpscaleTwiceOffered);
 
-            OnUi(() => editor.Tool = EditTool.CutOut);
+            OnUi(() => editor.Tool = EditTool.Select);
             Assert.IsTrue(editor.PickingModels.ShowsOffer);
 
-            OnUi(() => vm.ViewMode = ImageViewMode.Carousel);
-            Assert.IsFalse(editor.PickingModels.ShowsOffer, "out of the editor, nothing is offered");
+            OnUi(() => editor.Tool = EditTool.Crop);
+            Assert.IsFalse(editor.PickingModels.ShowsOffer, "a panel needing no model offers none");
+            Assert.IsFalse(editor.ShowsModelsOffer);
 
             selection.State.Returns(ToolModelsState.Ready);
             selection.Changed += Raise.Event();
             Until(() => ui.Invoke(() => editor.PickingModels.IsReady));
-            OnUi(() => vm.ViewMode = ImageViewMode.Edit);
+            OnUi(() => editor.Tool = EditTool.Select);
             Assert.IsFalse(editor.PickingModels.ShowsOffer, "here now, so nothing to offer");
             vm.Dispose();
         }

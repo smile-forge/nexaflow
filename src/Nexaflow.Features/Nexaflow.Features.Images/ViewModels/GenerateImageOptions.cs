@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -124,10 +125,18 @@ public sealed partial class GenerateImageOptions : ObservableObject, IFileCreate
 
     public string? Create(string fileName)
     {
+        var path = Path.Combine(_folder, fileName);
+        if (Asked(path) is not { } asked) return null;
+        _ai.MakePicture(asked);
+        return path;
+    }
+
+    /// <summary>The picture as set up, to be saved as <paramref name="path"/>; null while the options do not say enough.</summary>
+    internal PictureAsked? Asked(string path)
+    {
         if (!CanCreate) return null;
         GenerationChoices.SeedValue(Seed, out var seed);
-        var path = Path.Combine(_folder, fileName);
-        _ai.MakePicture(new PictureAsked(Prompt.Trim(), path, HighQuality)
+        return new PictureAsked(Prompt.Trim(), path, HighQuality)
         {
             Aspect                = Aspect?.Value,
             Resolution            = Resolution?.Value,
@@ -136,8 +145,37 @@ public sealed partial class GenerateImageOptions : ObservableObject, IFileCreate
             NegativePrompt        = NegativePrompts && NegativePrompt.Trim() is { Length: > 0 } keptOut ? keptOut : null,
             TransparentBackground = TransparentBackgrounds && TransparentBackground,
             Lora                  = Lora?.Value,
-        });
-        return path;
+        };
+    }
+
+    // The proportions the picture is wanted in — a canvas's — where whoever asked has a size in mind; null otherwise.
+    private double? _wantedRatio;
+
+    /// <summary>Chooses the model's proportions nearest <paramref name="width"/> × <paramref name="height"/>, and goes on choosing
+    /// them as what the model offers changes — a picture drawn for a canvas of that size.</summary>
+    internal void Prefer(int width, int height)
+    {
+        if (width <= 0 || height <= 0) return;
+        _wantedRatio = (double)width / height;
+        Aspect = NearestAspect() ?? Aspect;
+    }
+
+    private GenerationChoice? NearestAspect()
+        => _wantedRatio is not { } wanted ? null
+         : Aspects.Select(a => (Choice: a, Ratio: RatioOf(a.Value)))
+                  .Where(a => a.Ratio is not null)
+                  .OrderBy(a => Math.Abs(Math.Log(a.Ratio!.Value / wanted)))
+                  .Select(a => a.Choice)
+                  .FirstOrDefault();
+
+    /// <summary>"16:9" as 16 / 9; null where it is not proportions.</summary>
+    private static double? RatioOf(string? aspect)
+    {
+        var parts = aspect?.Split(':');
+        return parts is [var w, var h]
+            && double.TryParse(w, NumberStyles.Float, CultureInfo.InvariantCulture, out var width)
+            && double.TryParse(h, NumberStyles.Float, CultureInfo.InvariantCulture, out var height) && width > 0 && height > 0
+            ? width / height : null;
     }
 
     /// <summary>Offers the download of a model of Nexaflow's own that waits on it; the options are drawn again once it lands.</summary>
@@ -175,6 +213,7 @@ public sealed partial class GenerateImageOptions : ObservableObject, IFileCreate
         var choices = _making is null ? null : HighQuality || _making.Standard is null ? _making.HighQuality : _making.Standard;
 
         Aspect = GenerationChoices.Refill(Aspects, choices?.Aspects.Select(a => new GenerationChoice(AspectLabel(a), a)), Aspect);
+        Aspect = NearestAspect() ?? Aspect;
         Resolution = GenerationChoices.Refill(Resolutions, choices?.Resolutions.Select(r => new GenerationChoice(r, r)), Resolution, Str.Get("Images.Generate.ModelsOwn"));
         Detail = GenerationChoices.Refill(Details, choices?.Details.Select(d => new GenerationChoice(Str.Get($"Images.Generate.Detail.{Capitalised(d)}"), d)), Detail, Str.Get("Images.Generate.ModelsOwn"));
         Seeds                  = choices?.Seeds ?? false;

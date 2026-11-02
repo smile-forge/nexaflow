@@ -112,12 +112,61 @@ public class FeatureDiFailureTests
         Assert.AreSame(ws.Vfs, built.Vfs);
     }
 
+    // ── A feature's own services ─────────────────────────────────────────────
+
+    [TestMethod]
+    public void AFeatureService_IsOnePerRuntime_SharedByEverythingAskingForIt()
+    {
+        // Two page kinds of one feature share what one runtime holds — the Images viewer's and Artist's recipe store — so
+        // both must be handed the same instance, and another runtime its own.
+        var ws = WiredRuntime();
+        var first  = (NeedsTheService)FeatureManager.Instance.Instantiate(typeof(NeedsTheService), ws);
+        var second = (AlsoNeedsTheService)FeatureManager.Instance.Instantiate(typeof(AlsoNeedsTheService), ws);
+        var elsewhere = (NeedsTheService)FeatureManager.Instance.Instantiate(typeof(NeedsTheService), WiredRuntime());
+
+        Assert.AreSame(first.Service, second.Service);
+        Assert.AreNotSame(first.Service, elsewhere.Service);
+        Assert.AreSame(ws.Vfs, first.Service.Vfs, "built with the same injection its consumers get");
+    }
+
+    [TestMethod]
+    public void AFeatureService_IsDisposed_WhenItsRuntimeIsEvicted()
+    {
+        var ws = WiredRuntime();
+        var service = ((NeedsTheService)FeatureManager.Instance.Instantiate(typeof(NeedsTheService), ws)).Service;
+
+        FeatureManager.Instance.EvictWorkspace(ws);
+
+        Assert.IsTrue(service.Disposed);
+        var rebuilt = ((NeedsTheService)FeatureManager.Instance.Instantiate(typeof(NeedsTheService), ws)).Service;
+        Assert.AreNotSame(service, rebuilt, "the runtime reconfigured gets a service built against its new services");
+    }
+
+    [TestMethod]
+    public void AFeatureServiceNeedingItself_Throws_RatherThanRecursing()
+    {
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(
+            () => FeatureManager.Instance.Instantiate(typeof(NeedsTheCircle), WiredRuntime()));
+
+        StringAssert.Contains(ex.Message, nameof(CircularService));
+    }
+
+    [TestMethod]
+    public void AnUnmarkedClassOfAFeatures_IsStillNotSupplied()
+    {
+        // Only what a feature marks is built for it: anything else is the defect it always was.
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(
+            () => FeatureManager.Instance.Instantiate(typeof(NeedsAnUnmarkedClass), WiredRuntime()));
+
+        StringAssert.Contains(ex.Message, nameof(UnmarkedClass));
+    }
+
     // ── The change is safe against the real feature set ───────────────────────
 
     [TestMethod]
     public void EveryShippedImplementationOfAnEnumeratedContract_Builds()
     {
-        // The regression guard for making Instantiate throw at all. Both contracts below are resolved by
+        // The regression guard for making Instantiate throw at all. The contracts below are resolved by
         // enumerating every implementation across the shipped feature assemblies, so a single unbuildable type
         // would now take out file search or the object-handoff chain for everyone.
         var workspace = WiredRuntime();
@@ -133,7 +182,7 @@ public class FeatureDiFailureTests
     }
 
     private static IEnumerable<Type> Contracts() =>
-        [typeof(IFileTextExtractor), typeof(IGenericObjectHandler)];
+        [typeof(IFileTextExtractor), typeof(IGenericObjectHandler), typeof(IPageRegistration)];
 
     /// <summary>
     /// A runtime in the state the app hands to features. <c>WorkspaceManager.BootstrapServices</c> is private,
@@ -195,5 +244,43 @@ public class FeatureDiFailureTests
     private sealed class NeedsFileSystem(Nexaflow.IO.Common.IVirtualFileSystem vfs)
     {
         public Nexaflow.IO.Common.IVirtualFileSystem Vfs { get; } = vfs;
+    }
+
+    [FeatureService]
+    public sealed class SharedService(Nexaflow.IO.Common.IVirtualFileSystem vfs) : IDisposable
+    {
+        public Nexaflow.IO.Common.IVirtualFileSystem Vfs { get; } = vfs;
+
+        public bool Disposed { get; private set; }
+
+        public void Dispose() => Disposed = true;
+    }
+
+    private sealed class NeedsTheService(SharedService service)
+    {
+        public SharedService Service { get; } = service;
+    }
+
+    private sealed class AlsoNeedsTheService(SharedService service)
+    {
+        public SharedService Service { get; } = service;
+    }
+
+    [FeatureService]
+    public sealed class CircularService(CircularService self)
+    {
+        public CircularService Self { get; } = self;
+    }
+
+    private sealed class NeedsTheCircle(CircularService service)
+    {
+        public CircularService Service { get; } = service;
+    }
+
+    public sealed class UnmarkedClass;
+
+    private sealed class NeedsAnUnmarkedClass(UnmarkedClass unmarked)
+    {
+        public UnmarkedClass Unmarked { get; } = unmarked;
     }
 }

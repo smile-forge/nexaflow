@@ -1,0 +1,113 @@
+<UserControl x:Class="Nexaflow.Features.Images.Views.RegionMarkingPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:icons="clr-namespace:Nexaflow.Visuals.Icons;assembly=Nexaflow.Visuals.Icons"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
+
+    <!-- The selection made by hand, as Select and Retouch both take it: how near a colour clicked reaches, how a shape or
+         colour meets what is selected, and the refinements. Bound to the editor; the shape drawn is a way of selecting of
+         its own, chosen with the others. -->
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="ImageViewStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+            <cv:EnumToBoolConverter x:Key="EnumToBool"/>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <!-- By colour: how near it reaches, joined to the click or anywhere, and — layered — what it reads. -->
+        <StackPanel Margin="0,0,0,8" Visibility="{Binding SelectsByColour, Converter={StaticResource BoolToVis}}">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Right" Style="{StaticResource EditCaption}" Text="{Binding RegionMarks.ColourTolerance, StringFormat={}{0:0}}"/>
+                <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Paint.Tolerance}"/>
+            </DockPanel>
+            <Slider Minimum="0" Maximum="255" SmallChange="1" LargeChange="16" Value="{Binding RegionMarks.ColourTolerance, Mode=TwoWay}"
+                    AutomationProperties.AutomationId="Image_RegionTolerance" AutomationProperties.Name="{loc:Str Images.Paint.Tolerance}"/>
+            <CheckBox Margin="0,8,0,0" Foreground="{StaticResource TextBrush}" IsChecked="{Binding RegionMarks.ColourJoined, Mode=TwoWay}"
+                      Content="{loc:Str Images.Paint.Contiguous}" AutomationProperties.AutomationId="Image_RegionJoined"/>
+            <CheckBox Margin="0,6,0,0" Foreground="{StaticResource TextBrush}" IsChecked="{Binding RegionMarks.ColourEveryLayer, Mode=TwoWay}"
+                      Visibility="{Binding EditsLayeredPicture, Converter={StaticResource BoolToVis}}"
+                      Content="{loc:Str Images.Paint.SampleMerged}" AutomationProperties.AutomationId="Image_RegionEveryLayer"/>
+        </StackPanel>
+
+        <!-- How a shape or a colour meets what is selected: as set here, or as a key held as it is begun says. -->
+        <StackPanel Visibility="{Binding ShowsRegionMode, Converter={StaticResource BoolToVis}}">
+            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Region.Mode}"/>
+            <Border Style="{StaticResource SegGroup}"><StackPanel Orientation="Horizontal">
+                <RadioButton GroupName="RegionMode" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_RegionModeReplace" AutomationProperties.Name="{loc:Str Images.Region.Replace}"
+                             ToolTip="{loc:Str Images.Region.ReplaceTip}"
+                             IsChecked="{Binding RegionMarks.Mode, Converter={StaticResource EnumToBool}, ConverterParameter=Replace}">
+                <icons:IconGlyph Icon="fluent:square" FontSize="15"/>
+                </RadioButton>
+                <RadioButton GroupName="RegionMode" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_RegionModeAdd" AutomationProperties.Name="{loc:Str Images.Region.Add}"
+                             ToolTip="{loc:Str Images.Region.AddTip}"
+                             IsChecked="{Binding RegionMarks.Mode, Converter={StaticResource EnumToBool}, ConverterParameter=Add}">
+                <icons:IconGlyph Icon="fluent:shape_union" FontSize="15"/>
+                </RadioButton>
+                <RadioButton GroupName="RegionMode" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_RegionModeSubtract" AutomationProperties.Name="{loc:Str Images.Region.Subtract}"
+                             ToolTip="{loc:Str Images.Region.SubtractTip}"
+                             IsChecked="{Binding RegionMarks.Mode, Converter={StaticResource EnumToBool}, ConverterParameter=Subtract}">
+                <icons:IconGlyph Icon="fluent:shape_subtract" FontSize="15"/>
+                </RadioButton>
+                <RadioButton GroupName="RegionMode" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_RegionModeIntersect" AutomationProperties.Name="{loc:Str Images.Region.Intersect}"
+                             ToolTip="{loc:Str Images.Region.IntersectTip}"
+                             IsChecked="{Binding RegionMarks.Mode, Converter={StaticResource EnumToBool}, ConverterParameter=Intersect}">
+                <icons:IconGlyph Icon="fluent:shape_intersect" FontSize="15"/>
+                </RadioButton>
+            </StackPanel></Border>
+
+        </StackPanel>
+
+        <!-- The whole selection: started again, let go, turned over, or refined. -->
+        <TextBlock Style="{StaticResource EditSectionHeader}" Margin="0,12,0,0" Text="{loc:Str Images.Region.Selection}"/>
+        <WrapPanel>
+            <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding RegionMarks.SelectAllCommand}"
+                    ToolTip="{loc:Str Images.Region.SelectAllTip}" AutomationProperties.AutomationId="Image_RegionSelectAll">
+                <TextBlock Text="{loc:Str Images.Region.SelectAll}" FontSize="11"/>
+            </Button>
+            <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding RegionMarks.DeselectCommand}"
+                    ToolTip="{loc:Str Images.Region.DeselectTip}" AutomationProperties.AutomationId="Image_RegionDeselect">
+                <TextBlock Text="{loc:Str Images.Region.Deselect}" FontSize="11"/>
+            </Button>
+            <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding RegionMarks.InvertCommand}"
+                    ToolTip="{loc:Str Images.Region.InvertTip}" AutomationProperties.AutomationId="Image_RegionInvert">
+                <TextBlock Text="{loc:Str Images.Region.Invert}" FontSize="11"/>
+            </Button>
+            <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding RegionMarks.SelectSubjectCommand}"
+                    ToolTip="{Binding PickingModels.DisabledReason, TargetNullValue={loc:Str Images.Region.SelectSubjectTip}}" ToolTipService.ShowOnDisabled="True"
+                    AutomationProperties.AutomationId="Image_RegionSelectSubject">
+                <TextBlock Text="{loc:Str Images.Region.SelectSubject}" FontSize="11"/>
+            </Button>
+        </WrapPanel>
+        <DockPanel Margin="0,4,0,0">
+            <TextBlock DockPanel.Dock="Right" Style="{StaticResource EditCaption}" Text="{Binding RegionMarks.RefineBy, StringFormat={}{0:0} px}"/>
+            <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Region.RefineBy}"/>
+        </DockPanel>
+        <Slider Minimum="1" Maximum="250" SmallChange="1" LargeChange="10" Margin="0,4,0,6"
+                Value="{Binding RegionMarks.RefineBy, Mode=TwoWay}"
+                AutomationProperties.AutomationId="Image_RegionRefineBy" AutomationProperties.Name="{loc:Str Images.Region.RefineBy}"/>
+        <WrapPanel>
+            <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding RegionMarks.FeatherCommand}"
+                    ToolTip="{loc:Str Images.Region.FeatherTip}" AutomationProperties.AutomationId="Image_RegionFeather">
+                <TextBlock Text="{loc:Str Images.Region.Feather}" FontSize="11"/>
+            </Button>
+            <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding RegionMarks.GrowCommand}"
+                    ToolTip="{loc:Str Images.Region.GrowTip}" AutomationProperties.AutomationId="Image_RegionGrow">
+                <TextBlock Text="{loc:Str Images.Region.Grow}" FontSize="11"/>
+            </Button>
+            <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding RegionMarks.ShrinkCommand}"
+                    ToolTip="{loc:Str Images.Region.ShrinkTip}" AutomationProperties.AutomationId="Image_RegionShrink">
+                <TextBlock Text="{loc:Str Images.Region.Shrink}" FontSize="11"/>
+            </Button>
+            <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding RegionMarks.SmoothCommand}"
+                    ToolTip="{loc:Str Images.Region.SmoothTip}" AutomationProperties.AutomationId="Image_RegionSmooth">
+                <TextBlock Text="{loc:Str Images.Region.Smooth}" FontSize="11"/>
+            </Button>
+        </WrapPanel>
+    </StackPanel>
+</UserControl>

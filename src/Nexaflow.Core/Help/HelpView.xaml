@@ -9,7 +9,7 @@
     <UserControl.Resources>
         <vcc:BoolToVisibilityConverter        x:Key="HelpBoolVis"/>
         <vcc:InverseBoolToVisibilityConverter x:Key="HelpNotBoolVis"/>
-        <vcc:NullToCollapsedConverter         x:Key="HelpNullCollapsed"/>
+        <vcc:NullToVisibilityConverter         x:Key="HelpNullCollapsed"/>
     </UserControl.Resources>
 
     <!-- A solid page of its own (Help.Bg), not the transparent surface other markdown sits on: the pane is read

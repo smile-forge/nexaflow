@@ -79,6 +79,10 @@ public sealed class FeatureManager
     private readonly Dictionary<WorkspaceRuntime, Dictionary<Type, object>> _cache = new();
     private readonly object _cacheLock = new();
 
+    /// <summary>The <see cref="FeatureServiceAttribute"/> types being built, so one that needs itself is a defect rather than
+    /// endless recursion. Guarded by <see cref="_cacheLock"/>, under which every build runs.</summary>
+    private readonly HashSet<Type> _servicesBuilding = [];
+
     // ── Registration ──────────────────────────────────────────────────────
 
     /// <summary>Builds the (cached) discovery index. No feature assemblies are loaded on the cache-hit path.</summary>
@@ -264,8 +268,15 @@ public sealed class FeatureManager
     /// </summary>
     public void EvictWorkspace(WorkspaceRuntime workspace)
     {
+        Dictionary<Type, object>? evicted;
         lock (_cacheLock)
-            _cache.Remove(workspace);
+            if (!_cache.Remove(workspace, out evicted)) return;
+
+        // A feature's own services end with the instances that captured the runtime's services, the runtime's tabs already gone:
+        // what they hold is let go — a store's pending writes written.
+        foreach (var (type, instance) in evicted)
+            if (type.IsDefined(typeof(FeatureServiceAttribute), inherit: false) && instance is IDisposable disposable)
+                try { disposable.Dispose(); } catch { /* teardown must not break a workspace closing */ }
     }
 
     private object BuildOrThrow(Type t, WorkspaceRuntime workspace)
@@ -352,6 +363,15 @@ public sealed class FeatureManager
             {
                 args[i] = tool;
             }
+            else if (pt.IsDefined(typeof(FeatureServiceAttribute), inherit: false))
+            {
+                // A feature's own service: the runtime's one instance, from the cache its registrations come from, built with
+                // the same injection the first time something asks for it.
+                if (!_servicesBuilding.Add(pt))
+                    return Defect(out defect, $"the feature service '{pt.Name}' required by parameter '{name}' needs itself to be built");
+                try { args[i] = Instantiate(pt, workspace); }
+                finally { _servicesBuilding.Remove(pt); }
+            }
             else if (pt == typeof(IReadOnlyDictionary<Type, IFeatureConfig>))
             {
                 args[i] = BuildScopedConfigView(workspace);
@@ -398,7 +418,7 @@ public sealed class FeatureManager
             {
                 return Defect(out defect, $"parameter '{name}' is of type '{pt.Name}', which the feature DI "
                     + "does not supply (it injects IShellServices, IAIService, IVirtualFileSystem, WorkspaceRuntime, the app-wide tools such as IPictureTools, "
-                    + "IFeatureConfig, and subfeature sets as IReadOnlyList<ISubfeatureHandle<T>> or "
+                    + "IFeatureConfig, a feature's own [FeatureService] classes, and subfeature sets as IReadOnlyList<ISubfeatureHandle<T>> or "
                     + "IReadOnlyList<T>). If you meant a subfeature set, check that at least one type "
                     + "carrying [Subfeature] implements that contract and shipped as a scanned "
                     + "Nexaflow.Features.*.dll");

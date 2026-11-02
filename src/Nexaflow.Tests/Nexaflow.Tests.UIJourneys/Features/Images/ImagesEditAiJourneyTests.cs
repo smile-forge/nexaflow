@@ -53,11 +53,11 @@ public class ImagesEditAiJourneyTests : ImageEditJourneyBase
             var photo = Path.Combine(folder, OrientedPhotoSample.FileName);
             File.Copy(TestSampleData.Path("images", OrientedPhotoSample.FileName), photo);
             Assert.IsNotNull(OpenFileVia(folder, OrientedPhotoSample.FileName, "ShowImageAction", "ImageView"), "ImageView did not open via the 'As Image' action.");
-            CheckDoes("Edit opens the editor", "Image_EditMode", () => WaitForFs(() => Exists("ImageEditView"), 5));
+            CheckDoes("Edit opens the photo in an Artist tab", "Image_Edit", () => WaitForFs(() => Exists("ArtistView") && Exists("ImageEditView"), 8));
 
             // Adjust: AI enhance, made once its strength and faces are set; the photo can be saved once it is.
             Check("Adjust panel", () => SelectRadio("Image_EditToolAdjust"));
-            NeedsHere("Image_RestoringModelsDownload", "the picture tools");
+            NeedsHere("Image_PictureModelsDownload", "AI picture models");
             Check("AI enhance turns on, its strength and faces with it", () => SetToggle("Image_EditAiEnhance", true) && WaitForFs(() => Exists("Image_EditAiStrength"), 3));
             Check("AI strength moves", () => MoveSlider("Image_EditAiStrength"));
             Check("Repair faces toggles", () => SetToggle("Image_EditAiFaces", false) && SetToggle("Image_EditAiFaces", true));
@@ -71,8 +71,9 @@ public class ImagesEditAiJourneyTests : ImageEditJourneyBase
                   && SelectRadio("Image_EditToolAdjust") && SetToggle("Image_EditAiEnhance", false));
 
             // Cut out: a click picks what is under it; its background removed and put back.
-            Check("Cut out panel", () => SelectRadio("Image_EditToolCutOut") && FitCanvas());
-            NeedsHere("Image_PickingModelsDownload", "picture selection");
+            Check("Select panel", () => SelectRadio("Image_EditToolSelect") && FitCanvas());
+            NeedsHere("Image_PictureModelsDownload", "AI picture models");
+            Check("Cut out picks by picture selection", () => SelectRadio("Image_CutOutMarkPick") && WaitForFs(() => Exists("Image_CutOutPhrase"), 3));
             Check("A phrase is typed, and Find looks for it", () => TypeInto("Image_CutOutPhrase", "square") && Enabled("Image_CutOutFind"));
             CheckInvoke("Find", "Image_CutOutFind");
             Check("A click on the photo picks what is under it, with nothing to try again",
@@ -83,7 +84,7 @@ public class ImagesEditAiJourneyTests : ImageEditJourneyBase
 
             // Retouch: something picked, erased and filled by AI as a step of the edits.
             Check("Retouch, picking", () => SelectRadio("Image_EditToolRetouch") && SelectRadio("Image_EraseMarkPick"));
-            NeedsHere("Image_ErasingModelsDownload", "picture erasing");
+            NeedsHere("Image_PictureModelsDownload", "AI picture models");
             Check("A phrase is typed for Find", () => TypeInto("Image_ErasePhrase", "square") && Enabled("Image_EraseFind"));
             CheckInvoke("Find", "Image_EraseFind");
             Check("A click picks what to erase, with nothing to try again",
@@ -99,11 +100,5 @@ public class ImagesEditAiJourneyTests : ImageEditJourneyBase
         {
             try { Directory.Delete(folder, recursive: true); } catch (IOException) { /* still open in the app; the temp folder is cleaned by the OS */ }
         }
-    }
-
-    /// <summary>The panel offers <paramref name="what"/> for download: the AI folder lacks it, and the journey cannot say more.</summary>
-    private void NeedsHere(string offer, string what)
-    {
-        if (Exists(offer)) Assert.Inconclusive($"{AiDirVariable} holds no {what}: the editor offers it for download.");
     }
 }

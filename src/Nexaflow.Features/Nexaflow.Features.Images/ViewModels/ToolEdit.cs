@@ -19,36 +19,48 @@ namespace Nexaflow.Features.Images.ViewModels;
 /// work from a picture another edit makes (<see cref="Input"/>).
 /// </summary>
 /// <typeparam name="TAsk">The recipe's section that asks for it.</typeparam>
-public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer where TAsk : class
+public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer, IDisposable where TAsk : class
 {
     private readonly IReadOnlyList<IToolModels?> _tools;
+    private readonly PictureModels _models;
     private readonly Func<Action, Task> _runOnUi;
     private readonly string _texts;
-    private ImageEditSession? _session;
+    private PictureRendering? _session;
     private CancellationTokenSource? _making;
     private (string Photo, TAsk Ask)? _makingFor;
     private (string Photo, TAsk Ask)? _shown;
     private (string Photo, TAsk Ask)? _failedFor;
 
+    private readonly EventHandler _toolsChanged;
+
     /// <param name="tools">The tool's models, where the app has them.</param>
     /// <param name="runOnUi">Hops to the UI thread, where the session and this are read.</param>
     /// <param name="texts">The prefix of what its banner says: <c>Making</c>, <c>NeedsTool</c>, <c>Downloading</c>,
     /// <c>Unavailable</c>, <c>Failed</c>, <c>Download</c> and <c>Retry</c> after it.</param>
-    protected ToolEdit(ImageEditingServices services, IToolModels? tools, Func<Action, Task> runOnUi, string texts)
-        : this(services, [tools], runOnUi, texts)
+    /// <param name="models">AI picture editing's models as one set, which the banner offers and speaks of; null, the tool's own.</param>
+    protected ToolEdit(ImageEditingServices services, IToolModels? tools, Func<Action, Task> runOnUi, string texts, PictureModels? models = null)
+        : this(services, [tools], runOnUi, texts, models)
     {
     }
 
     /// <param name="tools">Every tool's models the edit may use, each where the app has it.</param>
-    protected ToolEdit(ImageEditingServices services, IReadOnlyList<IToolModels?> tools, Func<Action, Task> runOnUi, string texts)
+    /// <param name="models">AI picture editing's models as one set, which the banner offers and speaks of; null, the tools' own.</param>
+    protected ToolEdit(ImageEditingServices services, IReadOnlyList<IToolModels?> tools, Func<Action, Task> runOnUi, string texts, PictureModels? models = null)
     {
         Services = services;
         _tools = tools;
+        _models = models ?? new PictureModels(tools, runOnUi);
         _runOnUi = runOnUi;
         _texts = texts;
+        _toolsChanged = (_, _) => _ = _runOnUi(() => Follow(_session));
         foreach (var tool in tools)
-            if (tool is not null) tool.Changed += (_, _) => _ = _runOnUi(() => Follow(_session));
+            if (tool is not null) tool.Changed += _toolsChanged;
+        // What it says while it waits is the set's — how far all of it has come — so another set's progress is followed too.
+        _modelsChanged = (_, _) => Follow(_session);
+        _models.Changed += _modelsChanged;
     }
+
+    private readonly EventHandler _modelsChanged;
 
     protected ImageEditingServices Services { get; }
 
@@ -72,7 +84,7 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer 
 
     /// <summary>The picture the edit is made from: the photo, unless it is made from what another edit makes — then null
     /// until that is made.</summary>
-    protected virtual string? Input(ImageEditSession session) => session.Path;
+    protected virtual string? Input(PictureRendering session) => session.Path;
 
     /// <summary>What names the models of <paramref name="tools"/> together, once every one of them is here; "" for none.</summary>
     protected static string? VersionOf(IReadOnlyList<IToolModels?> tools)
@@ -107,7 +119,7 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer 
     public bool HasAction => CanDownload || Failed;
 
     /// <summary>What the banner's button says.</summary>
-    public string? ActionLabel => CanDownload ? Str.Get(_texts + "Download") : Failed ? Str.Get(_texts + "Retry") : null;
+    public string? ActionLabel => CanDownload ? Str.Get("Images.Models.Download") : Failed ? Str.Get(_texts + "Retry") : null;
 
     // ── What the edit is ────────────────────────────────────────────────────
 
@@ -128,15 +140,15 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer 
     protected abstract Task<string> MakeAsync(string photo, TAsk ask, IProgress<double> progress, CancellationToken ct);
 
     /// <summary>The result the session shows; null where it shows none.</summary>
-    protected abstract string? UsedPath(ImageEditSession session);
+    protected abstract string? UsedPath(PictureRendering session);
 
     /// <summary>Has the session show <paramref name="path"/>'s result, or none.</summary>
-    protected abstract void Use(ImageEditSession session, string? path);
+    protected abstract void Use(PictureRendering session, string? path);
 
     // ── Following the photo ─────────────────────────────────────────────────
 
     /// <summary>The photo whose recipe to follow; called again whenever its recipe moves.</summary>
-    public void Follow(ImageEditSession? session)
+    public void Follow(PictureRendering? session)
     {
         if (!ReferenceEquals(session, _session))
         {
@@ -179,12 +191,10 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer 
         }
         if (needs.Any(t => t!.State != ToolModelsState.Ready))
         {
-            CanDownload = needs.Any(t => t!.State == ToolModelsState.NotDownloaded);
-            var downloading = needs.FirstOrDefault(t => t!.State == ToolModelsState.Downloading);
-            var stopped = needs.Select(t => t!.DownloadFailure).FirstOrDefault(f => f is not null);
-            Unshown(session, downloading is not null ? Str.Format(_texts + "Downloading", downloading.DownloadPercent)
-                : stopped is not null ? Str.Format(_texts + "DownloadStopped", stopped)
-                : Str.Format(_texts + "NeedsTool", SizeFormatter.FormatBytes(needs.Sum(t => t!.DownloadBytes))));
+            // What it waits for is AI picture editing's models, offered, sized and fetched as one.
+            CanDownload = _models.CanDownload;
+            var needsText = Str.Format(_texts + "NeedsTool", SizeFormatter.FormatBytes(_models.MissingBytes));
+            Unshown(session, _models.Status(needsText) ?? needsText);
             return;
         }
 
@@ -205,7 +215,7 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer 
     private bool Same((string Photo, TAsk Ask)? key, string photo, TAsk ask) => key is { } k && k.Photo == photo && MakesSame(k.Ask, ask);
 
     /// <summary>The photo shows without it, for now, and the banner says why.</summary>
-    private void Unshown(ImageEditSession session, string? notice)
+    private void Unshown(PictureRendering session, string? notice)
     {
         Use(session, null);
         _shown = null;
@@ -214,7 +224,7 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer 
 
     /// <summary>The kept result would not decode — let go of since it was found: it is made again.</summary>
     [LocalDiskOnly("what the tools made, kept in the app's cache")]
-    public void Lost(ImageEditSession session)
+    public void Lost(PictureRendering session)
     {
         if (!ReferenceEquals(session, _session)) return;
         Use(session, null);
@@ -224,7 +234,7 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer 
         Follow(session);
     }
 
-    private void Make(ImageEditSession session, string input, TAsk ask)
+    private void Make(PictureRendering session, string input, TAsk ask)
     {
         var cts = new CancellationTokenSource();
         _making = cts;
@@ -283,11 +293,7 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer 
     [RelayCommand(CanExecute = nameof(HasAction))]
     private void Act()
     {
-        if (CanDownload && _session is { } session && AskOf(session.Recipe) is { } ask)
-        {
-            foreach (var tool in Needs(ask))
-                if (tool is { State: ToolModelsState.NotDownloaded }) tool.Download();
-        }
+        if (CanDownload) _models.Download();
         else if (Failed) Retry();
     }
 
@@ -325,5 +331,15 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer 
             Made -= OnMade;
             PropertyChanged -= OnChanged;
         }
+    }
+
+    /// <summary>Stops following: what is being made is let go, and the tools are no longer listened to.</summary>
+    public void Dispose()
+    {
+        Stop();
+        _session = null;
+        foreach (var tool in _tools)
+            if (tool is not null) tool.Changed -= _toolsChanged;
+        _models.Changed -= _modelsChanged;
     }
 }

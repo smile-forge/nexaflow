@@ -4,6 +4,7 @@ using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Images.Editing.Recipe;
 using SkiaSharp;
 using Nexaflow.IO.Common;
+using Nexaflow.Features.Images.Editing.Selection;
 
 namespace Nexaflow.Features.Images.Editing.CuttingOut;
 
@@ -34,20 +35,52 @@ public sealed class CutOutMasks(string folder, long budgetBytes)
     public string? Find(string photo, RecipeCutOut cutOut, string modelsVersion) => _kept.Find(photo, Made(cutOut, modelsVersion));
 
     /// <summary>
-    /// Picks what <paramref name="cutOut"/> keeps of <paramref name="photo"/> — unless its mask is kept already — and keeps
-    /// the mask: the photo read at full size as it stands, handed to picture selection, everything picked made one mask.
+    /// Makes the mask cutting <paramref name="photo"/> out by <paramref name="cutOut"/> — unless it is kept already — and keeps
+    /// it: what picture selection picks, everything picked made one mask, then the region drawn by hand over that. The photo is
+    /// read at full size as it stands only where picture selection is asked something; a region alone needs only its size.
     /// How far it is goes to <paramref name="progress"/>, from 0 to 1, as each of those is done.
     /// </summary>
-    /// <exception cref="InvalidOperationException">Picture selection could not pick it.</exception>
-    public async Task<string> MakeAsync(ImageEditingServices services, string photo, RecipeCutOut cutOut, IPictureSelection selection,
+    /// <exception cref="InvalidOperationException">Picture selection is asked something and is not here, or could not pick it.</exception>
+    public async Task<string> MakeAsync(ImageEditingServices services, string photo, RecipeCutOut cutOut, IPictureSelection? selection,
                                         IProgress<double>? progress, CancellationToken ct)
     {
-        var path = PathOf(photo, cutOut, selection.ModelsVersion);
+        var path = PathOf(photo, cutOut, ModelsVersionFor(cutOut, selection));
         if (File.Exists(path))
         {
             KeptFiles.Touch(path);
             return path;
         }
+
+        var (picked, width, height) = await PickedAsync(services, photo, cutOut, selection, progress, ct);
+        progress?.Report(0.8);
+        var region = await RegionColours.ResolvedAsync(services, photo, cutOut.Region, ct);
+        var mask = await Task.Run(() => RegionRaster.Apply(TiledCoverage.FromBytes(picked, width, height), region, 1).ToBytes(), ct);
+
+        progress?.Report(0.9);
+        Directory.CreateDirectory(Folder);
+        var written = path + ".tmp";
+        await Task.Run(() => Encode(mask, width, height, written), ct);
+        _kept.Keep(written, path);
+        return path;
+    }
+
+    /// <summary>What names the models <paramref name="cutOut"/>'s mask is made with: picture selection's, where it is asked
+    /// anything — else none, as a region drawn by hand is the same mask whatever models are here.</summary>
+    public static string ModelsVersionFor(RecipeCutOut cutOut, IToolModels? selection)
+        => cutOut.AsksPictureSelection ? selection?.ModelsVersion ?? "" : "";
+
+    /// <summary>What picture selection picks for <paramref name="cutOut"/>, at the photo's full size as it stands — nothing
+    /// where it is asked nothing, at the photo's size read without its pixels.</summary>
+    private static async Task<(byte[] Mask, int Width, int Height)> PickedAsync(ImageEditingServices services, string photo, RecipeCutOut cutOut,
+                                                                               IPictureSelection? selection, IProgress<double>? progress, CancellationToken ct)
+    {
+        if (!cutOut.AsksPictureSelection)
+        {
+            using var sized = await services.DecodeAsync(photo, SizingEdge, ct);
+            int w = (int)Math.Round(sized.SourceSize.Width), h = (int)Math.Round(sized.SourceSize.Height);
+            return (new byte[w * h], w, h);
+        }
+        if (selection is null) throw new InvalidOperationException("Picture selection is not here to pick what to keep.");
 
         var upright = await Task.Run(() => services.ReadUprightAsync(photo, ct), ct);
         int width = upright.Width, height = upright.Height;
@@ -62,14 +95,11 @@ public sealed class CutOutMasks(string folder, long budgetBytes)
                                               cutOut.Box is { } b ? new PictureBox(b.Left, b.Top, b.Right, b.Bottom) : null,
                                               width, height, ct)).Pixels];
         }
-
-        progress?.Report(0.9);
-        Directory.CreateDirectory(Folder);
-        var written = path + ".tmp";
-        await Task.Run(() => Encode(Union(masks, width * height), width, height, written), ct);
-        _kept.Keep(written, path);
-        return path;
+        return (Union(masks, width * height), width, height);
     }
+
+    /// <summary>The long edge a photo is decoded at only to learn its size: as small as its decoder will go.</summary>
+    private const int SizingEdge = 64;
 
     /// <summary>The kept mask decoded as alpha — what a picture is drawn through to clear what it does not keep.</summary>
     public static SKImage Decode(string path)

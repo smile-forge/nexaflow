@@ -15,8 +15,9 @@ internal enum MadeKind
     Video,
 }
 
-/// <summary>A file a generation tool made: where it is, and whether it is a draft in a temp folder, not yet saved by the user.</summary>
-internal readonly record struct MadeFile(string Path, bool Draft);
+/// <summary>A file a generation tool made: where it is, whether it is a draft in a temp folder, not yet saved by the user,
+/// and whether it was opened.</summary>
+internal readonly record struct MadeFile(string Path, bool Draft, bool Opened = true);
 
 /// <summary>
 /// Where a made file goes and how it is shown — only into what the user has given the assistant. Asked for a folder, or a
@@ -28,7 +29,8 @@ internal readonly record struct MadeFile(string Path, bool Draft);
 /// <param name="drafts">The temp folder drafts are kept in, each in a folder of its own.</param>
 /// <param name="offered">Where a draft's Save as starts, for each kind.</param>
 /// <param name="show">Opens a saved file's path, or a <see cref="DraftFile"/>, as <see cref="IShellServices.HandleObject"/> does.</param>
-internal sealed class GeneratedFiles(PathScope scope, string drafts, Func<MadeKind, string> offered, Func<object, Task> show)
+/// <param name="opens">Whether a made picture, recording or clip is opened once kept; false where whoever asked takes it in themselves.</param>
+internal sealed class GeneratedFiles(PathScope scope, string drafts, Func<MadeKind, string> offered, Func<object, Task> show, bool opens = true)
 {
     /// <summary>How many words of a prompt name its file.</summary>
     private const int NameWords = 6;
@@ -37,8 +39,8 @@ internal sealed class GeneratedFiles(PathScope scope, string drafts, Func<MadeKi
     private const int NameLength = 60;
 
     /// <summary>Into what <paramref name="scope"/> holds, else a draft whose Save as starts in the user's Pictures, Music or
-    /// Videos; opened in the workspace's own viewers.</summary>
-    public static GeneratedFiles For(IShellServices shell, PathScope scope) => new(
+    /// Videos; opened in the workspace's own viewers unless <paramref name="opens"/> says otherwise.</summary>
+    public static GeneratedFiles For(IShellServices shell, PathScope scope, bool opens = true) => new(
         scope,
         DraftLocation.Root,
         kind => kind switch
@@ -47,7 +49,8 @@ internal sealed class GeneratedFiles(PathScope scope, string drafts, Func<MadeKi
             MadeKind.Recording => KnownFolderService.MusicPath,
             _                  => KnownFolderService.VideosPath,
         },
-        made => shell.RunOnUiAsync(() => shell.HandleObject(made)));
+        made => shell.RunOnUiAsync(() => shell.HandleObject(made)),
+        opens);
 
     /// <summary>
     /// Why a made thing cannot go where <paramref name="asked"/> says, or null where it can: nowhere asked, or a full path
@@ -62,7 +65,8 @@ internal sealed class GeneratedFiles(PathScope scope, string drafts, Func<MadeKi
 
     /// <summary>
     /// Saves <paramref name="media"/> where <paramref name="asked"/> says when that is inside a folder open in a tab, and
-    /// anywhere else — nowhere asked, or a place <see cref="Refusal"/> turned away — keeps it as a draft; then opens it.
+    /// anywhere else — nowhere asked, or a place <see cref="Refusal"/> turned away — keeps it as a draft; then opens it, where
+    /// it opens what it makes.
     /// </summary>
     /// <param name="about">What was asked for — the prompt, or the text read out — which names the file.</param>
     public async Task<MadeFile> KeepAsync(MediaBytes media, MadeKind kind, string? asked, string about, CancellationToken ct)
@@ -71,13 +75,13 @@ internal sealed class GeneratedFiles(PathScope scope, string drafts, Func<MadeKi
         if (!string.IsNullOrWhiteSpace(asked) && scope.ResolveInFolder(Target(asked, about, extension)) is { } target)
         {
             var saved = await SaveAsync(media.Bytes, target, ct);
-            await show(saved);
-            return new MadeFile(saved, Draft: false);
+            if (opens) await show(saved);
+            return new MadeFile(saved, Draft: false, Opened: opens);
         }
 
         var draft = await SaveAsync(media.Bytes, DraftLocation.NewFile(NameFrom(about) + extension, drafts), ct);
-        await show(new DraftFile(draft, offered(kind)));
-        return new MadeFile(draft, Draft: true);
+        if (opens) await show(new DraftFile(draft, offered(kind)));
+        return new MadeFile(draft, Draft: true, Opened: opens);
     }
 
     /// <summary>
@@ -202,9 +206,13 @@ internal sealed class GeneratedFiles(PathScope scope, string drafts, Func<MadeKi
     /// made.</summary>
     internal static ToolResult Made(MadeFile file, string? note, ContextImage? picture)
     {
-        var said = file.Draft
-            ? "Opened it for the user in a new tab, not saved yet: they save it where they choose."
-            : $"Saved to {file.Path} and opened it.";
+        var said = (file.Draft, file.Opened) switch
+        {
+            (true, true)   => "Opened it for the user in a new tab, not saved yet: they save it where they choose.",
+            (true, false)  => $"Kept it as a draft at {file.Path}, not saved yet.",
+            (false, true)  => $"Saved to {file.Path} and opened it.",
+            (false, false) => $"Saved to {file.Path}.",
+        };
         if (!string.IsNullOrWhiteSpace(note)) said += $"\nThe model said: {note}";
         return ToolResult.Ok($"made {Path.GetFileName(file.Path)}", said) with
         {

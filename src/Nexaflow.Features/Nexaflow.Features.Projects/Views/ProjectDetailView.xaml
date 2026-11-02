@@ -13,7 +13,7 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter   x:Key="BoolVis"/>
         <cv:NullToVisibilityConverter   x:Key="NullVis"/>
-        <cv:NullToCollapsedConverter    x:Key="NullCollapsed"/>
+        <cv:NullToVisibleConverter      x:Key="NullToVisible"/>
         <cv:StringToVisibilityConverter x:Key="StringVis"/>
         <pv:CompletionStatusToBrushConverter   x:Key="CritBrush"/>
         <pv:CompletionStatusToDisplayConverter x:Key="CritDisplay"/>
@@ -334,7 +334,7 @@
                         <!-- Backlog item editor -->
                         <Grid Grid.Column="2" Background="{StaticResource SurfaceBrush}">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.3"
-                                        Visibility="{Binding SelectedItem, Converter={StaticResource NullCollapsed}}">
+                                        Visibility="{Binding SelectedItem, Converter={StaticResource NullToVisible}}">
                                 <TextBlock Text="📝" FontSize="36" HorizontalAlignment="Center"/>
                                 <TextBlock Text="{loc:Str Projects.Detail.SelectItem}" Foreground="{StaticResource TextMutedBrush}"
                                            FontSize="12" Margin="0,8,0,0" HorizontalAlignment="Center"/>

@@ -19,8 +19,8 @@ public sealed class PhotoEraser : ToolEdit<EraseSteps>
     /// <param name="erasing">Picture erasing, where the app has it.</param>
     /// <param name="selection">Picture selection, where the app has it.</param>
     /// <param name="runOnUi">Hops to the UI thread, where the session and this are read.</param>
-    public PhotoEraser(ImageEditingServices services, IPictureErasing? erasing, IPictureSelection? selection, Func<Action, Task> runOnUi)
-        : base(services, [erasing, selection], runOnUi, "Images.Erase.")
+    public PhotoEraser(ImageEditingServices services, IPictureErasing? erasing, IPictureSelection? selection, Func<Action, Task> runOnUi, PictureModels? models = null)
+        : base(services, [erasing, selection], runOnUi, "Images.Erase.", models)
         => (_erasing, _selection) = (erasing, selection);
 
     /// <summary>Erasing is always offered: content-aware fill and the healing brush run on any machine.</summary>
@@ -28,6 +28,9 @@ public sealed class PhotoEraser : ToolEdit<EraseSteps>
 
     /// <summary>Whether picture erasing is here now, ready to fill a step.</summary>
     public bool ErasesByAiNow => _erasing is { State: ToolModelsState.Ready };
+
+    /// <summary>Picture erasing, where the app has it — what fills a pixel layer's erasing by AI.</summary>
+    internal IPictureErasing? Erasing => _erasing;
 
     protected override IReadOnlyList<IToolModels?> Needs(EraseSteps ask)
         => [.. ask.Steps.Any(s => s.Fill == EraseFill.Ai) ? [_erasing] : Array.Empty<IToolModels?>(),
@@ -44,7 +47,7 @@ public sealed class PhotoEraser : ToolEdit<EraseSteps>
     protected override Task<string> MakeAsync(string photo, EraseSteps ask, IProgress<double> progress, CancellationToken ct)
         => Services.Erased.MakeAsync(Services, photo, ask, VersionOf(Needs(ask))!, _erasing, _selection, progress, ct);
 
-    protected override string? UsedPath(ImageEditSession session) => session.ErasedPath;
+    protected override string? UsedPath(PictureRendering session) => session.ErasedPath;
 
-    protected override void Use(ImageEditSession session, string? path) => session.UseErased(path);
+    protected override void Use(PictureRendering session, string? path) => session.UseErased(path);
 }

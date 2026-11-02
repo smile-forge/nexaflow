@@ -92,4 +92,95 @@ public class SnapshotHistoryTests
         history.EndGesture();
         Assert.IsFalse(history.CanUndo, "a gesture back to an equal snapshot adds nothing");
     }
+
+    [TestMethod]
+    public void StepsPastTheBudget_FallOffOldestFirst()
+    {
+        var history = new SnapshotHistory<int>(0, cost: (_, _) => 100, budget: 250);
+        for (int i = 1; i <= 5; i++) history.Commit(i);
+        Assert.AreEqual(2, history.UndoCount, "two steps of 100 fit a budget of 250");
+        Assert.AreEqual(200L, history.Cost);
+        history.Undo();
+        history.Undo();
+        Assert.AreEqual(3, history.Current, "the oldest went");
+        Assert.IsFalse(history.Undo());
+
+        history.Budget = 100;
+        Assert.AreEqual(100L, history.Cost, "lowering the budget lets the farthest steps go at once");
+    }
+
+    [TestMethod]
+    public void AnAmendedState_IsCurrent_WithoutAStepOfItsOwn()
+    {
+        var history = new SnapshotHistory<int>(0);
+        history.Commit(1);
+        history.Amend(2);
+        Assert.AreEqual(2, history.Current);
+        Assert.AreEqual(1, history.UndoCount, "no step for the amendment");
+        history.Undo();
+        Assert.AreEqual(0, history.Current);
+        history.Redo();
+        Assert.AreEqual(2, history.Current, "redo comes back to the state as amended");
+    }
+
+    [TestMethod]
+    public void ABatch_IsOneStep_ItsGesturesFoldedIn()
+    {
+        var history = new SnapshotHistory<int>(0);
+        history.Commit(1);
+        using (history.Batch())
+        {
+            history.Commit(2);
+            history.BeginGesture();
+            history.Commit(3);
+            history.Commit(4);
+            history.EndGesture();
+            Assert.IsTrue(history.CanUndo, "something to take back already");
+            Assert.IsFalse(history.Undo(), "but not until the batch is said");
+            history.Commit(5);
+        }
+
+        Assert.AreEqual(2, history.UndoCount, "the commit before, and the batch as one");
+        history.Undo();
+        Assert.AreEqual(1, history.Current);
+        history.Redo();
+        Assert.AreEqual(5, history.Current);
+    }
+
+    [TestMethod]
+    public void Batches_Nest_TheOutermostLeavingTheStep_AndOneThatChangesNothingLeavesNone()
+    {
+        var history = new SnapshotHistory<int>(0);
+        var outer = history.Batch();
+        using (history.Batch()) history.Commit(1);
+        Assert.AreEqual(0, history.UndoCount, "the inner scope leaves no step of its own");
+        history.Commit(2);
+        outer.Dispose();
+        outer.Dispose();
+        Assert.AreEqual(1, history.UndoCount);
+
+        using (history.Batch())
+        {
+            history.Commit(7);
+            history.Commit(2);
+        }
+        Assert.AreEqual(1, history.UndoCount, "ending where it began is no step");
+    }
+
+    [TestMethod]
+    public void AGestureCancelledInsideABatch_PutsBackOnlyWhatItDid()
+    {
+        var history = new SnapshotHistory<int>(0);
+        using (history.Batch())
+        {
+            history.Commit(1);
+            history.BeginGesture();
+            history.Commit(9);
+            history.CancelGesture();
+            Assert.AreEqual(1, history.Current);
+        }
+        Assert.AreEqual(1, history.UndoCount);
+        history.Undo();
+        Assert.AreEqual(0, history.Current);
+    }
 }

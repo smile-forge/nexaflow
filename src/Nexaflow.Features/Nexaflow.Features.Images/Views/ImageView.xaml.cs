@@ -1,5 +1,4 @@
 using Nexaflow.Features.Common;
-using Nexaflow.Features.Images.Services;
 using Nexaflow.Features.Images.ViewModels;
 using System.Linq;
 using System.ComponentModel;
@@ -8,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Controls.Primitives;
+using Nexaflow.Features.Images.Services;
 
 namespace Nexaflow.Features.Images.Views;
 
@@ -50,14 +50,13 @@ public partial class ImageView : UserControl, IPageView
             ViewModel.ViewMode = ImageTabRegistration.ParseView(view);
     }
 
-    // ── Keyboard: carousel navigation, edit history and saving, edit mode in and out; Esc exits full-screen ──
+    // ── Keyboard: carousel navigation, the turns' history, Edit and Print; Esc exits full-screen ──
 
     private void OnViewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.OriginalSource is TextBoxBase) return;   // a text box's own keys are its own
         bool ctrl = Keyboard.Modifiers.HasFlag(ModifierKeys.Control), shift = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
-        bool featured = ViewModel.IsCarousel || ViewModel.IsExplore || ViewModel.IsEditing;
-        var editor = ViewModel.Editor;
+        bool featured = ViewModel.IsCarousel || ViewModel.IsExplore;
 
         switch (e.Key)
         {
@@ -68,26 +67,14 @@ public partial class ImageView : UserControl, IPageView
             case Key.Z when ctrl && featured:
                 ViewModel.UndoEditCommand.Execute(null);
                 break;
-            case Key.S when ctrl && shift && ViewModel.IsEditing:
-                editor.SaveCopyCommand.Execute(null);
+            case Key.P when ctrl && !shift:
+                if (ViewModel.Printing.CanPrint) ViewModel.Printing.IsOpen = true;
                 break;
-            case Key.S when ctrl && ViewModel.IsEditing:
-                editor.SaveCommand.Execute(null);
-                break;
-            case Key.E when Keyboard.Modifiers == ModifierKeys.None && (ViewModel.IsCarousel || ViewModel.IsExplore):
-                ViewModel.EnterEditModeCommand.Execute(null);
+            case Key.E when Keyboard.Modifiers == ModifierKeys.None && featured:
+                ViewModel.OpenInArtistCommand.Execute(null);
                 break;
             case Key.I when Keyboard.Modifiers == ModifierKeys.None:
                 ViewModel.Details.IsOpen = !ViewModel.Details.IsOpen;
-                break;
-            case Key.Delete when ViewModel.IsEditing && editor.IsMarkupTool:
-                editor.DeleteSelectedCommand.Execute(null);
-                break;
-            case Key.Enter when ViewModel.IsEditing && editor.IsCropTool:
-                editor.Tool = EditTool.Adjust;   // the crop is applied: show the cropped picture
-                break;
-            case Key.Escape when ViewModel.IsEditing:
-                if (!(editor.IsCropTool && editor.CancelCrop())) ViewModel.ExitEditModeCommand.Execute(null);
                 break;
             case Key.Escape:
                 ViewModel.ExitFullScreen();
@@ -103,12 +90,6 @@ public partial class ImageView : UserControl, IPageView
         }
         e.Handled = true;
     }
-
-    // ── The save options' quality slider: a drag is one undo step, as in the tool panel ──
-
-    private void SaveOptions_DragStarted(object sender, DragStartedEventArgs e) => ViewModel.Editor.BeginGesture();
-
-    private void SaveOptions_DragCompleted(object sender, DragCompletedEventArgs e) => ViewModel.Editor.EndGesture();
 
     // ── The featured image's surface reports its size, so it is rendered for the screen ──
 

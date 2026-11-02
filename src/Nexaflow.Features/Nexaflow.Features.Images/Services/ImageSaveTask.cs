@@ -11,15 +11,34 @@ using System.Threading.Tasks;
 namespace Nexaflow.Features.Images.Services;
 
 /// <summary>
-/// Saves an edited photo off the UI thread: renders the recipe at full resolution, encodes it with the photo's
-/// metadata, and writes it through the runtime's file system atomically, so a failure part-way leaves whatever was at
-/// the destination whole. A failure is kept in <see cref="Failure"/> for the caller to report, rather than thrown.
+/// A save in the background, its progress among the workspace's jobs: an edited photo exported to a file, or whatever else
+/// a save writes — a layered picture's package, the picture flattened into a file of another format.
 /// </summary>
-/// <param name="made">What the picture tools made for the recipe: the restoration, the cut-out's mask.</param>
-public sealed class ImageSaveTask(ImageEditingServices services, string sourcePath, ImageRecipe recipe,
-                                  ImageContainer target, string destination, MadeByTools? made = null) : IBackgroundTask
+public sealed class ImageSaveTask : IBackgroundTask
 {
-    public string Destination { get; } = destination;
+    private readonly Func<CancellationToken, Task> _write;
+
+    /// <summary>The photo at <paramref name="sourcePath"/> with <paramref name="recipe"/> applied, written to
+    /// <paramref name="destination"/> as <paramref name="target"/>.</summary>
+    public ImageSaveTask(ImageEditingServices services, string sourcePath, ImageRecipe recipe, ImageContainer target, string destination,
+                         MadeByTools? made = null)
+        : this(destination, async ct =>
+        {
+            var bytes = await services.Exporter.ExportAsync(sourcePath, recipe, target, ct, made);
+            ct.ThrowIfCancellationRequested();
+            await services.FileSystem.ReplaceAsync(destination, bytes, ct);
+        })
+    {
+    }
+
+    /// <summary>Whatever <paramref name="write"/> writes to <paramref name="destination"/>.</summary>
+    public ImageSaveTask(string destination, Func<CancellationToken, Task> write)
+    {
+        Destination = destination;
+        _write = write;
+    }
+
+    public string Destination { get; }
 
     /// <summary>Why the save did not happen; null when it did.</summary>
     public Exception? Failure { get; private set; }
@@ -30,11 +49,9 @@ public sealed class ImageSaveTask(ImageEditingServices services, string sourcePa
     {
         try
         {
-            var bytes = await services.Exporter.ExportAsync(sourcePath, recipe, target, ct, made);
-            ct.ThrowIfCancellationRequested();
-            await services.FileSystem.ReplaceAsync(Destination, bytes, ct);
+            await _write(ct);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ImageDecodeException
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ImageDecodeException or InvalidDataException
                                        or NotSupportedException or InvalidOperationException or OperationCanceledException)
         {
             Failure = ex;

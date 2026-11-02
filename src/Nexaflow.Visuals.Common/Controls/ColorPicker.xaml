@@ -168,17 +168,13 @@
             </Grid>
         </Grid>
 
-        <!-- What it was, what it is, and the numbers. -->
+        <!-- What it was, what it is — its hex the width that is left — and beneath, the channels, each a quarter: as narrow as a
+             side panel, as wide as a dialog. -->
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="40"/>
-                <ColumnDefinition Width="40"/>
-                <ColumnDefinition Width="40"/>
-                <ColumnDefinition Width="40"/>
             </Grid.ColumnDefinitions>
-
             <StackPanel Grid.Column="0" Margin="0,0,8,0">
                 <TextBlock Style="{StaticResource PickerCaption}" Text="{loc:Str Common.ColorPicker.Preview}"/>
                 <Border Width="44" Height="26" CornerRadius="4" Background="{StaticResource Checker}"
@@ -195,39 +191,39 @@
                     </Grid>
                 </Border>
             </StackPanel>
-
-            <StackPanel Grid.Column="1" Margin="0,0,6,0">
-                <TextBlock x:Name="SelectionLabel" Style="{StaticResource PickerCaption}"/>
+            <StackPanel Grid.Column="1">
+                <TextBlock x:Name="SelectionLabel" Style="{StaticResource PickerCaption}" TextTrimming="CharacterEllipsis"/>
                 <TextBox x:Name="HexBox" Style="{StaticResource PickerValueBox}" MaxLength="9"
                          ToolTip="{loc:Str Common.ColorPicker.HexTip}"
                          AutomationProperties.AutomationId="{Binding HexAutomationId, ElementName=Self}"
                          KeyDown="Value_KeyDown" LostKeyboardFocus="Value_LostFocus"/>
             </StackPanel>
-
-            <StackPanel Grid.Column="2" Margin="0,0,4,0">
+        </Grid>
+        <UniformGrid Columns="4" Margin="0,6,0,0">
+            <StackPanel Margin="0,0,4,0">
                 <TextBlock Style="{StaticResource PickerCaption}" Text="R"/>
                 <TextBox x:Name="RedBox" Style="{StaticResource PickerValueBox}" MaxLength="3"
                          AutomationProperties.AutomationId="{Binding RedAutomationId, ElementName=Self}"
                          KeyDown="Value_KeyDown" LostKeyboardFocus="Value_LostFocus"/>
             </StackPanel>
-            <StackPanel Grid.Column="3" Margin="0,0,4,0">
+            <StackPanel Margin="0,0,4,0">
                 <TextBlock Style="{StaticResource PickerCaption}" Text="G"/>
                 <TextBox x:Name="GreenBox" Style="{StaticResource PickerValueBox}" MaxLength="3"
                          AutomationProperties.AutomationId="{Binding GreenAutomationId, ElementName=Self}"
                          KeyDown="Value_KeyDown" LostKeyboardFocus="Value_LostFocus"/>
             </StackPanel>
-            <StackPanel Grid.Column="4" Margin="0,0,4,0">
+            <StackPanel Margin="0,0,4,0">
                 <TextBlock Style="{StaticResource PickerCaption}" Text="B"/>
                 <TextBox x:Name="BlueBox" Style="{StaticResource PickerValueBox}" MaxLength="3"
                          AutomationProperties.AutomationId="{Binding BlueAutomationId, ElementName=Self}"
                          KeyDown="Value_KeyDown" LostKeyboardFocus="Value_LostFocus"/>
             </StackPanel>
-            <StackPanel Grid.Column="5">
+            <StackPanel>
                 <TextBlock Style="{StaticResource PickerCaption}" Text="A"/>
                 <TextBox x:Name="AlphaBox" Style="{StaticResource PickerValueBox}" MaxLength="3"
                          AutomationProperties.AutomationId="{Binding AlphaAutomationId, ElementName=Self}"
                          KeyDown="Value_KeyDown" LostKeyboardFocus="Value_LostFocus"/>
             </StackPanel>
-        </Grid>
+        </UniformGrid>
     </StackPanel>
 </UserControl>

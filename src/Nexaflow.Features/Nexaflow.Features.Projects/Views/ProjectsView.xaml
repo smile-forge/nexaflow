@@ -12,7 +12,7 @@
 
     <UserControl.Resources>
         <cv:NullToVisibilityConverter  x:Key="NullVis"/>
-        <cv:NullToCollapsedConverter   x:Key="NullCollapsed"/>
+        <cv:NullToVisibleConverter     x:Key="NullToVisible"/>
         <cv:ZeroCountToVisibilityConverter x:Key="ZeroVis"/>
         <BooleanToVisibilityConverter  x:Key="BoolVis"/>
         <cv:InverseBoolToVisibilityConverter x:Key="InverseBoolVis"/>
@@ -221,7 +221,7 @@
 
                 <!-- Empty state -->
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.3"
-                            Visibility="{Binding SelectedProject, Converter={StaticResource NullCollapsed}}">
+                            Visibility="{Binding SelectedProject, Converter={StaticResource NullToVisible}}">
                     <TextBlock Text="🗂" FontSize="48" HorizontalAlignment="Center"/>
                     <TextBlock Text="{loc:Str Projects.List.SelectProject}" Foreground="{StaticResource TextMutedBrush}"
                                FontSize="14" Margin="0,12,0,0" HorizontalAlignment="Center"/>

@@ -53,7 +53,7 @@ public sealed class BackgroundJobs(BackgroundActivityManager tasks, WorkspaceRun
 
     /// <summary>Sets the call going as a job, and says so: the result the run hands the model, and the job's end.</summary>
     /// <param name="origin">The run that set it going, told when it ends; null for a job the user set going themselves.</param>
-    internal (ToolResult Result, Task Ended) Start(IClientTool tool, JsonObject arguments, IAIResponseHandler? origin)
+    internal (ToolResult Result, Job Job, Task Ended) Start(IClientTool tool, JsonObject arguments, IAIResponseHandler? origin)
     {
         var told = tool.Announce(arguments);
         Job job;
@@ -62,7 +62,7 @@ public sealed class BackgroundJobs(BackgroundActivityManager tasks, WorkspaceRun
             job = new Job(++_lastId, tasks.StartJob(told?.Doing ?? tool.Name, workspace, new CancellationTokenSource()));
             _jobs.Insert(0, job);
         }
-        return (ToolResult.Ok("started in the background", Started(job.Id)) with { InBackground = true }, RunAsync(job, tool, arguments, told, origin));
+        return (ToolResult.Ok("started in the background", Started(job.Id)) with { InBackground = true }, job, RunAsync(job, tool, arguments, told, origin));
     }
 
     /// <summary>What the model is told of a call that runs on in the background.</summary>

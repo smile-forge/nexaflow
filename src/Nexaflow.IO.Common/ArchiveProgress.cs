@@ -192,6 +192,7 @@ internal sealed class ArchiveProgressReporter(IProgress<TransferProgress>? sink,
                 IsDirectory = e.IsDirectory,
                 Modified    = e.Modified,
                 Length      = e.Length,
+                Compression = e.Compression,
                 OpenContent = () =>
                 {
                     ItemStarted(e.Path);

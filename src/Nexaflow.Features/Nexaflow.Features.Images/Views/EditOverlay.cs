@@ -8,14 +8,17 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Nexaflow.Features.Images.Editing.Selection;
+using System.Windows.Media.Animation;
 
 namespace Nexaflow.Features.Images.Views;
 
 /// <summary>
 /// The editing chrome over the picture — never part of what is saved: the crop frame with its handles, the outside
 /// dimmed and a rule-of-thirds grid; a fine grid while straightening; the level line being drawn; the markup
-/// selection. It is also where the pointer is read, in the picture's layout coordinates, and handed to the editor:
-/// crop drags as they are, markup mapped back to source pixels.
+/// selection; what is selected for Cut out and Erase, with marching ants round it, and the marquee or lasso being drawn.
+/// It is also where the pointer is read, in the picture's layout coordinates, and handed to the editor: crop drags as they
+/// are, markup, picks and drawn shapes mapped back to source pixels.
 /// </summary>
 /// <remarks>
 /// It sits inside the pan/zoom surface beside the picture, so it scales with it; lines and handles are drawn at
@@ -24,25 +27,43 @@ namespace Nexaflow.Features.Images.Views;
 /// </remarks>
 public sealed class EditOverlay : FrameworkElement
 {
-    private const double HandleSize = 9, GrabReach = 12, HitReach = 6, StrokeStep = 1.5, DimOpacity = 0.55, DragReach = 4, MarkerSize = 9;
+    private const double HandleSize = 9, GrabReach = 12, HitReach = 6, StrokeStep = 1.5, DimOpacity = 0.55, DragReach = 4, MarkerSize = 9, AntDash = 4;
 
     /// <summary>How strongly what the cut-out tool picks is tinted, of 255.</summary>
     private const byte TintAlpha = 110;
 
-    private ImageViewModel? _viewer;
+    private ArtistViewModel? _viewer;
     private Gesture _gesture;
     private Point _levelFrom, _levelTo;
     private double _zoom = 1;
     private bool _alignmentGrid;
     private Point _cutFrom, _cutTo;
     private bool _cutDragging;
-    private PictureMask? _tintFor;
+    private RegionSelection? _tintFor;
     private BitmapSource? _tint;
 
-    private enum Gesture { None, Crop, Level, Markup, CutOut, Erase }
+    private enum Gesture { None, Crop, Level, Markup, CutOut, Erase, Marquee, Lasso }
+
+    // A marquee or freehand lasso being drawn: where it began, where the pointer is, the keys held as it began and the mode
+    // they gave it; the freehand outline so far, in the photo's pixels.
+    private Point _regionFrom, _regionTo;
+    private ModifierKeys _regionHeld;
+    private RegionMode _regionMode;
+    private readonly List<MarkupPoint> _freehand = [];
+
+    // The outline of what is selected, made once for each selection and place on the canvas.
+    private (RegionSelection Shown, SKMatrix ToCanvas)? _outlineFor;
+    private Geometry? _outline;
+
+    // The ants' dashes, walking only while there is an outline to walk.
+    private readonly DashStyle _ants = new([AntDash, AntDash], 0);
+    private bool _marching;
 
     // Where the pointer is over the photo while the Erase tool brushes, for the brush's outline.
     private Point? _brushAt;
+
+    // Where the pointer is while a polygon is being drawn, for the edge to it.
+    private Point? _pointer;
 
     public EditOverlay()
     {
@@ -64,13 +85,14 @@ public sealed class EditOverlay : FrameworkElement
         set { _alignmentGrid = value; InvalidateVisual(); }
     }
 
-    public void Attach(ImageViewModel viewer)
+    public void Attach(ArtistViewModel viewer)
     {
         _viewer = viewer;
         viewer.PropertyChanged += OnChanged;
         viewer.Editor.PropertyChanged += OnChanged;
         viewer.Cutter.PropertyChanged += OnChanged;
         viewer.Editor.EraseMarks.PropertyChanged += OnChanged;
+        viewer.Editor.RegionMarks.PropertyChanged += OnChanged;
     }
 
     public void Detach()
@@ -80,6 +102,8 @@ public sealed class EditOverlay : FrameworkElement
         _viewer.Editor.PropertyChanged -= OnChanged;
         _viewer.Cutter.PropertyChanged -= OnChanged;
         _viewer.Editor.EraseMarks.PropertyChanged -= OnChanged;
+        _viewer.Editor.RegionMarks.PropertyChanged -= OnChanged;
+        March(false);
         _viewer = null;
     }
 
@@ -93,7 +117,11 @@ public sealed class EditOverlay : FrameworkElement
     {
         // Hit-testable everywhere, so a press anywhere on the picture reaches the tools.
         dc.DrawRectangle(Brushes.Transparent, null, new Rect(RenderSize));
-        if (Editor is not { ShowOriginal: false } editor) return;
+        if (Editor is not { ShowOriginal: false } editor)
+        {
+            March(false);
+            return;
+        }
 
         if (editor.IsCropTool && editor.ShownCrop is { } crop)
             DrawCrop(dc, Wpf(crop), editor.IsLevelTool || _alignmentGrid);
@@ -101,8 +129,8 @@ public sealed class EditOverlay : FrameworkElement
             DrawLevelLine(dc);
         if (editor.IsMarkupTool && editor.SelectedOutline is { } outline)
             DrawSelection(dc, outline);
-        if (editor.IsCutOutTool || editor.IsRetouchTool)
-            DrawCutOut(dc, editor.Cutter);
+        bool marching = (editor.TakesSelection || _viewer!.IsLayered) && DrawRegion(dc, editor);   // a layered picture's selection shows to every tool
+        March(marching);
         if (editor.IsRetouchTool)
             DrawErase(dc, editor.EraseMarks);
     }
@@ -154,43 +182,125 @@ public sealed class EditOverlay : FrameworkElement
         dc.DrawGeometry(null, new Pen(Brush("AccentBrush"), 1.5 * px) { DashStyle = new DashStyle([4, 3], 0) }, geometry);
     }
 
-    /// <summary>What the cut-out tool picks, tinted over the photo where it lies, its clicks marked — on it in the accent,
-    /// off it in the danger colour — and the box drawn round it, or being drawn.</summary>
-    private void DrawCutOut(DrawingContext dc, PictureCutter cutter)
+    /// <summary>What is selected — the cut-out tool's picks and the region drawn over them — tinted over the photo where it
+    /// lies, marching ants round it; the picks' clicks marked — on the thing in the accent, off it in the danger colour — and
+    /// the box drawn round it, or being drawn; the marquee or lasso being drawn. Gives whether ants were drawn.</summary>
+    private bool DrawRegion(DrawingContext dc, ImageEditorViewModel editor)
     {
-        if (_viewer?.Canvas is not { } canvas || _viewer.CurrentSession?.Proxy?.SourceSize is not { } source) return;
+        if (_viewer?.Canvas is not { } canvas) return false;
+        // The selection lies over the document — the photo, or a layered picture's canvas; the picks over the picture they pick from.
         var toCanvas = canvas.SourceToCanvas;
+        var documentToCanvas = canvas.DocumentToCanvas;
+        var document = canvas.Document;
         double px = 1 / _zoom;
+        var marks = editor.RegionMarks;
+        var cutter = editor.Cutter;
+        var halo = new Pen(Brush("OnAccentBrush"), 3 * px);
+        var dashed = new Pen(Brush("AccentBrush"), 1.5 * px) { DashStyle = new DashStyle([4, 3], 0) };
 
-        if (cutter.Shown is { Bounds: not null } mask)
+        bool marching = false;
+        if (marks.Shown is { IsEmpty: false } shown)
         {
-            dc.PushTransform(new MatrixTransform(toCanvas.ScaleX, toCanvas.SkewY, toCanvas.SkewX, toCanvas.ScaleY, toCanvas.TransX, toCanvas.TransY));
-            dc.DrawImage(Tint(mask), new Rect(0, 0, source.Width, source.Height));
+            dc.PushTransform(Transform(documentToCanvas));
+            dc.DrawImage(Tint(shown), new Rect(0, 0, document.Width, document.Height));
             dc.Pop();
+            var outline = Outline(shown, marks.ShownScale, documentToCanvas);
+            dc.DrawGeometry(null, new Pen(Brush("OnAccentBrush"), 1.5 * px), outline);
+            dc.DrawGeometry(null, new Pen(Brush("AccentBrush"), 1.5 * px) { DashStyle = _ants }, outline);
+            marching = true;
         }
 
-        var outline = new Pen(Brush("OnAccentBrush"), 1.5 * px);
+        var outlinePen = new Pen(Brush("OnAccentBrush"), 1.5 * px);
         if (cutter.Box is { } box)
         {
             var corners = new[] { new SKPoint((float)box.Left, (float)box.Top), new SKPoint((float)box.Right, (float)box.Top),
                                   new SKPoint((float)box.Right, (float)box.Bottom), new SKPoint((float)box.Left, (float)box.Bottom) };
-            var figure = new PathFigure { StartPoint = Wpf(toCanvas.MapPoint(corners[0])), IsClosed = true };
-            foreach (var corner in corners.Skip(1)) figure.Segments.Add(new LineSegment(Wpf(toCanvas.MapPoint(corner)), true));
-            var geometry = new PathGeometry([figure]);
-            dc.DrawGeometry(null, new Pen(Brush("OnAccentBrush"), 3 * px), geometry);
-            dc.DrawGeometry(null, new Pen(Brush("AccentBrush"), 1.5 * px) { DashStyle = new DashStyle([4, 3], 0) }, geometry);
+            var geometry = Polyline(corners.Select(c => Wpf(toCanvas.MapPoint(c))), closed: true);
+            dc.DrawGeometry(null, halo, geometry);
+            dc.DrawGeometry(null, dashed, geometry);
         }
         if (_gesture == Gesture.CutOut && _cutDragging)
         {
             var dragged = new Rect(_cutFrom, _cutTo);
-            dc.DrawRectangle(null, new Pen(Brush("OnAccentBrush"), 3 * px), dragged);
-            dc.DrawRectangle(null, new Pen(Brush("AccentBrush"), 1.5 * px) { DashStyle = new DashStyle([4, 3], 0) }, dragged);
+            dc.DrawRectangle(null, halo, dragged);
+            dc.DrawRectangle(null, dashed, dragged);
         }
-
         double r = MarkerSize * px / 2;
         foreach (var point in cutter.Points)
-            dc.DrawEllipse(Brush(point.Include ? "AccentBrush" : "DangerBrush"), outline, Wpf(toCanvas.MapPoint(new SKPoint((float)point.X, (float)point.Y))), r, r);
+            dc.DrawEllipse(Brush(point.Include ? "AccentBrush" : "DangerBrush"), outlinePen, Wpf(toCanvas.MapPoint(new SKPoint((float)point.X, (float)point.Y))), r, r);
+
+        // The shape being drawn, as it will be added.
+        Geometry? drawing = null;
+        if (_gesture == Gesture.Marquee)
+        {
+            var drawn = MarqueeRect();
+            drawing = marks.Marquee == MarqueeShape.Ellipse ? new EllipseGeometry(drawn) : new RectangleGeometry(drawn);
+        }
+        else if (_gesture == Gesture.Lasso && _freehand.Count > 1)
+            drawing = Polyline(_freehand.Select(p => Wpf(documentToCanvas.MapPoint(new SKPoint((float)p.X, (float)p.Y)))), closed: false);
+        else if (marks.Draft.Count > 0 && editor.DrawsLasso)
+        {
+            var points = marks.Draft.Select(p => Wpf(documentToCanvas.MapPoint(new SKPoint((float)p.X, (float)p.Y)))).ToList();
+            if (_pointer is { } pointer) points.Add(pointer);
+            drawing = Polyline(points, closed: false);
+            var first = points[0];
+            double reach = GrabReach * px / 2;
+            dc.DrawEllipse(Brush("AccentBrush"), outlinePen, first, reach, reach);
+        }
+        if (drawing is not null)
+        {
+            dc.DrawGeometry(null, halo, drawing);
+            dc.DrawGeometry(null, dashed, drawing);
+        }
+        return marching;
     }
+
+    /// <summary>The ants set walking, or stopped — an animation left running would keep the window drawing every frame.</summary>
+    private void March(bool marching)
+    {
+        if (marching == _marching) return;
+        _marching = marching;
+        _ants.BeginAnimation(DashStyle.OffsetProperty, marching
+            ? new DoubleAnimation(0, -2 * AntDash, TimeSpan.FromSeconds(0.8)) { RepeatBehavior = RepeatBehavior.Forever }
+            : null);
+    }
+
+    /// <summary>The loops round what is selected, on the canvas: made once for each selection and place.</summary>
+    private Geometry Outline(RegionSelection shown, double shownScale, SKMatrix toCanvas)
+    {
+        if (_outline is not null && _outlineFor is { } made && ReferenceEquals(made.Shown, shown) && made.ToCanvas == toCanvas) return _outline;
+        var toPhoto = SKMatrix.CreateScale((float)(1 / shownScale), (float)(1 / shownScale));
+        var shownToCanvas = toPhoto.PostConcat(toCanvas);
+        var geometry = new StreamGeometry();
+        using (var context = geometry.Open())
+            foreach (var loop in shown.Outline)
+            {
+                context.BeginFigure(Wpf(shownToCanvas.MapPoint(loop[0])), isFilled: false, isClosed: true);
+                context.PolyLineTo([.. loop.Skip(1).Select(p => Wpf(shownToCanvas.MapPoint(p)))], isStroked: true, isSmoothJoin: false);
+            }
+        geometry.Freeze();
+        (_outlineFor, _outline) = ((shown, toCanvas), geometry);
+        return geometry;
+    }
+
+    private static Geometry Polyline(IEnumerable<Point> points, bool closed)
+    {
+        var geometry = new StreamGeometry();
+        using (var context = geometry.Open())
+        {
+            bool begun = false;
+            foreach (var point in points)
+            {
+                if (!begun) context.BeginFigure(point, isFilled: false, isClosed: closed);
+                else context.LineTo(point, isStroked: true, isSmoothJoin: false);
+                begun = true;
+            }
+        }
+        geometry.Freeze();
+        return geometry;
+    }
+
+    private static MatrixTransform Transform(SKMatrix m) => new(m.ScaleX, m.SkewY, m.SkewX, m.ScaleY, m.TransX, m.TransY);
 
     /// <summary>The Erase tool's marks: the strokes, tinted where they mark and outlined where they take marking back; where the
     /// healing brush copies from, and where it copies from for the brush's place now; the brush's outline under the pointer.</summary>
@@ -248,24 +358,25 @@ public sealed class EditOverlay : FrameworkElement
         }
     }
 
-    /// <summary>A mask as a tint of the accent colour, made once for each mask shown.</summary>
-    private BitmapSource Tint(PictureMask mask)
+    /// <summary>What is selected as a tint of the accent colour, as strong as each pixel is selected, made once for each selection.</summary>
+    private BitmapSource Tint(RegionSelection shown)
     {
-        if (ReferenceEquals(mask, _tintFor) && _tint is not null) return _tint;
+        if (ReferenceEquals(shown, _tintFor) && _tint is not null) return _tint;
         var colour = (Brush("AccentBrush") as SolidColorBrush)?.Color ?? Colors.Transparent;
-        byte b = (byte)(colour.B * TintAlpha / 255), g = (byte)(colour.G * TintAlpha / 255), r = (byte)(colour.R * TintAlpha / 255);
-        var pixels = new byte[mask.Width * mask.Height * 4];
-        for (int i = 0; i < mask.Pixels.Length; i++)
+        var coverage = shown.Coverage.ToBytes();
+        var pixels = new byte[shown.Width * shown.Height * 4];
+        for (int i = 0; i < coverage.Length; i++)
         {
-            if (mask.Pixels[i] == 0) continue;
-            pixels[i * 4] = b;
-            pixels[i * 4 + 1] = g;
-            pixels[i * 4 + 2] = r;
-            pixels[i * 4 + 3] = TintAlpha;
+            int alpha = TintAlpha * coverage[i] / 255;
+            if (alpha == 0) continue;
+            pixels[i * 4] = (byte)(colour.B * alpha / 255);
+            pixels[i * 4 + 1] = (byte)(colour.G * alpha / 255);
+            pixels[i * 4 + 2] = (byte)(colour.R * alpha / 255);
+            pixels[i * 4 + 3] = (byte)alpha;
         }
-        var tint = BitmapSource.Create(mask.Width, mask.Height, 96, 96, PixelFormats.Pbgra32, null, pixels, mask.Width * 4);
+        var tint = BitmapSource.Create(shown.Width, shown.Height, 96, 96, PixelFormats.Pbgra32, null, pixels, shown.Width * 4);
         tint.Freeze();
-        (_tintFor, _tint) = (mask, tint);
+        (_tintFor, _tint) = (shown, tint);
         return tint;
     }
 
@@ -308,14 +419,44 @@ public sealed class EditOverlay : FrameworkElement
             if (editor.MarkupTool == MarkupTool.Select && !editor.HasSelection) return;   // nothing hit: pan
             Begin(Gesture.Markup, e);
         }
-        else if (editor.IsCutOutTool || editor.IsRetouchTool && editor.EraseMarks.IsPicking)
+        else if (editor.DrawsMarquee)
+        {
+            _regionFrom = _regionTo = at;
+            _regionHeld = Keyboard.Modifiers;
+            _regionMode = ModeHeld(Keyboard.Modifiers, editor.RegionMarks.Mode);
+            Begin(Gesture.Marquee, e);
+        }
+        else if (editor.DrawsLasso && canvas.DocumentToCanvas.TryInvert(out var lassoToSource))
+        {
+            var under = lassoToSource.MapPoint(p);
+            var marks = editor.RegionMarks;
+            if (marks.Lasso == LassoShape.Freehand)
+            {
+                _freehand.Clear();
+                _freehand.Add(new MarkupPoint(under.X, under.Y));
+                _regionMode = ModeHeld(Keyboard.Modifiers, marks.Mode);
+                Begin(Gesture.Lasso, e);
+                return;
+            }
+            // Click to click: the first click begins it, one on its first point or a double-click closes it.
+            if (marks.Draft.Count > 0 && (e.ClickCount >= 2 || NearFirstDraftPoint(marks, at, canvas.DocumentToCanvas))) marks.CloseDraft();
+            else marks.AddDraftPoint(new MarkupPoint(under.X, under.Y), ModeHeld(Keyboard.Modifiers, marks.Mode));
+            e.Handled = true;
+        }
+        else if (editor.SelectsByColour && canvas.DocumentToCanvas.TryInvert(out var colourToSource))
+        {
+            var under = colourToSource.MapPoint(p);
+            _ = editor.RegionMarks.SelectColourAsync(new MarkupPoint(under.X, under.Y), ModeHeld(Keyboard.Modifiers, editor.RegionMarks.Mode));
+            e.Handled = true;
+        }
+        else if (editor.PicksByModel)
         {
             if (!editor.PickingModels.IsReady) return;   // nothing picks until picture selection is here: the press pans
             _cutFrom = _cutTo = at;
             _cutDragging = false;
             Begin(Gesture.CutOut, e);
         }
-        else if (editor.IsRetouchTool && canvas.SourceToCanvas.TryInvert(out var brushToSource))
+        else if (editor.IsRetouchTool && editor.EraseMarks.IsBrushing && canvas.SourceToCanvas.TryInvert(out var brushToSource))
         {
             var under = brushToSource.MapPoint(p);
             if (OnPhoto(under) is not { } onPhoto) return;
@@ -351,6 +492,18 @@ public sealed class EditOverlay : FrameworkElement
                 _cutDragging |= (at - _cutFrom).Length * _zoom > DragReach;
                 if (_cutDragging) InvalidateVisual();
                 break;
+            case Gesture.Marquee:
+                _regionTo = at;
+                InvalidateVisual();
+                break;
+            case Gesture.Lasso when _viewer?.Canvas is { } canvas && canvas.DocumentToCanvas.TryInvert(out var toSource):
+                var traced = toSource.MapPoint(Sk(at));
+                double reach = StrokeStep / _zoom * CropGeometry.SourcePixelsPerCanvasPixel(canvas.DocumentToCanvas);
+                var last = _freehand[^1];
+                if (Math.Abs(traced.X - last.X) < reach && Math.Abs(traced.Y - last.Y) < reach) break;
+                _freehand.Add(new MarkupPoint(traced.X, traced.Y));
+                InvalidateVisual();
+                break;
             case Gesture.Markup when _viewer?.Canvas is { } canvas && canvas.SourceToCanvas.TryInvert(out var toSource):
                 float step = (float)(StrokeStep / _zoom * CropGeometry.SourcePixelsPerCanvasPixel(canvas.SourceToCanvas));
                 editor.MarkupDrag(toSource.MapPoint(Sk(at)), step);
@@ -362,6 +515,11 @@ public sealed class EditOverlay : FrameworkElement
                 break;
             default:
                 Cursor = HoverCursor(editor, Sk(at));
+                if (editor.DrawsLasso && editor.RegionMarks.Draft.Count > 0)
+                {
+                    _pointer = at;
+                    InvalidateVisual();
+                }
                 if (editor.IsRetouchTool && editor.EraseMarks.IsBrushing)
                 {
                     _brushAt = at;
@@ -390,8 +548,9 @@ public sealed class EditOverlay : FrameworkElement
     protected override void OnMouseLeave(MouseEventArgs e)
     {
         base.OnMouseLeave(e);
-        if (_brushAt is null) return;
+        if (_brushAt is null && _pointer is null) return;
         _brushAt = null;
+        _pointer = null;
         InvalidateVisual();
     }
 
@@ -430,6 +589,15 @@ public sealed class EditOverlay : FrameworkElement
             case Gesture.Erase:
                 editor.EraseMarks.EndStroke();
                 break;
+            case Gesture.Marquee:
+                if (!cancelled) MarqueeReleased(editor);
+                InvalidateVisual();
+                break;
+            case Gesture.Lasso:
+                if (!cancelled && _freehand.Count >= 3) editor.RegionMarks.Add(new RegionPolygon { Points = [.. _freehand], Mode = _regionMode });
+                _freehand.Clear();
+                InvalidateVisual();
+                break;
         }
     }
 
@@ -449,13 +617,102 @@ public sealed class EditOverlay : FrameworkElement
             cutter.Click(at.X, at.Y, include: (Keyboard.Modifiers & ModifierKeys.Alt) == 0);
     }
 
+    /// <summary>A marquee let go: the shape dragged out added in the mode it began in — a click that dragged nothing, in the
+    /// mode that replaces, selects nothing.</summary>
+    private void MarqueeReleased(ImageEditorViewModel editor)
+    {
+        if (_viewer?.Canvas is not { } canvas || !canvas.DocumentToCanvas.TryInvert(out var toSource)) return;
+        if ((_regionTo - _regionFrom).Length * _zoom <= DragReach)
+        {
+            if (_regionMode == RegionMode.Replace) editor.RegionMarks.DeselectCommand.Execute(null);
+            return;
+        }
+        editor.RegionMarks.Add(MarqueeIn(MarqueeRect(), editor.RegionMarks.Marquee, _regionMode, canvas.DocumentToCanvas, toSource));
+    }
+
+    /// <summary>The marquee as dragged: from where it began to the pointer — square with Shift, and out from where it began
+    /// with Alt, either pressed once it had begun (held as it began, they gave its mode).</summary>
+    private Rect MarqueeRect()
+    {
+        var added = Keyboard.Modifiers & ~_regionHeld;
+        double dx = _regionTo.X - _regionFrom.X, dy = _regionTo.Y - _regionFrom.Y;
+        if ((added & ModifierKeys.Shift) != 0)
+        {
+            double side = Math.Max(Math.Abs(dx), Math.Abs(dy));
+            (dx, dy) = (dx < 0 ? -side : side, dy < 0 ? -side : side);
+        }
+        return (added & ModifierKeys.Alt) != 0
+            ? new Rect(new Point(_regionFrom.X - dx, _regionFrom.Y - dy), new Point(_regionFrom.X + dx, _regionFrom.Y + dy))
+            : new Rect(_regionFrom, new Point(_regionFrom.X + dx, _regionFrom.Y + dy));
+    }
+
+    /// <summary>
+    /// A marquee dragged out on the canvas as a shape in the photo's pixels: a rectangle or an ellipse where the canvas shows
+    /// the photo square to its pixels — turned by quarters or flipped at most — else, straightened, the shape as it was drawn
+    /// as an outline, an ellipse's close enough that no edge strays a quarter of a pixel.
+    /// </summary>
+    private static RegionShape MarqueeIn(Rect drawn, MarqueeShape shape, RegionMode mode, SKMatrix toCanvas, SKMatrix toSource)
+    {
+        if (SquareTo(toSource))
+        {
+            SKPoint a = toSource.MapPoint(Sk(drawn.TopLeft)), b = toSource.MapPoint(Sk(drawn.BottomRight));
+            double left = Math.Min(a.X, b.X), top = Math.Min(a.Y, b.Y), right = Math.Max(a.X, b.X), bottom = Math.Max(a.Y, b.Y);
+            return shape == MarqueeShape.Ellipse
+                ? new RegionEllipse(left, top, right, bottom) { Mode = mode }
+                : new RegionRectangle(left, top, right, bottom) { Mode = mode };
+        }
+        IEnumerable<Point> outline;
+        if (shape == MarqueeShape.Rectangle) outline = [drawn.TopLeft, drawn.TopRight, drawn.BottomRight, drawn.BottomLeft];
+        else
+        {
+            double radius = Math.Max(drawn.Width, drawn.Height) / 2 * CropGeometry.SourcePixelsPerCanvasPixel(toCanvas);
+            int sides = radius < 1 ? 16 : Math.Clamp((int)Math.Ceiling(Math.PI / Math.Acos(1 - 0.25 / radius)), 16, 4096);
+            double cx = drawn.Left + drawn.Width / 2, cy = drawn.Top + drawn.Height / 2;
+            outline = Enumerable.Range(0, sides).Select(i => new Point(cx + drawn.Width / 2 * Math.Cos(2 * Math.PI * i / sides),
+                                                                      cy + drawn.Height / 2 * Math.Sin(2 * Math.PI * i / sides)));
+        }
+        return new RegionPolygon { Points = [.. outline.Select(p => toSource.MapPoint(Sk(p))).Select(p => new MarkupPoint(p.X, p.Y))], Mode = mode };
+    }
+
+    /// <summary>Whether <paramref name="m"/> keeps a rectangle a rectangle square to the axes: no turn but by quarters.</summary>
+    private static bool SquareTo(SKMatrix m)
+    {
+        double size = Math.Max(Math.Max(Math.Abs(m.ScaleX), Math.Abs(m.ScaleY)), Math.Max(Math.Abs(m.SkewX), Math.Abs(m.SkewY)));
+        double slack = size * 1e-9;
+        return Math.Abs(m.SkewX) <= slack && Math.Abs(m.SkewY) <= slack || Math.Abs(m.ScaleX) <= slack && Math.Abs(m.ScaleY) <= slack;
+    }
+
+    /// <summary>How a shape begun with <paramref name="held"/> meets the selection: Shift adds, Alt subtracts, both intersect,
+    /// neither as the tool is set.</summary>
+    private static RegionMode ModeHeld(ModifierKeys held, RegionMode chosen) => (held & (ModifierKeys.Shift | ModifierKeys.Alt)) switch
+    {
+        ModifierKeys.Shift | ModifierKeys.Alt => RegionMode.Intersect,
+        ModifierKeys.Shift => RegionMode.Add,
+        ModifierKeys.Alt => RegionMode.Subtract,
+        _ => chosen,
+    };
+
+    /// <summary>Whether <paramref name="at"/> is on the first point of the outline being drawn, as it shows.</summary>
+    private bool NearFirstDraftPoint(RegionMarking marks, Point at, SKMatrix toCanvas)
+    {
+        var first = marks.Draft[0];
+        var shown = Wpf(toCanvas.MapPoint(new SKPoint((float)first.X, (float)first.Y)));
+        return (shown - at).Length * _zoom <= GrabReach;
+    }
+
     /// <summary>A right-click while picking — in the cut-out tool, or the Erase tool picking — is a click off the thing; a
     /// right-drag while the Erase tool brushes takes marking back.</summary>
     protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseRightButtonDown(e);
-        if (Editor is not { ShowOriginal: false } editor || !(editor.IsCutOutTool || editor.IsRetouchTool) || _viewer?.Canvas is not { } canvas
+        if (Editor is not { ShowOriginal: false } editor || !(editor.IsSelectTool || editor.IsRetouchTool) || _viewer?.Canvas is not { } canvas
             || !canvas.SourceToCanvas.TryInvert(out var toSource)) return;
+        // Drawing a polygon, a right-click takes its last point back.
+        if (editor.DrawsMarquee || editor.DrawsLasso)
+        {
+            if (editor.DrawsLasso && editor.RegionMarks.RemoveDraftPoint()) e.Handled = true;
+            return;
+        }
         if (OnPhoto(toSource.MapPoint(Sk(e.GetPosition(this)))) is not { } at) return;
         if (editor.IsRetouchTool && editor.EraseMarks.IsBrushing)
         {
@@ -463,7 +720,7 @@ public sealed class EditOverlay : FrameworkElement
             Begin(Gesture.Erase, e);
             return;
         }
-        if (!editor.PickingModels.IsReady) return;
+        if (!editor.PicksByModel || !editor.PickingModels.IsReady) return;
         editor.Cutter.Click(at.X, at.Y, include: false);
         e.Handled = true;
     }
@@ -488,7 +745,8 @@ public sealed class EditOverlay : FrameworkElement
                 _                                            => Cursors.Arrow,
             };
         }
-        if (editor.IsCutOutTool) return editor.PickingModels.IsReady ? Cursors.Cross : Cursors.SizeAll;
+        if (editor.DrawsMarquee || editor.DrawsLasso || editor.SelectsByColour) return Cursors.Cross;
+        if (editor.IsSelectTool) return editor.PickingModels.IsReady ? Cursors.Cross : Cursors.SizeAll;
         if (editor.IsRetouchTool) return Cursors.Cross;
         if (editor.IsMarkupTool)
             return editor.MarkupTool switch
