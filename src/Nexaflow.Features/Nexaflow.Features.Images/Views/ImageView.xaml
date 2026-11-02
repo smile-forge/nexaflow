@@ -23,7 +23,7 @@
             <BooleanToVisibilityConverter x:Key="BoolToVis"/>
             <cv:EnumToBoolConverter x:Key="EnumToBool"/>
             <cv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis"/>
-            <cv:NullToCollapsedConverter x:Key="NullToCollapsed"/>
+            <cv:NullToVisibilityConverter x:Key="NullToCollapsed"/>
 
             <Style x:Key="NavArrowStyle" TargetType="Button">
                 <Setter Property="Background" Value="#55000000"/>

@@ -81,7 +81,7 @@ public class ImagesStartJourneyTests : ImageEditJourneyBase
         Check("No model draws yet: its download is offered, or else the workspace's AI settings",
               () => WaitForFs(() => Exists("Images_GenerateDownload") || Exists("Images_StartAiSettings"), 5));
         CheckPresent("Pictures can be opened from disk", "Images_StartOpen");
-        Check("Print is there, with nothing to print", () => Exists("Image_Print") && !Enabled("Image_Print"));
+        Check("No picture yet, so no toolbar: nothing to print or save", () => !Exists("Image_Print") && !Exists("Image_EditSave"));
         Check("A size typed by hand", () => TypeInto("Images_CanvasWidth", "320") && TypeInto("Images_CanvasHeight", "200"));
         CheckDoes("Create opens the canvas in the editor", "Images_StartCreate",
                   () => WaitForFs(() => Exists("Image_LayersPanel"), 15) && WaitForGone("Images_Start", 3));

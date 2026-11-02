@@ -4,7 +4,7 @@
              xmlns:conv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
-        <conv:NullToCollapsedConverter x:Key="NullToCollapsed"/>
+        <conv:NullToVisibleConverter x:Key="NullToVisible"/>
     </UserControl.Resources>
 
     <!-- Read-only reminder of the SVG page for the conversation context panel: the artwork and its size; the
@@ -18,7 +18,7 @@
             <Grid>
                 <TextBlock Text="🖼" FontSize="44" Opacity="0.4" Margin="42,22"
                            HorizontalAlignment="Center" VerticalAlignment="Center"
-                           Visibility="{Binding Artifact, Converter={StaticResource NullToCollapsed}}"
+                           Visibility="{Binding Artifact, Converter={StaticResource NullToVisible}}"
                            Foreground="{DynamicResource TextMutedBrush}"/>
                 <Image Source="{Binding Artifact}" Stretch="Uniform"/>
             </Grid>

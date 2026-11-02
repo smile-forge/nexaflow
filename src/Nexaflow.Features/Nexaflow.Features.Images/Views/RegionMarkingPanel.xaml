@@ -71,10 +71,7 @@
                     <TextBlock Text="{loc:Str Images.Region.Intersect}" FontSize="11"/>
                 </RadioButton>
             </UniformGrid>
-            <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Margin="0,6,0,0" Text="{loc:Str Images.Region.MarqueeHint}"
-                       Visibility="{Binding DrawsMarquee, Converter={StaticResource BoolToVis}}"/>
-            <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Margin="0,6,0,0" Text="{loc:Str Images.Region.LassoHint}"
-                       Visibility="{Binding DrawsLasso, Converter={StaticResource BoolToVis}}"/>
+
         </StackPanel>
 
         <!-- The whole selection: started again, let go, turned over, or refined. -->

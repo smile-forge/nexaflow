@@ -17,28 +17,30 @@
                 <ResourceDictionary Source="ImageViewStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
             <BooleanToVisibilityConverter x:Key="BoolToVis"/>
-            <cv:NullToCollapsedConverter x:Key="NullToCollapsed"/>
+            <cv:InverseBoolToVisibilityConverter x:Key="NotBoolToVis"/>
+            <cv:NullToVisibilityConverter x:Key="NullToCollapsed"/>
         </ResourceDictionary>
     </UserControl.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="42"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- ══ Top toolbar ══ -->
-        <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+        <!-- ══ Top toolbar: a picture's, so not there on the start screen ══ -->
+        <Border Grid.Row="0" Height="42" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}">
             <Grid Margin="12,0">
-                <!-- Print (Ctrl+P): the picture as edited, or the canvas; there on the start screen, with nothing to print -->
+                <!-- Print (Ctrl+P): the picture as edited, or the canvas -->
                 <views:PicturePrintView DataContext="{Binding Printing}" HorizontalAlignment="Left" VerticalAlignment="Center"/>
 
                 <!-- The picture's history, layers made from it, and saving it -->
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"
-                            Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}">
-                    <!-- Layers: one added makes the photo a layered picture, kept apart from it. -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <!-- A photo's first layer, which makes it a layered picture kept apart from it; a layered one adds its layers in its own panel. -->
                     <Button Command="{Binding AddLayerCommand}" ToolTip="{loc:Str Images.Edit.AddLayerTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,0"
+                            Visibility="{Binding IsLayered, Converter={StaticResource NotBoolToVis}}"
                             AutomationProperties.AutomationId="Image_EditAddLayer">
                         <icons:IconLabel Icon="fluent:layer_diagonal_add" Text="{loc:Str Images.Edit.AddLayer}"/>
                     </Button>
@@ -55,6 +57,7 @@
                         <icons:IconLabel Icon="fluent:arrow_redo"/>
                     </Button>
                     <ToggleButton IsChecked="{Binding Editor.ShowOriginal, Mode=TwoWay}" ToolTip="{loc:Str Images.Edit.CompareTip}" Style="{StaticResource ToolbarToggleStyle}" Margin="0,0,4,0"
+                                  Visibility="{Binding IsLayered, Converter={StaticResource NotBoolToVis}}"
                                   AutomationProperties.AutomationId="Image_EditCompare">
                         <icons:IconLabel Icon="fluent:split_vertical" Text="{loc:Str Images.Edit.Compare}"/>
                     </ToggleButton>
@@ -83,7 +86,7 @@
                             </Grid>
                         </Button>
                         <Popup IsOpen="{Binding Editor.IsSaveOptionsOpen, Mode=TwoWay}" StaysOpen="False"
-                               PlacementTarget="{Binding ElementName=SaveOptionsButton}" Placement="Bottom"
+                                PlacementTarget="{Binding ElementName=SaveOptionsButton}" Placement="Bottom" HorizontalOffset="-288"
                                AllowsTransparency="True" PopupAnimation="Fade">
                             <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
                                     BorderThickness="1" CornerRadius="6" Margin="0,6,0,0" Padding="14,0,14,14" Width="320"
@@ -122,8 +125,8 @@
 
         <!-- ══ Notices ══ -->
         <StackPanel Grid.Row="1">
-            <!-- A picture made for the user and not saved yet: its Save as. -->
-            <drafts:DraftBanner DataContext="{Binding Draft}"/>
+            <!-- A picture made for the user and not saved yet; Save asks where it goes, so the strip carries no Save as of its own. -->
+            <drafts:DraftBanner DataContext="{Binding Draft}" OffersSaveAs="False"/>
             <views:PictureNotices DataContext="{Binding Stage}"/>
             <!-- A layered picture opened on the look the application that wrote it saved: which layers cannot be drawn, and the two ways on. -->
             <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"

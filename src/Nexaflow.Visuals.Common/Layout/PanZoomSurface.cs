@@ -181,6 +181,25 @@ public sealed class PanZoomSurface : UserControl
     /// </summary>
     public Func<CanvasBounds?>? ContentExtent { get; set; }
 
+    /// <summary>
+    /// The scale at which the content shows at its own size: what the zoom readout calls 100% and what 1:1 goes to. 1, the
+    /// default, for content laid out at its own size; a host that lays out a rendering of something larger or smaller — a
+    /// picture drawn to fit the window — gives the scale that would show that thing pixel for pixel, so the reader is told
+    /// the zoom of the picture rather than of its rendering.
+    /// </summary>
+    public double NaturalScale
+    {
+        get => _naturalScale;
+        set
+        {
+            if (value <= 0 || value.Equals(_naturalScale)) return;
+            _naturalScale = value;
+            ShowZoom();
+        }
+    }
+
+    private double _naturalScale = 1;
+
     /// <summary>Which corner the overview sits in — see <see cref="Layout.MiniMapCorner"/>.</summary>
     public MiniMapCorner MiniMapCorner
     {
@@ -307,11 +326,12 @@ public sealed class PanZoomSurface : UserControl
         _fitPending = false;   // …but only after a real fit, so an unmeasured first pass retries
     }
 
-    /// <summary>Back to 1:1, top-centred — the size the content was laid out at.</summary>
+    /// <summary>Back to 1:1, top-centred — the content at its own size (<see cref="NaturalScale"/>).</summary>
     public void ActualSize()
     {
         if (_surface is null || Extent is not { } bounds) return;
-        Apply(1, (ActualWidth - bounds.Width) / 2 - bounds.MinX, 8 - bounds.MinY);
+        var scale = _naturalScale;
+        Apply(scale, (ActualWidth - bounds.Width * scale) / 2 - bounds.MinX * scale, 8 - bounds.MinY * scale);
         _fitPending = false;
     }
 
@@ -374,10 +394,13 @@ public sealed class PanZoomSurface : UserControl
         _scale.ScaleX = _scale.ScaleY = scale;
         _translate.X  = tx;
         _translate.Y  = ty;
-        _zoomLabel.Text = $"{scale * 100:0}%";
+        ShowZoom();
         SyncMiniMap();
         if (report) ViewChanged?.Invoke(scale, tx, ty);
     }
+
+    /// <summary>The readout: the zoom against the content's own size.</summary>
+    private void ShowZoom() => _zoomLabel.Text = $"{_scale.ScaleX / _naturalScale * 100:0}%";
 
     private void OnWheel(object sender, MouseWheelEventArgs e)
     {

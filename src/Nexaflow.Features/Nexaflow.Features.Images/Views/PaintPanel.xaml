@@ -21,8 +21,7 @@
     </UserControl.Resources>
 
     <StackPanel>
-        <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Paint.Title}"/>
-        <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Text="{loc:Str Images.Paint.Intro}"/>
+
 
         <StackPanel Visibility="{Binding CanPaint, Converter={StaticResource NotBoolVis}}" Margin="0,8,0,0">
             <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Foreground="{StaticResource WarningBrush}" Text="{Binding Notice}"/>
@@ -107,6 +106,6 @@
                   Visibility="{Binding IsEyedropper, Converter={StaticResource BoolVis}}"
                   Content="{loc:Str Images.Paint.SampleMerged}" AutomationProperties.AutomationId="Image_PaintSampleMerged"/>
 
-        <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Margin="0,10,0,0" Text="{loc:Str Images.Paint.Keys}"/>
+
     </StackPanel>
 </UserControl>

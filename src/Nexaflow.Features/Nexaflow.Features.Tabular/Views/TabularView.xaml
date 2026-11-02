@@ -11,7 +11,7 @@
 
     <UserControl.Resources>
         <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
-        <cv:NullToCollapsedConverter         x:Key="NullVis"/>
+        <cv:NullToVisibilityConverter        x:Key="NullVis"/>
         <cv:EnumToBoolConverter              x:Key="EnumBool"/>
         <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
         <cv:StringToVisibilityConverter      x:Key="StrVis"/>

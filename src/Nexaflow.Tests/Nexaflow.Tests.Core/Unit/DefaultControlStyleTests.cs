@@ -14,6 +14,8 @@ public class DefaultControlStyleTests
     [DataRow("ComboBox",   "DarkComboBox")]
     [DataRow("DatePicker", "DarkDatePicker")]
     [DataRow("Calendar",   "DarkCalendar")]
+    [DataRow("CheckBox",   "DarkCheckBox")]
+    [DataRow("Expander",   "DarkExpander")]
     public void AControlNamingNoStyleGetsTheThemedOne(string targetType, string themed)
     {
         var implicitStyle = ShippedStyles.Implicit(targetType);

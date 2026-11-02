@@ -20,8 +20,7 @@
     </UserControl.Resources>
 
     <StackPanel>
-        <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Arrange.Title}"/>
-        <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Text="{loc:Str Images.Arrange.Intro}"/>
+
 
         <StackPanel Visibility="{Binding OffersLayer, Converter={StaticResource BoolVis}}" Margin="0,8,0,0">
             <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Foreground="{StaticResource WarningBrush}" Text="{loc:Str Images.Arrange.NoLayers}"/>

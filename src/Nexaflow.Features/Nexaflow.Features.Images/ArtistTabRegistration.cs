@@ -69,11 +69,8 @@ public sealed class ArtistTabRegistration : IPageRegistration
         var draft = path is not null && pageParams?.TryGetValue(DraftFile.PageParameterName, out var offered) == true
             ? (Path: path, Offered: offered is { Length: > 0 } ? offered : null)
             : ((string Path, string? Offered)?)null;
-        var page = new Page
-        {
-            Title = TitleOf(path),
-            Icon  = "🎨",
-        };
+        var page = new Page { Icon = "🎨" };
+        NameAfter(page, path, isDraft: draft is not null);
         page.ContentFactory = () =>
         {
             ArtistViewModel? artist = null;
@@ -86,21 +83,23 @@ public sealed class ArtistTabRegistration : IPageRegistration
             artist.PictureReplaced += shown => Follow(page, shown);
             return new ArtistView(artist);
         };
-        SetBreadcrumbs(page, path);
         return page;
     }
 
-    /// <summary>The picture by its name; none, Artist.</summary>
-    private static string TitleOf(string? path) => path is null ? Str.Get("Images.Artist.Title") : Path.GetFileName(path);
-
-    private static void SetBreadcrumbs(Page page, string? path) =>
-        page.SetFileBreadcrumbs(path ?? string.Empty, path is null ? Str.Get("Images.Artist.Title") : Path.GetFileName(path));
+    /// <summary>
+    /// Titles the page and its breadcrumbs for what it edits: a picture by its name and where it lives; a draft — made for the user,
+    /// kept in a temporary folder until saved — as a new picture, with no folder to point at; nothing yet, Artist.
+    /// </summary>
+    private static void NameAfter(Page page, string? path, bool isDraft)
+    {
+        page.Title = isDraft ? Str.Get("Images.Start.Title") : path is null ? Str.Get("Images.Artist.Title") : Path.GetFileName(path);
+        page.SetFileBreadcrumbs(isDraft ? string.Empty : path ?? string.Empty, page.Title);
+    }
 
     /// <summary>The page follows what its start screen opened: titled and found by it, and opened on it again.</summary>
     private static void Follow(Page page, ArtistPicture shown)
     {
-        page.Title = TitleOf(shown.Path);
-        SetBreadcrumbs(page, shown.Path);
+        NameAfter(page, shown.Path, shown.IsDraft);
         var pageParams = new Dictionary<string, string> { ["path"] = shown.Path };
         if (shown.IsDraft) pageParams[DraftFile.PageParameterName] = shown.DraftFolder ?? string.Empty;
         page.PageParams = pageParams;

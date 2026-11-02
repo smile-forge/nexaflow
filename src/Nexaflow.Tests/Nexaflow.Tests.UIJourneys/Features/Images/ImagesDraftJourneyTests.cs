@@ -29,11 +29,13 @@ public class ImagesDraftJourneyTests : UiJourneyTestBase
         ["draft"] = Path.GetDirectoryName(Sample)!,
     };
 
+    /// <summary>Artist's Save asks where a draft goes, so the strip over it only says it is not saved.</summary>
     [TestMethod]
-    public void ADraft_ShowsItsSaveAs()
+    public void ADraft_SaysItIsNotSaved_AndSaveAsksWhere()
     {
         Check("The draft opens in Artist", () => WaitForId("ArtistView", 15) is not null);
-        CheckPresent("The draft's Save as", "Draft_SaveAs");
+        CheckPresent("The draft says it is not saved", "Draft_Banner");
+        Check("The strip has no Save as of its own: Save is it", () => WaitForId("Image_EditSave", 5) is not null && FindInAppWindows("Draft_SaveAs") is null);
 
         AssertJourney();
     }

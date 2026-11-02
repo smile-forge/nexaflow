@@ -17,7 +17,7 @@
             </ResourceDictionary.MergedDictionaries>
             <BooleanToVisibilityConverter x:Key="BoolToVis"/>
             <cv:EnumToBoolConverter x:Key="EnumToBool"/>
-            <cv:NullToCollapsedConverter x:Key="NullToCollapsed"/>
+            <cv:NullToVisibilityConverter x:Key="NullToCollapsed"/>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -41,7 +41,7 @@
         <Grid x:Name="CanvasHost" Grid.Column="0" ClipToBounds="True" SizeChanged="CanvasHost_SizeChanged"
               AllowDrop="True" DragOver="CanvasHost_DragOver" Drop="CanvasHost_Drop">
             <vcl:PanZoomSurface x:Name="Surface" Background="{StaticResource BgBrush}" AutomationProperties.AutomationId="Image_EditCanvas"
-                                ZoomOnPlainWheel="True" MinScale="0.1" MaxScale="8"/>
+                                ZoomOnPlainWheel="True" MinScale="0.1"/>
             <TextBlock Text="{loc:Str Images.LoadFailed}" Foreground="{StaticResource TextMutedBrush}"
                        HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
                        Visibility="{Binding Stage.LoadFailed, Converter={StaticResource BoolToVis}}"/>
@@ -51,7 +51,7 @@
         <Border Grid.Column="1" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0">
             <DockPanel>
                 <!-- The tools, in the order a picture is usually worked on: framed, corrected, cleaned up, picked apart, annotated, sized. -->
-                <UniformGrid DockPanel.Dock="Top" Columns="3" Margin="9,9,9,0">
+                <UniformGrid DockPanel.Dock="Top" Columns="4" Margin="8,8,8,2">
                     <RadioButton GroupName="EditTool" Style="{StaticResource EditToolTileStyle}"
                                  ToolTip="{loc:Str Images.Edit.Tool.CropTip}" AutomationProperties.AutomationId="Image_EditToolCrop" AutomationProperties.Name="{loc:Str Images.Edit.Tool.Crop}"
                                  IsChecked="{Binding Editor.Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Crop}">
@@ -124,30 +124,35 @@
 
                         <!-- ── Crop & rotate ── -->
                         <StackPanel Visibility="{Binding Editor.IsCropTool, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Style="{StaticResource EditPanelTitle}" Text="{loc:Str Images.Edit.Tool.Crop}"/>
-                            <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Edit.Tool.CropTip}"/>
                             <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Crop.RotateHeader}"/>
                             <StackPanel Orientation="Horizontal">
-                                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Stage.RotateLeftCommand}" Margin="0,0,6,0"
-                                        ToolTip="{loc:Str Images.Tools.RotateLeft}" AutomationProperties.AutomationId="Image_EditRotateLeft">
-                                    <TextBlock Text="⟲" FontSize="14"/>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Stage.RotateLeftCommand}" Margin="0,0,4,0"
+                                        ToolTip="{loc:Str Images.Tools.RotateLeft}" AutomationProperties.AutomationId="Image_EditRotateLeft" AutomationProperties.Name="{loc:Str Images.Tools.RotateLeft}">
+                                    <icons:IconGlyph Icon="fluent:arrow_rotate_counterclockwise" FontSize="15"/>
                                 </Button>
-                                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Stage.RotateRightCommand}" Margin="0,0,6,0"
-                                        ToolTip="{loc:Str Images.Tools.RotateRight}" AutomationProperties.AutomationId="Image_EditRotateRight">
-                                    <TextBlock Text="⟳" FontSize="14"/>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Stage.RotateRightCommand}" Margin="0,0,4,0"
+                                        ToolTip="{loc:Str Images.Tools.RotateRight}" AutomationProperties.AutomationId="Image_EditRotateRight" AutomationProperties.Name="{loc:Str Images.Tools.RotateRight}">
+                                    <icons:IconGlyph Icon="fluent:arrow_rotate_clockwise" FontSize="15"/>
                                 </Button>
-                                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Stage.FlipHorizontalCommand}" Margin="0,0,6,0"
-                                        ToolTip="{loc:Str Images.Tools.FlipHorizontal}" AutomationProperties.AutomationId="Image_EditFlipHorizontal">
-                                    <TextBlock Text="⇆" FontSize="14"/>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Stage.FlipHorizontalCommand}" Margin="0,0,4,0"
+                                        ToolTip="{loc:Str Images.Tools.FlipHorizontal}" AutomationProperties.AutomationId="Image_EditFlipHorizontal" AutomationProperties.Name="{loc:Str Images.Tools.FlipHorizontal}">
+                                    <icons:IconGlyph Icon="fluent:flip_horizontal" FontSize="15"/>
                                 </Button>
                                 <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Stage.FlipVerticalCommand}"
-                                        ToolTip="{loc:Str Images.Tools.FlipVertical}" AutomationProperties.AutomationId="Image_EditFlipVertical">
-                                    <TextBlock Text="⇅" FontSize="14"/>
+                                        ToolTip="{loc:Str Images.Tools.FlipVertical}" AutomationProperties.AutomationId="Image_EditFlipVertical" AutomationProperties.Name="{loc:Str Images.Tools.FlipVertical}">
+                                    <icons:IconGlyph Icon="fluent:flip_vertical" FontSize="15"/>
                                 </Button>
                             </StackPanel>
 
                             <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Crop.AspectHeader}"/>
-                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                            <DockPanel>
+                            <ToggleButton DockPanel.Dock="Right" Style="{StaticResource ToolbarToggleStyle}" Margin="6,0,0,0" Padding="6,4"
+                                          IsChecked="{Binding Editor.AspectPortrait, Mode=TwoWay}"
+                                          ToolTip="{loc:Str Images.Edit.Crop.PortraitTip}" AutomationProperties.AutomationId="Image_EditAspectPortrait"
+                                          AutomationProperties.Name="{loc:Str Images.Edit.Crop.Portrait}">
+                                <icons:IconGlyph Icon="fluent:orientation" FontSize="15"/>
+                            </ToggleButton>
+<Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
                                 <UniformGrid Rows="1">
                                     <RadioButton GroupName="Aspect" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditAspectFree"
                                                  ToolTip="{loc:Str Images.Edit.Crop.FreeTip}"
@@ -173,11 +178,7 @@
                                     </RadioButton>
                                 </UniformGrid>
                             </Border>
-                            <ToggleButton Style="{StaticResource ToolbarToggleStyle}" HorizontalAlignment="Left" Margin="0,6,0,0"
-                                          IsChecked="{Binding Editor.AspectPortrait, Mode=TwoWay}"
-                                          ToolTip="{loc:Str Images.Edit.Crop.PortraitTip}" AutomationProperties.AutomationId="Image_EditAspectPortrait">
-                                <TextBlock Text="{loc:Str Images.Edit.Crop.Portrait}" FontSize="11"/>
-                            </ToggleButton>
+                            </DockPanel>
 
                             <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Crop.StraightenHeader}"/>
                             <Grid>
@@ -191,23 +192,22 @@
                                 <TextBlock Grid.Column="1" Style="{StaticResource EditCaption}" TextAlignment="Right"
                                            Text="{Binding Editor.Straighten, StringFormat={}{0:0.0}°}"/>
                             </Grid>
-                            <ToggleButton Style="{StaticResource ToolbarToggleStyle}" HorizontalAlignment="Left" Margin="0,6,0,0"
-                                          IsChecked="{Binding Editor.IsLevelTool, Mode=TwoWay}"
-                                          ToolTip="{loc:Str Images.Edit.Crop.LevelTip}" AutomationProperties.AutomationId="Image_EditLevel">
-                                <TextBlock Text="{loc:Str Images.Edit.Crop.Level}" FontSize="11"/>
-                            </ToggleButton>
-
-                            <Button Style="{StaticResource ToolbarButtonStyle}" HorizontalAlignment="Left" Margin="0,16,0,0"
-                                    Command="{Binding Editor.ResetCropCommand}" AutomationProperties.AutomationId="Image_EditResetCrop">
-                                <TextBlock Text="{loc:Str Images.Edit.Crop.Reset}" FontSize="11"/>
-                            </Button>
-                            <TextBlock Style="{StaticResource EditCaption}" Margin="0,12,0,0" Text="{loc:Str Images.Edit.Crop.Hint}"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <ToggleButton Style="{StaticResource ToolbarToggleStyle}" Margin="0,0,6,0"
+                                              IsChecked="{Binding Editor.IsLevelTool, Mode=TwoWay}"
+                                              ToolTip="{loc:Str Images.Edit.Crop.LevelTip}" AutomationProperties.AutomationId="Image_EditLevel">
+                                    <icons:IconLabel Icon="fluent:ruler" Text="{loc:Str Images.Edit.Crop.Level}" FontSize="11"/>
+                                </ToggleButton>
+                                <Button Style="{StaticResource ToolbarButtonStyle}"
+                                        Command="{Binding Editor.ResetCropCommand}" ToolTip="{loc:Str Images.Edit.Crop.ResetTip}" AutomationProperties.AutomationId="Image_EditResetCrop">
+                                    <icons:IconLabel Icon="fluent:arrow_reset" Text="{loc:Str Images.Edit.Crop.Reset}" FontSize="11"/>
+                                </Button>
+                            </StackPanel>
                         </StackPanel>
 
                         <!-- ── Adjust ── -->
                         <StackPanel Visibility="{Binding Editor.IsAdjustTool, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Style="{StaticResource EditPanelTitle}" Text="{loc:Str Images.Edit.Tool.Adjust}"/>
-                            <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Edit.Tool.AdjustTip}"/>
+
 
                             <!-- Quick fix: one press, every slider still free after it. -->
                             <StackPanel Style="{StaticResource EditGroupHeaderRow}">
@@ -283,34 +283,33 @@
 
                         <!-- ── Markup ── -->
                         <StackPanel Visibility="{Binding Editor.IsMarkupTool, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Style="{StaticResource EditPanelTitle}" Text="{loc:Str Images.Edit.Tool.Markup}"/>
-                            <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Edit.Tool.MarkupTip}"/>
+
                             <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Markup.ToolHeader}"/>
                             <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
-                                <UniformGrid Rows="2">
-                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupSelect"
+                                <UniformGrid Rows="1">
+                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupSelect" ToolTip="{loc:Str Images.Edit.Markup.Select}" AutomationProperties.Name="{loc:Str Images.Edit.Markup.Select}"
                                                  IsChecked="{Binding Editor.MarkupTool, Converter={StaticResource EnumToBool}, ConverterParameter=Select}">
-                                        <TextBlock Text="{loc:Str Images.Edit.Markup.Select}" FontSize="11"/>
+                                    <icons:IconGlyph Icon="fluent:cursor" FontSize="15"/>
                                     </RadioButton>
-                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupArrow"
+                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupArrow" ToolTip="{loc:Str Images.Edit.Markup.Arrow}" AutomationProperties.Name="{loc:Str Images.Edit.Markup.Arrow}"
                                                  IsChecked="{Binding Editor.MarkupTool, Converter={StaticResource EnumToBool}, ConverterParameter=Arrow}">
-                                        <TextBlock Text="{loc:Str Images.Edit.Markup.Arrow}" FontSize="11"/>
+                                    <icons:IconGlyph Icon="fluent:arrow_up_right" FontSize="15"/>
                                     </RadioButton>
-                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupBox"
+                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupBox" ToolTip="{loc:Str Images.Edit.Markup.Box}" AutomationProperties.Name="{loc:Str Images.Edit.Markup.Box}"
                                                  IsChecked="{Binding Editor.MarkupTool, Converter={StaticResource EnumToBool}, ConverterParameter=Box}">
-                                        <TextBlock Text="{loc:Str Images.Edit.Markup.Box}" FontSize="11"/>
+                                    <icons:IconGlyph Icon="fluent:square" FontSize="15"/>
                                     </RadioButton>
-                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupText"
+                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupText" ToolTip="{loc:Str Images.Edit.Markup.Text}" AutomationProperties.Name="{loc:Str Images.Edit.Markup.Text}"
                                                  IsChecked="{Binding Editor.MarkupTool, Converter={StaticResource EnumToBool}, ConverterParameter=Text}">
-                                        <TextBlock Text="{loc:Str Images.Edit.Markup.Text}" FontSize="11"/>
+                                    <icons:IconGlyph Icon="fluent:text_t" FontSize="15"/>
                                     </RadioButton>
-                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupPen"
+                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupPen" ToolTip="{loc:Str Images.Edit.Markup.Pen}" AutomationProperties.Name="{loc:Str Images.Edit.Markup.Pen}"
                                                  IsChecked="{Binding Editor.MarkupTool, Converter={StaticResource EnumToBool}, ConverterParameter=Pen}">
-                                        <TextBlock Text="{loc:Str Images.Edit.Markup.Pen}" FontSize="11"/>
+                                    <icons:IconGlyph Icon="fluent:pen" FontSize="15"/>
                                     </RadioButton>
-                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupHighlighter"
+                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupHighlighter" ToolTip="{loc:Str Images.Edit.Markup.Highlighter}" AutomationProperties.Name="{loc:Str Images.Edit.Markup.Highlighter}"
                                                  IsChecked="{Binding Editor.MarkupTool, Converter={StaticResource EnumToBool}, ConverterParameter=Highlighter}">
-                                        <TextBlock Text="{loc:Str Images.Edit.Markup.Highlighter}" FontSize="11"/>
+                                    <icons:IconGlyph Icon="fluent:highlight" FontSize="15"/>
                                     </RadioButton>
                                 </UniformGrid>
                             </Border>
@@ -319,7 +318,7 @@
                             <StackPanel Visibility="{Binding Editor.IsTextSelected, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Markup.TextHeader}"/>
                                 <TextBox x:Name="MarkupTextBox" AcceptsReturn="True" MinHeight="48" TextWrapping="Wrap"
-                                         Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                         Style="{StaticResource DarkTextBox}" Padding="8,5" FontSize="12"
                                          Text="{Binding Editor.SelectedText, UpdateSourceTrigger=PropertyChanged}"
                                          LostKeyboardFocus="MarkupTextBox_LostKeyboardFocus"
                                          AutomationProperties.AutomationId="Image_EditMarkupTextBox"/>
@@ -355,7 +354,7 @@
                                     <TextBlock Text="{loc:Str Images.Edit.Markup.Clear}" FontSize="11"/>
                                 </Button>
                             </StackPanel>
-                            <TextBlock Style="{StaticResource EditCaption}" Margin="0,12,0,0" Text="{loc:Str Images.Edit.Markup.Hint}"/>
+
                         </StackPanel>
 
                         <!-- ── Resize ── -->
@@ -370,8 +369,7 @@
                         </StackPanel>
 
                         <StackPanel Visibility="{Binding Editor.IsResizeTool, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Style="{StaticResource EditPanelTitle}" Text="{loc:Str Images.Edit.Tool.Resize}"/>
-                            <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Edit.Tool.ResizeTip}"/>
+
                             <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Resize.Header}"/>
                             <StackPanel Orientation="Horizontal">
                                 <RadioButton GroupName="ResizeBy" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EditResizePercent"
@@ -416,15 +414,15 @@
                                         <TextBlock Text="{loc:Str Images.Edit.Restore.UpscaleOff}" FontSize="11"/>
                                     </RadioButton>
                                     <RadioButton GroupName="Upscale" Style="{StaticResource SegRadioStyle}" IsChecked="{Binding Editor.UpscaleTwice, Mode=TwoWay}"
-                                                 IsEnabled="{Binding Editor.UpscaleTwiceOffered}" AutomationProperties.AutomationId="Image_EditUpscaleTwice" ToolTipService.ShowOnDisabled="True" ToolTip="{Binding Editor.RestoringModels.DisabledReason}">
+                                                 IsEnabled="{Binding Editor.UpscaleTwiceOffered}" AutomationProperties.AutomationId="Image_EditUpscaleTwice" ToolTipService.ShowOnDisabled="True" ToolTip="{Binding Editor.RestoringModels.DisabledReason, TargetNullValue={loc:Str Images.Edit.Restore.UpscaleNote}}">
                                         <TextBlock Text="{loc:Str Images.Edit.Restore.Twice}" FontSize="11"/>
                                     </RadioButton>
                                     <RadioButton GroupName="Upscale" Style="{StaticResource SegRadioStyle}" IsChecked="{Binding Editor.UpscaleFourTimes, Mode=TwoWay}"
-                                                 IsEnabled="{Binding Editor.UpscaleFourTimesOffered}" AutomationProperties.AutomationId="Image_EditUpscaleFourTimes" ToolTipService.ShowOnDisabled="True" ToolTip="{Binding Editor.RestoringModels.DisabledReason}">
+                                                 IsEnabled="{Binding Editor.UpscaleFourTimesOffered}" AutomationProperties.AutomationId="Image_EditUpscaleFourTimes" ToolTipService.ShowOnDisabled="True" ToolTip="{Binding Editor.RestoringModels.DisabledReason, TargetNullValue={loc:Str Images.Edit.Restore.UpscaleNote}}">
                                         <TextBlock Text="{loc:Str Images.Edit.Restore.FourTimes}" FontSize="11"/>
                                     </RadioButton>
                                 </StackPanel>
-                                <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Margin="0,6,0,0" Text="{loc:Str Images.Edit.Restore.UpscaleNote}"/>
+
                             </StackPanel>
 
                             <TextBlock Style="{StaticResource EditCaption}" Margin="0,12,0,0" FontSize="12" Text="{Binding Editor.OutputSizeText}"/>
@@ -436,8 +434,7 @@
 
                         <!-- ── Cut out ── -->
                         <StackPanel Visibility="{Binding Editor.IsCutOutTool, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Style="{StaticResource EditPanelTitle}" Text="{loc:Str Images.Edit.Tool.CutOut}"/>
-                            <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Edit.Tool.CutOutTip}"/>
+
                             <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.CutOut.Mark}"/>
                             <UniformGrid Rows="1">
                                 <RadioButton GroupName="CutOutMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_CutOutMarkPick"
@@ -467,8 +464,7 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBox Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"
-                                             VerticalContentAlignment="Center" Padding="4,3"
+                                    <TextBox Style="{StaticResource FieldBox}"
                                              Text="{Binding Editor.Cutter.Phrase, UpdateSourceTrigger=PropertyChanged}"
                                              AutomationProperties.AutomationId="Image_CutOutPhrase" AutomationProperties.Name="{loc:Str Images.CutOut.Phrase}" IsEnabled="{Binding Editor.PickingModels.IsReady}" ToolTipService.ShowOnDisabled="True" ToolTip="{Binding Editor.PickingModels.DisabledReason}">
                                         <TextBox.InputBindings>
@@ -495,8 +491,7 @@
 
                         <!-- ── Retouch: what is rubbed out of the picture, and what fills where it was ── -->
                         <StackPanel Visibility="{Binding Editor.IsRetouchTool, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Style="{StaticResource EditPanelTitle}" Text="{loc:Str Images.Edit.Tool.Retouch}"/>
-                            <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Edit.Tool.RetouchTip}"/>
+
                             <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Erase.Mark}"/>
                             <UniformGrid Rows="1">
                                 <RadioButton GroupName="EraseMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkPick"
@@ -530,8 +525,7 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBox Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"
-                                             VerticalContentAlignment="Center" Padding="4,3"
+                                    <TextBox Style="{StaticResource FieldBox}"
                                              Text="{Binding Editor.Cutter.Phrase, UpdateSourceTrigger=PropertyChanged}"
                                              AutomationProperties.AutomationId="Image_ErasePhrase" AutomationProperties.Name="{loc:Str Images.CutOut.Phrase}">
                                         <TextBox.InputBindings>
@@ -559,7 +553,7 @@
                                 <Slider Minimum="4" Maximum="400" SmallChange="1" LargeChange="10" Margin="0,4,0,0"
                                         Value="{Binding Editor.EraseMarks.BrushSize, Mode=TwoWay}"
                                         AutomationProperties.AutomationId="Image_EraseBrushSize" AutomationProperties.Name="{loc:Str Images.Erase.BrushSize}"/>
-                                <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Margin="0,6,0,0" Text="{loc:Str Images.Erase.BrushHint}"/>
+
                             </StackPanel>
                         </StackPanel>
 

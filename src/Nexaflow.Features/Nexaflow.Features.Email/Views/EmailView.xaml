@@ -12,7 +12,7 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <conv:InverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
-        <conv:NullToCollapsedConverter x:Key="NullToCollapsed"/>
+        <conv:NullToVisibilityConverter x:Key="NullToCollapsed"/>
 
         <!-- Muted caption for the envelope field labels -->
         <Style x:Key="FieldLabel" TargetType="TextBlock">

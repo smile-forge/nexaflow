@@ -16,76 +16,138 @@
                 <ResourceDictionary Source="ImageViewStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
             <BooleanToVisibilityConverter x:Key="BoolToVis"/>
-            <cv:NullToCollapsedConverter x:Key="NullToCollapsed"/>
+            <cv:NullToVisibilityConverter x:Key="NullToCollapsed"/>
             <cv:EnumToBoolConverter x:Key="EnumToBool"/>
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <DockPanel Margin="10,9,10,10">
-        <TextBlock DockPanel.Dock="Top" Style="{StaticResource EditPanelTitle}" Text="{loc:Str Images.Layers.Title}"/>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Margin="10,6,10,10">
+        <!-- The heading, and what adds, groups, copies, removes and reorders layers — one row of icons, each named by its tooltip. -->
+        <DockPanel Margin="0,4,0,6">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Style="{StaticResource FloatingToolButtonStyle}" Padding="5" Command="{Binding AddPixelLayerCommand}"
+                        ToolTip="{loc:Str Images.Layers.AddPixelTip}" AutomationProperties.AutomationId="Image_LayersAddPixel" AutomationProperties.Name="{loc:Str Images.Layers.AddPixel}">
+                    <icons:IconGlyph Icon="fluent:layer_diagonal_add" FontSize="15"/>
+                </Button>
+                <Button Style="{StaticResource FloatingToolButtonStyle}" Padding="5" Command="{Binding AddMarkupLayerCommand}"
+                        ToolTip="{loc:Str Images.Layers.AddMarkupTip}" AutomationProperties.AutomationId="Image_LayersAddMarkup" AutomationProperties.Name="{loc:Str Images.Layers.AddMarkup}">
+                    <icons:IconGlyph Icon="fluent:note_add" FontSize="15"/>
+                </Button>
+                <Button Style="{StaticResource FloatingToolButtonStyle}" Padding="5" Command="{Binding GroupCommand}"
+                        ToolTip="{loc:Str Images.Layers.GroupTip}" AutomationProperties.AutomationId="Image_LayersGroup" AutomationProperties.Name="{loc:Str Images.Layers.Group}">
+                    <icons:IconGlyph Icon="fluent:group" FontSize="15"/>
+                </Button>
+                <Button Style="{StaticResource FloatingToolButtonStyle}" Padding="5" Command="{Binding DuplicateCommand}"
+                        ToolTip="{loc:Str Images.Layers.DuplicateTip}" AutomationProperties.AutomationId="Image_LayersDuplicate" AutomationProperties.Name="{loc:Str Images.Layers.Duplicate}">
+                    <icons:IconGlyph Icon="fluent:copy_add" FontSize="15"/>
+                </Button>
+                <Button Style="{StaticResource FloatingToolButtonStyle}" Padding="5" Command="{Binding MoveUpCommand}"
+                        ToolTip="{loc:Str Images.Layers.MoveUpTip}" AutomationProperties.AutomationId="Image_LayersMoveUp" AutomationProperties.Name="{loc:Str Images.Layers.MoveUpTip}">
+                    <icons:IconGlyph Icon="fluent:arrow_up" FontSize="15"/>
+                </Button>
+                <Button Style="{StaticResource FloatingToolButtonStyle}" Padding="5" Command="{Binding MoveDownCommand}"
+                        ToolTip="{loc:Str Images.Layers.MoveDownTip}" AutomationProperties.AutomationId="Image_LayersMoveDown" AutomationProperties.Name="{loc:Str Images.Layers.MoveDownTip}">
+                    <icons:IconGlyph Icon="fluent:arrow_down" FontSize="15"/>
+                </Button>
+                <Button Style="{StaticResource FloatingToolButtonStyle}" Padding="5" Command="{Binding DeleteCommand}"
+                        ToolTip="{loc:Str Images.Layers.DeleteTip}" AutomationProperties.AutomationId="Image_LayersDelete" AutomationProperties.Name="{loc:Str Images.Layers.Delete}">
+                    <icons:IconGlyph Icon="fluent:delete" FontSize="15"/>
+                </Button>
+            </StackPanel>
+            <TextBlock Style="{StaticResource EditSectionHeader}" Margin="0" VerticalAlignment="Center" Text="{loc:Str Images.Layers.Title}"/>
+        </DockPanel>
 
-        <!-- Adding, grouping, copying, removing and moving layers. -->
-        <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,6">
-            <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding AddPixelLayerCommand}"
-                    ToolTip="{loc:Str Images.Layers.AddPixelTip}" AutomationProperties.AutomationId="Image_LayersAddPixel">
-                <icons:IconLabel Icon="fluent:layer_diagonal_add" Text="{loc:Str Images.Layers.AddPixel}" FontSize="11"/>
-            </Button>
-            <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding AddMarkupLayerCommand}"
-                    ToolTip="{loc:Str Images.Layers.AddMarkupTip}" AutomationProperties.AutomationId="Image_LayersAddMarkup">
-                <icons:IconLabel Icon="fluent:note_add" Text="{loc:Str Images.Layers.AddMarkup}" FontSize="11"/>
-            </Button>
-            <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding GroupCommand}"
-                    ToolTip="{loc:Str Images.Layers.GroupTip}" AutomationProperties.AutomationId="Image_LayersGroup">
-                <icons:IconLabel Icon="fluent:group" Text="{loc:Str Images.Layers.Group}" FontSize="11"/>
-            </Button>
-            <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding DuplicateCommand}"
-                    ToolTip="{loc:Str Images.Layers.DuplicateTip}" AutomationProperties.AutomationId="Image_LayersDuplicate" AutomationProperties.Name="{loc:Str Images.Layers.Duplicate}">
-                <icons:IconLabel Icon="fluent:copy_add" FontSize="11"/>
-            </Button>
-            <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding DeleteCommand}"
-                    ToolTip="{loc:Str Images.Layers.DeleteTip}" AutomationProperties.AutomationId="Image_LayersDelete" AutomationProperties.Name="{loc:Str Images.Layers.Delete}">
-                <icons:IconLabel Icon="fluent:delete" FontSize="11"/>
-            </Button>
-            <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding MoveUpCommand}"
-                    ToolTip="{loc:Str Images.Layers.MoveUpTip}" AutomationProperties.AutomationId="Image_LayersMoveUp"
-                    AutomationProperties.Name="{loc:Str Images.Layers.MoveUpTip}">
-                <icons:IconLabel Icon="fluent:arrow_up"/>
-            </Button>
-            <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding MoveDownCommand}"
-                    ToolTip="{loc:Str Images.Layers.MoveDownTip}" AutomationProperties.AutomationId="Image_LayersMoveDown"
-                    AutomationProperties.Name="{loc:Str Images.Layers.MoveDownTip}">
-                <icons:IconLabel Icon="fluent:arrow_down"/>
-            </Button>
-        </WrapPanel>
+        <!-- The layers, top first: drag one onto another to move it — onto a group's middle to put it inside. It scrolls on its
+             own, so it keeps its room however much is open beneath it. -->
+        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="2">
+        <ListBox x:Name="LayerList" ItemsSource="{Binding Items}" Background="Transparent" BorderThickness="0" MinHeight="72" MaxHeight="280"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled" AllowDrop="True"
+                 AutomationProperties.AutomationId="Image_LayersList" AutomationProperties.Name="{loc:Str Images.Layers.Title}"
+                 PreviewMouseLeftButtonDown="List_PreviewMouseLeftButtonDown" PreviewMouseMove="List_PreviewMouseMove" Drop="List_Drop">
+            <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem">
+                    <Setter Property="Padding" Value="0"/>
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                    <Setter Property="AutomationProperties.Name" Value="{Binding Name}"/>
+                </Style>
+            </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:LayerItem}">
+                    <Border x:Name="Row" Padding="2,3" CornerRadius="4" Background="Transparent">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Left" Width="{Binding Indent}"/>
+                            <CheckBox DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,4,0" Style="{StaticResource LayerVisibilityToggle}"
+                                      IsChecked="{Binding Visible, Mode=OneWay}" Command="{Binding DataContext.ToggleVisibleCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                      CommandParameter="{Binding}" ToolTip="{loc:Str Images.Layers.VisibleTip}" AutomationProperties.AutomationId="Image_LayersVisible"
+                                      AutomationProperties.Name="{loc:Str Images.Layers.VisibleTip}"/>
+                            <Button DockPanel.Dock="Left" Click="Thumbnail_Click" Style="{StaticResource ThumbnailButtonStyle}" Margin="0,0,3,0" ToolTip="{loc:Str Images.Layers.ThumbnailTip}" AutomationProperties.AutomationId="Image_LayersThumbnail"
+                                    AutomationProperties.Name="{Binding Name}" Background="{StaticResource SwatchChecker}">
+                                <Image Source="{Binding Thumbnail}" Width="36" Height="28" Stretch="Uniform"/>
+                            </Button>
+                            <Button DockPanel.Dock="Left" Click="MaskThumbnail_Click" Style="{StaticResource ThumbnailButtonStyle}" Margin="0,0,4,0" ToolTip="{loc:Str Images.Layers.MaskThumbnailTip}" AutomationProperties.AutomationId="Image_LayersMaskThumbnail"
+                                    AutomationProperties.Name="{loc:Str Images.Layers.Mask}" Visibility="{Binding HasMask, Converter={StaticResource BoolToVis}}">
+                                <Grid>
+                                    <Image Source="{Binding MaskThumbnail}" Width="28" Height="28" Stretch="Uniform"/>
+                                    <Border BorderBrush="{StaticResource AccentBrush}" BorderThickness="2" Visibility="{Binding IsMaskActive, Converter={StaticResource BoolToVis}}"/>
+                                </Grid>
+                            </Button>
+                            <icons:IconGlyph DockPanel.Dock="Right" Icon="fluent:lock_closed" FontSize="11" VerticalAlignment="Center" Margin="4,0,2,0"
+                                             Foreground="{StaticResource TextMutedBrush}" Visibility="{Binding Locked, Converter={StaticResource BoolToVis}}"/>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding Detail}" Foreground="{StaticResource TextMutedBrush}" FontSize="10" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                    <DataTemplate.Triggers>
+                        <DataTrigger Binding="{Binding IsActive}" Value="True">
+                            <Setter TargetName="Row" Property="Background" Value="{StaticResource Surface2Brush}"/>
+                        </DataTrigger>
+                    </DataTemplate.Triggers>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+        </Border>
 
-        <!-- The active layer's settings. -->
-        <StackPanel DockPanel.Dock="Top" Visibility="{Binding HasActive, Converter={StaticResource BoolToVis}}">
-            <TextBox Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}" Padding="4,3"
-                     Text="{Binding ActiveName, UpdateSourceTrigger=LostFocus}" AutomationProperties.AutomationId="Image_LayersName"
-                     AutomationProperties.Name="{loc:Str Images.Layers.Name}"/>
-            <DockPanel Margin="0,6,0,0">
+        <!-- The active layer's own settings, under the list they belong to: its name, how much and how it shows, and what
+             is held fixed in it — the last as icon toggles, named by their tooltips. -->
+        <StackPanel Margin="0,8,0,0" Visibility="{Binding HasActive, Converter={StaticResource BoolToVis}}">
+            <TextBox Style="{StaticResource FieldBox}" Text="{Binding ActiveName, UpdateSourceTrigger=LostFocus}" AutomationProperties.AutomationId="Image_LayersName"
+                     AutomationProperties.Name="{loc:Str Images.Layers.Name}" ToolTip="{loc:Str Images.Layers.Name}"/>
+            <DockPanel Margin="0,8,0,0">
                 <TextBlock DockPanel.Dock="Right" Style="{StaticResource EditCaption}" Text="{Binding Opacity, StringFormat={}{0:0}%}"/>
                 <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Layers.Opacity}"/>
             </DockPanel>
             <Slider Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Opacity, Mode=TwoWay}"
                     AutomationProperties.AutomationId="Image_LayersOpacity" AutomationProperties.Name="{loc:Str Images.Layers.Opacity}"/>
-            <ComboBox Margin="0,6,0,0" ItemsSource="{Binding BlendChoices}" SelectedItem="{Binding Blend, Mode=TwoWay}" DisplayMemberPath="Label"
-                      AutomationProperties.AutomationId="Image_LayersBlend" AutomationProperties.Name="{loc:Str Images.Layers.Blend}"/>
-            <WrapPanel Margin="0,6,0,0">
-                <CheckBox Margin="0,0,10,4" IsChecked="{Binding ActiveClips, Mode=TwoWay}" ToolTip="{loc:Str Images.Layers.ClipTip}"
-                          AutomationProperties.AutomationId="Image_LayersClip" Content="{loc:Str Images.Layers.Clip}" Foreground="{StaticResource TextBrush}"/>
-                <CheckBox Margin="0,0,10,4" IsChecked="{Binding ActiveAlphaLocked, Mode=TwoWay}" ToolTip="{loc:Str Images.Layers.AlphaLockTip}"
-                          AutomationProperties.AutomationId="Image_LayersAlphaLock" Content="{loc:Str Images.Layers.AlphaLock}" Foreground="{StaticResource TextBrush}"/>
-                <CheckBox Margin="0,0,10,4" IsChecked="{Binding ActiveLocked, Mode=TwoWay}" ToolTip="{loc:Str Images.Layers.LockTip}"
-                          AutomationProperties.AutomationId="Image_LayersLock" Content="{loc:Str Images.Layers.Lock}" Foreground="{StaticResource TextBrush}"/>
-                <CheckBox Margin="0,0,10,4" IsChecked="{Binding ActiveIsolated, Mode=TwoWay}" ToolTip="{loc:Str Images.Layers.IsolatedTip}"
-                          Visibility="{Binding ActiveIsGroup, Converter={StaticResource BoolToVis}}"
-                          AutomationProperties.AutomationId="Image_LayersIsolated" Content="{loc:Str Images.Layers.Isolated}" Foreground="{StaticResource TextBrush}"/>
-            </WrapPanel>
+            <DockPanel Margin="0,6,0,0">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="6,0,0,0">
+                    <ToggleButton Style="{StaticResource ToolbarToggleStyle}" Padding="6,4" Margin="0,0,3,0" IsChecked="{Binding ActiveClips, Mode=TwoWay}" ToolTip="{loc:Str Images.Layers.ClipTip}"
+                                  AutomationProperties.AutomationId="Image_LayersClip" AutomationProperties.Name="{loc:Str Images.Layers.Clip}">
+                        <icons:IconGlyph Icon="fluent:link" FontSize="14"/>
+                    </ToggleButton>
+                    <ToggleButton Style="{StaticResource ToolbarToggleStyle}" Padding="6,4" Margin="0,0,3,0" IsChecked="{Binding ActiveAlphaLocked, Mode=TwoWay}" ToolTip="{loc:Str Images.Layers.AlphaLockTip}"
+                                  AutomationProperties.AutomationId="Image_LayersAlphaLock" AutomationProperties.Name="{loc:Str Images.Layers.AlphaLock}">
+                        <icons:IconGlyph Icon="fluent:transparency_square" FontSize="14"/>
+                    </ToggleButton>
+                    <ToggleButton Style="{StaticResource ToolbarToggleStyle}" Padding="6,4" Margin="0,0,3,0" IsChecked="{Binding ActiveLocked, Mode=TwoWay}" ToolTip="{loc:Str Images.Layers.LockTip}"
+                                  AutomationProperties.AutomationId="Image_LayersLock" AutomationProperties.Name="{loc:Str Images.Layers.Lock}">
+                        <icons:IconGlyph Icon="fluent:lock_closed" FontSize="14"/>
+                    </ToggleButton>
+                    <ToggleButton Style="{StaticResource ToolbarToggleStyle}" Padding="6,4" IsChecked="{Binding ActiveIsolated, Mode=TwoWay}" ToolTip="{loc:Str Images.Layers.IsolatedTip}"
+                                  Visibility="{Binding ActiveIsGroup, Converter={StaticResource BoolToVis}}"
+                                  AutomationProperties.AutomationId="Image_LayersIsolated" AutomationProperties.Name="{loc:Str Images.Layers.Isolated}">
+                        <icons:IconGlyph Icon="fluent:layer_diagonal" FontSize="14"/>
+                    </ToggleButton>
+                </StackPanel>
+                <ComboBox ItemsSource="{Binding BlendChoices}" SelectedItem="{Binding Blend, Mode=TwoWay}" DisplayMemberPath="Label" Height="28"
+                          ToolTip="{loc:Str Images.Layers.Blend}" AutomationProperties.AutomationId="Image_LayersBlend" AutomationProperties.Name="{loc:Str Images.Layers.Blend}"/>
+            </DockPanel>
         </StackPanel>
 
-        <!-- Masks, pixels, the canvas and what a selection does: beneath the list, folded until wanted. -->
-        <StackPanel DockPanel.Dock="Bottom">
+        <!-- Masks, pixels, the canvas and what a selection does: beneath the layer's settings, folded until wanted. -->
+        <StackPanel Margin="0,10,0,0">
             <Expander Header="{loc:Str Images.Layers.Mask}" Foreground="{StaticResource TextBrush}" Margin="0,6,0,0" AutomationProperties.AutomationId="Image_LayersMaskSection">
                 <WrapPanel Margin="0,6,0,0">
                     <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding RevealAllMaskCommand}" ToolTip="{loc:Str Images.Layers.RevealAllTip}" AutomationProperties.AutomationId="Image_LayersMaskRevealAll"><icons:IconLabel Icon="fluent:eye" Text="{loc:Str Images.Layers.RevealAll}" FontSize="11"/></Button>
@@ -180,54 +242,6 @@
                 </StackPanel>
             </Expander>
         </StackPanel>
-
-        <!-- The layers, top first: drag one onto another to move it — onto a group's middle to put it inside. -->
-        <ListBox x:Name="LayerList" ItemsSource="{Binding Items}" Background="Transparent" BorderThickness="0" Margin="0,6,0,0"
-                 ScrollViewer.HorizontalScrollBarVisibility="Disabled" AllowDrop="True"
-                 AutomationProperties.AutomationId="Image_LayersList" AutomationProperties.Name="{loc:Str Images.Layers.Title}"
-                 PreviewMouseLeftButtonDown="List_PreviewMouseLeftButtonDown" PreviewMouseMove="List_PreviewMouseMove" Drop="List_Drop">
-            <ListBox.ItemContainerStyle>
-                <Style TargetType="ListBoxItem">
-                    <Setter Property="Padding" Value="0"/>
-                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                    <Setter Property="AutomationProperties.Name" Value="{Binding Name}"/>
-                </Style>
-            </ListBox.ItemContainerStyle>
-            <ListBox.ItemTemplate>
-                <DataTemplate DataType="{x:Type vm:LayerItem}">
-                    <Border x:Name="Row" Padding="2,3" CornerRadius="4" Background="Transparent">
-                        <DockPanel>
-                            <Border DockPanel.Dock="Left" Width="{Binding Indent}"/>
-                            <CheckBox DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,4,0" Style="{StaticResource LayerVisibilityToggle}"
-                                      IsChecked="{Binding Visible, Mode=OneWay}" Command="{Binding DataContext.ToggleVisibleCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                      CommandParameter="{Binding}" ToolTip="{loc:Str Images.Layers.VisibleTip}" AutomationProperties.AutomationId="Image_LayersVisible"
-                                      AutomationProperties.Name="{loc:Str Images.Layers.VisibleTip}"/>
-                            <Button DockPanel.Dock="Left" Click="Thumbnail_Click" Style="{StaticResource ThumbnailButtonStyle}" Margin="0,0,3,0" ToolTip="{loc:Str Images.Layers.ThumbnailTip}" AutomationProperties.AutomationId="Image_LayersThumbnail"
-                                    AutomationProperties.Name="{Binding Name}">
-                                <Image Source="{Binding Thumbnail}" Width="36" Height="28" Stretch="Uniform"/>
-                            </Button>
-                            <Button DockPanel.Dock="Left" Click="MaskThumbnail_Click" Style="{StaticResource ThumbnailButtonStyle}" Margin="0,0,4,0" ToolTip="{loc:Str Images.Layers.MaskThumbnailTip}" AutomationProperties.AutomationId="Image_LayersMaskThumbnail"
-                                    AutomationProperties.Name="{loc:Str Images.Layers.Mask}" Visibility="{Binding HasMask, Converter={StaticResource BoolToVis}}">
-                                <Grid>
-                                    <Image Source="{Binding MaskThumbnail}" Width="28" Height="28" Stretch="Uniform"/>
-                                    <Border BorderBrush="{StaticResource AccentBrush}" BorderThickness="2" Visibility="{Binding IsMaskActive, Converter={StaticResource BoolToVis}}"/>
-                                </Grid>
-                            </Button>
-                            <TextBlock DockPanel.Dock="Right" Text="🔒" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"
-                                       Visibility="{Binding Locked, Converter={StaticResource BoolToVis}}"/>
-                            <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis"/>
-                                <TextBlock Text="{Binding Detail}" Foreground="{StaticResource TextMutedBrush}" FontSize="10" TextTrimming="CharacterEllipsis"/>
-                            </StackPanel>
-                        </DockPanel>
-                    </Border>
-                    <DataTemplate.Triggers>
-                        <DataTrigger Binding="{Binding IsActive}" Value="True">
-                            <Setter TargetName="Row" Property="Background" Value="{StaticResource Surface2Brush}"/>
-                        </DataTrigger>
-                    </DataTemplate.Triggers>
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
-    </DockPanel>
+    </StackPanel>
+    </ScrollViewer>
 </UserControl>

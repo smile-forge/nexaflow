@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Shapes;
 using System.Windows.Threading;
 
 namespace Nexaflow.Features.Images.Views;
@@ -24,7 +25,15 @@ public partial class ImageEditView : UserControl
     /// <summary>Room left around the picture when it is fitted.</summary>
     private const double FitMargin = 40;
 
+    /// <summary>The closest the canvas zooms in: sixteen screen pixels to one of the picture's.</summary>
+    private const double MaxZoom = 16;
+
+    /// <summary>The checker's tile on screen, in pixels: each square half of it, whatever the zoom.</summary>
+    private const double CheckerTile = 16;
+
     private readonly Image _picture = new() { Stretch = Stretch.Fill };
+    // What is see-through in the picture shows as a checkerboard beneath it, rather than as the page behind.
+    private readonly Rectangle _checker = new() { IsHitTestVisible = false };
     private readonly EditOverlay _overlay = new();
     private readonly LayerToolsOverlay _layerTools = new();
     private readonly Grid _content = new();
@@ -37,6 +46,8 @@ public partial class ImageEditView : UserControl
     {
         InitializeComponent();
         RenderOptions.SetBitmapScalingMode(_picture, BitmapScalingMode.HighQuality);
+        if (TryFindResource("TransparencyChecker") is DrawingBrush checker) _checker.Fill = checker.Clone();
+        _content.Children.Add(_checker);
         _content.Children.Add(_picture);
         _content.Children.Add(_overlay);
         _content.Children.Add(_layerTools);   // over the chrome, taking the pointer only while Paint or Move is out
@@ -94,6 +105,9 @@ public partial class ImageEditView : UserControl
         _contentFrame = canvas.Frame;
         _content.Width  = canvas.Size.Width;
         _content.Height = canvas.Size.Height;
+        // The picture is laid out at LayoutScale of its own pixels to a screen unit: 1:1 and the readout count its pixels on screen.
+        Surface.NaturalScale = 1 / (canvas.LayoutScale * VisualTreeHelper.GetDpi(this).PixelsPerDip);
+        Surface.MaxScale     = Surface.NaturalScale * MaxZoom;
         if (!sameShape) Surface.SetSurfaceContent(_content, new Size(canvas.Size.Width, canvas.Size.Height));
         _overlay.InvalidateVisual();
     }
@@ -133,6 +147,7 @@ public partial class ImageEditView : UserControl
         double zoom = Surface.View.Scale;
         if (zoom <= 0 || Math.Abs(zoom - _zoom) < 0.001) return;
         _zoom = zoom;
+        if (_checker.Fill is DrawingBrush checker) checker.Viewport = new Rect(0, 0, CheckerTile / zoom, CheckerTile / zoom);
         _overlay.Zoom = zoom;
         _layerTools.Zoom = zoom;
         _viewer?.SetEditZoom(zoom);

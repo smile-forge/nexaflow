@@ -63,6 +63,7 @@
                         <StackPanel Visibility="{Binding OffersGeneration, Converter={StaticResource BoolVis}}">
                             <ContentControl Content="{Binding Generation.View}" Focusable="False"/>
                             <Button Command="{Binding GenerateCommand}" Style="{StaticResource ToolbarPrimaryButtonStyle}" HorizontalAlignment="Left" Margin="0,14,0,0" Padding="16,5"
+                                    Visibility="{Binding Generation.IsReady, Converter={StaticResource BoolVis}}"
                                     ToolTip="{loc:Str Images.Start.GenerateTip}" AutomationProperties.AutomationId="Images_StartGenerate">
                                 <icons:IconLabel Icon="fluent:sparkle" Text="{loc:Str Images.Start.GenerateGo}"/>
                             </Button>

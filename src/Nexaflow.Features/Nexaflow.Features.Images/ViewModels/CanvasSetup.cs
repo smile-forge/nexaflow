@@ -91,7 +91,9 @@ public sealed partial class CanvasSetup : ObservableObject
     }
 
     /// <summary>The unit the width and height are typed in; changing it shows the same size in the new unit.</summary>
-    [ObservableProperty] private CanvasUnitChoice _unit;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SizeNote))]
+    private CanvasUnitChoice _unit;
 
     partial void OnUnitChanged(CanvasUnitChoice? oldValue, CanvasUnitChoice newValue)
     {
@@ -149,12 +151,16 @@ public sealed partial class CanvasSetup : ObservableObject
     /// side — at a resolution.</summary>
     public bool IsValid => Dpi is not null && PixelWidth is >= 1 and <= LayeredPicture.MaxSide && PixelHeight is >= 1 and <= LayeredPicture.MaxSide;
 
-    /// <summary>The size in pixels, or what is wrong with it.</summary>
-    public string SizeNote => Dpi is null ? Str.Get("Images.Canvas.NoDpi") : (PixelWidth, PixelHeight) switch
+    /// <summary>
+    /// What is wrong with the size typed, or — typed in millimetres or inches — the pixels it makes; null where a size typed in
+    /// pixels is fine, which says nothing the fields do not.
+    /// </summary>
+    public string? SizeNote => Dpi is null ? Str.Get("Images.Canvas.NoDpi") : (PixelWidth, PixelHeight) switch
     {
         (null, _) or (_, null)                                              => Str.Get("Images.Canvas.NoSize"),
         ({ } w, { } h) when w > LayeredPicture.MaxSide || h > LayeredPicture.MaxSide => Str.Format("Images.Canvas.TooLargeFormat", LayeredPicture.MaxSide),
         ({ } w, { } h) when w < 1 || h < 1                                   => Str.Get("Images.Canvas.NoSize"),
+        _ when Unit.Unit == CanvasUnit.Pixels                                => null,
         ({ } w, { } h)                                                       => Str.Format("Images.Canvas.PixelsFormat", w, h),
     };
 
@@ -222,6 +228,10 @@ public sealed partial class CanvasSetup : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TakesColour))]
     private CanvasBackgroundKind _background = CanvasBackgroundKind.Transparent;
+
+    /// <summary>The white a White background fills the canvas with, for its swatch to show.</summary>
+    public ColorSpec WhiteSwatch { get; } = ColorSpec.Custom(Color.FromArgb(LayerBackground.White.Colour.Alpha, LayerBackground.White.Colour.Red,
+                                                                            LayerBackground.White.Colour.Green, LayerBackground.White.Colour.Blue));
 
     /// <summary>Whether the background is a colour of its own, which <see cref="BackgroundColour"/> says.</summary>
     public bool TakesColour => Background == CanvasBackgroundKind.Colour;

@@ -16,74 +16,89 @@
             </ResourceDictionary.MergedDictionaries>
             <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
             <cv:EnumToBoolConverter x:Key="EnumToBool"/>
+            <cv:NullToVisibilityConverter x:Key="NullToCollapsed"/>
+            <cv:ColorSpecToBrushConverter x:Key="SpecBrush"/>
             <Style x:Key="OptionLabel" TargetType="TextBlock">
                 <Setter Property="FontSize" Value="11"/>
-                <Setter Property="Margin" Value="0,8,0,4"/>
+                <Setter Property="Margin" Value="0,10,0,4"/>
                 <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
             </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <StackPanel Margin="0,8,0,0">
+    <StackPanel Margin="0,4,0,0">
         <TextBlock Text="{loc:Str Images.Canvas.Size}" Style="{StaticResource OptionLabel}" Margin="0,0,0,4"/>
         <ComboBox ItemsSource="{Binding Presets}" SelectedItem="{Binding Preset, Mode=TwoWay}" DisplayMemberPath="Label"
-                  Style="{StaticResource DarkComboBox}" HorizontalAlignment="Left" MinWidth="200"
+                  Style="{StaticResource DarkComboBox}" HorizontalAlignment="Left" MinWidth="200" Height="28"
                   AutomationProperties.AutomationId="Images_CanvasPreset"
                   AutomationProperties.Name="{loc:Str Images.Canvas.Size}"/>
 
-        <Grid Margin="0,4,0,0">
+        <!-- Width ⇄ Height, in the unit beside them; the resolution after, what millimetres and inches are counted in. -->
+        <Grid Margin="0,10,0,0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="88"/>
                 <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="88"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <StackPanel Grid.Column="0">
-                <TextBlock Text="{loc:Str Images.Canvas.Width}" Style="{StaticResource OptionLabel}"/>
-                <TextBox Text="{Binding WidthText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBox}"
-                         AutomationProperties.AutomationId="Images_CanvasWidth"
-                         AutomationProperties.Name="{loc:Str Images.Canvas.Width}"/>
-            </StackPanel>
-            <Button Grid.Column="1" Command="{Binding SwapOrientationCommand}" Style="{StaticResource ToolbarButtonStyle}" VerticalAlignment="Bottom" Margin="6,0" Padding="8,3"
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Column="0" Text="{loc:Str Images.Canvas.Width}" Style="{StaticResource OptionLabel}" Margin="0,0,0,4"/>
+            <TextBox Grid.Row="1" Grid.Column="0" Text="{Binding WidthText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}"
+                     AutomationProperties.AutomationId="Images_CanvasWidth"
+                     AutomationProperties.Name="{loc:Str Images.Canvas.Width}"/>
+            <Button Grid.Row="1" Grid.Column="1" Command="{Binding SwapOrientationCommand}" Style="{StaticResource FloatingToolButtonStyle}" Margin="2,0"
                     ToolTip="{loc:Str Images.Canvas.SwapTip}"
                     AutomationProperties.AutomationId="Images_CanvasSwap"
                     AutomationProperties.Name="{loc:Str Images.Canvas.SwapTip}">
-                <icons:IconLabel Icon="fluent:arrow_swap"/>
+                <icons:IconGlyph Icon="fluent:arrow_swap" FontSize="14"/>
             </Button>
-            <StackPanel Grid.Column="2">
-                <TextBlock Text="{loc:Str Images.Canvas.Height}" Style="{StaticResource OptionLabel}"/>
-                <TextBox Text="{Binding HeightText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBox}"
-                         AutomationProperties.AutomationId="Images_CanvasHeight"
-                         AutomationProperties.Name="{loc:Str Images.Canvas.Height}"/>
-            </StackPanel>
-            <StackPanel Grid.Column="3" Margin="8,0,0,0">
-                <TextBlock Text="{loc:Str Images.Canvas.Unit}" Style="{StaticResource OptionLabel}"/>
-                <ComboBox ItemsSource="{Binding Units}" SelectedItem="{Binding Unit, Mode=TwoWay}" DisplayMemberPath="Label"
-                          Style="{StaticResource DarkComboBox}" MinWidth="64"
-                          AutomationProperties.AutomationId="Images_CanvasUnit"
-                          AutomationProperties.Name="{loc:Str Images.Canvas.Unit}"/>
+            <TextBlock Grid.Column="2" Text="{loc:Str Images.Canvas.Height}" Style="{StaticResource OptionLabel}" Margin="0,0,0,4"/>
+            <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding HeightText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}"
+                     AutomationProperties.AutomationId="Images_CanvasHeight"
+                     AutomationProperties.Name="{loc:Str Images.Canvas.Height}"/>
+            <ComboBox Grid.Row="1" Grid.Column="3" ItemsSource="{Binding Units}" SelectedItem="{Binding Unit, Mode=TwoWay}" DisplayMemberPath="Label"
+                      Style="{StaticResource DarkComboBox}" Width="64" Height="28" Margin="8,0,0,0"
+                      AutomationProperties.AutomationId="Images_CanvasUnit"
+                      AutomationProperties.Name="{loc:Str Images.Canvas.Unit}"/>
+            <TextBlock Grid.Column="4" Text="{loc:Str Images.Canvas.Dpi}" Style="{StaticResource OptionLabel}" Margin="16,0,0,4"/>
+            <StackPanel Grid.Row="1" Grid.Column="4" Orientation="Horizontal" Margin="16,0,0,0">
+                <TextBox Text="{Binding DpiText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}" Width="56"
+                         AutomationProperties.AutomationId="Images_CanvasDpi"
+                         AutomationProperties.Name="{loc:Str Images.Canvas.Dpi}"/>
+                <TextBlock Text="{loc:Str Images.Canvas.DpiUnit}" FontSize="12" Margin="6,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
             </StackPanel>
         </Grid>
+        <TextBlock Text="{Binding SizeNote}" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"
+                   Visibility="{Binding SizeNote, Converter={StaticResource NullToCollapsed}}"/>
 
-        <TextBlock Text="{loc:Str Images.Canvas.Dpi}" Style="{StaticResource OptionLabel}"/>
-        <TextBox Text="{Binding DpiText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBox}" HorizontalAlignment="Left" MinWidth="96"
-                 AutomationProperties.AutomationId="Images_CanvasDpi"
-                 AutomationProperties.Name="{loc:Str Images.Canvas.Dpi}"/>
-        <TextBlock Text="{Binding SizeNote}" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"/>
-
+        <!-- The background, shown rather than named: see-through, white, or a colour of its own. -->
         <TextBlock Text="{loc:Str Images.Canvas.Background}" Style="{StaticResource OptionLabel}"/>
         <StackPanel Orientation="Horizontal">
-            <RadioButton GroupName="CanvasBackground" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Canvas.Background.Transparent}"
+            <RadioButton GroupName="CanvasBackground" Style="{StaticResource SwatchRadio}"
+                         ToolTip="{loc:Str Images.Canvas.Background.Transparent}" AutomationProperties.Name="{loc:Str Images.Canvas.Background.Transparent}"
                          IsChecked="{Binding Background, Converter={StaticResource EnumToBool}, ConverterParameter=Transparent}"
-                         AutomationProperties.AutomationId="Images_CanvasBackgroundTransparent"/>
-            <RadioButton GroupName="CanvasBackground" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Canvas.Background.White}"
+                         AutomationProperties.AutomationId="Images_CanvasBackgroundTransparent">
+                <Rectangle Fill="{StaticResource SwatchChecker}"/>
+            </RadioButton>
+            <RadioButton GroupName="CanvasBackground" Style="{StaticResource SwatchRadio}"
+                         ToolTip="{loc:Str Images.Canvas.Background.White}" AutomationProperties.Name="{loc:Str Images.Canvas.Background.White}"
                          IsChecked="{Binding Background, Converter={StaticResource EnumToBool}, ConverterParameter=White}"
-                         AutomationProperties.AutomationId="Images_CanvasBackgroundWhite"/>
-            <RadioButton GroupName="CanvasBackground" Style="{StaticResource SegRadioStyle}" Content="{loc:Str Images.Canvas.Background.Colour}"
+                         AutomationProperties.AutomationId="Images_CanvasBackgroundWhite">
+                <Rectangle Fill="{Binding WhiteSwatch, Converter={StaticResource SpecBrush}}"/>
+            </RadioButton>
+            <RadioButton GroupName="CanvasBackground" Style="{StaticResource SwatchRadio}"
+                         ToolTip="{loc:Str Images.Canvas.Background.Colour}" AutomationProperties.Name="{loc:Str Images.Canvas.Background.Colour}"
                          IsChecked="{Binding Background, Converter={StaticResource EnumToBool}, ConverterParameter=Colour}"
-                         AutomationProperties.AutomationId="Images_CanvasBackgroundColour"/>
+                         AutomationProperties.AutomationId="Images_CanvasBackgroundColour">
+                <Rectangle Fill="{Binding BackgroundColour, Converter={StaticResource SpecBrush}}"/>
+            </RadioButton>
         </StackPanel>
-        <vcc:ColorPicker AutomationPrefix="Images_CanvasColour" AllowDefault="False" Margin="0,6,0,0"
+        <vcc:ColorPicker AutomationPrefix="Images_CanvasColour" AllowDefault="False" Margin="0,8,0,0"
                          Value="{Binding BackgroundColour, Mode=TwoWay}"
                          Visibility="{Binding TakesColour, Converter={StaticResource BoolVis}}"/>
     </StackPanel>

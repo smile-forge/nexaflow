@@ -392,7 +392,8 @@ animation to save. Getting this key wrong is invisible on mains and blanks the t
 ## Shared control styles
 
 `Styles.xaml` carries the app's own template for the common controls a view drops in — the combo box, the date
-picker and the calendar it opens, beside the buttons, text boxes, list boxes and scroll bars. Like every shared
+picker and the calendar it opens, the check box and the expander, beside the buttons, text boxes, list boxes and
+scroll bars. Like every shared
 template they bind the palette directly with `{StaticResource}`, so they follow every theme and a theme switch
 rebuilds them with the window. The `Dark` prefix on their keys names the family, not a theme.
 
@@ -410,8 +411,12 @@ style for one of these controls is `BasedOn` the keyed one so it keeps the theme
   into the template's own `PART_EditableTextBox`, and only the arrow opens the list.
 - **`DarkDatePicker`** draws the box, its watermark and the calendar button. The picker builds its calendar itself
   and styles it with `CalendarStyle` — `DarkDatePickerCalendar`, which is `DarkCalendar` lifted off the page with a
-  shadow. The calendar's page builds its own day and month cells, styled through `DarkCalendarItem`,
-  `DarkCalendarDayButton` and `DarkCalendarButton`.
+    shadow. The calendar's page builds its own day and month cells, styled through `DarkCalendarItem`,
+    `DarkCalendarDayButton` and `DarkCalendarButton`.
+  - **`DarkCheckBox`** draws a rounded box in the surface tone, filled with the accent and ticked while checked, a bar
+    while indeterminate, its words beside it.
+  - **`DarkExpander`** draws a section folded under its heading: the whole heading row is the toggle, its chevron turning
+    as it opens. It opens downward only.
 
 ## Feature participation
 

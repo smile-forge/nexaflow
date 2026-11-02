@@ -16,7 +16,7 @@
                 <ResourceDictionary Source="ImageViewStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
             <BooleanToVisibilityConverter x:Key="BoolToVis"/>
-            <cv:NullToCollapsedConverter x:Key="NullToCollapsed"/>
+            <cv:NullToVisibilityConverter x:Key="NullToCollapsed"/>
         </ResourceDictionary>
     </UserControl.Resources>
 
