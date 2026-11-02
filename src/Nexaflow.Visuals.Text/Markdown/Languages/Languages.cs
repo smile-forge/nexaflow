@@ -765,38 +765,3 @@ internal static class Shipped
             Syntax = grammar is null ? null : characters => CodeSyntax.Of(grammar, characters),
         };
 }
-
-/// <summary>A language whose edits are told to <paramref name="onEdit"/> — or, where that is null, one with nothing of its own to say about an edit.</summary>
-internal sealed class EditedBy(IOnEdit? onEdit) : IContentLanguage
-{
-    public IOnEdit? OnEdit => onEdit;
-
-    /// <summary>And its moves too, where the same handler says anything about one.</summary>
-    public IOnMove? OnMove => onEdit as IOnMove;
-}
-
-/// <summary>
-/// What a language whose source is formatting nobody reads shows and offers: its words, found, copied and quoted as they are
-/// drawn (<see cref="IContentLanguage.ReadsAsDrawn"/>).
-/// </summary>
-internal sealed class ReadAsDrawn : IContentLanguage
-{
-    /// <inheritdoc/>
-    public bool ReadsAsDrawn => true;
-
-    /// <summary>What is drawn is prose, and prose is chosen by the letter.</summary>
-    public bool ChosenByLetter => true;
-}
-
-/// <summary>What code shows and offers: every character a writer typed, and no picture of it.</summary>
-internal sealed class CodeEditing : IContentLanguage
-{
-    /// <summary>Colouring code is still showing it: every character a writer typed is on the page.</summary>
-    public bool ShowsWhatWasWritten => true;
-
-    /// <summary>
-    /// A picture of code is a worse copy of the code — it cannot be searched, pasted or read by anything — so that is the one
-    /// usual button this does not offer.
-    /// </summary>
-    public BlockCorner Corner(ContentAsk ask) => new(Saves: false);
-}

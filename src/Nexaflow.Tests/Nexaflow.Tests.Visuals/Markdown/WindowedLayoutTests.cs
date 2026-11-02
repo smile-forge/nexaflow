@@ -190,14 +190,14 @@ public class WindowedLayoutTests
         // Once it has paused, every piece laid is what the same piece of the code laid whole is.
         Settled(engine);
 
-        var whole = Whole(engine.State.Document.ToString(), "csharp").Root.SelfAndDescendants()
-                        .Where(piece => piece.Words is not null && piece.Part is not null)
-    .GroupBy(piece => Span(piece.Part))
-                        .ToDictionary(same => same.Key, same => same.Last().Kind);
+    var whole = Whole(engine.State.Document.ToString(), "csharp").Root.SelfAndDescendants()
+                    .Where(piece => piece.Words is not null && piece.Part is not null)
+                    .GroupBy(piece => (piece.Part!.Start, piece.Part.Length))
+                    .ToDictionary(same => same.Key, same => same.Last().Kind);
 
-        foreach (var piece in engine.Laid.Root.SelfAndDescendants())
-            if (piece.Words is not null && piece.Part is { } part)
-                Assert.AreEqual(whole[Span(part)], piece.Kind, $"what {Span(part)} is coloured as once typing paused");
+    foreach (var piece in engine.Laid.Root.SelfAndDescendants())
+        if (piece.Words is not null && piece.Part is { } part)
+            Assert.AreEqual(whole[(part.Start, part.Length)], piece.Kind, $"what {Span(part)} is coloured as once typing paused");
 
         static List<string> Called(Laid laid) => [.. laid.Root.SelfAndDescendants().Select(piece => piece.Kind)];
     }

@@ -262,7 +262,7 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Layout/LayoutTree.cs",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutPiece.cs",
           "class": "LayoutPiece",
           "method": "DrawnChildren"
         },
@@ -793,13 +793,81 @@
           "method": "InLines"
         }
       ]
+    },
+    "gitgraph": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/gitgraph.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Git/GitBuilder.cs",
+          "class": "GitBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutPiece.cs",
+          "class": "LayoutPiece",
+          "method": "Turned"
+        }
+      ]
+    },
+    "latex-source-map": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ISourcePart.cs",
+          "class": "ISourcePart"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Maths/LatexBuilder.cs",
+          "class": "LatexBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Maths/LatexBuilder.cs",
+          "class": "LatexBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Maths/LatexBuilder.cs",
+          "class": "TexPart"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutQuery.cs",
+          "class": "LayoutQuery"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutPiece.cs",
+          "class": "LayoutPiece"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutTree.cs",
+          "class": "LayoutTree"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 22,
+  "changed_sets": 24,
   "touched_nodes": [
     "background-reading",
     "diagram-nesting",
+    "gitgraph",
+    "latex-source-map",
     "markdown-anchors",
     "markdown-block-undo",
     "markdown-dirty-tracking",
