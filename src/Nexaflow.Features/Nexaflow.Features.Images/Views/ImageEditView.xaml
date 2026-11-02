@@ -285,34 +285,32 @@
                         <StackPanel Visibility="{Binding Editor.IsMarkupTool, Converter={StaticResource BoolToVis}}">
 
                             <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Markup.ToolHeader}"/>
-                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
-                                <UniformGrid Rows="1">
-                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupSelect" ToolTip="{loc:Str Images.Edit.Markup.Select}" AutomationProperties.Name="{loc:Str Images.Edit.Markup.Select}"
+                            <Border Style="{StaticResource SegGroup}"><StackPanel Orientation="Horizontal">
+                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EditMarkupSelect" ToolTip="{loc:Str Images.Edit.Markup.Select}" AutomationProperties.Name="{loc:Str Images.Edit.Markup.Select}"
                                                  IsChecked="{Binding Editor.MarkupTool, Converter={StaticResource EnumToBool}, ConverterParameter=Select}">
                                     <icons:IconGlyph Icon="fluent:cursor" FontSize="15"/>
                                     </RadioButton>
-                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupArrow" ToolTip="{loc:Str Images.Edit.Markup.Arrow}" AutomationProperties.Name="{loc:Str Images.Edit.Markup.Arrow}"
+                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EditMarkupArrow" ToolTip="{loc:Str Images.Edit.Markup.Arrow}" AutomationProperties.Name="{loc:Str Images.Edit.Markup.Arrow}"
                                                  IsChecked="{Binding Editor.MarkupTool, Converter={StaticResource EnumToBool}, ConverterParameter=Arrow}">
                                     <icons:IconGlyph Icon="fluent:arrow_up_right" FontSize="15"/>
                                     </RadioButton>
-                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupBox" ToolTip="{loc:Str Images.Edit.Markup.Box}" AutomationProperties.Name="{loc:Str Images.Edit.Markup.Box}"
+                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EditMarkupBox" ToolTip="{loc:Str Images.Edit.Markup.Box}" AutomationProperties.Name="{loc:Str Images.Edit.Markup.Box}"
                                                  IsChecked="{Binding Editor.MarkupTool, Converter={StaticResource EnumToBool}, ConverterParameter=Box}">
                                     <icons:IconGlyph Icon="fluent:square" FontSize="15"/>
                                     </RadioButton>
-                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupText" ToolTip="{loc:Str Images.Edit.Markup.Text}" AutomationProperties.Name="{loc:Str Images.Edit.Markup.Text}"
+                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EditMarkupText" ToolTip="{loc:Str Images.Edit.Markup.Text}" AutomationProperties.Name="{loc:Str Images.Edit.Markup.Text}"
                                                  IsChecked="{Binding Editor.MarkupTool, Converter={StaticResource EnumToBool}, ConverterParameter=Text}">
                                     <icons:IconGlyph Icon="fluent:text_t" FontSize="15"/>
                                     </RadioButton>
-                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupPen" ToolTip="{loc:Str Images.Edit.Markup.Pen}" AutomationProperties.Name="{loc:Str Images.Edit.Markup.Pen}"
+                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EditMarkupPen" ToolTip="{loc:Str Images.Edit.Markup.Pen}" AutomationProperties.Name="{loc:Str Images.Edit.Markup.Pen}"
                                                  IsChecked="{Binding Editor.MarkupTool, Converter={StaticResource EnumToBool}, ConverterParameter=Pen}">
                                     <icons:IconGlyph Icon="fluent:pen" FontSize="15"/>
                                     </RadioButton>
-                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" Padding="2,5" AutomationProperties.AutomationId="Image_EditMarkupHighlighter" ToolTip="{loc:Str Images.Edit.Markup.Highlighter}" AutomationProperties.Name="{loc:Str Images.Edit.Markup.Highlighter}"
+                                    <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EditMarkupHighlighter" ToolTip="{loc:Str Images.Edit.Markup.Highlighter}" AutomationProperties.Name="{loc:Str Images.Edit.Markup.Highlighter}"
                                                  IsChecked="{Binding Editor.MarkupTool, Converter={StaticResource EnumToBool}, ConverterParameter=Highlighter}">
                                     <icons:IconGlyph Icon="fluent:highlight" FontSize="15"/>
                                     </RadioButton>
-                                </UniformGrid>
-                            </Border>
+                                </StackPanel></Border>
 
                             <!-- The selected text annotation's words. -->
                             <StackPanel Visibility="{Binding Editor.IsTextSelected, Converter={StaticResource BoolToVis}}">
@@ -436,25 +434,37 @@
                         <StackPanel Visibility="{Binding Editor.IsSelectTool, Converter={StaticResource BoolToVis}}">
 
                             <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.CutOut.Mark}"/>
-                            <UniformGrid Rows="1">
-                                <RadioButton GroupName="CutOutMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_CutOutMarkPick" AutomationProperties.Name="{loc:Str Images.CutOut.Pick}"
-                                             ToolTip="{Binding Editor.PickingModels.DisabledReason, TargetNullValue={loc:Str Images.CutOut.PickTip}}"
-                                             IsChecked="{Binding Editor.CutOutWay, Converter={StaticResource EnumToBool}, ConverterParameter=Pick}"
-                                             IsEnabled="{Binding Editor.PickingModels.IsReady}"
-                                             ToolTipService.ShowOnDisabled="True">
-                                <icons:IconGlyph Icon="fluent:cursor_click" FontSize="15"/>
-                                </RadioButton>
-                                <RadioButton GroupName="CutOutMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_CutOutMarkMarquee" AutomationProperties.Name="{loc:Str Images.Region.Marquee}"
-                                             ToolTip="{loc:Str Images.Region.MarqueeTip}"
-                                             IsChecked="{Binding Editor.CutOutWay, Converter={StaticResource EnumToBool}, ConverterParameter=Marquee}">
-                                <icons:IconGlyph Icon="fluent:select_object" FontSize="15"/>
-                                </RadioButton>
-                                <RadioButton GroupName="CutOutMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_CutOutMarkLasso" AutomationProperties.Name="{loc:Str Images.Region.Lasso}"
-                                             ToolTip="{loc:Str Images.Region.LassoTip}"
-                                             IsChecked="{Binding Editor.CutOutWay, Converter={StaticResource EnumToBool}, ConverterParameter=Lasso}">
-                                <icons:IconGlyph Icon="fluent:lasso" FontSize="15"/>
-                                </RadioButton>
-                            </UniformGrid>
+                            <!-- The ways of selecting, each once: picked, or a shape drawn by hand. -->
+                            <Border Style="{StaticResource SegGroup}">
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_CutOutMarkPick" AutomationProperties.Name="{loc:Str Images.CutOut.Pick}"
+                                                 ToolTip="{Binding Editor.PickingModels.DisabledReason, TargetNullValue={loc:Str Images.CutOut.PickTip}}"
+                                                 IsEnabled="{Binding Editor.PickingModels.IsReady}" ToolTipService.ShowOnDisabled="True"
+                                                 IsChecked="{Binding Editor.SelectBy, Converter={StaticResource EnumToBool}, ConverterParameter=Pick}">
+                                        <icons:IconGlyph Icon="fluent:cursor_click" FontSize="15"/>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_SelectRectangle" AutomationProperties.Name="{loc:Str Images.Region.Rectangle}"
+                                                 ToolTip="{loc:Str Images.Region.RectangleTip}"
+                                                 IsChecked="{Binding Editor.SelectBy, Converter={StaticResource EnumToBool}, ConverterParameter=Rectangle}">
+                                        <icons:IconGlyph Icon="fluent:rectangle_landscape" FontSize="15"/>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_SelectEllipse" AutomationProperties.Name="{loc:Str Images.Region.Ellipse}"
+                                                 ToolTip="{loc:Str Images.Region.EllipseTip}"
+                                                 IsChecked="{Binding Editor.SelectBy, Converter={StaticResource EnumToBool}, ConverterParameter=Ellipse}">
+                                        <icons:IconGlyph Icon="fluent:oval" FontSize="15"/>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_SelectLasso" AutomationProperties.Name="{loc:Str Images.Region.Lasso}"
+                                                 ToolTip="{loc:Str Images.Region.FreehandTip}"
+                                                 IsChecked="{Binding Editor.SelectBy, Converter={StaticResource EnumToBool}, ConverterParameter=Lasso}">
+                                        <icons:IconGlyph Icon="fluent:lasso" FontSize="15"/>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_SelectPolygon" AutomationProperties.Name="{loc:Str Images.Region.Polygon}"
+                                                 ToolTip="{loc:Str Images.Region.PolygonTip}"
+                                                 IsChecked="{Binding Editor.SelectBy, Converter={StaticResource EnumToBool}, ConverterParameter=Polygon}">
+                                        <icons:IconGlyph Icon="fluent:pentagon" FontSize="15"/>
+                                    </RadioButton>
+                                </StackPanel>
+                            </Border>
 
                             <!-- Picking: clicks, a box or a phrase, by picture selection. -->
                             <StackPanel Visibility="{Binding Editor.PicksByModel, Converter={StaticResource BoolToVis}}">
@@ -493,30 +503,42 @@
                         <StackPanel Visibility="{Binding Editor.IsRetouchTool, Converter={StaticResource BoolToVis}}">
 
                             <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Erase.Mark}"/>
-                            <UniformGrid Rows="1">
-                                <RadioButton GroupName="EraseMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkPick" AutomationProperties.Name="{loc:Str Images.Erase.Pick}"
-                                             ToolTip="{Binding Editor.PickingModels.DisabledReason, TargetNullValue={loc:Str Images.Erase.PickTip}}"
-                                             IsChecked="{Binding Editor.EraseMarks.Way, Converter={StaticResource EnumToBool}, ConverterParameter=Pick}"
-                                             IsEnabled="{Binding Editor.PickingModels.IsReady}"
-                                             ToolTipService.ShowOnDisabled="True">
-                                <icons:IconGlyph Icon="fluent:cursor_click" FontSize="15"/>
-                                </RadioButton>
-                                <RadioButton GroupName="EraseMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkBrush" AutomationProperties.Name="{loc:Str Images.Erase.Brush}"
-                                             ToolTip="{loc:Str Images.Erase.BrushTip}"
-                                             IsChecked="{Binding Editor.EraseMarks.Way, Converter={StaticResource EnumToBool}, ConverterParameter=Brush}">
-                                <icons:IconGlyph Icon="fluent:paint_brush" FontSize="15"/>
-                                </RadioButton>
-                                <RadioButton GroupName="EraseMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkMarquee" AutomationProperties.Name="{loc:Str Images.Region.Marquee}"
-                                             ToolTip="{loc:Str Images.Region.MarqueeTip}"
-                                             IsChecked="{Binding Editor.EraseMarks.Way, Converter={StaticResource EnumToBool}, ConverterParameter=Marquee}">
-                                <icons:IconGlyph Icon="fluent:select_object" FontSize="15"/>
-                                </RadioButton>
-                                <RadioButton GroupName="EraseMark" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkLasso" AutomationProperties.Name="{loc:Str Images.Region.Lasso}"
-                                             ToolTip="{loc:Str Images.Region.LassoTip}"
-                                             IsChecked="{Binding Editor.EraseMarks.Way, Converter={StaticResource EnumToBool}, ConverterParameter=Lasso}">
-                                <icons:IconGlyph Icon="fluent:lasso" FontSize="15"/>
-                                </RadioButton>
-                            </UniformGrid>
+                            <!-- The ways of marking, each once: picked, brushed, or a shape drawn by hand. -->
+                            <Border Style="{StaticResource SegGroup}">
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkPick" AutomationProperties.Name="{loc:Str Images.Erase.Pick}"
+                                                 ToolTip="{Binding Editor.PickingModels.DisabledReason, TargetNullValue={loc:Str Images.Erase.PickTip}}"
+                                                 IsEnabled="{Binding Editor.PickingModels.IsReady}" ToolTipService.ShowOnDisabled="True"
+                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Pick}">
+                                        <icons:IconGlyph Icon="fluent:cursor_click" FontSize="15"/>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkBrush" AutomationProperties.Name="{loc:Str Images.Erase.Brush}"
+                                                 ToolTip="{loc:Str Images.Erase.BrushTip}"
+                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Brush}">
+                                        <icons:IconGlyph Icon="fluent:paint_brush" FontSize="15"/>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseRectangle" AutomationProperties.Name="{loc:Str Images.Region.Rectangle}"
+                                                 ToolTip="{loc:Str Images.Region.RectangleTip}"
+                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Rectangle}">
+                                        <icons:IconGlyph Icon="fluent:rectangle_landscape" FontSize="15"/>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseEllipse" AutomationProperties.Name="{loc:Str Images.Region.Ellipse}"
+                                                 ToolTip="{loc:Str Images.Region.EllipseTip}"
+                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Ellipse}">
+                                        <icons:IconGlyph Icon="fluent:oval" FontSize="15"/>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseLasso" AutomationProperties.Name="{loc:Str Images.Region.Lasso}"
+                                                 ToolTip="{loc:Str Images.Region.FreehandTip}"
+                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Lasso}">
+                                        <icons:IconGlyph Icon="fluent:lasso" FontSize="15"/>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_ErasePolygon" AutomationProperties.Name="{loc:Str Images.Region.Polygon}"
+                                                 ToolTip="{loc:Str Images.Region.PolygonTip}"
+                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Polygon}">
+                                        <icons:IconGlyph Icon="fluent:pentagon" FontSize="15"/>
+                                    </RadioButton>
+                                </StackPanel>
+                            </Border>
 
                             <!-- Picking, as the cut-out tool picks: what is picked here is what it has picked. -->
                             <StackPanel Margin="0,8,0,0" Visibility="{Binding Editor.EraseMarks.IsPicking, Converter={StaticResource BoolToVis}}">
@@ -603,7 +625,7 @@
                         <!-- ── Retouch: what fills where the selection was, and erasing it ── -->
                         <StackPanel Visibility="{Binding Editor.IsRetouchTool, Converter={StaticResource BoolToVis}}">
                             <TextBlock Style="{StaticResource EditSectionHeader}" Margin="0,12,0,0" Text="{loc:Str Images.Erase.Fill}"/>
-                            <UniformGrid Rows="1">
+                            <Border Style="{StaticResource SegGroup}"><StackPanel Orientation="Horizontal">
                                 <RadioButton GroupName="EraseFill" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseFillAi"
                                              ToolTip="{Binding Editor.ErasingModels.DisabledReason, TargetNullValue={loc:Str Images.Erase.AiTip}}" IsEnabled="{Binding Editor.ErasingModels.IsReady}"
                                              IsChecked="{Binding Editor.EraseMarks.Fill, Converter={StaticResource EnumToBool}, ConverterParameter=Ai}"
@@ -620,7 +642,7 @@
                                              IsChecked="{Binding Editor.EraseMarks.Fill, Converter={StaticResource EnumToBool}, ConverterParameter=Heal}">
                                     <TextBlock Text="{loc:Str Images.Erase.Heal}" FontSize="11"/>
                                 </RadioButton>
-                            </UniformGrid>
+                            </StackPanel></Border>
                             <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Margin="0,6,0,0" Text="{loc:Str Images.Erase.HealHint}"
                                        Visibility="{Binding Editor.EraseMarks.NeedsHealSource, Converter={StaticResource BoolToVis}}"/>
 

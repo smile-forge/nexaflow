@@ -20,6 +20,21 @@ public enum CutOutMarkWay
     Lasso,
 }
 
+/// <summary>
+/// A way of selecting as its button offers it: picked by picture selection, brushed (Retouch only), or drawn by hand — a
+/// rectangle, an ellipse, a lasso drawn freehand, or a polygon clicked point to point. One choice standing for the way and the
+/// shape it draws, so a panel offers each once.
+/// </summary>
+public enum SelectionWay
+{
+    Pick,
+    Brush,
+    Rectangle,
+    Ellipse,
+    Lasso,
+    Polygon,
+}
+
 /// <summary>What the marquee draws.</summary>
 public enum MarqueeShape
 {

@@ -117,7 +117,68 @@ public partial class ImageEditorViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(DrawsMarquee), nameof(DrawsLasso), nameof(DrawsShapes), nameof(PicksByModel))]
     private CutOutMarkWay _cutOutWay = CutOutMarkWay.Pick;
 
-    partial void OnCutOutWayChanged(CutOutMarkWay value) => RegionMarks.CancelDraft();
+    partial void OnCutOutWayChanged(CutOutMarkWay value)
+    {
+        RegionMarks.CancelDraft();
+        OnPropertyChanged(nameof(SelectBy));
+    }
+
+    /// <summary>How Select picks, as one of its buttons: by picture selection, or a shape drawn by hand.</summary>
+    public SelectionWay SelectBy
+    {
+        get => CutOutWay switch
+        {
+            CutOutMarkWay.Marquee => DrawnBy(marquee: true),
+            CutOutMarkWay.Lasso   => DrawnBy(marquee: false),
+            _                     => SelectionWay.Pick,
+        };
+        set
+        {
+            if (value == SelectionWay.Brush) return;   // Select brushes nothing
+            DrawWith(value);
+            CutOutWay = value switch
+            {
+                SelectionWay.Rectangle or SelectionWay.Ellipse => CutOutMarkWay.Marquee,
+                SelectionWay.Lasso or SelectionWay.Polygon     => CutOutMarkWay.Lasso,
+                _                                              => CutOutMarkWay.Pick,
+            };
+        }
+    }
+
+    /// <summary>How Retouch marks what to erase, as one of its buttons: picked, brushed, or a shape drawn by hand.</summary>
+    public SelectionWay EraseBy
+    {
+        get => EraseMarks.Way switch
+        {
+            EraseMarkWay.Brush   => SelectionWay.Brush,
+            EraseMarkWay.Marquee => DrawnBy(marquee: true),
+            EraseMarkWay.Lasso   => DrawnBy(marquee: false),
+            _                    => SelectionWay.Pick,
+        };
+        set
+        {
+            DrawWith(value);
+            EraseMarks.Way = value switch
+            {
+                SelectionWay.Brush                             => EraseMarkWay.Brush,
+                SelectionWay.Rectangle or SelectionWay.Ellipse => EraseMarkWay.Marquee,
+                SelectionWay.Lasso or SelectionWay.Polygon     => EraseMarkWay.Lasso,
+                _                                              => EraseMarkWay.Pick,
+            };
+        }
+    }
+
+    /// <summary>The shape the marquee or the lasso draws now, as the button that stands for it.</summary>
+    private SelectionWay DrawnBy(bool marquee) => marquee
+        ? RegionMarks.Marquee == MarqueeShape.Ellipse ? SelectionWay.Ellipse : SelectionWay.Rectangle
+        : RegionMarks.Lasso == LassoShape.Polygon ? SelectionWay.Polygon : SelectionWay.Lasso;
+
+    /// <summary>Has the marquee or the lasso draw the shape <paramref name="way"/> stands for; nothing for a way that draws none.</summary>
+    private void DrawWith(SelectionWay way)
+    {
+        if (way is SelectionWay.Rectangle or SelectionWay.Ellipse) RegionMarks.Marquee = way == SelectionWay.Ellipse ? MarqueeShape.Ellipse : MarqueeShape.Rectangle;
+        else if (way is SelectionWay.Lasso or SelectionWay.Polygon) RegionMarks.Lasso = way == SelectionWay.Polygon ? LassoShape.Polygon : LassoShape.Freehand;
+    }
 
     /// <summary>The open tool draws on the photo with the marquee.</summary>
     public bool DrawsMarquee => IsSelectTool && CutOutWay == CutOutMarkWay.Marquee || IsRetouchTool && EraseMarks.Way == EraseMarkWay.Marquee;
@@ -387,12 +448,19 @@ public partial class ImageEditorViewModel : ObservableObject
         };
         RegionMarks.PropertyChanged += (_, e) =>
         {
+            // A shape chosen by its key (M, L) is a way of selecting chosen: the buttons follow it.
+            if (e.PropertyName is nameof(RegionMarking.Marquee) or nameof(RegionMarking.Lasso))
+            {
+                OnPropertyChanged(nameof(SelectBy));
+                OnPropertyChanged(nameof(EraseBy));
+            }
             if (e.PropertyName is nameof(RegionMarking.Region) or nameof(RegionMarking.Shown)) SelectionMoved();
         };
         EraseMarks.PropertyChanged += (_, e) =>
         {
             EraseCommand.NotifyCanExecuteChanged();
             if (e.PropertyName != nameof(EraseMarking.Way)) return;
+            OnPropertyChanged(nameof(EraseBy));
             RegionMarks.CancelDraft();
             OnPropertyChanged(nameof(DrawsMarquee));
             OnPropertyChanged(nameof(DrawsLasso));

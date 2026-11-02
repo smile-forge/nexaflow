@@ -32,7 +32,7 @@ The picture sits on a canvas you can pan and zoom, with eight tools beside it in
 - **Select** picks out part of the picture, then does something with it. **Pick** picks something out on this machine:
   click the thing to keep, right-click (or Alt-click) what to leave out, or drag a box round it — or type what it is, like
   "mug" or "child in a red vest", and press **Find** to pick out every one. The first time, it needs the AI picture
-  models, offered above the picture. **Box** and **Lasso** select by hand, and need nothing downloaded. [Show me](locate:Image_EditToolSelect,Image_CutOutMarkPick)
+  models, offered above the picture. **Rectangle**, **Ellipse**, **Lasso** and **Polygon** select by hand, and need nothing downloaded. [Show me](locate:Image_EditToolSelect,Image_CutOutMarkPick)
   - **With what's selected**: **Move** lifts it off its layer to float where you drag it — a photo becomes a layered picture
     for it, and keeps all it holds, hidden where the selection was. **New layer** copies it into a layer of its own above,
     leaving the picture whole. **Erase** takes it to **Retouch**, to rub it out and fill where it was. [Show me](locate:Image_SelectMove,Image_SelectNewLayer,Image_SelectErase)
@@ -41,7 +41,7 @@ The picture sits on a canvas you can pan and zoom, with eight tools beside it in
     in the picture itself and makes everything else transparent — an edit like any other, undone or put back with **Keep
     background**. A JPEG can't be transparent, so it is then saved as a copy, offered as a PNG. [Show me](locate:Image_CutOutSave,Image_CutOutRemoveBackground)
     - **Selecting by hand**, in **Select** and **Retouch** alike, is one selection both take, starting from whatever **Pick**
-      has picked. The **Box** (M, and M again for an ellipse) drags out a rectangle or an ellipse: Shift once you are
+      has picked. The **Rectangle** and **Ellipse** (M, and M again for the other) drags out a rectangle or an ellipse: Shift once you are
       dragging makes it square or round, Alt draws it out from its centre. The **Lasso** (L, and L again to switch) draws
       round something freehand, or click to click as a **Polygon** — click its first point, double-click or press Enter to
       close it; Backspace or a right-click takes the last point back, and Esc lets it go. Each shape starts the selection
@@ -49,17 +49,17 @@ The picture sits on a canvas you can pan and zoom, with eight tools beside it in
       or both as you begin it. **All** (Ctrl+A), **None** (Ctrl+D), **Invert** (Ctrl+Shift+I) and **Subject**, which has
       picture selection pick the picture's subject, act on the whole selection; **Feather**, **Grow**, **Shrink** and
       **Smooth** refine its edge by the pixels **Refine by** says. What you select is kept with the edit it is used for, so a
-      cut-out or an erase made from it can be undone and redone as it was drawn. [Show me](locate:Image_CutOutMarkMarquee,Image_RegionModeAdd,Image_RegionFeather)
+      cut-out or an erase made from it can be undone and redone as it was drawn. [Show me](locate:Image_SelectRectangle,Image_RegionModeAdd,Image_RegionFeather)
   - **Retouch** rubs things out of the picture — scratches, dust, wires, people, signs — and fills where they were. Mark what
     to erase with **Pick**, which picks a thing as Select does, with **Brush** — brush over it, and right-drag to take
-    marking back — or with the **Box** or **Lasso**. Everything selected is erased with what you brush, so pick a person
+    marking back — or with the **Rectangle**, **Ellipse**, **Lasso** or **Polygon**. Everything selected is erased with what you brush, so pick a person
     and brush their shadow, or lasso a wire and feather it. Then choose how to
     fill it: **AI** fills from what is round it and is best where an edge or shape runs through what you erase; the first
     time it is a download of about 210 MB, offered above the picture. **Content-aware** copies the picture's own texture in,
     sharp on grass, walls, road, sky and fabric, and needs nothing downloaded. **Heal** copies texture from where you
     Alt-click, matched to the light and colour round what you heal. **Erase** makes it one step of your edits — undone like
     any other — and a picture restored with AI enhance is restored as erased. [Show me](locate:Image_EditToolRetouch,Image_EraseMarkBrush,Image_EraseFillAi,Image_EraseApply)
-- Tools that need a model this PC hasn't downloaded yet — picking in **Select** and **Retouch**, **AI fill**, **AI enhance** and **AI upscale** — are greyed out until it is: hover one to see why. While its panel is open, the bar above the picture offers the AI picture models — every model AI picture editing uses, as one download. Until then **Select** opens on the **Box**, and **Retouch** on **Brush** and **Content-aware**, which need nothing. [Show me](locate:Image_EditToolSelect,Image_EditToolRetouch)
+- Tools that need a model this PC hasn't downloaded yet — picking in **Select** and **Retouch**, **AI fill**, **AI enhance** and **AI upscale** — are greyed out until it is: hover one to see why. While its panel is open, the bar above the picture offers the AI picture models — every model AI picture editing uses, as one download. Until then **Select** opens on the **Rectangle**, and **Retouch** on **Brush** and **Content-aware**, which need nothing. [Show me](locate:Image_EditToolSelect,Image_EditToolRetouch)
 - **Resize** sets the size the picture is saved at, as a percentage or in pixels, keeping its proportions unless you say otherwise. [Show me](locate:Image_EditToolResize)
 - **AI upscale** makes the picture twice or four times its size on this machine, restoring detail rather than stretching it, and turns AI enhance on. Crops and annotations stay where they were. A picture too large to make four times its size is offered twice only. [Show me](locate:Image_EditToolResize,Image_EditUpscaleTwice)
 - **Save options**, beside **Save as copy**, choose whether saving keeps the camera details, location, dates and descriptions, or removes them, and set the quality of a JPEG or WebP. The colour profile is always kept. A dot on the button means Save has something to tell you — why this picture can only be saved as a copy, or what saving it will drop — said inside. [Show me](locate:Image_EditSaveOptions)

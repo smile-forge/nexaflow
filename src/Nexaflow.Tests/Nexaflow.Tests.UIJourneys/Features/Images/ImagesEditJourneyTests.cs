@@ -159,10 +159,10 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
             // Cut out: picture selection is never here (the AI folder is the journey's own), so picking waits for it, saying why, and
             // the tool opens on the marquee, which needs nothing; the AI tools journey picks where it is here.
             Check("Cut out opens on the marquee: picking waits for picture selection, and nothing is selected to take",
-                  () => SelectRadio("Image_EditToolSelect") && WaitForFs(() => Exists("Image_RegionMarqueeRectangle"), 3)
+                  () => SelectRadio("Image_EditToolSelect") && WaitForFs(() => Exists("Image_SelectRectangle"), 3)
                         && !Enabled("Image_CutOutMarkPick") && !Enabled("Image_RegionSelectSubject") && !Enabled("Image_RegionFeather")
                         && !Enabled("Image_CutOutCopy") && !Enabled("Image_CutOutSave"));
-            Check("The marquee draws an ellipse or a rectangle", () => SelectRadio("Image_RegionMarqueeEllipse") && SelectRadio("Image_RegionMarqueeRectangle"));
+            Check("An ellipse or a rectangle, each a way of selecting", () => SelectRadio("Image_SelectEllipse") && SelectRadio("Image_SelectRectangle"));
             Check("Each shape adds, subtracts, intersects or starts the selection again",
                   () => SelectRadio("Image_RegionModeAdd") && SelectRadio("Image_RegionModeSubtract") && SelectRadio("Image_RegionModeIntersect")
                         && SelectRadio("Image_RegionModeReplace"));
@@ -178,10 +178,9 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
             CheckInvoke("Smooth it", "Image_RegionSmooth");
             CheckInvoke("Invert it", "Image_RegionInvert");
             CheckInvoke("Select all of the photo", "Image_RegionSelectAll");
-            Check("The lasso draws freehand or click to click", () => SelectRadio("Image_CutOutMarkLasso")
-                  && WaitForFs(() => Exists("Image_RegionLassoPolygon"), 3) && SelectRadio("Image_RegionLassoPolygon") && SelectRadio("Image_RegionLassoFreehand"));
+            Check("A lasso drawn freehand, or a polygon click to click", () => SelectRadio("Image_SelectPolygon") && SelectRadio("Image_SelectLasso"));
             CheckDoes("Select nothing, and nothing is offered to take it", "Image_RegionDeselect", () => WaitForFs(() => !Enabled("Image_CutOutCopy"), 3));
-            Check("Back to the marquee", () => SelectRadio("Image_CutOutMarkMarquee"));
+            Check("Back to the rectangle", () => SelectRadio("Image_SelectRectangle"));
             CheckInvoke("Clear what is selected", "Image_CutOutClear");
             CheckDoes("Keep background puts it back; the kept edits' banner goes, and the panel's offer of the AI picture models takes over",
                       "Image_CutOutKeepBackground",
@@ -192,9 +191,8 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
             // and fills by AI where they are here.
             Check("Retouch opens on the brush: picking waits for picture selection", () => SelectRadio("Image_EditToolRetouch")
                   && WaitForFs(() => Exists("Image_EraseBrushSize"), 3) && SelectRadio("Image_EraseMarkBrush") && !Enabled("Image_EraseMarkPick"));
-            Check("Retouch marks with the marquee or the lasso too, as Cut out does", () => SelectRadio("Image_EraseMarkMarquee")
-                  && WaitForFs(() => Exists("Image_RegionMarqueeRectangle"), 3) && SelectRadio("Image_EraseMarkLasso")
-                  && WaitForFs(() => Exists("Image_RegionLassoFreehand"), 3) && SelectRadio("Image_EraseMarkBrush"));
+            Check("Retouch marks with the shapes Select draws too", () => SelectRadio("Image_EraseRectangle") && SelectRadio("Image_EraseEllipse")
+                  && SelectRadio("Image_EraseLasso") && SelectRadio("Image_ErasePolygon") && SelectRadio("Image_EraseMarkBrush"));
             Check("AI fill waits for the AI picture models, offered over the picture", () => !Enabled("Image_EraseFillAi")
                   && WaitForFs(() => WaitForId("Image_PictureModelsDownload", 1)?.IsEnabled == true, 3));
             Check("Brush size slider moves", () => MoveSlider("Image_EraseBrushSize"));

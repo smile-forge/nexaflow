@@ -291,6 +291,16 @@
         </Setter>
     </Style>
 
+    <!-- A row of segment buttons kept as small as what they hold — icons, a short word — in one bordered strip at the left,
+         rather than stretched across the panel. -->
+    <Style x:Key="SegGroup" TargetType="Border">
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="HorizontalAlignment" Value="Left"/>
+        <Setter Property="ClipToBounds" Value="True"/>
+    </Style>
+
     <Style x:Key="SegDivider" TargetType="Border">
         <Setter Property="Width" Value="1"/>
         <Setter Property="Background" Value="{StaticResource BorderBrush}"/>

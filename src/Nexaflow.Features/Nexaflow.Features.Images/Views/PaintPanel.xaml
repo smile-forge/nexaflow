@@ -32,7 +32,7 @@
             </Button>
         </StackPanel>
 
-        <UniformGrid Columns="4" Margin="0,10,0,0">
+        <Border Style="{StaticResource SegGroup}" Margin="0,10,0,0"><StackPanel Orientation="Horizontal">
             <RadioButton GroupName="PaintTool" Style="{StaticResource SegRadioStyle}" ToolTip="{loc:Str Images.Paint.BrushTip}"
                          IsChecked="{Binding Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Brush}" AutomationProperties.AutomationId="Image_PaintBrush" AutomationProperties.Name="{loc:Str Images.Paint.Brush}">
                 <icons:IconLabel Icon="fluent:paint_brush"/>
@@ -49,7 +49,7 @@
                          IsChecked="{Binding Tool, Converter={StaticResource EnumToBool}, ConverterParameter=Fill}" AutomationProperties.AutomationId="Image_PaintFill" AutomationProperties.Name="{loc:Str Images.Paint.Fill}">
                 <icons:IconLabel Icon="fluent:paint_bucket"/>
             </RadioButton>
-        </UniformGrid>
+        </StackPanel></Border>
 
         <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Paint.Colour}"/>
         <vcc:ColorPicker AutomationPrefix="Image_PaintColour" AllowDefault="False" Value="{Binding Colour, Mode=TwoWay}"/>
