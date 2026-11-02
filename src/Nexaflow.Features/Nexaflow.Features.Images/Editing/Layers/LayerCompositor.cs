@@ -64,7 +64,7 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
 
         if (!cache)
         {
-            var once = NewBitmap(size);
+            var once = NewBitmap(picture.Colour, size);
             Draw(once, picture, scale, images, options, new SKRectI(0, 0, size.Width, size.Height));
             return ImageDecoders.Seal(once);
         }
@@ -76,7 +76,7 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
         if (dirty is null)
         {
             _composite?.Dispose();
-            _composite = NewBitmap(size);
+            _composite = NewBitmap(picture.Colour, size);
             dirty = new SKRectI(0, 0, size.Width, size.Height);
         }
         if (!dirty.Value.IsEmpty) Draw(_composite!, picture, scale, images, options, dirty.Value);
@@ -88,12 +88,29 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
         => versions.Count == _drawnVersions.Count && versions.All(v => _drawnVersions.TryGetValue(v.Key, out var was) && was == v.Value);
 
     /// <summary>
+    /// The value the composite last rendered holds under <paramref name="at"/> (canvas pixels) — the picture's own, as deep as
+    /// it is held and before it is shown through a profile or an exposure, not premultiplied; null where nothing is rendered.
+    /// </summary>
+    public SKColorF? ShownAt(SKPoint at)
+    {
+        if (_composite is not { } composite || _drawn is not { } picture) return null;
+        int x = (int)Math.Floor(at.X * _drawnScale), y = (int)Math.Floor(at.Y * _drawnScale);
+        if (x < 0 || y < 0 || x >= composite.Width || y >= composite.Height) return null;
+        var info = new SKImageInfo(1, 1, SKColorType.RgbaF32, SKAlphaType.Unpremul, picture.Colour.ColourSpace);
+        using var pixel = new SKBitmap(info);
+        using var pixmap = composite.PeekPixels();
+        if (!pixmap.ReadPixels(info, pixel.GetPixels(), pixel.RowBytes, x, y)) return null;
+        var value = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(pixel.GetPixelSpan());
+        return new SKColorF(value[0], value[1], value[2], value[3]);
+    }
+
+    /// <summary>
     /// The rectangle of the output that differs between <paramref name="before"/> and <paramref name="after"/>: empty where the
     /// layers are the same, the tiles a pixel layer changed where that is all that changed, else null — draw it all again.
     /// </summary>
     public static SKRectI? DirtyBetween(LayeredPicture before, LayeredPicture after, double scale, SKSizeI size)
     {
-        if (before.Width != after.Width || before.Height != after.Height || before.Background != after.Background) return null;
+        if (before.Width != after.Width || before.Height != after.Height || before.Background != after.Background || before.Colour != after.Colour) return null;
         if (before.Layers == after.Layers) return SKRectI.Empty;
         var dirty = SKRectI.Empty;
         return Compare(before.Layers, after.Layers, ref dirty) ? Scaled(dirty, scale, size) : null;
@@ -159,17 +176,12 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
                           CompositeOptions options, SKRectI rect)
     {
         using var canvas = new SKCanvas(slice);
-        var target = new Target(canvas, () =>
-        {
-            canvas.Flush();
-            return SKImage.FromPixelCopy(slice.Info, slice.GetPixels(), slice.RowBytes)
-                   ?? throw new InvalidOperationException("What lies beneath a layer could not be read.");
-        });
+        var target = new Target(canvas);
         var band = new Band(rect, scale, picture, images);
         if (options.MaskAlone is { } id && picture.Find(id)?.Mask is { } mask)
         {
             canvas.Clear(SKColors.Black);
-            using var shown = NewSurface(rect);
+            using var shown = NewSurface(picture.Colour, rect);
             shown.Canvas.Clear(SKColors.White);
             band.ApplyCoverage(shown.Canvas, mask.Coverage, SKBlendMode.DstIn);
             using var white = shown.Snapshot();
@@ -180,12 +192,13 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
         foreach (var layer in picture.Layers) Composite(target, layer, band, 1);
     }
 
-    /// <summary>A surface being drawn onto, and how to read what it holds so far.</summary>
-    private sealed record Target(SKCanvas Canvas, Func<SKImage> Snapshot);
+    /// <summary>A surface being drawn onto.</summary>
+    private sealed record Target(SKCanvas Canvas);
 
     /// <summary>
     /// <paramref name="layer"/> composited onto <paramref name="target"/>, a surface over the band's rectangle: its opacity
-    /// times <paramref name="carried"/> — a pass-through group's — its blend, its mask, and its clip to what the target holds.
+    /// times <paramref name="carried"/> — a pass-through group's — its blend, its mask, and its clip to what the target holds,
+    /// source-atop, so a clipped layer never adds alpha to what lies beneath it.
     /// </summary>
     private void Composite(Target target, Layer layer, Band band, double carried)
     {
@@ -200,33 +213,35 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
             return;
         }
 
-        using var paint = new SKPaint { BlendMode = layer.Blend.ToSkia(), Color = SKColors.Black.WithAlpha((byte)Math.Round(opacity * 255)) };
-        bool ownSurface = mask is not null || layer.ClipsToBelow || layer is GroupLayer;
+        using var paint = new SKPaint { ColorF = new SKColorF(0, 0, 0, (float)opacity) };
+        layer.Blend.ApplyTo(paint, clipped: layer.ClipsToBelow);
+        // Dissolve scatters the layer's own pixels, so it needs them on a surface of their own first.
+        bool ownSurface = mask is not null || layer is GroupLayer || layer.Blend.IsDissolve;
         if (!ownSurface)
         {
             DrawContent(target.Canvas, layer, band, paint);
             return;
         }
 
-        using var surface = NewSurface(band.Rect);
+        using var surface = NewSurface(band.Picture.Colour, band.Rect);
         var canvas = surface.Canvas;
         canvas.Clear(SKColors.Transparent);
-        var inner = new Target(canvas, surface.Snapshot);
+        var inner = new Target(canvas);
         if (layer is GroupLayer group)
             foreach (var child in group.Children) Composite(inner, child, band, 1);
         else
             DrawContent(canvas, layer, band, null);
         if (mask is not null) band.ApplyCoverage(canvas, mask.Coverage, SKBlendMode.DstIn);
-        if (layer.ClipsToBelow)
-        {
-            // Kept only where what lies beneath it in its group is: the target as it stands, as alpha.
-            using var beneath = target.Snapshot();
-            using var keep = new SKPaint { BlendMode = SKBlendMode.DstIn };
-            canvas.ResetMatrix();
-            canvas.DrawImage(beneath, 0, 0, keep);
-        }
         using var drawn = surface.Snapshot();
         target.Canvas.ResetMatrix();
+        if (layer.Blend.IsDissolve)
+        {
+            using var dissolved = LayerBlenders.Dissolve(drawn, opacity, new SKPointI(band.Rect.Left, band.Rect.Top));
+            using var scattered = new SKPaint { Shader = dissolved };
+            if (layer.ClipsToBelow) LayerBlend.Normal.ApplyTo(scattered, clipped: true);
+            target.Canvas.DrawRect(SKRect.Create(drawn.Width, drawn.Height), scattered);
+            return;
+        }
         target.Canvas.DrawImage(drawn, 0, 0, paint);
     }
 
@@ -264,13 +279,14 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
             ? new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear)
             : new SKSamplingOptions(SKCubicResampler.Mitchell);
 
-    private static SKSurface NewSurface(SKRectI rect)
-        => SKSurface.Create(new SKImageInfo(rect.Width, rect.Height, SKImageInfo.PlatformColorType, SKAlphaType.Premul))
+    /// <summary>A surface over <paramref name="rect"/> as deep as <paramref name="colour"/>, in its space.</summary>
+    private static SKSurface NewSurface(PictureColour colour, SKRectI rect)
+        => SKSurface.Create(colour.SurfaceInfo(rect.Width, rect.Height))
            ?? throw new InvalidOperationException($"No memory for a {rect.Width}×{rect.Height} layer.");
 
-    private static SKBitmap NewBitmap(SKSizeI size)
+    private static SKBitmap NewBitmap(PictureColour colour, SKSizeI size)
     {
-        var bitmap = new SKBitmap(new SKImageInfo(size.Width, size.Height, SKImageInfo.PlatformColorType, SKAlphaType.Premul));
+        var bitmap = new SKBitmap(colour.SurfaceInfo(size.Width, size.Height));
         if (bitmap.GetPixels() == IntPtr.Zero) throw new InvalidOperationException($"No memory for a {size.Width}×{size.Height} picture.");
         bitmap.Erase(SKColors.Transparent);
         return bitmap;
@@ -287,6 +303,7 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
     private sealed class Band(SKRectI rect, double scale, LayeredPicture picture, IReadOnlyDictionary<Guid, PictureLayerImage> images)
     {
         public SKRectI Rect { get; } = rect;
+        public LayeredPicture Picture { get; } = picture;
         public IReadOnlyDictionary<Guid, PictureLayerImage> Images { get; } = images;
 
         /// <summary>Canvas pixels to the band's own pixels.</summary>
@@ -317,8 +334,7 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
                 canvas.Restore();
                 return;
             }
-            using var alpha = SKImage.FromPixelCopy(new SKImageInfo(area.Width, area.Height, SKColorType.Alpha8, SKAlphaType.Premul), coverage.Read(area))
-                              ?? throw new InvalidOperationException("A mask could not be made an image.");
+            using var alpha = CoverageImage(coverage, area);
             // Past the coverage's area — past the canvas — nothing is covered.
             using (var outside = new SKPaint { BlendMode = blend, Color = SKColors.Transparent })
             {
@@ -332,6 +348,38 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
             using var paint = new SKPaint { BlendMode = blend };
             canvas.DrawImage(alpha, area.Left, area.Top, new SKSamplingOptions(SKFilterMode.Linear), paint);
             canvas.Restore();
+        }
+
+        /// <summary>The coverage of <paramref name="area"/> as an image whose alpha it is, as deep as it is held: a byte, 16 bits, or
+        /// the alpha of a float picture — Skia's half-float alpha holds fewer values than a 32-bit mask does.</summary>
+        private static SKImage CoverageImage(TiledCoverage coverage, SKRectI area)
+        {
+            SKImage? image;
+            switch (coverage.Depth)
+            {
+                case ChannelDepth.U8:
+                    image = SKImage.FromPixelCopy(new SKImageInfo(area.Width, area.Height, SKColorType.Alpha8, SKAlphaType.Premul), coverage.Read(area));
+                    break;
+                case ChannelDepth.U16:
+                {
+                    var values = coverage.ReadValues(area);
+                    var samples = new ushort[values.Length];
+                    for (int i = 0; i < values.Length; i++) samples[i] = (ushort)Math.Clamp((int)MathF.Round(values[i] * 65535), 0, 65535);
+                    image = SKImage.FromPixelCopy(new SKImageInfo(area.Width, area.Height, SKColorType.Alpha16, SKAlphaType.Premul),
+                                                  System.Runtime.InteropServices.MemoryMarshal.AsBytes(samples.AsSpan()));
+                    break;
+                }
+                default:
+                {
+                    var values = coverage.ReadValues(area);
+                    var premul = new float[values.Length * 4];
+                    for (int i = 0; i < values.Length; i++) premul[i * 4 + 3] = values[i];
+                    image = SKImage.FromPixelCopy(new SKImageInfo(area.Width, area.Height, SKColorType.RgbaF32, SKAlphaType.Premul),
+                                                  System.Runtime.InteropServices.MemoryMarshal.AsBytes(premul.AsSpan()));
+                    break;
+                }
+            }
+            return image ?? throw new InvalidOperationException("A mask could not be made an image.");
         }
     }
 }

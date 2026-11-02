@@ -177,7 +177,7 @@ public sealed partial class ImageStartViewModel : ObservableObject, IDisposable
     /// <summary><paramref name="canvas"/> written as a draft and opened for editing; gives the draft, or null where it could not be written.</summary>
     private async Task<string?> OpenAsync(LayeredPicture canvas)
     {
-        var path = DraftLocation.NewFile(Str.Get("Images.Canvas.DraftName") + OpenRasterPackage.Extension);
+        var path = DraftLocation.NewFile(Str.Get("Images.Canvas.DraftName") + _editing.LayeredExtensionFor(canvas.Colour));
         IsMaking = true;
         try
         {

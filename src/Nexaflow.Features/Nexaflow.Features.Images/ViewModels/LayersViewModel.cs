@@ -28,18 +28,21 @@ public sealed partial class LayersViewModel : ObservableObject
     public const int ThumbnailSide = 48;
     private readonly IShellServices? _shell;
     private readonly Func<Action, Task> _runOnUi;
-    private readonly Func<SKColor> _colour;
+    private readonly Func<LayeredPicture, SKColorF> _colour;
     private LayeredSession? _document;
-    private (string Hash, SKRectI At)? _copied;
+    // What was copied last: the picture on the clipboard by its hash, where it lay, and its pixels as deep as they were held —
+    // what a paste of that same picture puts back, so copying within a deep picture loses nothing.
+    private (string Hash, SKRectI At, TiledPixels Pixels)? _copied;
     private CancellationTokenSource? _thumbnails;
 
     /// <param name="colour">The colour a fill lays down: the colour chosen for markup.</param>
-    public LayersViewModel(IShellServices? shell, Func<Action, Task> runOnUi, Func<SKColor> colour)
+    /// <param name="colour">The colour a fill lays down, in a picture's values.</param>
+    public LayersViewModel(IShellServices? shell, Func<Action, Task> runOnUi, Func<LayeredPicture, SKColorF> colour)
     {
         _shell = shell;
         _runOnUi = runOnUi;
         _colour = colour;
-        BlendChoices = [.. LayerBlend.Offered.Select(o => new LayerBlendChoice(o.Blend, Str.Get($"Images.Layers.Blend.{o.Blend.Op[4..]}")))];
+        BlendChoices = [.. LayerBlend.Offered.Select(o => new LayerBlendChoice(o.Blend, Str.Get($"Images.Layers.Blend.{o.Blend.Key}")))];
     }
 
     public ObservableCollection<LayerItem> Items { get; } = [];
@@ -566,10 +569,13 @@ public sealed partial class LayersViewModel : ObservableObject
     [ObservableProperty] private CanvasAnchor _canvasAnchor = CanvasAnchor.Centre;
 
     /// <summary>What one layer of the canvas typed takes in memory.</summary>
-    public string CanvasMemory => Str.Format("Images.Layers.CanvasMemoryFormat", SizeFormatter.FormatBytes(4L * Math.Max(0, CanvasWidth) * Math.Max(0, CanvasHeight)));
+    public string CanvasMemory => Str.Format("Images.Layers.CanvasMemoryFormat", SizeFormatter.FormatBytes(PixelBytes * Math.Max(0, CanvasWidth) * Math.Max(0, CanvasHeight)));
+
+    /// <summary>The bytes a pixel of the picture's layers takes, as deep as it is held.</summary>
+    private long PixelBytes => (Picture?.Colour ?? PictureColour.Rgb8).Tiles.PixelBytes;
 
     /// <summary>A layer of the canvas typed would take more than a quarter of the machine's memory.</summary>
-    public bool CanvasTooLarge => 4L * CanvasWidth * CanvasHeight > GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 4;
+    public bool CanvasTooLarge => PixelBytes * CanvasWidth * CanvasHeight > GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 4;
 
     /// <summary>The canvas size form starts from the canvas as it is.</summary>
     [RelayCommand(CanExecute = nameof(HasDocumentNow))]
@@ -577,6 +583,7 @@ public sealed partial class LayersViewModel : ObservableObject
     {
         if (Picture is not { } picture) return;
         (CanvasWidth, CanvasHeight, CanvasAnchor) = (picture.Width, picture.Height, CanvasAnchor.Centre);
+        (ColourMode, ColourDepth) = (ColourModelChoice.Of(picture.Colour.Model), ChannelDepthChoice.Of(picture.Colour.Depth));
     }
 
     [RelayCommand(CanExecute = nameof(CanResizeCanvas))]
@@ -590,6 +597,51 @@ public sealed partial class LayersViewModel : ObservableObject
 
     private bool CanResizeCanvas() => _document is not null && CanvasWidth is >= 1 and <= LayeredPicture.MaxSide && CanvasHeight is >= 1 and <= LayeredPicture.MaxSide
                                       && (CanvasWidth != Picture!.Width || CanvasHeight != Picture.Height);
+
+    // ── Colour ───────────────────────────────────────────────────────────────
+
+    /// <summary>Colour and grey, as the mode picker offers them.</summary>
+    public IReadOnlyList<ColourModelChoice> ColourModes => ColourModelChoice.All;
+
+    /// <summary>8, 16 and 32 bits, as the depth picker offers them.</summary>
+    public IReadOnlyList<ChannelDepthChoice> ColourDepths => ChannelDepthChoice.All;
+
+    /// <summary>The colour mode the picture is converted to.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ConvertColourCommand))]
+    private ColourModelChoice _colourMode = ColourModelChoice.Of(ColourModel.Rgb);
+
+    /// <summary>The depth the picture is converted to.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ConvertColourCommand))]
+    private ChannelDepthChoice _colourDepth = ChannelDepthChoice.Of(ChannelDepth.U8);
+
+    /// <summary>
+    /// The picture held in the colour mode and depth chosen: every layer converted — colour made grey, grey spread to colour, light
+    /// made linear for 32 bits or encoded again from them, what a shallower depth cannot hold clamped — one step.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanConvertColour))]
+    private void ConvertColour()
+    {
+        if (_document is not { } document) return;
+        var colour = new PictureColour(ColourMode.Model, ColourDepth.Depth);
+        document.Commit(p => p.ConvertedTo(colour));
+        OnPropertyChanged(nameof(ShowsLight));
+        OnPropertyChanged(nameof(CanvasMemory));
+    }
+
+    private bool CanConvertColour() => Picture is { } picture && picture.Colour != new PictureColour(ColourMode.Model, ColourDepth.Depth);
+
+    /// <summary>The picture is 32-bit: it holds light, shown at <see cref="ViewExposure"/>.</summary>
+    public bool ShowsLight => Picture?.Colour.IsLinear == true;
+
+    /// <summary>Stops of exposure a 32-bit picture is shown at — a view of its light, never saved.</summary>
+    [ObservableProperty] private double _viewExposure;
+
+    partial void OnViewExposureChanged(double value)
+    {
+        if (_document is { } document) document.ViewExposure = value;
+    }
 
     /// <summary>The canvas cropped to the selection's bounds.</summary>
     [RelayCommand(CanExecute = nameof(HasSelection))]
@@ -621,7 +673,7 @@ public sealed partial class LayersViewModel : ObservableObject
             return;
         }
         if (layer is not PixelLayer pixels) return;
-        var changed = layer.AlphaLocked ? pixels.Pixels.Filled(selected, picture.Background.Colour, keepAlpha: true) : pixels.Pixels.Cleared(selected);
+        var changed = layer.AlphaLocked ? pixels.Pixels.Filled(selected, picture.Colour.FromSrgb(picture.Background.Colour), keepAlpha: true) : pixels.Pixels.Cleared(selected);
         document.Commit(p => p.WithLayer(layer.Id, _ => pixels with { Pixels = changed }));
     }
 
@@ -633,12 +685,11 @@ public sealed partial class LayersViewModel : ObservableObject
         if (_document is not { } document || Active is not { Locked: false } layer) return;
         var picture = document.Picture;
         var selected = Selected(picture);
-        var colour = _colour();
+        var colour = _colour(picture);
         if (picture.EditsMask && layer.Mask is { } mask)
         {
             // The colour's grey, laid over the mask as much as the selection covers.
-            byte grey = (byte)Math.Round(0.2126 * colour.Red + 0.7152 * colour.Green + 0.0722 * colour.Blue);
-            var laid = mask.Coverage.LaidOver(selected, grey);
+            var laid = mask.Coverage.LaidOver(selected, picture.Colour.ShownGrey(colour));
             document.Commit(p => p.WithLayer(layer.Id, l => l with { Mask = mask with { Coverage = laid } }));
             return;
         }
@@ -684,13 +735,30 @@ public sealed partial class LayersViewModel : ObservableObject
         }
         var kept = pixels.KeptWhere(selected);
         if (kept.Bounds is not { IsEmpty: false } area) return false;
-        using var bitmap = kept.ToBitmap(area);
-        using var image = SKImage.FromBitmap(bitmap);
-        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-        var png = data.ToArray();
+        var png = ClipboardPng(kept, area);
         PictureClipboard.CopyPng(png);
-        _copied = (Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(png)), area);
+        _copied = (Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(png)), area, kept);
         return true;
+    }
+
+    /// <summary>
+    /// The pixels of <paramref name="area"/> as the PNG other applications paste: 8-bit as they are, 16-bit as a 16-bit PNG, and
+    /// a 32-bit picture's light encoded as sRGB at 16 bits — what is past white clipped, since a PNG holds no more.
+    /// </summary>
+    private static byte[] ClipboardPng(TiledPixels pixels, SKRectI area)
+    {
+        using var bitmap = pixels.ToBitmap(area);
+        var info = pixels.Format.Colour.Depth == ChannelDepth.F32
+            ? new SKImageInfo(area.Width, area.Height, SKColorType.Rgba16161616, SKAlphaType.Unpremul, SKColorSpace.CreateSrgb())
+            : bitmap.Info;
+        using var encoded = new SKBitmap(info);
+        using (var held = SKImage.FromPixelCopy(bitmap.Info, bitmap.GetPixels(), bitmap.RowBytes))
+            if (held is null || !held.ReadPixels(info, encoded.GetPixels(), encoded.RowBytes, 0, 0))
+                throw new InvalidOperationException("The pixels could not be encoded.");
+        using var image = SKImage.FromPixelCopy(encoded.Info, encoded.GetPixels(), encoded.RowBytes)
+                          ?? throw new InvalidOperationException("The pixels could not be encoded.");
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100) ?? throw new InvalidOperationException("The pixels could not be encoded.");
+        return data.ToArray();
     }
 
     /// <summary>
@@ -701,11 +769,17 @@ public sealed partial class LayersViewModel : ObservableObject
     private void Paste()
     {
         if (_document is not { } document || PictureClipboard.ReadPng() is not { } png) return;
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(png));
+        var name = Str.Get("Images.Layers.PastedName");
+        // The picture copied here last comes back as deep as it was held, where it lay.
+        if (_copied is { } copied && copied.Hash == hash)
+        {
+            Insert(new PixelLayer { Name = name, Pixels = copied.Pixels });
+            return;
+        }
         using var bitmap = SKBitmap.Decode(png);
         if (bitmap is null) return;
-        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(png));
-        var at = _copied is { } copied && copied.Hash == hash ? new SKPointI(copied.At.Left, copied.At.Top) : new SKPointI(0, 0);
-        Insert(new PixelLayer { Name = Str.Get("Images.Layers.PastedName"), Pixels = TiledPixels.FromBitmap(bitmap, at.X, at.Y) });
+        Insert(new PixelLayer { Name = name, Pixels = TiledPixels.FromBitmap(bitmap, 0, 0, document.Picture.Colour.Tiles) });
     }
 
     // ── Keeping step ────────────────────────────────────────────────────────
@@ -727,7 +801,7 @@ public sealed partial class LayersViewModel : ObservableObject
                      AddPixelLayerCommand, AddMarkupLayerCommand, GroupCommand, DuplicateCommand, DeleteCommand, MoveUpCommand, MoveDownCommand,
                      RasterizeCommand, MergeDownCommand, FlattenCommand, RevealAllMaskCommand, HideAllMaskCommand, MaskFromSelectionCommand,
                      MaskHidingSelectionCommand, MaskFromTransparencyCommand, MaskFromCutOutCommand, InvertMaskCommand, ApplyMaskCommand,
-                     DeleteMaskCommand, BeginCanvasSizeCommand, ResizeCanvasCommand, CropToSelectionCommand, DeleteSelectedCommand, FillCommand,
+                     DeleteMaskCommand, BeginCanvasSizeCommand, ResizeCanvasCommand, ConvertColourCommand, CropToSelectionCommand, DeleteSelectedCommand, FillCommand,
                      CopyCommand, CopyMergedCommand, CutCommand, PasteCommand,
                  })
             command.NotifyCanExecuteChanged();

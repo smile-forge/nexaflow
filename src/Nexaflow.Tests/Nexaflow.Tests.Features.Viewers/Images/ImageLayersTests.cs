@@ -151,8 +151,9 @@ public class ImageLayersTests
     {
         var under = new SKColor(200, 120, 40);
         var over = new SKColor(60, 180, 220, 200);
-        foreach (var (blend, skia) in LayerBlend.Offered)
+        foreach (var (blend, mode) in LayerBlend.Offered)
         {
+            if (mode is not { } skia) continue;   // drawn by Nexaflow's own blenders: ImageBlendTests
             var actual = Composite(Picture(4, 4, Solid(4, 4, under), Solid(4, 4, over, blend: blend)), 1, 1);
             using var surface = SKSurface.Create(new SKImageInfo(1, 1, SKImageInfo.PlatformColorType, SKAlphaType.Premul))!;
             surface.Canvas.Clear(under);
@@ -160,8 +161,11 @@ public class ImageLayersTests
             using var reference = surface.Snapshot();
             Near(Pixel(reference, 0, 0), actual, blend.Op);
         }
-        Assert.AreEqual(SKBlendMode.Exclusion, new LayerBlend("krita:exclusion").ToSkia(), "another application's blend is drawn by the Skia blend of its name");
-        Assert.AreEqual(SKBlendMode.SrcOver, new LayerBlend("krita:dissolve").ToSkia(), "one Skia has none of is drawn as Normal");
+        Assert.AreEqual(SKBlendMode.Xor, new LayerBlend("krita:xor").SkiaMode, "another application's blend is drawn by the Skia blend of its name");
+        Assert.IsNull(new LayerBlend("krita:greater").SkiaMode, "one neither Skia nor Nexaflow draws has none");
+        using var unknown = new SKPaint();
+        new LayerBlend("krita:greater").ApplyTo(unknown);
+        Assert.AreEqual(SKBlendMode.SrcOver, unknown.BlendMode, "and is drawn as Normal");
     }
 
     [TestMethod]

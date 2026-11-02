@@ -59,6 +59,7 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         Check("A resolution typed", () => TypeInto("Images_CanvasDpi", "150"));
         Check("Background: white, a colour, or transparent", () => SelectRadio("Images_CanvasBackgroundWhite")
               && SelectRadio("Images_CanvasBackgroundColour") && SelectRadio("Images_CanvasBackgroundTransparent"));
+        Check("Colour, held at 16 bits a channel", () => PickIndex("Images_CanvasMode", 0) && PickIndex("Images_CanvasDepth", 1));
         Check("The name is given", () => TypeInto("CreateFileNameBox", "poster"));
         CheckDoes("Create makes the canvas", "FileSystem_CreateConfirm", () => WaitForGone("CreateFileNameBox", 4));
         var poster = Path.Combine(_folder, "poster.ora");
@@ -196,6 +197,100 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
                   () => WaitForGone("Image_SavedLookEditLayers", 5) && LayersBecome(2));
 
         AssertJourney();
+    }
+
+    [TestMethod]
+    [CoversNode("images-psd")]
+    public void APhotoshopFile_OpensOnItsLayers_IsHeldAt32Bits_AndIsSavedBackAsPhotoshop()
+    {
+        var path = Path.Combine(_folder, "art.psd");
+        WritePhotoshop(path, 64, 48, [("Sky", 40, 90, 200), ("Ground", 120, 80, 30)]);
+        OpenEditorOnTheFolder();
+        Check("It opens on its layers", () => WaitForFs(() => Exists("Image_LayersPanel"), 10) && LayersBecome(2));
+        var made = File.GetLastWriteTimeUtc(path);
+
+        CheckDoes("Add a layer", "Image_LayersAddPixel", () => LayersBecome(3));
+        Check("The file is saved back, still Photoshop", () => WaitForFs(() => File.GetLastWriteTimeUtc(path) > made, 10) && HeaderOf(path) is ("8BPS", 8));
+
+        Check("The canvas section opens", () => Expand("Image_LayersCanvasSection"));
+        Check("Grey is picked, then colour again", () => PickIndex("Image_LayersColourMode", 1) && PickIndex("Image_LayersColourMode", 0));
+        Check("32-bit float is picked", () => PickIndex("Image_LayersColourDepth", 2));
+        CheckDoes("Convert holds the picture in it, and its light is shown at an exposure", "Image_LayersConvertColour",
+                  () => WaitForFs(() => Exists("Image_LayersViewExposure"), 3));
+        Check("The view exposure moves", () => MoveSlider("Image_LayersViewExposure"));
+        Check("Paint offers an intensity past white", () => SelectRadio("Image_EditToolPaint") && WaitForFs(() => Exists("Image_PaintIntensity"), 3));
+        Check("The intensity moves", () => MoveSlider("Image_PaintIntensity"));
+        Check("A stroke is painted", () => FitCanvas() && DragOnCanvas(-20, -5, 20, 5));
+        Check("The file is saved back at 32 bits", () => WaitForFs(() => HeaderOf(path) is ("8BPS", 32), 10));
+
+        AssertJourney();
+    }
+
+    /// <summary>A Photoshop file's signature and bits a channel, read from its header; empty while it cannot be read.</summary>
+    private static (string Signature, int Depth) HeaderOf(string path)
+    {
+        try
+        {
+            using var file = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            var header = new byte[26];
+            if (file.Read(header, 0, header.Length) < header.Length) return ("", 0);
+            return (Encoding.ASCII.GetString(header, 0, 4), header[22] << 8 | header[23]);
+        }
+        catch (IOException)
+        {
+            return ("", 0);
+        }
+    }
+
+    /// <summary>
+    /// An 8-bit RGB Photoshop file laid out by hand, as Adobe's specification gives it: each layer one opaque colour over the
+    /// whole canvas, its channels raw — transparency, then red, green and blue — and the merged image the top layer's colour.
+    /// </summary>
+    private static void WritePhotoshop(string path, int width, int height, (string Name, byte R, byte G, byte B)[] layers)
+    {
+        using var stream = File.Create(path);
+        void U16(int value) { stream.WriteByte((byte)(value >> 8)); stream.WriteByte((byte)value); }
+        void U32(int value) { U16(value >> 16); U16(value & 0xFFFF); }
+        void Ascii(string text) => stream.Write(Encoding.ASCII.GetBytes(text));
+        int plane = width * height;
+
+        Ascii("8BPS"); U16(1); stream.Write(new byte[6]); U16(3); U32(height); U32(width); U16(8); U16(3);
+        U32(0);   // colour-mode data
+        U32(0);   // image resources
+
+        int nameBytes(string name) => (1 + name.Length + 3) / 4 * 4;
+        int record(string name) => 16 + 2 + 4 * 6 + 4 + 4 + 4 + 4 + (4 + 4 + nameBytes(name));
+        int info = 2 + layers.Sum(l => record(l.Name)) + layers.Length * 4 * (2 + plane);
+        int paddedInfo = (info + 1) / 2 * 2;
+        U32(4 + paddedInfo + 4);   // the layer and mask section
+        U32(paddedInfo);
+        U16(layers.Length);
+        foreach (var (name, _, _, _) in layers)
+        {
+            U32(0); U32(0); U32(height); U32(width);
+            U16(4);
+            foreach (int id in new[] { -1, 0, 1, 2 }) { U16(id & 0xFFFF); U32(2 + plane); }
+            Ascii("8BIM"); Ascii("norm");
+            stream.WriteByte(255); stream.WriteByte(0); stream.WriteByte(0); stream.WriteByte(0);
+            U32(4 + 4 + nameBytes(name));
+            U32(0);   // no mask
+            U32(0);   // no blending ranges
+            stream.WriteByte((byte)name.Length);
+            Ascii(name);
+            stream.Write(new byte[nameBytes(name) - 1 - name.Length]);
+        }
+        foreach (var (_, r, g, b) in layers)
+            foreach (byte value in new[] { (byte)255, r, g, b })
+            {
+                U16(0);
+                stream.Write(Enumerable.Repeat(value, plane).ToArray());
+            }
+        stream.Write(new byte[paddedInfo - info]);
+        U32(0);   // global layer mask
+
+        var top = layers[^1];
+        U16(0);
+        foreach (byte value in new[] { top.R, top.G, top.B }) stream.Write(Enumerable.Repeat(value, plane).ToArray());
     }
 
     [TestMethod]

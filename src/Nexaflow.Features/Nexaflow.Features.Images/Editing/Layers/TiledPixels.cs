@@ -10,26 +10,35 @@ namespace Nexaflow.Features.Images.Editing.Layers;
 public readonly record struct TileKey(int Column, int Row);
 
 /// <summary>
-/// A pixel layer's pixels: premultiplied 8-bit RGBA held in square tiles of <see cref="TileSize"/> pixels, in canvas
-/// coordinates, only the tiles painted — which may lie past the canvas's edges. A tile is never changed once made: every
-/// change makes new pixels holding new tiles only where it changed something and sharing every other, so an undo step costs
-/// the tiles it changed. A tile wholly transparent is not held.
+/// A pixel layer's pixels, held in square tiles of <see cref="TileSize"/> pixels in its picture's <see cref="Format"/> — 8-bit
+/// premultiplied colour, or deeper colour or grey — in canvas coordinates, only the tiles painted, which may lie past the
+/// canvas's edges. A tile is never changed once made: every change makes new pixels holding new tiles only where it changed
+/// something and sharing every other, so an undo step costs the tiles it changed. A tile wholly transparent is not held.
 /// </summary>
 public sealed class TiledPixels
 {
-    public const int TileSize = 256;
+    public const int TileSize = TileFormat.TileSize;
 
-    private const int TileShift = 8, TileMask = TileSize - 1, RowBytes = TileSize * 4, TileBytes = TileSize * RowBytes;
-
-    private static readonly ConditionalWeakTable<byte[], SKImage> Images = new();
+    private const int TileShift = 8, TileMask = TileSize - 1;
 
     // Never written once the pixels are made.
     private readonly ImmutableDictionary<TileKey, byte[]> _tiles;
     private SKRectI? _bounds;
 
-    private TiledPixels(ImmutableDictionary<TileKey, byte[]> tiles) => _tiles = tiles;
+    private TiledPixels(TileFormat format, ImmutableDictionary<TileKey, byte[]> tiles)
+    {
+        Format = format;
+        _tiles = tiles;
+    }
 
-    public static TiledPixels Empty { get; } = new(ImmutableDictionary<TileKey, byte[]>.Empty);
+    /// <summary>Nothing painted, in 8-bit colour.</summary>
+    public static TiledPixels Empty { get; } = new(TileFormat.Rgb8, ImmutableDictionary<TileKey, byte[]>.Empty);
+
+    /// <summary>Nothing painted, in <paramref name="format"/>.</summary>
+    public static TiledPixels EmptyIn(TileFormat format) => format == TileFormat.Rgb8 ? Empty : new(format, ImmutableDictionary<TileKey, byte[]>.Empty);
+
+    /// <summary>How each tile's bytes hold its pixels.</summary>
+    public TileFormat Format { get; }
 
     /// <summary>Nothing painted anywhere.</summary>
     public bool IsEmpty => _tiles.IsEmpty;
@@ -40,103 +49,111 @@ public sealed class TiledPixels
     /// <summary>The smallest rectangle holding every pixel not wholly transparent; empty where none is.</summary>
     public SKRectI Bounds => _bounds ??= MeasureBounds();
 
-    /// <summary>The pixels of <paramref name="bitmap"/> placed with its top-left at (<paramref name="x"/>, <paramref name="y"/>).</summary>
-    public static TiledPixels FromBitmap(SKBitmap bitmap, int x, int y)
-    {
-        using var premul = AsPremulRgba(bitmap);
-        var rect = new SKRectI(x, y, x + premul.Width, y + premul.Height);
-        var pixels = new byte[premul.Width * premul.Height * 4];
-        var origin = premul.GetPixels();
-        for (int row = 0; row < premul.Height; row++)
-            Marshal.Copy(origin + row * premul.RowBytes, pixels, row * premul.Width * 4, premul.Width * 4);
-        return Empty.Written(rect, pixels);
-    }
+    /// <summary>The pixels of <paramref name="bitmap"/> placed with its top-left at (<paramref name="x"/>, <paramref name="y"/>), in 8-bit colour.</summary>
+    public static TiledPixels FromBitmap(SKBitmap bitmap, int x, int y) => FromBitmap(bitmap, x, y, TileFormat.Rgb8);
 
-    /// <summary>The pixels of <paramref name="rect"/> as a premultiplied RGBA bitmap the caller owns; transparent where nothing is painted.</summary>
-    public SKBitmap ToBitmap(SKRectI rect)
-    {
-        var bitmap = new SKBitmap(new SKImageInfo(rect.Width, rect.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
-        var pixels = Read(rect);
-        var origin = bitmap.GetPixels();
-        for (int row = 0; row < rect.Height; row++)
-            Marshal.Copy(pixels, row * rect.Width * 4, origin + row * bitmap.RowBytes, rect.Width * 4);
-        return bitmap;
-    }
+    /// <summary>The pixels of <paramref name="bitmap"/> placed with its top-left at (<paramref name="x"/>, <paramref name="y"/>),
+    /// converted into <paramref name="format"/> from whatever colour, depth and space the bitmap is in.</summary>
+    public static TiledPixels FromBitmap(SKBitmap bitmap, int x, int y, TileFormat format)
+        => EmptyIn(format).Written(new SKRectI(x, y, x + bitmap.Width, y + bitmap.Height), format.PixelsOf(bitmap));
 
-    /// <summary>The pixels of <paramref name="rect"/>, premultiplied RGBA, row by row; transparent where nothing is painted.</summary>
+    /// <summary>The pixels of <paramref name="rect"/> as a bitmap of <see cref="TileFormat.BitmapInfo"/> the caller owns —
+    /// 8-bit premultiplied colour, or deeper colour not premultiplied; transparent where nothing is painted.</summary>
+    public SKBitmap ToBitmap(SKRectI rect) => Format.BitmapOf(Read(rect), rect.Width, rect.Height);
+
+    /// <summary>The pixels of <paramref name="rect"/> in this <see cref="Format"/>, row by row; transparent where nothing is painted.</summary>
     public byte[] Read(SKRectI rect)
     {
-        var pixels = new byte[rect.Width * rect.Height * 4];
+        var pixels = new byte[rect.Width * rect.Height * Format.PixelBytes];
         ReadInto(rect, pixels);
         return pixels;
     }
 
-    /// <summary>The pixels of <paramref name="rect"/> into <paramref name="into"/>, premultiplied RGBA, row by row.</summary>
+    /// <summary>The pixels of <paramref name="rect"/> into <paramref name="into"/>, in this <see cref="Format"/>, row by row.</summary>
     public void ReadInto(SKRectI rect, Span<byte> into)
     {
-        if (into.Length < rect.Width * rect.Height * 4) throw new ArgumentException("There is not room for the pixels.", nameof(into));
-        into[..(rect.Width * rect.Height * 4)].Clear();
+        int size = Format.PixelBytes;
+        if (into.Length < rect.Width * rect.Height * size) throw new ArgumentException("There is not room for the pixels.", nameof(into));
+        into[..(rect.Width * rect.Height * size)].Clear();
         if (rect.IsEmpty) return;
         foreach (var (key, tile, overlap) in Overlapping(rect))
         {
             if (tile is null) continue;
             for (int y = overlap.Top; y < overlap.Bottom; y++)
-                tile.AsSpan(Offset(overlap.Left, y), overlap.Width * 4)
-                    .CopyTo(into.Slice(((y - rect.Top) * rect.Width + overlap.Left - rect.Left) * 4, overlap.Width * 4));
+                tile.AsSpan(Offset(overlap.Left, y), overlap.Width * size)
+                    .CopyTo(into.Slice(((y - rect.Top) * rect.Width + overlap.Left - rect.Left) * size, overlap.Width * size));
         }
     }
 
+    /// <summary>The pixels of <paramref name="rect"/> as premultiplied red, green, blue and alpha, four floats a pixel in the
+    /// picture's values — <see cref="TileFormat.ToPremul"/> — row by row.</summary>
+    public float[] ReadPremul(SKRectI rect)
+    {
+        var values = new float[rect.Width * rect.Height * 4];
+        Format.ToPremul(Read(rect), values);
+        return values;
+    }
+
     /// <summary>
-    /// These pixels with <paramref name="rect"/> given by <paramref name="pixels"/> — premultiplied RGBA, row by row: a
+    /// These pixels with <paramref name="rect"/> given by <paramref name="pixels"/> — in this <see cref="Format"/>, row by row: a
     /// tile it does not touch is shared, one it covers made anew, one it covers part of copied with that part written.
     /// </summary>
     public TiledPixels Written(SKRectI rect, ReadOnlySpan<byte> pixels)
     {
-        if (pixels.Length < rect.Width * rect.Height * 4) throw new ArgumentException("The pixels do not fill the rectangle.", nameof(pixels));
+        int size = Format.PixelBytes;
+        if (pixels.Length < rect.Width * rect.Height * size) throw new ArgumentException("The pixels do not fill the rectangle.", nameof(pixels));
         if (rect.IsEmpty) return this;
         var tiles = _tiles.ToBuilder();
         foreach (var (key, held, overlap) in Overlapping(rect))
         {
-            var tile = overlap == TileRect(key) ? new byte[TileBytes] : held is null ? new byte[TileBytes] : (byte[])held.Clone();
+            var tile = overlap == TileRect(key) || held is null ? new byte[Format.TileBytes] : (byte[])held.Clone();
             for (int y = overlap.Top; y < overlap.Bottom; y++)
-                pixels.Slice(((y - rect.Top) * rect.Width + overlap.Left - rect.Left) * 4, overlap.Width * 4)
+                pixels.Slice(((y - rect.Top) * rect.Width + overlap.Left - rect.Left) * size, overlap.Width * size)
                       .CopyTo(tile.AsSpan(Offset(overlap.Left, y)));
             Put(tiles, key, tile);
         }
-        return new(tiles.ToImmutable());
+        return new(Format, tiles.ToImmutable());
+    }
+
+    /// <summary>These pixels with <paramref name="rect"/> given by <paramref name="premul"/> — premultiplied red, green, blue and
+    /// alpha, four floats a pixel in the picture's values, row by row — written in this <see cref="Format"/>.</summary>
+    public TiledPixels WrittenPremul(SKRectI rect, ReadOnlySpan<float> premul)
+    {
+        var pixels = new byte[rect.Width * rect.Height * Format.PixelBytes];
+        Format.FromPremul(premul, pixels);
+        return Written(rect, pixels);
     }
 
     /// <summary>
-    /// <paramref name="colour"/> laid over these pixels as much as <paramref name="where"/> covers each — a canvas-sized
-    /// coverage, read as uncovered past the canvas. Where <paramref name="keepAlpha"/>, the colour only recolours what is
-    /// painted, as much as it is painted: the transparency stays as it was.
+    /// <paramref name="colour"/> — in the picture's values, not premultiplied — laid over these pixels as much as
+    /// <paramref name="where"/> covers each: a canvas-sized coverage, read as uncovered past the canvas. Where
+    /// <paramref name="keepAlpha"/>, the colour only recolours what is painted, as much as it is painted: the transparency
+    /// stays as it was.
     /// </summary>
-    public TiledPixels Filled(TiledCoverage where, SKColor colour, bool keepAlpha = false)
+    public TiledPixels Filled(TiledCoverage where, SKColorF colour, bool keepAlpha = false)
     {
         var area = where.Bounds;
         if (area.IsEmpty) return this;
-        int ca = colour.Alpha, cr = colour.Red, cg = colour.Green, cb = colour.Blue;
+        float ca = Math.Clamp(colour.Alpha, 0, 1), cr = colour.Red, cg = colour.Green, cb = colour.Blue;
         return Changed(area, where, keepAlpha, (px, cover) =>
         {
             for (int i = 0, p = 0; i < cover.Length; i++, p += 4)
             {
-                int a = cover[i];
-                if (a == 0) continue;
+                float a = cover[i];
+                if (a <= 0) continue;
                 if (keepAlpha)
                 {
-                    int da = px[p + 3];
-                    int sr = cr * da / 255, sg = cg * da / 255, sb = cb * da / 255;
-                    px[p] = (byte)((px[p] * (255 - a) + sr * a + 127) / 255);
-                    px[p + 1] = (byte)((px[p + 1] * (255 - a) + sg * a + 127) / 255);
-                    px[p + 2] = (byte)((px[p + 2] * (255 - a) + sb * a + 127) / 255);
+                    float da = px[p + 3];
+                    px[p] = px[p] * (1 - a) + cr * da * a;
+                    px[p + 1] = px[p + 1] * (1 - a) + cg * da * a;
+                    px[p + 2] = px[p + 2] * (1 - a) + cb * da * a;
                     continue;
                 }
-                int sa = ca * a / 255;
-                int inverse = 255 - sa;
-                px[p] = (byte)((cr * sa + px[p] * inverse + 127) / 255);
-                px[p + 1] = (byte)((cg * sa + px[p + 1] * inverse + 127) / 255);
-                px[p + 2] = (byte)((cb * sa + px[p + 2] * inverse + 127) / 255);
-                px[p + 3] = (byte)(sa + (px[p + 3] * inverse + 127) / 255);
+                float sa = ca * a, inverse = 1 - sa;
+                px[p] = cr * sa + px[p] * inverse;
+                px[p + 1] = cg * sa + px[p + 1] * inverse;
+                px[p + 2] = cb * sa + px[p + 2] * inverse;
+                px[p + 3] = sa + px[p + 3] * inverse;
             }
         });
     }
@@ -151,9 +168,9 @@ public sealed class TiledPixels
         {
             for (int i = 0, p = 0; i < cover.Length; i++, p += 4)
             {
-                int keep = 255 - cover[i];
-                if (keep == 255) continue;
-                for (int c = 0; c < 4; c++) px[p + c] = (byte)((px[p + c] * keep + 127) / 255);
+                float keep = 1 - cover[i];
+                if (keep >= 1) continue;
+                for (int c = 0; c < 4; c++) px[p + c] *= keep;
             }
         });
     }
@@ -169,12 +186,13 @@ public sealed class TiledPixels
         {
             for (int i = 0, p = 0; i < cover.Length; i++, p += 4)
             {
-                int keep = cover[i];
-                if (keep == 255) continue;
-                for (int c = 0; c < 4; c++) px[p + c] = (byte)((px[p + c] * keep + 127) / 255);
+                float keep = cover[i];
+                if (keep >= 1) continue;
+                for (int c = 0; c < 4; c++) px[p + c] *= keep;
             }
         });
         // Past the canvas nothing is covered: whole tiles there go, and the parts of edge tiles past it are cleared.
+        int size = Format.PixelBytes;
         var tiles = kept._tiles.ToBuilder();
         foreach (var key in kept._tiles.Keys)
         {
@@ -185,23 +203,61 @@ public sealed class TiledPixels
             var tile = (byte[])kept._tiles[key].Clone();
             for (int y = rect.Top; y < rect.Bottom; y++)
                 for (int x = rect.Left; x < rect.Right; x++)
-                    if (!inside.Contains(x, y)) tile.AsSpan(Offset(x, y), 4).Clear();
+                    if (!inside.Contains(x, y)) tile.AsSpan(Offset(x, y), size).Clear();
             Put(tiles, key, tile);
         }
-        return new(tiles.ToImmutable());
+        return new(Format, tiles.ToImmutable());
     }
 
-    /// <summary>How opaque each pixel is, as coverage over a <paramref name="width"/> × <paramref name="height"/> canvas.</summary>
+    /// <summary>How opaque each pixel is, as coverage over a <paramref name="width"/> × <paramref name="height"/> canvas, held
+    /// as deep as these pixels are.</summary>
     public TiledCoverage Alpha(int width, int height)
     {
         var canvas = new SKRectI(0, 0, width, height);
         var area = SKRectI.Intersect(Bounds, canvas);
-        var coverage = TiledCoverage.Clear(width, height);
+        var coverage = TiledCoverage.Clear(width, height, Format.Colour.Depth);
         if (area.IsEmpty) return coverage;
-        var pixels = Read(area);
-        var alpha = new byte[area.Width * area.Height];
-        for (int i = 0; i < alpha.Length; i++) alpha[i] = pixels[i * 4 + 3];
-        return coverage.Written(area, alpha);
+        var premul = ReadPremul(area);
+        var alpha = new float[area.Width * area.Height];
+        for (int i = 0; i < alpha.Length; i++) alpha[i] = premul[i * 4 + 3];
+        return coverage.WrittenValues(area, alpha);
+    }
+
+    /// <summary>
+    /// These pixels in <paramref name="format"/>: every tile carried across — colour made grey, grey spread to colour, light
+    /// made linear or encoded again where one of the two is a 32-bit format and the other is not, and clamped to 0…1 where
+    /// the new format holds no more.
+    /// </summary>
+    public TiledPixels ConvertedTo(TileFormat format)
+    {
+        if (format == Format) return this;
+        bool fromLinear = Format.Colour.IsLinear, toLinear = format.Colour.IsLinear;
+        var tiles = ImmutableDictionary.CreateBuilder<TileKey, byte[]>();
+        var values = new float[TileSize * TileSize * 4];
+        foreach (var (key, tile) in _tiles)
+        {
+            Format.ToPremul(tile, values);
+            if (fromLinear != toLinear) Retransferred(values, toLinear);
+            var carried = new byte[format.TileBytes];
+            format.FromPremul(values, carried);
+            Put(tiles, key, carried, format);
+        }
+        return new(format, tiles.ToImmutable());
+    }
+
+    /// <summary>Premultiplied values put through sRGB's curve, or out of it: each colour unpremultiplied, carried, premultiplied again.</summary>
+    private static void Retransferred(Span<float> premul, bool toLinear)
+    {
+        for (int p = 0; p < premul.Length; p += 4)
+        {
+            float a = premul[p + 3];
+            if (a <= 0) continue;
+            for (int c = 0; c < 3; c++)
+            {
+                float straight = premul[p + c] / a;
+                premul[p + c] = (toLinear ? PictureColour.ToLinear(straight) : PictureColour.ToEncoded(straight)) * a;
+            }
+        }
     }
 
     /// <summary>The bytes of the tiles these pixels hold that <paramref name="other"/> does not share — what keeping these
@@ -210,7 +266,7 @@ public sealed class TiledPixels
     {
         long bytes = 0;
         foreach (var (key, tile) in _tiles)
-            if (other is null || !other._tiles.TryGetValue(key, out var theirs) || !ReferenceEquals(theirs, tile)) bytes += TileBytes;
+            if (other is null || !other._tiles.TryGetValue(key, out var theirs) || !ReferenceEquals(theirs, tile)) bytes += tile.Length;
         return bytes;
     }
 
@@ -235,8 +291,8 @@ public sealed class TiledPixels
     {
         if (dx == 0 && dy == 0 || IsEmpty) return this;
         if ((dx & TileMask) == 0 && (dy & TileMask) == 0)
-            return new(_tiles.ToImmutableDictionary(p => new TileKey(p.Key.Column + (dx >> TileShift), p.Key.Row + (dy >> TileShift)), p => p.Value));
-        var moved = Empty;
+            return new(Format, _tiles.ToImmutableDictionary(p => new TileKey(p.Key.Column + (dx >> TileShift), p.Key.Row + (dy >> TileShift)), p => p.Value));
+        var moved = EmptyIn(Format);
         foreach (var key in _tiles.Keys)
         {
             var rect = TileRect(key);
@@ -247,7 +303,7 @@ public sealed class TiledPixels
 
     /// <summary>
     /// Draws the tiles that meet <paramref name="clip"/> (in canvas pixels) onto <paramref name="canvas"/>, at their places in
-    /// its current matrix, with <paramref name="paint"/>. Each tile is made a Skia image once, the first time it is drawn.
+    /// its current matrix, with <paramref name="paint"/> — each as its <see cref="Format"/> draws it.
     /// </summary>
     public void DrawTo(SKCanvas canvas, SKRect clip, SKSamplingOptions sampling, SKPaint? paint = null)
     {
@@ -255,21 +311,16 @@ public sealed class TiledPixels
         {
             var rect = TileRect(key);
             if (!clip.IntersectsWith(rect)) continue;
-            var image = Images.GetValue(tile, ImageOf);
-            canvas.DrawImage(image, rect.Left, rect.Top, sampling, paint);
+            Format.Draw(canvas, tile, rect.Left, rect.Top, sampling, paint);
         }
     }
-
-    private static SKImage ImageOf(byte[] tile)
-        => SKImage.FromPixelCopy(new SKImageInfo(TileSize, TileSize, SKColorType.Rgba8888, SKAlphaType.Premul), tile)
-           ?? throw new InvalidOperationException("A tile could not be made an image.");
 
     // ── Tiles ───────────────────────────────────────────────────────────────
 
     private static SKRectI TileRect(TileKey key)
         => new(key.Column << TileShift, key.Row << TileShift, (key.Column + 1) << TileShift, (key.Row + 1) << TileShift);
 
-    private static int Offset(int x, int y) => ((y & TileMask) * TileSize + (x & TileMask)) * 4;
+    private int Offset(int x, int y) => ((y & TileMask) * TileSize + (x & TileMask)) * Format.PixelBytes;
 
     private IEnumerable<(TileKey Key, byte[]? Tile, SKRectI Overlap)> Overlapping(SKRectI rect)
     {
@@ -282,38 +333,40 @@ public sealed class TiledPixels
     }
 
     /// <summary>A tile just made put in its place — or, wholly transparent, its place emptied.</summary>
-    private static void Put(ImmutableDictionary<TileKey, byte[]>.Builder tiles, TileKey key, byte[] tile)
+    private void Put(ImmutableDictionary<TileKey, byte[]>.Builder tiles, TileKey key, byte[] tile) => Put(tiles, key, tile, Format);
+
+    private static void Put(ImmutableDictionary<TileKey, byte[]>.Builder tiles, TileKey key, byte[] tile, TileFormat format)
     {
-        bool painted = false;
-        for (int p = 3; p < TileBytes; p += 4)
-            if (tile[p] != 0) { painted = true; break; }
-        if (painted) tiles[key] = tile;
+        if (format.AnyPainted(tile)) tiles[key] = tile;
         else tiles.Remove(key);
     }
 
     /// <summary>These pixels with <paramref name="area"/> changed by <paramref name="change"/>, handed each tile's pixels in that
-    /// area and the coverage of <paramref name="where"/> over them, row by row.</summary>
-    private TiledPixels Changed(SKRectI area, TiledCoverage where, bool keepAlpha, Action<byte[], byte[]> change)
+    /// area as premultiplied values and the coverage of <paramref name="where"/> over them, 0 to 1, row by row.</summary>
+    private TiledPixels Changed(SKRectI area, TiledCoverage where, bool keepAlpha, Action<float[], float[]> change)
     {
         var canvas = new SKRectI(0, 0, where.Width, where.Height);
         area = SKRectI.Intersect(area, canvas);
         if (area.IsEmpty) return this;
+        int size = Format.PixelBytes;
         var tiles = _tiles.ToBuilder();
         foreach (var (key, held, overlap) in Overlapping(area))
         {
             if (held is null && keepAlpha) continue;   // nothing painted to recolour
-            var pixels = new byte[overlap.Width * overlap.Height * 4];
+            var pixels = new byte[overlap.Width * overlap.Height * size];
             if (held is not null)
                 for (int y = overlap.Top; y < overlap.Bottom; y++)
-                    held.AsSpan(Offset(overlap.Left, y), overlap.Width * 4).CopyTo(pixels.AsSpan((y - overlap.Top) * overlap.Width * 4));
-            var cover = where.Read(overlap);
-            change(pixels, cover);
-            var tile = held is null ? new byte[TileBytes] : (byte[])held.Clone();
+                    held.AsSpan(Offset(overlap.Left, y), overlap.Width * size).CopyTo(pixels.AsSpan((y - overlap.Top) * overlap.Width * size));
+            var premul = new float[overlap.Width * overlap.Height * 4];
+            Format.ToPremul(pixels, premul);
+            change(premul, where.ReadValues(overlap));
+            Format.FromPremul(premul, pixels);
+            var tile = held is null ? new byte[Format.TileBytes] : (byte[])held.Clone();
             for (int y = overlap.Top; y < overlap.Bottom; y++)
-                pixels.AsSpan((y - overlap.Top) * overlap.Width * 4, overlap.Width * 4).CopyTo(tile.AsSpan(Offset(overlap.Left, y)));
+                pixels.AsSpan((y - overlap.Top) * overlap.Width * size, overlap.Width * size).CopyTo(tile.AsSpan(Offset(overlap.Left, y)));
             Put(tiles, key, tile);
         }
-        return new(tiles.ToImmutable());
+        return new(Format, tiles.ToImmutable());
     }
 
     private SKRectI MeasureBounds()
@@ -325,7 +378,7 @@ public sealed class TiledPixels
             for (int y = 0; y < TileSize; y++)
                 for (int x = 0; x < TileSize; x++)
                 {
-                    if (tile[(y * TileSize + x) * 4 + 3] == 0) continue;
+                    if (Format.IsClearAt(tile, y * TileSize + x)) continue;
                     left = Math.Min(left, rect.Left + x);
                     right = Math.Max(right, rect.Left + x);
                     top = Math.Min(top, rect.Top + y);
@@ -335,23 +388,10 @@ public sealed class TiledPixels
         return right == int.MinValue ? SKRectI.Empty : new SKRectI(left, top, right + 1, bottom + 1);
     }
 
-    /// <summary><paramref name="bitmap"/> as premultiplied RGBA, converted where it is not; the caller owns the result.</summary>
-    private static SKBitmap AsPremulRgba(SKBitmap bitmap)
-    {
-        var info = new SKImageInfo(bitmap.Width, bitmap.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        var converted = new SKBitmap(info);
-        using var image = SKImage.FromBitmap(bitmap);
-        if (image is null || !image.ReadPixels(info, converted.GetPixels(), converted.RowBytes, 0, 0))
-        {
-            converted.Dispose();
-            throw new InvalidOperationException("The picture could not be read as pixels.");
-        }
-        return converted;
-    }
-
     /// <summary>
     /// These pixels drawn through <paramref name="matrix"/> onto a <paramref name="width"/> × <paramref name="height"/> canvas —
     /// scaled, turned, flipped — resampled once, as one picture so no seam shows between tiles; what falls off the canvas goes.
+    /// Resampled on a surface as deep as the picture.
     /// </summary>
     public TiledPixels Transformed(SKMatrix matrix, int width, int height)
     {
@@ -359,19 +399,19 @@ public sealed class TiledPixels
         var bounds = Bounds;
         var mapped = matrix.MapRect(SKRect.Create(bounds.Left, bounds.Top, bounds.Width, bounds.Height));
         var area = SKRectI.Intersect(SKRectI.Round(SKRect.Inflate(mapped, 1, 1)), new SKRectI(0, 0, width, height));
-        if (area.IsEmpty) return Empty;
+        if (area.IsEmpty) return EmptyIn(Format);
         using var source = ToBitmap(bounds);
-        using var target = new SKBitmap(new SKImageInfo(area.Width, area.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        using var target = new SKBitmap(Format.Colour.SurfaceInfo(area.Width, area.Height));
         target.Erase(SKColors.Transparent);
         using (var canvas = new SKCanvas(target))
-        using (var image = SKImage.FromBitmap(source))
+        using (var image = SKImage.FromPixelCopy(source.Info, source.GetPixels(), source.RowBytes))
         using (var paint = new SKPaint { IsAntialias = true })
         {
             canvas.Translate(-area.Left, -area.Top);
             canvas.Concat(matrix);
             canvas.DrawImage(image, bounds.Left, bounds.Top, new SKSamplingOptions(SKCubicResampler.Mitchell), paint);
         }
-        return FromBitmap(target, area.Left, area.Top);
+        return FromBitmap(target, area.Left, area.Top, Format);
     }
 
     /// <summary>These pixels with <paramref name="above"/> laid over them, as a layer merged down onto this one at full opacity
@@ -379,22 +419,28 @@ public sealed class TiledPixels
     public TiledPixels MergedWith(TiledPixels above)
     {
         if (above.IsEmpty) return this;
+        above = above.ConvertedTo(Format);
         var tiles = _tiles.ToBuilder();
-        foreach (var (key, top) in above._tiles)
+        var top = new float[TileSize * TileSize * 4];
+        var bottom = new float[TileSize * TileSize * 4];
+        foreach (var (key, upper) in above._tiles)
         {
-            if (!_tiles.TryGetValue(key, out var bottom))
+            if (!_tiles.TryGetValue(key, out var lower))
             {
-                Put(tiles, key, top);
+                Put(tiles, key, upper);
                 continue;
             }
-            var merged = new byte[TileBytes];
-            for (int i = 0; i < TileBytes; i += 4)
+            Format.ToPremul(upper, top);
+            Format.ToPremul(lower, bottom);
+            for (int p = 0; p < top.Length; p += 4)
             {
-                int keep = 255 - top[i + 3];
-                for (int c = 0; c < 4; c++) merged[i + c] = (byte)(top[i + c] + (bottom[i + c] * keep + 127) / 255);
+                float keep = 1 - top[p + 3];
+                for (int c = 0; c < 4; c++) top[p + c] += bottom[p + c] * keep;
             }
+            var merged = new byte[Format.TileBytes];
+            Format.FromPremul(top, merged);
             Put(tiles, key, merged);
         }
-        return new TiledPixels(tiles.ToImmutable());
+        return new TiledPixels(Format, tiles.ToImmutable());
     }
 }

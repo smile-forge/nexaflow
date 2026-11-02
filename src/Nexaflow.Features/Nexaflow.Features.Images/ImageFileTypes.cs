@@ -16,8 +16,8 @@ namespace Nexaflow.Features.Images;
 /// </summary>
 public static class ImageFileTypes
 {
-    /// <summary>What Windows' imaging decodes, and OpenRaster, which Images reads itself.</summary>
-    public static readonly HashSet<string> Extensions = new([.. DecodablePictures.Extensions, OpenRasterPackage.Extension], StringComparer.OrdinalIgnoreCase);
+    /// <summary>What Windows' imaging decodes, and OpenRaster and Photoshop, which Images reads itself.</summary>
+    public static readonly HashSet<string> Extensions = new([.. DecodablePictures.Extensions, OpenRasterPackage.Extension, ".psd", ".psb"], StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Globs (one per extension) for <see cref="Common.IFolderAction.ContainsFileGlobs"/>.</summary>
     public static readonly string[] Globs = Extensions.Select(e => "*" + e).ToArray();

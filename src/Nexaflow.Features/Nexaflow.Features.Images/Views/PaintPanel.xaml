@@ -102,6 +102,15 @@
                       Content="{loc:Str Images.Paint.Contiguous}" AutomationProperties.AutomationId="Image_PaintContiguous"/>
         </StackPanel>
 
+        <!-- A 32-bit picture holds light: the colour is painted brighter than white by stops of intensity. -->
+        <StackPanel Visibility="{Binding PaintsLight, Converter={StaticResource BoolVis}}">
+            <DockPanel Margin="0,10,0,0">
+                <TextBlock DockPanel.Dock="Right" Style="{StaticResource EditCaption}" Text="{Binding Intensity, StringFormat={}{0:+0.0;-0.0;0}}"/>
+                <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Paint.Intensity}"/>
+            </DockPanel>
+            <Slider Minimum="-4" Maximum="10" SmallChange="0.1" LargeChange="1" Value="{Binding Intensity, Mode=TwoWay}"
+                    AutomationProperties.AutomationId="Image_PaintIntensity" AutomationProperties.Name="{loc:Str Images.Paint.Intensity}"/>
+        </StackPanel>
         <CheckBox Margin="0,10,0,0" Foreground="{StaticResource TextBrush}" IsChecked="{Binding SampleMerged, Mode=TwoWay}"
                   Visibility="{Binding IsEyedropper, Converter={StaticResource BoolVis}}"
                   Content="{loc:Str Images.Paint.SampleMerged}" AutomationProperties.AutomationId="Image_PaintSampleMerged"/>

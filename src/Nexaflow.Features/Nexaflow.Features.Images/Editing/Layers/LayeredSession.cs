@@ -97,6 +97,15 @@ public sealed class LayeredSession : IPictureLayerImages, IDisposable
         DraftFolder = folder;
     }
 
+    /// <summary>The picture kept as a draft at <paramref name="draft"/> from now on — the file it was kept in can no longer hold
+    /// it — its Save as offered back in the folder that file is in.</summary>
+    public void MovedToDraft(string draft)
+    {
+        if (!IsDraft) DraftFolder = System.IO.Path.GetDirectoryName(Path);
+        Path = draft;
+        IsDraft = true;
+    }
+
     /// <summary>
     /// What writing the picture as it stands to <paramref name="destination"/> does — its layers drawn at full size, the package
     /// written whole — as work to run off the UI thread; null while a picture layer waits for what the picture tools make for it.
@@ -128,10 +137,21 @@ public sealed class LayeredSession : IPictureLayerImages, IDisposable
         return async ct =>
         {
             using var renderer = await LayeredRenderer.PrepareAsync(picture, l => made[l.Id], _services, ct);
-            using var flat = renderer.Composite(1);
-            var bytes = await _services.Exporter.EncodeAsync(flat, target, export, metadataFrom, ct);
+            using var composite = renderer.Composite(1);
+            // As deep as the picture is held, so a 16-bit PNG or TIFF keeps it; an 8-bit grey picture over a background as grey.
+            using var grey = picture.Colour is { Model: ColourModel.Grey, Depth: ChannelDepth.U8 } && !picture.Background.IsTransparent ? AsGrey(composite) : null;
+            var bytes = await _services.Exporter.EncodeAsync(grey ?? composite, target, export, metadataFrom, ct);
             await _services.FileSystem.ReplaceAsync(destination, bytes, ct);
         };
+    }
+
+    /// <summary>An 8-bit picture of greys as one grey channel, what a grey PNG or JPEG holds.</summary>
+    private static SKImage AsGrey(SKImage image)
+    {
+        var info = new SKImageInfo(image.Width, image.Height, SKColorType.Gray8, SKAlphaType.Opaque);
+        using var bitmap = new SKBitmap(info);
+        if (!image.ReadPixels(info, bitmap.GetPixels(), bitmap.RowBytes, 0, 0)) throw new InvalidOperationException("The picture could not be made grey.");
+        return SKImage.FromPixelCopy(info, bitmap.GetPixels(), bitmap.RowBytes) ?? throw new InvalidOperationException("The picture could not be made grey.");
     }
 
     /// <summary>What the picture tools made for each picture layer's recipe; null while any is still waiting.</summary>
@@ -251,6 +271,9 @@ public sealed class LayeredSession : IPictureLayerImages, IDisposable
 
     // ── Rendering ───────────────────────────────────────────────────────────
 
+    /// <summary>Stops of exposure a 32-bit picture is shown at — a view of its light, never written; 0 shows it as it is.</summary>
+    public double ViewExposure { get; set; }
+
     /// <summary>
     /// Composites <paramref name="picture"/> — the picture as it stood when the frame was asked for — at <paramref name="scale"/>
     /// and hands it to <paramref name="consume"/> while it is still valid. False once the session has closed.
@@ -260,9 +283,16 @@ public sealed class LayeredSession : IPictureLayerImages, IDisposable
         lock (_gate)
         {
             if (_disposed) return false;
-            consume(_compositor.Render(picture, scale, this, options));
+            PictureDisplay.Show(_compositor.Render(picture, scale, this, options), picture, ViewExposure, consume);
             return true;
         }
+    }
+
+    /// <summary>What shows at <paramref name="at"/> (canvas pixels) in the picture last rendered, every layer together, in the
+    /// picture's values; null where nothing is rendered there.</summary>
+    public SKColorF? ShownAt(SKPoint at)
+    {
+        lock (_gate) return _disposed ? null : _compositor.ShownAt(at);
     }
 
     /// <summary>A one-off composite at <paramref name="scale"/> — a save, an export, a thumbnail — that leaves the display's kept

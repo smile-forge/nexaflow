@@ -89,7 +89,7 @@ public class ImageOpenRasterTests
             Source = new PictureSource(photo, null),
             Recipe = ImageRecipe.Identity with { Adjustments = RecipeAdjustments.Identity with { Exposure = 0.5 } },
             Placement = LayerPlacement.FromMatrix(SKMatrix.CreateScale(-1.5f, 0.5f).PostConcat(SKMatrix.CreateRotationDegrees(30)).PostConcat(SKMatrix.CreateTranslation(5, 4))),
-            Kept = new OpenRasterKept { Attributes = [new OpenRasterAttribute("urn:elsewhere", "thing", "kept")] },
+            Kept = KeptFromFile.Of(new OpenRasterKept { Attributes = [new OpenRasterAttribute("urn:elsewhere", "thing", "kept")] }),
         };
         var red = new PixelLayer
         {
@@ -118,6 +118,47 @@ public class ImageOpenRasterTests
         Assert.AreEqual(picture.Placement, readPicture.Placement);
         CollectionAssert.AreEqual(File.ReadAllBytes(photo), _vfs.ReadAllBytes(readPicture.Source.Path), "its source, the original file as it was");
         Assert.AreEqual(1, ((MarkupLayer)((GroupLayer)read.Layers[2]).Children[1]).Elements.Length, "the markup layer's annotations");
+    }
+
+    [TestMethod]
+    [CoversNode("images-colour-depth")]
+    public async Task SixteenBitColourAndGrey_ReadBackValueForValue_MasksAndAll()
+    {
+        foreach (var colour in new[] { new PictureColour(ColourModel.Rgb, ChannelDepth.U16), new PictureColour(ColourModel.Grey, ChannelDepth.U16) })
+        {
+            var format = colour.Tiles;
+            var samples = new ushort[300 * format.Channels];
+            for (int i = 0; i < 300; i++)
+                for (int c = 0; c < format.Channels; c++)
+                    samples[i * format.Channels + c] = c == format.Channels - 1 ? (ushort)(65535 - i * 3) : (ushort)(i * 211 + c * 7);
+            var pixels = TiledPixels.EmptyIn(format).Written(new SKRectI(4, 2, 304, 3), System.Runtime.InteropServices.MemoryMarshal.AsBytes(samples.AsSpan()));
+            var mask = TiledCoverage.Clear(320, 8, ChannelDepth.U16).WrittenValues(new SKRectI(0, 0, 3, 1), [0.3f, 0.30001f, 1f]);
+            var written = new LayeredPicture
+            {
+                Width = 320, Height = 8, Colour = colour,
+                Layers = [new PixelLayer { Name = "Height", Pixels = pixels }, new PixelLayer { Name = "Masked", Pixels = pixels, Mask = new LayerMask(mask) }],
+                Selection = TiledCoverage.Clear(320, 8),
+            };
+
+            var path = Path.Combine(_dir, $"deep-{colour.Model}.ora");
+            await Write(written, path);
+            var read = (await Format.ReadAsync(path)).Picture;
+
+            Assert.AreEqual(colour, read.Colour, "the picture opens in the colour it was written in");
+            var area = new SKRectI(4, 2, 304, 3);
+            CollectionAssert.AreEqual(pixels.Read(area), ((PixelLayer)read.Layers[0]).Pixels.Read(area), $"{colour}: every 16-bit value as it was");
+            var readMask = read.Layers[1].Mask!.Coverage;
+            Assert.AreEqual(ChannelDepth.U16, readMask.Depth);
+            CollectionAssert.AreEqual(mask.ReadValues(new SKRectI(0, 0, 3, 1)), readMask.ReadValues(new SKRectI(0, 0, 3, 1)), $"{colour}: the mask to 16 bits");
+        }
+    }
+
+    [TestMethod]
+    [CoversNode("images-colour-depth")]
+    public void OpenRaster_HoldsNoFloatPicture()
+    {
+        Assert.IsTrue(Format.HoldsColour(new PictureColour(ColourModel.Grey, ChannelDepth.U16)));
+        Assert.IsFalse(Format.HoldsColour(new PictureColour(ColourModel.Rgb, ChannelDepth.F32)), "a PNG holds no float: a 32-bit picture is saved as PSD");
     }
 
     private static void SameLayer(Layer before, Layer after)
@@ -243,7 +284,7 @@ public class ImageOpenRasterTests
         Assert.IsInstanceOfType<UndrawableLayer>(picture.Layers[2]);
         Assert.AreEqual("applications:krita:levels", ((UndrawableLayer)picture.Layers[2]).Kind);
         var ex = picture.Layers[1];
-        Assert.AreEqual(("krita:exclusion", SKBlendMode.Exclusion), (ex.Blend.Op, ex.Blend.ToSkia()), "kept as written, drawn by Skia's blend of its name");
+        Assert.AreEqual(("krita:exclusion", (SKBlendMode?)SKBlendMode.Exclusion), (ex.Blend.Op, ex.Blend.SkiaMode), "kept as written, drawn by Skia's blend of its name");
         Assert.AreEqual(new SKRectI(2, 1, 6, 5), ((PixelLayer)ex).Pixels.Bounds, "at its place");
         var shaped = picture.Layers[0];
         Assert.AreEqual((true, "svg:multiply"), (shaped.ClipsToBelow, shaped.Blend.Op), "alpha-preserve beside another blend: clipped, with that blend");
@@ -254,9 +295,10 @@ public class ImageOpenRasterTests
     public async Task WhatIsNotUnderstood_IsKept_AndWrittenBack()
     {
         var read = (await Format.ReadAsync(KritaPackage())).Picture;
-        Assert.IsTrue(read.Kept.Attributes.Any(a => a.LocalName == "custom"), "the image's own attribute");
-        Assert.IsTrue(read.Kept.Elements.Any(e => e.Contains("extra")), "the image's own element");
-        Assert.IsTrue(read.KeptEntries.ContainsKey("data/unknown.bin"), "a file no layer names");
+        var pictureKept = read.Kept.Get<OpenRasterPictureKept>()!;
+        Assert.IsTrue(pictureKept.Image.Attributes.Any(a => a.LocalName == "custom"), "the image's own attribute");
+        Assert.IsTrue(pictureKept.Image.Elements.Any(e => e.Contains("extra")), "the image's own element");
+        Assert.IsTrue(pictureKept.Entries.ContainsKey("data/unknown.bin"), "a file no layer names");
 
         var path = Path.Combine(_dir, "again.ora");
         await Write(read, path);

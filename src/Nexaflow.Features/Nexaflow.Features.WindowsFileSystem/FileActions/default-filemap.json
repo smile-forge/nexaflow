@@ -275,6 +275,8 @@
     "Source": "User",
     "Criteria": [
       { "Type": "OptionalExtension", "Value": "*.ora" },
+      { "Type": "OptionalExtension", "Value": "*.psd" },
+      { "Type": "OptionalExtension", "Value": "*.psb" },
       { "Type": "Extension", "Value": "*.png" },
       { "Type": "Extension", "Value": "*.jpg" },
       { "Type": "Extension", "Value": "*.jpeg" },
@@ -292,6 +294,8 @@
     "Source": "User",
     "Criteria": [
       { "Type": "Extension", "Value": "*.ora" },
+      { "Type": "Extension", "Value": "*.psd" },
+      { "Type": "Extension", "Value": "*.psb" },
       { "Type": "OptionalExtension", "Value": "*.png" },
       { "Type": "OptionalExtension", "Value": "*.jpg" },
       { "Type": "OptionalExtension", "Value": "*.jpeg" },

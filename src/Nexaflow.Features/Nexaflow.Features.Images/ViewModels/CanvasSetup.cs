@@ -247,7 +247,23 @@ public sealed partial class CanvasSetup : ObservableObject
         _                           => LayerBackground.Transparent,
     };
 
-    /// <summary>The blank canvas set up — one empty pixel layer named <paramref name="layerName"/> — or null while the size is no size.</summary>
+    /// <summary>Colour and grey, as the mode picker offers them.</summary>
+    public IReadOnlyList<ColourModelChoice> Models => ColourModelChoice.All;
+
+    /// <summary>8, 16 and 32 bits, as the depth picker offers them.</summary>
+    public IReadOnlyList<ChannelDepthChoice> Depths => ChannelDepthChoice.All;
+
+    /// <summary>Colour, or grey: what the canvas's pixels hold.</summary>
+    [ObservableProperty] private ColourModelChoice _model = ColourModelChoice.Of(ColourModel.Rgb);
+
+    /// <summary>How deep each channel is: 8 bits as most pictures are, 16 for heightmaps and smooth gradients, 32-bit float for light.</summary>
+    [ObservableProperty] private ChannelDepthChoice _depth = ChannelDepthChoice.Of(ChannelDepth.U8);
+
+    /// <summary>The colour the canvas is made in.</summary>
+    public PictureColour Colour => new(Model.Model, Depth.Depth);
+
+    /// <summary>The blank canvas set up — one empty pixel layer named <paramref name="layerName"/>, in the colour chosen — or null
+    /// while the size is no size.</summary>
     public LayeredPicture? Make(string layerName)
-        => IsValid && Dpi is { } dpi ? LayeredPicture.Blank(PixelWidth!.Value, PixelHeight!.Value, LayerBackground, layerName, dpi) : null;
+        => IsValid && Dpi is { } dpi ? LayeredPicture.Blank(PixelWidth!.Value, PixelHeight!.Value, LayerBackground, layerName, dpi, Colour) : null;
 }

@@ -6,7 +6,7 @@ Opens one picture, a selection, or every picture in a folder.
 
 ## Opening pictures
 
-- Double-click a picture in the [File System](help:FileSystem) page. PNG, JPEG, GIF, BMP, ICO, TIFF and WebP open here; an OpenRaster file (.ora) opens in [Artist](help:Artist), and **As Image** shows it here as the picture saved inside it.
+- Double-click a picture in the [File System](help:FileSystem) page. PNG, JPEG, GIF, BMP, ICO, TIFF and WebP open here; an OpenRaster file (.ora) or a Photoshop file (.psd, .psb) opens in [Artist](help:Artist), and **As Image** shows it here as the picture saved inside it.
 - Open several as one set: select them and choose **As Image**.
 - A picture inside an archive opens the same way.
 - Where a folder holds a fair share of pictures, its actions offer **Slideshow** and **Album**, taking that folder's pictures in name order.

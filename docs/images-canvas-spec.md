@@ -127,8 +127,45 @@ coverage, then composited (§5.1).
 ### 4.4 Limits
 
 A canvas is at most 16,384 pixels a side. The new-canvas form and Canvas size show the memory a layer takes at that
-size (4 bytes a pixel) and warn past a quarter of the machine's memory. History is budgeted in bytes of tiles no longer
+size — its tile format's bytes a pixel (§4.5): 4 for 8-bit colour, 8 for 16-bit, 16 for 32-bit float, half that for
+grey — and warn past a quarter of the machine's memory. History is budgeted in bytes of tiles no longer
 in the document (default 1 GB, Options → Images), not in steps; `SnapshotHistory` gains a cost budget beside its count.
+
+### 4.5 Colour and depth
+
+A layered picture is held in one `PictureColour` end to end — pixels, masks, composite, tools and files: a **model**,
+colour or grey, and a **depth**, 8 or 16 bits a channel or 32-bit float. Games art lives at every one of them: 8-bit
+textures, 16-bit grey heightmaps, 32-bit light.
+
+| Depth | Values | Alpha in a tile | Composite surface |
+|---|---|---|---|
+| 8-bit | sRGB-encoded, 0–255 | premultiplied | `Rgba8888`, tagged sRGB |
+| 16-bit | sRGB-encoded, 0–65535 | straight, so a file's values come back exactly | `Rgba16161616`, tagged sRGB |
+| 32-bit float | linear light, unclamped — brighter than white where it is | straight | `RgbaF32`, tagged linear sRGB |
+
+- **Tiles.** `TileFormat` lays out a tile's bytes for a colour: colour and alpha, or grey and alpha, each sample 1, 2 or
+  4 bytes, little-endian. Every pixel edit goes through it as premultiplied floats in the picture's values
+  (`ToPremul` / `FromPremul`), so one piece of code changes pixels of any format. A grey tile is drawn through a
+  shader that spreads its grey to colour (`Rg88` / `Rg1616` images); a float grey tile, which Skia has no two-channel
+  image for, is spread once into the per-tile image cache. A history step costs its format's tile bytes.
+- **Masks** are `TiledCoverage` at the picture's depth; the **selection** stays 8-bit and is carried to a mask's depth when
+  it becomes one. Refinements run on bytes for 8 bits, on floats deeper.
+- **Compositing** happens in the picture's own encoding — as Photoshop composites 8 and 16 bits in theirs, and 32 bits in
+  linear light — on a surface as deep as the picture and tagged with its space, so a picture layer from a wide-gamut
+  or deep photo is converted into it rather than narrowed.
+- **Showing it.** An ICC profile the file named is shown through (`PictureDisplay`); a 32-bit picture is shown at a
+  **view exposure**, in stops, applied in linear light and never saved. The eyedropper reads the composite's own values,
+  not the screen's.
+- **Painting.** Ink is an sRGB colour as picked, made linear for 32 bits and brightened there by an **intensity** in stops;
+  a mask takes its grey as shown. Brush, eraser, fill, the fill's tolerance (in 8-bit steps, half a step of the picture's
+  depth past it), content-aware fill and the healing brush all work on the picture's values. Picture erasing's model
+  works on 8 bits: it is handed them as sRGB, and only what it fills is carried back up.
+- **Choosing it.** New picture and the New picker's layered picture pick mode and depth; Canvas converts the picture
+  between them as one step — colour made grey by Rec. 709's weights, light made linear or encoded again, clamped where
+  the new depth holds no more. A layer put in from another colour is carried into the picture's.
+- **Files.** A layered format says which colours it holds (`HoldsColour`): Save as lists those; a draft is made in the
+  first that holds the picture; a picture converted to a colour its own file cannot hold is kept as a draft until it is
+  saved as one that can. Flat export keeps 16 bits in PNG and TIFF; an 8-bit grey picture over a background exports grey.
 
 ## 5. Compositing
 
@@ -166,9 +203,22 @@ OpenRaster's set, so what Nexaflow writes any reader understands. Every one is a
 | `svg:plus` | `Plus` | Add |
 | `svg:dst-in`, `svg:dst-out`, `svg:dst-atop` | `DstIn`, `DstOut`, `DstATop` | Mask, Cut, Behind |
 
+Photoshop's blends that OpenRaster has no name for go by the names Krita writes them under, so the two applications'
+files agree. Skia has none of most of them, so `LayerBlenders` draws them as runtime blenders from their formulas —
+each the W3C's general compositing of the blended colour — and Dissolve, which depends on where a pixel lies, as a
+shader on the layer's own surface, the same every time it is drawn:
+
+| `composite-op` | Drawn by | Shown as |
+|---|---|---|
+| `krita:exclusion` | `Exclusion` | Exclusion |
+| `krita:linear_burn`, `krita:linear_dodge`, `krita:linear light`, `krita:vivid_light`, `krita:pin_light`, `krita:hard_mix_photoshop` | a runtime blender | Linear burn, Linear dodge, Linear light, Vivid light, Pin light, Hard mix |
+| `krita:subtract`, `krita:divide`, `krita:darker color`, `krita:lighter color` | a runtime blender | Subtract, Divide, Darker colour, Lighter colour |
+| `krita:dissolve` | a shader | Dissolve |
+
 `svg:src-atop` is not a blend in the list: it is read and written as Normal with `ClipsToBelow`, as Krita reads it
-(§8.3). An unknown `composite-op` — Krita writes its own as `krita:<op>` — is drawn as the `SKBlendMode` of the same
-name where Skia has one (`krita:exclusion`), else as Normal; it is shown under its name and written back as read.
+(§8.3). A clipped layer composites source-atop with its blend — the blend's own blender wrapped so the alpha beneath is
+kept exactly, as Photoshop's clipping and Krita's inherit alpha both do. Any other `composite-op` is drawn as the
+`SKBlendMode` of the same name where Skia has one, else as Normal; it is shown under its name and written back as read.
 
 ## 6. Selection
 
@@ -252,9 +302,9 @@ Small and deliberate: enough to touch up, mask, sketch and arrange.
 - Painting needs a pixel layer or a mask: on a photo, or with a picture or markup layer active, the Paint panel says so
   and offers *Add layer* (or rasterizing). The colour is markup's ink, one choice for both.
 
-## 8. OpenRaster
+## 8. OpenRaster and Photoshop
 
-### 8.1 The format
+### 8.1 OpenRaster's format
 
 OpenRaster 0.0.6 (openraster.org): a ZIP whose first entry is `mimetype`, **stored** uncompressed, holding
 `image/openraster`; `stack.xml`; layer PNGs under `data/`; `Thumbnails/thumbnail.png` (at most 256 px a side, aspect
@@ -313,13 +363,17 @@ the same in Krita.
 ### 8.4 A layered-format contract
 
 `IImageDecoder` returns one picture, so a layered format gets a contract of its own beside it, in the Images feature:
-`ILayeredPictureFormat` — `Reads(container)`, `Extension`, `ReadAsync(path) → LayeredPictureRead` (the picture, and whether
-it holds a layer no reader draws), `WriteAsync(LayeredPicture, path, renderer)`. It takes a path in the
-`IVirtualFileSystem`, not a stream, so a read opens only the entries it needs (§8.2) and a write is one atomic package
-write; the renderer draws each layer's pixels and the merged image at full size.
-OpenRaster is the first; PSD (§13) would be the second, with nothing in the editor changed. `ImageContainer` gains
-`OpenRaster` (sniffed by the `mimetype` entry), and the editor opens a container that has a layered format as a
-`LayeredPicture`, any other as a photo.
+`ILayeredPictureFormat` — `Reads(container)`, `Extension`, `HoldsColour(colour)` (§4.5), `SavedLookOf(path)` (the file the
+viewer decodes to show the picture as its application drew it), `ReadAsync(path) → LayeredPictureRead` (the picture, and
+whether it holds something no reader draws), `WriteAsync(LayeredPicture, path, renderer)`. It takes a path in the
+`IVirtualFileSystem`, not a stream, so a read opens only what it needs (§8.2) and a write is one atomic write; the
+renderer draws each layer's pixels and the merged image at full size. OpenRaster, PSD and PSB are its formats, offered
+in that order. `ImageContainer` names `OpenRaster` (sniffed by the `mimetype` entry) and `Photoshop` (`8BPS`, version 1
+or 2), and the editor opens a container that has a layered format as a `LayeredPicture`, any other as a photo.
+
+What a file held that Nexaflow does not understand is kept as `KeptFromFile`: each format's own record by its type, read
+and written only by that format and left behind by another. A record that names what the layers it describes leave
+undrawn (`IUndrawnKept`) has those named on the saved-look bar.
 
 ### 8.5 What Nexaflow writes
 
@@ -362,6 +416,59 @@ Standard OpenRaster any reader draws correctly, with what only Nexaflow uses bes
 - **New picker**: *Layered picture (.ora)* (`IFileCreateWithOptions`) creates a blank `.ora` in the folder and opens it
   for editing, its size and background set up in the picker by `CanvasSetup` — the presets, units, dpi, orientation and
   background of the start screen's New picture (§9.1), which uses the same.
+
+### 8.7 OpenRaster at depth
+
+A 16-bit or grey picture is written as 16-bit or grey PNG layers, masks and `mergedimage.png`, with `nexaflow:colour`
+naming its colour on `<image>`; another application's file takes its colour from its merged image's PNG header. A PNG of
+16 bits a channel is read and written through Windows Imaging Component (`DeepPng`) — Skia writes one but reads it back
+only as half floats, and writes no 16-bit grey. The thumbnail stays 8-bit. OpenRaster holds no float picture.
+
+### 8.8 Photoshop
+
+PSD and PSB — the large document format — RGB or grayscale at 8, 16 or 32 bits, read and written in two parts:
+
+| Part | Where | What |
+|---|---|---|
+| `PhotoshopReader`, `PhotoshopWriter`, `PhotoshopChannels` | `Nexaflow.Media/Photoshop`, WPF- and Skia-free | The file's structure from Adobe's specification — header, colour-mode data, resources, layer records, tagged blocks (`8BIM`, `8B64`, PSB's 8-byte lengths), the merged image — and each channel's samples, raw, RLE, ZIP or ZIP with prediction, a row at a time on demand |
+| `PhotoshopFormat` | `Features.Images/Editing/Codecs` | ⇄ `LayeredPicture` |
+| `PhotoshopDecoder` | beside it | the merged image as one picture, for the viewer and the saved look |
+
+**Reading.** A 16- or 32-bit file's layers are read from its `Lr16` / `Lr32` block. Every pixel layer's compressed channels
+are read in one pass, then the layers decode side by side across the cores, every channel of a layer in step a band of
+rows at a time, straight into tiles — no channel is held whole.
+
+| Photoshop | Read as | Written back |
+|---|---|---|
+| Pixel layers; groups (`lsct` 1/2 and their divider 3); pass-through (`pass`) | `PixelLayer`, `GroupLayer` isolated or not | as read |
+| Name (`luni`), opacity, visibility, locks (`lspf`), transparency protected | the layer's own | as read |
+| Fill (`iOpa`) | folded into opacity where it draws the same — every blend but the special eight, and no effects | the bytes read while the opacity is unchanged |
+| User mask (channel −2), disabled, default colour | `LayerMask` at the picture's depth | as a mask over the tiles it holds |
+| A clipping run: a base and the layers clipped to it | an isolated `GroupLayer` with the base's name, opacity, blend and visibility, holding the base at its fill and the clipped layers — Photoshop's *Blend Clipped Layers as Group*, its default; marked `PhotoshopClipRun` | as a base and its clipped layers; a group no longer so shaped as a group |
+| Blends | §5.2 by their keys | by their keys; `svg:plus` and the `dst-*` blends as Normal, the true one in Nexaflow's block |
+| Resolution (1005), selected layer (1069), ICC profile (1039) | `Dpi`, `ActiveId`, `Profile` | written afresh |
+| Text `TySh`, smart objects `SoLd`/`PlLd`, shapes `vscg`/`vogk` | the pixels Photoshop stored; the blocks kept with the tiles read | while the pixels are still those tiles; once painted on, the layer is pixels, as Photoshop makes it on rasterizing |
+| Effects `lfx2`, vector masks `vmsk`/`vsms` | the pixels drawn; the blocks kept and named as undrawn | always |
+| Adjustment and fill layers (`levl`, `curv`, `hue2`, `SoCo`, …) | `UndrawableLayer` | whole, their channels as compressed |
+| Other blocks and resources, colour-mode data, global mask and blocks | kept | as read |
+| CMYK, Lab, indexed, bitmap, duotone, multichannel | refused for editing, saying RGB and grayscale are | — |
+
+A file holding an adjustment layer, effects, a vector mask, a fill that cannot fold or a blend Nexaflow knows not opens on
+its saved look (§8.6) — unless it was saved without *Maximize Compatibility*, whose version resource says its merged
+image is blank: then it opens on Nexaflow's own composite, and the viewer composites its layers too.
+
+**The merged image.** Photoshop composites its colour over white where the picture is partly transparent;
+`PhotoshopDecoder` takes the white off again, and the writer puts it on. A smaller picture is read by skipping rows and
+columns as they are read.
+
+**Writing.** Layers are written bottom first, 8-bit channels as RLE and deeper as ZIP with prediction, the merged image
+RLE or raw, through the VFS's atomic write as a stream. Each pixel layer's compressed channels are cached by its tiles,
+so a save after an edit compresses only what changed. The background, which Photoshop has no place for, is a locked
+bottom layer marked as the background. Nexaflow's own extras ride in tagged blocks of its own: `Nxly` on each layer —
+its identity, a blend Photoshop has no key for, and a picture or markup layer's kind, placement, recipe or annotations
+with the hash of the channels written for it — and `Nxfi` on the file, the pictures those layers show and their
+regions' coverage, by content. A picture layer's source is taken out to the app's cache on reading; a hash that no longer
+matches means the pixels win.
 
 ## 9. The start screen and generation
 
@@ -448,7 +555,8 @@ only on the document the tab has open.
 
 New nodes under `images-edit`, added as each phase is built, with snaplinks in `docs/product/pending/<branch>.json`:
 `images-layers` (the document and compositor), `images-layers-panel`, `images-layer-masks`, `images-selection` (with `-marquee`, `-lasso`,
-`-colour`, `-refine`), `images-paint`, `images-transform`, `images-ora`, `images-start`, `images-print`.
+`-colour`, `-refine`), `images-paint`, `images-transform`, `images-ora`, `images-colour-depth`, `images-psd`, `images-start`,
+`images-print`.
 
 ### 12.3 Tests
 
@@ -472,9 +580,9 @@ New nodes under `images-edit`, added as each phase is built, with snaplinks in `
 
 Not in scope, and nothing here should block them: **generative fill** — a selection regenerated from a prompt by a
 local model that takes a mask, its result a new layer masked by the selection, so the original stays beneath; adjustment
-layers (a layer holding an `ImageRecipe`'s tone section, applied to what is beneath); PSD read and write as a second
-`ILayeredPictureFormat`; text layers; 16-bit and wide-gamut layers (OpenRaster allows a 16-bit `mergedimage.png`);
-printing several pictures as a contact sheet from the album.
+layers (a layer holding an `ImageRecipe`'s tone section, applied to what is beneath), which would let a Photoshop
+adjustment layer be drawn rather than kept; layer effects drawn; text layers; vector masks; printing several pictures as
+a contact sheet from the album.
 
 ## 14. Out of scope
 

@@ -47,11 +47,44 @@ public static class ContentAwareFill
     public static byte[] Fill(ReadOnlySpan<byte> rgba, int width, int height, ReadOnlySpan<byte> mask, int seed = 0,
                               IProgress<double>? progress = null, CancellationToken ct = default)
     {
-        if (width <= 0 || height <= 0) throw new ArgumentOutOfRangeException(nameof(width), "A picture has a size.");
-        if (rgba.Length != width * height * 4) throw new ArgumentException("The pixels are not the size given.", nameof(rgba));
-        if (mask.Length != width * height) throw new ArgumentException("The mask is not the picture's size.", nameof(mask));
+        Require(rgba.Length, width, height, mask.Length);
+        var values = new float[rgba.Length];
+        for (int i = 0; i < values.Length; i++) values[i] = rgba[i];
+        FillValues(values, width, height, mask, seed, rounds: true, progress, ct);
+        var result = new byte[rgba.Length];
+        for (int i = 0; i < result.Length; i++) result[i] = (byte)values[i];
+        return result;
+    }
 
-        var result = rgba.ToArray();
+    /// <summary>
+    /// <paramref name="rgba"/> — interleaved red, green, blue and alpha, not premultiplied, 1 white, as deep as floats hold —
+    /// with what <paramref name="mask"/> covers filled from the rest of the picture round it, as the 8-bit fill does but never
+    /// rounded to its steps, and light past white kept; every other pixel, and the alpha of all, as it was.
+    /// </summary>
+    public static float[] Fill(ReadOnlySpan<float> rgba, int width, int height, ReadOnlySpan<byte> mask, int seed = 0,
+                               IProgress<double>? progress = null, CancellationToken ct = default)
+    {
+        Require(rgba.Length, width, height, mask.Length);
+        // Worked at the 8-bit fill's scale, which its texture weight and the solve's tolerance are tuned to.
+        var values = new float[rgba.Length];
+        for (int i = 0; i < values.Length; i++) values[i] = rgba[i] * 255;
+        FillValues(values, width, height, mask, seed, rounds: false, progress, ct);
+        for (int i = 0; i < values.Length; i++) values[i] /= 255;
+        return values;
+    }
+
+    private static void Require(int length, int width, int height, int maskLength)
+    {
+        if (width <= 0 || height <= 0) throw new ArgumentOutOfRangeException(nameof(width), "A picture has a size.");
+        if (length != width * height * 4) throw new ArgumentException("The pixels are not the size given.", "rgba");
+        if (maskLength != width * height) throw new ArgumentException("The mask is not the picture's size.", "mask");
+    }
+
+    /// <summary><paramref name="values"/> — four a pixel, 0 to 255 white — filled in place, region by region; where
+    /// <paramref name="rounds"/>, each filled value is rounded to a whole step, as an 8-bit picture holds it.</summary>
+    private static void FillValues(float[] values, int width, int height, ReadOnlySpan<byte> mask, int seed, bool rounds,
+                                   IProgress<double>? progress, CancellationToken ct)
+    {
         var regions = InpaintRegions.Of(mask, width, height);
         var holes = mask.ToArray();
         for (int i = 0; i < regions.Count; i++)
@@ -59,10 +92,9 @@ public static class ContentAwareFill
             ct.ThrowIfCancellationRequested();
             int done = i;
             var step = progress is null ? null : new Within(f => progress.Report((done + f) / regions.Count));
-            new Region(result, holes, width, regions[i], seed + i, step, ct).Fill();
+            new Region(values, holes, width, regions[i], seed + i, rounds, step, ct).Fill();
         }
         progress?.Report(1);
-        return result;
     }
 
     /// <summary>A region's progress, 0 to 1, reported as its share of the whole fill's.</summary>
@@ -72,16 +104,18 @@ public static class ContentAwareFill
     }
 
     /// <summary>One level of a region's pyramid: what each pixel carries (<see cref="Channels"/> floats) and its hole.</summary>
-    private sealed class Level(int width, int height)
+    /// <param name="ceiling">The brightest a filled value may be: white, 255, for an 8-bit picture; none for floats, which hold light past it.</param>
+    private sealed class Level(int width, int height, float ceiling)
     {
         public readonly int Width = width, Height = height;
+        public readonly float Ceiling = ceiling;
         public readonly float[] Values = new float[width * height * Channels];
         public readonly bool[] Hole = new bool[width * height];
 
         /// <summary>Half the size: each pixel the mean of the known pixels of its 2×2, a hole where any of the four is.</summary>
         public Level Half()
         {
-            var half = new Level(Math.Max(1, Width / 2), Math.Max(1, Height / 2));
+            var half = new Level(Math.Max(1, Width / 2), Math.Max(1, Height / 2), Ceiling);
             Span<float> sum = stackalloc float[Channels];
             for (int y = 0; y < half.Height; y++)
                 for (int x = 0; x < half.Width; x++)
@@ -151,7 +185,7 @@ public static class ContentAwareFill
     }
 
     /// <summary>A region filled level by level, coarsest first.</summary>
-    private sealed class Region(byte[] rgba, byte[] mask, int pictureWidth, InpaintRegion box, int seed, IProgress<double>? progress, CancellationToken ct)
+    private sealed class Region(float[] rgba, byte[] mask, int pictureWidth, InpaintRegion box, int seed, bool rounds, IProgress<double>? progress, CancellationToken ct)
     {
         public void Fill()
         {
@@ -198,7 +232,7 @@ public static class ContentAwareFill
         private Level Read()
         {
             int w = box.Width, h = box.Height;
-            var level = new Level(w, h);
+            var level = new Level(w, h, rounds ? 255 : float.PositiveInfinity);
             var brightness = new float[w * h];
             for (int y = 0; y < h; y++)
                 for (int x = 0; x < w; x++)
@@ -273,7 +307,11 @@ public static class ContentAwareFill
                 {
                     int to = (box.Top + y) * pictureWidth + box.Left + x, from = y * box.Width + x;
                     if (!level.Hole[from]) continue;
-                    for (int c = 0; c < 3; c++) rgba[to * 4 + c] = (byte)Math.Clamp(MathF.Round(level.Values[from * Channels + c]), 0, 255);
+                    for (int c = 0; c < 3; c++)
+                    {
+                        float value = level.Values[from * Channels + c];
+                        rgba[to * 4 + c] = rounds ? Math.Clamp(MathF.Round(value), 0, 255) : value;
+                    }
                 }
         }
 
@@ -735,7 +773,7 @@ public static class ContentAwareFill
                     f[i] = colour[q * Channels + c];
                 }
                 Conjugate(f, b, diagonal, around);
-                for (int i = 0; i < n; i++) level.Values[inside[i] * Channels + c] = (float)Math.Clamp(f[i], 0, 255);
+                for (int i = 0; i < n; i++) level.Values[inside[i] * Channels + c] = (float)Math.Clamp(f[i], 0, level.Ceiling);
             }
         }
 

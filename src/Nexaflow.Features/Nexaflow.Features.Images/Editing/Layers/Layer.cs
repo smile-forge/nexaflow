@@ -8,26 +8,43 @@ namespace Nexaflow.Features.Images.Editing.Layers;
 
 /// <summary>
 /// How a layer is composited onto what lies beneath it, as OpenRaster names it (<c>composite-op</c>) — kept as written, so an
-/// operation another application wrote that Nexaflow does not know is written back as it was read.
+/// operation another application wrote that Nexaflow does not know is written back as it was read. Photoshop's blends that
+/// OpenRaster has no name for go by the names Krita writes them under.
 /// </summary>
 public readonly record struct LayerBlend(string Op)
 {
     public static LayerBlend Normal { get; } = new("svg:src-over");
 
-    /// <summary>OpenRaster's operations, as Nexaflow offers them, each with the Skia blend that draws it.</summary>
-    public static IReadOnlyList<(LayerBlend Blend, SKBlendMode Skia)> Offered { get; } =
+    /// <summary>Photoshop's Dissolve: each pixel shown whole or not at all, as likely as it is opaque.</summary>
+    public static LayerBlend Dissolve { get; } = new("krita:dissolve");
+
+    /// <summary>OpenRaster's operations and Photoshop's, as Nexaflow offers them, each with the Skia blend that draws it — or
+    /// none, where Skia has none and Nexaflow draws it itself (<see cref="LayerBlenders"/>).</summary>
+    public static IReadOnlyList<(LayerBlend Blend, SKBlendMode? Skia)> Offered { get; } =
     [
         (Normal, SKBlendMode.SrcOver),
-        (new("svg:multiply"), SKBlendMode.Multiply),
-        (new("svg:screen"), SKBlendMode.Screen),
-        (new("svg:overlay"), SKBlendMode.Overlay),
+        (Dissolve, null),
         (new("svg:darken"), SKBlendMode.Darken),
-        (new("svg:lighten"), SKBlendMode.Lighten),
-        (new("svg:color-dodge"), SKBlendMode.ColorDodge),
+        (new("svg:multiply"), SKBlendMode.Multiply),
         (new("svg:color-burn"), SKBlendMode.ColorBurn),
-        (new("svg:hard-light"), SKBlendMode.HardLight),
+        (new("krita:linear_burn"), null),
+        (new("krita:darker color"), null),
+        (new("svg:lighten"), SKBlendMode.Lighten),
+        (new("svg:screen"), SKBlendMode.Screen),
+        (new("svg:color-dodge"), SKBlendMode.ColorDodge),
+        (new("krita:linear_dodge"), null),
+        (new("krita:lighter color"), null),
+        (new("svg:overlay"), SKBlendMode.Overlay),
         (new("svg:soft-light"), SKBlendMode.SoftLight),
+        (new("svg:hard-light"), SKBlendMode.HardLight),
+        (new("krita:vivid_light"), null),
+        (new("krita:linear light"), null),
+        (new("krita:pin_light"), null),
+        (new("krita:hard_mix_photoshop"), null),
         (new("svg:difference"), SKBlendMode.Difference),
+        (new("krita:exclusion"), SKBlendMode.Exclusion),
+        (new("krita:subtract"), null),
+        (new("krita:divide"), null),
         (new("svg:hue"), SKBlendMode.Hue),
         (new("svg:saturation"), SKBlendMode.Saturation),
         (new("svg:color"), SKBlendMode.Color),
@@ -38,7 +55,7 @@ public readonly record struct LayerBlend(string Op)
         (new("svg:dst-atop"), SKBlendMode.DstATop),
     ];
 
-    /// <summary>One of OpenRaster's own operations, which every reader draws.</summary>
+    /// <summary>One of the operations Nexaflow offers.</summary>
     public bool IsOffered
     {
         get
@@ -49,22 +66,63 @@ public readonly record struct LayerBlend(string Op)
         }
     }
 
-    /// <summary>
-    /// The Skia blend that draws it: OpenRaster's own by the table; another application's (<c>krita:exclusion</c>) by the Skia
-    /// blend of the same name where there is one; else Normal.
-    /// </summary>
-    public SKBlendMode ToSkia()
+    /// <summary>Its name without the application's prefix, words joined by dashes — <c>multiply</c>, <c>linear-burn</c> — how
+    /// the strings and the assistant name it.</summary>
+    public string Key
     {
-        foreach (var (blend, skia) in Offered)
-            if (blend == this) return skia;
-        int colon = (Op ?? "").IndexOf(':');
-        var name = (colon >= 0 ? Op![(colon + 1)..] : Op ?? "").Replace("-", "", StringComparison.Ordinal);
-        return Enum.TryParse<SKBlendMode>(name, ignoreCase: true, out var named) ? named : SKBlendMode.SrcOver;
+        get
+        {
+            var op = Op ?? "";
+            return op[(op.IndexOf(':') + 1)..].Replace(' ', '-').Replace('_', '-');
+        }
+    }
+
+    /// <summary>Each pixel shown whole or not at all — drawn by the compositor itself, as no blend of colours does it.</summary>
+    public bool IsDissolve => this == Dissolve;
+
+    /// <summary>
+    /// The Skia blend that draws it, where Skia has one: OpenRaster's own by the table; another application's
+    /// (<c>krita:exclusion</c>) by the Skia blend of the same name; null where Nexaflow draws it itself or knows it not.
+    /// </summary>
+    public SKBlendMode? SkiaMode
+    {
+        get
+        {
+            foreach (var (blend, skia) in Offered)
+                if (blend == this) return skia;
+            return Enum.TryParse<SKBlendMode>(Key.Replace("-", "", StringComparison.Ordinal), ignoreCase: true, out var named) ? named : null;
+        }
+    }
+
+    /// <summary>
+    /// <paramref name="paint"/> made to composite as this blend: through Skia's blend where it has one, else through Nexaflow's
+    /// own (<see cref="LayerBlenders"/>); one Nexaflow knows not as Normal. Where <paramref name="clipped"/>, as a layer clipped to
+    /// what lies beneath composites — source-atop, the alpha beneath kept (<see cref="LayerBlenders.ClippedFor"/>). Dissolve,
+    /// which no blend draws, is left to the compositor and composites as Normal here.
+    /// </summary>
+    public void ApplyTo(SKPaint paint, bool clipped = false)
+    {
+        if (clipped)
+        {
+            paint.Blender = LayerBlenders.ClippedFor(IsDissolve ? Normal : this);
+            return;
+        }
+        if (SkiaMode is { } mode)
+        {
+            paint.BlendMode = mode;
+            return;
+        }
+        if (LayerBlenders.For(Key) is { } blender)
+        {
+            paint.Blender = blender;
+            return;
+        }
+        paint.BlendMode = SKBlendMode.SrcOver;
     }
 }
 
 /// <summary>
-/// A layer's mask: 8-bit coverage over the canvas — white shows the layer, black hides it, grey shows it partly — with
+/// A layer's mask: coverage over the canvas, as deep as its picture — white shows the layer, black hides it, grey shows it partly — with
 /// whether it is used (<see cref="Enabled"/>) and whether it moves and transforms with its layer (<see cref="Linked"/>).
 /// </summary>
 public sealed record LayerMask(TiledCoverage Coverage, bool Enabled = true, bool Linked = true);
@@ -145,7 +203,7 @@ public abstract record Layer
     public LayerMask? Mask { get; init; }
 
     /// <summary>What the file it was read from said of it that Nexaflow does not understand, written back as it was.</summary>
-    public OpenRasterKept Kept { get; init; } = OpenRasterKept.None;
+    public KeptFromFile Kept { get; init; } = KeptFromFile.None;
 }
 
 /// <summary>A picture — a photo, by its file — with its recipe, in its own coordinates, placed on the canvas.</summary>
@@ -158,7 +216,7 @@ public sealed record PictureLayer : Layer
     public ImageRecipe Recipe { get; init; } = ImageRecipe.Identity;
 }
 
-/// <summary>Pixels, in canvas coordinates: what paint, paste and fill make.</summary>
+/// <summary>Pixels, in canvas coordinates, in their picture's colour: what paint, paste and fill make.</summary>
 public sealed record PixelLayer : Layer
 {
     public TiledPixels Pixels { get; init; } = TiledPixels.Empty;

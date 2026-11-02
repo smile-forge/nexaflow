@@ -677,7 +677,7 @@ internal sealed class ArtistTools(ArtistViewModel artist, IShellServices? shell,
 
     /// <summary>The blends a layer takes, by the name the assistant uses: OpenRaster's operation without its prefix, Normal as "normal".</summary>
     private static readonly IReadOnlyDictionary<string, LayerBlend> BlendNames =
-        LayerBlend.Offered.ToDictionary(b => b.Blend == LayerBlend.Normal ? "normal" : b.Blend.Op[(b.Blend.Op.IndexOf(':') + 1)..], b => b.Blend,
+        LayerBlend.Offered.ToDictionary(b => b.Blend == LayerBlend.Normal ? "normal" : b.Blend.Key, b => b.Blend,
                                         StringComparer.OrdinalIgnoreCase);
 
     private static string BlendName(LayerBlend blend) => BlendNames.FirstOrDefault(n => n.Value == blend).Key ?? blend.Op;
