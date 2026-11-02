@@ -58,12 +58,7 @@ public class ImageCutOutTests
         var shell = Substitute.For<IShellServices>();
         shell.RunOnUiAsync(Arg.Any<Action>()).Returns(call => _ui.Run(call.Arg<Action>()));
         shell.PickSaveFileAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>?>(), Arg.Any<string?>(), Arg.Any<long>()).Returns(saveAs);
-        shell.When(s => s.QueueBackgroundTask(Arg.Any<IBackgroundTask>(), Arg.Any<Action<bool>?>(), Arg.Any<CancellationToken>()))
-             .Do(call =>
-             {
-                 call.Arg<IBackgroundTask>().RunAsync(CancellationToken.None).GetAwaiter().GetResult();
-                 call.Arg<Action<bool>?>()?.Invoke(true);
-             });
+        ViewerUiThread.RunQueuedTasksAtOnce(shell);
         return shell;
     }
 

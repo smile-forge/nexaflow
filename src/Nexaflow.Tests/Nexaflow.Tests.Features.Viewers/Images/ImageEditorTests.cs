@@ -54,12 +54,7 @@ public class ImageEditorTests
         shell.RunOnUiAsync(Arg.Any<Action>()).Returns(call => _ui.Run(call.Arg<Action>()));
         shell.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
         shell.PickSaveFileAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>?>(), Arg.Any<string?>(), Arg.Any<long>()).Returns(saveAs);
-        shell.When(s => s.QueueBackgroundTask(Arg.Any<IBackgroundTask>(), Arg.Any<Action<bool>?>(), Arg.Any<CancellationToken>()))
-             .Do(call =>
-             {
-                 call.Arg<IBackgroundTask>().RunAsync(CancellationToken.None).GetAwaiter().GetResult();
-                 call.Arg<Action<bool>?>()?.Invoke(true);
-             });
+        ViewerUiThread.RunQueuedTasksAtOnce(shell);
         shell.When(s => s.ShowConfirmation(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Action>(), Arg.Any<Action>()))
              .Do(call => call.ArgAt<Action>(2)());
         return shell;
