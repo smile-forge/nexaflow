@@ -5,7 +5,7 @@ namespace Nexaflow.IO.Documents.Processing;
 
 /// <summary>
 /// A markdown document read for whole-document work: its reading — parsed and worked over, with the sections its headings make
-/// hung on it (<see cref="MarkdownSections"/>) — and what every pass asks of it: the blocks a section holds, the words a heading
+/// hung on it (<see cref="ContentSections"/>) — and what every pass asks of it: the blocks a section holds, the words a heading
 /// says, an outline that fits what a model can be handed, and the document cut into stretches a model can read.
 /// </summary>
 public sealed class DocumentReading
@@ -14,7 +14,7 @@ public sealed class DocumentReading
     {
         Source   = source;
         Root     = ContentPart.Of(root);
-        Sections = MarkdownSections.Of(root);
+        Sections = ContentSections.Of(root);
     }
 
     /// <summary><paramref name="source"/> read as a markdown document is.</summary>
@@ -27,7 +27,7 @@ public sealed class DocumentReading
     public ContentPart Root { get; }
 
     /// <summary>The sections its headings make.</summary>
-    public MarkdownSections Sections { get; }
+    public ContentSections Sections { get; }
 
     /// <summary>The place just past what comes before the first heading — the whole document, where it has none.</summary>
     public int Preamble => Sections.Sections.Count == 0 ? Root.Children.Count : Sections.Preamble;
@@ -117,11 +117,11 @@ public sealed class DocumentReading
 
         return string.Empty;
 
-        string Line((MarkdownSection Section, int Depth) entry) => $"{new string(' ', (entry.Depth - 1) * 2)}- {Words(Part(entry.Section.Heading))}";
+        string Line((ContentSection Section, int Depth) entry) => $"{new string(' ', (entry.Depth - 1) * 2)}- {Words(Part(entry.Section.Heading))}";
     }
 
     /// <summary>Every section with how deep it stands among the others, each before the ones under it.</summary>
-    private static IEnumerable<(MarkdownSection Section, int Depth)> Nested(IReadOnlyList<MarkdownSection> sections, int depth)
+    private static IEnumerable<(ContentSection Section, int Depth)> Nested(IReadOnlyList<ContentSection> sections, int depth)
     {
         foreach (var section in sections)
         {

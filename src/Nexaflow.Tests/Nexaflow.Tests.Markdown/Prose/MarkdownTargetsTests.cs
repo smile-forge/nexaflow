@@ -32,6 +32,28 @@ public class MarkdownTargetsTests
 
     [TestMethod]
     [CoversNode("reference-links")]
+    public void AUnitsTargets_SayWhatItDefines_AnswerFromTheDocument_AndRememberWhatWasAsked()
+    {
+        var document = new LinkTargets();
+        document.Report(100, [new LinkTarget(MarkdownKinds.Reference, "a", "/a", 10), new LinkTarget(MarkdownKinds.Abbreviation, "HTML", "markup", 60)]);
+
+        var unit = new LinkTargets(document);
+        unit.Report(20, [new LinkTarget(MarkdownKinds.Reference, "b", "/b", 5)]);
+
+        Assert.AreEqual("/a", unit.Named(MarkdownKinds.Reference, "a")?.Meaning, "a unit is answered from the whole document");
+        Assert.AreEqual(1, unit.Every(MarkdownKinds.Abbreviation).Count());
+        CollectionAssert.AreEqual(new[] { "b" }, unit.Defined.Select(target => target.Name).ToArray(), "and says only what it defines itself");
+        Assert.IsTrue(unit.Answered());
+
+        document.Report(130, [new LinkTarget(MarkdownKinds.Reference, "a", "/a", 40), new LinkTarget(MarkdownKinds.Abbreviation, "HTML", "markup", 90)]);
+        Assert.IsTrue(unit.Answered(), "moved along by writing before them, the definitions mean what they did");
+
+        document.Report(130, [new LinkTarget(MarkdownKinds.Reference, "a", "/elsewhere", 40), new LinkTarget(MarkdownKinds.Abbreviation, "HTML", "markup", 90)]);
+        Assert.IsFalse(unit.Answered(), "defined again, a name the unit asked about does not");
+    }
+
+    [TestMethod]
+    [CoversNode("reference-links")]
     public void ALinkByName_GoesWhereItsDefinitionSays_WhereverTheDefinitionIsWritten()
     {
         foreach (var source in new[]
@@ -130,29 +152,6 @@ public class MarkdownTargetsTests
         CollectionAssert.AreEqual(new int?[] { Source.IndexOf("[b]"), Source.IndexOf("[a]"), Source.IndexOf("[A]") },
                                   written.Select(node => node.Offset).ToArray());
         Assert.AreEqual("/a", targets.Named(MarkdownKinds.Reference, WithTargets.Label("a"))?.Meaning);
-    }
-
-    [TestMethod]
-    [CoversNode("markdown-anchors")]
-    public void TwoHeadingsSayingTheSame_AreToldApartByTheOrderTheyAreWrittenIn()
-    {
-        var targets = new LinkTargets();
-        var tree = Worked("# Notes\n\n## Notes\n\n### `Notes` & *more*\n", targets);
-
-        CollectionAssert.AreEqual(new[] { "notes", "notes-1", "notes--more" },
-                                  targets.Every(MarkdownKinds.Anchor).Select(target => target.Name).ToArray());
-        Assert.AreEqual(3, tree.SelfAndDescendants().Count(node => node.Kind == MarkdownKinds.Anchor && node.Held is string));
-    }
-
-    [TestMethod]
-    [CoversNode("markdown-anchors")]
-    public void TypographyAndEmojiInAHeading_MoveNoAnchor_ItIsNamedByWhatWasWritten()
-    {
-        // GitHub names a heading by what was written, so a link to one keeps working whether or not it is drawn curled.
-        var targets = new LinkTargets();
-        Worked("# Don't \"panic\" -- :rocket: launch\n", targets);
-
-        CollectionAssert.AreEqual(new[] { "dont-panic----rocket-launch" }, targets.Every(MarkdownKinds.Anchor).Select(target => target.Name).ToArray());
     }
 
     /// <summary><paramref name="source"/> read, and worked over as a document's links are.</summary>

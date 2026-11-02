@@ -28,7 +28,29 @@ public sealed record LayoutHost(LayoutStanding Standing, LayoutNesting Nesting)
     /// it, as the host's undo history has it — null where it has nothing to say.
     /// </summary>
     public Func<string?> ShownBefore { get; init; } = static () => null;
+
+    /// <summary>
+    /// What the reader's folding says of one of the blocks of the content laid — hidden in a section folded away, or the heading of
+    /// one — as the outline of what the host shows says (<see cref="ContentOutline"/>); nothing, for content laid inside another.
+    /// </summary>
+    public Func<ContentPart, LayoutFold> Folds { get; init; } = static _ => default;
+
+    /// <summary>
+    /// What of the content's height the reader reaches, and the places in it that must stand laid besides, for a builder that can lay part
+    /// of what it reads and leave room for the rest — null where all of it is to be laid. A builder that heeds it says what it laid
+    /// (<see cref="Laid.Reached"/>).
+    /// </summary>
+    public LayoutReach? Reach { get; init; }
 }
+
+/// <summary>
+/// What the reader's folding says of one of the blocks a builder lays: that it stands in a section folded away and is not laid, that it
+/// heads one — with how many blocks wait behind it — or neither.
+/// </summary>
+/// <param name="Hidden">Whether it stands in a section folded away.</param>
+/// <param name="Folded">For the heading of a section folded away, the name it answers to — what opening it again asks by.</param>
+/// <param name="Behind">For such a heading, how many blocks wait behind it.</param>
+public readonly record struct LayoutFold(bool Hidden, string? Folded = null, int Behind = 0);
 
 /// <summary>
 /// What every builder onto the renderer-free layout tree has in common, which is one promise: <strong>laying something out always
@@ -82,6 +104,9 @@ public abstract class ContentBuilder
     /// </summary>
     protected string? ShownBefore => _host.ShownBefore();
 
+    /// <summary>What the reader's folding says of the block <paramref name="part"/> (<see cref="LayoutHost.Folds"/>).</summary>
+    protected LayoutFold FoldOf(ContentPart part) => _host.Folds(part);
+
     /// <summary>The content this is laying out, read and worked over before it ever got here.</summary>
     protected ContentReading Reading { get; }
 
@@ -109,8 +134,8 @@ public abstract class ContentBuilder
     /// </summary>
     protected double Room { get; private set; } = double.PositiveInfinity;
 
-    /// <summary>The source this is laying out — what a selection over the result yields.</summary>
-    public string Source => Reading.Source;
+    /// <summary>What of the content the reader reaches, where the host asks for only that much to be laid (<see cref="LayoutHost.Reach"/>) — null where it asks for all of it.</summary>
+    protected LayoutReach? ReaderReach => _host.Reach;
 
     /// <summary>Lays the source out. Never null, and never throws.</summary>
     public Laid Lay(double room = double.PositiveInfinity)

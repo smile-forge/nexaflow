@@ -59,23 +59,36 @@ internal sealed record KeptLaying(ContentPart Part, LayoutTree Tree, double Heig
                               IReadOnlyList<LayoutDiagnostic> Trouble, double Room, bool IsReadOnly)
 {
     /// <summary>
-    /// What every piece stands for, and what the languages inside said, as the block reads now — <paramref name="now"/>
-    /// being the same block in the new reading. Null where anything cannot be found again, so the block is laid afresh.
+    /// What every piece stands for, and what the languages inside said, as the block reads now — <paramref name="now"/> being the same
+    /// block in the new reading — and every tree put down inside it, put down again with what each of its pieces stands for now. Null
+    /// where anything cannot be found again, so the block is laid afresh.
     ///
     /// <para>
-    /// The block reads exactly as it did, so it is the same parts; only where they stand has moved, and by the one
-    /// amount — everything before an edit stays where it was, and everything after moves by what was typed. A part of
-    /// the document's reading is the new reading's part in the same place; a part of a language's own reading, which
-    /// that language read when the block was laid, is that reading again, set that much further along.
+    /// The block reads exactly as it did, so it is the same parts; only where they stand has moved, and by the one amount — everything
+    /// before an edit stays where it was, and everything after moves by what was typed (<see cref="MovedParts"/>). A tree put down
+    /// inside it — code's lines in a fence — names its parts through its mount, and is parted again the same way, so nothing kept names a
+    /// reading older than the one it is set down from.
     /// </para>
     /// </summary>
-    public (ISourcePart?[] Parts, List<LayoutDiagnostic> Trouble)? At(ContentPart now)
+    public (ISourcePart?[] Parts, List<LayoutDiagnostic> Trouble, Dictionary<int, LayoutMount>? Mounts)? At(ContentPart now)
     {
-        var moved = new Moved(Part, now);
+        var moved = new MovedParts(Part, now);
+        (bool Found, ISourcePart? Now) Found(ISourcePart? part) => moved.Try(part, out var to) ? (true, to) : (false, null);
 
         var parts = new ISourcePart?[Tree.Count];
+        Dictionary<int, LayoutMount>? mounts = null;
+
         for (var piece = 0; piece < Tree.Count; piece++)
+        {
+            if (Tree.MountOf(piece) is { } mount)
+            {
+                if (Restated(mount, Found) is not { } again) return null;
+                (mounts ??= [])[piece] = again;
+                continue;
+            }
+
             if (!moved.Try(Tree.PartOf(piece), out parts[piece])) return null;
+        }
 
         var trouble = new List<LayoutDiagnostic>(Trouble.Count);
         foreach (var said in Trouble)
@@ -84,124 +97,36 @@ internal sealed record KeptLaying(ContentPart Part, LayoutTree Tree, double Heig
             trouble.Add(said with { Start = said.Start + moved.By, Part = part });
         }
 
-        return (parts, trouble);
+        return (parts, trouble, mounts);
     }
 
     /// <summary>
-    /// Where each part of the old reading stands in the new one. The block reads exactly as it did, so a part of it is found
-    /// again by the way down to it — which of its parent's parts it was, all the way from the block — rather than by looking
-    /// it up; only a language's own reading, read afresh when the block was laid, has to be made again, and then only once.
+    /// <paramref name="mount"/>'s tree put down again, each part it names — through the mount, then <paramref name="outward"/> — standing
+    /// for what it stands for now, and every tree it puts down in turn the same; null where a part cannot be found again.
     /// </summary>
-    private sealed class Moved(ContentPart was, ContentPart now)
+    private static LayoutMount? Restated(LayoutMount mount, Func<ISourcePart?, (bool Found, ISourcePart? Now)> outward)
     {
-        private readonly ContentPart _document = Root(was);
+        (bool Found, ISourcePart? Now) Through(ISourcePart? part) => outward(mount.Restated(part));
 
-        /// <summary>The way down from the block to the part being found, innermost first.</summary>
-        private readonly List<int> _way = [];
+        var tree = mount.Tree;
+        var parts = new ISourcePart?[tree.Count];
+        Dictionary<int, LayoutMount>? mounts = null;
 
-        /// <summary>A language's reading, set further along, for each one met — and whatever else had to be made again.</summary>
-        private Dictionary<object, ISourcePart>? _made;
-
-        /// <summary>How far the block has moved.</summary>
-        public int By { get; } = now.Start - was.Start;
-
-        public bool Try(ISourcePart? part, out ISourcePart? to)
+        for (var piece = 0; piece < tree.Count; piece++)
         {
-            to = part switch
+            if (tree.MountOf(piece) is { } inner)
             {
-                null => null,
-                ContentPart written => Found(written),
-                TexPart named => Found(named),
-                PartRun run => Found(run),
-                PartSlice slice => Found(slice),
-                SourceSpan span => span with { Start = span.Start + By },
-
-                // Something this cannot follow stays put, which is right only where nothing moved.
-                _ => By == 0 ? part : null,
-            };
-
-            return part is null || to is not null;
-        }
-
-        private ContentPart? Found(ContentPart part)
-        {
-            _way.Clear();
-
-            var at = part;
-            while (!ReferenceEquals(at, was))
-            {
-                if (at.Parent is not { } up) return Rooted(at, part);
-
-                _way.Add(at.Order);
-                at = up;
+                if (Restated(inner, Through) is not { } again) return null;
+                (mounts ??= [])[piece] = again;
+                continue;
             }
 
-            return Down(now);
+            var (found, now) = Through(tree.PartOf(piece));
+            if (!found) return null;
+
+            parts[piece] = now;
         }
 
-        /// <summary>
-        /// A part of a reading other than the document's — a language's own, which that language read when the block was laid.
-        /// Where nothing moved it is where it was; otherwise that reading is made again, set further along, and the same way
-        /// is walked down it. The document's own reading is only ever reached through the block: a part outside the block is
-        /// nothing this layout drew.
-        /// </summary>
-        private ContentPart? Rooted(ContentPart root, ContentPart part)
-        {
-            if (ReferenceEquals(root, _document)) return null;
-            if (By == 0) return part;
-
-            _made ??= [];
-
-            if (!_made.TryGetValue(root, out var moved)) _made[root] = moved = ContentPart.Of(root.Node, root.Start + By);
-            return Down((ContentPart)moved);
-        }
-
-        /// <summary>The way walked down from <paramref name="from"/>, or null where it no longer goes.</summary>
-        private ContentPart? Down(ContentPart from)
-        {
-            for (var step = _way.Count - 1; step >= 0; step--)
-            {
-                var order = _way[step];
-                if (order >= from.Children.Count) return null;
-
-                from = from.Children[order];
-            }
-
-            return from;
-        }
-
-        private TexPart? Found(TexPart named)
-        {
-            _made ??= [];
-            if (_made.TryGetValue(named, out var found)) return (TexPart)found;
-            if (Found(named.Of) is not { } of) return null;
-
-            var moved = ReferenceEquals(of, named.Of) ? named : new TexPart(of);
-            _made[named] = moved;
-            return moved;
-        }
-
-        /// <summary>A run of parts, each followed to where it now is — or null where any of them is gone.</summary>
-        private PartRun? Found(PartRun run)
-        {
-            var moved = new List<ISourcePart>(run.Parts.Count);
-
-            foreach (var part in run.Parts)
-            {
-                if (!Try(part, out var to) || to is null) return null;
-                moved.Add(to);
-            }
-
-            return new PartRun(moved);
-        }
-
-        /// <summary>A stretch inside a part, followed with the part — or null where the part is gone.</summary>
-        private PartSlice? Found(PartSlice slice) => Try(slice.Of, out var of) && of is not null ? slice with { Of = of } : null;
-
-        private static ContentPart Root(ContentPart part)
-        {
-            while (part.Parent is { } up) part = up;
-            return part;
-        }
+        return new LayoutMount(tree.Parted(parts, mounts));
     }
 }

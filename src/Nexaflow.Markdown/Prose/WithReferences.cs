@@ -30,7 +30,8 @@ public sealed class WithReferences(LinkTargets targets) : IAstStage
     /// <inheritdoc/>
     public ContentNode Run(ContentNode tree)
     {
-        var linked = targets.Every(MarkdownKinds.Reference).Any() ? this.Linked(tree) : tree;
+        // Each name a bracket waits on is asked about by itself, so what a unit read on its own asked is only the names it uses.
+        var linked = this.Linked(tree);
 
         if (this.Abbreviations() is not { } abbreviations) return linked;
 

@@ -74,7 +74,7 @@
                               HorizontalScrollBarVisibility="Disabled"
                               ScrollChanged="BodyScroller_ScrollChanged"
                               Visibility="{Binding AiOverlayShowsMarkdown, Converter={StaticResource BoolVis}}">
-                    <md:MarkdownSurface Markdown="{Binding AiResponseText}"
+                    <md:MarkdownSurface Document="{Binding AiResponseText, Converter={x:Static md:AsEditedDocument.Instance}}"
                                                VerticalScrollBarVisibility="Disabled"
                                                Margin="12,8"/>
                 </ScrollViewer>

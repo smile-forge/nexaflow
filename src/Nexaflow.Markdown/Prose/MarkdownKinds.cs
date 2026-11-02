@@ -203,20 +203,8 @@ public static class MarkdownKinds
     public const string Loose = "loose";
 
 
-    /// <summary>
-    /// The name a heading answers to when a link points at it. Derived: nobody writes it, the reader works
-    /// it out from the words, and two headings saying the same thing are told apart by where they are.
-    /// </summary>
-    public const string Anchor = "anchor";
-
     /// <summary>How deep a heading is, one to six — as many hashes as open it, or which character underlines it.</summary>
     public const string Rank = "rank";
-
-    /// <summary>
-    /// The sections a document's headings make, hung on the document (<see cref="MarkdownSections"/>). Derived, because a heading
-    /// says only how deep it is: which blocks it stands over is worked out from the headings after it.
-    /// </summary>
-    public const string Sections = "sections";
 
     /// <summary>
     /// The list a run of words was matched from, kept where a link in it waits on a name the document may define — so the run

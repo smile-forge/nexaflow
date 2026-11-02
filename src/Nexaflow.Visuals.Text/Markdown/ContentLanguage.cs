@@ -50,19 +50,37 @@ public sealed record ContentLanguage(
     public bool Writable { get; init; }
 
     /// <summary>
-    /// A second reading of the same characters, slower than <see cref="Parser"/> and made away from the thread that lays content
-    /// out — or null where the first reading is all there is. The engine lays the first reading at once, starts this one, and
-    /// lays the content again with what it gives once it lands; until then, and wherever it fails, the first reading stands.
-    /// Called on any thread, so it keeps no state between calls that is not its own to lock.
-    /// </summary>
-    public Func<string, ContentParse>? SlowParser { get; init; }
-
-    /// <summary>
     /// Makes a parse that reads a large document a stretch at a time (<see cref="ContentStretch"/>), or null for a language only
     /// ever read whole. Content in a language that has one, past a length, is read and laid only as far as the reader has
     /// looked (<see cref="ContentEngine"/>) — laid by the same builder, which never learns it is laying part of something.
     /// </summary>
     public Func<Func<ContentStretch, ContentParse>>? Windowed { get; init; }
+
+    /// <summary>
+    /// What the language says about a body it holds in another language when something is written inside it — whether the body
+    /// still ends where it did (<see cref="IBodyBounds"/>) — or null, for a language that says nothing, whose unit is read again.
+    /// </summary>
+    public IBodyBounds? Bounds { get; init; }
+
+    /// <summary>
+    /// The room between the last block of one unit laid and the first of the next, in the style they are drawn in — what two blocks
+    /// laid together would have between them — or null for a language whose units stand flush. Content read a unit at a time is laid
+    /// a unit at a time, and put back together with this at each seam. A language with one has a builder that says which of its blocks
+    /// it laid (<see cref="Laid.Ends"/>), so a unit that laid none takes no room.
+    /// </summary>
+    public Func<ContentPart, ContentPart, LayoutStyle, double>? Seam { get; init; }
+
+    /// <summary>
+    /// How tall a unit of a reading in this language comes to laid in a style, said from its tree without laying it — or null for a
+    /// language only laying says, whose units not laid yet are estimated by what a character of what is laid came to.
+    /// </summary>
+    public Func<ContentNode, LayoutStyle, ILayoutMedium, double>? UnitHeight { get; init; }
+
+    /// <summary>
+    /// Makes what the language keeps of a whole reading of the characters given beside its units (<see cref="ContentUnits.Syntax"/>) —
+    /// code's syntax tree, which its stages colour a unit from — or null for a language that keeps nothing.
+    /// </summary>
+    public Func<IContentCharacters, IReadingSyntax?>? Syntax { get; init; }
 
     /// <summary>What an edit, a gesture and a block's corner mean in it — what they mean everywhere, unless it says otherwise.</summary>
     public IContentLanguage Editing { get; init; } = Usual.Editing;
@@ -144,6 +162,12 @@ public sealed record ContentShowing(string Named, LayoutStyle Style, bool Writin
     /// the content it was asked to show; a list of the content's own for content inside it, and wherever nothing keeps one.
     /// </summary>
     public LinkTargets Targets { get; init; } = new();
+
+    /// <summary>
+    /// What the reading the content is a stretch of keeps of all of it (<see cref="ContentUnits.Syntax"/>), and where among the
+    /// reading's own characters the content starts — null where it keeps nothing.
+    /// </summary>
+    public (IReadingSyntax Syntax, int At)? Syntax { get; init; }
 
     /// <summary><see cref="Shown"/> counted in this content's own source, or null where it is not inside it.</summary>
     public RawZone? Own(int length) =>

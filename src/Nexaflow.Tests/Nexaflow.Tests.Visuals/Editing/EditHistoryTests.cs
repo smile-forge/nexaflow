@@ -5,7 +5,8 @@ using Nexaflow.Markdown.Editing;
 namespace Nexaflow.Tests.Visuals.Editing;
 
 /// <summary>
-/// What can be taken back: whole states rather than operations, and a step being a stretch of writing in one place.
+/// What can be taken back: the change each step wrote and the change that takes it back, a step being a stretch of writing in
+/// one place, and whether what is written is what was saved.
 /// </summary>
 [TestClass]
 [CoversNode("markdown-block-undo")]
@@ -42,8 +43,8 @@ public class EditHistoryTests
         var two = elsewhere.Write("B");
         history.Record(one, two);
 
-        Assert.AreEqual("AFirst.\n\nSecond.", history.Undo(two)!.Source, "only the second place written in is taken back");
-        Assert.AreEqual("First.\n\nSecond.", history.Undo(one)!.Source);
+        Assert.AreEqual("AFirst.\n\nSecond.", history.Undo(two)!.Document.ToString(), "only the second place written in is taken back");
+        Assert.AreEqual("First.\n\nSecond.", history.Undo(one)!.Document.ToString());
     }
 
     [TestMethod]
@@ -124,24 +125,120 @@ public class EditHistoryTests
     }
 
     [TestMethod]
-    public void WhereTheStepBeingWrittenBeganIsWhatTakingItBackWouldPutBack()
+    public void BackspacingPastWhatWasTypedTakesBackToBeforeIt()
     {
         var history = new EditHistory();
-        var first = new EditState("Total: 10", 9);
+        var start = new EditState("abc", 3);
+        var state = start;
 
-        Assert.IsNull(history.Begun(first, first), "nothing written, and no step open");
+        foreach (var next in new Func<EditState, EditState>[] { s => s.Write("d"), s => s.Backspace(), s => s.Backspace() })
+        {
+            var after = next(state);
+            history.Record(state, after);
+            state = after;
+        }
 
-        var once = first.Write("0");
-        Assert.AreEqual(first, history.Begun(first, once), "the first letter of a step: where it starts from");
-        history.Record(first, once);
+        Assert.AreEqual("ab", state.Document.ToString());
+        Assert.AreEqual(start, history.Undo(state), "typing and putting it right, and a letter more, are one stretch of writing");
+        Assert.IsFalse(history.CanUndo);
+    }
 
-        var twice = once.Write("0");
-        Assert.AreEqual(first, history.Begun(once, twice), "carrying on: where the step began, not the letter before");
-        history.Record(once, twice);
+    [TestMethod]
+    public void WhatWasSavedIsKnown_UntilSomethingElseIsWritten()
+    {
+        var history = new EditHistory();
+        var start = new EditState("x", 1);
+        Assert.IsTrue(history.IsAtSaved, "what is shown afresh is what was saved");
 
-        Assert.AreEqual(first, history.Begun(twice, twice), "and so while nothing more is written");
+        var typed = start.Write("y");
+        history.Record(start, typed);
+        Assert.IsFalse(history.IsAtSaved);
 
-        history.Break();
-        Assert.IsNull(history.Begun(twice, twice), "the step ended: nothing is being written");
+        var back = history.Undo(typed)!;
+        Assert.IsTrue(history.IsAtSaved, "every step since taken back");
+
+        var again = history.Redo(back)!;
+        Assert.IsFalse(history.IsAtSaved);
+
+        history.MarkSaved();
+        Assert.IsTrue(history.IsAtSaved);
+
+        var more = again.Write("z");
+        history.Record(again, more);
+        Assert.IsFalse(history.IsAtSaved, "writing after a save is a step of its own");
+        Assert.IsTrue(history.Undo(more) is not null && history.IsAtSaved, "and taking it back is what was saved");
+    }
+
+    [TestMethod]
+    public void WritingAfterTakingBackPastWhatWasSaved_LosesTheWayBackToIt()
+    {
+        var history = new EditHistory();
+        var start = new EditState("x", 1);
+        var typed = start.Write("y");
+        history.Record(start, typed);
+        history.MarkSaved();
+
+        var back = history.Undo(typed)!;
+        history.Record(back, back.Write("q"));
+
+        Assert.IsFalse(history.IsAtSaved);
+        Assert.IsTrue(history.Undo(back.Write("q")) is not null);
+        Assert.IsFalse(history.IsAtSaved, "what was saved was only ever forward of here, and writing forgot it");
+    }
+
+    [TestMethod]
+    public void ADocumentChangedBehindTheHistory_IsNotWrittenInto()
+    {
+        var history = new EditHistory();
+        var start = new EditState("one", 3);
+        history.Record(start, start.Write(" two"));
+
+        Assert.IsNull(history.Undo(new EditState("something else entirely", 0)), "its changes are true of the document it left, not this one");
+        Assert.IsFalse(history.CanUndo, "and it is let go rather than kept to be written into the wrong place");
+    }
+
+    [TestMethod]
+    public void AStepHoldsWhatItWrote_SoAFewHugeOnesAreAllThatIsKept()
+    {
+        var history = new EditHistory();
+        var state = new EditState(string.Empty, 0);
+        var huge = new string('w', EditHistory.TextLimit / 3);
+
+        for (var step = 0; step < 4; step++)
+        {
+            history.Break();
+            var next = state.Write(huge);
+            history.Record(state, next);
+            state = next;
+        }
+
+        var undone = 0;
+        while (history.Undo(state) is { } back) { state = back; undone++; }
+
+        Assert.AreEqual(3, undone, "four steps of a third of the limit each hold more than it, so the oldest goes");
+}
+
+[TestMethod]
+public void WhereTheStepBeingWrittenBeganIsWhatTakingItBackWouldPutBack()
+{
+    var history = new EditHistory();
+    var first = new EditState("Total: 10", 9);
+
+    Assert.IsNull(history.Begun(first, first), "nothing written, and no step open");
+
+    var once = first.Write("0");
+    Assert.AreEqual("Total: 10", history.Begun(first, once)?.Before.ToString(), "the first letter of a step: where it starts from");
+    history.Record(first, once);
+
+    var twice = once.Write("0");
+    var begun = history.Begun(once, twice);
+    Assert.AreEqual("Total: 10", begun?.Before.ToString(), "carrying on: where the step began, not the letter before");
+    Assert.AreEqual((9, 0, "00"), (begun!.Value.Written.Start, begun.Value.Written.Length, begun.Value.Written.Text), "and the step's writing as one stretch");
+    history.Record(once, twice);
+
+    Assert.AreEqual("Total: 10", history.Begun(twice, twice)?.Before.ToString(), "and so while nothing more is written");
+
+    history.Break();
+    Assert.IsNull(history.Begun(twice, twice), "the step ended: nothing is being written");
     }
 }

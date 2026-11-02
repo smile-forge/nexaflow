@@ -38,10 +38,15 @@ public class ContentNode
 
     private ContentNode(string kind, string role, string text, IReadOnlyList<ContentNode> children, int? offset,
                         string? trouble, object? held = null)
+        : this(kind, role, text, null, children, offset, trouble, held) { }
+
+    private ContentNode(string kind, string role, string? text, Stretch? stretch, IReadOnlyList<ContentNode> children, int? offset,
+                        string? trouble, object? held)
     {
         this.Kind = kind;
         this.Role = role;
-        this.Text = text;
+        _text = text;
+        _stretch = stretch;
         this.Children = children;
         this.Offset = offset;
         this.Trouble = trouble;
@@ -52,7 +57,7 @@ public class ContentNode
         // it, so a zero here is a zero all the way up.
         if (this.IsDerived) { this.Width = 0; return; }
 
-        var width = text.Length;
+        var width = stretch?.Length ?? text!.Length;
         for (var i = 0; i < children.Count; i++) width += children[i].Width;
 
         this.Width = width;
@@ -60,7 +65,20 @@ public class ContentNode
 
     /// <summary>A language's own node, standing for exactly what <paramref name="shape"/> stands for.</summary>
     protected ContentNode(ContentNode shape)
-        : this(shape.Kind, shape.Role, shape.Text, shape.Children, shape.Offset, shape.Trouble, shape.Held) { }
+        : this(shape.Kind, shape.Role, shape._text, shape._stretch, shape.Children, shape.Offset, shape.Trouble, shape.Held) { }
+
+    /// <summary>Characters a leaf stands for without holding them: where they are held, and which of them.</summary>
+    private readonly record struct Stretch(IContentCharacters Over, int Start, int Length);
+
+    /// <summary>The characters, for a leaf holding them — or, for one standing for a stretch held elsewhere, once something asks.</summary>
+    private string? _text;
+
+    /// <summary>The stretch held elsewhere a leaf stands for, or null for one holding its characters.</summary>
+    private readonly Stretch? _stretch;
+
+    /// <summary>This piece rebuilt with what it says changed, standing for the same characters the same way.</summary>
+    private ContentNode Rebuilt(string role, IReadOnlyList<ContentNode> children, int? offset, string? trouble) =>
+        this.Reshaped(new ContentNode(this.Kind, role, _text, _stretch, children, offset, trouble, this.Held));
 
     /// <summary>
     /// What a rewrite of this node makes of <paramref name="shape"/> — this node rebuilt with another role, other parts or
@@ -76,7 +94,7 @@ public class ContentNode
     public string Role { get; }
 
     /// <summary>The characters, for a leaf. Empty for anything made of parts.</summary>
-    public string Text { get; }
+    public string Text => _text ??= _stretch!.Value.Over.Slice(_stretch.Value.Start, _stretch.Value.Length);
 
     /// <summary>The parts, in the order they were written.</summary>
     public IReadOnlyList<ContentNode> Children { get; }
@@ -166,19 +184,37 @@ public class ContentNode
     /// </para>
     /// </summary>
     public static ContentNode Shown(string text, string? trouble = null, string role = Roles.Element, int? offset = null) =>
-        new(Kinds.Verbatim, role, text, Childless, offset, trouble);
+            new(Kinds.Verbatim, role, text, Childless, offset, trouble);
+
+        /// <summary>
+        /// A piece standing for <paramref name="length"/> of <paramref name="characters"/> from <paramref name="start"/>, without
+        /// copying them: as wide as they are from the start, and reading them only when it is printed or its text is asked for. What
+        /// stands for characters nothing may ever print — what a long document has not read yet, a body another reading reads.
+        /// </summary>
+        public static ContentNode Leaf(string kind, IContentCharacters characters, int start, int length, string role = Roles.Element,
+                                       int? offset = null) =>
+            new(kind, role, null, new Stretch(characters, start, length), Childless, offset, null, null);
+
+        /// <summary>Whether this is a leaf standing for characters held elsewhere rather than holding them (<see cref="Leaf(string, IContentCharacters, int, int, string, int?)"/>).</summary>
+        public bool Stands => _stretch is not null;
+
+        /// <summary>
+        /// The character of a leaf at <paramref name="index"/> — read where it is held, for a leaf standing for characters held elsewhere,
+        /// rather than by making the string of all of them.
+        /// </summary>
+        public char CharacterAt(int index) => _text is { } text ? text[index] : _stretch is { } stretch ? stretch.Over[stretch.Start + index] : this.Text[index];
 
     /// <summary>The same piece, meaning something else to whatever holds it.</summary>
     public ContentNode As(string role) =>
-        role == this.Role ? this : this.Reshaped(new ContentNode(this.Kind, role, this.Text, this.Children, this.Offset, this.Trouble, this.Held));
+        role == this.Role ? this : this.Rebuilt(role, this.Children, this.Offset, this.Trouble);
 
     /// <summary>The same piece, made of different parts.</summary>
     public ContentNode With(IReadOnlyList<ContentNode> children) =>
-        this.Reshaped(new ContentNode(this.Kind, this.Role, this.Text, children, this.Offset, this.Trouble, this.Held));
+        this.Rebuilt(this.Role, children, this.Offset, this.Trouble);
 
     /// <summary>The same piece, made of different parts and standing where <paramref name="offset"/> says.</summary>
     public ContentNode With(IReadOnlyList<ContentNode> children, int? offset) =>
-        this.Reshaped(new ContentNode(this.Kind, this.Role, this.Text, children, offset, this.Trouble, this.Held));
+        this.Rebuilt(this.Role, children, offset, this.Trouble);
 
     /// <summary>The same piece, standing for other characters, where <paramref name="offset"/> says.</summary>
     public ContentNode With(string text, int? offset) =>
@@ -186,7 +222,7 @@ public class ContentNode
 
     /// <summary>The same piece, with something to say about it.</summary>
     public ContentNode Saying(string? trouble) =>
-        trouble == this.Trouble ? this : this.Reshaped(new ContentNode(this.Kind, this.Role, this.Text, this.Children, this.Offset, trouble, this.Held));
+        trouble == this.Trouble ? this : this.Rebuilt(this.Role, this.Children, this.Offset, trouble);
 
     /// <summary>
     /// The same reading, and everything under it, read from <paramref name="by"/> characters further on than it says —
@@ -214,8 +250,7 @@ public class ContentNode
             children = moved;
         }
 
-        return this.Reshaped(new ContentNode(this.Kind, this.Role, this.Text, children,
-                                             this.Offset is { } offset ? offset + by : null, this.Trouble, this.Held));
+        return this.Rebuilt(this.Role, children, this.Offset is { } offset ? offset + by : null, this.Trouble);
     }
 
     // ── Reading them ────────────────────────────────────────────────────────
@@ -299,7 +334,7 @@ public class ContentNode
             return;
         }
 
-        foreach (var leaf in this.Printed()) text.Append(leaf.Text);
+        foreach (var leaf in this.Printed()) leaf.AppendTextTo(text);
     }
 
     /// <summary>
@@ -330,7 +365,7 @@ public class ContentNode
                 return;
             }
 
-            if (node.Text.Length > 0) pieces.Add((last, order, node));
+            if (node.Width > 0) pieces.Add((last, order, node));
             order++;
         }
     }
@@ -377,8 +412,8 @@ public class ContentNode
 
         if (this.IsLeaf)
         {
-            var length = this.Text.Length;
-            if (length > text.Length - at || string.CompareOrdinal(text, at, this.Text, 0, length) != 0) return false;
+            var length = this.Width;
+            if (length > text.Length - at || !this.TextIs(text.AsSpan(at, length))) return false;
 
             at += length;
             return true;
@@ -388,6 +423,52 @@ public class ContentNode
             if (!this.Children[child].Matches(text, ref at)) return false;
 
         return true;
+    }
+
+    /// <summary>A leaf's characters, appended to <paramref name="text"/> where they are held — none of them copied first for a leaf standing for a stretch held elsewhere.</summary>
+    private void AppendTextTo(StringBuilder text)
+    {
+        if (_stretch is not { } stretch)
+        {
+            text.Append(_text);
+            return;
+        }
+
+        foreach (var chunk in stretch.Over.Chunks(stretch.Start, stretch.Start + stretch.Length)) text.Append(chunk.Span);
+    }
+
+    /// <summary>Whether a leaf's characters are <paramref name="text"/>, read where they are held.</summary>
+    private bool TextIs(ReadOnlySpan<char> text)
+    {
+        if (_stretch is not { } stretch) return text.SequenceEqual(_text);
+        if (text.Length != stretch.Length) return false;
+
+        var at = 0;
+
+        foreach (var chunk in stretch.Over.Chunks(stretch.Start, stretch.Start + stretch.Length))
+        {
+            if (!chunk.Span.SequenceEqual(text.Slice(at, chunk.Length))) return false;
+            at += chunk.Length;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Whether this piece's own characters are <paramref name="other"/>'s — known without reading them where both stand for the same
+    /// stretch of the same characters, and without copying them where either stands for a stretch held elsewhere.
+    /// </summary>
+    private bool SameText(ContentNode other)
+    {
+        if (_stretch is { } mine && other._stretch is { } theirs && ReferenceEquals(mine.Over, theirs.Over)
+            && mine.Start == theirs.Start && mine.Length == theirs.Length)
+            return true;
+
+        if (_stretch is null && other._stretch is null) return string.Equals(_text, other._text, StringComparison.Ordinal);
+        if (_stretch is null) return other.TextIs(_text);
+        if (other._stretch is null) return this.TextIs(other._text);
+
+        return string.Equals(this.Text, other.Text, StringComparison.Ordinal);
     }
 
     // ── Finding out where they landed ───────────────────────────────────────
@@ -453,7 +534,7 @@ public class ContentNode
             || this.GetType() != other.GetType()
             || this.Kind != other.Kind
             || this.Role != other.Role
-            || this.Text != other.Text
+            || !this.SameText(other)
             || this.Offset != other.Offset
             || this.Trouble != other.Trouble
             || this.Children.Count != other.Children.Count) return false;

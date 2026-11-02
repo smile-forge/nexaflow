@@ -84,7 +84,7 @@ internal sealed class AskDocumentTool(DocumentJob job) : IClientTool
             .Append(cited.Count > 0 ? "The parts it cites" : "The parts it was read from").Append(", each linked to its section of the document:\n");
         foreach (var part in listed)
             told.Append('[').Append(part.Number).Append("] [").Append(part.Where.Length > 0 ? part.Where : "Before its first heading").Append("](<")
-                .Append(part.Section?.Anchor is { } anchor ? SummaryMarkdown.Back(path, anchor) : new Uri(Path.GetFullPath(path)).AbsoluteUri).Append(">)\n");
+                .Append(part.Section?.Name is { } anchor ? SummaryMarkdown.Back(path, anchor) : new Uri(Path.GetFullPath(path)).AbsoluteUri).Append(">)\n");
 
         if (answer.InBrief) told.Append("\nThe parts were read from their summaries, being too much to read in full.");
 

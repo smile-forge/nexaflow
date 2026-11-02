@@ -56,7 +56,7 @@ public sealed partial class ContentEngine
             if (inside.Count == 0)
             {
                 var words = _laid.Root.WordsAt(range.Start);
-                picks.Add(new ContentPick(range.Start, range.Length, _state.Source.Substring(range.Start, range.Length),
+                picks.Add(new ContentPick(range.Start, range.Length, _state.Document.Slice(range.Start, range.Length),
                                           words.Exists ? words.Naming() as ContentPart : null, LanguageOf(words), null, null));
                 continue;
             }
@@ -66,7 +66,7 @@ public sealed partial class ContentEngine
                 var at = piece.Sits();
                 var (id, label) = Selecting(piece);
 
-                picks.Add(new ContentPick(at.Start, at.Length, _state.Source.Substring(at.Start, at.Length),
+                picks.Add(new ContentPick(at.Start, at.Length, _state.Document.Slice(at.Start, at.Length),
                                           piece.Naming() as ContentPart, LanguageOf(piece), id, label));
             }
         }

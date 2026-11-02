@@ -46,8 +46,11 @@ public sealed partial class ContentEngine
     /// </summary>
     private ContentCarry? _carry;
 
-    /// <summary>The content a carry of a language's own was picked up in, which is the only content it can be let go in.</summary>
-    private ContentNode? _carriedIn;
+    /// <summary>
+    /// The reading a carry of a language's own was picked up in, which is the only content it can be let go in — the same reading
+    /// through every laying out of it while the carry is under way (<see cref="ReadingOf"/>).
+    /// </summary>
+    private object? _carriedIn;
     private Laid? _preview;
     private Moved? _previewOf;
     private (int Start, int End) _previewMoved;
@@ -72,6 +75,13 @@ public sealed partial class ContentEngine
 
     /// <summary>Raised to bring a stretch of the laid content into view — the heading a link into the content goes to.</summary>
     internal event EventHandler<LayoutRect>? Revealing;
+
+    /// <summary>Brings <paramref name="at"/> onto the page: whatever shows the content scrolls to it, and the page is not held still meanwhile.</summary>
+    private void Reveal(LayoutRect at)
+    {
+        ScreenMoving = true;
+        Revealing?.Invoke(this, at);
+    }
 
     /// <summary>The content as it would read if what is being carried were let go where it is now, with what is carried, or null.</summary>
     internal (Laid Laid, int Start, int End)? Preview => _preview is { } preview ? (preview, _previewMoved.Start, _previewMoved.End) : null;
@@ -220,14 +230,14 @@ public sealed partial class ContentEngine
         /// (<see cref="IOnMove.Lift"/>), and the content it landed in. What is picked out, where the language is not asked — it has no
         /// <see cref="IOnMove"/> — and where it falls over being asked.
         /// </summary>
-        private (ContentLift Lift, ContentNode? Root) Lifted(LayoutPiece pressed, LayoutPoint at)
+        private (ContentLift Lift, object? Reading) Lifted(LayoutPiece pressed, LayoutPoint at)
         {
             var (piece, part, root) = Reached(Landing, pressed);
             if (part is null || ContentLanguages.WrittenIn(root)?.Editing.OnMove is not { } onMove) return (ContentLift.Selection, null);
 
             try
             {
-                return (onMove.Lift(new ContentGrip(Landing, piece, part, root, at)), root.Node);
+                return (onMove.Lift(new ContentGrip(Landing, piece, part, root, at)), ReadingOf(root.Node));
             }
             catch
             {
@@ -464,8 +474,8 @@ public sealed partial class ContentEngine
         }
 
         // Exactly what was on screen a moment ago — settling is letting go of it, not recomputing something the reader has to
-        // check.
-        Apply(new EditState(moved.Source, moved.Caret), notify: true);
+        // check. It is the version the move's change made, so what is kept to take back is that change.
+        Apply(new EditState(moved.State.Document, moved.Caret), notify: true);
     }
 
     /// <summary>
@@ -476,15 +486,17 @@ public sealed partial class ContentEngine
     {
         // What the language it is let go in says a move there is, where it says, and otherwise the characters carried,
         // emptied and put back at the offset they are over — both of them Moving's to work out (IOnMove).
+        // The same move as the last place asked — the same change, the caret left in the same place — is the same picture. Asked of
+        // the change, never of what it comes to, which would be comparing the whole document at every move of the pointer.
         var carried = Moving(_dropAt);
-        if (carried?.Source == _previewOf?.Source && carried?.Caret == _previewOf?.Caret) return false;
+        if (carried is { } now ? now.Alike(_previewOf) : _previewOf is null) return false;
 
         _previewOf = carried;
         _previewMoved = carried is { } moved ? (moved.Wrote.Start, moved.Wrote.End) : default;
 
-        // Where the language names what it goes into, that is marked out on the content as it stands, and nothing is laid out again.
-        _marked = carried is null ? null : Target(_dropAt);
-        _preview = carried is { } laid && _marked is null ? LaidOut(new EditState(laid.Source, laid.Caret)) : null;
+// Where the language names what it goes into, that is marked out on the content as it stands, and nothing is laid out again.
+_marked = carried is null ? null : Target(_dropAt);
+_preview = carried is { } laid && _marked is null ? LaidOut(new EditState(laid.State.Document, laid.Caret)) : null;
 
         return true;
     }
@@ -613,9 +625,9 @@ public sealed partial class ContentEngine
         if (act.Intent is not { Verb: LayoutVerbs.Navigate, Target: { } where }) return false;
         if (!MarkdownAnchors.IsInPage(where, out var anchor)) return false;
 
-        // A long document may not have laid the heading yet; what its stages found says where it is, and so where to lay to.
-        if (MarkdownAnchors.Sought(_laid, anchor) is { Exists: true } heading) Revealing?.Invoke(this, heading.Bounds);
-        else if (_window is not null && MarkdownAnchors.Written(_targets, anchor) is { } written) Uncovering(written);
+        // A long document may not have laid the heading yet; the outline says where it is, and so where to lay.
+        if (Sought(_laid, anchor) is { Exists: true } heading) Reveal(heading.Bounds);
+        else if (_window is not null && _outline.Named(anchor) is { } named) Uncovering(_outline.StartOf(named.Unit, named.Entry));
 
         return true;
     }

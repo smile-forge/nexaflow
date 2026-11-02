@@ -46,7 +46,7 @@ public class CynefinEditingTests : MermaidEditing
             StringAssert.Contains(diagram.Source, "\"Unclassified A!\"", diagram.Source);
             StringAssert.Contains(diagram.Source, "\"Stabilised?\"", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count);
-            StringAssert.Contains(editor.Markdown, "Investigate root causes", "and so does the document");
+            StringAssert.Contains(editor.Document.ToString(), "Investigate root causes", "and so does the document");
         }));
 
     [TestMethod]

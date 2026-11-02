@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Scratchpad.Models;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Features.Scratchpad.ViewModels;
 
@@ -8,7 +9,18 @@ public sealed partial class PostItViewModel : ObservableObject
 {
     public PostItNote Note { get; }
 
-    [ObservableProperty] private string  _content;
+    /// <summary>The note's words, shown and written in by its editor — the document says itself when it changes, and what it holds is copied into the note to be saved.</summary>
+    public EditedDocument Document { get; }
+
+    /// <summary>The note's words, whole. Setting it loads the note's document in their place, which is what replacing a note's words is.</summary>
+    public string Content
+    {
+        get => Document.ToString();
+        set
+        {
+            if (!string.Equals(Document.ToString(), value ?? string.Empty, StringComparison.Ordinal)) Document.Load(value);
+        }
+    }
     [ObservableProperty] private double  _x;
     [ObservableProperty] private double  _y;
     [ObservableProperty] private double  _width;
@@ -95,7 +107,8 @@ public sealed partial class PostItViewModel : ObservableObject
     public PostItViewModel(PostItNote note)
     {
         Note      = note;
-        _content  = note.Content;
+        Document  = new EditedDocument(note.Content);
+        Document.Changed += (_, _) => OnPropertyChanged(nameof(Content));
         _x        = note.X;
         _y        = note.Y;
         _width    = note.Width;
@@ -116,7 +129,7 @@ public sealed partial class PostItViewModel : ObservableObject
         switch (e.PropertyName)
         {
             case nameof(Content):
-                Note.Content = Content;
+                Note.Content = Document.ToString();
                 OnPropertyChanged(nameof(RecycleBinLabel));
                 break;
             case nameof(X):        Note.X        = X;        break;

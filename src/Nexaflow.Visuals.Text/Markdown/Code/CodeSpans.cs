@@ -7,8 +7,7 @@ using Nexaflow.Syntax;
 namespace Nexaflow.Visuals.Text.Markdown.Code;
 
 /// <summary>
-/// What a grammar makes of a stretch of code: the code language's second reading (<see cref="ContentLanguage.SlowParser"/>),
-/// made away from the thread that draws.
+/// The readers a grammar's code is parsed and coloured by, made away from the thread that draws (<see cref="CodeSyntax"/>).
 ///
 /// <para>
 /// One reader per grammar, kept for the life of the process, because compiling a grammar's highlight query costs about fifteen
@@ -21,13 +20,13 @@ internal static class CodeSpans
     private static readonly Dictionary<string, CodeHighlighter?> Readers = [];
     private static readonly Lock Gate = new();
 
-    /// <summary>How <paramref name="source"/> reads under <paramref name="grammar"/> — nothing, where the grammar cannot read it.</summary>
-    public static IReadOnlyList<HighlightSpan> Read(string grammar, string source)
+    /// <summary>What <paramref name="use"/> makes of the one reader for <paramref name="grammar"/>, used under its lock — nothing, where the grammar cannot be read.</summary>
+    public static T? WithReader<T>(string grammar, Func<CodeHighlighter, T> use)
     {
-        if (Reader(grammar) is not { } reader) return [];
+        if (Reader(grammar) is not { } reader) return default;
 
         lock (reader)
-            return reader.Highlight(source);
+            return use(reader);
     }
 
     /// <summary>The one reader for a grammar, made on first asking and kept.</summary>

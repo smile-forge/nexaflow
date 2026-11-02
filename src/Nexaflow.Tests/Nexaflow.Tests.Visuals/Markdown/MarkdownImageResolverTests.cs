@@ -27,7 +27,7 @@ public class MarkdownImageResolverTests
         var pixel = Pixel();
         var view = new MarkdownSurface { ImageResolver = _ => pixel };
 
-        view.Markdown = Doc;
+        view.Document.Load(Doc);
 
         view.Measure(new Size(640, 2000));
         view.Arrange(new Rect(0, 0, 640, 2000));

@@ -33,7 +33,7 @@
             <!-- The scroller is outside the surface so a reply being written can be followed to its end. -->
             <ScrollViewer Grid.Row="1" beh:ScrollFollowsEnd.IsEnabled="True"
                           VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                <md:MarkdownSurface Markdown="{Binding AiResponseText}" VerticalScrollBarVisibility="Disabled" Margin="14,6,14,12"/>
+                <md:MarkdownSurface Document="{Binding AiResponseText, Converter={x:Static md:AsEditedDocument.Instance}}" VerticalScrollBarVisibility="Disabled" Margin="14,6,14,12"/>
             </ScrollViewer>
         </Grid>
     </Border>

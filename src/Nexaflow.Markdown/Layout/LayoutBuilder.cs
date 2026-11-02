@@ -16,6 +16,7 @@ public sealed class LayoutBuilder
     private readonly List<LayoutWords?> _words;
     private readonly Dictionary<int, LayoutActions> _acts = [];
     private readonly Dictionary<int, string> _tips = [];
+    private readonly Dictionary<int, LayoutMount> _mounts = [];
     private readonly List<LayoutMark> _marks;
     private readonly List<(int[] Members, bool Vertical)> _runs = [];
     private readonly List<(int At, LayoutSide Side, double Clear)> _sides = [];
@@ -93,6 +94,22 @@ public sealed class LayoutBuilder
         return frame.At;
     }
 
+    /// <summary>Whether anything laid so far puts a tree down (<see cref="Mount"/>), copied in or mounted here.</summary>
+    internal bool PutsDown => _mounts.Count > 0;
+
+    /// <summary>
+    /// Says the piece open innermost is painted as <paramref name="paints"/> — for a builder that knows how only once it has laid what is
+    /// inside. Only what is not where anything stands: a paint that moves, turns or scales what it holds is said when the piece is opened.
+    /// </summary>
+    internal void PaintedAs(LayoutPaint paints)
+    {
+        if (paints.Applies) throw new ArgumentException("a paint that places what it holds is said when the piece is opened", nameof(paints));
+
+        var frame = _open.Peek();
+        frame.Paints = paints is { Matters: true } ? paints : null;
+        _paints[frame.At] = frame.Paints;
+    }
+
     public LayoutVector Anchor
     {
         get
@@ -166,6 +183,7 @@ public sealed class LayoutBuilder
             _regions.Add(tree.RegionOf(piece));
             _words.Add(tree.WordsOf(piece));
             if (tree.ActsOf(piece) is { } acts) _acts[_pieces.Count - 1] = acts;
+            if (tree.MountOf(piece) is { } mount) _mounts[_pieces.Count - 1] = mount;
             if (tree.TipOf(piece) is { } tip) _tips[_pieces.Count - 1] = tip;
         }
 
@@ -190,6 +208,44 @@ public sealed class LayoutBuilder
 
         if (against is { } side) _sides.Add((first, side, clear));
         return first;
+    }
+
+    /// <summary>
+    /// Puts <paramref name="mount"/>'s tree down inside the open piece at <paramref name="at"/>, as it was laid: one piece here, standing for
+    /// all of it, gathered into what the open piece reaches — nothing of it copied, and walked through as though its pieces were laid here
+    /// (<see cref="LayoutMount"/>).
+    /// </summary>
+    public int Mount(LayoutMount mount, LayoutPoint at = default)
+    {
+        var tree = mount.Tree;
+        if (tree.Count == 0) return -1;
+
+        var top = tree.Piece(0);
+        var reach = top.Box.IsEmpty ? top.Box : LayoutRect.Offset(top.Box, top.Offset);
+        var placed = _pieces.Count;
+        var offset = new LayoutVector(at.X, at.Y);
+
+        _pieces.Add(new LayoutStored
+        {
+            Offset = offset,
+            Box = reach,
+            Parent = _open.Count == 0 ? -1 : _open.Peek().At,
+            Extent = 1,
+            Marks = _marks.Count,
+            MarkCount = 0,
+            Stops = LayoutStops.None,
+        });
+
+        _parts.Add(null);
+        _kinds.Add(LayoutMount.Kind);
+        _paints.Add(null);
+        _regions.Add(null);
+        _words.Add(null);
+        _mounts[placed] = mount;
+
+        if (_open.Count > 0 && !reach.IsEmpty) _open.Peek().Gathered(LayoutRect.Offset(reach, offset));
+
+        return placed;
     }
 
     public int Close()
@@ -266,7 +322,8 @@ public sealed class LayoutBuilder
 
         return new LayoutTree(_medium, [.. _pieces], [.. _marks], [.. _parts], [.. _kinds], [.. _paints], [.. _regions], [.. _words],
                                 _acts.Count == 0 ? null : new Dictionary<int, LayoutActions>(_acts),
-                                _tips.Count == 0 ? null : new Dictionary<int, string>(_tips), across, acrossAt, down, downAt, runs);
+                                _tips.Count == 0 ? null : new Dictionary<int, string>(_tips),
+                                _mounts.Count == 0 ? null : new Dictionary<int, LayoutMount>(_mounts), across, acrossAt, down, downAt, runs);
     }
 
     private void Align(double block)
@@ -344,6 +401,7 @@ public sealed class LayoutBuilder
         _words.Clear();
         _acts.Clear();
         _tips.Clear();
+        _mounts.Clear();
         _marks.Clear();
         _runs.Clear();
         _sides.Clear();

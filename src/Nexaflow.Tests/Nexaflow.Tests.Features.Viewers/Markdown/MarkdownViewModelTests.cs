@@ -5,6 +5,7 @@ using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 using System.IO;
 using System.Linq;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Tests.Features.Markdown;
 
@@ -59,6 +60,44 @@ public class MarkdownViewModelTests
         Assert.AreEqual(Path.GetFileName(vm.FilePath), vm.FileName);
         Assert.IsFalse(vm.FileName.Contains(Path.DirectorySeparatorChar),
                        "The toolbar label shows the file name only.");
+    }
+
+    // ── Outline ───────────────────────────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("markdown-outline")]
+    public async Task TheOutline_IsCollapsedUntilAskedFor_AndShownOnlyBesideTheRenderedDocument()
+    {
+        var vm = await MakeAsync();
+
+        Assert.IsFalse(vm.IsOutlineOpen, "collapsed until the reader asks for it");
+        Assert.IsFalse(vm.ShowOutline);
+
+        vm.ToggleOutlineCommand.Execute(null);
+        Assert.IsTrue(vm.ShowOutline);
+
+        vm.ViewMode = MarkdownViewMode.Source;
+        Assert.IsFalse(vm.ShowOutline, "the raw source alone is not laid out, so it has no outline to list");
+        Assert.IsFalse(vm.ToggleOutlineCommand.CanExecute(null));
+
+        vm.ViewMode = MarkdownViewMode.Split;
+        Assert.IsTrue(vm.ShowOutline, "still open, beside the rendered half");
+    }
+
+    [TestMethod]
+    [CoversNode("markdown-outline")]
+    public async Task TheOutline_IndentsEachHeadingByHowFarBelowTheHighestItRanks()
+    {
+        var vm = await MakeAsync();
+
+        vm.TakeOutline([new OutlineHeading("Intro", 2, "intro"), new OutlineHeading("Detail", 3, "detail"), new OutlineHeading("Deep", 5, "deep")]);
+
+        CollectionAssert.AreEqual(new[] { 0.0, 14.0, 42.0 }, vm.Outline.Select(item => item.IndentWidth).ToArray());
+        CollectionAssert.AreEqual(new[] { "Intro", "Detail", "Deep" }, vm.Outline.Select(item => item.Title).ToArray());
+        Assert.IsTrue(vm.HasOutline);
+
+        vm.TakeOutline([]);
+        Assert.IsFalse(vm.HasOutline, "a document with no heading says so instead");
     }
 
     [TestMethod]
@@ -215,7 +254,7 @@ public class MarkdownViewModelTests
         var vm = await MakeAsync("# Original\n");
         Assert.IsFalse(vm.SaveCommand.CanExecute(null));
 
-        vm.Markdown = "# Edited\n";
+        vm.Document.WriteWhole("# Edited\n");
         Assert.IsTrue(vm.SaveCommand.CanExecute(null));
 
         await vm.SaveCommand.ExecuteAsync(null);
@@ -242,7 +281,7 @@ public class MarkdownViewModelTests
     {
         var vm = await MakeAsync();
 
-        vm.Markdown = "# Dirty now\n";
+        vm.Document.WriteWhole("# Dirty now\n");
         var context = vm.GetContext();
 
         StringAssert.Contains(context, "unsaved");
@@ -296,7 +335,7 @@ public class MarkdownViewModelTests
         Assert.AreEqual(3, vm.LineCount, "the trailing newline ends the third line rather than starting a fourth");
         Assert.AreEqual(5, vm.WordCount, "'#', 'Title', 'Body', 'text', 'here.'");
 
-        vm.Markdown = "one  two\tthree\nfour";
+        vm.Document.WriteWhole("one  two\tthree\nfour");
         Assert.AreEqual(4, vm.WordCount, "runs of mixed whitespace separate one word, not several");
         Assert.AreEqual(2, vm.LineCount);
     }

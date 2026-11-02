@@ -33,7 +33,7 @@ internal static class FrontMatterWriting
     /// </summary>
     private static ContentWrite Configured(ContentEdit edit, string[] path, string value)
     {
-        var newline = edit.Source.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+        var newline = edit.State.Document.LineEnding;
 
         if (edit.Root.Children.FirstOrDefault(part => part.Kind == MermaidKinds.FrontMatter) is not { } front)
         {

@@ -42,26 +42,17 @@ public sealed partial class MarkdownSurface
     public void Redo() => _engine.Redo();
 
     /// <summary>
-    /// The document changed — written in, taken back, or put there here on the reader's behalf: the host is told, and where the
-    /// change was not typed, the caret is shown where it now stands.
+    /// What the engine says happened to what is written, said again to the page. A document loaded in its place is shown from where
+    /// a reader starts it; anything else leaves the reader where they are.
     /// </summary>
     private void Written(ContentSourceChange change)
     {
         if (change.Kind != ContentChangeKind.Written && !IsReadOnly && IsKeyboardFocusWithin) _shown.ShowCaret();
 
-        Told();
+        if (change.Kind == ContentChangeKind.Loaded) Settled();
+        else Prompted();
 
         RaiseEvent(new ContentSourceChangedEventArgs(SourceChangedEvent, change) { Source = this });
-    }
-
-    /// <summary>Tells a binding what the document now says, without it coming back as a new one; and anybody listening.</summary>
-    private void Told()
-    {
-        _telling = true;
-        try { SetCurrentValue(MarkdownProperty, _shown.Markdown); }
-        finally { _telling = false; }
-
-        Prompted();
     }
 
     // ── The clipboard ───────────────────────────────────────────────────────
@@ -212,6 +203,11 @@ public sealed class ContentChangingEventArgs(RoutedEvent routed, EditState from,
 
     /// <summary>Set to refuse the change.</summary>
     public bool Refused { get; set; }
+
+    private ContentChange? _change;
+
+    /// <summary>What would be written: the change that makes <see cref="To"/> from <see cref="From"/>, in the offsets of what it is now.</summary>
+    public ContentChange Change => _change ??= this.To.Document.ChangesFrom(this.From.Document).Forward;
 }
 
 /// <summary>One block asked to be kept as a picture. Whoever keeps it marks it handled.</summary>

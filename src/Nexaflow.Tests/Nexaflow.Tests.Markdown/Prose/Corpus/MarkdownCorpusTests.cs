@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.Markdown.Ast;
@@ -69,13 +70,11 @@ public class MarkdownCorpusTests
 
             foreach (var length in new[] { 256, 4096 })
             {
-                var chunks = new ContentChunks(input.Source, MarkdownParser.Language);
-                var parse = MarkdownParser.Windowed();
+                var (units, parse, document) = (new ContentUnits(MarkdownParser.Language), MarkdownParser.Windowed(), ContentDocument.Of(input.Source));
 
-                while (chunks.Next(length) is { } next)
-                    chunks.Add(ContentChunk.Read(parse, input.Source, next.From, next.SoftMaxLength, next.Resume));
+                while (!units.Done) units = units.ReadOn(parse, document, length);
 
-                var stretched = MarkdownShape.Of(chunks.Tree(), input.Source);
+                var stretched = MarkdownShape.Of(units.Tree(document), input.Source);
 
                 foreach (var construct in MarkdownShape.Unmatched(whole, stretched).Take(3))
                     failures.Add($"{input.Id} @{length}: whole-only {construct.Named(input.Source)} at {construct.Where(input.Source)}");

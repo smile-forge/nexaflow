@@ -15,6 +15,8 @@ using Nexaflow.Visuals.Common.Theming;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Editing;
+using System.Windows.Threading;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -57,12 +59,6 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     /// </summary>
     private readonly ContentEngine _engine = new();
 
-    /// <summary>The document as it was read — the tree the laid layout was drawn from, as the engine last read it.</summary>
-    private ContentPart Read => _engine.ReadRoot;
-
-    /// <summary>Set while this control is telling a binding what was written, so the value coming back is not taken for a new document.</summary>
-    private bool _telling;
-
     public MarkdownSurface()
     {
         Focusable = true;
@@ -74,6 +70,12 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
 
         _engine.PreRender += Laid;
         _engine.Reread += Landed;
+        _engine.OutlineChanged += Outlined;
+
+        // What the reader is looking at stays where it is on the screen while what stands above it comes to its height; and while
+        // the page is being moved to a place brought onto it, it is not held to where it was.
+        _engine.Shifted += (_, by) => Shift(by);
+        _engine.Revealing += (_, _) => PageMoving(scrolling: false);
 
         // And everything it asks of whatever shows the content, which is this: see IContentEvents.
         _engine.Events = this;
@@ -123,25 +125,57 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
         };
     }
 
+    /// <summary>Where the page has been told to scroll to and has not reached yet — what a further shift adds to — or null once it has.</summary>
+    private double? _scrolling;
+
+    /// <summary>
+    /// Scrolls the page by <paramref name="by"/>, in the document's own units, on top of wherever it was last told to scroll and has not
+    /// reached yet — a scroll is done at the next layout pass, so the offset the page says until then is where it was.
+    /// </summary>
+    private void Shift(double by)
+    {
+        _scrolling = (_scrolling ?? _scroller.VerticalOffset) + (by * _shown.Zoom);
+        _scroller.ScrollToVerticalOffset(_scrolling.Value);
+
+        PageMoving(scrolling: true);
+    }
+
+    /// <summary>
+    /// Says the page is on its way somewhere — told to scroll (<paramref name="scrolling"/>), or a place brought onto it — and lets go of
+    /// that once the layout pass that takes it there is done, whether or not it moved at all.
+    /// </summary>
+    private void PageMoving(bool scrolling)
+    {
+        if (!scrolling) _engine.ScreenMoving = true;
+
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        {
+            _scrolling = null;
+            _engine.ScreenMoving = false;
+        });
+    }
+
     // ── What it is ──────────────────────────────────────────────────────────
 
     /// <summary>
-    /// The markdown shown — and, where it is written in, what was written. A host hands a document in, and one that lets it
-    /// be written in binds <c>Mode=TwoWay</c> to be told every edit; the text it is told is never taken back for a new
-    /// document. One way by default, because reading is what the surface does by default (<see cref="IsReadOnly"/>): a
-    /// reader binds whatever it shows, often a get-only property, and a two-way default makes that binding throw as the
-    /// view loads.
+    /// The document shown and written in: a plain object the page holds (<see cref="EditedDocument"/>), which says itself what
+    /// changed and whether that is what was saved, so nothing of the text is handed back to the page as it is written. A page that
+    /// only shows text binds it through <see cref="AsEditedDocument"/>; one that is written in holds its document and reads the
+    /// characters when it saves them.
     /// </summary>
-    public static readonly DependencyProperty MarkdownProperty = DependencyProperty.Register(
-        nameof(Markdown), typeof(string), typeof(MarkdownSurface),
-        new FrameworkPropertyMetadata(string.Empty,
-            (surface, args) => ((MarkdownSurface)surface).Shows((string?)args.NewValue ?? string.Empty)));
+    public static readonly DependencyProperty DocumentProperty = DependencyProperty.Register(
+        nameof(Document), typeof(EditedDocument), typeof(MarkdownSurface),
+        new PropertyMetadata(null, (surface, args) => ((MarkdownSurface)surface).Holding((EditedDocument?)args.NewValue)));
 
-    public string Markdown
+    /// <summary>The document shown and written in — the page's, where it handed one over, and otherwise one of the surface's own.</summary>
+    public EditedDocument Document
     {
-        get => (string)GetValue(MarkdownProperty);
-        set => SetValue(MarkdownProperty, value);
+        get => _engine.EditedDocument;
+        set => SetValue(DocumentProperty, value);
     }
+
+    /// <summary>The document a page handed over, taken up as it stands; nothing handed over is a document of nothing written.</summary>
+    private void Holding(EditedDocument? document) => _engine.EditedDocument = document ?? new EditedDocument();
 
     /// <summary>Whether it is only read. A read document can still be selected, searched and copied from.</summary>
     public static readonly DependencyProperty IsReadOnlyProperty = DependencyProperty.Register(
@@ -346,47 +380,6 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
         _shown.Refresh();
     }
 
-    /// <summary>A new document from outside — not something written here, which never comes back this way.</summary>
-    private void Shows(string markdown)
-    {
-        if (_telling || string.Equals(_shown.Markdown, markdown, StringComparison.Ordinal)) return;
-
-        _shown.Markdown = markdown;
-
-        Settled();
-    }
-
-    /// <summary>
-    /// What the document now says, written somewhere else — in the raw half of a page showing it twice. Taken as an edit of this
-    /// document rather than as another one (<see cref="Markdown"/>, which is how a host shows a different document): the stretch
-    /// that differs is written over as it was written there, a step the reader can take back here like any other, and what was
-    /// being looked for goes on being found.
-    /// </summary>
-    public void TakeEdit(string markdown)
-    {
-        var change = SourceDifference.Between(_shown.Markdown, markdown);
-        if (change.None) return;
-
-        // The caret goes to the end of it, so the next one written there is the same step; the page stays where it is, since the
-        // reader is looking at the half it was written in.
-        _takingEdit = true;
-        try
-        {
-            _engine.WriteAsGiven(change.Start, change.Removed, markdown.Substring(change.Start, change.Added));
-        }
-        finally
-        {
-            _takingEdit = false;
-        }
-
-        // Refused by a host that owns what is written here: this half still shows what the document now says, as another one,
-        // rather than disagreeing with the half it was written in.
-        if (!string.Equals(_shown.Markdown, markdown, StringComparison.Ordinal)) Shows(markdown);
-    }
-
-    /// <summary>Whether an edit written somewhere else is being taken, so the caret it moves does not move the page (<see cref="Reveal"/>).</summary>
-    private bool _takingEdit;
-
     /// <summary>After a different document is shown: nothing of the last one can be taken back, found or held open.</summary>
     private void Settled()
     {
@@ -394,7 +387,7 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
 
         // A field holding one language is written at the end of what it holds; a document, and anything only read, is read
         // from its top.
-        _shown.Restore(_shown.Current.MoveCaretTo(Named is null || IsReadOnly ? 0 : _shown.Markdown.Length));
+        _shown.Restore(_shown.Current.MoveCaretTo(Named is null || IsReadOnly ? 0 : _shown.Current.Document.Length));
 
         HoldAsWritten();
         _engine.Begin();
@@ -418,7 +411,7 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
         _engine.Forget();
 
         _shown.Release();
-        _shown = Made(state.Source);
+        _shown = Made(null);
         _shown.Restore(state);
 
         // Laid now rather than at the next layout pass, so what is asked of it in between — a selection, a search, the
@@ -427,7 +420,8 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
         if (caret) _shown.TakeCaret(state.Caret);
     }
 
-    private MarkdownElement Made(string source)
+    /// <param name="source">What to show, loaded in place of what the document holds — or null to show what it holds as it is.</param>
+    private MarkdownElement Made(string? source)
     {
         var style = Drawn;
 
@@ -474,7 +468,7 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     {
         _prompt.Text = Placeholder ?? string.Empty;
         _prompt.FontSize = Drawn.TextSize;
-        _prompt.Visibility = !string.IsNullOrEmpty(Placeholder) && Markdown.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        _prompt.Visibility = !string.IsNullOrEmpty(Placeholder) && Document.Current.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ── What it is written in ───────────────────────────────────────────────
@@ -499,7 +493,29 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     // ── Links ───────────────────────────────────────────────────────────────
 
     /// <summary>Scrolls the heading a <c>#anchor</c> link names into view; false where the document has no such heading.</summary>
-    public bool ScrollToAnchor(string anchor) => GoTo(ContentPath.Read($"{MarkdownKinds.Heading}:{anchor}"));
+    public bool ScrollToAnchor(string anchor) => GoTo(new ContentPath([new ContentStep(MarkdownKinds.Heading, anchor)]));
+
+    /// <summary>
+    /// Says that a heading of the document came, went, or now says or answers to something else — once the change is laid out, and once
+    /// however many changes came together.
+    /// </summary>
+    public event EventHandler? OutlineChanged;
+
+    /// <summary>Whether the outline has changed since it was last said to have.</summary>
+    private bool _outlineChanging;
+
+    /// <summary>Says the outline changed, once the laying out that changed it is done.</summary>
+    private void Outlined(object? sender, EventArgs e)
+    {
+        if (_outlineChanging) return;
+
+        _outlineChanging = true;
+        Dispatcher.BeginInvoke(() =>
+        {
+            _outlineChanging = false;
+            OutlineChanged?.Invoke(this, EventArgs.Empty);
+        }, DispatcherPriority.Background);
+    }
 
     // ── What a block offers ─────────────────────────────────────────────────
 

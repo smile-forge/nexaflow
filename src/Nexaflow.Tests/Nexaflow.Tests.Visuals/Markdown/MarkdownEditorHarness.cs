@@ -86,7 +86,7 @@ internal static class MarkdownEditorHarness
             Clipboard = null;
             window.Show();
             editor.UpdateLayout();
-            editor.Markdown = markdown;
+            editor.Document.Load(markdown);
             editor.UpdateLayout();
 
             editor.Focus();
@@ -135,7 +135,7 @@ internal static class MarkdownEditorHarness
 
     /// <summary>Puts the caret <paramref name="at"/> characters into the markdown the editor was handed.</summary>
     public static void PlaceCaret(MarkdownSurface editor, int at) =>
-        editor.Shown.TakeCaret(Math.Clamp(at, 0, editor.Markdown.Length));
+        editor.Shown.TakeCaret(Math.Clamp(at, 0, editor.Document.ToString().Length));
 
     /// <summary>Puts the caret at the start of the <paramref name="block"/>th block of the document.</summary>
     public static void CaretAtStartOf(MarkdownSurface editor, int block) => editor.Shown.TakeCaret(Blocked(editor, block).Start);
@@ -222,7 +222,7 @@ internal static class MarkdownEditorHarness
 
         // Nothing written yet is still the one block, and the one about to be written.
         if (!string.IsNullOrEmpty(editor.WrittenIn))
-            return [drawn.Count == 0 ? ContentPart.Of(ContentNode.Shown(editor.Markdown)) : drawn[0].Ancestors().LastOrDefault() ?? drawn[0]];
+            return [drawn.Count == 0 ? ContentPart.Of(ContentNode.Shown(editor.Document.ToString())) : drawn[0].Ancestors().LastOrDefault() ?? drawn[0]];
 
         return [.. drawn
             .Where(part => ContentNested.Language(part) is not null || part.Kind == MarkdownKinds.Formula)
@@ -286,7 +286,7 @@ internal sealed class DocumentBlock(MarkdownSurface editor, int index)
     public int Origin => string.IsNullOrEmpty(editor.WrittenIn) ? Start : 0;
 
     /// <summary>The block's own text — a formula's LaTeX, a diagram's lines — as a host would be handed it.</summary>
-    public string Latex => string.IsNullOrEmpty(editor.WrittenIn) ? Element.Markdown.Substring(Start, End - Start) : editor.Markdown;
+    public string Latex => string.IsNullOrEmpty(editor.WrittenIn) ? Element.Markdown.Substring(Start, End - Start) : editor.Document.ToString();
 
     /// <summary>What is laid, which a block is pieces of.</summary>
     public Laid Laid => Element.Laid;

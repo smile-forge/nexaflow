@@ -64,6 +64,19 @@ internal sealed class MarkdownLines
     }
 
     /// <summary>
+    /// <paramref name="text"/> as lines, the first of them starting part-way along its line, after <paramref name="indent"/> — at the
+    /// column that reaches — and every line after it starting its own: what a stretch of a document read from where a block starts,
+    /// with nothing open round it, is read as.
+    /// </summary>
+    public static MarkdownLines After(string indent, string text)
+    {
+        var width = 0;
+        foreach (var character in indent) width = character == '\t' ? (width / TabStop + 1) * TabStop : width + 1;
+
+        return new MarkdownLines(text, 0, null, width);
+    }
+
+    /// <summary>
     /// The lines of what is written in stretches of <paramref name="text"/>, one to a line — a grid table's cell, which is its slice
     /// of every line the cell covers. Each line is its stretch, from where it starts to where it ends, and what stands between two
     /// stretches is somebody else's, so nothing in front of a stretch is passed over: there is nothing of its own there.

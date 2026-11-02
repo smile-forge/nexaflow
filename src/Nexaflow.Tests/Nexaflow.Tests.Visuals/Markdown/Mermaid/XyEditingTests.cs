@@ -68,7 +68,7 @@ public class XyEditingTests
             Write(editor, "e");
 
             StringAssert.Contains(chart.Source, "[jane, feb]", chart.Source);
-            StringAssert.Contains(editor.Markdown, "[jane, feb]", "and so does the document");
+            StringAssert.Contains(editor.Document.ToString(), "[jane, feb]", "and so does the document");
         }));
 
     [TestMethod]

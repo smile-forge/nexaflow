@@ -18,6 +18,7 @@ using Nexaflow.Markdown.Mermaid.Flowchart;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -52,7 +53,7 @@ public class FoldingDiagramTests
     {
         var surface = new MarkdownSurface();
         host?.Invoke(surface);
-        surface.Markdown = "```mermaid\n" + diagram.TrimEnd('\n') + "\n```\n";
+        surface.Document.Load("```mermaid\n" + diagram.TrimEnd('\n') + "\n```\n");
 
         return Settled(surface);
     }
@@ -302,7 +303,7 @@ public class FoldingDiagramTests
     [CoversNode("graph-expandable-nodes")]
     public void AndEverythingElseOnThePageIsLeftWhereItWas() => UiThread.Run(() =>
     {
-        var surface = new MarkdownSurface { Markdown = "Before it.\n\n```mermaid\n" + Src + "\n```\n\nAfter it.\n" };
+        var surface = new MarkdownSurface { Document = new EditedDocument("Before it.\n\n```mermaid\n" + Src + "\n```\n\nAfter it.\n") };
         Settled(surface);
 
         var before = Placed(surface, LayoutPieces.Whole)[0];
@@ -540,7 +541,7 @@ public class FoldingDiagramTests
         var surface = Grown(out _);
         var header = Placed(surface, MermaidPiece.Words).FirstOrDefault(where => Says(surface, where, "graph"));
 
-        var written = surface.Shown.Source;
+        var written = surface.Shown.Document.ToString();
 
         surface.Shown.BeginPointerSelect(new Point(header.X + 1, header.Y + (header.Height / 2)),
                                          System.Windows.Input.ModifierKeys.None);
@@ -555,6 +556,6 @@ public class FoldingDiagramTests
         surface.Shown.EndPointerSelect();
         Settled(surface);
 
-        Assert.AreEqual(written, surface.Shown.Source, "not a character of it is written");
+        Assert.AreEqual(written, surface.Shown.Document.ToString(), "not a character of it is written");
     });
 }

@@ -28,7 +28,7 @@ public class C4SequenceEditingTests : MermaidEditing
             StringAssert.Contains(diagram.Source, "\"Banking Customers\"", diagram.Source);
             StringAssert.Contains(diagram.Source, "\"Submits credentials to it\"", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count);
-            StringAssert.Contains(editor.Markdown, "\"Banking Customers\"", "and so does the document");
+            StringAssert.Contains(editor.Document.ToString(), "\"Banking Customers\"", "and so does the document");
         }));
 
     [TestMethod]

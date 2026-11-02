@@ -25,6 +25,9 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     private double _y;
     private double _reach;
 
+    /// <summary>The first and the last of the document's own blocks laid.</summary>
+    private (ContentPart? First, ContentPart? Last) _ends;
+
     public MarkdownBuilder(ContentReading reading, EditState state, LayoutStyle style, bool isReadOnly, ILayoutMedium medium,
                                    LayoutHost host)
         : base(reading, state, style, isReadOnly, medium, host)
@@ -51,7 +54,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         Blocks(into, Reading.Root, 0, Fits(Room));
         into.Close();
 
-        return new Laid(into.Seal(), Math.Max(_reach, 1), Math.Max(_y, 1), Trouble());
+        return new Laid(into.Seal(), Math.Max(_reach, 1), Math.Max(_y, 1), Trouble()) { Ends = _ends };
     }
 
     /// <summary>
@@ -77,51 +80,29 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
         var whole = holder.Parent is null;
         var laid = whole ? LaidBlocks.Of(holder) : null;
-        var folded = whole ? Folded(holder) : null;
 
         for (var at = 0; at < holder.Children.Count; at++)
         {
             var part = holder.Children[at];
             if (part.Derived || part.Role == Roles.Trivia || part.Kind is MarkdownKinds.Task or MarkdownKinds.Marker) continue;
             if (part.Kind is MarkdownKinds.FrontMatter or MarkdownKinds.Reference) continue;
-            if (folded is not null && folded.Hidden[at]) continue;
+
+            // What the reader folded away of the document: nothing a folded section holds is laid, and its heading says how much waits.
+            var fold = whole ? FoldOf(part) : default;
+            if (fold.Hidden) continue;
 
             if (above is not null) _y += Between(above, part);
             above = part;
 
-            if (whole) Whole(into, part, x, room, laid?.For(at));
+            if (whole)
+            {
+                Whole(into, part, x, room, laid?.For(at));
+                _ends = (_ends.First ?? part, part);
+            }
             else Block(into, part, x, room);
 
-            if (folded is not null && folded.Behind.TryGetValue(at, out var fold)) Fold(into, part, fold.Key, fold.Blocks, x);
+            if (fold.Folded is { } key) Fold(into, part, key, fold.Behind, x);
         }
-    }
-
-    private SectionFolds? Folded(ContentPart document)
-    {
-        if (Style.Expansion is not { Count: > 0 } said) return null;
-
-        var sections = MarkdownSections.Of(document.Node);
-        if (sections.Sections.Count == 0) return null;
-
-        var folds = new SectionFolds(document.Children.Count);
-
-        foreach (var section in sections.All())
-        {
-            if (section.Anchor is not { } key || !section.Holds || folds.Hidden[section.Heading]) continue;
-            if (!said.TryGetValue(key, out var open) || open) continue;
-
-            var blocks = 0;
-            for (var at = section.Heading + 1; at < section.End; at++)
-            {
-                folds.Hidden[at] = true;
-                if (document.Children[at] is { Derived: false } part && part.Role != Roles.Trivia
-                    && part.Kind is not (MarkdownKinds.FrontMatter or MarkdownKinds.Reference)) blocks++;
-            }
-
-            folds.Behind[section.Heading] = (key, blocks);
-        }
-
-        return folds.Behind.Count == 0 ? null : folds;
     }
 
     private void Fold(LayoutBuilder into, ContentPart heading, string key, int blocks, double x)
@@ -144,20 +125,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         Reached(x + box.Bounds.Width);
     }
 
-    private sealed class SectionFolds(int parts)
-    {
-        public bool[] Hidden { get; } = new bool[parts];
-
-        public Dictionary<int, (string Key, int Blocks)> Behind { get; } = [];
-    }
-
-    private double Between(ContentPart above, ContentPart below)
-    {
-        var after = (above.Node.HeldAs(MarkdownRoles.Typeset) as ParagraphLook)?.After;
-        var before = (below.Node.HeldAs(MarkdownRoles.Typeset) as ParagraphLook)?.Before;
-
-        return after is null && before is null ? Gap : ((after ?? 0) + (before ?? 0)) * Style.TextSize;
-    }
+    private double Between(ContentPart above, ContentPart below) => MarkdownGaps.Between(above, below, Style);
 
     /// <summary>One block of the document, as a piece of its own standing at the top of its own frame, its picture kept once painted.</summary>
     /// <summary>
@@ -178,7 +146,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
         if (!shown && laid?.Last is { } last && last.Room == room && last.IsReadOnly == IsReadOnly && last.At(part) is { } moved)
         {
-            var tree = last.Tree.Parted(moved.Parts);
+            var tree = last.Tree.Parted(moved.Parts, moved.Mounts);
 
             into.Graft(tree, new LayoutPoint(0, _y));
             _borrowed.AddRange(moved.Trouble);
@@ -194,8 +162,12 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         (_y, _reach) = (0, 0);
 
         var apart = Rent();
-        apart.Open(LayoutPieces.Whole, stops: LayoutStops.None, paints: new LayoutPaint(Kept: new LayoutKept()));
+        apart.Open(LayoutPieces.Whole, stops: LayoutStops.None);
         Block(apart, part, x, room);
+
+        // A block keeps the picture it was painted as, unless it puts trees down — a fence's lines, a body's units — which keep their own,
+        // so only those of them near the screen are painted, however much the block holds.
+        if (!apart.PutsDown) apart.PaintedAs(new LayoutPaint(Kept: new LayoutKept()));
         apart.Close();
 
         var made = Sealed(apart);
@@ -698,7 +670,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
     // ── Keeping count ───────────────────────────────────────────────────────
 
-    private double Gap => Style.TextSize * 0.72;
+    private double Gap => MarkdownGaps.Usual(Style);
 
     private void Reached(double x) => _reach = Math.Max(_reach, x);
 

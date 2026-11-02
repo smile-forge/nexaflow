@@ -397,7 +397,7 @@ internal sealed partial class FlowchartEdits : IContentLanguage
         var indent = lines.Select(Indent).LastOrDefault(given => given.Length > 0) ?? string.Empty;
         var newline = Newline(edit);
         var ends = edit.Root.End;
-        var closed = ends > edit.Root.Start && edit.State.Source[ends - 1] == '\n';
+        var closed = ends > edit.Root.Start && edit.State.Document[ends - 1] == '\n';
 
         return Changed(edit, [new ContentWrite(ends, 0, (closed ? string.Empty : newline) + indent + said + newline)]);
     }
@@ -443,5 +443,5 @@ internal sealed partial class FlowchartEdits : IContentLanguage
     private static bool Ends(ContentPart line) => Ending(line) is not null;
 
     /// <summary>The line ending the chart is written with.</summary>
-    private static string Newline(ContentEdit edit) => edit.Source.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+    private static string Newline(ContentEdit edit) => edit.State.Document.LineEnding;
 }

@@ -35,7 +35,7 @@ public class ContentOffersTests
     {
         const string source = "# Title\n\nWords with **bold** in them.\n";
 
-        var whole = MarkdownClipboard.Copied(source, null);
+        var whole = MarkdownClipboard.Copied(ContentDocument.Of(source), null);
 
         Assert.AreEqual(source, whole.Markdown, "nothing chosen means the document");
         StringAssert.Contains(whole.Text, "Words with bold in them", "the words a reader sees, marks taken off");
@@ -49,7 +49,7 @@ public class ContentOffersTests
         const string source = "# Title\n\nWords with **bold** in them.\n";
         var at = source.IndexOf("**bold**", System.StringComparison.Ordinal);
 
-        var picked = MarkdownClipboard.Copied(source, (at, "**bold**".Length));
+        var picked = MarkdownClipboard.Copied(ContentDocument.Of(source), (at, "**bold**".Length));
 
         Assert.AreEqual("**bold**", picked.Markdown, "the markdown as written, not as this renderer would write it");
         StringAssert.Contains(picked.Text, "bold");
@@ -61,9 +61,9 @@ public class ContentOffersTests
     {
         const string source = "words\n";
 
-        Assert.AreEqual(source, MarkdownClipboard.Copied(source, (900, 5)).Markdown);
-        Assert.AreEqual(source, MarkdownClipboard.Copied(source, (-3, 5)).Markdown);
-        Assert.AreEqual(source, MarkdownClipboard.Copied(source, (0, 0)).Markdown);
+        Assert.AreEqual(source, MarkdownClipboard.Copied(ContentDocument.Of(source), (900, 5)).Markdown);
+        Assert.AreEqual(source, MarkdownClipboard.Copied(ContentDocument.Of(source), (-3, 5)).Markdown);
+        Assert.AreEqual(source, MarkdownClipboard.Copied(ContentDocument.Of(source), (0, 0)).Markdown);
     }
 
     [TestMethod]
@@ -238,7 +238,7 @@ public class ContentOffersTests
     [TestMethod]
     [CoversNode("markdown-context-menu")]
     public void NothingIsOfferedToAReaderWhoMayNotWrite() =>
-        Assert.AreEqual(0, ContentLanguages.Markdown.Editing.Ribbon(new ContentAsk(string.Empty, "words\n") { IsReadOnly = true }).Count);
+        Assert.AreEqual(0, ContentLanguages.Markdown.Editing.Ribbon(new ContentAsk(string.Empty, ContentDocument.Of("words\n")) { IsReadOnly = true }).Count);
 
     [TestMethod]
     public void EveryOfferIsSomethingAReaderCanRead() => UiThread.Run(() =>
@@ -254,7 +254,7 @@ public class ContentOffersTests
 
     // ── Reading the answers ─────────────────────────────────────────────────
 
-    private static ContentAsk Ask(string named, string source) => new(named, source);
+    private static ContentAsk Ask(string named, string source) => new(named, ContentDocument.Of(source));
 
     /// <summary>The handle a journey presses a button by.</summary>
     private static string Id(Button button) => System.Windows.Automation.AutomationProperties.GetAutomationId(button);

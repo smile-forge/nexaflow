@@ -7,6 +7,7 @@ using System.Windows.Threading;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Painting;
 
@@ -148,9 +149,10 @@ public sealed partial class MarkdownSurface
 
         // A page read as what it draws is quoted as what it draws: its source is formatting nobody would recognise.
         if (_engine.ReadsAsDrawn) return _engine.DrawnWords.LineAt(start);
-        var line = MarkdownFind.Line(_shown.Markdown, MarkdownFind.LineAt(_shown.Markdown, start));
+        var document = _engine.State.Document;
+        var (from, length) = MarkdownFind.Line(document, MarkdownFind.LineAt(document, start));
 
-        return _shown.Markdown.Substring(line.Start, line.Length).Trim();
+        return document.Slice(from, length).Trim();
     }
 
     /// <summary>
@@ -234,52 +236,55 @@ public sealed partial class MarkdownSurface
     // ── Going to a place ────────────────────────────────────────────────────
 
     /// <summary>Goes to a line, counting from one — and to the whole of whatever drew it, where a line is inside a picture.</summary>
-    public bool GoTo(int line) => _shown.Show(MarkdownFind.Line(_shown.Markdown, line), choose: false);
+    public bool GoTo(int line) => _shown.Show(MarkdownFind.Line(_engine.State.Document, line), choose: false);
 
     /// <summary>
-    /// Goes where a saved reference leads, or as far as it still does — and says whether the document had it at all, which
-    /// it can answer before anything has been laid out.
+    /// Goes where a deep link leads (<see cref="ContentPath"/>) — a heading by the name it answers to, and what the link says under it in
+    /// its section — or as far as it still does, and says whether the document had any of it.
     /// </summary>
     public bool GoTo(ContentPath path)
     {
-        if (MarkdownFind.Followed(Read, path) is not { } place) return false;
+        if (_engine.Located(path) is not { } place) return false;
 
         _shown.Show(place, choose: false);
 
         return true;
     }
 
-    /// <summary>How to find what is in the middle of the page again later, after the document has been written in.</summary>
+    /// <summary>Every heading of the document's own laid, in the order written — what an outline of it lists (<see cref="OutlineChanged"/>).</summary>
+    public IReadOnlyList<OutlineHeading> Headings => _engine.Headings;
+
+    /// <summary>Goes to a heading a list of them handed on, wherever it now stands; false where no heading answers to it any more.</summary>
+    public bool Show(OutlineHeading heading)
+    {
+        if (_engine.Placed(heading) is not { } place) return false;
+
+        _shown.Show(place, choose: false);
+
+        return true;
+    }
+
+    /// <summary>Where a heading a list of them handed on now starts in the source, or null where no heading answers to it any more.</summary>
+    public int? StartOf(OutlineHeading heading) => _engine.Placed(heading)?.Start;
+
+    /// <summary>A deep link to what is in the middle of the page, to find it again later, after the document has been written in.</summary>
     public ContentPath Reference() =>
-        ContentPath.Of(_shown.Laid.Root.PieceAt(Middle().ToLayout()).Part.TreePart());
+        _shown.Laid.Root.PieceAt(Middle().ToLayout()).Part.TreePart() is { } part ? _engine.PathTo(part.Start) : ContentPath.Nowhere;
 
     /// <summary>
-    /// Scrolls the heading whose headings above it say <paramref name="titlePath"/> to the top — matched on the whole path,
-    /// so two headings of one name under different parents stay apart. Nothing, where there is none. Done once the page is
-    /// laid out, since a heading has nowhere to be scrolled to before.
+    /// Scrolls the heading whose headings above it say <paramref name="titlePath"/> to the top — matched on the whole path, so two
+    /// headings of one name under different parents stay apart, and each title read as the markdown it was written as. Nothing, where
+    /// there is none. Done once
+    /// the page is laid out, since the headings are the outline of what was laid.
     /// </summary>
     public void ScrollToHeading(IReadOnlyList<string>? titlePath)
     {
-        var source = _shown.Markdown;
-        var blocks = MarkdownBlocks.Split(source);
-        var index = MarkdownBlocks.FindHeadingBlock(blocks, titlePath);
-        if (index < 0) return;
+        if (titlePath is not { Count: > 0 } titles) return;
 
-        var start = 0;
-        for (var at = 0; at <= index; at++)
+        Dispatcher.BeginInvoke(() =>
         {
-            var found = source.IndexOf(blocks[at], start, StringComparison.Ordinal);
-            if (found < 0) return;
-
-            if (at == index)
-            {
-                Dispatcher.BeginInvoke(() => _shown.Show((found, blocks[at].Length), choose: false), DispatcherPriority.Loaded);
-
-                return;
-            }
-
-            start = found + blocks[at].Length;
-        }
+            if (_engine.Titled([.. titles.Select(WithOutline.Titled)]) is { } place) _shown.Show(place, choose: false);
+        }, DispatcherPriority.Loaded);
     }
 
     /// <summary>
@@ -313,21 +318,34 @@ public sealed partial class MarkdownSurface
     {
         if (offset < 0 || _scroller.ViewportHeight <= 0) return false;
 
+        // A long document lays where it is asked, and nothing before it, first.
+        _engine.Uncover(offset);
+
         var root = _shown.Laid.Root;
 
         // Where the page can stand from that character on. The character itself is often one the page draws
         // nothing for — a heading's hashes, the line a fence opens with — and a caret put there stands at the end
         // of whatever came before it, which is a line or a whole paragraph too early.
-        var drawn = root.CaretStops().FirstOrDefault(stop => stop >= offset, -1);
-        if (drawn < 0) return false;
+        var stops = root.CaretStops();
+        var (low, high) = (0, stops.Count);
 
-        var at = root.CaretRect(drawn);
+        while (low < high)
+        {
+            var middle = (low + high) / 2;
+            if (stops[middle] >= offset) high = middle;
+            else low = middle + 1;
+        }
+
+        if (low >= stops.Count) return false;
+
+        var at = root.CaretRect(stops[low]);
         if (at.IsEmpty) return false;
 
         // How far below the top of the page it stands now, which is how much further down the document to stand.
         var below = _shown.TranslatePoint(new Point(0, at.Y * _shown.Zoom), _scroller).Y;
 
         _scroller.ScrollToVerticalOffset(_scroller.VerticalOffset + below);
+        PageMoving(scrolling: false);
 
         return true;
     }

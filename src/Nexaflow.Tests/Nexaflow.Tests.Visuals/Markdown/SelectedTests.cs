@@ -93,7 +93,7 @@ public class SelectedTests
         var told = new List<ContentSelectionChange>();
 
         surface.Selected += (_, e) => told.Add(e.Change);
-        surface.Markdown = markdown;
+        surface.Document.Load(markdown);
 
         surface.Measure(new Size(900, 900));
         surface.Arrange(new Rect(0, 0, 900, 900));

@@ -205,7 +205,7 @@
                 <Grid>
                     <md:MarkdownSurface x:Name="MarkdownBody"
                                                WrittenIn="{Binding RenderedLanguage}"
-                                               Markdown="{Binding RenderedMarkdown}"
+                                               Document="{Binding RenderedMarkdown, Converter={x:Static md:AsEditedDocument.Instance}}"
                                                VerticalScrollBarVisibility="Auto"
                                                Margin="12,10"
                                                Visibility="{Binding IsRenderedView, Converter={StaticResource BoolToVis}}"/>

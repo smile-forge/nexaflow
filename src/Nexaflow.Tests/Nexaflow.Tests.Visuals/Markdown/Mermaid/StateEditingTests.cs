@@ -38,7 +38,7 @@ public class StateEditingTests : MermaidEditing
             StringAssert.Contains(diagram.Source, "state Machines {", diagram.Source);
             StringAssert.Contains(diagram.Source, "note right of Slowing : mind this one", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count);
-            StringAssert.Contains(editor.Markdown, "Standing there!", "and so does the document");
+            StringAssert.Contains(editor.Document.ToString(), "Standing there!", "and so does the document");
         }));
 
     [TestMethod]
@@ -63,7 +63,7 @@ public class StateEditingTests : MermaidEditing
             PressPast(diagram, "Slowing");
             Write(editor, "s");
 
-            StringAssert.Contains(editor.Markdown, "Moving --> Slowings", editor.Markdown);
-            StringAssert.Contains(editor.Markdown, "note right of Slowings", "the note names the state it named: " + editor.Markdown);
+            StringAssert.Contains(editor.Document.ToString(), "Moving --> Slowings", editor.Document.ToString());
+            StringAssert.Contains(editor.Document.ToString(), "note right of Slowings", "the note names the state it named: " + editor.Document.ToString());
         }));
 }

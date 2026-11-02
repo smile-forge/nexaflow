@@ -84,7 +84,7 @@ public class MarkdownDocumentWorkTests
     public async Task Summarise_HandsTheWorkspaceWhatTheEditorHolds()
     {
         var (vm, _, ai) = await MakeAsync();
-        vm.Markdown = "# Pets\n\nDogs bark loudly.\n";
+        vm.Document.WriteWhole("# Pets\n\nDogs bark loudly.\n");
 
         vm.SummarizeCommand.Execute(null);
 

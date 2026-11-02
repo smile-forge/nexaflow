@@ -104,7 +104,7 @@
                                    AutomationProperties.AutomationId="Help_Document"
                                    Margin="16,8,8,8"
                                    VerticalScrollBarVisibility="Auto"
-                                   Markdown="{Binding Markdown}"/>
+                                   Document="{Binding Markdown, Converter={x:Static md:AsEditedDocument.Instance}}"/>
 
         <!-- A "show me" link whose control is nowhere on screen says so where the reader is already looking, rather
              than appearing to do nothing. Over the page, out of the way of the pointer. -->

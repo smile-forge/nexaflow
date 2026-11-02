@@ -74,7 +74,7 @@ public class AbcKeyTests
         var made = ContentEngine.Edited(kind, text, new Landing(state, laid, -1));
 
         Assert.IsNotNull(made, $"{kind} '{text}' at {caret} was not answered at all");
-        return made.Source;
+        return made.Document.ToString();
     }
 
     /// <summary>The music line of a tune, which is the last thing written in this one.</summary>

@@ -78,7 +78,7 @@ public sealed partial class ContentEngine
     {
         if (!_bound.TryGetValue(changed, out var paths)) return;
 
-        _unchanged.Forget(block => Binds(block, paths));
+        Unkeep(block => Binds(block, paths), reread: true);
         Relay();
     }
 

@@ -46,14 +46,43 @@ public interface IAstStage
 /// </summary>
 public interface ISlowStage : IAstStage
 {
-    /// <summary>What this stage finds in <paramref name="tree"/>. Called on any thread, and of nothing but the characters the tree prints as.</summary>
-    object Find(ContentNode tree);
+    /// <summary>
+    /// What this stage finds in <paramref name="tree"/>, or null where nothing is worth keeping — a reading a later version replaced.
+    /// Called on any thread, and of nothing but the characters the tree prints as and what it says it turns on (<see cref="Basis"/>).
+    /// </summary>
+    object? Find(ContentNode tree);
 
     /// <summary><paramref name="tree"/> with what was found in its characters hung on it.</summary>
     ContentNode Apply(ContentNode tree, object found);
 
     /// <summary>Nothing found yet: the tree as it was.</summary>
     ContentNode IAstStage.Run(ContentNode tree) => tree;
+
+    /// <summary>
+    /// What, beside the characters, what this stage finds turns on — the version of a whole reading it is found in, and where in it the
+    /// tree stands — kept with what it found, compared by value; null where the characters are all it turns on.
+    /// </summary>
+    object? Basis => null;
+
+    /// <summary>
+    /// What this stage's work takes turns with — a whole reading, each version of which is parsed from the last — or null where each piece
+    /// is done on its own. Work taking turns with the same thing is done one piece at a time, the newest asked for first: the newer a piece,
+    /// the likelier it is what is shown, and the likelier the pieces asked before it were replaced, which <see cref="Find"/> says at once.
+    /// </summary>
+    object? TakesTurnsWith => null;
+
+    /// <summary><paramref name="tree"/> as it is shown until what this stage finds in it lands: as it was, unless the stage can say something already.</summary>
+    ContentNode Meanwhile(ContentNode tree) => tree;
+}
+
+/// <summary>
+/// What a slow stage found, where finding it changed what the stage finds for more of the reading than the tree it was found for — code
+/// parsed again, colouring otherwise whatever a comment just opened now runs over: where else, as a later version of the reading stands.
+/// </summary>
+public interface ISlowFindingReaches
+{
+    /// <summary>The stretches of the reading, as <paramref name="now"/> — a version of it — stands, that are found otherwise now; none, for another reading.</summary>
+    IEnumerable<(int Start, int End)> Reaches(IReadingSyntax now);
 }
 
 /// <summary>An <see cref="IAstStage"/> written as a function, for a stage with no state to keep.</summary>

@@ -63,7 +63,7 @@ public sealed record ContentMove(IReadOnlyList<EditRange> Carried, int To, Landi
 
     /// <summary>The characters being carried, in the order they were written.</summary>
     public string Text =>
-        string.Concat(this.Carried.Select(range => this.State.Source.Substring(range.Start, range.Length)));
+        string.Concat(this.Carried.Select(range => this.State.Document.Slice(range.Start, range.Length)));
 
     /// <summary>
     /// Whether everything being carried was written in this language's own source — a column of this matrix rather than

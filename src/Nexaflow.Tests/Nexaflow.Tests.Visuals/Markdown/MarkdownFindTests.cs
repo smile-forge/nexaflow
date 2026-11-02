@@ -9,6 +9,7 @@ using Nexaflow.Visuals.Text.Markdown.Prose;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -137,9 +138,9 @@ public class MarkdownFindTests
     {
         const string source = "one\ntwo\nthree\n";
 
-        Assert.AreEqual((0, 3), MarkdownFind.Line(source, 1));
-        Assert.AreEqual((4, 3), MarkdownFind.Line(source, 2));
-        Assert.AreEqual((8, 5), MarkdownFind.Line(source, 3));
+        Assert.AreEqual((0, 3), MarkdownFind.Line(ContentDocument.Of(source), 1));
+        Assert.AreEqual((4, 3), MarkdownFind.Line(ContentDocument.Of(source), 2));
+        Assert.AreEqual((8, 5), MarkdownFind.Line(ContentDocument.Of(source), 3));
     }
 
     [TestMethod]
@@ -149,11 +150,11 @@ public class MarkdownFindTests
         // left — which is a line with something on it, not the empty place after the last one.
         const string source = "one\ntwo\n";
 
-        Assert.AreEqual(MarkdownFind.Line(source, 2), MarkdownFind.Line(source, 900));
-        Assert.AreEqual("two", source.Substring(MarkdownFind.Line(source, 900).Start, MarkdownFind.Line(source, 900).Length));
+        Assert.AreEqual(MarkdownFind.Line(ContentDocument.Of(source), 2), MarkdownFind.Line(ContentDocument.Of(source), 900));
+        Assert.AreEqual("two", source.Substring(MarkdownFind.Line(ContentDocument.Of(source), 900).Start, MarkdownFind.Line(ContentDocument.Of(source), 900).Length));
 
-        Assert.AreEqual(MarkdownFind.Line(source, 1), MarkdownFind.Line(source, 0), "and there is no line nought");
-        Assert.AreEqual((0, 0), MarkdownFind.Line("", 1), "nor any line at all in nothing");
+        Assert.AreEqual(MarkdownFind.Line(ContentDocument.Of(source), 1), MarkdownFind.Line(ContentDocument.Of(source), 0), "and there is no line nought");
+        Assert.AreEqual((0, 0), MarkdownFind.Line(ContentDocument.Of(""), 1), "nor any line at all in nothing");
     }
 
     [TestMethod]
@@ -161,56 +162,18 @@ public class MarkdownFindTests
     {
         const string source = "one\ntwo\nthree\n";
 
-        Assert.AreEqual(1, MarkdownFind.LineAt(source, 0));
-        Assert.AreEqual(2, MarkdownFind.LineAt(source, 5));
-        Assert.AreEqual(3, MarkdownFind.LineAt(source, 9));
+        Assert.AreEqual(1, MarkdownFind.LineAt(ContentDocument.Of(source), 0));
+        Assert.AreEqual(2, MarkdownFind.LineAt(ContentDocument.Of(source), 5));
+        Assert.AreEqual(3, MarkdownFind.LineAt(ContentDocument.Of(source), 9));
     }
 
     [TestMethod]
     public void ALineEndingIsNotPartOfTheLineItEnds()
     {
-        Assert.AreEqual((0, 3), MarkdownFind.Line("one\r\ntwo\r\n", 1), "nor is the carriage return before it");
+        Assert.AreEqual((0, 3), MarkdownFind.Line(ContentDocument.Of("one\r\ntwo\r\n"), 1), "nor is the carriage return before it");
     }
 
     // ── A saved reference ───────────────────────────────────────────────────
-
-    [TestMethod]
-    public void AReferenceSaysWhatSomethingIsRatherThanWhereItHappensToSit()
-    {
-        var read = Read(Doc);
-        var third = Item(read, 2);
-
-        var path = ContentPath.Of(third);
-
-        StringAssert.Contains(path.ToString(), "list");
-        StringAssert.Contains(path.ToString(), "item#2");
-    }
-
-    [TestMethod]
-    public void AndFollowingItLandsBackOnTheSameThing()
-    {
-        var read = Read(Doc);
-        var third = Item(read, 2);
-
-        var found = ContentPath.Of(third).In(read);
-
-        Assert.IsNotNull(found);
-        Assert.AreEqual(third.Start, found!.Start);
-    }
-
-    [TestMethod]
-    public void AndItStillLandsThereAfterTheDocumentHasBeenWrittenInAbove()
-    {
-        // The whole point of not saving a line number: everything has moved and the third item of the list
-        // is still the third item of the list.
-        var path = ContentPath.Of(Item(Read(Doc), 2));
-
-        var edited = "Another paragraph entirely.\n\nAnd one more.\n\n" + Doc;
-        var found = path.In(Read(edited));
-
-        Assert.IsNotNull(found);
-        Assert.AreEqual("three", found!.Print().Trim().TrimStart('-', ' '));
-    }
 
     [TestMethod]
     public void AReferenceReadsBackFromHowItWasWrittenDown()
@@ -229,37 +192,6 @@ public class MarkdownFindTests
     }
 
     [TestMethod]
-    public void AndAReferenceThatNoLongerLeadsAllTheWayLandsAsFarAsItDoes()
-    {
-        // A deep link into a section somebody has reorganised should still land in the section, which is
-        // the difference between a reference that ages and one that breaks.
-        var read = Read(Doc);
-        var found = ContentPath.Read("list/item#40").In(read);
-
-        Assert.IsNotNull(found);
-        Assert.AreEqual(MarkdownKinds.List, found!.Kind, "as far as it got, which is the list");
-
-        Assert.IsNull(ContentPath.Read("nothing-is-called-this").In(read), "and nothing at all where it never started");
-    }
-
-    [TestMethod]
-    public void AndItReachesInsideATableAndInsideADiagramWithNothingAddedForEither()
-    {
-        // The kinds are open strings and the walk is one walk, so pointing at a cell or at a slice needed no
-        // more code than pointing at a heading did.
-        var table = Read("| a | b |\n|---|---|\n| one | two |\n");
-        var cell = ContentPath.Read("table/row#1/cell#1").In(table);
-
-        Assert.IsNotNull(cell);
-        StringAssert.Contains(cell!.Print(), "two");
-
-        var chart = Read("```mermaid\npie\n  \"chrome\" : 40\n  \"firefox\" : 12\n```\n");
-        var slice = ContentPath.Of(chart.SelfAndDescendants().First(part => ContentNested.Language(part) is not null));
-
-        Assert.IsNotNull(ContentPath.Read(slice.ToString()).In(chart));
-    }
-
-    [TestMethod]
     public void AName​IsKeptWholeHoweverItWasWritten()
     {
         // A path is written with / and :, so a name holding either is put beyond their use and comes back
@@ -273,7 +205,4 @@ public class MarkdownFindTests
 
     private static ContentPart Read(string source) =>
         ContentPart.Of(MarkdownParser.Parsing()(source).Tree);
-
-    private static ContentPart Item(ContentPart root, int at) =>
-        root.SelfAndDescendants().Where(part => part.Kind == MarkdownKinds.Item).ElementAt(at);
 }

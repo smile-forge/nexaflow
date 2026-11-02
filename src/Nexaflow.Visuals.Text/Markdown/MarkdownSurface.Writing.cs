@@ -48,6 +48,30 @@ public sealed partial class MarkdownSurface
     /// <summary>Reads and draws the content again, for a host that has changed the source underneath it.</summary>
     public void Refresh() => _shown.Refresh();
 
+    /// <summary>
+    /// Writes <paramref name="change"/> as though the reader typed it here — more of their writing, joining the step it carries on
+    /// from, the caret after it. What another view of the same document hands over: the raw half of a page beside this one. The page
+    /// stays where it is, since the reader is looking at the half it was written in.
+    /// </summary>
+    public void Write(ContentChange change)
+    {
+        _writingGiven = true;
+        try
+        {
+            _engine.WriteAsGiven(change);
+        }
+        finally
+        {
+            _writingGiven = false;
+        }
+    }
+
+    /// <summary>Whether what another view wrote is being written here, so the caret it leaves is not brought onto the page.</summary>
+    private bool _writingGiven;
+
+    /// <summary><paramref name="text"/> written over <paramref name="length"/> characters from <paramref name="start"/>, as <see cref="Write"/> writes it.</summary>
+    public void Replace(int start, int length, string text) => Write(ContentChange.Write(start, length, text));
+
     // ── Blocks from the host ────────────────────────────────────────────────
 
     // ── Something dropped ───────────────────────────────────────────────────

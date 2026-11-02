@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.Markdown.Ast;
@@ -65,7 +66,7 @@ public class MarkdownCodeLinesTests
 
         // Read as a language might: one piece running over both lines, so the mark between them has to cut it.
         var read = ContentNode.Branch(Kinds.Sequence, [ContentNode.Leaf(MarkdownKinds.Word, ContentNested.Own(body.Node), offset: 0)], offset: 0);
-        var spliced = ContentPart.Of(ContentNested.Spliced(read, body.Node), body.Start);
+        var spliced = ContentPart.Of(ContentNested.Spliced(read, ContentSpace.Of(ContentDocument.Of(Quoted), body.Start, body.Node)), body.Start);
 
         var (start, length) = ContentNested.Own(body);
         Assert.AreEqual(Quoted.Substring(start, length), spliced.Print());
@@ -83,8 +84,12 @@ public class MarkdownCodeLinesTests
         var body = Holder(Quoted).Part(Roles.Body)!;
         var second = Quoted.IndexOf("  \"a\"", System.StringComparison.Ordinal);
 
-        Assert.AreEqual("pie\n".Length, ContentNested.OwnAt(body, second));
-        Assert.AreEqual(second, ContentNested.DocumentAt(body, "pie\n".Length));
+        var space = ContentSpace.Of(ContentDocument.Of(Quoted), body.Start, body.Node);
+
+        Assert.AreEqual("pie\n".Length, space.OwnAt(second - body.Start));
+        Assert.AreEqual(second, body.Start + space.HolderAt("pie\n".Length));
+        Assert.AreEqual(ContentNested.Own(body.Node), space.Slice(0, space.Length), "the space reads the body's own characters");
+        Assert.AreEqual(ContentNested.Own(body).Length, space.HolderAt(space.Length), "and they end where the body's own characters end");
     }
 
     private static ContentNode Read(string source) => MarkdownParser.Parsing()(source).Tree;

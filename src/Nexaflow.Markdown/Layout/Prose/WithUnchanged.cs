@@ -1,4 +1,5 @@
 
+using System.Runtime.CompilerServices;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Pipeline;
 
@@ -21,9 +22,12 @@ namespace Nexaflow.Markdown.Layout.Prose;
 /// and what the builder kept for it only has to be moved along.
 /// </para>
 /// <para>
-/// One of these reads one document, time after time; the host that keeps the document keeps it. Anything the characters
-/// do not say — which nodes of a diagram are opened — is the host's to change, and the host says so with
-/// <see cref="Forget"/>, after which nothing is the same as it was.
+/// One of these reads one document, time after time; the host that keeps the document keeps it. A document read a unit at a time
+/// is worked over a unit at a time, and only the units read again are: the host hands over the blocks of every reading leaving
+/// (<see cref="Leaving"/>) before working over what replaces it, and lets go of what was not taken once the laying out is done
+/// (<see cref="Settle"/>) — so a block is matched only against the blocks it could have been, and a unit kept costs nothing.
+/// Anything the characters do not say — which nodes of a diagram are opened — is the host's to change, and the host says so with
+/// <see cref="Forget(ContentNode, Func{ContentNode, bool})"/>, after which those blocks are not the ones they were.
 /// </para>
 /// </summary>
 public sealed class WithUnchanged : IAstStage
@@ -31,8 +35,8 @@ public sealed class WithUnchanged : IAstStage
     /// <summary>The kind of the part the document's blocks are hung on under.</summary>
     public const string Kind = "markdown-unchanged";
 
-    /// <summary>Every block the last reading had, by the shape of what it says, with what its layout was kept in.</summary>
-    private Dictionary<int, List<(ContentNode Block, LaidBlock Laid)>> _before = [];
+    /// <summary>Every block of the readings leaving, by the shape of what it says, with what its layout was kept in.</summary>
+    private readonly Dictionary<int, List<(ContentNode Block, LaidBlock Laid)>> _leaving = [];
 
     /// <inheritdoc/>
     public string Name => "markdown:unchanged";
@@ -40,7 +44,6 @@ public sealed class WithUnchanged : IAstStage
     /// <inheritdoc/>
     public ContentNode Run(ContentNode tree)
     {
-        var now = new Dictionary<int, List<(ContentNode Block, LaidBlock Laid)>>(_before.Count);
         var laid = new LaidBlocks();
 
         for (var at = 0; at < tree.Children.Count; at++)
@@ -48,35 +51,72 @@ public sealed class WithUnchanged : IAstStage
             var block = tree.Children[at];
             if (block.IsDerived || block.Role == Roles.Trivia) continue;
 
-            var written = Shape(block);
-            var kept = Taken(written, block) ?? new LaidBlock();
-
-            laid.Add(at, kept);
-
-            if (!now.TryGetValue(written, out var alike)) now[written] = alike = [];
-            alike.Add((block, kept));
+            laid.Add(at, Taken(Shape(block), block) ?? new LaidBlock());
         }
 
-        _before = now;
         return tree.Holding(Kind, Roles.Derived, laid);
     }
 
-    /// <summary>Says that something the characters do not say has changed, so no block is the one it was.</summary>
-    public void Forget() => _before = [];
-
     /// <summary>
-    /// Says that something the characters do not say has changed about the blocks <paramref name="which"/> picks out, so none
-    /// of those is the one it was — and every other block still is.
+    /// Hands over the blocks of <paramref name="tree"/>, a reading this worked over that is leaving — a unit read again, or the whole of
+    /// a reading read again — so a block of whatever replaces it that reads as one of them is laid as it was.
     /// </summary>
-    public void Forget(Func<ContentNode, bool> which)
+    public void Leaving(ContentNode tree)
     {
-        foreach (var alike in _before.Values) alike.RemoveAll(kept => which(kept.Block));
+        if (Held(tree) is not { } laid) return;
+
+        for (var at = 0; at < tree.Children.Count; at++)
+        {
+            var block = tree.Children[at];
+            if (block.IsDerived || block.Role == Roles.Trivia || laid.For(at) is not { } kept) continue;
+
+            var written = Shape(block);
+            if (!_leaving.TryGetValue(written, out var alike)) _leaving[written] = alike = [];
+            alike.Add((block, kept));
+        }
     }
 
-    /// <summary>What the last reading kept for a block written as this one is and reading as it does — each given out once.</summary>
+    /// <summary>Lets go of every block handed over that nothing took: the laying out it was handed over for is done.</summary>
+    public void Settle() => _leaving.Clear();
+
+    /// <summary>Says that something the characters do not say has changed, so no block handed over is the one it was.</summary>
+    public void Forget() => _leaving.Clear();
+
+    /// <summary>
+    /// Says that something the characters do not say has changed about the blocks of <paramref name="tree"/>, a reading this worked over,
+    /// that <paramref name="which"/> picks out — so none of those is laid as it was, and every other block still is. Says whether any was.
+    /// </summary>
+    public bool Forget(ContentNode tree, Func<ContentNode, bool> which)
+    {
+        if (Held(tree) is not { } laid) return false;
+
+        var any = false;
+
+        for (var at = 0; at < tree.Children.Count; at++)
+            if (which(tree.Children[at]) && laid.For(at) is { } kept)
+            {
+                kept.Last = null;
+                any = true;
+            }
+
+        return any;
+    }
+
+    /// <summary>What this hung on <paramref name="tree"/> when it worked it over, or null where it did not.</summary>
+    private static LaidBlocks? Held(ContentNode tree)
+    {
+        foreach (var child in tree.Children)
+            if (child.IsDerived && child.Kind == Kind)
+                foreach (var held in child.Children)
+                    if (held.Held is LaidBlocks laid) return laid;
+
+        return null;
+    }
+
+    /// <summary>What a reading leaving kept for a block written as this one is and reading as it does — each given out once.</summary>
     private LaidBlock? Taken(int written, ContentNode block)
     {
-        if (!_before.TryGetValue(written, out var alike)) return null;
+        if (!_leaving.TryGetValue(written, out var alike)) return null;
 
         for (var at = 0; at < alike.Count; at++)
         {
@@ -95,11 +135,17 @@ public sealed class WithUnchanged : IAstStage
     /// same one, so a block is only ever compared whole against the few it could be — worked out without printing it, since
     /// a document is every block of it on every keystroke.
     /// </summary>
-    private static int Shape(ContentNode node)
+    private static int Shape(ContentNode node) => Shapes.GetValue(node, static block => new StrongBox<int>(Shaped(block))).Value;
+
+    /// <summary>What <see cref="Shape"/> came to for each block asked about — a node never changes, so a block kept from one reading to the next is never walked again.</summary>
+    private static readonly ConditionalWeakTable<ContentNode, StrongBox<int>> Shapes = new();
+
+    /// <summary><see cref="Shape"/>, worked out.</summary>
+    private static int Shaped(ContentNode node)
     {
         var shape = HashCode.Combine(node.Kind, node.Role, node.Text);
 
-        for (var at = 0; at < node.Children.Count; at++) shape = HashCode.Combine(shape, Shape(node.Children[at]));
+        for (var at = 0; at < node.Children.Count; at++) shape = HashCode.Combine(shape, Shaped(node.Children[at]));
 
         return shape;
     }

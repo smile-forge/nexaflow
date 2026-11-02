@@ -76,7 +76,7 @@ public class DiagramBindingTests
     {
         var element = Drawn(Src, new ReflectionDataContext(new Owner()));
 
-        Assert.AreEqual(Src, element.Source,
+        Assert.AreEqual(Src, element.Document.ToString(),
                         "what is drawn is a reading of the source, never a rewrite of it");
     });
 

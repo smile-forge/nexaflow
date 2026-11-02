@@ -44,6 +44,8 @@ using Nexaflow.Markdown.Treemap;
 using Nexaflow.Visuals.Text.Markdown.Treemap;
 using Nexaflow.Markdown.TreeView;
 using Nexaflow.Visuals.Text.Markdown.TreeView;
+using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Markdown.Layout.Code;
 
 namespace Nexaflow.Visuals.Text.Markdown.Languages;
 
@@ -68,8 +70,8 @@ internal static class Shipped
             new WithTargets(show.Targets),
             new WithReferences(show.Targets),
 
-            // After the headings are named, since a section is reached by its heading's name.
-            new WithSections(),
+            // Every heading promoted into the outline, which its sections and the names its headings answer to are read from.
+            new WithOutline(),
 
             new WithImages(show.Inputs.Pictures),
             new WithLinks(show.Inputs.Links),
@@ -84,6 +86,8 @@ internal static class Shipped
         {
             Writable = true,
             Windowed = MarkdownParser.Windowed,
+            Bounds = MarkdownParser.Bounds,
+            Seam = MarkdownGaps.Between,
             Editing = MarkdownEdits.Instance,
             Transpile = Transpiles.By<MarkdownParser>(),
         };
@@ -108,6 +112,9 @@ internal static class Shipped
         Builder: ContentLayouts.Markdown)
         {
             Windowed = RtfParser.Windowed,
+
+            // Laid by the markdown builder, whose blocks say the room between them — at a seam between two units as anywhere.
+            Seam = MarkdownGaps.Between,
             Editing = new ReadAsDrawn(),
         };
 
@@ -742,45 +749,19 @@ internal static class Shipped
     private static ContentLanguage Coded(string? grammar) => new(
         Reads: word => grammar is not null && string.Equals(CodeGrammars.For(word), grammar, StringComparison.OrdinalIgnoreCase),
         Parser: () => source => ContentParse.Of(CodeParser.Parse(source, grammar ?? string.Empty)),
-        Stages: static (_, _) => [new CodeLines()],
+        Stages: static (_, show) =>
+        [
+            show.Syntax is { Syntax: CodeSyntax syntax } read ? new CodeHighlights(syntax, read.At) : null,
+            new CodeLines(),
+
+            // Last, because a line is only the same as it was when what it is coloured as is too.
+            show.Unchanged,
+        ],
         Builder: ContentLayouts.Code)
         {
             Editing = CodeEdits,
-            SlowParser = grammar is null ? null : source => ContentParse.Of(CodeParser.Parse(source, grammar, CodeSpans.Read(grammar, source))),
+            Windowed = () => CodeParser.Windowed(grammar ?? string.Empty),
+            UnitHeight = CodeSetting.HeightOf,
+            Syntax = grammar is null ? null : characters => CodeSyntax.Of(grammar, characters),
         };
-}
-
-/// <summary>A language whose edits are told to <paramref name="onEdit"/> — or, where that is null, one with nothing of its own to say about an edit.</summary>
-internal sealed class EditedBy(IOnEdit? onEdit) : IContentLanguage
-{
-    public IOnEdit? OnEdit => onEdit;
-
-    /// <summary>And its moves too, where the same handler says anything about one.</summary>
-    public IOnMove? OnMove => onEdit as IOnMove;
-}
-
-/// <summary>
-/// What a language whose source is formatting nobody reads shows and offers: its words, found, copied and quoted as they are
-/// drawn (<see cref="IContentLanguage.ReadsAsDrawn"/>).
-/// </summary>
-internal sealed class ReadAsDrawn : IContentLanguage
-{
-    /// <inheritdoc/>
-    public bool ReadsAsDrawn => true;
-
-    /// <summary>What is drawn is prose, and prose is chosen by the letter.</summary>
-    public bool ChosenByLetter => true;
-}
-
-/// <summary>What code shows and offers: every character a writer typed, and no picture of it.</summary>
-internal sealed class CodeEditing : IContentLanguage
-{
-    /// <summary>Colouring code is still showing it: every character a writer typed is on the page.</summary>
-    public bool ShowsWhatWasWritten => true;
-
-    /// <summary>
-    /// A picture of code is a worse copy of the code — it cannot be searched, pasted or read by anything — so that is the one
-    /// usual button this does not offer.
-    /// </summary>
-    public BlockCorner Corner(ContentAsk ask) => new(Saves: false);
 }

@@ -56,7 +56,7 @@ public static class RtfParser
     /// leaves nothing open but the groups round the text — so the stretches together read exactly as the whole document does.
     /// </summary>
     public static Func<ContentStretch, ContentParse> Windowed() =>
-        stretch => new RtfReading(stretch.Source, stretch.From, stretch.Resume as RtfResume).Read(stretch.SoftMaxLength);
+        stretch => new RtfReading(stretch.Window, 0, stretch.Resume as RtfResume).Read(stretch.SoftMaxLength, stretch.Ends);
 
     /// <summary>
     /// The words of an RTF document as plain text — what a reader of it reads, for whatever wants its words without drawing

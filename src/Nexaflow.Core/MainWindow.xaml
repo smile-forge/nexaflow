@@ -478,7 +478,7 @@
                 <DataTemplate>
                     <Border Style="{StaticResource PopupBorder}" Padding="10" Margin="0,8,0,0">
                         <ScrollViewer MaxHeight="460" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                            <md:MarkdownSurface Markdown="{Binding Markdown}" VerticalScrollBarVisibility="Disabled"/>
+                            <md:MarkdownSurface Document="{Binding Markdown, Converter={x:Static md:AsEditedDocument.Instance}}" VerticalScrollBarVisibility="Disabled"/>
                         </ScrollViewer>
                     </Border>
                 </DataTemplate>

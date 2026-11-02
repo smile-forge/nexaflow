@@ -42,7 +42,7 @@ public sealed partial class ContentEngine
     /// </summary>
     /// <param name="from">The piece the edit applied to, where it is not the one the caret stands against — a right-click's.</param>
     internal static EditState? Edited(EditKind kind, string text, Landing landing, LayoutPiece from = default) =>
-        Said(kind, text, landing, from) is { } change ? Made(landing.State, change) : null;
+        Said(kind, text, landing, from) is { } change ? landing.State.Made(change) : null;
 
     /// <summary>
     /// The same, as the change itself rather than the content it comes to — for the one caller that has to see what the language
@@ -78,26 +78,6 @@ public sealed partial class ContentEngine
     private static ContentChange Spelling(ContentChange change, EditState state, ContentLanguage language) =>
         !change.Writes.Any(write => write.Meant) ? change
         : language.Transpile?.Invoke(change) ?? ContentChange.Stay(state);
-
-    /// <summary>
-    /// What <paramref name="change"/> makes of <paramref name="state"/>: every stretch written — the last first, so each is still
-    /// where it was named — and nothing picked out. A change writing nothing leaves what is picked out where it is, unless it moves
-    /// the caret, which puts down what was picked out as a caret moved anywhere does.
-    /// </summary>
-    internal static EditState Made(EditState state, ContentChange change)
-    {
-        if (change.Writes.Count == 0)
-        {
-            var caret = Math.Clamp(change.Caret, 0, state.Source.Length);
-            return state with { Caret = caret, Raw = change.Raw, Selected = change.Chooses ?? (caret == state.Caret ? state.Selected : []) };
-        }
-
-        var source = state.Source;
-        foreach (var write in change.Writes.OrderByDescending(write => write.Start))
-            source = string.Concat(source.AsSpan(0, write.Start), write.Text, source.AsSpan(write.End));
-
-        return new EditState(source, Math.Clamp(change.Caret, 0, source.Length), change.Chooses ?? (IReadOnlyList<EditRange>)[], change.Raw);
-    }
 
     /// <summary>
     /// The edit as the language it landed in is told it: the piece it applied to — <paramref name="from"/>, or else the one the caret
@@ -149,7 +129,7 @@ public sealed partial class ContentEngine
         // that language would have added to the ribbon, not the window.
         try
         {
-            var ask = new ContentAsk(edit.Root.Node is BlockNode block ? block.Language : string.Empty, edit.Source)
+            var ask = new ContentAsk(edit.Root.Node is BlockNode block ? block.Language : string.Empty, state.Document)
             {
                 Part = edit.Part,
                 Piece = edit.Piece,
@@ -216,14 +196,19 @@ public sealed partial class ContentEngine
         var state = edit.State;
         if (state.HasSelection || Holder(edit) is not { } holder || holder.Part(Roles.Body) is not { } body) return null;
 
-        // What is written in the language, not the marks a container put between its lines.
-        var inside = ContentNested.Own(body.Node);
-        if (string.IsNullOrWhiteSpace(inside)) return ContentChange.Write(holder.Start, holder.Length, string.Empty);
+        // What is written in the language, not the marks a container put between its lines — read where it stands.
+        var inside = ContentSpace.Of(state.Document, body.Start, body.Node);
+        var first = 0;
+        while (first < inside.Length && char.IsWhiteSpace(inside[first])) first++;
 
-        var first = ContentNested.DocumentAt(body, inside.Length - inside.TrimStart().Length);
-        var last = ContentNested.DocumentAt(body, inside.TrimEnd().Length);
+        if (first == inside.Length) return ContentChange.Write(holder.Start, holder.Length, string.Empty);
 
-        return (edit.Kind == EditKind.Deleting ? state.Caret >= last : state.Caret <= first) ? ContentChange.Stay(state) : null;
+        var last = inside.Length;
+        while (last > first && char.IsWhiteSpace(inside[last - 1])) last--;
+
+        return (edit.Kind == EditKind.Deleting ? state.Caret >= body.Start + inside.HolderAt(last) : state.Caret <= body.Start + inside.HolderAt(first))
+            ? ContentChange.Stay(state)
+            : null;
     }
 
     /// <summary>

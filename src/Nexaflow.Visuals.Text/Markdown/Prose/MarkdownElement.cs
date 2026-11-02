@@ -34,14 +34,15 @@ public sealed class MarkdownElement : LinkedElement
     /// <param name="host">What the host answers, for the verbs this document does not answer itself.</param>
     /// <param name="engine">What lays it out — the host's, where the host keeps one for longer than an element lasts.</param>
     /// <param name="language">What it is written in, where that is one language rather than a markdown document.</param>
-    public MarkdownElement(string source, LayoutStyle palette, ILayoutActions? host = null, ContentEngine? engine = null,
+    /// <param name="source">What to show, loaded in place of what <paramref name="engine"/>'s document holds — or null to show what it holds as it is.</param>
+    public MarkdownElement(string? source, LayoutStyle palette, ILayoutActions? host = null, ContentEngine? engine = null,
                            string? language = null)
         : this(engine ?? new ContentEngine(), source, palette, host, language)
     {
     }
 
-    private MarkdownElement(ContentEngine engine, string source, LayoutStyle palette, ILayoutActions? host, string? language)
-        : base(source ?? string.Empty, palette, engine, language, host)
+    private MarkdownElement(ContentEngine engine, string? source, LayoutStyle palette, ILayoutActions? host, string? language)
+        : base(source, palette, engine, language, host)
     {
     }
 
@@ -51,12 +52,12 @@ public sealed class MarkdownElement : LinkedElement
     /// </summary>
     public string Markdown
     {
-        get => Source;
+        get => State.Document.ToString();
         set
         {
-            if (string.Equals(Source, value, StringComparison.Ordinal)) return;
+            if (State.Document.HoldsExactly(value ?? string.Empty)) return;
 
-            Apply(EditState.For(value ?? string.Empty), notify: false);
+            Load(value ?? string.Empty);
         }
     }
 

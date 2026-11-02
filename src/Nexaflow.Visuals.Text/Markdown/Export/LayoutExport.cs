@@ -53,14 +53,11 @@ public static class LayoutExport
     /// <summary><paramref name="markdown"/>, laid out read-only for <paramref name="occasion"/> and walked.</summary>
     public static ExportDocument Exported(string markdown, ExportOccasion occasion)
     {
-        var laid = new ContentEngine().Lay(null, EditState.For(markdown), occasion.Style, occasion.Width, readOnly: true);
+        var engine = new ContentEngine();
+        var laid = engine.Lay(null, EditState.For(markdown), occasion.Style, occasion.Width, readOnly: true);
 
-        return Exported(laid, occasion);
+        return laid.Root.Part is ContentPart document ? new Walk(laid, engine.NameOf, occasion).Document(document) : new ExportDocument([]);
     }
-
-    /// <summary>A document already laid out, walked.</summary>
-    public static ExportDocument Exported(Laid laid, ExportOccasion occasion) =>
-        laid.Root.Part is ContentPart document ? new Walk(laid, occasion).Document(document) : new ExportDocument([]);
 
     /// <summary>
     /// Whether <paramref name="drawn"/>, laid from <paramref name="part"/>, is a picture another language drew of what was written
@@ -79,12 +76,16 @@ public static class LayoutExport
     private sealed class Walk
     {
         private readonly Laid _laid;
+
+        /// <summary>The name a heading answers to, as the outline of what was laid says.</summary>
+        private readonly Func<ContentPart, string?> _named;
         private readonly ExportOccasion _occasion;
         private readonly Dictionary<ContentPart, List<LayoutPiece>> _pieces = new(ReferenceEqualityComparer.Instance);
 
-        public Walk(Laid laid, ExportOccasion occasion)
+        public Walk(Laid laid, Func<ContentPart, string?> named, ExportOccasion occasion)
         {
             _laid = laid;
+            _named = named;
             _occasion = occasion;
 
             foreach (var piece in laid.Root.SelfAndDescendants())
@@ -118,7 +119,7 @@ public static class LayoutExport
 
         private ExportBlock? Block(ContentPart part) => part.Kind switch
         {
-            MarkdownKinds.Heading => new ExportHeading(Rank(part), Held<string>(part, MarkdownKinds.Anchor), this.Words(Body(part))),
+            MarkdownKinds.Heading => new ExportHeading(Rank(part), _named(part), this.Words(Body(part))),
             MarkdownKinds.Rule => new ExportRule(),
             MarkdownKinds.Page => new ExportPageBreak(),
             MarkdownKinds.Quote => new ExportQuote(this.Blocks(Body(part))),

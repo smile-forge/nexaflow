@@ -42,7 +42,7 @@ public class SingleFormulaEditorTests
         RunInFormula(@"\frac{x^2}{2}", editor =>
         {
             Assert.IsNotNull(ContentIn(editor), "the block typeset as maths");
-            Assert.AreEqual(@"\frac{x^2}{2}", editor.Markdown,
+            Assert.AreEqual(@"\frac{x^2}{2}", editor.Document.ToString(),
                 "and what comes back out is the formula — a fence here would be the editor's own "
                 + "punctuation leaking into the host's text");
         });
@@ -66,7 +66,7 @@ public class SingleFormulaEditorTests
         RunInFormula("x +\n\ny", editor =>
         {
             Assert.IsNotNull(ContentIn(editor));
-            Assert.AreEqual("x +\n\ny", editor.Markdown, "it never split");
+            Assert.AreEqual("x +\n\ny", editor.Document.ToString(), "it never split");
         });
     }
 
@@ -151,7 +151,7 @@ public class SingleFormulaEditorTests
 
             // You are inside one expression, not between two paragraphs, so there is nowhere to split to.
             Assert.IsNotNull(ContentIn(editor), "still one formula");
-            Assert.IsFalse(editor.Markdown.Contains("$$"), "and still no fence anywhere in the host's text");
+            Assert.IsFalse(editor.Document.ToString().Contains("$$"), "and still no fence anywhere in the host's text");
             Assert.IsTrue(Focused(editor).HasCaret, "and the caret never left it");
         });
     }
@@ -337,7 +337,7 @@ public class SingleFormulaEditorTests
             MarkdownEditorHarness.RaiseKey(editor, System.Windows.Input.Key.Left);
 
             Assert.IsNotNull(ContentIn(editor), "still typeset");
-            Assert.IsFalse(editor.Markdown.Contains("$$"), "and no fence was ever exposed to the host");
+            Assert.IsFalse(editor.Document.ToString().Contains("$$"), "and no fence was ever exposed to the host");
         });
     }
 
@@ -393,7 +393,7 @@ public class SingleFormulaEditorTests
             editor.EditAsSource = true;
             editor.EditAsSource = false;
 
-            Assert.AreEqual(@"\frac{a}{b}", editor.Markdown, "and it still holds what it was given");
+            Assert.AreEqual(@"\frac{a}{b}", editor.Document.ToString(), "and it still holds what it was given");
         },
         e => { e.WrittenIn = "latex"; e.Visibility = System.Windows.Visibility.Collapsed; }));
     }
@@ -424,6 +424,6 @@ public class SingleFormulaEditorTests
         var formula = MarkdownEditorHarness.Block(editor);
         var shown = editor.Shown.ShownAsWritten;
 
-        return shown is { } all && all.Length >= editor.Markdown.Length && editor.Markdown.Length > 0 ? null : formula;
+        return shown is { } all && all.Length >= editor.Document.ToString().Length && editor.Document.ToString().Length > 0 ? null : formula;
     }
 }

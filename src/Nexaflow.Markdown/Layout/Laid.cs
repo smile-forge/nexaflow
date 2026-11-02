@@ -1,4 +1,5 @@
 using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Markdown.Layout;
 
@@ -30,6 +31,18 @@ public sealed record Laid(LayoutTree Tree, double Width, double Height, IReadOnl
     /// <summary>How much room it wants, across and down.</summary>
     public LayoutSize Size => new(Width, Height);
 
+    /// <summary>
+    /// The first and the last of the content's own blocks it laid — what the gap at a seam between it and content laid beside it is
+    /// said from, by the language; null where it laid none, or says nothing of its blocks.
+    /// </summary>
+    public (ContentPart? First, ContentPart? Last) Ends { get; init; }
+
+    /// <summary>
+    /// What of it was laid, where its builder was asked for part of it and laid only that (<see cref="LayoutHost.Reach"/>), standing as tall
+    /// as all of it — null where all of it was laid.
+    /// </summary>
+    public LayoutReached? Reached { get; init; }
+
     /// <summary>Whether anything was laid out.</summary>
     public bool Exists => Tree.Count > 0;
 
@@ -42,10 +55,13 @@ public sealed record Laid(LayoutTree Tree, double Width, double Height, IReadOnl
 
     private bool? _draws;
 
-    private bool Drew()
+    private bool Drew() => Drew(Tree);
+
+    /// <summary>Whether anything in <paramref name="tree"/>, or in any tree put down in it, reached the page.</summary>
+    private static bool Drew(LayoutTree tree)
     {
-        for (var at = 0; at < Tree.Count; at++)
-            if (Tree.WordsOf(at) is not null || Tree.MarksOf(at).Length > 0) return true;
+        for (var at = 0; at < tree.Count; at++)
+            if (tree.WordsOf(at) is not null || tree.MarksOf(at).Length > 0 || (tree.MountOf(at) is { } mount && Drew(mount.Tree))) return true;
 
         return false;
     }
@@ -58,10 +74,8 @@ public sealed record Laid(LayoutTree Tree, double Width, double Height, IReadOnl
     // The questions that need more than the tree: where the content ends, which is what makes a press past the right-hand edge mean
     // the end rather than whatever happens to be drawn nearest to it. Every other question about a pointer is asked of the root.
 
-    /// <summary>Where a caret is allowed to rest, ascending. Worked out once.</summary>
-    public IReadOnlyList<int> Stops => _stops ??= Root.CaretStops();
-
-    private IReadOnlyList<int>? _stops;
+    /// <summary>Where a caret is allowed to rest, ascending (<see cref="LayoutTree.Stops"/>).</summary>
+    public IReadOnlyList<int> Stops => Tree.Stops;
 
     /// <summary>Moves <paramref name="offset"/> to the nearest place a caret may rest.</summary>
     public int NearestStop(int offset)
@@ -100,14 +114,26 @@ public sealed record Laid(LayoutTree Tree, double Width, double Height, IReadOnl
     private IEnumerable<LayoutPiece> Selectables() =>
         Root.Leaves().Select(leaf => leaf.Selectable()).Where(piece => piece.Exists);
 
-    /// <summary>The last thing a press could mean, in drawing order — found from the end.</summary>
-    private LayoutPiece LastSelectable()
-    {
-        if (!Exists) return default;
+    /// <summary>The last thing a press could mean, in drawing order — found from the end, through every tree put down on the way.</summary>
+    private LayoutPiece LastSelectable() => Exists ? Last(Tree, 0, Tree.Piece(0).Extent, null) : default;
 
-        for (var at = Tree.Piece(0).Extent - 1; at >= 0; at--)
-            if (Tree.At(at) is { IsLeaf: true } leaf && leaf.Selectable() is { Exists: true } selectable)
+    /// <summary>
+    /// The last thing a press could mean among the pieces from <paramref name="from"/> up to <paramref name="end"/> of
+    /// <paramref name="tree"/>, seen through <paramref name="within"/> — found from the end.
+    /// </summary>
+    private static LayoutPiece Last(LayoutTree tree, int from, int end, LayoutMounted? within)
+    {
+        for (var at = end - 1; at >= from; at--)
+        {
+            if (tree.MountOf(at) is { } mount)
+            {
+                if (Last(mount.Tree, 1, mount.Tree.Count, new LayoutMounted(tree, at, within)) is { Exists: true } inside) return inside;
+                continue;
+            }
+
+            if (new LayoutPiece(tree, at, within) is { IsLeaf: true } leaf && leaf.Selectable() is { Exists: true } selectable)
                 return selectable;
+        }
 
         return default;
     }
@@ -154,10 +180,7 @@ public sealed record Laid(LayoutTree Tree, double Width, double Height, IReadOnl
 
     /// <summary>
     /// The places still waiting to be written in, in reading order — an argument left empty that the builder drew a box for. Empty for
-    /// content with no notion of an unfilled argument, which is most of it.
+    /// content with no notion of an unfilled argument, which is most of it (<see cref="LayoutTree.Holes"/>).
     /// </summary>
-    public IReadOnlyList<LayoutPiece> Holes =>
-        _holes ??= [.. Root.SelfAndDescendants().Where(piece => piece.Part is { Length: 0 }).OrderBy(piece => piece.Sits().Start)];
-
-    private IReadOnlyList<LayoutPiece>? _holes;
+    public IReadOnlyList<LayoutPiece> Holes => Tree.Holes;
 }

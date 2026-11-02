@@ -1,5 +1,6 @@
 using System;
 using System.Windows;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 

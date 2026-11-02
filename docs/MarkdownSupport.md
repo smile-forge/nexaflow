@@ -31,7 +31,9 @@ copied in as test data (`Tests.Markdown/Prose/Corpus/Specs`), each extension's a
   holds them.
 - **Surface:** [`MarkdownSurface`](../src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs) is the one control every
   markdown host uses — read-only or written in, a whole document or content in one language (`WrittenIn`). It
-  draws the whole document on one element; there is no text box underneath.
+  draws the whole document on one element; there is no text box underneath. What it shows is the page's
+  [`EditedDocument`](../src/Nexaflow.Markdown/Editing/EditedDocument.cs) (`Document`), which says what changed and whether it
+  was saved; a page that only shows text binds it through `AsEditedDocument`.
 - **Consequence:** a feature can be *read* by a rule yet not *drawn* if the builder has no case for it. The tables below
   track **drawn** support, which is what actually matters.
 
@@ -1145,7 +1147,10 @@ names the characters a reader is actually selecting in the document holding both
 That is what makes it editable rather than a picture: selection and editing go from a layout piece to its part to
 the AST node behind it, and for the formula's pieces that is the *formula's* node, at the right offset.
 
-The engine has already parsed that content with its own language, and the builder asks for its **layout tree** — `abc`,
+The engine reads that content with its own language the first time a builder asks for it and keeps the reading attached to
+the node holding it ([`ContentBody`](../src/Nexaflow.Markdown/Ast/ContentBody.cs)), carried through every edit — so writing
+anywhere else never reads it again, and writing inside it reads again only what the change reached, at any depth. The
+builder asks for its **layout tree** — `abc`,
 `lilypond`, `latex`, `smiles`, `qr` and `mermaid` itself ([`ContentLanguages`](../src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs)) — sizes its own content
 around it, and grafts the two into one combined layout tree
 ([`LayoutInset`](../src/Nexaflow.Markdown/Layout/Prose/LayoutProse.cs)). A language nothing here draws leaves the
@@ -2083,7 +2088,8 @@ single staff, dynamics and MIDI playback remain on the roadmap (tracked as `shou
 ## Extensions — not read
 
 Extensions other markdown readers offer that this one has no rule for. None are supported, so none are tested. Heading
-anchors are not among them: every heading is named GitHub's way as the document is worked over (`WithTargets`).
+anchors are not among them: every heading is named GitHub's way, numbered over the whole document by its outline
+(`WithOutline`, `ContentOutline`).
 
 | Extension | What you lose |
 |---|---|

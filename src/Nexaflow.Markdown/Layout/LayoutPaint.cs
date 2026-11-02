@@ -38,27 +38,29 @@ public sealed record LayoutPaint(IReadOnlyList<LayoutTurn>? Turn = null, LayoutG
 }
 
 /// <summary>
-/// A piece's picture, recorded by the medium the first time it is painted and drawn whole from then on. What a picture is
-/// belongs to the medium; this only keeps it, by the ink it was painted with.
+/// The picture a piece was painted as, kept so it is not painted again — held only while something draws it. A picture on the page is
+/// held by what the page is drawn as; one nothing draws any more, scrolled far away, is let go without anything having to go looking
+/// for it, so a page of any length keeps pictures of what is near the screen and no more.
 /// </summary>
 public sealed class LayoutKept
 {
-    private (LayoutInk Ink, object Picture)[] _kept = [];
+    private (LayoutInk Ink, WeakReference<object> Picture)[] _kept = [];
 
-    /// <summary>The picture painted with <paramref name="ink"/>, recorded by <paramref name="record"/> the first time it is asked for.</summary>
+    /// <summary>The picture painted with <paramref name="ink"/>, recorded by <paramref name="record"/> where none is held.</summary>
     public TPicture For<TPicture>(LayoutInk ink, Func<TPicture> record) where TPicture : class
     {
         foreach (var (kept, picture) in _kept)
-            if (ReferenceEquals(kept, ink) && picture is TPicture known) return known;
+            if (ReferenceEquals(kept, ink) && picture.TryGetTarget(out var held) && held is TPicture known) return known;
 
         var recorded = record();
-        _kept = _kept.Length < 4 ? [.. _kept, (ink, recorded)] : [(ink, recorded)];
+        var keeping = (ink, new WeakReference<object>(recorded));
+        _kept = _kept.Length < 4 ? [.. _kept, keeping] : [keeping];
+
         return recorded;
     }
 
-    public bool Holds => _kept.Length > 0;
-
-    public void Forget() => _kept = [];
+    /// <summary>Whether a picture of it is held.</summary>
+    public bool Holds => _kept.Any(kept => kept.Picture.TryGetTarget(out _));
 }
 
 /// <summary>

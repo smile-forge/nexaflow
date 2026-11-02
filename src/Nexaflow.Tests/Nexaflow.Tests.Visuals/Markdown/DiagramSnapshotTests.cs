@@ -10,6 +10,7 @@ using System.Globalization;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -222,7 +223,7 @@ public class DiagramSnapshotTests
     /// <summary><paramref name="markdown"/> drawn as the viewer draws it, as a PNG.</summary>
     private static byte[] Page(string markdown, double width, double text)
     {
-        var surface = new MarkdownSurface { Markdown = markdown, Width = width, BaseFontSize = text };
+        var surface = new MarkdownSurface { Document = new EditedDocument(markdown), Width = width, BaseFontSize = text };
 
         surface.Measure(new Size(width, double.PositiveInfinity));
         surface.Arrange(new Rect(0, 0, width, surface.DesiredSize.Height));

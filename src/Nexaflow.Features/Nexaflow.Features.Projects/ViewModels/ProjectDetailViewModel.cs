@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Projects.Model;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.ObjectModel;
 using System.Text.Json.Nodes;
@@ -36,7 +37,18 @@ public partial class ProjectDetailViewModel : ObservableObject, IPageViewModel
 
     // ── Project header ──
     [ObservableProperty] private string  _projectName  = string.Empty;
-    [ObservableProperty] private string  _description  = string.Empty;   // markdown
+    /// <summary>The project's description, shown and written in by its editor; written in, it is saved as the header.</summary>
+    public EditedDocument DescriptionDocument { get; } = new();
+
+    /// <summary>The project's description, whole — markdown. Setting it loads the description's document in its place.</summary>
+    public string Description
+    {
+        get => DescriptionDocument.ToString();
+        set
+        {
+            if (!string.Equals(DescriptionDocument.ToString(), value ?? string.Empty, StringComparison.Ordinal)) DescriptionDocument.Load(value);
+        }
+    }   // markdown
     [ObservableProperty] private string  _lastModified = string.Empty;
     [ObservableProperty] private string? _solutionFile;
 
@@ -71,6 +83,7 @@ public partial class ProjectDetailViewModel : ObservableObject, IPageViewModel
         _ai          = ai;
         Answering    = ai?.Gate(AiAbility.GeneralIntelligence);
         _projectPath = System.IO.Path.Combine(ops.RootPath, folderName);
+        DescriptionDocument.Changed += (_, _) => DescriptionWritten();
         Load();
     }
 
@@ -140,7 +153,12 @@ public partial class ProjectDetailViewModel : ObservableObject, IPageViewModel
     // ── Header saves ──
 
     partial void OnProjectNameChanged(string value) => SaveHeader();
-    partial void OnDescriptionChanged(string value) => SaveHeader();
+    /// <summary>The description changed — written in, or loaded: said again, and saved with the header.</summary>
+    private void DescriptionWritten()
+    {
+        OnPropertyChanged(nameof(Description));
+        SaveHeader();
+    }
 
     private void SaveHeader()
     {

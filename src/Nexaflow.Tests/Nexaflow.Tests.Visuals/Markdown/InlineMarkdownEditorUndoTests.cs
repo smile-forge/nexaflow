@@ -26,11 +26,11 @@ public class InlineMarkdownEditorUndoTests
             // the first block, at its start
             MarkdownEditorHarness.CaretAtStartOf(editor, 0);
             MarkdownEditorHarness.Type(editor, "New ");
-            Assert.AreEqual("New A paragraph.", editor.Markdown, "Precondition: the edit landed.");
+            Assert.AreEqual("New A paragraph.", editor.Document.ToString(), "Precondition: the edit landed.");
 
             editor.Undo();
 
-            Assert.AreEqual("A paragraph.", editor.Markdown);
+            Assert.AreEqual("A paragraph.", editor.Document.ToString());
         }));
 
     [TestMethod]
@@ -43,7 +43,7 @@ public class InlineMarkdownEditorUndoTests
 
             editor.Undo();   // one step, not one per character
 
-            Assert.AreEqual("A paragraph.", editor.Markdown);
+            Assert.AreEqual("A paragraph.", editor.Document.ToString());
         }));
 
     [TestMethod]
@@ -55,13 +55,13 @@ public class InlineMarkdownEditorUndoTests
             MarkdownEditorHarness.Type(editor, "A");
             MarkdownEditorHarness.CaretAtStartOf(editor, 1);
             MarkdownEditorHarness.Type(editor, "B");
-            Assert.AreEqual("AFirst block.\n\nBSecond block.", editor.Markdown, "Precondition: both edits landed.");
+            Assert.AreEqual("AFirst block.\n\nBSecond block.", editor.Document.ToString(), "Precondition: both edits landed.");
 
             editor.Undo();
-            Assert.AreEqual("AFirst block.\n\nSecond block.", editor.Markdown, "Undo should drop only the second block's session.");
+            Assert.AreEqual("AFirst block.\n\nSecond block.", editor.Document.ToString(), "Undo should drop only the second block's session.");
 
             editor.Undo();
-            Assert.AreEqual("First block.\n\nSecond block.", editor.Markdown);
+            Assert.AreEqual("First block.\n\nSecond block.", editor.Document.ToString());
         }));
 
     [TestMethod]
@@ -71,6 +71,6 @@ public class InlineMarkdownEditorUndoTests
             editor.Undo();
             editor.Undo();
 
-            Assert.AreEqual("Untouched.", editor.Markdown);
+            Assert.AreEqual("Untouched.", editor.Document.ToString());
         }));
 }

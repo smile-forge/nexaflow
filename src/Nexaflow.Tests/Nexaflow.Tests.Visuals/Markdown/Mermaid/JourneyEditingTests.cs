@@ -40,7 +40,7 @@ public class JourneyEditingTests : MermaidEditing
             StringAssert.Contains(diagram.Source, "section Go to work!", diagram.Source);
             StringAssert.Contains(diagram.Source, "Make tea?: 5: Me", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count);
-            StringAssert.Contains(editor.Markdown, "Make tea?", "and so does the document");
+            StringAssert.Contains(editor.Document.ToString(), "Make tea?", "and so does the document");
         }));
 
     [TestMethod]

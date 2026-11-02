@@ -11,6 +11,7 @@ using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -159,7 +160,7 @@ public class DiagramNestingTests
     /// <summary>A whole document on a surface, measured and arranged as a reader is shown it.</summary>
     private static MarkdownSurface Settled(string markdown)
     {
-        var surface = new MarkdownSurface { Markdown = markdown };
+        var surface = new MarkdownSurface { Document = new EditedDocument(markdown) };
 
         surface.Measure(new Size(900, 2000));
         surface.Arrange(new Rect(0, 0, 900, 2000));
@@ -190,7 +191,7 @@ public class DiagramNestingTests
     [TestMethod]
     public void TheSourceIsUntouchedByWhatIsDrawnInsideIt() => UiThread.Run(() =>
     {
-        Assert.AreEqual(Src, Drawn(Src).Source);
+        Assert.AreEqual(Src, Drawn(Src).Document.ToString());
     });
 
     [TestMethod]

@@ -35,7 +35,7 @@ public static class SummaryMarkdown
         var whole = summary.Under is [{ } only] && only.Title == summary.Title ? only : null;
 
         written.Append("# ").Append(MarkdownParser.SpellWords(summary.Title.Length > 0 ? summary.Title : title, startsLine: false));
-        if (source is not null && whole?.Section?.Anchor is { } anchor) written.Append(" [↗](<").Append(Back(source, anchor)).Append(">)");
+        if (source is not null && whole?.Section?.Name is { } anchor) written.Append(" [↗](<").Append(Back(source, anchor)).Append(">)");
         written.Append("\n\n");
 
         written.Append('*').Append(MarkdownParser.SpellWords($"{gist.Genre} · {gist.Audience}", startsLine: false).Trim()).Append("*\n\n");
@@ -51,7 +51,7 @@ public static class SummaryMarkdown
     {
         written.Append('#', Math.Min(rank, Deepest)).Append(' ').Append(MarkdownParser.SpellWords(section.Title, startsLine: false));
 
-        if (source is not null && section.Section?.Anchor is { } anchor) written.Append(" [↗](<").Append(Back(source, anchor)).Append(">)");
+        if (source is not null && section.Section?.Name is { } anchor) written.Append(" [↗](<").Append(Back(source, anchor)).Append(">)");
 
         written.Append("\n\n");
         Paragraphs(written, section.Said);

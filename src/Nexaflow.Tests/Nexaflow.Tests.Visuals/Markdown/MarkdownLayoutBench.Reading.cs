@@ -58,18 +58,7 @@ public partial class MarkdownLayoutBench
             Palette = WpfStyles.Dark,
         };
 
-        // Off the desktop but shown: what is not shown is neither laid out nor painted.
-        var window = new Window
-        {
-            Width = Room + 40,
-            Height = Screen.Height,
-            Left = -32000,
-            Top = 0,
-            ShowActivated = false,
-            ShowInTaskbar = false,
-            WindowStyle = WindowStyle.None,
-            Content = surface,
-        };
+        var window = Hosted(surface);
 
         window.Show();
 
@@ -78,7 +67,7 @@ public partial class MarkdownLayoutBench
             Settle();
 
             var clock = Stopwatch.StartNew();
-            surface.Markdown = text;
+            surface.Document.Load(text);
             Settle();
             var opened = clock.Elapsed.TotalMilliseconds;
 
@@ -161,6 +150,19 @@ public partial class MarkdownLayoutBench
             window.Close();
         }
     }
+
+    /// <summary>A window holding <paramref name="surface"/>, off the desktop but shown: what is not shown is neither laid out nor painted.</summary>
+    private static Window Hosted(MarkdownSurface surface) => new()
+    {
+        Width = Room + 40,
+        Height = Screen.Height,
+        Left = -32000,
+        Top = 0,
+        ShowActivated = false,
+        ShowInTaskbar = false,
+        WindowStyle = WindowStyle.None,
+        Content = surface,
+    };
 
     /// <summary>Scrolls to <paramref name="depth"/> of the way down and waits for it to be laid and painted there.</summary>
     private static void To(ScrollViewer scroller, double depth)

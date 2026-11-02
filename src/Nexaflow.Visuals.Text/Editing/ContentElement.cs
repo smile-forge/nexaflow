@@ -61,7 +61,7 @@ public class ContentElement : FrameworkElement
     /// <param name="engine">What lays the content out, and holds it as it is being written.</param>
     /// <param name="language">What the content is written in — markdown, where nothing names a language.</param>
     /// <param name="actions">What answers what the content's pieces mean by a gesture — null where nothing here answers one.</param>
-    public ContentElement(string source, LayoutStyle palette, ContentEngine engine, string? language = null, ILayoutActions? actions = null)
+    public ContentElement(string? source, LayoutStyle palette, ContentEngine engine, string? language = null, ILayoutActions? actions = null)
     {
         Palette = palette;
         _engine = engine;
@@ -69,7 +69,7 @@ public class ContentElement : FrameworkElement
         _wash = Wash(palette);
 
         _engine.Show(language, palette);
-        _engine.Start(source ?? string.Empty);
+        _engine.Start(source);
         _engine.Answers(actions);
 
         _engine.Changed += OnChanged;
@@ -139,7 +139,15 @@ public class ContentElement : FrameworkElement
         Dispatcher.BeginInvoke(() => _engine.Rebind(changed));
 
     /// <summary>A slower reading of what is shown landed on whatever thread read it; the content is laid out again here, on this element's.</summary>
-    private void OnReread(object? sender, EventArgs args) => Dispatcher.BeginInvoke(Refresh);
+    private void OnReread(object? sender, EventArgs args) => Dispatcher.BeginInvoke(Relanded);
+
+    /// <summary>Lays again what a slower reading that landed was asked for by, and nothing else.</summary>
+    private void Relanded()
+    {
+        _engine.RelayLanded();
+        InvalidateMeasure();
+        InvalidateVisual();
+    }
 
     /// <summary>
     /// A long document has more to lay — the reader came near what was not laid yet, or more of it has been read — on whatever
@@ -206,6 +214,9 @@ public class ContentElement : FrameworkElement
 
     /// <summary>The editing model — source, caret, selection, and what is shown as written.</summary>
     protected EditState State => _engine.State;
+
+    /// <summary>The document as it is shown, at the version it is at.</summary>
+    public ContentDocument Document => State.Document;
 
     /// <summary>Opens whatever of the document is folded away over <paramref name="offset"/> (<see cref="ContentEngine.Unfolded"/>).</summary>
     protected bool Unfold(int offset) => _engine.Unfolded(offset);
@@ -309,7 +320,7 @@ public class ContentElement : FrameworkElement
 
     /// <summary>Whether the caret belongs in this content at all. Asked of the tree rather than declared, since a piece naming a stretch of source is one somebody typed — a barcode that only prints a worked-out number has none.</summary>
     public bool AcceptsCaret =>
-            State.Source.Length == 0 || Laid.Root.SelfAndDescendants().Any(piece => piece.Part is { Length: > 0 } || (piece.Part is not null && piece.Kind == LayoutText.HoleKind));
+            State.Document.Length == 0 || Laid.Root.SelfAndDescendants().Any(piece => piece.Part is { Length: > 0 } || (piece.Part is not null && piece.Kind == LayoutText.HoleKind));
 
     /// <summary>A translucent wash from the theme accent, falling back to the highlight token.</summary>
     private static Brush Wash(LayoutStyle palette)
@@ -322,9 +333,6 @@ public class ContentElement : FrameworkElement
     }
 
     // ── What is being written ───────────────────────────────────────────────
-
-    /// <inheritdoc />
-    public string Source => State.Source;
 
     /// <inheritdoc />
     public LayoutPiece Root => Laid.Root;
@@ -420,6 +428,9 @@ public class ContentElement : FrameworkElement
     /// </summary>
     protected void Write(string text) => _engine.Write(text);
 
+    /// <summary>Loads <paramref name="text"/> into the document shown, in place of what it held — as a page loading it would.</summary>
+    protected void Load(string text) => _engine.EditedDocument.Load(text);
+
     /// <summary>
     /// Writes <paramref name="text"/> over a stretch of the source as typing it there would — the content's rule, through the
     /// same edit handling a key goes through — and leaves the caret where it was. What a press means when it is an edit
@@ -463,7 +474,7 @@ public class ContentElement : FrameworkElement
     public void SelectRange(int start, int length) => Select(start, length);
 
     /// <summary>Selects everything — what the host asks for when a selection sweeps straight over it.</summary>
-    public void SelectAll() => Select(0, Source.Length);
+    public void SelectAll() => Select(0, State.Document.Length);
 
     /// <inheritdoc />
     public void ClearSelection() => _engine.ClearSelection();

@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Input;
 
 using System.Windows.Threading;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
@@ -76,14 +77,14 @@ public class CodeFenceSelectionTests
     /// <summary>Just inside the first character of <paramref name="text"/>, where a press means the place before it.</summary>
     private static Point Before(MarkdownSurface surface, string text)
     {
-        var box = Character(surface, surface.Markdown.IndexOf(text, StringComparison.Ordinal));
+        var box = Character(surface, surface.Document.ToString().IndexOf(text, StringComparison.Ordinal));
         return new Point(box.Left + 0.5, box.Top + (box.Height / 2));
     }
 
     /// <summary>Just inside the right edge of the first character of <paramref name="text"/>, where a press means the place after it.</summary>
     private static Point After(MarkdownSurface surface, string text)
     {
-        var box = Character(surface, surface.Markdown.IndexOf(text, StringComparison.Ordinal));
+        var box = Character(surface, surface.Document.ToString().IndexOf(text, StringComparison.Ordinal));
         return new Point(box.Right - 0.5, box.Top + (box.Height / 2));
     }
 
@@ -110,7 +111,7 @@ public class CodeFenceSelectionTests
     /// </summary>
     private static MarkdownSurface Shown(string markdown, bool readOnly = false)
     {
-        var surface = new MarkdownSurface { Markdown = markdown, IsReadOnly = readOnly };
+        var surface = new MarkdownSurface { Document = new EditedDocument(markdown), IsReadOnly = readOnly };
 
         surface.Measure(new Size(640, 2000));
         surface.Arrange(new Rect(0, 0, 640, 2000));

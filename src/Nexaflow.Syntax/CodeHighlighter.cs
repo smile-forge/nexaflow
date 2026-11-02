@@ -7,8 +7,10 @@ using TreeSitter;
 namespace Nexaflow.Syntax;
 
 /// <summary>
-/// Wraps a tree-sitter grammar + highlight query for one language. <see cref="Highlight"/> parses source
-/// and returns coloured spans (char offsets). Not thread-safe — use from one thread (the editor's UI thread).
+/// Wraps a tree-sitter grammar + highlight query for one language. <see cref="Highlight(string)"/> parses source
+/// and returns coloured spans (char offsets); <see cref="Parse(string, Tree?)"/> and
+/// <see cref="Highlight(Tree, string, int, int)"/> parse again from an edited tree and colour one stretch of it.
+/// Not thread-safe — use from one thread at a time.
 ///
 /// <para><b>Embedded languages.</b> A file can embed another language (HTML's <c>&lt;script&gt;</c>, an ERB
 /// <c>&lt;% %&gt;</c>, a Ruby heredoc, …). <see cref="LanguageInjections"/> finds those sub-ranges; this class
@@ -109,6 +111,56 @@ public sealed class CodeHighlighter : IDisposable
         HighlightInto(spans, text, 0, null, new InjectionBudget());
         return spans;
     }
+
+    /// <summary>
+    /// <paramref name="text"/> parsed again from <paramref name="old"/> — a tree of an earlier version of it, with every edit made since
+    /// applied to it (<see cref="Tree.Edit"/>) — reusing every part the edits did not reach; or parsed afresh where there is none.
+    /// </summary>
+    public Tree? Parse(string text, Tree? old)
+    {
+        _parser.IncludedRanges = NoRanges;
+        return _parser.Parse(text, old);
+    }
+
+    /// <summary>
+    /// The coloured spans of <paramref name="tree"/>, parsed from <paramref name="text"/>, that reach into the stretch from
+    /// <paramref name="start"/> to <paramref name="end"/>, each cut to it: a string or a comment running past either end is coloured for
+    /// the part of it inside. An embedded language reaching into the stretch is parsed whole from what holds it, so a fragment running
+    /// past the stretch reads as it does in all of the text. Char offsets in <paramref name="text"/>; outer spans first, embedded after.
+    /// </summary>
+    public IReadOnlyList<HighlightSpan> Highlight(Tree tree, string text, int start, int end)
+    {
+        var spans = new List<HighlightSpan>();
+        if (end <= start || Query() is not { } query) return spans;
+
+        using (var cursor = query.Execute(tree.RootNode, new QueryOptions { StartIndex = start, EndIndex = end }))
+            foreach (var capture in cursor.Captures)
+                Cut(spans, capture.Node.StartIndex, capture.Node.EndIndex, capture.Name, start, end);
+
+        var found = new List<HighlightSpan>();
+        if (_grammarId == "xaml") XamlHighlighting.AddValueSpans(tree.RootNode, text, 0, found);
+
+        var budget = new InjectionBudget();
+        ForEachInjection(text, tree.RootNode, 0, budget, (child, part, offset, included) =>
+        {
+            if (Reaches(part, offset, included, start, end)) child.HighlightInto(found, part, offset, included, budget);
+        });
+
+        foreach (var span in found) Cut(spans, span.Start, span.Start + span.Length, span.Capture, start, end);
+
+        return spans;
+    }
+
+    /// <summary>Adds the stretch from <paramref name="from"/> to <paramref name="to"/>, called <paramref name="capture"/>, cut to <paramref name="start"/>..<paramref name="end"/> — nothing, where none of it is inside.</summary>
+    private static void Cut(List<HighlightSpan> spans, int from, int to, string capture, int start, int end)
+    {
+        var (low, high) = (Math.Max(from, start), Math.Min(to, end));
+        if (high > low) spans.Add(new HighlightSpan(low, high - low, capture));
+    }
+
+    /// <summary>Whether an embedded fragment — <paramref name="part"/> at <paramref name="offset"/>, or the ranges of a combined one — reaches into <paramref name="start"/>..<paramref name="end"/>.</summary>
+    private static bool Reaches(string part, int offset, TreeSitter.Range[]? included, int start, int end) =>
+        included is null ? offset < end && offset + part.Length > start : included.Any(range => range.StartIndex < end && range.EndIndex > start);
 
     // <paramref name="included"/> null ⇒ parse the whole <paramref name="text"/> (offset shifts isolated child
     // spans). Non-null ⇒ a combined parse over those ranges, whose node offsets are already in <paramref

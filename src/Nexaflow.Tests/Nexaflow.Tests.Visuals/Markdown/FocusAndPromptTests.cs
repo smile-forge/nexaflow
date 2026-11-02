@@ -59,7 +59,7 @@ public class FocusAndPromptTests
 
             // A host handing it a document is heard whether or not it has the keyboard: what it was told
             // of an edit never comes back as a new document, so there is nothing to guard against.
-            editor.Markdown = "something";
+            editor.Document.Load("something");
 
             Assert.AreEqual(Visibility.Collapsed, PromptIn(editor).Visibility,
                 "content silences it, which is the only thing it was ever standing in for");

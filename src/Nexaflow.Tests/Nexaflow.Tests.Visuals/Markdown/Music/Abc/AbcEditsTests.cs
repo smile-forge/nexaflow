@@ -63,7 +63,7 @@ public class AbcEditsTests
 
         var spelled = change.Writes.Any(write => write.Meant) ? Transpiles.By<AbcParser>()(change) : change;
 
-        return spelled is null ? abc : ContentEngine.Made(new EditState(abc, caret), spelled).Source;
+        return spelled is null ? abc : new EditState(abc, caret).Made(spelled).Document.ToString();
     }
 
     // ── A key changing the note the caret stands after ──────────────────────

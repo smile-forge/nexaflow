@@ -192,7 +192,7 @@
                             <StackPanel Margin="0,14,0,0">
                                 <TextBlock Text="{loc:Str Projects.Detail.Description}" Style="{StaticResource SectionLabel}"/>
                                 <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" MinHeight="120" Padding="6">
-                                    <md:MarkdownSurface IsReadOnly="False" Markdown="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    <md:MarkdownSurface IsReadOnly="False" Document="{Binding DescriptionDocument}"
                                                             />
                                 </Border>
                             </StackPanel>
@@ -390,7 +390,7 @@
                                         <StackPanel Margin="0,0,0,12">
                                             <TextBlock Text="{loc:Str Projects.Detail.Description}" Style="{StaticResource SectionLabel}"/>
                                             <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" MinHeight="120" Padding="6">
-                                                <md:MarkdownSurface IsReadOnly="False" Markdown="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                <md:MarkdownSurface IsReadOnly="False" Document="{Binding DescriptionDocument}"
                                                                         />
                                             </Border>
                                         </StackPanel>

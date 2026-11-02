@@ -41,7 +41,7 @@ public class DiagramInAViewportTests
     {
         var surface = new MarkdownSurface { WrittenIn = "mermaid", UnlimitedWidth = true };
         host?.Invoke(surface);
-        surface.Markdown = diagram;
+        surface.Document.Load(diagram);
 
         var viewport = new PanZoomSurface { ZoomOnPlainWheel = true, SurfaceContent = surface };
 

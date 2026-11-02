@@ -329,30 +329,31 @@ public static class LayoutQuery
     /// </remarks>
     private static LayoutPiece Nearest(LayoutPiece root, LayoutPoint point, bool alone)
     {
-        if (root.Tree is not { } tree) return default;
+        if (root.Tree is null) return default;
 
-        var index = tree.Indexed;
         var best = default(LayoutPiece);
         var bestDistance = double.MaxValue;
         var bestDepth = -1;
-        var bestAt = -1;
+        var bestAt = default(LayoutPiece);
 
-        var open = new PriorityQueue<int, double>();
-        open.Enqueue(root.At, DistanceTo(index.Reach(root.At), point));
+        var open = new PriorityQueue<Opening, double>();
+        var first = Opening.Of(root);
+        open.Enqueue(first, DistanceTo(first.Reach(root.At), point));
 
-        // A run of siblings opens into its pieces and a piece into what it holds, nearest first either way; only a leaf is measured.
+        // A run of siblings opens into its pieces, a piece into what it holds and a tree put down here into what its top holds,
+        // nearest first however deep; only a leaf is measured.
 
-        while (open.TryDequeue(out var at, out var nearest))
+        while (open.TryDequeue(out var opening, out var nearest))
         {
             if (nearest > bestDistance) break;
 
-            if (at < 0 || !tree.At(at).IsLeaf)
+            if (!opening.IsLeaf)
             {
-                foreach (var (inside, reach, _) in index.Opened(at)) open.Enqueue(inside, DistanceTo(reach, point));
+                foreach (var (inside, reach, _) in opening.Opened()) open.Enqueue(inside, DistanceTo(reach, point));
                 continue;
             }
 
-            var piece = tree.At(at);
+            var piece = opening.Piece;
 
             if (alone && Holds(piece)) continue;
 
@@ -367,7 +368,7 @@ public static class LayoutQuery
             // costs nothing to measure while the shape has to be flattened first — which is the whole cost of this
             // scan. So a piece whose box is already further off than the best so far is skipped by arithmetic, and
             // once anything has been landed on squarely nothing else is flattened at all.
-            var where = index.Where(at);
+            var where = opening.Where;
             var around = piece.Region is { } shape ? piece.Frame.Out(shape.Bounds) : where;
             var floor = DistanceTo(around, point);
             if (floor > bestDistance) continue;
@@ -380,11 +381,11 @@ public static class LayoutQuery
             if (distance > bestDistance) continue;
 
             var depth = piece.Depth;
-            if (distance == bestDistance && (depth < bestDepth || (depth == bestDepth && at > bestAt))) continue;
+            if (distance == bestDistance && (depth < bestDepth || (depth == bestDepth && Drawn(piece, bestAt) > 0))) continue;
 
             bestDistance = distance;
             bestDepth = depth;
-            bestAt = at;
+            bestAt = piece;
             best = resolved;
         }
 
@@ -506,26 +507,37 @@ public static class LayoutQuery
     /// trailing edges before leading ones, with places that would draw as the same mark collapsed to one —
     /// so the reader never presses an arrow twice for a caret that doesn't appear to move.
     /// </summary>
-    internal static IReadOnlyList<CaretPlace> PlacesIn(LayoutPiece root)
-    {
-        var declared = new List<(int Offset, int Edge, int Depth, LayoutPiece Piece)>();
+    // Every piece as it is drawn, the top of each tree put down among them too: no question meets a mounted tree's top as a piece, but
+    // where a caret may rest at its edges is its tree's, as it is where a tree of mounts puts its places together (MountedList).
+    internal static IReadOnlyList<CaretPlace> PlacesIn(LayoutPiece root) => Declared(SelfAndDrawn(root));
 
-        foreach (var piece in root.SelfAndDescendants())
+    /// <summary>
+    /// Where a caret may rest against <paramref name="pieces"/> — walked parents first — in the order the right arrow visits them: each
+    /// piece's stops, sorted by where in the source they are, two that coincide on the page kept once.
+    /// </summary>
+    internal static List<CaretPlace> Declared(IEnumerable<LayoutPiece> pieces)
+    {
+        var declared = new List<(int Offset, int Edge, int Depth, int Order, LayoutPiece Piece)>();
+
+        foreach (var piece in pieces)
         {
             if (!piece.Stands()) continue;
 
             var at = piece.Sits();
-            if (piece.Stops.HasFlag(LayoutStops.After)) declared.Add((at.End, 0, piece.Depth, piece));
-            if (piece.Stops.HasFlag(LayoutStops.Before)) declared.Add((at.Start, 1, piece.Depth, piece));
+            if (piece.Stops.HasFlag(LayoutStops.After)) declared.Add((at.End, 0, piece.Depth, declared.Count, piece));
+            if (piece.Stops.HasFlag(LayoutStops.Before)) declared.Add((at.Start, 1, piece.Depth, declared.Count, piece));
         }
 
+        // Ties go in the order the pieces were walked: a sort that left them as it found them would give the same places for the same
+        // pieces however much else stood in the list, and the places after them are kept or dropped by which comes first.
         declared.Sort((a, b) =>
             a.Offset != b.Offset ? a.Offset.CompareTo(b.Offset)
             : a.Edge != b.Edge ? a.Edge.CompareTo(b.Edge)
-            : b.Depth.CompareTo(a.Depth));
+            : a.Depth != b.Depth ? b.Depth.CompareTo(a.Depth)
+            : a.Order.CompareTo(b.Order));
 
         var places = new List<CaretPlace>();
-        foreach (var (offset, edge, _, piece) in declared)
+        foreach (var (offset, edge, _, _, piece) in declared)
         {
             var place = new CaretPlace(piece, Trailing: edge == 0);
             if (places.Count > 0 && places[^1].Offset == offset && Drawn(places[^1], place)) continue;
@@ -536,6 +548,27 @@ public static class LayoutQuery
         return places;
     }
 
+    /// <summary><paramref name="root"/> and everything it holds as it is drawn (<see cref="LayoutPiece.DrawnChildren"/>), parents first.</summary>
+    private static IEnumerable<LayoutPiece> SelfAndDrawn(LayoutPiece root)
+    {
+        yield return root;
+
+        var walking = new Stack<LayoutPiece.PieceDrawn.Enumerator>();
+        walking.Push(root.DrawnChildren.GetEnumerator());
+
+        while (walking.Count > 0)
+        {
+            var along = walking.Pop();
+            if (!along.MoveNext()) continue;
+
+            var piece = along.Current;
+            walking.Push(along);
+
+            yield return piece;
+            walking.Push(piece.DrawnChildren.GetEnumerator());
+        }
+    }
+
     /// <summary>
     /// Whether a place would be drawn as the mark already standing there, and so is not a second place.
     /// Two rules for two different causes of two places at one offset: trailing edges nest (a script inside
@@ -544,7 +577,7 @@ public static class LayoutQuery
     /// without the split, <c>12g</c> would offer two overlapping places between the 2 and the g, since the g
     /// has a descender.
     /// </summary>
-    private static bool Drawn(CaretPlace already, CaretPlace next)
+    internal static bool Drawn(CaretPlace already, CaretPlace next)
     {
         var (standing, coming) = (already.CaretRect(), next.CaretRect());
 
@@ -669,15 +702,7 @@ public static class LayoutQuery
     /// Where a caret may rest, ascending — the offsets of the places, with the several at one offset counted
     /// once. What snapping an arbitrary offset onto the content works from.
     /// </summary>
-    public static IReadOnlyList<int> CaretStops(this LayoutPiece root)
-    {
-        var stops = new List<int>();
-
-        foreach (var place in Index(root))
-            if (stops.Count == 0 || stops[^1] != place.Offset) stops.Add(place.Offset);
-
-        return stops;
-    }
+    public static IReadOnlyList<int> CaretStops(this LayoutPiece root) => root.Tree?.Stops ?? [];
 
     /// <summary>
     /// The first place in the document that stands wholly below <paramref name="above"/>, wherever across the page
@@ -694,11 +719,28 @@ public static class LayoutQuery
     /// </summary>
     public static int StopBelow(this LayoutPiece root, double above)
     {
-        foreach (var place in Index(root))
-        {
-            var where = place.Against.Bounds;
+        var places = Index(root);
+        var from = 0;
 
-            if (!where.IsEmpty && where.Top >= above - Hair) return place.Offset;
+        // A tree made of the trees it mounts stacks them down the page in the order their places come, so no place of a tree ending above
+        // is the first below: only the places from the first reaching down that far are looked at.
+        if (places is MountedList<CaretPlace> mounted && root.Tree is { } tree && root.At == 0)
+        {
+            from = places.Count;
+
+            for (var part = 0; part < mounted.Parts; part++)
+                if (new LayoutPiece(tree, part + 1).Bounds.Bottom >= above - Hair)
+                {
+                    from = mounted.StartOf(part);
+                    break;
+                }
+        }
+
+        for (var index = from; index < places.Count; index++)
+        {
+            var where = places[index].Against.Bounds;
+
+            if (!where.IsEmpty && where.Top >= above - Hair) return places[index].Offset;
         }
 
         return -1;
@@ -1347,33 +1389,32 @@ public static class LayoutQuery
     /// </summary>
     private static LayoutPiece NearestWritten(LayoutPiece root, int from, int to)
     {
-        if (root.Tree is not { } tree) return default;
+        if (root.Tree is null) return default;
 
-        var index = tree.Indexed;
         var best = default(LayoutPiece);
         var bestDistance = int.MaxValue;
-        var bestAt = -1;
 
-        var open = new PriorityQueue<int, int>();
-        open.Enqueue(root.At, Apart(index.Span(root.At)));
+        var open = new PriorityQueue<Opening, int>();
+        var first = Opening.Of(root);
+        open.Enqueue(first, Apart(first.Span(root.At)));
 
-        while (open.TryDequeue(out var at, out var nearest))
+        while (open.TryDequeue(out var opening, out var nearest))
         {
             if (nearest > bestDistance) break;
 
-            if (at < 0 || !tree.At(at).IsLeaf)
+            if (!opening.IsLeaf)
             {
-                foreach (var (inside, _, span) in index.Opened(at)) open.Enqueue(inside, Apart(span));
+                foreach (var (inside, _, span) in opening.Opened()) open.Enqueue(inside, Apart(span));
                 continue;
             }
 
-            var piece = tree.At(at);
+            var piece = opening.Piece;
 
             var sits = piece.Sits();
             var distance = Math.Min(Math.Abs(sits.Start - from), Math.Abs(sits.End - to));
-            if (distance > bestDistance || (distance == bestDistance && at > bestAt)) continue;
+            if (distance > bestDistance || (distance == bestDistance && best.Exists && Drawn(piece, best) > 0)) continue;
 
-            (best, bestDistance, bestAt) = (piece, distance, at);
+            (best, bestDistance) = (piece, distance);
         }
 
         return best;
@@ -1385,6 +1426,54 @@ public static class LayoutQuery
             offset < span.First ? span.First - offset : offset > span.Last ? offset - span.Last : 0;
     }
 
+    /// <summary>
+    /// What a nearest-first search holds open: a piece — or a run of siblings, as its index numbers one — of a tree, seen through the mount
+    /// it is seen through, and what its index says it reaches and sits in, as the tree the search started in sees them. A mount opens into
+    /// what the top of the tree it puts down holds (<see cref="LayoutMount"/>), so one queue searches every tree put down in another.
+    /// </summary>
+    private readonly record struct Opening(LayoutTree Tree, int Item, LayoutMounted? Within)
+    {
+        public static Opening Of(LayoutPiece piece) => new(piece.Tree!, piece.At, piece.Within);
+
+        /// <summary>The piece itself, where it is one rather than a run.</summary>
+        public LayoutPiece Piece => new(this.Tree, this.Item, this.Within);
+
+        /// <summary>Whether it is a piece with nothing inside it — what a search measures rather than opens.</summary>
+        public bool IsLeaf => this.Item >= 0 && this.Tree.Piece(this.Item).Extent == 1 && this.Tree.MountOf(this.Item) is null;
+
+        /// <summary>Where the piece sits on the page.</summary>
+        public LayoutRect Where => this.Placed(this.Tree.Indexed.Where(this.Item));
+
+        /// <summary>What the piece at <paramref name="at"/> of this tree reaches on the page.</summary>
+        public LayoutRect Reach(int at) => this.Placed(this.Tree.Indexed.Reach(at));
+
+        /// <summary>The stretch of source the piece at <paramref name="at"/> of this tree sits in.</summary>
+        public (int First, int Last) Span(int at) => this.Shifted(this.Tree.Indexed.Span(at));
+
+        /// <summary>What it opens into, each with what it reaches and sits in.</summary>
+        public IEnumerable<(Opening Inside, LayoutRect Reach, (int First, int Last) Span)> Opened()
+        {
+            var (tree, item, within) = (this.Tree, this.Item, this.Within);
+
+            if (item >= 0 && tree.MountOf(item) is { } mount)
+            {
+                var into = new Opening(mount.Tree, 0, new LayoutMounted(tree, item, within));
+                foreach (var (inside, reach, span) in mount.Tree.Indexed.Opened(0))
+                    yield return (into with { Item = inside }, into.Placed(reach), into.Shifted(span));
+
+                yield break;
+            }
+
+            foreach (var (inside, reach, span) in tree.Indexed.Opened(item))
+                yield return (this with { Item = inside }, this.Placed(reach), this.Shifted(span));
+        }
+
+        private LayoutRect Placed(LayoutRect where) => this.Within is { } within && !where.IsEmpty ? within.Frame.Out(where) : where;
+
+        private (int First, int Last) Shifted((int First, int Last) span) =>
+            this.Within is { } within ? (span.First + within.Shift, span.Last + within.Shift) : span;
+    }
+
     // ── Asking only what can answer ─────────────────────────────────────────
 
     /// <summary>
@@ -1392,82 +1481,134 @@ public static class LayoutQuery
     /// them — passing over every piece whose subtree reaches nowhere <paramref name="reaches"/> takes in, and all it holds. See
     /// <see cref="LayoutIndex"/>: a question about a point is asked of the blocks round it, not of every glyph on the page.
     /// </summary>
-    internal static IEnumerable<(LayoutPiece Piece, LayoutRect Where)> PlacedNear(LayoutPiece root, Func<LayoutRect, bool> reaches)
-    {
-        if (root.Tree is not { } tree) yield break;
-
-        var index = tree.Indexed;
-        foreach (var at in index.Descend(root.At, (reach, _) => reaches(reach)))
-            yield return (tree.At(at), index.Where(at));
-    }
+    internal static IEnumerable<(LayoutPiece Piece, LayoutRect Where)> PlacedNear(LayoutPiece root, Func<LayoutRect, bool> reaches) =>
+        root.Tree is not { } tree ? [] : Descended(tree, root.At, root.Within, (reach, _) => reaches(reach), top: false);
 
     /// <summary>
     /// <paramref name="root"/> and everything inside it, parents first, passing over every piece whose subtree sits in no source
     /// touching <c>[start, end]</c> — either end included, so a place with no characters at either end is still asked — and,
     /// where <paramref name="near"/> is said, every piece whose subtree reaches nowhere into it.
     /// </summary>
-    internal static IEnumerable<LayoutPiece> SittingIn(LayoutPiece root, int start, int end, LayoutRect? near = null)
-    {
-        if (root.Tree is not { } tree) yield break;
-
-        foreach (var at in tree.Indexed.Descend(root.At, (reach, span) => span.First <= end && span.Last >= start
-                                                                          && (near is not { } area || reach.IntersectsWith(area))))
-            yield return tree.At(at);
-    }
+    internal static IEnumerable<LayoutPiece> SittingIn(LayoutPiece root, int start, int end, LayoutRect? near = null) =>
+        root.Tree is not { } tree
+            ? []
+            : Descended(tree, root.At, root.Within, (reach, span) => span.First <= end && span.Last >= start && (near is not { } area || reach.IntersectsWith(area)),
+                        top: false).Select(found => found.Piece);
 
     /// <summary>
     /// <paramref name="root"/> and everything inside it, parents first, passing over every piece whose subtree sits in source
     /// <paramref name="touches"/> turns down — asked of the stretch from its first character to its last.
     /// </summary>
-    internal static IEnumerable<LayoutPiece> Sitting(LayoutPiece root, Func<(int First, int Last), bool> touches)
-    {
-        if (root.Tree is not { } tree) yield break;
+    internal static IEnumerable<LayoutPiece> Sitting(LayoutPiece root, Func<(int First, int Last), bool> touches) =>
+        root.Tree is not { } tree ? [] : Descended(tree, root.At, root.Within, (_, span) => touches(span), top: false).Select(found => found.Piece);
 
-        foreach (var at in tree.Indexed.Descend(root.At, (_, span) => touches(span)))
-            yield return tree.At(at);
+    /// <summary>
+    /// Every piece of the subtree at <paramref name="from"/> in <paramref name="tree"/>, seen through <paramref name="within"/>, that
+    /// <paramref name="enters"/> takes — asked of what each subtree reaches on the page and the stretch of the source it sits in, as the
+    /// tree the question started at sees them — each with where it sits, parents first; and into every tree put down among them, which
+    /// is asked its own index in its own frame and source. The mount and the top of what it holds are no pieces of their own: where
+    /// <paramref name="top"/> says so, the piece at <paramref name="from"/> is such a top, and only what it holds is asked.
+    /// </summary>
+    private static IEnumerable<(LayoutPiece Piece, LayoutRect Where)> Descended(LayoutTree tree, int from, LayoutMounted? within,
+                                                                               Func<LayoutRect, (int First, int Last), bool> enters, bool top)
+    {
+        var (frame, shift) = within is null ? (null, 0) : ((LayoutFrame?)within.Frame, within.Shift);
+        var index = tree.Indexed;
+
+        foreach (var at in index.Descend(from, Through(enters, frame, shift)))
+        {
+            if (top && at == from) continue;
+
+            if (tree.MountOf(at) is { } mount)
+            {
+                foreach (var found in Descended(mount.Tree, 0, new LayoutMounted(tree, at, within), enters, top: true)) yield return found;
+                continue;
+            }
+
+            var where = index.Where(at);
+            yield return (new LayoutPiece(tree, at, within), frame is { } placed ? placed.Out(where) : where);
+        }
     }
+
+    /// <summary>
+    /// <paramref name="enters"/>, which asks of the page and the source as the tree a question started at sees them, asked of what an index
+    /// of a tree seen through <paramref name="frame"/> and <paramref name="shift"/> says — in that tree's own frame and source.
+    /// </summary>
+    private static Func<LayoutRect, (int First, int Last), bool> Through(Func<LayoutRect, (int First, int Last), bool> enters, LayoutFrame? frame, int shift) =>
+        frame is null && shift == 0 ? enters : (reach, span) => enters(frame is { } placed ? placed.Out(reach) : reach, (span.First + shift, span.Last + shift));
 
     /// <summary>
     /// The pieces <paramref name="holder"/> holds, in order, whose subtree <paramref name="enters"/> takes — asked of what it
     /// reaches on the page and the stretch of source it sits in. What <see cref="LayoutPiece.Children"/> gives, without asking every one
-    /// of the thousands of blocks a long document holds side by side.
+    /// of the thousands of blocks a long document holds side by side — and, for a tree put down among them, what its top holds.
     /// </summary>
-    internal static IEnumerable<LayoutPiece> ChildrenWhere(LayoutPiece holder, Func<LayoutRect, (int First, int Last), bool> enters)
-    {
-        if (holder.Tree is not { } tree) yield break;
+    internal static IEnumerable<LayoutPiece> ChildrenWhere(LayoutPiece holder, Func<LayoutRect, (int First, int Last), bool> enters) =>
+        holder.Tree is not { } tree ? [] : Held(tree, holder.At, holder.Within, enters);
 
-        foreach (var at in tree.Indexed.Children(holder.At, enters))
-            yield return tree.At(at);
+    /// <summary>What the piece at <paramref name="holder"/> in <paramref name="tree"/>, seen through <paramref name="within"/>, holds that <paramref name="enters"/> takes.</summary>
+    private static IEnumerable<LayoutPiece> Held(LayoutTree tree, int holder, LayoutMounted? within, Func<LayoutRect, (int First, int Last), bool> enters)
+    {
+        var (frame, shift) = within is null ? (null, 0) : ((LayoutFrame?)within.Frame, within.Shift);
+
+        foreach (var at in tree.Indexed.Children(holder, Through(enters, frame, shift)))
+        {
+            if (tree.MountOf(at) is { } mount)
+            {
+                foreach (var inner in Held(mount.Tree, 0, new LayoutMounted(tree, at, within), enters)) yield return inner;
+                continue;
+            }
+
+            yield return new LayoutPiece(tree, at, within);
+        }
     }
 
     /// <summary>
-    /// The leaves inside any of <paramref name="holders"/> — all of one tree — each once, in the order drawn: what
-    /// <see cref="LayoutPiece.Leaves"/> of the whole tree would give that lies inside any of them, without walking the rest of it.
+    /// The leaves inside any of <paramref name="holders"/>, each once, in the order drawn: what <see cref="LayoutPiece.Leaves"/> of the
+    /// whole tree would give that lies inside any of them, without walking the rest of it. A holder inside another is walked as part of it.
     /// </summary>
     internal static IEnumerable<LayoutPiece> LeavesUnder(IEnumerable<LayoutPiece> holders)
     {
-        LayoutTree? tree = null;
-        var runs = new List<(int From, int To)>();
+        var sorted = holders.Where(holder => holder.Exists).ToList();
+        sorted.Sort(Drawn);
 
-        foreach (var holder in holders)
+        // In the order drawn, a holder inside another comes after it and before anything after it: only the last one walked can hold it.
+        var walked = default(LayoutPiece);
+
+        foreach (var holder in sorted)
         {
-            if (holder.Tree is not { } held) continue;
+            if (walked.Exists && Inside(holder, walked)) continue;
 
-            tree ??= held;
-            runs.Add((holder.At, holder.At + held.Piece(holder.At).Extent));
+            walked = holder;
+            foreach (var leaf in holder.Leaves()) yield return leaf;
         }
 
-        if (tree is null) yield break;
-
-        runs.Sort((a, b) => a.From.CompareTo(b.From));
-
-        var reached = 0;
-        foreach (var (from, to) in runs)
+        // Whether a piece is held by another, or is it — through every mount on the way out.
+        static bool Inside(LayoutPiece piece, LayoutPiece holder)
         {
-            for (var at = Math.Max(from, reached); at < to; at++)
-                if (tree.Piece(at).Extent == 1) yield return tree.At(at);
+            for (var up = piece; up.Exists; up = up.Parent)
+                if (up == holder) return true;
 
-            reached = Math.Max(reached, to);
+            return false;
+        }
+    }
+    /// <summary>Which of two pieces is drawn first — through every tree put down on the way to either.</summary>
+    internal static int Drawn(LayoutPiece first, LayoutPiece second)
+    {
+        var (one, other) = (Way(first), Way(second));
+
+        for (var step = 0; step < Math.Min(one.Count, other.Count); step++)
+            if (one[step] != other[step]) return one[step].CompareTo(other[step]);
+
+        return one.Count.CompareTo(other.Count);
+
+        // Where the piece stands in each tree on the way down to it, outermost first.
+        static List<int> Way(LayoutPiece piece)
+        {
+            var way = new List<int> { piece.At };
+            for (var mounted = piece.Within; mounted is not null; mounted = mounted.In) way.Add(mounted.At);
+
+            way.Reverse();
+            return way;
         }
     }
 }

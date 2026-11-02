@@ -73,9 +73,10 @@ internal sealed partial class RtfReading
     /// <summary>
     /// Reads the document from where this reading starts — to its end, or, once <paramref name="softMaxLength"/> characters are
     /// behind it, to the end of the next paragraph that leaves nothing open but the groups round the text (<see cref="Settled"/>),
-    /// saying where that was and what it stopped in.
+    /// saying where that was and what it stopped in. Where what it was handed is not the end of the document
+    /// (<paramref name="ends"/>) and it runs out before it can stop, it says it needs more rather than closing what is open.
     /// </summary>
-    public ContentParse Read(int softMaxLength = int.MaxValue)
+    public ContentParse Read(int softMaxLength = int.MaxValue, bool ends = true)
     {
         foreach (var token in RtfTokenizer.From(_source, _from))
         {
@@ -86,6 +87,9 @@ internal sealed partial class RtfReading
             if (_lines != ended && token.End - _from >= softMaxLength && token.End < _source.Length && Settled())
                 return new ContentParse(Blocked()) { Stopped = token.End, Resume = Resumed() };
         }
+
+        // Out of characters with nowhere yet to stop, short of the end of what is written: what comes next is still to be seen.
+        if (!ends) return new ContentParse(Blocked()) { NeedsMore = true };
 
         Finish();
 

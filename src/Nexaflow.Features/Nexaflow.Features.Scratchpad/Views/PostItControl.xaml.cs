@@ -11,6 +11,7 @@ using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Features.Scratchpad.Views;
 
@@ -137,7 +138,7 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         var at = text.IndexOf(url, System.StringComparison.Ordinal);
         if (at < 0) return;
 
-        Vm.Content = string.Concat(text.AsSpan(0, at), markdown, text.AsSpan(at + url.Length));
+        Vm.Document.Write(ContentChange.Write(at, url.Length, markdown));
         Editor.Refresh();
     }
 

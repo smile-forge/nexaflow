@@ -1,3 +1,4 @@
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 
@@ -21,13 +22,13 @@ public class EditsFromElsewhereTests
     public void AnEditWrittenElsewhere_IsAStepThatCanBeTakenBackHere() =>
         UiThread.Run(() => MarkdownEditorHarness.Run(Doc, editor =>
         {
-            editor.TakeEdit(Doc.Replace("some words", "some more words", StringComparison.Ordinal));
+            editor.Write(ContentChange.Write(Doc.IndexOf("some words", StringComparison.Ordinal), "some words".Length, "some more words"));
 
-            StringAssert.Contains(editor.Markdown, "some more words");
+            StringAssert.Contains(editor.Document.ToString(), "some more words");
             Assert.IsTrue(editor.CanUndo, "it is a step, not another document");
 
             editor.Undo();
-            Assert.AreEqual(Doc, editor.Markdown);
+            Assert.AreEqual(Doc, editor.Document.ToString());
         }));
 
     [TestMethod]
@@ -35,18 +36,14 @@ public class EditsFromElsewhereTests
         UiThread.Run(() => MarkdownEditorHarness.Run(Doc, editor =>
         {
             var at = Doc.IndexOf("words", StringComparison.Ordinal);
-            var written = Doc;
 
             foreach (var key in "many ")
-            {
-                written = written.Insert(at++, key.ToString());
-                editor.TakeEdit(written);
-            }
+                editor.Write(ContentChange.Write(at++, 0, key.ToString()));
 
-            StringAssert.Contains(editor.Markdown, "some many words");
+            StringAssert.Contains(editor.Document.ToString(), "some many words");
 
             editor.Undo();
-            Assert.AreEqual(Doc, editor.Markdown, "typed in one place, taken back at once");
+            Assert.AreEqual(Doc, editor.Document.ToString(), "typed in one place, taken back at once");
         }));
 
     [TestMethod]
@@ -58,7 +55,7 @@ public class EditsFromElsewhereTests
             var second = editor.Found[editor.At].Start;
 
             var written = "A zebra written in above.\n\n" + Doc;
-            editor.TakeEdit(written);
+            editor.Write(ContentChange.Write(0, 0, "A zebra written in above.\n\n"));
 
             Assert.AreEqual(3, editor.Found.Count, "the one written in is found too");
             Assert.AreEqual(second + "A zebra written in above.\n\n".Length, editor.Found[editor.At].Start,
@@ -71,9 +68,9 @@ public class EditsFromElsewhereTests
         UiThread.Run(() => MarkdownEditorHarness.Run(Doc, editor =>
         {
             editor.Find("zebra");
-            editor.TakeEdit(Doc + "\nMore.\n");
+            editor.Write(ContentChange.Write(Doc.Length, 0, "\nMore.\n"));
 
-            editor.Markdown = "Another document altogether, with a zebra in it.\n";
+            editor.Document.Load("Another document altogether, with a zebra in it.\n");
             editor.UpdateLayout();
 
             Assert.AreEqual(0, editor.Found.Count, "nothing found in the last one is looked at in this one");

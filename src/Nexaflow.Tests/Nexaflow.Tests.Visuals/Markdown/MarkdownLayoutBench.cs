@@ -588,7 +588,7 @@ public partial class MarkdownLayoutBench
         var nothing = Heap();
         var tree = Laying.Read(null, text).Root.Node;
         var read = Heap();
-        var reading = ContentReading.Of(tree, 0, text);
+        var reading = ContentReading.Of(tree, 0, ContentDocument.Of(text));
         var positioned = Heap();
         var laid = Laying.Lay(null, text, Room, style, writing: true, inputs: inputs);
         var built = Heap();

@@ -50,7 +50,7 @@
                                            AutomationProperties.AutomationId="Code_Map"
                                            Margin="10,0,10,10"
                                            VerticalScrollBarVisibility="Auto"
-                                           Markdown="{Binding IntelligenceMarkdown}"/>
+                                           Document="{Binding IntelligenceMarkdown, Converter={x:Static md:AsEditedDocument.Instance}}"/>
             </Grid>
         </Border>
 

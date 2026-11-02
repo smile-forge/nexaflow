@@ -39,7 +39,7 @@ public class DocumentEditingTests
 
         foreach (var character in "**bold**") element.Type(character);
 
-        Assert.AreEqual(@"Some \*\*bold\*\*plain text here.", element.Source);
+        Assert.AreEqual(@"Some \*\*bold\*\*plain text here.", element.Document.ToString());
     });
 
     [TestMethod]
@@ -50,7 +50,7 @@ public class DocumentEditingTests
         element.Type('#');
         element.Type(' ');
 
-        Assert.AreEqual(@"\# words", element.Source, "the line is not a heading because a hash was typed at its start");
+        Assert.AreEqual(@"\# words", element.Document.ToString(), "the line is not a heading because a hash was typed at its start");
     });
 
     [TestMethod]
@@ -60,7 +60,7 @@ public class DocumentEditingTests
 
         foreach (var character in "_case") element.Type(character);
 
-        Assert.AreEqual("snake_case", element.Source);
+        Assert.AreEqual("snake_case", element.Document.ToString());
     });
 
     [TestMethod]
@@ -70,7 +70,7 @@ public class DocumentEditingTests
 
         element.Type('*');
 
-        Assert.AreEqual("```\nx*\n```\n", element.Source, "nothing inside code is read, so nothing needs writing behind a backslash");
+        Assert.AreEqual("```\nx*\n```\n", element.Document.ToString(), "nothing inside code is read, so nothing needs writing behind a backslash");
     });
 
     [TestMethod]
@@ -80,7 +80,7 @@ public class DocumentEditingTests
 
         Settle(element, "\n");
 
-        Assert.AreEqual("one\n\n two", element.Source);
+        Assert.AreEqual("one\n\n two", element.Document.ToString());
     });
 
     [TestMethod]
@@ -90,7 +90,7 @@ public class DocumentEditingTests
 
         Settle(element, "\n");
 
-        Assert.AreEqual("- one\n- \n", element.Source);
+        Assert.AreEqual("- one\n- \n", element.Document.ToString());
     });
 
     [TestMethod]
@@ -100,7 +100,7 @@ public class DocumentEditingTests
 
         Settle(element, "\n");
 
-        Assert.AreEqual("1. one\n2. \n", element.Source);
+        Assert.AreEqual("1. one\n2. \n", element.Document.ToString());
     });
 
     [TestMethod]
@@ -111,7 +111,7 @@ public class DocumentEditingTests
         Settle(element, "\n");
         Settle(element, "\n");
 
-        Assert.AreEqual("- one\n\n", element.Source);
+        Assert.AreEqual("- one\n\n", element.Document.ToString());
     });
 
     [TestMethod]
@@ -121,7 +121,7 @@ public class DocumentEditingTests
 
         element.Backspace();
 
-        Assert.AreEqual("onetwo", element.Source);
+        Assert.AreEqual("onetwo", element.Document.ToString());
     });
 
     // ── A formula in the document ───────────────────────────────────────────
@@ -134,13 +134,13 @@ public class DocumentEditingTests
 
         foreach (var character in @"\alpha") element.Type(character);
 
-        Assert.AreEqual("$$\nx\\alpha\n$$\n", element.Source, "a backslash is not written behind another inside maths");
+        Assert.AreEqual("$$\nx\\alpha\n$$\n", element.Document.ToString(), "a backslash is not written behind another inside maths");
         Assert.AreEqual((4, 6), element.ShownAsWritten, "the command is shown as it is spelled");
         Assert.IsFalse(Sourced(element), "and the formula around it is still set, not turned into its characters");
 
         Settle(element, " ");
 
-        Assert.AreEqual("$$\nx\\alpha \n$$\n", element.Source);
+        Assert.AreEqual("$$\nx\\alpha \n$$\n", element.Document.ToString());
         Assert.IsNull(element.ShownAsWritten, "a space ends the command");
     });
 
@@ -152,7 +152,7 @@ public class DocumentEditingTests
 
         element.Backspace();
 
-        Assert.AreEqual(source, element.Source, "past the start is the delimiter that says it is a formula");
+        Assert.AreEqual(source, element.Document.ToString(), "past the start is the delimiter that says it is a formula");
     });
 
     // ── A diagram in the document ───────────────────────────────────────────
@@ -166,7 +166,7 @@ public class DocumentEditingTests
 
         element.Type('"');
 
-        StringAssert.Contains(element.Source, "\"Dogs#quot;\" : 30");
+        StringAssert.Contains(element.Document.ToString(), "\"Dogs#quot;\" : 30");
     });
 
     // ── Reading the answers ─────────────────────────────────────────────────

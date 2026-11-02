@@ -37,7 +37,7 @@ public class FlowchartEditingTests : MermaidEditing
             StringAssert.Contains(diagram.Source, "loner", diagram.Source);
             StringAssert.Contains(diagram.Source, "subgraph inners", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count);
-            StringAssert.Contains(editor.Markdown, "Stores", "and so does the document");
+            StringAssert.Contains(editor.Document.ToString(), "Stores", "and so does the document");
         }));
 
     [TestMethod]

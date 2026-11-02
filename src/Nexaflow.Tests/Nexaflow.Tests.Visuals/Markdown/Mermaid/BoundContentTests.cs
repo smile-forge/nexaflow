@@ -159,7 +159,7 @@ public class BoundContentTests
             element.EndPointerSelect();
             element.Insert("x");
 
-            Assert.AreEqual(Grown, element.Source, "nobody wrote it here, so nobody writes in it here");
+            Assert.AreEqual(Grown, element.Document.ToString(), "nobody wrote it here, so nobody writes in it here");
         });
     }
 
@@ -174,7 +174,7 @@ public class BoundContentTests
             element.EndPointerSelect();
             element.Insert("x");
 
-            Assert.AreNotEqual(Grown, element.Source, "the diagram's own words are still the writer's");
+            Assert.AreNotEqual(Grown, element.Document.ToString(), "the diagram's own words are still the writer's");
         });
     }
 

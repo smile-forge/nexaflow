@@ -52,12 +52,6 @@ public sealed partial class ContentEngine
     private IReadOnlyDictionary<int, LayoutIntent> _cornerOffers = new Dictionary<int, LayoutIntent>();
     private LayoutRect? _showing;
 
-    /// <summary>
-    /// The content as it was read — the tree the laid layout was drawn from — so every question about what it is made of is
-    /// asked of that one reading. A paragraph that needed no piece of its own is still a paragraph in it.
-    /// </summary>
-    internal ContentPart ReadRoot => Reading?.Root ?? NothingRead;
-
     /// <summary>The buttons in the corner of the block the pointer is over, laid out where they stand — or null where it is over none that offers any.</summary>
     internal Laid? Corner => _corner;
 
@@ -67,6 +61,8 @@ public sealed partial class ContentEngine
         get => _showing;
         set
         {
+            // Told where the screen is, wherever it was being moved to has been reached.
+            ScreenMoving = false;
             if (_showing == value) return;
 
             _showing = value;
@@ -167,7 +163,7 @@ public sealed partial class ContentEngine
         if (piece.Exists && Blocked(piece.Sits().Start) is { } nearest && Holds(Where(nearest))) return nearest;
 
         // Content in one language is one block of it, and the whole of what was laid is that block.
-        if (_named is not null) return Holds(new LayoutRect(_laid.Size)) ? ReadRoot : null;
+        if (_named is not null) return Holds(new LayoutRect(_laid.Size)) ? Readings.FirstOrDefault() : null;
 
         foreach (var whole in LayoutQuery.ChildrenWhere(_laid.Root, (reach, _) => Holds(reach)))
         {
@@ -180,16 +176,11 @@ public sealed partial class ContentEngine
         return null;
     }
 
-    /// <summary>The block of the content an offset is in — the whole of it, where it is written in one language.</summary>
-    internal ContentPart? Blocked(int offset)
-    {
-        if (_named is not null) return ReadRoot;
-
-        var blocks = WrittenBlocks;
-        var at = Holding(blocks, offset);
-
-        return at < blocks.Count && blocks[at].Start <= offset ? blocks[at] : null;
-    }
+    /// <summary>
+    /// The written block <paramref name="offset"/> is in — the content itself, where it is content in one language — or null where it
+    /// is in none.
+    /// </summary>
+    internal ContentPart? Blocked(int offset) => _named is not null ? UnitHolding(offset) : WrittenAt(offset);
 
     /// <summary>
     /// The block after the one holding <paramref name="offset"/>, or null where none follows it. What a second
@@ -197,54 +188,19 @@ public sealed partial class ContentEngine
     /// </summary>
     internal ContentPart? BlockedAfter(int offset)
     {
-        if (_named is not null) return null;
+        if (_named is not null || WrittenAt(offset) is not { } holding) return null;
 
-        var blocks = WrittenBlocks;
-        var at = Holding(blocks, offset);
+        var seen = false;
 
-        return at + 1 < blocks.Count && blocks[at].Start <= offset ? blocks[at + 1] : null;
+        for (var at = Holding(holding.Start); at >= 0 && at < _shown!.Listed.Count; at++)
+            foreach (var block in PlacedAt(at) is { } reading ? Inside(reading) : [])
+            {
+                if (seen) return block;
+                seen = ReferenceEquals(block.Node, holding.Node);
+            }
+
+        return null;
     }
-
-    /// <summary>
-    /// The document's own blocks — what somebody wrote, not what was worked out about it nor the space between — in the order
-    /// written, taken from the reading as it stands. Kept for that reading, since the pointer asks which block it is over every
-    /// time it moves, and a long document has thousands.
-    /// </summary>
-    private IReadOnlyList<ContentPart> WrittenBlocks
-    {
-        get
-        {
-            var root = ReadRoot;
-            if (!ReferenceEquals(_writtenIn, root))
-                (_writtenBlocks, _writtenIn) = ([.. root.Children.Where(block => !block.Derived && block.Role != Roles.Trivia)], root);
-
-            return _writtenBlocks;
-        }
-    }
-
-    /// <summary>The blocks <see cref="WrittenBlocks"/> last gave, and the reading they were taken from.</summary>
-    private IReadOnlyList<ContentPart> _writtenBlocks = [];
-    private ContentPart? _writtenIn;
-
-    /// <summary>
-    /// Where among <paramref name="blocks"/> the first one ending past <paramref name="offset"/> is — the one holding it, where any
-    /// does — or their count where none ends past it. Found by halving: written blocks follow one another without overlapping, so
-    /// where they end is in order too.
-    /// </summary>
-    private static int Holding(IReadOnlyList<ContentPart> blocks, int offset)
-    {
-        var (low, high) = (0, blocks.Count);
-
-        while (low < high)
-        {
-            var middle = low + ((high - low) / 2);
-            if (blocks[middle].End <= offset) low = middle + 1;
-            else high = middle;
-        }
-
-        return low;
-    }
-
     /// <summary>
     /// Where a block came out: the whole of what it drew, from its top to its bottom and across as much of the page as it
     /// reaches — which is what a picture of the block is, and so is the block's own width and not the page's.
@@ -345,17 +301,20 @@ public sealed partial class ContentEngine
         {
             if (ContentLanguages.Held(at) is not { } language) continue;
 
-            var ask = new ContentAsk(ContentNested.Language(at)!, ContentNested.Own(at.Part(Roles.Body)!.Node)) { Part = block, IsReadOnly = _readOnly };
+            var ask = new ContentAsk(ContentNested.Language(at)!, _state.Document) { Part = block, IsReadOnly = _readOnly };
             return language.Editing.Corner(ask);
         }
 
         // Content in one language is one block of it.
         if (_named is { } named)
-            return Language(named).Editing.Corner(new ContentAsk(named, _state.Source) { Part = block, IsReadOnly = _readOnly });
+            return Language(named).Editing.Corner(new ContentAsk(named, _state.Document) { Part = block, IsReadOnly = _readOnly });
 
         // A heading of the document's own offers what its section can do, as markdown says.
-        if (Sectioned(block) is not null)
-            return Language(null).Editing.Corner(new ContentAsk(MarkdownParser.Language, _state.Source) { Part = block, Root = ReadRoot, IsReadOnly = _readOnly });
+        if (Headed(block) is { } section)
+            return Language(null).Editing.Corner(new ContentAsk(MarkdownParser.Language, _state.Document)
+            {
+                Part = block, Root = RootOf(block), Section = section, IsReadOnly = _readOnly,
+            });
 
         // Prose is read rather than handled: it is no picture to keep, and copying it is what selecting it is for.
         return BlockCorner.None;
@@ -516,7 +475,7 @@ public sealed partial class ContentEngine
         LayoutVerbs.Navigate => Followed(act),
 
         LayoutVerbs.Copy when act.Intent.Target is { Length: > 0 } what =>
-            this.Events?.OnCopy(MarkdownClipboard.Copied(what, null)) == true,
+            this.Events?.OnCopy(MarkdownClipboard.Copied(what)) == true,
 
         LayoutVerbs.Copy when act.Gesture == LayoutGesture.Click && act.Node is { } block =>
             this.Events?.OnCopy(CopyOf(block)) == true,
@@ -552,8 +511,8 @@ public sealed partial class ContentEngine
     {
         if (act.Intent.Target is not { Length: > 0 } key) return false;
 
-        // A section of the document, folded by the name its heading answers to: the document's own, not any block's.
-        if (Sectioned(act.Node) is not null)
+        // A section of the content's outline, folded by the name its heading answers to: the content's own, not any block's.
+        if (Headed(act.Node) is not null)
         {
             _sections.Expansion[key] = open;
             Relay();
@@ -572,15 +531,11 @@ public sealed partial class ContentEngine
 
         if (diagram is not null && Expand(diagram, key, open)) return true;
 
-        _unchanged.Forget(held => ReferenceEquals(held, block.Node));
+        Unkeep(held => ReferenceEquals(held, block.Node));
         Relay();
 
         return true;
     }
-
-    /// <summary>The heading of one of a markdown document's own sections, where <paramref name="part"/> is one; null otherwise.</summary>
-    private ContentPart? Sectioned(ContentPart? part) =>
-        _named is null && part is { Kind: MarkdownKinds.Heading, Parent.Parent: null } ? part : null;
 
     /// <summary>
     /// Opens every section of the document folded away over <paramref name="offset"/>, so what was asked for — a hit found, a
@@ -588,30 +543,15 @@ public sealed partial class ContentEngine
     /// </summary>
     internal bool Unfolded(int offset)
     {
-        if (_named is not null) return false;
-
-        var root = ReadRoot;
-        var at = -1;
-
-        for (var index = 0; index < root.Children.Count; index++)
-        {
-            var part = root.Children[index];
-            if (part.Derived || offset < part.Start || offset >= part.End) continue;
-
-            at = index;
-            break;
-        }
-
-        if (at < 0) return false;
+        if (PartHolding(offset) is not { } block) return false;
 
         var opened = false;
 
-        foreach (var section in MarkdownSections.Of(root.Node).All())
+        foreach (var section in _outline.Holding(block.Start))
         {
-            if (section.Anchor is not { } key || at <= section.Heading || at >= section.End) continue;
-            if (!_sections.Expansion.TryGetValue(key, out var open) || open) continue;
+            if (!_sections.Expansion.TryGetValue(section.Name, out var open) || open) continue;
 
-            _sections.Expansion[key] = true;
+            _sections.Expansion[section.Name] = true;
             opened = true;
         }
 

@@ -31,6 +31,12 @@ public sealed partial class ContentEngine
 
     private string? _named;
     private LayoutStyle _style = WpfStyles.Dark;
+
+    /// <summary>
+    /// What the content is shaped, measured and inked in as it is laid out — the one place the host's medium is named, so laying the content
+    /// out turns on nothing but the medium it is handed.
+    /// </summary>
+    private readonly ILayoutMedium _medium = WpfMedium.OnThisThread;
     private bool _readOnly;
     private double _laidFor;
 
@@ -72,10 +78,23 @@ public sealed partial class ContentEngine
         set => _readOnly = value;
     }
 
-    /// <summary>Starts writing <paramref name="source"/> afresh, with nothing laid for it yet.</summary>
-    internal void Start(string source)
+    /// <summary>
+    /// Starts writing <paramref name="source"/>, with nothing laid for it yet. Where the document held already says exactly that, or
+    /// nothing is said — a control made again for new colours, showing what was being written — it is taken up as it is, with what can
+    /// be taken back and whether it was saved; otherwise it is loaded in its place.
+    /// </summary>
+    internal void Start(string? source)
     {
-        _state = EditState.For(source);
+        if (source is not null && !this.EditedDocument.Current.HoldsExactly(source))
+        {
+            this.Taking(() =>
+            {
+                this.EditedDocument.Load(source);
+                return true;
+            });
+        }
+
+        _state = new EditState(this.EditedDocument.Current, this.EditedDocument.Current.Length);
         _at = -1;
 
         Begin();
@@ -124,7 +143,7 @@ public sealed partial class ContentEngine
             _revealed = null;
 
             var at = _laid.Root.CaretRect(shown);
-            if (!at.IsEmpty) Revealing?.Invoke(this, at);
+            if (!at.IsEmpty) Reveal(at);
         }
     }
 
@@ -147,14 +166,14 @@ public sealed partial class ContentEngine
             // The content as it is shown is laid as far as the reader has looked, where it is long enough to be shown a stretch at a
             // time. A picture of it — laid read-only, whatever it is shown as — is of the whole of it.
             var language = Language(_named);
-            if (readOnly is null && Windows(language, state.Source)) return Windowed(language, state, _style, Room, only);
+            if (readOnly is null && Windows(language, state.Document)) return Windowed(language, state, _style, Room, only);
             if (readOnly is null) Closed();
 
             return Lay(_named, state, _style, Room, only);
         }
         catch (Exception error)
         {
-            return Unreadable(state.Source, 0, Str.Format("Text.Content.CouldNotRead", error.Message), _style, only, Room);
+            return Unreadable(state.Document.ToString(), 0, Str.Format("Text.Content.CouldNotRead", error.Message), _style, only, Room);
         }
     }
 
@@ -173,17 +192,24 @@ public sealed partial class ContentEngine
 
         // A host that owns what is written may refuse it. Asked only where the words themselves would change: the caret moving, or
         // a stretch being shown as the characters it was written with, is not a change to what is written.
-        if (next.Source != _state.Source && this.Events?.OnBeforeChange(_state, next) == false) return;
+        if (!ReferenceEquals(next.Document, _state.Document) && this.Events?.OnBeforeChange(_state, next) == false) return;
 
         // What an edit leaves picked out as whole things is chosen as a press on them chooses them: no caret stands in it.
         if (next.Selected is WholeRanges) _chosenWhole = next.Selection;
 
         var before = _state;
-        var resized = next.Source != before.Source || next.Raw != before.Raw;
+        // A version is the same document or another one: comparing what two of them say would cost what the document holds, and
+        // every edit makes a new version while everything that writes nothing keeps the one it had.
+        var changed = !ReferenceEquals(next.Document, before.Document);
+        var resized = changed || next.Raw != before.Raw;
         var was = (before.Caret, _at);
-        var changed = next.Source != before.Source;
 
         _state = next;
+        if (changed)
+        {
+            _window?.Wrote(before.Document, next.Document);
+            _whole?.Wrote(before.Document, next.Document);
+        }
 
         // A caret, or what is picked out, gone past what a long document has laid yet is laid out to — which is how a search
         // found further down, a jump to the end or a line, and choosing everything all come to be on the page.
@@ -242,20 +268,19 @@ public sealed partial class ContentEngine
     /// </summary>
     private string? ShownBefore()
     {
-        if (_state.Raw is not { } zone || _history.Begun(_last, _state) is not { } begun) return null;
+        if (_state.Raw is not { } zone || History.Begun(_last, _state) is not var (begun, written)) return null;
 
-        var change = SourceDifference.Between(begun.Source, _state.Source);
-        if (change.None) return _state.Source[zone.Start..zone.End];
-        if (change.Start > zone.End || change.Start + change.Added < zone.Start) return null;
+        var (start, removed, added) = (written.Start, written.Length, written.Text.Length);
+        if (start > zone.End || start + added < zone.Start) return null;
 
         // Each end of the stretch where it stood before the step: as it is in front of what was written, moved back past it after it,
         // and at its start within it — a value begun after its colon was written with the space before it.
-        int Back(int at, bool end) => at <= change.Start ? at
-                                    : at >= change.Start + change.Added ? at - change.Added + change.Removed
-                                    : change.Start + (end ? change.Removed : 0);
+        int Back(int at, bool end) => at <= start ? at
+                                    : at >= start + added ? at - added + removed
+                                    : start + (end ? removed : 0);
 
         var (from, to) = (Back(zone.Start, end: false), Back(zone.End, end: true));
-        return from <= to && to <= begun.Source.Length ? begun.Source[from..to] : null;
+        return from <= to && to <= begun.Length ? begun.Slice(from, to - from) : null;
     }
 
     // ── The caret ───────────────────────────────────────────────────────────
@@ -320,7 +345,7 @@ public sealed partial class ContentEngine
 
     private int Snap(int offset)
     {
-        var clamped = Math.Clamp(offset, 0, _state.Source.Length);
+        var clamped = Math.Clamp(offset, 0, _state.Document.Length);
 
         // Inside the stretch being written every character is its own stop, so the caret goes exactly where it was put; the
         // settled content snaps to the places a caret may rest.
@@ -369,12 +394,16 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
-    /// Writes <paramref name="text"/> over a stretch exactly as it is given — what was written somewhere else, already in this
-    /// document's own characters, so nothing a language makes of a key typed here is made of it — as a step that can be taken
-    /// back, with the caret just after it, so the next one written there carries on the same step.
+    /// Writes <paramref name="change"/> exactly as it is given — what was written somewhere else, already in this document's own
+    /// characters, so nothing a language makes of a key typed here is made of it — as writing that can be taken back, with the caret
+    /// just after it, so the next one written there carries on the same step.
     /// </summary>
-    internal void WriteAsGiven(int start, int length, string text) =>
-        Apply((length > 0 ? _state.Select(start, length) : _state.MoveCaretTo(start)).Write(text).MoveCaretTo(start + text.Length), notify: true);
+    internal void WriteAsGiven(ContentChange change)
+    {
+        if (change.Writes.Count == 0) return;
+
+        Apply(_state.Made(change with { Caret = Wrote(change).End }), notify: true);
+    }
 
     /// <summary>
     /// Inserts text at the caret, replacing any selection — how a palette key types itself. <paramref name="caretBack"/> walks
@@ -465,7 +494,7 @@ public sealed partial class ContentEngine
         // Asked before the end of the source is: past the last thing written in a diagram is its end, and a delete handed back to
         // the document from there takes whatever the document has next.
         if (Edited(EditKind.Deleting, string.Empty, Landing) is { } erased) { Apply(erased, notify: true); return true; }
-        if (_state.Caret >= _state.Source.Length && !_state.HasSelection) return false;
+        if (_state.Caret >= _state.Document.Length && !_state.HasSelection) return false;
 
         Apply(_state.Delete(), notify: true);
         return true;
@@ -553,7 +582,7 @@ public sealed partial class ContentEngine
         var language = edit.Part is null ? null : ContentLanguages.WrittenIn(edit.Root);
         if (said.Writes.Any(write => write.Meant) && language is null) return false;
 
-        Apply(Made(_state, language is null ? said : Spelling(said, _state, language)), notify: true);
+        Apply(_state.Made(language is null ? said : Spelling(said, _state, language)), notify: true);
         return true;
     }
 
@@ -671,11 +700,9 @@ public sealed partial class ContentEngine
         // were never written here, so the place they would be dropped at is no offset of the source. Refused here and
         // the drawing stands as it was, which is what every other write does when it cannot be spelled — rather than
         // being handed on to be cut out of a source that is shorter than the cut.
-        if (change.Writes.Any(write => write.Start < 0 || write.End > _state.Source.Length)) return null;
+        if (change.Writes.Any(write => write.Start < 0 || write.End > _state.Document.Length)) return null;
 
-        var made = Made(_state, change);
-
-        return new Moved(made.Source, made.Caret, Wrote(change));
+        return new Moved(_state.Made(change), change, Wrote(change));
     }
 
     /// <summary>
@@ -703,7 +730,7 @@ public sealed partial class ContentEngine
         }
 
         var ranges = _state.Selection
-            .Where(range => range.Length > 0 && range.Start >= 0 && range.End <= _state.Source.Length)
+            .Where(range => range.Length > 0 && range.Start >= 0 && range.End <= _state.Document.Length)
             .OrderBy(range => range.Start)
             .ToList();
 
@@ -741,7 +768,7 @@ public sealed partial class ContentEngine
     {
         var (piece, part, root) = Reached(Landing, _dropOver);
 
-        if (part is null || !ReferenceEquals(root.Node, _carriedIn)
+        if (part is null || !Equals(ReadingOf(root.Node), _carriedIn)
             || ContentLanguages.WrittenIn(root) is not { } own || own.Editing.OnMove is not { } onMove) return null;
 
         return (onMove, new ContentMove([], to, Landing, piece, part, root) { Carry = carry, At = _dropPoint }, own);

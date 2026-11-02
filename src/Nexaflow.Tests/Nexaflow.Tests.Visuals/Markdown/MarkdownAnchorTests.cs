@@ -28,14 +28,14 @@ public class MarkdownAnchorTests
     [TestMethod]
     public void Headings_CarryGitHubStyleIds_ARepeatNumbered() => UiThread.Run(() =>
     {
-        var laid = Laying.Lay(null, Doc, 640, WpfStyles.Dark);
+        var (engine, laid) = Laying.LaidBy(null, Doc, 640, WpfStyles.Dark);
 
         foreach (var id in new[] { "intro", "opening-and-closing-help", "searching", "searching-1" })
-            Assert.IsTrue(MarkdownAnchors.Sought(laid, id).Exists, $"a heading answers to #{id}");
+            Assert.IsTrue(engine.Sought(laid, id).Exists, $"a heading answers to #{id}");
 
-        Assert.IsTrue(MarkdownAnchors.Sought(laid, "Searching").Exists, "an anchor matches whatever its case");
-        Assert.IsFalse(MarkdownAnchors.Sought(laid, "searching-2").Exists, "and there are only as many as were written");
-        Assert.IsFalse(MarkdownAnchors.Sought(laid, "nowhere").Exists);
+        Assert.IsTrue(engine.Sought(laid, "Searching").Exists, "an anchor matches whatever its case");
+        Assert.IsFalse(engine.Sought(laid, "searching-2").Exists, "and there are only as many as were written");
+        Assert.IsFalse(engine.Sought(laid, "nowhere").Exists);
     });
 
     [TestMethod]
@@ -45,7 +45,7 @@ public class MarkdownAnchorTests
         var view = new MarkdownSurface();
         view.LinkNavigate += (_, e) => { handed.Add(e.Url); e.Handled = true; };
 
-        view.Markdown = Doc;
+        view.Document.Load(Doc);
 
         Press(view, "Go to searching");
         Assert.AreEqual(0, handed.Count, "a bare #anchor means nothing outside the document");
@@ -78,7 +78,7 @@ public class MarkdownAnchorTests
         var view = new MarkdownSurface();
         view.LinkNavigate += (_, e) => { handed.Add(e.Url); e.Handled = true; };
 
-        view.Markdown = "```mermaid\nflowchart LR\n  a[\"Apples\"] --> b[\"Bananas\"]\n  click a href \"https://example.com/a\"\n```\n";
+        view.Document.Load("```mermaid\nflowchart LR\n  a[\"Apples\"] --> b[\"Bananas\"]\n  click a href \"https://example.com/a\"\n```\n");
 
         Press(view, "Bananas");
         Assert.AreEqual(0, handed.Count, "a node no click line names leads nowhere");
@@ -92,7 +92,7 @@ public class MarkdownAnchorTests
     {
         var view = new MarkdownSurface { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
 
-        view.Markdown = Doc;
+        view.Document.Load(Doc);
 
         Assert.IsTrue(view.ScrollToAnchor("opening-and-closing-help"));
         Assert.IsTrue(view.ScrollToAnchor("Opening-And-Closing-Help"), "an anchor matches whatever its case");
@@ -122,7 +122,7 @@ public class MarkdownAnchorTests
         var view = new MarkdownSurface();
         view.LinkNavigate += (_, e) => { handed.Add(e.Url); e.Handled = true; };
 
-        view.Markdown = "[notes](notes.md)\n";
+        view.Document.Load("[notes](notes.md)\n");
         Press(view, "notes");
 
         Assert.AreEqual(0, handed.Count, "nothing to navigate to, so nothing is handed to the host");

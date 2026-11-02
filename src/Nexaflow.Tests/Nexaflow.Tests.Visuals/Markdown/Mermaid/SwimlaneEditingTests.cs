@@ -42,7 +42,7 @@ public class SwimlaneEditingTests : MermaidEditing
             StringAssert.Contains(diagram.Source, "-- sent! -->", diagram.Source);
             StringAssert.Contains(diagram.Source, "reviewed", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count);
-            StringAssert.Contains(editor.Markdown, "Sales team", "and so does the document");
+            StringAssert.Contains(editor.Document.ToString(), "Sales team", "and so does the document");
         }));
 
     [TestMethod]

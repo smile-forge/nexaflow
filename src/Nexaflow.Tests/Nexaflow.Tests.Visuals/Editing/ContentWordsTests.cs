@@ -43,11 +43,11 @@ public class ContentWordsTests
     {
         var written = state.Raw is { } zone && zone.Start == Number.Start && zone.End == Number.End();
         var number = written
-            ? state.Source[Number.Start..Number.End()]
-            : double.Parse(state.Source[Number.Start..Number.End()], CultureInfo.InvariantCulture).ToString("0.00", CultureInfo.InvariantCulture);
+            ? state.Document.ToString()[Number.Start..Number.End()]
+            : double.Parse(state.Document.ToString()[Number.Start..Number.End()], CultureInfo.InvariantCulture).ToString("0.00", CultureInfo.InvariantCulture);
 
         var build = new LayoutBuilder(WpfMedium.OnThisThread);
-        build.Open("row", new SourceSpan(0, state.Source.Length));
+        build.Open("row", new SourceSpan(0, state.Document.ToString().Length));
 
         // A formatted view of its own source: pressing it shows what was written, which is what `writes` says.
         LayoutText.Words(build, Set(number), default, 400, LayoutAlign.Left, Number, "value", written, writes: true);

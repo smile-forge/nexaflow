@@ -34,7 +34,7 @@ public class BlockEditingTests : MermaidEditing
             StringAssert.Contains(diagram.Source, "-- \"feeds!\" -->", diagram.Source);
             StringAssert.Contains(diagram.Source, "loner", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count);
-            StringAssert.Contains(editor.Markdown, "Stores", "and so does the document");
+            StringAssert.Contains(editor.Document.ToString(), "Stores", "and so does the document");
         }));
 
     [TestMethod]
@@ -57,7 +57,7 @@ public class BlockEditingTests : MermaidEditing
             PressPast(diagram, "store");
             Write(editor, "s");
 
-            StringAssert.Contains(editor.Markdown, "space stores", editor.Markdown);
-            StringAssert.Contains(editor.Markdown, "--> stores", "the link names the block it named: " + editor.Markdown);
+            StringAssert.Contains(editor.Document.ToString(), "space stores", editor.Document.ToString());
+            StringAssert.Contains(editor.Document.ToString(), "--> stores", "the link names the block it named: " + editor.Document.ToString());
         }));
 }

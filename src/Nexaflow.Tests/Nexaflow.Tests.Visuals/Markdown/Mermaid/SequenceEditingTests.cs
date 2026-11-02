@@ -27,7 +27,7 @@ public class SequenceEditingTests : MermaidEditing
             StringAssert.Contains(diagram.Source, ": Hello John", diagram.Source);
             StringAssert.Contains(diagram.Source, ": they meet again", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count);
-            StringAssert.Contains(editor.Markdown, ": Hello John", "and so does the document");
+            StringAssert.Contains(editor.Document.ToString(), ": Hello John", "and so does the document");
         }));
 
     [TestMethod]
@@ -62,8 +62,8 @@ public class SequenceEditingTests : MermaidEditing
             PressPast(diagram, "Alice");
             Write(editor, "s");
 
-            StringAssert.Contains(editor.Markdown, "participant Alices", editor.Markdown);
-            StringAssert.Contains(editor.Markdown, "Alices->>John", "the message names the participant it named: " + editor.Markdown);
-            StringAssert.Contains(editor.Markdown, "Note over Alices,John", "and so does the note: " + editor.Markdown);
+            StringAssert.Contains(editor.Document.ToString(), "participant Alices", editor.Document.ToString());
+            StringAssert.Contains(editor.Document.ToString(), "Alices->>John", "the message names the participant it named: " + editor.Document.ToString());
+            StringAssert.Contains(editor.Document.ToString(), "Note over Alices,John", "and so does the note: " + editor.Document.ToString());
         }));
 }

@@ -45,9 +45,9 @@ public class ContentFromABuilderAloneTests
         tune.TakeCaret(0);
         Assert.IsTrue(tune.HasCaret);
 
-        var was = tune.Source;
+        var was = tune.Document.ToString();
         tune.Type('G');
-        Assert.AreNotEqual(was, tune.Source, "a note typed into the tune reached its source");
+        Assert.AreNotEqual(was, tune.Document.ToString(), "a note typed into the tune reached its source");
         Assert.IsTrue(tune.MoveCaret(forward: true), "and the arrow walks the places the engraver declared");
     });
 
@@ -63,7 +63,7 @@ public class ContentFromABuilderAloneTests
         barcode.TakeCaret(source.IndexOf("HELLO123", System.StringComparison.Ordinal));
         barcode.Type('9');
 
-        Assert.AreEqual("format: CODE128\nvalue: 9HELLO123", barcode.Source, "what was typed went into the value, where it was typed");
+        Assert.AreEqual("format: CODE128\nvalue: 9HELLO123", barcode.Document.ToString(), "what was typed went into the value, where it was typed");
         Assert.IsTrue(barcode.MoveCaret(forward: true));
     });
 
@@ -89,6 +89,6 @@ public class ContentFromABuilderAloneTests
         barcode.TakeCaret(source.Length);
         barcode.Type('9');
 
-        Assert.AreEqual("format: CODE128\nvalue:9", barcode.Source, "what was typed is the value");
+        Assert.AreEqual("format: CODE128\nvalue:9", barcode.Document.ToString(), "what was typed is the value");
     });
 }

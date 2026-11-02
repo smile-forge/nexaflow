@@ -80,7 +80,7 @@ public class RadarEditingTests
             Write(editor, "X");
 
             StringAssert.Contains(radar.Source, "axis ui[\"UIX\"], api", radar.Source);
-            StringAssert.Contains(editor.Markdown, "axis ui[\"UIX\"]", "and so does the document");
+            StringAssert.Contains(editor.Document.ToString(), "axis ui[\"UIX\"]", "and so does the document");
         }));
 
     [TestMethod]
