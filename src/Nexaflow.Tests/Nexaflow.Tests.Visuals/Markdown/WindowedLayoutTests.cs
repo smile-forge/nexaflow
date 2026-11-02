@@ -216,6 +216,88 @@ public class WindowedLayoutTests
         Assert.AreEqual(Whole(text, NoGrammar).Size.Height, engine.Laid.Size.Height, 1e-6, "Code's lines say how tall it is, laid or not.");
     }
 
+    [TestMethod]
+    [CoversNode("windowed-reading")]
+    public void LongCode_LaysOnlyTheLinesTheScreenReaches_OfAUnitThousandsOfLinesLong()
+    {
+        var text = MarkdownLayoutBench.GeneratedCode(400 * 1024);
+        var engine = Shown(text, NoGrammar, new ContentEngine());
+
+        Assert.IsTrue(engine.ReadingRest.Wait(Patience), "The rest was never read.");
+        engine.Relay();
+
+        // A unit is a stretch of 32 KB, a thousand lines and more; a screen and a screen either side of it is a few hundred.
+        var laid = CodeLines(engine.Laid).Count;
+        Assert.IsTrue(laid > 0 && laid < 400, $"Laid {laid} lines for the first screen.");
+        Assert.AreEqual(Whole(text, NoGrammar).Size.Height, engine.Laid.Size.Height, 1e-6, "Laid in part, it stands as tall as all of it.");
+    }
+
+    [TestMethod]
+    [CoversNode("windowed-reading")]
+    public void ScrollingWithinAUnitOfCode_LaysWhatComesOnScreen_AndSetsDownEveryLineLaidAsItWas()
+    {
+        var text = MarkdownLayoutBench.GeneratedCode(400 * 1024);
+    var engine = Shown(text, NoGrammar, new ContentEngine());
+
+        // Further down the first unit, past every line laid for the first screen.
+        var line = text.IndexOf('\n', 24 * 1024) + 1;
+        Assert.IsNotNull(engine.UnlaidTop(line), "It was laid already.");
+
+        var top = engine.Laid.Size.Height * line / text.Length;
+        engine.OnScreen = new LayoutRect(0, top - 200, Room, 400);
+        for (var pass = 0; pass < 20; pass++) engine.Relay();
+
+        Assert.IsNull(engine.UnlaidTop(line), "What came on screen was never laid.");
+
+        var before = CodeLines(engine.Laid);
+        Assert.IsTrue(before.Count < 400, $"Laid {before.Count} lines for a screen and a screen either side.");
+
+        // Half a screen further: every line laid that the screen still reaches is set down as it was laid.
+        engine.OnScreen = new LayoutRect(0, top, Room, 400);
+        for (var pass = 0; pass < 20; pass++) engine.Relay();
+
+        var after = CodeLines(engine.Laid);
+        Assert.IsTrue(after.Count(laid => before.Contains(laid)) > before.Count * 3 / 4, "The lines laid before that the screen still reaches were laid again.");
+    }
+
+    [TestMethod]
+    [CoversNode("windowed-reading")]
+    public void ACaretSentToALineOfAUnitNotLaidThere_IsLaidThere_AndThenBroughtOntoThePage()
+    {
+        var text = MarkdownLayoutBench.GeneratedCode(400 * 1024);
+        var engine = Shown(text, NoGrammar, new ContentEngine());
+        var brought = new List<LayoutRect>();
+        engine.Revealing += (_, at) => brought.Add(at);
+
+        // In the first unit, which is laid, on a line it did not lay.
+        var far = text.IndexOf('\n', 24 * 1024) + 1;
+        Assert.IsNotNull(engine.UnlaidTop(far), "It was laid already.");
+
+        engine.Apply(engine.State.MoveCaretTo(far), notify: false);
+        for (var pass = 0; pass < 100 && brought.Count == 0; pass++) engine.Relay();
+
+        Assert.AreEqual(1, brought.Count, "It was never brought onto the page.");
+        Assert.AreEqual(engine.Laid.Root.CaretRect(far), brought[0]);
+    }
+
+    /// <summary>The trees every line of code was laid as, as <paramref name="laid"/> puts them down, at any depth.</summary>
+    private static List<LayoutTree> CodeLines(Laid laid)
+    {
+        var lines = new List<LayoutTree>();
+        Gathered(laid.Tree);
+
+        return lines;
+
+        void Gathered(LayoutTree tree)
+        {
+            foreach (var (_, mount) in tree.Mounts)
+            {
+                if (mount.Tree.Root.Kind == CodeKinds.Line) lines.Add(mount.Tree);
+                else Gathered(mount.Tree);
+            }
+        }
+    }
+
     /// <summary>Code in a language no grammar reads: drawn as written, so no slower reading lands to colour it.</summary>
     private const string NoGrammar = "no-grammar-code";
 

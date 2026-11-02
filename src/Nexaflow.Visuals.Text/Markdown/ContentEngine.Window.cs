@@ -338,15 +338,18 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
-    /// Whether what stands at <paramref name="offset"/> is laid: the unit of <paramref name="window"/> holding it, and — inside a body on the
-    /// page read a stretch at a time — the unit of the body holding it, at every depth.
+    /// Whether what stands at <paramref name="offset"/> is laid: the unit of <paramref name="window"/> holding it, and the part of that unit
+    /// holding it where only part was laid — and, inside a body on the page read a stretch at a time, the unit of the body holding it, at
+    /// every depth.
     /// </summary>
     private bool LaidAt(ContentWindow window, int offset)
     {
-        if (Holding(window, offset) is not (>= 0 and var at) || at >= window.Standing.Length || !window.Standing[at]) return false;
+        if (Holding(window, offset) is not (>= 0 and var at) || at >= window.Standing.Length || !window.Standing[at] || !LaidHolds(window, at, offset))
+            return false;
 
         foreach (var body in _onPage)
-            if (OwnIn(body, offset) is { } own && (Holding(body, own) is not (>= 0 and var held) || held >= body.Standing.Length || !body.Standing[held]))
+            if (OwnIn(body, offset) is { } own
+                && (Holding(body, own) is not (>= 0 and var held) || held >= body.Standing.Length || !body.Standing[held] || !LaidHolds(body, held, offset)))
                 return false;
 
         return true;
@@ -521,7 +524,7 @@ public sealed partial class ContentEngine
 
     /// <summary>
     /// Where on the page what stands at <paramref name="offset"/> would come, going by where the unit holding it stands — for what a
-    /// long document has not laid; null where it is laid, or the content is laid whole.
+    /// long document has not laid, a unit or the part of one; null where it is laid, or the content is laid whole.
     /// </summary>
     internal double? UnlaidTop(int offset)
     {
@@ -532,7 +535,7 @@ public sealed partial class ContentEngine
         if (Holding(window, offset) is not (>= 0 and var at))
             return tops[^1] + ((offset - window.Units.Reached) * (window.PerCharacter > 0 ? window.PerCharacter : Unsaid(_style, Room)));
 
-        if (window.Standing[at]) return null;
+        if (window.Standing[at] && LaidHolds(window, at, offset)) return null;
 
         var (unit, start) = window.Listed[at];
 

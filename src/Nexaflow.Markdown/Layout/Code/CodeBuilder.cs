@@ -38,6 +38,10 @@ public sealed class CodeBuilder(ContentReading reading, EditState state, LayoutS
         // A stretch the next carries on from ends where the next begins, which stands for that place: a caret is not put after it too.
         var carriedOn = CodeSetting.CarriedOn(Reading.Root.Node);
 
+        // Where the host asks for only what the reader reaches, only the lines there are laid, and room is left for every other.
+        var asked = ReaderReach;
+        var stretches = asked is null ? null : new List<(int Start, int End)>();
+
         var into = new LayoutBuilder(Medium, Reading.Root.Children.Count + 1);
         var (y, wide) = (0.0, 0.0);
 
@@ -48,18 +52,45 @@ public sealed class CodeBuilder(ContentReading reading, EditState state, LayoutS
             var line = Reading.Root.Children[at];
             if (line.Kind != CodeKinds.Line) continue;
 
-            var (mount, reach) = this.Line(line, laid?.For(at), height);
-            into.Mount(mount, new LayoutPoint(0, y));
+            if (asked is null || Reaches(asked, line, y, y + height))
+            {
+                var (mount, reach) = this.Line(line, laid?.For(at), height);
+                into.Mount(mount, new LayoutPoint(0, y));
+                wide = Math.Max(wide, reach);
 
-            wide = Math.Max(wide, reach);
+                if (stretches is not null)
+                {
+                    if (stretches.Count > 0 && stretches[^1].End == line.Start) stretches[^1] = (stretches[^1].Start, line.End);
+                    else stretches.Add((line.Start, line.End));
+                }
+            }
+
             if (line.Children.Count > 0 && line.Children[^1].Kind == CodeKinds.LineEnd) y += height;
         }
 
-        into.Close();
-
         // The line after the last line end is a line of its own — where a caret goes after a closing line feed — unless the next
         // stretch carries on from this one, whose first line it is.
-        return new Laid(into.Seal(), Math.Max(wide, 1), Math.Max(carriedOn ? y : y + height, height), []);
+        var tall = Math.Max(carriedOn ? y : y + height, height);
+
+
+
+        into.Close();
+
+        return new Laid(into.Seal(), Math.Max(wide, 1), tall, [])
+        {
+            Reached = asked is null ? null : new LayoutReached(asked.Top, asked.Bottom, stretches!),
+        };
+    }
+
+    /// <summary>Whether <paramref name="line"/>, standing from <paramref name="top"/> to <paramref name="bottom"/>, is what <paramref name="asked"/> reaches: on it, or holding one of its places.</summary>
+    private static bool Reaches(LayoutReach asked, ContentPart line, double top, double bottom)
+    {
+        if (top < asked.Bottom && bottom > asked.Top) return true;
+
+        foreach (var place in asked.Places)
+            if (place >= line.Start && place <= line.End) return true;
+
+        return false;
     }
 
     /// <summary>

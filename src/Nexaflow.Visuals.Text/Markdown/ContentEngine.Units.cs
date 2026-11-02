@@ -302,11 +302,15 @@ public sealed partial class ContentEngine
     /// </summary>
     private Laid Composed(ContentWindow window, ContentLanguage language, ContentShowing showing, double room, bool readOnly, Keeping holding,
                           LayoutStanding standingAs, IReadOnlyCollection<int> wanted,
-                          int unread)
+                          int unread, double[] before)
     {
         foreach (var index in wanted)
         {
-            if (!this.Shows(window, index) || this.Standing(window, index, showing, room, readOnly) is not null) continue;
+            if (!this.Shows(window, index)) continue;
+
+            // Laid again where its laying does not stand, or stands for less of it than the reader now reaches.
+            var reaches = this.ReachOf(window, index, before);
+            if (this.Standing(window, index, showing, room, readOnly) is { } standing && Covered(window, index, standing, reaches)) continue;
 
             var (unit, start) = window.Listed[index];
             var staged = window.Staged[unit.Tree];
@@ -319,9 +323,10 @@ public sealed partial class ContentEngine
             try
             {
                 Func<ContentPart, LayoutFold>? folds = window.Placing is null ? Folding : null;
-                staged.Laid = new LaidUnit(Builder(language, reading, Building(window, showing), standingAs, holding, folds).Lay(room), Where(window, start),
-                                                                      reading.Root, room, readOnly, this.Folds(window, start, unit.Width));
-                                           staged.LaidStale = false;
+                var made = Builder(language, reading, Building(window, showing), standingAs, holding, folds, reaches).Lay(room);
+
+                staged.Laid = new LaidUnit(made, Where(window, start), reading.Root, room, readOnly, this.Folds(window, start, unit.Width));
+                staged.LaidStale = false;
             }
             finally
             {
@@ -330,7 +335,13 @@ public sealed partial class ContentEngine
         }
 
         var (tops, laid, perCharacter) = this.Placed(window, language, showing, room, readOnly);
-        (window.Tops, window.Standing, window.PerCharacter) = (tops, [.. laid.Select(standing => standing is not null)], perCharacter);
+        // A unit stands laid where its laying stands for what the reader reaches of it — so laying again where they come to more of it.
+        var covered = new bool[laid.Length];
+        for (var index = 0; index < laid.Length; index++)
+            covered[index] = laid[index] is { } standing
+                             && Covered(window, index, standing, standing.Laid.Reached is null ? null : this.ReachOf(window, index, tops));
+
+        (window.Tops, window.Standing, window.PerCharacter) = (tops, covered, perCharacter);
 
         if (window.Listed.Count == 1 && unread == 0 && laid[0] is { } only && only.Start == Where(window, window.Listed[0].Start)) return only.Laid;
 
@@ -368,6 +379,55 @@ public sealed partial class ContentEngine
 
         return new Laid(into.Seal(), Math.Max(reach, 1), Math.Max(tops[^1] + (unread * perCharacter), 1), trouble);
     }
+
+    /// <summary>
+    /// What of the unit at <paramref name="index"/> of <paramref name="window"/>, standing where <paramref name="tops"/> puts it, the reader
+    /// reaches — the screen and a screen either side of it, in the unit's own frame, and the caret, each end of what is picked out and where
+    /// the reader went, where they are in it — or null where all of it is to be laid, as where the content is laid whole.
+    /// </summary>
+    private LayoutReach? ReachOf(ContentWindow window, int index, double[] tops)
+    {
+        if (!_windowing) return null;
+
+        // A body not yet found on the page is laid from its start, as much of it as a screen either side would reach.
+        var (from, to) = this.Reach();
+        var (top, bottom) = window.Placing is null ? (from, to)
+                          : window.PageTop is { } stood ? (from - stood, to - stood)
+                          : (0.0, Math.Max(_showing?.Height ?? Room, 1) * 2);
+
+        var (unit, start) = window.Listed[index];
+        var (begins, ends) = (Where(window, start), Where(window, start + unit.Width));
+        var places = new List<int>();
+
+        void Place(int offset)
+        {
+            if (offset >= begins && offset <= ends) places.Add(offset);
+        }
+
+        Place(_state.Caret);
+        foreach (var range in _state.Selection)
+        {
+            Place(range.Start);
+            Place(range.End);
+        }
+
+        if (_reveal is { } target) Place(target);
+
+        return new LayoutReach(top - tops[index], bottom - tops[index], places);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="standing"/>, the laying of the unit at <paramref name="index"/> of <paramref name="window"/>, lays what
+    /// <paramref name="reach"/> asks of it: all of it laid, or the part laid holding all that is asked — none of it, where all is asked.
+    /// </summary>
+    private static bool Covered(ContentWindow window, int index, LaidUnit standing, LayoutReach? reach) =>
+        standing.Laid.Reached is not { } reached
+        || (reach is not null && reached.Covers(reach, standing.Laid.Height, Where(window, window.Listed[index].Start) - standing.Start));
+
+    /// <summary>Whether the laying of the unit at <paramref name="index"/> of <paramref name="window"/> laid what stands at <paramref name="offset"/>: all of it, or the part holding it.</summary>
+    private static bool LaidHolds(ContentWindow window, int index, int offset) =>
+        window.Staged.TryGetValue(window.Listed[index].Unit.Tree, out var staged) && staged.Laid is { } laid
+        && (laid.Laid.Reached is not { } reached || reached.Holds(offset - (Where(window, window.Listed[index].Start) - laid.Start)));
 
     /// <summary>
     /// A reading of the unit <paramref name="staged"/>, starting at <paramref name="start"/> among <paramref name="window"/>'s own characters,
@@ -425,7 +485,8 @@ public sealed partial class ContentEngine
                         LayoutStanding standingAs, Func<double[], IReadOnlyCollection<int>> wanted, int unread)
     {
         // A unit a slower reading landed for is laid again where it is wanted, as the rest are: what is laid follows the screen.
-        var asked = new SortedSet<int>(wanted(this.Placed(window, language, showing, room, readOnly).Tops));
+    var before = this.Placed(window, language, showing, room, readOnly).Tops;
+        var asked = new SortedSet<int>(wanted(before));
 
         this.Stage(window, language, asked, showing);
 
@@ -436,7 +497,7 @@ public sealed partial class ContentEngine
             Fold();
         }
 
-        return this.Composed(window, language, showing, room, readOnly, holding, standingAs, asked, unread);
+        return this.Composed(window, language, showing, room, readOnly, holding, standingAs, asked, unread, before);
     }
 
     /// <summary>

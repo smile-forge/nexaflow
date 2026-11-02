@@ -37,6 +37,12 @@ public sealed record Laid(LayoutTree Tree, double Width, double Height, IReadOnl
     /// </summary>
     public (ContentPart? First, ContentPart? Last) Ends { get; init; }
 
+    /// <summary>
+    /// What of it was laid, where its builder was asked for part of it and laid only that (<see cref="LayoutHost.Reach"/>), standing as tall
+    /// as all of it — null where all of it was laid.
+    /// </summary>
+    public LayoutReached? Reached { get; init; }
+
     /// <summary>Whether anything was laid out.</summary>
     public bool Exists => Tree.Count > 0;
 

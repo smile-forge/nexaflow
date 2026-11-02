@@ -215,13 +215,13 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// whether it is only looked at, what it is laid out in, and what hosts it.
     /// </summary>
     private ContentBuilder Builder(ContentLanguage language, ContentReading reading, ContentShowing showing, LayoutStanding standing,
-                                   Keeping holding, Func<ContentPart, LayoutFold>? folds = null)
+                                   Keeping holding, Func<ContentPart, LayoutFold>? folds = null, LayoutReach? reach = null)
     {
         var readOnly = !(language.Writable && showing.Writing);
 
         return Makers.GetOrAdd(language.Builder, Maker)(
             reading, EditState.For(reading.Document) with { Raw = showing.Shown }, showing.Style, readOnly, _medium,
-            Hosting(showing, standing, writing: !readOnly, holding, folds));
+            Hosting(showing, standing, writing: !readOnly, holding, folds) with { Reach = reach });
     }
 
     /// <summary>

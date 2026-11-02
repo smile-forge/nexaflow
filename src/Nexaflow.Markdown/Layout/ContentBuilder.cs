@@ -34,6 +34,13 @@ public sealed record LayoutHost(LayoutStanding Standing, LayoutNesting Nesting)
     /// one — as the outline of what the host shows says (<see cref="ContentOutline"/>); nothing, for content laid inside another.
     /// </summary>
     public Func<ContentPart, LayoutFold> Folds { get; init; } = static _ => default;
+
+    /// <summary>
+    /// What of the content's height the reader reaches, and the places in it that must stand laid besides, for a builder that can lay part
+    /// of what it reads and leave room for the rest — null where all of it is to be laid. A builder that heeds it says what it laid
+    /// (<see cref="Laid.Reached"/>).
+    /// </summary>
+    public LayoutReach? Reach { get; init; }
 }
 
 /// <summary>
@@ -126,6 +133,9 @@ public abstract class ContentBuilder
     /// where a line breaks is a layout decision and only what measures the text can make it.
     /// </summary>
     protected double Room { get; private set; } = double.PositiveInfinity;
+
+    /// <summary>What of the content the reader reaches, where the host asks for only that much to be laid (<see cref="LayoutHost.Reach"/>) — null where it asks for all of it.</summary>
+    protected LayoutReach? ReaderReach => _host.Reach;
 
     /// <summary>Lays the source out. Never null, and never throws.</summary>
     public Laid Lay(double room = double.PositiveInfinity)

@@ -185,7 +185,13 @@ code is laid line by line and nothing wraps; what the code means never turns on 
 line is a block of its own (`CodeKinds.Line`), so a line reading as it did — the same characters coloured the same — is
 set down as it was laid (`WithUnchanged`, `LaidBlocks`), and a keystroke lays the line it was typed on. Each line is laid as
 a tree of its own, its picture kept once painted, and put down in the unit's by a mount (`LayoutMount`), so a line kept
-costs one piece whatever it holds, and what it stands for is found again only when asked. A line is coloured
+costs one piece whatever it holds, and what it stands for is found again only when asked. Where the content is laid where
+the reader is, a unit lays only the lines the reader reaches (`LayoutHost.Reach`): the screen and a screen either side of
+it, and the lines holding the caret, each end of what is picked out and wherever the reader went — every other line leaving
+the room it takes, so the unit stands as tall as all of it. What it laid it says (`Laid.Reached`); a unit stands laid only
+for a reach that laying covers, and is laid again, every line already laid set down as it was, when the reader comes to
+more of it — so landing anywhere in a unit thousands of lines long lays a screenful of them. A builder that cannot lay part
+of what it reads lays all of it, as every builder but code's does. A line is coloured
 and cut in one pass (`CodeParser.InLines`), and one said and coloured as a line the reading was cut into before is that
 line again (`CodeLinePool`), moved along where it now stands — so colours landing for a unit make only the lines they
 changed, and a block kept is hashed once (`WithUnchanged` keeps what each node it asked about came to).
