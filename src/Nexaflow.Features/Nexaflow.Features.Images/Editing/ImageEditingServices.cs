@@ -43,11 +43,13 @@ public sealed class ImageEditingServices : IDisposable
         Metadata = new MetadataTransfer([jpeg, png, webp, new TiffMetadata()], [jpeg, png, webp]);
 
         var skia = new SkiaImageDecoder();
-        Decoders    = new ImageDecoders([skia, new OpenRasterDecoder(skia), new WicImageDecoder()]);
-        LayeredFormats = [new OpenRasterFormat(vfs)];
+        Markup      = new MarkupPainter();
+        Decoders    = new ImageDecoders([skia, new OpenRasterDecoder(skia), new PhotoshopDecoder(Markup), new WicImageDecoder()]);
+        // The pictures a Photoshop file's picture layers show are kept in the cache, where the layers read them.
+        var photoshopSources = KeptFiles.CacheFolder("photoshop-sources");
+        LayeredFormats = [new OpenRasterFormat(vfs), new PhotoshopFormat(vfs, large: false, photoshopSources), new PhotoshopFormat(vfs, large: true, photoshopSources)];
         Encoders    = new ImageEncoders([new SkiaImageEncoder(Metadata), new TiffImageEncoder(), new WicImageEncoder()]);
         Adjustments = new AdjustmentFilter();
-        Markup      = new MarkupPainter();
         Recipes     = recipes;
         Exporter    = new ImageExporter(this);
     }

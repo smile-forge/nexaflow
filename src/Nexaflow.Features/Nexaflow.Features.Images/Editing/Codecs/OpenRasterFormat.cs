@@ -186,11 +186,11 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
             {
                 Used.Add(source);
                 var coverages = new Dictionary<string, TiledCoverage?>(StringComparer.Ordinal);
-                foreach (var file in CoverageFiles(recipe)) coverages[file] = await CoverageOfAsync(file);
+                foreach (var file in RecipeRegionFiles.CoverageFiles(recipe)) coverages[file] = await CoverageOfAsync(file);
                 return new PictureLayer
                 {
                     Source = new PictureSource(OpenRasterPackage.EntryPath(package, source), null),
-                    Recipe = WithCoverages(recipe, file => coverages.GetValueOrDefault(file)),
+                    Recipe = RecipeRegionFiles.WithCoverages(recipe, file => coverages.GetValueOrDefault(file)),
                     Placement = PlacementOf(Own(entry.Kept, "placement")) ?? LayerPlacement.At(entry.X, entry.Y),
                 };
             }
@@ -210,14 +210,7 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
         private async Task<TiledCoverage?> CoverageOfAsync(string file)
         {
             if (await BytesAsync(file) is not { } png) return null;
-            using var decoded = SKBitmap.Decode(png);
-            if (decoded is null) return null;
-            using var grey = decoded.ColorType == SKColorType.Gray8 ? null : decoded.Copy(SKColorType.Gray8);
-            var source = grey ?? decoded;
-            var bytes = new byte[source.Width * source.Height];
-            var origin = source.GetPixels();
-            for (int y = 0; y < source.Height; y++) Marshal.Copy(origin + y * source.RowBytes, bytes, y * source.Width, source.Width);
-            return TiledCoverage.FromBytes(bytes, source.Width, source.Height);
+            return RecipeRegionFiles.CoverageOf(png);
         }
 
         private ValueTask<bool> ExistsAsync(string file) => format.FileSystem.ExistsAsync(OpenRasterPackage.EntryPath(package, file), ct);
@@ -228,18 +221,6 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
             Used.Add(file);
             return await format.FileSystem.ReadAllBytesAsync(OpenRasterPackage.EntryPath(package, file), ct);
         }
-    }
-
-    /// <summary>The files the coverages of a recipe's regions are kept in.</summary>
-    private static IEnumerable<string> CoverageFiles(ImageRecipe recipe)
-    {
-        var files = new List<string>();
-        MapRegions(recipe, step =>
-        {
-            if (step.File.Length > 0) files.Add(step.File);
-            return step;
-        });
-        return files;
     }
 
     /// <summary>A layer's PNG as pixels in <paramref name="tiles"/>: a 16-bit PNG read exactly, every other through Skia.</summary>
@@ -529,31 +510,12 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
         }
 
         /// <summary>The recipe with each coverage its regions hold written to the package, the step naming its file.</summary>
-        private ImageRecipe WithCoverageFiles(ImageRecipe recipe) => MapRegions(recipe, step =>
+        private ImageRecipe WithCoverageFiles(ImageRecipe recipe) => RecipeRegionFiles.WithCoverageFiles(recipe, (file, png) =>
         {
-            if (step.Coverage is not { } coverage) return step;
-            var grey = coverage.ToBytes();
-            var file = $"data/nexaflow/region-{HashOf(grey)[..16]}.png";
-            if (!Names(file)) Add(file, GreyPng(grey, coverage.Width, coverage.Height), stored: true);
-            return step with { File = file };
+            if (!Names(file)) Add(file, png, stored: true);
         });
 
         private string NextLayerFile() => $"data/layer{++_layers}.png";
-    }
-
-    /// <summary>The recipe with every <see cref="RegionCoverage"/> its regions hold given its coverage from the file it names.</summary>
-    private static ImageRecipe WithCoverages(ImageRecipe recipe, Func<string, TiledCoverage?> coverageOf)
-        => MapRegions(recipe, step => step.Coverage is null && step.File.Length > 0 ? step with { Coverage = coverageOf(step.File) } : step);
-
-    private static ImageRecipe MapRegions(ImageRecipe recipe, Func<RegionCoverage, RegionCoverage> map)
-    {
-        RecipeRegion? Mapped(RecipeRegion? region) => region is null ? null
-            : region with { Steps = [.. region.Steps.Select(s => s is RegionCoverage coverage ? map(coverage) : s)] };
-        return recipe with
-        {
-            CutOut = recipe.CutOut is { } cutOut ? cutOut with { Region = Mapped(cutOut.Region), } : null,
-            Erasures = [.. recipe.Erasures.Select(e => e with { Region = Mapped(e.Region), Pick = e.Pick is { } pick ? pick with { Region = Mapped(pick.Region) } : null })],
-        };
     }
 
     // ── PNG ─────────────────────────────────────────────────────────────────
@@ -584,13 +546,6 @@ public sealed class OpenRasterFormat(IVirtualFileSystem fileSystem) : ILayeredPi
     {
         using var image = SKImage.FromPixelCopy(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul), rgba)
                           ?? throw new InvalidOperationException("A picture could not be made.");
-        return Png(image);
-    }
-
-    private static byte[] GreyPng(byte[] grey, int width, int height)
-    {
-        using var image = SKImage.FromPixelCopy(new SKImageInfo(width, height, SKColorType.Gray8, SKAlphaType.Opaque), grey)
-                          ?? throw new InvalidOperationException("A coverage could not be made a picture.");
         return Png(image);
     }
 }

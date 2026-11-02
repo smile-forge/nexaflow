@@ -35,8 +35,11 @@ public sealed record PhotoshopDocumentToWrite
     public ReadOnlyMemory<byte> GlobalLayerMask { get; init; }
     public ImmutableArray<PhotoshopTaggedBlock> GlobalBlocks { get; init; } = [];
 
-    /// <summary>The merged image's channels — colour, then transparency — each its rows of samples.</summary>
-    public required IReadOnlyList<byte[]> Merged { get; init; }
+    /// <summary>How many channels the merged image has: colour, then transparency.</summary>
+    public required int MergedChannels { get; init; }
+
+    /// <summary>The merged image's rows, a channel at a time.</summary>
+    public required PhotoshopChannelRows Merged { get; init; }
 }
 
 /// <summary>
@@ -88,7 +91,7 @@ public static class PhotoshopWriter
         }
         foreach (var block in blocks) WriteBlock(output, block, large);
 
-        PhotoshopChannels.WriteMerged(output, document.Merged, header.Width, header.Height, header.SampleBytes, large);
+        PhotoshopChannels.WriteMerged(output, document.MergedChannels, header.Width, header.Height, header.SampleBytes, large, document.Merged);
     }
 
     // ── Layer info ──────────────────────────────────────────────────────────

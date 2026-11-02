@@ -3,6 +3,13 @@ using System.IO.Compression;
 
 namespace Nexaflow.Media.Photoshop;
 
+/// <summary>Fills <paramref name="into"/> with row <paramref name="row"/> of a channel's samples, in the machine's order.</summary>
+public delegate void PhotoshopRowSource(int row, Span<byte> into);
+
+/// <summary>Fills <paramref name="into"/> with row <paramref name="row"/> of channel <paramref name="channel"/>'s samples, in the
+/// machine's order.</summary>
+public delegate void PhotoshopChannelRows(int channel, int row, Span<byte> into);
+
 /// <summary>
 /// A Photoshop channel's samples, compressed as the file holds them and back: raw; RLE, each row PackBits on its own with
 /// the rows' byte counts before them; ZIP, the channel one zlib stream; and ZIP with prediction, each row's samples stored as
@@ -21,10 +28,61 @@ public static class PhotoshopChannels
     /// <exception cref="InvalidDataException">The data is not what its compression says.</exception>
     public static void Decode(Stream stream, long offset, long length, int width, int height, int sampleBytes, bool isLarge, Action<int, ReadOnlySpan<byte>> row)
     {
-        if (width <= 0 || height <= 0) return;
-        stream.Position = offset;
-        var compression = (PhotoshopCompression)ReadUInt16(stream);
-        DecodeRows(stream, compression, length - 2, 1, width, height, sampleBytes, isLarge, (_, y, samples) => row(y, samples));
+        int y = 0;
+        foreach (var samples in Rows(stream, offset, length, width, height, sampleBytes, isLarge)) row(y++, samples);
+    }
+
+    /// <summary>
+    /// The channel at <paramref name="offset"/> of <paramref name="stream"/> as its rows, top first, each in the machine's order,
+    /// in one buffer reused for every row. Each channel reads through a window of its own onto the stream, so the channels of a
+    /// layer are read in step — a row of each in turn — through one stream, none of them held whole.
+    /// </summary>
+    /// <exception cref="InvalidDataException">The data is not what its compression says.</exception>
+    public static IEnumerable<byte[]> Rows(Stream stream, long offset, long length, int width, int height, int sampleBytes, bool isLarge)
+    {
+        if (width <= 0 || height <= 0) yield break;
+        var window = new WindowStream(stream, offset, length);
+        var compression = (PhotoshopCompression)ReadUInt16(window);
+        var line = new byte[width * sampleBytes];
+        switch (compression)
+        {
+            case PhotoshopCompression.Raw:
+                for (int y = 0; y < height; y++)
+                {
+                    window.ReadExactly(line);
+                    ToMachine(line, sampleBytes);
+                    yield return line;
+                }
+                break;
+            case PhotoshopCompression.Rle:
+            {
+                var counts = new int[height];
+                for (int y = 0; y < height; y++) counts[y] = (int)(isLarge ? ReadUInt32(window) : ReadUInt16(window));
+                var packed = new byte[Math.Max(1, counts.Max())];
+                for (int y = 0; y < height; y++)
+                {
+                    window.ReadExactly(packed, 0, counts[y]);
+                    UnpackBits(packed.AsSpan(0, counts[y]), line);
+                    ToMachine(line, sampleBytes);
+                    yield return line;
+                }
+                break;
+            }
+            case PhotoshopCompression.Zip or PhotoshopCompression.ZipPredicted:
+            {
+                using var zlib = new ZLibStream(window, CompressionMode.Decompress);
+                for (int y = 0; y < height; y++)
+                {
+                    zlib.ReadExactly(line);
+                    if (compression == PhotoshopCompression.ZipPredicted) Unpredicted(line, width, sampleBytes);
+                    else ToMachine(line, sampleBytes);
+                    yield return line;
+                }
+                break;
+            }
+            default:
+                throw new InvalidDataException($"No channel is compressed as {(ushort)compression}.");
+        }
     }
 
     /// <summary>
@@ -159,17 +217,28 @@ public static class PhotoshopChannels
     // ── Writing ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// A channel's samples — <paramref name="height"/> rows of <paramref name="width"/>, in the machine's order — compressed as
-    /// a layer's channel is written, its compression first: 8-bit as RLE, which every reader reads; 16 and 32 bits as ZIP with
-    /// prediction, as Photoshop writes them.
+    /// A channel's samples — <paramref name="height"/> rows of <paramref name="width"/>, in the machine's order, row by row —
+    /// compressed as a layer's channel is written, its compression first.
     /// </summary>
-    public static byte[] Encode(ReadOnlySpan<byte> samples, int width, int height, int sampleBytes, bool isLarge)
+    public static byte[] Encode(byte[] samples, int width, int height, int sampleBytes, bool isLarge)
+    {
+        int rowBytes = width * sampleBytes;
+        return Encode(width, height, sampleBytes, isLarge, (y, into) => samples.AsSpan(y * rowBytes, rowBytes).CopyTo(into));
+    }
+
+    /// <summary>
+    /// A channel of <paramref name="height"/> rows of <paramref name="width"/> samples, each row asked of
+    /// <paramref name="rows"/> once, top first, compressed as a layer's channel is written, its compression first: 8-bit as RLE,
+    /// which every reader reads; 16 and 32 bits as ZIP with prediction, as Photoshop writes them. Only the compressed channel
+    /// is held.
+    /// </summary>
+    public static byte[] Encode(int width, int height, int sampleBytes, bool isLarge, PhotoshopRowSource rows)
     {
         using var output = new MemoryStream();
         if (sampleBytes == 1)
         {
             WriteUInt16(output, (ushort)PhotoshopCompression.Rle);
-            WriteRle(output, [samples.ToArray()], width, height, 1, isLarge);
+            WriteRle(output, 1, width, height, 1, isLarge, (_, y, into) => rows(y, into));
         }
         else
         {
@@ -178,7 +247,7 @@ public static class PhotoshopChannels
             var line = new byte[width * sampleBytes];
             for (int y = 0; y < height; y++)
             {
-                samples.Slice(y * line.Length, line.Length).CopyTo(line);
+                rows(y, line);
                 Predicted(line, width, sampleBytes);
                 zlib.Write(line);
             }
@@ -187,42 +256,45 @@ public static class PhotoshopChannels
     }
 
     /// <summary>
-    /// The merged image's data — its compression, then each channel in turn — from <paramref name="channels"/>, each
-    /// <paramref name="height"/> rows of <paramref name="width"/> samples in the machine's order: 8-bit as RLE, deeper raw,
-    /// as every reader of a merged image reads them.
+    /// The merged image's data — its compression, then each of its <paramref name="channels"/> channels in turn, every row
+    /// asked of <paramref name="rows"/> — 8-bit as RLE, deeper raw, as every reader of a merged image reads them.
     /// </summary>
-    public static void WriteMerged(Stream output, IReadOnlyList<byte[]> channels, int width, int height, int sampleBytes, bool isLarge)
+    public static void WriteMerged(Stream output, int channels, int width, int height, int sampleBytes, bool isLarge, PhotoshopChannelRows rows)
     {
         if (sampleBytes == 1)
         {
             WriteUInt16(output, (ushort)PhotoshopCompression.Rle);
-            WriteRle(output, channels, width, height, 1, isLarge);
+            WriteRle(output, channels, width, height, 1, isLarge, rows);
             return;
         }
         WriteUInt16(output, (ushort)PhotoshopCompression.Raw);
         var line = new byte[width * sampleBytes];
-        foreach (var channel in channels)
+        for (int c = 0; c < channels; c++)
             for (int y = 0; y < height; y++)
             {
-                channel.AsSpan(y * line.Length, line.Length).CopyTo(line);
+                rows(c, y, line);
                 ToMachine(line, sampleBytes);   // its own inverse: the machine's order to the file's
                 output.Write(line);
             }
     }
 
     /// <summary>Channels' rows PackBits-compressed: every row's byte count first, then the rows.</summary>
-    private static void WriteRle(Stream output, IReadOnlyList<byte[]> channels, int width, int height, int sampleBytes, bool isLarge)
+    private static void WriteRle(Stream output, int channels, int width, int height, int sampleBytes, bool isLarge, PhotoshopChannelRows rows)
     {
-        int rowBytes = width * sampleBytes;
-        var rows = new List<byte[]>(channels.Count * height);
-        foreach (var channel in channels)
-            for (int y = 0; y < height; y++) rows.Add(PackBits(channel.AsSpan(y * rowBytes, rowBytes)));
-        foreach (var packed in rows)
+        var line = new byte[width * sampleBytes];
+        var packed = new List<byte[]>(channels * height);
+        for (int c = 0; c < channels; c++)
+            for (int y = 0; y < height; y++)
+            {
+                rows(c, y, line);
+                packed.Add(PackBits(line));
+            }
+        foreach (var row in packed)
         {
-            if (isLarge) WriteUInt32(output, (uint)packed.Length);
-            else WriteUInt16(output, checked((ushort)packed.Length));
+            if (isLarge) WriteUInt32(output, (uint)row.Length);
+            else WriteUInt16(output, checked((ushort)row.Length));
         }
-        foreach (var packed in rows) output.Write(packed);
+        foreach (var row in packed) output.Write(row);
     }
 
     /// <summary>A row as PackBits: runs of three or more alike repeated, the rest literal, at most 128 a run.</summary>
@@ -339,6 +411,38 @@ public static class PhotoshopChannels
             if (_left <= 0) return 0;
             int read = inner.Read(buffer[..(int)Math.Min(buffer.Length, _left)]);
             _left -= read;
+            return read;
+        }
+
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// A window on part of a stream, with a place of its own: each read goes to where this window last left off, whatever
+    /// another window read in between — so several channels are read in step through the one stream.
+    /// </summary>
+    private sealed class WindowStream(Stream inner, long offset, long length) : Stream
+    {
+        private long _at;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => length;
+        public override long Position { get => _at; set => throw new NotSupportedException(); }
+
+        public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
+
+        public override int Read(Span<byte> buffer)
+        {
+            long left = length - _at;
+            if (left <= 0) return 0;
+            inner.Position = offset + _at;
+            int read = inner.Read(buffer[..(int)Math.Min(buffer.Length, left)]);
+            _at += read;
             return read;
         }
 

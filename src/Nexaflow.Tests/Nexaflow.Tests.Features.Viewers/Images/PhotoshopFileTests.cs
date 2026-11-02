@@ -106,7 +106,8 @@ public class PhotoshopFileTests
             Layers = [group, layer],
             MergedHasTransparency = true,
             GlobalBlocks = [PhotoshopTaggedBlock.Of("Patt", new byte[] { 1, 2, 3, 0 })],
-            Merged = merged,
+            MergedChannels = 4,
+            Merged = (c, y, into) => merged[c].AsSpan(y * width * sampleBytes, width * sampleBytes).CopyTo(into),
         };
 
         using var stream = new MemoryStream();

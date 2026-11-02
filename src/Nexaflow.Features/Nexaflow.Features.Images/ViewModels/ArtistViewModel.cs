@@ -186,7 +186,9 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
 
     /// <summary>Which layers of the open picture no reader can draw, by name, for the saved look's bar.</summary>
     public string SavedLookNotice => CurrentDocument is { } document
-        ? Str.Format("Images.Layers.SavedLookFormat", string.Join(", ", document.Picture.All.OfType<UndrawableLayer>().Select(l => l.Name)))
+        ? Str.Format("Images.Layers.SavedLookFormat", string.Join(", ", document.Picture.All
+            .Where(l => l is UndrawableLayer || l.Kept.Undrawn.Any())
+            .Select(l => l is UndrawableLayer || !l.Kept.Undrawn.Any() ? l.Name : $"{l.Name} ({string.Join(", ", l.Kept.Undrawn)})")))
         : "";
 
     private static readonly HashSet<string> RaisedStageProperties =

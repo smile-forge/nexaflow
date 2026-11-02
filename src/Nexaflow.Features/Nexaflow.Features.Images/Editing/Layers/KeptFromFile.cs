@@ -2,6 +2,13 @@ using System.Collections.Immutable;
 
 namespace Nexaflow.Features.Images.Editing.Layers;
 
+/// <summary>What a format kept of a layer that Nexaflow does not draw — effects, a vector mask — named, so the look a file
+/// opens on can say what drawing the layers leaves out.</summary>
+public interface IUndrawnKept
+{
+    ImmutableArray<string> Undrawn { get; }
+}
+
 /// <summary>
 /// What the file a picture or a layer was read from held that Nexaflow does not understand, kept to be written back — each
 /// layered format's own record of it, by its type, so OpenRaster keeps its attributes and files and Photoshop its tagged
@@ -20,6 +27,9 @@ public sealed class KeptFromFile : IEquatable<KeptFromFile>
     public static KeptFromFile Of<T>(T record) where T : class => None.With(record);
 
     public bool IsEmpty => _records.IsEmpty;
+
+    /// <summary>What the kept records say Nexaflow does not draw of their layer.</summary>
+    public IEnumerable<string> Undrawn => _records.Values.OfType<IUndrawnKept>().SelectMany(r => r.Undrawn);
 
     /// <summary>The record the format that keeps <typeparamref name="T"/> kept; null where it kept none.</summary>
     public T? Get<T>() where T : class => _records.TryGetValue(typeof(T), out var record) ? (T)record : null;

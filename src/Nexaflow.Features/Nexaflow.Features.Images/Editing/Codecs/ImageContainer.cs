@@ -16,6 +16,9 @@ public enum ImageContainer
 
     /// <summary>An OpenRaster package: a zip whose first entry, stored, says <c>image/openraster</c>.</summary>
     OpenRaster,
+
+    /// <summary>A Photoshop document — PSD, or PSB, the large document format: <c>8BPS</c>, then version 1 or 2.</summary>
+    Photoshop,
 }
 
 public static class ImageContainers
@@ -36,6 +39,7 @@ public static class ImageContainers
         if (header.Length >= 4 && ((header[0] == 'I' && header[1] == 'I' && header[2] == 42 && header[3] == 0)
                                 || (header[0] == 'M' && header[1] == 'M' && header[2] == 0 && header[3] == 42))) return ImageContainer.Tiff;
     if (IsOpenRaster(header)) return ImageContainer.OpenRaster;
+    if (Nexaflow.Media.Photoshop.PhotoshopReader.IsPhotoshop(header)) return ImageContainer.Photoshop;
         return ImageContainer.Unknown;
     }
 
@@ -78,6 +82,7 @@ public static class ImageContainers
         ImageContainer.Ico  => ".ico",
         ImageContainer.Tiff => ".tif",
         ImageContainer.OpenRaster => ".ora",
+        ImageContainer.Photoshop => ".psd",
         _                   => string.Empty,
     };
 
@@ -92,6 +97,7 @@ public static class ImageContainers
         ".ico"             => ImageContainer.Ico,
         ".tif" or ".tiff"  => ImageContainer.Tiff,
         ".ora"             => ImageContainer.OpenRaster,
+        ".psd" or ".psb"   => ImageContainer.Photoshop,
         _                  => ImageContainer.Unknown,
     };
 }
