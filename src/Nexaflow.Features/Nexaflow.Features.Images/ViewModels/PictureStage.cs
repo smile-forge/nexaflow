@@ -55,7 +55,10 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
         _display.Decoded      += OnDecoded;
         _display.DecodeFailed += rendering => { if (ReferenceEquals(CurrentSession, rendering)) LoadFailed = true; };
 
-        Restorer = new PhotoRestorer(editing, pictures, RunOnUi);
+        // AI picture editing's models, offered and fetched as one by everything here that waits on any of them.
+        Models = new PictureModels([pictures, selection, erasing], RunOnUi);
+
+        Restorer = new PhotoRestorer(editing, pictures, RunOnUi, Models);
         Restorer.Made += Render;
         _display.RestoredDecodeFailed += rendering =>
         {
@@ -63,7 +66,7 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
             foreach (var tools in _layerTools.Values) tools.Restorer.Lost(rendering);
         };
 
-        Remover = new BackgroundRemover(editing, selection, RunOnUi);
+        Remover = new BackgroundRemover(editing, selection, RunOnUi, Models);
         Remover.Made += Render;
         _display.CutOutDecodeFailed += rendering =>
         {
@@ -72,7 +75,7 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
         };
 
         // The restoration is of the photo as erased: it follows each erasing as it is made.
-        Eraser = new PhotoEraser(editing, erasing, selection, RunOnUi);
+        Eraser = new PhotoEraser(editing, erasing, selection, RunOnUi, Models);
         Eraser.Made += () =>
         {
             Restorer.Follow(EditTarget?.Rendering);
@@ -296,7 +299,7 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
             if (document.RenderingOf(layer.Id) is not { } rendering || ReferenceEquals(rendering, target)) continue;
             seen.Add(layer.Id);
             if (!_layerTools.TryGetValue(layer.Id, out var tools))
-                _layerTools[layer.Id] = tools = new PictureToolEdits(_editing, _pictures, _selection, _erasing, RunOnUi, () =>
+                _layerTools[layer.Id] = tools = new PictureToolEdits(_editing, _pictures, _selection, _erasing, Models, RunOnUi, () =>
                 {
                     Render();
                     LayerToolMade?.Invoke();
@@ -421,4 +424,7 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
         _sidecarWatch?.Dispose();
         _display.Dispose();
     }
+
+    /// <summary>AI picture editing's models — the picture tools, picture selection and picture erasing — offered and fetched as one.</summary>
+    public PictureModels Models { get; }
 }

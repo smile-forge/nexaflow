@@ -77,18 +77,18 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         _documentSave.Tick += (_, _) => { _documentSave.Stop(); SaveDocument(); };
 
         var runOnUi = Stage.RunOnUi;
-        Cutter = new PictureCutter(editing, selection, shell, runOnUi);
+        Cutter = new PictureCutter(editing, selection, shell, runOnUi, Stage.Models);
 
-        // What each model-backed control waits for, and the download offered while a panel that needs it is open — unless a
-        // picture tool's banner, for an edit the recipe asks for, is offering the same.
-        var picking = new ModelsGate(selection, "Images.Models.Picking.", runOnUi);
-        var erasingModels = new ModelsGate(erasing, "Images.Models.Erasing.", runOnUi);
-        var restoring = new ModelsGate(pictures, "Images.Models.Restoring.", runOnUi);
+        // What each model-backed control waits for; while a panel that needs any is open, the banner offers AI picture editing's
+        // models as one — unless a picture tool's banner, for an edit the recipe asks for, is offering them already.
+        var picking = new ModelsGate(selection, Stage.Models, runOnUi);
+        var erasingModels = new ModelsGate(erasing, Stage.Models, runOnUi);
+        var restoring = new ModelsGate(pictures, Stage.Models, runOnUi);
         picking.Defer(Stage.Remover, Stage.Eraser);
         erasingModels.Defer(Stage.Eraser);
         restoring.Defer(Stage.Restorer);
 
-        Editor = new ImageEditorViewModel(this, shell, editing, Stage.Restorer, Stage.Remover, Cutter, Stage.Eraser, picking, erasingModels, restoring);
+        Editor = new ImageEditorViewModel(this, shell, editing, Stage.Restorer, Stage.Remover, Cutter, Stage.Eraser, Stage.Models, picking, erasingModels, restoring);
         Layers = new LayersViewModel(shell, runOnUi, () => Editor.InkSkColour);
         Layers.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(LayersViewModel.MaskAlone)) RequestRender(); };
         Start = new ImageStartViewModel(this, shell, ai, editing, _config);

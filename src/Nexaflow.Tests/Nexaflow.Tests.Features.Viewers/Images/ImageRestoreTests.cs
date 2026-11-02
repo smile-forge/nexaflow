@@ -156,7 +156,7 @@ public class ImageRestoreTests
 
         Assert.IsTrue(vm.Restorer.CanDownload);
         Assert.IsFalse(vm.Editor.SaveCopyCommand.CanExecute(null), "not until its restoration is made");
-        Assert.AreEqual(Str.Get("Images.Restore.Download"), vm.Restorer.ActionLabel);
+        Assert.AreEqual(Str.Get("Images.Models.Download"), vm.Restorer.ActionLabel);
         _ui.Run(() => vm.Restorer.ActCommand.Execute(null)).GetAwaiter().GetResult();
         Assert.AreEqual(1, tools.Downloads);
 
@@ -174,7 +174,7 @@ public class ImageRestoreTests
         vm.Editor.AiEnhance = true;
         Until(() => vm.Restorer.HasNotice);
 
-        Assert.AreEqual(Str.Format("Images.Restore.DownloadStopped", "the network went"), vm.Restorer.Notice);
+        Assert.AreEqual(Str.Format("Images.Models.StoppedFormat", "the network went"), vm.Restorer.Notice);
         Assert.IsTrue(vm.Restorer.CanDownload);
     }
 

@@ -117,10 +117,10 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
 
             // AI enhance, kept from the edits, can still be turned off; then it waits for the picture tools, which the panel offers
             // over the picture in place of the kept edits' banner — the AI tools journey turns it on where they are here.
-            Check("AI enhance from the kept edits turns off; its banner goes, and the panel's offer of the picture tools takes over",
+            Check("AI enhance from the kept edits turns off; its banner goes, and the panel's offer of the AI picture models takes over",
                   () => SetToggle("Image_EditAiEnhance", false) && WaitForGone("Image_RestoreAction", 3)
-                        && WaitForFs(() => WaitForId("Image_RestoringModelsDownload", 1)?.IsEnabled == true, 3));
-            Check("AI enhance now waits for the picture tools", () => !Enabled("Image_EditAiEnhance"));
+                        && WaitForFs(() => WaitForId("Image_PictureModelsDownload", 1)?.IsEnabled == true, 3));
+            Check("AI enhance now waits for the AI picture models", () => !Enabled("Image_EditAiEnhance"));
 
             // Markup: a text annotation typed, an arrow drawn, selected and deleted
             Check("Markup panel", () => SelectRadio("Image_EditToolMarkup"));
@@ -152,8 +152,8 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
             Check("Keep proportions toggles", () => SetToggle("Image_EditResizeLock", false) && SetToggle("Image_EditResizeLock", true));
             CheckInvoke("Original size", "Image_EditResetResize");
             Check("Resize by percent", () => SelectRadio("Image_EditResizePercent"));
-            Check("AI upscale waits for the picture tools, offered over the picture", () => !Enabled("Image_EditUpscaleTwice") && !Enabled("Image_EditUpscaleFourTimes")
-                                                                                          && Exists("Image_RestoringModelsDownload"));
+            Check("AI upscale waits for the AI picture models, offered over the picture", () => !Enabled("Image_EditUpscaleTwice") && !Enabled("Image_EditUpscaleFourTimes")
+                                                                                              && Exists("Image_PictureModelsDownload"));
             Check("AI upscale stays off", () => SelectRadio("Image_EditUpscaleOff"));
 
             // Cut out: picture selection is never here (the AI folder is the journey's own), so picking waits for it, saying why, and
@@ -183,9 +183,9 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
             CheckDoes("Select nothing, and nothing is offered to take it", "Image_RegionDeselect", () => WaitForFs(() => !Enabled("Image_CutOutCopy"), 3));
             Check("Back to the marquee", () => SelectRadio("Image_CutOutMarkMarquee"));
             CheckInvoke("Clear what is selected", "Image_CutOutClear");
-            CheckDoes("Keep background puts it back; the kept edits' banner goes, and the panel's offer of picture selection takes over",
+            CheckDoes("Keep background puts it back; the kept edits' banner goes, and the panel's offer of the AI picture models takes over",
                       "Image_CutOutKeepBackground",
-                      () => WaitForGone("Image_RemoveBackgroundAction", 3) && WaitForFs(() => WaitForId("Image_PickingModelsDownload", 1)?.IsEnabled == true, 3));
+                      () => WaitForGone("Image_RemoveBackgroundAction", 3) && WaitForFs(() => WaitForId("Image_PictureModelsDownload", 1)?.IsEnabled == true, 3));
 
             // Retouch: picking waits for picture selection and AI fill for picture erasing, neither of which the journey's AI folder
             // has, so it opens on the brush and content-aware fill, which need nothing and erase at once; the AI tools journey picks
@@ -195,8 +195,8 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
             Check("Retouch marks with the marquee or the lasso too, as Cut out does", () => SelectRadio("Image_EraseMarkMarquee")
                   && WaitForFs(() => Exists("Image_RegionMarqueeRectangle"), 3) && SelectRadio("Image_EraseMarkLasso")
                   && WaitForFs(() => Exists("Image_RegionLassoFreehand"), 3) && SelectRadio("Image_EraseMarkBrush"));
-            Check("AI fill waits for picture erasing, offered over the picture", () => !Enabled("Image_EraseFillAi")
-                  && WaitForFs(() => WaitForId("Image_ErasingModelsDownload", 1)?.IsEnabled == true, 3));
+            Check("AI fill waits for the AI picture models, offered over the picture", () => !Enabled("Image_EraseFillAi")
+                  && WaitForFs(() => WaitForId("Image_PictureModelsDownload", 1)?.IsEnabled == true, 3));
             Check("Brush size slider moves", () => MoveSlider("Image_EraseBrushSize"));
             Check("Heal, which asks where to copy from", () => SelectRadio("Image_EraseFillHeal"));
             // A brush stroke has to start on the photo, and the edits above leave the small sample wherever they left the view: fit

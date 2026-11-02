@@ -289,6 +289,12 @@ public partial class ImageEditorViewModel : ObservableObject
 
     // ── Models the tools wait for ─────────────────────────────────────────
 
+    /// <summary>AI picture editing's models — every set below — as the banner offers them: one download, one size, one progress.</summary>
+    public PictureModels Models { get; }
+
+    /// <summary>The banner offers <see cref="Models"/>: an open panel waits on some of them, and nothing else on screen offers them.</summary>
+    public bool ShowsModelsOffer => PickingModels.ShowsOffer || ErasingModels.ShowsOffer || RestoringModels.ShowsOffer;
+
     /// <summary>Picture selection: what Cut out, and picking what to retouch, need.</summary>
     public ModelsGate PickingModels { get; }
 
@@ -316,9 +322,10 @@ public partial class ImageEditorViewModel : ObservableObject
     }
 
     internal ImageEditorViewModel(ArtistViewModel viewer, IShellServices? shell, ImageEditingServices services, PhotoRestorer restorer, BackgroundRemover remover,
-                                  PictureCutter cutter, PhotoEraser eraser, ModelsGate picking, ModelsGate erasing, ModelsGate restoring)
+                                  PictureCutter cutter, PhotoEraser eraser, PictureModels models, ModelsGate picking, ModelsGate erasing, ModelsGate restoring)
     {
         _viewer   = viewer;
+        Models    = models;
         Cutter    = cutter;
         _shell    = shell;
         _services = services;
@@ -353,6 +360,9 @@ public partial class ImageEditorViewModel : ObservableObject
             OnPropertyChanged(nameof(DrawsShapes));
             OnPropertyChanged(nameof(PicksByModel));
         };
+        // The banner offers the models while any open panel waits on some of them.
+        foreach (var gate in new[] { picking, erasing, restoring })
+            gate.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(ModelsGate.ShowsOffer)) OnPropertyChanged(nameof(ShowsModelsOffer)); };
         // Models arriving, or going, change what the controls that need them allow.
         picking.PropertyChanged += (_, e) =>
         {

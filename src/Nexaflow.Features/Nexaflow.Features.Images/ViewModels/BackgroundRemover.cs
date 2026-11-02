@@ -15,8 +15,8 @@ public sealed class BackgroundRemover : ToolEdit<RecipeCutOut>
 
     /// <param name="selection">Picture selection, where the app has it.</param>
     /// <param name="runOnUi">Hops to the UI thread, where the session and this are read.</param>
-    public BackgroundRemover(ImageEditingServices services, IPictureSelection? selection, Func<Action, Task> runOnUi)
-        : base(services, selection, runOnUi, "Images.RemoveBackground.")
+    public BackgroundRemover(ImageEditingServices services, IPictureSelection? selection, Func<Action, Task> runOnUi, PictureModels? models = null)
+        : base(services, selection, runOnUi, "Images.RemoveBackground.", models)
         => _selection = selection;
 
     protected override RecipeCutOut? AskOf(ImageRecipe recipe) => recipe.CutOut;

@@ -853,10 +853,25 @@
           }
         ]
       }
+    },
+    "images-edit-models": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ModelsGate.cs",
+          "class": "ModelsGate"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PictureModels.cs",
+          "class": "PictureModels"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 47,
+  "changed_sets": 48,
   "touched_nodes": [
     "images-ai-act-select-in-picture",
     "images-edit",
@@ -868,6 +883,7 @@
     "images-edit-ai-generate-layer",
     "images-edit-ai-history",
     "images-edit-banner",
+    "images-edit-models",
     "images-edit-revert",
     "images-flip",
     "images-layer-masks",

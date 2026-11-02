@@ -41,15 +41,21 @@ public sealed partial class PictureCutter : ObservableObject
 
     /// <param name="selection">Picture selection, where the app has it.</param>
     /// <param name="runOnUi">Hops to the UI thread, where this is read.</param>
-    public PictureCutter(ImageEditingServices services, IPictureSelection? selection, IShellServices? shell, Func<Action, Task> runOnUi)
+    /// <param name="models">AI picture editing's models as one, which picking speaks of while it waits; null, picture selection alone.</param>
+    public PictureCutter(ImageEditingServices services, IPictureSelection? selection, IShellServices? shell, Func<Action, Task> runOnUi,
+                         PictureModels? models = null)
     {
         _services = services;
         _selection = selection;
         _shell = shell;
         _runOnUi = runOnUi;
+        _models = models ?? new PictureModels([selection], runOnUi);
         if (selection is not null) selection.Changed += (_, _) => _ = _runOnUi(Refresh);
+        _models.Changed += (_, _) => Refresh();
         Refresh();
     }
+
+    private readonly PictureModels _models;
 
     /// <summary>Whether this machine can pick things out of pictures at all — what the editor's tool shows for.</summary>
     public bool Available => _selection is { State: not ToolModelsState.Unavailable };
@@ -300,9 +306,8 @@ public sealed partial class PictureCutter : ObservableObject
         Notice = _selection?.State switch
         {
             null or ToolModelsState.Unavailable => Str.Get("Images.CutOut.Unavailable"),
-            ToolModelsState.NotDownloaded when _selection!.DownloadFailure is { } failure => Str.Format("Images.CutOut.DownloadStopped", failure),
-            ToolModelsState.NotDownloaded => Str.Format("Images.CutOut.NeedsTool", SizeFormatter.FormatBytes(_selection!.DownloadBytes)),
-            ToolModelsState.Downloading => Str.Format("Images.CutOut.Downloading", _selection!.DownloadPercent),
+            ToolModelsState.NotDownloaded or ToolModelsState.Downloading => _models.Status(Str.Format("Images.CutOut.NeedsTool", SizeFormatter.FormatBytes(_models.MissingBytes)))
+                                                                            ?? Str.Format("Images.CutOut.NeedsTool", SizeFormatter.FormatBytes(_models.MissingBytes)),
             _ when Shown?.Bounds is not null => Notice,
             _ => Str.Get("Images.CutOut.Hint"),
         };

@@ -191,9 +191,9 @@ public class ImageCutOutTests
         Thread.Sleep(100);
 
         Assert.AreEqual(0, selection.Opened);
-        Assert.IsFalse(vm.Cutter.HasAction, "the tool offers nothing of its own: picture selection is offered over the picture");
-        Assert.IsTrue(_ui.Invoke(() => vm.Editor.PickingModels.ShowsOffer), "the Cut out panel is open, so its models are offered");
-        OnUi(() => vm.Editor.PickingModels.DownloadCommand.Execute(null));
+        Assert.IsFalse(vm.Cutter.HasAction, "the tool offers nothing of its own: the AI picture models are offered over the picture");
+        Assert.IsTrue(_ui.Invoke(() => vm.Editor.ShowsModelsOffer), "the Cut out panel is open, so the models are offered");
+        OnUi(() => vm.Editor.Models.DownloadCommand.Execute(null));
         Assert.IsTrue(selection.Downloading);
     }
 
@@ -431,7 +431,7 @@ public class ImageCutOutTests
         Until(() => vm.Remover.HasNotice);
 
         Assert.IsTrue(_ui.Invoke(() => vm.Remover.CanDownload));
-        Assert.AreEqual(Str.Get("Images.RemoveBackground.Download"), _ui.Invoke(() => vm.Remover.ActionLabel));
+        Assert.AreEqual(Str.Get("Images.Models.Download"), _ui.Invoke(() => vm.Remover.ActionLabel));
         Assert.IsFalse(_ui.Invoke(() => vm.Editor.SaveCopyCommand.CanExecute(null)), "not until its background is removed");
         OnUi(() => vm.Remover.ActCommand.Execute(null));
         Assert.IsTrue(selection.Downloading);

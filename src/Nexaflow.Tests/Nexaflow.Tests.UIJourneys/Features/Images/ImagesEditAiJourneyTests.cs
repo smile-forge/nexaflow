@@ -57,7 +57,7 @@ public class ImagesEditAiJourneyTests : ImageEditJourneyBase
 
             // Adjust: AI enhance, made once its strength and faces are set; the photo can be saved once it is.
             Check("Adjust panel", () => SelectRadio("Image_EditToolAdjust"));
-            NeedsHere("Image_RestoringModelsDownload", "the picture tools");
+            NeedsHere("Image_PictureModelsDownload", "AI picture models");
             Check("AI enhance turns on, its strength and faces with it", () => SetToggle("Image_EditAiEnhance", true) && WaitForFs(() => Exists("Image_EditAiStrength"), 3));
             Check("AI strength moves", () => MoveSlider("Image_EditAiStrength"));
             Check("Repair faces toggles", () => SetToggle("Image_EditAiFaces", false) && SetToggle("Image_EditAiFaces", true));
@@ -72,7 +72,7 @@ public class ImagesEditAiJourneyTests : ImageEditJourneyBase
 
             // Cut out: a click picks what is under it; its background removed and put back.
             Check("Cut out panel", () => SelectRadio("Image_EditToolCutOut") && FitCanvas());
-            NeedsHere("Image_PickingModelsDownload", "picture selection");
+            NeedsHere("Image_PictureModelsDownload", "AI picture models");
             Check("Cut out picks by picture selection", () => SelectRadio("Image_CutOutMarkPick") && WaitForFs(() => Exists("Image_CutOutPhrase"), 3));
             Check("A phrase is typed, and Find looks for it", () => TypeInto("Image_CutOutPhrase", "square") && Enabled("Image_CutOutFind"));
             CheckInvoke("Find", "Image_CutOutFind");
@@ -84,7 +84,7 @@ public class ImagesEditAiJourneyTests : ImageEditJourneyBase
 
             // Retouch: something picked, erased and filled by AI as a step of the edits.
             Check("Retouch, picking", () => SelectRadio("Image_EditToolRetouch") && SelectRadio("Image_EraseMarkPick"));
-            NeedsHere("Image_ErasingModelsDownload", "picture erasing");
+            NeedsHere("Image_PictureModelsDownload", "AI picture models");
             Check("A phrase is typed for Find", () => TypeInto("Image_ErasePhrase", "square") && Enabled("Image_EraseFind"));
             CheckInvoke("Find", "Image_EraseFind");
             Check("A click picks what to erase, with nothing to try again",

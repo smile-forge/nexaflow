@@ -145,38 +145,16 @@
                     <TextBlock Text="{Binding SavedLookNotice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
                 </DockPanel>
             </Border>
-            <!-- The open panel's tools wait for models not here yet: their download, offered once. -->
-            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
-                    Visibility="{Binding Editor.PickingModels.ShowsOffer, Converter={StaticResource BoolToVis}}">
+            <!-- The open panel waits on AI picture editing's models: all of them, offered once, as one. -->
+            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,5"
+                    Visibility="{Binding Editor.ShowsModelsOffer, Converter={StaticResource BoolToVis}}">
                 <DockPanel>
-                    <Button DockPanel.Dock="Right" Command="{Binding Editor.PickingModels.DownloadCommand}" Style="{StaticResource ToolbarButtonStyle}"
-                            Visibility="{Binding Editor.PickingModels.CanDownload, Converter={StaticResource BoolToVis}}"
-                            AutomationProperties.AutomationId="Image_PickingModelsDownload" AutomationProperties.Name="{loc:Str Images.Models.Download}">
+                    <Button DockPanel.Dock="Right" Command="{Binding Editor.Models.DownloadCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                            Visibility="{Binding Editor.Models.CanDownload, Converter={StaticResource BoolToVis}}"
+                            AutomationProperties.AutomationId="Image_PictureModelsDownload" AutomationProperties.Name="{loc:Str Images.Models.Download}">
                         <icons:IconLabel Icon="fluent:arrow_download" Text="{loc:Str Images.Models.Download}"/>
                     </Button>
-                    <TextBlock Text="{Binding Editor.PickingModels.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
-                </DockPanel>
-            </Border>
-            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
-                    Visibility="{Binding Editor.ErasingModels.ShowsOffer, Converter={StaticResource BoolToVis}}">
-                <DockPanel>
-                    <Button DockPanel.Dock="Right" Command="{Binding Editor.ErasingModels.DownloadCommand}" Style="{StaticResource ToolbarButtonStyle}"
-                            Visibility="{Binding Editor.ErasingModels.CanDownload, Converter={StaticResource BoolToVis}}"
-                            AutomationProperties.AutomationId="Image_ErasingModelsDownload" AutomationProperties.Name="{loc:Str Images.Models.Download}">
-                        <icons:IconLabel Icon="fluent:arrow_download" Text="{loc:Str Images.Models.Download}"/>
-                    </Button>
-                    <TextBlock Text="{Binding Editor.ErasingModels.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
-                </DockPanel>
-            </Border>
-            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
-                    Visibility="{Binding Editor.RestoringModels.ShowsOffer, Converter={StaticResource BoolToVis}}">
-                <DockPanel>
-                    <Button DockPanel.Dock="Right" Command="{Binding Editor.RestoringModels.DownloadCommand}" Style="{StaticResource ToolbarButtonStyle}"
-                            Visibility="{Binding Editor.RestoringModels.CanDownload, Converter={StaticResource BoolToVis}}"
-                            AutomationProperties.AutomationId="Image_RestoringModelsDownload" AutomationProperties.Name="{loc:Str Images.Models.Download}">
-                        <icons:IconLabel Icon="fluent:arrow_download" Text="{loc:Str Images.Models.Download}"/>
-                    </Button>
-                    <TextBlock Text="{Binding Editor.RestoringModels.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding Editor.Models.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
                 </DockPanel>
             </Border>
         </StackPanel>

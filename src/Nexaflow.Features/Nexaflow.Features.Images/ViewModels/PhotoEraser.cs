@@ -19,8 +19,8 @@ public sealed class PhotoEraser : ToolEdit<EraseSteps>
     /// <param name="erasing">Picture erasing, where the app has it.</param>
     /// <param name="selection">Picture selection, where the app has it.</param>
     /// <param name="runOnUi">Hops to the UI thread, where the session and this are read.</param>
-    public PhotoEraser(ImageEditingServices services, IPictureErasing? erasing, IPictureSelection? selection, Func<Action, Task> runOnUi)
-        : base(services, [erasing, selection], runOnUi, "Images.Erase.")
+    public PhotoEraser(ImageEditingServices services, IPictureErasing? erasing, IPictureSelection? selection, Func<Action, Task> runOnUi, PictureModels? models = null)
+        : base(services, [erasing, selection], runOnUi, "Images.Erase.", models)
         => (_erasing, _selection) = (erasing, selection);
 
     /// <summary>Erasing is always offered: content-aware fill and the healing brush run on any machine.</summary>

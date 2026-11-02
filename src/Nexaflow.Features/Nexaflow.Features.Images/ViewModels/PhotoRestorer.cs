@@ -15,8 +15,8 @@ public sealed class PhotoRestorer : ToolEdit<RecipeRestore>
 
     /// <param name="tools">The picture tools, where the app has them.</param>
     /// <param name="runOnUi">Hops to the UI thread, where the session and this are read.</param>
-    public PhotoRestorer(ImageEditingServices services, IPictureTools? tools, Func<Action, Task> runOnUi)
-        : base(services, tools, runOnUi, "Images.Restore.")
+    public PhotoRestorer(ImageEditingServices services, IPictureTools? tools, Func<Action, Task> runOnUi, PictureModels? models = null)
+        : base(services, tools, runOnUi, "Images.Restore.", models)
         => _tools = tools;
 
     /// <summary>Whether the picture tools are here now, ready to restore.</summary>

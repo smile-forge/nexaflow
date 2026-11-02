@@ -11,11 +11,11 @@ namespace Nexaflow.Features.Images.ViewModels;
 internal sealed class PictureToolEdits : IDisposable
 {
     public PictureToolEdits(ImageEditingServices services, IPictureTools? pictures, IPictureSelection? selection, IPictureErasing? erasing,
-                        Func<Action, Task> runOnUi, Action made)
+                        PictureModels models, Func<Action, Task> runOnUi, Action made)
     {
-        Restorer = new PhotoRestorer(services, pictures, runOnUi);
-        Remover = new BackgroundRemover(services, selection, runOnUi);
-        Eraser = new PhotoEraser(services, erasing, selection, runOnUi);
+        Restorer = new PhotoRestorer(services, pictures, runOnUi, models);
+        Remover = new BackgroundRemover(services, selection, runOnUi, models);
+        Eraser = new PhotoEraser(services, erasing, selection, runOnUi, models);
         Restorer.Made += made;
         Remover.Made += made;
         // The restoration is of the picture as erased: it follows each erasing as it is made.
