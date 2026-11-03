@@ -33,6 +33,7 @@
                 Visibility="{Binding IsLayered, Converter={StaticResource BoolToVis}}" Thumb.DragStarted="Slider_DragStarted" Thumb.DragCompleted="Slider_DragCompleted">
             <DockPanel>
                 <views:CanvasPicturesPanel DockPanel.Dock="Top" DataContext="{Binding Pictures}"/>
+                <views:PictureEditsPanel DockPanel.Dock="Top" DataContext="{Binding Edits}"/>
                 <views:LayersPanel DataContext="{Binding Layers}"/>
             </DockPanel>
         </Border>

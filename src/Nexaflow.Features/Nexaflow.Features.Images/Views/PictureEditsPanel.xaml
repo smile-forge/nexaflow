@@ -1,0 +1,98 @@
+<UserControl x:Class="Nexaflow.Features.Images.Views.PictureEditsPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:icons="clr-namespace:Nexaflow.Visuals.Icons;assembly=Nexaflow.Visuals.Icons"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
+             AutomationProperties.AutomationId="Image_LayersAiEdits">
+
+    <!-- Above the layers, beside Generate layer: the AI edits — fill the selection, expand the canvas, change a layer or the
+         picture — each set up here and drawn by the workspace's Image Editing model. Bound to a PictureEdits. -->
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="ImageViewStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
+            <cv:InverseBoolToVisibilityConverter x:Key="NotBoolVis"/>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <StackPanel Margin="8,6,8,0" Visibility="{Binding OffersEditing, Converter={StaticResource BoolVis}}">
+        <WrapPanel>
+            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding AskFillCommand}" Margin="0,0,4,0"
+                    ToolTip="{loc:Str Images.Edits.FillTip}" AutomationProperties.AutomationId="Image_LayersAiFill"
+                    Visibility="{Binding OffersFill, Converter={StaticResource BoolVis}}">
+                <icons:IconLabel Icon="fluent:paint_brush_sparkle" Text="{loc:Str Images.Edits.Fill}"/>
+            </Button>
+            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding AskExpandCommand}" Margin="0,0,4,0"
+                    ToolTip="{loc:Str Images.Edits.ExpandTip}" AutomationProperties.AutomationId="Image_LayersAiExpand"
+                    Visibility="{Binding OffersFill, Converter={StaticResource BoolVis}}">
+                <icons:IconLabel Icon="fluent:resize" Text="{loc:Str Images.Edits.Expand}"/>
+            </Button>
+            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding AskChangeCommand}"
+                    ToolTip="{loc:Str Images.Edits.ChangeTip}" AutomationProperties.AutomationId="Image_LayersAiChange"
+                    Visibility="{Binding OffersChange, Converter={StaticResource BoolVis}}">
+                <icons:IconLabel Icon="fluent:wand" Text="{loc:Str Images.Edits.Change}"/>
+            </Button>
+        </WrapPanel>
+
+        <!-- The edit being set up: what to draw or change, and for an expansion how far each way, for a change what of it. -->
+        <Border Margin="0,6,0,0" Padding="8" Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                Visibility="{Binding IsAsking, Converter={StaticResource BoolVis}}">
+            <StackPanel>
+                <TextBlock Style="{StaticResource EditCaption}" Text="{Binding PromptLabel}"/>
+                <TextBox Text="{Binding Prompt, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" Height="56"
+                         VerticalScrollBarVisibility="Auto" Padding="4,3"
+                         Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"
+                         AutomationProperties.AutomationId="Image_LayersAiPrompt" AutomationProperties.Name="{Binding PromptLabel}"/>
+
+                <UniformGrid Columns="4" Margin="0,6,0,0" Visibility="{Binding IsAskingExpand, Converter={StaticResource BoolVis}}">
+                    <StackPanel Margin="0,0,4,0">
+                        <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Edits.Left}"/>
+                        <TextBox Text="{Binding ExpandLeft, UpdateSourceTrigger=PropertyChanged}" Padding="4,3"
+                                 Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                 AutomationProperties.AutomationId="Image_LayersAiExpandLeft" AutomationProperties.Name="{loc:Str Images.Edits.Left}"/>
+                    </StackPanel>
+                    <StackPanel Margin="0,0,4,0">
+                        <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Edits.Top}"/>
+                        <TextBox Text="{Binding ExpandTop, UpdateSourceTrigger=PropertyChanged}" Padding="4,3"
+                                 Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                 AutomationProperties.AutomationId="Image_LayersAiExpandTop" AutomationProperties.Name="{loc:Str Images.Edits.Top}"/>
+                    </StackPanel>
+                    <StackPanel Margin="0,0,4,0">
+                        <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Edits.Right}"/>
+                        <TextBox Text="{Binding ExpandRight, UpdateSourceTrigger=PropertyChanged}" Padding="4,3"
+                                 Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                 AutomationProperties.AutomationId="Image_LayersAiExpandRight" AutomationProperties.Name="{loc:Str Images.Edits.Right}"/>
+                    </StackPanel>
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Edits.Bottom}"/>
+                        <TextBox Text="{Binding ExpandBottom, UpdateSourceTrigger=PropertyChanged}" Padding="4,3"
+                                 Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                 AutomationProperties.AutomationId="Image_LayersAiExpandBottom" AutomationProperties.Name="{loc:Str Images.Edits.Bottom}"/>
+                    </StackPanel>
+                </UniformGrid>
+
+                <UniformGrid Columns="2" Margin="0,6,0,0" Visibility="{Binding IsAskingChange, Converter={StaticResource BoolVis}}">
+                    <RadioButton GroupName="EditWhat" Style="{StaticResource SegRadioStyle}" IsChecked="{Binding WholePicture}"
+                                 Content="{loc:Str Images.Edits.WholePicture}" AutomationProperties.AutomationId="Image_LayersAiWholePicture"/>
+                    <RadioButton GroupName="EditWhat" Style="{StaticResource SegRadioStyle}" IsChecked="{Binding ActiveLayerOnly}"
+                                 Content="{loc:Str Images.Edits.ActiveLayer}" AutomationProperties.AutomationId="Image_LayersAiActiveLayer"/>
+                </UniformGrid>
+
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <Button Command="{Binding GoCommand}" Style="{StaticResource ToolbarPrimaryButtonStyle}" Padding="12,4" Margin="0,0,6,0"
+                            AutomationProperties.AutomationId="Image_LayersAiGo">
+                        <icons:IconLabel Icon="fluent:sparkle" Text="{loc:Str Images.Edits.Go}"/>
+                    </Button>
+                    <Button Command="{Binding CancelCommand}" Style="{StaticResource ToolbarButtonStyle}" Padding="12,4"
+                            AutomationProperties.AutomationId="Image_LayersAiCancel">
+                        <icons:IconLabel Icon="fluent:dismiss" Text="{loc:Str Images.Edits.Cancel}"/>
+                    </Button>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>
