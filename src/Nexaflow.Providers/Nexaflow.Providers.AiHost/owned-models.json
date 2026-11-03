@@ -1800,6 +1800,34 @@
           "sha256": "99820be3ed3693f7726e7cda8baddbee9961137b4a402b3c4b2d539a3e234161"
         }
       ]
+    },
+    {
+      "id": "depth-anything-v2-small",
+      "displayName": "Depth Anything V2 Small",
+      "kind": "sceneDepth",
+      "parts": [
+        {
+          "role": "depthEstimator",
+          "runner": "scene-depth-estimator",
+          "folder": "tools/depth-anything-v2-small/estimator",
+          "file": "depth-anything-v2-small.onnx",
+          "memoryBytes": 3113222144
+        }
+      ],
+      "files": [
+        {
+          "path": "tools/depth-anything-v2-small/estimator/depth-anything-v2-small.onnx",
+          "url": "https://huggingface.co/smile-forge/depth-anything-v2-small-onnx/resolve/9d4c581b1d5fa290fd1968193a506901dd22f0e5/estimator/depth-anything-v2-small.onnx",
+          "size": 100165198,
+          "sha256": "cbeb4c3f6c242b6156259b178441412f6d9c71172fc409969b05de6d9a2b715a"
+        },
+        {
+          "path": "tools/depth-anything-v2-small/estimator/LICENSE",
+          "url": "https://huggingface.co/smile-forge/depth-anything-v2-small-onnx/resolve/9d4c581b1d5fa290fd1968193a506901dd22f0e5/LICENSE",
+          "size": 11558,
+          "sha256": "1eb85fc97224598dad1852b5d6483bbcf0aa8608790dcc657a5a2a761ae9c8c6"
+        }
+      ]
     }
   ]
 }

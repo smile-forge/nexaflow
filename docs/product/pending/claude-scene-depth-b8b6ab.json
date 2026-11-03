@@ -84,6 +84,11 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/Imaging/DepthResamplingTests.cs",
             "class": "DepthResamplingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedSceneDepthTests.cs",
+            "class": "OwnedSceneDepthTests"
           }
         ]
       }
