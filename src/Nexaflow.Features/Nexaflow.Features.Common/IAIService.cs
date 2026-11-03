@@ -188,6 +188,22 @@ namespace Nexaflow.Features.Common
         PictureJob MakePicture(PictureAsked picture);
 
         /// <summary>
+        /// What the workspace changes a picture with now — the model <c>edit_image</c> works with, its Image Editing row's; null
+        /// where it has none.
+        /// </summary>
+        PictureChoices? EditsPictures { get; }
+
+        /// <summary>
+        /// Changes a picture as the user set it up, one of the workspace's background jobs as <see cref="MakePicture"/> is — what it
+        /// makes passing the picture check, saved as <see cref="PictureEditAsked.Path"/> and opened when made unless
+        /// <see cref="PictureEditAsked.OpensWhenMade"/> says otherwise. It reads only the pictures it is given. Returns once it has
+        /// started, with the job; nothing is asked first, the user having asked.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">The workspace has no model that works from pictures or runs no background
+        /// jobs, or the file's folder is not there.</exception>
+        PictureJob EditPicture(PictureEditAsked edit);
+
+        /// <summary>
         /// What the workspace makes a clip from a description with now — by the model <c>generate_video</c> makes one with; null
         /// where it makes none.
         /// </summary>

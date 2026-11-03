@@ -98,10 +98,11 @@ public sealed class AIService : IAIService
         }, TaskScheduler.Default);
     }
 
-    public PictureMaking? MakesPictures => ImageGenerator is null && HighQualityImageGenerator is null && ImageEditor is null
+    public PictureMaking? MakesPictures => ImageGenerator is null && HighQualityImageGenerator is null
         ? null
-        : new(PictureChoicesOf(ImageGenerator, AllowsAdultContent), PictureChoicesOf(HighQualityImageGenerator, AllowsAdultContent),
-              PictureChoicesOf(ImageEditor, AllowsAdultContent));
+        : new(PictureChoicesOf(ImageGenerator, AllowsAdultContent), PictureChoicesOf(HighQualityImageGenerator, AllowsAdultContent));
+
+    public PictureChoices? EditsPictures => PictureChoicesOf(ImageEditor, AllowsAdultContent);
 
         /// <summary>Whether the app allows adult content: not while Enhanced AI Protection Mode is on, as it is by default
         /// (<see cref="ProtectedAudience"/>). Read where it is offered, so a change applies to the next choice made.</summary>
@@ -131,17 +132,15 @@ public sealed class AIService : IAIService
 
     public PictureJob MakePicture(PictureAsked picture)
     {
-        if (ImageGenerator is null && HighQualityImageGenerator is null && ImageEditor is null)
+        if (ImageGenerator is null && HighQualityImageGenerator is null)
             throw new InvalidOperationException("This workspace has no model that draws pictures.");
         var (shell, jobs, target) = UsersJob(picture.Path);
 
         // The call generate_image would be given, run as the assistant's slow calls run — but the user's, so nothing is asked.
-        // It reads only the pictures the user gave it, saves only where the user named, and opens the picture once it is there
-        // unless whoever asked takes it in.
-        string[] given = [.. picture.Sources, .. picture.Mask is { } stencil ? [stencil] : Array.Empty<string>()];
+        // It saves only where the user named, and opens the picture once it is there unless whoever asked takes it in.
         var tool = new Generation.GenerateImageTool(ImageGenerator, HighQualityImageGenerator,
-                                                    Generation.GeneratedFiles.For(shell, new PathScope(given, [Path.GetDirectoryName(target)!]), picture.OpensWhenMade),
-                                                    AllowsAdultContent, PictureCheck, ImageEditor);
+                                                    Generation.GeneratedFiles.For(shell, new PathScope([], [Path.GetDirectoryName(target)!]), picture.OpensWhenMade),
+                                                    AllowsAdultContent, PictureCheck);
         var arguments = new JsonObject
         {
             ["prompt"]  = picture.Prompt,
@@ -155,8 +154,27 @@ public sealed class AIService : IAIService
         if (picture.NegativePrompt is { Length: > 0 } keep)  arguments["negative_prompt"]        = keep;
         if (picture.TransparentBackground)                   arguments["transparent_background"] = true;
         if (picture.Lora is { Length: > 0 } lora)            arguments["lora"]                   = lora;
-        if (picture.Sources.Count > 0)                       arguments["sources"]                = new JsonArray([.. picture.Sources.Select(s => JsonValue.Create(s))]);
-        if (picture.Mask is { } mask)                        arguments["mask"]                   = mask;
+        var (_, job, ended) = jobs.Start(tool, arguments, origin: null);
+        return PictureJobOf(job, ended);
+    }
+
+    public PictureJob EditPicture(PictureEditAsked edit)
+    {
+        if (ImageEditor is not { } editor) throw new InvalidOperationException("This workspace has no model that works from pictures.");
+        var (shell, jobs, target) = UsersJob(edit.Path);
+
+        // The call edit_image would be given, the user's: it reads only the pictures the user gave it and saves only where they named.
+        string[] given = [.. edit.Sources, .. edit.Mask is { } stencil ? [stencil] : Array.Empty<string>()];
+        var tool = new Generation.EditImageTool(editor, Generation.GeneratedFiles.For(shell, new PathScope(given, [Path.GetDirectoryName(target)!]), edit.OpensWhenMade),
+                                                PictureCheck);
+        var arguments = new JsonObject
+        {
+            ["instruction"] = edit.Instruction,
+            ["path"]        = target,
+            ["sources"]     = new JsonArray([.. edit.Sources.Select(s => JsonValue.Create(s))]),
+        };
+        if (edit.Mask is { } mask) arguments["mask"] = mask;
+        if (edit.Seed is { } seed) arguments["seed"] = seed;
         var (_, job, ended) = jobs.Start(tool, arguments, origin: null);
         return PictureJobOf(job, ended);
     }
@@ -453,10 +471,12 @@ public sealed class AIService : IAIService
     /// </summary>
     private IEnumerable<IClientTool> AwaitingMakingTools(Generation.GeneratedFiles made)
     {
-        if (ImageGenerator is null && HighQualityImageGenerator is null && ImageEditor is null)
-            foreach (var tool in Awaiting(made, [AiAbility.ImageGeneration, AiAbility.HighQualityImageGeneration, AiAbility.ImageEditing],
-                                          p => new(p[0] as IImageGenerationProvider, p[1] as IImageGenerationProvider, p[2] as IImageGenerationProvider,
-                                                   null, null, null, made)))
+        if (ImageGenerator is null && HighQualityImageGenerator is null)
+            foreach (var tool in Awaiting(made, [AiAbility.ImageGeneration, AiAbility.HighQualityImageGeneration],
+                                          p => new(p[0] as IImageGenerationProvider, p[1] as IImageGenerationProvider, null, null, null, null, made)))
+                yield return tool;
+        if (ImageEditor is null)
+            foreach (var tool in Awaiting(made, [AiAbility.ImageEditing], p => new(null, null, p[0] as IImageGenerationProvider, null, null, null, made)))
                 yield return tool;
         if (TextToSpeech is null)
             foreach (var tool in Awaiting(made, [AiAbility.SpeechOut], p => new(null, null, null, p[0] as ITextToSpeechProvider, null, null, made)))

@@ -46,9 +46,8 @@ public sealed record PictureChoices(IReadOnlyList<string> Aspects)
 /// <param name="NegativePrompts">Whether a picture drawn with it is told what to keep out.</param>
 public sealed record PictureLora(string Id, string Name, string Description, bool NegativePrompts);
 
-/// <summary>What the workspace draws a picture with now: at standard quality, at high quality, or at either — and what it
-/// changes a picture with, where its Image Editing row has a model.</summary>
-public sealed record PictureMaking(PictureChoices? Standard, PictureChoices? HighQuality, PictureChoices? Editing = null);
+/// <summary>What the workspace draws a picture with now: at standard quality, at high quality, or at either.</summary>
+public sealed record PictureMaking(PictureChoices? Standard, PictureChoices? HighQuality);
 
 /// <summary>A picture the user asks for, as they set it up.</summary>
 /// <param name="Prompt">What to draw, in the user's words.</param>
@@ -77,16 +76,29 @@ public sealed record PictureAsked(string Prompt, string Path, bool HighQuality)
     /// <summary>The id of one of its <see cref="PictureChoices.Loras"/>; null for none.</summary>
     public string? Lora { get; init; }
 
-    /// <summary>Pictures to work from, as files: changed, restyled or combined by the workspace's Image Editing model, at most
-    /// its <see cref="PictureChoices.Sources"/>; empty to draw from the prompt alone.</summary>
-    public IReadOnlyList<string> Sources { get; init; } = [];
 
+
+    /// <summary>Opened in the workspace's viewers once it is made, as a picture asked for in the file view is; false for one
+    /// whoever asked for it takes in themselves — a canvas, adding it as a layer.</summary>
+    public bool OpensWhenMade { get; init; } = true;
+}
+
+/// <summary>A picture the user asks to have changed by the workspace's Image Editing model, as they set it up.</summary>
+/// <param name="Instruction">What to change, or how to combine the pictures, in the user's words.</param>
+/// <param name="Sources">The pictures to work from, as files — the first the one changed — at most the model's
+/// <see cref="PictureChoices.Sources"/>.</param>
+/// <param name="Path">The file what it makes is saved as — its extension that of what the model makes — in a folder that exists.</param>
+public sealed record PictureEditAsked(string Instruction, IReadOnlyList<string> Sources, string Path)
+{
     /// <summary>A PNG the size of the first source whose transparent part is what is drawn again, where the model
     /// <see cref="PictureChoices.Masks"/>; null to change the whole picture.</summary>
     public string? Mask { get; init; }
 
-    /// <summary>Opened in the workspace's viewers once it is made, as a picture asked for in the file view is; false for one
-    /// whoever asked for it takes in themselves — a canvas, adding it as a layer.</summary>
+    /// <summary>0 or more, where it <see cref="PictureChoices.Seeds"/>; null for a new one.</summary>
+    public int? Seed { get; init; }
+
+    /// <summary>Opened in the workspace's viewers once it is made; false for one whoever asked for it takes in themselves — a
+    /// canvas, adding it as a layer.</summary>
     public bool OpensWhenMade { get; init; } = true;
 }
 

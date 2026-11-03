@@ -58,7 +58,7 @@ public sealed partial class PictureEdits : ObservableObject
     }
 
     /// <summary>What the workspace's Image Editing model offers; null where it has none.</summary>
-    private PictureChoices? Editing => _ai?.MakesPictures?.Editing;
+    private PictureChoices? Editing => _ai?.EditsPictures;
 
     /// <summary>Whether a layer or the picture can be changed by an instruction.</summary>
     public bool OffersChange => Editing is { Sources: > 0 };
@@ -289,7 +289,7 @@ public sealed partial class PictureEdits : ObservableObject
         PictureJob job;
         try
         {
-            job = _ai.MakePicture(new PictureAsked(prompt, made, HighQuality: false) { Sources = [source], Mask = mask, OpensWhenMade = false });
+            job = _ai.EditPicture(new PictureEditAsked(prompt, [source], made) { Mask = mask, OpensWhenMade = false });
         }
         catch (InvalidOperationException ex)
         {

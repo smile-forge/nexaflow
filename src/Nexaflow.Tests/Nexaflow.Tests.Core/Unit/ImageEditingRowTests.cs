@@ -32,6 +32,11 @@ public class ImageEditingRowTests
         CollectionAssert.AreEqual(new[] { Local }, fresh.Assignments["ImageEditing"].ColumnIds.ToArray());
         Assert.IsTrue(new AiConfig().BringUpToDate(), "a grid read from an earlier version is brought up to the row");
 
+        var drawing = new AiConfig { Assignments = { ["ImageGeneration"] = AbilityChain.Of("gpt", Local), ["HighQualityImageGeneration"] = AbilityChain.Of("gemini", "gpt") } };
+        Assert.IsTrue(drawing.AddDefaultImageEditing());
+        CollectionAssert.AreEqual(new[] { Local, "gpt", "gemini" }, drawing.Assignments["ImageEditing"].ColumnIds.ToArray(),
+                                  "the picture rows' models go on, each once: those that work from pictures still do");
+
         var emptied = new AiConfig { Assignments = { ["ImageEditing"] = AbilityChain.Empty } };
         Assert.IsFalse(emptied.AddDefaultImageEditing());
         Assert.AreEqual(0, emptied.Assignments["ImageEditing"].ColumnIds.Count);

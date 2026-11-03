@@ -7,10 +7,9 @@ using Nexaflow.Visuals.Common.Localization;
 namespace Nexaflow.Core.Services.Generation;
 
 /// <summary>
-/// Draws a picture with the workspace's Image Generation model, or its Image Generation (HQ) model when a finished,
-/// polished picture is asked for — from a prompt, or from pictures given to it where the model works from them; a call
-/// that gives pictures to work from goes to the Image Editing model where the workspace has one — then saves and opens
-/// it, and shows it to the model. What else a picture may be asked for with — its exact proportions,
+/// Draws a picture from a description with the workspace's Image Generation model, or its Image Generation (HQ) model
+/// when a finished, polished picture is asked for, then saves and opens it, and shows it to the model; a picture changed
+/// from pictures given to it is edit_image's (<see cref="EditImageTool"/>). What else a picture may be asked for with — its exact proportions,
 /// size, detail, seed, what to keep out, a transparent background, a LoRA — is what the models' <see cref="ImageSettings"/>
 /// offer; a LoRA meant for adults only is offered only while Enhanced AI Protection Mode is off, and while it is on every
 /// picture passes its check (<see cref="IPictureCheck"/>) before it is saved or shown. A high-quality picture is slow and
@@ -20,27 +19,22 @@ internal sealed class GenerateImageTool : IClientTool
 {
     private readonly IImageGenerationProvider? _standard;
     private readonly IImageGenerationProvider? _highQuality;
-    private readonly IImageGenerationProvider? _editing;
     private readonly GeneratedFiles _files;
     private readonly bool _allowsAdultContent;
     private readonly IPictureCheck? _check;
 
-    /// <summary>Any of the models may be missing, not all; with both drawing models, a <c>quality</c> argument chooses
-    /// between them, and with an editing model, a call that gives pictures to work from is made by it.</summary>
+    /// <summary>Either model may be missing, not both; with both, a <c>quality</c> argument chooses between them.</summary>
     /// <param name="allowsAdultContent">Enhanced AI Protection Mode is off: a LoRA meant for adults only is offered.</param>
     /// <param name="check">The check every picture passes while Enhanced AI Protection Mode is on; null while it is off.</param>
-    /// <param name="editing">The Image Editing model: one that works from pictures, or it is not used.</param>
     public GenerateImageTool(IImageGenerationProvider? standard, IImageGenerationProvider? highQuality, GeneratedFiles files, bool allowsAdultContent = false,
-                             IPictureCheck? check = null, IImageGenerationProvider? editing = null)
+                             IPictureCheck? check = null)
     {
-        if (standard is null && highQuality is null && editing is null) throw new ArgumentException("An image tool needs a model to draw with.");
+        if (standard is null && highQuality is null) throw new ArgumentException("An image tool needs a model to draw with.");
         _standard           = standard;
         _highQuality        = highQuality;
-        _editing            = editing is { MaxSources: > 0 } ? editing : null;
         _files              = files;
         _allowsAdultContent = allowsAdultContent;
         _check              = check;
-        if (_standard is null && _highQuality is null && _editing is null) throw new ArgumentException("An editing model works from pictures.", nameof(editing));
     }
 
     /// <summary>A model's settings as they are offered: a LoRA meant for adults only left out unless the app allows adult
@@ -52,27 +46,19 @@ internal sealed class GenerateImageTool : IClientTool
 
     public string Name => "generate_image";
 
-    /// <summary>Every model it has, standard first, then high quality, then the editing model.</summary>
-    private IEnumerable<IImageGenerationProvider> Models => new[] { _standard, _highQuality, _editing }.OfType<IImageGenerationProvider>();
-
-    private int MostSources => Models.Max(m => m.MaxSources);
-
     private bool OffersQuality => _standard is not null && _highQuality is not null;
 
     /// <summary>The models' settings, standard first.</summary>
-    private IEnumerable<ImageSettings> Offered => Models.Select(Offering);
+    private IEnumerable<ImageSettings> Offered => new[] { _standard, _highQuality }.OfType<IImageGenerationProvider>().Select(Offering);
 
-    public string Description => (MostSources > 0
-        ? "Draws a picture from a description, or changes, restyles or combines pictures given to it, and opens it for the user."
-        : "Draws a picture from a description and opens it for the user.")
+    public string Description => "Draws a picture from a description and opens it for the user."
         + " Describe it fully: subject, style, composition, light."
         + (OffersQuality ? " Use high quality only for a finished, polished picture the user asks for: it is slower and is approved first." : "");
 
     public IReadOnlyList<ClientToolParameter> Parameters =>
     [
-        new("prompt", MostSources > 0 ? "What to draw, or what to change in the sources." : "What to draw."),
-        new("shape", $"The picture's proportions: square, landscape or portrait, or exactly width:height.{Offer(s => s.Aspects)} Square when not given."
-                     + (_editing?.Settings.KeepsSourceProportions == true ? " Pictures worked from keep their own proportions." : ""),
+        new("prompt", "What to draw."),
+        new("shape", $"The picture's proportions: square, landscape or portrait, or exactly width:height.{Offer(s => s.Aspects)} Square when not given.",
             Required: false, Choices: [.. Shapes, .. Offered.SelectMany(s => s.Aspects).Select(a => a.ToString()).Distinct()]),
         .. OffersQuality
             ? [new ClientToolParameter("quality", "Standard when not given.", Required: false, Choices: Qualities)]
@@ -99,13 +85,6 @@ internal sealed class GenerateImageTool : IClientTool
         .. Offered.Any(s => s.Loras.Count > 0)
             ? [new ClientToolParameter("lora", $"A LoRA to draw it with, one at a time — {LoraList}.{Only(s => s.Loras.Count > 0)} None when not given.",
                                        Required: false, Choices: [.. Offered.SelectMany(s => s.Loras).Select(l => l.Id).Distinct()])]
-            : Array.Empty<ClientToolParameter>(),
-        .. MostSources > 0
-            ? [new ClientToolParameter("sources", $"Full paths of up to {MostSources} PNG, JPEG or WebP picture(s) to work from: pictures open in a tab, or in a folder open in one.{SourcesNote}",
-                                       Required: false, Type: "array", ItemType: "string")]
-            : Array.Empty<ClientToolParameter>(),
-        .. Models.Any(m => m.Masks)
-            ? [new ClientToolParameter("mask", $"Full path of a PNG the size of the first source; its transparent part is what gets redrawn.{MaskNote}", Required: false)]
             : Array.Empty<ClientToolParameter>(),
         new("path", GenerationTools.SavedWhere, Required: false),
     ];
@@ -136,15 +115,6 @@ internal sealed class GenerateImageTool : IClientTool
             ? offers(Offering(_standard!)) ? " Standard quality only." : " High quality only."
             : "";
 
-    /// <summary>Which model takes the sources, and how many each takes where they differ.</summary>
-    private string SourcesNote =>
-        _editing is not null ? $" They are worked on by the workspace's picture-editing model, whatever the quality." :
-        OffersQuality && _standard!.MaxSources != _highQuality!.MaxSources ? $" Standard takes {_standard.MaxSources}, high {_highQuality.MaxSources}." : "";
-
-    private string MaskNote =>
-        _editing is not null ? (_editing.Masks ? "" : " Only without pictures to work from: those go to a model that takes no mask.") :
-        OffersQuality && _standard!.Masks != _highQuality!.Masks ? _standard.Masks ? " Standard quality only." : " High quality only." : "";
-
     public ToolSafety Safety => ToolSafety.SafeOperation;
 
     public ToolSafety SafetyOf(JsonObject arguments) =>
@@ -160,16 +130,11 @@ internal sealed class GenerateImageTool : IClientTool
                   Str.Get("Shell.Generate.Announce.DrawingInBackground"))
             : null;
 
-    /// <summary>The model a call draws with: the editing model for one that gives pictures to work from, where there is one;
-    /// otherwise the high-quality one when asked for, or when it is the only one that draws.</summary>
-    private IImageGenerationProvider Model(JsonObject arguments)
-    {
-        bool fromPictures = arguments["sources"] is JsonArray { Count: > 0 };
-        if (_editing is not null && (fromPictures || (_standard is null && _highQuality is null))) return _editing;
-        return _standard is null || (_highQuality is not null && string.Equals(ToolArgs.Str(arguments, "quality"), "high", StringComparison.OrdinalIgnoreCase))
+    /// <summary>The model a call draws with: the high-quality one when asked for, or when it is the only one.</summary>
+    private IImageGenerationProvider Model(JsonObject arguments) =>
+        _standard is null || (_highQuality is not null && string.Equals(ToolArgs.Str(arguments, "quality"), "high", StringComparison.OrdinalIgnoreCase))
             ? _highQuality!
             : _standard;
-    }
 
     public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
@@ -181,55 +146,17 @@ internal sealed class GenerateImageTool : IClientTool
         var model = Model(arguments);
         if (Request(Offering(model), prompt, arguments, out var problem) is not { } asked) return ToolResult.Error("not offered", problem!);
 
-        var paths = arguments["sources"] is JsonArray listed ? listed.Select(s => s?.ToString()).OfType<string>().ToList() : [];
-        if (paths.Count > model.MaxSources)
-            return ToolResult.Error("too many sources", ReferenceEquals(model, _editing)
-                ? $"The picture-editing model works from at most {model.MaxSources} picture(s)."
-                : $"This quality works from at most {model.MaxSources} picture(s).");
-
-        var sources = new List<MediaBytes>();
-        foreach (var path in paths)
-        {
-            if (_files.ReadPicture(path, out problem) is not { } picture) return ToolResult.Error("source unreadable", problem!);
-            sources.Add(picture);
-        }
-
-        MediaBytes? mask = null;
-        if (ToolArgs.Str(arguments, "mask") is { Length: > 0 } maskPath)
-        {
-            if (!model.Masks || sources.Count == 0) return ToolResult.Error("mask unused", "A mask needs a model that takes one and a source to lay it over.");
-            if (_files.ReadPicture(maskPath, out problem) is not { } stencil) return ToolResult.Error("mask unreadable", problem!);
-            mask = stencil;
-        }
-
-        var request = asked with { Sources = sources, Mask = mask };
         GeneratedMedia made;
         try
         {
-            made = await model.GenerateImageAsync(request, ct);
+            made = await model.GenerateImageAsync(asked, ct);
         }
         catch (LlmProviderException ex)
         {
             return ToolResult.Error("could not draw it", ex.Message);
         }
 
-        // Enhanced AI Protection Mode: a picture unfit for a general audience is neither kept nor shown — nor one whose
-        // check could not run.
-        if (_check is not null)
-        {
-            bool fit;
-            try { fit = await _check.FitForGeneralAudienceAsync(made.Media, ct); }
-            catch (InvalidOperationException ex)
-            {
-                return ToolResult.Error("not checked", $"The picture was not shown: Enhanced AI Protection Mode checks every picture, and its check could not run. {ex.Message}");
-            }
-            if (!fit)
-                return ToolResult.Error("withheld", "The picture was withheld: Enhanced AI Protection Mode found it unfit for a general audience. "
-                                                    + "Say so briefly and calmly, and offer to draw a version that keeps to a general audience.");
-        }
-
-        var saved = await _files.KeepAsync(made.Media, MadeKind.Picture, ToolArgs.Str(arguments, "path"), prompt, ct);
-        return GeneratedFiles.Made(saved, made.Note, new ContextImage(made.Media.Bytes, made.Media.MimeType, System.IO.Path.GetFileName(saved.Path)));
+        return await PictureKeeping.KeptAsync(made, _check, _files, ToolArgs.Str(arguments, "path"), prompt, ct);
     }
 
     /// <summary>

@@ -37,7 +37,7 @@ public class ImageAiEditsTests
     private string _dir = "";
     private ViewerUiThread _ui = null!;
     private ImageEditingServices _services = null!;
-    private readonly List<(PictureAsked Asked, TaskCompletionSource<string?> Made)> _jobs = [];
+    private readonly List<(PictureEditAsked Asked, TaskCompletionSource<string?> Made)> _jobs = [];
 
     [TestInitialize]
     public void Make()
@@ -73,12 +73,13 @@ public class ImageAiEditsTests
     {
         var ai = Substitute.For<IAIService>();
         var drawing = new PictureChoices(["1:1"]);
-        ai.MakesPictures.Returns(new PictureMaking(drawing, null, edits ? new PictureChoices(["1:1"]) { Sources = 2, Masks = true, KeepsSourceProportions = true } : null));
+        ai.MakesPictures.Returns(new PictureMaking(drawing, null));
+        ai.EditsPictures.Returns(edits ? new PictureChoices(["1:1"]) { Sources = 2, Masks = true, KeepsSourceProportions = true } : null);
         ai.StatusOf(Arg.Any<AiAbility>()).Returns(new AiAbilityStatus(AiAbilityState.Ready));
-        ai.MakePicture(Arg.Any<PictureAsked>()).Returns(call =>
+        ai.EditPicture(Arg.Any<PictureEditAsked>()).Returns(call =>
         {
             var made = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
-            _jobs.Add((call.Arg<PictureAsked>(), made));
+            _jobs.Add((call.Arg<PictureEditAsked>(), made));
             return new PictureJob(made.Task, () => made.TrySetResult(null));
         });
         return ai;
@@ -98,7 +99,7 @@ public class ImageAiEditsTests
         TiledCoverage.Clear(width, height).Written(rect, Enumerable.Repeat((byte)255, rect.Width * rect.Height).ToArray());
 
     /// <summary>What the stand-in model makes: a picture half the size of the one it was sent.</summary>
-    private string Made((PictureAsked Asked, TaskCompletionSource<string?> Made) job)
+    private string Made((PictureEditAsked Asked, TaskCompletionSource<string?> Made) job)
     {
         using var sent = SKBitmap.Decode(job.Asked.Sources[0]);
         var path = Path.Combine(_dir, $"made-{Guid.NewGuid():N}.png");
@@ -129,7 +130,7 @@ public class ImageAiEditsTests
         Assert.IsNull(await OnUi(() => vm.Edits.FillAsync("a red ball")));
 
         var job = _jobs.Single();
-        Assert.AreEqual("a red ball", job.Asked.Prompt);
+        Assert.AreEqual("a red ball", job.Asked.Instruction);
         Assert.IsFalse(job.Asked.OpensWhenMade, "the canvas takes it in");
         using (var source = SKBitmap.Decode(job.Asked.Sources.Single()))
             Assert.AreEqual((64, 48), (source.Width, source.Height), "the selection's 16 px and 64 px of context either way, held to the canvas");
@@ -174,7 +175,7 @@ public class ImageAiEditsTests
 
         Assert.AreEqual((232, 158), (Picture(vm).Width, Picture(vm).Height), "grown 16 each side and 8 below");
         var job = _jobs.Single();
-        Assert.AreEqual(PictureEdits.ContinuePrompt, job.Asked.Prompt, "told nothing, it carries the picture on");
+        Assert.AreEqual(PictureEdits.ContinuePrompt, job.Asked.Instruction, "told nothing, it carries the picture on");
         using (var mask = SKBitmap.Decode(job.Asked.Mask!))
         {
             Assert.AreEqual((232, 158), (mask.Width, mask.Height));
@@ -235,7 +236,7 @@ public class ImageAiEditsTests
                              .InvokeAsync(new JsonObject { ["description"] = "a blue door" }, CancellationToken.None);
 
         Assert.IsTrue(result.Success, result.ModelText);
-        Assert.AreEqual("a blue door", _jobs.Single().Asked.Prompt);
+        Assert.AreEqual("a blue door", _jobs.Single().Asked.Instruction);
         Assert.IsNotNull(_jobs.Single().Asked.Mask);
     }
 
@@ -250,7 +251,7 @@ public class ImageAiEditsTests
 
         Assert.IsTrue(result.Success, result.ModelText);
         Assert.AreEqual((96, 48), (Picture(vm).Width, Picture(vm).Height));
-        Assert.AreEqual("more of the beach", _jobs.Single().Asked.Prompt);
+        Assert.AreEqual("more of the beach", _jobs.Single().Asked.Instruction);
 
         var nothing = await vm.GetClientTools().Single(t => t.Name == "expand_canvas").InvokeAsync([], CancellationToken.None);
         Assert.IsFalse(nothing.Success, "grown by nothing, it is not begun");
