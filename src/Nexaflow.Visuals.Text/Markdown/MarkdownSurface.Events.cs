@@ -120,6 +120,7 @@ public sealed partial class MarkdownSurface
     private void Laid(object? sender, EventArgs args)
     {
         Refound();
+        Remargined();
         RaiseEvent(new RoutedEventArgs(PreRenderEvent, this));
     }
 

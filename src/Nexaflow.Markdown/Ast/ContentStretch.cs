@@ -142,15 +142,18 @@ public sealed record ContentUnit(int Width, object? Begun, object? Ended, bool L
     }
 
     /// <summary>
-    /// <paramref name="node"/> with every body another reading reads (<see cref="Kinds.Nested"/>) standing for its characters in
-    /// <paramref name="characters"/> rather than holding a copy — the unit read from <paramref name="from"/>, whose offsets are its own.
-    /// The characters are the version the unit was read from, which a unit kept through later changes still reads exactly as.
+    /// <paramref name="node"/> with every body standing for its characters in <paramref name="characters"/> rather than holding a copy of
+    /// them: each leaf the parser made in the body role (<see cref="Roles.Body"/>) — a body another reading reads (<see cref="Kinds.Nested"/>),
+    /// code read as written, a block's characters held as they were written. The unit was read from <paramref name="from"/>, and its offsets
+    /// are its own. A language's own node, and a leaf with something to say, carry more than their characters and are kept as they were
+    /// made. The characters are the version the unit was read from, which a unit kept through later changes still reads exactly as.
     /// </summary>
     private static ContentNode Standing(ContentNode node, IContentCharacters characters, int from)
     {
         if (node.IsLeaf)
-            return node.Kind == Kinds.Nested && !node.IsDerived && !node.Stands && node.Offset is { } at
-                ? ContentNode.Leaf(Kinds.Nested, characters, from + at, node.Width, node.Role, at)
+            return node.Role == Roles.Body && !node.IsDerived && !node.Stands && node.Offset is { } at
+                   && node.Trouble is null && node.Held is null && node.GetType() == typeof(ContentNode)
+                ? ContentNode.Leaf(node.Kind, characters, from + at, node.Width, node.Role, at)
                 : node;
 
         ContentNode[]? made = null;

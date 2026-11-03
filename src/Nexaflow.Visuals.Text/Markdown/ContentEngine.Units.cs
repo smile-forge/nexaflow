@@ -44,7 +44,7 @@ public sealed partial class ContentEngine
     private readonly ConditionalWeakTable<ContentNode, OutlineUnit> _unworked = new();
 
     /// <summary>How tall each unit read comes to as its language says (<see cref="ContentLanguage.UnitHeight"/>), with the style it was said in, by the tree it was read into.</summary>
-    private readonly ConditionalWeakTable<ContentNode, StrongBox<(LayoutStyle? Style, double Height)>> _heights = new();
+    private readonly ConditionalWeakTable<ContentNode, StrongBox<(LayoutStyle? Style, double? WrapsIn, double Height)>> _heights = new();
 
     /// <summary>How many diagrams are written in the units before each, in order — which diagram is which, for what the reader opened in it.</summary>
     private int[] _diagramsBefore = [];
@@ -219,6 +219,7 @@ public sealed partial class ContentEngine
 
         return window.Staged.TryGetValue(unit.Tree, out var staged) && !staged.Stale && !staged.LaidStale && staged.Key == this.KeyFor(showing, start, unit.Width)
                && staged.Laid is { } laid && laid.Room == room && laid.ReadOnly == readOnly && laid.Folds == this.Folds(window, start, unit.Width)
+               && laid.SlidVersion == _slidVersion
             ? laid
             : null;
     }
@@ -259,7 +260,7 @@ public sealed partial class ContentEngine
             if (laid[index] is not { } standing)
             {
                 var (unit, _) = window.Listed[index];
-                y += language.UnitHeight is { } saying ? this.HeightSaid(unit.Tree, showing.Style, saying)
+                y += language.UnitHeight is { } saying ? this.HeightSaid(unit.Tree, showing.Style, showing.WrapsLines ? room : null, saying)
                    : window.Staged.TryGetValue(unit.Tree, out var staged) && staged.Laid is { } was ? was.Laid.Height
                    : unit.Width * perCharacter;
                 above = null;
@@ -286,10 +287,10 @@ public sealed partial class ContentEngine
     private static double Unsaid(LayoutStyle style, double room) => 0.75 * style.TextSize * style.TextSize / Math.Max(room, 1);
 
     /// <summary>How tall the unit read into <paramref name="tree"/> comes to in <paramref name="style"/>, as its language says — said once for each style.</summary>
-    private double HeightSaid(ContentNode tree, LayoutStyle style, Func<ContentNode, LayoutStyle, ILayoutMedium, double> height)
+    private double HeightSaid(ContentNode tree, LayoutStyle style, double? wrapsIn, Func<ContentNode, LayoutStyle, ILayoutMedium, double?, double> height)
     {
-        var said = _heights.GetValue(tree, static _ => new StrongBox<(LayoutStyle? Style, double Height)>());
-        if (!ReferenceEquals(said.Value.Style, style)) said.Value = (style, height(tree, style, _medium));
+        var said = _heights.GetValue(tree, static _ => new StrongBox<(LayoutStyle? Style, double? WrapsIn, double Height)>());
+        if (!ReferenceEquals(said.Value.Style, style) || said.Value.WrapsIn != wrapsIn) said.Value = (style, wrapsIn, height(tree, style, _medium, wrapsIn));
 
         return said.Value.Height;
     }
@@ -325,7 +326,7 @@ public sealed partial class ContentEngine
                 Func<ContentPart, LayoutFold>? folds = window.Placing is null ? Folding : null;
                 var made = Builder(language, reading, Building(window, showing), standingAs, holding, folds, reaches).Lay(room);
 
-                staged.Laid = new LaidUnit(made, Where(window, start), reading.Root, room, readOnly, this.Folds(window, start, unit.Width));
+                staged.Laid = new LaidUnit(made, Where(window, start), reading.Root, room, readOnly, this.Folds(window, start, unit.Width), _slidVersion);
                 staged.LaidStale = false;
             }
             finally
@@ -385,12 +386,18 @@ public sealed partial class ContentEngine
     /// reaches — the screen and a screen either side of it, in the unit's own frame, and the caret, each end of what is picked out and where
     /// the reader went, where they are in it — or null where all of it is to be laid, as where the content is laid whole.
     /// </summary>
-    private LayoutReach? ReachOf(ContentWindow window, int index, double[] tops)
-    {
-        if (!_windowing) return null;
+    private LayoutReach? ReachOf(ContentWindow window, int index, double[] tops) => _windowing ? this.ReachIn(window, index, tops, this.Reach()) : null;
 
+    /// <summary>
+    /// What of the unit at <paramref name="index"/> of <paramref name="window"/>, standing where <paramref name="tops"/> puts it, the reader
+    /// reaches — <paramref name="band"/> of the page, in the unit's own frame, and the caret, each end of what is picked out and where the
+    /// reader went, where they are in it — whether or not the content is being laid where the reader is just now.
+    /// </summary>
+    /// <param name="band">The stretch of the page asked for: the screen and a screen either side of it to lay, the screen alone to have laid.</param>
+    private LayoutReach ReachIn(ContentWindow window, int index, double[] tops, (double Top, double Bottom) band)
+    {
         // A body not yet found on the page is laid from its start, as much of it as a screen either side would reach.
-        var (from, to) = this.Reach();
+        var (from, to) = band;
         var (top, bottom) = window.Placing is null ? (from, to)
                           : window.PageTop is { } stood ? (from - stood, to - stood)
                           : (0.0, Math.Max(_showing?.Height ?? Room, 1) * 2);
@@ -762,7 +769,7 @@ public sealed partial class ContentEngine
     /// What a unit was laid into: the laying, where the unit started then, the root of the reading it was laid from, and what it was
     /// laid with — kept while the unit is, and the room, whether it is only read and the folds reaching into it are as they were.
     /// </summary>
-    private sealed record LaidUnit(Laid Laid, int Start, ContentPart Root, double Room, bool ReadOnly, string Folds);
+    private sealed record LaidUnit(Laid Laid, int Start, ContentPart Root, double Room, bool ReadOnly, string Folds, int SlidVersion);
 }
 
 /// <summary>

@@ -53,7 +53,8 @@ public static class LayoutExport
     /// <summary><paramref name="markdown"/>, laid out read-only for <paramref name="occasion"/> and walked.</summary>
     public static ExportDocument Exported(string markdown, ExportOccasion occasion)
     {
-        var engine = new ContentEngine();
+        // A document written out shows every line it holds: nothing it is written to slides.
+        var engine = new ContentEngine { Slides = false };
         var laid = engine.Lay(null, EditState.For(markdown), occasion.Style, occasion.Width, readOnly: true);
 
         return laid.Root.Part is ContentPart document ? new Walk(laid, engine.NameOf, occasion).Document(document) : new ExportDocument([]);

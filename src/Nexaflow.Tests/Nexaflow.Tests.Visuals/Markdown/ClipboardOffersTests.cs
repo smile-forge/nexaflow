@@ -20,7 +20,7 @@ namespace Nexaflow.Tests.Visuals.Markdown;
 public class ClipboardOffersTests
 {
     [TestMethod]
-    public void InALanguageWithNoEditHandlerWhatIsPickedOutIsOfferedToCutCopyAndPaste() => UiThread.Run(() =>
+    public void InCode_WhatIsPickedOutIsOfferedToCutCopyAndPaste() => UiThread.Run(() =>
         MarkdownEditorHarness.Run("Code:\n\n```csharp\nvar total = 1;\n```\n", editor =>
         {
             var code = MarkdownEditorHarness.Block(editor)!;

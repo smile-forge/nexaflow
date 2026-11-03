@@ -17,6 +17,7 @@ using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
 using Nexaflow.Markdown.Editing;
 using System.Windows.Threading;
+using System.Collections.ObjectModel;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -102,11 +103,23 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
         {
             Shows(_shown);
             Moved();
+            Remargined();
         };
 
         _shown = Made(string.Empty);
 
-        base.Content = new Grid { Children = { _scroller, _prompt } };
+        // The page between what stands beside it on either side, each stack in the order it stands outward from the page.
+        Grid.SetColumn(_scroller, 1);
+        Grid.SetColumn(_prompt, 1);
+        Grid.SetColumn(_trailing, 2);
+        LeadingMargins.CollectionChanged += (_, _) => Stood(_leading, LeadingMargins.Reverse());
+        TrailingMargins.CollectionChanged += (_, _) => Stood(_trailing, TrailingMargins);
+
+        base.Content = new Grid
+        {
+            ColumnDefinitions = { new ColumnDefinition { Width = GridLength.Auto }, new ColumnDefinition(), new ColumnDefinition { Width = GridLength.Auto } },
+            Children = { _leading, _scroller, _prompt, _trailing },
+        };
 
         PreviewMouseLeftButtonDown += (_, _) =>
         {
@@ -119,7 +132,9 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
         {
             if (VerticalScrollBarVisibility != ScrollBarVisibility.Disabled || args.Handled) return;
 
+            // Turned sideways over a box that slides, it is the box's, and goes no further.
             args.Handled = true;
+            if (_shown.WheeledSideways(args)) return;
             (Parent as UIElement ?? VisualTreeHelper.GetParent(this) as UIElement)?.RaiseEvent(
                 new MouseWheelEventArgs(args.MouseDevice, args.Timestamp, args.Delta) { RoutedEvent = MouseWheelEvent, Source = this });
         };
@@ -153,6 +168,71 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
             _scrolling = null;
             _engine.ScreenMoving = false;
         });
+    }
+
+    // ── Beside the page ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// What stands beside the page at its leading edge — the left, for text read left to right — in the order it stands outward from
+    /// the page: line numbers, breakpoints, a fold's handles, each one of its own (<see cref="ContentMargin"/>).
+    /// </summary>
+    public ObservableCollection<ContentMargin> LeadingMargins { get; } = [];
+
+    /// <summary>What stands beside the page at its trailing edge, in the order it stands outward from the page.</summary>
+    public ObservableCollection<ContentMargin> TrailingMargins { get; } = [];
+
+    private readonly StackPanel _leading = new() { Orientation = Orientation.Horizontal };
+    private readonly StackPanel _trailing = new() { Orientation = Orientation.Horizontal };
+
+    /// <summary><paramref name="margins"/>, left to right, standing in <paramref name="side"/> beside this — and whatever stood there before, beside nothing.</summary>
+    private void Stood(StackPanel side, IEnumerable<ContentMargin> margins)
+    {
+        foreach (var gone in side.Children.OfType<ContentMargin>()) gone.Beside(null);
+        side.Children.Clear();
+
+        foreach (var margin in margins)
+        {
+            side.Children.Add(margin);
+            margin.Beside(this);
+        }
+    }
+
+    /// <summary>Tells everything standing beside the page that the lines on it may have moved.</summary>
+    private void Remargined()
+    {
+        foreach (var margin in LeadingMargins) margin.LinesMoved();
+        foreach (var margin in TrailingMargins) margin.LinesMoved();
+    }
+
+    /// <summary>
+    /// The lines of the content standing on the visible page — each one's number, counting from one, and where its rows start and how tall
+    /// they come to, in this surface's own frame — for what is drawn beside the page in step with them (<see cref="ContentMargin"/>). A line
+    /// whose rows stand partly off the page is among them; content laid by a builder that lays no lines has none.
+    /// </summary>
+    public IReadOnlyList<ShownLine> LinesShown()
+    {
+        if (_scroller.ViewportHeight <= 0) return [];
+
+        var zoom = _shown.Zoom;
+        var top = _scroller.TranslatePoint(default, _shown).Y / zoom;
+
+        return [.. _engine.LinesBetween(top, top + _scroller.ViewportHeight / zoom)
+                         .Select(line => line with { Top = _shown.TranslatePoint(new Point(0, line.Top * zoom), this).Y, Height = line.Height * zoom })];
+    }
+
+    /// <summary>
+    /// The face and size the content is set in as typed, as it is drawn on the page, and the ink its text is set in — for what stands
+    /// beside its lines.
+    /// </summary>
+    internal (Typeface Face, double Size, Brush Ink) TypedIn
+    {
+        get
+        {
+            var style = _drawnIn ?? Drawn;
+            var mono = Nexaflow.Markdown.Layout.PlainText.TextSetting.Characters(style);
+
+            return (((WpfFace)mono.Face).Typeface, mono.Size * _shown.Zoom, ((WpfInk)style.Text).Brush);
+        }
     }
 
     // ── What it is ──────────────────────────────────────────────────────────
@@ -218,6 +298,20 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     {
         get => (bool)GetValue(EditAsSourceProperty);
         set => SetValue(EditAsSourceProperty, value);
+    }
+
+    /// <summary>
+    /// Whether a line too long for the room carries on in rows beneath — for content shown as typed (<see cref="ContentLanguages.AsTyped"/>),
+    /// a page's source read as a page — rather than laid as its language lays it.
+    /// </summary>
+    public static readonly DependencyProperty WrapsLinesProperty = DependencyProperty.Register(
+        nameof(WrapsLines), typeof(bool), typeof(MarkdownSurface),
+        new PropertyMetadata(false, (surface, _) => ((MarkdownSurface)surface).Wrapped()));
+
+    public bool WrapsLines
+    {
+        get => (bool)GetValue(WrapsLinesProperty);
+        set => SetValue(WrapsLinesProperty, value);
     }
 
     // ── How it is drawn ─────────────────────────────────────────────────────
@@ -385,9 +479,9 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     {
         
 
-        // A field holding one language is written at the end of what it holds; a document, and anything only read, is read
-        // from its top.
-        _shown.Restore(_shown.Current.MoveCaretTo(Named is null || IsReadOnly ? 0 : _shown.Current.Document.Length));
+        // A field holding one language is written at the end of what it holds; a document, text shown as a page, and anything only
+        // read, is read from its top.
+        _shown.Restore(_shown.Current.MoveCaretTo(Named is null || IsReadOnly || WrapsLines ? 0 : _shown.Current.Document.Length));
 
         HoldAsWritten();
         _engine.Begin();
@@ -489,6 +583,15 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
 
         _engine.HoldsWritten = EditAsSource;
     }
+
+    /// <summary>Lays what is shown again with its lines wrapped, or kept whole, as <see cref="WrapsLines"/> now says.</summary>
+    private void Wrapped()
+    {
+        _engine.WrapsLines = WrapsLines;
+        Remake();
+    }
+
+    protected override System.Windows.Automation.Peers.AutomationPeer OnCreateAutomationPeer() => new MarkdownSurfaceAutomationPeer(this);
 
     // ── Links ───────────────────────────────────────────────────────────────
 

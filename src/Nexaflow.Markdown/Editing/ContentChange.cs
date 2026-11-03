@@ -53,6 +53,12 @@ public sealed record ContentChange(IReadOnlyList<ContentWrite> Writes, int Caret
     /// </summary>
     public WholeRanges? Chooses { get; init; }
 
+    /// <summary>
+    /// What the change leaves picked out as stretches of text, in the document it makes — lines indented and still picked out, so the key
+    /// can be pressed again — or null, where it leaves the caret, or what <see cref="Chooses"/> says.
+    /// </summary>
+    public IReadOnlyList<EditRange>? PicksOut { get; init; }
+
     public static ContentChange Stay(EditState state) => new([], state.Caret, state.Raw);
 
     /// <summary>

@@ -246,6 +246,25 @@ public class WindowedReadingTests
     }
 
     [TestMethod]
+    public void ALeafStandingForItsCharacters_CountsWhatTheyHold_AcrossEveryPieceOfAWrittenDocument()
+    {
+        // Long enough to be held in pieces (ContentDocument.RopeFrom), and written in so the pieces are uneven.
+        var document = ContentDocument.Of(string.Concat(Enumerable.Range(0, 20_000).Select(line => $"line {line}\n")));
+        for (var at = 1000; at < document.Length; at += 3000) document = document.Apply(ContentChange.Write(at, 0, "\n\n"));
+
+        var written = document.ToString();
+        var (start, length) = (10, written.Length - 20);
+        Assert.IsTrue(document.Chunks(start, start + length).Count() > 1, "the written document is held in one piece");
+
+        var standing = ContentNode.Leaf(Kinds.Verbatim, document, start, length, Roles.Body);
+        var holding = ContentNode.Leaf(Kinds.Verbatim, written.Substring(start, length), Roles.Body);
+        var ends = written.Substring(start, length).Count(character => character == '\n');
+
+        Assert.AreEqual(ends, standing.TimesHeld('\n'));
+        Assert.AreEqual(ends, holding.TimesHeld('\n'));
+    }
+
+    [TestMethod]
     public void WritingInsideALongFence_ReadsNothingAgain_WhereTheFenceStillEndsWhereItDid()
     {
         var fence = "```csharp\n" + string.Concat(Enumerable.Range(0, 3000).Select(line => $"var x{line} = {line};\n")) + "```\n";

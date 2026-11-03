@@ -7,6 +7,7 @@ using System.Linq;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Plot;
 using Nexaflow.Markdown.Prose;
+using Nexaflow.Markdown.PlainText;
 using Nexaflow.Visuals.Text.Markdown.Languages;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -52,6 +53,7 @@ public static class ContentLanguages
         Shipped.Plot(PlotFence.Bubble),
         Shipped.Plot(PlotFence.Heatmap),
         Shipped.Plot(PlotFence.Density2d),
+        Shipped.Text,
 
         // Last, and deliberately. Code answers to dozens of words, so a fence calling itself something a language of its own
         // already claims must reach that one first.
@@ -73,6 +75,12 @@ public static class ContentLanguages
 
     /// <summary>What content is shown as where the language it names is one nothing reads: its characters, as code with no grammar.</summary>
     public static ContentLanguage Code => Shipped.Code;
+
+    /// <summary>
+    /// The name content is shown under to be its characters and nothing they draw — what a page's source is shown as, beside the page:
+    /// plain text's (<see cref="Shipped.Text"/>), read as its lines and the words in them.
+    /// </summary>
+    public const string AsTyped = TextParser.Language;
 
     /// <summary>
     /// Adds a language, or replaces one already registered under a name it answers to. Last in wins, which is what lets a host

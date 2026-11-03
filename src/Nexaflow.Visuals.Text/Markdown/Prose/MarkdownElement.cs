@@ -159,10 +159,13 @@ public sealed class MarkdownElement : LinkedElement
             return true;
         }
 
+        // A box slid away from it slides to it: its end, and then its start, which is what shows where it cannot all show at once.
+        SlideOnto(what.Start + what.Length);
+        SlideOnto(what.Start);
+
         var shown = Whole(what);
 
-        BringIntoView(new Rect(shown.X * Zoom, shown.Y * Zoom,
-                               Math.Max(shown.Width * Zoom, 1), Math.Max(shown.Height * Zoom, 1)));
+        BringOnto(new LayoutRect(shown.X, shown.Y, shown.Width, shown.Height));
 
         if (choose && what.Length > 0) Apply(State.Select(what.Start, what.Length), notify: false);
 

@@ -28,6 +28,9 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// <summary>The first and the last of the document's own blocks laid.</summary>
     private (ContentPart? First, ContentPart? Last) _ends;
 
+    /// <summary>How far along each box the block being laid slid sideways was slid as it was laid, kept with the block (<see cref="KeptLaying.Slides"/>).</summary>
+    private List<(object Reader, double At)>? _slides;
+
     public MarkdownBuilder(ContentReading reading, EditState state, LayoutStyle style, bool isReadOnly, ILayoutMedium medium,
                                    LayoutHost host)
         : base(reading, state, style, isReadOnly, medium, host)
@@ -144,7 +147,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     {
         var shown = State.Raw is { } zone && zone.Start <= part.End && part.Start <= zone.End;
 
-        if (!shown && laid?.Last is { } last && last.Room == room && last.IsReadOnly == IsReadOnly && last.At(part) is { } moved)
+        if (!shown && laid?.Last is { } last && last.Room == room && last.IsReadOnly == IsReadOnly && last.SlidAsLaid(Slid) && last.At(part) is { } moved)
         {
             var tree = last.Tree.Parted(moved.Parts, moved.Mounts);
 
@@ -162,6 +165,9 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         (_y, _reach) = (0, 0);
 
         var apart = Rent();
+        var slides = _slides;
+        _slides = [];
+
         apart.Open(LayoutPieces.Whole, stops: LayoutStops.None);
         Block(apart, part, x, room);
 
@@ -171,6 +177,8 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         apart.Close();
 
         var made = Sealed(apart);
+        var slid = _slides;
+        _slides = slides;
         var (height, reached) = (_y, _reach);
         (_y, _reach) = (y, Math.Max(reach, reached));
 
@@ -178,7 +186,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         _y += height;
 
         if (laid is not null)
-            laid.Last = shown ? null : new KeptLaying(part, made, height, reached, [.. _borrowed.Skip(borrowed)], room, IsReadOnly);
+            laid.Last = shown ? null : new KeptLaying(part, made, height, reached, [.. _borrowed.Skip(borrowed)], room, IsReadOnly, slid);
     }
 
     private void Block(LayoutBuilder into, ContentPart part, double x, double room)
@@ -507,18 +515,32 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
     private void Fenced(LayoutBuilder into, ContentPart part, double x, double room)
     {
-        var nested = Nested(part, room, LayoutStanding.Block);
+        // Text and code are set as what the page shows as written is: in the same box, laid in the room inside it.
+        var pad = BoxedAsWritten(part) ? WrittenPad : 0;
+        var inside = Math.Max(1, room - pad * 2);
+        var nested = Nested(part, inside, LayoutStanding.Block);
 
         if (nested is { Draws: true, Laid.ShowsSource: false } inset)
         {
             _borrowed.AddRange(inset.Laid.Trouble);
 
+            // Lines kept whole that are wider than the box slide sideways inside it where the host can slide them; where it cannot, the
+            // box widens with them.
+            var slide = pad > 0 && inset.Width > inside + SlideSlack && SlideOf(part) is { } reader ? Sliding(reader, inside, inset, pad) : null;
+            var wide = pad == 0 ? inset.Width : slide is null ? Math.Max(room, inset.Width + pad * 2) : room;
+            var tall = inset.Height + pad * 2 + (slide is null ? 0 : SlideBarRoom);
+
             into.Open(LayoutPieces.Block, part, new LayoutPoint(x, _y), stops: LayoutStops.None);
-            inset.Set(into, default, LayoutPieces.Block);
+            if (slide is not null) into.Acts(new LayoutActions { Slide = slide });
+            if (pad > 0) into.Draw(new WashMark(new LayoutRect(0, 0, Math.Max(wide, 1), tall), Style.CodeBg));
+
+            if (slide is null) inset.Set(into, new LayoutPoint(pad, pad), LayoutPieces.Block);
+            else SlidIn(into, inset, slide);
+
             into.Close();
 
-            _y += inset.Height;
-            Reached(x + inset.Width);
+            _y += tall;
+            Reached(x + wide);
 
             return;
         }
@@ -527,10 +549,73 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         else AsWritten(into, part, x, room);
     }
 
+    /// <summary>How much wider than its box a fence's lines have to be before the box slides, so rounding never puts a bar under it.</summary>
+    private const double SlideSlack = 0.5;
+
+    /// <summary>How thick the bar under a box that slides is.</summary>
+    private const double SlideBarThickness = 5;
+
+    /// <summary>How much taller a box that slides is, for its bar and the space round it.</summary>
+    private const double SlideBarRoom = SlideBarThickness + 4;
+
+    /// <summary>The fewest the part of that bar standing for what shows is across, so there is always something to take hold of.</summary>
+    private const double SlideThumbLeast = 24;
+
+    /// <summary>
+    /// How a box <paramref name="shown"/> across, its lines set <paramref name="pad"/> in from its edges, shows <paramref name="inset"/>, which the
+    /// host knows by <paramref name="reader"/>: slid as far along as the reader slid it and never past the end of it, with where what shows, the
+    /// bar under it and the part of the bar standing for what shows all stand. What the host said is kept with the block being laid, so the
+    /// block is laid again when the reader slides it.
+    /// </summary>
+    private LayoutSlide Sliding(object reader, double shown, LayoutInset inset, double pad)
+    {
+        var said = Slid(reader);
+        _slides?.Add((reader, said));
+
+        var furthest = Math.Max(0, inset.Width - shown);
+        var at = Math.Clamp(said, 0, furthest);
+
+        var thumb = Math.Min(shown, Math.Max(SlideThumbLeast, shown * shown / inset.Width));
+        var bar = new LayoutRect(pad, pad + inset.Height + (SlideBarRoom - SlideBarThickness) / 2, shown, SlideBarThickness);
+
+        return new LayoutSlide(shown, inset.Width, at, reader)
+        {
+            Window = new LayoutRect(pad, pad, shown, inset.Height),
+            Bar = bar,
+            Thumb = new LayoutRect(bar.X + (furthest <= 0 ? 0 : (shown - thumb) * at / furthest), bar.Y, thumb, SlideBarThickness),
+        };
+    }
+
+    /// <summary>
+    /// <paramref name="inset"/> set in its box where <paramref name="slide"/> says what of it shows, as much as shows of it across cut out of it,
+    /// and under it the bar saying how much that is and where along it.
+    /// </summary>
+    private void SlidIn(LayoutBuilder into, LayoutInset inset, LayoutSlide slide)
+    {
+        var window = slide.Window;
+
+        into.Open(LayoutPieces.Slid, at: new LayoutPoint(window.X, window.Y), stops: LayoutStops.None,
+                  paints: new LayoutPaint(Clip: Medium.Rectangle(new LayoutRect(0, 0, window.Width, window.Height))));
+        inset.Set(into, new LayoutPoint(-slide.At, 0), LayoutPieces.Block);
+        into.Close();
+
+        into.Open(LayoutPieces.SlideBar, at: new LayoutPoint(slide.Bar.X, slide.Bar.Y), stops: LayoutStops.None);
+        into.Draw(new RuleMark(new LayoutRect(0, 0, slide.Bar.Width, slide.Bar.Height), Style.CodeBorder));
+
+        into.Open(LayoutPieces.SlideThumb, at: new LayoutPoint(slide.Thumb.X - slide.Bar.X, 0), stops: LayoutStops.None);
+        into.Draw(new RuleMark(new LayoutRect(0, 0, slide.Thumb.Width, slide.Thumb.Height), Style.TextMuted));
+        into.Close();
+
+        into.Close();
+    }
+
+    /// <summary>How far in from every side of its box what is shown as written is set.</summary>
+    private double WrittenPad => Style.TextSize * 0.55;
+
     private void AsWritten(LayoutBuilder into, ContentPart part, double x, double room)
     {
         var held = Held(part);
-        var pad = Style.TextSize * 0.55;
+        var pad = WrittenPad;
         var face = Face.Plain with { Mono = true, Scale = 0.94 };
 
         var glyphs = new IShapedText[held.Count];

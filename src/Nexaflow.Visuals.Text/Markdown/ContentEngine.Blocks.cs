@@ -305,9 +305,11 @@ public sealed partial class ContentEngine
             return language.Editing.Corner(ask);
         }
 
-        // Content in one language is one block of it.
+        // Content in one language is one block of it — except text shown as a page (WrapsLines), which is the page itself rather than a block
+        // on one: copying it is what selecting it is for.
         if (_named is { } named)
-            return Language(named).Editing.Corner(new ContentAsk(named, _state.Document) { Part = block, IsReadOnly = _readOnly });
+            return _wrapsLines ? BlockCorner.None
+                               : Language(named).Editing.Corner(new ContentAsk(named, _state.Document) { Part = block, IsReadOnly = _readOnly });
 
         // A heading of the document's own offers what its section can do, as markdown says.
         if (Headed(block) is { } section)

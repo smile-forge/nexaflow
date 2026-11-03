@@ -140,6 +140,23 @@ public sealed partial class MarkdownSurface
         return kept.Count;
     }
 
+    /// <summary>
+    /// Shows <paramref name="places"/>, which a host found itself, with the one at <paramref name="at"/> the one being looked at — moving
+    /// nothing, since the host says when to go to one (<see cref="PickOut"/>). Finding them again as the document comes to read is the
+    /// host's to do too: it found them.
+    /// </summary>
+    public void ShowFound(IReadOnlyList<(int Start, int Length)> places, int at)
+    {
+        _lookedFor = null;
+        Found = places;
+        At = places.Count == 0 ? -1 : Math.Clamp(at, -1, places.Count - 1);
+
+        _shown.Showing = (Found, At);
+    }
+
+    /// <summary>Picks out <paramref name="place"/> and brings it onto the page, as going to a place found does.</summary>
+    public bool PickOut((int Start, int Length) place) => _shown.Show(place);
+
     /// <summary>What a place reads as, for a host listing what it found — the line it is on, tidied.</summary>
     public string Preview(int at)
     {
@@ -372,6 +389,22 @@ public sealed partial class MarkdownSurface
         var where = _engine.Where(part);
 
         return !where.IsEmpty && where.Height * _shown.Zoom <= _scroller.ViewportHeight;
+    }
+
+    /// <summary>
+    /// Whether every row <paramref name="stretch"/> of the source is drawn on stands on the page at once — for content shown as typed,
+    /// where a stretch of source is its own drawing, so a page holding it beside a drawing of the same document can say whether it shows
+    /// the whole of a block the drawing names. False where either end of it is not laid: what is laid reaches a screen either side of the
+    /// page, so a stretch running past that is taller than the page.
+    /// </summary>
+    public bool ShowsAtOnce((int Start, int Length) stretch)
+    {
+        if (stretch.Length <= 0 || _scroller.ViewportHeight <= 0) return false;
+
+        var root = _shown.Laid.Root;
+        var (first, last) = (root.CaretRect(stretch.Start), root.CaretRect(stretch.Start + stretch.Length));
+
+        return !first.IsEmpty && !last.IsEmpty && (last.Bottom - first.Y) * _shown.Zoom <= _scroller.ViewportHeight;
     }
 
     /// <summary>

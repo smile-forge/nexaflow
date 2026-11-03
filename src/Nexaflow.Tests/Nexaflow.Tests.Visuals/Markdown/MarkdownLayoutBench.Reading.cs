@@ -152,7 +152,7 @@ public partial class MarkdownLayoutBench
     }
 
     /// <summary>A window holding <paramref name="surface"/>, off the desktop but shown: what is not shown is neither laid out nor painted.</summary>
-    private static Window Hosted(MarkdownSurface surface) => new()
+    private static Window Hosted(FrameworkElement content) => new()
     {
         Width = Room + 40,
         Height = Screen.Height,
@@ -161,7 +161,7 @@ public partial class MarkdownLayoutBench
         ShowActivated = false,
         ShowInTaskbar = false,
         WindowStyle = WindowStyle.None,
-        Content = surface,
+        Content = content,
     };
 
     /// <summary>Scrolls to <paramref name="depth"/> of the way down and waits for it to be laid and painted there.</summary>

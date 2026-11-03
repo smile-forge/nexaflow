@@ -96,6 +96,32 @@ public class ContentNode
     /// <summary>The characters, for a leaf. Empty for anything made of parts.</summary>
     public string Text => _text ??= _stretch!.Value.Over.Slice(_stretch.Value.Start, _stretch.Value.Length);
 
+    /// <summary>
+    /// The characters of a leaf, as <see cref="Text"/> gives them, without the leaf keeping them: for one standing for a stretch held
+    /// elsewhere, read where they are held each time they are asked for. For what reads a long body once to make something else of it, so
+    /// the copy goes once that is made.
+    /// </summary>
+    public string TextAsRead() => _text ?? _stretch!.Value.Over.Slice(_stretch.Value.Start, _stretch.Value.Length);
+
+    /// <summary>
+    /// How many times a leaf's characters hold <paramref name="character"/> — counted where they are held, for a leaf standing for a
+    /// stretch held elsewhere, so none of them is copied to count it.
+    /// </summary>
+    public int TimesHeld(char character)
+    {
+        var times = 0;
+        foreach (var run in this.CharacterRuns()) times += run.Span.Count(character);
+
+        return times;
+    }
+
+    /// <summary>
+    /// A leaf's characters a run at a time, read where they are held: its own, for a leaf holding them, and for one standing for a
+    /// stretch held elsewhere, the runs that stretch is held in — none of them copied.
+    /// </summary>
+    public IEnumerable<ReadOnlyMemory<char>> CharacterRuns() =>
+        _stretch is { } stretch ? stretch.Over.Chunks(stretch.Start, stretch.Start + stretch.Length) : [this.Text.AsMemory()];
+
     /// <summary>The parts, in the order they were written.</summary>
     public IReadOnlyList<ContentNode> Children { get; }
 

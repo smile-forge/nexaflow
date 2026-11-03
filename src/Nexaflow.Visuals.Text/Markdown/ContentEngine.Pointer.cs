@@ -116,6 +116,9 @@ public sealed partial class ContentEngine
             Hover(hover.At);
             return true;
 
+            case ContentSlide slide:
+                return Slide(slide.At, slide.By);
+
             default:
                 return false;
         }
@@ -132,6 +135,9 @@ public sealed partial class ContentEngine
         _pressedAt = at;
         _moving = false;
         _carry = null;
+
+        // A box's bar is the box's to slide, and no place in what it holds.
+        if (modifiers == ModifierKeys.None && PressedBar(at)) return true;
 
         // A piece that answers to a press means what it answers with, and not a place to put the caret. Only a plain press:
         // Ctrl and Shift are adding to a selection, which is not what a press on a node means.
@@ -347,7 +353,7 @@ public sealed partial class ContentEngine
     /// </summary>
     private void Drag(LayoutPoint at)
     {
-        if (!_dragging) return;
+        if (DraggedThumb(at) || !_dragging) return;
 
         // Carrying something: the content is shown as it would read if it were let go here, with the carried part marked out,
         // so the reader is choosing between finished results.
@@ -452,7 +458,7 @@ public sealed partial class ContentEngine
     private void Release()
     {
         _dragging = false;
-        if (!_moving) return;
+        if (ReleasedThumb() || !_moving) return;
 
         _moving = false;
         var settled = _previewOf;
