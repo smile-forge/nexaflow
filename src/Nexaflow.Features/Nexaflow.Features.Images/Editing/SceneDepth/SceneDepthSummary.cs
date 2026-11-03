@@ -89,7 +89,7 @@ public static class SceneDepthSummary
         foreach (var band in bands)
         {
             string range = band.Band switch { DepthBand.Near => "0-0.33", DepthBand.Middle => "0.33-0.67", _ => "0.67-1" };
-            text.Append(CultureInfo.InvariantCulture, $"- {band.Band.ToString().ToLowerInvariant()} ({range}): {band.Share:P0} of the picture");
+            text.Append(CultureInfo.InvariantCulture, $"- {band.Band.ToString().ToLowerInvariant()} ({range}): {band.Share * 100:0}% of the picture");
             text.AppendLine(band.Box is { } box ? $", mostly in {Box(box)}" : "");
         }
         foreach (var thing in things)
