@@ -46,7 +46,7 @@ and audio generators; our own catalog, downloads, runtime provisioning, chat tem
 | Languages | **English, French and German** throughout, in that order of priority: recognition, the model, and a Kokoro voice for each — `ff_siwis` for French, the community German fine-tune's `df_kerstin` for German. Both beat Piper's voices in listening; Kerstin is the weakest of the three and good enough to start (below). |
 | GPUs | **A setup per machine**, not a minimum. Each model a workspace uses is placed on a GPU with room for it, a language model given the context the room allows, and a part with no room runs on its CPU build (below). The default model, Gemma 4 E4B, fits beside its voice models on a 16 GB card and runs on two 11 GB cards with the voice models on the other; a larger model is offered where it fits. |
 | Catalog and runtime provisioning | **Ours.** Foundry Local was evaluated and not adopted: it would own the runtime version, storage, memory policy and model list that this design needs to control (below). Runtime libraries come from where their makers publish them — nuget.org and NVIDIA's wheels on PyPI — pinned by SHA-256; only what we convert or modify ourselves would be published by us. |
-| Image models | **Z-Image Turbo** draws on this machine, and **HiDream-O1** is its high-quality model. Of the models with permissive licences it drew the most accurately — French and German text, labels — at 2.5 s a picture; HiDream-O1 (MIT) draws the most photographic pictures — 94 s in PyTorch, 36 s as our build. Ruled out by licence: Stable Diffusion 3.5 (Stability's community licence), HunyuanImage (not licensed in the EU, UK or South Korea) and Qwen-Image-2.1 (research only); Qwen-Image-2512 misspelt and needs 58 GB, FLUX.2 klein garbled text (below). Pictures are **edited** here with **FLUX.2 [klein] 4B** (Apache-2.0; its 9B sibling is not): a fill under a mask, an expansion, an instruction or a second picture worked in, each in about two seconds. HiDream-E1 is ruled out by licence — its weights are MIT but it reads every prompt with Llama 3.1 8B (Llama 3.1 Community License) — and is not HiDream-O1's sibling but HiDream-I1's (below). |
+| Image models | **Z-Image Turbo** draws on this machine, and **HiDream-O1** is its high-quality model. Of the models with permissive licences it drew the most accurately — French and German text, labels — at 2.5 s a picture; HiDream-O1 (MIT) draws the most photographic pictures — 94 s in PyTorch, 36 s as our build. Ruled out by licence: Stable Diffusion 3.5 (Stability's community licence), HunyuanImage (not licensed in the EU, UK or South Korea) and Qwen-Image-2.1 (research only); Qwen-Image-2512 misspelt and needs 58 GB, FLUX.2 klein garbled text (below). Pictures are **edited** here, the user choosing the model on the Image Editing row: **FLUX.2 [klein] 4B** (Apache-2.0; its 9B sibling is not) — a fill under a mask, an expansion, an instruction or a second picture worked in, each in about two seconds; **HiDream-O1**, with the denoiser it draws with, at 2048² in about 80 s on a 16 GB card; and **Qwen-Image-Edit-2511** (Apache-2.0), which only edits, at a megapixel in about 80 s on a 32 GB card. HiDream-E1 is ruled out by licence — its weights are MIT but it reads every prompt with Llama 3.1 8B (Llama 3.1 Community License) — and is not HiDream-O1's sibling but HiDream-I1's (below). |
 | Video model | **Wan2.2-TI2V-5B** (Apache-2.0) makes clips on this machine, in two builds sharing every part but the denoiser: **FastWan2.2-TI2V-5B** (Hao AI Lab, Apache-2.0), distilled to three steps, makes a five-second 720p clip in seconds and is the fast video job's; the full model's fifty guided steps are the high-quality job's, and make the clips that start from a picture — FastWan, distilled from text alone, cuts away from one. Wan2.2 is the newest Wan with open weights; Wan2.1's 1.3B model makes 480p clips from text alone (below). |
 | Language-model runtime | **llama.cpp**, in the host, through its C API — upstream's release builds as they are, pinned by build and SHA-256: its CPU build in the install, its CUDA backend in the CUDA pack. On Gemma 4 E4B against onnxruntime-genai it holds a 16k conversation in 4.3–5 GB rather than 14 GB and writes 155–190 tokens/s rather than ~54: it keeps only the window Gemma's local layers attend to, and has kernels for its 512-wide global heads, where ONNX Runtime's fall back to materialising the scores. It also takes images and audio into a conversation already under way. Forked only if a patch upstream will not take is ever needed; LLamaSharp was not adopted because its bundled natives go stale, as `TreeSitter.DotNet`'s did (below). |
 | Chat templates | **Each model's own**, from its GGUF, rendered by a Jinja engine of the host's own (`Nexaflow.AiHost.Jinja`): llama.cpp's C API has no Jinja, and no .NET package renders Gemma 4's template. It runs templates as transformers does, and every shipped family's template is held to Python's renders of it (`tools/ai-models/chat-templates`). **Reasoning is on, and never shown**: with it off, Gemma 4 ends its turn in silence after a tool's result, and what an action came to — which name went into the spreadsheet — is worth saying; it costs the reasoning's tokens before each answer. |
@@ -799,7 +799,7 @@ sees what it drew; the existing loop, approvals and context handling apply uncha
 | | Cloud | On this machine | Status |
 |---|---|---|---|
 | Speech | OpenAI's speech models | Kokoro | built |
-| Images | OpenAI gpt-image (one picture to work from, a mask) and dall-e-3; Gemini's image models (up to three pictures) and Imagen | Z-Image Turbo and, for high quality, HiDream-O1 and MOSS-Image with its LoRAs; for editing, FLUX.2 [klein] 4B (two pictures, a mask) — our ONNX builds, sampled by the host | built |
+| Images | OpenAI gpt-image (one picture to work from, a mask) and dall-e-3; Gemini's image models (up to three pictures) and Imagen | Z-Image Turbo and, for high quality, HiDream-O1 and MOSS-Image with its LoRAs; for editing, FLUX.2 [klein] 4B (two pictures, a mask), HiDream-O1 (four, a mask) and Qwen-Image-Edit-2511 (three, a mask) — our ONNX builds, sampled by the host | built |
 | Music | neither SDK offers it | ACE-Step 1.5 (community ONNX), custom pipeline | possible, medium effort; brings the audio generation contract |
 | Sound effects | — | no maintained ONNX model; Stable Audio Open would need exporting | gap |
 | Video | OpenAI Sora (4, 8 or 12 s at 720p), Gemini Veo (4 to 8 s) | Wan2.2-TI2V-5B — FastWan's three steps from a description, the full model's fifty from a description or a picture — our ONNX builds, sampled by the host | built |
@@ -900,7 +900,8 @@ candidate on an RTX PRO 6000:
 | FLUX.2 [klein] 4B, our build | 4 | 2.3 s | 1.7 s | 2.1 s | 2.8 s | 10.7 GiB, its denoiser with two pictures | 38, 30, 36 and 39 dB from PyTorch's |
 | HiDream-O1 (MIT), PyTorch bf16 | 50 | — | — | 92 s | 106 s | 18.3 GB | at 2048²: dusk rather than night, a lamp added; the dog put in, the picture reframed; its pipeline takes no mask |
 | HiDream-O1, our build, 8-bit | 50 | 81 s | 79 s | 82 s | 87 s | 14.5 GiB, its denoiser with pictures | at 2048²: the olive tree put in, the street carried on both sides, dusk with the lamps lit, the dog sat at the café; four edits of its own drawings 21–30 dB from PyTorch's |
-| Qwen-Image-Edit-2511 (Apache-2.0) | 40 | — | — | — | — | — | not measured: its family needs about 58 GB in bf16 |
+| Qwen-Image-Edit-2511 (Apache-2.0), PyTorch bf16 | 40 | — | — | 76 s | 139 s | 58.0 GiB | night, the lamps and windows lit; the dog sat at the café; its edit pipeline takes no mask |
+| Qwen-Image-Edit-2511, our build, 8-bit | 40 | 82 s | 84 s | 82 s | 136 s | 27.6 GiB, its denoiser with three pictures | the olive tree put in, the street carried on both sides, night as PyTorch made it, the dog sat at the café; four edits 33–37 dB from PyTorch's |
 
 FLUX.2 [klein] 4B is the one Nexaflow edits with: four ONNX graphs Nexaflow builds and publishes
 (`tools/ai-models/flux2-klein-4b`, huggingface.co/smile-forge/flux2-klein-4b-onnx), sampled by the host in C#
@@ -942,9 +943,33 @@ DeepStack features, and whole as clean 32×32 pixel patches the denoiser reads a
   mask leaves comes back to the pixel.
 
 Loaded part by part — picture reader 3.1 GiB, denoiser 14.5 GiB with pictures at 2048² (21.5 GiB with fp16 weights) —
-it is offered with up to four pictures to work from, so the 8-bit build fits a 16 GB card. Qwen-Image-Edit-2511 is a 20B model reading with
-Qwen2.5-VL-7B: with 8-bit weights its denoiser alone holds about 20 GB, so it would be offered on a 32 GB card, and like
-Qwen-Image it is black in fp16 without an fp32 residual stream.
+it is offered with up to four pictures to work from, so the 8-bit build fits a 16 GB card.
+
+Qwen-Image-Edit-2511 edits as diffusers' QwenImageEditPlusPipeline does, with five ONNX graphs Nexaflow builds and
+publishes (`tools/ai-models/qwen-image-edit`, huggingface.co/smile-forge/qwen-image-edit-2511-onnx), sampled by the host
+in C# (`QwenEditDrawing`, `QwenEditSampler`). It draws nothing from a prompt alone, so the Local page offers it for the
+Image Editing row only (`IImageGenerationProvider.DrawsFromPromptsOf`).
+
+- **Each picture is read twice.** Small, by Qwen2.5-VL's vision tower — resized within 384² as the pipeline resizes it,
+  then to the processor's multiple of 28 with PyTorch's 8-bit antialiased bicubic, both to the value
+  (`PictureResampling.ResizeAsTorch`), its windows worked out by the host — into the prompt Qwen2.5-VL-7B reads; and at
+  about a megapixel by Qwen-Image's VAE into latents the 60-layer MMDiT reads beside the edit's, modulated as at
+  timestep zero.
+- **fp16 branches on fp32 streams, held to bf16.** The streams reach 10⁹, so no 16-bit type holds a step to fp32's: the
+  graph is held to the precision Qwen runs the model at, and on a real edit's values its fp16 branches come 0.9% from
+  fp32 where bf16 comes 1.6%. Values, outputs, queries and keys that would pass fp16's range are scaled by powers of two
+  — a text key reaches 1.3×10⁵ — exactly, the queries' and keys' RMS norm taking the factor in its epsilon.
+- **Each block's modulation is applied where it is used.** Made from the timestep alone, every block's per-token
+  modulation would otherwise be made at once, 37 GB at a megapixel.
+- **The prompt is numbered in three dimensions**, as transformers 4.57 numbers it; from 5.0 Qwen2.5-VL needs token
+  types the pipeline does not pass, and numbers every token on the diagonal.
+- **True guidance at 4**, each token's velocity brought back to the length the prompt's has; forty Euler steps at the
+  scheduler's levels, shifted by the edit's size and stretched to end at 0.02; under a mask, the first picture's latents
+  put back after each step as the inpaint pipeline does (`FlowInpainting`).
+
+Loaded part by part — picture reader 3.5 GiB, prompt encoder 9.6 GiB, picture encoder 4.3 GiB, decoder 4.0 GiB, and the
+denoiser 24.0 GiB with one picture at a megapixel, 27.6 GiB with three (44.4 GiB with fp16 weights) — it is offered
+with up to three pictures, on a 32 GB card or larger. Built for CUDA only.
 
 ### Making clips on this machine
 

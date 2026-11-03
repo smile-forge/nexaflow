@@ -291,10 +291,20 @@ def rotate(x, cos, sin):
     return (x.float() * cos[None, :, None, :] + rotated * sin[None, :, None, :]).to(x.dtype)
 
 
-def heads(x, norm, head_dim):
-    """x [1, S, heads * head_dim] cut into heads, each RMS-normed in fp32."""
+def heads(x, norm, head_dim, factor):
+    """x [1, S, heads * head_dim] cut into heads, each RMS-normed in fp32 — x made <paramref name="factor"/> times
+    smaller than the model makes it, where it would pass fp16's range, and the norm's epsilon with it, so the norm is
+    the model's to the bit."""
     x = x.unflatten(-1, (-1, head_dim))
-    return rms(x, norm.weight, norm.eps)
+    return rms(x, norm.weight, norm.eps / factor ** 2)
+
+
+def feed_forward(mlp, x, wide, dtype):
+    """diffusers' FeedForward with its tanh GELU — its first projection and activation in fp32 where <paramref name="wide"/>,
+    for a block whose values before the activation would pass half fp16's range, which no factor passes through."""
+    if not wide:
+        return mlp(x)
+    return mlp.net[2](F.gelu(mlp.net[0].proj(x.float()), approximate="tanh").to(dtype))
 
 
 def layer_norm(x, eps=1e-6):
@@ -318,12 +328,14 @@ class Denoiser(torch.nn.Module):
     -> velocity        [1, N, 64]   fp32  for every image token; the host steps the picture's along the first
     """
 
-    def __init__(self, transformer, attention_factors, mlp_factors):
+    def __init__(self, transformer, factors):
         super().__init__()
         self.t = transformer
         self.rope = RopeTables(transformer.pos_embed).to(transformer.device)
-        self.register_buffer("attention_factors", torch.tensor(attention_factors, dtype=torch.float32), persistent=False)
-        self.register_buffer("mlp_factors", torch.tensor(mlp_factors, dtype=torch.float32), persistent=False)
+        self.register_buffer("attention_factors", torch.tensor(factors["attention"], dtype=torch.float32), persistent=False)
+        self.register_buffer("mlp_factors", torch.tensor(factors["mlp"], dtype=torch.float32), persistent=False)
+        self.query_factors = factors["query"]   # per block: to_q, to_k, add_q_proj, add_k_proj — Python floats, in the norms' epsilon
+        self.wide = factors["wide"]             # per block: whether each stream's feed-forward widens in fp32
         self.trace = None   # a list to keep each block's streams in, when a check asks where two precisions part
 
     def forward(self, image_tokens, image_positions, drawn, prompt, prompt_positions, timestep):
@@ -336,50 +348,73 @@ class Denoiser(torch.nn.Module):
         worked_from = (torch.arange(N, device=image.device) >= drawn).view(1, N, 1)
         cos, sin = self.rope(torch.cat([prompt_positions, image_positions], dim=0))
 
-        def per_token(mod):   # [2, 3 * dim] -> shift, scale, gate [1, N, dim], each token its own row
-            rows = torch.where(worked_from, mod[1].view(1, 1, -1), mod[0].view(1, 1, -1))
-            return rows.chunk(3, dim=-1)
+        # Each block's two modulations — the step's for the picture drawn, timestep zero's for the pictures worked from —
+        # applied where the stream is, so nothing the size of the stream is made before its block: ONNX Runtime would
+        # make every block's per-token modulation at once, as soon as the timestep is known.
+        def modulated(stream, mod):
+            shift, scale, _ = mod.chunk(3, dim=-1)
+            normed = layer_norm(stream)
+            return torch.where(worked_from, normed * (1 + scale[1]) + shift[1], normed * (1 + scale[0]) + shift[0]).to(dtype)
+
+        def gated(branch, mod):
+            gate = mod.chunk(3, dim=-1)[2]
+            return torch.where(worked_from, gate[1] * branch, gate[0] * branch)
 
         for i, block in enumerate(t.transformer_blocks):
             # On three axes, as the branches are, so they are matrix products the 8-bit build quantises, not Gemms it skips.
             img_mod1, img_mod2 = block.img_mod(temb.to(dtype).unsqueeze(0))[0].float().chunk(2, dim=-1)
             txt_mod1, txt_mod2 = block.txt_mod(temb[:1].to(dtype).unsqueeze(0)).float().chunk(2, dim=-1)
-            shift, scale, gate = per_token(img_mod1)
             c_shift, c_scale, c_gate = txt_mod1.chunk(3, dim=-1)
-            x = (layer_norm(image) * (1 + scale) + shift).to(dtype)
+            x = modulated(image, img_mod1)
             c = (layer_norm(text) * (1 + c_scale) + c_shift).to(dtype)
 
             a, d = block.attn, block.attn.inner_dim // block.attn.heads
-            query = torch.cat([heads(a.add_q_proj(c), a.norm_added_q, d), heads(a.to_q(x), a.norm_q, d)], dim=1)
-            key = torch.cat([heads(a.add_k_proj(c), a.norm_added_k, d), heads(a.to_k(x), a.norm_k, d)], dim=1)
+            fq, fk, faq, fak = self.query_factors[i]
+            query = torch.cat([heads(a.add_q_proj(c), a.norm_added_q, d, faq), heads(a.to_q(x), a.norm_q, d, fq)], dim=1)
+            key = torch.cat([heads(a.add_k_proj(c), a.norm_added_k, d, fak), heads(a.to_k(x), a.norm_k, d, fk)], dim=1)
             value = torch.cat([a.add_v_proj(c), a.to_v(x)], dim=1)
             out = attention(rotate(query, cos, sin).flatten(2), rotate(key, cos, sin).flatten(2), value, a.heads)
             factor = self.attention_factors[i]
-            image = image + gate * (a.to_out[0](out[:, T:]).float() * factor)
+            image = image + gated(a.to_out[0](out[:, T:]).float() * factor, img_mod1)
             text = text + c_gate * (a.to_add_out(out[:, :T]).float() * factor)
 
-            shift, scale, gate = per_token(img_mod2)
             c_shift, c_scale, c_gate = txt_mod2.chunk(3, dim=-1)
-            image = image + gate * (block.img_mlp((layer_norm(image) * (1 + scale) + shift).to(dtype)).float() * self.mlp_factors[i, 0])
-            text = text + c_gate * (block.txt_mlp((layer_norm(text) * (1 + c_scale) + c_shift).to(dtype)).float() * self.mlp_factors[i, 1])
+            image = image + gated(feed_forward(block.img_mlp, modulated(image, img_mod2), self.wide[i][0], dtype).float() * self.mlp_factors[i, 0], img_mod2)
+            text = text + c_gate * (feed_forward(block.txt_mlp, (layer_norm(text) * (1 + c_scale) + c_shift).to(dtype), self.wide[i][1], dtype).float()
+                                    * self.mlp_factors[i, 1])
             if self.trace is not None:
                 self.trace.append((image.detach().cpu(), text.detach().cpu()))
 
         return t.proj_out(t.norm_out(image, temb[:1]))
 
 
-def fp32_conditioning(transformer, dtype=torch.float16):
+def fp32_conditioning(transformer, factors, dtype=torch.float16):
     """The embedders, the timestep's embedding, the final norm and the projection in fp32; the blocks, their modulations
     too, fp16 — each block's modulation is 113M weights, a third of the model's, and Qwen runs them in bf16."""
     transformer.to(dtype)
     for module in (transformer.img_in, transformer.txt_in, transformer.txt_norm, transformer.time_text_embed,
                    transformer.norm_out, transformer.proj_out):
         module.float()
+    for block, (image, text) in zip(transformer.transformer_blocks, factors["wide"]):
+        if image:
+            block.img_mlp.net[0].proj.float()
+        if text:
+            block.txt_mlp.net[0].proj.float()
 
 
-def measure_branch_peaks(pipe, edits, pictures):
-    """The largest value each block's branches reach across full edits in bf16 — where they are made and where they end."""
+def measure_branch_peaks(pipe, edits, pictures, inputs_path):
+    """The largest value each block's branches reach across full edits in bf16 — where they are made and where they
+    end, and its queries' and keys' — and the transformer's inputs at one step of the first edit, kept in
+    <paramref name="inputs_path"/> for the rebuilt step to be held to on real values."""
     peaks = {}
+    calls = [0]
+
+    def keep_inputs(_module, _args, kwargs):
+        calls[0] += 1
+        if calls[0] == 2 * 20 + 1:   # the 21st step's call with the prompt
+            torch.save({"hidden_states": kwargs["hidden_states"].float().cpu(), "timestep": kwargs["timestep"].float().cpu(),
+                        "encoder_hidden_states": kwargs["encoder_hidden_states"].float().cpu(), "img_shapes": kwargs["img_shapes"]},
+                       inputs_path)
 
     def note(key, value):
         peaks[key] = max(peaks.get(key, 0.0), float(value.detach().abs().float().max()))
@@ -389,8 +424,11 @@ def measure_branch_peaks(pipe, edits, pictures):
         a = block.attn
         for name, module in (("v", a.to_v), ("v", a.add_v_proj), ("out", a.to_out[0]), ("out", a.to_add_out),
                              ("img_up", block.img_mlp.net[0]), ("img_down", block.img_mlp.net[2]),
-                             ("txt_up", block.txt_mlp.net[0]), ("txt_down", block.txt_mlp.net[2])):
+                             ("txt_up", block.txt_mlp.net[0]), ("txt_down", block.txt_mlp.net[2]),
+                             ("q", a.to_q), ("k", a.to_k), ("aq", a.add_q_proj), ("ak", a.add_k_proj),
+                             ("img_proj", block.img_mlp.net[0].proj), ("txt_proj", block.txt_mlp.net[0].proj)):
             hooks.append(module.register_forward_hook(lambda _m, _i, o, k=f"{i}.{name}": note(k, o)))
+    hooks.append(pipe.transformer.register_forward_pre_hook(keep_inputs, with_kwargs=True))
     for i, (instruction, names) in enumerate(edits):
         edit(pipe, instruction, [pictures[n] for n in names], seed=1000 + i)
         print(f"calibration edit {i + 1}/{len(edits)}", flush=True)
@@ -409,6 +447,7 @@ def scale_branches(transformer, peaks):
     streams' attention shares one softmax, so their values share one factor; each stream's feed-forward has its own."""
     layers = len(transformer.transformer_blocks)
     attention, mlp = [1.0] * layers, [[1.0, 1.0] for _ in range(layers)]
+    query, wide = [[1.0] * 4 for _ in range(layers)], [[False, False] for _ in range(layers)]
 
     def scale(linear, factor):
         linear.weight.data /= factor
@@ -425,14 +464,20 @@ def scale_branches(transformer, peaks):
             a.to_out[0].bias.data /= f
             a.to_add_out.bias.data /= f
         attention[i] = f
-        for j, (up, down, mlp_module) in enumerate((("img_up", "img_down", block.img_mlp), ("txt_up", "txt_down", block.txt_mlp))):
-            if peaks.get(f"{i}.{up}", 0.0) > 6.0e4:
-                raise SystemExit(f"block {i}'s {up} passes fp16's range before its activation, where no factor reaches")
+        # Queries and keys are RMS-normed on their heads: made smaller by a power of two, with the norm's epsilon, they
+        # are the model's exactly.
+        for j, (name, linear) in enumerate((("q", a.to_q), ("k", a.to_k), ("aq", a.add_q_proj), ("ak", a.add_k_proj))):
+            q = power_of_two_over(peaks.get(f"{i}.{name}", 0.0))
+            if q > 1:
+                scale(linear, q)
+            query[i][j] = q
+        for j, (proj, down, mlp_module) in enumerate((("img_proj", "img_down", block.img_mlp), ("txt_proj", "txt_down", block.txt_mlp))):
+            wide[i][j] = peaks.get(f"{i}.{proj}", 0.0) > 32768
             g = power_of_two_over(peaks.get(f"{i}.{down}", 0.0))
             if g > 1:
                 scale(mlp_module.net[2], g)
             mlp[i][j] = g
-    return attention, mlp
+    return {"attention": attention, "mlp": mlp, "query": query, "wide": wide}
 
 
 # ── the picture encoder and the decoder ──────────────────────────────────────────────────────────────────────────
@@ -600,31 +645,43 @@ def check_prompt_encoder(pipe, encoder, reader, tolerance):
 
 
 class DenoiserCheck:
-    """The original transformer's step for a picture worked from beside the latents at one noise level, taken before
-    anything is changed, for the rebuilt step to be held to."""
+    """The original transformer's step on the inputs it had at the 21st step of a real edit — calibration kept them —
+    taken before anything is changed, for the rebuilt step to be held to."""
 
-    ROWS, COLS, REF_ROWS, REF_COLS, TOKENS = 24, 32, 16, 20, 40
-
-    def __init__(self, transformer):
+    def __init__(self, transformer, inputs_path):
         device = "cuda"
-        g = torch.Generator(device).manual_seed(3)
-        drawn, worked = self.ROWS * self.COLS, self.REF_ROWS * self.REF_COLS
-        self.tokens = torch.randn(1, drawn + worked, 64, device=device, generator=g)
-        self.prompt = torch.randn(1, self.TOKENS, 3584, device=device, generator=g)
-        self.sigma = torch.tensor([0.6], device=device)
-        self.grids = [(self.ROWS, self.COLS), (self.REF_ROWS, self.REF_COLS)]
+        inputs = torch.load(inputs_path)
+        # The middle of each picture's latents, 24 x 32 tokens of the one drawn and 16 x 20 of each worked from: their
+        # real values, which a megapixel's activations in fp32 would not leave room for beside the fp32 model.
+        tokens, at, grids = inputs["hidden_states"][0], 0, []
+        parts = []
+        for i, (_, h, w) in enumerate(inputs["img_shapes"][0]):
+            rows, cols = (24, 32) if i == 0 else (16, 20)
+            grid = tokens[at: at + h * w].view(h, w, -1)
+            top, left = (h - rows) // 2, (w - cols) // 2
+            parts.append(grid[top: top + rows, left: left + cols].reshape(rows * cols, -1))
+            grids.append((rows, cols))
+            at += h * w
+        self.tokens = torch.cat(parts)[None].to(device)
+        self.prompt = inputs["encoder_hidden_states"].to(device)
+        self.sigma = inputs["timestep"].to(device)
+        self.grids = grids
+        self.drawn = grids[0][0] * grids[0][1]
         with torch.no_grad():
             self.expected = transformer(hidden_states=self.tokens, timestep=self.sigma, encoder_hidden_states=self.prompt,
-                                        encoder_hidden_states_mask=torch.ones(1, self.TOKENS, device=device),
-                                        img_shapes=[[(1, r, c) for r, c in self.grids]], return_dict=False)[0][:, :drawn].float()
+                                        encoder_hidden_states_mask=torch.ones(1, self.prompt.shape[1], device=device),
+                                        img_shapes=[[(1, r, c) for r, c in grids]], return_dict=False)[0][:, :self.drawn].float()
 
     def error(self, denoiser):
         """The rebuilt step's largest difference from the original's, as a share of its largest value."""
-        drawn = self.ROWS * self.COLS
+        drawn = self.drawn
         dtype = denoiser.t.transformer_blocks[0].attn.to_q.weight.dtype
         with torch.no_grad():
             ours = denoiser(self.tokens, image_positions(self.grids).cuda(), torch.tensor([drawn], device="cuda"), self.prompt,
-                            prompt_positions(self.TOKENS, self.grids).cuda(), self.sigma)
+                            prompt_positions(self.prompt.shape[1], self.grids).cuda(), self.sigma)
+        if not torch.isfinite(ours).all():
+            print(f"denoiser ({dtype}): not finite", flush=True)
+            return float("inf")
         error = ((ours[:, :drawn].float() - self.expected).abs().max() / self.expected.abs().max()).item()
         print(f"denoiser ({dtype}): max difference {error:.4g} of the largest value", flush=True)
         return error
@@ -741,7 +798,7 @@ def main():
             folder = Path(args.pictures)
             pictures = {name: Image.open(folder / f"{name}.png").convert("RGB")
                         for name in {n for _, names in CALIBRATION_EDITS for n in names}}
-            peaks = measure_branch_peaks(pipe, CALIBRATION_EDITS, pictures)
+            peaks = measure_branch_peaks(pipe, CALIBRATION_EDITS, pictures, out / "denoiser" / "check-inputs.pt")
             cached.parent.mkdir(parents=True, exist_ok=True)
             cached.write_text(json.dumps(peaks, indent=1))
             del pipe
@@ -752,17 +809,17 @@ def main():
         from diffusers import QwenImageTransformer2DModel
         transformer = QwenImageTransformer2DModel.from_pretrained(checkpoint, subfolder="transformer", torch_dtype=torch.float32,
                                                                   device_map="cuda").eval()
-        expected = DenoiserCheck(transformer)
-        attention_factors, mlp_factors = scale_branches(transformer, peaks)
-        (out / "denoiser" / "branch-scales.json").write_text(json.dumps({"attention": attention_factors, "mlp": mlp_factors}, indent=1))
-        denoiser = Denoiser(transformer, attention_factors, mlp_factors).eval()
+        expected = DenoiserCheck(transformer, out / "denoiser" / "check-inputs.pt")
+        factors = scale_branches(transformer, peaks)
+        (out / "denoiser" / "branch-scales.json").write_text(json.dumps(factors, indent=1))
+        denoiser = Denoiser(transformer, factors).eval()
         expected.check(denoiser, 1e-3)
         # Its streams reach 10^9, so no 16-bit type holds a step to fp32's: the fp16 branches are held to bf16's, the
         # precision Qwen publishes and runs the model at — the checkpoint's weights are bf16, so each cast is exact.
-        fp32_conditioning(transformer, torch.bfloat16)
+        fp32_conditioning(transformer, factors, torch.bfloat16)
         torch.cuda.empty_cache()
         published = expected.error(denoiser)
-        fp32_conditioning(transformer)
+        fp32_conditioning(transformer, factors)
         torch.cuda.empty_cache()
         if expected.error(denoiser) > published:
             raise SystemExit("the denoiser's fp16 branches part from the original further than bf16 does")

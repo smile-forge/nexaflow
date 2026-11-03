@@ -113,20 +113,20 @@ def main():
     starts = {}
     for i, (instruction, names) in enumerate(EDITS):
         pictures = [Image.open(pictures_dir / f"{n}.png").convert("RGB") for n in names]
-        kept = {}
-
         def keep(_pipe, step, _t, kwargs):
-            if step == 0:
-                kept["latents"] = kwargs["latents"].detach().cpu()
             return {}
 
-        started = time.perf_counter()
-        image = pipe(image=pictures, prompt=instruction, negative_prompt=" ", true_cfg_scale=TRUE_CFG, guidance_scale=1.0,
-                     num_inference_steps=STEPS, generator=torch.Generator("cuda").manual_seed(3000 + i),
-                     callback_on_step_end=keep, callback_on_step_end_tensor_inputs=["latents"]).images[0]
-        image.save(out / "pytorch" / f"edit-{i:02d}.png")
-        print(f"pytorch edit {i:02d} {time.perf_counter() - started:.1f}s", flush=True)
-        # The callback sees the latents after the first step: the pipeline's noise is drawn again from the same seed.
+        path = out / "pytorch" / f"edit-{i:02d}.png"
+        if path.exists():
+            image = Image.open(path)
+        else:
+            started = time.perf_counter()
+            image = pipe(image=pictures, prompt=instruction, negative_prompt=" ", true_cfg_scale=TRUE_CFG, guidance_scale=1.0,
+                         num_inference_steps=STEPS, generator=torch.Generator("cuda").manual_seed(3000 + i),
+                         callback_on_step_end=keep, callback_on_step_end_tensor_inputs=["latents"]).images[0]
+            image.save(path)
+            print(f"pytorch edit {i:02d} {time.perf_counter() - started:.1f}s", flush=True)
+        # The pipeline's noise, drawn again from the same seed.
         from diffusers.utils.torch_utils import randn_tensor
         h, w = image.height // 8, image.width // 8
         noise = randn_tensor((1, 1, 16, h, w), generator=torch.Generator("cuda").manual_seed(3000 + i), device=torch.device("cuda"),
