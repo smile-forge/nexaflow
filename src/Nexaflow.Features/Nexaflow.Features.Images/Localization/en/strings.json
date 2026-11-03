@@ -520,6 +520,7 @@
   "Images.SceneDepth.FocusBand": "Distance in focus",
   "Images.SceneDepth.FocusBandTip": "What lies between the two ends is sharp. Drag an end, or the band to move it; point at it to see on the picture what it keeps sharp. The bars show how much of the picture lies at each distance.",
   "Images.SceneDepth.Near": "Near",
+  "Images.SceneDepth.Focusing": "Finding what you picked…",
   "Images.SceneDepth.Far": "Far",
   "Images.SceneDepth.Aperture": "Aperture",
   "Images.SceneDepth.Bokeh": "Highlights",

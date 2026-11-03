@@ -353,7 +353,9 @@
                                     </Grid>
                                     <Grid Margin="0,2,0,6">
                                         <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.SceneDepth.Near}" HorizontalAlignment="Left"/>
-                                        
+                                        <!-- Picture selection finding the thing clicked, or a part drawn being read: a moment, the first time several. -->
+                                        <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.SceneDepth.Focusing}" HorizontalAlignment="Center"
+                                                   Foreground="{StaticResource AccentBrush}" Visibility="{Binding Depth.IsFocusing, Converter={StaticResource BoolToVis}}"/>
                                         <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.SceneDepth.Far}" HorizontalAlignment="Right"/>
                                     </Grid>
                                     <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.SceneDepth.Aperture}"

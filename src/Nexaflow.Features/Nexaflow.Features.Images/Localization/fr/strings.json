@@ -522,6 +522,7 @@
   "Images.SceneDepth.FocusBand": "Distance nette",
   "Images.SceneDepth.FocusBandTip": "Ce qui se trouve entre les deux bouts est net. Faites glisser un bout, ou la bande pour la déplacer ; pointez-la pour voir sur l'image ce qu'elle garde net. Les barres montrent quelle part de l'image se trouve à chaque distance.",
   "Images.SceneDepth.Near": "Près",
+  "Images.SceneDepth.Focusing": "Recherche de ce que vous avez choisi…",
   "Images.SceneDepth.Far": "Loin",
   "Images.SceneDepth.Aperture": "Ouverture",
   "Images.SceneDepth.Bokeh": "Reflets",
