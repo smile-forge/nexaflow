@@ -39,6 +39,7 @@ internal static class AiAbilityNames
     public static bool Serves(AiAbility ability, IAiProvider? provider, string model) => ability switch
     {
         AiAbility.ImageEditing => provider is IImageGenerationProvider images && images.MaxSourcesOf(model) > 0,
+        AiAbility.ImageGeneration or AiAbility.HighQualityImageGeneration => provider is not IImageGenerationProvider drawing || drawing.DrawsFromPromptsOf(model),
         _                      => true,
     };
 }

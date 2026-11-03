@@ -20,7 +20,9 @@ internal sealed class DrawHandler(ModelRegistry models, IReadOnlyList<IDrawingMe
     {
         var method = methods.FirstOrDefault(m => m.Method == request.Model.Method)
                      ?? throw new HostRequestException(HostErrorKind.Invalid, $"This host does not draw the {request.Model.Method} way.");
-        if (!method.Draws(request.Width, request.Height))
+        // A picture made from pictures to work from is drawn at the sizes the model reads them at; one from a prompt alone at
+        // the sizes it draws at.
+        if (!(request.Sources.Count > 0 ? method.Reads(request.Width, request.Height) : method.Draws(request.Width, request.Height)))
             throw new HostRequestException(HostErrorKind.Invalid, $"{request.Width}x{request.Height} is not a size this model draws at.");
         if (string.IsNullOrWhiteSpace(request.Prompt))
             throw new HostRequestException(HostErrorKind.Invalid, "Drawing needs a prompt.");
@@ -32,7 +34,7 @@ internal sealed class DrawHandler(ModelRegistry models, IReadOnlyList<IDrawingMe
             throw new HostRequestException(HostErrorKind.Invalid, $"A model that draws the {request.Model.Method} way works from at most {method.MaxSources} picture(s).");
         foreach (var source in request.Sources)
         {
-            if (!method.Draws(source.Width, source.Height))
+            if (!method.Reads(source.Width, source.Height))
                 throw new HostRequestException(HostErrorKind.Invalid, $"A {source.Width}x{source.Height} picture to work from is not a size this model reads.");
             if (source.Rgb.Length != source.Width * source.Height * 3)
                 throw new HostRequestException(HostErrorKind.Invalid, $"A {source.Width}x{source.Height} picture is {source.Width * source.Height * 3} bytes of RGB, not {source.Rgb.Length}.");

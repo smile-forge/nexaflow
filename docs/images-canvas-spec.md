@@ -513,9 +513,9 @@ one of the workspace's background jobs, listed and stoppable as now.
 ### 9.3 Editing with a model
 
 The workspace's Image Editing model — one that works from pictures, its row taking no other (`AiAbilityNames.Serves`)
-— makes three edits, above the layers beside Generate layer (`PictureEdits`, `PictureEditsPanel`), each as one of the
-workspace's background jobs through `IAIService.MakePicture` with the picture as a source, so it passes the picture check
-as every picture does:
+— makes three edits, set up above the layers below the picture actions (`PictureEdits`, `PictureEditsPanel`), each as one
+of the workspace's background jobs through `IAIService.EditPicture` — the call `edit_image` would be given — so it passes
+the picture check as every picture does:
 
 - **Fill selection**: the composite about the selection — its bounds and as much again around them, held to the canvas —
   sent with the selection as the mask (transparent where it is drawn again); a photo is made a layered picture first, its

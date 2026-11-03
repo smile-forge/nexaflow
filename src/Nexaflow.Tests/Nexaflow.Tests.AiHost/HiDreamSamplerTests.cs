@@ -123,4 +123,125 @@ public class HiDreamSamplerTests
         Assert.AreEqual(0, mean, 0.1);
         Assert.AreEqual(8, deviation, 0.1);
     }
+
+    // ── editing, against hidream-edit.json (tools/ai-models/hidream-o1/edit_reference.py) ─────────────────────────────
+
+    private static JsonObject Edit()
+    {
+        using var stream = typeof(HiDreamSamplerTests).Assembly.GetManifestResourceStream("hidream-edit.json")
+                           ?? throw new InvalidOperationException("hidream-edit.json is not embedded.");
+        return JsonNode.Parse(stream)!.AsObject();
+    }
+
+    private static long[] Longs(JsonNode? node) => [.. node!.AsArray().Select(v => v!.GetValue<long>())];
+
+    [TestMethod]
+    public void APictureToWorkFrom_IsReadByTheVisionTower_AtHiDreamsConditionSize()
+    {
+        foreach (var c in Edit()["conditions"]!.AsArray())
+        {
+            int width = c!["width"]!.GetValue<int>(), height = c["height"]!.GetValue<int>();
+            var into = Longs(c["into"]);
+
+            Assert.AreEqual(((int)into[0], (int)into[1]), HiDreamSampler.ConditionSize(width, height), $"{width}x{height}");
+        }
+    }
+
+    [TestMethod]
+    public void APicture_IsCutIntoTheVisionTowersPatches_AsQwen3VlsProcessorLaysThemOut()
+    {
+        var reader = Edit()["reader"]!;
+        int width = reader["width"]!.GetValue<int>(), height = reader["height"]!.GetValue<int>();
+        byte[] rgb = [.. reader["pixels"]!.AsArray().Select(v => (byte)v!.GetValue<int>())];
+        float[] expected = [.. reader["patch_bytes"]!.AsArray().Select(v => (v!.GetValue<int>() - 127.5f) / 127.5f)];
+
+        var patches = HiDreamSampler.ReaderPatches(rgb, width, height);
+
+        Assert.AreEqual(reader["rows"]!.GetValue<int>() * reader["cols"]!.GetValue<int>() * HiDreamSampler.ReaderPatchWidth, patches.Length);
+        CollectionAssert.AreEqual(expected, patches, "in 2x2 groups row by row; each patch its channel, two frames, its row, its column");
+    }
+
+    [TestMethod]
+    public void EachPatch_IsSampledFromThePositionEmbedding_AndPlaced_AsQwen3VlsVisionTowerDoes()
+    {
+        var edit = Edit();
+        foreach (var s in edit["samplings"]!.AsArray().Append(edit["reader"]))
+        {
+            int rows = s!["rows"]!.GetValue<int>(), cols = s["cols"]!.GetValue<int>();
+
+            var (index, weights, positions) = HiDreamSampler.ReaderSampling(rows, cols);
+
+            CollectionAssert.AreEqual(Longs(s["index"]), index, $"the cells, {rows}x{cols}");
+            CollectionAssert.AreEqual(Longs(s["positions"]), positions, $"the rotary rows and columns, {rows}x{cols}");
+            var expected = Floats(s["weights"]);
+            Assert.AreEqual(expected.Length, weights.Length);
+            for (int i = 0; i < expected.Length; i++) Assert.AreEqual(expected[i], weights[i], $"weight {i}, {rows}x{cols}");
+        }
+    }
+
+    [TestMethod]
+    public void AnEditsTokens_ArePlacedAsHiDreamPlacesThem_ThePromptsPicturesAsGrids_ThePictureDrawnPastIt_ThePicturesWorkedFromAfter()
+    {
+        var prompt = Edit()["prompt"]!;
+        var ids = Longs(prompt["ids"]);
+        var grids = prompt["grids"]!.AsArray().Select(g => ((int)g![0]!.GetValue<long>(), (int)g[1]!.GetValue<long>())).ToList();
+        var refs = prompt["refs"]!.AsArray().Select(g => ((int)g![0]!.GetValue<long>(), (int)g[1]!.GetValue<long>())).ToList();
+        int rows = prompt["rows"]!.GetValue<int>(), cols = prompt["cols"]!.GetValue<int>();
+        var expected = prompt["positions"]!.AsArray().Select(Longs).ToArray();   // [3, prompt + timestep + images]
+
+        var inPrompt = HiDreamSampler.PromptPositions(ids, grids);
+        var images = HiDreamSampler.ImagePositions(rows, cols, refs);
+
+        int promptCount = ids.Length + 1, imageCount = images.Length / 3;
+        Assert.AreEqual(expected[0].Length, promptCount + imageCount);
+        for (int axis = 0; axis < 3; axis++)
+        {
+            CollectionAssert.AreEqual(expected[axis][..promptCount], inPrompt[(axis * promptCount)..((axis + 1) * promptCount)], $"the prompt's, axis {axis}");
+            CollectionAssert.AreEqual(expected[axis][promptCount..], images[(axis * imageCount)..((axis + 1) * imageCount)], $"the images', axis {axis}");
+        }
+    }
+
+    [TestMethod]
+    public void APromptWithoutPictures_IsNumberedOnTheDiagonal_TheTimestepTokenLast()
+    {
+        CollectionAssert.AreEqual(new long[] { 0, 1, 2, 0, 1, 2, 0, 1, 2 }, HiDreamSampler.PromptPositions([5, 6], []));
+        Assert.ThrowsExactly<ArgumentException>(() => HiDreamSampler.PromptPositions([HiDreamSampler.ImageToken], []), "a picture with no grid");
+        Assert.ThrowsExactly<ArgumentException>(() => HiDreamSampler.PromptPositions([HiDreamSampler.ImageToken], [(1, 2)]), "a grid larger than its run");
+    }
+
+    [TestMethod]
+    [DataRow(1, 2048, 1536, 2048)]
+    [DataRow(2, 2048, 1536, 1536)]
+    [DataRow(3, 1536, 2048, 1024)]
+    [DataRow(4, 2048, 2048, 1024)]
+    public void EachPictureWorkedFrom_IsReadWithinASquareThatShrinksWithHowManyThereAre(int sources, int width, int height, int side)
+        => Assert.AreEqual(side, HiDreamSampler.ReferenceSide(sources, width, height));
+
+    [TestMethod]
+    [DataRow(2336, 1760, true)]
+    [DataRow(64, 32, true)]
+    [DataRow(2048, 2048, true)]
+    [DataRow(2080, 2048, false)]
+    [DataRow(100, 64, false)]
+    public void AnEdit_IsDrawnAtAnySizeOfWholePatches_WithinItsSquare(int width, int height, bool reads)
+        => Assert.AreEqual(reads, HiDreamSampler.Reads(width, height));
+
+    [TestMethod]
+    public void APicturesTokens_AreItsPixelsAsRgbReadsThemBack_AndAMaskLiesOverEachValue()
+    {
+        const int width = 64, height = 32;
+        var rgb = new byte[width * height * 3];
+        for (int i = 0; i < rgb.Length; i++) rgb[i] = (byte)(i * 7 % 256);
+        var mask = new byte[width * height];
+        mask[(5 * width) + 40] = 255;
+
+        var tokens = HiDreamSampler.TokensOf(rgb, width, height);
+        var values = HiDreamSampler.PixelMask(mask, width, height);
+
+        CollectionAssert.AreEqual(rgb, HiDreamSampler.Rgb(tokens, rows: 1, cols: 2));
+        int at = HiDreamSampler.TokenWidth + (5 * HiDreamSampler.Patch) + 8;   // the second patch, red, row 5, column 8
+        Assert.AreEqual(1f, values[at]);
+        Assert.AreEqual(1f, values[at + 2 * HiDreamSampler.Patch * HiDreamSampler.Patch], "and its blue");
+        Assert.AreEqual(3f, values.Sum(), "the pixel's three values alone");
+    }
 }

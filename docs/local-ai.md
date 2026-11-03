@@ -730,9 +730,9 @@ So espeak-ng is a **build-time tool, not a shipped one**, and nothing of it is i
 
 ## Generation tools
 
-Each is an `IClientTool`, offered when the workspace has a model for it now: `generate_image` on the Image Generation,
-Image Generation (HQ) and Image Editing rows, `generate_speech` on Speech Out, `generate_video` on the Video Generation
-and Video Generation (HQ) rows. Like every tool that takes a path, they reach only what the user has given the assistant
+Each is an `IClientTool`, offered when the workspace has a model for it now: `generate_image` on the Image Generation
+and Image Generation (HQ) rows, `edit_image` on Image Editing, `generate_speech` on Speech Out, `generate_video` on the
+Video Generation and Video Generation (HQ) rows. Like every tool that takes a path, they reach only what the user has given the assistant
 ([Architecture.md → What a tool may reach on disk](Architecture.md#what-a-tool-may-reach-on-disk)): pictures to work
 from, a mask and a first frame are files open in a tab or in a folder open in one, and `path` is a folder or file inside
 a folder open in a tab — anywhere else is refused before anything is made. Asked to save there, a tool writes the result
@@ -755,18 +755,22 @@ sees what it drew; the existing loop, approvals and context handling apply uncha
     (the only partial result a provider gives) or how it ended and what came of it, a finished picture shown to the model
     once — and `stop_background_task`, for when the user no longer wants one.
 
-- **What a model cannot use is not offered.** Pictures to work from go only to a model that takes them — the Image
-  Editing row's, where the workspace has one, whatever the quality asked — a mask only to one that masks, a first frame
-  only to a video model that starts from one. A parameter of a few values names them
-  (`ClientToolParameter.Choices`), declared natively as a JSON Schema `enum`.
+- **What a model cannot use is not offered.** `generate_image` draws from a description alone; pictures to work from
+  are `edit_image`'s, as many as the Image Editing row's model reads, a mask only where it masks and a shape only where
+  it does not keep the first picture's proportions; a first frame goes only to a video model that starts from one. A
+  parameter of a few values names them (`ClientToolParameter.Choices`), declared natively as a JSON Schema `enum`.
+- **An edit is a background job, named for what it does.** `edit_image` runs as one of the workspace's jobs
+  (`IClientTool.RunsInBackground`), told of as changing the picture when it starts and when it ends; what it makes
+  passes the picture check before it is kept (`PictureKeeping`).
 - **Each model says what it is asked with.** Beside its prompt, a picture or a clip is asked for with what its model's
   `ImageSettings` / `VideoSettings` declare: its exact proportions (`MediaAspect` — `shape` takes square, landscape or
   portrait, drawn at the model's own proportions for each, or width:height), the sizes it makes at, its levels of
   detail, a seed, what to keep out, a transparent background; a video size can make only some lengths (Veo's 1080p and
   4k, eight seconds). The tools build their parameters from the settings — where the two qualities differ, the
   description says which offers what — and `Refusal` turns away anything a model does not do before it is asked.
-- **The user asks the same way.** `IAIService.MakesPictures` / `MakesClips` give a page the same settings, and
-  `MakePicture` / `MakeClip` run the very call the tool would be given as one of the workspace's background jobs —
+- **The user asks the same way.** `IAIService.MakesPictures` / `EditsPictures` / `MakesClips` give a page the same
+  settings, and `MakePicture` / `EditPicture` / `MakeClip` run the very call the tool would be given as one of the
+  workspace's background jobs —
   nothing asked first, the file saved as the name the user gave in a folder they chose. The file view's New picker
   offers them as Gen Image and Gen Video (`IFileCreateWithOptions`).
 - **Enhanced AI Protection Mode keeps adult content out.** A LoRA meant for adults only (`ImageLora.Adult`) is offered —
@@ -894,7 +898,8 @@ candidate on an RTX PRO 6000:
 |---|---|---|---|---|---|---|---|
 | FLUX.2 [klein] 4B (Apache-2.0), PyTorch bf16 | 4 | 2.6 s | 1.6 s | 2.0 s | 2.8 s | 17.3 GB | every edit made as asked, the rest of the picture kept |
 | FLUX.2 [klein] 4B, our build | 4 | 2.3 s | 1.7 s | 2.1 s | 2.8 s | 10.7 GiB, its denoiser with two pictures | 38, 30, 36 and 39 dB from PyTorch's |
-| HiDream-O1 (MIT), PyTorch bf16 | 50 | — | — | 92 s | 106 s | 18.3 GB | at 2048²: dusk rather than night, a lamp added; the dog put in, the picture reframed; takes no mask, so neither fills nor expands |
+| HiDream-O1 (MIT), PyTorch bf16 | 50 | — | — | 92 s | 106 s | 18.3 GB | at 2048²: dusk rather than night, a lamp added; the dog put in, the picture reframed; its pipeline takes no mask |
+| HiDream-O1, our build, 8-bit | 50 | 81 s | 79 s | 82 s | 87 s | 14.5 GiB, its denoiser with pictures | at 2048²: the olive tree put in, the street carried on both sides, dusk with the lamps lit, the dog sat at the café; four edits of its own drawings 21–30 dB from PyTorch's |
 | Qwen-Image-Edit-2511 (Apache-2.0) | 40 | — | — | — | — | — | not measured: its family needs about 58 GB in bf16 |
 
 FLUX.2 [klein] 4B is the one Nexaflow edits with: four ONNX graphs Nexaflow builds and publishes
@@ -920,9 +925,24 @@ Loaded part by part — prompt encoder 4.9 GiB, picture encoder 2.0 GiB, decoder
 prompt, 9.6 GiB with one picture, 10.7 GiB with two — it is offered with two pictures to work from, so it fits a 16 GB
 card (three would take 13.4 GiB). Built for CUDA only.
 
-HiDream-O1 edits as it draws, from pictures read twice — through Qwen3-VL's vision tower into the prompt, and as clean
-pixel patches beside the picture drawn — so its edits need a vision-encoder graph and a denoiser taking the prompt's
-embeddings and positions, which the build that draws does not have. Qwen-Image-Edit-2511 is a 20B model reading with
+HiDream-O1 edits with the denoiser it draws with, as HiDream's pipeline does, from pictures read twice: small, by its
+picture reader — Qwen3-VL's vision tower, a graph of its own, fp32 — into the prompt's image placeholders with their
+DeepStack features, and whole as clean 32×32 pixel patches the denoiser reads after the picture drawn at every step
+(`HiDreamDrawing`, `HiDreamPictureReader`, tools/ai-models/hidream-o1).
+
+- **Every token numbered as HiDream numbers it** — the prompt's pictures as grids, the picture drawn at 4096, each
+  picture worked from on past it (`VisionPromptPositions`, `HiDreamSampler.ImagePositions`) — and the vision tower's
+  patches, position-embedding cells and rotary rows held to HiDream's code by `HiDreamSamplerTests`.
+- **Sized as HiDream sizes them.** One picture is edited at its own proportions within 2048², enlarged or reduced;
+  several are each fitted within a square of three quarters of the edit's longest side for two, half for three or
+  four, by `resize_pilimage`'s box halving, bicubic cover and centre crop (`PatchFitting`), and read by the vision
+  tower within 384² with Lanczos — PIL's filters to the value (`PictureResampling.ResizeAsPil`).
+- **A mask as klein's.** HiDream's pipeline takes none; the host puts the first picture back where a mask leaves it
+  after each step (`FlowInpainting`, shared with klein), so it fills and expands, and since it draws in pixels what the
+  mask leaves comes back to the pixel.
+
+Loaded part by part — picture reader 3.1 GiB, denoiser 14.5 GiB with pictures at 2048² (21.5 GiB with fp16 weights) —
+it is offered with up to four pictures to work from, so the 8-bit build fits a 16 GB card. Qwen-Image-Edit-2511 is a 20B model reading with
 Qwen2.5-VL-7B: with 8-bit weights its denoiser alone holds about 20 GB, so it would be offered on a 32 GB card, and like
 Qwen-Image it is black in fp16 without an fp32 residual stream.
 

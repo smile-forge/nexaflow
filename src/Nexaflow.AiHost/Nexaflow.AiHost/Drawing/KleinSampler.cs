@@ -107,32 +107,6 @@ internal static class KleinSampler
     }
 
     /// <summary>
-    /// The first picture kept where a mask leaves it: each token's latents blended toward <paramref name="kept"/> by
-    /// 1 − its mask — <paramref name="kept"/> being that picture noised to the level the step reached, or the picture
-    /// itself after the last step.
-    /// </summary>
-    /// <param name="mask">Per token, 1 where it is drawn again and 0 where the picture is kept.</param>
-    public static void Keep(Span<float> latents, ReadOnlySpan<float> kept, ReadOnlySpan<float> mask)
-    {
-        for (int t = 0; t < mask.Length; t++)
-        {
-            float m = mask[t];
-            var row = latents.Slice(t * Channels, Channels);
-            var from = kept.Slice(t * Channels, Channels);
-            for (int c = 0; c < Channels; c++) row[c] = (1f - m) * from[c] + m * row[c];
-        }
-    }
-
-    /// <summary>A picture's latents noised to <paramref name="sigma"/> with the noise the picture started from, as the
-    /// scheduler's scale_noise does: <c>σ·noise + (1 − σ)·latents</c>.</summary>
-    public static float[] Noised(ReadOnlySpan<float> latents, ReadOnlySpan<float> noise, float sigma)
-    {
-        var noised = new float[latents.Length];
-        for (int i = 0; i < noised.Length; i++) noised[i] = sigma * noise[i] + (1f - sigma) * latents[i];
-        return noised;
-    }
-
-    /// <summary>
     /// A mask over the picture, a byte a pixel, as one value a token: resized to the tokens' grid bilinearly, from pixel
     /// centres and without antialiasing, as torch's interpolate does in the pipeline, and scaled to [0, 1].
     /// </summary>

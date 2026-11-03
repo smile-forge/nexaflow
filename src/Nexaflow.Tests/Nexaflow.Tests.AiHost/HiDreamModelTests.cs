@@ -6,10 +6,10 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
-/// The host drawing with HiDream-O1's real graph. <c>NEXAFLOW_TEST_HIDREAM</c> names a folder holding the built model as
-/// its catalog lays it out (<c>denoiser/</c>); <c>NEXAFLOW_TEST_RUNTIME_PACK</c> the CUDA pack, without which nothing is
-/// drawn — the model is built for the GPU. What is asserted is the shape of a drawing — its steps, its size, that it is a
-/// picture — not what it shows.
+/// The host drawing and editing with HiDream-O1's real graphs. <c>NEXAFLOW_TEST_HIDREAM</c> names a folder holding the
+/// built model as its catalog lays it out (<c>denoiser/</c>, <c>picture-reader/</c>); <c>NEXAFLOW_TEST_RUNTIME_PACK</c>
+/// the CUDA pack, without which nothing is drawn — the model is built for the GPU. What is asserted is the shape of a
+/// drawing — its steps, its size, that it is a picture, what a mask keeps — not what it shows.
 /// </summary>
 [TestClass]
 [DoNotParallelize]
@@ -38,6 +38,8 @@ public class HiDreamModelTests
         _model = new DrawingModel(DrawingMethod.HiDream, new Dictionary<string, ModelSpec>
         {
             [DrawingParts.Denoiser] = new("hidream-o1-image/denoiser", "hidream-denoiser", Path.Combine(root, "denoiser"), "denoiser.onnx", null, 12L << 30, 0, Device: 0),
+            [DrawingParts.PictureReader] = new("hidream-o1-image/picture-reader", "hidream-picture-reader", Path.Combine(root, "picture-reader"),
+                                                "picture-reader.onnx", null, 2L << 30, 0, Device: 0),
         }, Steps, Shift: 3f, Guidance: 5f);
     }
 
@@ -121,5 +123,63 @@ public class HiDreamModelTests
         CollectionAssert.AreEqual(french, HiDreamDenoiser.PromptIds(tokenizer,
             "A café chalkboard menu that reads 'Plat du jour : Ratatouille 12 €' in neat handwritten chalk lettering."));
         CollectionAssert.AreEqual(empty, HiDreamDenoiser.PromptIds(tokenizer, " "), "the empty prompt guidance steers from");
+    }
+
+    [TestMethod]
+    [Timeout(1_800_000, CooperativeCancellation = true)]
+    public async Task AFill_DrawsAgainOnlyWhatItsMaskCovers_KeepingThePictureElsewhereToThePixel()
+    {
+        var (client, model) = Host();
+        const int width = 1536, height = 1024;
+        var source = new byte[width * height * 3];
+        for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+            {
+                int at = (y * width + x) * 3;
+                (source[at], source[at + 1], source[at + 2]) = ((byte)(x * 255 / width), (byte)(y * 255 / height), (byte)((x / 64 + y / 64) % 2 * 200));
+            }
+        var mask = new byte[width * height];
+        for (int y = 384; y < 640; y++)
+            for (int x = 640; x < 896; x++) mask[y * width + x] = 255;
+
+        var replies = new List<HostReply>();
+        await foreach (var reply in client.SendAsync(id => new Draw(id, model, "A red apple on the board.", width, height, 3, RequestPriority.Job)
+                                                     {
+                                                         Sources = [new DrawingSource(width, height, source)],
+                                                         Mask = mask,
+                                                     }, TimeSpan.FromMinutes(10)))
+            replies.Add(reply);
+
+        var png = replies.OfType<Drawn>().Single().Png;
+        var saved = Path.Combine(TestContext.TestRunResultsDirectory!, "filled-apple-hidream.png");
+        File.WriteAllBytes(saved, png);
+        TestContext.AddResultFile(saved);
+        var picture = PngReader.Read(png);
+        Assert.AreEqual((width, height), (picture.Width, picture.Height), "an edit is its picture's size");
+        int kept = 0, changed = 0;
+        for (int i = 0; i < mask.Length; i++)
+        {
+            bool same = picture.Rgb[i * 3] == source[i * 3] && picture.Rgb[i * 3 + 1] == source[i * 3 + 1] && picture.Rgb[i * 3 + 2] == source[i * 3 + 2];
+            if (mask[i] == 0) { if (same) kept++; }
+            else if (!same) changed++;
+        }
+        Assert.AreEqual(mask.Count(m => m == 0), kept, "where the mask leaves it, the picture is as it was");
+        Assert.IsTrue(changed > mask.Count(m => m != 0) / 2, $"what the mask covers is drawn again ({changed} pixels changed)");
+    }
+
+    [TestMethod]
+    public void AnEditsPrompt_IsReadAsQwen3VlWritesIt_ThePicturesPlaceholdersBeforeTheText()
+    {
+        string root = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_HIDREAM") ?? "";
+        if (root.Length == 0) Assert.Inconclusive("NEXAFLOW_TEST_HIDREAM is not set.");
+        var tokenizer = QwenTokenizer.FromJson(File.ReadAllText(Path.Combine(root, "denoiser", "tokenizer.json")));
+        using var stream = typeof(HiDreamModelTests).Assembly.GetManifestResourceStream("hidream-edit.json")!;
+        var prompt = System.Text.Json.Nodes.JsonNode.Parse(stream)!["prompt"]!;
+        int[] counts = [.. prompt["grids"]!.AsArray().Select(g => g![0]!.GetValue<int>() * g[1]!.GetValue<int>())];
+        long[] Ids(string name) => [.. prompt[name]!.AsArray().Select(v => v!.GetValue<long>())];
+
+        // HiDream's processor's tokens for two pictures and the text, with <|boi_token|> after them.
+        CollectionAssert.AreEqual(Ids("ids"), HiDreamDenoiser.PromptIds(tokenizer, prompt["text"]!.GetValue<string>(), counts));
+        CollectionAssert.AreEqual(Ids("empty_ids"), HiDreamDenoiser.PromptIds(tokenizer, " ", counts), "the empty prompt guidance steers from, with the pictures");
     }
 }

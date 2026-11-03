@@ -72,29 +72,6 @@ public class KleinSamplerTests
     }
 
     [TestMethod]
-    public void UnderAMask_ThePictureIsKeptWhereItIsZero_AndTheDrawingWhereItIsOne()
-    {
-        int c = KleinSampler.Channels;
-        var latents = Enumerable.Repeat(2f, 3 * c).ToArray();
-        var kept    = Enumerable.Repeat(-1f, 3 * c).ToArray();
-
-        KleinSampler.Keep(latents, kept, [0f, 1f, 0.25f]);
-
-        Assert.AreEqual(-1f, latents[0]);
-        Assert.AreEqual(2f, latents[c]);
-        Assert.AreEqual(0.75f * -1f + 0.25f * 2f, latents[2 * c + 5], 1e-6f);
-    }
-
-    [TestMethod]
-    public void APicture_IsNoisedAsTheSchedulerScalesNoise()
-    {
-        var noised = KleinSampler.Noised([1f, -2f], [0.5f, 4f], 0.25f);
-
-        Assert.AreEqual(0.25f * 0.5f + 0.75f * 1f, noised[0], 1e-6f);
-        Assert.AreEqual(0.25f * 4f + 0.75f * -2f, noised[1], 1e-6f);
-    }
-
-    [TestMethod]
     public void TokensAndPlanes_AreEachOthersInverse()
     {
         const int rows = 3, cols = 5;

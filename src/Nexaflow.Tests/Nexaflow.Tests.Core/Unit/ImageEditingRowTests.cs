@@ -55,6 +55,17 @@ public class ImageEditingRowTests
     }
 
     [TestMethod]
+    public void AModelThatOnlyChangesPictures_ServesImageEditing_AndNeitherDrawingRow()
+    {
+        var studio = new Studio();
+
+        Assert.IsTrue(AiAbilityNames.Serves(AiAbility.ImageEditing, studio, "only-edits"));
+        Assert.IsFalse(AiAbilityNames.Serves(AiAbility.ImageGeneration, studio, "only-edits"), "it draws nothing from a prompt alone");
+        Assert.IsFalse(AiAbilityNames.Serves(AiAbility.HighQualityImageGeneration, studio, "only-edits"));
+        Assert.IsTrue(AiAbilityNames.Serves(AiAbility.ImageGeneration, studio, "edits"), "a model that does both serves both");
+    }
+
+    [TestMethod]
     public void TheGrid_OffersImageEditingOnlyTheColumnsWhoseModelEdits_AndDropsTheRestFromItsChain()
     {
         var config = new AiConfig
@@ -99,7 +110,8 @@ public class ImageEditingRowTests
         public string Name => "Studio";
         public DataResidency Residency => DataResidency.LeavesMachine;
         public int MaxSources => 0;
-        public int MaxSourcesOf(string model) => model == "edits" ? 2 : 0;
+        public int MaxSourcesOf(string model) => model is "edits" or "only-edits" ? 2 : 0;
+        public bool DrawsFromPromptsOf(string model) => model != "only-edits";
         public bool Masks => false;
         public ImageSettings Settings => new([new(1, 1)]);
         public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<string>>(["draws", "edits"]);

@@ -19,6 +19,8 @@ internal sealed class MossDrawing(ModelRegistry models, GpuScheduler gpu) : IDra
 
     public bool Draws(int width, int height) => MossSampler.Draws(width, height);
 
+    public bool Reads(int width, int height) => false;
+
     public bool TakesNegativePrompts => true;
 
     public bool TakesLoras => true;

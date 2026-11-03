@@ -16,6 +16,10 @@ internal interface IDrawingMethod
     /// <summary>Whether it draws pictures of this size.</summary>
     bool Draws(int width, int height);
 
+    /// <summary>Whether it draws an edit — a picture made from pictures to work from — at this size, and reads a picture to
+    /// work from at it.</summary>
+    bool Reads(int width, int height);
+
     /// <summary>Whether it is told what to keep out of a picture (<see cref="Draw.NegativePrompt"/>).</summary>
     bool TakesNegativePrompts { get; }
 

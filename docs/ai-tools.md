@@ -222,7 +222,7 @@ stored or decoded to PNG, turned as the page is shown; a notice above the docume
 
 **What it does.** How fit a picture is for a general audience — the chances it shows gore, sexual content, or neither —
 from OwenElliott's image safety classifier, M (SwiftFormer-M, 12.1M parameters, MIT), on four CPU threads in a few
-milliseconds. While Enhanced AI Protection Mode is on, `generate_image` asks it of every picture made, before it is
+milliseconds. While Enhanced AI Protection Mode is on, `generate_image` and `edit_image` ask it of every picture made, before it is
 saved or shown — by a person from the New picker as by the assistant — and withholds a picture whose chances of gore
 and of sexual content together reach `PictureChecking.UnfitFrom` (0.5), or one whose check could not run.
 

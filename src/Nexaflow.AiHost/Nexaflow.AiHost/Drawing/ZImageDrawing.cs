@@ -15,6 +15,8 @@ internal sealed class ZImageDrawing(ModelRegistry models, GpuScheduler gpu) : ID
 
     public bool Draws(int width, int height) => ZImageSampler.Draws(width, height);
 
+    public bool Reads(int width, int height) => false;
+
     public bool TakesNegativePrompts => false;
 
     public bool TakesLoras => false;

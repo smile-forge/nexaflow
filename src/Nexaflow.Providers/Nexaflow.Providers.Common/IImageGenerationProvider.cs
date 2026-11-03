@@ -16,6 +16,10 @@ public interface IImageGenerationProvider : IAiProvider
     /// is for an instance bound to it — asked of any instance, bound or not, so a model can be judged before it is bound.</summary>
     int MaxSourcesOf(string model);
 
+    /// <summary>Whether <paramref name="model"/>, one of its provider's, draws a picture from a prompt alone — not, for a
+    /// model that only changes pictures — asked of any instance, bound or not.</summary>
+    bool DrawsFromPromptsOf(string model) => true;
+
     /// <summary>Whether it takes a <see cref="ImageGenerationRequest.Mask"/> over the first source.</summary>
     bool Masks { get; }
 

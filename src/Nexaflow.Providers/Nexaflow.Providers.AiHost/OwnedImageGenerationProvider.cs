@@ -58,6 +58,10 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
 
     private static int SourcesOf(OwnedModel? model) => model?.Sampler?.Editing?.Sources ?? 0;
 
+    /// <summary>A model that says at what size it draws each shape draws from prompts; one that says none only changes pictures.</summary>
+    public bool DrawsFromPromptsOf(string model) =>
+        OwnedModels.OfKind(ModelKind.ImageGeneration).FirstOrDefault(m => m.Id == model)?.Sampler is { Sizes.Count: > 0 };
+
     public bool Masks => _model?.Sampler?.Editing?.Masks ?? false;
 
     /// <summary>Its model's shapes at the sizes it was trained on, from any seed, with a negative prompt and its LoRAs where
@@ -67,7 +71,10 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
     internal static ImageSettings SettingsOf(OwnedModel model)
     {
         var sampler = model.Sampler!;
-        return new([.. Enum.GetValues<MediaShape>().Select(shape => MediaAspect.Of(sampler.Sizes[shape].Width, sampler.Sizes[shape].Height))])
+        // A model that only changes pictures keeps each one's proportions, and has no shapes of its own to offer.
+        return new(sampler.Sizes.Count == 0
+                   ? [new(1, 1)]
+                   : [.. Enum.GetValues<MediaShape>().Select(shape => MediaAspect.Of(sampler.Sizes[shape].Width, sampler.Sizes[shape].Height))])
         {
             Seeds           = true,
             NegativePrompts = sampler.NegativePrompts,
@@ -89,6 +96,8 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
         if (request.Sources.Count > MaxSources)
             throw new ArgumentException(MaxSources == 0 ? $"{_model.Catalog.DisplayName} draws from a prompt only."
                                                         : $"{_model.Catalog.DisplayName} works from at most {MaxSources} picture(s).", nameof(request));
+        if (request.Sources.Count == 0 && sampler.Sizes.Count == 0)
+            throw new ArgumentException($"{_model.Catalog.DisplayName} changes pictures; it draws nothing from a prompt alone.", nameof(request));
         if (request.Mask is not null && (!Masks || request.Sources.Count == 0))
             throw new ArgumentException(Masks ? "A mask lies over a picture to work from." : $"{_model.Catalog.DisplayName} takes no mask.", nameof(request));
 

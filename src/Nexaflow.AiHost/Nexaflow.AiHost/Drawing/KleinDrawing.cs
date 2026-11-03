@@ -1,6 +1,7 @@
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Generation;
 using Nexaflow.AiHost.Models;
+using Nexaflow.AiHost.Sampling;
 
 namespace Nexaflow.AiHost.Drawing;
 
@@ -19,6 +20,8 @@ internal sealed class KleinDrawing(ModelRegistry models, GpuScheduler gpu) : IDr
     public DrawingMethod Method => DrawingMethod.Flux2Klein;
 
     public bool Draws(int width, int height) => KleinSampler.Draws(width, height);
+
+    public bool Reads(int width, int height) => KleinSampler.Draws(width, height);
 
     public bool TakesNegativePrompts => false;
 
@@ -86,7 +89,8 @@ internal sealed class KleinDrawing(ModelRegistry models, GpuScheduler gpu) : IDr
                 }
                 KleinSampler.Step(latents, velocity, sigmas[step + 1] - sigmas[step]);
                 if (mask is not null)
-                    KleinSampler.Keep(latents, step == model.Steps - 1 ? sources[0] : KleinSampler.Noised(sources[0], noise, sigmas[step + 1]), mask);
+                    FlowInpainting.Keep(latents, step == model.Steps - 1 ? sources[0] : FlowInpainting.Noised(sources[0], noise, sigmas[step + 1]),
+                                        mask, KleinSampler.Channels);
                 await stepped(step + 1, model.Steps);
             }
         }

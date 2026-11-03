@@ -17,6 +17,12 @@ public enum DrawingMethod
     /// beside its latents, a picture encoder for those pictures, a VAE decoder; a mask keeps the first picture where it
     /// does not cover it.</summary>
     Flux2Klein,
+
+    /// <summary>Qwen-Image-Edit: a picture reader and a prompt encoder that read the pictures it works from into the
+    /// prompt, a picture encoder for their latents, a latent denoiser asked with the prompt and without at each Euler
+    /// step, a VAE decoder; it edits, drawing nothing from a prompt alone, and a mask keeps the first picture where it
+    /// does not cover it.</summary>
+    QwenImageEdit,
 }
 
 /// <summary>The parts an image model has, by role.</summary>
@@ -29,13 +35,17 @@ public static class DrawingParts
     /// <summary>Reads a picture to work from into the latents the denoiser takes beside its own.</summary>
     public const string PictureEncoder = "pictureEncoder";
 
+    /// <summary>Reads a picture to work from, with a vision tower, into the tokens that stand for it in the prompt.</summary>
+    public const string PictureReader = "pictureReader";
+
     /// <summary>The parts a model <paramref name="method"/> draws with is made of.</summary>
     public static IReadOnlyList<string> Of(DrawingMethod method) => method switch
     {
         DrawingMethod.ZImage    => [PromptEncoder, Denoiser, Decoder],
-        DrawingMethod.HiDream   => [Denoiser],
+        DrawingMethod.HiDream   => [Denoiser, PictureReader],
         DrawingMethod.MossImage => [PromptEncoder, Denoiser, Decoder],
         DrawingMethod.Flux2Klein => [PromptEncoder, Denoiser, PictureEncoder, Decoder],
+        DrawingMethod.QwenImageEdit => [PictureReader, PromptEncoder, PictureEncoder, Denoiser, Decoder],
         _ => throw new ArgumentOutOfRangeException(nameof(method), method, "no image model draws this way"),
     };
 }
@@ -45,7 +55,7 @@ public static class DrawingMethods
 {
     /// <summary>Whether a model drawn <paramref name="method"/>'s way shifts its noise levels by an amount that follows the
     /// picture's size rather than by a shift of its own (<see cref="DrawingModel.Shift"/> is 0).</summary>
-    public static bool ShiftsBySize(DrawingMethod method) => method is DrawingMethod.Flux2Klein;
+    public static bool ShiftsBySize(DrawingMethod method) => method is DrawingMethod.Flux2Klein or DrawingMethod.QwenImageEdit;
 }
 
 /// <summary>An image model's parts by role (<see cref="DrawingParts"/>), the method that draws with them, and how it samples.</summary>
