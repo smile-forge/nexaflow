@@ -57,11 +57,37 @@ public sealed class CutOutMasks(string folder, long budgetBytes)
         var mask = await Task.Run(() => RegionRaster.Apply(TiledCoverage.FromBytes(picked, width, height), region, 1).ToBytes(), ct);
 
         progress?.Report(0.9);
+        await KeepAtAsync(path, mask, width, height, ct);
+        return path;
+    }
+
+    /// <summary>
+    /// Keeps <paramref name="picked"/> — what picture selection picked for <paramref name="cutOut"/>, at the photo's full size as
+    /// it stands — as that cut-out's mask, unless one is kept already: for a mask picked by a session already open on the photo,
+    /// so what asks for the mask next finds it made and the photo is not read again. Only for a cut-out with no region, whose
+    /// mask is what was picked.
+    /// </summary>
+    public async Task<string> KeepPickedAsync(string photo, RecipeCutOut cutOut, string modelsVersion, byte[] picked, int width, int height, CancellationToken ct)
+    {
+        if (cutOut.Region is not null) throw new ArgumentException("A cut-out with a region is made from it, not kept as picked.", nameof(cutOut));
+        var path = PathOf(photo, cutOut, modelsVersion);
+        if (File.Exists(path))
+        {
+            KeptFiles.Touch(path);
+            return path;
+        }
+        var mask = TiledCoverage.FromBytes(picked, width, height).ToBytes();
+        await KeepAtAsync(path, mask, width, height, ct);
+        return path;
+    }
+
+    /// <summary>Writes <paramref name="mask"/> beside <paramref name="path"/> and keeps it there, whole or not at all.</summary>
+    private async Task KeepAtAsync(string path, byte[] mask, int width, int height, CancellationToken ct)
+    {
         Directory.CreateDirectory(Folder);
         var written = path + ".tmp";
         await Task.Run(() => Encode(mask, width, height, written), ct);
         _kept.Keep(written, path);
-        return path;
     }
 
     /// <summary>What names the models <paramref name="cutOut"/>'s mask is made with: picture selection's, where it is asked

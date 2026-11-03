@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing;
+using Nexaflow.Features.Images.Editing.CuttingOut;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Services;
 using Nexaflow.IO.Common.Imaging;
@@ -204,6 +205,21 @@ public sealed partial class PictureCutter : ObservableObject
         var (width, height) = ShownSize(opened.Photo.Width, opened.Photo.Height);
         var mask = await opened.Session.SelectAsync([new PicturePoint(x, y, true)], null, width, height, ct);
         return mask.Bounds is null ? null : mask;
+    }
+
+    /// <summary>
+    /// Keeps the mask <paramref name="cutOut"/> — clicks and a box, no phrase or region — picks at the photo's full size, from the
+    /// session already open on the photo, as the cut-out masks are kept: what asks for it next (<see cref="FocusedSubject"/>)
+    /// finds it made, and picture selection does not read the photo a second time.
+    /// </summary>
+    public async Task KeepPickedAsync(RecipeCutOut cutOut, CancellationToken ct)
+    {
+        if (_selection is not { State: ToolModelsState.Ready } selection || _photo is not { } photo || cutOut.Phrase is not null || cutOut.Region is not null) return;
+        var opened = await Open();
+        int width = opened.Photo.Width, height = opened.Photo.Height;
+        var mask = await opened.Session.SelectAsync([.. cutOut.Clicks.Select(c => new PicturePoint(c.X, c.Y, c.Include))],
+                                                    cutOut.Box is { } b ? new PictureBox(b.Left, b.Top, b.Right, b.Bottom) : null, width, height, ct);
+        await _services.CutOuts.KeepPickedAsync(photo, cutOut, CutOutMasks.ModelsVersionFor(cutOut, selection), mask.Pixels, width, height, ct);
     }
 
     /// <summary>Everything <paramref name="phrase"/> names in the photo, surest first, each at the size picks are shown at — asked

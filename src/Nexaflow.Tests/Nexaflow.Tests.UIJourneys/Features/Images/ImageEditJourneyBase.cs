@@ -58,6 +58,24 @@ public abstract class ImageEditJourneyBase : UiJourneyTestBase
         return true;
     }
 
+    /// <summary>Traces through <paramref name="points"/>, offsets from the canvas's centre, with the left button held — an
+    /// outline drawn as a person draws one.</summary>
+    protected bool TraceOnCanvas(params (int X, int Y)[] points)
+    {
+        if (CanvasCentre() is not { } centre || points.Length == 0) return false;
+        Mouse.MoveTo(new Point(centre.X + points[0].X, centre.Y + points[0].Y));
+        Mouse.Down(MouseButton.Left);
+        foreach (var (x, y) in points.Skip(1))
+        {
+            Mouse.MoveTo(new Point(centre.X + x, centre.Y + y));
+            Wait.UntilInputIsProcessed();
+        }
+        Mouse.Up(MouseButton.Left);
+        Wait.UntilInputIsProcessed();
+        Thread.Sleep(200);
+        return true;
+    }
+
     /// <summary>Moves a slider to whichever end it is not at — in the main window or a popup over it.</summary>
     protected bool MoveSlider(string automationId)
     {

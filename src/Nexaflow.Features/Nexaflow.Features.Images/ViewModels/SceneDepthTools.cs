@@ -209,7 +209,12 @@ public sealed partial class SceneDepthTools : ObservableObject
             if (focusing.IsCancellationRequested) return;
             // The band laid over the thing, and the thing kept as the click that picks it: its outline keeps the blur off its edge.
             var picked = new RecipeCutOut { Clicks = [new RecipeCutClick(at.X, at.Y, true)] };
-            if (thing is not null && SceneDepthFocus.Of(thing, plane, photo) is { } subject) Blur(b => SceneDepthFocus.FocusedOn(b, subject) with { Subject = picked });
+            if (thing is not null && SceneDepthFocus.Of(thing, plane, photo) is { } subject)
+            {
+                await KeepOutlineAsync(picked, focusing.Token);
+                if (focusing.IsCancellationRequested) return;
+                Blur(b => SceneDepthFocus.FocusedOn(b, subject) with { Subject = picked });
+            }
             else Blur(b => CentredOn(b, distance) with { Subject = null });
         }
         catch (OperationCanceledException) when (focusing.IsCancellationRequested)
@@ -223,6 +228,20 @@ public sealed partial class SceneDepthTools : ObservableObject
         finally
         {
             if (ReferenceEquals(_focusing, focusing)) IsFocusing = false;
+        }
+    }
+
+    /// <summary>The thing's full-size outline kept from the selection session the click opened, before the recipe asks for it, so
+    /// it is not picked again from the photo. Where that cannot be done, the outline is made the slower way, once the recipe asks.</summary>
+    private async Task KeepOutlineAsync(RecipeCutOut picked, CancellationToken ct)
+    {
+        try
+        {
+            await _cutter.KeepPickedAsync(picked, ct);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException)
+        {
+            // FocusedSubject makes it from the recipe, and says so if it cannot.
         }
     }
 

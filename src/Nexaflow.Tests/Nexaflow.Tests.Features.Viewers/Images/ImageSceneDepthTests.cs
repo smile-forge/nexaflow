@@ -260,7 +260,8 @@ public class ImageSceneDepthTests
     [CoversNode("images-scene-depth-edges")]
     public async Task FocusingOnAThing_KeepsItsOutline_MadeForTheSave_UntilAFocusThatFollowsNone()
     {
-        var vm = Editing(new Patch());
+        var patch = new Patch();
+        var vm = Editing(patch);
         OnUi(() => vm.Cutter.Follow(_photo));
         OnUi(() => vm.Depth.LensBlur = true);
         var session = vm.CurrentSession!;
@@ -274,6 +275,7 @@ public class ImageSceneDepthTests
 
         Until(() => session.SubjectMask is not null);
         Assert.IsNotNull(session.SubjectMask, "its outline is made, kept and drawn from");
+        Assert.AreEqual(1, patch.Opens, "picked from the session the click opened: the photo is read in once, not again for its outline");
         Assert.IsTrue(session.Made.Serves(session.Recipe), "a save has everything the recipe asks for");
         using var saved = await _services.Exporter.RenderAsync(session.Path, session.Recipe, session.Made);
         Assert.AreEqual(Wide, saved.Width, "and draws it at full size");
@@ -281,9 +283,41 @@ public class ImageSceneDepthTests
         OnUi(() => vm.Depth.FocusFar += 5);
         Assert.AreEqual(subject, session.Recipe.LensBlur!.Subject, "the band dragged, the outline is the subject's still");
 
+        // Narrowed end by end to a single step, as the strip's ends are dragged, and opened again.
+        foreach (var (end, to) in new[] { ("far", 60.0), ("near", 20.0), ("far", 22.0), ("near", 21.0), ("far", 40.0) })
+        {
+            OnUi(() => { if (end == "far") vm.Depth.FocusFar = to; else vm.Depth.FocusNear = to; });
+            double now = _ui.Invoke(() => end == "far" ? vm.Depth.FocusFar : vm.Depth.FocusNear);
+            Assert.AreEqual(to, now, 0.01, $"the band's {end} end set to {to} stands at {now} (band {_ui.Invoke(() => vm.Depth.FocusNear)}–{_ui.Invoke(() => vm.Depth.FocusFar)})");
+        }
+
         OnUi(() => vm.Depth.FocusWay = LensFocusWay.Point);
         await _ui.Invoke(() => vm.Depth.FocusAtAsync(new MarkupPoint(200, 80)));
         Assert.IsNull(session.Recipe.LensBlur!.Subject, "a point follows no outline");
+    }
+
+    [TestMethod]
+    [CoversNode("images-scene-depth-lens-blur")]
+    public async Task AThingStillBeingFound_WhenAnotherFocusIsChosen_ChangesNothingOnceFound()
+    {
+        var held = new Held();
+        var vm = Editing(held);
+        OnUi(() => vm.Cutter.Follow(_photo));
+        OnUi(() => vm.Depth.LensBlur = true);
+        var session = vm.CurrentSession!;
+        Until(() => session.SceneDepth is not null);
+
+        OnUi(() => vm.Depth.FocusWay = LensFocusWay.Thing);
+        var finding = _ui.Invoke(() => vm.Depth.FocusAtAsync(new MarkupPoint(25, 80)));
+        Until(() => vm.Depth.IsFocusing);
+
+        await _ui.Invoke(() => vm.Depth.FocusOnAsync(new RegionRectangle(100, 40, 160, 120)));
+        var chosen = session.Recipe.LensBlur!;
+
+        held.LetGo();
+        await finding;
+        Until(() => !vm.Depth.IsFocusing);
+        Assert.AreEqual(chosen, session.Recipe.LensBlur, "the thing found after the rectangle was chosen changes nothing: the later focus stands");
     }
 
     [TestMethod]
@@ -607,9 +641,13 @@ public class ImageSceneDepthTests
         public int Width { get; private set; }
         public int Height { get; private set; }
 
+        /// <summary>How many times a photo was read in to pick from: what costs picture selection the most.</summary>
+        public int Opens { get; private set; }
+
         public Task<IPictureSelectionSession> OpenAsync(ReadOnlyMemory<byte> rgba, int width, int height, CancellationToken ct)
         {
             (Width, Height) = (width, height);
+            Opens++;
             return Task.FromResult<IPictureSelectionSession>(this);
         }
 
@@ -631,6 +669,42 @@ public class ImageSceneDepthTests
             var mask = Mask(maskWidth, maskHeight);
             return Task.FromResult<IReadOnlyList<PictureFind>>([new PictureFind(0.9, mask.Bounds!, mask)]);
         }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    /// <summary>Picture selection that answers a pick only once let go — as a slow machine answers long after the click.</summary>
+    private sealed class Held : IPictureSelection, IPictureSelectionSession
+    {
+        private readonly Patch _patch = new();
+        private readonly TaskCompletionSource _go = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void LetGo() => _go.TrySetResult();
+
+        public ToolModelsState State => ToolModelsState.Ready;
+        public string ModelsVersion => "held-1";
+        public long DownloadBytes => 0;
+        public int DownloadPercent => 0;
+        public string? DownloadFailure => null;
+        public event EventHandler? Changed { add { } remove { } }
+        public void Download() { }
+        public int Width => _patch.Width;
+        public int Height => _patch.Height;
+
+        public async Task<IPictureSelectionSession> OpenAsync(ReadOnlyMemory<byte> rgba, int width, int height, CancellationToken ct)
+        {
+            await _patch.OpenAsync(rgba, width, height, ct);
+            return this;
+        }
+
+        public async Task<PictureMask> SelectAsync(IReadOnlyList<PicturePoint> points, PictureBox? box, int maskWidth, int maskHeight, CancellationToken ct)
+        {
+            await _go.Task;
+            return await _patch.SelectAsync(points, box, maskWidth, maskHeight, ct);
+        }
+
+        public Task<IReadOnlyList<PictureFind>> FindAsync(string phrase, IReadOnlyList<PictureExample> examples, int maskWidth, int maskHeight, CancellationToken ct)
+            => _patch.FindAsync(phrase, examples, maskWidth, maskHeight, ct);
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

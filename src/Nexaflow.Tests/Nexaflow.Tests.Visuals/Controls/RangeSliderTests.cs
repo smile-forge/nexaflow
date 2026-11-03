@@ -100,6 +100,57 @@ public class RangeSliderTests
         Assert.IsTrue(Left(upper) + end <= slider.ActualWidth + 1e-6, "nor the upper off its end");
     });
 
+    /// <summary>A host holding its band as the lens blur does: in whole steps of a hundredth, and never narrower than one.</summary>
+    private sealed class SteppedBand : System.ComponentModel.INotifyPropertyChanged
+    {
+        private double _near = 0.2, _far = 0.6;
+
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
+        public double Near
+        {
+            get => _near * 100;
+            set => Banded(System.Math.Round(value) / 100, _far);
+        }
+
+        public double Far
+        {
+            get => _far * 100;
+            set => Banded(_near, System.Math.Round(value) / 100);
+        }
+
+        private void Banded(double near, double far)
+        {
+            double from = System.Math.Min(near, far), to = System.Math.Max(near, far);
+            if (to - from < 0.01)
+            {
+                double middle = System.Math.Clamp((from + to) / 2, 0.005, 0.995);
+                (from, to) = (middle - 0.005, middle + 0.005);
+            }
+            (_near, _far) = (from, to);
+            PropertyChanged?.Invoke(this, new(nameof(Near)));
+            PropertyChanged?.Invoke(this, new(nameof(Far)));
+        }
+    }
+
+    [TestMethod]
+    public void EachEnd_SetThroughUiAutomation_ReachesAHostThatHoldsTheBandInSteps() => WithSlider(slider =>
+    {
+        var band = new SteppedBand();
+        slider.DataContext = band;
+        System.Windows.Data.BindingOperations.SetBinding(slider, RangeSlider.LowerValueProperty, new System.Windows.Data.Binding(nameof(SteppedBand.Near)) { Mode = System.Windows.Data.BindingMode.TwoWay });
+        System.Windows.Data.BindingOperations.SetBinding(slider, RangeSlider.UpperValueProperty, new System.Windows.Data.Binding(nameof(SteppedBand.Far)) { Mode = System.Windows.Data.BindingMode.TwoWay });
+        slider.UpdateLayout();
+
+        IRangeValueProvider End(string part) => (IRangeValueProvider)UIElementAutomationPeer.CreatePeerForElement((UIElement)slider.Template.FindName(part, slider))
+                                                                         .GetPattern(PatternInterface.RangeValue);
+        foreach (var (part, to) in new[] { (RangeSlider.UpperPart, 22.0), (RangeSlider.LowerPart, 21.0), (RangeSlider.UpperPart, 40.0) })
+        {
+            End(part).SetValue(to);
+            Assert.AreEqual(to, End(part).Value, 0.01, $"{part} set to {to}: the slider stands at {slider.LowerValue}–{slider.UpperValue}, the host at {band.Near}–{band.Far}");
+        }
+    });
+
     [TestMethod]
     public void EachEnd_IsASliderToUiAutomation_UnderTheControlsIdWithLowerOrUpper() => WithSlider(slider =>
     {

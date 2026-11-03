@@ -65,17 +65,25 @@ public class ImagesSceneDepthJourneyTests : ImageEditJourneyBase
             Check("Lens blur turns on, its controls with it", () => SetToggle("Image_DepthLensBlur", true) && WaitForFs(() => Exists("Image_DepthAperture"), 3));
             Check("The depth is estimated: Save is ready, with nothing to download or try again",
                   () => WaitForFs(() => Enabled("Image_EditSave"), Affordable(60)) && !Exists("Image_SceneDepthAction"));
-            Check("A click on the picture focuses on that distance", () => SelectRadio("Image_DepthFocusPoint") && ClickCanvas());
-            Check("Focusing on things, a click focuses on the thing", () => SelectRadio("Image_DepthFocusThing") && ClickCanvas());
+            // Each focus is shown to land: the band parked far out first, then moved by the focus. A focus works its part out
+            // in the background — a thing's a while on a slow machine — so each is waited for before the next is made. The
+            // sample is small on the canvas, so what is drawn is drawn on it, not on the canvas round it.
+            (double, double) Band() => (Value("Image_DepthFocusBandLower"), Value("Image_DepthFocusBandUpper"));
+            double Value(string id) => FindInAppWindows(id)?.Patterns.RangeValue.PatternOrDefault?.Value.Value ?? double.NaN;
+            bool Parked() => MoveSliderTo("Image_DepthFocusBandUpper", 90) && MoveSliderTo("Image_DepthFocusBandLower", 80);
+            bool Refocused() => WaitForFs(() => Band() != (80, 90), Affordable(60));
+            Check("A click on the picture focuses on that distance", () => SelectRadio("Image_DepthFocusPoint") && Parked() && ClickCanvas() && Refocused());
+            Check("Focusing on things, a click focuses on the thing", () => SelectRadio("Image_DepthFocusThing") && Parked() && ClickCanvas() && Refocused());
             Check("Its outline is found, so its edge stays crisp: Save is ready, with nothing to try again",
                   () => WaitForFs(() => Enabled("Image_EditSave"), Affordable(60)) && !Exists("Image_FocusedSubjectAction"));
-            Check("A rectangle drawn is focused on", () => SelectRadio("Image_DepthFocusRectangle") && DragOnCanvas(-60, -40, 60, 40));
-            Check("An outline drawn is focused on", () => SelectRadio("Image_DepthFocusLasso") && DragOnCanvas(-50, -50, 50, 40));
+            Check("A rectangle drawn is focused on", () => SelectRadio("Image_DepthFocusRectangle") && Parked() && DragOnCanvas(-12, -24, 12, 24) && Refocused());
+            Check("An outline drawn is focused on", () => SelectRadio("Image_DepthFocusLasso") && Parked()
+                  && TraceOnCanvas((-12, -24), (12, -24), (12, 24), (-12, 24), (-12, -20)) && Refocused());
             CheckPresent("Focus on the selection, waiting for one", "Image_DepthFocusSelection");
             Check("The band in focus is there, and its ends move", () => Exists("Image_DepthFocusBand")
-                        && MoveSliderTo("Image_DepthFocusBandUpper", 60) && MoveSliderTo("Image_DepthFocusBandLower", 20));
-                  Check("Narrowed, both ends of the band still move", () => MoveSliderTo("Image_DepthFocusBandUpper", 22)
-                        && MoveSliderTo("Image_DepthFocusBandLower", 21) && MoveSliderTo("Image_DepthFocusBandUpper", 40));
+                  && MoveSliderTo("Image_DepthFocusBandUpper", 60) && MoveSliderTo("Image_DepthFocusBandLower", 20));
+            Check("Narrowed, both ends of the band still move", () => MoveSliderTo("Image_DepthFocusBandUpper", 22)
+                  && MoveSliderTo("Image_DepthFocusBandLower", 21) && MoveSliderTo("Image_DepthFocusBandUpper", 40));
             Check("Aperture moves", () => MoveSlider("Image_DepthAperture"));
             Check("Highlights hexagonal, then round", () => SelectRadio("Image_DepthBokehHexagon") && SelectRadio("Image_DepthBokehCircle"));
 
