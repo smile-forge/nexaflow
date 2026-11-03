@@ -752,8 +752,9 @@ internal static class Shipped
 
     /// <summary>
     /// Plain text: its lines, the words in them, and nothing they draw — what a page's source is shown as beside the page
-    /// (<see cref="ContentLanguages.AsTyped"/>), and what a fence calling itself text holds. Read a stretch at a time, cut into lines
-    /// and words for the stretches being laid, and set as typed.
+    /// (<see cref="ContentLanguages.AsTyped"/>), and what a fence calling itself text holds, which a page sets in the box it shows what is
+    /// written as written in, its lines wrapped to fit inside it. Read a stretch at a time, cut into lines and words for the stretches being
+    /// laid, and set as typed.
     /// </summary>
     public static readonly ContentLanguage Text = new(
         Reads: word => word is not null && TextNames.Contains(word.Trim()),
@@ -767,7 +768,8 @@ internal static class Shipped
         ],
         Builder: ContentLayouts.Text)
     {
-        Editing = TextEdits,
+    Editing = TextEdits,
+        BoxedAsWritten = true,
         Windowed = TextParser.Windowed,
         UnitHeight = TextSetting.HeightOf,
     };

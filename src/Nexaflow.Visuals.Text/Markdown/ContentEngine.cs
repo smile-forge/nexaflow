@@ -238,6 +238,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
             Pictures = Pictured,
             Links = Linked,
             ShownBefore = ShownBefore,
+            BoxedAsWritten = static holder => ContentNested.Language(holder) is { } named && ContentLanguages.For(named) is { BoxedAsWritten: true },
         };
 
         return folds is null ? host : host with { Folds = folds };
@@ -366,7 +367,11 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
                                   shown is { } zone && ContentNested.Holds(body, zone.Start, zone.End)
                                       ? zone with { Start = body.Start + placed.OwnAt(zone.Start - body.Start), End = body.Start + placed.OwnAt(zone.End - body.Start) }
                                       : null,
-                                  body.Start) with { Syntax = reading.Units.Syntax is { } syntax ? (syntax, 0) : null };
+                                  body.Start) with
+                                  {
+                                      Syntax = reading.Units.Syntax is { } syntax ? (syntax, 0) : null,
+                                      WrapsLines = language.BoxedAsWritten,
+                                  };
 
             // What it read is given those marks back where they stand, so every part names its characters in the document.
             var read = new Parsed(language, named, Stretched(reading, holding.Document, body), reading.Tree);

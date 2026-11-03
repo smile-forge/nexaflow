@@ -47,6 +47,13 @@ public sealed record LayoutHost(LayoutStanding Standing, LayoutNesting Nesting)
     /// than code, whose lines are kept. A builder that heeds it is as tall as the rows it breaks its lines onto.
     /// </summary>
     public bool WrapsLines { get; init; }
+
+    /// <summary>
+    /// Whether what a holder holds written in another language is set as a page sets what it shows as written — in the same box, its lines
+    /// wrapped to fit inside it — rather than drawing itself, as code and pictures do: plain text's way, asked of a fence before it is laid,
+    /// so it is laid in the room inside the box.
+    /// </summary>
+    public Func<ContentPart, bool> BoxedAsWritten { get; init; } = static _ => false;
 }
 
 /// <summary>
@@ -174,6 +181,9 @@ public abstract class ContentBuilder
     /// <paramref name="standing"/> says, or null where nothing read it — the one thing a builder asks of whatever hosts it.
     /// </summary>
     protected LayoutInset? Nested(ContentPart holder, double room, LayoutStanding standing) => _host.Nesting(holder, room, standing);
+
+    /// <summary>Whether what <paramref name="holder"/> holds is set in the box a page sets what it shows as written in (<see cref="LayoutHost.BoxedAsWritten"/>).</summary>
+    protected bool BoxedAsWritten(ContentPart holder) => _host.BoxedAsWritten(holder);
 
     /// <summary>
     /// Lay the content out, or null where none of it is this builder's to draw. Null is for "nothing here is mine to draw", not for

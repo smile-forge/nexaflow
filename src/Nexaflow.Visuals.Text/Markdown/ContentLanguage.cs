@@ -50,6 +50,12 @@ public sealed record ContentLanguage(
     public bool Writable { get; init; }
 
     /// <summary>
+    /// Whether a page holding it sets it as the page sets what it shows as written — in the same box, its lines wrapped to fit inside it
+    /// (<see cref="LayoutHost.BoxedAsWritten"/>) — rather than leaving it to draw itself, as code and pictures do. Plain text's way.
+    /// </summary>
+    public bool BoxedAsWritten { get; init; }
+
+    /// <summary>
     /// Makes a parse that reads a large document a stretch at a time (<see cref="ContentStretch"/>), or null for a language only
     /// ever read whole. Content in a language that has one, past a length, is read and laid only as far as the reader has
     /// looked (<see cref="ContentEngine"/>) — laid by the same builder, which never learns it is laying part of something.
@@ -172,7 +178,8 @@ public sealed record ContentShowing(string Named, LayoutStyle Style, bool Writin
 
     /// <summary>
     /// Whether a line too long for the room carries on in rows beneath (<see cref="LayoutHost.WrapsLines"/>) — what the engine was asked of
-    /// the content it shows, shown as typed; never of content inside it, which keeps its lines.
+    /// the content it shows, shown as typed, and of content inside it, what its language is set as where a page holds it
+    /// (<see cref="ContentLanguage.BoxedAsWritten"/>).
     /// </summary>
     public bool WrapsLines { get; init; }
 

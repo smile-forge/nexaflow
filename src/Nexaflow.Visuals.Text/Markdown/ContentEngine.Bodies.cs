@@ -173,6 +173,7 @@ public sealed partial class ContentEngine
             Unchanged = _unchanged,
             Targets = window.Targets,
             Syntax = window.LaidSyntax is { } syntax ? (syntax, 0) : null,
+            WrapsLines = language.BoxedAsWritten,
         };
 
     return this.Laying(window, language, showing, room, !(language.Writable && writing), within, standing, tops => this.BodyWanted(window, tops), 0);

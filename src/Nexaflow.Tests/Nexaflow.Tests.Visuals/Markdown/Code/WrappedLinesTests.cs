@@ -111,13 +111,13 @@ public class WrappedLinesTests
     });
 
     [TestMethod]
-    public void ADocumentShownWrapping_KeepsTheLinesOfItsFences() => UiThread.Run(() =>
+    public void ADocumentShownWrapping_KeepsTheLinesOfItsCodeFences() => UiThread.Run(() =>
     {
-        var text = "Before.\n\n```text\n" + string.Join(' ', Enumerable.Range(0, 60).Select(word => $"word{word}")) + "\n```\n\nAfter.\n";
+        var text = "Before.\n\n```csharp\n// " + string.Join(' ', Enumerable.Range(0, 60).Select(word => $"word{word}")) + "\n```\n\nAfter.\n";
 
         Assert.AreEqual(Shown(text, wraps: false, language: null).Laid.Size.Height,
                         Shown(text, wraps: true, language: null).Laid.Size.Height, 1e-6,
-                        "A fence inside the document wrapped with it.");
+                        "A code fence inside the document wrapped with it.");
     });
 
     [TestMethod]

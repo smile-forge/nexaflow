@@ -507,18 +507,21 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
     private void Fenced(LayoutBuilder into, ContentPart part, double x, double room)
     {
-        var nested = Nested(part, room, LayoutStanding.Block);
+        // Text is set as what the page shows as written is: in the same box, laid in the room inside it, so its lines wrap to fit.
+        var pad = BoxedAsWritten(part) ? WrittenPad : 0;
+        var nested = Nested(part, Math.Max(1, room - pad * 2), LayoutStanding.Block);
 
         if (nested is { Draws: true, Laid.ShowsSource: false } inset)
         {
             _borrowed.AddRange(inset.Laid.Trouble);
 
             into.Open(LayoutPieces.Block, part, new LayoutPoint(x, _y), stops: LayoutStops.None);
-            inset.Set(into, default, LayoutPieces.Block);
+            if (pad > 0) into.Draw(new WashMark(new LayoutRect(0, 0, Math.Max(room, 1), inset.Height + pad * 2), Style.CodeBg));
+            inset.Set(into, new LayoutPoint(pad, pad), LayoutPieces.Block);
             into.Close();
 
-            _y += inset.Height;
-            Reached(x + inset.Width);
+            _y += inset.Height + pad * 2;
+            Reached(x + (pad > 0 ? room : inset.Width));
 
             return;
         }
@@ -527,10 +530,13 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         else AsWritten(into, part, x, room);
     }
 
+    /// <summary>How far in from every side of its box what is shown as written is set.</summary>
+    private double WrittenPad => Style.TextSize * 0.55;
+
     private void AsWritten(LayoutBuilder into, ContentPart part, double x, double room)
     {
         var held = Held(part);
-        var pad = Style.TextSize * 0.55;
+        var pad = WrittenPad;
         var face = Face.Plain with { Mono = true, Scale = 0.94 };
 
         var glyphs = new IShapedText[held.Count];

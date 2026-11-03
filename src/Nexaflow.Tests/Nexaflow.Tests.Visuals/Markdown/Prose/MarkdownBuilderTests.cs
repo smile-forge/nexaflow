@@ -12,6 +12,7 @@ using Nexaflow.Visuals.Text.Markdown.Prose;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.PlainText;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Prose;
 
@@ -334,6 +335,19 @@ public class MarkdownBuilderTests
         Assert.AreEqual(1, shown.Count);
         Assert.AreEqual("var x = 1;", shown[0].Words!.Glyphs.Text);
         Assert.IsTrue(shown[0].Words!.Maps, "it is the source, so the caret goes straight into it");
+    }
+
+    [TestMethod]
+    public void AFenceOfPlainTextIsSetInTheBoxABareFenceIs_ItsLinesWrappedToFitInsideIt()
+    {
+        const string body = "alpha beta\n\nA line of plain text long enough that it cannot fit across the room it is laid in, so it wraps.\n";
+        var text = Lay($"```text\n{body}```\n", room: 300);
+        var bare = Lay($"```\n{body}```\n", room: 300);
+
+        Assert.AreEqual(0, Pieces(text, LayoutPieces.Verbatim).Count, "the text language laid it, not the page as characters");
+        Assert.AreEqual(1, Pieces(text, TextKinds.Text).Count, "it is laid as text");
+        Assert.AreEqual(bare.Size.Height, text.Size.Height, 0.01, "in the box a bare fence is set in, its long line wrapped as a bare fence's is");
+        Assert.AreEqual(bare.Size.Width, text.Size.Width, 0.01, "and no wider than the room");
     }
 
     [TestMethod]
