@@ -106,7 +106,7 @@ public sealed class TiledPixels
         var tiles = _tiles.ToBuilder();
         foreach (var (key, held, overlap) in Overlapping(rect))
         {
-            var tile = overlap == TileRect(key) || held is null ? new byte[Format.TileBytes] : (byte[])held.Clone();
+            var tile = overlap == TileRect(key) || held is null ? Format.NewTile() : Format.CopyOf(held);
             for (int y = overlap.Top; y < overlap.Bottom; y++)
                 pixels.Slice(((y - rect.Top) * rect.Width + overlap.Left - rect.Left) * size, overlap.Width * size)
                       .CopyTo(tile.AsSpan(Offset(overlap.Left, y)));
@@ -200,7 +200,7 @@ public sealed class TiledPixels
             if (canvas.Contains(rect)) continue;
             var inside = SKRectI.Intersect(rect, canvas);
             if (inside.IsEmpty) { tiles.Remove(key); continue; }
-            var tile = (byte[])kept._tiles[key].Clone();
+            var tile = Format.CopyOf(kept._tiles[key]);
             for (int y = rect.Top; y < rect.Bottom; y++)
                 for (int x = rect.Left; x < rect.Right; x++)
                     if (!inside.Contains(x, y)) tile.AsSpan(Offset(x, y), size).Clear();
@@ -238,7 +238,7 @@ public sealed class TiledPixels
         {
             Format.ToPremul(tile, values);
             if (fromLinear != toLinear) Retransferred(values, toLinear);
-            var carried = new byte[format.TileBytes];
+            var carried = format.NewTile();
             format.FromPremul(values, carried);
             Put(tiles, key, carried, format);
         }
@@ -361,7 +361,7 @@ public sealed class TiledPixels
             Format.ToPremul(pixels, premul);
             change(premul, where.ReadValues(overlap));
             Format.FromPremul(premul, pixels);
-            var tile = held is null ? new byte[Format.TileBytes] : (byte[])held.Clone();
+            var tile = held is null ? Format.NewTile() : Format.CopyOf(held);
             for (int y = overlap.Top; y < overlap.Bottom; y++)
                 pixels.AsSpan((y - overlap.Top) * overlap.Width * size, overlap.Width * size).CopyTo(tile.AsSpan(Offset(overlap.Left, y)));
             Put(tiles, key, tile);
@@ -437,7 +437,7 @@ public sealed class TiledPixels
                 float keep = 1 - top[p + 3];
                 for (int c = 0; c < 4; c++) top[p + c] += bottom[p + c] * keep;
             }
-            var merged = new byte[Format.TileBytes];
+            var merged = Format.NewTile();
             Format.FromPremul(top, merged);
             Put(tiles, key, merged);
         }

@@ -1,6 +1,8 @@
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -88,7 +90,7 @@ public sealed partial class PhotoshopFormat(IVirtualFileSystem fileSystem, bool 
     /// <summary>A Photoshop file read from <paramref name="stream"/> as a layered picture, and the source files its picture
     /// layers need written where they name them, in <paramref name="sourcesFolder"/>.</summary>
     /// <exception cref="InvalidDataException">It is not a Photoshop file, or not one of a colour Nexaflow holds.</exception>
-    internal static (LayeredPictureRead Read, IReadOnlyDictionary<string, byte[]> Sources) ReadFrom(Stream stream, string sourcesFolder, CancellationToken ct = default)
+    public static (LayeredPictureRead Read, IReadOnlyDictionary<string, byte[]> Sources) ReadFrom(Stream stream, string sourcesFolder, CancellationToken ct = default)
     {
         var document = PhotoshopReader.Read(stream);
         var header = document.Header;
@@ -128,7 +130,7 @@ public sealed partial class PhotoshopFormat(IVirtualFileSystem fileSystem, bool 
 
     /// <summary>Whether the merged image is the picture drawn — false where it was saved without Maximize Compatibility,
     /// which leaves a blank one.</summary>
-    internal static bool HasRealMergedImage(PhotoshopDocument document)
+    public static bool HasRealMergedImage(PhotoshopDocument document)
         => document.Resource(VersionInfo) is not { } version || version.Data.Length < 5 || version.Data.Span[4] != 0;
 
     /// <summary>The resolution the file names, in dots an inch.</summary>
@@ -161,6 +163,8 @@ public sealed partial class PhotoshopFormat(IVirtualFileSystem fileSystem, bool 
         /// <summary>Every record, bottom first, as layers: groups closed where their divider opens them, clipping runs made groups.</summary>
         public ImmutableArray<Layer> Layers()
         {
+            // A flat file — no layers, only its merged image — is that image as one layer, as Photoshop opens it.
+            if (document.Layers.Length == 0) return HasRealMergedImage(document) ? [FlatLayer()] : [];
             DecodePixels();
             var levels = new Stack<List<Item>>();
             var current = new List<Item>();
@@ -194,6 +198,16 @@ public sealed partial class PhotoshopFormat(IVirtualFileSystem fileSystem, bool 
             return Runs(current);
         }
 
+        /// <summary>A flat file's merged image as its one layer — Photoshop's locked Background — at the file's own depth, and the
+        /// layer made active.</summary>
+        private Layer FlatLayer()
+        {
+            using var merged = PhotoshopDecoder.MergedAtDepth(stream, document, colour);
+            var layer = new PixelLayer { Name = "Background", Locked = true, Pixels = TiledPixels.FromBitmap(merged, 0, 0, _tiles) };
+            Active = layer.Id;
+            return layer;
+        }
+
         /// <summary>One level's layers, bottom first, each clipping run — a base and the layers clipped to it — made an isolated
         /// group the base heads; a clipped layer with no base beneath is drawn as any other.</summary>
         private ImmutableArray<Layer> Runs(List<Item> items)
@@ -212,6 +226,7 @@ public sealed partial class PhotoshopFormat(IVirtualFileSystem fileSystem, bool 
                 var baseLayer = item.Layer;
                 var run = new GroupLayer
                 {
+                    Id = baseLayer.Kept.Get<PhotoshopLayerKept>()?.RunId ?? Guid.NewGuid(),
                     Name = baseLayer.Name, Opacity = RunOpacity(baseLayer), Blend = baseLayer.Blend, Visible = baseLayer.Visible, Isolated = true,
                     Children = [baseLayer with { Opacity = BaseFill(baseLayer), Blend = LayerBlend.Normal, Visible = true },
                                 .. items.Skip(i + 1).Take(end - i - 1).Select(c => c.Layer with { ClipsToBelow = true })],
@@ -322,6 +337,7 @@ public sealed partial class PhotoshopFormat(IVirtualFileSystem fileSystem, bool 
                 Blocks = [.. record.Blocks.Where(b => !OwnKeys.Contains(b.Key) && !PixelKeys.Contains(b.Key))],
                 PixelBlocks = [.. record.Blocks.Where(b => PixelKeys.Contains(b.Key))],
                 ReadPixels = pixels,
+                ReadChannels = pixels is not null && _channelsAsRead.TryGetValue(record, out var asRead) ? (record.Rect, _header.IsLarge, asRead) : null,
                 OpacityAndFill = (record.Opacity, fill, opacity),
                 Mask = record.Mask,
                 BlendingRanges = record.BlendingRanges,
@@ -329,6 +345,7 @@ public sealed partial class PhotoshopFormat(IVirtualFileSystem fileSystem, bool 
                 BlendKey = PhotoshopBlends.BlendOf(blendKey) is null ? blendKey : null,
                 Undrawable = rawChannels ? (record.Rect, [.. record.Channels.Select(c => new PhotoshopChannelToWrite(c.Id, RawChannel(c)))]) : null,
                 Undrawn = undrawn.ToImmutable(),
+                RunId = Guid.TryParse(own?["run"]?.GetValue<string>(), out var runId) ? runId : null,
             };
 
             var id = Guid.TryParse(own?["id"]?.GetValue<string>(), out var ownId) ? ownId : layer.Id;
@@ -376,22 +393,27 @@ public sealed partial class PhotoshopFormat(IVirtualFileSystem fileSystem, bool 
                 if (record.Channels.FirstOrDefault(ch => ch.Id == id) is { Length: > 0 } channel)
                     sources[c] = PhotoshopChannels.Rows(stream, channel.Offset, channel.Length, rect.Width, rect.Height, sampleBytes, _header.IsLarge).GetEnumerator();
             }
+            // The band of rows laid out before it is written to the tiles: lent for the layer, not made for it.
+            byte[]? band = null;
             try
             {
                 var pixels = TiledPixels.EmptyIn(_tiles);
                 int width = rect.Width, pixelBytes = _tiles.PixelBytes;
-                var band = new byte[width * BandRows * pixelBytes];
+                band = ArrayPool<byte>.Shared.Rent(width * BandRows * pixelBytes);
+                var rows = new byte[]?[sources.Length];
+                bool rgb8 = _tiles.Premultiplied && BitConverter.IsLittleEndian;
                 int bandTop = rect.Top;
                 for (int y = rect.Top; y < rect.Bottom; y++)
                 {
                     ct.ThrowIfCancellationRequested();
                     var line = band.AsSpan((y - bandTop) * width * pixelBytes, width * pixelBytes);
-                    for (int c = 0; c < sources.Length; c++)
+                    for (int c = 0; c < sources.Length; c++) rows[c] = sources[c] is { } source && source.MoveNext() ? source.Current : null;
+                    if (rgb8) InterleaveRgb8(line, rows);
+                    else
                     {
-                        byte[]? row = sources[c] is { } source && source.MoveNext() ? source.Current : null;
-                        Interleave(line, row, c, c == colourChannels, width, sampleBytes);
+                        for (int c = 0; c < sources.Length; c++) Interleave(line, rows[c], c, c == colourChannels, width, sampleBytes);
+                        if (_tiles.Premultiplied) Premultiply(line);
                     }
-                    if (_tiles.Premultiplied) Premultiply(line);
                     bool bandEnds = y + 1 == rect.Bottom || ((y + 1) & (BandRows - 1)) == 0;
                     if (!bandEnds) continue;
                     var written = new SKRectI(rect.Left, bandTop, rect.Right, y + 1);
@@ -403,6 +425,7 @@ public sealed partial class PhotoshopFormat(IVirtualFileSystem fileSystem, bool 
             finally
             {
                 foreach (var source in sources) source?.Dispose();
+                if (band is not null) ArrayPool<byte>.Shared.Return(band);
             }
         }
 
@@ -411,20 +434,35 @@ public sealed partial class PhotoshopFormat(IVirtualFileSystem fileSystem, bool 
         private void Interleave(Span<byte> line, byte[]? row, int channel, bool alpha, int width, int sampleBytes)
         {
             int pixelBytes = _tiles.PixelBytes, at = channel * sampleBytes;
-            if (sampleBytes == 1)
+            if (row is not null)
             {
-                // 8 bits, the commonest: a byte a sample, laid without slicing.
-                byte missing = alpha ? (byte)0xFF : (byte)0;
-                for (int x = 0, p = at; x < width; x++, p += pixelBytes) line[p] = row is null ? missing : row[x];
+                for (int x = 0, p = at, s = 0; x < width; x++, p += pixelBytes)
+                    for (int b = 0; b < sampleBytes; b++) line[p + b] = row[s++];
                 return;
             }
-            for (int x = 0; x < width; x++)
+            Span<byte> missing = stackalloc byte[sampleBytes];
+            if (alpha && sampleBytes == 4) BinaryPrimitives.WriteSingleLittleEndian(missing, 1f);
+            else if (alpha) missing.Fill(0xFF);
+            for (int x = 0, p = at; x < width; x++, p += pixelBytes) missing.CopyTo(line[p..]);
+        }
+
+        /// <summary>An 8-bit row's red, green, blue and transparency laid into its pixels and premultiplied in one pass, a pixel
+        /// stored at once — a missing transparency as wholly opaque, a missing colour as 0.</summary>
+        private static void InterleaveRgb8(Span<byte> line, byte[]?[] rows)
+        {
+            var pixels = MemoryMarshal.Cast<byte, uint>(line);
+            byte[]? red = rows[0], green = rows[1], blue = rows[2], alpha = rows[3];
+            for (int x = 0; x < pixels.Length; x++)
             {
-                var into = line.Slice(x * pixelBytes + at, sampleBytes);
-                if (row is not null) row.AsSpan(x * sampleBytes, sampleBytes).CopyTo(into);
-                else if (!alpha) into.Clear();
-                else if (sampleBytes == 4) BinaryPrimitives.WriteSingleLittleEndian(into, 1f);
-                else into.Fill(0xFF);
+                int a = alpha is null ? 255 : alpha[x];
+                int r = red is null ? 0 : red[x], g = green is null ? 0 : green[x], b = blue is null ? 0 : blue[x];
+                if (a != 255)
+                {
+                    r = TileFormat.PremulByte(r, a);
+                    g = TileFormat.PremulByte(g, a);
+                    b = TileFormat.PremulByte(b, a);
+                }
+                pixels[x] = (uint)(r | g << 8 | b << 16 | a << 24);
             }
         }
 
@@ -435,13 +473,14 @@ public sealed partial class PhotoshopFormat(IVirtualFileSystem fileSystem, bool 
             {
                 int a = line[p + 3];
                 if (a == 255) continue;
-                for (int c = 0; c < 3; c++) line[p + c] = (byte)((line[p + c] * a + 127) / 255);
+                for (int c = 0; c < 3; c++) line[p + c] = TileFormat.PremulByte(line[p + c], a);
             }
         }
 
         /// <summary>
         /// A layer's user mask over the canvas, as deep as the picture: its pixels where its rectangle is, its default colour
-        /// everywhere else; what lies past the canvas left out.
+        /// everywhere else; what lies past the canvas left out. Written into the coverage a band of rows at a time, so each tile
+        /// it crosses is made once.
         /// </summary>
         private LayerMask MaskOf(PhotoshopLayerRecord record, PhotoshopLayerMask mask)
         {
@@ -451,24 +490,35 @@ public sealed partial class PhotoshopFormat(IVirtualFileSystem fileSystem, bool 
             var rect = mask.Rect;
             var channel = record.Channels.First(c => c.Id == -2);
             var canvas = new SKRectI(0, 0, _header.Width, _header.Height);
-            if (!rect.IsEmpty && channel.Length > 2)
+            var onCanvas = SKRectI.Intersect(new SKRectI(rect.Left, rect.Top, rect.Right, rect.Bottom), canvas);
+            if (rect.IsEmpty || channel.Length <= 2 || onCanvas.IsEmpty) return new LayerMask(coverage, Enabled: !mask.Disabled);
+
+            int width = rect.Width, sampleBytes = _header.SampleBytes, kept = onCanvas.Width, skip = onCanvas.Left - rect.Left;
+            var band = new float[kept * BandRows];
+            int y = rect.Top, bandTop = onCanvas.Top;
+            foreach (var row in PhotoshopChannels.Rows(stream, channel.Offset, channel.Length, width, rect.Height, sampleBytes, _header.IsLarge))
             {
-                int width = rect.Width, sampleBytes = _header.SampleBytes;
-                var values = new float[width];
-                int y = rect.Top;
-                foreach (var row in PhotoshopChannels.Rows(stream, channel.Offset, channel.Length, width, rect.Height, sampleBytes, _header.IsLarge))
+                if (y >= onCanvas.Top && y < onCanvas.Bottom)
                 {
-                    for (int x = 0; x < width; x++)
-                        values[x] = sampleBytes switch
+                    var into = band.AsSpan((y - bandTop) * kept, kept);
+                    for (int x = 0; x < kept; x++)
+                    {
+                        int at = (skip + x) * sampleBytes;
+                        into[x] = sampleBytes switch
                         {
-                            1 => row[x] / 255f,
-                            2 => BinaryPrimitives.ReadUInt16LittleEndian(row.AsSpan(x * 2)) / 65535f,
-                            _ => BinaryPrimitives.ReadSingleLittleEndian(row.AsSpan(x * 4)),
+                            1 => row[at] / 255f,
+                            2 => BinaryPrimitives.ReadUInt16LittleEndian(row.AsSpan(at)) / 65535f,
+                            _ => BinaryPrimitives.ReadSingleLittleEndian(row.AsSpan(at)),
                         };
-                    var line = SKRectI.Intersect(new SKRectI(rect.Left, y, rect.Right, y + 1), canvas);
-                    if (!line.IsEmpty) coverage = coverage.WrittenValues(line, values.AsSpan(line.Left - rect.Left, line.Width));
-                    y++;
+                    }
+                    if (y + 1 == onCanvas.Bottom || ((y + 1) & (BandRows - 1)) == 0)
+                    {
+                        var written = new SKRectI(onCanvas.Left, bandTop, onCanvas.Right, y + 1);
+                        coverage = coverage.WrittenValues(written, band.AsSpan(0, written.Height * kept));
+                        bandTop = y + 1;
+                    }
                 }
+                y++;
             }
             return new LayerMask(coverage, Enabled: !mask.Disabled);
         }
@@ -494,47 +544,93 @@ public sealed partial class PhotoshopFormat(IVirtualFileSystem fileSystem, bool 
             return Convert.ToHexStringLower(hash.GetHashAndReset());
         }
 
-        /// <summary>Each layer's colour and transparency channels as the file holds them — read in one pass, the file front to
-        /// back — and the record placing them in those bytes.</summary>
+        /// <summary>The colour and transparency channels, as the file holds them, of each picture or markup layer Nexaflow wrote —
+        /// kept to hash, and to decode should its description not read — and the record placing them in those bytes.</summary>
         private readonly Dictionary<PhotoshopLayerRecord, (byte[] Bytes, PhotoshopLayerRecord Record)> _raw = new(ReferenceEqualityComparer.Instance);
 
         /// <summary>Each pixel layer's pixels, decoded before the layers are built.</summary>
         private readonly Dictionary<PhotoshopLayerRecord, TiledPixels> _decoded = new(ReferenceEqualityComparer.Instance);
 
         /// <summary>
-        /// Every pixel layer's pixels: its channels' compressed bytes read from the file in one pass, then the layers decoded side by
-        /// side across the cores, each from its own bytes. A picture or markup layer Nexaflow wrote, its pixels as written, is not
-        /// decoded: it is drawn from what it describes.
+        /// Every pixel layer's pixels: the file read front to back, each layer's compressed channels taken into memory, and the
+        /// layers decoded side by side across the cores a batch at a time — a batch at most <see cref="BatchBytes"/> of compressed
+        /// channels, so a large file is never held compressed whole beside what it decodes to. A picture or markup layer Nexaflow
+        /// wrote, its pixels as written, is not decoded: it is drawn from what it describes; its bytes are kept to hash.
         /// </summary>
         private void DecodePixels()
         {
-            var pixelLayers = new List<PhotoshopLayerRecord>();
+            var batch = new List<(PhotoshopLayerRecord Record, byte[] Bytes, PhotoshopLayerRecord Placed)>();
+            long held = 0;
             foreach (var record in document.Layers)
             {
                 if (SectionOf(record) != 0 || record.Blocks.Any(b => AdjustmentKeys.Contains(b.Key)) || OwnOf(record)?["role"] is not null) continue;
-                var channels = record.Channels.Where(c => c.Id >= -1 && c.Length > 0).ToArray();
-                var bytes = new byte[channels.Sum(c => c.Length)];
-                var placed = new List<PhotoshopChannelData>(channels.Length);
-                long at = 0;
-                foreach (var channel in channels.OrderBy(c => c.Offset))
+                var (bytes, placed) = CompressedOf(record);
+                if (OwnOf(record) is { } own && own["kind"] is not null)
                 {
-                    stream.Position = channel.Offset;
-                    stream.ReadExactly(bytes, (int)at, (int)channel.Length);
-                    placed.Add(channel with { Offset = at });
-                    at += channel.Length;
+                    _raw[record] = (bytes, placed);
+                    if (own["pixels"]?.GetValue<string>() == PixelsHashOf(record)) continue;
                 }
-                _raw[record] = (bytes, record with { Channels = [.. placed] });
-                if (OwnOf(record) is { } own && own["kind"] is not null && own["pixels"]?.GetValue<string>() == PixelsHashOf(record)) continue;
-                pixelLayers.Add(record);
+                batch.Add((record, bytes, placed));
+                held += bytes.Length;
+                if (held < BatchBytes) continue;
+                DecodeBatch(batch);
+                batch.Clear();
+                held = 0;
             }
-            var decoded = new TiledPixels[pixelLayers.Count];
-            Parallel.For(0, pixelLayers.Count, new ParallelOptions { CancellationToken = ct }, i =>
+            DecodeBatch(batch);
+        }
+
+        /// <summary>The most compressed channels one batch of layers holds before it is decoded.</summary>
+        private const long BatchBytes = 256L << 20;
+
+        /// <summary>A layer's colour and transparency channels as the file holds them, one after another, and its record placing
+        /// them in those bytes.</summary>
+        private (byte[] Bytes, PhotoshopLayerRecord Placed) CompressedOf(PhotoshopLayerRecord record)
+        {
+            var channels = record.Channels.Where(c => c.Id >= -1 && c.Length > 0).OrderBy(c => c.Offset).ToArray();
+            var bytes = new byte[channels.Sum(c => c.Length)];
+            var placed = new List<PhotoshopChannelData>(channels.Length);
+            long at = 0;
+            foreach (var channel in channels)
             {
-                var (bytes, placed) = _raw[pixelLayers[i]];
-                using var own = new MemoryStream(bytes, writable: false);
-                decoded[i] = PixelsOf(own, placed);
+                stream.Position = channel.Offset;
+                stream.ReadExactly(bytes, (int)at, (int)channel.Length);
+                placed.Add(channel with { Offset = at });
+                at += channel.Length;
+            }
+            return (bytes, record with { Channels = [.. placed] });
+        }
+
+        /// <summary>A batch of layers decoded side by side, each from its own bytes.</summary>
+        private void DecodeBatch(List<(PhotoshopLayerRecord Record, byte[] Bytes, PhotoshopLayerRecord Placed)> batch)
+        {
+            var decoded = new TiledPixels[batch.Count];
+            Parallel.For(0, batch.Count, new ParallelOptions { CancellationToken = ct }, i =>
+            {
+                using var own = new MemoryStream(batch[i].Bytes, writable: false);
+                decoded[i] = PixelsOf(own, batch[i].Placed);
             });
-            for (int i = 0; i < pixelLayers.Count; i++) _decoded[pixelLayers[i]] = decoded[i];
+        for (int i = 0; i < batch.Count; i++)
+            {
+                _decoded[batch[i].Record] = decoded[i];
+                if (ChannelsAsRead(batch[i].Bytes, batch[i].Placed) is { IsDefault: false } channels) _channelsAsRead[batch[i].Record] = channels;
+            }
+        }
+
+        /// <summary>Each decoded layer's transparency and colour channels as the file compressed them, to write back while its
+        /// pixels are untouched.</summary>
+        private readonly Dictionary<PhotoshopLayerRecord, ImmutableArray<PhotoshopChannelToWrite>> _channelsAsRead = new(ReferenceEqualityComparer.Instance);
+
+        /// <summary>
+        /// A layer's channels, out of the bytes read for it, as they are written: every colour channel, and its transparency where it
+        /// has one. None where a colour channel is missing or the layer holds a channel past them, which a write would not keep.
+        /// </summary>
+        private ImmutableArray<PhotoshopChannelToWrite> ChannelsAsRead(byte[] bytes, PhotoshopLayerRecord placed)
+        {
+            int colourChannels = colour.Model == ColourModel.Rgb ? 3 : 1;
+            if (placed.Rect.IsEmpty || placed.Channels.Any(c => c.Id >= colourChannels)) return default;
+            if (Enumerable.Range(0, colourChannels).Any(id => !placed.Channels.Any(c => c.Id == id))) return default;
+            return [.. placed.Channels.OrderBy(c => c.Id).Select(c => new PhotoshopChannelToWrite(c.Id, bytes.AsSpan((int)c.Offset, (int)c.Length).ToArray()))];
         }
 
         /// <summary>A layer's pixels as decoded side by side — or, one left undecoded as Nexaflow's own whose description cannot be

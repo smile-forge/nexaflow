@@ -493,7 +493,7 @@ folder is held only by a live host. `TempHygieneRulesTests` (Architecture) fails
 
 ### Reference corpora and snapshots (opt-in, never in CI)
 
-Three tests compare rendered output against material that is deliberately **not** in the repository, and
+Four tests compare rendered output against material that is deliberately **not** in the repository, and
 are `Assert.Inconclusive` until an environment variable points them at it. They show up as skips in every
 normal run, which is intended.
 
@@ -502,6 +502,19 @@ normal run, which is intended.
 | `NEXAFLOW_BARCODE_IMAGES` | `BarcodeReferenceImageTests` | Barcodes drawn by an unrelated generator — the only check that can catch a wrong pattern table. |
 | `NEXAFLOW_LATEX_PICTURES` | `LatexPictureSweepTests` | A LaTeX corpus. |
 | `NEXAFLOW_DIAGRAM_SNAPSHOTS` | `DiagramSnapshotTests` | *Our own* previous render of every diagram in the sample corpus. |
+| `NEXAFLOW_PSD_CORPUS` | `PhotoshopCorpusTests` | Every `.psd` / `.psb` under the folder: each read, drawn and compared with the merged image Photoshop saved, then written back, read again and compared layer for layer. |
+
+`PhotoshopCorpusTests` logs each file as it finishes — its size, outcome and how long each step took — to
+`NEXAFLOW_PSD_CORPUS_LOG` (default: the test's own temp folder), and writes the full report beside it as a `.tsv`.
+A file is **Matched**, **Undrawn** (it holds what the Artist does not draw — adjustments, effects — or has no real
+merged image, so it is only round-tripped), **Refused** (a colour mode the Artist does not edit, or a file cut
+short) or **Failed**. Build it in Release first: a Debug build runs it several times slower.
+
+```powershell
+dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers -c Release
+$env:NEXAFLOW_PSD_CORPUS = "D:\datasets\psd"; $env:NEXAFLOW_PSD_CORPUS_LOG = "D:\datasets\psd-runs\full.log"
+dotnet test src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers -c Release --no-build --filter "FullyQualifiedName~PhotoshopCorpusTests"
+```
 
 The last is a **before/after tool, not an absolute one**, and that is why its images are not committed:
 text rasterisation depends on the machine's fonts and DPI, so a shared set would fail for reasons unrelated
