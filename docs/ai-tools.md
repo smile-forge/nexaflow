@@ -166,8 +166,8 @@ keeps the trained grid untouched, as the makers' code does.
 **The port.** `EstimateSceneDepth` prepares the picture as `infer_image` does (`SceneDepthHandover`): RGB over 255,
 brought by OpenCV's cubic resize (`PictureResampling.ResizeCubicAsOpenCv`, in double precision with OpenCV's single
 precision weights) to the lower bound of 518 — the shorter side 518, both sides the nearest multiple of the ViT's 14-pixel
-patch — and normalised by ImageNet's mean and deviation. A picture more than four times as long as it is wide is brought
-to 2072 along its length instead, so its attention stays within a few gigabytes. The host answers with the disparity at
+patch — and normalised by ImageNet's mean and deviation. A picture more than three times as long as it is wide is brought
+to 1554 along its length instead, so the estimator peaks under 3 GB. The host answers with the disparity at
 that working size; the caller brings it to any size by PyTorch's corner-aligned bilinear resize
 (`PictureResampling.ResizePlaneBilinearAligned`), the last step of `infer_image`. `SceneDepthTests` holds the host to the
 reference — the input, the disparity at its working size and at the picture's — and `DepthResamplingTests` holds the two
@@ -176,6 +176,11 @@ resizes to what OpenCV and PyTorch make of small pictures.
 **For features.** `ISceneDepth.EstimateAsync` takes a picture by file and writes its disparity, at its working size, to
 another. Images keeps each photo's in `SceneDepthMaps`, by the photo's content and `ISceneDepth.ModelsVersion`, as
 nearness from 0 (its farthest part) to 1 (its nearest) in 16 bits — under a megabyte a photo (`SceneDepthPlane`).
+
+**Memory.** The graph peaks at 1.6 GB of GPU memory for a 3:2 photo and 2.9 GB at its longest, so it runs on a 4 GB card,
+and on the CPU where there is none: 9 ms on an RTX PRO 6000, 0.2 s on 16 CPU threads. The download is 96 MB. The host is
+held to the reference to 0.002 % of the disparity's range on a CPU and 0.7 % on a GPU, whose CUDA provider takes matrix
+products in TF32.
 
 **In the image editor.** The Adjust panel's Depth section draws from it, on a photo or the active picture layer, as recipe
 sections (version 6 of the recipe): a lens blur (`RecipeLensBlur`) focused where the picture is clicked — or on the thing

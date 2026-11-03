@@ -49,6 +49,13 @@
           "type": "code",
           "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ToolModels.cs",
           "class": "ISceneDepth"
+        },
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/depth-anything-v2-small/README.md",
+          "title_path": [
+            "Depth Anything V2 Small for ONNX Runtime"
+          ]
         }
       ],
       "concerns": {

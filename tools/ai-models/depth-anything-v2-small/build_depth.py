@@ -5,13 +5,13 @@ Builds Depth Anything V2 Small's ONNX graph from the upstream PyTorch model, hol
                                            multiples of 14 -> disparity [1,H,W] float32: the model's relative inverse
                                            depth, larger nearer, at the input's size (its forward, ReLU and all)
 
-The graph is the makers' forward. Its positional embedding is brought to the picture's grid by matrix products
-(position_matmul.py), so the graph takes any size.
+The graph is the makers' forward, two things left symbolic so it takes any size: its positional embedding brought to the
+picture's grid by matrix products (position_matmul.py), and its head's last resize to the input's own size (head_size.py).
 
 usage: build_depth.py <weights .pth> <upstream repository> <out folder> <picture>...
 
-Each picture, and a square one, is checked as infer_image prepares it: the model with the positional embedding as products
-against the model as the makers wrote it, then the graph on CPU and CUDA against the model as the makers wrote it, each on
+Each picture, and a square one, is checked as infer_image prepares it: the model with those two as written here against
+the model as the makers wrote it, then the graph on CPU and CUDA against the model as the makers wrote it, each on
 the CPU in fp32.
 """
 import sys
@@ -19,6 +19,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+import onnx
 import onnxruntime as ort
 import torch
 from torch import nn
@@ -29,7 +30,9 @@ sys.path.insert(0, str(UPSTREAM))
 sys.path.insert(0, str(Path(__file__).parent))
 from depth_common import load_model, picture, prepared  # noqa: E402
 from position_matmul import interpolate_pos_encoding  # noqa: E402
+from head_size import dpt_head_forward  # noqa: E402
 from depth_anything_v2.dinov2 import DinoVisionTransformer  # noqa: E402
+from depth_anything_v2.dpt import DPTHead  # noqa: E402
 
 torch.backends.cudnn.allow_tf32 = False
 torch.backends.cuda.matmul.allow_tf32 = False
@@ -45,9 +48,9 @@ class Estimator(nn.Module):
 
 
 def main():
-    original_encoding = DinoVisionTransformer.interpolate_pos_encoding
+    original_encoding, original_head = DinoVisionTransformer.interpolate_pos_encoding, DPTHead.forward
     model = load_model(WEIGHTS)
-    estimator = Estimator(model)
+    estimator = Estimator(model).eval()
 
     cases = []
     for path in PICTURES:
@@ -60,12 +63,12 @@ def main():
     originals = []
     with torch.no_grad():
         for name, image in cases:
-            DinoVisionTransformer.interpolate_pos_encoding = original_encoding
+            DinoVisionTransformer.interpolate_pos_encoding, DPTHead.forward = original_encoding, original_head
             reference = estimator(torch.from_numpy(image)).numpy()
-            DinoVisionTransformer.interpolate_pos_encoding = interpolate_pos_encoding
+            DinoVisionTransformer.interpolate_pos_encoding, DPTHead.forward = interpolate_pos_encoding, dpt_head_forward
             products = estimator(torch.from_numpy(image)).numpy()
             diff = np.abs(products - reference).max()
-            print(f"{name} {image.shape[2]}x{image.shape[3]}: positional embedding by products against the makers', "
+            print(f"{name} {image.shape[2]}x{image.shape[3]}: symbolic sizes against the makers' own, "
                   f"largest difference {diff:.2e} of a range to {reference.max():.2f}")
             assert diff < 1e-4 * max(1, reference.max()), name
             originals.append(reference)
@@ -78,6 +81,8 @@ def main():
         program = torch.onnx.export(estimator, sample, dynamo=True, input_names=["pixels"], output_names=["disparity"],
                                     dynamic_shapes={"pixels": {2: 14 * rows, 3: 14 * cols}}, optimize=True)
     program.save(str(path), external_data=False)
+    shape = [d.dim_param or d.dim_value for d in onnx.load(str(path)).graph.output[0].type.tensor_type.shape.dim]
+    assert all(isinstance(d, str) for d in shape[1:]), f"the graph's output is fixed at {shape}: a size was traced as a constant"
     print(f"{path}: {path.stat().st_size / 2**20:.1f} MB")
 
     for providers in (["CPUExecutionProvider"], [("CUDAExecutionProvider", {"use_tf32": "0"})]):

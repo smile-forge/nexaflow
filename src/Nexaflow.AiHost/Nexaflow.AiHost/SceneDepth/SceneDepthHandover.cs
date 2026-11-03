@@ -9,8 +9,9 @@ internal sealed record SceneDepthInput(float[] Planes, int Width, int Height);
 /// A picture handed to Depth Anything V2 as its makers' <c>infer_image</c> prepares one: RGB over 255, brought by OpenCV's
 /// cubic resize to the lower bound of 518 — the shorter side 518, each side the nearest multiple of the ViT's 14-pixel
 /// patch, rounded up where that falls short — and normalised by ImageNet's mean and deviation, in double precision before
-/// it is made single. A picture more than four times as long as it is wide would make a working size past
-/// <see cref="LongestSide"/>: it is brought to that along its length instead, so its attention stays within a few gigabytes.
+/// it is made single. A picture more than three times as long as it is wide would make a working size past
+/// <see cref="LongestSide"/>: it is brought to that along its length instead, so the estimator peaks under 3 GB and a 4 GB
+/// card runs it.
 /// </summary>
 internal static class SceneDepthHandover
 {
@@ -20,8 +21,8 @@ internal static class SceneDepthHandover
     /// <summary>The ViT's patch: both sides are multiples of it.</summary>
     public const int Patch = 14;
 
-    /// <summary>The longest side a picture is read at: four times <see cref="Side"/>.</summary>
-    public const int LongestSide = 4 * Side;
+    /// <summary>The longest side a picture is read at: three times <see cref="Side"/>.</summary>
+    public const int LongestSide = 3 * Side;
 
     private static readonly double[] Mean = [0.485, 0.456, 0.406];
     private static readonly double[] Deviation = [0.229, 0.224, 0.225];

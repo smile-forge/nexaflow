@@ -100,7 +100,7 @@ New-Item -ItemType Directory -Force $target | Out-Null
 Copy-Item (Join-Path $build 'estimator\depth-anything-v2-small.onnx') $target -Force
 # The makers' licence travels with the weights, from their repository at the commit the graph was built from.
 Copy-Item (Join-Path $upstream 'LICENSE') (Join-Path $Out 'LICENSE') -Force
-foreach ($file in 'README.md', 'upstream.py', 'depth_common.py', 'position_matmul.py', 'build_depth.py', 'depth_reference.py',
+foreach ($file in 'README.md', 'upstream.py', 'depth_common.py', 'position_matmul.py', 'head_size.py', 'build_depth.py', 'depth_reference.py',
                   'resampling_reference.py', 'Build-SceneDepth.ps1') {
     Copy-Item (Join-Path $Here $file) (Join-Path $Out $file) -Force
 }

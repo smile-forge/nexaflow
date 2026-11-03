@@ -15,7 +15,8 @@ public class SceneDepthHandoverTests
     [DataRow(640, 425, 784, 518, DisplayName = "a small one is brought up the same way")]
     [DataRow(1000, 1000, 518, 518, DisplayName = "a square one is the makers' own square")]
     [DataRow(425, 640, 518, 784, DisplayName = "upright: the width is the shorter side")]
-    [DataRow(500, 2600, 392, 2072, DisplayName = "past four to one: brought to the longest side along its length")]
+    [DataRow(500, 2600, 294, 1554, DisplayName = "past three to one: brought to the longest side along its length")]
+    [DataRow(1554, 518, 1554, 518, DisplayName = "three to one exactly: the makers' own")]
     public void TheWorkingSize_IsTheMakersLowerBound_AtMultiplesOf14(int width, int height, int workingWidth, int workingHeight)
         => Assert.AreEqual((workingWidth, workingHeight), SceneDepthHandover.WorkingSize(width, height));
 
