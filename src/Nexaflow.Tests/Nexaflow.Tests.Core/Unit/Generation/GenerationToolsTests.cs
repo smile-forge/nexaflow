@@ -50,12 +50,12 @@ public class GenerationToolsTests
     public void EachTool_IsOfferedOnlyWhereTheWorkspaceHasAModelForIt()
     {
         string[] Offered(IImageGenerationProvider? images, ITextToSpeechProvider? voice, IVideoGenerationProvider? videos)
-            => [.. new GenerationTools(images, null, voice, videos, null, Files).Tools.Select(t => t.Name)];
+            => [.. new GenerationTools(images, null, null, voice, videos, null, Files).Tools.Select(t => t.Name)];
 
         CollectionAssert.AreEqual(Array.Empty<string>(), Offered(null, null, null));
         CollectionAssert.AreEqual(new[] { "generate_image" }, Offered(new Painter(), null, null));
         CollectionAssert.AreEqual(new[] { "generate_image", "generate_speech", "generate_video" }, Offered(new Painter(), new FakeSpeaker(), new Filmer()));
-        CollectionAssert.AreEqual(new[] { "generate_video" }, new GenerationTools(null, null, null, null, new Filmer(), Files).Tools.Select(t => t.Name).ToArray(),
+        CollectionAssert.AreEqual(new[] { "generate_video" }, new GenerationTools(null, null, null, null, null, new Filmer(), Files).Tools.Select(t => t.Name).ToArray(),
                                   "a high-quality video model alone offers clips too");
     }
 
@@ -371,6 +371,34 @@ public class GenerationToolsTests
     }
 
     [TestMethod]
+    public async Task PicturesToWorkFrom_GoToThePictureEditingModel_WhereTheWorkspaceHasOne_AndAPromptAloneIsDrawnAsEver()
+    {
+        var source = Path.Combine(Context, "fox.png");
+        File.WriteAllBytes(source, Drawn);
+        var drawer = new Painter { Sources = 0 };
+        var editor = new Painter { Sources = 2, Masking = true };
+        var tool   = new GenerateImageTool(drawer, null, Files, editing: editor);
+
+        CollectionAssert.IsSubsetOf(new[] { "sources", "mask" }, tool.Parameters.Select(p => p.Name).ToArray(), "the editing model's sources are offered");
+
+        Assert.IsTrue((await tool.InvokeAsync(new JsonObject { ["prompt"] = "make it night", ["sources"] = new JsonArray(source), ["mask"] = source }, default)).Success);
+        Assert.IsTrue((await tool.InvokeAsync(new JsonObject { ["prompt"] = "a fox" }, default)).Success);
+
+        Assert.AreEqual("make it night", editor.Asked.Single().Prompt);
+        Assert.IsNotNull(editor.Asked.Single().Mask);
+        Assert.AreEqual("a fox", drawer.Asked.Single().Prompt, "a picture from a prompt alone is the drawing model's");
+        Assert.AreEqual(ToolSafety.SafeOperation, tool.SafetyOf(new JsonObject { ["sources"] = new JsonArray(source) }), "an edit is not a high-quality picture");
+    }
+
+    [TestMethod]
+    public void AnEditingModelThatTakesNoPictures_IsNotUsedForThem()
+    {
+        var tool = new GenerateImageTool(new Painter { Sources = 0 }, null, Files, editing: new Painter { Sources = 0 });
+
+        Assert.IsFalse(tool.Parameters.Any(p => p.Name == "sources"));
+    }
+
+    [TestMethod]
     public async Task APictureToWorkFrom_IsReadOnlyWhereTheUserGaveIt_OpenInATab_OrInAFolderOpenInOne()
     {
         var outside = Path.Combine(_home, "fox.png");
@@ -545,6 +573,8 @@ public class GenerationToolsTests
         public string Name => "painter";
         public DataResidency Residency => DataResidency.LeavesMachine;
         public int MaxSources => Sources;
+
+        public int MaxSourcesOf(string model) => Sources;
         public bool Masks => Masking;
         public ImageSettings Settings { get; init; } = new([new(1, 1), new(3, 2), new(2, 3)]);
         public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<string>>([]);

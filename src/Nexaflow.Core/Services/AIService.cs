@@ -58,6 +58,9 @@ public sealed class AIService : IAIService
     /// <summary>The Image Generation (HQ) chain's first model that can draw now, or null.</summary>
     public IImageGenerationProvider? HighQualityImageGenerator => Candidates<IImageGenerationProvider>(AiAbility.HighQualityImageGeneration).FirstOrDefault();
 
+    /// <summary>The Image Editing chain's first model that works from pictures now, or null.</summary>
+    public IImageGenerationProvider? ImageEditor => Candidates<IImageGenerationProvider>(AiAbility.ImageEditing).FirstOrDefault(p => p.MaxSources > 0);
+
     /// <summary>The Video Generation chain's first model that can make a clip now, or null.</summary>
     public IVideoGenerationProvider? VideoGenerator => Candidates<IVideoGenerationProvider>(AiAbility.VideoGeneration).FirstOrDefault();
 
@@ -95,9 +98,10 @@ public sealed class AIService : IAIService
         }, TaskScheduler.Default);
     }
 
-    public PictureMaking? MakesPictures => ImageGenerator is null && HighQualityImageGenerator is null
+    public PictureMaking? MakesPictures => ImageGenerator is null && HighQualityImageGenerator is null && ImageEditor is null
         ? null
-            : new(PictureChoicesOf(ImageGenerator, AllowsAdultContent), PictureChoicesOf(HighQualityImageGenerator, AllowsAdultContent));
+        : new(PictureChoicesOf(ImageGenerator, AllowsAdultContent), PictureChoicesOf(HighQualityImageGenerator, AllowsAdultContent),
+              PictureChoicesOf(ImageEditor, AllowsAdultContent));
 
         /// <summary>Whether the app allows adult content: not while Enhanced AI Protection Mode is on, as it is by default
         /// (<see cref="ProtectedAudience"/>). Read where it is offered, so a change applies to the next choice made.</summary>
@@ -119,20 +123,25 @@ public sealed class AIService : IAIService
             NegativePrompts        = settings.NegativePrompts,
             TransparentBackgrounds = settings.TransparentBackgrounds,
             Loras                  = [.. settings.Loras.Select(l => new PictureLora(l.Id, l.Name, l.Description, l.NegativePrompts))],
+            Sources                = model.MaxSources,
+            Masks                  = model.Masks,
+            KeepsSourceProportions = settings.KeepsSourceProportions,
         };
     }
 
     public PictureJob MakePicture(PictureAsked picture)
     {
-        if (ImageGenerator is null && HighQualityImageGenerator is null)
+        if (ImageGenerator is null && HighQualityImageGenerator is null && ImageEditor is null)
             throw new InvalidOperationException("This workspace has no model that draws pictures.");
         var (shell, jobs, target) = UsersJob(picture.Path);
 
         // The call generate_image would be given, run as the assistant's slow calls run — but the user's, so nothing is asked.
-        // It saves only where the user named, and opens the picture once it is there unless whoever asked takes it in.
+        // It reads only the pictures the user gave it, saves only where the user named, and opens the picture once it is there
+        // unless whoever asked takes it in.
+        string[] given = [.. picture.Sources, .. picture.Mask is { } stencil ? [stencil] : Array.Empty<string>()];
         var tool = new Generation.GenerateImageTool(ImageGenerator, HighQualityImageGenerator,
-                                                    Generation.GeneratedFiles.For(shell, new PathScope([], [Path.GetDirectoryName(target)!]), picture.OpensWhenMade),
-                                                    AllowsAdultContent, PictureCheck);
+                                                    Generation.GeneratedFiles.For(shell, new PathScope(given, [Path.GetDirectoryName(target)!]), picture.OpensWhenMade),
+                                                    AllowsAdultContent, PictureCheck, ImageEditor);
         var arguments = new JsonObject
         {
             ["prompt"]  = picture.Prompt,
@@ -146,6 +155,8 @@ public sealed class AIService : IAIService
         if (picture.NegativePrompt is { Length: > 0 } keep)  arguments["negative_prompt"]        = keep;
         if (picture.TransparentBackground)                   arguments["transparent_background"] = true;
         if (picture.Lora is { Length: > 0 } lora)            arguments["lora"]                   = lora;
+        if (picture.Sources.Count > 0)                       arguments["sources"]                = new JsonArray([.. picture.Sources.Select(s => JsonValue.Create(s))]);
+        if (picture.Mask is { } mask)                        arguments["mask"]                   = mask;
         var (_, job, ended) = jobs.Start(tool, arguments, origin: null);
         return PictureJobOf(job, ended);
     }
@@ -389,7 +400,7 @@ public sealed class AIService : IAIService
         if (_workspace.ShellServices is { } shell)
         {
             var made = Generation.GeneratedFiles.For(shell, scope);
-            tools.AddRange(new Generation.GenerationTools(ImageGenerator, HighQualityImageGenerator, TextToSpeech, VideoGenerator,
+            tools.AddRange(new Generation.GenerationTools(ImageGenerator, HighQualityImageGenerator, ImageEditor, TextToSpeech, VideoGenerator,
                                                           HighQualityVideoGenerator, made, AllowsAdultContent, PictureCheck).Tools);
             tools.AddRange(AwaitingMakingTools(made));
         }
@@ -442,16 +453,17 @@ public sealed class AIService : IAIService
     /// </summary>
     private IEnumerable<IClientTool> AwaitingMakingTools(Generation.GeneratedFiles made)
     {
-        if (ImageGenerator is null && HighQualityImageGenerator is null)
-            foreach (var tool in Awaiting(made, [AiAbility.ImageGeneration, AiAbility.HighQualityImageGeneration],
-                                          p => new(p[0] as IImageGenerationProvider, p[1] as IImageGenerationProvider, null, null, null, made)))
+        if (ImageGenerator is null && HighQualityImageGenerator is null && ImageEditor is null)
+            foreach (var tool in Awaiting(made, [AiAbility.ImageGeneration, AiAbility.HighQualityImageGeneration, AiAbility.ImageEditing],
+                                          p => new(p[0] as IImageGenerationProvider, p[1] as IImageGenerationProvider, p[2] as IImageGenerationProvider,
+                                                   null, null, null, made)))
                 yield return tool;
         if (TextToSpeech is null)
-            foreach (var tool in Awaiting(made, [AiAbility.SpeechOut], p => new(null, null, p[0] as ITextToSpeechProvider, null, null, made)))
+            foreach (var tool in Awaiting(made, [AiAbility.SpeechOut], p => new(null, null, null, p[0] as ITextToSpeechProvider, null, null, made)))
                 yield return tool;
         if (VideoGenerator is null && HighQualityVideoGenerator is null)
             foreach (var tool in Awaiting(made, [AiAbility.VideoGeneration, AiAbility.HighQualityVideoGeneration],
-                                          p => new(null, null, null, p[0] as IVideoGenerationProvider, p[1] as IVideoGenerationProvider, made)))
+                                          p => new(null, null, null, null, p[0] as IVideoGenerationProvider, p[1] as IVideoGenerationProvider, made)))
                 yield return tool;
     }
 

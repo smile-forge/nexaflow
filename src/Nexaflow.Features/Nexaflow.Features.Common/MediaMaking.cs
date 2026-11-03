@@ -27,6 +27,16 @@ public sealed record PictureChoices(IReadOnlyList<string> Aspects)
     /// <summary>The LoRAs it draws with when asked, one at a time — one meant for adults only among them only while
     /// Enhanced AI Protection Mode is off; empty where it takes none.</summary>
     public IReadOnlyList<PictureLora> Loras { get; init; } = [];
+
+    /// <summary>How many pictures it works from; 0 where it only draws from a prompt.</summary>
+    public int Sources { get; init; }
+
+    /// <summary>Whether it draws again only what a mask leaves transparent over the first picture.</summary>
+    public bool Masks { get; init; }
+
+    /// <summary>Whether a picture made from pictures keeps the first one's proportions, whatever
+    /// <see cref="PictureAsked.Aspect"/> asks.</summary>
+    public bool KeepsSourceProportions { get; init; }
 }
 
 /// <summary>A LoRA a model draws with when asked — a style, or a faster way of drawing — as it is offered.</summary>
@@ -36,8 +46,9 @@ public sealed record PictureChoices(IReadOnlyList<string> Aspects)
 /// <param name="NegativePrompts">Whether a picture drawn with it is told what to keep out.</param>
 public sealed record PictureLora(string Id, string Name, string Description, bool NegativePrompts);
 
-/// <summary>What the workspace draws a picture with now: at standard quality, at high quality, or at either.</summary>
-public sealed record PictureMaking(PictureChoices? Standard, PictureChoices? HighQuality);
+/// <summary>What the workspace draws a picture with now: at standard quality, at high quality, or at either — and what it
+/// changes a picture with, where its Image Editing row has a model.</summary>
+public sealed record PictureMaking(PictureChoices? Standard, PictureChoices? HighQuality, PictureChoices? Editing = null);
 
 /// <summary>A picture the user asks for, as they set it up.</summary>
 /// <param name="Prompt">What to draw, in the user's words.</param>
@@ -65,6 +76,14 @@ public sealed record PictureAsked(string Prompt, string Path, bool HighQuality)
 
     /// <summary>The id of one of its <see cref="PictureChoices.Loras"/>; null for none.</summary>
     public string? Lora { get; init; }
+
+    /// <summary>Pictures to work from, as files: changed, restyled or combined by the workspace's Image Editing model, at most
+    /// its <see cref="PictureChoices.Sources"/>; empty to draw from the prompt alone.</summary>
+    public IReadOnlyList<string> Sources { get; init; } = [];
+
+    /// <summary>A PNG the size of the first source whose transparent part is what is drawn again, where the model
+    /// <see cref="PictureChoices.Masks"/>; null to change the whole picture.</summary>
+    public string? Mask { get; init; }
 
     /// <summary>Opened in the workspace's viewers once it is made, as a picture asked for in the file view is; false for one
     /// whoever asked for it takes in themselves — a canvas, adding it as a layer.</summary>

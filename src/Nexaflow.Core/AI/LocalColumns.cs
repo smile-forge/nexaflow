@@ -3,7 +3,7 @@ using Nexaflow.Providers.Common;
 namespace Nexaflow.Core.AI;
 
 /// <summary>A job the models on this machine do for a workspace, each with one model chosen for it.</summary>
-public enum LocalSlot { Language, SpeechToText, TextToSpeech, ImageGeneration, HighQualityImageGeneration, VideoGeneration, HighQualityVideoGeneration }
+public enum LocalSlot { Language, SpeechToText, TextToSpeech, ImageGeneration, HighQualityImageGeneration, ImageEditing, VideoGeneration, HighQualityVideoGeneration }
 
 /// <summary>
 /// The ability grid's Local column: the models that run on this machine — Nexaflow's own, and whisper.cpp's for dictation
@@ -41,6 +41,7 @@ public static class LocalColumns
         LocalSlot.TextToSpeech               => "text-to-speech",
         LocalSlot.ImageGeneration            => "image-generation",
         LocalSlot.HighQualityImageGeneration => "high-quality-image-generation",
+        LocalSlot.ImageEditing               => "image-editing",
         LocalSlot.VideoGeneration            => "video-generation",
         _                                    => "high-quality-video-generation",
     };
@@ -55,6 +56,7 @@ public static class LocalColumns
         AiAbility.SpeechOut                  => LocalSlot.TextToSpeech,
         AiAbility.ImageGeneration            => LocalSlot.ImageGeneration,
         AiAbility.HighQualityImageGeneration => LocalSlot.HighQualityImageGeneration,
+        AiAbility.ImageEditing               => LocalSlot.ImageEditing,
         AiAbility.VideoGeneration            => LocalSlot.VideoGeneration,
         AiAbility.HighQualityVideoGeneration => LocalSlot.HighQualityVideoGeneration,
         _                                    => LocalSlot.Language,
@@ -75,7 +77,7 @@ public static class LocalColumns
     {
         LocalSlot.SpeechToText                                             => ModelKind.SpeechToText,
         LocalSlot.TextToSpeech                                             => ModelKind.TextToSpeech,
-        LocalSlot.ImageGeneration or LocalSlot.HighQualityImageGeneration => ModelKind.ImageGeneration,
+        LocalSlot.ImageGeneration or LocalSlot.HighQualityImageGeneration or LocalSlot.ImageEditing => ModelKind.ImageGeneration,
         LocalSlot.VideoGeneration or LocalSlot.HighQualityVideoGeneration => ModelKind.VideoGeneration,
         _                                                                  => ModelKind.Language,
     };

@@ -42,11 +42,11 @@ public sealed class AiConfig : IProviderConfig
 
     /// <summary>
     /// Brings a grid saved by an earlier version up to the abilities there are now — <see cref="FoldIntoGeneralIntelligence"/>,
-    /// then <see cref="AddDefaultSpeechIn"/> and <see cref="AddDefaultDocuments"/>. Run on every grid as it is read; a grid already
-    /// up to date is left as it is.
+    /// then <see cref="AddDefaultSpeechIn"/>, <see cref="AddDefaultDocuments"/> and <see cref="AddDefaultImageEditing"/>. Run on
+    /// every grid as it is read; a grid already up to date is left as it is.
     /// Returns whether anything changed, so the caller saves it.
     /// </summary>
-    public bool BringUpToDate() => FoldIntoGeneralIntelligence() | AddDefaultSpeechIn() | AddDefaultDocuments();
+    public bool BringUpToDate() => FoldIntoGeneralIntelligence() | AddDefaultSpeechIn() | AddDefaultDocuments() | AddDefaultImageEditing();
 
     /// <summary>The rows General Intelligence took the place of, as a grid saved before it names them.</summary>
     private static readonly string[] FoldedIntoGeneralIntelligence = ["Conversation", "ProblemSolving", "Analysis"];
@@ -95,6 +95,21 @@ public sealed class AiConfig : IProviderConfig
         if (Assignments.ContainsKey(key) || !Assignments.TryGetValue(nameof(AiAbility.GeneralIntelligence), out var general)) return false;
 
         Assignments[key] = AbilityChain.Of([.. general.ColumnIds]);
+        return true;
+    }
+
+    /// <summary>
+    /// Gives Image Editing its starting chain when this grid has never had that row — a grid saved before the row existed, or
+    /// a new workspace: the Local column, whose picture-editing model the workspace settles on when it loads
+    /// (<see cref="LocalColumns.Settle"/>), so a picture can be changed on this machine wherever it runs a model that does.
+    /// A chain the user has emptied is a chain, and is left alone. Returns whether anything was added.
+    /// </summary>
+    public bool AddDefaultImageEditing()
+    {
+        var key = nameof(AiAbility.ImageEditing);
+        if (Assignments.ContainsKey(key)) return false;
+
+        Assignments[key] = AbilityChain.Of(LocalColumns.IdOf(LocalSlot.ImageEditing));
         return true;
     }
 }

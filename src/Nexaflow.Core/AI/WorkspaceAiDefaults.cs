@@ -59,8 +59,11 @@ internal static readonly IReadOnlySet<AiAbility> FrequentRoles =
             };
         }
 
-        // Speech In holds what the setup gives it, or nothing: a grid with the row is not given the default later.
+        // Speech In and Image Editing hold what the setup gives them, or nothing: a grid with the rows is not given their
+        // defaults later. Image Editing is given the Local column's picture-editing model when the Local column is turned on,
+        // and a provider's model that edits by AssignKinds.
         config.Assignments[nameof(AiAbility.SpeechIn)] = AbilityChain.Empty;
+        config.Assignments[nameof(AiAbility.ImageEditing)] = AbilityChain.Empty;
         if (owned?.SpeechIn is { } speechIn)
         {
             LocalColumns.Choose(config, LocalSlot.SpeechToText, speechIn);
@@ -82,7 +85,8 @@ internal static readonly IReadOnlySet<AiAbility> FrequentRoles =
         foreach (var column in chosen)
         {
             config.Columns.Add(column);
-            foreach (var ability in Enum.GetValues<AiAbility>().Where(a => AiAbilityNames.Kind(a) == column.Kind))
+            var provider = config.Providers?.Find(column.ProviderName, column.Kind);
+            foreach (var ability in Enum.GetValues<AiAbility>().Where(a => AiAbilityNames.Kind(a) == column.Kind && AiAbilityNames.Serves(a, provider, column.Model)))
             {
                 var key = ability.ToString();
                 config.Assignments[key] = AbilityChain.Of([column.Id, .. config.Assignments.GetValueOrDefault(key)?.ColumnIds ?? []]);
