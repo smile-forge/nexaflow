@@ -78,6 +78,20 @@
                 <TextBlock Text="{Binding SceneDepth.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
             </DockPanel>
         </Border>
+        <!-- The outline of what the lens blur is focused on: being made, or why the blur's edge is drawn from the depth alone. -->
+        <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                Visibility="{Binding ShowsSubjectNotice, Converter={StaticResource BoolToVis}}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Command="{Binding FocusedSubject.ActCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                            Visibility="{Binding FocusedSubject.HasAction, Converter={StaticResource BoolToVis}}"
+                            AutomationProperties.AutomationId="Image_FocusedSubjectAction" AutomationProperties.Name="{Binding FocusedSubject.ActionLabel}">
+                        <TextBlock Text="{Binding FocusedSubject.ActionLabel}"/>
+                    </Button>
+                </StackPanel>
+                <TextBlock Text="{Binding FocusedSubject.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+            </DockPanel>
+        </Border>
         <!-- The photo's removed background: being made, waiting on picture selection, or why it shows whole. -->
         <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
                 Visibility="{Binding Remover.HasNotice, Converter={StaticResource BoolToVis}}">

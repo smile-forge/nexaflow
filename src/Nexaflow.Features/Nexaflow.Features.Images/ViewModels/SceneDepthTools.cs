@@ -196,7 +196,7 @@ public sealed partial class SceneDepthTools : ObservableObject
         double distance = plane.Distance(plane.FocusAt(at.X, at.Y, photo));
         if (FocusWay != LensFocusWay.Thing)
         {
-            Blur(b => CentredOn(b, distance));
+            Blur(b => CentredOn(b, distance) with { Subject = null });
             return;
         }
         var focusing = new CancellationTokenSource();
@@ -207,8 +207,10 @@ public sealed partial class SceneDepthTools : ObservableObject
     var thing = await _cutter.ThingAtAsync(at.X, at.Y, focusing.Token);
     
             if (focusing.IsCancellationRequested) return;
-            if (thing is not null && SceneDepthFocus.Of(thing, plane, photo) is { } subject) Blur(b => SceneDepthFocus.FocusedOn(b, subject));
-            else Blur(b => CentredOn(b, distance));
+            // The band laid over the thing, and the thing kept as the click that picks it: its outline keeps the blur off its edge.
+            var picked = new RecipeCutOut { Clicks = [new RecipeCutClick(at.X, at.Y, true)] };
+            if (thing is not null && SceneDepthFocus.Of(thing, plane, photo) is { } subject) Blur(b => SceneDepthFocus.FocusedOn(b, subject) with { Subject = picked });
+            else Blur(b => CentredOn(b, distance) with { Subject = null });
         }
         catch (OperationCanceledException) when (focusing.IsCancellationRequested)
         {
@@ -236,7 +238,7 @@ public sealed partial class SceneDepthTools : ObservableObject
 
     /// <summary>The lens focused on all of <paramref name="shape"/> — a rectangle or an outline drawn, in the photo's pixels. One
     /// step of the recipe.</summary>
-    public Task FocusOnAsync(RegionShape shape) => FocusOnPartAsync(photo =>
+    public Task FocusOnAsync(RegionShape shape) => FocusOnPartAsync(subject: null, photo =>
     {
         double scale = Math.Min(1, (double)LongestDrawnSide / Math.Max(photo.Width, photo.Height));
         var coverage = RegionRaster.Shape(shape, Math.Max(1, (int)Math.Ceiling(photo.Width * scale)), Math.Max(1, (int)Math.Ceiling(photo.Height * scale)), scale);
@@ -252,7 +254,7 @@ public sealed partial class SceneDepthTools : ObservableObject
             return Task.CompletedTask;
         var toPhoto = SKMatrix.CreateScale((float)(1 / marks.ShownScale), (float)(1 / marks.ShownScale))
             .PostConcat(canvas.DocumentToCanvas).PostConcat(canvasToPhoto);
-        return FocusOnPartAsync(_ => (shown.Coverage, toPhoto));
+        return FocusOnPartAsync(_viewer.Editor.MarkedCutOut, _ => (shown.Coverage, toPhoto));
     }
 
     private bool CanFocusOnSelection() => LensBlur && _viewer.Editor.RegionMarks.HasSelection;
@@ -261,7 +263,9 @@ public sealed partial class SceneDepthTools : ObservableObject
     /// The lens focused on a part of the photo: <paramref name="part"/> — given the photo's size, what covers the part and what
     /// carries it onto the photo — worked out off the UI thread, and the band laid over its distances. A later focus takes its place.
     /// </summary>
-    private async Task FocusOnPartAsync(Func<SKSizeI, (TiledCoverage Coverage, SKMatrix ToPhoto)> part)
+    /// <param name="subject">The part as a recipe keeps a selection, where it follows an outline — the selection — so the blur keeps
+    /// that edge crisp; null for a shape drawn, which follows none.</param>
+    private async Task FocusOnPartAsync(RecipeCutOut? subject, Func<SKSizeI, (TiledCoverage Coverage, SKMatrix ToPhoto)> part)
     {
         if (Recipe.LensBlur is null || Photo is not { } photo || Plane is not { } plane) return;
         _focusing?.Cancel();
@@ -270,13 +274,13 @@ public sealed partial class SceneDepthTools : ObservableObject
         IsFocusing = true;
         try
         {
-            var subject = await Task.Run(() =>
+            var depths = await Task.Run(() =>
             {
                 var (coverage, toPhoto) = part(photo);
                 return SceneDepthFocus.Of(coverage, toPhoto, plane, photo);
             });
 
-            if (!focusing.IsCancellationRequested && subject is not null) Blur(b => SceneDepthFocus.FocusedOn(b, subject));
+            if (!focusing.IsCancellationRequested && depths is not null) Blur(b => SceneDepthFocus.FocusedOn(b, depths) with { Subject = subject });
         }
         catch (InvalidOperationException ex)
         {

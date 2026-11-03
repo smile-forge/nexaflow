@@ -47,6 +47,7 @@ internal static class RecipeRegionFiles
         return recipe with
         {
             CutOut = recipe.CutOut is { } cutOut ? cutOut with { Region = Mapped(cutOut.Region), } : null,
+            LensBlur = recipe.LensBlur is { Subject: { } subject } blur ? blur with { Subject = subject with { Region = Mapped(subject.Region) } } : recipe.LensBlur,
             Erasures = [.. recipe.Erasures.Select(e => e with { Region = Mapped(e.Region), Pick = e.Pick is { } pick ? pick with { Region = Mapped(pick.Region) } : null })],
         };
     }

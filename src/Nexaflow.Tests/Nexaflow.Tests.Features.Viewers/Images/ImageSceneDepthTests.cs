@@ -257,6 +257,36 @@ public class ImageSceneDepthTests
     }
 
     [TestMethod]
+    [CoversNode("images-scene-depth-edges")]
+    public async Task FocusingOnAThing_KeepsItsOutline_MadeForTheSave_UntilAFocusThatFollowsNone()
+    {
+        var vm = Editing(new Patch());
+        OnUi(() => vm.Cutter.Follow(_photo));
+        OnUi(() => vm.Depth.LensBlur = true);
+        var session = vm.CurrentSession!;
+        Until(() => session.SceneDepth is not null);
+
+        OnUi(() => vm.Depth.FocusWay = LensFocusWay.Thing);
+        await _ui.Invoke(() => vm.Depth.FocusAtAsync(new MarkupPoint(25, 80)));
+        var subject = session.Recipe.LensBlur!.Subject;
+        Assert.IsNotNull(subject, "focused on a thing, the blur keeps the thing");
+        CollectionAssert.AreEqual(new[] { new RecipeCutClick(25, 80, true) }, subject.Clicks.ToArray(), "as the click that picks it");
+
+        Until(() => session.SubjectMask is not null);
+        Assert.IsNotNull(session.SubjectMask, "its outline is made, kept and drawn from");
+        Assert.IsTrue(session.Made.Serves(session.Recipe), "a save has everything the recipe asks for");
+        using var saved = await _services.Exporter.RenderAsync(session.Path, session.Recipe, session.Made);
+        Assert.AreEqual(Wide, saved.Width, "and draws it at full size");
+
+        OnUi(() => vm.Depth.FocusFar += 5);
+        Assert.AreEqual(subject, session.Recipe.LensBlur!.Subject, "the band dragged, the outline is the subject's still");
+
+        OnUi(() => vm.Depth.FocusWay = LensFocusWay.Point);
+        await _ui.Invoke(() => vm.Depth.FocusAtAsync(new MarkupPoint(200, 80)));
+        Assert.IsNull(session.Recipe.LensBlur!.Subject, "a point follows no outline");
+    }
+
+    [TestMethod]
     [CoversNode("images-scene-depth")]
     public void TheStrip_TellsHowMuchOfThePictureLiesAtEachDistance()
     {

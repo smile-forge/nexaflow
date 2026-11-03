@@ -97,6 +97,9 @@ public sealed class ImageDisplay : IDisposable
     /// <summary>A picture's scene depth could not be read — its kept file gone, say. On the UI thread.</summary>
     public event Action<PictureRendering>? SceneDepthReadFailed;
 
+    /// <summary>The outline of what a picture's lens blur is focused on could not be decoded — its kept file gone, say. On the UI thread.</summary>
+    public event Action<PictureRendering>? SubjectDecodeFailed;
+
     /// <summary>The photo to show from now on; a different one — or the same one still without pixels — starts its decodes afresh and, until it has pixels, shows nothing.</summary>
     public void Show(ImageEditSession? session)
     {
@@ -323,6 +326,9 @@ public sealed class ImageDisplay : IDisposable
         private CancellationTokenSource? _sceneDepthCts;
         private string? _sceneDepthFile;
 
+        private CancellationTokenSource? _subjectCts;
+        private string? _subjectFile;
+
         public PictureDecodes(ImageDisplay display, PictureRendering rendering)
         {
             _display = display;
@@ -338,6 +344,7 @@ public sealed class ImageDisplay : IDisposable
             _erased.Cancel();
             _cutOutCts?.Cancel();
             _sceneDepthCts?.Cancel();
+            _subjectCts?.Cancel();
         }
 
         /// <summary>What the tools made for <paramref name="recipe"/>, decoded beside the picture as it is made.</summary>
@@ -347,6 +354,7 @@ public sealed class ImageDisplay : IDisposable
             if (recipe.Restore is { } restore && _rendering.RestoredPath is { } restoredFile) _restored.Ensure(restoredFile, proxy, restore.Scale);
             if (recipe.CutOut is not null && _rendering.CutOutPath is { } cutOutFile) EnsureCutOutDecoded(cutOutFile);
             if (recipe.AsksSceneDepth && _rendering.SceneDepthPath is { } depthFile) EnsureSceneDepthRead(depthFile);
+            if (recipe.LensBlur?.Subject is not null && _rendering.SubjectPath is { } subjectFile) EnsureSubjectDecoded(subjectFile);
         }
 
         public void EnsureSharpEnough(DecodedImage proxy, double sourcePerCanvasPixel)
@@ -464,6 +472,44 @@ public sealed class ImageDisplay : IDisposable
                 _ = _display._runOnUi(() =>
                 {
                     if (ReferenceEquals(_sceneDepthCts, cts)) _sceneDepthFile = null;
+                    if (_display.Shows(rendering)) _display.Decoded?.Invoke(rendering);
+                });
+            }, cts.Token);
+        }
+
+        /// <summary>Decodes the outline of what the lens blur is focused on off the UI thread, once per file the picture is handed.</summary>
+        private void EnsureSubjectDecoded(string file)
+        {
+            if (_rendering.SubjectMask is not null || string.Equals(file, _subjectFile, StringComparison.OrdinalIgnoreCase)) return;
+            _subjectFile = file;
+            _subjectCts?.Cancel();
+            var cts = CancellationTokenSource.CreateLinkedTokenSource(_display._lifetime);
+            _subjectCts = cts;
+            var rendering = _rendering;
+
+            _ = Task.Run(() =>
+            {
+                SKImage mask;
+                try
+                {
+                    mask = CutOutMasks.Decode(file);
+                }
+                catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+                {
+                    if (!cts.IsCancellationRequested)
+                        _ = _display._runOnUi(() =>
+                        {
+                            if (ReferenceEquals(_subjectCts, cts)) _subjectFile = null;
+                            if (_display.Shows(rendering)) _display.SubjectDecodeFailed?.Invoke(rendering);
+                        });
+                    return;
+                }
+                if (cts.IsCancellationRequested) { mask.Dispose(); return; }
+
+                rendering.AttachSubject(mask, file);
+                _ = _display._runOnUi(() =>
+                {
+                    if (ReferenceEquals(_subjectCts, cts)) _subjectFile = null;
                     if (_display.Shows(rendering)) _display.Decoded?.Invoke(rendering);
                 });
             }, cts.Token);

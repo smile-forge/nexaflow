@@ -69,6 +69,12 @@ public sealed class CutOutMasks(string folder, long budgetBytes)
     public static string ModelsVersionFor(RecipeCutOut cutOut, IToolModels? selection)
         => cutOut.AsksPictureSelection ? selection?.ModelsVersion ?? "" : "";
 
+    /// <summary>The models <paramref name="cutOut"/>'s mask is made with: picture selection where it is asked anything — a region
+    /// drawn by hand alone needs none — and scene depth where its region selects by distance.</summary>
+    public static IReadOnlyList<IToolModels?> ModelsFor(RecipeCutOut cutOut, IPictureSelection? selection, ISceneDepth? sceneDepth)
+        => [.. cutOut.AsksPictureSelection ? [selection] : Array.Empty<IToolModels?>(),
+            .. cutOut.Region?.SelectsByDistance == true ? [sceneDepth] : Array.Empty<IToolModels?>()];
+
     /// <summary>What picture selection picks for <paramref name="cutOut"/>, at the photo's full size as it stands — nothing
     /// where it is asked nothing, at the photo's size read without its pixels.</summary>
     private static async Task<(byte[] Mask, int Width, int Height)> PickedAsync(ImageEditingServices services, string photo, RecipeCutOut cutOut,

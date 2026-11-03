@@ -18,7 +18,7 @@ public sealed record ImageRecipe
     /// <summary>The newest format version this build reads and writes. A recipe from a newer build is left alone, never
     /// rewritten. Version 2 added <see cref="Restore"/>, version 3 <see cref="CutOut"/>, version 4 <see cref="Erasures"/> and
     /// version 5 a <see cref="RecipeRegion"/> on a cut-out and an erasing step, and version 6 what the picture's scene depth
-    /// draws — <see cref="LensBlur"/>, <see cref="DepthHaze"/> and a region step by distance (<see cref="RegionSceneDepth"/>);
+    /// draws — <see cref="LensBlur"/> with the subject it keeps crisp, <see cref="DepthHaze"/> and a region step by distance (<see cref="RegionSceneDepth"/>);
     /// a recipe is written as the oldest version that holds what is in it, so a build from before reads every recipe it can.</summary>
     public const int CurrentVersion = 6;
 
@@ -297,6 +297,11 @@ public sealed record RecipeLensBlur
     public double Aperture { get; init; } = 0.5;
 
     public BokehShape Shape { get; init; } = BokehShape.Circle;
+
+    /// <summary>What the band was laid over, picked out — a thing clicked, or the selection — whose outline the blur keeps crisp,
+    /// the depth set right at its edge (<c>SubjectEdges</c>); null where the focus was a point or a shape drawn, which follows no
+    /// outline. Kept while the band is dragged: the outline is the subject's wherever the band is.</summary>
+    public RecipeCutOut? Subject { get; init; }
 
     /// <summary>This blur kept sharp from <paramref name="near"/> to <paramref name="far"/>, either way round, held to 0…1 and at
     /// least <see cref="NarrowestBand"/> wide.</summary>

@@ -79,7 +79,7 @@ public partial class ImageEditorViewModel : ObservableObject
 
     /// <summary>What is selected as a recipe's cut-out: what the cut-out tool picked and the region drawn over it; null where
     /// neither is.</summary>
-    private RecipeCutOut? MarkedCutOut => MarkedRegion is { } region ? (Cutter.PickedCutOut ?? new RecipeCutOut()) with { Region = region } : Cutter.PickedCutOut;
+    internal RecipeCutOut? MarkedCutOut => MarkedRegion is { } region ? (Cutter.PickedCutOut ?? new RecipeCutOut()) with { Region = region } : Cutter.PickedCutOut;
 
     /// <summary>
     /// The selection drawn by hand as the recipe of the picture the tools work on keeps it: the photo editor's region; in a

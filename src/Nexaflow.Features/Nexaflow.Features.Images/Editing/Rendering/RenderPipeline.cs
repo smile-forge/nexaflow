@@ -39,6 +39,8 @@ public sealed class RenderPipeline : IDisposable
     private readonly DecodedImage? _restored;
     private readonly SKImage? _cutOut;
     private readonly SceneDepthPlane? _sceneDepth;
+
+    private readonly SKImage? _subject;
     private (float R, float G, float B)? _distance;
     private readonly AdjustmentFilter _adjust;
     private readonly MarkupPainter _markup;
@@ -61,13 +63,17 @@ public sealed class RenderPipeline : IDisposable
     /// 0 cleared — for a recipe that cuts it out. Without it, such a recipe shows the whole picture. The caller owns it.</param>
     /// <param name="sceneDepth">The upright source's scene depth, for a recipe that draws from it — a lens blur, a haze. Without
     /// it, such a recipe shows the picture sharp and clear.</param>
+    /// <param name="subject">The outline of what the recipe's lens blur is focused on — alpha over the upright source, as a
+    /// cut-out's mask is — for a lens blur with a subject: the depth is set right at its edge. Without it, the blur is drawn from
+    /// the depth as it is. The caller owns it.</param>
     public RenderPipeline(DecodedImage source, AdjustmentFilter adjust, MarkupPainter markup, bool cache = true, DecodedImage? restored = null,
-                          SKImage? cutOut = null, SceneDepthPlane? sceneDepth = null)
+                          SKImage? cutOut = null, SceneDepthPlane? sceneDepth = null, SKImage? subject = null)
     {
         _source     = source;
         _restored   = restored;
         _cutOut     = cutOut;
         _sceneDepth = sceneDepth;
+        _subject    = subject;
         _adjust   = adjust;
         _markup   = markup;
         _cache    = cache;
@@ -168,7 +174,8 @@ public sealed class RenderPipeline : IDisposable
     {
         var photo = new SKSizeI((int)Math.Round(_source.SourceSize.Width), (int)Math.Round(_source.SourceSize.Height));
         if (recipe.DepthHaze is { Colour: null }) _distance ??= SceneDepthPass.FarColour(_source, _sceneDepth!);
-        return SceneDepthPass.Draw(geometry, recipe, _sceneDepth!, sourceToCanvas, photo, _distance ?? (0.5f, 0.5f, 0.5f), NewInfo(new SKSizeI(geometry.Width, geometry.Height)));
+        return SceneDepthPass.Draw(geometry, recipe, _sceneDepth!, sourceToCanvas, photo, _distance ?? (0.5f, 0.5f, 0.5f), NewInfo(new SKSizeI(geometry.Width, geometry.Height)),
+                                   recipe.LensBlur?.Subject is not null ? _subject : null);
     }
 
     private SKImage DrawTone(SKImage geometry, RecipeAdjustments adjustments)

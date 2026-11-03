@@ -67,11 +67,15 @@ public class ImagesSceneDepthJourneyTests : ImageEditJourneyBase
                   () => WaitForFs(() => Enabled("Image_EditSave"), Affordable(60)) && !Exists("Image_SceneDepthAction"));
             Check("A click on the picture focuses on that distance", () => SelectRadio("Image_DepthFocusPoint") && ClickCanvas());
             Check("Focusing on things, a click focuses on the thing", () => SelectRadio("Image_DepthFocusThing") && ClickCanvas());
+            Check("Its outline is found, so its edge stays crisp: Save is ready, with nothing to try again",
+                  () => WaitForFs(() => Enabled("Image_EditSave"), Affordable(60)) && !Exists("Image_FocusedSubjectAction"));
             Check("A rectangle drawn is focused on", () => SelectRadio("Image_DepthFocusRectangle") && DragOnCanvas(-60, -40, 60, 40));
             Check("An outline drawn is focused on", () => SelectRadio("Image_DepthFocusLasso") && DragOnCanvas(-50, -50, 50, 40));
             CheckPresent("Focus on the selection, waiting for one", "Image_DepthFocusSelection");
             Check("The band in focus is there, and its ends move", () => Exists("Image_DepthFocusBand")
-                  && MoveSliderTo("Image_DepthFocusBandUpper", 60) && MoveSliderTo("Image_DepthFocusBandLower", 20));
+                        && MoveSliderTo("Image_DepthFocusBandUpper", 60) && MoveSliderTo("Image_DepthFocusBandLower", 20));
+                  Check("Narrowed, both ends of the band still move", () => MoveSliderTo("Image_DepthFocusBandUpper", 22)
+                        && MoveSliderTo("Image_DepthFocusBandLower", 21) && MoveSliderTo("Image_DepthFocusBandUpper", 40));
             Check("Aperture moves", () => MoveSlider("Image_DepthAperture"));
             Check("Highlights hexagonal, then round", () => SelectRadio("Image_DepthBokehHexagon") && SelectRadio("Image_DepthBokehCircle"));
 

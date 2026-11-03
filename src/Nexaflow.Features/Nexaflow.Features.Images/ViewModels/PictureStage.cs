@@ -98,8 +98,19 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
             foreach (var tools in _layerTools.Values) tools.Eraser.Lost(rendering);
         };
 
+        FocusedSubject = new FocusedSubject(editing, selection, RunOnUi, Models);
+        FocusedSubject.Made += Render;
+        _display.SubjectDecodeFailed += rendering =>
+        {
+            FocusedSubject.Lost(rendering);
+            foreach (var tools in _layerTools.Values) tools.FocusedSubject.Lost(rendering);
+        };
+        // Its banner speaks only where the scene depth's — which a lens blur waits on first, for the same models — does not.
+        FocusedSubject.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(ToolEdit<RecipeCutOut>.HasNotice)) OnPropertyChanged(nameof(ShowsSubjectNotice)); };
+        SceneDepth.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(ToolEdit<SceneDepthAsk>.HasNotice)) OnPropertyChanged(nameof(ShowsSubjectNotice)); };
+
         // Each tool's banner offers the models for the edit it makes; while one does, no control offers them beside it.
-        Models.OfferedBy(Restorer, Remover, Eraser, SceneDepth);
+        Models.OfferedBy(Restorer, Remover, Eraser, SceneDepth, FocusedSubject);
     }
 
     /// <summary>Runs on the UI thread — the shell's, or at once where there is no shell.</summary>
@@ -116,6 +127,13 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
 
     /// <summary>The scene depth the picture's haze and lens blur are drawn from, estimated once and kept.</summary>
     public PhotoSceneDepth SceneDepth { get; }
+
+    /// <summary>What gives the picture on show the outline of what its lens blur is focused on, so the blur keeps that edge crisp.</summary>
+    public FocusedSubject FocusedSubject { get; }
+
+    /// <summary>The focused subject's banner shows: its outline is being made, or could not be, and the scene depth's banner is not
+    /// already speaking for the lens blur.</summary>
+    public bool ShowsSubjectNotice => FocusedSubject.HasNotice && !SceneDepth.HasNotice;
 
     /// <summary>The tab edits the picture: edits lasting only as long as it are said at once, not only once there are some.</summary>
     public bool IsEditor { get; init; }
@@ -308,6 +326,7 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
         Restorer.Follow(target);
         Remover.Follow(target);
         SceneDepth.Follow(target);
+        FocusedSubject.Follow(target);
         if (CurrentDocument is not { } document)
         {
             foreach (var tools in _layerTools.Values) tools.Dispose();
@@ -343,7 +362,8 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
         return new(recipe.Restore is { } restore && madeFrom is not null ? Restorer.KeptFor(madeFrom, restore) : null,
                    recipe.CutOut is { } cutOut ? Remover.KeptFor(photo, cutOut) : null,
                    erased,
-                   recipe.AsksSceneDepth && madeFrom is not null ? SceneDepth.KeptFor(madeFrom, SceneDepthAsk.Instance) : null);
+                   recipe.AsksSceneDepth && madeFrom is not null ? SceneDepth.KeptFor(madeFrom, SceneDepthAsk.Instance) : null,
+                   recipe.LensBlur?.Subject is { } subject ? FocusedSubject.KeptFor(photo, subject) : null);
     }
 
     // ── Edits of the picture the tools work on ────────────────────────────

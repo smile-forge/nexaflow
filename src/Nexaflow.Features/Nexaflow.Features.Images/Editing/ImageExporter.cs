@@ -87,7 +87,8 @@ public sealed class ImageExporter(ImageEditingServices services)
         using var restoredFull = recipe.Restore is not null ? services.DecodeRestored(made.Restored!, full.SourceSize, maxLongEdge: null) : null;
         using var mask = recipe.CutOut is not null ? CutOutMasks.Decode(made.CutOut!) : null;
         var depth = recipe.AsksSceneDepth ? SceneDepthMaps.Read(made.SceneDepth!) : null;
-        using var pipeline = services.Pipeline(erasedFull ?? full, cache: false, restoredFull, mask, depth);
+        using var subject = recipe.LensBlur?.Subject is not null ? CutOutMasks.Decode(made.Subject!) : null;
+        using var pipeline = services.Pipeline(erasedFull ?? full, cache: false, restoredFull, mask, depth, subject);
         var picture = pipeline.Render(recipe, RenderRequest.Saved);
         ct.ThrowIfCancellationRequested();
         return SKImage.FromBitmap(SKBitmap.FromImage(picture));

@@ -66,6 +66,41 @@ public class RangeSliderTests
     });
 
     [TestMethod]
+    public void ANarrowBand_HasItsEndsStepAside_SoEachEndAndTheBandCanBeTakenHoldOf() => WithSlider(slider =>
+    {
+        var lower = (FrameworkElement)slider.Template.FindName(RangeSlider.LowerPart, slider);
+        var upper = (FrameworkElement)slider.Template.FindName(RangeSlider.UpperPart, slider);
+        var band = (FrameworkElement)slider.Template.FindName(RangeSlider.SpanPart, slider);
+        double end = lower.Width;
+
+        double Left(FrameworkElement e) => System.Windows.Controls.Canvas.GetLeft(e);
+        void Settle() => slider.UpdateLayout();
+
+        // A wide band: each end on its own value, the band between them.
+        Settle();
+        double wideGap = Left(upper) - Left(lower);
+        Assert.IsTrue(wideGap > end, "a wide band's ends lie apart");
+
+        // Narrowed to a single unit: the ends step aside rather than over each other, and the band keeps room to be dragged.
+        slider.LowerValue = 50;
+        slider.UpperValue = 51;
+        Settle();
+        Assert.IsTrue(Left(upper) >= Left(lower) + end - 1e-6, "the ends no longer lie over each other");
+        Assert.IsTrue(band.Width >= end / 2 - 1e-6, "the band between them is half an end wide at least");
+        Assert.IsTrue(Left(band) >= Left(lower) + end - 1e-6 && Left(band) + band.Width <= Left(upper) + 1e-6, "and lies between them, uncovered");
+
+        // At a bound, the pair stays on the rail.
+        slider.LowerValue = 0;
+        slider.UpperValue = 1;
+        Settle();
+        Assert.IsTrue(Left(lower) >= -1e-6, "the lower end does not step off the rail's start");
+        slider.LowerValue = 99;
+        slider.UpperValue = 100;
+        Settle();
+        Assert.IsTrue(Left(upper) + end <= slider.ActualWidth + 1e-6, "nor the upper off its end");
+    });
+
+    [TestMethod]
     public void EachEnd_IsASliderToUiAutomation_UnderTheControlsIdWithLowerOrUpper() => WithSlider(slider =>
     {
         var ends = Descendants(slider).OfType<RangeThumb>().ToList();
