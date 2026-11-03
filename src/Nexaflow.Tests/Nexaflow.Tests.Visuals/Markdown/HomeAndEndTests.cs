@@ -62,6 +62,25 @@ public class HomeAndEndTests
         Assert.AreEqual(end, engine.State.Caret, "End is where the last row ends");
     });
 
+    [TestMethod]
+    [DataRow("```text\n{0}```\n", null)]
+    [DataRow("```csharp\n{0}```\n", null)]
+    [DataRow("{0}", ContentLanguages.AsTyped)]
+    public void APressPastTheEndOfAShortLine_PutsTheCaretAtItsEnd_NotOnTheLongerLineAbove(string shape, string? language) => UiThread.Run(() =>
+    {
+        var document = string.Format(shape, "a much longer line written above the one under it\nbrief\n");
+        var engine = new ContentEngine { WrapsLines = language is not null };
+        engine.Show(language, WpfStyles.Dark);
+        engine.Start(document);
+        engine.Fit(400);
+
+        var end = At(document, "brief") + "brief".Length;
+        var at = engine.Laid.Root.CaretRect(end);
+
+        engine.Input(new ContentPress(new LayoutPoint(at.Right + 40, at.Y + (at.Height / 2))));
+        Assert.AreEqual(end, engine.State.Caret, $"the press past the end of the line went to the line above it: at {at}, laid {engine.Laid.Width}, root {engine.Laid.Root.OffsetAt(new LayoutPoint(at.Right + 40, at.Y + (at.Height / 2)))}, piece {engine.Laid.Root.PieceAt(new LayoutPoint(at.Right + 40, at.Y + (at.Height / 2))).Kind}");
+    });
+
     /// <summary><paramref name="document"/> laid in a room narrower than its widest paragraph, to be written in, the caret at <paramref name="caret"/>.</summary>
     private static ContentEngine Written(string document, int caret)
     {

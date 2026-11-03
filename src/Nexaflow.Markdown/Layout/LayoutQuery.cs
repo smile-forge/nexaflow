@@ -117,7 +117,12 @@ public static class LayoutQuery
     /// </remarks>
     public static int OffsetAt(this LayoutPiece root, LayoutPoint point)
     {
-        if (root.PieceAt(point) is not { Exists: true } piece) return root.Sits().Start;
+        var under = Deepest(root, point);
+
+        // A press beside a row of text — past its end, before its start — means that row, however near a longer row above comes.
+        if (!under.Exists && AlongRow(root, point) is { } along) return along;
+
+        if ((under.Exists ? under : Nearest(root, point)) is not { Exists: true } piece) return root.Sits().Start;
 
         // Inside a run of text the press means the letter it landed on rather than the nearer end of the whole run.
         if (piece is { Words: { Maps: true } words, Part: { } inside })
@@ -128,6 +133,37 @@ public static class LayoutQuery
 
         var where = piece.Bounds;
         return point.X <= where.X + (where.Width / 2) ? at.Start : at.End;
+    }
+
+    /// <summary>
+    /// Where a press level with a row of text means: the place in the run nearest it across, between two letters — or null where no run
+    /// of text is level with it, and the nearest ink, wherever it is, is what the press means.
+    /// </summary>
+    private static int? AlongRow(LayoutPiece root, LayoutPoint point)
+    {
+        (LayoutPiece Piece, double Off)? nearest = null;
+
+        foreach (var (piece, where) in LevelWith(root, point.Y))
+        {
+            if (piece.Words is not { Maps: true }) continue;
+
+            var off = point.X < where.Left ? where.Left - point.X : Math.Max(0, point.X - where.Right);
+            if (nearest is null || off < nearest.Value.Off) nearest = (piece, off);
+        }
+
+        return nearest is { Piece: { Words: { } words, Part: { } part } run } ? part.Start + words.IndexAt(Local(run, point)) : null;
+    }
+
+    /// <summary>Every leaf a caret stands in that is level with <paramref name="y"/> on the page, and where it stands: a row of what is set there.</summary>
+    private static IEnumerable<(LayoutPiece Piece, LayoutRect Where)> LevelWith(LayoutPiece root, double y)
+    {
+        foreach (var (piece, where) in PlacedNear(root, reach => reach.Top - Hair <= y && y <= reach.Bottom + Hair))
+        {
+            if (piece.Children.Count > 0 || where.IsEmpty || y < where.Top || y > where.Bottom) continue;
+            if (piece.Words is not { Maps: true } && !(piece.Stands() && piece.Stops != LayoutStops.None)) continue;
+
+            yield return (piece, where);
+        }
     }
 
     /// <summary>
@@ -823,11 +859,8 @@ public static class LayoutQuery
         var middle = caret.Y + (caret.Height / 2);
         (int Offset, double X)? edge = null;
 
-        foreach (var (piece, where) in PlacedNear(root, reach => reach.Top - Hair <= middle && middle <= reach.Bottom + Hair))
+        foreach (var (piece, where) in LevelWith(root, middle))
         {
-            if (piece.Children.Count > 0 || where.IsEmpty || middle < where.Top || middle > where.Bottom) continue;
-            if (piece.Words is not { Maps: true } && !(piece.Stands() && piece.Stops != LayoutStops.None)) continue;
-
             if (Edge(piece, where, middle, end) is not { } place) continue;
 
             // Further along wins; level, the later place for the end and the earlier for the start.

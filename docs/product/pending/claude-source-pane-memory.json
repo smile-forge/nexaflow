@@ -281,6 +281,12 @@
           "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Keys.cs",
           "class": "ContentEngine",
           "method": "Along"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutQuery.cs",
+          "class": "LayoutQuery",
+          "method": "AlongRow"
         }
       ],
       "concerns": {
