@@ -88,15 +88,12 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         Cutter = new PictureCutter(editing, selection, shell, runOnUi, Stage.Models);
 
         // What each model-backed control waits for; while a panel that needs any is open, the banner offers AI picture editing's
-        // models as one — unless a picture tool's banner, for an edit the recipe asks for, is offering them already.
+        // models as one — unless a picture tool's banner, for an edit the recipe asks for, is offering them already (the stage
+        // tells its models which banners those are).
         var picking = new ModelsGate(selection, Stage.Models, runOnUi);
         var erasingModels = new ModelsGate(erasing, Stage.Models, runOnUi);
         var restoring = new ModelsGate(pictures, Stage.Models, runOnUi);
         var depthModels = new ModelsGate(editing.SceneDepth, Stage.Models, runOnUi);
-        picking.Defer(Stage.Remover, Stage.Eraser);
-        erasingModels.Defer(Stage.Eraser);
-        restoring.Defer(Stage.Restorer);
-        depthModels.Defer(Stage.SceneDepth);
 
         Editor = new ImageEditorViewModel(this, shell, editing, Stage.Restorer, Stage.Remover, Cutter, Stage.Eraser, Stage.Models, picking, erasingModels, restoring,
                                           depthModels);

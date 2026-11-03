@@ -124,16 +124,19 @@ public class ModelsGateTests
     public void ABannerAlreadyOfferingTheModels_HasTheGateStandBack()
     {
         var models = new Models { State = ToolModelsState.NotDownloaded, DownloadBytes = 1 };
-        var gate = new ModelsGate(models, Set(models), Here) { IsWanted = true };
+        var set = Set(models);
+        var restoring = new ModelsGate(models, set, Here) { IsWanted = true };
+        var depth = new ModelsGate(models, set, Here) { IsWanted = true };
         var banner = new Offer();
-        gate.Defer(banner);
-        Assert.IsTrue(gate.ShowsOffer);
+        set.OfferedBy(banner, new Offer());
+        Assert.IsTrue(restoring.ShowsOffer);
 
         banner.CanDownload = true;
-        Assert.IsFalse(gate.ShowsOffer, "one download is offered once");
+        Assert.IsFalse(restoring.ShowsOffer, "one download is offered once");
+        Assert.IsFalse(depth.ShowsOffer, "whichever tool's banner offers it: lens blur's banner quiets the restore gate too");
 
         banner.CanDownload = false;
-        Assert.IsTrue(gate.ShowsOffer);
+        Assert.IsTrue(restoring.ShowsOffer);
     }
 
     private static PictureModels Set(params IToolModels?[] sets) => new(sets, Here);

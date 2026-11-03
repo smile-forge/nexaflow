@@ -97,6 +97,9 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
             Eraser.Lost(rendering);
             foreach (var tools in _layerTools.Values) tools.Eraser.Lost(rendering);
         };
+
+        // Each tool's banner offers the models for the edit it makes; while one does, no control offers them beside it.
+        Models.OfferedBy(Restorer, Remover, Eraser, SceneDepth);
     }
 
     /// <summary>Runs on the UI thread — the shell's, or at once where there is no shell.</summary>

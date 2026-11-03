@@ -20,8 +20,6 @@ public sealed partial class ModelsGate : ObservableObject
 {
     private readonly IToolModels? _models;
     private readonly PictureModels _set;
-    private IDownloadOffer[] _offeredElsewhere = [];
-
     /// <param name="models">The models these controls need, where the app has them.</param>
     /// <param name="set">AI picture editing's models as one: what is offered, and how it is spoken of.</param>
     /// <param name="runOnUi">Hops to the UI thread, where the gate is read.</param>
@@ -31,6 +29,10 @@ public sealed partial class ModelsGate : ObservableObject
         _set = set;
         if (models is not null) models.Changed += (_, _) => _ = runOnUi(Refresh);
         set.Changed += (_, _) => Refresh();
+        set.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(PictureModels.IsOfferedByATool)) OnPropertyChanged(nameof(ShowsOffer));
+        };
     }
 
     /// <summary>This machine runs them at all: the controls that need them show.</summary>
@@ -44,22 +46,12 @@ public sealed partial class ModelsGate : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowsOffer))]
     private bool _isWanted;
 
-    /// <summary>The editor's banner offers the models: wanted, runnable here, not here yet, and offered by nothing else on screen.</summary>
-    public bool ShowsOffer => IsWanted && IsOffered && !IsReady && !_offeredElsewhere.Any(o => o.CanDownload);
+    /// <summary>The editor's banner offers the models: wanted, runnable here, not here yet, and not offered by a picture tool's banner
+    /// already — they are one download, whichever tool's banner offers it (<see cref="PictureModels.IsOfferedByATool"/>).</summary>
+    public bool ShowsOffer => IsWanted && IsOffered && !IsReady && !_set.IsOfferedByATool;
 
     /// <summary>What a control that needs them says while it is disabled; null once they are here.</summary>
     public string? DisabledReason => _set.DisabledReason(_models);
-
-    /// <summary>Banners that offer these models too: while one does, this gate's offer stands back, so one download is offered once.</summary>
-    public void Defer(params IDownloadOffer[] offers)
-    {
-        _offeredElsewhere = offers;
-        foreach (var offer in offers)
-            offer.PropertyChanged += (_, e) =>
-            {
-                if (e.PropertyName == nameof(IDownloadOffer.CanDownload)) OnPropertyChanged(nameof(ShowsOffer));
-            };
-    }
 
     private void Refresh()
     {

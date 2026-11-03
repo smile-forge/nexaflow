@@ -16,6 +16,8 @@ public sealed partial class PictureModels : ObservableObject
 {
     private readonly IToolModels[] _sets;
 
+    private IDownloadOffer[] _offers = [];
+
     /// <param name="sets">Each set of models, where the app has it.</param>
     /// <param name="runOnUi">Hops to the UI thread, where the set is read.</param>
     public PictureModels(IReadOnlyList<IToolModels?> sets, Func<Action, Task> runOnUi)
@@ -26,6 +28,21 @@ public sealed partial class PictureModels : ObservableObject
 
     /// <summary>Raised on the UI thread when what the set says may have changed.</summary>
     public event EventHandler? Changed;
+
+    /// <summary>The picture tools whose banners offer these models, for an edit the recipe asks for: while one does, no control's
+    /// offer stands beside it, so the one download is offered once.</summary>
+    public void OfferedBy(params IDownloadOffer[] offers)
+    {
+        _offers = offers;
+        foreach (var offer in offers)
+            offer.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(IDownloadOffer.CanDownload)) OnPropertyChanged(nameof(IsOfferedByATool));
+            };
+    }
+
+    /// <summary>A picture tool's banner is offering these models now.</summary>
+    public bool IsOfferedByATool => _offers.Any(o => o.CanDownload);
 
     // The sets this machine can run at all; one it never can is not offered, and does not count.
     private IEnumerable<IToolModels> Runnable => _sets.Where(s => s.State != ToolModelsState.Unavailable);

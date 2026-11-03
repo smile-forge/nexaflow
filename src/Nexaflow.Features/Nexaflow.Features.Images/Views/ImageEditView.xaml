@@ -217,35 +217,35 @@
                                 <views:ToneChart x:Name="TonesChart" Histogram="{Binding Tones.Histogram}" IsVisibleChanged="TonesChart_IsVisibleChanged"
                                                  Background="{StaticResource Surface2Brush}" LuminanceFill="{StaticResource TextMutedBrush}"
                                                  RedStroke="{DynamicResource Swatch.Red}" GreenStroke="{DynamicResource Swatch.Green}" BlueStroke="{DynamicResource Swatch.Blue}"/>
-                                <ToggleButton x:Name="ShadowsMark" Style="{StaticResource ClipMark}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="1"
-                                              IsChecked="{Binding Tones.KeepsShadows, Mode=TwoWay}" Tag="{Binding Tones.ShadowsClip}"
-                                              MouseEnter="ClipMark_Pointed" MouseLeave="ClipMark_Pointed"
-                                              AutomationProperties.Name="{loc:Str Images.Edit.Histogram.Shadows}" AutomationProperties.ItemStatus="{Binding Tones.ShadowsStatus}"
-                                              AutomationProperties.AutomationId="Image_HistogramShadows">
-                                    <ToggleButton.ToolTip>
+                                <views:ClipMark x:Name="ShadowsMark" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="1"
+                                                IsChecked="{Binding Tones.KeepsShadows, Mode=TwoWay}" IsClipping="{Binding Tones.ShadowsClip}"
+                                                MouseEnter="ClipMark_Pointed" MouseLeave="ClipMark_Pointed"
+                                                AutomationProperties.Name="{loc:Str Images.Edit.Histogram.Shadows}" AutomationProperties.ItemStatus="{Binding Tones.ShadowsStatus}"
+                                                AutomationProperties.AutomationId="Image_HistogramShadows">
+                                    <views:ClipMark.ToolTip>
                                         <StackPanel MaxWidth="260">
                                             <TextBlock Text="{Binding Tones.ShadowsStatus}" FontWeight="SemiBold"/>
                                             <TextBlock Text="{loc:Str Images.Edit.Histogram.ShadowsTip}" TextWrapping="Wrap"/>
                                         </StackPanel>
-                                    </ToggleButton.ToolTip>
-                                </ToggleButton>
+                                    </views:ClipMark.ToolTip>
+                                </views:ClipMark>
                                 <!-- The highlights' mark is the shadows' turned to the right-hand corner. -->
-                                <ToggleButton x:Name="HighlightsMark" Style="{StaticResource ClipMark}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="1"
-                                              RenderTransformOrigin="0.5,0.5"
-                                              IsChecked="{Binding Tones.KeepsHighlights, Mode=TwoWay}" Tag="{Binding Tones.HighlightsClip}"
-                                              MouseEnter="ClipMark_Pointed" MouseLeave="ClipMark_Pointed"
-                                              AutomationProperties.Name="{loc:Str Images.Edit.Histogram.Highlights}" AutomationProperties.ItemStatus="{Binding Tones.HighlightsStatus}"
-                                              AutomationProperties.AutomationId="Image_HistogramHighlights">
-                                    <ToggleButton.RenderTransform>
+                                <views:ClipMark x:Name="HighlightsMark" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="1"
+                                                RenderTransformOrigin="0.5,0.5"
+                                                IsChecked="{Binding Tones.KeepsHighlights, Mode=TwoWay}" IsClipping="{Binding Tones.HighlightsClip}"
+                                                MouseEnter="ClipMark_Pointed" MouseLeave="ClipMark_Pointed"
+                                                AutomationProperties.Name="{loc:Str Images.Edit.Histogram.Highlights}" AutomationProperties.ItemStatus="{Binding Tones.HighlightsStatus}"
+                                                AutomationProperties.AutomationId="Image_HistogramHighlights">
+                                    <views:ClipMark.RenderTransform>
                                         <ScaleTransform ScaleX="-1"/>
-                                    </ToggleButton.RenderTransform>
-                                    <ToggleButton.ToolTip>
+                                    </views:ClipMark.RenderTransform>
+                                    <views:ClipMark.ToolTip>
                                         <StackPanel MaxWidth="260">
                                             <TextBlock Text="{Binding Tones.HighlightsStatus}" FontWeight="SemiBold"/>
                                             <TextBlock Text="{loc:Str Images.Edit.Histogram.HighlightsTip}" TextWrapping="Wrap"/>
                                         </StackPanel>
-                                    </ToggleButton.ToolTip>
-                                </ToggleButton>
+                                    </views:ClipMark.ToolTip>
+                                </views:ClipMark>
                             </Grid>
                             </views:FoldingGroup>
 
