@@ -95,22 +95,13 @@
                                     <TextBlock Style="{StaticResource EditPanelTitle}" Text="{loc:Str Images.Edit.SaveOptions.Title}"/>
                                     <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Edit.Export.Hint}"/>
 
-                                    <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Export.MetadataHeader}"/>
-                                    <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Editor.StripMetadata, Mode=TwoWay}"
-                                              Content="{loc:Str Images.Edit.Export.Strip}" AutomationProperties.AutomationId="Image_EditStripMetadata"/>
+                                    <ToggleButton Style="{StaticResource RowSwitch}" Margin="0,12,0,0" Content="{loc:Str Images.Edit.Export.Strip}" IsChecked="{Binding Editor.StripMetadata, Mode=TwoWay}"
+                                                  AutomationProperties.AutomationId="Image_EditStripMetadata"/>
                                     <TextBlock Style="{StaticResource EditCaption}" Margin="0,4,0,0" Text="{loc:Str Images.Edit.Export.StripHint}"/>
 
-                                    <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Export.Quality}"/>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <views:AdjustmentSlider Minimum="50" Maximum="100" SmallChange="1" LargeChange="5" DefaultValue="92" VerticalAlignment="Center"
-                                                                IsSnapToTickEnabled="True" TickFrequency="1"
-                                                                Value="{Binding Editor.Quality, Mode=TwoWay}" AutomationProperties.AutomationId="Image_EditQuality"/>
-                                        <TextBlock Grid.Column="1" Style="{StaticResource EditCaption}" Margin="8,0,0,0" Text="{Binding Editor.Quality}"/>
-                                    </Grid>
+                                    <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Edit.Export.Quality}" Margin="0,12,0,2"
+                                                            Minimum="50" Maximum="100" SmallChange="1" LargeChange="5" DefaultValue="92" IsSnapToTickEnabled="True" TickFrequency="1"
+                                                            Value="{Binding Editor.Quality, Mode=TwoWay}" AutomationProperties.AutomationId="Image_EditQuality"/>
                                     <TextBlock Style="{StaticResource EditCaption}" Margin="0,4,0,0" Text="{loc:Str Images.Edit.Export.QualityHint}"/>
 
                                     <TextBlock Style="{StaticResource EditCaption}" Margin="0,14,0,0" Foreground="{StaticResource WarningBrush}"

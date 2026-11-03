@@ -70,6 +70,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         _shell   = shell;
         _editing = editing;
         _config  = config ?? new ImagesConfig();
+        Folds    = new PanelFolds(_config, shell);
 
         Stage = new PictureStage(editing, shell, DisplayMode, _cts.Token, pictures, selection, erasing) { IsEditor = true };
         Stage.PropertyChanged += OnStagePropertyChanged;
@@ -124,6 +125,9 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
 
     /// <summary>The picture on show, as the screen draws it.</summary>
     public PictureStage Stage { get; }
+
+    /// <summary>Which of the edit panels' groups are open, as the person left them.</summary>
+    public PanelFolds Folds { get; }
 
     /// <summary>The picture edited; null on the start screen.</summary>
     [ObservableProperty]

@@ -124,7 +124,8 @@
 
                         <!-- ── Crop & rotate ── -->
                         <StackPanel Visibility="{Binding Editor.IsCropTool, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Crop.RotateHeader}"/>
+                            <views:FoldingGroup Icon="fluent:arrow_rotate_clockwise" Title="{loc:Str Images.Edit.Crop.RotateHeader}" IsOpen="{Binding Folds[CropRotate]}"
+                                                AutomationProperties.AutomationId="Image_GroupCropRotate">
                             <StackPanel Orientation="Horizontal">
                                 <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Stage.RotateLeftCommand}" Margin="0,0,4,0"
                                         ToolTip="{loc:Str Images.Tools.RotateLeft}" AutomationProperties.AutomationId="Image_EditRotateLeft" AutomationProperties.Name="{loc:Str Images.Tools.RotateLeft}">
@@ -143,8 +144,10 @@
                                     <icons:IconGlyph Icon="fluent:flip_vertical" FontSize="15"/>
                                 </Button>
                             </StackPanel>
+                            </views:FoldingGroup>
 
-                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Crop.AspectHeader}"/>
+                            <views:FoldingGroup Icon="fluent:crop" Title="{loc:Str Images.Edit.Crop.AspectHeader}" IsOpen="{Binding Folds[CropAspect]}"
+                                                AutomationProperties.AutomationId="Image_GroupCropAspect">
                             <DockPanel>
                             <ToggleButton DockPanel.Dock="Right" Style="{StaticResource ToolbarToggleStyle}" Margin="6,0,0,0" Padding="6,4"
                                           IsChecked="{Binding Editor.AspectPortrait, Mode=TwoWay}"
@@ -179,19 +182,15 @@
                                 </UniformGrid>
                             </Border>
                             </DockPanel>
+                            </views:FoldingGroup>
 
-                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Crop.StraightenHeader}"/>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="46"/>
-                                </Grid.ColumnDefinitions>
-                                <views:AdjustmentSlider x:Name="StraightenSlider" Minimum="-45" Maximum="45" SmallChange="0.1" LargeChange="1"
-                                                        Value="{Binding Editor.Straighten, Mode=TwoWay}" DefaultValue="0" VerticalAlignment="Center"
-                                                        AutomationProperties.AutomationId="Image_EditStraighten"/>
-                                <TextBlock Grid.Column="1" Style="{StaticResource EditCaption}" TextAlignment="Right"
-                                           Text="{Binding Editor.Straighten, StringFormat={}{0:0.0}°}"/>
-                            </Grid>
+                            <views:FoldingGroup Icon="fluent:ruler" Title="{loc:Str Images.Edit.Crop.StraightenHeader}" IsOpen="{Binding Folds[CropStraighten]}"
+                                                AutomationProperties.AutomationId="Image_GroupCropStraighten">
+                            <StackPanel>
+                            <views:AdjustmentSlider x:Name="StraightenSlider" Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Edit.Crop.Angle}" ValueFormat="0.0°"
+                                                    Minimum="-45" Maximum="45" SmallChange="0.1" LargeChange="1"
+                                                    Value="{Binding Editor.Straighten, Mode=TwoWay}" DefaultValue="0"
+                                                    AutomationProperties.AutomationId="Image_EditStraighten"/>
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                 <ToggleButton Style="{StaticResource ToolbarToggleStyle}" Margin="0,0,6,0"
                                               IsChecked="{Binding Editor.IsLevelTool, Mode=TwoWay}"
@@ -203,6 +202,8 @@
                                     <icons:IconLabel Icon="fluent:arrow_reset" Text="{loc:Str Images.Edit.Crop.Reset}" FontSize="11"/>
                                 </Button>
                             </StackPanel>
+                            </StackPanel>
+                            </views:FoldingGroup>
                         </StackPanel>
 
                         <!-- ── Adjust ── -->
@@ -210,10 +211,9 @@
 
 
                             <!-- Quick fix: one press, every slider still free after it. -->
-                            <StackPanel Style="{StaticResource EditGroupHeaderRow}">
-                                <icons:IconGlyph Style="{StaticResource EditGroupIcon}" Icon="fluent:sparkle"/>
-                                <TextBlock Style="{StaticResource EditGroupHeader}" Text="{loc:Str Images.Edit.Adjust.QuickFixHeader}"/>
-                            </StackPanel>
+                            <views:FoldingGroup Icon="fluent:sparkle" Title="{loc:Str Images.Edit.Adjust.QuickFixHeader}" IsOpen="{Binding Folds[AdjustQuickFix]}"
+                                                AutomationProperties.AutomationId="Image_GroupAdjustQuickFix">
+                            <StackPanel>
                             <StackPanel Orientation="Horizontal">
                                 <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Editor.AutoEnhanceCommand}" Margin="0,0,6,0"
                                         ToolTip="{loc:Str Images.Edit.Adjust.AutoTip}" AutomationProperties.AutomationId="Image_EditAuto">
@@ -232,32 +232,27 @@
                             </StackPanel>
                             <!-- AI enhance: the photo restored by the picture tools before the sliders apply. -->
                             <StackPanel Visibility="{Binding Editor.CanRestore, Converter={StaticResource BoolToVis}}">
-                                <Grid Style="{StaticResource EditSwitchRow}">
-                                    <TextBlock Style="{StaticResource EditSwitchLabel}" Text="{loc:Str Images.Edit.Restore.Enhance}"/>
-                                    <ToggleButton Style="{StaticResource ToggleSwitch}" HorizontalAlignment="Right" IsChecked="{Binding Editor.AiEnhance, Mode=TwoWay}"
-                                                  AutomationProperties.Name="{loc:Str Images.Edit.Restore.Enhance}"
-                                                  ToolTip="{Binding Editor.RestoringModels.DisabledReason, TargetNullValue={loc:Str Images.Edit.Restore.EnhanceTip}}"
-                                                  AutomationProperties.AutomationId="Image_EditAiEnhance"
-                                                  IsEnabled="{Binding Editor.CanToggleAiEnhance}" ToolTipService.ShowOnDisabled="True"/>
-                                </Grid>
+                                <ToggleButton Style="{StaticResource RowSwitchHeading}" Content="{loc:Str Images.Edit.Restore.Enhance}" IsChecked="{Binding Editor.AiEnhance, Mode=TwoWay}"
+                                              ToolTip="{Binding Editor.RestoringModels.DisabledReason, TargetNullValue={loc:Str Images.Edit.Restore.EnhanceTip}}"
+                                              AutomationProperties.AutomationId="Image_EditAiEnhance"
+                                              IsEnabled="{Binding Editor.CanToggleAiEnhance}" ToolTipService.ShowOnDisabled="True"/>
                                 <StackPanel Visibility="{Binding Editor.AiEnhance, Converter={StaticResource BoolToVis}}">
                                     <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Edit.Restore.Strength}"
                                                             Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" DefaultValue="100"
                                                             Value="{Binding Editor.EnhanceStrength, Mode=TwoWay}"
                                                             AutomationProperties.AutomationId="Image_EditAiStrength"/>
-                                    <Grid Margin="0,2">
-                                        <TextBlock Style="{StaticResource EditRowLabel}" Width="Auto" Text="{loc:Str Images.Edit.Restore.Faces}"/>
-                                        <ToggleButton Style="{StaticResource ToggleSwitch}" HorizontalAlignment="Right" IsChecked="{Binding Editor.RepairFaces, Mode=TwoWay}"
-                                                      AutomationProperties.Name="{loc:Str Images.Edit.Restore.Faces}" AutomationProperties.AutomationId="Image_EditAiFaces"/>
-                                    </Grid>
+                                    <ToggleButton Style="{StaticResource RowSwitch}" Content="{loc:Str Images.Edit.Restore.Faces}" IsChecked="{Binding Editor.RepairFaces, Mode=TwoWay}"
+                                                  AutomationProperties.AutomationId="Image_EditAiFaces"/>
                                 </StackPanel>
                             </StackPanel>
+                            </StackPanel>
+                            </views:FoldingGroup>
+
 
                             <!-- Light: how bright, and where. -->
-                            <StackPanel Style="{StaticResource EditGroupHeaderRow}">
-                                <icons:IconGlyph Style="{StaticResource EditGroupIcon}" Icon="fluent:brightness_high"/>
-                                <TextBlock Style="{StaticResource EditGroupHeader}" Text="{loc:Str Images.Edit.Adjust.LightHeader}"/>
-                            </StackPanel>
+                            <views:FoldingGroup Icon="fluent:brightness_high" Title="{loc:Str Images.Edit.Adjust.LightHeader}" IsOpen="{Binding Folds[AdjustLight]}"
+                                                AutomationProperties.AutomationId="Image_GroupAdjustLight">
+                            <StackPanel>
                             <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Edit.Adjust.Exposure}" ValueFormat="+0.00;−0.00;0.00"
                                                     Minimum="-3" Maximum="3" SmallChange="0.05" LargeChange="0.5" Value="{Binding Editor.Exposure, Mode=TwoWay}"
                                                     AutomationProperties.AutomationId="Image_EditExposure"/>
@@ -270,12 +265,14 @@
                             <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Edit.Adjust.Shadows}" ValueFormat="+0;−0;0"
                                                     Minimum="-100" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Editor.Shadows, Mode=TwoWay}"
                                                     AutomationProperties.AutomationId="Image_EditShadows"/>
+                            </StackPanel>
+                            </views:FoldingGroup>
+
 
                             <!-- Colour: how vivid, how warm, which way it leans. -->
-                            <StackPanel Style="{StaticResource EditGroupHeaderRow}">
-                                <icons:IconGlyph Style="{StaticResource EditGroupIcon}" Icon="fluent:color"/>
-                                <TextBlock Style="{StaticResource EditGroupHeader}" Text="{loc:Str Images.Edit.Adjust.ColourHeader}"/>
-                            </StackPanel>
+                            <views:FoldingGroup Icon="fluent:color" Title="{loc:Str Images.Edit.Adjust.ColourHeader}" IsOpen="{Binding Folds[AdjustColour]}"
+                                                AutomationProperties.AutomationId="Image_GroupAdjustColour">
+                            <StackPanel>
                             <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Edit.Adjust.Saturation}" ValueFormat="+0;−0;0"
                                                     Minimum="-100" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Editor.Saturation, Mode=TwoWay}"
                                                     AutomationProperties.AutomationId="Image_EditSaturation"/>
@@ -285,25 +282,23 @@
                             <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Edit.Adjust.Tint}" ValueFormat="+0;−0;0"
                                                     Minimum="-100" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Editor.Tint, Mode=TwoWay}"
                                                     AutomationProperties.AutomationId="Image_EditTint"/>
+                            </StackPanel>
+                            </views:FoldingGroup>
+
 
                             <!-- Scene depth: a lens's blur and haze drawn from how far each part of the picture lies, and the depth itself for compositing. -->
-                            <StackPanel Visibility="{Binding Depth.Models.IsOffered, Converter={StaticResource BoolToVis}}">
-                                <StackPanel Style="{StaticResource EditGroupHeaderRow}">
-                                    <icons:IconGlyph Style="{StaticResource EditGroupIcon}" Icon="fluent:layer_diagonal"/>
-                                    <TextBlock Style="{StaticResource EditGroupHeader}" Text="{loc:Str Images.SceneDepth.Header}"/>
-                                </StackPanel>
+                            <views:FoldingGroup Icon="fluent:layer_diagonal" Title="{loc:Str Images.SceneDepth.Header}" IsOpen="{Binding Folds[AdjustDepth]}"
+                                                Visibility="{Binding Depth.Models.IsOffered, Converter={StaticResource BoolToVis}}"
+                                                AutomationProperties.AutomationId="Image_GroupAdjustDepth">
+                            <StackPanel>
                                 <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.SceneDepth.NeedsPictureLayer}" Margin="0,0,0,6"
                                            Visibility="{Binding Depth.NeedsPictureLayer, Converter={StaticResource BoolToVis}}"/>
 
                                 <!-- Lens blur: sharp over a band of distance, set on the picture or dragged over the strip of its depths. -->
-                                <Grid Style="{StaticResource EditSwitchRow}">
-                                    <TextBlock Style="{StaticResource EditSwitchLabel}" Text="{loc:Str Images.SceneDepth.LensBlur}"/>
-                                    <ToggleButton Style="{StaticResource ToggleSwitch}" HorizontalAlignment="Right" IsChecked="{Binding Depth.LensBlur, Mode=TwoWay}"
-                                                  AutomationProperties.Name="{loc:Str Images.SceneDepth.LensBlur}"
-                                                  ToolTip="{Binding Depth.Models.DisabledReason, TargetNullValue={loc:Str Images.SceneDepth.LensBlurTip}}"
-                                                  IsEnabled="{Binding Depth.CanEdit}" ToolTipService.ShowOnDisabled="True"
-                                                  AutomationProperties.AutomationId="Image_DepthLensBlur"/>
-                                </Grid>
+                                <ToggleButton Style="{StaticResource RowSwitchHeading}" Content="{loc:Str Images.SceneDepth.LensBlur}" IsChecked="{Binding Depth.LensBlur, Mode=TwoWay}"
+                                              ToolTip="{Binding Depth.Models.DisabledReason, TargetNullValue={loc:Str Images.SceneDepth.LensBlurTip}}"
+                                              IsEnabled="{Binding Depth.CanEdit}" ToolTipService.ShowOnDisabled="True"
+                                              AutomationProperties.AutomationId="Image_DepthLensBlur"/>
                                 <StackPanel Visibility="{Binding Depth.LensBlur, Converter={StaticResource BoolToVis}}">
                                     <Grid Margin="0,0,0,6">
                                         <Grid.ColumnDefinitions>
@@ -381,14 +376,10 @@
                                 </StackPanel>
 
                                 <!-- Haze, thickening with distance from where it starts on the strip of the picture's depths. -->
-                                <Grid Style="{StaticResource EditSwitchRow}">
-                                    <TextBlock Style="{StaticResource EditSwitchLabel}" Text="{loc:Str Images.SceneDepth.Haze}"/>
-                                    <ToggleButton Style="{StaticResource ToggleSwitch}" HorizontalAlignment="Right" IsChecked="{Binding Depth.Haze, Mode=TwoWay}"
-                                                  AutomationProperties.Name="{loc:Str Images.SceneDepth.Haze}"
-                                                  ToolTip="{Binding Depth.Models.DisabledReason, TargetNullValue={loc:Str Images.SceneDepth.HazeTip}}"
-                                                  IsEnabled="{Binding Depth.CanEdit}" ToolTipService.ShowOnDisabled="True"
-                                                  AutomationProperties.AutomationId="Image_DepthHaze"/>
-                                </Grid>
+                                <ToggleButton Style="{StaticResource RowSwitchHeading}" Content="{loc:Str Images.SceneDepth.Haze}" IsChecked="{Binding Depth.Haze, Mode=TwoWay}"
+                                              ToolTip="{Binding Depth.Models.DisabledReason, TargetNullValue={loc:Str Images.SceneDepth.HazeTip}}"
+                                              IsEnabled="{Binding Depth.CanEdit}" ToolTipService.ShowOnDisabled="True"
+                                              AutomationProperties.AutomationId="Image_DepthHaze"/>
                                 <StackPanel Visibility="{Binding Depth.Haze, Converter={StaticResource BoolToVis}}">
                                     <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.SceneDepth.HazeDensity}"
                                                             Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" DefaultValue="40"
@@ -433,13 +424,17 @@
                                         <icons:IconLabel Icon="fluent:layer_diagonal" Text="{loc:Str Images.SceneDepth.AsMask}" FontSize="11"/>
                                     </Button>
                                 </UniformGrid>
+                            
                             </StackPanel>
+                            </views:FoldingGroup>
                         </StackPanel>
 
                         <!-- ── Markup ── -->
                         <StackPanel Visibility="{Binding Editor.IsMarkupTool, Converter={StaticResource BoolToVis}}">
 
-                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Markup.ToolHeader}"/>
+                            <views:FoldingGroup Icon="fluent:draw_shape" Title="{loc:Str Images.Edit.Markup.ToolHeader}" IsOpen="{Binding Folds[MarkupTool]}"
+                                                AutomationProperties.AutomationId="Image_GroupMarkupTool">
+                            <StackPanel>
                             <Border Style="{StaticResource SegGroup}"><StackPanel Orientation="Horizontal">
                                     <RadioButton GroupName="MarkupTool" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EditMarkupSelect" ToolTip="{loc:Str Images.Edit.Markup.Select}" AutomationProperties.Name="{loc:Str Images.Edit.Markup.Select}"
                                                  IsChecked="{Binding Editor.MarkupTool, Converter={StaticResource EnumToBool}, ConverterParameter=Select}">
@@ -469,33 +464,53 @@
 
                             <!-- The selected text annotation's words. -->
                             <StackPanel Visibility="{Binding Editor.IsTextSelected, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Markup.TextHeader}"/>
+                                <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Edit.Markup.TextHeader}"/>
                                 <TextBox x:Name="MarkupTextBox" AcceptsReturn="True" MinHeight="48" TextWrapping="Wrap"
                                          Style="{StaticResource DarkTextBox}" Padding="8,5" FontSize="12"
                                          Text="{Binding Editor.SelectedText, UpdateSourceTrigger=PropertyChanged}"
                                          LostKeyboardFocus="MarkupTextBox_LostKeyboardFocus"
                                          AutomationProperties.AutomationId="Image_EditMarkupTextBox"/>
                             </StackPanel>
-
-                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Markup.InkHeader}"/>
-                            <vcc:ColorPicker AutomationPrefix="Image_EditInk" AllowDefault="False" Value="{Binding Editor.InkColour, Mode=TwoWay}"/>
-
-                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Markup.Weight}"/>
-                            <views:AdjustmentSlider Minimum="1" Maximum="20" SmallChange="0.5" LargeChange="2" DefaultValue="4" VerticalAlignment="Center"
-                                                    Value="{Binding Editor.Weight, Mode=TwoWay}" AutomationProperties.AutomationId="Image_EditWeight"/>
-                            <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Editor.FillBoxes, Mode=TwoWay}" Margin="0,8,0,0"
-                                      Content="{loc:Str Images.Edit.Markup.FillBoxes}" AutomationProperties.AutomationId="Image_EditFillBoxes"/>
-
-                            <StackPanel Visibility="{Binding Editor.IsTextStyle, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Markup.Font}"/>
-                                <ComboBox ItemsSource="{Binding Editor.FontFamilies}" SelectedItem="{Binding Editor.FontFamily, Mode=TwoWay}"
-                                          AutomationProperties.AutomationId="Image_EditFont"/>
-                                <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Markup.TextSize}"/>
-                                <views:AdjustmentSlider Minimum="1" Maximum="20" SmallChange="0.5" LargeChange="2" DefaultValue="5" VerticalAlignment="Center"
-                                                        Value="{Binding Editor.TextSize, Mode=TwoWay}" AutomationProperties.AutomationId="Image_EditTextSize"/>
-                                <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Editor.TextBacking, Mode=TwoWay}" Margin="0,8,0,0"
-                                          Content="{loc:Str Images.Edit.Markup.TextBacking}" AutomationProperties.AutomationId="Image_EditTextBacking"/>
                             </StackPanel>
+                            </views:FoldingGroup>
+
+
+                            <views:FoldingGroup Icon="fluent:pen" Title="{loc:Str Images.Edit.Markup.InkHeader}" IsOpen="{Binding Folds[MarkupInk]}"
+                                                AutomationProperties.AutomationId="Image_GroupMarkupInk">
+                            <vcc:ColorPicker AutomationPrefix="Image_EditInk" AllowDefault="False" Value="{Binding Editor.InkColour, Mode=TwoWay}"/>
+                            </views:FoldingGroup>
+
+                            <views:FoldingGroup Icon="fluent:highlight" Title="{loc:Str Images.Edit.Markup.StrokeHeader}" IsOpen="{Binding Folds[MarkupStroke]}"
+                                                AutomationProperties.AutomationId="Image_GroupMarkupStroke">
+                            <StackPanel>
+                            <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Edit.Markup.Weight}" ValueFormat="0.0"
+                                                    Minimum="1" Maximum="20" SmallChange="0.5" LargeChange="2" DefaultValue="4"
+                                                    Value="{Binding Editor.Weight, Mode=TwoWay}" AutomationProperties.AutomationId="Image_EditWeight"/>
+                            <ToggleButton Style="{StaticResource RowSwitch}" Content="{loc:Str Images.Edit.Markup.FillBoxes}" IsChecked="{Binding Editor.FillBoxes, Mode=TwoWay}"
+                                          AutomationProperties.AutomationId="Image_EditFillBoxes"/>
+                            </StackPanel>
+                            </views:FoldingGroup>
+
+                            <views:FoldingGroup Icon="fluent:text_t" Title="{loc:Str Images.Edit.Markup.TextStyleHeader}" IsOpen="{Binding Folds[MarkupText]}"
+                                                Visibility="{Binding Editor.IsTextStyle, Converter={StaticResource BoolToVis}}"
+                                                AutomationProperties.AutomationId="Image_GroupMarkupText">
+                            <StackPanel>
+                            <Grid Margin="0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource EditRowLabel}" Text="{loc:Str Images.Edit.Markup.Font}"/>
+                                <ComboBox Grid.Column="1" ItemsSource="{Binding Editor.FontFamilies}" SelectedItem="{Binding Editor.FontFamily, Mode=TwoWay}"
+                                          AutomationProperties.AutomationId="Image_EditFont"/>
+                            </Grid>
+                            <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Edit.Markup.TextSize}" ValueFormat="0.0"
+                                                    Minimum="1" Maximum="20" SmallChange="0.5" LargeChange="2" DefaultValue="5"
+                                                    Value="{Binding Editor.TextSize, Mode=TwoWay}" AutomationProperties.AutomationId="Image_EditTextSize"/>
+                            <ToggleButton Style="{StaticResource RowSwitch}" Content="{loc:Str Images.Edit.Markup.TextBacking}" IsChecked="{Binding Editor.TextBacking, Mode=TwoWay}"
+                                          AutomationProperties.AutomationId="Image_EditTextBacking"/>
+                            </StackPanel>
+                            </views:FoldingGroup>
 
                             <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
                                 <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Editor.DeleteSelectedCommand}" Margin="0,0,6,0"
@@ -523,7 +538,9 @@
 
                         <StackPanel Visibility="{Binding Editor.IsResizeTool, Converter={StaticResource BoolToVis}}">
 
-                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Resize.Header}"/>
+                            <views:FoldingGroup Icon="fluent:resize" Title="{loc:Str Images.Edit.Resize.Header}" IsOpen="{Binding Folds[ResizeSize]}"
+                                                AutomationProperties.AutomationId="Image_GroupResizeSize">
+                            <StackPanel>
                             <StackPanel Orientation="Horizontal">
                                 <RadioButton GroupName="ResizeBy" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EditResizePercent"
                                              IsChecked="{Binding Editor.ResizeByPercent, Mode=TwoWay}">
@@ -534,18 +551,10 @@
                                     <TextBlock Text="{loc:Str Images.Edit.Resize.Pixels}" FontSize="11"/>
                                 </RadioButton>
                             </StackPanel>
-
-                            <StackPanel Visibility="{Binding Editor.ResizeByPercent, Converter={StaticResource BoolToVis}}" Margin="0,10,0,0">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <views:AdjustmentSlider Minimum="1" Maximum="400" SmallChange="1" LargeChange="10" DefaultValue="100" VerticalAlignment="Center"
-                                                            Value="{Binding Editor.ResizePercent, Mode=TwoWay}" AutomationProperties.AutomationId="Image_EditResizePercentValue"/>
-                                    <TextBlock Grid.Column="1" Style="{StaticResource EditCaption}" Margin="8,0,0,0" Text="{Binding Editor.ResizePercent, StringFormat={}{0:0}%}"/>
-                                </Grid>
-                            </StackPanel>
+                            <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Edit.Resize.Scale}" ValueFormat="0'%'" Margin="0,8,0,2"
+                                                    Minimum="1" Maximum="400" SmallChange="1" LargeChange="10" DefaultValue="100"
+                                                    Value="{Binding Editor.ResizePercent, Mode=TwoWay}" AutomationProperties.AutomationId="Image_EditResizePercentValue"
+                                                    Visibility="{Binding Editor.ResizeByPercent, Converter={StaticResource BoolToVis}}"/>
 
                             <StackPanel Visibility="{Binding Editor.ResizeByPixels, Converter={StaticResource BoolToVis}}" Margin="0,10,0,0">
                                 <StackPanel Orientation="Horizontal">
@@ -554,13 +563,16 @@
                                     <TextBox Style="{StaticResource EditNumberBox}" Text="{Binding Editor.ResizeHeight}" AutomationProperties.AutomationId="Image_EditResizeHeight"/>
                                     <TextBlock Style="{StaticResource EditCaption}" Text="px" Margin="6,0"/>
                                 </StackPanel>
-                                <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Editor.LockAspect, Mode=TwoWay}" Margin="0,8,0,0"
-                                          Content="{loc:Str Images.Edit.Resize.Lock}" AutomationProperties.AutomationId="Image_EditResizeLock"/>
+                                <ToggleButton Style="{StaticResource RowSwitch}" Content="{loc:Str Images.Edit.Resize.Lock}" IsChecked="{Binding Editor.LockAspect, Mode=TwoWay}"
+                                              AutomationProperties.AutomationId="Image_EditResizeLock"/>
                             </StackPanel>
+                            </StackPanel>
+                            </views:FoldingGroup>
 
                             <!-- AI upscale: the photo restored larger by the picture tools, before the size above applies. -->
-                            <StackPanel Visibility="{Binding Editor.CanRestore, Converter={StaticResource BoolToVis}}" Margin="0,14,0,0">
-                                <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Edit.Restore.Upscale}"/>
+                            <views:FoldingGroup Icon="fluent:resize_image" Title="{loc:Str Images.Edit.Restore.Upscale}" IsOpen="{Binding Folds[ResizeUpscale]}"
+                                                Visibility="{Binding Editor.CanRestore, Converter={StaticResource BoolToVis}}"
+                                                AutomationProperties.AutomationId="Image_GroupResizeUpscale">
                                 <StackPanel Orientation="Horizontal">
                                     <RadioButton GroupName="Upscale" Style="{StaticResource SegRadioStyle}" IsChecked="{Binding Editor.UpscaleOff, Mode=TwoWay}"
                                                  AutomationProperties.AutomationId="Image_EditUpscaleOff">
@@ -575,8 +587,7 @@
                                         <TextBlock Text="{loc:Str Images.Edit.Restore.FourTimes}" FontSize="11"/>
                                     </RadioButton>
                                 </StackPanel>
-
-                            </StackPanel>
+                            </views:FoldingGroup>
 
                             <TextBlock Style="{StaticResource EditCaption}" Margin="0,12,0,0" FontSize="12" Text="{Binding Editor.OutputSizeText}"/>
                             <Button Style="{StaticResource ToolbarButtonStyle}" HorizontalAlignment="Left" Margin="0,12,0,0"
@@ -588,7 +599,9 @@
                         <!-- ── Select: how a part of the picture is picked ── -->
                         <StackPanel Visibility="{Binding Editor.IsSelectTool, Converter={StaticResource BoolToVis}}">
 
-                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.CutOut.Mark}"/>
+                            <views:FoldingGroup Icon="fluent:cursor_click" Title="{loc:Str Images.CutOut.Mark}" IsOpen="{Binding Folds[SelectBy]}"
+                                                AutomationProperties.AutomationId="Image_GroupSelectBy">
+                            <StackPanel>
                             <!-- The ways of selecting, each once: picked, or a shape drawn by hand. -->
                             <Border Style="{StaticResource SegGroup}">
                                 <StackPanel Orientation="Horizontal">
@@ -635,7 +648,7 @@
 
                             <!-- Picking: clicks, a box or a phrase, by picture selection. -->
                             <StackPanel Visibility="{Binding Editor.PicksByModel, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.CutOut.Phrase}"/>
+                                <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.CutOut.Phrase}"/>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -664,12 +677,17 @@
                                     <TextBlock Text="{Binding Editor.Cutter.ActionLabel}" FontSize="11"/>
                                 </Button>
                             </StackPanel>
+                            </StackPanel>
+                            </views:FoldingGroup>
+
                         </StackPanel>
 
                         <!-- ── Retouch: what is rubbed out of the picture, and what fills where it was ── -->
                         <StackPanel Visibility="{Binding Editor.IsRetouchTool, Converter={StaticResource BoolToVis}}">
 
-                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Erase.Mark}"/>
+                            <views:FoldingGroup Icon="fluent:eraser" Title="{loc:Str Images.Erase.Mark}" IsOpen="{Binding Folds[RetouchMark]}"
+                                                AutomationProperties.AutomationId="Image_GroupRetouchMark">
+                            <StackPanel>
                             <!-- The ways of marking, each once: picked, brushed, or a shape drawn by hand. -->
                             <Border Style="{StaticResource SegGroup}">
                                 <StackPanel Orientation="Horizontal">
@@ -750,12 +768,14 @@
 
                             <!-- Brushing: the brush's width in the photo's pixels. -->
                             <StackPanel Margin="0,8,0,0" Visibility="{Binding Editor.EraseMarks.IsBrushing, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Erase.BrushSize}"/>
-                                <Slider Minimum="4" Maximum="400" SmallChange="1" LargeChange="10" Margin="0,4,0,0"
-                                        Value="{Binding Editor.EraseMarks.BrushSize, Mode=TwoWay}"
-                                        AutomationProperties.AutomationId="Image_EraseBrushSize" AutomationProperties.Name="{loc:Str Images.Erase.BrushSize}"/>
+                                <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Erase.BrushSize}" ValueFormat="0' px'"
+                                                        Minimum="4" Maximum="400" SmallChange="1" LargeChange="10" DefaultValue="40"
+                                                        Value="{Binding Editor.EraseMarks.BrushSize, Mode=TwoWay}" AutomationProperties.AutomationId="Image_EraseBrushSize"/>
 
                             </StackPanel>
+                            </StackPanel>
+                            </views:FoldingGroup>
+
                         </StackPanel>
 
                         <!-- ── The selection Cut out and Retouch both take: shapes drawn, how they meet it, and refinements ── -->
@@ -763,7 +783,8 @@
 
                         <!-- ── Select: what is done with what is selected — kept apart from the picture, kept in it, moved, made a layer, erased ── -->
                         <StackPanel Visibility="{Binding Editor.IsSelectTool, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Select.With}"/>
+                            <views:FoldingGroup Icon="fluent:copy_select" Title="{loc:Str Images.Select.With}" IsOpen="{Binding Folds[SelectWith]}"
+                                                AutomationProperties.AutomationId="Image_GroupSelectWith">
                             <WrapPanel>
                                 <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Editor.MoveSelectionCommand}"
                                         ToolTip="{loc:Str Images.Select.MoveTip}" AutomationProperties.AutomationId="Image_SelectMove">
@@ -799,11 +820,14 @@
                                     <icons:IconLabel Icon="fluent:dismiss" Text="{loc:Str Images.CutOut.Clear}" FontSize="11"/>
                                 </Button>
                             </WrapPanel>
+                            </views:FoldingGroup>
                         </StackPanel>
 
                         <!-- ── Retouch: what fills where the selection was, and erasing it ── -->
                         <StackPanel Visibility="{Binding Editor.IsRetouchTool, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Style="{StaticResource EditSectionHeader}" Margin="0,12,0,0" Text="{loc:Str Images.Erase.Fill}"/>
+                            <views:FoldingGroup Icon="fluent:paint_brush_sparkle" Title="{loc:Str Images.Erase.Fill}" IsOpen="{Binding Folds[RetouchFill]}"
+                                                AutomationProperties.AutomationId="Image_GroupRetouchFill">
+                            <StackPanel>
                             <Border Style="{StaticResource SegGroup}"><StackPanel Orientation="Horizontal">
                                 <RadioButton GroupName="EraseFill" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseFillAi"
                                              ToolTip="{Binding Editor.ErasingModels.DisabledReason, TargetNullValue={loc:Str Images.Erase.AiTip}}" IsEnabled="{Binding Editor.ErasingModels.IsReady}"
@@ -824,6 +848,8 @@
                             </StackPanel></Border>
                             <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Margin="0,6,0,0" Text="{loc:Str Images.Erase.HealHint}"
                                        Visibility="{Binding Editor.EraseMarks.NeedsHealSource, Converter={StaticResource BoolToVis}}"/>
+                            </StackPanel>
+                            </views:FoldingGroup>
 
                             <WrapPanel Margin="0,12,0,0">
                                 <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding Editor.EraseCommand}"

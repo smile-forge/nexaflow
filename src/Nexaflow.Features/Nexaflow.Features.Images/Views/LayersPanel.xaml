@@ -5,6 +5,7 @@
              xmlns:vm="clr-namespace:Nexaflow.Features.Images.ViewModels"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
+             xmlns:views="clr-namespace:Nexaflow.Features.Images.Views"
              AutomationProperties.AutomationId="Image_LayersPanel">
 
     <!-- The layers panel of a layered picture, bound to its LayersViewModel: the layers top first, the active one's settings,
@@ -115,12 +116,9 @@
         <StackPanel Margin="0,8,0,0" Visibility="{Binding HasActive, Converter={StaticResource BoolToVis}}">
             <TextBox Style="{StaticResource FieldBox}" Text="{Binding ActiveName, UpdateSourceTrigger=LostFocus}" AutomationProperties.AutomationId="Image_LayersName"
                      AutomationProperties.Name="{loc:Str Images.Layers.Name}" ToolTip="{loc:Str Images.Layers.Name}"/>
-            <DockPanel Margin="0,8,0,0">
-                <TextBlock DockPanel.Dock="Right" Style="{StaticResource EditCaption}" Text="{Binding Opacity, StringFormat={}{0:0}%}"/>
-                <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Layers.Opacity}"/>
-            </DockPanel>
-            <Slider Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Opacity, Mode=TwoWay}"
-                    AutomationProperties.AutomationId="Image_LayersOpacity" AutomationProperties.Name="{loc:Str Images.Layers.Opacity}"/>
+            <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Layers.Opacity}" ValueFormat="0'%'" Margin="0,8,0,2"
+                                    Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" DefaultValue="100"
+                                    Value="{Binding Opacity, Mode=TwoWay}" AutomationProperties.AutomationId="Image_LayersOpacity"/>
             <DockPanel Margin="0,6,0,0">
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="6,0,0,0">
                     <ToggleButton Style="{StaticResource ToolbarToggleStyle}" Padding="6,4" Margin="0,0,3,0" IsChecked="{Binding ActiveClips, Mode=TwoWay}" ToolTip="{loc:Str Images.Layers.ClipTip}"
@@ -148,7 +146,9 @@
 
         <!-- Masks, pixels, the canvas and what a selection does: beneath the layer's settings, folded until wanted. -->
         <StackPanel Margin="0,10,0,0">
-            <Expander Header="{loc:Str Images.Layers.Mask}" Foreground="{StaticResource TextBrush}" Margin="0,6,0,0" AutomationProperties.AutomationId="Image_LayersMaskSection">
+            <views:FoldingGroup Icon="fluent:eye" Title="{loc:Str Images.Layers.Mask}"
+                                IsOpen="{Binding DataContext.Folds[LayersMask], RelativeSource={RelativeSource AncestorType=views:ImageEditView}}"
+                                AutomationProperties.AutomationId="Image_LayersMaskSection">
                 <WrapPanel Margin="0,6,0,0">
                     <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding RevealAllMaskCommand}" ToolTip="{loc:Str Images.Layers.RevealAllTip}" AutomationProperties.AutomationId="Image_LayersMaskRevealAll"><icons:IconLabel Icon="fluent:eye" Text="{loc:Str Images.Layers.RevealAll}" FontSize="11"/></Button>
                     <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding HideAllMaskCommand}" ToolTip="{loc:Str Images.Layers.HideAllTip}" AutomationProperties.AutomationId="Image_LayersMaskHideAll"><icons:IconLabel Icon="fluent:eye_off" Text="{loc:Str Images.Layers.HideAll}" FontSize="11"/></Button>
@@ -160,15 +160,17 @@
                     <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding ApplyMaskCommand}" ToolTip="{loc:Str Images.Layers.ApplyMaskTip}" AutomationProperties.AutomationId="Image_LayersMaskApply"><icons:IconLabel Icon="fluent:checkmark" Text="{loc:Str Images.Layers.ApplyMask}" FontSize="11"/></Button>
                     <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding DeleteMaskCommand}" ToolTip="{loc:Str Images.Layers.DeleteMaskTip}" AutomationProperties.AutomationId="Image_LayersMaskDelete"><icons:IconLabel Icon="fluent:delete" Text="{loc:Str Images.Layers.DeleteMask}" FontSize="11"/></Button>
                 </WrapPanel>
-            </Expander>
-            <Expander Header="{loc:Str Images.Layers.Pixels}" Foreground="{StaticResource TextBrush}" Margin="0,4,0,0" AutomationProperties.AutomationId="Image_LayersPixelsSection">
+            </views:FoldingGroup>
+            <views:FoldingGroup Icon="fluent:image_edit" Title="{loc:Str Images.Layers.Pixels}"
+                                IsOpen="{Binding DataContext.Folds[LayersPixels], RelativeSource={RelativeSource AncestorType=views:ImageEditView}}"
+                                AutomationProperties.AutomationId="Image_LayersPixelsSection">
                 <StackPanel Margin="0,6,0,0">
                     <WrapPanel>
                         <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding RasterizeCommand}" ToolTip="{loc:Str Images.Layers.RasterizeTip}" AutomationProperties.AutomationId="Image_LayersRasterize"><icons:IconLabel Icon="fluent:image_edit" Text="{loc:Str Images.Layers.Rasterize}" FontSize="11"/></Button>
                         <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding MergeDownCommand}" ToolTip="{loc:Str Images.Layers.MergeDownTip}" AutomationProperties.AutomationId="Image_LayersMergeDown"><icons:IconLabel Icon="fluent:merge" Text="{loc:Str Images.Layers.MergeDown}" FontSize="11"/></Button>
                         <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding FlattenCommand}" ToolTip="{loc:Str Images.Layers.FlattenTip}" AutomationProperties.AutomationId="Image_LayersFlatten"><icons:IconLabel Icon="fluent:layer_diagonal" Text="{loc:Str Images.Layers.Flatten}" FontSize="11"/></Button>
                     </WrapPanel>
-                    <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Layers.Selection}"/>
+                    <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Layers.Selection}"/>
                     <WrapPanel>
                         <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding FillCommand}" ToolTip="{loc:Str Images.Layers.FillTip}" AutomationProperties.AutomationId="Image_LayersFill"><icons:IconLabel Icon="fluent:paint_bucket" Text="{loc:Str Images.Layers.Fill}" FontSize="11"/></Button>
                         <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding DeleteSelectedCommand}" ToolTip="{loc:Str Images.Layers.ClearTip}" AutomationProperties.AutomationId="Image_LayersClear"><icons:IconLabel Icon="fluent:eraser" Text="{loc:Str Images.Layers.Clear}" FontSize="11"/></Button>
@@ -178,9 +180,10 @@
                         <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding PasteCommand}" ToolTip="{loc:Str Images.Layers.PasteTip}" AutomationProperties.AutomationId="Image_LayersPaste" AutomationProperties.Name="{loc:Str Images.Layers.Paste}"><icons:IconLabel Icon="fluent:clipboard_paste" FontSize="11"/></Button>
                     </WrapPanel>
                 </StackPanel>
-            </Expander>
-            <Expander Header="{loc:Str Images.Layers.Canvas}" Foreground="{StaticResource TextBrush}" Margin="0,4,0,0" AutomationProperties.AutomationId="Image_LayersCanvasSection"
-                      Expanded="Canvas_Expanded">
+            </views:FoldingGroup>
+            <views:FoldingGroup Icon="fluent:resize" Title="{loc:Str Images.Layers.Canvas}" Opened="Canvas_Expanded"
+                                IsOpen="{Binding DataContext.Folds[LayersCanvas], RelativeSource={RelativeSource AncestorType=views:ImageEditView}}"
+                                AutomationProperties.AutomationId="Image_LayersCanvasSection">
                 <StackPanel Margin="0,6,0,0">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -252,12 +255,9 @@
                         <icons:IconLabel Icon="fluent:color" Text="{loc:Str Images.Layers.ConvertColour}" FontSize="11"/>
                     </Button>
                     <StackPanel Margin="0,6,0,0" Visibility="{Binding ShowsLight, Converter={StaticResource BoolToVis}}">
-                        <DockPanel>
-                            <TextBlock DockPanel.Dock="Right" Style="{StaticResource EditCaption}" Text="{Binding ViewExposure, StringFormat={}{0:+0.0;-0.0;0}}"/>
-                            <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Layers.ViewExposure}"/>
-                        </DockPanel>
-                        <Slider Minimum="-8" Maximum="8" SmallChange="0.1" LargeChange="1" Value="{Binding ViewExposure, Mode=TwoWay}"
-                                AutomationProperties.AutomationId="Image_LayersViewExposure" AutomationProperties.Name="{loc:Str Images.Layers.ViewExposure}"/>
+                        <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Layers.ViewExposure}" ValueFormat="+0.0;−0.0;0"
+                                                Minimum="-8" Maximum="8" SmallChange="0.1" LargeChange="1" DefaultValue="0"
+                                                Value="{Binding ViewExposure, Mode=TwoWay}" AutomationProperties.AutomationId="Image_LayersViewExposure"/>
                     </StackPanel>
                     <TextBlock Style="{StaticResource EditCaption}" Margin="0,6,0,0" TextWrapping="Wrap" Text="{Binding CanvasMemory}"/>
                     <TextBlock Style="{StaticResource EditCaption}" Margin="0,2,0,0" TextWrapping="Wrap" Foreground="{StaticResource WarningBrush}"
@@ -267,7 +267,7 @@
                         <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding CropToSelectionCommand}" ToolTip="{loc:Str Images.Layers.CropToSelectionTip}" AutomationProperties.AutomationId="Image_LayersCropToSelection"><icons:IconLabel Icon="fluent:crop" Text="{loc:Str Images.Layers.CropToSelection}" FontSize="11"/></Button>
                     </WrapPanel>
                 </StackPanel>
-            </Expander>
+            </views:FoldingGroup>
         </StackPanel>
     </StackPanel>
     </ScrollViewer>
