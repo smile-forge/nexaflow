@@ -51,6 +51,9 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     /// <summary>What the assistant can do here.</summary>
     private readonly ArtistTools _tools;
 
+    /// <summary>The assistant's tools for the picture's scene depth.</summary>
+    private readonly SceneDepthClientTools _depthTools;
+
     /// <summary>The photo edited — the merged image of a layered picture, which opens over it — and its history; null on the start screen.</summary>
     private ImageEditSession? _session;
 
@@ -112,6 +115,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         };
 
         _tools = new ArtistTools(this, shell, editing);
+        _depthTools = new SceneDepthClientTools(this, shell, editing);
 
         if (path is { Length: > 0 }) ShowPath(path);
         else _ = Start.RefreshAsync();
@@ -680,7 +684,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
       + "list of layer operations; each is one step the user can undo, and answers with the state it left. Saving is the user's.";
 
     /// <summary>What the assistant can do here: <see cref="ArtistTools"/>.</summary>
-    public IReadOnlyList<IClientTool> GetClientTools() => _tools.All();
+    public IReadOnlyList<IClientTool> GetClientTools() => [.. _tools.All(), .. _depthTools.All()];
 
     /// <summary>The tab editing the picture, set by its view: what opens beside it opens in its window.</summary>
     public IPageView? Host { get; set; }
