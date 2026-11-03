@@ -35,6 +35,33 @@
                       Content="{loc:Str Images.Paint.SampleMerged}" AutomationProperties.AutomationId="Image_RegionEveryLayer"/>
         </StackPanel>
 
+        <!-- By distance: the span of the picture's depth selected, near to far, and how softly it fades past its ends; moving
+             the ends selects again over what the span met. -->
+        <StackPanel Margin="0,0,0,8" Visibility="{Binding SelectsByDistance, Converter={StaticResource BoolToVis}}">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Right" Style="{StaticResource EditCaption}" Text="{Binding RegionMarks.DistanceNear, StringFormat={}{0:0}}"/>
+                <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Region.DistanceNear}"/>
+            </DockPanel>
+            <Slider Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding RegionMarks.DistanceNear, Mode=TwoWay}"
+                    AutomationProperties.AutomationId="Image_RegionDistanceNear" AutomationProperties.Name="{loc:Str Images.Region.DistanceNear}"/>
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Right" Style="{StaticResource EditCaption}" Text="{Binding RegionMarks.DistanceFar, StringFormat={}{0:0}}"/>
+                <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Region.DistanceFar}"/>
+            </DockPanel>
+            <Slider Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding RegionMarks.DistanceFar, Mode=TwoWay}"
+                    AutomationProperties.AutomationId="Image_RegionDistanceFar" AutomationProperties.Name="{loc:Str Images.Region.DistanceFar}"/>
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Right" Style="{StaticResource EditCaption}" Text="{Binding RegionMarks.DistanceSoftness, StringFormat={}{0:0}}"/>
+                <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Region.DistanceSoftness}"/>
+            </DockPanel>
+            <Slider Minimum="0" Maximum="50" SmallChange="1" LargeChange="5" Value="{Binding RegionMarks.DistanceSoftness, Mode=TwoWay}"
+                    AutomationProperties.AutomationId="Image_RegionDistanceSoftness" AutomationProperties.Name="{loc:Str Images.Region.DistanceSoftness}"/>
+            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding SelectDistanceCommand}" Margin="0,8,0,0" HorizontalAlignment="Left"
+                    ToolTip="{loc:Str Images.Region.DistanceSelectTip}" AutomationProperties.AutomationId="Image_RegionDistanceSelect">
+                <icons:IconLabel Icon="fluent:layer_diagonal" Text="{loc:Str Images.Region.DistanceSelect}" FontSize="11"/>
+            </Button>
+        </StackPanel>
+
         <!-- How a shape or a colour meets what is selected: as set here, or as a key held as it is begun says. -->
         <StackPanel Visibility="{Binding ShowsRegionMode, Converter={StaticResource BoolToVis}}">
             <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Region.Mode}"/>

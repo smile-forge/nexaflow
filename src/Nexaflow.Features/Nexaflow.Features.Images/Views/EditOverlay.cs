@@ -93,6 +93,7 @@ public sealed class EditOverlay : FrameworkElement
         viewer.Cutter.PropertyChanged += OnChanged;
         viewer.Editor.EraseMarks.PropertyChanged += OnChanged;
         viewer.Editor.RegionMarks.PropertyChanged += OnChanged;
+        viewer.Depth.PropertyChanged += OnChanged;
     }
 
     public void Detach()
@@ -103,6 +104,7 @@ public sealed class EditOverlay : FrameworkElement
         _viewer.Cutter.PropertyChanged -= OnChanged;
         _viewer.Editor.EraseMarks.PropertyChanged -= OnChanged;
         _viewer.Editor.RegionMarks.PropertyChanged -= OnChanged;
+        _viewer.Depth.PropertyChanged -= OnChanged;
         March(false);
         _viewer = null;
     }
@@ -133,6 +135,8 @@ public sealed class EditOverlay : FrameworkElement
         March(marching);
         if (editor.IsRetouchTool)
             DrawErase(dc, editor.EraseMarks);
+        if (_viewer!.Depth.ChoosesFocus && _viewer.Depth.Focus is { } focus)
+            DrawFocus(dc, focus);
     }
 
     private void DrawCrop(DrawingContext dc, Rect crop, bool alignment)
@@ -170,6 +174,20 @@ public sealed class EditOverlay : FrameworkElement
         double px = 1 / _zoom;
         dc.DrawLine(new Pen(Brush("OnAccentBrush"), 3 * px), _levelFrom, _levelTo);
         dc.DrawLine(new Pen(Brush("AccentBrush"), 1.5 * px), _levelFrom, _levelTo);
+    }
+
+    /// <summary>Where the lens blur is focused: a ring with a cross in it, over the photo where the focus lies.</summary>
+    private void DrawFocus(DrawingContext dc, MarkupPoint focus)
+    {
+        if (_viewer?.Canvas is not { } canvas) return;
+        double px = 1 / _zoom, arm = MarkerSize * px;
+        var at = Wpf(canvas.SourceToCanvas.MapPoint(new SKPoint((float)focus.X, (float)focus.Y)));
+        foreach (var pen in new[] { new Pen(Brush("OnAccentBrush"), 3 * px), new Pen(Brush("AccentBrush"), 1.5 * px) })
+        {
+            dc.DrawEllipse(null, pen, at, arm, arm);
+            dc.DrawLine(pen, new Point(at.X - arm / 2, at.Y), new Point(at.X + arm / 2, at.Y));
+            dc.DrawLine(pen, new Point(at.X, at.Y - arm / 2), new Point(at.X, at.Y + arm / 2));
+        }
     }
 
     private void DrawSelection(DrawingContext dc, SKPoint[] outline)
@@ -418,6 +436,12 @@ public sealed class EditOverlay : FrameworkElement
             editor.MarkupPress(toSource.MapPoint(p), reach);
             if (editor.MarkupTool == MarkupTool.Select && !editor.HasSelection) return;   // nothing hit: pan
             Begin(Gesture.Markup, e);
+        }
+        else if (editor.IsAdjustTool && _viewer.Depth.ChoosesFocus && canvas.SourceToCanvas.TryInvert(out var focusToSource))
+        {
+            var under = focusToSource.MapPoint(p);
+            _ = _viewer.Depth.FocusAtAsync(new MarkupPoint(under.X, under.Y));
+            e.Handled = true;
         }
         else if (editor.DrawsMarquee)
         {
@@ -746,6 +770,7 @@ public sealed class EditOverlay : FrameworkElement
             };
         }
         if (editor.DrawsMarquee || editor.DrawsLasso || editor.SelectsByColour) return Cursors.Cross;
+        if (editor.IsAdjustTool && _viewer?.Depth.ChoosesFocus == true) return Cursors.Cross;
         if (editor.IsSelectTool) return editor.PickingModels.IsReady ? Cursors.Cross : Cursors.SizeAll;
         if (editor.IsRetouchTool) return Cursors.Cross;
         if (editor.IsMarkupTool)

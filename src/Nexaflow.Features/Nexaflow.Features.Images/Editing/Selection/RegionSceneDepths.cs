@@ -20,18 +20,31 @@ public static class RegionSceneDepths
     /// <paramref name="far"/> — 0 the nearest part, 1 the farthest — fading out over <paramref name="softness"/> past either end.
     /// </summary>
     public static byte[] Span(SceneDepthPlane plane, SKSizeI size, double near, double far, double softness)
+        => SpanOnCanvas(plane, SKMatrix.Identity, size, size, near, far, softness);
+
+    /// <summary>
+    /// Each pixel's coverage, 0–255, of a <paramref name="canvas"/>-sized picture that <paramref name="photoToCanvas"/> draws a
+    /// <paramref name="size"/> photo onto, by the span from <paramref name="near"/> to <paramref name="far"/> of the photo's
+    /// distance, fading out over <paramref name="softness"/> past either end; nothing where the photo does not reach.
+    /// </summary>
+    public static byte[] SpanOnCanvas(SceneDepthPlane plane, SKMatrix photoToCanvas, SKSizeI size, SKSizeI canvas, double near, double far, double softness)
     {
-        var nearness = plane.AtSize(size);
-        var coverage = new byte[nearness.Length];
+        if (!photoToCanvas.TryInvert(out var toPhoto)) return new byte[canvas.Width * canvas.Height];
+        var coverage = new byte[canvas.Width * canvas.Height];
         (near, far) = (Math.Min(near, far), Math.Max(near, far));
         double soft = Math.Max(0, softness);
-        Parallel.For(0, size.Height, y =>
+        Parallel.For(0, canvas.Height, row =>
         {
-            for (int i = y * size.Width, end = i + size.Width; i < end; i++)
+            double cy = row + 0.5;
+            for (int col = 0; col < canvas.Width; col++)
             {
-                double distance = 1 - nearness[i];
+                double cx = col + 0.5;
+                double px = toPhoto.ScaleX * cx + toPhoto.SkewX * cy + toPhoto.TransX;
+                double py = toPhoto.SkewY * cx + toPhoto.ScaleY * cy + toPhoto.TransY;
+                if (px < 0 || py < 0 || px >= size.Width || py >= size.Height) continue;
+                double distance = 1 - plane.At(px, py, size);
                 double inside = distance < near ? Fade(near - distance, soft) : distance > far ? Fade(distance - far, soft) : 1;
-                coverage[i] = (byte)Math.Round(inside * 255);
+                coverage[row * canvas.Width + col] = (byte)Math.Round(inside * 255);
             }
         });
         return coverage;

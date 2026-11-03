@@ -9,6 +9,7 @@ using Nexaflow.Features.Images.Editing.Layers;
 using Nexaflow.Features.Images.Editing.Painting;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
+using Nexaflow.Features.Images.Editing.SceneDepth;
 using Nexaflow.Features.Images.Editing.Selection;
 using Nexaflow.Features.Images.Services;
 using Nexaflow.IO.Common;
@@ -85,11 +86,15 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         var picking = new ModelsGate(selection, Stage.Models, runOnUi);
         var erasingModels = new ModelsGate(erasing, Stage.Models, runOnUi);
         var restoring = new ModelsGate(pictures, Stage.Models, runOnUi);
+        var depthModels = new ModelsGate(editing.SceneDepth, Stage.Models, runOnUi);
         picking.Defer(Stage.Remover, Stage.Eraser);
         erasingModels.Defer(Stage.Eraser);
         restoring.Defer(Stage.Restorer);
+        depthModels.Defer(Stage.SceneDepth);
 
-        Editor = new ImageEditorViewModel(this, shell, editing, Stage.Restorer, Stage.Remover, Cutter, Stage.Eraser, Stage.Models, picking, erasingModels, restoring);
+        Editor = new ImageEditorViewModel(this, shell, editing, Stage.Restorer, Stage.Remover, Cutter, Stage.Eraser, Stage.Models, picking, erasingModels, restoring,
+                                          depthModels);
+        Depth = new SceneDepthTools(this, editing, depthModels, Cutter, shell);
         Layers = new LayersViewModel(shell, runOnUi, picture => Painting.InkIn(picture));
         Layers.PropertyChanged += (_, e) => { if (e.PropertyName is nameof(LayersViewModel.MaskAlone) or nameof(LayersViewModel.ViewExposure)) RequestRender(); };
         Start = new ImageStartViewModel(this, shell, ai, editing, _config);
@@ -99,6 +104,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         Printing = new PicturePrinting(Stage, editing, shell);
         Editor.PropertyChanged += (_, e) =>
         {
+            if (e.PropertyName == nameof(ImageEditorViewModel.Tool)) Depth.OnRecipeChanged();
             if (e.PropertyName != nameof(ImageEditorViewModel.Tool) || Editor.IsMoveTool) return;
             // Leaving Move: an open transform is applied, and what floats is dropped back into its layer.
             if (Arranging.IsTransforming) Arranging.Apply();
@@ -130,6 +136,9 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
 
     /// <summary>The editor's tools, over the picture.</summary>
     public ImageEditorViewModel Editor { get; }
+
+    /// <summary>What the Adjust panel draws from the picture's scene depth: lens blur, haze, the depth as a layer or a mask.</summary>
+    public SceneDepthTools Depth { get; }
 
     /// <summary>What picks things out of the picture for Cut out and Erase.</summary>
     public PictureCutter Cutter { get; }
@@ -247,6 +256,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     private void OnSessionShown()
     {
         Editor.OnSessionChanged();
+        Depth.OnRecipeChanged();
         AddLayerCommand.NotifyCanExecuteChanged();
         PasteAsLayerCommand.NotifyCanExecuteChanged();
         NotifyHistory();
@@ -266,6 +276,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
             if (document.History.CanUndo) ScheduleDocumentSave();
         }
         Editor.OnRecipeChanged();
+        Depth.OnRecipeChanged();
     }
 
     /// <summary>A picture shown has pixels — its first decode, a sharper one, or what a tool made: the editor catches up.</summary>
@@ -399,7 +410,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         CloseDocument();
         Stage.ShowDocument(document);
         Layers.Follow(document);
-        Editor.RegionMarks.Attach(new DocumentSelection(document));
+        Editor.RegionMarks.Attach(new DocumentSelection(document, Depth.DepthOfTargetAsync));
         Editor.OnSessionChanged();
         OnStageChanged();
         Pictures.DocumentShown();
@@ -545,8 +556,16 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     private void EditTheLayers() => CurrentDocument?.EditTheLayers();
 
     /// <summary>A layered picture's selection, as the editor's hand-drawn selection works on it: each change a step of its history.</summary>
-    private sealed class DocumentSelection(LayeredSession document) : IDocumentSelection
+    private sealed class DocumentSelection(LayeredSession document, Func<Task<(SceneDepthPlane Plane, SKSizeI Photo)?>> depth) : IDocumentSelection
     {
+        public async Task<TiledCoverage?> ReachOfDistanceAsync(double near, double far, double softness)
+        {
+            if (document.Picture.Active is not PictureLayer layer || await depth() is not var (plane, photo)) return null;
+            var picture = document.Picture;
+            var toCanvas = LayeredSession.SourceToCanvas(layer, new SKSize(photo.Width, photo.Height));
+            return await Task.Run(() => TiledCoverage.FromBytes(
+                RegionSceneDepths.SpanOnCanvas(plane, toCanvas, photo, new SKSizeI(picture.Width, picture.Height), near, far, softness), picture.Width, picture.Height));
+        }
         public SKSizeI Size => new(document.Picture.Width, document.Picture.Height);
 
         public TiledCoverage Selection => document.Picture.Selection;
