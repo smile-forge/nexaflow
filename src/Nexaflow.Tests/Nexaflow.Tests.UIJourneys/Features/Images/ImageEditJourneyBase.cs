@@ -25,6 +25,9 @@ public abstract class ImageEditJourneyBase : UiJourneyTestBase
         return new Point(r.X + r.Width / 2, r.Y + r.Height / 2);
     }
 
+    /// <summary>Picture editing drives the AI host: a journey that fails keeps the host's log.</summary>
+    protected override bool KeepsAppLog => true;
+
     protected bool ClickCanvas()
     {
         if (CanvasCentre() is not { } centre) return false;

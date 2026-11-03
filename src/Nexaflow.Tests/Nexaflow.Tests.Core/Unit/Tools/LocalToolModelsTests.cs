@@ -105,4 +105,69 @@ public class LocalToolModelsTests
     {
         Assert.AreEqual(fit, PictureChecking.IsFit(new PictureVerdict(gore, sexual, 1 - gore - sexual)));
     }
+
+    /// <summary>A tool with nothing of its own, for asking jobs through its base as every tool does.</summary>
+    private sealed class Asking : LocalToolModels
+    {
+        private Asking(OwnedToolFront front, IModelAssetStore store) : base(front, store, null) { }
+
+        public override string Name => "asking";
+
+        public override string About => "";
+
+        public static Task<T> Ask<T>(Func<Task<T>> run) => AskedAsync(run, CancellationToken.None);
+
+        public static Task<T> Tell<T>(Func<Task<T>> run) => ToldAsync(run, CancellationToken.None);
+    }
+
+    /// <summary>A job that fails with each of <paramref name="failures"/> in turn, then answers 7; how many times it was asked.</summary>
+    private static (Func<Task<int>> Run, Func<int> Asked) Failing(params Exception[] failures)
+    {
+        int asked = 0;
+        return (() => asked++ < failures.Length ? Task.FromException<int>(failures[asked - 1]) : Task.FromResult(7), () => asked);
+    }
+
+    [TestMethod]
+    public async Task AHostLostWhileAJobRuns_IsAskedOnceMore_AndTwiceIsInterrupted()
+    {
+        var (run, asked) = Failing(new AiHostException(AiHostFailure.Lost, "the AI host stopped answering for 10 s"));
+        Assert.AreEqual(7, await Asking.Ask(run), "lost once, the job is asked again on a fresh host and answers");
+        Assert.AreEqual(2, asked());
+
+        var lost = new AiHostException(AiHostFailure.Lost, "the AI host stopped answering for 10 s");
+        (run, asked) = Failing(lost, lost, lost);
+        var twice = await Assert.ThrowsExactlyAsync<ToolRunException>(() => Asking.Ask(run));
+        Assert.AreEqual(ToolRunFailure.Interrupted, twice.Failure);
+        Assert.IsTrue(twice.MayWorkAgain, "a host in the way for now may not be later");
+        Assert.AreEqual(2, asked(), "asked once more, never on and on");
+    }
+
+    [TestMethod]
+    public async Task AJobRefusedOrFailed_IsNeverAskedAgain_AndSaysWhetherAskingAgainCanHelp()
+    {
+        var (run, asked) = Failing(new AiHostException(AiHostFailure.Request, "no room", Nexaflow.AiHost.Contracts.HostErrorKind.Refused));
+        var refused = await Assert.ThrowsExactlyAsync<ToolRunException>(() => Asking.Ask(run));
+        Assert.AreEqual((ToolRunFailure.NotNow, true, 1), (refused.Failure, refused.MayWorkAgain, asked()), "no room now: asking again later can work");
+
+        // As the fronts give it: the host's failure inside the front's own words.
+        (run, asked) = Failing(new InvalidOperationException("The picture's depth could not be estimated: bad input",
+                                                             new AiHostException(AiHostFailure.Request, "bad input", Nexaflow.AiHost.Contracts.HostErrorKind.Runtime)));
+        var failed = await Assert.ThrowsExactlyAsync<ToolRunException>(() => Asking.Ask(run));
+        Assert.AreEqual((ToolRunFailure.Unworkable, false, 1), (failed.Failure, failed.MayWorkAgain, asked()), "the same ask fails the same way");
+        StringAssert.Contains(failed.Message, "could not be estimated", "and says so in the front's words");
+
+        (run, asked) = Failing(new LlmProviderException("does not fit beside the other models on this machine's GPUs"));
+        Assert.AreEqual(ToolRunFailure.NotNow, (await Assert.ThrowsExactlyAsync<ToolRunException>(() => Asking.Ask(run))).Failure, "no room beside the others");
+
+        (run, _) = Failing(new InvalidOperationException("A picture to estimate the depth of has a size."));
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => Asking.Ask(run), "what is not the host's is the caller's own to tell");
+    }
+
+    [TestMethod]
+    public async Task AJobThatHandsOverAsItGoes_IsNeverAskedAgain_EvenWhereTheHostIsLost()
+    {
+        var (run, asked) = Failing(new AiHostException(AiHostFailure.Lost, "the AI host exited"));
+        var lost = await Assert.ThrowsExactlyAsync<ToolRunException>(() => Asking.Tell(run));
+        Assert.AreEqual((ToolRunFailure.Interrupted, 1), (lost.Failure, asked()), "what it handed over would be handed over twice");
+    }
 }

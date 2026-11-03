@@ -316,6 +316,35 @@ public class ImageSceneDepthTests
     }
 
     [TestMethod]
+    [CoversNode("images-scene-depth")]
+    public void ADepthTheModelCannotMake_IsSaidWithNothingToTryAgain_AndOneThatCanBeMadeLaterIsOffered()
+    {
+        // The model ran and could not do it: the same picture fails the same way.
+        _depth.Fails = new ToolRunException(ToolRunFailure.Unworkable, "The picture's depth could not be estimated: bad input");
+        var vm = Editing();
+        OnUi(() => vm.Depth.LensBlur = true);
+        var edit = vm.Stage.SceneDepth;
+        Until(() => _ui.Invoke(() => edit.Failed));
+        OnUi(() =>
+        {
+            StringAssert.Contains(edit.Notice, "bad input", "the banner says why");
+            Assert.IsFalse(edit.CanRetry || edit.HasAction, "and offers no try again that would fail the same way");
+        });
+
+        // Something on the machine in the way for now: offered, and asked again it is made.
+        _depth.Fails = new ToolRunException(ToolRunFailure.NotNow, "The picture's depth could not be estimated: no room");
+        var later = Editing();
+        OnUi(() => later.Depth.Haze = true);
+        var again = later.Stage.SceneDepth;
+        Until(() => _ui.Invoke(() => again.Failed));
+        Assert.IsTrue(_ui.Invoke(() => again.CanRetry && again.HasAction), "what may pass is offered to try again");
+        _depth.Fails = null;
+        OnUi(() => again.ActCommand.Execute(null));
+        Until(() => later.CurrentSession!.SceneDepth is not null);
+        Assert.IsFalse(_ui.Invoke(() => again.Failed), "and tried again, it is made");
+    }
+
+    [TestMethod]
     [CoversNode("images-scene-depth-lens-blur")]
     public async Task ALensBlur_IsSharpAtItsFocus_AndBlurredFarFromIt_OnScreenAndSaved()
     {
@@ -508,6 +537,9 @@ public class ImageSceneDepthTests
         private int _asks;
 
         public int Asks => _asks;
+
+        /// <summary>What every estimate fails with, while set.</summary>
+        public Exception? Fails { get; set; }
         public ToolModelsState State { get; set; } = ToolModelsState.Ready;
         public string ModelsVersion => "ramp-1";
         public long DownloadBytes => 0;
@@ -519,6 +551,7 @@ public class ImageSceneDepthTests
         public Task<SceneDepthEstimate> EstimateAsync(SceneDepthRequest request, CancellationToken ct)
         {
             Interlocked.Increment(ref _asks);
+            if (Fails is { } failure) return Task.FromException<SceneDepthEstimate>(failure);
             Assert.AreEqual(request.Width * request.Height * 4, new FileInfo(request.Pixels).Length, "the photo is handed over whole, as RGBA");
             const int w = 48, h = 32;
             var disparity = new float[w * h];

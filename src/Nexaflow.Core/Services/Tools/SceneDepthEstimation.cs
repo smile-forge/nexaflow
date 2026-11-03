@@ -24,7 +24,7 @@ public sealed class SceneDepthEstimation : LocalToolModels, ISceneDepth
     {
         if (request.Width <= 0 || request.Height <= 0)
             throw new InvalidOperationException("A picture to estimate the depth of has a size.");
-        var estimated = await _depth.EstimateAsync(request.Pixels, request.Width, request.Height, request.Into, ct);
+        var estimated = await AskedAsync(() => _depth.EstimateAsync(request.Pixels, request.Width, request.Height, request.Into, ct), ct);
         return new SceneDepthEstimate(estimated.Width, estimated.Height);
     }
 }

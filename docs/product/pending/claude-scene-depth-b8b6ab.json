@@ -132,6 +132,12 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSceneDepthTests.cs",
             "class": "ImageSceneDepthTests",
             "method": "ALensBlur_EstimatesTheDepthOnce_AndMovingTheFocusNeverEstimatesItAgain"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSceneDepthTests.cs",
+            "class": "ImageSceneDepthTests",
+            "method": "ADepthTheModelCannotMake_IsSaidWithNothingToTryAgain_AndOneThatCanBeMadeLaterIsOffered"
           }
         ]
       }
@@ -345,11 +351,64 @@
           }
         ]
       }
+    },
+    "ai-tools": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ToolModels.cs",
+          "class": "IToolModels"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/ILocalTool.cs",
+          "class": "ILocalTool"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedModels.cs",
+          "class": "OwnedTool"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/LocalModelsViewModel.cs",
+          "class": "LocalToolViewModel"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/ai-tools.md",
+          "title_path": [
+            "AI tools"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ToolRunException.cs",
+          "class": "ToolRunException"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/LocalToolModels.cs",
+          "class": "LocalToolModels",
+          "method": "AskedAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Tools/LocalToolModelsTests.cs",
+            "class": "LocalToolModelsTests",
+            "method": "AHostLostWhileAJobRuns_IsAskedOnceMore_AndTwiceIsInterrupted"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 21,
+  "changed_sets": 23,
   "touched_nodes": [
+    "ai-tools",
     "images-edit-ai-add-haze",
     "images-edit-ai-blur-background",
     "images-edit-ai-describe-scene-depth",

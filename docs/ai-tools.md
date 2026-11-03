@@ -29,6 +29,15 @@ classifier (`image-safety-classifier-m`), which Core runs itself rather than a p
 A tool offered to the assistant while its models are not downloaded yet answers with where to get them, rather than
 being missing, so a request for it is never met with silence.
 
+**When a job fails.** Core asks each of a tool's jobs through `LocalToolModels.AskedAsync`, which asks it once more where
+the host is lost while it works — killed for going quiet in a cold start, a driver's crash — on the fresh host the next
+request starts, so a moment's trouble costs the person nothing. A job that hands over what it makes as it goes, such as a
+page read piece by piece, goes through `ToldAsync` instead and is never asked again whole. Either way what fails reaches
+the feature as a `ToolRunException` (`Features.Common`) saying why: `Interrupted` (lost again on the second ask),
+`NotNow` (no room beside the other models, or no host to be had) or `Unworkable` (the job ran and could not do it).
+Only the first two can end otherwise if asked again as they are, so only they are offered to try again — the editor's
+banner (`ToolEdit.CanRetry`) offers nothing for the last, where the same picture would fail the same way.
+
 ## The picture tools
 
 **What they do.** A picture made twice or four times its size, or kept at its size and cleaned of softness, noise and
@@ -56,7 +65,8 @@ channels and takes 512. A picture is refused at a scale whose upscaled result pa
 Adjust panel; AI upscale in the Resize panel — restores the photo before every other edit. A restoration is the same
 picture larger, so every other section still speaks of the source's pixels. `PhotoRestorer` finds it in the restorations
 kept on disk (`RestoredPictures`, keyed by the photo's content, the restoration and `IPictureTools.ModelsVersion`) or makes
-it in the background; the viewer's banner says how far it has got, offers the tools' download, or offers to try again.
+it in the background; the viewer's banner says how far it has got, offers the tools' download, or — where asking again
+can end otherwise — offers to try again.
 The render pipeline lays it over the photo at its strength in the geometry pass, so a strength drag redraws one pass,
 and Save renders from it at full size once it is made.
 
@@ -331,7 +341,8 @@ on the Local AI page. `PictureCheckingTests` runs the host with it on the CPU; `
 3. The host's request family and runners, registered in `HostMessages`, `ModelRunners.Default` and `HostProgram`; a GPU
    test held to the reference set.
 4. Its front in `Providers.AiHost`, deriving `OwnedToolFront`; its contract in `Features.Common`, extending
-   `IToolModels`; and Core's service, deriving `LocalToolModels` and implementing the contract, built in
+   `IToolModels`; and Core's service, deriving `LocalToolModels` and implementing the contract — each job asked through
+   `AskedAsync`, or `ToldAsync` for one that hands over as it goes — built in
    `App.InitializeApp`, passed to `ProviderManager.Initialize` and given to features with `FeatureManager.ProvideTool`.
 5. The pages that use it, and their client tools: on the page that shows what the tool works on, acting only on what
    that page has open — the assistant reaches no further than the tabs the user opened. An edit a tool makes to a photo
