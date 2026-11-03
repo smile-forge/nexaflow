@@ -310,16 +310,18 @@ public partial class App : Application
         var pictureSelection = new PictureSelection(new OwnedPictureSelection(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
         var pageReading = new PageReading(new OwnedPageReading(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
         var pictureErasing = new PictureErasing(new OwnedPictureErasing(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
+        var sceneDepth = new SceneDepthEstimation(new OwnedSceneDepth(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
         // Not a feature's tool: the check Enhanced AI Protection Mode holds every picture made to, which Core runs itself.
         var pictureChecking = new PictureChecking(new OwnedPictureChecking(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
         ProviderManager.Instance.Initialize(activityManager, assets, _residency,
             aiHost, hostSetup, hardware,
             new LocalModelDownloads(assets, activityManager, WorkspaceManager.Instance.UseLocalModel), pictureTools, pictureSelection, pageReading,
-            pictureErasing, pictureChecking);
+            pictureErasing, sceneDepth, pictureChecking);
         FeatureManager.Instance.ProvideTool<IPictureTools>(pictureTools);
         FeatureManager.Instance.ProvideTool<IPictureSelection>(pictureSelection);
         FeatureManager.Instance.ProvideTool<IPageReading>(pageReading);
         FeatureManager.Instance.ProvideTool<IPictureErasing>(pictureErasing);
+        FeatureManager.Instance.ProvideTool<ISceneDepth>(sceneDepth);
         StartupTimings.Mark("Init.LocalTools");
 
         // Load each workspace's AI config (stored per-workspace on disk) to discover which provider

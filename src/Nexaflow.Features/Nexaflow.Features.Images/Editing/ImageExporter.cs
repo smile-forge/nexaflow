@@ -4,6 +4,7 @@ using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Images.Editing.Metadata;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
+using Nexaflow.Features.Images.Editing.SceneDepth;
 using SkiaSharp;
 using System.IO;
 
@@ -85,7 +86,8 @@ public sealed class ImageExporter(ImageEditingServices services)
         using var erasedFull = !recipe.Erasures.IsEmpty ? services.DecodeRestored(made.Erased!, full.SourceSize, maxLongEdge: null) : null;
         using var restoredFull = recipe.Restore is not null ? services.DecodeRestored(made.Restored!, full.SourceSize, maxLongEdge: null) : null;
         using var mask = recipe.CutOut is not null ? CutOutMasks.Decode(made.CutOut!) : null;
-        using var pipeline = services.Pipeline(erasedFull ?? full, cache: false, restoredFull, mask);
+        var depth = recipe.AsksSceneDepth ? SceneDepthMaps.Read(made.SceneDepth!) : null;
+        using var pipeline = services.Pipeline(erasedFull ?? full, cache: false, restoredFull, mask, depth);
         var picture = pipeline.Render(recipe, RenderRequest.Saved);
         ct.ThrowIfCancellationRequested();
         return SKImage.FromBitmap(SKBitmap.FromImage(picture));

@@ -2,14 +2,15 @@ using Nexaflow.Features.Images.Editing.Codecs;
 using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
+using Nexaflow.Features.Images.Editing.SceneDepth;
 using SkiaSharp;
 
 namespace Nexaflow.Features.Images.Editing;
 
 /// <summary>
 /// One picture as it is drawn: its file, the decoded picture previews are rendered from, what the picture tools made of it
-/// for its recipe — its restoration, the picture as erased, the mask it is cut out by — and the render pipeline that draws
-/// the recipe over them. A photo's edit session is one; each picture layer of a layered picture has its own.
+/// for its recipe — its restoration, the picture as erased, the mask it is cut out by, its scene depth — and the render
+/// pipeline that draws the recipe over them. A photo's edit session is one; each picture layer of a layered picture has its own.
 /// </summary>
 /// <remarks>
 /// Rendering happens off the UI thread, one render at a time, under the rendering's lock — which is also what keeps a
@@ -27,6 +28,8 @@ public abstract class PictureRendering : IDisposable
     private DecodedImage? _pipelineBase;   // what the cached pipeline draws from: the picture, or the picture as erased
     private string? _cutOutPath;
     private SKImage? _cutOutMask;
+    private string? _sceneDepthPath;
+    private SceneDepthPlane? _sceneDepth;
     private RenderPipeline? _pipeline;
     private long _version;
     private bool _disposed;
@@ -163,7 +166,7 @@ public abstract class PictureRendering : IDisposable
     /// <summary>What the tools made for the recipe, by file — what a save renders from.</summary>
     public MadeByTools Made
     {
-        get { lock (Gate) return new MadeByTools(_restoredPath, _cutOutPath, _erasedPath); }
+        get { lock (Gate) return new MadeByTools(_restoredPath, _cutOutPath, _erasedPath, _sceneDepthPath); }
     }
 
     /// <summary>
@@ -204,6 +207,45 @@ public abstract class PictureRendering : IDisposable
             DropPipeline();
             _cutOutMask?.Dispose();
             _cutOutMask = mask;
+        }
+    }
+
+    /// <summary>The scene depth the recipe's haze and lens blur are drawn from, once it is made: the file it is kept in; null while there is none.</summary>
+    public string? SceneDepthPath
+    {
+        get { lock (Gate) return _sceneDepthPath; }
+    }
+
+    /// <summary>The scene depth read, once it is.</summary>
+    public SceneDepthPlane? SceneDepth
+    {
+        get { lock (Gate) return _sceneDepth; }
+    }
+
+    /// <summary>
+    /// The scene depth the picture is drawn from from now on — its file, or null for none. A different file lets the plane read
+    /// go; the display reads it again from the new file.
+    /// </summary>
+    public void UseSceneDepth(string? path)
+    {
+        lock (Gate)
+        {
+            if (string.Equals(path, _sceneDepthPath, StringComparison.OrdinalIgnoreCase)) return;
+            _sceneDepthPath = path;
+            DropPipeline();
+            _sceneDepth = null;
+        }
+    }
+
+    /// <summary>Takes the scene depth read from <paramref name="path"/>: drawn from from the next frame. One that is no longer the
+    /// file in use — or arrives after disposal — is let go.</summary>
+    public void AttachSceneDepth(SceneDepthPlane plane, string path)
+    {
+        lock (Gate)
+        {
+            if (_disposed || !string.Equals(path, _sceneDepthPath, StringComparison.OrdinalIgnoreCase)) return;
+            DropPipeline();
+            _sceneDepth = plane;
         }
     }
 
@@ -254,7 +296,7 @@ public abstract class PictureRendering : IDisposable
             _pipeline = null;
         }
         _pipelineBase = source;
-        _pipeline ??= _services.Pipeline(source, restored: _restoredProxy, cutOut: _cutOutMask);
+        _pipeline ??= _services.Pipeline(source, restored: _restoredProxy, cutOut: _cutOutMask, sceneDepth: _sceneDepth);
         return _pipeline.Render(recipe, request);
     }
 
@@ -271,7 +313,7 @@ public abstract class PictureRendering : IDisposable
         lock (Gate)
         {
             if (_disposed || _proxy is null) return null;
-            using var pipeline = _services.Pipeline(SourceFor(recipe), cache: false, _restoredProxy, _cutOutMask);
+            using var pipeline = _services.Pipeline(SourceFor(recipe), cache: false, _restoredProxy, _cutOutMask, _sceneDepth);
             using var picture = pipeline.Render(recipe, request);
             return SKImage.FromBitmap(SKBitmap.FromImage(picture));
         }
@@ -305,6 +347,7 @@ public abstract class PictureRendering : IDisposable
             _erasedProxy = null;
             _cutOutMask?.Dispose();
             _cutOutMask = null;
+            _sceneDepth = null;
             _proxy?.Dispose();
             _proxy = null;
         }

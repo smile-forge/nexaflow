@@ -56,7 +56,7 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
         _display.DecodeFailed += rendering => { if (ReferenceEquals(CurrentSession, rendering)) LoadFailed = true; };
 
         // AI picture editing's models, offered and fetched as one by everything here that waits on any of them.
-        Models = new PictureModels([pictures, selection, erasing], RunOnUi);
+        Models = new PictureModels([pictures, selection, erasing, editing.SceneDepth], RunOnUi);
 
         Restorer = new PhotoRestorer(editing, pictures, RunOnUi, Models);
         Restorer.Made += Render;
@@ -74,11 +74,20 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
             foreach (var tools in _layerTools.Values) tools.Remover.Lost(rendering);
         };
 
-        // The restoration is of the photo as erased: it follows each erasing as it is made.
+        SceneDepth = new PhotoSceneDepth(editing, editing.SceneDepth, RunOnUi, Models);
+        SceneDepth.Made += Render;
+        _display.SceneDepthReadFailed += rendering =>
+        {
+            SceneDepth.Lost(rendering);
+            foreach (var tools in _layerTools.Values) tools.SceneDepth.Lost(rendering);
+        };
+
+        // The restoration and the scene depth are of the photo as erased: they follow each erasing as it is made.
         Eraser = new PhotoEraser(editing, erasing, selection, RunOnUi, Models);
         Eraser.Made += () =>
         {
             Restorer.Follow(EditTarget?.Rendering);
+            SceneDepth.Follow(EditTarget?.Rendering);
             Render();
         };
         _display.ErasedDecodeFailed += rendering =>
@@ -99,6 +108,9 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
 
     /// <summary>The erasing the picture's recipe asks for, made and shown in its place.</summary>
     public PhotoEraser Eraser { get; }
+
+    /// <summary>The scene depth the picture's haze and lens blur are drawn from, estimated once and kept.</summary>
+    public PhotoSceneDepth SceneDepth { get; }
 
     /// <summary>The tab edits the picture: edits lasting only as long as it are said at once, not only once there are some.</summary>
     public bool IsEditor { get; init; }
@@ -287,6 +299,7 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
         Eraser.Follow(target);
         Restorer.Follow(target);
         Remover.Follow(target);
+        SceneDepth.Follow(target);
         if (CurrentDocument is not { } document)
         {
             foreach (var tools in _layerTools.Values) tools.Dispose();
@@ -318,10 +331,11 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
     public MadeByTools KeptByTools(string photo, ImageRecipe recipe)
     {
         var erased = recipe.Erasures.IsEmpty ? null : Eraser.KeptFor(photo, new EraseSteps(recipe.Erasures));
-        var restoredFrom = recipe.Erasures.IsEmpty ? photo : erased;
-        return new(recipe.Restore is { } restore && restoredFrom is not null ? Restorer.KeptFor(restoredFrom, restore) : null,
+        var madeFrom = recipe.Erasures.IsEmpty ? photo : erased;
+        return new(recipe.Restore is { } restore && madeFrom is not null ? Restorer.KeptFor(madeFrom, restore) : null,
                    recipe.CutOut is { } cutOut ? Remover.KeptFor(photo, cutOut) : null,
-                   erased);
+                   erased,
+                   recipe.AsksSceneDepth && madeFrom is not null ? SceneDepth.KeptFor(madeFrom, SceneDepthAsk.Instance) : null);
     }
 
     // ── Edits of the picture the tools work on ────────────────────────────

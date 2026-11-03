@@ -30,8 +30,11 @@ public sealed class BackgroundRemover : ToolEdit<RecipeCutOut>
     protected override Task<string> MakeAsync(string photo, RecipeCutOut ask, IProgress<double> progress, CancellationToken ct)
         => Services.CutOuts.MakeAsync(Services, photo, ask, _selection, progress, ct);
 
-    /// <summary>A cut-out that asks picture selection nothing — a region drawn by hand alone — needs no models at all.</summary>
-    protected override IReadOnlyList<IToolModels?> Needs(RecipeCutOut ask) => ask.AsksPictureSelection ? [_selection] : [];
+    /// <summary>A cut-out that asks picture selection nothing — a region drawn by hand alone — needs no models at all; one whose
+    /// region selects by distance needs scene depth.</summary>
+    protected override IReadOnlyList<IToolModels?> Needs(RecipeCutOut ask)
+        => [.. ask.AsksPictureSelection ? [_selection] : Array.Empty<IToolModels?>(),
+            .. ask.Region?.SelectsByDistance == true ? [Services.SceneDepth] : Array.Empty<IToolModels?>()];
 
     /// <summary>Removing the background is always offered: a region drawn by hand cuts out on any machine.</summary>
     public override bool Available => true;

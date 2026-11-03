@@ -4,9 +4,10 @@ using Nexaflow.Features.Images.Editing;
 namespace Nexaflow.Features.Images.ViewModels;
 
 /// <summary>
-/// What the picture tools make for one picture's recipe — its restoration, its removed background, its erasing — made in the
-/// background as each is asked for, the restoration following the erasing it is made from. The viewer's own follow the
-/// picture on screen and say what they are doing; a layered picture's other picture layers each have one of these, quietly.
+/// What the picture tools make for one picture's recipe — its restoration, its removed background, its erasing, its scene
+/// depth — made in the background as each is asked for, the restoration and the scene depth following the erasing they are
+/// made from. The viewer's own follow the picture on screen and say what they are doing; a layered picture's other picture
+/// layers each have one of these, quietly.
 /// </summary>
 internal sealed class PictureToolEdits : IDisposable
 {
@@ -16,12 +17,15 @@ internal sealed class PictureToolEdits : IDisposable
         Restorer = new PhotoRestorer(services, pictures, runOnUi, models);
         Remover = new BackgroundRemover(services, selection, runOnUi, models);
         Eraser = new PhotoEraser(services, erasing, selection, runOnUi, models);
+        SceneDepth = new PhotoSceneDepth(services, services.SceneDepth, runOnUi, models);
         Restorer.Made += made;
         Remover.Made += made;
-        // The restoration is of the picture as erased: it follows each erasing as it is made.
+        SceneDepth.Made += made;
+        // The restoration and the scene depth are of the picture as erased: they follow each erasing as it is made.
         Eraser.Made += () =>
         {
             Restorer.Follow(Followed);
+            SceneDepth.Follow(Followed);
             made();
         };
     }
@@ -31,6 +35,8 @@ internal sealed class PictureToolEdits : IDisposable
     public BackgroundRemover Remover { get; }
 
     public PhotoEraser Eraser { get; }
+
+    public PhotoSceneDepth SceneDepth { get; }
 
     /// <summary>The picture followed; null while none is.</summary>
     public PictureRendering? Followed { get; private set; }
@@ -42,15 +48,17 @@ internal sealed class PictureToolEdits : IDisposable
         Eraser.Follow(rendering);
         Restorer.Follow(rendering);
         Remover.Follow(rendering);
+        SceneDepth.Follow(rendering);
     }
 
     /// <summary>Whether what the recipe asks of them is all here.</summary>
-    public bool IsPending => Restorer.IsPending || Remover.IsPending || Eraser.IsPending;
+    public bool IsPending => Restorer.IsPending || Remover.IsPending || Eraser.IsPending || SceneDepth.IsPending;
 
     public void Dispose()
     {
         Restorer.Dispose();
         Remover.Dispose();
         Eraser.Dispose();
+        SceneDepth.Dispose();
     }
 }

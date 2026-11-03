@@ -5,6 +5,7 @@ using Nexaflow.Features.Images.Editing.CuttingOut;
 using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
+using Nexaflow.Features.Images.Editing.SceneDepth;
 using Nexaflow.Features.Images.Editing.Wpf;
 using Nexaflow.Features.Images.ViewModels;
 using Nexaflow.IO.Common;
@@ -101,7 +102,8 @@ public sealed class ThumbnailLoadTask : IBackgroundTask
             using var erased = !recipe.Erasures.IsEmpty && made.Erased is { } rubbed
                 ? _editing.DecodeRestored(rubbed, decoded.SourceSize, _size * EditedDecodeFactor)
                 : null;
-            using var pipeline = _editing.Pipeline(erased ?? decoded, cache: false, restored, mask);
+            var depth = recipe.AsksSceneDepth && made.SceneDepth is { } depthFile ? SceneDepthMaps.Read(depthFile) : null;
+            using var pipeline = _editing.Pipeline(erased ?? decoded, cache: false, restored, mask, depth);
             return SkiaWpf.ToFrozenBitmap(pipeline.Render(recipe, new RenderRequest(RenderFrame.Output, scale)));
         }
         catch (Exception ex) when (ex is ImageDecodeException or IOException or UnauthorizedAccessException or InvalidOperationException or InvalidDataException)

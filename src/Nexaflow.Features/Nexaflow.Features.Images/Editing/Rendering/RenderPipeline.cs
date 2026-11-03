@@ -1,6 +1,7 @@
 using Nexaflow.Features.Images.Editing.Codecs;
 using Nexaflow.Features.Images.Editing.Recipe;
 using SkiaSharp;
+using Nexaflow.Features.Images.Editing.SceneDepth;
 
 namespace Nexaflow.Features.Images.Editing.Rendering;
 
@@ -23,10 +24,13 @@ public readonly record struct RenderRequest(RenderFrame Frame, double Scale, boo
 /// <list type="number">
 /// <item><b>geometry</b> — the decoded pixels drawn once through the whole matrix (orientation, straighten, crop,
 /// turns, flips, scale), so the picture is resampled exactly once;</item>
+/// <item><b>scene depth</b> — where the recipe asks for them, the haze and lens blur drawn from the picture's scene depth
+/// over that (<see cref="SceneDepthPass"/>), before tone as air and a lens come before the camera's processing;</item>
 /// <item><b>tone</b> — the adjustment filter over that, per pixel;</item>
 /// <item><b>markup</b> — the annotations, through the same matrix, over a copy of the toned picture.</item>
 /// </list>
-/// A slider drag redoes only the tone pass, and a pen stroke only the markup pass — which is what keeps both live.
+/// A slider drag redoes only the tone pass, a focus moved or an aperture dragged only the scene depth pass and the tone pass
+/// after it, and a pen stroke only the markup pass — which is what keeps each live.
 /// Not thread-safe: one render at a time, which the presenter guarantees.
 /// </remarks>
 public sealed class RenderPipeline : IDisposable
@@ -34,12 +38,16 @@ public sealed class RenderPipeline : IDisposable
     private readonly DecodedImage _source;
     private readonly DecodedImage? _restored;
     private readonly SKImage? _cutOut;
+    private readonly SceneDepthPlane? _sceneDepth;
+    private (float R, float G, float B)? _distance;
     private readonly AdjustmentFilter _adjust;
     private readonly MarkupPainter _markup;
     private readonly bool _cache;
 
     private GeometryKey? _geometryKey;
     private SKImage? _geometryLayer;
+    private SceneDepthKey? _depthKey;
+    private SKImage? _depthLayer;
     private RecipeAdjustments? _toneKey;
     private SKImage? _toneLayer;
     private SKImage? _output;
@@ -51,12 +59,15 @@ public sealed class RenderPipeline : IDisposable
     /// restores the picture shows it unrestored, at the restored size.</param>
     /// <param name="cutOut">The mask the recipe's cut-out keeps the picture by — alpha over the upright source, 255 kept and
     /// 0 cleared — for a recipe that cuts it out. Without it, such a recipe shows the whole picture. The caller owns it.</param>
+    /// <param name="sceneDepth">The upright source's scene depth, for a recipe that draws from it — a lens blur, a haze. Without
+    /// it, such a recipe shows the picture sharp and clear.</param>
     public RenderPipeline(DecodedImage source, AdjustmentFilter adjust, MarkupPainter markup, bool cache = true, DecodedImage? restored = null,
-                          SKImage? cutOut = null)
+                          SKImage? cutOut = null, SceneDepthPlane? sceneDepth = null)
     {
-        _source   = source;
-        _restored = restored;
-        _cutOut   = cutOut;
+        _source     = source;
+        _restored   = restored;
+        _cutOut     = cutOut;
+        _sceneDepth = sceneDepth;
         _adjust   = adjust;
         _markup   = markup;
         _cache    = cache;
@@ -76,18 +87,40 @@ public sealed class RenderPipeline : IDisposable
         if (_geometryLayer is null || _geometryKey != geometryKey)
         {
             DropTone();
+            DropDepth();
             DropGeometry();
             _geometryLayer = DrawGeometry(sourceToCanvas, canvas, recipe.Restore, recipe.CutOut);
             _geometryKey   = geometryKey;
         }
 
+        // The scene depth pass, where the recipe asks for it and the depth is here; otherwise tone works on the geometry pass.
+        var depthKey = _sceneDepth is not null && recipe.AsksSceneDepth ? new SceneDepthKey(recipe.LensBlur, recipe.DepthHaze) : null;
+        if (depthKey is null && _depthLayer is not null)
+        {
+            DropTone();
+            DropDepth();
+        }
+        else if (depthKey is not null && (_depthLayer is null || _depthKey != depthKey))
+        {
+            DropTone();
+            DropDepth();
+            _depthLayer = DrawDepth(_geometryLayer!, recipe, sourceToCanvas);
+            _depthKey   = depthKey;
+            if (!_cache) DropGeometry();
+        }
+        var beneathTone = _depthLayer ?? _geometryLayer!;
+
         var adjustments = request.Adjustments ? recipe.Adjustments : RecipeAdjustments.Identity;
         if (_toneLayer is null || _toneKey != adjustments)
         {
             DropTone();
-            _toneLayer = DrawTone(_geometryLayer, adjustments);
+            _toneLayer = DrawTone(beneathTone, adjustments);
             _toneKey   = adjustments;
-            if (!_cache && !ReferenceEquals(_toneLayer, _geometryLayer)) DropGeometry();
+            if (!_cache && !ReferenceEquals(_toneLayer, beneathTone))
+            {
+                DropDepth();
+                DropGeometry();
+            }
         }
 
         DropOutput();
@@ -127,6 +160,15 @@ public sealed class RenderPipeline : IDisposable
         using var paint = new SKPaint { IsAntialias = true, BlendMode = blend, Color = SKColors.Black.WithAlpha(alpha) };
         canvas.DrawImage(pixels, 0, 0, SamplingFor(toCanvas), paint);
         canvas.Restore();
+    }
+
+    /// <summary>The recipe's haze and lens blur over the geometry pass's picture, from the source's scene depth; the colour of the
+    /// source's distance, for a haze with none of its own, read once.</summary>
+    private SKImage DrawDepth(SKImage geometry, ImageRecipe recipe, SKMatrix sourceToCanvas)
+    {
+        var photo = new SKSizeI((int)Math.Round(_source.SourceSize.Width), (int)Math.Round(_source.SourceSize.Height));
+        if (recipe.DepthHaze is { Colour: null }) _distance ??= SceneDepthPass.FarColour(_source, _sceneDepth!);
+        return SceneDepthPass.Draw(geometry, recipe, _sceneDepth!, sourceToCanvas, photo, _distance ?? (0.5f, 0.5f, 0.5f), NewInfo(new SKSizeI(geometry.Width, geometry.Height)));
     }
 
     private SKImage DrawTone(SKImage geometry, RecipeAdjustments adjustments)
@@ -204,16 +246,23 @@ public sealed class RenderPipeline : IDisposable
 
     private void DropGeometry()
     {
-        if (!ReferenceEquals(_geometryLayer, _toneLayer)) _geometryLayer?.Dispose();
+        if (!ReferenceEquals(_geometryLayer, _toneLayer) && !ReferenceEquals(_geometryLayer, _depthLayer)) _geometryLayer?.Dispose();
         _geometryLayer = null;
         _geometryKey   = null;
     }
 
     private void DropTone()
     {
-        if (!ReferenceEquals(_toneLayer, _geometryLayer)) _toneLayer?.Dispose();
+        if (!ReferenceEquals(_toneLayer, _geometryLayer) && !ReferenceEquals(_toneLayer, _depthLayer)) _toneLayer?.Dispose();
         _toneLayer = null;
         _toneKey   = null;
+    }
+
+    private void DropDepth()
+    {
+        if (!ReferenceEquals(_depthLayer, _toneLayer)) _depthLayer?.Dispose();
+        _depthLayer = null;
+        _depthKey   = null;
     }
 
     private void DropOutput()
@@ -226,8 +275,11 @@ public sealed class RenderPipeline : IDisposable
     {
         DropOutput();
         DropTone();
+        DropDepth();
         DropGeometry();
     }
 
     private sealed record GeometryKey(RecipeGeometry Geometry, RecipeResize? Resize, RecipeRestore? Restore, RecipeCutOut? CutOut, RenderFrame Frame, SKSizeI Canvas);
+
+    private sealed record SceneDepthKey(RecipeLensBlur? LensBlur, RecipeDepthHaze? Haze);
 }

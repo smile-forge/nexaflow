@@ -147,6 +147,32 @@ public interface IPictureErasing : IToolModels
     Task<PictureErasure> EraseAsync(PictureEraseRequest request, IProgress<double>? progress, CancellationToken ct);
 }
 
+/// <summary>A picture whose scene depth to estimate, by file.</summary>
+/// <param name="Pixels">The file the picture is in: interleaved 8-bit RGBA, row by row, straight alpha, nothing else.</param>
+/// <param name="Width">The picture's width, in pixels.</param>
+/// <param name="Height">The picture's height, in pixels.</param>
+/// <param name="Into">The file the disparity is written to (<see cref="SceneDepthEstimate"/>); replaced if it is there.</param>
+public sealed record SceneDepthRequest(string Pixels, int Width, int Height, string Into);
+
+/// <summary>
+/// A picture's scene depth, in the request's file: <see cref="Width"/> × <see cref="Height"/> single-precision floats, row by
+/// row — relative inverse depth, larger nearer, its scale and offset the model's own — at the size the model read the
+/// picture, whose corners are the picture's corners: brought to any size by bilinear resizing with the corners aligned.
+/// </summary>
+public sealed record SceneDepthEstimate(int Width, int Height);
+
+/// <summary>
+/// How far each part of a picture lies from the camera — its scene depth, not its colour depth — estimated from the one
+/// picture by a neural network Nexaflow runs on this machine, on its GPU or its CPU: what is near and what far, for a lens's
+/// blur, haze, or a selection by distance.
+/// </summary>
+public interface ISceneDepth : IToolModels
+{
+    /// <summary>Estimates the request's picture's scene depth.</summary>
+    /// <exception cref="InvalidOperationException">The tool is not ready here, or the picture's depth could not be estimated.</exception>
+    Task<SceneDepthEstimate> EstimateAsync(SceneDepthRequest request, CancellationToken ct);
+}
+
 /// <summary>What a block of a page is, as the page reader marks it.</summary>
 public enum PageBlockKind
 {
