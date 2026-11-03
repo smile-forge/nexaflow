@@ -237,6 +237,64 @@ public class ImagePhotoshopTests
     }
 
     [TestMethod]
+    public async Task AnUntouchedLayer_IsWrittenBackWithTheFilesOwnChannels_APaintedOneCompressedAnew()
+    {
+        const int w = 4, h = 4;
+        // Uncompressed channels, which Nexaflow never writes, holding a faint red whose straight colour premultiplying rounds away.
+        var channels = new (short Id, byte Value)[] { (-1, 3), (0, 200), (1, 10), (2, 90) }
+            .Select(c => new PhotoshopChannelToWrite(c.Id, [0, 0, .. Enumerable.Repeat(c.Value, w * h)])).ToArray();
+        var path = Path.Combine(_dir, "asread.psd");
+        WritePhotoshop(path, PictureColour.Rgb8, w, h, [new PhotoshopLayerToWrite { PascalName = "Faint", Rect = new PhotoshopRect(0, 0, h, w), Channels = [.. channels] }]);
+        var read = await Format().ReadAsync(path);
+
+        var untouched = Path.Combine(_dir, "asread-again.psd");
+        await Write(read.Picture, untouched);
+        var written = ChannelsOf(untouched);
+        foreach (var channel in channels) CollectionAssert.AreEqual(channel.Encoded, written[channel.Id], $"channel {channel.Id}: as the file held it, every bit");
+
+        var wider = Path.Combine(_dir, "asread.psb");
+        await Write(read.Picture, wider, large: true);
+        Assert.AreEqual((byte)PhotoshopCompression.Rle, ChannelsOf(wider)[0][1], "a PSB's run-length rows count wider: compressed anew");
+
+        var painted = read.Picture.WithLayer(read.Picture.Layers[0].Id, l => ((PixelLayer)l) with
+        {
+            Pixels = ((PixelLayer)l).Pixels.Filled(TiledCoverage.Covered(w, h), new SKColorF(1, 1, 1, 1)),
+        });
+        var paintedPath = Path.Combine(_dir, "asread-painted.psd");
+        await Write(painted, paintedPath);
+        Assert.AreEqual((byte)PhotoshopCompression.Rle, ChannelsOf(paintedPath)[0][1], "painted on: compressed anew");
+    }
+
+    [TestMethod]
+    public async Task AFlatFile_OpensAsItsMergedImage_OneLockedBackgroundLayer_AtItsOwnDepth()
+    {
+        const int w = 3, h = 2;
+        const ushort grey = 0x1234; // between two 8-bit steps
+        var path = Path.Combine(_dir, "flat.psd");
+        using (var stream = File.Create(path))
+            PhotoshopWriter.Write(stream, new PhotoshopDocumentToWrite
+            {
+                Header = new PhotoshopFileHeader(false, 1, w, h, 16, PhotoshopColourMode.Grayscale),
+                Layers = [],
+                MergedChannels = 1,
+                Merged = (_, _, into) => MemoryMarshal.Cast<byte, ushort>(into).Fill(grey),
+            });
+
+        var read = await Format().ReadAsync(path);
+        Assert.AreEqual(Grey(ChannelDepth.U16), read.Picture.Colour);
+        var background = (PixelLayer)read.Picture.Layers.Single();
+        Assert.AreEqual("Background", background.Name);
+        Assert.IsTrue(background.Locked, "Photoshop's Background is locked");
+        Assert.AreEqual(background.Id, read.Picture.ActiveId);
+        var samples = MemoryMarshal.Cast<byte, ushort>(background.Pixels.Read(new SKRectI(0, 0, w, h)));
+        for (int p = 0; p < w * h; p++)
+        {
+            Assert.AreEqual(grey, samples[p * 2], $"pixel {p}: the merged image's grey, every bit");
+            Assert.AreEqual(ushort.MaxValue, samples[p * 2 + 1], $"pixel {p}: wholly opaque");
+        }
+    }
+
+    [TestMethod]
     public async Task ACmykFile_IsRefused_SayingWhatIsEdited()
     {
         var path = Path.Combine(_dir, "cmyk.psd");
@@ -313,5 +371,19 @@ public class ImagePhotoshopTests
     {
         using var stream = File.OpenRead(path);
         return [.. PhotoshopReader.Read(stream).Layers.Select(l => l.Blocks.Select(b => b.Key).ToArray())];
+    }
+
+    /// <summary>The first layer's channels in a written file, by id, as compressed — their compression first.</summary>
+    private static Dictionary<short, byte[]> ChannelsOf(string path)
+    {
+        using var stream = File.OpenRead(path);
+        var layer = PhotoshopReader.Read(stream).Layers[0];
+        return layer.Channels.ToDictionary(c => c.Id, c =>
+        {
+            var bytes = new byte[c.Length];
+            stream.Position = c.Offset;
+            stream.ReadExactly(bytes);
+            return bytes;
+        });
     }
 }

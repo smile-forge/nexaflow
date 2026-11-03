@@ -11,6 +11,7 @@ using Nexaflow.Features.Images.Editing.Selection;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.Media.Photoshop;
 using SkiaSharp;
+using System.Buffers;
 
 namespace Nexaflow.Features.Images.Editing.Codecs;
 
@@ -21,7 +22,20 @@ public sealed partial class PhotoshopFormat
     private readonly ConditionalWeakTable<TiledPixels, EncodedPixels> _encoded = new();
 
     /// <summary>A layer's pixels as written: where they lie, whether as a PSB, each channel compressed, and their hash.</summary>
-    private sealed record EncodedPixels(SKRectI Rect, bool Large, ImmutableArray<PhotoshopChannelToWrite> Channels, string Hash);
+    private sealed record EncodedPixels(SKRectI Rect, bool Large, ImmutableArray<PhotoshopChannelToWrite> Channels)
+    {
+        private string? _hash;
+
+        /// <summary>The channels' SHA-256 in channel order — what a picture or markup layer's private block names its pixels by.</summary>
+        public string Hash => _hash ??= HashOf(Channels);
+
+        private static string HashOf(ImmutableArray<PhotoshopChannelToWrite> channels)
+        {
+            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            foreach (var channel in channels.OrderBy(c => c.Id)) hash.AppendData(channel.Encoded);
+            return Convert.ToHexStringLower(hash.GetHashAndReset());
+        }
+    }
 
     public async Task WriteAsync(LayeredPicture picture, string path, ILayeredPictureRenderer renderer, CancellationToken ct = default)
     {
@@ -48,10 +62,28 @@ public sealed partial class PhotoshopFormat
         private uint _nextId;
         private uint? _activeId;
 
+        // The clipping runs written, by the layer heading each: the run's identity, kept on its head's record.
+        private readonly Dictionary<Guid, Guid> _runs = [];
+
+        // The pixel layers still as a file was read, by their tiles: their channels as it compressed them, written as they are.
+        private readonly Dictionary<TiledPixels, EncodedPixels> _asRead = AsReadOf(picture, format.Extension == PsbExtension);
+
+        private static Dictionary<TiledPixels, EncodedPixels> AsReadOf(LayeredPicture picture, bool large)
+        {
+            var asRead = new Dictionary<TiledPixels, EncodedPixels>(ReferenceEqualityComparer.Instance);
+            foreach (var layer in picture.All.OfType<PixelLayer>())
+                if (layer.Kept.Get<PhotoshopLayerKept>() is { ReadPixels: { } read, ReadChannels: { } channels } && ReferenceEquals(read, layer.Pixels) && channels.Large == large)
+                    asRead[read] = new EncodedPixels(new SKRectI(channels.Rect.Left, channels.Rect.Top, channels.Rect.Right, channels.Rect.Bottom), large, channels.Channels);
+            return asRead;
+        }
+
         private bool Large => format.Extension == PsbExtension;
 
         public PhotoshopDocumentToWrite Document()
         {
+            // Every pixel layer's channels compressed side by side first; the records then take them as they are written.
+            Parallel.ForEach(picture.All.OfType<PixelLayer>().Select(l => l.Pixels).Distinct(ReferenceEqualityComparer.Instance).Cast<TiledPixels>(),
+                             new ParallelOptions { CancellationToken = ct }, pixels => Encoded(pixels));
             var records = new List<PhotoshopLayerToWrite>();
             if (!picture.Background.IsTransparent) records.Add(BackgroundRecord());
             foreach (var layer in picture.Layers) records.AddRange(Records(layer));
@@ -123,6 +155,7 @@ public sealed partial class PhotoshopFormat
                 case GroupLayer run when IsClipRun(run):
                 {
                     var head = run.Children[0];
+                    _runs[head.Id] = run.Id;
                     var records = Records(head with { Name = run.Name, Opacity = run.Opacity, Blend = run.Blend, Visible = run.Visible }, fill: head.Opacity).ToList();
                     foreach (var clipped in run.Children.Skip(1))
                     {
@@ -183,9 +216,10 @@ public sealed partial class PhotoshopFormat
                 }
                 case UndrawableLayer undrawable when undrawable.Kept.Get<PhotoshopLayerKept>() is { Undrawable: { } raw } kept:
                 {
-                    // As read: its rectangle, its channels as compressed, its mask record and every block.
+                    // As read: its rectangle, its channels as compressed, its mask record and every block — a shape's outline
+                    // too, since its channels are the very ones it describes.
                     var record = Record(undrawable, new SKRectI(raw.Rect.Left, raw.Rect.Top, raw.Rect.Right, raw.Rect.Bottom), raw.Channels,
-                                        kept.BlendKey ?? BlendKeyOf(undrawable, out _), Own(undrawable), keepMask: true);
+                                        kept.BlendKey ?? BlendKeyOf(undrawable, out _), Own(undrawable), pixelBlocks: kept.PixelBlocks, keepMask: true);
                     return [record];
                 }
                 default:
@@ -218,6 +252,7 @@ public sealed partial class PhotoshopFormat
             if (layer.Locked || layer.AlphaLocked) blocks.Add(PhotoshopTaggedBlock.Of("lspf", UInt32((layer.Locked ? 0x80000000u : 0) | (layer.AlphaLocked ? 1u : 0))));
             if (kept is not null) blocks.AddRange(kept.Blocks);
             if (!pixelBlocks.IsDefaultOrEmpty) blocks.AddRange(pixelBlocks);
+            if (_runs.TryGetValue(layer.Id, out var runId)) own["run"] = runId.ToString("D");
             blocks.Add(PhotoshopTaggedBlock.Of(LayerBlockKey, Encoding.UTF8.GetBytes(own.ToJsonString())));
 
             PhotoshopLayerMask? maskRecord = null;
@@ -279,60 +314,71 @@ public sealed partial class PhotoshopFormat
 
         // ── Pixels ──────────────────────────────────────────────────────────
 
-        /// <summary>A layer's pixels as channels — transparency, then colour — each compressed; the same tiles as last time,
-        /// their channels as last time.</summary>
+        /// <summary>
+        /// A layer's pixels as channels — transparency, then colour — each compressed: the tiles read a band of rows at a time, and
+        /// each band's rows handed to every channel's compressor side by side, not premultiplied — so only a band and what is
+        /// compressed are ever held. The tiles a file was read as, its channels as it compressed them; the same tiles as last time,
+        /// their channels as last time.
+        /// </summary>
         private EncodedPixels Encoded(TiledPixels pixels)
         {
+        if (_asRead.TryGetValue(pixels, out var asRead)) return asRead;
             if (format._encoded.TryGetValue(pixels, out var cached) && cached.Large == Large) return cached;
             var rect = pixels.Bounds;
+            int width = rect.Width, sampleBytes = _sampleBytes, pixelBytes = _tiles.PixelBytes;
             var ids = new short[_colourChannels + 1];
             ids[0] = -1;
             for (int c = 0; c < _colourChannels; c++) ids[c + 1] = (short)c;
-            var channels = ImmutableArray.CreateBuilder<PhotoshopChannelToWrite>(ids.Length);
-            var bands = new Bands(pixels, rect, _tiles);
-            foreach (short id in ids)
+            var encoders = ids.Select(_ => new PhotoshopChannelEncoder(width, rect.Height, sampleBytes, Large)).ToArray();
+            var lines = ids.Select(_ => new byte[width * sampleBytes]).ToArray();
+            // One band's pixels at a time, in a buffer lent for the layer rather than one made for every band.
+            var band = ArrayPool<byte>.Shared.Rent(width * BandRows * pixelBytes);
+            try
             {
-                int slot = id < 0 ? _colourChannels : id;
-                channels.Add(new PhotoshopChannelToWrite(id, PhotoshopChannels.Encode(rect.Width, rect.Height, _sampleBytes, Large,
-                    (y, into) => bands.Channel(y, slot, _sampleBytes, into))));
+                for (int top = rect.Top; top < rect.Bottom; top += BandRows - (top & (BandRows - 1)))
+                {
+                    int rows = Math.Min(BandRows - (top & (BandRows - 1)), rect.Bottom - top);
+                    pixels.ReadInto(new SKRectI(rect.Left, top, rect.Right, top + rows), band.AsSpan(0, rows * width * pixelBytes));
+                    Parallel.For(0, ids.Length, i =>
+                    {
+                        int slot = ids[i] < 0 ? _colourChannels : ids[i];
+                        var line = lines[i];
+                        for (int r = 0; r < rows; r++)
+                        {
+                            var pixelsOfRow = band.AsSpan(r * width * pixelBytes, width * pixelBytes);
+                            ChannelOf(pixelsOfRow, slot, line);
+                            encoders[i].Add(line);
+                        }
+                    });
+                }
+                var channels = ImmutableArray.CreateRange(ids.Select((id, i) => new PhotoshopChannelToWrite(id, encoders[i].Finish())));
+                var result = new EncodedPixels(rect, Large, channels);
+                format._encoded.AddOrUpdate(pixels, result);
+                return result;
             }
-            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            foreach (var channel in channels.OrderBy(c => c.Id)) hash.AppendData(channel.Encoded);
-            var encoded = new EncodedPixels(rect, Large, channels.MoveToImmutable(), Convert.ToHexStringLower(hash.GetHashAndReset()));
-            format._encoded.AddOrUpdate(pixels, encoded);
-            return encoded;
+            finally
+            {
+                foreach (var encoder in encoders) encoder.Dispose();
+                ArrayPool<byte>.Shared.Return(band);
+            }
         }
 
-        /// <summary>A layer's pixels read a band of rows at a time, each row's channel handed out not premultiplied.</summary>
-        private sealed class Bands(TiledPixels pixels, SKRectI rect, TileFormat tiles)
+        /// <summary>One channel of a row of pixels — <paramref name="slot"/> among each pixel's — as its samples, in the machine's
+        /// order and not premultiplied: 8-bit colour, held premultiplied, divided by its alpha.</summary>
+        private void ChannelOf(ReadOnlySpan<byte> row, int slot, Span<byte> into)
         {
-            private byte[] _band = [];
-            private int _top = int.MinValue, _rows;
-
-            public void Channel(int y, int slot, int sampleBytes, Span<byte> into)
+            int sampleBytes = _sampleBytes, pixelBytes = _tiles.PixelBytes, width = into.Length / sampleBytes;
+            if (_tiles.Premultiplied)
             {
-                int row = rect.Top + y;
-                if (row < _top || row >= _top + _rows)
+                for (int x = 0, p = 0; x < width; x++, p += 4)
                 {
-                    _top = row;
-                    _rows = Math.Min(BandRows - (row & (BandRows - 1)), rect.Bottom - row);
-                    _band = pixels.Read(new SKRectI(rect.Left, _top, rect.Right, _top + _rows));
+                    int a = row[p + 3];
+                    into[x] = slot == 3 ? (byte)a : TileFormat.StraightByte(row[p + slot], a);
                 }
-                int width = rect.Width, pixelBytes = tiles.PixelBytes;
-                var line = _band.AsSpan((row - _top) * width * pixelBytes, width * pixelBytes);
-                for (int x = 0; x < width; x++)
-                {
-                    var pixel = line.Slice(x * pixelBytes, pixelBytes);
-                    if (!tiles.Premultiplied)
-                    {
-                        pixel.Slice(slot * sampleBytes, sampleBytes).CopyTo(into[(x * sampleBytes)..]);
-                        continue;
-                    }
-                    // 8-bit colour is held premultiplied; the file holds it straight.
-                    int a = pixel[3];
-                    into[x] = slot == 3 ? (byte)a : a == 0 ? (byte)0 : (byte)Math.Min(255, (pixel[slot] * 255 + a / 2) / a);
-                }
+                return;
             }
+            for (int x = 0, p = slot * sampleBytes, o = 0; x < width; x++, p += pixelBytes)
+                for (int b = 0; b < sampleBytes; b++) into[o++] = row[p + b];
         }
 
         private ImmutableArray<PhotoshopChannelToWrite> EmptyChannels()

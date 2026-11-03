@@ -1,5 +1,8 @@
 using System.Buffers.Binary;
 using System.IO.Compression;
+using System.Numerics;
+using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
 
 namespace Nexaflow.Media.Photoshop;
 
@@ -92,9 +95,16 @@ public static class PhotoshopChannels
     public static void DecodeMerged(Stream stream, long offset, int channels, int width, int height, int sampleBytes, bool isLarge,
                                     Action<int, int, ReadOnlySpan<byte>> row)
     {
-        stream.Position = offset;
-        var compression = (PhotoshopCompression)ReadUInt16(stream);
-        DecodeRows(stream, compression, stream.Length - stream.Position, channels, width, height, sampleBytes, isLarge, row);
+        try
+        {
+            stream.Position = offset;
+            var compression = (PhotoshopCompression)ReadUInt16(stream);
+            DecodeRows(stream, compression, stream.Length - stream.Position, channels, width, height, sampleBytes, isLarge, row);
+        }
+        catch (EndOfStreamException ex)
+        {
+            throw new InvalidDataException("The Photoshop file ends before its merged image does.", ex);
+        }
     }
 
     private static void DecodeRows(Stream stream, PhotoshopCompression compression, long length, int channels, int width, int height, int sampleBytes,
@@ -152,7 +162,14 @@ public static class PhotoshopChannels
     private static void ToMachine(Span<byte> line, int sampleBytes)
     {
         if (sampleBytes == 1 || !BitConverter.IsLittleEndian) return;
-        for (int i = 0; i < line.Length; i += sampleBytes) line.Slice(i, sampleBytes).Reverse();
+        if (sampleBytes == 2)
+        {
+            var samples = MemoryMarshal.Cast<byte, ushort>(line);
+            BinaryPrimitives.ReverseEndianness(samples, samples);
+            return;
+        }
+        var wide = MemoryMarshal.Cast<byte, uint>(line);
+        BinaryPrimitives.ReverseEndianness(wide, wide);
     }
 
     /// <summary>A predicted row — each sample the step from the one before; a float row split into byte planes and stepped
@@ -234,25 +251,14 @@ public static class PhotoshopChannels
     /// </summary>
     public static byte[] Encode(int width, int height, int sampleBytes, bool isLarge, PhotoshopRowSource rows)
     {
-        using var output = new MemoryStream();
-        if (sampleBytes == 1)
+        using var encoder = new PhotoshopChannelEncoder(width, height, sampleBytes, isLarge);
+        var line = new byte[width * sampleBytes];
+        for (int y = 0; y < height; y++)
         {
-            WriteUInt16(output, (ushort)PhotoshopCompression.Rle);
-            WriteRle(output, 1, width, height, 1, isLarge, (_, y, into) => rows(y, into));
+            rows(y, line);
+            encoder.Add(line);
         }
-        else
-        {
-            WriteUInt16(output, (ushort)PhotoshopCompression.ZipPredicted);
-            using var zlib = new ZLibStream(output, CompressionLevel.Optimal, leaveOpen: true);
-            var line = new byte[width * sampleBytes];
-            for (int y = 0; y < height; y++)
-            {
-                rows(y, line);
-                Predicted(line, width, sampleBytes);
-                zlib.Write(line);
-            }
-        }
-        return output.ToArray();
+        return encoder.Finish();
     }
 
     /// <summary>
@@ -282,53 +288,79 @@ public static class PhotoshopChannels
     private static void WriteRle(Stream output, int channels, int width, int height, int sampleBytes, bool isLarge, PhotoshopChannelRows rows)
     {
         var line = new byte[width * sampleBytes];
-        var packed = new List<byte[]>(channels * height);
+        var packed = new PackedRows(channels * height);
         for (int c = 0; c < channels; c++)
             for (int y = 0; y < height; y++)
             {
                 rows(c, y, line);
-                packed.Add(PackBits(line));
+                packed.Add(line);
             }
-        foreach (var row in packed)
-        {
-            if (isLarge) WriteUInt32(output, (uint)row.Length);
-            else WriteUInt16(output, checked((ushort)row.Length));
-        }
-        foreach (var row in packed) output.Write(row);
+        packed.WriteLengths(output, isLarge);
+        packed.WritePacked(output);
     }
 
     /// <summary>A row as PackBits: runs of three or more alike repeated, the rest literal, at most 128 a run.</summary>
     public static byte[] PackBits(ReadOnlySpan<byte> row)
     {
-        var packed = new List<byte>(row.Length + row.Length / 128 + 1);
-        int i = 0;
+        var packed = new byte[PackedBound(row.Length)];
+        return packed.AsSpan(0, PackBits(row, packed)).ToArray();
+    }
+
+    /// <summary>The most bytes a row of <paramref name="length"/> bytes packs to: at worst every 128 cost one more, a literal
+    /// run's header.</summary>
+    public static int PackedBound(int length) => length + (length + 127) / 128;
+
+    /// <summary>
+    /// A row as PackBits into <paramref name="into"/>, which holds at least <see cref="PackedBound"/> bytes; the bytes written.
+    /// Runs of three or more alike are repeated, the rest literal, at most 128 a run — both found many bytes at a time.
+    /// </summary>
+    public static int PackBits(ReadOnlySpan<byte> row, Span<byte> into)
+    {
+        int i = 0, o = 0;
         while (i < row.Length)
         {
-            int run = 1;
-            while (i + run < row.Length && run < 128 && row[i + run] == row[i]) run++;
+            byte value = row[i];
+            int most = Math.Min(128, row.Length - i);
+            int run = row.Slice(i, most).IndexOfAnyExcept(value);
+            if (run < 0) run = most;
             if (run >= 3)
             {
-                packed.Add((byte)(sbyte)(1 - run));
-                packed.Add(row[i]);
+                into[o++] = (byte)(sbyte)(1 - run);
+                into[o++] = value;
                 i += run;
                 continue;
             }
-            int start = i, literal = 0;
-            while (i < row.Length && literal < 128)
-            {
-                if (i + 2 < row.Length && row[i] == row[i + 1] && row[i] == row[i + 2]) break;
-                i++;
-                literal++;
-            }
-            packed.Add((byte)(literal - 1));
-            for (int k = start; k < start + literal; k++) packed.Add(row[k]);
+            // A literal runs to the next three alike, or 128 bytes; none starts here, so it holds at least one.
+            int literal = NextTriple(row, i, Math.Min(row.Length, i + 128)) - i;
+            into[o++] = (byte)(literal - 1);
+            row.Slice(i, literal).CopyTo(into[o..]);
+            o += literal;
+            i += literal;
         }
-        return [.. packed];
+        return o;
+    }
+
+    /// <summary>The first place from <paramref name="from"/>, before <paramref name="end"/>, where three bytes alike begin —
+    /// sixteen places compared at a time — or <paramref name="end"/>.</summary>
+    private static int NextTriple(ReadOnlySpan<byte> row, int from, int end)
+    {
+        int j = from;
+        for (; j < end && j + 2 + Vector128<byte>.Count <= row.Length; j += Vector128<byte>.Count)
+        {
+            var first = Vector128.Create(row.Slice(j, Vector128<byte>.Count));
+            var second = Vector128.Create(row.Slice(j + 1, Vector128<byte>.Count));
+            var third = Vector128.Create(row.Slice(j + 2, Vector128<byte>.Count));
+            uint alike = (Vector128.Equals(first, second) & Vector128.Equals(second, third)).ExtractMostSignificantBits();
+            if (alike != 0) return Math.Min(end, j + BitOperations.TrailingZeroCount(alike));
+        }
+        for (; j < end; j++)
+            if (j + 2 < row.Length && row[j] == row[j + 1] && row[j] == row[j + 2]) return j;
+        return end;
     }
 
     /// <summary>A row of samples in the machine's order as ZIP prediction stores it, in place: big-endian, each the step from
     /// the one before — a float row split into its byte planes and stepped byte by byte.</summary>
-    private static void Predicted(Span<byte> line, int width, int sampleBytes)
+    internal static void Predict(Span<byte> line, int width, int sampleBytes)
     {
         switch (sampleBytes)
         {
@@ -450,5 +482,102 @@ public static class PhotoshopChannels
         public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
         public override void SetLength(long value) => throw new NotSupportedException();
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+}
+
+/// <summary>Rows packed as PackBits one after another in one buffer, and each one's length — as an RLE channel holds
+/// them: every length, then every row.</summary>
+internal sealed class PackedRows(int rows)
+{
+    private readonly int[] _lengths = new int[rows];
+    private byte[] _bytes = [];
+    private int _count, _used;
+
+    public int Count => _count;
+
+    public void Add(ReadOnlySpan<byte> row)
+    {
+        int needed = _used + PhotoshopChannels.PackedBound(row.Length);
+        if (needed > _bytes.Length) Array.Resize(ref _bytes, Math.Max(needed, (int)Math.Min(Array.MaxLength, 2L * _bytes.Length)));
+        int length = PhotoshopChannels.PackBits(row, _bytes.AsSpan(_used));
+        _lengths[_count++] = length;
+        _used += length;
+    }
+
+    public void WriteLengths(Stream output, bool isLarge)
+    {
+        for (int i = 0; i < _count; i++)
+        {
+            if (isLarge) PhotoshopChannels.WriteUInt32(output, (uint)_lengths[i]);
+            else PhotoshopChannels.WriteUInt16(output, checked((ushort)_lengths[i]));
+        }
+    }
+
+    public void WritePacked(Stream output) => output.Write(_bytes, 0, _used);
+}
+
+/// <summary>
+/// A layer's channel compressed as its rows are handed in, top first, in the machine's order: 8-bit as RLE, which every
+/// reader reads; 16 and 32 bits as ZIP with prediction, as Photoshop writes them. Only what is compressed is held, so a
+/// layer's channels can be compressed side by side from one read of its pixels.
+/// </summary>
+public sealed class PhotoshopChannelEncoder : IDisposable
+{
+    private readonly int _width, _height, _sampleBytes;
+    private readonly bool _large;
+    private readonly PackedRows? _packed;
+    private readonly MemoryStream? _zipped;
+    private readonly System.IO.Compression.ZLibStream? _zlib;
+    private readonly byte[] _line;
+    private int _rows;
+
+    public PhotoshopChannelEncoder(int width, int height, int sampleBytes, bool isLarge)
+    {
+        (_width, _height, _sampleBytes, _large) = (width, height, sampleBytes, isLarge);
+        _line = new byte[width * sampleBytes];
+        if (sampleBytes == 1)
+        {
+            _packed = new PackedRows(height);
+            return;
+        }
+        _zipped = new MemoryStream();
+        PhotoshopChannels.WriteUInt16(_zipped, (ushort)PhotoshopCompression.ZipPredicted);
+        _zlib = new System.IO.Compression.ZLibStream(_zipped, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true);
+    }
+
+    /// <summary>The next row's samples, <c>width</c> of them.</summary>
+    public void Add(ReadOnlySpan<byte> row)
+    {
+        if (_rows++ >= _height) throw new InvalidOperationException("The channel has all its rows.");
+        if (_packed is not null)
+        {
+            _packed.Add(row[.._line.Length]);
+            return;
+        }
+        row[.._line.Length].CopyTo(_line);
+        PhotoshopChannels.Predict(_line, _width, _sampleBytes);
+        _zlib!.Write(_line);
+    }
+
+    /// <summary>The channel compressed, its compression first; every row must have been handed in.</summary>
+    public byte[] Finish()
+    {
+        if (_rows != _height) throw new InvalidOperationException($"The channel has {_rows} of its {_height} rows.");
+        if (_packed is null)
+        {
+            _zlib!.Dispose();
+            return _zipped!.ToArray();
+        }
+        using var output = new MemoryStream();
+        PhotoshopChannels.WriteUInt16(output, (ushort)PhotoshopCompression.Rle);
+        _packed.WriteLengths(output, _large);
+        _packed.WritePacked(output);
+        return output.ToArray();
+    }
+
+    public void Dispose()
+    {
+        _zlib?.Dispose();
+        _zipped?.Dispose();
     }
 }
