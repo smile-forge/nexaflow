@@ -36,21 +36,29 @@ public static class LensBlur
     /// <summary>Where each pixel's layers are kept while a picture is blurred.</summary>
     private static readonly System.Buffers.ArrayPool<short> Layers = System.Buffers.ArrayPool<short>.Shared;
 
+    /// <summary>The least nearness out of the band its blur is scaled to: a band over nearly the whole depth leaves little to
+    /// blur, and blurs that little no more than this much out would be.</summary>
+    private const float LeastReach = 0.1f;
+
     /// <summary>
-    /// <paramref name="rgba"/> — premultiplied linear light, four values a pixel — blurred in place as a lens focused at nearness
-    /// <paramref name="focus"/> blurs it: sharp within <paramref name="range"/> of it, then by <paramref name="maxRadius"/> pixels
-    /// for each unit of nearness further, through <paramref name="shape"/>. Its working planes come from a pool, so a redraw a
+    /// <paramref name="rgba"/> — premultiplied linear light, four values a pixel — blurred in place as a lens focused on the band of
+    /// nearness from <paramref name="sharpFrom"/> to <paramref name="sharpTo"/> blurs it: sharp within the band, then more the
+    /// farther out of it, up to <paramref name="maxRadius"/> pixels at what lies farthest out of it, through <paramref name="shape"/>. Its working planes come from a pool, so a redraw a
     /// slider drag makes allocates nothing the size of the picture.
     /// </summary>
     /// <param name="rgba">The picture, in its first <c>width × height × 4</c> values; what follows is not touched.</param>
     /// <param name="nearness">Each pixel's nearness (<see cref="SceneDepthPlane"/>), 1 nearest, in its first <c>width × height</c> values.</param>
-    public static void Apply(float[] rgba, float[] nearness, int width, int height, float focus, float range, float maxRadius, BokehShape shape,
+    public static void Apply(float[] rgba, float[] nearness, int width, int height, float sharpFrom, float sharpTo, float maxRadius, BokehShape shape,
                              CancellationToken ct = default)
     {
         int count = width * height;
         if (rgba.Length < count * 4 || nearness.Length < count) throw new ArgumentException("The picture and its depth are not the size given.");
         if (maxRadius < 0.5f) return;
 
+        // The blur grows with nearness out of the band, as a lens's does, scaled so what lies farthest out of it — the nearest
+        // part or the farthest — is blurred by maxRadius wherever the band is: focused far, the near is as blurred as the far is
+        // focused near.
+        float perUnit = maxRadius / Math.Max(Math.Max(sharpFrom, 1 - sharpTo), LeastReach);
         var rungs = Rungs(maxRadius);
         int top = rungs.Length - 1, layers = 2 * top + 1;
         // Each pixel's two shares, by layer: layer `top` is the focus's rung, below it the rungs behind the focus from the widest
@@ -62,8 +70,8 @@ public static class LensBlur
         {
             for (int i = y * width, end = i + width; i < end; i++)
             {
-                float offset = nearness[i] - focus;
-                float radius = Math.Max(0, Math.Abs(offset) - range) * maxRadius;
+                float n = nearness[i], offset = n > sharpTo ? n - sharpTo : n < sharpFrom ? n - sharpFrom : 0;
+                float radius = Math.Abs(offset) * perUnit;
                 int k = Rung(rungs, radius);
                 float toNext = k < top ? (radius - rungs[k]) / (rungs[k + 1] - rungs[k]) : 0;
                 int towards = offset > 0 ? 1 : -1;

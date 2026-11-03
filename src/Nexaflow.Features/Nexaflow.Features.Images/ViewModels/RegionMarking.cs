@@ -96,6 +96,10 @@ public interface IDocumentSelection
     /// where the active layer is no picture layer or its depth cannot be had.
     /// </summary>
     Task<TiledCoverage?> ReachOfDistanceAsync(double near, double far, double softness);
+
+    /// <summary>The active picture layer's scene depth — kept, or estimated the first time; null where the active layer is no
+    /// picture layer or its depth cannot be had.</summary>
+    Task<SceneDepthPlane?> SceneDepthAsync();
 }
 
 /// <summary>
@@ -216,6 +220,37 @@ public sealed partial class RegionMarking : ObservableObject
     /// <summary>A span of distance is being worked out.</summary>
     [ObservableProperty] private bool _isReadingDistance;
 
+    /// <summary>How much of the picture lies at each step of distance, nearest first — what the strip under the span shows; null
+    /// until the picture's depth is read.</summary>
+    [ObservableProperty] private IReadOnlyList<double>? _distanceShares;
+
+    private SceneDepthPlane? _sharesOf;
+
+    /// <summary>
+    /// The depth selecting by distance works by, read — or estimated, the first time — as soon as selecting by distance is
+    /// chosen, so the strip shows the picture's distances before anything is selected.
+    /// </summary>
+    public async Task ShowDistancesAsync()
+    {
+        try
+        {
+            var plane = _document is { } document ? await document.SceneDepthAsync()
+                      : _photo is { } photo && _readDepth is not null ? await DepthAsync(photo) : null;
+            if (plane is not null) Shared(plane);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException)
+        {
+            // no depth to be had: the strip stays bare, and selecting says why
+        }
+    }
+
+    private void Shared(SceneDepthPlane plane)
+    {
+        if (ReferenceEquals(plane, _sharesOf)) return;
+        _sharesOf = plane;
+        DistanceShares = plane.Shares();
+    }
+
     /// <summary>The selection drawn by hand, as a recipe keeps it; null where nothing has been drawn or refined.</summary>
     public RecipeRegion? Region => _steps.Count == 0 ? null : new RecipeRegion { Steps = [.. _steps] };
 
@@ -245,6 +280,7 @@ public sealed partial class RegionMarking : ObservableObject
         _photo = photo;
         _upright = null;
         _depth = null;
+        (_sharesOf, DistanceShares) = (null, null);
         Clear();
     }
 
@@ -256,6 +292,7 @@ public sealed partial class RegionMarking : ObservableObject
     {
         if (ReferenceEquals(document, _document)) return;
         _document = document;
+        (_sharesOf, DistanceShares) = (null, null);
         _steps.Clear();
         _draft.Clear();
         Changed();
@@ -347,6 +384,7 @@ public sealed partial class RegionMarking : ObservableObject
             try
             {
                 var plane = await DepthAsync(photo);
+                Shared(plane);
                 var photoSize = new SKSizeI((int)Math.Round(size.Width), (int)Math.Round(size.Height));
                 reached = await Task.Run(() => RegionSceneDepths.ReachOn(span, plane, photoSize));
             }

@@ -152,6 +152,17 @@
           "type": "code",
           "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/SceneDepth/SceneDepthFocus.cs",
           "class": "SceneDepthFocus"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/DepthStrip.cs",
+          "class": "DepthStrip"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/SceneDepthTools.cs",
+          "class": "SceneDepthTools",
+          "method": "FocusOnAsync"
         }
       ],
       "concerns": {
@@ -161,6 +172,18 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSceneDepthTests.cs",
             "class": "ImageSceneDepthTests",
             "method": "ALensBlur_IsSharpAtItsFocus_AndBlurredFarFromIt_OnScreenAndSaved"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSceneDepthTests.cs",
+            "class": "ImageSceneDepthTests",
+            "method": "FocusingOnARectangleOrAnOutline_KeepsAllOfItSharp"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSceneDepthTests.cs",
+            "class": "ImageSceneDepthTests",
+            "method": "TheBand_IsToldInDistance_AndEverythingInItIsKeptSharp"
           }
         ]
       }
@@ -299,10 +322,33 @@
           }
         ]
       }
+    },
+    "vcommon-range-slider": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Controls/RangeSlider.cs",
+          "class": "RangeSlider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Controls/RangeSlider.cs",
+          "class": "RangeThumb"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Controls/RangeSliderTests.cs",
+            "class": "RangeSliderTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 19,
+  "changed_sets": 21,
   "touched_nodes": [
     "images-edit-ai-add-haze",
     "images-edit-ai-blur-background",
@@ -312,6 +358,7 @@
     "images-scene-depth-layers",
     "images-scene-depth-lens-blur",
     "images-selection-distance",
-    "scene-depth"
+    "scene-depth",
+    "vcommon-range-slider"
   ]
 }

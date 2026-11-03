@@ -159,12 +159,22 @@ public partial class ImageEditView : UserControl
     {
         _viewer?.Editor.BeginGesture();
         if (IsWithin(e.OriginalSource, StraightenSlider)) _overlay.ShowAlignmentGrid = true;
+        if (IsWithin(e.OriginalSource, DepthFocusBand)) ShowWhatIsInFocus();
     }
 
     private void Slider_DragCompleted(object sender, DragCompletedEventArgs e)
     {
         _overlay.ShowAlignmentGrid = false;
         _viewer?.Editor.EndGesture();
+        ShowWhatIsInFocus();
+    }
+
+    /// <summary>The band kept sharp pointed at or left: what it keeps sharp shows on the picture while it is pointed at or dragged.</summary>
+    private void DepthFocusBand_Pointed(object sender, MouseEventArgs e) => ShowWhatIsInFocus();
+
+    private void ShowWhatIsInFocus()
+    {
+        if (_viewer is { } viewer) viewer.Depth.ShowsInFocus = DepthFocusBand.IsMouseOver || DepthFocusBand.IsMouseCaptureWithin;
     }
 
     private static bool IsWithin(object source, DependencyObject ancestor)

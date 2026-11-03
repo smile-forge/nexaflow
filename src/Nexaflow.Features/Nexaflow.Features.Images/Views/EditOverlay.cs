@@ -10,6 +10,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Nexaflow.Features.Images.Editing.Selection;
 using System.Windows.Media.Animation;
+using Nexaflow.Features.Images.Editing.SceneDepth;
 
 namespace Nexaflow.Features.Images.Views;
 
@@ -42,7 +43,7 @@ public sealed class EditOverlay : FrameworkElement
     private RegionSelection? _tintFor;
     private BitmapSource? _tint;
 
-    private enum Gesture { None, Crop, Level, Markup, CutOut, Erase, Marquee, Lasso }
+    private enum Gesture { None, Crop, Level, Markup, CutOut, Erase, Marquee, Lasso, FocusPress, FocusRectangle, FocusLasso }
 
     // A marquee or freehand lasso being drawn: where it began, where the pointer is, the keys held as it began and the mode
     // they gave it; the freehand outline so far, in the photo's pixels.
@@ -135,8 +136,8 @@ public sealed class EditOverlay : FrameworkElement
         March(marching);
         if (editor.IsRetouchTool)
             DrawErase(dc, editor.EraseMarks);
-        if (_viewer!.Depth.ChoosesFocus && _viewer.Depth.Focus is { } focus)
-            DrawFocus(dc, focus);
+        if (_viewer!.Depth.ChoosesFocus)
+            DrawFocusing(dc);
     }
 
     private void DrawCrop(DrawingContext dc, Rect crop, bool alignment)
@@ -176,18 +177,58 @@ public sealed class EditOverlay : FrameworkElement
         dc.DrawLine(new Pen(Brush("AccentBrush"), 1.5 * px), _levelFrom, _levelTo);
     }
 
-    /// <summary>Where the lens blur is focused: a ring with a cross in it, over the photo where the focus lies.</summary>
-    private void DrawFocus(DrawingContext dc, MarkupPoint focus)
+    /// <summary>What a lens blur keeps sharp, shown while it is asked for by dimming the rest of the photo as a crop dims what it
+    /// cuts away; and a focus being drawn, as it will be taken.</summary>
+    private void DrawFocusing(DrawingContext dc)
     {
         if (_viewer?.Canvas is not { } canvas) return;
-        double px = 1 / _zoom, arm = MarkerSize * px;
-        var at = Wpf(canvas.SourceToCanvas.MapPoint(new SKPoint((float)focus.X, (float)focus.Y)));
-        foreach (var pen in new[] { new Pen(Brush("OnAccentBrush"), 3 * px), new Pen(Brush("AccentBrush"), 1.5 * px) })
+        var depth = _viewer.Depth;
+        if (depth.ShowsInFocus && depth.Plane is { } plane && canvas.Recipe.LensBlur is { } blur)
         {
-            dc.DrawEllipse(null, pen, at, arm, arm);
-            dc.DrawLine(pen, new Point(at.X - arm / 2, at.Y), new Point(at.X + arm / 2, at.Y));
-            dc.DrawLine(pen, new Point(at.X, at.Y - arm / 2), new Point(at.X, at.Y + arm / 2));
+            dc.PushTransform(Transform(canvas.SourceToCanvas));
+            dc.DrawImage(InFocus(plane, blur.Near, blur.Far), new Rect(0, 0, canvas.Source.Width, canvas.Source.Height));
+            dc.Pop();
         }
+        double px = 1 / _zoom;
+        Geometry? drawing = _gesture switch
+        {
+            Gesture.FocusRectangle => new RectangleGeometry(MarqueeRect()),
+            Gesture.FocusLasso when _freehand.Count > 1 => Polyline(_freehand.Select(p => Wpf(canvas.SourceToCanvas.MapPoint(new SKPoint((float)p.X, (float)p.Y)))), closed: false),
+            _ => null,
+        };
+        if (drawing is null) return;
+        dc.DrawGeometry(null, new Pen(Brush("OnAccentBrush"), 3 * px), drawing);
+        dc.DrawGeometry(null, new Pen(Brush("AccentBrush"), 1.5 * px) { DashStyle = new DashStyle([4, 3], 0) }, drawing);
+    }
+
+    private (SceneDepthPlane Plane, double Near, double Far)? _inFocusFor;
+    private BitmapSource? _inFocus;
+
+    /// <summary>The crop's scrim over every part of <paramref name="plane"/> outside <paramref name="near"/> to <paramref name="far"/>
+    /// of its distance, at the plane's own size — what is in focus left clear, which reads the same over any colour; the last one
+    /// kept, so a redraw with the band where it was draws it again for nothing.</summary>
+    private BitmapSource InFocus(SceneDepthPlane plane, double near, double far)
+    {
+        if (_inFocusFor is { } kept && ReferenceEquals(kept.Plane, plane) && kept.Near == near && kept.Far == far && _inFocus is not null) return _inFocus;
+        var colour = (Brush("ScrimBrush") as SolidColorBrush)?.Color ?? Colors.Transparent;
+        // The band in nearness, which falls as distance grows, so no distance need be worked out a pixel.
+        float from = plane.NearnessAt(far), to = plane.NearnessAt(near);
+        var nearness = plane.Nearness;
+        var pixels = new byte[plane.Width * plane.Height * 4];
+        byte alpha = (byte)Math.Round(DimOpacity * 255);
+        byte b = (byte)(colour.B * alpha / 255), g = (byte)(colour.G * alpha / 255), r = (byte)(colour.R * alpha / 255);
+        for (int i = 0; i < nearness.Length; i++)
+        {
+            if (nearness[i] >= from && nearness[i] <= to) continue;
+            pixels[i * 4] = b;
+            pixels[i * 4 + 1] = g;
+            pixels[i * 4 + 2] = r;
+            pixels[i * 4 + 3] = alpha;
+        }
+        var dimmed = BitmapSource.Create(plane.Width, plane.Height, 96, 96, PixelFormats.Pbgra32, null, pixels, plane.Width * 4);
+        dimmed.Freeze();
+        (_inFocusFor, _inFocus) = ((plane, near, far), dimmed);
+        return dimmed;
     }
 
     private void DrawSelection(DrawingContext dc, SKPoint[] outline)
@@ -439,9 +480,27 @@ public sealed class EditOverlay : FrameworkElement
         }
         else if (editor.IsAdjustTool && _viewer.Depth.ChoosesFocus && canvas.SourceToCanvas.TryInvert(out var focusToSource))
         {
+            var depth = _viewer.Depth;
             var under = focusToSource.MapPoint(p);
-            _ = _viewer.Depth.FocusAtAsync(new MarkupPoint(under.X, under.Y));
-            e.Handled = true;
+        
+            switch (depth.FocusWay)
+            {
+                case LensFocusWay.Rectangle:
+                    _regionFrom = _regionTo = at;
+                    Begin(Gesture.FocusRectangle, e);
+                    break;
+                case LensFocusWay.Lasso:
+                    _freehand.Clear();
+                    _freehand.Add(new MarkupPoint(under.X, under.Y));
+                    Begin(Gesture.FocusLasso, e);
+                    break;
+                default:
+                    // Held, the press shows what the focus keeps sharp.
+                    depth.ShowsInFocus = true;
+                    _ = depth.FocusAtAsync(new MarkupPoint(under.X, under.Y));
+                    Begin(Gesture.FocusPress, e);
+                    break;
+            }
         }
         else if (editor.DrawsMarquee)
         {
@@ -516,8 +575,16 @@ public sealed class EditOverlay : FrameworkElement
                 _cutDragging |= (at - _cutFrom).Length * _zoom > DragReach;
                 if (_cutDragging) InvalidateVisual();
                 break;
-            case Gesture.Marquee:
+            case Gesture.Marquee or Gesture.FocusRectangle:
                 _regionTo = at;
+                InvalidateVisual();
+                break;
+            case Gesture.FocusLasso when _viewer?.Canvas is { } canvas && canvas.SourceToCanvas.TryInvert(out var toPhoto):
+                var outlined = toPhoto.MapPoint(Sk(at));
+                double spacing = StrokeStep / _zoom * CropGeometry.SourcePixelsPerCanvasPixel(canvas.SourceToCanvas);
+                var previous = _freehand[^1];
+                if (Math.Abs(outlined.X - previous.X) < spacing && Math.Abs(outlined.Y - previous.Y) < spacing) break;
+                _freehand.Add(new MarkupPoint(outlined.X, outlined.Y));
                 InvalidateVisual();
                 break;
             case Gesture.Lasso when _viewer?.Canvas is { } canvas && canvas.DocumentToCanvas.TryInvert(out var toSource):
@@ -622,6 +689,18 @@ public sealed class EditOverlay : FrameworkElement
                 _freehand.Clear();
                 InvalidateVisual();
                 break;
+            case Gesture.FocusPress:
+                if (_viewer is { } pressed) pressed.Depth.ShowsInFocus = false;
+                break;
+            case Gesture.FocusRectangle:
+                if (!cancelled) FocusRectangleReleased();
+                InvalidateVisual();
+                break;
+            case Gesture.FocusLasso:
+                if (!cancelled && _freehand.Count >= 3 && _viewer is { } traced) _ = traced.Depth.FocusOnAsync(new RegionPolygon { Points = [.. _freehand] });
+                _freehand.Clear();
+                InvalidateVisual();
+                break;
         }
     }
 
@@ -652,6 +731,20 @@ public sealed class EditOverlay : FrameworkElement
             return;
         }
         editor.RegionMarks.Add(MarqueeIn(MarqueeRect(), editor.RegionMarks.Marquee, _regionMode, canvas.DocumentToCanvas, toSource));
+    }
+
+    /// <summary>A focus rectangle let go: the lens focused on all of it — or, barely dragged, on the point pressed.</summary>
+    private void FocusRectangleReleased()
+    {
+
+        if (_viewer?.Canvas is not { } canvas || !canvas.SourceToCanvas.TryInvert(out var toPhoto)) return;
+        if ((_regionTo - _regionFrom).Length * _zoom <= DragReach)
+        {
+            var under = toPhoto.MapPoint(Sk(_regionFrom));
+            _ = _viewer.Depth.FocusAtAsync(new MarkupPoint(under.X, under.Y));
+            return;
+        }
+        _ = _viewer.Depth.FocusOnAsync(MarqueeIn(MarqueeRect(), MarqueeShape.Rectangle, RegionMode.Replace, canvas.SourceToCanvas, toPhoto));
     }
 
     /// <summary>The marquee as dragged: from where it began to the pointer — square with Shift, and out from where it began

@@ -166,12 +166,12 @@ public class ImageSceneDepthTests
             nearness[i] = (i % w) / (float)(w - 1);
         }
         var blurred = (float[])rgba.Clone();
-        LensBlur.Apply(blurred, nearness, w, h, focus: 1f, range: 0f, maxRadius: 8, BokehShape.Circle);
+        LensBlur.Apply(blurred, nearness, w, h, sharpFrom: 1f, sharpTo: 1f, maxRadius: 8, BokehShape.Circle);
         for (int i = 0; i < w * h * 4; i++) Assert.AreEqual(rgba[i], blurred[i], 1e-4f, "blurring a flat picture leaves it flat: nothing lost at the layers' seams");
 
         rgba[(15 * w + 39) * 4] = 1f;   // a bright pixel in focus, at the near edge
         blurred = (float[])rgba.Clone();
-        LensBlur.Apply(blurred, nearness, w, h, focus: 1f, range: 0.02f, maxRadius: 8, BokehShape.Hexagon);
+        LensBlur.Apply(blurred, nearness, w, h, sharpFrom: 0.98f, sharpTo: 1f, maxRadius: 8, BokehShape.Hexagon);
         Assert.AreEqual(1f, blurred[(15 * w + 39) * 4], 1e-3f, "what is in focus stays sharp");
     }
 
@@ -192,7 +192,7 @@ public class ImageSceneDepthTests
                 nearness[i] = 1 - x / (float)(w - 1);
             }
         var blurred = rgba;
-        LensBlur.Apply(blurred, nearness, w, h, focus: 1f, range: 0f, maxRadius: 10, BokehShape.Circle);
+        LensBlur.Apply(blurred, nearness, w, h, sharpFrom: 1f, sharpTo: 1f, maxRadius: 10, BokehShape.Circle);
         double Swing(int column)
         {
             double sum = 0;
@@ -202,6 +202,70 @@ public class ImageSceneDepthTests
         double near = Swing(2), middle = Swing(40), far = Swing(100);
         Assert.IsTrue(near > middle && middle > far, $"contrast falls with distance from the focus: {near:0.00}, {middle:0.00}, {far:0.00}");
         Assert.IsTrue(middle > far * 1.5 || middle < near * 0.75, "the middle distance is blurred between the two, not as either");
+    }
+
+    [TestMethod]
+    [CoversNode("images-scene-depth-lens-blur")]
+    public void TheBand_IsToldInDistance_AndEverythingInItIsKeptSharp()
+    {
+        var plane = SceneDepthPlane.FromDisparity([10f, 5f, 1f, 0.1f, 0.01f], 5, 1);
+        foreach (var distance in new[] { 0.0, 0.1, 0.25, 0.5, 0.75, 0.99 })
+            Assert.AreEqual(distance, plane.Distance(plane.NearnessAt(distance)), 1e-4, "a distance turned to nearness and back is itself");
+        Assert.AreEqual(1f, plane.NearnessAt(0), "the nearest part is the nearest");
+
+        // A band across the middle of a ramp: everything in it, at either end, stays as it was.
+        int w = 60, h = 20;
+        var nearness = new float[w * h];
+        var rgba = new float[w * h * 4];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                int i = y * w + x;
+                nearness[i] = 1 - x / (float)(w - 1);
+                float v = (x + y) % 2;
+                rgba[i * 4] = rgba[i * 4 + 1] = rgba[i * 4 + 2] = v;
+                rgba[i * 4 + 3] = 1;
+            }
+        var blurred = (float[])rgba.Clone();
+        LensBlur.Apply(blurred, nearness, w, h, sharpFrom: 0.4f, sharpTo: 0.6f, maxRadius: 8, BokehShape.Circle);
+        double Swing(float[] p, int column) => Enumerable.Range(2, h - 4).Max(y => p[(y * w + column) * 4]) - Enumerable.Range(2, h - 4).Min(y => p[(y * w + column) * 4]);
+        foreach (int column in new[] { 27, 30, 33 })
+            Assert.AreEqual(1, Swing(blurred, column), 0.05, $"column {column}, in the band, keeps its checks");
+        Assert.IsTrue(Swing(blurred, 3) < 0.5 && Swing(blurred, 56) < 0.5, "what is nearer and farther than the band is blurred");
+    }
+
+    [TestMethod]
+    [CoversNode("images-scene-depth-lens-blur")]
+    public async Task FocusingOnARectangleOrAnOutline_KeepsAllOfItSharp()
+    {
+        var vm = Editing();
+        OnUi(() => vm.Depth.LensBlur = true);
+        var session = vm.CurrentSession!;
+        Until(() => session.SceneDepth is not null);
+        var plane = session.SceneDepth!;
+        var photo = new SKSizeI(Wide, High);
+        double At(double x) => plane.Distance(plane.At(x, 80, photo));
+
+        await _ui.Invoke(() => vm.Depth.FocusOnAsync(new RegionRectangle(100, 40, 160, 120)));
+        var blur = session.Recipe.LensBlur!;
+        Assert.IsTrue(blur.Near <= At(110) && At(150) <= blur.Far, $"the rectangle's middle is all in the band: {blur.Near:0.000}-{blur.Far:0.000}");
+        Assert.IsTrue(At(40) < blur.Near && blur.Far < At(220), "and what lies well outside it is not");
+
+        await _ui.Invoke(() => vm.Depth.FocusOnAsync(new RegionPolygon { Points = [new(20, 20), new(60, 20), new(60, 140), new(20, 140)] }));
+        blur = session.Recipe.LensBlur!;
+        Assert.IsTrue(blur.Near <= At(30) && At(50) <= blur.Far && blur.Far < At(120), $"an outline focuses on what it holds: {blur.Near:0.000}-{blur.Far:0.000}");
+    }
+
+    [TestMethod]
+    [CoversNode("images-scene-depth")]
+    public void TheStrip_TellsHowMuchOfThePictureLiesAtEachDistance()
+    {
+        var plane = SceneDepthPlane.FromDisparity([10f, 10f, 10f, 0.01f], 4, 1);
+        var shares = plane.Shares();
+        Assert.AreEqual(SceneDepthPlane.ShareSteps, shares.Length);
+        Assert.AreEqual(1, shares[0], "the fullest step is 1: three of the four parts are the nearest");
+        Assert.AreEqual(Math.Sqrt(1.0 / 3), shares[^1], 1e-9, "and the farthest holds a third as much, drawn by its square root to be seen");
+        Assert.AreEqual(0, shares[SceneDepthPlane.ShareSteps / 2], "nothing lies between");
     }
 
     [TestMethod]
@@ -232,12 +296,16 @@ public class ImageSceneDepthTests
         Assert.IsNotNull(session.SceneDepth, "the depth is estimated and drawn from");
         Assert.AreEqual(1, _depth.Asks, "estimated once");
 
+        OnUi(() => vm.Depth.Aperture = 90);
+        OnUi(() => vm.Depth.FocusFar = 4);
         foreach (var x in new[] { 10.0, 120.0, 230.0, 60.0 })
             await _ui.Invoke(() => vm.Depth.FocusAtAsync(new MarkupPoint(x, 80)));
-        OnUi(() => vm.Depth.Aperture = 90);
-        OnUi(() => vm.Depth.FocusRange = 20);
         Until(() => session.SceneDepth is not null);
-        Assert.AreEqual(60, session.Recipe.LensBlur!.FocusX, "the last click focuses");
+        var plane = session.SceneDepth!;
+        double clicked = plane.Distance(plane.FocusAt(60, 80, new SKSizeI(Wide, High)));
+        var blur = session.Recipe.LensBlur!;
+        Assert.IsTrue(blur.Near <= clicked && clicked <= blur.Far, $"the last click focuses: {clicked:0.000} in {blur.Near:0.000}-{blur.Far:0.000}");
+        Assert.AreEqual(0.04, blur.Far - blur.Near, 1e-9, "a click moves the band, as wide as it was");
         Assert.AreEqual(1, _depth.Asks, "moving the focus and dragging the aperture draw the picture again, never the depth");
 
         // Another editor on the same photo finds the depth kept, by the photo's content.
@@ -253,10 +321,10 @@ public class ImageSceneDepthTests
     {
         var vm = Editing();
         OnUi(() => vm.Depth.LensBlur = true);
-        await _ui.Invoke(() => vm.Depth.FocusAtAsync(new MarkupPoint(8, 80)));
-        OnUi(() => vm.Depth.Aperture = 100);
         var session = vm.CurrentSession!;
         Until(() => session.SceneDepth is not null);
+        await _ui.Invoke(() => vm.Depth.FocusAtAsync(new MarkupPoint(8, 80)));
+        OnUi(() => vm.Depth.Aperture = 100);
 
         // The screen draws from the photo as decoded for it, which may be smaller than the photo: its checks are judged against each other.
         using var shown = _ui.Invoke(() => session.Snapshot(session.Recipe, new RenderRequest(RenderFrame.Output, 1)))!;
@@ -353,7 +421,7 @@ public class ImageSceneDepthTests
     {
         var recipe = ImageRecipe.Identity with
         {
-            LensBlur = new RecipeLensBlur { FocusX = 12, FocusY = 30, Aperture = 0.7, Range = 0.1, Shape = BokehShape.Hexagon },
+            LensBlur = new RecipeLensBlur { Near = 0.2, Far = 0.35, Aperture = 0.7, Shape = BokehShape.Hexagon },
             DepthHaze = new RecipeDepthHaze { Density = 0.3, Start = 0.2, Colour = 0xFF8090A0 },
         };
         Assert.AreEqual(6, recipe.WrittenVersion);
@@ -382,7 +450,7 @@ public class ImageSceneDepthTests
         Assert.AreEqual(0.25, bands[1].Share, 1e-9, "twenty times as far is the middle: between ten and a hundred times");
         Assert.AreEqual(0.25, bands[2].Share, 1e-9, "the sky is far");
         var text = SceneDepthSummary.Describe("p.jpg", new SKSizeI(400, 200), bands,
-                                              [new ThingDepth("dog", 0.9, new PictureBox(0.1, 0.2, 0.3, 0.9), new SubjectDepth(0.1, 0.05, 0.2, new MarkupPoint(10, 10), 0.03))], ["cat"]);
+                                              [new ThingDepth("dog", 0.9, new PictureBox(0.1, 0.2, 0.3, 0.9), new SubjectDepth(0.1, 0.05, 0.2))], ["cat"]);
         StringAssert.Contains(text, "near (0-0.33): 50%");
         StringAssert.Contains(text, "\"dog\" (0.90 sure) at [0.10, 0.20, 0.30, 0.90]: near, distance 0.10");
         StringAssert.Contains(text, "\"cat\": not found");
@@ -406,7 +474,10 @@ public class ImageSceneDepthTests
         var blur = vm.CurrentSession!.Recipe.LensBlur;
         Assert.IsNotNull(blur, "the blur is one of the photo's edits");
         Assert.AreEqual(0.8, blur.Aperture, 1e-9);
-        Assert.IsTrue(blur.FocusX >= Patch.Left && blur.FocusX <= Patch.Right, "focused on the thing named");
+        Until(() => vm.CurrentSession!.SceneDepth is not null);
+        var plane = vm.CurrentSession!.SceneDepth!;
+        double post = plane.Distance(plane.At((Patch.Left + Patch.Right) / 2.0, 80, new SKSizeI(Wide, High)));
+        Assert.IsTrue(blur.Near <= post && post <= blur.Far, $"focused on the thing named: {post:0.000} in {blur.Near:0.000}-{blur.Far:0.000}");
 
         var none = await vm.GetClientTools().Single(t => t.Name == "blur_background").InvokeAsync(new JsonObject { ["focus"] = "post", ["which"] = 2 }, CancellationToken.None);
         StringAssert.Contains(none.ModelText, "give 'which' from 1 to 1", "asked for a second of one, it says how many there are");

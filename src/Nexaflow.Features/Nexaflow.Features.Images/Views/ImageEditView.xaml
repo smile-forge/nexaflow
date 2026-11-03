@@ -231,91 +231,26 @@
                                 </Button>
                             </StackPanel>
                             <!-- AI enhance: the photo restored by the picture tools before the sliders apply. -->
-                            <StackPanel Visibility="{Binding Editor.CanRestore, Converter={StaticResource BoolToVis}}" Margin="0,8,0,0">
-                                <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Editor.AiEnhance, Mode=TwoWay}"
-                                          Content="{loc:Str Images.Edit.Restore.Enhance}" ToolTip="{Binding Editor.RestoringModels.DisabledReason, TargetNullValue={loc:Str Images.Edit.Restore.EnhanceTip}}"
-                                          AutomationProperties.AutomationId="Image_EditAiEnhance"
-                                          IsEnabled="{Binding Editor.CanToggleAiEnhance}"
-                                          ToolTipService.ShowOnDisabled="True"/>
-                                <StackPanel Visibility="{Binding Editor.AiEnhance, Converter={StaticResource BoolToVis}}" Margin="0,4,0,0">
-                                    <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Edit.Restore.Strength}"/>
-                                    <views:AdjustmentSlider Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" DefaultValue="100"
+                            <StackPanel Visibility="{Binding Editor.CanRestore, Converter={StaticResource BoolToVis}}">
+                                <Grid Style="{StaticResource EditSwitchRow}">
+                                    <TextBlock Style="{StaticResource EditSwitchLabel}" Text="{loc:Str Images.Edit.Restore.Enhance}"/>
+                                    <ToggleButton Style="{StaticResource ToggleSwitch}" HorizontalAlignment="Right" IsChecked="{Binding Editor.AiEnhance, Mode=TwoWay}"
+                                                  AutomationProperties.Name="{loc:Str Images.Edit.Restore.Enhance}"
+                                                  ToolTip="{Binding Editor.RestoringModels.DisabledReason, TargetNullValue={loc:Str Images.Edit.Restore.EnhanceTip}}"
+                                                  AutomationProperties.AutomationId="Image_EditAiEnhance"
+                                                  IsEnabled="{Binding Editor.CanToggleAiEnhance}" ToolTipService.ShowOnDisabled="True"/>
+                                </Grid>
+                                <StackPanel Visibility="{Binding Editor.AiEnhance, Converter={StaticResource BoolToVis}}">
+                                    <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Edit.Restore.Strength}"
+                                                            Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" DefaultValue="100"
                                                             Value="{Binding Editor.EnhanceStrength, Mode=TwoWay}"
                                                             AutomationProperties.AutomationId="Image_EditAiStrength"/>
-                                    <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Editor.RepairFaces, Mode=TwoWay}" Margin="0,8,0,0"
-                                              Content="{loc:Str Images.Edit.Restore.Faces}" AutomationProperties.AutomationId="Image_EditAiFaces"/>
+                                    <Grid Margin="0,2">
+                                        <TextBlock Style="{StaticResource EditRowLabel}" Width="Auto" Text="{loc:Str Images.Edit.Restore.Faces}"/>
+                                        <ToggleButton Style="{StaticResource ToggleSwitch}" HorizontalAlignment="Right" IsChecked="{Binding Editor.RepairFaces, Mode=TwoWay}"
+                                                      AutomationProperties.Name="{loc:Str Images.Edit.Restore.Faces}" AutomationProperties.AutomationId="Image_EditAiFaces"/>
+                                    </Grid>
                                 </StackPanel>
-                            </StackPanel>
-
-                            <!-- Scene depth: a lens's blur and haze drawn from how far each part of the picture lies, and the depth itself for compositing. -->
-                            <StackPanel Visibility="{Binding Depth.Models.IsOffered, Converter={StaticResource BoolToVis}}">
-                                <StackPanel Style="{StaticResource EditGroupHeaderRow}">
-                                    <icons:IconGlyph Style="{StaticResource EditGroupIcon}" Icon="fluent:layer_diagonal"/>
-                                    <TextBlock Style="{StaticResource EditGroupHeader}" Text="{loc:Str Images.SceneDepth.Header}"/>
-                                </StackPanel>
-                                <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.SceneDepth.NeedsPictureLayer}" TextWrapping="Wrap" Margin="0,0,0,6"
-                                           Visibility="{Binding Depth.NeedsPictureLayer, Converter={StaticResource BoolToVis}}"/>
-                                <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Depth.LensBlur, Mode=TwoWay}" Content="{loc:Str Images.SceneDepth.LensBlur}"
-                                          ToolTip="{Binding Depth.Models.DisabledReason, TargetNullValue={loc:Str Images.SceneDepth.LensBlurTip}}"
-                                          IsEnabled="{Binding Depth.CanEdit}" ToolTipService.ShowOnDisabled="True"
-                                          AutomationProperties.AutomationId="Image_DepthLensBlur"/>
-                                <StackPanel Visibility="{Binding Depth.LensBlur, Converter={StaticResource BoolToVis}}" Margin="0,4,0,0">
-                                    <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.SceneDepth.FocusHint}" TextWrapping="Wrap"/>
-                                    <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Depth.FocusOnSubject, Mode=TwoWay}" Margin="0,6,0,0"
-                                              Content="{loc:Str Images.SceneDepth.FocusOnSubject}"
-                                              ToolTip="{Binding Editor.PickingModels.DisabledReason, TargetNullValue={loc:Str Images.SceneDepth.FocusOnSubjectTip}}"
-                                              IsEnabled="{Binding Editor.PickingModels.IsReady}" ToolTipService.ShowOnDisabled="True"
-                                              AutomationProperties.AutomationId="Image_DepthFocusSubject"/>
-                                    <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.SceneDepth.Aperture}"/>
-                                    <views:AdjustmentSlider Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" DefaultValue="50"
-                                                            Value="{Binding Depth.Aperture, Mode=TwoWay}" AutomationProperties.AutomationId="Image_DepthAperture"/>
-                                    <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.SceneDepth.FocusRange}"/>
-                                    <views:AdjustmentSlider Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" DefaultValue="8"
-                                                            Value="{Binding Depth.FocusRange, Mode=TwoWay}" AutomationProperties.AutomationId="Image_DepthFocusRange"/>
-                                    <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.SceneDepth.Bokeh}"/>
-                                    <Border Style="{StaticResource SegGroup}" HorizontalAlignment="Left">
-                                        <StackPanel Orientation="Horizontal">
-                                            <RadioButton GroupName="DepthBokeh" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthBokehCircle"
-                                                         AutomationProperties.Name="{loc:Str Images.SceneDepth.BokehCircle}" ToolTip="{loc:Str Images.SceneDepth.BokehCircle}"
-                                                         IsChecked="{Binding Depth.RoundBokeh, Mode=TwoWay}">
-                                                <icons:IconGlyph Icon="fluent:circle" FontSize="15"/>
-                                            </RadioButton>
-                                            <RadioButton GroupName="DepthBokeh" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthBokehHexagon"
-                                                         AutomationProperties.Name="{loc:Str Images.SceneDepth.BokehHexagon}" ToolTip="{loc:Str Images.SceneDepth.BokehHexagon}"
-                                                         IsChecked="{Binding Depth.HexagonBokeh, Mode=TwoWay}">
-                                                <icons:IconGlyph Icon="fluent:hexagon" FontSize="15"/>
-                                            </RadioButton>
-                                        </StackPanel>
-                                    </Border>
-                                </StackPanel>
-                                <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Depth.Haze, Mode=TwoWay}" Content="{loc:Str Images.SceneDepth.Haze}" Margin="0,8,0,0"
-                                          ToolTip="{Binding Depth.Models.DisabledReason, TargetNullValue={loc:Str Images.SceneDepth.HazeTip}}"
-                                          IsEnabled="{Binding Depth.CanEdit}" ToolTipService.ShowOnDisabled="True"
-                                          AutomationProperties.AutomationId="Image_DepthHaze"/>
-                                <StackPanel Visibility="{Binding Depth.Haze, Converter={StaticResource BoolToVis}}" Margin="0,4,0,0">
-                                    <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.SceneDepth.HazeDensity}"/>
-                                    <views:AdjustmentSlider Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" DefaultValue="40"
-                                                            Value="{Binding Depth.HazeDensity, Mode=TwoWay}" AutomationProperties.AutomationId="Image_DepthHazeDensity"/>
-                                    <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.SceneDepth.HazeStart}"/>
-                                    <views:AdjustmentSlider Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" DefaultValue="25"
-                                                            Value="{Binding Depth.HazeStart, Mode=TwoWay}" AutomationProperties.AutomationId="Image_DepthHazeStart"/>
-                                    <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Depth.HazeTakesInk, Mode=TwoWay}" Margin="0,8,0,0"
-                                              Content="{loc:Str Images.SceneDepth.HazeInk}" ToolTip="{loc:Str Images.SceneDepth.HazeInkTip}"
-                                              AutomationProperties.AutomationId="Image_DepthHazeInk"/>
-                                </StackPanel>
-                                <WrapPanel Margin="0,8,0,0">
-                                    <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Depth.DepthAsLayerCommand}" Margin="0,0,6,4"
-                                            ToolTip="{Binding Depth.Models.DisabledReason, TargetNullValue={loc:Str Images.SceneDepth.AsLayerTip}}" ToolTipService.ShowOnDisabled="True"
-                                            AutomationProperties.AutomationId="Image_DepthAsLayer">
-                                        <icons:IconLabel Icon="fluent:layer" Text="{loc:Str Images.SceneDepth.AsLayer}" FontSize="11"/>
-                                    </Button>
-                                    <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Depth.DepthAsMaskCommand}" Margin="0,0,6,4"
-                                            Visibility="{Binding IsLayered, Converter={StaticResource BoolToVis}}"
-                                            ToolTip="{Binding Depth.Models.DisabledReason, TargetNullValue={loc:Str Images.SceneDepth.AsMaskTip}}" ToolTipService.ShowOnDisabled="True"
-                                            AutomationProperties.AutomationId="Image_DepthAsMask">
-                                        <icons:IconLabel Icon="fluent:layer_diagonal" Text="{loc:Str Images.SceneDepth.AsMask}" FontSize="11"/>
-                                    </Button>
-                                </WrapPanel>
                             </StackPanel>
 
                             <!-- Light: how bright, and where. -->
@@ -323,17 +258,17 @@
                                 <icons:IconGlyph Style="{StaticResource EditGroupIcon}" Icon="fluent:brightness_high"/>
                                 <TextBlock Style="{StaticResource EditGroupHeader}" Text="{loc:Str Images.Edit.Adjust.LightHeader}"/>
                             </StackPanel>
-                            <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Edit.Adjust.Exposure}"/>
-                            <views:AdjustmentSlider Minimum="-3" Maximum="3" SmallChange="0.05" LargeChange="0.5" Value="{Binding Editor.Exposure, Mode=TwoWay}"
+                            <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Edit.Adjust.Exposure}" ValueFormat="+0.00;−0.00;0.00"
+                                                    Minimum="-3" Maximum="3" SmallChange="0.05" LargeChange="0.5" Value="{Binding Editor.Exposure, Mode=TwoWay}"
                                                     AutomationProperties.AutomationId="Image_EditExposure"/>
-                            <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Edit.Adjust.Contrast}"/>
-                            <views:AdjustmentSlider Minimum="-100" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Editor.Contrast, Mode=TwoWay}"
+                            <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Edit.Adjust.Contrast}" ValueFormat="+0;−0;0"
+                                                    Minimum="-100" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Editor.Contrast, Mode=TwoWay}"
                                                     AutomationProperties.AutomationId="Image_EditContrast"/>
-                            <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Edit.Adjust.Highlights}"/>
-                            <views:AdjustmentSlider Minimum="-100" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Editor.Highlights, Mode=TwoWay}"
+                            <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Edit.Adjust.Highlights}" ValueFormat="+0;−0;0"
+                                                    Minimum="-100" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Editor.Highlights, Mode=TwoWay}"
                                                     AutomationProperties.AutomationId="Image_EditHighlights"/>
-                            <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Edit.Adjust.Shadows}"/>
-                            <views:AdjustmentSlider Minimum="-100" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Editor.Shadows, Mode=TwoWay}"
+                            <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Edit.Adjust.Shadows}" ValueFormat="+0;−0;0"
+                                                    Minimum="-100" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Editor.Shadows, Mode=TwoWay}"
                                                     AutomationProperties.AutomationId="Image_EditShadows"/>
 
                             <!-- Colour: how vivid, how warm, which way it leans. -->
@@ -341,15 +276,162 @@
                                 <icons:IconGlyph Style="{StaticResource EditGroupIcon}" Icon="fluent:color"/>
                                 <TextBlock Style="{StaticResource EditGroupHeader}" Text="{loc:Str Images.Edit.Adjust.ColourHeader}"/>
                             </StackPanel>
-                            <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Edit.Adjust.Saturation}"/>
-                            <views:AdjustmentSlider Minimum="-100" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Editor.Saturation, Mode=TwoWay}"
+                            <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Edit.Adjust.Saturation}" ValueFormat="+0;−0;0"
+                                                    Minimum="-100" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Editor.Saturation, Mode=TwoWay}"
                                                     AutomationProperties.AutomationId="Image_EditSaturation"/>
-                            <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Edit.Adjust.Temperature}"/>
-                            <views:AdjustmentSlider Minimum="-100" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Editor.Temperature, Mode=TwoWay}"
+                            <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Edit.Adjust.Temperature}" ValueFormat="+0;−0;0"
+                                                    Minimum="-100" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Editor.Temperature, Mode=TwoWay}"
                                                     AutomationProperties.AutomationId="Image_EditTemperature"/>
-                            <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Edit.Adjust.Tint}"/>
-                            <views:AdjustmentSlider Minimum="-100" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Editor.Tint, Mode=TwoWay}"
+                            <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Edit.Adjust.Tint}" ValueFormat="+0;−0;0"
+                                                    Minimum="-100" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding Editor.Tint, Mode=TwoWay}"
                                                     AutomationProperties.AutomationId="Image_EditTint"/>
+
+                            <!-- Scene depth: a lens's blur and haze drawn from how far each part of the picture lies, and the depth itself for compositing. -->
+                            <StackPanel Visibility="{Binding Depth.Models.IsOffered, Converter={StaticResource BoolToVis}}">
+                                <StackPanel Style="{StaticResource EditGroupHeaderRow}">
+                                    <icons:IconGlyph Style="{StaticResource EditGroupIcon}" Icon="fluent:layer_diagonal"/>
+                                    <TextBlock Style="{StaticResource EditGroupHeader}" Text="{loc:Str Images.SceneDepth.Header}"/>
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.SceneDepth.NeedsPictureLayer}" Margin="0,0,0,6"
+                                           Visibility="{Binding Depth.NeedsPictureLayer, Converter={StaticResource BoolToVis}}"/>
+
+                                <!-- Lens blur: sharp over a band of distance, set on the picture or dragged over the strip of its depths. -->
+                                <Grid Style="{StaticResource EditSwitchRow}">
+                                    <TextBlock Style="{StaticResource EditSwitchLabel}" Text="{loc:Str Images.SceneDepth.LensBlur}"/>
+                                    <ToggleButton Style="{StaticResource ToggleSwitch}" HorizontalAlignment="Right" IsChecked="{Binding Depth.LensBlur, Mode=TwoWay}"
+                                                  AutomationProperties.Name="{loc:Str Images.SceneDepth.LensBlur}"
+                                                  ToolTip="{Binding Depth.Models.DisabledReason, TargetNullValue={loc:Str Images.SceneDepth.LensBlurTip}}"
+                                                  IsEnabled="{Binding Depth.CanEdit}" ToolTipService.ShowOnDisabled="True"
+                                                  AutomationProperties.AutomationId="Image_DepthLensBlur"/>
+                                </Grid>
+                                <StackPanel Visibility="{Binding Depth.LensBlur, Converter={StaticResource BoolToVis}}">
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource EditRowLabel}" Text="{loc:Str Images.SceneDepth.FocusBy}"/>
+                                        <Border Grid.Column="1" Style="{StaticResource SegGroup}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <RadioButton GroupName="DepthFocusWay" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthFocusPoint"
+                                                             AutomationProperties.Name="{loc:Str Images.SceneDepth.FocusPoint}" ToolTip="{loc:Str Images.SceneDepth.FocusPointTip}"
+                                                             IsChecked="{Binding Depth.FocusWay, Converter={StaticResource EnumToBool}, ConverterParameter=Point}">
+                                                    <icons:IconGlyph Icon="fluent:cursor_click" FontSize="15"/>
+                                                </RadioButton>
+                                                <RadioButton GroupName="DepthFocusWay" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthFocusThing"
+                                                             AutomationProperties.Name="{loc:Str Images.SceneDepth.FocusThing}"
+                                                             ToolTip="{Binding Editor.PickingModels.DisabledReason, TargetNullValue={loc:Str Images.SceneDepth.FocusThingTip}}"
+                                                             IsEnabled="{Binding Editor.PickingModels.IsReady}" ToolTipService.ShowOnDisabled="True"
+                                                             IsChecked="{Binding Depth.FocusWay, Converter={StaticResource EnumToBool}, ConverterParameter=Thing}">
+                                                    <icons:IconGlyph Icon="fluent:sparkle" FontSize="15"/>
+                                                </RadioButton>
+                                                <RadioButton GroupName="DepthFocusWay" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthFocusRectangle"
+                                                             AutomationProperties.Name="{loc:Str Images.SceneDepth.FocusRectangle}" ToolTip="{loc:Str Images.SceneDepth.FocusRectangleTip}"
+                                                             IsChecked="{Binding Depth.FocusWay, Converter={StaticResource EnumToBool}, ConverterParameter=Rectangle}">
+                                                    <icons:IconGlyph Icon="fluent:rectangle_landscape" FontSize="15"/>
+                                                </RadioButton>
+                                                <RadioButton GroupName="DepthFocusWay" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthFocusLasso"
+                                                             AutomationProperties.Name="{loc:Str Images.SceneDepth.FocusLasso}" ToolTip="{loc:Str Images.SceneDepth.FocusLassoTip}"
+                                                             IsChecked="{Binding Depth.FocusWay, Converter={StaticResource EnumToBool}, ConverterParameter=Lasso}">
+                                                    <icons:IconGlyph Icon="fluent:lasso" FontSize="15"/>
+                                                </RadioButton>
+                                            </StackPanel>
+                                        </Border>
+                                        <Button Grid.Column="2" Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Depth.FocusOnSelectionCommand}"
+                                                AutomationProperties.Name="{loc:Str Images.SceneDepth.FocusSelection}" ToolTip="{loc:Str Images.SceneDepth.FocusSelectionTip}"
+                                                ToolTipService.ShowOnDisabled="True" AutomationProperties.AutomationId="Image_DepthFocusSelection">
+                                            <icons:IconGlyph Icon="fluent:select_object" FontSize="14"/>
+                                        </Button>
+                                    </Grid>
+                                    <!-- The band kept sharp, over how much of the picture lies at each distance; pointed at or dragged, it shows on the picture. -->
+                                    <Grid Height="24" ToolTip="{loc:Str Images.SceneDepth.FocusBandTip}" MouseEnter="DepthFocusBand_Pointed" MouseLeave="DepthFocusBand_Pointed">
+                                        <views:DepthStrip Margin="4,0" Shares="{Binding Depth.DistanceShares}" Background="{StaticResource Surface2Brush}" Fill="{StaticResource TextMutedBrush}"/>
+                                        <vcc:RangeSlider x:Name="DepthFocusBand" Height="24" Background="Transparent" Minimum="0" Maximum="100" SmallChange="1" LargeChange="10"
+                                                         LowerValue="{Binding Depth.FocusNear, Mode=TwoWay}" UpperValue="{Binding Depth.FocusFar, Mode=TwoWay}"
+                                                         AutomationProperties.Name="{loc:Str Images.SceneDepth.FocusBand}" AutomationProperties.AutomationId="Image_DepthFocusBand"/>
+                                    </Grid>
+                                    <Grid Margin="0,2,0,6">
+                                        <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.SceneDepth.Near}" HorizontalAlignment="Left"/>
+                                        
+                                        <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.SceneDepth.Far}" HorizontalAlignment="Right"/>
+                                    </Grid>
+                                    <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.SceneDepth.Aperture}"
+                                                            Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" DefaultValue="50"
+                                                            Value="{Binding Depth.Aperture, Mode=TwoWay}" AutomationProperties.AutomationId="Image_DepthAperture"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,2">
+                                        <TextBlock Style="{StaticResource EditRowLabel}" Text="{loc:Str Images.SceneDepth.Bokeh}"/>
+                                        <Border Style="{StaticResource SegGroup}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <RadioButton GroupName="DepthBokeh" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthBokehCircle"
+                                                             AutomationProperties.Name="{loc:Str Images.SceneDepth.BokehCircle}" ToolTip="{loc:Str Images.SceneDepth.BokehCircle}"
+                                                             IsChecked="{Binding Depth.RoundBokeh, Mode=TwoWay}">
+                                                    <icons:IconGlyph Icon="fluent:circle" FontSize="15"/>
+                                                </RadioButton>
+                                                <RadioButton GroupName="DepthBokeh" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthBokehHexagon"
+                                                             AutomationProperties.Name="{loc:Str Images.SceneDepth.BokehHexagon}" ToolTip="{loc:Str Images.SceneDepth.BokehHexagon}"
+                                                             IsChecked="{Binding Depth.HexagonBokeh, Mode=TwoWay}">
+                                                    <icons:IconGlyph Icon="fluent:hexagon" FontSize="15"/>
+                                                </RadioButton>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <!-- Haze, thickening with distance from where it starts on the strip of the picture's depths. -->
+                                <Grid Style="{StaticResource EditSwitchRow}">
+                                    <TextBlock Style="{StaticResource EditSwitchLabel}" Text="{loc:Str Images.SceneDepth.Haze}"/>
+                                    <ToggleButton Style="{StaticResource ToggleSwitch}" HorizontalAlignment="Right" IsChecked="{Binding Depth.Haze, Mode=TwoWay}"
+                                                  AutomationProperties.Name="{loc:Str Images.SceneDepth.Haze}"
+                                                  ToolTip="{Binding Depth.Models.DisabledReason, TargetNullValue={loc:Str Images.SceneDepth.HazeTip}}"
+                                                  IsEnabled="{Binding Depth.CanEdit}" ToolTipService.ShowOnDisabled="True"
+                                                  AutomationProperties.AutomationId="Image_DepthHaze"/>
+                                </Grid>
+                                <StackPanel Visibility="{Binding Depth.Haze, Converter={StaticResource BoolToVis}}">
+                                    <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.SceneDepth.HazeDensity}"
+                                                            Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" DefaultValue="40"
+                                                            Value="{Binding Depth.HazeDensity, Mode=TwoWay}" AutomationProperties.AutomationId="Image_DepthHazeDensity"/>
+                                    <Grid Margin="0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource EditRowLabel}" Text="{loc:Str Images.SceneDepth.HazeStart}"/>
+                                        <Grid Grid.Column="1" Height="24" ToolTip="{loc:Str Images.SceneDepth.HazeStartTip}">
+                                            <views:DepthStrip Margin="4,0" Shares="{Binding Depth.DistanceShares}" Background="{StaticResource Surface2Brush}" Fill="{StaticResource TextMutedBrush}"/>
+                                            <views:AdjustmentSlider Style="{StaticResource DepthStripMarker}" Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" DefaultValue="25"
+                                                                    Value="{Binding Depth.HazeStart, Mode=TwoWay}" AutomationProperties.AutomationId="Image_DepthHazeStart"/>
+                                        </Grid>
+                                    </Grid>
+                                    <StackPanel Orientation="Horizontal" Margin="0,2">
+                                        <TextBlock Style="{StaticResource EditRowLabel}" Text="{loc:Str Images.SceneDepth.HazeColour}"/>
+                                        <Border Style="{StaticResource SegGroup}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <RadioButton GroupName="DepthHazeColour" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthHazeScene"
+                                                             Content="{loc:Str Images.SceneDepth.HazeScene}" ToolTip="{loc:Str Images.SceneDepth.HazeSceneTip}"
+                                                             IsChecked="{Binding Depth.HazeTakesScene, Mode=TwoWay}"/>
+                                                <RadioButton GroupName="DepthHazeColour" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthHazeInk"
+                                                             Content="{loc:Str Images.SceneDepth.HazeInk}" ToolTip="{loc:Str Images.SceneDepth.HazeInkTip}"
+                                                             IsChecked="{Binding Depth.HazeTakesInk, Mode=TwoWay}"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <UniformGrid Columns="2" Margin="0,10,0,0">
+                                    <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Depth.DepthAsLayerCommand}" Margin="0,0,3,0"
+                                            ToolTip="{Binding Depth.Models.DisabledReason, TargetNullValue={loc:Str Images.SceneDepth.AsLayerTip}}" ToolTipService.ShowOnDisabled="True"
+                                            AutomationProperties.AutomationId="Image_DepthAsLayer">
+                                        <icons:IconLabel Icon="fluent:layer" Text="{loc:Str Images.SceneDepth.AsLayer}" FontSize="11"/>
+                                    </Button>
+                                    <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Depth.DepthAsMaskCommand}" Margin="3,0,0,0"
+                                            Visibility="{Binding IsLayered, Converter={StaticResource BoolToVis}}"
+                                            ToolTip="{Binding Depth.Models.DisabledReason, TargetNullValue={loc:Str Images.SceneDepth.AsMaskTip}}" ToolTipService.ShowOnDisabled="True"
+                                            AutomationProperties.AutomationId="Image_DepthAsMask">
+                                        <icons:IconLabel Icon="fluent:layer_diagonal" Text="{loc:Str Images.SceneDepth.AsMask}" FontSize="11"/>
+                                    </Button>
+                                </UniformGrid>
+                            </StackPanel>
                         </StackPanel>
 
                         <!-- ── Markup ── -->

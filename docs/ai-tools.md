@@ -188,10 +188,13 @@ held to the reference to 0.002 % of the disparity's range on a CPU and 0.7 % on 
 products in TF32.
 
 **In the image editor.** The Adjust panel's Depth section draws from it, on a photo or the active picture layer, as recipe
-sections (version 6 of the recipe): a lens blur (`RecipeLensBlur`) focused where the picture is clicked — or on the thing
-clicked, which picture selection finds and whose whole span of distance is kept sharp (`SceneDepthFocus`) — with its
-aperture, the depth kept in focus and a round or hexagonal aperture; and haze (`RecipeDepthHaze`) with its thickness, where
-it starts and its colour — the markup ink, or the colour of the picture's own distance read from its farthest parts.
+sections (version 6 of the recipe): a lens blur (`RecipeLensBlur`) sharp over a band of distance, with its aperture and a
+round or hexagonal aperture; and haze (`RecipeDepthHaze`) with its thickness, where it starts and its colour — the markup
+ink, or the colour of the picture's own distance read from its farthest parts. The band is set on the picture — a click
+moves it, as wide as it is, onto the distance clicked; on a thing clicked, a rectangle or an outline drawn, or the selection
+however it was made, it covers the middle four fifths of that part's distances (`SceneDepthFocus`) — or dragged on a strip
+of how much of the picture lies at each distance (`DepthStrip` under the shared `RangeSlider`), and what it keeps sharp is
+tinted on the picture while it is pointed at, dragged, or the picture held pressed.
 `PhotoSceneDepth`, a `ToolEdit`, finds the depth kept or estimates it once in the background — of the photo as erased,
 where the recipe erases — and names it in `MadeByTools`, so moving the focus or dragging a slider redraws the picture and
 never runs the model again. The render pipeline draws both in a pass of its own between geometry and tone

@@ -3,7 +3,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:icons="clr-namespace:Nexaflow.Visuals.Icons;assembly=Nexaflow.Visuals.Icons"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
-             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
+             xmlns:views="clr-namespace:Nexaflow.Features.Images.Views"
+             xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common">
 
     <!-- The selection made by hand, as Select and Retouch both take it: how near a colour clicked reaches, how a shape or
          colour meets what is selected, and the refinements. Bound to the editor; the shape drawn is a way of selecting of
@@ -38,24 +40,20 @@
         <!-- By distance: the span of the picture's depth selected, near to far, and how softly it fades past its ends; moving
              the ends selects again over what the span met. -->
         <StackPanel Margin="0,0,0,8" Visibility="{Binding SelectsByDistance, Converter={StaticResource BoolToVis}}">
-            <DockPanel>
-                <TextBlock DockPanel.Dock="Right" Style="{StaticResource EditCaption}" Text="{Binding RegionMarks.DistanceNear, StringFormat={}{0:0}}"/>
-                <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Region.DistanceNear}"/>
-            </DockPanel>
-            <Slider Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding RegionMarks.DistanceNear, Mode=TwoWay}"
-                    AutomationProperties.AutomationId="Image_RegionDistanceNear" AutomationProperties.Name="{loc:Str Images.Region.DistanceNear}"/>
-            <DockPanel>
-                <TextBlock DockPanel.Dock="Right" Style="{StaticResource EditCaption}" Text="{Binding RegionMarks.DistanceFar, StringFormat={}{0:0}}"/>
-                <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Region.DistanceFar}"/>
-            </DockPanel>
-            <Slider Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" Value="{Binding RegionMarks.DistanceFar, Mode=TwoWay}"
-                    AutomationProperties.AutomationId="Image_RegionDistanceFar" AutomationProperties.Name="{loc:Str Images.Region.DistanceFar}"/>
-            <DockPanel>
-                <TextBlock DockPanel.Dock="Right" Style="{StaticResource EditCaption}" Text="{Binding RegionMarks.DistanceSoftness, StringFormat={}{0:0}}"/>
-                <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Region.DistanceSoftness}"/>
-            </DockPanel>
-            <Slider Minimum="0" Maximum="50" SmallChange="1" LargeChange="5" Value="{Binding RegionMarks.DistanceSoftness, Mode=TwoWay}"
-                    AutomationProperties.AutomationId="Image_RegionDistanceSoftness" AutomationProperties.Name="{loc:Str Images.Region.DistanceSoftness}"/>
+            <Grid Height="24" ToolTip="{loc:Str Images.Region.DistanceSpanTip}">
+                <views:DepthStrip Margin="4,0" Shares="{Binding RegionMarks.DistanceShares}" Background="{StaticResource Surface2Brush}" Fill="{StaticResource TextMutedBrush}"/>
+                <vcc:RangeSlider Height="24" Background="Transparent" Minimum="0" Maximum="100" SmallChange="1" LargeChange="10"
+                                 LowerValue="{Binding RegionMarks.DistanceNear, Mode=TwoWay}" UpperValue="{Binding RegionMarks.DistanceFar, Mode=TwoWay}"
+                                 AutomationProperties.Name="{loc:Str Images.Region.DistanceSpan}" AutomationProperties.AutomationId="Image_RegionDistanceSpan"/>
+            </Grid>
+            <Grid Margin="0,2,0,4">
+                <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.SceneDepth.Near}" HorizontalAlignment="Left"/>
+                <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.SceneDepth.Far}" HorizontalAlignment="Right"/>
+            </Grid>
+            <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Region.DistanceSoftness}"
+                                    Minimum="0" Maximum="50" SmallChange="1" LargeChange="5" DefaultValue="5"
+                                    Value="{Binding RegionMarks.DistanceSoftness, Mode=TwoWay}"
+                                    AutomationProperties.AutomationId="Image_RegionDistanceSoftness" AutomationProperties.Name="{loc:Str Images.Region.DistanceSoftness}"/>
             <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding SelectDistanceCommand}" Margin="0,8,0,0" HorizontalAlignment="Left"
                     ToolTip="{loc:Str Images.Region.DistanceSelectTip}" AutomationProperties.AutomationId="Image_RegionDistanceSelect">
                 <icons:IconLabel Icon="fluent:layer_diagonal" Text="{loc:Str Images.Region.DistanceSelect}" FontSize="11"/>

@@ -108,6 +108,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         Editor.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(ImageEditorViewModel.Tool)) Depth.OnRecipeChanged();
+            if (e.PropertyName == nameof(ImageEditorViewModel.SelectsByDistance) && Editor.SelectsByDistance) _ = Editor.RegionMarks.ShowDistancesAsync();
             if (e.PropertyName != nameof(ImageEditorViewModel.Tool) || Editor.IsMoveTool) return;
             // Leaving Move: an open transform is applied, and what floats is dropped back into its layer.
             if (Arranging.IsTransforming) Arranging.Apply();
@@ -288,6 +289,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     {
         if (CurrentDocument is null || ReferenceEquals(rendering, EditTarget?.Rendering)) Editor.OnSessionChanged();
         if (CurrentDocument is not null) Layers.RedrawThumbnails();
+        Depth.OnRecipeChanged();   // the depth may be what was decoded: the strip and the focus wait for it
     }
 
     private void NotifyHistory()
@@ -570,6 +572,9 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
             return await Task.Run(() => TiledCoverage.FromBytes(
                 RegionSceneDepths.SpanOnCanvas(plane, toCanvas, photo, new SKSizeI(picture.Width, picture.Height), near, far, softness), picture.Width, picture.Height));
         }
+
+        public async Task<SceneDepthPlane?> SceneDepthAsync()
+            => document.Picture.Active is PictureLayer && await depth() is var (plane, _) ? plane : null;
         public SKSizeI Size => new(document.Picture.Width, document.Picture.Height);
 
         public TiledCoverage Selection => document.Picture.Selection;

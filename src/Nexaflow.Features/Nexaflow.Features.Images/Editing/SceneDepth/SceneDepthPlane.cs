@@ -54,6 +54,15 @@ public sealed class SceneDepthPlane
         return disparity <= 1 / DistanceRange ? 1f : (float)Math.Clamp(-Math.Log(disparity) / Math.Log(DistanceRange), 0, 1);
     }
 
+    /// <summary>The nearness a part <paramref name="distance"/> away lies at (<see cref="Distance"/> taken back): 1 at the nearest part,
+    /// 0 at the farthest, and past either end held to it.</summary>
+    public float NearnessAt(double distance)
+    {
+        if (FarthestToNearest >= 1) return 1f;
+        double disparity = Math.Pow(DistanceRange, -Math.Clamp(distance, 0, 1));
+        return (float)Math.Clamp((disparity - FarthestToNearest) / (1 - FarthestToNearest), 0, 1);
+    }
+
     /// <summary>The first <paramref name="count"/> of <paramref name="nearness"/> as distances (<see cref="Distance"/>), into
     /// <paramref name="distances"/>.</summary>
     public void Distances(float[] nearness, float[] distances, int count)
@@ -62,6 +71,21 @@ public sealed class SceneDepthPlane
         {
             for (int i = block * 4096, end = Math.Min(count, i + 4096); i < end; i++) distances[i] = Distance(nearness[i]);
         });
+    }
+
+    /// <summary>How many steps of distance <see cref="Shares"/> tells a picture's depth in, for a strip a panel wide.</summary>
+    public const int ShareSteps = 64;
+
+    /// <summary>How much of the picture lies at each of <paramref name="steps"/> steps of distance, nearest first: the fullest step
+    /// 1, the rest the square root of their share of it — a sky filling a third of the picture leaves a person in a hundredth of
+    /// it still to be seen.</summary>
+    public double[] Shares(int steps = ShareSteps)
+    {
+        var counts = new double[steps];
+        foreach (var nearness in _nearness) counts[Math.Min(steps - 1, (int)(Distance(nearness) * steps))]++;
+        double most = counts.Max();
+        if (most > 0) for (int i = 0; i < steps; i++) counts[i] = Math.Sqrt(counts[i] / most);
+        return counts;
     }
 
     public int Width { get; }

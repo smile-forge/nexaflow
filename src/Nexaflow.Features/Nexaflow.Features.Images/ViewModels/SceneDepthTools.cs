@@ -6,17 +6,34 @@ using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.Editing.Layers;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.SceneDepth;
+using Nexaflow.Features.Images.Editing.Selection;
 using Nexaflow.Visuals.Common.Localization;
 using SkiaSharp;
 
 namespace Nexaflow.Features.Images.ViewModels;
 
+/// <summary>What a press on the picture focuses a lens blur on.</summary>
+public enum LensFocusWay
+{
+    /// <summary>The distance clicked, the band kept as wide as it is.</summary>
+    Point,
+
+    /// <summary>The whole thing clicked, as picture selection finds it.</summary>
+    Thing,
+
+    /// <summary>All of a rectangle dragged.</summary>
+    Rectangle,
+
+    /// <summary>All of an outline traced.</summary>
+    Lasso,
+}
+
 /// <summary>
-/// What the Adjust panel draws from the picture's scene depth, on the photo or the active picture layer: a lens's blur — focused
-/// where the picture is clicked, or on the thing clicked, as wide open and as deep as asked, in the aperture's shape — haze
-/// that thickens with distance, and the depth itself as a layer or a mask for the user's own compositing. Lens blur and haze
-/// are recipe sections, so they stay editable and undo as any edit; the depth is estimated once and kept, so a drag only
-/// redraws the picture.
+/// What the Adjust panel draws from the picture's scene depth, on the photo or the active picture layer: a lens's blur — sharp
+/// over a band of distance, which a click sets on a point or on the thing there, a rectangle or an outline drawn, or the
+/// selection, and which can be dragged on the strip of the picture's depths — haze that thickens with distance, and the depth
+/// itself as a layer or a mask for the user's own compositing. Lens blur and haze are recipe sections, so they stay editable
+/// and undo as any edit; the depth is estimated once and kept, so a drag only redraws the picture.
 /// </summary>
 public sealed partial class SceneDepthTools : ObservableObject
 {
@@ -42,6 +59,10 @@ public sealed partial class SceneDepthTools : ObservableObject
             DepthAsLayerCommand.NotifyCanExecuteChanged();
             DepthAsMaskCommand.NotifyCanExecuteChanged();
         };
+        viewer.Editor.RegionMarks.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(RegionMarking.HasSelection)) FocusOnSelectionCommand.NotifyCanExecuteChanged();
+        };
     }
 
     /// <summary>Scene depth: what lens blur, haze, and the depth as a layer or a mask need.</summary>
@@ -66,21 +87,21 @@ public sealed partial class SceneDepthTools : ObservableObject
         OnPropertyChanged(string.Empty);
         DepthAsLayerCommand.NotifyCanExecuteChanged();
         DepthAsMaskCommand.NotifyCanExecuteChanged();
+        FocusOnSelectionCommand.NotifyCanExecuteChanged();
     }
 
     private void Commit(Func<ImageRecipe, ImageRecipe> change) => _viewer.Edit(change);
 
     // ── Lens blur ──────────────────────────────────────────────────────────
 
-    /// <summary>The picture is blurred as a lens would — focused, to start with, on its middle.</summary>
+    /// <summary>The picture is blurred as a lens would — sharp, to start with, over the nearest tenth of its distance.</summary>
     public bool LensBlur
     {
         get => Recipe.LensBlur is not null;
         set
         {
-            if (value == LensBlur) return;
-            if (!value) Commit(r => r with { LensBlur = null });
-            else if (Photo is { } photo) Commit(r => r with { LensBlur = new RecipeLensBlur { FocusX = photo.Width / 2.0, FocusY = photo.Height / 2.0 } });
+            if (value == LensBlur || Target is null) return;
+            Commit(r => r with { LensBlur = value ? new RecipeLensBlur() : null });
         }
     }
 
@@ -91,12 +112,44 @@ public sealed partial class SceneDepthTools : ObservableObject
         set => Blur(b => b with { Aperture = Math.Clamp(Math.Round(value) / 100, 0, 1) });
     }
 
-    /// <summary>How much depth either side of the focus stays sharp, 0–100 of the most it can.</summary>
-    public double FocusRange
+    /// <summary>Where the band kept sharp begins, 0–100 of the picture's distance from its nearest part.</summary>
+    public double FocusNear
     {
-        get => (Recipe.LensBlur?.Range ?? new RecipeLensBlur().Range) / RecipeLensBlur.WidestRange * 100;
-        set => Blur(b => b with { Range = Math.Clamp(Math.Round(value) / 100 * RecipeLensBlur.WidestRange, 0, RecipeLensBlur.WidestRange) });
+        get => (Recipe.LensBlur?.Near ?? new RecipeLensBlur().Near) * 100;
+        set => Blur(b => b.Banded(Math.Round(value) / 100, b.Far));
     }
+
+    /// <summary>Where the band kept sharp ends, 0–100 of the picture's distance from its nearest part.</summary>
+    public double FocusFar
+    {
+        get => (Recipe.LensBlur?.Far ?? new RecipeLensBlur().Far) * 100;
+        set => Blur(b => b.Banded(b.Near, Math.Round(value) / 100));
+    }
+
+    private (SceneDepthPlane Plane, double[] Shares)? _shares;
+
+    /// <summary>
+    /// How much of the picture lies at each step of distance (<see cref="SceneDepthPlane.Shares"/>), nearest first, the fullest 1 —
+    /// what the strip under the band shows, so the band can be laid over what is there; null until the depth is here.
+    /// </summary>
+    public IReadOnlyList<double>? DistanceShares
+    {
+        get
+        {
+            if (Plane is not { } plane) return null;
+            if (_shares is { } kept && ReferenceEquals(kept.Plane, plane)) return kept.Shares;
+            var shares = plane.Shares();
+            _shares = (plane, shares);
+            return shares;
+        }
+    }
+
+    /// <summary>The depth the picture is drawn from now; null until it is estimated or read.</summary>
+    internal SceneDepthPlane? Plane => Target?.Rendering.SceneDepth;
+
+    /// <summary>What lies in the band kept sharp is shown over the picture: while the band is pointed at or dragged, or the picture
+    /// pressed to focus.</summary>
+    [ObservableProperty] private bool _showsInFocus;
 
     /// <summary>Out-of-focus highlights spread into discs.</summary>
     public bool RoundBokeh
@@ -117,27 +170,33 @@ public sealed partial class SceneDepthTools : ObservableObject
         if (Recipe.LensBlur is not null) Commit(r => r with { LensBlur = change(r.LensBlur!) });
     }
 
-    /// <summary>A click focuses on the whole thing it lands on — all of it kept sharp — rather than on the point; needs picture
-    /// selection, to find the thing.</summary>
-    [ObservableProperty] private bool _focusOnSubject;
+    /// <summary>What a press on the picture focuses the lens on.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DrawsFocus))]
+    private LensFocusWay _focusWay;
 
-    /// <summary>Clicks on the picture set the focus: the lens blur is on, in the Adjust panel.</summary>
+    /// <summary>Presses on the picture set the focus: the lens blur is on, in the Adjust panel.</summary>
     public bool ChoosesFocus => LensBlur && _viewer.Editor.IsAdjustTool;
+
+    /// <summary>The focus is drawn on the picture — a rectangle dragged or an outline traced — rather than clicked.</summary>
+    public bool DrawsFocus => ChoosesFocus && FocusWay is LensFocusWay.Rectangle or LensFocusWay.Lasso;
 
     /// <summary>Picking out the thing a click focuses on is under way.</summary>
     [ObservableProperty] private bool _isFocusing;
 
     /// <summary>
-    /// The lens focused by a click at <paramref name="at"/>, in the photo's pixels: on the point — or, focusing on the subject, on
-    /// the thing there, at its middle distance and with all of it kept sharp. One step of the recipe.
+    /// The lens focused by a click at <paramref name="at"/>, in the photo's pixels: the band kept sharp moved, as wide as it is,
+    /// onto the point's distance — or, focusing on things, laid over all of the thing there. One step of the recipe.
     /// </summary>
     public async Task FocusAtAsync(MarkupPoint at)
     {
-        if (Recipe.LensBlur is null || Photo is not { } photo || at.X < 0 || at.Y < 0 || at.X >= photo.Width || at.Y >= photo.Height) return;
+        if (Recipe.LensBlur is null || Photo is not { } photo || Plane is not { } plane) return;
+        if (at.X < 0 || at.Y < 0 || at.X >= photo.Width || at.Y >= photo.Height) return;
         _focusing?.Cancel();
-        if (!FocusOnSubject || Target?.Rendering.SceneDepth is not { } plane)
+        double distance = plane.Distance(plane.FocusAt(at.X, at.Y, photo));
+        if (FocusWay != LensFocusWay.Thing)
         {
-            Blur(b => b with { FocusX = at.X, FocusY = at.Y });
+            Blur(b => CentredOn(b, distance));
             return;
         }
         var focusing = new CancellationTokenSource();
@@ -145,10 +204,11 @@ public sealed partial class SceneDepthTools : ObservableObject
         IsFocusing = true;
         try
         {
-            var thing = await _cutter.ThingAtAsync(at.X, at.Y, focusing.Token);
+    var thing = await _cutter.ThingAtAsync(at.X, at.Y, focusing.Token);
+    
             if (focusing.IsCancellationRequested) return;
             if (thing is not null && SceneDepthFocus.Of(thing, plane, photo) is { } subject) Blur(b => SceneDepthFocus.FocusedOn(b, subject));
-            else Blur(b => b with { FocusX = at.X, FocusY = at.Y });
+            else Blur(b => CentredOn(b, distance));
         }
         catch (OperationCanceledException) when (focusing.IsCancellationRequested)
         {
@@ -164,8 +224,69 @@ public sealed partial class SceneDepthTools : ObservableObject
         }
     }
 
-    /// <summary>Where the lens is focused, in the photo's pixels — what the canvas marks; null without a lens blur.</summary>
-    public MarkupPoint? Focus => Recipe.LensBlur is { } blur ? new MarkupPoint(blur.FocusX, blur.FocusY) : null;
+    /// <summary><paramref name="blur"/>'s band, as wide as it is, centred on <paramref name="distance"/> — slid in from either end.</summary>
+    private static RecipeLensBlur CentredOn(RecipeLensBlur blur, double distance)
+    {
+        double width = blur.Far - blur.Near, from = Math.Clamp(distance - width / 2, 0, 1 - width);
+        return blur.Banded(from, from + width);
+    }
+
+    /// <summary>The longest side a drawn shape is laid out at to find its distances: plenty to sample, little to lay out.</summary>
+    private const int LongestDrawnSide = 1024;
+
+    /// <summary>The lens focused on all of <paramref name="shape"/> — a rectangle or an outline drawn, in the photo's pixels. One
+    /// step of the recipe.</summary>
+    public Task FocusOnAsync(RegionShape shape) => FocusOnPartAsync(photo =>
+    {
+        double scale = Math.Min(1, (double)LongestDrawnSide / Math.Max(photo.Width, photo.Height));
+        var coverage = RegionRaster.Shape(shape, Math.Max(1, (int)Math.Ceiling(photo.Width * scale)), Math.Max(1, (int)Math.Ceiling(photo.Height * scale)), scale);
+        return (coverage, SKMatrix.CreateScale((float)(1 / scale), (float)(1 / scale)));
+    });
+
+    /// <summary>The lens focused on all of what is selected — however it was selected — where it lies on the photo.</summary>
+    [RelayCommand(CanExecute = nameof(CanFocusOnSelection))]
+    private Task FocusOnSelection()
+    {
+        var marks = _viewer.Editor.RegionMarks;
+        if (marks.Shown is not { IsEmpty: false } shown || _viewer.Canvas is not { } canvas || !canvas.SourceToCanvas.TryInvert(out var canvasToPhoto))
+            return Task.CompletedTask;
+        var toPhoto = SKMatrix.CreateScale((float)(1 / marks.ShownScale), (float)(1 / marks.ShownScale))
+            .PostConcat(canvas.DocumentToCanvas).PostConcat(canvasToPhoto);
+        return FocusOnPartAsync(_ => (shown.Coverage, toPhoto));
+    }
+
+    private bool CanFocusOnSelection() => LensBlur && _viewer.Editor.RegionMarks.HasSelection;
+
+    /// <summary>
+    /// The lens focused on a part of the photo: <paramref name="part"/> — given the photo's size, what covers the part and what
+    /// carries it onto the photo — worked out off the UI thread, and the band laid over its distances. A later focus takes its place.
+    /// </summary>
+    private async Task FocusOnPartAsync(Func<SKSizeI, (TiledCoverage Coverage, SKMatrix ToPhoto)> part)
+    {
+        if (Recipe.LensBlur is null || Photo is not { } photo || Plane is not { } plane) return;
+        _focusing?.Cancel();
+        var focusing = new CancellationTokenSource();
+        _focusing = focusing;
+        IsFocusing = true;
+        try
+        {
+            var subject = await Task.Run(() =>
+            {
+                var (coverage, toPhoto) = part(photo);
+                return SceneDepthFocus.Of(coverage, toPhoto, plane, photo);
+            });
+
+            if (!focusing.IsCancellationRequested && subject is not null) Blur(b => SceneDepthFocus.FocusedOn(b, subject));
+        }
+        catch (InvalidOperationException ex)
+        {
+            _shell?.ShowError(Str.Format("Images.SceneDepth.FocusFailed", ex.Message));
+        }
+        finally
+        {
+            if (ReferenceEquals(_focusing, focusing)) IsFocusing = false;
+        }
+    }
 
     // ── Haze ───────────────────────────────────────────────────────────────
 
@@ -198,7 +319,17 @@ public sealed partial class SceneDepthTools : ObservableObject
     public bool HazeTakesInk
     {
         get => Recipe.DepthHaze?.Colour is not null;
-        set => Hazed(h => h with { Colour = value ? SpecColours.Argb(_viewer.Editor.InkColour) : null });
+        set
+        {
+            if (value != HazeTakesInk) Hazed(h => h with { Colour = value ? SpecColours.Argb(_viewer.Editor.InkColour) : null });
+        }
+    }
+
+    /// <summary>The haze takes the colour of the picture's own distance, read from its farthest parts.</summary>
+    public bool HazeTakesScene
+    {
+        get => !HazeTakesInk;
+        set { if (value) HazeTakesInk = false; }
     }
 
     private void Hazed(Func<RecipeDepthHaze, RecipeDepthHaze> change)

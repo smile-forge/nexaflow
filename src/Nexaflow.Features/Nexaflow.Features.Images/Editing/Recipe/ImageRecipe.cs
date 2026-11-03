@@ -273,32 +273,43 @@ public enum BokehShape
 }
 
 /// <summary>
-/// A lens's blur drawn from the picture's scene depth: what lies at the depth of <see cref="FocusX"/>, <see cref="FocusY"/> is
-/// sharp, and everything else blurred the more the farther its depth is from it, in front or behind, as a wide-open lens blurs
-/// what it is not focused on. Kept as the point focused on rather than as a depth, so it reads the same at any size and focuses
-/// where it was put when newer models estimate the depth again.
+/// A lens's blur drawn from the picture's scene depth: what lies from <see cref="Near"/> to <see cref="Far"/> — on the picture's
+/// distance (<c>SceneDepthPlane.Distance</c>), 0 its nearest part, 1 a thousand times as far — is sharp, and what lies nearer
+/// or farther blurs the more the farther out of that band it is.
 /// </summary>
 public sealed record RecipeLensBlur
 {
-    /// <summary>The widest blur a fully open aperture gives what lies farthest from the focus, as a share of the picture's longer side.</summary>
+    /// <summary>The widest blur a fully open aperture gives what lies farthest out of the band — the nearest part or the
+    /// farthest, wherever the band is — as a share of the picture's longer side.</summary>
     public const double WidestBlur = 0.03;
 
-    /// <summary>The most depth either side of the focus that is kept sharp, in nearness (1 nearest, 0 farthest).</summary>
-    public const double WidestRange = 0.5;
+    /// <summary>The narrowest band of distance a focus keeps sharp: a band no wider is a plane, and still sharp to the eye.</summary>
+    public const double NarrowestBand = 0.01;
 
-    /// <summary>The point focused on, in oriented-source pixels.</summary>
-    public double FocusX { get; init; }
+    /// <summary>Where the band kept sharp begins, 0…1 of the picture's distance.</summary>
+    public double Near { get; init; }
 
-    public double FocusY { get; init; }
+    /// <summary>Where the band kept sharp ends, <see cref="Near"/>…1 of the picture's distance.</summary>
+    public double Far { get; init; } = 0.1;
 
-    /// <summary>How wide the aperture is, 0…1: what lies a whole picture's depth from the focus is blurred by this share of
-    /// <see cref="WidestBlur"/>.</summary>
+    /// <summary>How wide the aperture is, 0…1: what lies farthest out of the band is blurred by this share of
+    /// <see cref="WidestBlur"/>, and the rest by as much less as it is nearer the band.</summary>
     public double Aperture { get; init; } = 0.5;
 
-    /// <summary>How much depth either side of the focus is kept sharp, 0…<see cref="WidestRange"/>, in nearness.</summary>
-    public double Range { get; init; } = 0.04;
-
     public BokehShape Shape { get; init; } = BokehShape.Circle;
+
+    /// <summary>This blur kept sharp from <paramref name="near"/> to <paramref name="far"/>, either way round, held to 0…1 and at
+    /// least <see cref="NarrowestBand"/> wide.</summary>
+    public RecipeLensBlur Banded(double near, double far)
+    {
+        double from = Math.Clamp(Math.Min(near, far), 0, 1), to = Math.Clamp(Math.Max(near, far), 0, 1);
+        if (to - from < NarrowestBand)
+        {
+            double middle = Math.Clamp((from + to) / 2, NarrowestBand / 2, 1 - NarrowestBand / 2);
+            (from, to) = (middle - NarrowestBand / 2, middle + NarrowestBand / 2);
+        }
+        return this with { Near = from, Far = to };
+    }
 }
 
 /// <summary>

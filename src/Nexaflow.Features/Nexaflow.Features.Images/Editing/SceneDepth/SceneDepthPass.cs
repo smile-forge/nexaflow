@@ -47,10 +47,11 @@ public static class SceneDepthPass
                 }
                 if (recipe.LensBlur is { } blur)
                 {
-                    float focus = plane.FocusAt(blur.FocusX, blur.FocusY, photo);
+                    // The band is told in distance; the blur goes by nearness, which falls as distance grows.
+                    float sharpFrom = plane.NearnessAt(blur.Far), sharpTo = plane.NearnessAt(blur.Near);
                     double canvasPerPhoto = 1 / CropGeometry.SourcePixelsPerCanvasPixel(photoToCanvas);
                     float widest = (float)(Math.Clamp(blur.Aperture, 0, 1) * RecipeLensBlur.WidestBlur * Math.Max(photo.Width, photo.Height) * canvasPerPhoto);
-                    LensBlur.Apply(rgba, nearness, width, height, focus, (float)Math.Clamp(blur.Range, 0, RecipeLensBlur.WidestRange), widest, blur.Shape);
+                    LensBlur.Apply(rgba, nearness, width, height, sharpFrom, sharpTo, widest, blur.Shape);
                 }
                 return Drawn(rgba, linear, into);
             }

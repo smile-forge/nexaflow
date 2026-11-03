@@ -66,6 +66,17 @@ public abstract class ImageEditJourneyBase : UiJourneyTestBase
         return WaitForFs(() => Math.Abs(range.Value.Value - target) < 0.01, 2);
     }
 
+    /// <summary>The slider <paramref name="automationId"/> set to <paramref name="value"/> — for one whose ends are held by another,
+    /// as a span's are, where its far end will not do.</summary>
+    protected bool MoveSliderTo(string automationId, double value)
+    {
+        var element = FindInAppWindows(automationId);
+        try { element?.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView(); } catch { /* not in a scroller */ }
+        if (element?.Patterns.RangeValue.PatternOrDefault is not { } range) return false;
+        range.SetValue(value);
+        return WaitForFs(() => Math.Abs(range.Value.Value - value) < 0.01, 2);
+    }
+
     /// <summary>Turns a check box over and back — in the main window or a popup over it.</summary>
     protected bool ToggleAndBack(string automationId)
     {

@@ -5,10 +5,10 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.Images.UI;
 
 /// <summary>
-/// What the picture's scene depth draws in Artist, where its model is here: a lens blur focused by a click on the picture or on
-/// the thing clicked, its aperture, depth in focus and highlights' shape; haze, its thickness, start and colour; selecting by
-/// distance in Select and in Retouch; and the depth as a layer and as a mask — each made with nothing offered to download or
-/// try again.
+/// What the picture's scene depth draws in Artist, where its model is here: a lens blur focused on a point or a thing clicked,
+/// a rectangle or an outline drawn, its band of distance dragged, its aperture and highlights' shape; haze, its thickness,
+/// start and colour; selecting by a span of distance in Select and in Retouch; and the depth as a layer and as a mask — each
+/// made with nothing offered to download or try again.
 /// <para>
 /// <c>NEXAFLOW_TEST_AI_DIR</c> names an AI folder holding scene depth and picture selection as the app keeps them, which the app
 /// is started on as its <c>NEXAFLOW_AI_DIR</c>; without it, or with one of them missing — the editor then offers it for download
@@ -59,31 +59,34 @@ public class ImagesSceneDepthJourneyTests : ImageEditJourneyBase
             Assert.IsNotNull(OpenFileVia(folder, OrientedPhotoSample.FileName, "ShowImageAction", "ImageView"), "ImageView did not open via the 'As Image' action.");
             CheckDoes("Edit opens the photo in an Artist tab", "Image_Edit", () => WaitForFs(() => Exists("ArtistView") && Exists("ImageEditView"), 8));
 
-            // Adjust: a lens blur, focused where the picture is clicked, then on the thing clicked.
+            // Adjust: a lens blur, focused on a point clicked, a thing clicked, a rectangle and an outline drawn, and its band dragged.
             Check("Adjust panel", () => SelectRadio("Image_EditToolAdjust") && FitCanvas());
             NeedsHere("Image_PictureModelsDownload", "AI picture models");
             Check("Lens blur turns on, its controls with it", () => SetToggle("Image_DepthLensBlur", true) && WaitForFs(() => Exists("Image_DepthAperture"), 3));
             Check("The depth is estimated: Save is ready, with nothing to download or try again",
                   () => WaitForFs(() => Enabled("Image_EditSave"), Affordable(60)) && !Exists("Image_SceneDepthAction"));
-            Check("A click on the picture focuses there", () => ClickCanvas());
-            Check("Focus on the thing clicked, and a click focuses on it", () => SetToggle("Image_DepthFocusSubject", true) && ClickCanvas()
-                  && SetToggle("Image_DepthFocusSubject", false));
+            Check("A click on the picture focuses on that distance", () => SelectRadio("Image_DepthFocusPoint") && ClickCanvas());
+            Check("Focusing on things, a click focuses on the thing", () => SelectRadio("Image_DepthFocusThing") && ClickCanvas());
+            Check("A rectangle drawn is focused on", () => SelectRadio("Image_DepthFocusRectangle") && DragOnCanvas(-60, -40, 60, 40));
+            Check("An outline drawn is focused on", () => SelectRadio("Image_DepthFocusLasso") && DragOnCanvas(-50, -50, 50, 40));
+            CheckPresent("Focus on the selection, waiting for one", "Image_DepthFocusSelection");
+            Check("The band in focus is there, and its ends move", () => Exists("Image_DepthFocusBand")
+                  && MoveSliderTo("Image_DepthFocusBandUpper", 60) && MoveSliderTo("Image_DepthFocusBandLower", 20));
             Check("Aperture moves", () => MoveSlider("Image_DepthAperture"));
-            Check("Depth in focus moves", () => MoveSlider("Image_DepthFocusRange"));
             Check("Highlights hexagonal, then round", () => SelectRadio("Image_DepthBokehHexagon") && SelectRadio("Image_DepthBokehCircle"));
 
             // Haze, thickening with distance.
             Check("Haze turns on, its controls with it", () => SetToggle("Image_DepthHaze", true) && WaitForFs(() => Exists("Image_DepthHazeDensity"), 3));
             Check("Its thickness moves", () => MoveSlider("Image_DepthHazeDensity"));
             Check("Its start moves", () => MoveSlider("Image_DepthHazeStart"));
-            Check("It takes the ink, and gives it back", () => SetToggle("Image_DepthHazeInk", true) && SetToggle("Image_DepthHazeInk", false));
+            Check("It takes the ink, then the scene's own colour again", () => SelectRadio("Image_DepthHazeInk") && SelectRadio("Image_DepthHazeScene"));
             Check("Lens blur and haze off", () => SetToggle("Image_DepthHaze", false) && SetToggle("Image_DepthLensBlur", false));
 
             // Select: what lies within a span of distance, the span moved after it is selected.
             Check("Select by distance", () => SelectRadio("Image_EditToolSelect") && SelectRadio("Image_SelectDistance")
                   && WaitForFs(() => Exists("Image_RegionDistanceSelect"), 3));
-            Check("The span's near end moves", () => MoveSlider("Image_RegionDistanceNear"));
-            Check("Its far end moves", () => MoveSlider("Image_RegionDistanceFar"));
+            Check("The span is there, and its ends move", () => Exists("Image_RegionDistanceSpan")
+                  && MoveSliderTo("Image_RegionDistanceSpanUpper", 40) && MoveSliderTo("Image_RegionDistanceSpanLower", 5));
             Check("Its soft edge moves", () => MoveSlider("Image_RegionDistanceSoftness"));
             Check("Select takes the span: Copy is ready", () => PressNth("Image_RegionDistanceSelect", 0) && WaitForFs(() => Enabled("Image_CutOutCopy"), Affordable(30)));
 
