@@ -299,10 +299,56 @@
           }
         ]
       }
+    },
+    "md-code-highlighting": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeSpans.cs",
+          "class": "CodeSpans"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeGrammars.cs",
+          "class": "CodeGrammars"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Code/CodeKinds.cs",
+          "class": "CodeKinds"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
+          "class": "Shipped"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/CodeLines.cs",
+          "class": "CodeLines"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeParser.cs",
+          "class": "CodeParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Slow.cs",
+          "class": "ContentEngine",
+          "method": "Read"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Fenced"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 10,
+  "changed_sets": 11,
   "touched_nodes": [
     "content-margins",
     "markdown-find",
@@ -310,6 +356,7 @@
     "markdown-source-box",
     "markdown-source-line-numbers",
     "markdown-split",
+    "md-code-highlighting",
     "md-plain-text",
     "windowed-reading"
   ]

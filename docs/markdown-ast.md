@@ -218,9 +218,10 @@ first carrying on under that indent — unless it takes half the room or more (`
 pieces standing for their share of it (`PartSlice`), and a line is set down again only in the room it was laid in. A unit not
 laid is said as tall as the rows its characters break onto with each set at the face's advance (`LinedSetting.HeightOf`),
 counted where they are held — the same rule laying applies to each character measured, so for a monospaced face what is said is
-what is laid. Content inside what the engine shows keeps its lines, unless its language is set as a page sets what it shows as
-written (`ContentLanguage.BoxedAsWritten`, `ContentShowing.WrapsLines`): a text fence is laid in the room inside the box a bare
-fence has, its lines wrapped to fit inside it (`MarkdownBuilder.Fenced`), while code and pictures draw themselves.
+what is laid. A page sets a fence of text or code in the box it sets a bare fence in, laid in the room inside it
+(`ContentLanguage.BoxedAsWritten`, `MarkdownBuilder.Fenced`); pictures draw themselves. Content inside what the engine shows keeps
+its lines unless its language wraps them (`ContentLanguage.WrapsLines`, `ContentShowing.WrapsLines`): text's wrap to fit inside
+the box, and code's are kept whole, a line wider than the box widening it.
 
 **What stands beside the page is drawn from the lines, not into the content.** A builder that lays content line by line says
 where each line it laid stands (`Laid.Lines`); the engine says which of them stand between two heights on the page, and

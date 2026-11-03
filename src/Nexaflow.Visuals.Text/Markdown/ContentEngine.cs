@@ -370,7 +370,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
                                   body.Start) with
                                   {
                                       Syntax = reading.Units.Syntax is { } syntax ? (syntax, 0) : null,
-                                      WrapsLines = language.BoxedAsWritten,
+                                      WrapsLines = language.WrapsLines,
                                   };
 
             // What it read is given those marks back where they stand, so every part names its characters in the document.

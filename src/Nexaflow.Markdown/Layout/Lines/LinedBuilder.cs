@@ -182,6 +182,9 @@ public abstract class LinedBuilder(ContentReading reading, EditState state, Layo
 
         apart.Close();
 
+        // Where it wraps, the spaces a row ends on hang past the room and take none of it.
+        if (breaks is not null) reach = Math.Min(reach, Room);
+
         var made = apart.Seal();
         if (laid is not null) laid.Last = new KeptLaying(line, made, (1 + (breaks?.Count ?? 0)) * height, reach, [], Room, IsReadOnly);
 

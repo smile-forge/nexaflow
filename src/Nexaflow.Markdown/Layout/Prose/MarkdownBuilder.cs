@@ -507,7 +507,8 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
     private void Fenced(LayoutBuilder into, ContentPart part, double x, double room)
     {
-        // Text is set as what the page shows as written is: in the same box, laid in the room inside it, so its lines wrap to fit.
+        // Text and code are set as what the page shows as written is: in the same box, laid in the room inside it — a line kept whole
+        // that is wider than that room widening the box with it.
         var pad = BoxedAsWritten(part) ? WrittenPad : 0;
         var nested = Nested(part, Math.Max(1, room - pad * 2), LayoutStanding.Block);
 
@@ -515,13 +516,15 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         {
             _borrowed.AddRange(inset.Laid.Trouble);
 
+            var wide = pad > 0 ? Math.Max(room, inset.Width + pad * 2) : inset.Width;
+
             into.Open(LayoutPieces.Block, part, new LayoutPoint(x, _y), stops: LayoutStops.None);
-            if (pad > 0) into.Draw(new WashMark(new LayoutRect(0, 0, Math.Max(room, 1), inset.Height + pad * 2), Style.CodeBg));
+            if (pad > 0) into.Draw(new WashMark(new LayoutRect(0, 0, Math.Max(wide, 1), inset.Height + pad * 2), Style.CodeBg));
             inset.Set(into, new LayoutPoint(pad, pad), LayoutPieces.Block);
             into.Close();
 
             _y += inset.Height + pad * 2;
-            Reached(x + (pad > 0 ? room : inset.Width));
+            Reached(x + wide);
 
             return;
         }

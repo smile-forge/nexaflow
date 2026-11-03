@@ -49,9 +49,8 @@ public sealed record LayoutHost(LayoutStanding Standing, LayoutNesting Nesting)
     public bool WrapsLines { get; init; }
 
     /// <summary>
-    /// Whether what a holder holds written in another language is set as a page sets what it shows as written — in the same box, its lines
-    /// wrapped to fit inside it — rather than drawing itself, as code and pictures do: plain text's way, asked of a fence before it is laid,
-    /// so it is laid in the room inside the box.
+    /// Whether what a holder holds written in another language is set as a page sets what it shows as written — in the same box, laid in
+    /// the room inside it — rather than drawing itself, as pictures do: text's way and code's, asked of a fence before it is laid.
     /// </summary>
     public Func<ContentPart, bool> BoxedAsWritten { get; init; } = static _ => false;
 }

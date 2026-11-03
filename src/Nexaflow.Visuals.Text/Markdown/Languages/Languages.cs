@@ -768,8 +768,9 @@ internal static class Shipped
         ],
         Builder: ContentLayouts.Text)
     {
-    Editing = TextEdits,
+        Editing = TextEdits,
         BoxedAsWritten = true,
+        WrapsLines = true,
         Windowed = TextParser.Windowed,
         UnitHeight = TextSetting.HeightOf,
     };
@@ -777,7 +778,10 @@ internal static class Shipped
     /// <summary>The words a fence of plain text is written under.</summary>
     private static readonly HashSet<string> TextNames = new([TextParser.Language, "txt", "plain", "plaintext"], StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Code in <paramref name="grammar"/>, or in none: read as written first, and by the grammar second (<see cref="CodeSpans"/>).</summary>
+    /// <summary>
+    /// Code in <paramref name="grammar"/>, or in none: read as written first, and by the grammar second (<see cref="CodeSpans"/>) — set, where
+    /// a page holds it, in the box the page shows what is written as written in, its lines kept whole.
+    /// </summary>
     private static ContentLanguage Coded(string? grammar) => new(
         Reads: word => grammar is not null && string.Equals(CodeGrammars.For(word), grammar, StringComparison.OrdinalIgnoreCase),
         Parser: () => source => ContentParse.Of(CodeParser.Parse(source, grammar ?? string.Empty)),
@@ -791,7 +795,8 @@ internal static class Shipped
         ],
         Builder: ContentLayouts.Code)
         {
-            Editing = CodeEdits,
+        Editing = CodeEdits,
+            BoxedAsWritten = true,
             Windowed = () => CodeParser.Windowed(grammar ?? string.Empty),
             UnitHeight = CodeSetting.HeightOf,
             Syntax = grammar is null ? null : characters => CodeSyntax.Of(grammar, characters),
