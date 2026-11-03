@@ -11,7 +11,7 @@ agent loop on it. Every model calls tools in its own protocol, prompted by its o
 A voice conversation runs from the AI bar — listening in the host (Silero, Nemotron, Whisper large-v3-turbo, small or
 small.en, Smart Turn), Kokoro speaking English, French and German, barge-in, and actions announced before they are done. The assistant
 makes pictures, speech and video clips with the workspace's models (phase 4) — through OpenAI and Gemini, and on this
-machine pictures with Z-Image Turbo, and at high quality with HiDream-O1 or MOSS-Image and its LoRAs, and clips with Wan2.2-TI2V-5B — distilled to
+machine pictures with Z-Image Turbo, and at high quality with HiDream-O1 or MOSS-Image and its LoRAs, changes them with FLUX.2 [klein] 4B, and clips with Wan2.2-TI2V-5B — distilled to
 three steps (FastWan) for clips from a description, and its fifty guided steps for clips from a picture; music on this
 machine is still to come. This
 records what was measured, the decisions taken, the design that follows, and the order to build it in. Where it names a type, check for collisions before introducing it.
@@ -46,7 +46,7 @@ and audio generators; our own catalog, downloads, runtime provisioning, chat tem
 | Languages | **English, French and German** throughout, in that order of priority: recognition, the model, and a Kokoro voice for each — `ff_siwis` for French, the community German fine-tune's `df_kerstin` for German. Both beat Piper's voices in listening; Kerstin is the weakest of the three and good enough to start (below). |
 | GPUs | **A setup per machine**, not a minimum. Each model a workspace uses is placed on a GPU with room for it, a language model given the context the room allows, and a part with no room runs on its CPU build (below). The default model, Gemma 4 E4B, fits beside its voice models on a 16 GB card and runs on two 11 GB cards with the voice models on the other; a larger model is offered where it fits. |
 | Catalog and runtime provisioning | **Ours.** Foundry Local was evaluated and not adopted: it would own the runtime version, storage, memory policy and model list that this design needs to control (below). Runtime libraries come from where their makers publish them — nuget.org and NVIDIA's wheels on PyPI — pinned by SHA-256; only what we convert or modify ourselves would be published by us. |
-| Image models | **Z-Image Turbo** draws on this machine, and **HiDream-O1** is its high-quality model. Of the models with permissive licences it drew the most accurately — French and German text, labels — at 2.5 s a picture; HiDream-O1 (MIT) draws the most photographic pictures — 94 s in PyTorch, 36 s as our build. Ruled out by licence: Stable Diffusion 3.5 (Stability's community licence), HunyuanImage (not licensed in the EU, UK or South Korea) and Qwen-Image-2.1 (research only); Qwen-Image-2512 misspelt and needs 58 GB, FLUX.2 klein garbled text (below). |
+| Image models | **Z-Image Turbo** draws on this machine, and **HiDream-O1** is its high-quality model. Of the models with permissive licences it drew the most accurately — French and German text, labels — at 2.5 s a picture; HiDream-O1 (MIT) draws the most photographic pictures — 94 s in PyTorch, 36 s as our build. Ruled out by licence: Stable Diffusion 3.5 (Stability's community licence), HunyuanImage (not licensed in the EU, UK or South Korea) and Qwen-Image-2.1 (research only); Qwen-Image-2512 misspelt and needs 58 GB, FLUX.2 klein garbled text (below). Pictures are **edited** here with **FLUX.2 [klein] 4B** (Apache-2.0; its 9B sibling is not): a fill under a mask, an expansion, an instruction or a second picture worked in, each in about two seconds. HiDream-E1 is ruled out by licence — its weights are MIT but it reads every prompt with Llama 3.1 8B (Llama 3.1 Community License) — and is not HiDream-O1's sibling but HiDream-I1's (below). |
 | Video model | **Wan2.2-TI2V-5B** (Apache-2.0) makes clips on this machine, in two builds sharing every part but the denoiser: **FastWan2.2-TI2V-5B** (Hao AI Lab, Apache-2.0), distilled to three steps, makes a five-second 720p clip in seconds and is the fast video job's; the full model's fifty guided steps are the high-quality job's, and make the clips that start from a picture — FastWan, distilled from text alone, cuts away from one. Wan2.2 is the newest Wan with open weights; Wan2.1's 1.3B model makes 480p clips from text alone (below). |
 | Language-model runtime | **llama.cpp**, in the host, through its C API — upstream's release builds as they are, pinned by build and SHA-256: its CPU build in the install, its CUDA backend in the CUDA pack. On Gemma 4 E4B against onnxruntime-genai it holds a 16k conversation in 4.3–5 GB rather than 14 GB and writes 155–190 tokens/s rather than ~54: it keeps only the window Gemma's local layers attend to, and has kernels for its 512-wide global heads, where ONNX Runtime's fall back to materialising the scores. It also takes images and audio into a conversation already under way. Forked only if a patch upstream will not take is ever needed; LLamaSharp was not adopted because its bundled natives go stale, as `TreeSitter.DotNet`'s did (below). |
 | Chat templates | **Each model's own**, from its GGUF, rendered by a Jinja engine of the host's own (`Nexaflow.AiHost.Jinja`): llama.cpp's C API has no Jinja, and no .NET package renders Gemma 4's template. It runs templates as transformers does, and every shipped family's template is held to Python's renders of it (`tools/ai-models/chat-templates`). **Reasoning is on, and never shown**: with it off, Gemma 4 ends its turn in silence after a tool's result, and what an action came to — which name went into the spreadsheet — is worth saying; it costs the reasoning's tokens before each answer. |
@@ -465,11 +465,13 @@ maps roles to models:
   and a refusal cancels the request. A model whose data stays here (marked in the grid's column header) is not asked
   about.
 - **Rows are reasoning roles** (Disambiguation, Conversation, ProblemSolving, Analysis, ImageRecognition) and
-  **media capabilities** — Speech In, Speech Out, Image Generation and Image Generation (HQ), Video Generation and
-  Video Generation (HQ), each taking only models of its kind; an Audio Generation row arrives with its contract.
+  **media capabilities** — Speech In, Speech Out, Image Generation and Image Generation (HQ), Image Editing, Video
+  Generation and Video Generation (HQ), each taking only models of its kind; Image Editing takes only an image model
+  that works from pictures, judged for each model by its provider before any is bound (`AiAbilityNames.Serves`,
+  `IImageGenerationProvider.MaxSourcesOf`). An Audio Generation row arrives with its contract.
 - **The models on this machine are one Local column**, first in the grid and always there: Nexaflow's own, one
   chosen for each job — conversation and reasoning, speech to text, text to speech, pictures,
-  high-quality pictures, fast video, high-quality video — on the workspace's Local page (`LocalColumns`,
+  high-quality pictures, picture editing, fast video, high-quality video — on the workspace's Local page (`LocalColumns`,
   `LocalModelShelf`), where a job can carry a remark from the string table (fast video's: from a description only). Each job's model is
   saved as a column under a reserved id, so a chain names it like any other. The column is on wherever the machine runs
   a model: the first time a workspace loads, each such job gets its first model (one already here before any other) and
@@ -728,9 +730,9 @@ So espeak-ng is a **build-time tool, not a shipped one**, and nothing of it is i
 
 ## Generation tools
 
-Each is an `IClientTool`, offered when the workspace has a model for it now: `generate_image` on the Image Generation
-and Image Generation (HQ) rows, `generate_speech` on Speech Out, `generate_video` on the Video Generation and Video
-Generation (HQ) rows. Like every tool that takes a path, they reach only what the user has given the assistant
+Each is an `IClientTool`, offered when the workspace has a model for it now: `generate_image` on the Image Generation,
+Image Generation (HQ) and Image Editing rows, `generate_speech` on Speech Out, `generate_video` on the Video Generation
+and Video Generation (HQ) rows. Like every tool that takes a path, they reach only what the user has given the assistant
 ([Architecture.md → What a tool may reach on disk](Architecture.md#what-a-tool-may-reach-on-disk)): pictures to work
 from, a mask and a first frame are files open in a tab or in a folder open in one, and `path` is a folder or file inside
 a folder open in a tab — anywhere else is refused before anything is made. Asked to save there, a tool writes the result
@@ -753,8 +755,9 @@ sees what it drew; the existing loop, approvals and context handling apply uncha
     (the only partial result a provider gives) or how it ended and what came of it, a finished picture shown to the model
     once — and `stop_background_task`, for when the user no longer wants one.
 
-- **What a model cannot use is not offered.** Pictures to work from go only to a model that takes them, a mask only
-  to one that masks, a first frame only to a video model that starts from one. A parameter of a few values names them
+- **What a model cannot use is not offered.** Pictures to work from go only to a model that takes them — the Image
+  Editing row's, where the workspace has one, whatever the quality asked — a mask only to one that masks, a first frame
+  only to a video model that starts from one. A parameter of a few values names them
   (`ClientToolParameter.Choices`), declared natively as a JSON Schema `enum`.
 - **Each model says what it is asked with.** Beside its prompt, a picture or a clip is asked for with what its model's
   `ImageSettings` / `VideoSettings` declare: its exact proportions (`MediaAspect` — `shape` takes square, landscape or
@@ -792,7 +795,7 @@ sees what it drew; the existing loop, approvals and context handling apply uncha
 | | Cloud | On this machine | Status |
 |---|---|---|---|
 | Speech | OpenAI's speech models | Kokoro | built |
-| Images | OpenAI gpt-image (one picture to work from, a mask) and dall-e-3; Gemini's image models (up to three pictures) and Imagen | Z-Image Turbo and, for high quality, HiDream-O1 and MOSS-Image with its LoRAs — our ONNX builds, sampled by the host | built |
+| Images | OpenAI gpt-image (one picture to work from, a mask) and dall-e-3; Gemini's image models (up to three pictures) and Imagen | Z-Image Turbo and, for high quality, HiDream-O1 and MOSS-Image with its LoRAs; for editing, FLUX.2 [klein] 4B (two pictures, a mask) — our ONNX builds, sampled by the host | built |
 | Music | neither SDK offers it | ACE-Step 1.5 (community ONNX), custom pipeline | possible, medium effort; brings the audio generation contract |
 | Sound effects | — | no maintained ONNX model; Stable Audio Open would need exporting | gap |
 | Video | OpenAI Sora (4, 8 or 12 s at 720p), Gemini Veo (4 to 8 s) | Wan2.2-TI2V-5B — FastWan's three steps from a description, the full model's fifty from a description or a picture — our ONNX builds, sampled by the host | built |
@@ -880,6 +883,48 @@ huggingface.co/smile-forge/moss-image-onnx); its prompt encoder is an existing G
 It draws each shape at about a megapixel — 1024×1024, 1344×768, 768×1344. Loaded part by part, its largest is the
 denoiser: 7.8 GiB at 1024² without a LoRA, 8.5 GiB with a style's and 9.1 GiB with the distillation's — each LoRA branch
 added in fp16 where its projection stays fp16 — so a picture needs a card that holds that.
+
+### Editing on this machine
+
+Four edits of one 1024² picture — a fill under a mask, an expansion of its borders to 1024 × 832, a whole-picture
+instruction ("make it night time"), and a second picture worked in (a dog put at one of its tables) — made warm by each
+candidate on an RTX PRO 6000:
+
+| Model (licence) | Steps | Fill | Expand | Instruction | Reference | Peak GPU memory | Edits |
+|---|---|---|---|---|---|---|---|
+| FLUX.2 [klein] 4B (Apache-2.0), PyTorch bf16 | 4 | 2.6 s | 1.6 s | 2.0 s | 2.8 s | 17.3 GB | every edit made as asked, the rest of the picture kept |
+| FLUX.2 [klein] 4B, our build | 4 | 2.3 s | 1.7 s | 2.1 s | 2.8 s | 10.7 GiB, its denoiser with two pictures | 38, 30, 36 and 39 dB from PyTorch's |
+| HiDream-O1 (MIT), PyTorch bf16 | 50 | — | — | 92 s | 106 s | 18.3 GB | at 2048²: dusk rather than night, a lamp added; the dog put in, the picture reframed; takes no mask, so neither fills nor expands |
+| Qwen-Image-Edit-2511 (Apache-2.0) | 40 | — | — | — | — | — | not measured: its family needs about 58 GB in bf16 |
+
+FLUX.2 [klein] 4B is the one Nexaflow edits with: four ONNX graphs Nexaflow builds and publishes
+(`tools/ai-models/flux2-klein-4b`, huggingface.co/smile-forge/flux2-klein-4b-onnx), sampled by the host in C#
+(`KleinDrawing`, `KleinSampler`). The pictures it works from are read by the VAE's encoder and laid beside the noisy
+latents at every step, numbered apart in time on the rotary positions; it also draws from a prompt alone, so the
+Local page offers it for pictures too.
+
+- **fp16 branches on fp32 residual streams.** Its single-stream blocks' residual stream reaches 1.03×10⁵, past fp16's
+  range — diffusers clips it there — while no branch passes 3.5×10³, so the streams stay fp32 and every branch runs in
+  fp16; the modulations, norms, rotary positions and output projection are fp32.
+- **The prompt encoder is Z-Image's Qwen3-4B**, byte for byte — cut after layer 27, giving layers 9, 18 and 27 side by
+  side — on 8-bit weights in fp32, its rows as close to Qwen3 in fp32 as the pipeline's own bf16 encoder.
+- **A fill is the inpaint pipeline's.** Under a mask the first picture is both the one worked from and the one kept:
+  after each of the four Euler steps its latents, noised to the level reached with the noise the picture started from,
+  are put back where the mask leaves it (`KleinSampler.Keep`), so only what the mask covers is drawn again — held in
+  the host to within the VAE's rounding outside the mask.
+- **The noise levels follow the picture's size**: `compute_empirical_mu`'s shift, held to diffusers' scheduler by
+  `KleinSamplerTests`. Pictures are drawn and read within a megapixel, each side a multiple of 16; a larger one is read
+  at its proportions within that, stretched by the few pixels its sides are cut by, so what comes back lies over it.
+
+Loaded part by part — prompt encoder 4.9 GiB, picture encoder 2.0 GiB, decoder 4.8 GiB, and the denoiser 7.3 GiB from a
+prompt, 9.6 GiB with one picture, 10.7 GiB with two — it is offered with two pictures to work from, so it fits a 16 GB
+card (three would take 13.4 GiB). Built for CUDA only.
+
+HiDream-O1 edits as it draws, from pictures read twice — through Qwen3-VL's vision tower into the prompt, and as clean
+pixel patches beside the picture drawn — so its edits need a vision-encoder graph and a denoiser taking the prompt's
+embeddings and positions, which the build that draws does not have. Qwen-Image-Edit-2511 is a 20B model reading with
+Qwen2.5-VL-7B: with 8-bit weights its denoiser alone holds about 20 GB, so it would be offered on a 32 GB card, and like
+Qwen-Image it is black in fp16 without an fp32 residual stream.
 
 ### Making clips on this machine
 

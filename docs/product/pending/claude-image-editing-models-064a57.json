@@ -1,0 +1,233 @@
+{
+  "branch": "claude/image-editing-models-064a57",
+  "nodes": {
+    "ai-ability-image-editing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/AI/AiAbilityNames.cs",
+          "class": "AiAbilityNames",
+          "method": "Serves"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/AI/AiConfig.cs",
+          "class": "AiConfig",
+          "method": "AddDefaultImageEditing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/LocalAi/LocalModelShelf.cs",
+          "class": "LocalModelShelf",
+          "method": "OptionsFor"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Generation/GenerateImageTool.cs",
+          "class": "GenerateImageTool",
+          "method": "Model"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ImageEditingRowTests.cs",
+            "class": "ImageEditingRowTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Generation/GenerationToolsTests.cs",
+            "class": "GenerationToolsTests",
+            "method": "PicturesToWorkFrom_GoToThePictureEditingModel_WhereTheWorkspaceHasOne_AndAPromptAloneIsDrawnAsEver"
+          }
+        ]
+      }
+    },
+    "owned-images-klein": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/KleinDrawing.cs",
+          "class": "KleinDrawing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/KleinSampler.cs",
+          "class": "KleinSampler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/KleinPromptEncoder.cs",
+          "class": "KleinPromptEncoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/KleinDenoiser.cs",
+          "class": "KleinDenoiser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/KleinPictureEncoder.cs",
+          "class": "KleinPictureEncoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/KleinDecoder.cs",
+          "class": "KleinDecoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedImageGenerationProvider.cs",
+          "class": "OwnedImageGenerationProvider",
+          "method": "Readable"
+        },
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/flux2-klein-4b/README.md"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/KleinSamplerTests.cs",
+            "class": "KleinSamplerTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/KleinModelTests.cs",
+            "class": "KleinModelTests"
+          }
+        ]
+      }
+    },
+    "images-ai-edits": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PictureEdits.cs",
+          "class": "PictureEdits"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/PictureEditsPanel.xaml"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesAiEditsJourneyTests.cs",
+          "class": "ImagesAiEditsJourneyTests"
+        }
+      ]
+    },
+    "images-edit-ai-fill": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PictureEdits.cs",
+          "class": "PictureEdits",
+          "method": "FillAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageAiEditsTests.cs",
+            "class": "ImageAiEditsTests",
+            "method": "AFill_SendsThePictureAboutTheSelection_AndLaysWhatComesBackOverIt_UnderTheSelection"
+          }
+        ]
+      }
+    },
+    "images-edit-ai-expand": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PictureEdits.cs",
+          "class": "PictureEdits",
+          "method": "ExpandAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageAiEditsTests.cs",
+            "class": "ImageAiEditsTests",
+            "method": "AnExpansion_GrowsTheCanvas_AndDrawsItsBorder_OverTheWholeCanvas"
+          }
+        ]
+      }
+    },
+    "images-edit-ai-change": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PictureEdits.cs",
+          "class": "PictureEdits",
+          "method": "ChangeAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageAiEditsTests.cs",
+            "class": "ImageAiEditsTests",
+            "method": "AChange_OfTheWholePicture_SendsItWithNoMask_AndLaysTheResultOverTheCanvas"
+          }
+        ]
+      }
+    },
+    "images-edit-ai-fill-selection": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageAiEditsTests.cs",
+            "class": "ImageAiEditsTests",
+            "method": "TheAssistant_FillsTheSelection_AsAJobOfTheWorkspaces"
+          }
+        ]
+      }
+    },
+    "images-edit-ai-expand-canvas": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageAiEditsTests.cs",
+            "class": "ImageAiEditsTests",
+            "method": "TheAssistant_ExpandsTheCanvas_AsAJobOfTheWorkspaces"
+          }
+        ]
+      }
+    },
+    "images-edit-ai-change-picture": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageAiEditsTests.cs",
+            "class": "ImageAiEditsTests",
+            "method": "WithNoModelThatEdits_NoEditIsOffered_AndTheAssistantIsToldWhy"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 14,
+  "touched_nodes": [
+    "ai-ability-image-editing",
+    "images-ai-edits",
+    "images-edit-ai-change",
+    "images-edit-ai-change-picture",
+    "images-edit-ai-expand",
+    "images-edit-ai-expand-canvas",
+    "images-edit-ai-fill",
+    "images-edit-ai-fill-selection",
+    "owned-images-klein"
+  ]
+}
