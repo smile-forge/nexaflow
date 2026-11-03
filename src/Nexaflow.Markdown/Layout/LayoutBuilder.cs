@@ -256,6 +256,9 @@ public sealed class LayoutBuilder
 
         _marks.AddRange(frame.Marks);
 
+        // A piece cut to a clip reaches no further than the clip: what lies past it is not painted, so it stands nowhere on the page.
+        if (frame.Paints?.Clip is { } clip && !frame.Box.IsEmpty) frame.Box = LayoutRect.Intersect(frame.Box, clip.Bounds);
+
         if (frame.Gathers && frame.Paints?.Applied is { } applied && !frame.Box.IsEmpty)
             frame.Box = LayoutRect.Transform(frame.Box, applied);
 

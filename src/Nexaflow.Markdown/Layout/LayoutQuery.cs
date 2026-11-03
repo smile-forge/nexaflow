@@ -117,7 +117,12 @@ public static class LayoutQuery
     /// </remarks>
     public static int OffsetAt(this LayoutPiece root, LayoutPoint point)
     {
-        if (root.PieceAt(point) is not { Exists: true } piece) return root.Sits().Start;
+        var under = Deepest(root, point);
+
+        // A press beside a row of text — past its end, before its start — means that row, however near a longer row above comes.
+        if (!under.Exists && AlongRow(root, point) is { } along) return along;
+
+        if ((under.Exists ? under : Nearest(root, point)) is not { Exists: true } piece) return root.Sits().Start;
 
         // Inside a run of text the press means the letter it landed on rather than the nearer end of the whole run.
         if (piece is { Words: { Maps: true } words, Part: { } inside })
@@ -128,6 +133,73 @@ public static class LayoutQuery
 
         var where = piece.Bounds;
         return point.X <= where.X + (where.Width / 2) ? at.Start : at.End;
+    }
+
+    /// <summary>
+    /// Where a press level with a row of text means: the place in the run nearest it across, between two letters — or null where no run
+    /// of text is level with it, and the nearest ink, wherever it is, is what the press means.
+    /// </summary>
+    private static int? AlongRow(LayoutPiece root, LayoutPoint point)
+    {
+        (LayoutPiece Piece, double Off)? nearest = null;
+
+        foreach (var (piece, where) in LevelWith(root, point.Y))
+        {
+            // A run slid out of the box it is set in is not there to be pressed.
+            if (piece.Words is not { Maps: true } || ToUncut(piece, where, point) is null) continue;
+
+            var off = point.X < where.Left ? where.Left - point.X : Math.Max(0, point.X - where.Right);
+            if (nearest is null || off < nearest.Value.Off) nearest = (piece, off);
+        }
+
+        return nearest is { Piece: { Words: { } words, Part: { } part } run } ? part.Start + words.IndexAt(Local(run, point)) : null;
+    }
+
+    /// <summary>
+    /// The innermost piece taking in <paramref name="point"/> that slides sideways (<see cref="LayoutSlide"/>), what it says of its sliding,
+    /// and where the point is in its own frame — what a sideways turn of the wheel, or a hold of its bar, slides. Null where nothing there does.
+    /// </summary>
+    public static (LayoutPiece Piece, LayoutSlide Slide, LayoutPoint Within)? SlideAt(this LayoutPiece root, LayoutPoint point)
+    {
+        (LayoutPiece Piece, LayoutSlide Slide, LayoutPoint Within)? found = null;
+
+        // Parents first, so the last that takes the point in is the innermost.
+        foreach (var (piece, where) in PlacedNear(root, reach => Contains(reach, point)))
+            if (piece.Acts?.Slide is { } slide && Contains(where, point)) found = (piece, slide, Local(piece, point));
+
+        return found;
+    }
+
+    /// <summary>
+    /// The innermost piece that slides sideways (<see cref="LayoutSlide"/>) holding <paramref name="offset"/>, what it says of its sliding, and
+    /// how far across its own frame the caret at that offset stands — what has to slide for the place to show. Null where nothing that slides
+    /// holds it.
+    /// </summary>
+    public static (LayoutPiece Piece, LayoutSlide Slide, double Across)? SlideHolding(this LayoutPiece root, int offset)
+    {
+        var caret = root.CaretRect(offset);
+        if (caret.IsEmpty) return null;
+
+        (LayoutPiece Piece, LayoutSlide Slide, double Across)? found = null;
+        var middle = new LayoutPoint(caret.X, caret.Y + (caret.Height / 2));
+
+        foreach (var piece in SittingIn(root, offset, offset))
+            if (piece.Acts?.Slide is { } slide && piece.Part is { } part && offset >= part.Start && offset <= part.End())
+                found = (piece, slide, Local(piece, middle).X);
+
+        return found;
+    }
+
+    /// <summary>Every leaf a caret stands in that is level with <paramref name="y"/> on the page, and where it stands: a row of what is set there.</summary>
+    private static IEnumerable<(LayoutPiece Piece, LayoutRect Where)> LevelWith(LayoutPiece root, double y)
+    {
+        foreach (var (piece, where) in PlacedNear(root, reach => reach.Top - Hair <= y && y <= reach.Bottom + Hair))
+        {
+            if (piece.Children.Count > 0 || where.IsEmpty || y < where.Top || y > where.Bottom) continue;
+            if (piece.Words is not { Maps: true } && !(piece.Stands() && piece.Stops != LayoutStops.None)) continue;
+
+            yield return (piece, where);
+        }
     }
 
     /// <summary>
@@ -178,16 +250,24 @@ public static class LayoutQuery
 
     /// <summary>
     /// The run of text a source offset falls in, or nothing — what makes a caret between two letters of a label
-    /// possible without a piece per letter. See <see cref="LayoutWords"/>.
+    /// possible without a piece per letter. See <see cref="LayoutWords"/>. Where a run ends at the offset and the next
+    /// starts there on the row beneath — a line broken onto rows a piece each — the offset is the start of that row, as
+    /// it is where one run is broken onto several.
     /// </summary>
     public static LayoutPiece WordsAt(this LayoutPiece root, int offset)
     {
-        foreach (var piece in SittingIn(root, offset, offset))
-            if (piece is { Words.Maps: true } && piece.Part is { Length: > 0 } part
-                && offset >= part.Start && offset <= part.End())
-                return piece;
+        var found = default(LayoutPiece);
 
-        return default;
+        foreach (var piece in SittingIn(root, offset, offset))
+        {
+            if (piece is not { Words.Maps: true } || piece.Part is not { Length: > 0 } part || offset < part.Start || offset > part.End()) continue;
+            if (!found.Exists) found = piece;
+
+            if (part.Start == offset && found.Part!.End() == offset && piece.Bounds.Top >= found.Bounds.Bottom - Hair) return piece;
+            if (found.Part!.End() != offset) return found;
+        }
+
+        return found;
     }
 
     /// <summary>
@@ -799,6 +879,53 @@ public static class LayoutQuery
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Where the row the caret at <paramref name="offset"/> stands on starts or ends — what Home and End go to: the near or far end of what
+    /// is set level with the caret, among everything a caret stands in there, between two letters where that is inside a run of text. Asked
+    /// of the row rather than of a point past the page's edge, which lands on whatever is nearest that point — a longer line above, or the
+    /// box round a fence. Null where nothing a caret stands in is level with it.
+    /// </summary>
+    public static int? RowEdge(this LayoutPiece root, int offset, bool end)
+    {
+        var caret = root.CaretRect(offset);
+        if (caret.IsEmpty) return null;
+
+        var middle = caret.Y + (caret.Height / 2);
+        (int Offset, double X)? edge = null;
+
+        foreach (var (piece, where) in LevelWith(root, middle))
+        {
+            if (Edge(piece, where, middle, end) is not { } place) continue;
+
+            // Further along wins; level, the later place for the end and the earlier for the start.
+            if (edge is { } best && (end ? place.X < best.X || (place.X == best.X && place.Offset <= best.Offset)
+                                         : place.X > best.X || (place.X == best.X && place.Offset >= best.Offset))) continue;
+
+            edge = place;
+        }
+
+        return edge?.Offset;
+    }
+
+    /// <summary>
+    /// The near or far end of what <paramref name="piece"/>, standing at <paramref name="where"/>, sets on the row level with
+    /// <paramref name="middle"/>, and how far across the page that is: for a run broken onto several rows, the end of that row of it.
+    /// </summary>
+    private static (int Offset, double X)? Edge(LayoutPiece piece, LayoutRect where, double middle, bool end)
+    {
+        if (piece is not { Words: { Maps: true } words, Part: { } part })
+            return end ? (piece.Sits().End, where.Right) : (piece.Sits().Start, where.Left);
+
+        if (words.Length == 0) return (part.Start, where.Left);
+
+        var index = words.IndexAt(Local(piece, new LayoutPoint(end ? where.Right + 1 : where.Left - 1, middle)));
+        var letter = end ? words.Covers(index - 1, index) : words.Covers(index, index + 1);
+        if (letter.IsEmpty) return null;
+
+        var across = piece.Frame.Out(letter);
+        return (part.Start + index, end ? across.Right : across.Left);
     }
 
     /// <summary>

@@ -55,8 +55,10 @@ internal sealed class LaidBlock
 /// what the languages inside it could not read, and what it was laid for.
 /// </summary>
 /// <param name="Part">The block as the reading it was laid from had it — what every piece's part is found again from.</param>
+/// <param name="Slides">How far along each box it set slid sideways was slid as it was laid, by what the host knows each by.</param>
 internal sealed record KeptLaying(ContentPart Part, LayoutTree Tree, double Height, double Reach,
-                              IReadOnlyList<LayoutDiagnostic> Trouble, double Room, bool IsReadOnly)
+                              IReadOnlyList<LayoutDiagnostic> Trouble, double Room, bool IsReadOnly,
+                              IReadOnlyList<(object Reader, double At)>? Slides = null)
 {
     /// <summary>
     /// What every piece stands for, and what the languages inside said, as the block reads now — <paramref name="now"/> being the same
@@ -98,6 +100,15 @@ internal sealed record KeptLaying(ContentPart Part, LayoutTree Tree, double Heig
         }
 
         return (parts, trouble, mounts);
+    }
+
+    /// <summary>Whether every box it set slid sideways is slid where it was as it was laid, as <paramref name="slid"/> says each is now.</summary>
+    public bool SlidAsLaid(Func<object, double> slid)
+    {
+        foreach (var (reader, at) in Slides ?? [])
+            if (slid(reader) != at) return false;
+
+        return true;
     }
 
     /// <summary>

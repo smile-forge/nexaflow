@@ -41,6 +41,28 @@ public sealed record LayoutHost(LayoutStanding Standing, LayoutNesting Nesting)
     /// (<see cref="Laid.Reached"/>).
     /// </summary>
     public LayoutReach? Reach { get; init; }
+
+    /// <summary>
+    /// Whether a line too long for the room carries on in rows beneath — for text, a page's source read as a page or a text fence in its
+    /// box, rather than code, whose lines are kept. A builder that heeds it is as tall as the rows it breaks its lines onto.
+    /// </summary>
+    public bool WrapsLines { get; init; }
+
+    /// <summary>
+    /// Whether what a holder holds written in another language is set as a page sets what it shows as written — in the same box, laid in
+    /// the room inside it — rather than drawing itself, as pictures do: text's way and code's, asked of a fence before it is laid.
+    /// </summary>
+    public Func<ContentPart, bool> BoxedAsWritten { get; init; } = static _ => false;
+
+    /// <summary>
+    /// What the host knows the body a holder holds by, for a builder setting it in a box narrower than the lines it keeps whole, which is
+    /// then slid sideways to show the rest (<see cref="LayoutSlide"/>) — null where nothing can be slid: content laid for paper, which has
+    /// to show all of it.
+    /// </summary>
+    public Func<ContentPart, object?> SlideOf { get; init; } = static _ => null;
+
+    /// <summary>How far along the reader has slid what the host knows by the object <see cref="SlideOf"/> handed out.</summary>
+    public Func<object, double> Slid { get; init; } = static _ => 0;
 }
 
 /// <summary>
@@ -137,6 +159,9 @@ public abstract class ContentBuilder
     /// <summary>What of the content the reader reaches, where the host asks for only that much to be laid (<see cref="LayoutHost.Reach"/>) — null where it asks for all of it.</summary>
     protected LayoutReach? ReaderReach => _host.Reach;
 
+    /// <summary>Whether the host asks for a line too long for the room to carry on in rows beneath (<see cref="LayoutHost.WrapsLines"/>).</summary>
+    protected bool WrapsLines => _host.WrapsLines;
+
     /// <summary>Lays the source out. Never null, and never throws.</summary>
     public Laid Lay(double room = double.PositiveInfinity)
     {
@@ -165,6 +190,15 @@ public abstract class ContentBuilder
     /// <paramref name="standing"/> says, or null where nothing read it — the one thing a builder asks of whatever hosts it.
     /// </summary>
     protected LayoutInset? Nested(ContentPart holder, double room, LayoutStanding standing) => _host.Nesting(holder, room, standing);
+
+    /// <summary>Whether what <paramref name="holder"/> holds is set in the box a page sets what it shows as written in (<see cref="LayoutHost.BoxedAsWritten"/>).</summary>
+    protected bool BoxedAsWritten(ContentPart holder) => _host.BoxedAsWritten(holder);
+
+    /// <summary>What the host knows the body <paramref name="holder"/> holds by, to slide it sideways (<see cref="LayoutHost.SlideOf"/>) — null where it cannot.</summary>
+    protected object? SlideOf(ContentPart holder) => _host.SlideOf(holder);
+
+    /// <summary>How far along the reader has slid what the host knows by <paramref name="reader"/> (<see cref="LayoutHost.Slid"/>).</summary>
+    protected double Slid(object reader) => _host.Slid(reader);
 
     /// <summary>
     /// Lay the content out, or null where none of it is this builder's to draw. Null is for "nothing here is mine to draw", not for

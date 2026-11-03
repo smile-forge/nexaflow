@@ -142,6 +142,8 @@ public sealed partial class ContentEngine
         {
             _revealed = null;
 
+            // A box slid away from it slides to it first, which lays it again.
+            SlideOnto(shown);
             var at = _laid.Root.CaretRect(shown);
             if (!at.IsEmpty) Reveal(at);
         }
@@ -346,6 +348,10 @@ public sealed partial class ContentEngine
     private int Snap(int offset)
     {
         var clamped = Math.Clamp(offset, 0, _state.Document.Length);
+
+        // Sent somewhere not laid — the end of a long document — it goes there as it is: the content is laid there, and the place brought
+        // onto the page, as it is for a caret put anywhere not laid. What is laid is no guide to where in it a caret may rest.
+        if (_window is { } window && !this.LaidAt(window, clamped)) return clamped;
 
         // Inside the stretch being written every character is its own stop, so the caret goes exactly where it was put; the
         // settled content snaps to the places a caret may rest.

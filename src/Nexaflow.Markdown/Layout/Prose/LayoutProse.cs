@@ -197,6 +197,15 @@ public static class LayoutPieces
     public const string Verbatim = "MarkdownVerbatim";
     public const string Picture = "MarkdownPicture";
 
+    /// <summary>What a box shows of lines wider than it, slid as far along them as the reader has slid it (<see cref="LayoutSlide"/>).</summary>
+    public const string Slid = "MarkdownSlid";
+
+    /// <summary>The bar under such a box saying how much of its lines shows, and where along them.</summary>
+    public const string SlideBar = "MarkdownSlideBar";
+
+    /// <summary>The part of that bar standing for what shows, which the reader takes hold of to slide the box.</summary>
+    public const string SlideThumb = "MarkdownSlideThumb";
+
     /// <summary>Tick an item off, or take the tick back.</summary>
     public const string TickVerb = "tick";
 }

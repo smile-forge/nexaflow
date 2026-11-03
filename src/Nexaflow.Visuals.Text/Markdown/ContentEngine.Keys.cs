@@ -215,19 +215,10 @@ public sealed partial class ContentEngine
     /// </summary>
     internal void SelectAll() => Apply(_state.Select(0, _state.Document.Length), notify: false);
 
-    /// <summary>
-    /// The caret to the start or the end of the line it is on, as a reader sees the line: whatever the page drew beside it,
-    /// not wherever the source happens to break.
-    /// </summary>
+    /// <summary>Home and End: the caret to the start or the end of the row it stands on (<see cref="LayoutQuery.RowEdge"/>).</summary>
     private void Along(bool end, bool extend)
     {
-        var root = _laid.Root;
-        var at = root.CaretRect(_state.Caret);
-        if (at.IsEmpty) return;
-
-        var edge = new LayoutPoint(end ? Math.Max(_laid.Size.Width, at.Right) + 1 : -1, at.Y + (at.Height / 2));
-
-        MoveCaretTo(root.OffsetAt(edge), extend);
+        if (_laid.Root.RowEdge(_state.Caret, end) is { } edge) MoveCaretTo(edge, extend);
     }
 
     /// <summary>
@@ -261,6 +252,24 @@ public sealed partial class ContentEngine
             Apply(value || _state.Raw != Whole(_state) ? _state : _state with { Raw = null }, notify: false);
         }
     }
+
+    /// <summary>
+    /// Whether a line of the content shown too long for the room carries on in rows beneath (<see cref="LayoutHost.WrapsLines"/>): text
+    /// shown as typed, rather than laid as its language lays it. What was laid the other way is laid again.
+    /// </summary>
+    internal bool WrapsLines
+    {
+        get => _wrapsLines;
+        set
+        {
+            if (_wrapsLines == value) return;
+
+            _wrapsLines = value;
+            Forget();
+        }
+    }
+
+    private bool _wrapsLines;
 
     /// <summary><paramref name="next"/>, held shown as written where the whole content is.</summary>
     private EditState Held(EditState next) => _holdsWritten ? next with { Raw = Whole(next) } : next;

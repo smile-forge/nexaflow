@@ -17,6 +17,8 @@ using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
 using Nexaflow.Markdown.Code;
+using Nexaflow.Markdown.Layout.Code;
+using Nexaflow.Visuals.Text.Markdown.Code;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -234,6 +236,28 @@ public class WindowedLayoutTests
 
     [TestMethod]
     [CoversNode("windowed-reading")]
+    public void LongCode_ReadAUnitAtATime_StandsForTheDocumentsCharacters_AndStandsAsTallAsTheLinesTheyHold() => UiThread.Run(() =>
+    {
+        var document = ContentDocument.Of(MarkdownLayoutBench.GeneratedCode(400 * 1024));
+        var units = new ContentUnits(NoGrammar);
+        while (!units.Done) units = units.ReadOn(CodeParser.Windowed(NoGrammar), document, 32 * 1024);
+
+        var line = CodeSetting.LineHeight(WpfStyles.Dark, WpfMedium.OnThisThread);
+
+        Assert.IsTrue(units.Count > 1, "The code was read as one unit.");
+        for (var index = 0; index < units.Count; index++)
+        {
+            var (unit, start) = units[index];
+            var body = unit.Tree.Children.Single(child => child.Role == Roles.Body);
+            var lines = document.Slice(start, unit.Width).Count(character => character == '\n') + (CodeSetting.CarriedOn(unit.Tree) ? 0 : 1);
+
+            Assert.IsTrue(body.Stands, $"Unit {index} holds a copy of its characters.");
+            Assert.AreEqual(lines * line, CodeSetting.HeightOf(unit.Tree, WpfStyles.Dark, WpfMedium.OnThisThread, wrapsIn: null), 1e-6, $"Unit {index} stands as tall as some other number of lines.");
+        }
+    });
+
+    [TestMethod]
+    [CoversNode("windowed-reading")]
     public void ScrollingWithinAUnitOfCode_LaysWhatComesOnScreen_AndSetsDownEveryLineLaidAsItWas()
     {
         var text = MarkdownLayoutBench.GeneratedCode(400 * 1024);
@@ -278,6 +302,56 @@ public class WindowedLayoutTests
 
         Assert.AreEqual(1, brought.Count, "It was never brought onto the page.");
         Assert.AreEqual(engine.Laid.Root.CaretRect(far), brought[0]);
+    }
+
+    [TestMethod]
+    [CoversNode("windowed-reading")]
+    public void ControlEnd_InALongDocument_PutsTheCaretAtItsEnd_LayingItThere()
+    {
+        foreach (var (text, named) in new[] { (Paragraphs(4000), (string?)null), (MarkdownLayoutBench.GeneratedCode(400 * 1024), NoGrammar) })
+        {
+            var engine = Shown(text, named, new ContentEngine());
+            engine.OnScreen = new LayoutRect(0, 0, Room, 400);
+            engine.Relay();
+
+            engine.Input(new ContentKey(System.Windows.Input.Key.End, System.Windows.Input.ModifierKeys.Control));
+
+            Assert.IsTrue(text.Length - engine.State.Caret < 3, $"{named ?? "markdown"}: the caret stopped at {engine.State.Caret} of {text.Length}, at the end of what was laid");
+
+            // Laid there as the reading reaches it, a laying out at a time — what whatever shows the content does when told there is more.
+            for (var pass = 0; pass < 100 && engine.UnlaidTop(engine.State.Caret) is not null; pass++) engine.Relay();
+
+            Assert.IsNull(engine.UnlaidTop(engine.State.Caret), $"{named ?? "markdown"}: where the caret went was never laid");
+        }
+    }
+
+    [TestMethod]
+    [CoversNode("windowed-reading")]
+    public void TheScreenMovingWithinAUnitLaidInPart_AsksForMore_AndOnceItIsLaidAsksNoMore()
+    {
+        var text = MarkdownLayoutBench.GeneratedCode(400 * 1024);
+        var engine = Shown(text, NoGrammar, new ContentEngine());
+        engine.OnScreen = new LayoutRect(0, 0, Room, 400);
+        for (var pass = 0; pass < 20; pass++) engine.Relay();
+
+        var grew = 0;
+        engine.Grew += (_, _) => Interlocked.Increment(ref grew);
+
+        // Further down the first unit, past every line laid for the first screen.
+        var line = text.IndexOf('\n', 24 * 1024) + 1;
+        Assert.IsTrue(engine.UnlaidTop(line) is not null, "It was laid already.");
+
+        var top = engine.UnlaidTop(line)!.Value;
+        engine.OnScreen = new LayoutRect(0, top - 200, Room, 400);
+
+        Assert.AreEqual(1, grew, "The screen came to lines of a unit laid in part, and nothing asked for them to be laid.");
+
+        engine.Relay();
+        Assert.IsNull(engine.UnlaidTop(line), "What came on screen was not laid.");
+
+        grew = 0;
+        engine.OnScreen = new LayoutRect(0, top - 190, Room, 400);
+        Assert.AreEqual(0, grew, "With what the screen reaches laid, it went on asking for more — laying again for ever.");
     }
 
     /// <summary>The trees every line of code was laid as, as <paramref name="laid"/> puts them down, at any depth.</summary>

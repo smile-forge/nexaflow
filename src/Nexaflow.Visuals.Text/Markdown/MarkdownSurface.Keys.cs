@@ -87,6 +87,9 @@ public sealed partial class MarkdownSurface
     {
         if (!_shown.HasCaret || _writingGiven) return;
 
+        // A box slid away from the caret slides to it first, so where it stands on the page is where it stands once slid.
+        _engine.SlideOnto(_shown.Caret);
+
         var at = _shown.Laid.Root.CaretRect(_shown.Caret);
         if (at.IsEmpty) return;
 

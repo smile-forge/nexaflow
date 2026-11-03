@@ -229,7 +229,16 @@ public sealed partial class ContentEngine
         if (window.Standing.Length != window.Listed.Count) return true;
 
         foreach (var index in this.Wanted(window, state, window.Tops))
-            if (!window.Standing[index] && this.Shows(window, index)) return true;
+        {
+            if (!this.Shows(window, index)) continue;
+            if (!window.Standing[index]) return true;
+
+            // Laid for part of itself, a unit is short where the screen has since come to more of it than that part — moved within it, which
+            // leaves it standing as it was laid. The screen alone, not the screen either side that laying it lays, so it is laid again only as
+            // the screen comes near the edge of what it laid, not on every step of a scroll.
+            if (window.Staged.TryGetValue(window.Listed[index].Unit.Tree, out var staged) && staged.Laid is { Laid.Reached: not null } laid
+                && !Covered(window, index, laid, this.ReachIn(window, index, window.Tops, this.ScreenBand()))) return true;
+        }
 
         return !window.Units.Done && (this.Reach().Bottom > window.Tops[^1] || _reveal >= window.Units.Reached);
     }
@@ -361,6 +370,9 @@ public sealed partial class ContentEngine
     /// </summary>
     private (double Top, double Bottom) Reach() =>
         _showing is { } showing ? (showing.Y - Math.Max(showing.Height, 1), showing.Bottom + Math.Max(showing.Height, 1)) : (0, Room * 2);
+
+    /// <summary>Where on the page the screen is, as what shows the content last said — or where the first screen would be, before it has.</summary>
+    private (double Top, double Bottom) ScreenBand() => _showing is { } showing ? (showing.Y, showing.Bottom) : (0, Room);
 
     /// <summary>Starts showing <paramref name="document"/> a stretch at a time, stopping whatever was reading the content before.</summary>
     private ContentWindow Opened(ContentLanguage language, ContentDocument document)
@@ -540,6 +552,38 @@ public sealed partial class ContentEngine
         var (unit, start) = window.Listed[at];
 
         return tops[at] + ((tops[at + 1] - tops[at]) * (offset - start) / Math.Max(unit.Width, 1));
+    }
+
+    /// <summary>
+    /// The lines of the content shown standing between <paramref name="top"/> and <paramref name="bottom"/> on the page, as its builder laid
+    /// them (<see cref="Laid.Lines"/>): each one's number, counting from one, and where on the page its rows start and how tall they come
+    /// to. Only lines laid are said — and what the screen reaches is laid — and content whose builder lays no lines says none.
+    /// </summary>
+    internal IReadOnlyList<ShownLine> LinesBetween(double top, double bottom)
+    {
+        var document = _state.Document;
+        var lines = new List<ShownLine>();
+
+        // Laid whole, its lines stand where they were laid.
+        if (_window is not { } window)
+        {
+            foreach (var line in _laid.Lines ?? []) Said(line, 0, 0);
+            return lines;
+        }
+
+        // Laid a unit at a time, each unit's lines stand where it does, and say where they start as the unit read when it was laid.
+        var tops = window.Tops;
+        for (var index = Math.Max(Reaching(tops, top), 0); index < window.Listed.Count && index < tops.Length && tops[index] < bottom; index++)
+            if (window.Staged.TryGetValue(window.Listed[index].Unit.Tree, out var staged) && staged.Laid is { Laid.Lines: { } laid } unit)
+                foreach (var line in laid) Said(line, tops[index], Where(window, window.Listed[index].Start) - unit.Start);
+
+        return lines;
+
+        void Said(LaidLine line, double above, int moved)
+        {
+            var at = above + line.Top;
+            if (at + line.Height > top && at < bottom) lines.Add(new ShownLine(document.LineOf(line.Start + moved) + 1, at, line.Height));
+        }
     }
 
     /// <summary>

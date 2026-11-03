@@ -76,9 +76,12 @@ when somebody asks (`ContentReading`, `ContentPart`), from where its unit starts
 characters stand in those of the reading holding it (`ContentSpace`).
 
 **A piece may stand for characters without holding them** (`ContentNode.Leaf(kind, characters, start, length)`): what a
-long reading has not read yet, and a body another reading reads. It is as wide as its characters, prints as them, and
-reads them only when something asks — from the version it was read from, so a unit kept through later changes still
-reads exactly what it read.
+long reading has not read yet, and, where a reading is read a unit at a time, every body its parser read — a body another
+reading reads, code read as written, a block's characters held as written (`ContentUnit.Standing`) — so a long reading does
+not hold its document a second time. It is as wide as its characters, prints as them, and reads them only when something
+asks — from the version it was read from, so a unit kept through later changes still reads exactly what it read. What it
+is asked for it keeps (`ContentNode.Text`); what reads a long body once to make something else of it, as code is cut into
+lines, reads it without the piece keeping it (`ContentNode.TextAsRead`).
 
 An offset means **where it was read from**, and nothing else. It is not a print position, not a hint, and not
 something an edit updates: an edit names the characters it changes, the engine writes them, and the content is read
@@ -181,7 +184,8 @@ in the background — and for a reading past 128 KB only once typing pauses. A s
 (`CodeHighlights`, see [§8](#8-the-engine)), the query limited to the unit's range and an embedded language parsed whole
 from what holds it; what the parse changed (`GetChangedRanges`) colours again every unit it reaches. Until a unit's
 colours land, it is coloured as it was last found, moved along by every change since. Units are cut at line ends because
-code is laid line by line and nothing wraps; what the code means never turns on where a unit stops. Inside a unit each
+code is laid line by line, and a line that wraps wraps onto rows of its own; what the code means never turns on where a
+unit stops. Inside a unit each
 line is a block of its own (`CodeKinds.Line`), so a line reading as it did — the same characters coloured the same — is
 set down as it was laid (`WithUnchanged`, `LaidBlocks`), and a keystroke lays the line it was typed on. Each line is laid as
 a tree of its own, its picture kept once painted, and put down in the unit's by a mount (`LayoutMount`), so a line kept
@@ -190,11 +194,46 @@ the reader is, a unit lays only the lines the reader reaches (`LayoutHost.Reach`
 it, and the lines holding the caret, each end of what is picked out and wherever the reader went — every other line leaving
 the room it takes, so the unit stands as tall as all of it. What it laid it says (`Laid.Reached`); a unit stands laid only
 for a reach that laying covers, and is laid again, every line already laid set down as it was, when the reader comes to
-more of it — so landing anywhere in a unit thousands of lines long lays a screenful of them. A builder that cannot lay part
-of what it reads lays all of it, as every builder but code's does. A line is coloured
+more of it — so landing anywhere in a unit thousands of lines long lays a screenful of them. The screen moving within such a
+unit counts as coming to more of it once the screen itself reaches past what was laid (`ContentEngine.Short`), so a scroll
+lays again only near the edge of what is laid, a screen either side giving it room. A caret sent somewhere not laid — the
+end of a long document — goes there as it is, and is laid there and brought onto the page (`ContentEngine.Snap`). A place
+brought onto the page — found, gone to, laid to — is left where it stands if it is on the screen already, and otherwise stood
+half way down it, so what comes before and after it is there to read it by (`ContentElement.BringOnto`); a caret kept on the
+screen as it moves is brought only as far as it needs. A builder that cannot lay part
+of what it reads lays all of it, as every builder but those laying line by line does. A line of code is coloured
 and cut in one pass (`CodeParser.InLines`), and one said and coloured as a line the reading was cut into before is that
 line again (`CodeLinePool`), moved along where it now stands — so colours landing for a unit make only the lines they
 changed, and a block kept is hashed once (`WithUnchanged` keeps what each node it asked about came to).
+
+**Text shown as typed** — a page's source beside the page, under `ContentLanguages.AsTyped` — is plain text (`Shipped.Text`). Its
+reading holds the characters as written, cut for the stretches laid into lines, each its words and the spaces between them
+(`TextParser.InLines`, run as the stage `TextIntoLines`): the pieces whatever looks into text — a spelling, a name — finds there.
+Text and code are laid line by line on one base (`LinedBuilder`): the language says what its stretch and its lines are laid as,
+what each piece is inked in and which runs a line is set as — a token each for code, the whole line for text — and the base lays,
+keeps and wraps them. Where the host asks for it (`LayoutHost.WrapsLines`, set by `MarkdownSurface.WrapsLines`), a line too long
+for the room carries on in rows beneath, broken after the last space that fits and a word wider than a row broken where the row
+ends, the spaces a row ends on hanging past it and no row ended after nothing but the line's indent, and the rows after the
+first carrying on under that indent — unless it takes half the room or more (`LineRows`). A run a row break cuts is laid as
+pieces standing for their share of it (`PartSlice`), and a line is set down again only in the room it was laid in. A unit not
+laid is said as tall as the rows its characters break onto with each set at the face's advance (`LinedSetting.HeightOf`),
+counted where they are held — the same rule laying applies to each character measured, so for a monospaced face what is said is
+what is laid. A page sets a fence of text or code in the box it sets a bare fence in, laid in the room inside it
+(`ContentLanguage.BoxedAsWritten`, `MarkdownBuilder.Fenced`); pictures draw themselves. Content inside what the engine shows keeps
+its lines unless its language wraps them (`ContentLanguage.WrapsLines`, `ContentShowing.WrapsLines`): text's wrap to fit inside
+the box, and code's are kept whole. A box narrower than the lines it keeps whole keeps to its room and slides sideways inside it
+(`LayoutSlide`, §8): what it holds is set slid along and cut to the box (`LayoutPaint.Clip`, which a piece's reach is cut to as
+well), with a bar under it saying how much shows and where along. Content laid for paper slides nothing, so there a box's lines
+wrap instead and all of them show (`ContentEngine.Slides`).
+
+**What stands beside the page is drawn from the lines, not into the content.** A builder that lays content line by line says
+where each line it laid stands (`Laid.Lines`); the engine says which of them stand between two heights on the page, and
+their numbers, from the document's line index (`ContentEngine.LinesBetween`), laid whole or a unit at a time; and the
+surface says the ones on its visible page, in its own frame (`MarkdownSurface.LinesShown`). Margins — line numbers,
+breakpoints, a fold's handles — stand in a stack on each side of the page, outward from it in the order listed
+(`MarkdownSurface.LeadingMargins`, `TrailingMargins`), each a control of its own (`ContentMargin`) drawn again whenever the
+surface scrolls or lays out. Nothing a margin draws is content: no caret stands in it and no selection or search reaches
+it, and a margin that picks lines out asks the surface to, so what is picked out is the content's.
 
 ## 4. Stages
 
@@ -397,6 +436,16 @@ worked out from where they are written — and puts a marker under its heading s
 opens it as a diagram's chip opens a node. Whatever has to show a place inside a folded section opens it first
 (`ContentEngine.Unfolded`). Nothing nested is folded by the document's sections: a diagram in it has openings of its own.
 
+**How far the reader has slid a box sideways is the engine's too**, kept against the reading of the body the box holds
+(`ContentBody.Continuity`), so a box stays slid where it was through every edit, and handed to the builder laying it as folds
+are (`LayoutHost.SlideOf`, `LayoutHost.Slid`), which lays it slid and says so on the box (`LayoutActions.Slide`: what shows,
+where its bar and the bar's thumb stand). A block keeps its laying only while every box in it stands where it was laid
+(`KeptLaying.Slides`). Since what is slid is laid slid, a press, the caret, picking out and finding all work from the tree as it
+stands and know nothing of sliding. A sideways turn of the wheel slides the box under it (`ContentSlide`), holding the bar's
+thumb and dragging slides it as far as the thumb goes, and pressing the bar either side of the thumb slides it a boxful; a
+place brought onto the page — the caret as it moves, a match gone to — that a box has slid out of view is slid into it first
+(`ContentEngine.SlideOnto`).
+
 **What the host says that the source does not** — where pictures are found, how links look, what diagrams are bound
 against — is the engine's `Inputs` (`ContentInputs`), and what a language's stages read. Setting them, or `Forget`,
 says that nothing laid before is to be set down again as it was.
@@ -418,7 +467,7 @@ follows the screen: work landing for a unit the reader has scrolled away from wa
 ## 9. Editing
 
 Everything the reader does reaches the engine as one `ContentInput` (`ContentEngine.Input`): a key, text typed, a
-press, a drag, a release. A window's keys and a test's are the same input by then, so what one does the other does. The
+press, a drag, a release, a sideways turn of the wheel. A window's keys and a test's are the same input by then, so what one does the other does. The
 element only turns the pointer's pixels into the content's units and says when a move has gone far enough to be a drag.
 No key is the surface's: the clipboard's and the page's go to the engine like every other, and where a page key means
 nothing to the content the engine asks back for a page, which is as tall as whatever shows it.
@@ -522,8 +571,9 @@ whether it differs from what was last saved. The surface's engine writes in it a
 with the change itself, and the characters only when it saves them (`WriteTo`). Nothing hands the text back to the page as it is
 written. A page that only shows text binds it through `AsEditedDocument`, a document of its own for each text; a page loading or
 writing on the reader's behalf calls `Load` or `Write` on the document, and the engine takes the change up, carrying the caret
-through it; another view of the same document — the raw half beside a rendered one — writes through `MarkdownSurface.Write`, which
-writes as though the reader typed there. Being a plain object, the document, its history and whether it was saved stay where they
+through it; another view of the same document — the raw half beside a rendered one — is a second surface holding the same
+object, so what is written in either is taken up by both and taken back from either, with one history between them, and the
+text is held once. Being a plain object, the document, its history and whether it was saved stay where they
 are when what draws them does not.
 
 What happened is the engine's to say, and the surface says it again to the page as routed events: `SourceChanged` (what

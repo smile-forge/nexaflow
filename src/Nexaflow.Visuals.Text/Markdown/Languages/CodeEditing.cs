@@ -55,6 +55,15 @@ internal sealed class CodeEditing : IContentLanguage
     /// <summary>Colouring code is still showing it: every character a writer typed is on the page.</summary>
     public bool ShowsWhatWasWritten => true;
 
+    /// <summary>Enter carries a line's indent on, and Tab and Shift+Tab indent, as in a text editor (<see cref="LineIndenting"/>).</summary>
+    public IOnEdit? OnEdit => LineIndenting.Instance;
+
+    /// <summary>
+    /// Every way of the clipboard, as the engine does it: what its edits write beyond the characters typed is only indent, so every
+    /// character in code still means what it says, and a cut, a copy or a paste of them is always right.
+    /// </summary>
+    public ClipboardOffers Clipboard(ContentAsk ask) => ClipboardOffers.All;
+
     /// <summary>
     /// A picture of code is a worse copy of the code — it cannot be searched, pasted or read by anything — so that is the one
     /// usual button this does not offer.

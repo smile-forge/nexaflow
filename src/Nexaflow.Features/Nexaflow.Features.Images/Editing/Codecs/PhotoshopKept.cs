@@ -28,6 +28,8 @@ public sealed record PhotoshopPictureKept(ReadOnlyMemory<byte> ColourModeData, I
 /// <item>the blocks its pixels were made from — a text layer's text, a smart object, a shape — written back only while the
 /// pixels are still <see cref="ReadPixels"/>, the very tiles read: once painted on, the layer is plain pixels, as Photoshop
 /// makes it on rasterizing;</item>
+/// <item>its pixels' channels as the file compressed them, written back as they are while the pixels are still
+/// <see cref="ReadPixels"/> — so a save compresses only the layers painted on, and an untouched layer keeps every bit;</item>
 /// <item>its opacity and fill as written, where fill was folded into <see cref="Layer.Opacity"/>;</item>
 /// <item>its mask's flags and parameters, its blending ranges, and a group's open or closed;</item>
 /// <item>for a layer Nexaflow cannot draw — an adjustment — its channels as they were compressed.</item>
@@ -41,6 +43,10 @@ public sealed record PhotoshopLayerKept : IUndrawnKept
 
     /// <summary>The pixels <see cref="PixelBlocks"/> describe; null where there are none.</summary>
     public TiledPixels? ReadPixels { get; init; }
+
+    /// <summary>The channels of <see cref="ReadPixels"/> — transparency and colour — as the file compressed them, the record's
+    /// rectangle they cover, and whether the file was a PSB, whose run-length rows count their bytes wider.</summary>
+    public (PhotoshopRect Rect, bool Large, ImmutableArray<PhotoshopChannelToWrite> Channels)? ReadChannels { get; init; }
 
     /// <summary>The opacity and fill bytes as written, and the opacity they were read as — written back while the layer's
     /// opacity is still that.</summary>
@@ -61,9 +67,12 @@ public sealed record PhotoshopLayerKept : IUndrawnKept
 
     public ImmutableArray<string> Undrawn { get; init; } = [];
 
+    /// <summary>The identity of the clipping run this layer heads, which Photoshop has no record of its own for.</summary>
+    public Guid? RunId { get; init; }
+
     public bool Equals(PhotoshopLayerKept? other)
         => other is not null && Blocks.SequenceEqual(other.Blocks) && PixelBlocks.SequenceEqual(other.PixelBlocks)
-           && ReferenceEquals(ReadPixels, other.ReadPixels) && OpacityAndFill == other.OpacityAndFill && Equals(Mask, other.Mask)
+           && ReferenceEquals(ReadPixels, other.ReadPixels) && Equals(ReadChannels, other.ReadChannels) && OpacityAndFill == other.OpacityAndFill && Equals(Mask, other.Mask)
            && BlendingRanges.Span.SequenceEqual(other.BlendingRanges.Span) && SectionType == other.SectionType && BlendKey == other.BlendKey
            && Undrawn.SequenceEqual(other.Undrawn);
 

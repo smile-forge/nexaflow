@@ -33,6 +33,7 @@ using Nexaflow.Markdown.Layout.Packet;
 using Nexaflow.Markdown.Layout.Plot;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Markdown.Layout.Scores;
+using Nexaflow.Markdown.Layout.PlainText;
 using Nexaflow.Markdown.Layout.Treemap;
 using Nexaflow.Markdown.Layout.TreeView;
 using Nexaflow.Markdown.Layout.WordCloud;
@@ -92,6 +93,9 @@ public static class ContentLayouts
 
     /// <summary>Code, coloured as its grammar reads it.</summary>
     public static Type Code => typeof(CodeBuilder);
+
+    /// <summary>Plain text, laid line by line.</summary>
+    public static Type Text => typeof(TextBuilder);
 
     /// <summary>Content nothing could read, shown as it is written with why beneath it.</summary>
     public static Type Unread => typeof(UnreadBuilder);

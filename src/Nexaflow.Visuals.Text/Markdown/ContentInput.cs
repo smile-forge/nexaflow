@@ -35,3 +35,9 @@ public sealed record ContentRelease : ContentInput;
 
 /// <summary>The pointer is over the content at a point, or — null — has left it.</summary>
 public sealed record ContentHover(LayoutPoint? At) : ContentInput;
+
+/// <summary>
+/// The wheel turned sideways at a point — tilted, swept on a touchpad, or turned with Shift held — <paramref name="By"/> along, in the
+/// content's own units: a box narrower than its lines, slid that far to show more of them.
+/// </summary>
+public sealed record ContentSlide(LayoutPoint At, double By) : ContentInput;

@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using SkiaSharp;
+using System.Runtime.Intrinsics;
 
 namespace Nexaflow.Features.Images.Editing.Layers;
 
@@ -32,6 +33,27 @@ public sealed class TileFormat
     ];
 
     private static readonly float[] ByteToUnit = Enumerable.Range(0, 256).Select(v => v / 255f).ToArray();
+
+    /// <summary>Every 8-bit colour premultiplied by every alpha, rounded — <c>(c·a + 127) / 255</c> — at <c>a · 256 + c</c>.</summary>
+    private static readonly byte[] PremulBytes = BytesOf((c, a) => (c * a + 127) / 255);
+
+    /// <summary>Every 8-bit premultiplied colour divided by every alpha, rounded and held to 255 — 0 where the alpha is — at
+    /// <c>a · 256 + c</c>.</summary>
+    private static readonly byte[] StraightBytes = BytesOf((c, a) => a == 0 ? 0 : Math.Min(255, (c * 255 + a / 2) / a));
+
+    private static byte[] BytesOf(Func<int, int, int> colourOf)
+    {
+        var bytes = new byte[256 * 256];
+        for (int a = 0; a < 256; a++)
+            for (int c = 0; c < 256; c++) bytes[a << 8 | c] = (byte)colourOf(c, a);
+        return bytes;
+    }
+
+    /// <summary>An 8-bit straight colour as an 8-bit premultiplied tile holds it beside <paramref name="alpha"/>.</summary>
+    public static byte PremulByte(int colour, int alpha) => PremulBytes[alpha << 8 | colour];
+
+    /// <summary>An 8-bit premultiplied colour as it is straight, beside <paramref name="alpha"/>.</summary>
+    public static byte StraightByte(int colour, int alpha) => StraightBytes[alpha << 8 | colour];
 
     // Grey and alpha read from a two-channel tile, premultiplied, as the colour every surface draws.
     private const string GreySwizzle = "uniform shader tile; half4 main(float2 p) { half4 c = tile.eval(p); return half4(c.r * c.g, c.r * c.g, c.r * c.g, c.g); }";
@@ -71,6 +93,21 @@ public sealed class TileFormat
 
     /// <summary>Whether colour is held multiplied by alpha — only 8-bit colour.</summary>
     public bool Premultiplied { get; }
+
+    /// <summary>
+    /// A new tile, wholly transparent, on the pinned object heap: it never moves, so Skia draws straight from it
+    /// (<see cref="Draw"/>) and no tile is ever held twice. A tile is a large object either way, which the collector does not
+    /// compact, so pinning costs nothing.
+    /// </summary>
+    public byte[] NewTile() => GC.AllocateArray<byte>(TileBytes, pinned: true);
+
+    /// <summary>A copy of <paramref name="tile"/> to change, pinned as every tile is (<see cref="NewTile"/>).</summary>
+    public byte[] CopyOf(byte[] tile)
+    {
+        var copy = GC.AllocateUninitializedArray<byte>(TileBytes, pinned: true);
+        tile.CopyTo(copy, 0);
+        return copy;
+    }
 
     /// <summary>
     /// What a bitmap of these pixels is, colour and alpha, deep enough to hold them: 8-bit premultiplied colour, or 16-bit or
@@ -129,12 +166,34 @@ public sealed class TileFormat
         switch (Colour.Model, Colour.Depth)
         {
             case (ColourModel.Rgb, ChannelDepth.U8):
-                for (int i = 0; i < count * 4; i++) rgba[i] = ByteToUnit[pixels[i]];
+            {
+                // Four pixels at a time: sixteen bytes widened to floats.
+                int i = 0, end = count * 4;
+                for (; i + 16 <= end; i += 16)
+                {
+                    var (low, high) = Vector128.Widen(Vector128.Create(pixels.Slice(i, 16)));
+                    var (first, second) = Vector128.Widen(low);
+                    var (third, fourth) = Vector128.Widen(high);
+                    (Vector128.ConvertToSingle(first) / ByteScale).CopyTo(rgba[i..]);
+                    (Vector128.ConvertToSingle(second) / ByteScale).CopyTo(rgba[(i + 4)..]);
+                    (Vector128.ConvertToSingle(third) / ByteScale).CopyTo(rgba[(i + 8)..]);
+                    (Vector128.ConvertToSingle(fourth) / ByteScale).CopyTo(rgba[(i + 12)..]);
+                }
+                for (; i < end; i++) rgba[i] = ByteToUnit[pixels[i]];
                 break;
+            }
             case (ColourModel.Rgb, ChannelDepth.U16):
             {
                 var samples = MemoryMarshal.Cast<byte, ushort>(pixels);
-                for (int i = 0, p = 0; i < count; i++, p += 4)
+                // Two pixels at a time; an odd one left over below.
+                int pairs = count & ~1;
+                for (int p = 0; p < pairs * 4; p += 8)
+                {
+                    var (first, second) = Vector128.Widen(Vector128.Create(samples.Slice(p, 8)));
+                    PremulPixel(Vector128.ConvertToSingle(first) / UShortScale).CopyTo(rgba[p..]);
+                    PremulPixel(Vector128.ConvertToSingle(second) / UShortScale).CopyTo(rgba[(p + 4)..]);
+                }
+                for (int i = pairs, p = pairs * 4; i < count; i++, p += 4)
                 {
                     float a = samples[p + 3] / 65535f;
                     rgba[p] = samples[p] / 65535f * a;
@@ -147,14 +206,7 @@ public sealed class TileFormat
             case (ColourModel.Rgb, ChannelDepth.F32):
             {
                 var samples = MemoryMarshal.Cast<byte, float>(pixels);
-                for (int i = 0, p = 0; i < count; i++, p += 4)
-                {
-                    float a = Math.Clamp(samples[p + 3], 0, 1);
-                    rgba[p] = samples[p] * a;
-                    rgba[p + 1] = samples[p + 1] * a;
-                    rgba[p + 2] = samples[p + 2] * a;
-                    rgba[p + 3] = a;
-                }
+                for (int p = 0; p < count * 4; p += 4) PremulPixel(Vector128.Create(samples.Slice(p, 4))).CopyTo(rgba[p..]);
                 break;
             }
             case (ColourModel.Grey, ChannelDepth.U8):
@@ -193,7 +245,18 @@ public sealed class TileFormat
         switch (Colour.Model, Colour.Depth)
         {
             case (ColourModel.Rgb, ChannelDepth.U8):
-                for (int i = 0, p = 0; i < count; i++, p += 4)
+            {
+                // Four pixels at a time, narrowed to sixteen bytes; the rest one by one below.
+                int quads = count & ~3;
+                for (int p = 0; p < quads * 4; p += 16)
+                {
+                    var first = Quantised(ClampedPixel(Vector128.Create(rgba.Slice(p, 4))), ByteScale);
+                    var second = Quantised(ClampedPixel(Vector128.Create(rgba.Slice(p + 4, 4))), ByteScale);
+                    var third = Quantised(ClampedPixel(Vector128.Create(rgba.Slice(p + 8, 4))), ByteScale);
+                    var fourth = Quantised(ClampedPixel(Vector128.Create(rgba.Slice(p + 12, 4))), ByteScale);
+                    Vector128.Narrow(Vector128.Narrow(first, second), Vector128.Narrow(third, fourth)).CopyTo(pixels[p..]);
+                }
+                for (int i = quads, p = quads * 4; i < count; i++, p += 4)
                 {
                     float a = Math.Clamp(rgba[p + 3], 0, 1);
                     pixels[p + 3] = ToByte(a);
@@ -202,10 +265,19 @@ public sealed class TileFormat
                     pixels[p + 2] = ToByte(Math.Min(rgba[p + 2], a));
                 }
                 break;
+            }
             case (ColourModel.Rgb, ChannelDepth.U16):
             {
                 var samples = MemoryMarshal.Cast<byte, ushort>(pixels);
-                for (int i = 0, p = 0; i < count; i++, p += 4)
+                // Two pixels at a time, narrowed to eight samples; an odd one left over below.
+                int pairs = count & ~1;
+                for (int p = 0; p < pairs * 4; p += 8)
+                {
+                    var first = Quantised(StraightPixel(Vector128.Create(rgba.Slice(p, 4))), UShortScale);
+                    var second = Quantised(StraightPixel(Vector128.Create(rgba.Slice(p + 4, 4))), UShortScale);
+                    Vector128.Narrow(first, second).CopyTo(samples[p..]);
+                }
+                for (int i = pairs, p = pairs * 4; i < count; i++, p += 4)
                 {
                     float a = Math.Clamp(rgba[p + 3], 0, 1);
                     samples[p + 3] = ToUShort(a);
@@ -219,15 +291,7 @@ public sealed class TileFormat
             case (ColourModel.Rgb, ChannelDepth.F32):
             {
                 var samples = MemoryMarshal.Cast<byte, float>(pixels);
-                for (int i = 0, p = 0; i < count; i++, p += 4)
-                {
-                    float a = Math.Clamp(rgba[p + 3], 0, 1);
-                    samples[p + 3] = a;
-                    if (a <= 0) { samples[p] = samples[p + 1] = samples[p + 2] = 0; continue; }
-                    samples[p] = rgba[p] / a;
-                    samples[p + 1] = rgba[p + 1] / a;
-                    samples[p + 2] = rgba[p + 2] / a;
-                }
+                for (int p = 0; p < count * 4; p += 4) StraightPixel(Vector128.Create(rgba.Slice(p, 4))).CopyTo(samples[p..]);
                 break;
             }
             case (ColourModel.Grey, ChannelDepth.U8):
@@ -276,6 +340,42 @@ public sealed class TileFormat
     private static byte ToByte(float unit) => (byte)Math.Clamp((int)MathF.Round(unit * 255), 0, 255);
 
     private static ushort ToUShort(float unit) => (ushort)Math.Clamp((int)MathF.Round(unit * 65535), 0, 65535);
+
+    private static readonly Vector128<float> ByteScale = Vector128.Create(255f), UShortScale = Vector128.Create(65535f);
+
+    /// <summary>The alpha lane of a pixel's four.</summary>
+    private static readonly Vector128<float> AlphaLane = Vector128.Create(0u, 0u, 0u, uint.MaxValue).AsSingle();
+
+    /// <summary>A pixel's alpha, held between 0 and 1, in all four lanes.</summary>
+    private static Vector128<float> AlphaOf(Vector128<float> pixel)
+        => Vector128.Clamp(Vector128.Shuffle(pixel, Vector128.Create(3, 3, 3, 3)), Vector128<float>.Zero, Vector128<float>.One);
+
+    /// <summary>A straight pixel premultiplied, its alpha held between 0 and 1.</summary>
+    private static Vector128<float> PremulPixel(Vector128<float> pixel)
+    {
+        var alpha = AlphaOf(pixel);
+        return Vector128.ConditionalSelect(AlphaLane, alpha, pixel * alpha);
+    }
+
+    /// <summary>A premultiplied pixel no longer premultiplied — wholly zero where it is wholly transparent.</summary>
+    private static Vector128<float> StraightPixel(Vector128<float> pixel)
+    {
+        var alpha = AlphaOf(pixel);
+        var straight = Vector128.ConditionalSelect(AlphaLane, alpha, pixel / alpha);
+        return Vector128.ConditionalSelect(Vector128.GreaterThan(alpha, Vector128<float>.Zero), straight, Vector128<float>.Zero);
+    }
+
+    /// <summary>A premultiplied pixel with no colour brighter than its alpha, as an 8-bit premultiplied tile holds it.</summary>
+    private static Vector128<float> ClampedPixel(Vector128<float> pixel)
+    {
+        var alpha = AlphaOf(pixel);
+        return Vector128.ConditionalSelect(AlphaLane, alpha, Vector128.Min(pixel, alpha));
+    }
+
+    /// <summary>Units scaled to whole samples — rounded half to even, as <see cref="ToByte"/> and <see cref="ToUShort"/> are —
+    /// and held between 0 and <paramref name="scale"/>.</summary>
+    private static Vector128<uint> Quantised(Vector128<float> units, Vector128<float> scale)
+        => Vector128.ConvertToUInt32(Vector128.Clamp(Vector128.Round(units * scale), Vector128<float>.Zero, scale));
 
     /// <summary>
     /// <paramref name="bitmap"/>'s pixels in this format, row by row: drawn into this format's own bitmap — so converted from
@@ -356,17 +456,25 @@ public sealed class TileFormat
         canvas.DrawRect(SKRect.Create(x, y, TileSize, TileSize), draw);
     }
 
+    /// <summary>
+    /// A tile as a Skia image over its own bytes, not a copy of them: every tile is pinned (<see cref="NewTile"/>) and never
+    /// changes once made, and the image is reached only through the tile, so it is never drawn once the tile is gone. A float
+    /// grey tile, which Skia has no two-channel image for, is the one spread into an image of its own.
+    /// </summary>
     private SKImage ImageOf(byte[] tile)
     {
         SKImage? image = (Colour.Model, Colour.Depth) switch
         {
-            (ColourModel.Rgb, _) => SKImage.FromPixelCopy(BitmapInfo(TileSize, TileSize), tile),
-            (ColourModel.Grey, ChannelDepth.U8) => SKImage.FromPixelCopy(new SKImageInfo(TileSize, TileSize, SKColorType.Rg88, SKAlphaType.Opaque), tile),
-            (ColourModel.Grey, ChannelDepth.U16) => SKImage.FromPixelCopy(new SKImageInfo(TileSize, TileSize, SKColorType.Rg1616, SKAlphaType.Opaque), tile),
+            (ColourModel.Rgb, _) => Over(BitmapInfo(TileSize, TileSize), tile),
+            (ColourModel.Grey, ChannelDepth.U8) => Over(new SKImageInfo(TileSize, TileSize, SKColorType.Rg88, SKAlphaType.Opaque), tile),
+            (ColourModel.Grey, ChannelDepth.U16) => Over(new SKImageInfo(TileSize, TileSize, SKColorType.Rg1616, SKAlphaType.Opaque), tile),
             _ => SpreadGrey(tile),
         };
         return image ?? throw new InvalidOperationException("A tile could not be made an image.");
     }
+
+    private static SKImage? Over(SKImageInfo info, byte[] tile)
+        => SKImage.FromPixels(info, Marshal.UnsafeAddrOfPinnedArrayElement(tile, 0), info.RowBytes);
 
     private SKImage? SpreadGrey(byte[] tile)
     {
