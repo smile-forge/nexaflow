@@ -2,6 +2,7 @@ using System.Text.Json.Nodes;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Providers.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.Services.Generation;
 
@@ -68,6 +69,11 @@ internal sealed class EditImageTool : IClientTool
 
     /// <summary>An edit runs on as one of the workspace's background jobs: the model is told it has started.</summary>
     public bool RunsInBackground(JsonObject arguments) => true;
+
+    /// <summary>How an edit is named among the background jobs, told of when it ends, and announced in a voice conversation.</summary>
+    public ToolCallAnnouncement? Announce(JsonObject arguments) =>
+        new(Str.Get("Shell.Generate.Announce.Edit"), Str.Get("Shell.Generate.Announce.ThePicture"), Str.Get("Shell.Generate.Announce.EditingPicture"),
+            Str.Get("Shell.Generate.Announce.PictureEdited"), Str.Get("Shell.Generate.Announce.NoEdit"), Str.Get("Shell.Generate.Announce.EditingInBackground"));
 
     public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {

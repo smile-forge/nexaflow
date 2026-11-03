@@ -32,6 +32,29 @@
         <Border Grid.Column="2" Width="260" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0"
                 Visibility="{Binding IsLayered, Converter={StaticResource BoolToVis}}" Thumb.DragStarted="Slider_DragStarted" Thumb.DragCompleted="Slider_DragCompleted">
             <DockPanel>
+                <!-- What the workspace's image models do to the picture, side by side: each sets itself up just below. -->
+                <UniformGrid DockPanel.Dock="Top" Columns="2" Margin="8,8,8,0">
+                    <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Pictures.AskForLayerCommand}" Margin="0,0,4,4"
+                            ToolTip="{loc:Str Images.Layers.GenerateTip}" AutomationProperties.AutomationId="Image_LayersGenerate"
+                            Visibility="{Binding Pictures.OffersGeneration, Converter={StaticResource BoolToVis}}">
+                        <icons:IconLabel Icon="fluent:sparkle" Text="{loc:Str Images.Layers.Generate}" FontSize="11"/>
+                    </Button>
+                    <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Edits.AskFillCommand}" Margin="0,0,4,4"
+                            ToolTip="{loc:Str Images.Edits.FillTip}" ToolTipService.ShowOnDisabled="True" AutomationProperties.AutomationId="Image_LayersAiFill"
+                            Visibility="{Binding Edits.OffersFill, Converter={StaticResource BoolToVis}}">
+                        <icons:IconLabel Icon="fluent:paint_brush_sparkle" Text="{loc:Str Images.Edits.Fill}" FontSize="11"/>
+                    </Button>
+                    <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Edits.AskExpandCommand}" Margin="0,0,4,4"
+                            ToolTip="{loc:Str Images.Edits.ExpandTip}" AutomationProperties.AutomationId="Image_LayersAiExpand"
+                            Visibility="{Binding Edits.OffersFill, Converter={StaticResource BoolToVis}}">
+                        <icons:IconLabel Icon="fluent:resize" Text="{loc:Str Images.Edits.Expand}" FontSize="11"/>
+                    </Button>
+                    <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Edits.AskChangeCommand}" Margin="0,0,4,4"
+                            ToolTip="{loc:Str Images.Edits.ChangeTip}" AutomationProperties.AutomationId="Image_LayersAiChange"
+                            Visibility="{Binding Edits.OffersChange, Converter={StaticResource BoolToVis}}">
+                        <icons:IconLabel Icon="fluent:wand" Text="{loc:Str Images.Edits.Change}" FontSize="11"/>
+                    </Button>
+                </UniformGrid>
                 <views:CanvasPicturesPanel DockPanel.Dock="Top" DataContext="{Binding Pictures}"/>
                 <views:PictureEditsPanel DockPanel.Dock="Top" DataContext="{Binding Edits}"/>
                 <views:LayersPanel DataContext="{Binding Layers}"/>

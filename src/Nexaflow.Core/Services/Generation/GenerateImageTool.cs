@@ -128,7 +128,8 @@ internal sealed class GenerateImageTool : IClientTool
                   Str.Get("Shell.Generate.Announce.DrawingHighQualityPicture"),
                   Str.Get("Shell.Generate.Announce.PictureMade"), Str.Get("Shell.Generate.Announce.NoPicture"),
                   Str.Get("Shell.Generate.Announce.DrawingInBackground"))
-            : null;
+            : new(Str.Get("Shell.Generate.Announce.Draw"), Str.Get("Shell.Generate.Announce.Picture"), Str.Get("Shell.Generate.Announce.DrawingPicture"),
+                  Str.Get("Shell.Generate.Announce.PictureMade"), Str.Get("Shell.Generate.Announce.NoPicture"));
 
     /// <summary>The model a call draws with: the high-quality one when asked for, or when it is the only one.</summary>
     private IImageGenerationProvider Model(JsonObject arguments) =>

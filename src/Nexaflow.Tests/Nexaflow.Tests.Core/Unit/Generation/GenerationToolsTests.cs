@@ -297,7 +297,8 @@ public class GenerationToolsTests
 
         CollectionAssert.AreEqual(new[] { "standard", "high" }, tool.Parameters.Single(p => p.Name == "quality").Choices!.ToArray());
         Assert.AreEqual(ToolSafety.SafeOperation, tool.SafetyOf(new JsonObject { ["prompt"] = "a fox" }));
-        Assert.IsNull(tool.Announce(new JsonObject { ["prompt"] = "a fox" }), "a standard picture is just drawn");
+        Assert.AreEqual(Str.Get("Shell.Generate.Announce.DrawingPicture"), tool.Announce(new JsonObject { ["prompt"] = "a fox" })!.Doing,
+                        "a standard picture is named for what it does, not for its tool");
         Assert.AreEqual(ToolSafety.RequiresApproval, tool.SafetyOf(asked), "a high-quality picture is slow and dearer");
         Assert.AreEqual(Str.Get("Shell.Generate.Announce.HighQualityPicture"), tool.Announce(asked)!.Target);
 

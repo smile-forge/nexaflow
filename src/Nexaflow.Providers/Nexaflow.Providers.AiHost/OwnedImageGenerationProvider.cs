@@ -118,7 +118,7 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
         string prompt = lora?.Prompted(request.Prompt) ?? request.Prompt;
         string? negative = string.IsNullOrWhiteSpace(request.NegativePrompt) ? null : request.NegativePrompt;
 
-        var label    = $"Drawing with {_model.Catalog.DisplayName}";
+        var label    = sources.Count > 0 ? $"Editing with {_model.Catalog.DisplayName}" : $"Drawing with {_model.Catalog.DisplayName}";
         var activity = _runtime.Activities.StartActivity(label + "…");
         var host     = _runtime.Host;
         host.Environment = _runtime.Environment;

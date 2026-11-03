@@ -6,8 +6,8 @@
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="Image_LayersPictures">
 
-    <!-- Above the layers: Generate layer, and the pictures being drawn for the canvas with their progress and Stop.
-         Bound to a CanvasPictures. -->
+    <!-- Above the layers: Generate layer being set up, and the pictures being drawn for the canvas with their progress and
+         Stop. Bound to a CanvasPictures. -->
 
     <UserControl.Resources>
         <ResourceDictionary>
@@ -19,15 +19,10 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <StackPanel Margin="8,8,8,0">
-        <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding AskForLayerCommand}" HorizontalAlignment="Left"
-                ToolTip="{loc:Str Images.Layers.GenerateTip}" AutomationProperties.AutomationId="Image_LayersGenerate"
-                Visibility="{Binding OffersGeneration, Converter={StaticResource BoolVis}}">
-            <icons:IconLabel Icon="fluent:sparkle" Text="{loc:Str Images.Layers.Generate}"/>
-        </Button>
-
-        <!-- Generate layer, being set up: what the model offers, the proportions the canvas's nearest. -->
-        <Border Margin="0,6,0,0" Padding="8" Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+    <StackPanel Margin="8,0,8,0">
+        <!-- Generate layer, being set up: what the model offers, the proportions the canvas's nearest. Its button sits with
+             the other picture actions above (ImageEditView). -->
+        <Border Margin="0,2,0,0" Padding="8" Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
                 Visibility="{Binding IsAsking, Converter={StaticResource BoolVis}}">
             <StackPanel>
                 <ContentControl Content="{Binding Options.View}" Focusable="False"/>
