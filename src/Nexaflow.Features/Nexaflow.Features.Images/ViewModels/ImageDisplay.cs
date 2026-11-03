@@ -21,7 +21,9 @@ namespace Nexaflow.Features.Images.ViewModels;
 /// <param name="EditFrame">What the edit canvas shows: the finished picture, or the uncropped one while cropping.</param>
 /// <param name="FitToWindow">Outside the editor: fitted to the viewport, or at actual size.</param>
 /// <param name="MaskAlone">In a layered picture, this layer's mask shown alone instead of the layers.</param>
-public readonly record struct ImageDisplayMode(bool Editing, bool ShowOriginal, RenderFrame EditFrame, bool FitToWindow, Guid? MaskAlone = null);
+/// <param name="Tones">Whether each frame's tones are read, and which ends are marked where they clip.</param>
+public readonly record struct ImageDisplayMode(bool Editing, bool ShowOriginal, RenderFrame EditFrame, bool FitToWindow, Guid? MaskAlone = null,
+                                               ToneAsk Tones = default);
 
 /// <summary>
 /// Puts the picture being viewed on screen — a photo, or a layered picture — decoding each picture it is drawn from off the
@@ -44,6 +46,8 @@ public sealed class ImageDisplay : IDisposable
     private readonly CancellationToken _lifetime;
     private readonly SkiaBitmapPresenter _presenter;
 
+    private readonly ToneReader _tones = new();
+
     private ImageEditSession? _session;
     private LayeredSession? _document;
     private readonly Dictionary<PictureRendering, PictureDecodes> _decodes = new(ReferenceEqualityComparer.Instance);
@@ -58,7 +62,11 @@ public sealed class ImageDisplay : IDisposable
         _lifetime = lifetime;
         _presenter = new SkiaBitmapPresenter(runOnUi);
         _presenter.BitmapChanged += () => ImageChanged?.Invoke(_presenter.Bitmap);
-        _presenter.Presented     += tag => { if (tag is EditCanvas canvas) Presented?.Invoke(canvas); };
+        _presenter.Presented     += (tag, reading) =>
+        {
+            if (reading is ToneReading tones) TonesRead?.Invoke(tones);
+            if (tag is EditCanvas canvas) Presented?.Invoke(canvas);
+        };
     }
 
     /// <summary>The bitmap frames land in is a new one, or none. On the UI thread.</summary>
@@ -66,6 +74,10 @@ public sealed class ImageDisplay : IDisposable
 
     /// <summary>A frame landed, a picture of this. On the UI thread.</summary>
     public event Action<EditCanvas>? Presented;
+
+    /// <summary>A frame landed whose tones were asked for, read from it as rendered. On the UI thread, while what the reading
+    /// marked is still that frame's.</summary>
+    public event Action<ToneReading>? TonesRead;
 
     /// <summary>A picture shown has pixels to render from — the first decode, or a sharper one, or what a tool made. On the UI thread.</summary>
     public event Action<PictureRendering>? Decoded;
@@ -189,7 +201,7 @@ public sealed class ImageDisplay : IDisposable
 
         var request = new RenderRequest(frame, renderScale, Adjustments: !showOriginal, Markup: !showOriginal);
         double dpi = mode.Editing ? 96 * renderScale / layoutScale : 96;
-        _presenter.Present(consume => rendering.Render(recipe, request, consume), dpi, canvas);
+        _presenter.Present(consume => rendering.Render(recipe, request, consume), dpi, canvas, ToneReadingFor(mode));
     }
 
     /// <summary>
@@ -256,7 +268,7 @@ public sealed class ImageDisplay : IDisposable
 
         var options = new CompositeOptions(MaskAlone: mode.Editing ? mode.MaskAlone : null);
         double dpi = mode.Editing ? 96 * renderScale / layoutScale : 96;
-        _presenter.Present(consume => document.Render(picture, renderScale, options, consume), dpi, canvas);
+        _presenter.Present(consume => document.Render(picture, renderScale, options, consume), dpi, canvas, ToneReadingFor(mode));
     }
 
     /// <summary>The scale a picture of <paramref name="natural"/> size is laid out at, and the one it is rendered at.</summary>
@@ -272,6 +284,14 @@ public sealed class ImageDisplay : IDisposable
             ? Math.Min(1, Math.Min(_viewportWidth * _pixelsPerDip / natural.Width, _viewportHeight * _pixelsPerDip / natural.Height))
             : 1;
         return (fitted, fitted);
+    }
+
+    /// <summary>What reads each frame's tones for <paramref name="mode"/>; none where it asks for none.</summary>
+    private Func<SKImage, object?>? ToneReadingFor(ImageDisplayMode mode)
+    {
+        if (!mode.Tones.Read) return null;
+        var marked = mode.Tones.Marked;
+        return picture => _tones.Read(picture, marked);
     }
 
     /// <summary>The first decode's size: enough for the viewport, before the picture's own size is known.</summary>

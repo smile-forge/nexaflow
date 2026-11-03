@@ -6,6 +6,7 @@ using Nexaflow.Features.Images.Editing.Erasing;
 using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Images.Editing.Layers;
 using Nexaflow.Features.Images.Editing.Recipe;
+using Nexaflow.Features.Images.Editing.Rendering;
 using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
@@ -52,6 +53,7 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
         _display = new ImageDisplay(editing, RunOnUi, lifetime);
         _display.ImageChanged += image => CurrentImage = image;
         _display.Presented    += canvas => Canvas = canvas;
+        _display.TonesRead    += reading => TonesRead?.Invoke(reading);
         _display.Decoded      += OnDecoded;
         _display.DecodeFailed += rendering => { if (ReferenceEquals(CurrentSession, rendering)) LoadFailed = true; };
 
@@ -181,6 +183,9 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
 
     /// <summary>The photo's recipe, or the layered picture, changed.</summary>
     public event Action? Changed;
+
+    /// <summary>A frame landed whose tones were asked for. On the UI thread, while what the reading marked is still that frame's.</summary>
+    public event Action<ToneReading>? TonesRead;
 
     /// <summary>A picture on show has pixels — its first decode, a sharper one, or what a tool made — before it is rendered again.</summary>
     public event Action<PictureRendering>? Decoded;
