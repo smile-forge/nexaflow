@@ -547,6 +547,40 @@
         <Setter Property="Margin" Value="0,8,0,4"/>
     </Style>
 
+
+    <!-- A histogram's clip mark: a corner triangle, lit while its end clips (Tag true), ringed while its clipping is kept shown. -->
+    <Style x:Key="ClipMark" TargetType="ToggleButton">
+        <Setter Property="Width" Value="18"/>
+        <Setter Property="Height" Value="18"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Ring" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="3">
+                        <Path x:Name="Mark" Data="M 3,3 L 12,3 L 3,12 Z" Fill="{StaticResource TextMutedBrush}" Opacity="0.5"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                            <Setter TargetName="Mark" Property="Fill" Value="{StaticResource TextBrush}"/>
+                            <Setter TargetName="Mark" Property="Opacity" Value="1"/>
+                        </DataTrigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Ring" Property="BorderBrush" Value="{StaticResource TextMutedBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Ring" Property="Background" Value="{StaticResource Surface2Brush}"/>
+                            <Setter TargetName="Ring" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Ring" Property="BorderBrush" Value="{StaticResource TextBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Edit panel: a group of a tool's controls under its icon and title, folded away at a press on the title. -->
     <Style TargetType="views:FoldingGroup">
         <Setter Property="Focusable" Value="False"/>

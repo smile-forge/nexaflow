@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 
@@ -34,6 +35,9 @@ public partial class ImageEditView : UserControl
     private readonly Image _picture = new() { Stretch = Stretch.Fill };
     // What is see-through in the picture shows as a checkerboard beneath it, rather than as the page behind.
     private readonly Rectangle _checker = new() { IsHitTestVisible = false };
+    // Where the picture clips, tinted over it while the histogram's clip marks ask: the shadows in blue, the highlights in red.
+    private readonly Rectangle _shadowClipping = new() { IsHitTestVisible = false, Visibility = Visibility.Collapsed };
+    private readonly Rectangle _highlightClipping = new() { IsHitTestVisible = false, Visibility = Visibility.Collapsed };
     private readonly EditOverlay _overlay = new();
     private readonly LayerToolsOverlay _layerTools = new();
     private readonly Grid _content = new();
@@ -49,6 +53,12 @@ public partial class ImageEditView : UserControl
         if (TryFindResource("TransparencyChecker") is DrawingBrush checker) _checker.Fill = checker.Clone();
         _content.Children.Add(_checker);
         _content.Children.Add(_picture);
+        _shadowClipping.SetResourceReference(Shape.FillProperty, "Swatch.Blue");
+        _highlightClipping.SetResourceReference(Shape.FillProperty, "Swatch.Red");
+        RenderOptions.SetBitmapScalingMode(_shadowClipping, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(_highlightClipping, BitmapScalingMode.NearestNeighbor);
+        _content.Children.Add(_shadowClipping);
+        _content.Children.Add(_highlightClipping);
         _content.Children.Add(_overlay);
         _content.Children.Add(_layerTools);   // over the chrome, taking the pointer only while Paint or Move is out
 
@@ -66,6 +76,8 @@ public partial class ImageEditView : UserControl
         {
             old.PropertyChanged -= OnViewerChanged;
             old.Editor.TextEditRequested -= FocusMarkupText;
+            old.Tones.PropertyChanged -= OnTonesChanged;
+            old.Tones.IsShown = false;
             _overlay.Detach();
             _layerTools.Detach();
         }
@@ -74,6 +86,9 @@ public partial class ImageEditView : UserControl
 
         viewer.PropertyChanged += OnViewerChanged;
         viewer.Editor.TextEditRequested += FocusMarkupText;
+        viewer.Tones.PropertyChanged += OnTonesChanged;
+        viewer.Tones.IsShown = TonesChart.IsVisible;
+        ShowClipping(viewer.Tones);
         _overlay.Attach(viewer);
         _layerTools.Attach(viewer);
         _picture.Source = viewer.CurrentImage;
@@ -182,6 +197,42 @@ public partial class ImageEditView : UserControl
         for (var d = source as DependencyObject; d is not null; d = VisualTreeHelper.GetParent(d))
             if (ReferenceEquals(d, ancestor)) return true;
         return false;
+    }
+
+    // ── The histogram ───────────────────────────────────────────────────────
+
+    /// <summary>The histogram shown or put away — folded, another tool, the tab hidden: frames are read only while it shows.</summary>
+    private void TonesChart_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (_viewer is { } viewer) viewer.Tones.IsShown = TonesChart.IsVisible;
+    }
+
+    /// <summary>A clip mark pointed at or left: its end's clipping is tinted on the picture while it is pointed at.</summary>
+    private void ClipMark_Pointed(object sender, MouseEventArgs e)
+    {
+        if (_viewer is not { } viewer) return;
+        viewer.Tones.PointsAtShadows = ShadowsMark.IsMouseOver;
+        viewer.Tones.PointsAtHighlights = HighlightsMark.IsMouseOver;
+    }
+
+    private void OnTonesChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is PictureTones tones && e.PropertyName is nameof(PictureTones.ShadowMask) or nameof(PictureTones.HighlightMask)
+                                                            or nameof(PictureTones.ShowsShadows) or nameof(PictureTones.ShowsHighlights))
+            ShowClipping(tones);
+    }
+
+    /// <summary>The clipping tints follow what the histogram asks and what the frame on screen marked.</summary>
+    private void ShowClipping(PictureTones tones)
+    {
+        Tint(_shadowClipping, tones.ShadowMask, tones.ShowsShadows);
+        Tint(_highlightClipping, tones.HighlightMask, tones.ShowsHighlights);
+    }
+
+    private static void Tint(Rectangle tint, BitmapSource? mask, bool shows)
+    {
+        if (mask is not null && (tint.OpacityMask as ImageBrush)?.ImageSource != mask) tint.OpacityMask = new ImageBrush(mask) { Stretch = Stretch.Fill };
+        tint.Visibility = shows && mask is not null ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ── Text annotations ────────────────────────────────────────────────────

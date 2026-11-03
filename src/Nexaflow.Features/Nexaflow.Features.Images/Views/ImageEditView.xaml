@@ -210,6 +210,45 @@
                         <StackPanel Visibility="{Binding Editor.IsAdjustTool, Converter={StaticResource BoolToVis}}">
 
 
+                            <!-- Histogram: the picture's tones as it is drawn, at its own depth, and where its shadows and highlights clip. -->
+                            <views:FoldingGroup Icon="fluent:data_histogram" Title="{loc:Str Images.Edit.Histogram.Header}" IsOpen="{Binding Folds[AdjustHistogram]}"
+                                                AutomationProperties.AutomationId="Image_GroupAdjustHistogram">
+                            <Grid Height="80" Margin="0,2,0,6">
+                                <views:ToneChart x:Name="TonesChart" Histogram="{Binding Tones.Histogram}" IsVisibleChanged="TonesChart_IsVisibleChanged"
+                                                 Background="{StaticResource Surface2Brush}" LuminanceFill="{StaticResource TextMutedBrush}"
+                                                 RedStroke="{DynamicResource Swatch.Red}" GreenStroke="{DynamicResource Swatch.Green}" BlueStroke="{DynamicResource Swatch.Blue}"/>
+                                <ToggleButton x:Name="ShadowsMark" Style="{StaticResource ClipMark}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="1"
+                                              IsChecked="{Binding Tones.KeepsShadows, Mode=TwoWay}" Tag="{Binding Tones.ShadowsClip}"
+                                              MouseEnter="ClipMark_Pointed" MouseLeave="ClipMark_Pointed"
+                                              AutomationProperties.Name="{loc:Str Images.Edit.Histogram.Shadows}" AutomationProperties.ItemStatus="{Binding Tones.ShadowsStatus}"
+                                              AutomationProperties.AutomationId="Image_HistogramShadows">
+                                    <ToggleButton.ToolTip>
+                                        <StackPanel MaxWidth="260">
+                                            <TextBlock Text="{Binding Tones.ShadowsStatus}" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{loc:Str Images.Edit.Histogram.ShadowsTip}" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </ToggleButton.ToolTip>
+                                </ToggleButton>
+                                <!-- The highlights' mark is the shadows' turned to the right-hand corner. -->
+                                <ToggleButton x:Name="HighlightsMark" Style="{StaticResource ClipMark}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="1"
+                                              RenderTransformOrigin="0.5,0.5"
+                                              IsChecked="{Binding Tones.KeepsHighlights, Mode=TwoWay}" Tag="{Binding Tones.HighlightsClip}"
+                                              MouseEnter="ClipMark_Pointed" MouseLeave="ClipMark_Pointed"
+                                              AutomationProperties.Name="{loc:Str Images.Edit.Histogram.Highlights}" AutomationProperties.ItemStatus="{Binding Tones.HighlightsStatus}"
+                                              AutomationProperties.AutomationId="Image_HistogramHighlights">
+                                    <ToggleButton.RenderTransform>
+                                        <ScaleTransform ScaleX="-1"/>
+                                    </ToggleButton.RenderTransform>
+                                    <ToggleButton.ToolTip>
+                                        <StackPanel MaxWidth="260">
+                                            <TextBlock Text="{Binding Tones.HighlightsStatus}" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{loc:Str Images.Edit.Histogram.HighlightsTip}" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </ToggleButton.ToolTip>
+                                </ToggleButton>
+                            </Grid>
+                            </views:FoldingGroup>
+
                             <!-- Quick fix: one press, every slider still free after it. -->
                             <views:FoldingGroup Icon="fluent:sparkle" Title="{loc:Str Images.Edit.Adjust.QuickFixHeader}" IsOpen="{Binding Folds[AdjustQuickFix]}"
                                                 AutomationProperties.AutomationId="Image_GroupAdjustQuickFix">

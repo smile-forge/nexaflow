@@ -71,8 +71,10 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         _editing = editing;
         _config  = config ?? new ImagesConfig();
         Folds    = new PanelFolds(_config, shell);
+        Tones    = new PictureTones(() => { if (IsEditing) RequestRender(); });
 
         Stage = new PictureStage(editing, shell, DisplayMode, _cts.Token, pictures, selection, erasing) { IsEditor = true };
+        Stage.TonesRead       += Tones.Take;
         Stage.PropertyChanged += OnStagePropertyChanged;
         Stage.SessionShown    += OnSessionShown;
         Stage.Changed         += OnStageChanged;
@@ -128,6 +130,9 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
 
     /// <summary>Which of the edit panels' groups are open, as the person left them.</summary>
     public PanelFolds Folds { get; }
+
+    /// <summary>The histogram at the head of Adjust, and the clipping it tints on the picture.</summary>
+    public PictureTones Tones { get; }
 
     /// <summary>The picture edited; null on the start screen.</summary>
     [ObservableProperty]
@@ -228,7 +233,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
 
     /// <summary>How the picture is shown: on the edit canvas, before or after, cropping or not, a layer's mask alone.</summary>
     private ImageDisplayMode DisplayMode() =>
-        new(IsEditing, IsEditing && Editor.ShowOriginal, Editor.Frame, FitToWindow: true, Layers.MaskAlone);
+        new(IsEditing, IsEditing && Editor.ShowOriginal, Editor.Frame, FitToWindow: true, Layers.MaskAlone, IsEditing ? Tones.Ask : default);
 
     /// <summary>Renders the picture for the way it is shown now.</summary>
     internal void RequestRender() => Stage.Render();

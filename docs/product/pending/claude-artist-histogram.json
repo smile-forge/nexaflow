@@ -1,0 +1,53 @@
+{
+  "branch": "claude/artist-histogram",
+  "nodes": {
+    "images-edit-histogram": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Rendering/ToneReader.cs",
+          "class": "ToneReader"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Rendering/ToneHistogram.cs",
+          "class": "ToneHistogram"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PictureTones.cs",
+          "class": "PictureTones"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/ToneChart.cs",
+          "class": "ToneChart"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Wpf/ClipMaskBitmaps.cs",
+          "class": "ClipMaskBitmaps"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ToneHistogramTests.cs",
+            "class": "ToneHistogramTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesHistogramJourneyTests.cs",
+            "class": "ImagesHistogramJourneyTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "images-edit-histogram"
+  ]
+}

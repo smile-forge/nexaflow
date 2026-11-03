@@ -75,7 +75,8 @@ public class ImagesPanelsJourneyTests : ImageEditJourneyBase
             Check("An angle typed is taken", () => TypesValue("Image_EditStraighten", "2.5", 2.5));
 
             // Adjust, the group folded staying folded as the tools change.
-            Check("Adjust's groups fold and open", () => SelectRadio("Image_EditToolAdjust") && FoldsAndOpens("Image_GroupAdjustQuickFix")
+            Check("Adjust's groups fold and open", () => SelectRadio("Image_EditToolAdjust") && FoldsAndOpens("Image_GroupAdjustHistogram")
+                  && FoldsAndOpens("Image_GroupAdjustQuickFix")
                   && FoldsAndOpens("Image_GroupAdjustLight") && FoldsAndOpens("Image_GroupAdjustColour") && FoldsWhereShown("Image_GroupAdjustDepth"));
             Check("An exposure typed is taken, with its sign", () => TypesValue("Image_EditExposure", "+0.5", 0.5));
             Check("Light folded stays folded through another tool", () => Folded("Image_GroupAdjustLight", true)
