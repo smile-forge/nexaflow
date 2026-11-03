@@ -22,6 +22,13 @@ internal interface IDrawingMethod
     /// <summary>Whether it draws with a LoRA (<see cref="Draw.Lora"/>).</summary>
     bool TakesLoras { get; }
 
+    /// <summary>How many pictures to work from it reads (<see cref="Draw.Sources"/>); 0 for a method that draws from a
+    /// prompt alone.</summary>
+    int MaxSources { get; }
+
+    /// <summary>Whether it draws again only what a mask covers over the first source (<see cref="Draw.Mask"/>).</summary>
+    bool Masks { get; }
+
     /// <summary>Draws <paramref name="request"/>'s picture, as interleaved 8-bit RGB rows.</summary>
     /// <param name="stage">Told of a part loading, by what it is doing.</param>
     /// <param name="stepped">Told of each denoising step as it finishes: how many are done, of how many.</param>

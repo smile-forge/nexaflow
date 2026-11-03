@@ -197,6 +197,8 @@ public class BackgroundJobsTests
         public string Name => "Painting";
         public DataResidency Residency => DataResidency.StaysOnMachine;
         public int MaxSources => 0;
+
+        public int MaxSourcesOf(string model) => 0;
         public bool Masks => false;
         public ImageSettings Settings { get; } = new([new(1, 1), new(3, 2), new(2, 3)]) { Details = [ImageDetail.Low, ImageDetail.High], Seeds = true };
         public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<string>>([]);

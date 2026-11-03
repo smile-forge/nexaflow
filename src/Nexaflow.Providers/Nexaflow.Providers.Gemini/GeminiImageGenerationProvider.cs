@@ -36,7 +36,9 @@ public sealed class GeminiImageGenerationProvider : IImageGenerationProvider
 
     public bool IsAvailable => !string.IsNullOrWhiteSpace(_config.ApiKey);
 
-    public int MaxSources => IsImagen(_model) ? 0 : GeminiSources;
+    public int MaxSources => MaxSourcesOf(_model);
+
+    public int MaxSourcesOf(string model) => IsImagen(model) ? 0 : GeminiSources;
 
     public bool Masks => false;
 

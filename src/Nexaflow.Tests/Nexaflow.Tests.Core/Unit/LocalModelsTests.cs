@@ -96,6 +96,8 @@ public class LocalModelsTests
         public IReadOnlyList<UnrunnableModel> Unrunnable => runs ? [] : [new(Z, UnrunnableReason.TooLargeForThisMachine)];
         public LocalRuntime? RuntimeOf(string modelId) => Cuda;
         public int MaxSources => 0;
+
+        public int MaxSourcesOf(string model) => 0;
         public bool Masks => false;
         public ImageSettings Settings { get; } = new([new(1, 1)]) { Seeds = true };
         public Task<GeneratedMedia> GenerateImageAsync(ImageGenerationRequest request, CancellationToken ct = default) => throw new NotSupportedException();

@@ -28,6 +28,24 @@ internal sealed class DrawHandler(ModelRegistry models, IReadOnlyList<IDrawingMe
             throw new HostRequestException(HostErrorKind.Invalid, $"A model that draws the {request.Model.Method} way is told nothing to keep out.");
         if (request.Lora is not null && !method.TakesLoras)
             throw new HostRequestException(HostErrorKind.Invalid, $"A model that draws the {request.Model.Method} way takes no LoRA.");
+        if (request.Sources.Count > method.MaxSources)
+            throw new HostRequestException(HostErrorKind.Invalid, $"A model that draws the {request.Model.Method} way works from at most {method.MaxSources} picture(s).");
+        foreach (var source in request.Sources)
+        {
+            if (!method.Draws(source.Width, source.Height))
+                throw new HostRequestException(HostErrorKind.Invalid, $"A {source.Width}x{source.Height} picture to work from is not a size this model reads.");
+            if (source.Rgb.Length != source.Width * source.Height * 3)
+                throw new HostRequestException(HostErrorKind.Invalid, $"A {source.Width}x{source.Height} picture is {source.Width * source.Height * 3} bytes of RGB, not {source.Rgb.Length}.");
+        }
+        if (request.Mask is { } mask)
+        {
+            if (!method.Masks)
+                throw new HostRequestException(HostErrorKind.Invalid, $"A model that draws the {request.Model.Method} way takes no mask.");
+            if (request.Sources.Count == 0 || (request.Sources[0].Width, request.Sources[0].Height) != (request.Width, request.Height))
+                throw new HostRequestException(HostErrorKind.Invalid, "A mask lies over a first picture to work from the size of the picture drawn.");
+            if (mask.Length != request.Width * request.Height)
+                throw new HostRequestException(HostErrorKind.Invalid, $"A {request.Width}x{request.Height} mask is {request.Width * request.Height} bytes, not {mask.Length}.");
+        }
 
         using var room = models.BorrowRoom(ids => reply(new MadeWay(request.RequestId, ids)));
         var rgb = await method.DrawAsync(request, stage => reply(new Progress(request.RequestId, stage, 0, 0)),

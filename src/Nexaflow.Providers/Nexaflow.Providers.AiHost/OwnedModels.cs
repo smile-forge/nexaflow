@@ -182,10 +182,28 @@ internal sealed record OwnedVoice(string Language, string Part, string File, str
 /// <summary>
 /// How a model that draws samples: the method it draws with, its number of denoising steps, the shift of the noise levels
 /// they run through, how far each step steers away from the empty prompt (0 for a model that does not), the size it
-/// draws each shape at — sizes it was trained on — and whether what it steers away from can be a negative prompt.
+/// draws each shape at — sizes it was trained on — whether what it steers away from can be a negative prompt, and how it
+/// works from pictures, for a model that does.
 /// </summary>
 internal sealed record OwnedSampler(DrawingMethod Method, int Steps, float Shift, float Guidance, IReadOnlyDictionary<MediaShape, (int Width, int Height)> Sizes,
-                                   bool NegativePrompts = false);
+                                   bool NegativePrompts = false, OwnedEditing? Editing = null);
+
+/// <summary>
+/// How a model works from pictures: how many it reads, whether a mask over the first keeps what it does not cover, and
+/// the size it reads each at — its own proportions, within <paramref name="Pixels"/>, each side a multiple of
+/// <paramref name="Multiple"/>. A picture made from them is the first one's size.
+/// </summary>
+internal sealed record OwnedEditing(int Sources, bool Masks, int Pixels, int Multiple)
+{
+    /// <summary>The size a picture <paramref name="width"/> × <paramref name="height"/> is read at: scaled down, never up,
+    /// to within the model's pixels, each side then cut to a multiple — its proportions kept to within that multiple.</summary>
+    public (int Width, int Height) SizeOf(int width, int height)
+    {
+        double scale = Math.Min(1.0, Math.Sqrt((double)Pixels / ((long)width * height)));
+        int Fit(int side) => Math.Max(Multiple, (int)(side * scale) / Multiple * Multiple);
+        return (Fit(width), Fit(height));
+    }
+}
 
 /// <summary>
 /// A LoRA an image model draws with when asked, as its makers apply it: unmerged, at <paramref name="Strength"/>, its
@@ -261,7 +279,9 @@ internal static class OwnedModels
                                   int FramesPerSecond, List<int>? Seconds, Dictionary<string, int[]>? Sizes, bool StartsFromPictures);
     private sealed record Choosing(Choice? Thinking, Choice? Answering);
     private sealed record Choice(float Temperature, int TopK, float TopP, float PresencePenalty);
-    private sealed record Sampler(DrawingMethod? Method, int Steps, float Shift, float Guidance, Dictionary<string, int[]>? Sizes, bool NegativePrompts);
+    private sealed record Sampler(DrawingMethod? Method, int Steps, float Shift, float Guidance, Dictionary<string, int[]>? Sizes, bool NegativePrompts,
+                                  Editing? Editing);
+    private sealed record Editing(int Sources, bool Masks, int Pixels, int Multiple);
     private sealed record Voice(string? Language, string? Part, string? File, string? Lexicon);
     private sealed record Part(string? Role, string? Runner, string? Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
                                Dictionary<string, string>? CudaOptions, string? ExecutionProvider, string? Name, string? Projector, long BytesPerToken,
@@ -364,11 +384,12 @@ internal static class OwnedModels
             throw new InvalidDataException($"{what} '{entry.Id}' has a part with no files.");
     }
 
-    /// <exception cref="InvalidDataException">The sampler does not say how it draws, how many steps and how far shifted, or
-    /// a size for every shape.</exception>
+    /// <exception cref="InvalidDataException">The sampler does not say how it draws, how many steps and how far shifted — a
+    /// shift only for a method that does not shift by the picture's size — or a size for every shape, or how it works from
+    /// pictures where it says it does.</exception>
     private static OwnedSampler ToSampler(string modelId, Sampler s)
     {
-        if (s is not { Method: { } method, Steps: > 0, Shift: > 0, Guidance: >= 0 })
+        if (s is not { Method: { } method, Steps: > 0, Shift: >= 0, Guidance: >= 0 } || (s.Shift > 0) == DrawingMethods.ShiftsBySize(method))
             throw new InvalidDataException($"Owned model '{modelId}' draws without saying how it samples.");
         var sizes = new Dictionary<MediaShape, (int Width, int Height)>();
         foreach (var (name, size) in s.Sizes ?? [])
@@ -379,7 +400,14 @@ internal static class OwnedModels
         }
         if (Enum.GetValues<MediaShape>().Any(shape => !sizes.ContainsKey(shape)))
             throw new InvalidDataException($"Owned model '{modelId}' does not say what size it draws each shape at.");
-        return new OwnedSampler(method, s.Steps, s.Shift, s.Guidance, sizes, s.NegativePrompts);
+        OwnedEditing? editing = null;
+        if (s.Editing is { } e)
+        {
+            if (e is not { Sources: > 0, Pixels: > 0, Multiple: > 0 })
+                throw new InvalidDataException($"Owned model '{modelId}' works from pictures without saying how many, or at what size.");
+            editing = new OwnedEditing(e.Sources, e.Masks, e.Pixels, e.Multiple);
+        }
+        return new OwnedSampler(method, s.Steps, s.Shift, s.Guidance, sizes, s.NegativePrompts, editing);
     }
 
     /// <exception cref="InvalidDataException">The LoRA does not say what it is, what it does, how strongly it is drawn
