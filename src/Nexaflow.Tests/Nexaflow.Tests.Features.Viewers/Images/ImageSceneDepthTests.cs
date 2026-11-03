@@ -405,6 +405,10 @@ public class ImageSceneDepthTests
         Assert.AreEqual(0.8, blur.Aperture, 1e-9);
         Assert.IsTrue(blur.FocusX >= Patch.Left && blur.FocusX <= Patch.Right, "focused on the thing named");
 
+        var none = await vm.GetClientTools().Single(t => t.Name == "blur_background").InvokeAsync(new JsonObject { ["focus"] = "post", ["which"] = 2 }, CancellationToken.None);
+        StringAssert.Contains(none.ModelText, "give 'which' from 1 to 1", "asked for a second of one, it says how many there are");
+        Assert.AreEqual(0.8, vm.CurrentSession!.Recipe.LensBlur!.Aperture, 1e-9, "and changes nothing");
+
         await vm.GetClientTools().Single(t => t.Name == "add_haze").InvokeAsync(new JsonObject { ["density"] = 30, ["colour"] = "#8090A0" }, CancellationToken.None);
         Assert.AreEqual(0xFF8090A0u, vm.CurrentSession.Recipe.DepthHaze!.Colour);
         OnUi(() => vm.UndoEditCommand.Execute(null));

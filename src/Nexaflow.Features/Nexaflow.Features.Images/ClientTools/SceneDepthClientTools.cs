@@ -43,9 +43,12 @@ internal sealed class SceneDepthClientTools(ArtistViewModel artist, IShellServic
                 new ClientToolParameter("focus", "What to focus on, in a few words: \"the dog\", \"the woman in red\". Not needed to take the blur off.", Required: false),
                 new ClientToolParameter("strength", "How strong the blur is, 0 to 100; 0 takes it off. 50 when not given.", Required: false, Type: "number"),
                 new ClientToolParameter("shape", "The shape highlights out of focus take: round (the default) or hexagon.", Required: false, Choices: ["round", "hexagon"]),
+                new ClientToolParameter("which", "Where 'focus' names several things, which to focus on, counting from the surest as describe_scene_depth "
+                                               + "lists them. 1, the surest, when not given.", Required: false, Type: "integer"),
             ],
             ToolSafety.SafeOperation,
-            async (args, ct) => await BlurAsync(ToolArgs.Str(args, "focus"), ToolArgs.Str(args, "strength"), ToolArgs.Str(args, "shape"), ct)),
+            async (args, ct) => await BlurAsync(ToolArgs.Str(args, "focus"), ToolArgs.Str(args, "strength"), ToolArgs.Str(args, "shape"),
+                                                ToolArgs.IntOrNull(args, "which") ?? 1, ct)),
 
         new DelegateClientTool(
             "add_haze",
@@ -138,7 +141,7 @@ internal sealed class SceneDepthClientTools(ArtistViewModel artist, IShellServic
 
     // ── blur_background ───────────────────────────────────────────────────
 
-    private async Task<ToolResult> BlurAsync(string? focus, string? strength, string? shape, CancellationToken ct)
+    private async Task<ToolResult> BlurAsync(string? focus, string? strength, string? shape, int which, CancellationToken ct)
     {
         if (!TryPercent(strength, 50, out var open)) return ToolResult.Error("no such strength", "Give 'strength' as a number from 0 to 100.");
         var bokeh = shape?.Trim().ToLowerInvariant() switch
@@ -161,7 +164,9 @@ internal sealed class SceneDepthClientTools(ArtistViewModel artist, IShellServic
             if (await DepthAsync() is not var (plane, photo, name)) return NoPicture();
             var finds = await FindAsync(focus, ct);
             if (finds.Count == 0) return ToolResult.Ok($"found no {focus}", $"Nothing in '{name}' is \"{focus}\"; nothing was blurred.");
-            var subject = finds[0];
+            if (which < 1 || which > finds.Count)
+                return ToolResult.Error("no such one", $"'{name}' has {finds.Count} \"{focus}\"; give 'which' from 1 to {finds.Count}, or leave it out for the surest.");
+            var subject = finds[which - 1];
             if (SceneDepthFocus.Of(subject.Mask, plane, photo) is not { } depth)
                 return ToolResult.Ok($"found no {focus}", $"\"{focus}\" in '{name}' covers too little to focus on; nothing was blurred.");
             var blur = SceneDepthFocus.FocusedOn(new RecipeLensBlur { Aperture = open / 100, Shape = chosen }, depth);
@@ -171,7 +176,7 @@ internal sealed class SceneDepthClientTools(ArtistViewModel artist, IShellServic
             return ToolResult.Ok($"blurred round {focus}", string.Create(CultureInfo.InvariantCulture,
                 $"Focused '{name}' on \"{focus}\" ({subject.Score:0.00} sure) at [{box.Left:0.00}, {box.Top:0.00}, {box.Right:0.00}, {box.Bottom:0.00}], distance "
               + $"{depth.Distance:0.00}, kept sharp from {depth.Nearest:0.00} to {depth.Farthest:0.00}, and blurred what is nearer and farther at strength {open:0}"
-              + $"{(finds.Count > 1 ? $" — the surest of {finds.Count} found" : "")}, as one of its edits; the user can undo it or save it."));
+              + $"{(finds.Count > 1 ? $" — number {which} of {finds.Count} found, surest first ('which' picks another)" : "")}, as one of its edits; the user can undo it or save it."));
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or InvalidDataException)
         {
