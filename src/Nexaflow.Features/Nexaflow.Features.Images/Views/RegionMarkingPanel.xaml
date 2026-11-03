@@ -24,17 +24,14 @@
     <StackPanel>
         <!-- By colour: how near it reaches, joined to the click or anywhere, and — layered — what it reads. -->
         <StackPanel Margin="0,0,0,8" Visibility="{Binding SelectsByColour, Converter={StaticResource BoolToVis}}">
-            <DockPanel>
-                <TextBlock DockPanel.Dock="Right" Style="{StaticResource EditCaption}" Text="{Binding RegionMarks.ColourTolerance, StringFormat={}{0:0}}"/>
-                <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Paint.Tolerance}"/>
-            </DockPanel>
-            <Slider Minimum="0" Maximum="255" SmallChange="1" LargeChange="16" Value="{Binding RegionMarks.ColourTolerance, Mode=TwoWay}"
-                    AutomationProperties.AutomationId="Image_RegionTolerance" AutomationProperties.Name="{loc:Str Images.Paint.Tolerance}"/>
-            <CheckBox Margin="0,8,0,0" Foreground="{StaticResource TextBrush}" IsChecked="{Binding RegionMarks.ColourJoined, Mode=TwoWay}"
-                      Content="{loc:Str Images.Paint.Contiguous}" AutomationProperties.AutomationId="Image_RegionJoined"/>
-            <CheckBox Margin="0,6,0,0" Foreground="{StaticResource TextBrush}" IsChecked="{Binding RegionMarks.ColourEveryLayer, Mode=TwoWay}"
-                      Visibility="{Binding EditsLayeredPicture, Converter={StaticResource BoolToVis}}"
-                      Content="{loc:Str Images.Paint.SampleMerged}" AutomationProperties.AutomationId="Image_RegionEveryLayer"/>
+            <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Paint.Tolerance}"
+                                    Minimum="0" Maximum="255" SmallChange="1" LargeChange="16" DefaultValue="32"
+                                    Value="{Binding RegionMarks.ColourTolerance, Mode=TwoWay}" AutomationProperties.AutomationId="Image_RegionTolerance"/>
+            <ToggleButton Style="{StaticResource RowSwitch}" Content="{loc:Str Images.Paint.Contiguous}" IsChecked="{Binding RegionMarks.ColourJoined, Mode=TwoWay}"
+                          AutomationProperties.AutomationId="Image_RegionJoined"/>
+            <ToggleButton Style="{StaticResource RowSwitch}" Content="{loc:Str Images.Paint.SampleMerged}" IsChecked="{Binding RegionMarks.ColourEveryLayer, Mode=TwoWay}"
+                          Visibility="{Binding EditsLayeredPicture, Converter={StaticResource BoolToVis}}"
+                          AutomationProperties.AutomationId="Image_RegionEveryLayer"/>
         </StackPanel>
 
         <!-- By distance: the span of the picture's depth selected, near to far, and how softly it fades past its ends; moving
@@ -61,8 +58,10 @@
         </StackPanel>
 
         <!-- How a shape or a colour meets what is selected: as set here, or as a key held as it is begun says. -->
-        <StackPanel Visibility="{Binding ShowsRegionMode, Converter={StaticResource BoolToVis}}">
-            <TextBlock Style="{StaticResource EditSectionHeader}" Text="{loc:Str Images.Region.Mode}"/>
+        <views:FoldingGroup Icon="fluent:shape_union" Title="{loc:Str Images.Region.Mode}"
+                            IsOpen="{Binding DataContext.Folds[SelectCombine], RelativeSource={RelativeSource AncestorType=views:ImageEditView}}"
+                            Visibility="{Binding ShowsRegionMode, Converter={StaticResource BoolToVis}}"
+                            AutomationProperties.AutomationId="Image_GroupSelectCombine">
             <Border Style="{StaticResource SegGroup}"><StackPanel Orientation="Horizontal">
                 <RadioButton GroupName="RegionMode" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_RegionModeReplace" AutomationProperties.Name="{loc:Str Images.Region.Replace}"
                              ToolTip="{loc:Str Images.Region.ReplaceTip}"
@@ -85,11 +84,13 @@
                 <icons:IconGlyph Icon="fluent:shape_intersect" FontSize="15"/>
                 </RadioButton>
             </StackPanel></Border>
-
-        </StackPanel>
+        </views:FoldingGroup>
 
         <!-- The whole selection: started again, let go, turned over, or refined. -->
-        <TextBlock Style="{StaticResource EditSectionHeader}" Margin="0,12,0,0" Text="{loc:Str Images.Region.Selection}"/>
+        <views:FoldingGroup Icon="fluent:select_object" Title="{loc:Str Images.Region.Selection}"
+                            IsOpen="{Binding DataContext.Folds[SelectSelection], RelativeSource={RelativeSource AncestorType=views:ImageEditView}}"
+                            AutomationProperties.AutomationId="Image_GroupSelectSelection">
+        <StackPanel>
         <WrapPanel>
             <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding RegionMarks.SelectAllCommand}"
                     ToolTip="{loc:Str Images.Region.SelectAllTip}" AutomationProperties.AutomationId="Image_RegionSelectAll">
@@ -109,13 +110,9 @@
                 <TextBlock Text="{loc:Str Images.Region.SelectSubject}" FontSize="11"/>
             </Button>
         </WrapPanel>
-        <DockPanel Margin="0,4,0,0">
-            <TextBlock DockPanel.Dock="Right" Style="{StaticResource EditCaption}" Text="{Binding RegionMarks.RefineBy, StringFormat={}{0:0} px}"/>
-            <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.Region.RefineBy}"/>
-        </DockPanel>
-        <Slider Minimum="1" Maximum="250" SmallChange="1" LargeChange="10" Margin="0,4,0,6"
-                Value="{Binding RegionMarks.RefineBy, Mode=TwoWay}"
-                AutomationProperties.AutomationId="Image_RegionRefineBy" AutomationProperties.Name="{loc:Str Images.Region.RefineBy}"/>
+        <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Region.RefineBy}" ValueFormat="0' px'"
+                                Minimum="1" Maximum="250" SmallChange="1" LargeChange="10" DefaultValue="8"
+                                Value="{Binding RegionMarks.RefineBy, Mode=TwoWay}" AutomationProperties.AutomationId="Image_RegionRefineBy"/>
         <WrapPanel>
             <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,6,6" Command="{Binding RegionMarks.FeatherCommand}"
                     ToolTip="{loc:Str Images.Region.FeatherTip}" AutomationProperties.AutomationId="Image_RegionFeather">
@@ -134,5 +131,7 @@
                 <TextBlock Text="{loc:Str Images.Region.Smooth}" FontSize="11"/>
             </Button>
         </WrapPanel>
+        </StackPanel>
+        </views:FoldingGroup>
     </StackPanel>
 </UserControl>
