@@ -1467,6 +1467,240 @@
       ]
     },
     {
+      "id": "qwen-image-edit-2511",
+      "displayName": "Qwen-Image-Edit-2511 (8-bit)",
+      "kind": "imageGeneration",
+      "sampler": { "method": "qwenImageEdit", "steps": 40, "shift": 0, "guidance": 4.0,
+                   "editing": { "sources": 3, "masks": true, "pixels": 1048576, "multiple": 32, "sizing": "rounded" } },
+      "parts": [
+        {
+          "role": "pictureReader",
+          "runner": "qwen-edit-picture-reader",
+          "folder": "models/qwen-image-edit-2511/picture-reader",
+          "file": "picture-reader.onnx",
+          "memoryBytes": 3794796544,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "promptEncoder",
+          "runner": "qwen-edit-prompt-encoder",
+          "folder": "models/qwen-image-edit-2511/prompt-encoder",
+          "file": "prompt-encoder.onnx",
+          "memoryBytes": 10305404928,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "pictureEncoder",
+          "runner": "qwen-edit-picture-encoder",
+          "folder": "models/qwen-image-edit-2511/picture-encoder",
+          "file": "picture-encoder.onnx",
+          "memoryBytes": 4652531712,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "denoiser",
+          "runner": "qwen-edit-denoiser",
+          "folder": "models/qwen-image-edit-2511/denoiser",
+          "file": "denoiser.onnx",
+          "memoryBytes": 29583474688,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "decoder",
+          "runner": "qwen-edit-decoder",
+          "folder": "models/qwen-image-edit-2511/decoder",
+          "file": "decoder.onnx",
+          "memoryBytes": 4318035968,
+          "executionProvider": "cuda"
+        }
+      ],
+      "files": [
+        {
+          "path": "models/qwen-image-edit-2511/picture-reader/picture-reader.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-reader/picture-reader.onnx",
+          "size": 1650840,
+          "sha256": "f0029a761ac1801a77ec3e206c904a828192062abcfa75ccda88efe42ae781ea"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/picture-reader/picture-reader.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-reader/picture-reader.onnx.data",
+          "size": 2711355392,
+          "sha256": "bfac799544434775d9f5f83974c8b99586af3b36cc8b4f32edbd9aa334ea1e31"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/prompt-encoder/prompt-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/prompt-encoder/prompt-encoder.onnx",
+          "size": 3918782,
+          "sha256": "1963636ff5472dea601eaa0fdd48f2747b235c878c4d846c382507946ff9bf38"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/prompt-encoder/prompt-encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/prompt-encoder/prompt-encoder.onnx.data",
+          "size": 8432277504,
+          "sha256": "59bdda72cc483afd6cb1a28afbcf4ebd6411c732012d977e6bc3dca2da9be7cb"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/prompt-encoder/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/prompt-encoder/tokenizer.json",
+          "size": 11421896,
+          "sha256": "9c5ae00e602b8860cbd784ba82a8aa14e8feecec692e7076590d014d7b7fdafa"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/picture-encoder/picture-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-encoder/picture-encoder.onnx",
+          "size": 706599,
+          "sha256": "2657291b4f07a31c8db9a0dd8fcba6c0a22fab4482a7810950b33476ea0212b6"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/picture-encoder/picture-encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-encoder/picture-encoder.onnx.data",
+          "size": 106594304,
+          "sha256": "4b452fd69967821f0e85ee064153dd27fb8a9cf41c50ae074e8c888d15ab74b2"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/denoiser/denoiser.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/denoiser/denoiser.onnx",
+          "size": 8633482,
+          "sha256": "99830d36547024901282c78cbd43efea0615d4f062087b87857013372bf11d57"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/denoiser/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/denoiser/denoiser.onnx.data",
+          "size": 21863458816,
+          "sha256": "f10240b5c8af5189722313025ab14387073c3baa8afed53791a98a9ca9fa14c9"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/decoder/decoder.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/decoder/decoder.onnx",
+          "size": 1072667,
+          "sha256": "880cea5de12b43bb19c35931b540a9e6a9bdf1d7fc18b3dc8d9492c3f688e2a6"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/decoder/decoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/decoder/decoder.onnx.data",
+          "size": 143884288,
+          "sha256": "b06a535c22ac605182da5cc6dffa5a97a68a68b446f65fee9aa7fad508d4ef18"
+        }
+      ]
+    },
+    {
+      "id": "qwen-image-edit-2511-fp16",
+      "displayName": "Qwen-Image-Edit-2511 (16-bit)",
+      "kind": "imageGeneration",
+      "sampler": { "method": "qwenImageEdit", "steps": 40, "shift": 0, "guidance": 4.0,
+                   "editing": { "sources": 3, "masks": true, "pixels": 1048576, "multiple": 32, "sizing": "rounded" } },
+      "parts": [
+        {
+          "role": "pictureReader",
+          "runner": "qwen-edit-picture-reader",
+          "folder": "models/qwen-image-edit-2511/picture-reader",
+          "file": "picture-reader.onnx",
+          "memoryBytes": 3794796544,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "promptEncoder",
+          "runner": "qwen-edit-prompt-encoder",
+          "folder": "models/qwen-image-edit-2511/prompt-encoder",
+          "file": "prompt-encoder.onnx",
+          "memoryBytes": 10305404928,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "pictureEncoder",
+          "runner": "qwen-edit-picture-encoder",
+          "folder": "models/qwen-image-edit-2511/picture-encoder",
+          "file": "picture-encoder.onnx",
+          "memoryBytes": 4652531712,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "denoiser",
+          "runner": "qwen-edit-denoiser",
+          "folder": "models/qwen-image-edit-2511/denoiser-fp16",
+          "file": "denoiser.onnx",
+          "memoryBytes": 47631564800,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "decoder",
+          "runner": "qwen-edit-decoder",
+          "folder": "models/qwen-image-edit-2511/decoder",
+          "file": "decoder.onnx",
+          "memoryBytes": 4318035968,
+          "executionProvider": "cuda"
+        }
+      ],
+      "files": [
+        {
+          "path": "models/qwen-image-edit-2511/picture-reader/picture-reader.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-reader/picture-reader.onnx",
+          "size": 1650840,
+          "sha256": "f0029a761ac1801a77ec3e206c904a828192062abcfa75ccda88efe42ae781ea"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/picture-reader/picture-reader.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-reader/picture-reader.onnx.data",
+          "size": 2711355392,
+          "sha256": "bfac799544434775d9f5f83974c8b99586af3b36cc8b4f32edbd9aa334ea1e31"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/prompt-encoder/prompt-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/prompt-encoder/prompt-encoder.onnx",
+          "size": 3918782,
+          "sha256": "1963636ff5472dea601eaa0fdd48f2747b235c878c4d846c382507946ff9bf38"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/prompt-encoder/prompt-encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/prompt-encoder/prompt-encoder.onnx.data",
+          "size": 8432277504,
+          "sha256": "59bdda72cc483afd6cb1a28afbcf4ebd6411c732012d977e6bc3dca2da9be7cb"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/prompt-encoder/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/prompt-encoder/tokenizer.json",
+          "size": 11421896,
+          "sha256": "9c5ae00e602b8860cbd784ba82a8aa14e8feecec692e7076590d014d7b7fdafa"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/picture-encoder/picture-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-encoder/picture-encoder.onnx",
+          "size": 706599,
+          "sha256": "2657291b4f07a31c8db9a0dd8fcba6c0a22fab4482a7810950b33476ea0212b6"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/picture-encoder/picture-encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-encoder/picture-encoder.onnx.data",
+          "size": 106594304,
+          "sha256": "4b452fd69967821f0e85ee064153dd27fb8a9cf41c50ae074e8c888d15ab74b2"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/denoiser-fp16/denoiser.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/denoiser-fp16/denoiser.onnx",
+          "size": 9350572,
+          "sha256": "cbc64337b47626663237fe6861a160021b6ba31867e8b31ebd66d98d28cef874"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/denoiser-fp16/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/denoiser-fp16/denoiser.onnx.data",
+          "size": 40858877952,
+          "sha256": "bb19839edd2b8c495747d8ec9d6b971871f215a66cd506c8bc79ff1856fa1942"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/decoder/decoder.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/decoder/decoder.onnx",
+          "size": 1072667,
+          "sha256": "880cea5de12b43bb19c35931b540a9e6a9bdf1d7fc18b3dc8d9492c3f688e2a6"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/decoder/decoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/decoder/decoder.onnx.data",
+          "size": 143884288,
+          "sha256": "b06a535c22ac605182da5cc6dffa5a97a68a68b446f65fee9aa7fad508d4ef18"
+        }
+      ]
+    },
+    {
       "id": "fastwan2.2-ti2v-5b",
       "displayName": "Wan2.2 FastWan",
       "kind": "videoGeneration",

@@ -126,6 +126,25 @@ public class OwnedModelsTests
     }
 
     [TestMethod]
+    public void QwenImageEdit_OnlyChangesPictures_ItsFivePartsBuiltForCuda_FromThreePicturesUnderAMask_OnA32GbCard()
+    {
+        var image = OwnedModels.OfKind(ModelKind.ImageGeneration).Single(m => m.Id == "qwen-image-edit-2511");
+
+        Assert.AreEqual((DrawingMethod.QwenImageEdit, 40, 0f, 4f), (image.Sampler!.Method, image.Sampler.Steps, image.Sampler.Shift, image.Sampler.Guidance),
+                        "true guidance at 4, its shift following the picture's size");
+        Assert.AreEqual(0, image.Sampler.Sizes.Count, "it draws nothing from a prompt alone");
+        Assert.AreEqual(new OwnedEditing(3, true, 1024 * 1024, 32, OwnedSizing.Rounded), image.Sampler.Editing);
+        Assert.IsFalse(image.RunsOn(OwnedModels.Cpu), "its graphs are built for the GPU");
+        CollectionAssert.AreEquivalent(new[] { "qwen-edit-picture-reader", "qwen-edit-prompt-encoder", "qwen-edit-picture-encoder", "qwen-edit-denoiser", "qwen-edit-decoder" },
+                                       image.PartsFor(OwnedModels.Cuda).Select(p => p.Runner).ToArray());
+        long denoiser = image.Part(OwnedRoles.Denoiser, OwnedModels.Cuda).MemoryBytes;
+        Assert.IsTrue(denoiser is > 24L << 30 and < 30L << 30, "with three pictures it needs a 32 GB card, and no smaller is offered it");
+        CollectionAssert.Contains(image.Catalog.Files.Select(f => f.RelativePath).ToArray(), "models/qwen-image-edit-2511/prompt-encoder/tokenizer.json");
+        Assert.IsTrue(image.Catalog.Files.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be11")),
+                      "every file pinned to the published revision");
+    }
+
+    [TestMethod]
     [DataRow(2000, 1000, 1440, 720)]
     [DataRow(1024, 768, 1024, 768)]
     [DataRow(100, 70, 96, 64)]

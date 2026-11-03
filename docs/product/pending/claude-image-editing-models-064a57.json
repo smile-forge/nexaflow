@@ -311,6 +311,12 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/FlowInpaintingTests.cs",
             "class": "FlowInpaintingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedModelsTests.cs",
+            "class": "OwnedModelsTests",
+            "method": "TheShippedHighQualityImageModel_IsHiDreamO1_ItsDenoiserAndPictureReader_BuiltForCuda_EditingUpToFourPicturesUnderAMask"
           }
         ]
       }
@@ -367,6 +373,14 @@
         {
           "type": "code",
           "doc": "tools/ai-models/qwen-image-edit/edit_reference.py"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/owned-models.json"
+        },
+        {
+          "type": "code",
+          "doc": "tools/ai-models/qwen-image-edit/README.md"
         }
       ],
       "concerns": {
@@ -391,6 +405,18 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ImageEditingRowTests.cs",
             "class": "ImageEditingRowTests",
             "method": "AModelThatOnlyChangesPictures_ServesImageEditing_AndNeitherDrawingRow"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedModelsTests.cs",
+            "class": "OwnedModelsTests",
+            "method": "QwenImageEdit_OnlyChangesPictures_ItsFivePartsBuiltForCuda_FromThreePicturesUnderAMask_OnA32GbCard"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedImageGenerationProviderTests.cs",
+            "class": "OwnedImageGenerationProviderTests",
+            "method": "AModelThatSaysNoSizes_OnlyChangesPictures_AndOneThatDoes_DrawsFromPromptsToo"
           }
         ]
       }

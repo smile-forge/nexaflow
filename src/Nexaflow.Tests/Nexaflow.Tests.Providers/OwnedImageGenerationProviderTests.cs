@@ -57,6 +57,16 @@ public class OwnedImageGenerationProviderTests
     }
 
     [TestMethod]
+    public void AModelThatSaysNoSizes_OnlyChangesPictures_AndOneThatDoes_DrawsFromPromptsToo()
+    {
+        var provider = Provider(new FakeModelStore(), new FakeAiHost());
+
+        Assert.IsFalse(provider.DrawsFromPromptsOf("qwen-image-edit-2511"), "Qwen-Image-Edit serves the Image Editing row alone");
+        Assert.IsTrue(provider.DrawsFromPromptsOf("flux2-klein-4b"), "klein edits and draws");
+        Assert.IsTrue(provider.MaxSourcesOf("qwen-image-edit-2511") > 0);
+    }
+
+    [TestMethod]
     public async Task APicture_IsDrawnInTheHost_AtTheJobPriority_WithItsThreePartsAndSampler()
     {
         var host = Drawing(new Drawn(0, [0x89, 0x50]));
