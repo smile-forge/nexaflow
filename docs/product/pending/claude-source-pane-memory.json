@@ -261,13 +261,46 @@
           }
         ]
       }
+    },
+    "markdown-home-end": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutQuery.cs",
+          "class": "LayoutQuery",
+          "method": "RowEdge"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutQuery.cs",
+          "class": "LayoutQuery",
+          "method": "WordsAt"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Keys.cs",
+          "class": "ContentEngine",
+          "method": "Along"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/HomeAndEndTests.cs",
+            "class": "HomeAndEndTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 8,
+  "changed_sets": 10,
   "touched_nodes": [
     "content-margins",
     "markdown-find",
+    "markdown-home-end",
     "markdown-source-box",
     "markdown-source-line-numbers",
     "markdown-split",

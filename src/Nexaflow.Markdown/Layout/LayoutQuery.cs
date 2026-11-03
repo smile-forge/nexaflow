@@ -178,16 +178,24 @@ public static class LayoutQuery
 
     /// <summary>
     /// The run of text a source offset falls in, or nothing — what makes a caret between two letters of a label
-    /// possible without a piece per letter. See <see cref="LayoutWords"/>.
+    /// possible without a piece per letter. See <see cref="LayoutWords"/>. Where a run ends at the offset and the next
+    /// starts there on the row beneath — a line broken onto rows a piece each — the offset is the start of that row, as
+    /// it is where one run is broken onto several.
     /// </summary>
     public static LayoutPiece WordsAt(this LayoutPiece root, int offset)
     {
-        foreach (var piece in SittingIn(root, offset, offset))
-            if (piece is { Words.Maps: true } && piece.Part is { Length: > 0 } part
-                && offset >= part.Start && offset <= part.End())
-                return piece;
+        var found = default(LayoutPiece);
 
-        return default;
+        foreach (var piece in SittingIn(root, offset, offset))
+        {
+            if (piece is not { Words.Maps: true } || piece.Part is not { Length: > 0 } part || offset < part.Start || offset > part.End()) continue;
+            if (!found.Exists) found = piece;
+
+            if (part.Start == offset && found.Part!.End() == offset && piece.Bounds.Top >= found.Bounds.Bottom - Hair) return piece;
+            if (found.Part!.End() != offset) return found;
+        }
+
+        return found;
     }
 
     /// <summary>
@@ -799,6 +807,56 @@ public static class LayoutQuery
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Where the row the caret at <paramref name="offset"/> stands on starts or ends — what Home and End go to: the near or far end of what
+    /// is set level with the caret, among everything a caret stands in there, between two letters where that is inside a run of text. Asked
+    /// of the row rather than of a point past the page's edge, which lands on whatever is nearest that point — a longer line above, or the
+    /// box round a fence. Null where nothing a caret stands in is level with it.
+    /// </summary>
+    public static int? RowEdge(this LayoutPiece root, int offset, bool end)
+    {
+        var caret = root.CaretRect(offset);
+        if (caret.IsEmpty) return null;
+
+        var middle = caret.Y + (caret.Height / 2);
+        (int Offset, double X)? edge = null;
+
+        foreach (var (piece, where) in PlacedNear(root, reach => reach.Top - Hair <= middle && middle <= reach.Bottom + Hair))
+        {
+            if (piece.Children.Count > 0 || where.IsEmpty || middle < where.Top || middle > where.Bottom) continue;
+            if (piece.Words is not { Maps: true } && !(piece.Stands() && piece.Stops != LayoutStops.None)) continue;
+
+            if (Edge(piece, where, middle, end) is not { } place) continue;
+
+            // Further along wins; level, the later place for the end and the earlier for the start.
+            if (edge is { } best && (end ? place.X < best.X || (place.X == best.X && place.Offset <= best.Offset)
+                                         : place.X > best.X || (place.X == best.X && place.Offset >= best.Offset))) continue;
+
+            edge = place;
+        }
+
+        return edge?.Offset;
+    }
+
+    /// <summary>
+    /// The near or far end of what <paramref name="piece"/>, standing at <paramref name="where"/>, sets on the row level with
+    /// <paramref name="middle"/>, and how far across the page that is: for a run broken onto several rows, the end of that row of it.
+    /// </summary>
+    private static (int Offset, double X)? Edge(LayoutPiece piece, LayoutRect where, double middle, bool end)
+    {
+        if (piece is not { Words: { Maps: true } words, Part: { } part })
+            return end ? (piece.Sits().End, where.Right) : (piece.Sits().Start, where.Left);
+
+        if (words.Length == 0) return (part.Start, where.Left);
+
+        var index = words.IndexAt(Local(piece, new LayoutPoint(end ? where.Right + 1 : where.Left - 1, middle)));
+        var letter = end ? words.Covers(index - 1, index) : words.Covers(index, index + 1);
+        if (letter.IsEmpty) return null;
+
+        var across = piece.Frame.Out(letter);
+        return (part.Start + index, end ? across.Right : across.Left);
     }
 
     /// <summary>

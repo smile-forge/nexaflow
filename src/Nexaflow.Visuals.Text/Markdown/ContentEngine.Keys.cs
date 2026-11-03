@@ -215,19 +215,10 @@ public sealed partial class ContentEngine
     /// </summary>
     internal void SelectAll() => Apply(_state.Select(0, _state.Document.Length), notify: false);
 
-    /// <summary>
-    /// The caret to the start or the end of the line it is on, as a reader sees the line: whatever the page drew beside it,
-    /// not wherever the source happens to break.
-    /// </summary>
+    /// <summary>Home and End: the caret to the start or the end of the row it stands on (<see cref="LayoutQuery.RowEdge"/>).</summary>
     private void Along(bool end, bool extend)
     {
-        var root = _laid.Root;
-        var at = root.CaretRect(_state.Caret);
-        if (at.IsEmpty) return;
-
-        var edge = new LayoutPoint(end ? Math.Max(_laid.Size.Width, at.Right) + 1 : -1, at.Y + (at.Height / 2));
-
-        MoveCaretTo(root.OffsetAt(edge), extend);
+        if (_laid.Root.RowEdge(_state.Caret, end) is { } edge) MoveCaretTo(edge, extend);
     }
 
     /// <summary>
