@@ -49,7 +49,7 @@ public sealed partial class PageReading : LocalToolModels, IPageReading
         try
         {
             await File.WriteAllBytesAsync(pixels, rgba, ct);
-            var regions = await _reading.FindTextAsync(pixels, width, height, ct);
+            var regions = await AskedAsync(() => _reading.FindTextAsync(pixels, width, height, ct), ct);
             return new TextOnPicture([.. regions.Select(r => new PictureBox(r.X * width, r.Y * height, (r.X + r.Width) * width, (r.Y + r.Height) * height))],
                                      IsPage(regions));
         }
@@ -73,7 +73,11 @@ public sealed partial class PageReading : LocalToolModels, IPageReading
             }
         }
         // Each piece is handed over on the reply's own thread, in order: Progress<T> would post them out of it.
-        await _reading.ReadPageAsync(picture, waiting: read is not null, new Written(piece => Finished(marks.Take(piece))), ct);
+        await ToldAsync(async () =>
+        {
+            await _reading.ReadPageAsync(picture, waiting: read is not null, new Written(piece => Finished(marks.Take(piece))), ct);
+            return true;
+        }, ct);
         Finished(marks.Finish());
         return blocks;
     }

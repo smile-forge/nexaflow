@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.Editing.Recipe;
+using Nexaflow.Features.Images.Editing.SceneDepth;
 using Nexaflow.Features.Images.Editing.Selection;
 using SkiaSharp;
 
@@ -23,6 +24,9 @@ public enum CutOutMarkWay
 
     /// <summary>What is near the colour clicked.</summary>
     Colour,
+
+    /// <summary>What lies within a span of distance, by the photo's scene depth.</summary>
+    Distance,
 }
 
 /// <summary>
@@ -39,6 +43,7 @@ public enum SelectionWay
     Lasso,
     Polygon,
     Colour,
+    Distance,
 }
 
 /// <summary>What the marquee draws.</summary>
@@ -84,6 +89,17 @@ public interface IDocumentSelection
     /// the UI thread; null where there is nothing to read yet.
     /// </summary>
     Task<TiledCoverage?> ReachOfColourAsync(SKPointI at, int tolerance, bool joined, bool everyLayer);
+
+    /// <summary>
+    /// What lies from <paramref name="near"/> to <paramref name="far"/> — 0 the nearest part, 1 the farthest — of the active picture
+    /// layer's scene depth, fading out over <paramref name="softness"/> past either end, where that layer lies on the canvas; null
+    /// where the active layer is no picture layer or its depth cannot be had.
+    /// </summary>
+    Task<TiledCoverage?> ReachOfDistanceAsync(double near, double far, double softness);
+
+    /// <summary>The active picture layer's scene depth — kept, or estimated the first time; null where the active layer is no
+    /// picture layer or its depth cannot be had.</summary>
+    Task<SceneDepthPlane?> SceneDepthAsync();
 }
 
 /// <summary>
@@ -113,14 +129,30 @@ public sealed partial class RegionMarking : ObservableObject
     // Each colour clicked counts; a reach worked out after a later click is let go.
     private int _colourClicks;
 
+    private readonly Func<string, CancellationToken, Task<SceneDepthPlane>>? _readDepth;
+
+    // The photo's scene depth, read the first time a span of distance is selected on it and kept while it is the photo.
+    private (string Photo, Task<SceneDepthPlane> Read)? _depth;
+
+    // Each span asked for counts; one worked out after a later ask is let go.
+    private int _distanceAsks;
+
+    // A layered picture's selection as it was before the last span of distance met it, the selection that made, and how they met:
+    // what moving the span's ends meets again, while the selection is still the one it made.
+    private (TiledCoverage Before, TiledCoverage Made, RegionMode Mode)? _distanceOver;
+
     /// <param name="cutter">The cut-out tool, whose picks the selection starts from.</param>
     /// <param name="photoSize">The photo's size as it stands, once it is read; null before.</param>
     /// <param name="readUpright">Reads a photo's pixels at its full size as it stands, for what a colour clicked on it reaches.</param>
-    public RegionMarking(PictureCutter cutter, Func<SKSize?> photoSize, Func<string, CancellationToken, Task<UprightPixels>> readUpright)
+    /// <param name="readDepth">Reads a photo's scene depth — kept, or estimated — for what a span of distance covers on it; null
+    /// where the app has no scene depth.</param>
+    public RegionMarking(PictureCutter cutter, Func<SKSize?> photoSize, Func<string, CancellationToken, Task<UprightPixels>> readUpright,
+                         Func<string, CancellationToken, Task<SceneDepthPlane>>? readDepth = null)
     {
         _cutter = cutter;
         _photoSize = photoSize;
         _readUpright = readUpright;
+        _readDepth = readDepth;
         cutter.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(PictureCutter.Shown)) Reshow();
@@ -162,6 +194,63 @@ public sealed partial class RegionMarking : ObservableObject
     /// layer alone.</summary>
     [ObservableProperty] private bool _colourEveryLayer = true;
 
+    /// <summary>Where the span of distance selected begins, 0–100 from the photo's nearest part to its farthest.</summary>
+    [ObservableProperty] private double _distanceNear;
+
+    /// <summary>Where the span of distance selected ends, 0–100 from the photo's nearest part to its farthest.</summary>
+    [ObservableProperty] private double _distanceFar = 50;
+
+    /// <summary>How far past either end of the span the selection fades out, 0–100 of the photo's depth.</summary>
+    [ObservableProperty] private double _distanceSoftness = 5;
+
+    partial void OnDistanceNearChanged(double value)
+    {
+        if (value > DistanceFar) DistanceFar = value;
+        _ = MoveDistanceAsync();
+    }
+
+    partial void OnDistanceFarChanged(double value)
+    {
+        if (value < DistanceNear) DistanceNear = value;
+        _ = MoveDistanceAsync();
+    }
+
+    partial void OnDistanceSoftnessChanged(double value) => _ = MoveDistanceAsync();
+
+    /// <summary>A span of distance is being worked out.</summary>
+    [ObservableProperty] private bool _isReadingDistance;
+
+    /// <summary>How much of the picture lies at each step of distance, nearest first — what the strip under the span shows; null
+    /// until the picture's depth is read.</summary>
+    [ObservableProperty] private IReadOnlyList<double>? _distanceShares;
+
+    private SceneDepthPlane? _sharesOf;
+
+    /// <summary>
+    /// The depth selecting by distance works by, read — or estimated, the first time — as soon as selecting by distance is
+    /// chosen, so the strip shows the picture's distances before anything is selected.
+    /// </summary>
+    public async Task ShowDistancesAsync()
+    {
+        try
+        {
+            var plane = _document is { } document ? await document.SceneDepthAsync()
+                      : _photo is { } photo && _readDepth is not null ? await DepthAsync(photo) : null;
+            if (plane is not null) Shared(plane);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException)
+        {
+            // no depth to be had: the strip stays bare, and selecting says why
+        }
+    }
+
+    private void Shared(SceneDepthPlane plane)
+    {
+        if (ReferenceEquals(plane, _sharesOf)) return;
+        _sharesOf = plane;
+        DistanceShares = plane.Shares();
+    }
+
     /// <summary>The selection drawn by hand, as a recipe keeps it; null where nothing has been drawn or refined.</summary>
     public RecipeRegion? Region => _steps.Count == 0 ? null : new RecipeRegion { Steps = [.. _steps] };
 
@@ -190,6 +279,8 @@ public sealed partial class RegionMarking : ObservableObject
         if (photo == _photo) return;
         _photo = photo;
         _upright = null;
+        _depth = null;
+        (_sharesOf, DistanceShares) = (null, null);
         Clear();
     }
 
@@ -201,6 +292,7 @@ public sealed partial class RegionMarking : ObservableObject
     {
         if (ReferenceEquals(document, _document)) return;
         _document = document;
+        (_sharesOf, DistanceShares) = (null, null);
         _steps.Clear();
         _draft.Clear();
         Changed();
@@ -250,6 +342,77 @@ public sealed partial class RegionMarking : ObservableObject
         }
         if (click != _colourClicks || photo != _photo || _document is not null) return;
         AddStep(colour with { Reach = reached }, mode);
+    }
+
+    /// <summary>
+    /// What lies within the span from <see cref="DistanceNear"/> to <see cref="DistanceFar"/> of the photo's scene depth selected,
+    /// softened over <see cref="DistanceSoftness"/>, meeting what is selected as <paramref name="mode"/> says. On a photo it is a step of
+    /// the region, kept as the span; in a layered picture it is read from the active picture layer's depth and made part of the
+    /// canvas's selection at once. A photo whose depth cannot be had leaves the selection as it was.
+    /// </summary>
+    public Task SelectDistanceAsync(RegionMode mode) => DistanceAsync(mode, again: false);
+
+    /// <summary>The span's ends moved: the span last selected, while it is still what the selection ends with, is selected again over
+    /// what it met.</summary>
+    private Task MoveDistanceAsync()
+    {
+        if (_document is { } document)
+            return _distanceOver is { } over && ReferenceEquals(document.Selection, over.Made) ? DistanceAsync(over.Mode, again: true) : Task.CompletedTask;
+        return _steps.Count > 0 && _steps[^1] is RegionSceneDepth last ? DistanceAsync(last.Mode, again: true) : Task.CompletedTask;
+    }
+
+    private async Task DistanceAsync(RegionMode mode, bool again)
+    {
+        int ask = ++_distanceAsks;
+        double near = DistanceNear / 100, far = DistanceFar / 100, softness = DistanceSoftness / 100;
+        IsReadingDistance = true;
+        try
+        {
+            if (_document is { } document)
+            {
+                var before = again && _distanceOver is { } over ? over.Before : document.Selection;
+                var reach = await document.ReachOfDistanceAsync(near, far, softness);
+                if (ask != _distanceAsks || !ReferenceEquals(document, _document) || reach is null) return;
+                var made = mode == RegionMode.Replace ? reach : before.Combined(reach, mode);
+                document.Select(made);
+                _distanceOver = (before, made, mode);
+                return;
+            }
+            if (_photo is not { } photo || _readDepth is null || _photoSize() is not { } size) return;
+            var span = new RegionSceneDepth(near, far, softness) { Mode = mode };
+            TiledCoverage reached;
+            try
+            {
+                var plane = await DepthAsync(photo);
+                Shared(plane);
+                var photoSize = new SKSizeI((int)Math.Round(size.Width), (int)Math.Round(size.Height));
+                reached = await Task.Run(() => RegionSceneDepths.ReachOn(span, plane, photoSize));
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException)
+            {
+                return;   // the depth could not be had: the selection stays as it was, and the next ask tries again
+            }
+            if (ask != _distanceAsks || photo != _photo || _document is not null) return;
+            if (again && _steps.Count > 0 && _steps[^1] is RegionSceneDepth)
+            {
+                _steps[^1] = span with { Reach = reached };
+                Changed();
+            }
+            else AddStep(span with { Reach = reached }, mode);
+        }
+        finally
+        {
+            if (ask == _distanceAsks) IsReadingDistance = false;
+        }
+    }
+
+    /// <summary>The photo's scene depth: read once, and again only after a read that failed.</summary>
+    private Task<SceneDepthPlane> DepthAsync(string photo)
+    {
+        if (_depth is { } held && held.Photo == photo && !held.Read.IsFaulted && !held.Read.IsCanceled) return held.Read;
+        var read = Task.Run(() => _readDepth!(photo, CancellationToken.None));
+        _depth = (photo, read);
+        return read;
     }
 
     /// <summary>The photo's pixels as it stands: read once, and again only after a read that failed.</summary>

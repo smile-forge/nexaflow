@@ -60,8 +60,6 @@ public class SampleFileViewerTests : FileSystemUiTestBase
     /// </summary>
     private static readonly string[] OwnTest = ["markdown", "images"];
 
-    public TestContext TestContext { get; set; } = null!;
-
     [TestMethod]
     public void MarkdownSamples_OpenInExpectedViewer_AndCloseWithoutCrashing() => Sweep(Only("markdown"));
 

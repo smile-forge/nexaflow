@@ -20,6 +20,9 @@ public enum EraseMarkWay
 
     /// <summary>What is near the colour clicked — the selection the Cut out tool makes so too.</summary>
     Colour,
+
+    /// <summary>What lies within a span of distance, by the photo's scene depth — the selection the Cut out tool makes so too.</summary>
+    Distance,
 }
 
 /// <summary>

@@ -34,7 +34,7 @@ public sealed class PictureTools : LocalToolModels, IPictureTools
         var steps = progress is null ? null : new Inline<RestoringStep>(step => progress.Report(step.Stage == RestoringStages.Faces
             ? upscaling + (1 - upscaling) * step.Done / step.Total
             : upscaling * step.Done / step.Total));
-        var restored = await _tools.RestoreAsync(request.Pixels, request.Width, request.Height, request.Scale, request.Faces, request.Into, steps, ct);
+        var restored = await AskedAsync(() => _tools.RestoreAsync(request.Pixels, request.Width, request.Height, request.Scale, request.Faces, request.Into, steps, ct), ct);
         return new PictureRestoration(restored.Width, restored.Height, restored.FacesRestored);
     }
 }

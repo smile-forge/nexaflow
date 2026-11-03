@@ -34,7 +34,8 @@ public sealed class PhotoEraser : ToolEdit<EraseSteps>
 
     protected override IReadOnlyList<IToolModels?> Needs(EraseSteps ask)
         => [.. ask.Steps.Any(s => s.Fill == EraseFill.Ai) ? [_erasing] : Array.Empty<IToolModels?>(),
-            .. ask.Steps.Any(s => s.Pick is not null) ? [_selection] : Array.Empty<IToolModels?>()];
+            .. ask.Steps.Any(s => s.Pick is not null) ? [_selection] : Array.Empty<IToolModels?>(),
+            .. ask.Steps.Any(s => s.Region?.SelectsByDistance == true || s.Pick?.Region?.SelectsByDistance == true) ? [Services.SceneDepth] : Array.Empty<IToolModels?>()];
 
     protected override EraseSteps? AskOf(ImageRecipe recipe) => recipe.Erasures.IsEmpty ? null : new EraseSteps(recipe.Erasures);
 

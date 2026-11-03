@@ -115,13 +115,14 @@ public partial class ImageEditorViewModel : ObservableObject
     /// <summary>How the Cut out tool marks what to keep; another way lets go of an outline half drawn.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DrawsMarquee), nameof(DrawsLasso), nameof(DrawsShapes), nameof(PicksByModel))]
-    [NotifyPropertyChangedFor(nameof(SelectsByColour), nameof(ShowsRegionMode))]
+    [NotifyPropertyChangedFor(nameof(SelectsByColour), nameof(SelectsByDistance), nameof(ShowsRegionMode))]
     private CutOutMarkWay _cutOutWay = CutOutMarkWay.Pick;
 
     partial void OnCutOutWayChanged(CutOutMarkWay value)
     {
         RegionMarks.CancelDraft();
         OnPropertyChanged(nameof(SelectBy));
+        WantModels(_viewer.IsEditing);
     }
 
     /// <summary>How Select picks, as one of its buttons: by picture selection, a shape drawn by hand, or a colour clicked.</summary>
@@ -131,8 +132,9 @@ public partial class ImageEditorViewModel : ObservableObject
         {
             CutOutMarkWay.Marquee => DrawnBy(marquee: true),
             CutOutMarkWay.Lasso   => DrawnBy(marquee: false),
-            CutOutMarkWay.Colour  => SelectionWay.Colour,
-            _                     => SelectionWay.Pick,
+            CutOutMarkWay.Colour   => SelectionWay.Colour,
+            CutOutMarkWay.Distance => SelectionWay.Distance,
+            _                      => SelectionWay.Pick,
         };
         set
         {
@@ -143,6 +145,7 @@ public partial class ImageEditorViewModel : ObservableObject
                 SelectionWay.Rectangle or SelectionWay.Ellipse => CutOutMarkWay.Marquee,
                 SelectionWay.Lasso or SelectionWay.Polygon     => CutOutMarkWay.Lasso,
                 SelectionWay.Colour                            => CutOutMarkWay.Colour,
+                SelectionWay.Distance                          => CutOutMarkWay.Distance,
                 _                                              => CutOutMarkWay.Pick,
             };
         }
@@ -156,8 +159,9 @@ public partial class ImageEditorViewModel : ObservableObject
             EraseMarkWay.Brush   => SelectionWay.Brush,
             EraseMarkWay.Marquee => DrawnBy(marquee: true),
             EraseMarkWay.Lasso   => DrawnBy(marquee: false),
-            EraseMarkWay.Colour  => SelectionWay.Colour,
-            _                    => SelectionWay.Pick,
+            EraseMarkWay.Colour   => SelectionWay.Colour,
+            EraseMarkWay.Distance => SelectionWay.Distance,
+            _                     => SelectionWay.Pick,
         };
         set
         {
@@ -168,6 +172,7 @@ public partial class ImageEditorViewModel : ObservableObject
                 SelectionWay.Rectangle or SelectionWay.Ellipse => EraseMarkWay.Marquee,
                 SelectionWay.Lasso or SelectionWay.Polygon     => EraseMarkWay.Lasso,
                 SelectionWay.Colour                            => EraseMarkWay.Colour,
+                SelectionWay.Distance                          => EraseMarkWay.Distance,
                 _                                              => EraseMarkWay.Pick,
             };
         }
@@ -200,8 +205,16 @@ public partial class ImageEditorViewModel : ObservableObject
     /// <summary>The open tool selects what is near the colour clicked.</summary>
     public bool SelectsByColour => IsSelectTool && CutOutWay == CutOutMarkWay.Colour || IsRetouchTool && EraseMarks.Way == EraseMarkWay.Colour;
 
-    /// <summary>The open tool's way of selecting meets what is selected as a mode says: a shape drawn, or a colour clicked.</summary>
-    public bool ShowsRegionMode => DrawsShapes || SelectsByColour;
+    /// <summary>The open tool selects what lies within a span of distance, by the photo's scene depth.</summary>
+    public bool SelectsByDistance => IsSelectTool && CutOutWay == CutOutMarkWay.Distance || IsRetouchTool && EraseMarks.Way == EraseMarkWay.Distance;
+
+    /// <summary>The open tool's way of selecting meets what is selected as a mode says: a shape drawn, a colour clicked, or a span
+    /// of distance chosen.</summary>
+    public bool ShowsRegionMode => DrawsShapes || SelectsByColour || SelectsByDistance;
+
+    /// <summary>What lies within the span of distance chosen, selected — meeting what is selected as the mode says.</summary>
+    [RelayCommand]
+    private Task SelectDistance() => RegionMarks.SelectDistanceAsync(RegionMarks.Mode);
 
     /// <summary>The picture is a layered one: a colour clicked may be read from what shows or from the active layer alone.</summary>
     public bool EditsLayeredPicture => _viewer.IsLayered;
@@ -410,7 +423,7 @@ public partial class ImageEditorViewModel : ObservableObject
     public PictureModels Models { get; }
 
     /// <summary>The banner offers <see cref="Models"/>: an open panel waits on some of them, and nothing else on screen offers them.</summary>
-    public bool ShowsModelsOffer => PickingModels.ShowsOffer || ErasingModels.ShowsOffer || RestoringModels.ShowsOffer;
+    public bool ShowsModelsOffer => PickingModels.ShowsOffer || ErasingModels.ShowsOffer || RestoringModels.ShowsOffer || DepthModels.ShowsOffer;
 
     /// <summary>Picture selection: what Cut out, and picking what to retouch, need.</summary>
     public ModelsGate PickingModels { get; }
@@ -421,12 +434,16 @@ public partial class ImageEditorViewModel : ObservableObject
     /// <summary>The picture tools: what AI enhance and AI upscale need.</summary>
     public ModelsGate RestoringModels { get; }
 
+    /// <summary>Scene depth: what lens blur, haze and selecting by distance need.</summary>
+    public ModelsGate DepthModels { get; }
+
     /// <summary>The models the open panel needs are offered over the picture while they are not here.</summary>
     private void WantModels(bool editing)
     {
         PickingModels.IsWanted   = editing && Tool is EditTool.Select or EditTool.Retouch;
         ErasingModels.IsWanted   = editing && Tool == EditTool.Retouch;
         RestoringModels.IsWanted = editing && Tool is EditTool.Adjust or EditTool.Resize;
+        DepthModels.IsWanted     = editing && (Tool == EditTool.Adjust || SelectsByDistance);
     }
 
     /// <summary>Cut out and Retouch mark and fill only with what is here: picking waits for picture selection and AI fill for
@@ -436,11 +453,15 @@ public partial class ImageEditorViewModel : ObservableObject
         if (EraseMarks.IsPicking && !PickingModels.IsReady) EraseMarks.Way = EraseMarkWay.Brush;
         if (CutOutWay == CutOutMarkWay.Pick && !PickingModels.IsReady) CutOutWay = CutOutMarkWay.Marquee;
         if (EraseMarks.Fill == EraseFill.Ai && !ErasingModels.IsReady) EraseMarks.Fill = EraseFill.ContentAware;
+        if (EraseMarks.Way == EraseMarkWay.Distance && !DepthModels.IsReady) EraseMarks.Way = EraseMarkWay.Brush;
+        if (CutOutWay == CutOutMarkWay.Distance && !DepthModels.IsReady) CutOutWay = CutOutMarkWay.Marquee;
     }
 
     internal ImageEditorViewModel(ArtistViewModel viewer, IShellServices? shell, ImageEditingServices services, PhotoRestorer restorer, BackgroundRemover remover,
-                                  PictureCutter cutter, PhotoEraser eraser, PictureModels models, ModelsGate picking, ModelsGate erasing, ModelsGate restoring)
+                                  PictureCutter cutter, PhotoEraser eraser, PictureModels models, ModelsGate picking, ModelsGate erasing, ModelsGate restoring,
+                                  ModelsGate depth)
     {
+        DepthModels     = depth;
         _viewer   = viewer;
         Models    = models;
         Cutter    = cutter;
@@ -453,11 +474,13 @@ public partial class ImageEditorViewModel : ObservableObject
         ErasingModels   = erasing;
         RestoringModels = restoring;
         EraseMarks = new EraseMarking(erasing.IsReady);
-        RegionMarks = new RegionMarking(cutter, () => Source, services.ReadUprightAsync);
+        RegionMarks = new RegionMarking(cutter, () => Source, services.ReadUprightAsync,
+                                        services.SceneDepth is { } sceneDepth ? (photo, ct) => services.SceneDepths.PlaneAsync(services, photo, sceneDepth, ct) : null);
         // A restoration, a cut-out mask or an erased photo arriving lets the photo be saved.
         restorer.Made += ToolMade;
         remover.Made  += ToolMade;
         eraser.Made   += ToolMade;
+        viewer.Stage.SceneDepth.Made += ToolMade;
         // What is picked and drawn is what Remove background keeps and what is copied, and part of what Erase erases.
         cutter.PropertyChanged += (_, e) =>
         {
@@ -483,11 +506,14 @@ public partial class ImageEditorViewModel : ObservableObject
             OnPropertyChanged(nameof(DrawsLasso));
             OnPropertyChanged(nameof(DrawsShapes));
             OnPropertyChanged(nameof(SelectsByColour));
+            OnPropertyChanged(nameof(SelectsByDistance));
             OnPropertyChanged(nameof(ShowsRegionMode));
             OnPropertyChanged(nameof(PicksByModel));
+            WantModels(_viewer.IsEditing);
         };
         // The banner offers the models while any open panel waits on some of them.
-        foreach (var gate in new[] { picking, erasing, restoring })
+        depth.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(ModelsGate.IsReady)) SettleRetouchChoices(); };
+        foreach (var gate in new[] { picking, erasing, restoring, depth })
             gate.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(ModelsGate.ShowsOffer)) OnPropertyChanged(nameof(ShowsModelsOffer)); };
         // Models arriving, or going, change what the controls that need them allow.
         picking.PropertyChanged += (_, e) =>
@@ -548,7 +574,7 @@ public partial class ImageEditorViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsPaintTool), nameof(IsMoveTool))]
     [NotifyPropertyChangedFor(nameof(Frame))]
     [NotifyPropertyChangedFor(nameof(DrawsMarquee), nameof(DrawsLasso), nameof(DrawsShapes), nameof(PicksByModel), nameof(TakesSelection))]
-    [NotifyPropertyChangedFor(nameof(SelectsByColour), nameof(ShowsRegionMode))]
+    [NotifyPropertyChangedFor(nameof(SelectsByColour), nameof(SelectsByDistance), nameof(ShowsRegionMode))]
     private EditTool _tool = EditTool.Crop;
 
     public bool IsCropTool    => Tool == EditTool.Crop;
@@ -1276,9 +1302,11 @@ public partial class ImageEditorViewModel : ObservableObject
     /// <summary>The picture can be written: not saving already, and what its recipe asks of the picture tools made — a layered
     /// picture where it is kept, or somewhere asked for.</summary>
     private bool CanSave() => !IsSaving && (_viewer.CurrentDocument is { } document ? document.IsComplete
-                                             : CanSaveInPlace && !Recipe.IsIdentity && !_restorer.IsPending && !_remover.IsPending && !_eraser.IsPending);
+                                             : CanSaveInPlace && !Recipe.IsIdentity && !_restorer.IsPending && !_remover.IsPending && !_eraser.IsPending
+                                               && !_viewer.Stage.SceneDepth.IsPending);
     private bool CanSaveCopy() => !IsSaving && (_viewer.CurrentDocument is { } document ? document.IsComplete
-                                                : Session?.Proxy is not null && !_restorer.IsPending && !_remover.IsPending && !_eraser.IsPending);
+                                                : Session?.Proxy is not null && !_restorer.IsPending && !_remover.IsPending && !_eraser.IsPending
+                                                  && !_viewer.Stage.SceneDepth.IsPending);
 
     /// <summary>Bakes the edits into the original after a confirmation; the recipe is then spent.</summary>
     [RelayCommand(CanExecute = nameof(CanSave))]

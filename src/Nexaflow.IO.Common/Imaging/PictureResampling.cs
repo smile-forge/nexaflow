@@ -374,4 +374,115 @@ public static class PictureResampling
         }
         return taps;
     }
+
+    /// <summary>
+    /// Resizes interleaved <paramref name="channels"/>-channel values in double precision as OpenCV's <c>INTER_CUBIC</c> does a
+    /// <c>CV_64F</c> picture: each output value from the four source values about where its centre falls — the source position
+    /// <c>(d + 0.5) × scale − 0.5</c> in single precision — weighed by the cubic convolution with A = −0.75 in single
+    /// precision, across then down, past the edge the edge value repeated. Nothing is averaged when it shrinks.
+    /// </summary>
+    public static double[] ResizeCubicAsOpenCv(ReadOnlySpan<double> pixels, int width, int height, int channels, int newWidth, int newHeight)
+    {
+        if (pixels.Length != width * height * channels) throw new ArgumentException("The pixels are not the size given.", nameof(pixels));
+        if (newWidth <= 0 || newHeight <= 0) throw new ArgumentOutOfRangeException(nameof(newWidth), "A picture has a size.");
+        if (newWidth == width && newHeight == height) return pixels.ToArray();
+
+        var (xIndex, xWeight) = CubicTaps(width, newWidth);
+        var (yIndex, yWeight) = CubicTaps(height, newHeight);
+        var source = pixels.ToArray();
+
+        // Across first, a source row at a time; then down.
+        var across = new double[height * newWidth * channels];
+        Parallel.For(0, height, y =>
+        {
+            int row = y * width * channels, outRow = y * newWidth * channels;
+            for (int x = 0; x < newWidth; x++)
+                for (int c = 0; c < channels; c++)
+                {
+                    double sum = 0;
+                    for (int k = 0; k < 4; k++) sum += source[row + xIndex[x * 4 + k] * channels + c] * xWeight[x * 4 + k];
+                    across[outRow + x * channels + c] = sum;
+                }
+        });
+        var result = new double[newWidth * newHeight * channels];
+        int stride = newWidth * channels;
+        Parallel.For(0, newHeight, y =>
+        {
+            int r0 = yIndex[y * 4] * stride, r1 = yIndex[y * 4 + 1] * stride, r2 = yIndex[y * 4 + 2] * stride, r3 = yIndex[y * 4 + 3] * stride;
+            double b0 = yWeight[y * 4], b1 = yWeight[y * 4 + 1], b2 = yWeight[y * 4 + 2], b3 = yWeight[y * 4 + 3];
+            for (int i = 0; i < stride; i++)
+                result[y * stride + i] = b0 * across[r0 + i] + b1 * across[r1 + i] + b2 * across[r2 + i] + b3 * across[r3 + i];
+        });
+        return result;
+    }
+
+    /// <summary>OpenCV's cubic taps for each output position: the four source positions, the edge repeated, and their single
+    /// precision weights — <c>interpolateCubic</c>, its last weight what the first three leave of 1.</summary>
+    private static (int[] Index, float[] Weight) CubicTaps(int size, int newSize)
+    {
+        var index = new int[newSize * 4];
+        var weight = new float[newSize * 4];
+        double scale = 1.0 / ((double)newSize / size);
+        const float A = -0.75f;
+        for (int d = 0; d < newSize; d++)
+        {
+            float f = (float)((d + 0.5) * scale - 0.5);
+            int s = (int)MathF.Floor(f);
+            f -= s;
+            float w0 = ((A * (f + 1) - 5 * A) * (f + 1) + 8 * A) * (f + 1) - 4 * A;
+            float w1 = ((A + 2) * f - (A + 3)) * f * f + 1;
+            float w2 = ((A + 2) * (1 - f) - (A + 3)) * (1 - f) * (1 - f) + 1;
+            weight[d * 4] = w0;
+            weight[d * 4 + 1] = w1;
+            weight[d * 4 + 2] = w2;
+            weight[d * 4 + 3] = 1f - w0 - w1 - w2;
+            for (int k = 0; k < 4; k++) index[d * 4 + k] = Math.Clamp(s - 1 + k, 0, size - 1);
+        }
+        return (index, weight);
+    }
+
+    /// <summary>
+    /// Resizes a plane of floats as PyTorch's <c>interpolate(mode="bilinear", align_corners=True)</c> does: the corners of the
+    /// two planes meet, each output value from the four source values about <c>d × (size − 1) / (newSize − 1)</c>, in single
+    /// precision.
+    /// </summary>
+    public static float[] ResizePlaneBilinearAligned(ReadOnlySpan<float> plane, int width, int height, int newWidth, int newHeight)
+    {
+        if (plane.Length != width * height) throw new ArgumentException("The plane is not the size given.", nameof(plane));
+        if (newWidth <= 0 || newHeight <= 0) throw new ArgumentOutOfRangeException(nameof(newWidth), "A plane has a size.");
+        if (newWidth == width && newHeight == height) return plane.ToArray();
+
+        var across = AlignedTaps(width, newWidth);
+        var down = AlignedTaps(height, newHeight);
+        var source = plane.ToArray();
+        var result = new float[newWidth * newHeight];
+        Parallel.For(0, newHeight, y =>
+        {
+            var (y0, y1, h0, h1) = down[y];
+            int row0 = y0 * width, row1 = y1 * width, outRow = y * newWidth;
+            for (int x = 0; x < newWidth; x++)
+            {
+                var (x0, x1, w0, w1) = across[x];
+                result[outRow + x] = h0 * (w0 * source[row0 + x0] + w1 * source[row0 + x1]) + h1 * (w0 * source[row1 + x0] + w1 * source[row1 + x1]);
+            }
+        });
+        return result;
+    }
+
+    /// <summary>PyTorch's source index for each output position with the corners aligned — <c>(size − 1) / (newSize − 1) × d</c>
+    /// in single precision, 0 for a single output — as the two neighbours it falls between and their weights.</summary>
+    private static (int Low, int High, float LowWeight, float HighWeight)[] AlignedTaps(int size, int newSize)
+    {
+        var taps = new (int, int, float, float)[newSize];
+        float scale = newSize > 1 ? (float)(size - 1) / (newSize - 1) : 0f;
+        for (int d = 0; d < newSize; d++)
+        {
+            float s = scale * d;
+            int low = (int)s;
+            int high = low < size - 1 ? low + 1 : low;
+            float lambda = s - low;
+            taps[d] = (low, high, 1f - lambda, lambda);
+        }
+        return taps;
+    }
 }

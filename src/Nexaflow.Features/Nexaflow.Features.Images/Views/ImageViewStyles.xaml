@@ -349,6 +349,16 @@
         <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
+    <!-- Edit panel: the name at the head of a row — a slider's, or a choice's — as wide in every row, so their controls line up. -->
+    <Style x:Key="EditRowLabel" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Width" Value="84"/>
+        <Setter Property="Margin" Value="0,0,6,0"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+    </Style>
+
     <!-- Edit panel: the name over a slider. -->
     <Style x:Key="EditSliderLabel" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
@@ -459,6 +469,7 @@
         </Setter>
     </Style>
 
+    <!-- An adjustment slider: given a Label, one row — the name, the rail, the value — else the rail alone, laid out by its panel. -->
     <Style TargetType="views:AdjustmentSlider">
         <Setter Property="Height" Value="22"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
@@ -467,8 +478,16 @@
             <Setter.Value>
                 <ControlTemplate TargetType="views:AdjustmentSlider">
                     <Grid Background="Transparent">
-                        <Border Height="4" CornerRadius="2" VerticalAlignment="Center" Background="{StaticResource BorderBrush}"/>
-                        <Track x:Name="PART_Track">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="LabelText" Style="{StaticResource EditRowLabel}" Text="{TemplateBinding Label}"/>
+                        <TextBlock x:Name="ValueText" Grid.Column="2" Width="38" Margin="6,0,0,0" TextAlignment="Right" VerticalAlignment="Center"
+                                   FontSize="11" Foreground="{StaticResource TextMutedBrush}" Text="{TemplateBinding ValueText}"/>
+                        <Border Grid.Column="1" Height="4" CornerRadius="2" VerticalAlignment="Center" Background="{StaticResource BorderBrush}"/>
+                        <Track x:Name="PART_Track" Grid.Column="1">
                             <Track.DecreaseRepeatButton>
                                 <RepeatButton Command="Slider.DecreaseLarge" Style="{StaticResource EditSliderRailButton}"/>
                             </Track.DecreaseRepeatButton>
@@ -490,9 +509,66 @@
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.4"/>
                         </Trigger>
+                        <Trigger Property="Label" Value="{x:Null}">
+                            <Setter TargetName="LabelText" Property="Visibility" Value="Collapsed"/>
+                            <Setter TargetName="ValueText" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!-- Edit panel: a labelled adjustment slider as one row of its panel. -->
+    <Style x:Key="EditSliderRow" TargetType="views:AdjustmentSlider" BasedOn="{StaticResource {x:Type views:AdjustmentSlider}}">
+        <Setter Property="Height" Value="24"/>
+        <Setter Property="Margin" Value="0,2"/>
+    </Style>
+
+    <!-- Edit panel: a depth strip's marker — an accent bar over the strip under it, the rail itself left clear. -->
+    <Style x:Key="DepthStripMarker" TargetType="views:AdjustmentSlider" BasedOn="{StaticResource {x:Type views:AdjustmentSlider}}">
+        <Setter Property="Height" Value="24"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="views:AdjustmentSlider">
+                    <Grid Background="Transparent">
+                        <Track x:Name="PART_Track">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="Slider.DecreaseLarge" Style="{StaticResource EditSliderRailButton}"/>
+                            </Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="Slider.IncreaseLarge" Style="{StaticResource EditSliderRailButton}"/>
+                            </Track.IncreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb Width="6" Cursor="SizeWE">
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Border CornerRadius="3" Background="{StaticResource AccentBrush}" BorderBrush="{StaticResource OnAccentBrush}" BorderThickness="1"/>
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Edit panel: a part of a group that is on or off — its name, and a switch at the row's end. -->
+    <Style x:Key="EditSwitchRow" TargetType="Grid">
+        <Setter Property="Margin" Value="0,8,0,4"/>
+    </Style>
+
+    <Style x:Key="EditSwitchLabel" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 </ResourceDictionary>

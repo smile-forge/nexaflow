@@ -162,4 +162,59 @@
         </Style.Triggers>
     </Style>
 
+
+    <!-- RangeSlider: a rail, the band between its ends in the accent at a low alpha, and an accent bar at each end. The rail is
+         the control's Background and the accent its Foreground, so a host lays something of its own under a transparent rail. -->
+    <Style TargetType="{x:Type c:RangeSlider}">
+        <Setter Property="Height"     Value="22"/>
+        <Setter Property="Background" Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type c:RangeSlider}">
+                    <Grid x:Name="PART_Rail" Background="Transparent">
+                        <Border Height="{TemplateBinding RailHeight}" CornerRadius="2" VerticalAlignment="Center"
+                                Background="{TemplateBinding Background}"/>
+                        <Canvas>
+                            <Thumb x:Name="PART_Span" Cursor="SizeAll" Focusable="False"
+                                   Height="{Binding ActualHeight, ElementName=PART_Rail}">
+                                <Thumb.Template>
+                                    <ControlTemplate TargetType="Thumb">
+                                        <Border CornerRadius="3" BorderThickness="1" BorderBrush="{TemplateBinding Foreground}">
+                                            <Border.Background>
+                                                <SolidColorBrush Color="{Binding Foreground.Color, RelativeSource={RelativeSource TemplatedParent}}" Opacity="0.28"/>
+                                            </Border.Background>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Thumb.Template>
+                            </Thumb>
+                            <c:RangeThumb x:Name="PART_Lower" Width="8" Cursor="SizeWE"
+                                          Height="{Binding ActualHeight, ElementName=PART_Rail}">
+                                <c:RangeThumb.Template>
+                                    <ControlTemplate TargetType="c:RangeThumb">
+                                        <Border CornerRadius="3" Background="{TemplateBinding Foreground}"
+                                                BorderBrush="{DynamicResource OnAccentBrush}" BorderThickness="1"/>
+                                    </ControlTemplate>
+                                </c:RangeThumb.Template>
+                            </c:RangeThumb>
+                            <c:RangeThumb x:Name="PART_Upper" Width="8" Cursor="SizeWE"
+                                          Height="{Binding ActualHeight, ElementName=PART_Rail}">
+                                <c:RangeThumb.Template>
+                                    <ControlTemplate TargetType="c:RangeThumb">
+                                        <Border CornerRadius="3" Background="{TemplateBinding Foreground}"
+                                                BorderBrush="{DynamicResource OnAccentBrush}" BorderThickness="1"/>
+                                    </ControlTemplate>
+                                </c:RangeThumb.Template>
+                            </c:RangeThumb>
+                        </Canvas>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 </ResourceDictionary>

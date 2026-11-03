@@ -64,6 +64,20 @@
                 <TextBlock Text="{Binding Eraser.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
             </DockPanel>
         </Border>
+        <!-- The photo's scene depth, for its lens blur and haze: being estimated, waiting on the model, or why it shows without them. -->
+        <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                Visibility="{Binding SceneDepth.HasNotice, Converter={StaticResource BoolToVis}}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Command="{Binding SceneDepth.ActCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                            Visibility="{Binding SceneDepth.HasAction, Converter={StaticResource BoolToVis}}"
+                            AutomationProperties.AutomationId="Image_SceneDepthAction" AutomationProperties.Name="{Binding SceneDepth.ActionLabel}">
+                        <TextBlock Text="{Binding SceneDepth.ActionLabel}"/>
+                    </Button>
+                </StackPanel>
+                <TextBlock Text="{Binding SceneDepth.Notice}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+            </DockPanel>
+        </Border>
         <!-- The photo's removed background: being made, waiting on picture selection, or why it shows whole. -->
         <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
                 Visibility="{Binding Remover.HasNotice, Converter={StaticResource BoolToVis}}">

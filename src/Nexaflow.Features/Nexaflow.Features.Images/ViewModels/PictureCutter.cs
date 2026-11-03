@@ -191,6 +191,32 @@ public sealed partial class PictureCutter : ObservableObject
         return HasSelection;
     }
 
+    /// <summary>
+    /// The one thing under a click at (<paramref name="x"/>, <paramref name="y"/>) in the photo's pixels, at the size picks are shown
+    /// at — asked of the photo's selection without touching what is picked, as a tool that only needs to know what is there does.
+    /// Null where nothing stands out there, or picture selection is not here.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The photo could not be read, or the pick made.</exception>
+    public async Task<PictureMask?> ThingAtAsync(double x, double y, CancellationToken ct)
+    {
+        if (_selection is not { State: ToolModelsState.Ready } || _photo is null) return null;
+        var opened = await Open();
+        var (width, height) = ShownSize(opened.Photo.Width, opened.Photo.Height);
+        var mask = await opened.Session.SelectAsync([new PicturePoint(x, y, true)], null, width, height, ct);
+        return mask.Bounds is null ? null : mask;
+    }
+
+    /// <summary>Everything <paramref name="phrase"/> names in the photo, surest first, each at the size picks are shown at — asked
+    /// without touching what is picked. None where nothing is, or picture selection is not here.</summary>
+    /// <exception cref="InvalidOperationException">The photo could not be read, or the finds made.</exception>
+    public async Task<IReadOnlyList<PictureFind>> ThingsNamedAsync(string phrase, CancellationToken ct)
+    {
+        if (_selection is not { State: ToolModelsState.Ready } || _photo is null || phrase.Trim().Length == 0) return [];
+        var opened = await Open();
+        var (width, height) = ShownSize(opened.Photo.Width, opened.Photo.Height);
+        return await opened.Session.FindAsync(phrase.Trim(), [], width, height, ct);
+    }
+
     [RelayCommand]
     private void Clear()
     {
