@@ -1327,6 +1327,104 @@
       ]
     },
     {
+      "id": "flux2-klein-4b",
+      "displayName": "FLUX.2 [klein] 4B",
+      "kind": "imageGeneration",
+      "sampler": { "method": "flux2Klein", "steps": 4, "shift": 0, "guidance": 0,
+                   "sizes": { "square": [1024, 1024], "landscape": [1360, 768], "portrait": [768, 1360] },
+                   "editing": { "sources": 2, "masks": true, "pixels": 1048576, "multiple": 16 } },
+      "parts": [
+        {
+          "role": "promptEncoder",
+          "runner": "klein-prompt-encoder",
+          "folder": "models/flux2-klein-4b/encoder",
+          "file": "encoder.onnx",
+          "memoryBytes": 5219811328,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "denoiser",
+          "runner": "klein-denoiser",
+          "folder": "models/flux2-klein-4b/denoiser",
+          "file": "denoiser.onnx",
+          "memoryBytes": 11515461632,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "pictureEncoder",
+          "runner": "klein-picture-encoder",
+          "folder": "models/flux2-klein-4b/picture-encoder",
+          "file": "picture-encoder.onnx",
+          "memoryBytes": 2196766720,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "decoder",
+          "runner": "klein-decoder",
+          "folder": "models/flux2-klein-4b/decoder",
+          "file": "decoder.onnx",
+          "memoryBytes": 5192548352,
+          "executionProvider": "cuda"
+        }
+      ],
+      "files": [
+        {
+          "path": "models/flux2-klein-4b/decoder/decoder.onnx",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/decoder/decoder.onnx",
+          "size": 735313,
+          "sha256": "362d4fc0b00b0668c9e0d1077b5430c1192bb99b63f6c0bbc92601233121af6e"
+        },
+        {
+          "path": "models/flux2-klein-4b/decoder/decoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/decoder/decoder.onnx.data",
+          "size": 99287040,
+          "sha256": "a18a3b77db207d2b37648e879cf7508f39b8053c40d1cc11d04b196b93e86341"
+        },
+        {
+          "path": "models/flux2-klein-4b/denoiser/denoiser.onnx",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/denoiser/denoiser.onnx",
+          "size": 1634080,
+          "sha256": "fdc9053d248e5657b429101c4806c563ea4e0f0750112ccf2789629cc065bbb4"
+        },
+        {
+          "path": "models/flux2-klein-4b/denoiser/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/denoiser/denoiser.onnx.data",
+          "size": 4620636160,
+          "sha256": "858ef2af4881462972756953e169fb370f35382ed0a2823dafb59ee2b92aee8c"
+        },
+        {
+          "path": "models/flux2-klein-4b/encoder/encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/encoder/encoder.onnx",
+          "size": 3745515,
+          "sha256": "2bb3a35b988e4ab298d7c9254becd4d440434ad056b25fa4dc35d094c8340e6d"
+        },
+        {
+          "path": "models/flux2-klein-4b/encoder/encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/encoder/encoder.onnx.data",
+          "size": 3844476928,
+          "sha256": "da6e9401467e733d836817ed8573595d45d9b152ef9c5e1cf58218ce2fa74bf9"
+        },
+        {
+          "path": "models/flux2-klein-4b/encoder/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/encoder/tokenizer.json",
+          "size": 11422654,
+          "sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"
+        },
+        {
+          "path": "models/flux2-klein-4b/picture-encoder/picture-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/picture-encoder/picture-encoder.onnx",
+          "size": 560213,
+          "sha256": "4fb1e93cf3bec76877eaa409390a6794e0f2d1b0bd4f90fcf666e752028d30ff"
+        },
+        {
+          "path": "models/flux2-klein-4b/picture-encoder/picture-encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/picture-encoder/picture-encoder.onnx.data",
+          "size": 68878336,
+          "sha256": "e2ff803aee95765ac6004cf77d80148af15d2b9f0d192a6c09ad43bec4f3c1ba"
+        }
+      ]
+    },
+    {
       "id": "fastwan2.2-ti2v-5b",
       "displayName": "Wan2.2 FastWan",
       "kind": "videoGeneration",

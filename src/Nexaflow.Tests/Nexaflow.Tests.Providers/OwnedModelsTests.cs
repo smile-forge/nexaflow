@@ -102,6 +102,32 @@ public class OwnedModelsTests
     }
 
     [TestMethod]
+    public void ThePictureEditingModel_IsFluxKlein_ItsFourPartsBuiltForCuda_WorkingFromTwoPicturesUnderAMask()
+    {
+        var image = OwnedModels.OfKind(ModelKind.ImageGeneration).Single(m => m.Id == "flux2-klein-4b");
+
+        Assert.AreEqual((DrawingMethod.Flux2Klein, 4, 0f, 0f), (image.Sampler!.Method, image.Sampler.Steps, image.Sampler.Shift, image.Sampler.Guidance),
+                        "its shift follows the picture's size");
+        Assert.AreEqual(new OwnedEditing(2, true, 1024 * 1024, 16), image.Sampler.Editing);
+        Assert.AreEqual((1360, 768), image.Sampler.Sizes[MediaShape.Landscape]);
+        Assert.AreEqual(ModelTier.Standard, image.Catalog.Tier);
+        Assert.IsFalse(image.RunsOn(OwnedModels.Cpu), "its graphs are built for the GPU");
+        CollectionAssert.AreEquivalent(new[] { "klein-prompt-encoder", "klein-denoiser", "klein-picture-encoder", "klein-decoder" },
+                                       image.PartsFor(OwnedModels.Cuda).Select(p => p.Runner).ToArray());
+        Assert.IsTrue(image.Part(OwnedRoles.Denoiser, OwnedModels.Cuda).MemoryBytes < 12L << 30, "with two pictures it fits a 16 GB card");
+        CollectionAssert.Contains(image.Catalog.Files.Select(f => f.RelativePath).ToArray(), "models/flux2-klein-4b/encoder/tokenizer.json");
+        Assert.IsTrue(image.Catalog.Files.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8")),
+                      "every file pinned to the published revision");
+    }
+
+    [TestMethod]
+    [DataRow(2000, 1000, 1440, 720)]
+    [DataRow(1024, 768, 1024, 768)]
+    [DataRow(100, 70, 96, 64)]
+    public void APictureToWorkFrom_IsReadAtItsProportions_WithinAMegapixel_NeverScaledUp(int width, int height, int readWidth, int readHeight) =>
+        Assert.AreEqual((readWidth, readHeight), new OwnedEditing(2, true, 1024 * 1024, 16).SizeOf(width, height));
+
+    [TestMethod]
     public void HiDreamO1_AlsoShipsWithFp16Weights_ForAGpuWithTheRoom_AfterThe8BitBuild()
     {
         var images = OwnedModels.OfKind(ModelKind.ImageGeneration).Select(m => m.Id).ToList();

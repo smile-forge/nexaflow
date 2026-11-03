@@ -4,6 +4,9 @@ using Nexaflow.IO.Common.Hardware;
 using Nexaflow.Providers.AiHost;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Providers.Support;
+using System.Buffers.Binary;
+using System.IO.Compression;
+using Nexaflow.IO.Common.Imaging;
 
 namespace Nexaflow.Tests.Providers;
 
@@ -222,5 +225,109 @@ public class OwnedImageGenerationProviderTests
 
         Assert.AreEqual(0, store.Fetched.Count);
         Assert.IsNull(((Draw)host.Requests.Single()).Lora);
+    }
+
+    private const string KleinId = "flux2-klein-4b";
+
+    private static OwnedImageGenerationProvider Klein(FakeModelStore store, FakeAiHost host)
+        => new(new FakeActivityManager(), store, host, new HostModelSetup(host), Nvidia(), new ProviderModel(KleinId));
+
+    /// <summary>FLUX.2 [klein]'s files and the CUDA pack.</summary>
+    private static FakeModelStore KleinHere() =>
+        new([.. Klein(new FakeModelStore(), new FakeAiHost()).Catalog.Single(m => m.Id == KleinId).Files, .. CudaRuntimePack.Files]);
+
+    [TestMethod]
+    public void FluxKlein_WorksFromTwoPictures_UnderAMask_AtTheFirstOnesProportions_WhereZImageOnlyDraws()
+    {
+        var klein = Klein(KleinHere(), new FakeAiHost());
+        var zImage = Provider(Here(), new FakeAiHost());
+
+        Assert.AreEqual((2, true, true), (klein.MaxSources, klein.Masks, klein.Settings.KeepsSourceProportions));
+        Assert.AreEqual((2, 0), (zImage.MaxSourcesOf(KleinId), zImage.MaxSourcesOf(ModelId)), "any instance says what each model works from");
+        Assert.IsFalse(zImage.Settings.KeepsSourceProportions);
+    }
+
+    [TestMethod]
+    public async Task AnEdit_SendsItsPictureReadWithinAMegapixel_AndWhatTheMaskLeavesTransparentAsWhatIsDrawnAgain()
+    {
+        var host = Drawing(new Drawn(0, [1]));
+        var source = PngEncoder.EncodeRgb(new byte[2000 * 1000 * 3], 2000, 1000);
+        var mask = RgbaPng(2000, 1000, (x, _) => x < 1000 ? (byte)0 : (byte)255);   // the left half drawn again
+
+        await Klein(KleinHere(), host).GenerateImageAsync(new ImageGenerationRequest("a lake", new(1, 1))
+        {
+            Sources = [new MediaBytes(source, "image/png")],
+            Mask    = new MediaBytes(mask, "image/png"),
+        });
+
+        var draw = (Draw)host.Requests.Single();
+        Assert.AreEqual((1440, 720), (draw.Width, draw.Height), "2000x1000 at its proportions within a megapixel, each side a multiple of 16");
+        Assert.AreEqual((1440, 720, 1440 * 720 * 3), (draw.Sources.Single().Width, draw.Sources.Single().Height, draw.Sources.Single().Rgb.Length));
+        Assert.AreEqual((DrawingMethod.Flux2Klein, 4, 0f), (draw.Model.Method, draw.Model.Steps, draw.Model.Shift));
+        Assert.AreEqual(1440 * 720, draw.Mask!.Length);
+        Assert.AreEqual(255, draw.Mask[360 * 1440 + 100], "where the mask is transparent, drawn again");
+        Assert.AreEqual(0, draw.Mask[360 * 1440 + 1300], "where it is opaque, kept");
+        Assert.AreEqual("klein-picture-encoder", draw.Model.Parts[DrawingParts.PictureEncoder].Runner);
+    }
+
+    [TestMethod]
+    public async Task FluxKlein_RefusesMorePicturesThanItReads_AndAMaskWithNoPictureToLieOver()
+    {
+        var picture = new MediaBytes(PngEncoder.EncodeRgb(new byte[64 * 64 * 3], 64, 64), "image/png");
+
+        await Assert.ThrowsExactlyAsync<ArgumentException>(() => Klein(KleinHere(), new FakeAiHost())
+            .GenerateImageAsync(new ImageGenerationRequest("x", new(1, 1)) { Sources = [picture, picture, picture] }));
+        await Assert.ThrowsExactlyAsync<ArgumentException>(() => Klein(KleinHere(), new FakeAiHost())
+            .GenerateImageAsync(new ImageGenerationRequest("x", new(1, 1)) { Mask = picture }));
+    }
+
+    /// <summary>A PNG of black pixels whose transparency <paramref name="alpha"/> gives at each pixel.</summary>
+    private static byte[] RgbaPng(int width, int height, Func<int, int, byte> alpha)
+    {
+        var raw = new byte[height * (width * 4 + 1)];
+        for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+                raw[y * (width * 4 + 1) + 1 + x * 4 + 3] = alpha(x, y);
+        using var png = new MemoryStream();
+        png.Write([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+        var header = new byte[13];
+        BinaryPrimitives.WriteInt32BigEndian(header, width);
+        BinaryPrimitives.WriteInt32BigEndian(header.AsSpan(4), height);
+        header[8] = 8;   // bits a channel
+        header[9] = 6;   // RGBA
+        Chunk(png, "IHDR", header);
+        using (var deflated = new MemoryStream())
+        {
+            using (var z = new ZLibStream(deflated, CompressionLevel.Fastest, leaveOpen: true)) z.Write(raw);
+            Chunk(png, "IDAT", deflated.ToArray());
+        }
+        Chunk(png, "IEND", []);
+        return png.ToArray();
+    }
+
+    private static void Chunk(Stream png, string type, byte[] data)
+    {
+        var length = new byte[4];
+        BinaryPrimitives.WriteInt32BigEndian(length, data.Length);
+        png.Write(length);
+        var typed = new byte[4 + data.Length];
+        System.Text.Encoding.ASCII.GetBytes(type).CopyTo(typed, 0);
+        data.CopyTo(typed, 4);
+        png.Write(typed);
+        var crc = new byte[4];
+        BinaryPrimitives.WriteUInt32BigEndian(crc, Crc(typed));
+        png.Write(crc);
+    }
+
+    /// <summary>PNG's CRC-32 of a chunk's type and data.</summary>
+    private static uint Crc(ReadOnlySpan<byte> bytes)
+    {
+        uint crc = 0xFFFFFFFF;
+        foreach (byte b in bytes)
+        {
+            crc ^= b;
+            for (int k = 0; k < 8; k++) crc = (crc & 1) != 0 ? 0xEDB88320 ^ (crc >> 1) : crc >> 1;
+        }
+        return ~crc;
     }
 }
