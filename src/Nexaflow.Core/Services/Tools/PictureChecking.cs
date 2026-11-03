@@ -28,7 +28,7 @@ public sealed class PictureChecking : LocalToolModels, IPictureCheck
     async Task<bool> IPictureCheck.FitForGeneralAudienceAsync(MediaBytes picture, CancellationToken ct)
     {
         await ReadyAsync(ct);
-        return IsFit(await _checking.CheckAsync(picture.Bytes, ct));
+        return IsFit(await AskedAsync(() => _checking.CheckAsync(picture.Bytes, ct), ct));
     }
 
     /// <summary>Whether a verdict leaves a picture fit for a general audience.</summary>

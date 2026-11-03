@@ -76,6 +76,16 @@ public abstract class UITestBase
     /// so a seed can decide it (where the AI models are, say).</summary>
     protected virtual IReadOnlyDictionary<string, string> LaunchEnvironment { get; } = new Dictionary<string, string>();
 
+    /// <summary>MSTest's context for the running test: its name, its outcome at teardown, and its output.</summary>
+    public TestContext TestContext { get; set; } = null!;
+
+    /// <summary>
+    /// The app keeps its safety log — and the AI host its own beside it — through the journey, so that one that fails leaves
+    /// the account of what the shell and the host did (<see cref="KeepLogsOfFailure"/>). For journeys that drive the AI host;
+    /// off by default, as the setting itself is, which the Options journey checks.
+    /// </summary>
+    protected virtual bool KeepsAppLog => false;
+
     /// <summary>
     /// Override to seed files/config into the isolated config dir (<paramref name="configDir"/> =
     /// <c>NEXAFLOW_CONFIG_DIR</c>) BEFORE the app launches — e.g. write a workspace-scoped feature config
@@ -117,6 +127,8 @@ public abstract class UITestBase
 
         _configDir = Path.Combine(TestTemp.Root, "nexaflow-uitest-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_configDir);
+
+        if (KeepsAppLog) SeedSafetyLog(_configDir);
 
         // Let a derived test seed files/config into the isolated dir BEFORE launch (e.g. enable a
         // workspace-scoped feature so its enabled UI renders instead of the disabled placeholder).
@@ -161,12 +173,53 @@ public abstract class UITestBase
         // handler marks it handled so the app stays up, making the log the only trail. Opening/clicking
         // around the app must not trigger one — surface it as a test failure rather than a silent log.
         var crash = AppLaunchRecipe.ReadCrashLogs(_configDir);
+        if (crash is not null || TestContext?.CurrentTestOutcome is not UnitTestOutcome.Passed) KeepLogsOfFailure();
 
         try { if (Directory.Exists(_configDir)) Directory.Delete(_configDir, recursive: true); } catch { }
 
         if (!string.IsNullOrWhiteSpace(crash))
             Assert.Fail("The app logged an unhandled exception during this UI test — opening/clicking " +
                         $"triggered a crash:{Environment.NewLine}{crash}");
+    }
+
+    /// <summary>The shell's config, written before launch, with its safety log on and this build's what's-new already seen.</summary>
+    private static void SeedSafetyLog(string configDir)
+    {
+        var version = FileVersionInfo.GetVersionInfo(BuiltOutput.App).FileVersion ?? "1.0.0.0";
+        var shell = Path.Combine(configDir, "shell");
+        Directory.CreateDirectory(shell);
+        File.WriteAllText(Path.Combine(shell, $"config_{version}.json"), $$"""
+            {
+              "ConfigName": "shell",
+              "FriendlyName": "Shell",
+              "SafetyLogging": true,
+              "LastRunVersion": "{{version}}"
+            }
+            """);
+    }
+
+    /// <summary>
+    /// What the app wrote of a journey that failed — its crash logs, and its logs folder, the AI host's log among them where
+    /// <see cref="KeepsAppLog"/> — copied to <c>TestResults\journey-logs\&lt;test&gt;-&lt;time&gt;</c> before the isolated folder
+    /// is deleted, so a failure seen once, in the sandbox or on CI, can be read after rather than guessed at.
+    /// </summary>
+    private void KeepLogsOfFailure()
+    {
+        try
+        {
+            if (!Directory.Exists(_configDir)) return;
+            var logs = Directory.EnumerateFiles(_configDir, "crash*.log")
+                .Concat(Directory.Exists(Path.Combine(_configDir, "local", "logs")) ? Directory.EnumerateFiles(Path.Combine(_configDir, "local", "logs")) : [])
+                .ToList();
+            if (logs.Count == 0) return;
+            var into = Path.Combine(TestSampleData.RepoRoot, "TestResults", "journey-logs",
+                                    $"{TestContext?.TestName ?? GetType().Name}-{DateTime.Now:yyyyMMdd-HHmmss}");
+            Directory.CreateDirectory(into);
+            foreach (var log in logs) File.Copy(log, Path.Combine(into, Path.GetFileName(log)), overwrite: true);
+            TestContext?.WriteLine($"The app's logs of this failure are kept in {into}");
+        }
+        catch (IOException) { /* a log still held by the app's last write: the failure itself is still reported */ }
+        catch (UnauthorizedAccessException) { }
     }
 
     /// <summary>

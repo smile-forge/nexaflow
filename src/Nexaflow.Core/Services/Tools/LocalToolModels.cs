@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
+using Nexaflow.AiHost.Client;
+using Nexaflow.AiHost.Contracts;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.AiHost;
 using Nexaflow.Providers.Common;
@@ -122,6 +124,65 @@ public abstract class LocalToolModels : ILocalTool
             }
             Changed?.Invoke(this, EventArgs.Empty);
         }
+    }
+
+    /// <summary>
+    /// One of the tool's jobs in the AI host, <paramref name="run"/>, asked once more where the host is lost while it works — on
+    /// the fresh host the next request starts — so a host stopped for reasons of its own moment (killed for going quiet during a
+    /// cold start, a driver's crash) costs the person nothing. Only for a job that can be asked again whole: one that hands
+    /// nothing over until it ends. What it then fails with is a <see cref="ToolRunException"/> saying whether asking again can help.
+    /// </summary>
+    protected static async Task<T> AskedAsync<T>(Func<Task<T>> run, CancellationToken ct)
+    {
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await run();
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested && FailureOf(ex) is { } failure)
+            {
+                if (failure == ToolRunFailure.Interrupted && attempt == 1) continue;
+                throw Told(failure, ex);
+            }
+        }
+    }
+
+    /// <summary><paramref name="run"/>, a job that hands over what it makes as it goes and so is never asked again whole, its
+    /// failure told as a <see cref="ToolRunException"/> saying whether asking again can help.</summary>
+    protected static async Task<T> ToldAsync<T>(Func<Task<T>> run, CancellationToken ct)
+    {
+        try
+        {
+            return await run();
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested && FailureOf(ex) is { } failure)
+        {
+            throw Told(failure, ex);
+        }
+    }
+
+    private static ToolRunException Told(ToolRunFailure failure, Exception ex)
+        => ex as ToolRunException
+        ?? new ToolRunException(failure, failure == ToolRunFailure.Interrupted ? Str.Format("Shell.Tools.StoppedTwice", ex.Message) : ex.Message, ex);
+
+    /// <summary>
+    /// How a job failed, where the AI host or the models' runtime says: the host lost while it worked; refused for want of room,
+    /// or no host to be had; or the job run and failed. Null for anything else — the picture handed over, a file — which the
+    /// caller tells itself.
+    /// </summary>
+    private static ToolRunFailure? FailureOf(Exception ex)
+    {
+        if (ex is ToolRunException told) return told.Failure;
+        if ((ex as AiHostException ?? ex.InnerException as AiHostException) is { } host)
+            return host.Failure switch
+            {
+                AiHostFailure.Lost => ToolRunFailure.Interrupted,
+                AiHostFailure.Unavailable => ToolRunFailure.NotNow,
+                _ => host.Kind is HostErrorKind.Refused ? ToolRunFailure.NotNow : ToolRunFailure.Unworkable,
+            };
+        // The runtime's own failures are of placing the models: no room beside the others, or files not here.
+        return (ex as LlmProviderException ?? ex.InnerException as LlmProviderException) is not null ? ToolRunFailure.NotNow : null;
     }
 
     /// <summary>Progress reported at once, on the reporting thread.</summary>

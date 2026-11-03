@@ -278,7 +278,7 @@ public class ImageRestoreTests
         public Task<PictureRestoration> RestoreAsync(PictureRestoreRequest request, IProgress<double>? progress, CancellationToken ct)
         {
             lock (Restorations) Restorations.Add(request);
-            if (Fails) throw new InvalidOperationException("the GPU had no room");
+            if (Fails) throw new ToolRunException(ToolRunFailure.NotNow, "the GPU had no room");   // as the app's tools tell it
             var source = File.ReadAllBytes(request.Pixels);
             int s = request.Scale, w = request.Width * s, h = request.Height * s;
             var made = new byte[w * h * 4];

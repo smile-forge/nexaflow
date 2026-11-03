@@ -35,6 +35,7 @@ public enum RegionMode
 [JsonDerivedType(typeof(RegionSmooth), "smooth")]
 [JsonDerivedType(typeof(RegionCoverage), "coverage")]
 [JsonDerivedType(typeof(RegionColour), "colour")]
+[JsonDerivedType(typeof(RegionSceneDepth), "distance")]
 public abstract record RegionStep
 {
     /// <summary>The step as text, the same for the same step: part of what a mask made from it is filed by.</summary>
@@ -141,6 +142,29 @@ public sealed record RegionColour(double X, double Y, int Tolerance, bool Joined
 }
 
 /// <summary>
+/// What lies within a span of distance: every pixel whose scene depth falls from <see cref="Near"/> to <see cref="Far"/> — 0
+/// the nearest part of the photo, 1 the farthest — its edges softened over <see cref="Softness"/> of that scale, meeting what
+/// is selected as <see cref="Mode"/> says. Kept as the span, so the recipe stays small; what it covers follows from the photo's
+/// scene depth, worked out by <see cref="RegionSceneDepths"/> and carried as <see cref="Reach"/>.
+/// </summary>
+public sealed record RegionSceneDepth(double Near, double Far, double Softness) : RegionStep
+{
+    public RegionMode Mode { get; init; }
+
+    /// <summary>What the span covers, over the oriented source, once worked out from the photo's scene depth; null until then.</summary>
+    [JsonIgnore]
+    public TiledCoverage? Reach { get; init; }
+
+    // What it covers follows from the span and the photo, so two spans alike are the same step, worked out or not.
+    public bool Equals(RegionSceneDepth? other)
+        => other is not null && Near == other.Near && Far == other.Far && Softness == other.Softness && Mode == other.Mode;
+
+    public override int GetHashCode() => HashCode.Combine(Near, Far, Softness, Mode);
+
+    public override string Describe() => $"distance:{Mode}:{Number(Near)},{Number(Far)}:{Number(Softness)}";
+}
+
+/// <summary>
 /// A selection made other than by drawing — from a layer's mask or transparency, or carried onto a picture layer from its
 /// canvas's selection — as coverage over the oriented source, meeting what is selected as <see cref="Mode"/> says. The
 /// coverage is kept in the package holding the recipe, as a grey PNG at <see cref="File"/>; a recipe kept on its own, beside a
@@ -203,6 +227,10 @@ public sealed record RecipeRegion
     /// <summary>Whether it has no step at all — selecting nothing beyond what it starts from.</summary>
     [JsonIgnore]
     public bool IsEmpty => Steps.IsEmpty;
+
+    /// <summary>Whether a step of it selects by distance, and so needs the photo's scene depth.</summary>
+    [JsonIgnore]
+    public bool SelectsByDistance => Steps.Any(s => s is RegionSceneDepth);
 
     /// <summary>The middle of the first shape drawn, or where the first colour was clicked; null where neither is.</summary>
     [JsonIgnore]

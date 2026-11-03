@@ -12,6 +12,7 @@ using Nexaflow.IO.Common.Locations;
 using Nexaflow.Features.Images.Editing.Layers;
 using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Images.Editing.SceneDepth;
 
 namespace Nexaflow.Features.Images.Editing;
 
@@ -24,19 +25,24 @@ namespace Nexaflow.Features.Images.Editing;
 [FeatureService]
 public sealed class ImageEditingServices : IDisposable
 {
-    public ImageEditingServices(IVirtualFileSystem vfs) : this(vfs, new ImageRecipeStore()) { }
+    /// <param name="sceneDepth">Scene depth, where the app has it: what a lens blur, a haze and a selection by distance are drawn from.</param>
+    public ImageEditingServices(IVirtualFileSystem vfs, ISceneDepth? sceneDepth = null) : this(vfs, new ImageRecipeStore(), sceneDepth: sceneDepth) { }
 
     /// <param name="vfs">The runtime's file system the photos are read and saved through.</param>
     /// <param name="restored">Where restorations are kept; the app's cache when not given.</param>
     /// <param name="cutOuts">Where cut-out masks are kept; the app's cache when not given.</param>
     /// <param name="erased">Where erased photos are kept; the app's cache when not given.</param>
+    /// <param name="sceneDepth">Scene depth, where the app has it.</param>
+    /// <param name="sceneDepths">Where photos' scene depth is kept; the app's cache when not given.</param>
     public ImageEditingServices(IVirtualFileSystem vfs, ImageRecipeStore recipes, RestoredPictures? restored = null, CutOutMasks? cutOuts = null,
-                                ErasedPictures? erased = null)
+                                ErasedPictures? erased = null, ISceneDepth? sceneDepth = null, SceneDepthMaps? sceneDepths = null)
     {
         FileSystem = vfs;
         Restored   = restored ?? new RestoredPictures();
         CutOuts    = cutOuts ?? new CutOutMasks();
         Erased     = erased ?? new ErasedPictures();
+        SceneDepth  = sceneDepth;
+        SceneDepths = sceneDepths ?? new SceneDepthMaps();
         var jpeg = new JpegMetadata();
         var png  = new PngMetadata();
         var webp = new WebpMetadata();
@@ -120,6 +126,12 @@ public sealed class ImageEditingServices : IDisposable
     /// <summary>The photos as erased, kept so each step is done once.</summary>
     public ErasedPictures Erased { get; }
 
+    /// <summary>Scene depth, where the app has it: how far each part of a photo lies, for its lens blur, its haze and selecting by distance.</summary>
+    public ISceneDepth? SceneDepth { get; }
+
+    /// <summary>The photos' scene depth, kept so each photo's is estimated once.</summary>
+    public SceneDepthMaps SceneDepths { get; }
+
     /// <summary>True when <paramref name="path"/> is a file on this disk — one a sidecar can sit beside and a save can replace.</summary>
     [LocalDiskOnly("a photo is file-backed only as a file on this disk under its own path; a sidecar sits beside no other")]
     public static bool IsFileBacked(string path) => File.Exists(path);
@@ -154,9 +166,9 @@ public sealed class ImageEditingServices : IDisposable
         return new UprightPixels(unpremul.Bytes, width, height, space);
     }
 
-    /// <summary>A pipeline over <paramref name="source"/> — and its restoration, where the recipe restores it.</summary>
-    public RenderPipeline Pipeline(DecodedImage source, bool cache = true, DecodedImage? restored = null, SKImage? cutOut = null)
-        => new(source, Adjustments, Markup, cache, restored, cutOut);
+    /// <summary>A pipeline over <paramref name="source"/> — and its restoration, cut-out mask and scene depth, where the recipe asks for them.</summary>
+    public RenderPipeline Pipeline(DecodedImage source, bool cache = true, DecodedImage? restored = null, SKImage? cutOut = null, SceneDepthPlane? sceneDepth = null)
+        => new(source, Adjustments, Markup, cache, restored, cutOut, sceneDepth);
 
     /// <summary>
     /// A picture the tools made of the photo — its restoration, or the photo as erased — kept at <paramref name="path"/>,

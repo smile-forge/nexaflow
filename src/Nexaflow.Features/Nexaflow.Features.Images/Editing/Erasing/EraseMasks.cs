@@ -39,7 +39,8 @@ public static class EraseMasks
             Grow(picked, width, height, PickGrowthFor(width, height));
             for (int i = 0; i < mask.Length; i++) mask[i] |= picked[i];
         }
-        if (await RegionColours.ResolvedAsync(services, photo, step.Region, ct) is { } region) await Task.Run(() => Select(mask, width, height, region), ct);
+        if (await RegionSceneDepths.ResolvedAsync(services, photo, await RegionColours.ResolvedAsync(services, photo, step.Region, ct), ct) is { } region)
+            await Task.Run(() => Select(mask, width, height, region), ct);
         if (!step.Strokes.IsEmpty) Paint(mask, width, height, step.Strokes);
         return mask;
     }

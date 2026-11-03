@@ -25,6 +25,9 @@ public abstract class ImageEditJourneyBase : UiJourneyTestBase
         return new Point(r.X + r.Width / 2, r.Y + r.Height / 2);
     }
 
+    /// <summary>Picture editing drives the AI host: a journey that fails keeps the host's log.</summary>
+    protected override bool KeepsAppLog => true;
+
     protected bool ClickCanvas()
     {
         if (CanvasCentre() is not { } centre) return false;
@@ -64,6 +67,17 @@ public abstract class ImageEditJourneyBase : UiJourneyTestBase
         var target = range.Value.Value >= range.Maximum.Value ? range.Minimum.Value : range.Maximum.Value;
         range.SetValue(target);
         return WaitForFs(() => Math.Abs(range.Value.Value - target) < 0.01, 2);
+    }
+
+    /// <summary>The slider <paramref name="automationId"/> set to <paramref name="value"/> — for one whose ends are held by another,
+    /// as a span's are, where its far end will not do.</summary>
+    protected bool MoveSliderTo(string automationId, double value)
+    {
+        var element = FindInAppWindows(automationId);
+        try { element?.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView(); } catch { /* not in a scroller */ }
+        if (element?.Patterns.RangeValue.PatternOrDefault is not { } range) return false;
+        range.SetValue(value);
+        return WaitForFs(() => Math.Abs(range.Value.Value - value) < 0.01, 2);
     }
 
     /// <summary>Turns a check box over and back — in the main window or a popup over it.</summary>

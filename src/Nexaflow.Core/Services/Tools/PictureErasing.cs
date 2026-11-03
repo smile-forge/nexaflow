@@ -25,7 +25,7 @@ public sealed class PictureErasing : LocalToolModels, IPictureErasing
         if (request.Width <= 0 || request.Height <= 0)
             throw new InvalidOperationException("A picture to erase from has a size.");
         var regions = progress is null ? null : new Inline<(int Done, int Total)>(step => progress.Report((double)step.Done / step.Total));
-        var erased = await _erasing.EraseAsync(request.Pixels, request.Mask, request.Width, request.Height, request.Into, regions, ct);
+        var erased = await AskedAsync(() => _erasing.EraseAsync(request.Pixels, request.Mask, request.Width, request.Height, request.Into, regions, ct), ct);
         return new PictureErasure(erased.Regions);
     }
 }

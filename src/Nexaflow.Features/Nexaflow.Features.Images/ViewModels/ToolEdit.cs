@@ -109,17 +109,24 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer,
     [NotifyCanExecuteChangedFor(nameof(ActCommand))]
     private bool _canDownload;
 
-    /// <summary>Making it failed; it is tried again when asked.</summary>
+    /// <summary>Making it failed; the banner says why.</summary>
+    [ObservableProperty] private bool _failed;
+
+    /// <summary>
+    /// It failed in a way asking again can end otherwise — what runs the tools was in the way, or the memory taken, or a file
+    /// held — so the banner offers to try again. A failure of the ask itself (<see cref="ToolRunFailure.Unworkable"/>, a picture
+    /// that cannot be read) is offered nothing: the same ask fails the same way, until the recipe asks something else.
+    /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasAction), nameof(ActionLabel))]
     [NotifyCanExecuteChangedFor(nameof(ActCommand))]
-    private bool _failed;
+    private bool _canRetry;
 
     /// <summary>The banner has something to offer: the tool to fetch, or the result to try again.</summary>
-    public bool HasAction => CanDownload || Failed;
+    public bool HasAction => CanDownload || CanRetry;
 
     /// <summary>What the banner's button says.</summary>
-    public string? ActionLabel => CanDownload ? Str.Get("Images.Models.Download") : Failed ? Str.Get(_texts + "Retry") : null;
+    public string? ActionLabel => CanDownload ? Str.Get("Images.Models.Download") : CanRetry ? Str.Get(_texts + "Retry") : null;
 
     // ── What the edit is ────────────────────────────────────────────────────
 
@@ -154,7 +161,7 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer,
         {
             Stop();
             _shown = _failedFor = null;
-            Failed = false;
+            Failed = CanRetry = false;
         }
         _session = session;
         CanDownload = false;
@@ -180,7 +187,7 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer,
         if (_failedFor is not null && !Same(_failedFor, input, ask))
         {
             _failedFor = null;
-            Failed = false;
+            Failed = CanRetry = false;
         }
 
         var needs = Needs(ask);
@@ -252,6 +259,7 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer,
         _ = Task.Run(async () =>
         {
             string? failure = null;
+            bool mayWorkAgain = false;
             try
             {
                 await MakeAsync(input, ask, progress, cts.Token);
@@ -260,6 +268,7 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer,
             catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException or InvalidDataException)
             {
                 failure = ex.Message;
+                mayWorkAgain = MayWorkAgain(ex);
             }
             await _runOnUi(() =>
             {
@@ -271,6 +280,7 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer,
                 {
                     _failedFor = (input, ask);
                     Failed = true;
+                    CanRetry = mayWorkAgain;
                     Say(Str.Format(_texts + "Failed", failure));
                     return;
                 }
@@ -278,6 +288,18 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer,
             });
         });
     }
+
+    /// <summary>
+    /// Whether asking again, as it is, can end otherwise than <paramref name="failure"/>: the tools' own say where they tell
+    /// (<see cref="ToolRunException"/> — a host lost twice, or no room, can pass); a file held or not to be opened can be let go
+    /// of; the picture or kept result unreadable, or anything else the ask itself caused, cannot.
+    /// </summary>
+    private static bool MayWorkAgain(Exception failure) => failure switch
+    {
+        ToolRunException told => told.MayWorkAgain,
+        IOException or UnauthorizedAccessException => true,
+        _ => false,
+    };
 
     private void Stop()
     {
@@ -294,13 +316,13 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer,
     private void Act()
     {
         if (CanDownload) _models.Download();
-        else if (Failed) Retry();
+        else if (CanRetry) Retry();
     }
 
     private void Retry()
     {
         _failedFor = null;
-        Failed = false;
+        Failed = CanRetry = false;
         Follow(_session);
     }
 

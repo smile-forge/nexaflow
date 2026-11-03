@@ -14,7 +14,9 @@ namespace Nexaflow.Features.Images.Editing.Wpf;
 /// A frame is copied out of Skia as 8-bit premultiplied sRGB — what WPF composes — into a staging buffer on the
 /// render thread, then into the bitmap on the UI thread. The bitmap is replaced only when the frame's size or
 /// density changes. The presenter reaches the UI thread only through the delegate it is given, so it never touches
-/// a dispatcher itself.
+/// a dispatcher itself. A frame asked for with a reader is read on the render thread, from the picture as rendered —
+/// at its own depth, before it is narrowed to 8 bits — and what the reader made of it is handed back with
+/// <see cref="Presented"/>, while the render loop waits: whatever the reader reuses is that frame's until then.
 /// </remarks>
 public sealed class SkiaBitmapPresenter : IDisposable
 {
@@ -34,8 +36,9 @@ public sealed class SkiaBitmapPresenter : IDisposable
     /// <summary>Raised on the UI thread when <see cref="Bitmap"/> is a new object, or none.</summary>
     public event Action? BitmapChanged;
 
-    /// <summary>Raised on the UI thread after each frame lands, with the tag it was asked for with.</summary>
-    public event Action<object?>? Presented;
+    /// <summary>Raised on the UI thread after each frame lands, with the tag it was asked for with and what its reader made of
+    /// it — none without a reader, or where the reading failed.</summary>
+    public event Action<object?, object?>? Presented;
 
     /// <summary>
     /// Asks for a frame. <paramref name="render"/> runs off the UI thread, and hands its picture to the callback it is
@@ -43,12 +46,13 @@ public sealed class SkiaBitmapPresenter : IDisposable
     /// </summary>
     /// <param name="dpi">The bitmap's density, so a frame rendered at more pixels keeps its layout size.</param>
     /// <param name="tag">Handed back with <see cref="Presented"/> — what the frame is a picture of, for whoever draws over it.</param>
-    public void Present(Func<Action<SKImage>, bool> render, double dpi = 96, object? tag = null)
+    /// <param name="read">Reads the picture as rendered, on the render thread; what it returns is handed back with <see cref="Presented"/>.</param>
+    public void Present(Func<Action<SKImage>, bool> render, double dpi = 96, object? tag = null, Func<SKImage, object?>? read = null)
     {
         lock (_gate)
         {
             if (_disposed) return;
-            _pending = new Frame(render, dpi, tag);
+            _pending = new Frame(render, dpi, tag, read);
             if (_running) return;
             _running = true;
         }
@@ -82,9 +86,14 @@ public sealed class SkiaBitmapPresenter : IDisposable
             }
 
             bool rendered;
+            object? reading = null;
             try
             {
-                rendered = frame.Render(CopyToStaging);
+                rendered = frame.Render(picture =>
+                {
+                    CopyToStaging(picture);
+                    reading = ReadOf(frame, picture);
+                });
             }
             catch (InvalidOperationException)
             {
@@ -95,13 +104,26 @@ public sealed class SkiaBitmapPresenter : IDisposable
 
             try
             {
-                await _runOnUi(() => Blit(frame.Dpi, frame.Tag));
+                await _runOnUi(() => Blit(frame.Dpi, frame.Tag, reading));
             }
             catch (InvalidOperationException)
             {
                 // A frame the screen could not take is skipped like one Skia could not draw: the loop must outlive
                 // it, or no later frame would ever be shown.
             }
+        }
+    }
+
+    /// <summary>What <paramref name="frame"/>'s reader made of its picture: a reading that fails leaves the frame to be shown without one.</summary>
+    private static object? ReadOf(Frame frame, SKImage picture)
+    {
+        try
+        {
+            return frame.Read?.Invoke(picture);
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
         }
     }
 
@@ -117,7 +139,7 @@ public sealed class SkiaBitmapPresenter : IDisposable
             throw new InvalidOperationException("The rendered picture could not be read back.");
     }
 
-    private void Blit(double dpi, object? tag)
+    private void Blit(double dpi, object? tag, object? reading)
     {
         if (_disposed || _staging is not { } staging) return;
         if (Bitmap is null || Bitmap.PixelWidth != staging.Width || Bitmap.PixelHeight != staging.Height || Math.Abs(Bitmap.DpiX - dpi) > 0.01)
@@ -126,7 +148,7 @@ public sealed class SkiaBitmapPresenter : IDisposable
             BitmapChanged?.Invoke();
         }
         Bitmap.WritePixels(new Int32Rect(0, 0, staging.Width, staging.Height), staging.GetPixels(), staging.ByteCount, staging.RowBytes);
-        Presented?.Invoke(tag);
+        Presented?.Invoke(tag, reading);
     }
 
     public void Dispose()
@@ -146,5 +168,5 @@ public sealed class SkiaBitmapPresenter : IDisposable
         _staging = null;
     }
 
-    private readonly record struct Frame(Func<Action<SKImage>, bool> Render, double Dpi, object? Tag);
+    private readonly record struct Frame(Func<Action<SKImage>, bool> Render, double Dpi, object? Tag, Func<SKImage, object?>? Read);
 }

@@ -1,0 +1,423 @@
+{
+  "branch": "claude/scene-depth-b8b6ab",
+  "nodes": {
+    "scene-depth": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/SceneDepthMessages.cs",
+          "class": "EstimateSceneDepth"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/SceneDepth/SceneDepthHandler.cs",
+          "class": "SceneDepthHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/SceneDepth/SceneDepthHandover.cs",
+          "class": "SceneDepthHandover"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/SceneDepth/SceneDepthNetwork.cs",
+          "class": "SceneDepthNetwork"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Imaging/PictureResampling.cs",
+          "class": "PictureResampling",
+          "method": "ResizeCubicAsOpenCv"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Imaging/PictureResampling.cs",
+          "class": "PictureResampling",
+          "method": "ResizePlaneBilinearAligned"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedSceneDepth.cs",
+          "class": "OwnedSceneDepth"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/SceneDepthEstimation.cs",
+          "class": "SceneDepthEstimation"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ToolModels.cs",
+          "class": "ISceneDepth"
+        },
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/depth-anything-v2-small/README.md",
+          "title_path": [
+            "Depth Anything V2 Small for ONNX Runtime"
+          ]
+        }
+      ],
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "docs/ai-tools.md",
+            "title_path": [
+              "AI tools",
+              "Scene depth"
+            ]
+          }
+        ],
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/SceneDepth/SceneDepthTests.cs",
+            "class": "SceneDepthTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/SceneDepth/SceneDepthHandoverTests.cs",
+            "class": "SceneDepthHandoverTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/Imaging/DepthResamplingTests.cs",
+            "class": "DepthResamplingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedSceneDepthTests.cs",
+            "class": "OwnedSceneDepthTests"
+          }
+        ]
+      }
+    },
+    "images-scene-depth": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/SceneDepth/SceneDepthPlane.cs",
+          "class": "SceneDepthPlane"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/SceneDepth/SceneDepthMaps.cs",
+          "class": "SceneDepthMaps"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/SceneDepth/SceneDepthPass.cs",
+          "class": "SceneDepthPass"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PhotoSceneDepth.cs",
+          "class": "PhotoSceneDepth"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/SceneDepthTools.cs",
+          "class": "SceneDepthTools"
+        },
+        {
+          "type": "node",
+          "target": "scene-depth"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSceneDepthTests.cs",
+            "class": "ImageSceneDepthTests",
+            "method": "ALensBlur_EstimatesTheDepthOnce_AndMovingTheFocusNeverEstimatesItAgain"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSceneDepthTests.cs",
+            "class": "ImageSceneDepthTests",
+            "method": "ADepthTheModelCannotMake_IsSaidWithNothingToTryAgain_AndOneThatCanBeMadeLaterIsOffered"
+          }
+        ]
+      }
+    },
+    "images-scene-depth-lens-blur": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/SceneDepth/LensBlur.cs",
+          "class": "LensBlur"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Recipe/ImageRecipe.cs",
+          "class": "RecipeLensBlur"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/SceneDepth/SceneDepthFocus.cs",
+          "class": "SceneDepthFocus"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/DepthStrip.cs",
+          "class": "DepthStrip"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/SceneDepthTools.cs",
+          "class": "SceneDepthTools",
+          "method": "FocusOnAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSceneDepthTests.cs",
+            "class": "ImageSceneDepthTests",
+            "method": "ALensBlur_IsSharpAtItsFocus_AndBlurredFarFromIt_OnScreenAndSaved"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSceneDepthTests.cs",
+            "class": "ImageSceneDepthTests",
+            "method": "FocusingOnARectangleOrAnOutline_KeepsAllOfItSharp"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSceneDepthTests.cs",
+            "class": "ImageSceneDepthTests",
+            "method": "TheBand_IsToldInDistance_AndEverythingInItIsKeptSharp"
+          }
+        ]
+      }
+    },
+    "images-scene-depth-haze": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/SceneDepth/DepthHaze.cs",
+          "class": "DepthHaze"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Recipe/ImageRecipe.cs",
+          "class": "RecipeDepthHaze"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSceneDepthTests.cs",
+            "class": "ImageSceneDepthTests",
+            "method": "Haze_LeavesTheNearClear_AndFadesTheFarIntoItsColour"
+          }
+        ]
+      }
+    },
+    "images-scene-depth-layers": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/SceneDepth/SceneDepthLayers.cs",
+          "class": "SceneDepthLayers"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSceneDepthTests.cs",
+            "class": "ImageSceneDepthTests",
+            "method": "TheDepth_AsALayerAboveThePhoto_WhiteNear_BlackFar"
+          }
+        ]
+      }
+    },
+    "images-selection-distance": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Recipe/RecipeRegion.cs",
+          "class": "RegionSceneDepth"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Selection/RegionSceneDepths.cs",
+          "class": "RegionSceneDepths"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/RegionMarking.cs",
+          "class": "RegionMarking",
+          "method": "SelectDistanceAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSceneDepthTests.cs",
+            "class": "ImageSceneDepthTests",
+            "method": "SelectingByDistance_OnAPhoto_IsARegionStep_KeptAsItsSpan_AndMovingTheEndsSelectsAgain"
+          }
+        ]
+      }
+    },
+    "images-edit-ai-describe-scene-depth": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ClientTools/SceneDepthClientTools.cs",
+          "class": "SceneDepthClientTools"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/SceneDepth/SceneDepthSummary.cs",
+          "class": "SceneDepthSummary"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSceneDepthTests.cs",
+            "class": "ImageSceneDepthTests",
+            "method": "TheDepthSummary_TellsNearMiddleAndFar_WithBoxes_NeverTheDepth"
+          }
+        ]
+      }
+    },
+    "images-edit-ai-blur-background": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ClientTools/SceneDepthClientTools.cs",
+          "class": "SceneDepthClientTools"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSceneDepthTests.cs",
+            "class": "ImageSceneDepthTests",
+            "method": "TheAssistant_BlursBehindAThingItNames_AndHazes_EachOneStep"
+          }
+        ]
+      }
+    },
+    "images-edit-ai-add-haze": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ClientTools/SceneDepthClientTools.cs",
+          "class": "SceneDepthClientTools"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSceneDepthTests.cs",
+            "class": "ImageSceneDepthTests",
+            "method": "TheAssistant_ToldWhereToGetSceneDepth_WhereItIsNotHere"
+          }
+        ]
+      }
+    },
+    "vcommon-range-slider": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Controls/RangeSlider.cs",
+          "class": "RangeSlider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Controls/RangeSlider.cs",
+          "class": "RangeThumb"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Controls/RangeSliderTests.cs",
+            "class": "RangeSliderTests"
+          }
+        ]
+      }
+    },
+    "ai-tools": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ToolModels.cs",
+          "class": "IToolModels"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/ILocalTool.cs",
+          "class": "ILocalTool"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedModels.cs",
+          "class": "OwnedTool"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/LocalModelsViewModel.cs",
+          "class": "LocalToolViewModel"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/ai-tools.md",
+          "title_path": [
+            "AI tools"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ToolRunException.cs",
+          "class": "ToolRunException"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/LocalToolModels.cs",
+          "class": "LocalToolModels",
+          "method": "AskedAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Tools/LocalToolModelsTests.cs",
+            "class": "LocalToolModelsTests",
+            "method": "AHostLostWhileAJobRuns_IsAskedOnceMore_AndTwiceIsInterrupted"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 23,
+  "touched_nodes": [
+    "ai-tools",
+    "images-edit-ai-add-haze",
+    "images-edit-ai-blur-background",
+    "images-edit-ai-describe-scene-depth",
+    "images-scene-depth",
+    "images-scene-depth-haze",
+    "images-scene-depth-layers",
+    "images-scene-depth-lens-blur",
+    "images-selection-distance",
+    "scene-depth",
+    "vcommon-range-slider"
+  ]
+}

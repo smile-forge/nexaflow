@@ -9,6 +9,7 @@ using Nexaflow.Features.Images.Editing.Layers;
 using Nexaflow.Features.Images.Editing.Painting;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
+using Nexaflow.Features.Images.Editing.SceneDepth;
 using Nexaflow.Features.Images.Editing.Selection;
 using Nexaflow.Features.Images.Services;
 using Nexaflow.IO.Common;
@@ -50,6 +51,9 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     /// <summary>What the assistant can do here.</summary>
     private readonly ArtistTools _tools;
 
+    /// <summary>The assistant's tools for the picture's scene depth.</summary>
+    private readonly SceneDepthClientTools _depthTools;
+
     /// <summary>The photo edited — the merged image of a layered picture, which opens over it — and its history; null on the start screen.</summary>
     private ImageEditSession? _session;
 
@@ -66,8 +70,11 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         _shell   = shell;
         _editing = editing;
         _config  = config ?? new ImagesConfig();
+        Folds    = new PanelFolds(_config, shell);
+        Tones    = new PictureTones(() => { if (IsEditing) RequestRender(); });
 
         Stage = new PictureStage(editing, shell, DisplayMode, _cts.Token, pictures, selection, erasing) { IsEditor = true };
+        Stage.TonesRead       += Tones.Take;
         Stage.PropertyChanged += OnStagePropertyChanged;
         Stage.SessionShown    += OnSessionShown;
         Stage.Changed         += OnStageChanged;
@@ -85,11 +92,15 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         var picking = new ModelsGate(selection, Stage.Models, runOnUi);
         var erasingModels = new ModelsGate(erasing, Stage.Models, runOnUi);
         var restoring = new ModelsGate(pictures, Stage.Models, runOnUi);
+        var depthModels = new ModelsGate(editing.SceneDepth, Stage.Models, runOnUi);
         picking.Defer(Stage.Remover, Stage.Eraser);
         erasingModels.Defer(Stage.Eraser);
         restoring.Defer(Stage.Restorer);
+        depthModels.Defer(Stage.SceneDepth);
 
-        Editor = new ImageEditorViewModel(this, shell, editing, Stage.Restorer, Stage.Remover, Cutter, Stage.Eraser, Stage.Models, picking, erasingModels, restoring);
+        Editor = new ImageEditorViewModel(this, shell, editing, Stage.Restorer, Stage.Remover, Cutter, Stage.Eraser, Stage.Models, picking, erasingModels, restoring,
+                                          depthModels);
+        Depth = new SceneDepthTools(this, editing, depthModels, Cutter, shell);
         Layers = new LayersViewModel(shell, runOnUi, picture => Painting.InkIn(picture));
         Layers.PropertyChanged += (_, e) => { if (e.PropertyName is nameof(LayersViewModel.MaskAlone) or nameof(LayersViewModel.ViewExposure)) RequestRender(); };
         Start = new ImageStartViewModel(this, shell, ai, editing, _config);
@@ -100,6 +111,8 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         Printing = new PicturePrinting(Stage, editing, shell);
         Editor.PropertyChanged += (_, e) =>
         {
+            if (e.PropertyName == nameof(ImageEditorViewModel.Tool)) Depth.OnRecipeChanged();
+            if (e.PropertyName == nameof(ImageEditorViewModel.SelectsByDistance) && Editor.SelectsByDistance) _ = Editor.RegionMarks.ShowDistancesAsync();
             if (e.PropertyName != nameof(ImageEditorViewModel.Tool) || Editor.IsMoveTool) return;
             // Leaving Move: an open transform is applied, and what floats is dropped back into its layer.
             if (Arranging.IsTransforming) Arranging.Apply();
@@ -107,6 +120,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         };
 
         _tools = new ArtistTools(this, shell, editing);
+        _depthTools = new SceneDepthClientTools(this, shell, editing);
 
         if (path is { Length: > 0 }) ShowPath(path);
         else _ = Start.RefreshAsync();
@@ -114,6 +128,12 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
 
     /// <summary>The picture on show, as the screen draws it.</summary>
     public PictureStage Stage { get; }
+
+    /// <summary>Which of the edit panels' groups are open, as the person left them.</summary>
+    public PanelFolds Folds { get; }
+
+    /// <summary>The histogram at the head of Adjust, and the clipping it tints on the picture.</summary>
+    public PictureTones Tones { get; }
 
     /// <summary>The picture edited; null on the start screen.</summary>
     [ObservableProperty]
@@ -131,6 +151,9 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
 
     /// <summary>The editor's tools, over the picture.</summary>
     public ImageEditorViewModel Editor { get; }
+
+    /// <summary>What the Adjust panel draws from the picture's scene depth: lens blur, haze, the depth as a layer or a mask.</summary>
+    public SceneDepthTools Depth { get; }
 
     /// <summary>What picks things out of the picture for Cut out and Erase.</summary>
     public PictureCutter Cutter { get; }
@@ -214,7 +237,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
 
     /// <summary>How the picture is shown: on the edit canvas, before or after, cropping or not, a layer's mask alone.</summary>
     private ImageDisplayMode DisplayMode() =>
-        new(IsEditing, IsEditing && Editor.ShowOriginal, Editor.Frame, FitToWindow: true, Layers.MaskAlone);
+        new(IsEditing, IsEditing && Editor.ShowOriginal, Editor.Frame, FitToWindow: true, Layers.MaskAlone, IsEditing ? Tones.Ask : default);
 
     /// <summary>Renders the picture for the way it is shown now.</summary>
     internal void RequestRender() => Stage.Render();
@@ -251,6 +274,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     private void OnSessionShown()
     {
         Editor.OnSessionChanged();
+        Depth.OnRecipeChanged();
         AddLayerCommand.NotifyCanExecuteChanged();
         PasteAsLayerCommand.NotifyCanExecuteChanged();
         NotifyHistory();
@@ -271,6 +295,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         }
         Edits.Refresh();
         Editor.OnRecipeChanged();
+        Depth.OnRecipeChanged();
     }
 
     /// <summary>A picture shown has pixels — its first decode, a sharper one, or what a tool made: the editor catches up.</summary>
@@ -278,6 +303,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     {
         if (CurrentDocument is null || ReferenceEquals(rendering, EditTarget?.Rendering)) Editor.OnSessionChanged();
         if (CurrentDocument is not null) Layers.RedrawThumbnails();
+        Depth.OnRecipeChanged();   // the depth may be what was decoded: the strip and the focus wait for it
     }
 
     private void NotifyHistory()
@@ -404,7 +430,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         CloseDocument();
         Stage.ShowDocument(document);
         Layers.Follow(document);
-        Editor.RegionMarks.Attach(new DocumentSelection(document));
+        Editor.RegionMarks.Attach(new DocumentSelection(document, Depth.DepthOfTargetAsync));
         Editor.OnSessionChanged();
         OnStageChanged();
         Pictures.DocumentShown();
@@ -550,8 +576,19 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     private void EditTheLayers() => CurrentDocument?.EditTheLayers();
 
     /// <summary>A layered picture's selection, as the editor's hand-drawn selection works on it: each change a step of its history.</summary>
-    private sealed class DocumentSelection(LayeredSession document) : IDocumentSelection
+    private sealed class DocumentSelection(LayeredSession document, Func<Task<(SceneDepthPlane Plane, SKSizeI Photo)?>> depth) : IDocumentSelection
     {
+        public async Task<TiledCoverage?> ReachOfDistanceAsync(double near, double far, double softness)
+        {
+            if (document.Picture.Active is not PictureLayer layer || await depth() is not var (plane, photo)) return null;
+            var picture = document.Picture;
+            var toCanvas = LayeredSession.SourceToCanvas(layer, new SKSize(photo.Width, photo.Height));
+            return await Task.Run(() => TiledCoverage.FromBytes(
+                RegionSceneDepths.SpanOnCanvas(plane, toCanvas, photo, new SKSizeI(picture.Width, picture.Height), near, far, softness), picture.Width, picture.Height));
+        }
+
+        public async Task<SceneDepthPlane?> SceneDepthAsync()
+            => document.Picture.Active is PictureLayer && await depth() is var (plane, _) ? plane : null;
         public SKSizeI Size => new(document.Picture.Width, document.Picture.Height);
 
         public TiledCoverage Selection => document.Picture.Selection;
@@ -666,7 +703,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
       + "list of layer operations; each is one step the user can undo, and answers with the state it left. Saving is the user's.";
 
     /// <summary>What the assistant can do here: <see cref="ArtistTools"/>.</summary>
-    public IReadOnlyList<IClientTool> GetClientTools() => _tools.All();
+    public IReadOnlyList<IClientTool> GetClientTools() => [.. _tools.All(), .. _depthTools.All()];
 
     /// <summary>The tab editing the picture, set by its view: what opens beside it opens in its window.</summary>
     public IPageView? Host { get; set; }

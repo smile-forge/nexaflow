@@ -29,7 +29,9 @@ public static class RegionRaster
                 RegionSmooth smooth => coverage.Smoothed(smooth.Radius * scale),
                 RegionCoverage kept => kept.Coverage is { } held ? coverage.Combined(held.Resampled(coverage.Width, coverage.Height), kept.Mode) : coverage,
                 RegionColour colour => coverage.Combined((colour.Reach ?? throw new InvalidOperationException(
-                    "A colour is applied before what it reaches is worked out from the photo: see RegionColours.")).Resampled(coverage.Width, coverage.Height), colour.Mode),
+                        "A colour is applied before what it reaches is worked out from the photo: see RegionColours.")).Resampled(coverage.Width, coverage.Height), colour.Mode),
+                    RegionSceneDepth span => coverage.Combined((span.Reach ?? throw new InvalidOperationException(
+                        "A span of distance is applied before what it covers is worked out from the photo's depth: see RegionSceneDepths.")).Resampled(coverage.Width, coverage.Height), span.Mode),
                 _ => throw new NotSupportedException($"No way to apply a {step.GetType().Name}."),
             };
         return coverage;

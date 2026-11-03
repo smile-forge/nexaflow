@@ -329,7 +329,7 @@
         <Setter Property="Margin" Value="0,14,0,2"/>
     </Style>
 
-    <!-- Edit panel: a group of a tool's controls (Quick fix, Light, Colour), its icon beside it. -->
+    <!-- Edit panel: a group's title (Quick fix, Light, Colour) at the head of a FoldingGroup, its icon beside it. -->
     <Style x:Key="EditGroupHeader" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
@@ -337,16 +337,21 @@
         <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
-    <Style x:Key="EditGroupHeaderRow" TargetType="StackPanel">
-        <Setter Property="Orientation" Value="Horizontal"/>
-        <Setter Property="Margin" Value="0,18,0,6"/>
-    </Style>
-
     <Style x:Key="EditGroupIcon" TargetType="icons:IconGlyph">
         <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
         <Setter Property="FontSize" Value="14"/>
         <Setter Property="Margin" Value="0,0,6,0"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <!-- Edit panel: the name at the head of a row — a slider's, or a choice's — as wide in every row, so their controls line up. -->
+    <Style x:Key="EditRowLabel" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Width" Value="84"/>
+        <Setter Property="Margin" Value="0,0,6,0"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
     </Style>
 
     <!-- Edit panel: the name over a slider. -->
@@ -397,11 +402,6 @@
         <Setter Property="Margin" Value="0,3,0,0"/>
         <Setter Property="HorizontalAlignment" Value="Center"/>
         <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-    </Style>
-
-    <!-- Edit panel: a labelled check box, the theme's own. -->
-    <Style x:Key="EditCheckBox" TargetType="CheckBox" BasedOn="{StaticResource DarkCheckBox}">
-        <Setter Property="Margin" Value="0,4"/>
     </Style>
 
     <!-- Edit panel: a number box. -->
@@ -459,6 +459,174 @@
         </Setter>
     </Style>
 
+    <!-- An adjustment slider's value at the end of its row: plain text until pointed at or pressed, then a box to type it in. -->
+    <Style x:Key="EditValueBox" TargetType="TextBox">
+        <Setter Property="Width" Value="44"/>
+        <Setter Property="Margin" Value="4,0,0,0"/>
+        <Setter Property="Padding" Value="2,1"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="TextAlignment" Value="Right"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CaretBrush" Value="{StaticResource TextBrush}"/>
+        <Setter Property="SelectionBrush" Value="{StaticResource AccentBrush}"/>
+        <Setter Property="ToolTip" Value="{loc:Str Images.Edit.TypeValueTip}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="3">
+                        <ScrollViewer x:Name="PART_ContentHost" Focusable="False" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Surface2Brush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Edit panel: an option that is on or off — its name, the whole row pressable, and a switch at its end. -->
+    <Style x:Key="RowSwitch" TargetType="ToggleButton">
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Margin" Value="0,3"/>
+        <Setter Property="MinHeight" Value="24"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Grid Background="Transparent">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <ContentPresenter VerticalAlignment="Center" RecognizesAccessKey="False"/>
+                        <Border x:Name="Track" Grid.Column="1" Width="32" Height="18" CornerRadius="9" Margin="8,0,0,0" VerticalAlignment="Center"
+                                Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                            <Ellipse x:Name="Knob" Width="12" Height="12" Margin="2,0" HorizontalAlignment="Left" Fill="{StaticResource TextMutedBrush}"/>
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource TextMutedBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Track" Property="Background" Value="{StaticResource AccentBrush}"/>
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                            <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right"/>
+                            <Setter TargetName="Knob" Property="Fill" Value="{StaticResource OnAccentBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource TextBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Edit panel: a part of a group that is on or off and has controls of its own beneath — Lens blur, Haze. -->
+    <Style x:Key="RowSwitchHeading" TargetType="ToggleButton" BasedOn="{StaticResource RowSwitch}">
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Margin" Value="0,8,0,4"/>
+    </Style>
+
+
+    <!-- A histogram's clip mark: a corner triangle, lit while its end clips (Tag true), ringed while its clipping is kept shown. -->
+    <Style x:Key="ClipMark" TargetType="ToggleButton">
+        <Setter Property="Width" Value="18"/>
+        <Setter Property="Height" Value="18"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Ring" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="3">
+                        <Path x:Name="Mark" Data="M 3,3 L 12,3 L 3,12 Z" Fill="{StaticResource TextMutedBrush}" Opacity="0.5"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                            <Setter TargetName="Mark" Property="Fill" Value="{StaticResource TextBrush}"/>
+                            <Setter TargetName="Mark" Property="Opacity" Value="1"/>
+                        </DataTrigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Ring" Property="BorderBrush" Value="{StaticResource TextMutedBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Ring" Property="Background" Value="{StaticResource Surface2Brush}"/>
+                            <Setter TargetName="Ring" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Ring" Property="BorderBrush" Value="{StaticResource TextBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Edit panel: a group of a tool's controls under its icon and title, folded away at a press on the title. -->
+    <Style TargetType="views:FoldingGroup">
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="views:FoldingGroup">
+                    <StackPanel>
+                        <Border x:Name="PART_Header" Background="Transparent" Cursor="Hand" Focusable="True" Margin="0,16,0,6" Padding="0,2">
+                            <Grid>
+                                <StackPanel Orientation="Horizontal">
+                                    <icons:IconGlyph Style="{StaticResource EditGroupIcon}" Icon="{TemplateBinding Icon}"/>
+                                    <TextBlock x:Name="TitleText" Style="{StaticResource EditGroupHeader}" Text="{TemplateBinding Title}"/>
+                                </StackPanel>
+                                <icons:IconGlyph x:Name="Chevron" Icon="fluent:chevron_right" FontSize="10" Foreground="{StaticResource TextMutedBrush}"
+                                                 HorizontalAlignment="Right" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                                    <icons:IconGlyph.RenderTransform>
+                                        <RotateTransform Angle="90"/>
+                                    </icons:IconGlyph.RenderTransform>
+                                </icons:IconGlyph>
+                            </Grid>
+                        </Border>
+                        <ContentPresenter x:Name="Body"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsOpen" Value="False">
+                            <Setter TargetName="Body" Property="Visibility" Value="Collapsed"/>
+                            <Setter TargetName="Chevron" Property="RenderTransform">
+                                <Setter.Value>
+                                    <RotateTransform Angle="0"/>
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                        <Trigger SourceName="PART_Header" Property="IsMouseOver" Value="True">
+                            <Setter TargetName="TitleText" Property="Foreground" Value="{StaticResource TextBrush}"/>
+                            <Setter TargetName="Chevron" Property="Foreground" Value="{StaticResource TextBrush}"/>
+                        </Trigger>
+                        <Trigger SourceName="PART_Header" Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="TitleText" Property="Foreground" Value="{StaticResource AccentBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- An adjustment slider: given a Label, one row — the name, the rail, the value — else the rail alone, laid out by its panel. -->
     <Style TargetType="views:AdjustmentSlider">
         <Setter Property="Height" Value="22"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
@@ -467,8 +635,16 @@
             <Setter.Value>
                 <ControlTemplate TargetType="views:AdjustmentSlider">
                     <Grid Background="Transparent">
-                        <Border Height="4" CornerRadius="2" VerticalAlignment="Center" Background="{StaticResource BorderBrush}"/>
-                        <Track x:Name="PART_Track">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="LabelText" Style="{StaticResource EditRowLabel}" Text="{TemplateBinding Label}"/>
+                        <TextBox x:Name="PART_Value" Grid.Column="2" Style="{StaticResource EditValueBox}"
+                                 AutomationProperties.Name="{TemplateBinding Label}"/>
+                        <Border Grid.Column="1" Height="4" CornerRadius="2" VerticalAlignment="Center" Background="{StaticResource BorderBrush}"/>
+                        <Track x:Name="PART_Track" Grid.Column="1">
                             <Track.DecreaseRepeatButton>
                                 <RepeatButton Command="Slider.DecreaseLarge" Style="{StaticResource EditSliderRailButton}"/>
                             </Track.DecreaseRepeatButton>
@@ -480,6 +656,51 @@
                                     <Thumb.Template>
                                         <ControlTemplate TargetType="Thumb">
                                             <Ellipse Fill="{StaticResource AccentBrush}" Stroke="{StaticResource OnAccentBrush}" StrokeThickness="1"/>
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4"/>
+                        </Trigger>
+                        <Trigger Property="Label" Value="{x:Null}">
+                            <Setter TargetName="LabelText" Property="Visibility" Value="Collapsed"/>
+                            <Setter TargetName="PART_Value" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Edit panel: a labelled adjustment slider as one row of its panel. -->
+    <Style x:Key="EditSliderRow" TargetType="views:AdjustmentSlider" BasedOn="{StaticResource {x:Type views:AdjustmentSlider}}">
+        <Setter Property="Height" Value="24"/>
+        <Setter Property="Margin" Value="0,2"/>
+    </Style>
+
+    <!-- Edit panel: a depth strip's marker — an accent bar over the strip under it, the rail itself left clear. -->
+    <Style x:Key="DepthStripMarker" TargetType="views:AdjustmentSlider" BasedOn="{StaticResource {x:Type views:AdjustmentSlider}}">
+        <Setter Property="Height" Value="24"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="views:AdjustmentSlider">
+                    <Grid Background="Transparent">
+                        <Track x:Name="PART_Track">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="Slider.DecreaseLarge" Style="{StaticResource EditSliderRailButton}"/>
+                            </Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="Slider.IncreaseLarge" Style="{StaticResource EditSliderRailButton}"/>
+                            </Track.IncreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb Width="6" Cursor="SizeWE">
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Border CornerRadius="3" Background="{StaticResource AccentBrush}" BorderBrush="{StaticResource OnAccentBrush}" BorderThickness="1"/>
                                         </ControlTemplate>
                                     </Thumb.Template>
                                 </Thumb>

@@ -1,0 +1,43 @@
+{
+  "branch": "claude/artist-panels-compact",
+  "nodes": {
+    "images-edit-panels": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/FoldingGroup.cs",
+          "class": "FoldingGroup"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PanelFolds.cs",
+          "class": "PanelFolds"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/AdjustmentSlider.cs",
+          "class": "AdjustmentSlider"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ArtistPanelTests.cs",
+            "class": "ArtistPanelTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesPanelsJourneyTests.cs",
+            "class": "ImagesPanelsJourneyTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "images-edit-panels"
+  ]
+}

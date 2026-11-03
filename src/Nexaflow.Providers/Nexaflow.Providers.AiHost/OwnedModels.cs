@@ -68,6 +68,7 @@ internal static class OwnedRoles
     public const string TextFinder      = ReadingParts.TextFinder;
     public const string Inpainter       = ErasingParts.Inpainter;
     public const string SafetyClassifier = CheckingParts.SafetyClassifier;
+    public const string DepthEstimator   = SceneDepthParts.Estimator;
 
     /// <summary>The parts a model of each kind is made of — an image model's, the parts the method it draws with takes; a
     /// video model's, the parts the method it films with takes.</summary>
@@ -89,6 +90,7 @@ internal static class OwnedRoles
         OwnedToolKind.PageReading        => [Reader, TextFinder],
         OwnedToolKind.PictureErasing     => [Inpainter],
         OwnedToolKind.PictureChecking    => [SafetyClassifier],
+        OwnedToolKind.SceneDepth         => [DepthEstimator],
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "no owned tool is of this kind"),
     };
 
@@ -148,6 +150,10 @@ internal enum OwnedToolKind
 
     /// <summary>Checks how fit a picture is for a general audience: OwenElliott's image safety classifier, M, on the CPU.</summary>
     PictureChecking,
+
+    /// <summary>Estimates how far each part of a picture lies from the camera — its scene depth — from the one picture: Depth
+    /// Anything V2 Small.</summary>
+    SceneDepth,
 }
 
 /// <summary>

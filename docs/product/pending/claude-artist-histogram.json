@@ -1,0 +1,85 @@
+{
+  "branch": "claude/artist-histogram",
+  "nodes": {
+    "images-edit-histogram": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Rendering/ToneReader.cs",
+          "class": "ToneReader"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Rendering/ToneHistogram.cs",
+          "class": "ToneHistogram"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PictureTones.cs",
+          "class": "PictureTones"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/ToneChart.cs",
+          "class": "ToneChart"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Wpf/ClipMaskBitmaps.cs",
+          "class": "ClipMaskBitmaps"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ToneHistogramTests.cs",
+            "class": "ToneHistogramTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesHistogramJourneyTests.cs",
+            "class": "ImagesHistogramJourneyTests"
+          }
+        ]
+      }
+    },
+    "images-decode": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Codecs/SkiaImageDecoder.cs",
+          "class": "SkiaImageDecoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Codecs/ImageContainer.cs",
+          "class": "ImageContainers",
+          "method": "DeclaredBitsPerChannel"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageEditRenderTests.cs",
+            "class": "ImageEditRenderTests",
+            "method": "AJpegsExifOrientation_IsRead_AndStandsThePictureUpright"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageExportTests.cs",
+            "class": "ImageExportTests",
+            "method": "ASixteenBitPng_IsReadAtSixteenBits_AnEightBitOneAtEight"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 4,
+  "touched_nodes": [
+    "images-decode",
+    "images-edit-histogram"
+  ]
+}

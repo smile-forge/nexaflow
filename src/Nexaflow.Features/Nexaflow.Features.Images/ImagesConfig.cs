@@ -25,6 +25,11 @@ public sealed class ImagesConfig : IFeatureConfig
     /// </summary>
     public List<string> RecentCanvases { get; set; } = [];
 
+    /// <summary>The Artist panels' groups folded away — Light, Brush, Refine — by name, so every Artist tab opens its panels as
+    /// they were left (<c>PanelFolds</c>). Not an Options setting: written as groups are folded and opened. To begin with, the
+    /// Layers panel's mask, pixels and canvas sections, wanted less often than the layer list above them.</summary>
+    public List<string> FoldedPanelGroups { get; set; } = ["LayersMask", "LayersPixels", "LayersCanvas"];
+
     /// <summary>The budget in bytes, never less than enough for a step or two.</summary>
     public long HistoryBudget => Math.Max(64, HistoryMegabytes) * 1024L * 1024L;
 }

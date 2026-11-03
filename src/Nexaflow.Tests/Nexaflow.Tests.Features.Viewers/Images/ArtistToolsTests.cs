@@ -105,7 +105,8 @@ public class ArtistToolsTests
         var names = Photo().GetClientTools().Select(t => t.Name).ToArray();
         CollectionAssert.AreEquivalent(
             new[] { "describe_picture", "capture_image", "edit_picture", "select_in_picture", "edit_layers", "generate_layer", "fill_selection",
-                    "expand_canvas", "change_picture", "erase_in_picture", "restore_picture", "cut_out", "history" },
+                    "expand_canvas", "change_picture", "erase_in_picture", "restore_picture", "cut_out", "history", "describe_scene_depth",
+                    "blur_background", "add_haze" },
             names, "the Artist tool surface changed — update the tree's images-edit-ai leaves to match");
     }
 

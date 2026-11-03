@@ -17,9 +17,10 @@ public sealed record ImageRecipe
 {
     /// <summary>The newest format version this build reads and writes. A recipe from a newer build is left alone, never
     /// rewritten. Version 2 added <see cref="Restore"/>, version 3 <see cref="CutOut"/>, version 4 <see cref="Erasures"/> and
-    /// version 5 a <see cref="RecipeRegion"/> on a cut-out and an erasing step;
+    /// version 5 a <see cref="RecipeRegion"/> on a cut-out and an erasing step, and version 6 what the picture's scene depth
+    /// draws — <see cref="LensBlur"/>, <see cref="DepthHaze"/> and a region step by distance (<see cref="RegionSceneDepth"/>);
     /// a recipe is written as the oldest version that holds what is in it, so a build from before reads every recipe it can.</summary>
-    public const int CurrentVersion = 5;
+    public const int CurrentVersion = 6;
 
     public static ImageRecipe Identity { get; } = new();
 
@@ -65,23 +66,40 @@ public sealed record ImageRecipe
 
     private readonly ImmutableArray<RecipeErase> _erasures = [];
 
+    /// <summary>A lens's blur drawn from the picture's scene depth, after the picture tools and before tone; null leaves it sharp.</summary>
+    public RecipeLensBlur? LensBlur { get; init; }
+
+    /// <summary>Haze laid over the picture by its scene depth, before its lens blur; null leaves the air clear.</summary>
+    public RecipeDepthHaze? DepthHaze { get; init; }
+
+    /// <summary>Whether it draws anything from the picture's scene depth — what the picture's depth is estimated for.</summary>
+    [JsonIgnore]
+    public bool AsksSceneDepth => LensBlur is not null || DepthHaze is not null;
+
     /// <summary>The version a file of this recipe is written as: the oldest that holds everything in it.</summary>
     [JsonIgnore]
-    public int WrittenVersion => UsesRegion ? 5 : !Erasures.IsEmpty ? 4 : CutOut is not null ? 3 : Restore is not null ? 2 : 1;
+    public int WrittenVersion => AsksSceneDepth || SelectsByDistance ? 6 : UsesRegion ? 5 : !Erasures.IsEmpty ? 4 : CutOut is not null ? 3 : Restore is not null ? 2 : 1;
 
     /// <summary>Whether anything in it selects by a region drawn by hand.</summary>
-    private bool UsesRegion => CutOut?.Region is not null || Erasures.Any(e => e.Region is not null || e.Pick?.Region is not null);
+    private bool UsesRegion => Regions.Any();
+
+    /// <summary>Whether a region in it selects by distance.</summary>
+    [JsonIgnore]
+    public bool SelectsByDistance => Regions.Any(r => r.SelectsByDistance);
+
+    private IEnumerable<RecipeRegion> Regions
+        => new[] { CutOut?.Region }.Concat(Erasures.SelectMany(e => new[] { e.Region, e.Pick?.Region })).OfType<RecipeRegion>();
 
     /// <summary>True when applying the recipe changes nothing — such a recipe is not worth a file.</summary>
     [JsonIgnore]
     public bool IsIdentity =>
         Geometry.IsIdentity && Adjustments.IsIdentity && Markup.IsDefaultOrEmpty && Resize is null && Restore is null && CutOut is null
-        && Erasures.IsEmpty && Export == RecipeExport.Default;
+        && Erasures.IsEmpty && !AsksSceneDepth && Export == RecipeExport.Default;
 
     /// <summary>True when the pixels differ from the source — what the export settings alone never do.</summary>
     [JsonIgnore]
     public bool ChangesPixels => !Geometry.IsIdentity || !Adjustments.IsIdentity || !Markup.IsDefaultOrEmpty || Resize is not null || Restore is not null
-                                 || CutOut is not null || !Erasures.IsEmpty;
+                                 || CutOut is not null || !Erasures.IsEmpty || AsksSceneDepth;
 
     public bool Equals(ImageRecipe? other) =>
         other is not null
@@ -94,10 +112,13 @@ public sealed record ImageRecipe
         && Restore == other.Restore
         && CutOut == other.CutOut
         && Erasures.AsSpan().SequenceEqual(other.Erasures.AsSpan())
+        && LensBlur == other.LensBlur
+        && DepthHaze == other.DepthHaze
         && Export == other.Export;
 
     public override int GetHashCode()
-        => HashCode.Combine(HashCode.Combine(Version, Source, Geometry, Adjustments, Markup.Length, Resize, Restore, Export), CutOut, Erasures.Length);
+        => HashCode.Combine(HashCode.Combine(Version, Source, Geometry, Adjustments, Markup.Length, Resize, Restore, Export), CutOut, Erasures.Length,
+                            LensBlur, DepthHaze);
 }
 
 /// <summary>Where the image goes on the way out: straighten, crop, quarter turns and flips.</summary>
@@ -239,6 +260,74 @@ public sealed record RecipeRestore
 
     /// <summary>The same restored picture as <paramref name="other"/>, whatever strength each lays it at.</summary>
     public bool MakesSameAs(RecipeRestore? other) => other is not null && Scale == other.Scale && Faces == other.Faces;
+}
+
+/// <summary>The shape a lens's aperture gives what it blurs — a highlight out of focus spreads into it.</summary>
+public enum BokehShape
+{
+    /// <summary>A round aperture: a disc.</summary>
+    Circle,
+
+    /// <summary>Six blades: a hexagon.</summary>
+    Hexagon,
+}
+
+/// <summary>
+/// A lens's blur drawn from the picture's scene depth: what lies from <see cref="Near"/> to <see cref="Far"/> — on the picture's
+/// distance (<c>SceneDepthPlane.Distance</c>), 0 its nearest part, 1 a thousand times as far — is sharp, and what lies nearer
+/// or farther blurs the more the farther out of that band it is.
+/// </summary>
+public sealed record RecipeLensBlur
+{
+    /// <summary>The widest blur a fully open aperture gives what lies farthest out of the band — the nearest part or the
+    /// farthest, wherever the band is — as a share of the picture's longer side.</summary>
+    public const double WidestBlur = 0.03;
+
+    /// <summary>The narrowest band of distance a focus keeps sharp: a band no wider is a plane, and still sharp to the eye.</summary>
+    public const double NarrowestBand = 0.01;
+
+    /// <summary>Where the band kept sharp begins, 0…1 of the picture's distance.</summary>
+    public double Near { get; init; }
+
+    /// <summary>Where the band kept sharp ends, <see cref="Near"/>…1 of the picture's distance.</summary>
+    public double Far { get; init; } = 0.1;
+
+    /// <summary>How wide the aperture is, 0…1: what lies farthest out of the band is blurred by this share of
+    /// <see cref="WidestBlur"/>, and the rest by as much less as it is nearer the band.</summary>
+    public double Aperture { get; init; } = 0.5;
+
+    public BokehShape Shape { get; init; } = BokehShape.Circle;
+
+    /// <summary>This blur kept sharp from <paramref name="near"/> to <paramref name="far"/>, either way round, held to 0…1 and at
+    /// least <see cref="NarrowestBand"/> wide.</summary>
+    public RecipeLensBlur Banded(double near, double far)
+    {
+        double from = Math.Clamp(Math.Min(near, far), 0, 1), to = Math.Clamp(Math.Max(near, far), 0, 1);
+        if (to - from < NarrowestBand)
+        {
+            double middle = Math.Clamp((from + to) / 2, NarrowestBand / 2, 1 - NarrowestBand / 2);
+            (from, to) = (middle - NarrowestBand / 2, middle + NarrowestBand / 2);
+        }
+        return this with { Near = from, Far = to };
+    }
+}
+
+/// <summary>
+/// Haze laid over the picture by its scene depth, as air lays it over distance: what is nearer than <see cref="Start"/> stays
+/// clear, and beyond it each part fades into the haze's colour the farther it is, as thick as <see cref="Density"/> says.
+/// </summary>
+public sealed record RecipeDepthHaze
+{
+    /// <summary>How thick the haze is, 0…1: at 1 the farthest part keeps under 2 % of its own light.</summary>
+    public double Density { get; init; } = 0.4;
+
+    /// <summary>Where it starts, 0…1 from the nearest to the farthest part of the picture — to begin with, a quarter of the way,
+    /// so what is near the camera stays clear.</summary>
+    public double Start { get; init; } = 0.25;
+
+    /// <summary>The haze's colour, 32-bit ARGB as markup's ink is; null takes the colour of the picture's distance — its sky's,
+    /// or its far hills' — so the haze is the air the picture already has.</summary>
+    public uint? Colour { get; init; }
 }
 
 /// <summary>A click on the photo for its cut-out, in oriented-source pixels: on the thing kept, or off it.</summary>

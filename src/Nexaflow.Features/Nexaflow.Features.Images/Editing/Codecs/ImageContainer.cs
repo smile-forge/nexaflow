@@ -71,6 +71,18 @@ public static class ImageContainers
         return false;
     }
 
+    /// <summary>
+    /// How many bits a channel <paramref name="file"/> stores, as its header declares — a PNG's IHDR bit depth; null for a container
+    /// whose header does not say. A codec may offer to decode a deeper picture into 8 bits (Skia's suggests 8-bit for every PNG),
+    /// so the file's own word is what says a picture is deep. JPEG, WebP, GIF and BMP store at most 8 bits a channel.
+    /// </summary>
+    public static int? DeclaredBitsPerChannel(ReadOnlySpan<byte> file, ImageContainer container) => container switch
+    {
+        // The signature (8), then the IHDR chunk's length (4) and type (4), width (4) and height (4), then its bit depth.
+        ImageContainer.Png when file.Length > 24 && file[12..16].SequenceEqual("IHDR"u8) => file[24],
+        _ => null,
+    };
+
     /// <summary>The usual file extension, with its dot.</summary>
     public static string Extension(this ImageContainer container) => container switch
     {
