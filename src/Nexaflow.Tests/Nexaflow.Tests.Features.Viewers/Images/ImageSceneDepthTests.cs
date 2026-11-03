@@ -361,7 +361,7 @@ public class ImageSceneDepthTests
     // ── For the assistant ─────────────────────────────────────────────────
 
     [TestMethod]
-    [CoversNode("images-ai-scene-depth")]
+    [CoversNode("images-edit-ai-describe-scene-depth")]
     public void TheDepthSummary_TellsNearMiddleAndFar_WithBoxes_NeverTheDepth()
     {
         var plane = new SceneDepthPlane([1f, 1f, 0.5f, 0f, 1f, 1f, 0.5f, 0f], 4, 2);
@@ -378,7 +378,9 @@ public class ImageSceneDepthTests
     }
 
     [TestMethod]
-    [CoversNode("images-ai-scene-depth")]
+    [CoversNode("images-edit-ai-blur-background")]
+    [CoversNode("images-edit-ai-add-haze")]
+    [CoversNode("images-edit-ai-describe-scene-depth")]
     public async Task TheAssistant_BlursBehindAThingItNames_AndHazes_EachOneStep()
     {
         var vm = Editing(new Patch());
@@ -402,7 +404,7 @@ public class ImageSceneDepthTests
     }
 
     [TestMethod]
-    [CoversNode("images-ai-scene-depth")]
+    [CoversNode("images-edit-ai-add-haze")]
     public async Task TheAssistant_ToldWhereToGetSceneDepth_WhereItIsNotHere()
     {
         _depth.State = ToolModelsState.NotDownloaded;

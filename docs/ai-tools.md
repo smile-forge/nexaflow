@@ -6,10 +6,10 @@ provider: nothing in the cloud stands in for it, a workspace's ability grid neve
 Its models are fetched once, app-wide, when a person asks, and run in the AI host on the same plan of its GPUs as the
 owned models.
 
-Five are here: the picture tools — Real-ESRGAN and GFPGAN (`real-esrgan-gfpgan`) — picture selection, SAM 3.1
-(`sam3.1`), picture erasing, LaMa (`big-lama`), page reading, Unlimited-OCR with PP-OCRv5's text detector
-(`unlimited-ocr`), and picture checking, OwenElliott's image safety classifier (`image-safety-classifier-m`), which
-Core runs itself rather than a page.
+Six are here: the picture tools — Real-ESRGAN and GFPGAN (`real-esrgan-gfpgan`) — picture selection, SAM 3.1
+(`sam3.1`), picture erasing, LaMa (`big-lama`), scene depth, Depth Anything V2 Small (`depth-anything-v2-small`), page
+reading, Unlimited-OCR with PP-OCRv5's text detector (`unlimited-ocr`), and picture checking, OwenElliott's image safety
+classifier (`image-safety-classifier-m`), which Core runs itself rather than a page.
 
 ## How a tool fits
 
@@ -145,6 +145,71 @@ restoration is of the photo as erased (`ToolEdit.Input`), so erasing comes befor
 
 **For the assistant.** `erase_in_picture`, on an image tab, erases what a phrase names or a box holds from the picture on
 screen as a step of its edits, filled by AI where picture erasing is here, else content-aware, and answers once it is made.
+
+## Scene depth
+
+**What it does.** How far each part of a picture lies from the camera, from the one picture — its scene depth, not its
+colour depth (`images-colour-depth`): what is near and what is far, for a lens's blur, haze that thickens with distance, a
+selection by distance, or the depth itself as a layer or a mask. The depth is relative: it says what is nearer than what,
+not how many metres.
+
+**The model.** Depth Anything V2 Small, whose weights and code are Apache-2.0; its Base, Large and Giant models are
+CC-BY-NC-4.0 and are never used. `tools/ai-models/depth-anything-v2-small` fetches the makers' code and weights pinned,
+traces one fp32 graph that takes any size and holds it to the original on CPU and CUDA, and runs the makers' own
+`infer_image` on their sample pictures into the reference set; the makers' licence travels with the weights. The graph is
+the makers' forward but for one thing: **DINOv2's positional embedding is brought to the picture's grid by matrix
+products** (`position_matmul.py`). The makers resize the 37 × 37 grid it was trained on by PyTorch's bicubic interpolation
+at a scale factor made from the input's size, which a traced graph cannot carry into ONNX's `Resize`; written as products
+with cubic weight matrices built from the size in the graph, the same sums run at any size, and a square 518-pixel picture
+keeps the trained grid untouched, as the makers' code does.
+
+**The port.** `EstimateSceneDepth` prepares the picture as `infer_image` does (`SceneDepthHandover`): RGB over 255,
+brought by OpenCV's cubic resize (`PictureResampling.ResizeCubicAsOpenCv`, in double precision with OpenCV's single
+precision weights) to the lower bound of 518 — the shorter side 518, both sides the nearest multiple of the ViT's 14-pixel
+patch — and normalised by ImageNet's mean and deviation. A picture more than four times as long as it is wide is brought
+to 2072 along its length instead, so its attention stays within a few gigabytes. The host answers with the disparity at
+that working size; the caller brings it to any size by PyTorch's corner-aligned bilinear resize
+(`PictureResampling.ResizePlaneBilinearAligned`), the last step of `infer_image`. `SceneDepthTests` holds the host to the
+reference — the input, the disparity at its working size and at the picture's — and `DepthResamplingTests` holds the two
+resizes to what OpenCV and PyTorch make of small pictures.
+
+**For features.** `ISceneDepth.EstimateAsync` takes a picture by file and writes its disparity, at its working size, to
+another. Images keeps each photo's in `SceneDepthMaps`, by the photo's content and `ISceneDepth.ModelsVersion`, as
+nearness from 0 (its farthest part) to 1 (its nearest) in 16 bits — under a megabyte a photo (`SceneDepthPlane`).
+
+**In the image editor.** The Adjust panel's Depth section draws from it, on a photo or the active picture layer, as recipe
+sections (version 6 of the recipe): a lens blur (`RecipeLensBlur`) focused where the picture is clicked — or on the thing
+clicked, which picture selection finds and whose whole span of distance is kept sharp (`SceneDepthFocus`) — with its
+aperture, the depth kept in focus and a round or hexagonal aperture; and haze (`RecipeDepthHaze`) with its thickness, where
+it starts and its colour — the markup ink, or the colour of the picture's own distance read from its farthest parts.
+`PhotoSceneDepth`, a `ToolEdit`, finds the depth kept or estimates it once in the background — of the photo as erased,
+where the recipe erases — and names it in `MadeByTools`, so moving the focus or dragging a slider redraws the picture and
+never runs the model again. The render pipeline draws both in a pass of its own between geometry and tone
+(`SceneDepthPass`), in premultiplied linear light, haze first as air comes before the lens:
+
+- **The lens blur** gives every pixel a thin lens's circle of confusion, which grows with how far its disparity is from the
+  focus's (`LensBlur`). Its radius falls between two rungs of a ladder — whole pixels to four, then each a third wider —
+  and the pixel is shared between them, so the blur grows smoothly with depth, never in bands. Each rung on each side of
+  the focus is a layer whose light and coverage are blurred at the rung's radius through the aperture's shape — gathered
+  from the shape's rows off each row's running total, at a fraction of the size past a few pixels — and laid over the
+  layers behind it, farthest first, the light divided by the coverage at the end: a pixel shared between rungs keeps its
+  light, a blurred layer's edge leaves no seam, what is in front spreads over what is behind but never the reverse, and
+  what lay behind a sharp subject is filled from round it rather than with its colour.
+- **The haze** keeps `e^(−thickness × distance)` of each part's light, its distance measured from where the haze starts.
+
+Select and Retouch select **by distance** too: a span from near to far with a soft edge, in their modes. On a photo it is a
+region step kept as its span (`RegionSceneDepth`), worked out from the photo's kept depth wherever a mask is made of it
+(`RegionSceneDepths`), so the edit that took it needs scene depth (`ToolEdit.Needs`); in a layered picture the active
+picture layer's depth is made the canvas's selection. **Depth as layer** lays the depth as greys — white near, black far —
+in a layer above the photo, a photo made a layered picture first, and **Depth as mask** makes it the active picture
+layer's mask (`SceneDepthLayers`).
+
+**For the assistant.** Three tools on the Artist tab, made for a model rather than a person, on the photo or the active
+picture layer the tab shows: `describe_scene_depth` answers in a few lines — how much of the picture is near, in the middle
+and far, each with the box round most of it, and for each thing named by phrase which of those it is in and how far it
+lies (`SceneDepthSummary`) — never the depth itself; `blur_background` focuses on a thing named by phrase and blurs what is
+nearer and farther at a strength; `add_haze` lays haze at a density, start and colour. Each action is one step of the
+picture's edits, and boxes are in fractions of the picture, so nothing is addressed by pixel.
 
 ## Page reading
 

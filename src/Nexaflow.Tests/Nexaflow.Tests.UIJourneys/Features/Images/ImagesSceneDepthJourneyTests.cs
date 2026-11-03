@@ -1,0 +1,107 @@
+using System.Collections.Generic;
+using System.IO;
+using Nexaflow.Tests.Fixtures;
+
+namespace Nexaflow.Tests.Features.Images.UI;
+
+/// <summary>
+/// What the picture's scene depth draws in Artist, where its model is here: a lens blur focused by a click on the picture or on
+/// the thing clicked, its aperture, depth in focus and highlights' shape; haze, its thickness, start and colour; selecting by
+/// distance in Select and in Retouch; and the depth as a layer and as a mask — each made with nothing offered to download or
+/// try again.
+/// <para>
+/// <c>NEXAFLOW_TEST_AI_DIR</c> names an AI folder holding scene depth and picture selection as the app keeps them, which the app
+/// is started on as its <c>NEXAFLOW_AI_DIR</c>; without it, or with one of them missing — the editor then offers it for download
+/// — the journey is inconclusive.
+/// </para>
+/// Interactive desktop only — run with <c>--filter "TestCategory=UI"</c>.
+/// </summary>
+[TestClass]
+[TestCategory("UI")]
+[TestCategory("OwnedModel")]
+[CoversNode("images-scene-depth")]
+public class ImagesSceneDepthJourneyTests : ImageEditJourneyBase
+{
+    private const string AiDirVariable = "NEXAFLOW_TEST_AI_DIR";
+
+    private string _aiDir = "";
+
+    /// <summary>The depth is estimated the first time it is asked for, and picture selection loads for the subject.</summary>
+    protected override TimeSpan JourneyBudget => TimeSpan.FromMinutes(4);
+
+    protected override IReadOnlyDictionary<string, string> LaunchEnvironment =>
+        new Dictionary<string, string> { ["NEXAFLOW_AI_DIR"] = _aiDir };
+
+    protected override void SeedConfig(string configDir)
+    {
+        var aiDir = Environment.GetEnvironmentVariable(AiDirVariable);
+        if (string.IsNullOrEmpty(aiDir) || !Directory.Exists(aiDir))
+        {
+            Assert.Inconclusive($"{AiDirVariable} names no folder of Nexaflow's own models on this machine.");
+            return;
+        }
+        _aiDir = aiDir;
+    }
+
+    [TestMethod]
+    [CoversNode("images-scene-depth-lens-blur")]
+    [CoversNode("images-scene-depth-haze")]
+    [CoversNode("images-selection-distance")]
+    [CoversNode("images-scene-depth-layers")]
+    public void Image_SceneDepthTools_WorkWhereTheirModelIsHere()
+    {
+        var folder = Path.Combine(TestTemp.Root, "nexaflow_scene_depth_journey_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            var photo = Path.Combine(folder, OrientedPhotoSample.FileName);
+            File.Copy(TestSampleData.Path("images", OrientedPhotoSample.FileName), photo);
+            Assert.IsNotNull(OpenFileVia(folder, OrientedPhotoSample.FileName, "ShowImageAction", "ImageView"), "ImageView did not open via the 'As Image' action.");
+            CheckDoes("Edit opens the photo in an Artist tab", "Image_Edit", () => WaitForFs(() => Exists("ArtistView") && Exists("ImageEditView"), 8));
+
+            // Adjust: a lens blur, focused where the picture is clicked, then on the thing clicked.
+            Check("Adjust panel", () => SelectRadio("Image_EditToolAdjust") && FitCanvas());
+            NeedsHere("Image_PictureModelsDownload", "AI picture models");
+            Check("Lens blur turns on, its controls with it", () => SetToggle("Image_DepthLensBlur", true) && WaitForFs(() => Exists("Image_DepthAperture"), 3));
+            Check("The depth is estimated: Save is ready, with nothing to download or try again",
+                  () => WaitForFs(() => Enabled("Image_EditSave"), Affordable(60)) && !Exists("Image_SceneDepthAction"));
+            Check("A click on the picture focuses there", () => ClickCanvas());
+            Check("Focus on the thing clicked, and a click focuses on it", () => SetToggle("Image_DepthFocusSubject", true) && ClickCanvas()
+                  && SetToggle("Image_DepthFocusSubject", false));
+            Check("Aperture moves", () => MoveSlider("Image_DepthAperture"));
+            Check("Depth in focus moves", () => MoveSlider("Image_DepthFocusRange"));
+            Check("Highlights hexagonal, then round", () => SelectRadio("Image_DepthBokehHexagon") && SelectRadio("Image_DepthBokehCircle"));
+
+            // Haze, thickening with distance.
+            Check("Haze turns on, its controls with it", () => SetToggle("Image_DepthHaze", true) && WaitForFs(() => Exists("Image_DepthHazeDensity"), 3));
+            Check("Its thickness moves", () => MoveSlider("Image_DepthHazeDensity"));
+            Check("Its start moves", () => MoveSlider("Image_DepthHazeStart"));
+            Check("It takes the ink, and gives it back", () => SetToggle("Image_DepthHazeInk", true) && SetToggle("Image_DepthHazeInk", false));
+            Check("Lens blur and haze off", () => SetToggle("Image_DepthHaze", false) && SetToggle("Image_DepthLensBlur", false));
+
+            // Select: what lies within a span of distance, the span moved after it is selected.
+            Check("Select by distance", () => SelectRadio("Image_EditToolSelect") && SelectRadio("Image_SelectDistance")
+                  && WaitForFs(() => Exists("Image_RegionDistanceSelect"), 3));
+            Check("The span's near end moves", () => MoveSlider("Image_RegionDistanceNear"));
+            Check("Its far end moves", () => MoveSlider("Image_RegionDistanceFar"));
+            Check("Its soft edge moves", () => MoveSlider("Image_RegionDistanceSoftness"));
+            Check("Select takes the span: Copy is ready", () => PressNth("Image_RegionDistanceSelect", 0) && WaitForFs(() => Enabled("Image_CutOutCopy"), Affordable(30)));
+
+            // Retouch marks by distance too.
+            Check("Retouch by distance", () => SelectRadio("Image_EditToolRetouch") && SelectRadio("Image_EraseDistance")
+                  && WaitForFs(() => Exists("Image_RegionDistanceSelect"), 3));
+
+            // The depth itself: a layer above the photo, then the photo's mask.
+            Check("Adjust panel again", () => SelectRadio("Image_EditToolAdjust"));
+            CheckDoes("Depth as layer makes the photo a layered picture with its depth above", "Image_DepthAsLayer",
+                      () => WaitForFs(() => Exists("Image_LayersPanel") && Exists("Image_DepthAsMask"), Affordable(30)));
+            CheckPresent("Depth as mask, for the active picture layer", "Image_DepthAsMask");
+
+            AssertJourney();
+        }
+        finally
+        {
+            try { Directory.Delete(folder, recursive: true); } catch (IOException) { /* still open in the app; the temp folder is cleaned by the OS */ }
+        }
+    }
+}
