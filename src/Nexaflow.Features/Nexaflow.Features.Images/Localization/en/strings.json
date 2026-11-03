@@ -503,6 +503,7 @@
   "Images.Region.DistanceSelect": "Select",
   "Images.Region.DistanceSelectTip": "Select what lies in this span of distance, meeting what is selected as the mode says; moving the ends then selects again",
   "Images.SceneDepth.Header": "Depth",
+  "Images.SceneDepth.NeedsPictureLayer": "Depth works on a photo: choose a picture layer in Layers.",
   "Images.SceneDepth.LensBlur": "Lens blur",
   "Images.SceneDepth.LensBlurTip": "Blur the picture as a wide-open lens would: sharp where it is focused, more blurred the farther in front or behind",
   "Images.SceneDepth.FocusHint": "Click the picture to focus there.",

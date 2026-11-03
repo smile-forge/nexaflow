@@ -165,11 +165,13 @@ public class ImageSceneDepthTests
             (rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2], rgba[i * 4 + 3]) = (0.3f, 0.5f, 0.7f, 1f);
             nearness[i] = (i % w) / (float)(w - 1);
         }
-        var blurred = LensBlur.Apply(rgba, nearness, w, h, focus: 1f, range: 0f, maxRadius: 8, BokehShape.Circle);
+        var blurred = (float[])rgba.Clone();
+        LensBlur.Apply(blurred, nearness, w, h, focus: 1f, range: 0f, maxRadius: 8, BokehShape.Circle);
         for (int i = 0; i < w * h * 4; i++) Assert.AreEqual(rgba[i], blurred[i], 1e-4f, "blurring a flat picture leaves it flat: nothing lost at the layers' seams");
 
         rgba[(15 * w + 39) * 4] = 1f;   // a bright pixel in focus, at the near edge
-        blurred = LensBlur.Apply(rgba, nearness, w, h, focus: 1f, range: 0.02f, maxRadius: 8, BokehShape.Hexagon);
+        blurred = (float[])rgba.Clone();
+        LensBlur.Apply(blurred, nearness, w, h, focus: 1f, range: 0.02f, maxRadius: 8, BokehShape.Hexagon);
         Assert.AreEqual(1f, blurred[(15 * w + 39) * 4], 1e-3f, "what is in focus stays sharp");
     }
 
@@ -189,7 +191,8 @@ public class ImageSceneDepthTests
                 (rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2], rgba[i * 4 + 3]) = (v, v, v, 1f);
                 nearness[i] = 1 - x / (float)(w - 1);
             }
-        var blurred = LensBlur.Apply(rgba, nearness, w, h, focus: 1f, range: 0f, maxRadius: 10, BokehShape.Circle);
+        var blurred = rgba;
+        LensBlur.Apply(blurred, nearness, w, h, focus: 1f, range: 0f, maxRadius: 10, BokehShape.Circle);
         double Swing(int column)
         {
             double sum = 0;

@@ -30,26 +30,34 @@ public static class LensBlur
     // Planar channels a layer is blurred in: premultiplied red, green, blue, alpha, and membership.
     private const int Channels = 5;
 
+    /// <summary>Where a layer's working planes come from and go back to.</summary>
+    private static readonly System.Buffers.ArrayPool<float> Pool = System.Buffers.ArrayPool<float>.Shared;
+
+    /// <summary>Where each pixel's layers are kept while a picture is blurred.</summary>
+    private static readonly System.Buffers.ArrayPool<short> Layers = System.Buffers.ArrayPool<short>.Shared;
+
     /// <summary>
-    /// <paramref name="rgba"/> — premultiplied linear light, four values a pixel — blurred as a lens focused at nearness
+    /// <paramref name="rgba"/> — premultiplied linear light, four values a pixel — blurred in place as a lens focused at nearness
     /// <paramref name="focus"/> blurs it: sharp within <paramref name="range"/> of it, then by <paramref name="maxRadius"/> pixels
-    /// for each unit of nearness further, through <paramref name="shape"/>.
+    /// for each unit of nearness further, through <paramref name="shape"/>. Its working planes come from a pool, so a redraw a
+    /// slider drag makes allocates nothing the size of the picture.
     /// </summary>
-    /// <param name="nearness">Each pixel's nearness (<see cref="SceneDepthPlane"/>), 1 nearest.</param>
-    public static float[] Apply(float[] rgba, float[] nearness, int width, int height, float focus, float range, float maxRadius, BokehShape shape,
-                                CancellationToken ct = default)
+    /// <param name="rgba">The picture, in its first <c>width × height × 4</c> values; what follows is not touched.</param>
+    /// <param name="nearness">Each pixel's nearness (<see cref="SceneDepthPlane"/>), 1 nearest, in its first <c>width × height</c> values.</param>
+    public static void Apply(float[] rgba, float[] nearness, int width, int height, float focus, float range, float maxRadius, BokehShape shape,
+                             CancellationToken ct = default)
     {
         int count = width * height;
-        if (rgba.Length != count * 4 || nearness.Length != count) throw new ArgumentException("The picture and its depth are not the size given.");
-        if (maxRadius < 0.5f) return (float[])rgba.Clone();
+        if (rgba.Length < count * 4 || nearness.Length < count) throw new ArgumentException("The picture and its depth are not the size given.");
+        if (maxRadius < 0.5f) return;
 
         var rungs = Rungs(maxRadius);
         int top = rungs.Length - 1, layers = 2 * top + 1;
         // Each pixel's two shares, by layer: layer `top` is the focus's rung, below it the rungs behind the focus from the widest
         // in, above it the rungs in front of it from the narrowest out — the order they are laid down in, farthest first.
-        var firstLayer = new short[count];
-        var firstShare = new float[count];
-        var secondLayer = new short[count];
+        var firstLayer = Layers.Rent(count);
+        var firstShare = Pool.Rent(count);
+        var secondLayer = Layers.Rent(count);
         Parallel.For(0, height, y =>
         {
             for (int i = y * width, end = i + width; i < end; i++)
@@ -88,25 +96,29 @@ public static class LensBlur
                     }
         });
 
-        var light = new float[count * 4];
-        var cover = new float[count];
+        var light = Pool.Rent(count * 4);
+        var cover = Pool.Rent(count);
+        Array.Clear(light, 0, count * 4);
+        Array.Clear(cover, 0, count);
         for (int layer = 0; layer < layers; layer++)
         {
             ct.ThrowIfCancellationRequested();
             if (bounds[layer].Right >= 0) Lay(layer, rungs[Math.Abs(layer - top)], bounds[layer]);
         }
 
-        var result = new float[count * 4];
         Parallel.For(0, height, y =>
         {
             for (int i = y * width, end = i + width; i < end; i++)
             {
                 float u = cover[i];
-                if (u <= 1e-6f) continue;
-                for (int c = 0; c < 4; c++) result[i * 4 + c] = light[i * 4 + c] / u;
+                for (int c = 0; c < 4; c++) rgba[i * 4 + c] = u <= 1e-6f ? 0 : light[i * 4 + c] / u;
             }
         });
-        return result;
+        Layers.Return(firstLayer);
+        Layers.Return(secondLayer);
+        Pool.Return(firstShare);
+        Pool.Return(light);
+        Pool.Return(cover);
 
         // One layer: its pixels' shares of light and coverage, blurred at its rung's radius and laid over what is behind it.
         void Lay(int layer, float radius, (int Left, int Top, int Right, int Bottom) has)
@@ -116,7 +128,9 @@ public static class LensBlur
             int x1 = Math.Min(width, has.Right + 1 + reach), y1 = Math.Min(height, has.Bottom + 1 + reach);
             int w0 = x1 - x0, h0 = y1 - y0, plane = w0 * h0;
 
-            var planes = new float[Channels * plane];
+            // Every layer's buffers come from the pool and go back to it: a redraw lays a few dozen layers, each the picture's size.
+            var planes = Pool.Rent(Channels * plane);
+            Array.Clear(planes, 0, Channels * plane);
             Parallel.For(0, h0, row =>
             {
                 for (int col = 0; col < w0; col++)
@@ -142,6 +156,8 @@ public static class LensBlur
                     cover[i] = us + cover[i] * keep;
                 }
             });
+            if (!ReferenceEquals(blurred, planes)) Pool.Return(blurred);
+            Pool.Return(planes);
         }
     }
 
@@ -175,6 +191,7 @@ public static class LensBlur
     /// <summary>
     /// Every channel of <paramref name="planes"/> blurred through <paramref name="shape"/> at <paramref name="radius"/>, the shape's
     /// weights summing to 1; past the edge, nothing. A wide radius is gathered at a fraction of the size and brought back up.
+    /// The result is the pool's (<see cref="Pool"/>), at least as long as asked; the caller gives it back.
     /// </summary>
     internal static float[] Blur(float[] planes, int width, int height, float radius, BokehShape shape)
     {
@@ -184,13 +201,16 @@ public static class LensBlur
         var reduced = Reduced(planes, width, height, factor, w, h);
         // A reduced pixel stands for factor² of the picture's: its gathered values are of the same scale, so nothing is rescaled.
         var gathered = Gather(reduced, w, h, radius / factor, shape);
-        return Enlarged(gathered, w, h, factor, width, height);
+        Pool.Return(reduced);
+        var enlarged = Enlarged(gathered, w, h, factor, width, height);
+        Pool.Return(gathered);
+        return enlarged;
     }
 
     /// <summary>Each channel averaged over <paramref name="factor"/>² blocks — past the edge counted as nothing.</summary>
     private static float[] Reduced(float[] planes, int width, int height, int factor, int w, int h)
     {
-        var reduced = new float[Channels * w * h];
+        var reduced = Pool.Rent(Channels * w * h);
         float share = 1f / (factor * factor);
         Parallel.For(0, Channels * h, line =>
         {
@@ -220,7 +240,7 @@ public static class LensBlur
     /// block centres.</summary>
     private static float[] Enlarged(float[] reduced, int w, int h, int factor, int width, int height)
     {
-        var full = new float[Channels * width * height];
+        var full = Pool.Rent(Channels * width * height);
         Parallel.For(0, height, y =>
         {
             float ry = Math.Clamp((y + 0.5f) / factor - 0.5f, 0, h - 1);
@@ -255,7 +275,7 @@ public static class LensBlur
         float norm = (float)(1 / area);
 
         // Running totals: for each channel and row, the sum of the values left of each position.
-        var totals = new float[Channels * height * (width + 1)];
+        var totals = Pool.Rent(Channels * height * (width + 1));
         Parallel.For(0, Channels * height, line =>
         {
             int c = line / height, y = line % height;
@@ -266,7 +286,8 @@ public static class LensBlur
             for (int x = 0; x < width; x++) total[x + 1] = sum += source[x];
         });
 
-        var result = new float[Channels * width * height];
+        var result = Pool.Rent(Channels * width * height);
+        Array.Clear(result, 0, Channels * width * height);
         Parallel.For(0, height, y =>
         {
             for (int c = 0; c < Channels; c++)
@@ -287,6 +308,7 @@ public static class LensBlur
                 for (int x = 0; x < width; x++) into[x] *= norm;
             }
         });
+        Pool.Return(totals);
         return result;
     }
 

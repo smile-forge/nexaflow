@@ -57,6 +57,9 @@ public sealed partial class SceneDepthTools : ObservableObject
     /// draws from its depth, so it can be changed or taken off while the models are away.</summary>
     public bool CanEdit => Target is not null && (Models.IsReady || Recipe.AsksSceneDepth);
 
+    /// <summary>A layered picture whose active layer is no picture layer: the controls wait for one, and say so.</summary>
+    public bool NeedsPictureLayer => _viewer.IsLayered && Target is null;
+
     /// <summary>The recipe moved: every control re-reads it.</summary>
     internal void OnRecipeChanged()
     {
@@ -187,7 +190,7 @@ public sealed partial class SceneDepthTools : ObservableObject
     /// <summary>How far off the haze starts, 0–100 from the nearest part to the farthest.</summary>
     public double HazeStart
     {
-        get => (Recipe.DepthHaze?.Start ?? 0) * 100;
+        get => (Recipe.DepthHaze?.Start ?? new RecipeDepthHaze().Start) * 100;
         set => Hazed(h => h with { Start = Math.Clamp(Math.Round(value) / 100, 0, 1) });
     }
 

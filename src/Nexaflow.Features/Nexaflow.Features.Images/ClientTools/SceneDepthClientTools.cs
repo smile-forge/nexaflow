@@ -53,11 +53,11 @@ internal sealed class SceneDepthClientTools(ArtistViewModel artist, IShellServic
         new DelegateClientTool(
             "add_haze",
             "Lay haze over the picture that thickens with distance, as air does over far hills, as one step of its edits. 'density' is how "
-          + "thick, 0 to 100 (50), 0 taking it off; 'start' how far off it begins, 0 to 100 of the picture's depth (0); 'colour' "
+          + "thick, 0 to 100 (40), 0 taking it off; 'start' how far off it begins, 0 to 100 of the picture's depth (25); 'colour' "
           + "#RRGGBB, or the colour of the picture's own distance when not given.",
             [
-                new ClientToolParameter("density", "How thick, 0 to 100; 0 takes the haze off. 50 when not given.", Required: false, Type: "number"),
-                new ClientToolParameter("start", "Where it begins, 0 (the nearest part) to 100 (the farthest). 0 when not given.", Required: false, Type: "number"),
+                new ClientToolParameter("density", "How thick, 0 to 100; 0 takes the haze off. 40 when not given.", Required: false, Type: "number"),
+                new ClientToolParameter("start", "Where it begins, 0 (the nearest part) to 100 (the farthest). 25 when not given.", Required: false, Type: "number"),
                 new ClientToolParameter("colour", "The haze's colour as #RRGGBB; the picture's own distance's colour when not given.", Required: false),
             ],
             ToolSafety.SafeOperation,
@@ -188,8 +188,9 @@ internal sealed class SceneDepthClientTools(ArtistViewModel artist, IShellServic
 
     private async Task<ToolResult> HazeAsync(string? density, string? start, string? colour, CancellationToken ct)
     {
-        if (!TryPercent(density, 50, out var thick)) return ToolResult.Error("no such density", "Give 'density' as a number from 0 to 100.");
-        if (!TryPercent(start, 0, out var from)) return ToolResult.Error("no such start", "Give 'start' as a number from 0 to 100.");
+        var fallback = new RecipeDepthHaze();
+        if (!TryPercent(density, fallback.Density * 100, out var thick)) return ToolResult.Error("no such density", "Give 'density' as a number from 0 to 100.");
+        if (!TryPercent(start, fallback.Start * 100, out var from)) return ToolResult.Error("no such start", "Give 'start' as a number from 0 to 100.");
         uint? argb = null;
         if (!string.IsNullOrWhiteSpace(colour))
         {

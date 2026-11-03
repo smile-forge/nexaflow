@@ -54,15 +54,14 @@ public sealed class SceneDepthPlane
         return disparity <= 1 / DistanceRange ? 1f : (float)Math.Clamp(-Math.Log(disparity) / Math.Log(DistanceRange), 0, 1);
     }
 
-    /// <summary>Each of <paramref name="nearness"/> as a distance (<see cref="Distance"/>).</summary>
-    public float[] Distances(float[] nearness)
+    /// <summary>The first <paramref name="count"/> of <paramref name="nearness"/> as distances (<see cref="Distance"/>), into
+    /// <paramref name="distances"/>.</summary>
+    public void Distances(float[] nearness, float[] distances, int count)
     {
-        var distances = new float[nearness.Length];
-        Parallel.For(0, nearness.Length / 4096 + 1, block =>
+        Parallel.For(0, count / 4096 + 1, block =>
         {
-            for (int i = block * 4096, end = Math.Min(nearness.Length, i + 4096); i < end; i++) distances[i] = Distance(nearness[i]);
+            for (int i = block * 4096, end = Math.Min(count, i + 4096); i < end; i++) distances[i] = Distance(nearness[i]);
         });
-        return distances;
     }
 
     public int Width { get; }
@@ -124,9 +123,18 @@ public sealed class SceneDepthPlane
     /// </summary>
     public float[] OnCanvas(SKMatrix photoToCanvas, SKSizeI photo, SKSizeI canvas)
     {
-        if (!photoToCanvas.TryInvert(out var toPhoto)) throw new InvalidOperationException("The photo is drawn to nothing.");
-        var (mx, my) = MapScale(photo);
         var plane = new float[canvas.Width * canvas.Height];
+        OnCanvas(photoToCanvas, photo, canvas, plane);
+        return plane;
+    }
+
+    /// <summary>The nearness under every pixel of the canvas, as <see cref="OnCanvas(SKMatrix, SKSizeI, SKSizeI)"/> gives it, into
+    /// the first <c>width × height</c> values of <paramref name="plane"/>.</summary>
+    public void OnCanvas(SKMatrix photoToCanvas, SKSizeI photo, SKSizeI canvas, float[] plane)
+    {
+        if (!photoToCanvas.TryInvert(out var toPhoto)) throw new InvalidOperationException("The photo is drawn to nothing.");
+        if (plane.Length < canvas.Width * canvas.Height) throw new ArgumentException("The plane is smaller than the canvas.", nameof(plane));
+        var (mx, my) = MapScale(photo);
         Parallel.For(0, canvas.Height, row =>
         {
             double cy = row + 0.5;
@@ -138,7 +146,6 @@ public sealed class SceneDepthPlane
                 plane[row * canvas.Width + col] = Sample((px - 0.5) * mx, (py - 0.5) * my);
             }
         });
-        return plane;
     }
 
     /// <summary>How far one photo pixel steps across the plane, each way: the corners of the two meet.</summary>

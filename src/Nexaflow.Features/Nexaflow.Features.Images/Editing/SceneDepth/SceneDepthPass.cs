@@ -17,6 +17,9 @@ public static class SceneDepthPass
     /// <summary>The long edge a photo is looked at to find its distance's colour.</summary>
     private const int FarColourEdge = 256;
 
+    /// <summary>Where the pass's canvas-sized buffers come from and go back to.</summary>
+    private static readonly System.Buffers.ArrayPool<float> Pool = System.Buffers.ArrayPool<float>.Shared;
+
     /// <summary>
     /// <paramref name="drawn"/> — the geometry pass's picture of a <paramref name="photo"/>-sized upright photo, which
     /// <paramref name="photoToCanvas"/> drew it by — with <paramref name="recipe"/>'s haze and lens blur, into a picture of
@@ -26,22 +29,44 @@ public static class SceneDepthPass
     public static SKImage Draw(SKImage drawn, ImageRecipe recipe, SceneDepthPlane plane, SKMatrix photoToCanvas, SKSizeI photo,
                                (float R, float G, float B) distance, SKImageInfo into)
     {
-        int width = drawn.Width, height = drawn.Height;
-        var linear = new SKImageInfo(width, height, SKColorType.RgbaF32, SKAlphaType.Premul, SKColorSpace.CreateSrgbLinear());
-        var rgba = Read(drawn, linear);
-        var nearness = plane.OnCanvas(photoToCanvas, photo, new SKSizeI(width, height));
-
-        if (recipe.DepthHaze is { } haze)
-            DepthHaze.Apply(rgba, plane.Distances(nearness), width, height, (float)haze.Density, (float)haze.Start, haze.Colour is { } colour ? Linear(colour) : distance);
-        if (recipe.LensBlur is { } blur)
-        {
-            float focus = plane.FocusAt(blur.FocusX, blur.FocusY, photo);
-            double canvasPerPhoto = 1 / CropGeometry.SourcePixelsPerCanvasPixel(photoToCanvas);
-            float widest = (float)(Math.Clamp(blur.Aperture, 0, 1) * RecipeLensBlur.WidestBlur * Math.Max(photo.Width, photo.Height) * canvasPerPhoto);
-            rgba = LensBlur.Apply(rgba, nearness, width, height, focus, (float)Math.Clamp(blur.Range, 0, RecipeLensBlur.WidestRange), widest, blur.Shape);
+            int width = drawn.Width, height = drawn.Height, count = width * height;
+            var linear = new SKImageInfo(width, height, SKColorType.RgbaF32, SKAlphaType.Premul, SKColorSpace.CreateSrgbLinear());
+            // The canvas-sized buffers come from a pool and go back to it: a slider drag redraws this pass many times a second.
+            var rgba = Pool.Rent(count * 4);
+            var nearness = Pool.Rent(count);
+            try
+            {
+                Read(drawn, linear, rgba);
+                plane.OnCanvas(photoToCanvas, photo, new SKSizeI(width, height), nearness);
+                if (recipe.DepthHaze is { } haze)
+                {
+                    var distances = Pool.Rent(count);
+                    plane.Distances(nearness, distances, count);
+                    DepthHaze.Apply(rgba, distances, width, height, (float)haze.Density, (float)haze.Start, haze.Colour is { } colour ? Linear(colour) : distance);
+                    Pool.Return(distances);
+                }
+                if (recipe.LensBlur is { } blur)
+                {
+                    float focus = plane.FocusAt(blur.FocusX, blur.FocusY, photo);
+                    double canvasPerPhoto = 1 / CropGeometry.SourcePixelsPerCanvasPixel(photoToCanvas);
+                    float widest = (float)(Math.Clamp(blur.Aperture, 0, 1) * RecipeLensBlur.WidestBlur * Math.Max(photo.Width, photo.Height) * canvasPerPhoto);
+                    LensBlur.Apply(rgba, nearness, width, height, focus, (float)Math.Clamp(blur.Range, 0, RecipeLensBlur.WidestRange), widest, blur.Shape);
+                }
+                return Drawn(rgba, linear, into);
+            }
+            finally
+            {
+                Pool.Return(rgba);
+                Pool.Return(nearness);
+            }
         }
 
-        using var made = SKImage.FromPixelCopy(linear, MemoryMarshal.AsBytes(rgba.AsSpan()))
+        /// <summary>The pass's linear light — the first values of <paramref name="rgba"/> — drawn into a picture of
+        /// <paramref name="into"/>'s format.</summary>
+        private static SKImage Drawn(float[] rgba, SKImageInfo linear, SKImageInfo into)
+        {
+            int width = linear.Width, height = linear.Height;
+            using var made = SKImage.FromPixelCopy(linear, MemoryMarshal.AsBytes(rgba.AsSpan(0, width * height * 4)))
                          ?? throw new InvalidOperationException($"No memory for a {width}×{height} picture.");
         var bitmap = new SKBitmap(into.WithSize(width, height));
         if (bitmap.GetPixels() == IntPtr.Zero) throw new InvalidOperationException($"No memory for a {width}×{height} picture.");
@@ -68,13 +93,15 @@ public static class SceneDepthPass
         using (var paint = new SKPaint { BlendMode = SKBlendMode.Src })
             surface.Canvas.DrawImage(source.Pixels, 0, 0, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear), paint);
         using var small = surface.Snapshot();
-        return DepthHaze.FarthestColour(Read(small, linear), plane.OnCanvas(photoToSmall, photo, size));
+        var rgba = new float[size.Width * size.Height * 4];
+        Read(small, linear, rgba);
+        return DepthHaze.FarthestColour(rgba, plane.OnCanvas(photoToSmall, photo, size));
     }
 
-    /// <summary>The picture's pixels as <paramref name="info"/> lays them out, four floats a pixel.</summary>
-    private static float[] Read(SKImage image, SKImageInfo info)
+    /// <summary>The picture's pixels as <paramref name="info"/> lays them out, four floats a pixel, into the first values of
+    /// <paramref name="values"/>.</summary>
+    private static void Read(SKImage image, SKImageInfo info, float[] values)
     {
-        var values = new float[info.Width * info.Height * 4];
         var pin = GCHandle.Alloc(values, GCHandleType.Pinned);
         try
         {
@@ -85,7 +112,6 @@ public static class SceneDepthPass
         {
             pin.Free();
         }
-        return values;
     }
 
     /// <summary>A 32-bit ARGB colour, as markup's ink is, in linear light.</summary>

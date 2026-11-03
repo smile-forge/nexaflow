@@ -308,10 +308,11 @@ public sealed record RecipeLensBlur
 public sealed record RecipeDepthHaze
 {
     /// <summary>How thick the haze is, 0…1: at 1 the farthest part keeps under 2 % of its own light.</summary>
-    public double Density { get; init; } = 0.5;
+    public double Density { get; init; } = 0.4;
 
-    /// <summary>Where it starts, 0…1 from the nearest to the farthest part of the picture.</summary>
-    public double Start { get; init; }
+    /// <summary>Where it starts, 0…1 from the nearest to the farthest part of the picture — to begin with, a quarter of the way,
+    /// so what is near the camera stays clear.</summary>
+    public double Start { get; init; } = 0.25;
 
     /// <summary>The haze's colour, 32-bit ARGB as markup's ink is; null takes the colour of the picture's distance — its sky's,
     /// or its far hills' — so the haze is the air the picture already has.</summary>

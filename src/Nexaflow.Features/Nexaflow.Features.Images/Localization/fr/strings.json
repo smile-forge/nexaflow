@@ -505,6 +505,7 @@
   "Images.Region.DistanceSelect": "Sélectionner",
   "Images.Region.DistanceSelectTip": "Sélectionnez ce qui se trouve dans cette plage de distance, combiné à la sélection selon le mode ; déplacer les bornes sélectionne de nouveau",
   "Images.SceneDepth.Header": "Profondeur",
+  "Images.SceneDepth.NeedsPictureLayer": "La profondeur s'applique à une photo : choisissez un calque d'image dans Calques.",
   "Images.SceneDepth.LensBlur": "Flou d'objectif",
   "Images.SceneDepth.LensBlurTip": "Floutez l'image comme un objectif grand ouvert : nette là où elle est mise au point, plus floue à mesure qu'on s'en éloigne, devant ou derrière",
   "Images.SceneDepth.FocusHint": "Cliquez l'image pour y faire la mise au point.",

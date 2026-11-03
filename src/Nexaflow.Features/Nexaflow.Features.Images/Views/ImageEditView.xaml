@@ -253,6 +253,8 @@
                                     <icons:IconGlyph Style="{StaticResource EditGroupIcon}" Icon="fluent:layer_diagonal"/>
                                     <TextBlock Style="{StaticResource EditGroupHeader}" Text="{loc:Str Images.SceneDepth.Header}"/>
                                 </StackPanel>
+                                <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.SceneDepth.NeedsPictureLayer}" TextWrapping="Wrap" Margin="0,0,0,6"
+                                           Visibility="{Binding Depth.NeedsPictureLayer, Converter={StaticResource BoolToVis}}"/>
                                 <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Depth.LensBlur, Mode=TwoWay}" Content="{loc:Str Images.SceneDepth.LensBlur}"
                                           ToolTip="{Binding Depth.Models.DisabledReason, TargetNullValue={loc:Str Images.SceneDepth.LensBlurTip}}"
                                           IsEnabled="{Binding Depth.CanEdit}" ToolTipService.ShowOnDisabled="True"
@@ -292,10 +294,10 @@
                                           AutomationProperties.AutomationId="Image_DepthHaze"/>
                                 <StackPanel Visibility="{Binding Depth.Haze, Converter={StaticResource BoolToVis}}" Margin="0,4,0,0">
                                     <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.SceneDepth.HazeDensity}"/>
-                                    <views:AdjustmentSlider Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" DefaultValue="50"
+                                    <views:AdjustmentSlider Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" DefaultValue="40"
                                                             Value="{Binding Depth.HazeDensity, Mode=TwoWay}" AutomationProperties.AutomationId="Image_DepthHazeDensity"/>
                                     <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.SceneDepth.HazeStart}"/>
-                                    <views:AdjustmentSlider Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" DefaultValue="0"
+                                    <views:AdjustmentSlider Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" DefaultValue="25"
                                                             Value="{Binding Depth.HazeStart, Mode=TwoWay}" AutomationProperties.AutomationId="Image_DepthHazeStart"/>
                                     <CheckBox Style="{StaticResource EditCheckBox}" IsChecked="{Binding Depth.HazeTakesInk, Mode=TwoWay}" Margin="0,8,0,0"
                                               Content="{loc:Str Images.SceneDepth.HazeInk}" ToolTip="{loc:Str Images.SceneDepth.HazeInkTip}"

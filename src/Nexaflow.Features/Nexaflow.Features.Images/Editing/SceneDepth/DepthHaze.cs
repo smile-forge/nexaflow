@@ -22,7 +22,7 @@ public static class DepthHaze
     /// <param name="distances">Each pixel's distance (<see cref="SceneDepthPlane.Distance"/>), 0 nearest.</param>
     public static void Apply(float[] rgba, float[] distances, int width, int height, float density, float start, (float R, float G, float B) haze)
     {
-        if (rgba.Length != width * height * 4 || distances.Length != width * height) throw new ArgumentException("The picture and its depth are not the size given.");
+        if (rgba.Length < width * height * 4 || distances.Length < width * height) throw new ArgumentException("The picture and its depth are not the size given.");
         float thickness = Math.Clamp(density, 0, 1) * Thickest;
         float from = Math.Clamp(start, 0, 0.99f);
         Parallel.For(0, height, y =>
