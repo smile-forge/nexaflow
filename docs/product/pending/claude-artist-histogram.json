@@ -74,55 +74,12 @@
           }
         ]
       }
-    },
-    "images-scene-depth-edges": {
-      "links": [
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/SceneDepth/SubjectEdges.cs",
-          "class": "SubjectEdges"
-        },
-        {
-          "type": "code",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/FocusedSubject.cs",
-          "class": "FocusedSubject"
-        }
-      ],
-      "concerns": {
-        "tests": [
-          {
-            "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/SubjectEdgesTests.cs",
-            "class": "SubjectEdgesTests"
-          },
-          {
-            "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSceneDepthTests.cs",
-            "class": "ImageSceneDepthTests",
-            "method": "FocusingOnAThing_KeepsItsOutline_MadeForTheSave_UntilAFocusThatFollowsNone"
-          }
-        ]
-      }
-    },
-    "vcommon-range-slider": {
-      "concerns": {
-        "tests": [
-          {
-            "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Controls/RangeSliderTests.cs",
-            "class": "RangeSliderTests",
-            "method": "ANarrowBand_HasItsEndsStepAside_SoEachEndAndTheBandCanBeTakenHoldOf"
-          }
-        ]
-      }
     }
   },
   "is_empty": false,
-  "changed_sets": 7,
+  "changed_sets": 4,
   "touched_nodes": [
     "images-decode",
-    "images-edit-histogram",
-    "images-scene-depth-edges",
-    "vcommon-range-slider"
+    "images-edit-histogram"
   ]
 }
