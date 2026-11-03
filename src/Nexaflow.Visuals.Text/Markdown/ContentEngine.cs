@@ -239,6 +239,8 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
             Links = Linked,
             ShownBefore = ShownBefore,
             BoxedAsWritten = static holder => ContentNested.Language(holder) is { } named && ContentLanguages.For(named) is { BoxedAsWritten: true },
+            SlideOf = holder => SlideOf(holding, holder),
+            Slid = Slid,
         };
 
         return folds is null ? host : host with { Folds = folds };
@@ -370,7 +372,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
                                   body.Start) with
                                   {
                                       Syntax = reading.Units.Syntax is { } syntax ? (syntax, 0) : null,
-                                      WrapsLines = language.WrapsLines,
+                                      WrapsLines = WrapsInside(language),
                                   };
 
             // What it read is given those marks back where they stand, so every part names its characters in the document.

@@ -221,7 +221,10 @@ counted where they are held — the same rule laying applies to each character m
 what is laid. A page sets a fence of text or code in the box it sets a bare fence in, laid in the room inside it
 (`ContentLanguage.BoxedAsWritten`, `MarkdownBuilder.Fenced`); pictures draw themselves. Content inside what the engine shows keeps
 its lines unless its language wraps them (`ContentLanguage.WrapsLines`, `ContentShowing.WrapsLines`): text's wrap to fit inside
-the box, and code's are kept whole, a line wider than the box widening it.
+the box, and code's are kept whole. A box narrower than the lines it keeps whole keeps to its room and slides sideways inside it
+(`LayoutSlide`, §8): what it holds is set slid along and cut to the box (`LayoutPaint.Clip`, which a piece's reach is cut to as
+well), with a bar under it saying how much shows and where along. Content laid for paper slides nothing, so there a box's lines
+wrap instead and all of them show (`ContentEngine.Slides`).
 
 **What stands beside the page is drawn from the lines, not into the content.** A builder that lays content line by line says
 where each line it laid stands (`Laid.Lines`); the engine says which of them stand between two heights on the page, and
@@ -433,6 +436,16 @@ worked out from where they are written — and puts a marker under its heading s
 opens it as a diagram's chip opens a node. Whatever has to show a place inside a folded section opens it first
 (`ContentEngine.Unfolded`). Nothing nested is folded by the document's sections: a diagram in it has openings of its own.
 
+**How far the reader has slid a box sideways is the engine's too**, kept against the reading of the body the box holds
+(`ContentBody.Continuity`), so a box stays slid where it was through every edit, and handed to the builder laying it as folds
+are (`LayoutHost.SlideOf`, `LayoutHost.Slid`), which lays it slid and says so on the box (`LayoutActions.Slide`: what shows,
+where its bar and the bar's thumb stand). A block keeps its laying only while every box in it stands where it was laid
+(`KeptLaying.Slides`). Since what is slid is laid slid, a press, the caret, picking out and finding all work from the tree as it
+stands and know nothing of sliding. A sideways turn of the wheel slides the box under it (`ContentSlide`), holding the bar's
+thumb and dragging slides it as far as the thumb goes, and pressing the bar either side of the thumb slides it a boxful; a
+place brought onto the page — the caret as it moves, a match gone to — that a box has slid out of view is slid into it first
+(`ContentEngine.SlideOnto`).
+
 **What the host says that the source does not** — where pictures are found, how links look, what diagrams are bound
 against — is the engine's `Inputs` (`ContentInputs`), and what a language's stages read. Setting them, or `Forget`,
 says that nothing laid before is to be set down again as it was.
@@ -454,7 +467,7 @@ follows the screen: work landing for a unit the reader has scrolled away from wa
 ## 9. Editing
 
 Everything the reader does reaches the engine as one `ContentInput` (`ContentEngine.Input`): a key, text typed, a
-press, a drag, a release. A window's keys and a test's are the same input by then, so what one does the other does. The
+press, a drag, a release, a sideways turn of the wheel. A window's keys and a test's are the same input by then, so what one does the other does. The
 element only turns the pointer's pixels into the content's units and says when a move has gone far enough to be a drag.
 No key is the surface's: the clipboard's and the page's go to the engine like every other, and where a page key means
 nothing to the content the engine asks back for a page, which is as tall as whatever shows it.

@@ -142,6 +142,8 @@ public sealed partial class ContentEngine
         {
             _revealed = null;
 
+            // A box slid away from it slides to it first, which lays it again.
+            SlideOnto(shown);
             var at = _laid.Root.CaretRect(shown);
             if (!at.IsEmpty) Reveal(at);
         }

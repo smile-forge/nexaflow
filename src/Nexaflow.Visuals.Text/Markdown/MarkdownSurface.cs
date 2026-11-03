@@ -132,7 +132,9 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
         {
             if (VerticalScrollBarVisibility != ScrollBarVisibility.Disabled || args.Handled) return;
 
+            // Turned sideways over a box that slides, it is the box's, and goes no further.
             args.Handled = true;
+            if (_shown.WheeledSideways(args)) return;
             (Parent as UIElement ?? VisualTreeHelper.GetParent(this) as UIElement)?.RaiseEvent(
                 new MouseWheelEventArgs(args.MouseDevice, args.Timestamp, args.Delta) { RoutedEvent = MouseWheelEvent, Source = this });
         };

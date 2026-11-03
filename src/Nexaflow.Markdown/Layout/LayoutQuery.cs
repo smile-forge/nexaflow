@@ -145,13 +145,49 @@ public static class LayoutQuery
 
         foreach (var (piece, where) in LevelWith(root, point.Y))
         {
-            if (piece.Words is not { Maps: true }) continue;
+            // A run slid out of the box it is set in is not there to be pressed.
+            if (piece.Words is not { Maps: true } || ToUncut(piece, where, point) is null) continue;
 
             var off = point.X < where.Left ? where.Left - point.X : Math.Max(0, point.X - where.Right);
             if (nearest is null || off < nearest.Value.Off) nearest = (piece, off);
         }
 
         return nearest is { Piece: { Words: { } words, Part: { } part } run } ? part.Start + words.IndexAt(Local(run, point)) : null;
+    }
+
+    /// <summary>
+    /// The innermost piece taking in <paramref name="point"/> that slides sideways (<see cref="LayoutSlide"/>), what it says of its sliding,
+    /// and where the point is in its own frame — what a sideways turn of the wheel, or a hold of its bar, slides. Null where nothing there does.
+    /// </summary>
+    public static (LayoutPiece Piece, LayoutSlide Slide, LayoutPoint Within)? SlideAt(this LayoutPiece root, LayoutPoint point)
+    {
+        (LayoutPiece Piece, LayoutSlide Slide, LayoutPoint Within)? found = null;
+
+        // Parents first, so the last that takes the point in is the innermost.
+        foreach (var (piece, where) in PlacedNear(root, reach => Contains(reach, point)))
+            if (piece.Acts?.Slide is { } slide && Contains(where, point)) found = (piece, slide, Local(piece, point));
+
+        return found;
+    }
+
+    /// <summary>
+    /// The innermost piece that slides sideways (<see cref="LayoutSlide"/>) holding <paramref name="offset"/>, what it says of its sliding, and
+    /// how far across its own frame the caret at that offset stands — what has to slide for the place to show. Null where nothing that slides
+    /// holds it.
+    /// </summary>
+    public static (LayoutPiece Piece, LayoutSlide Slide, double Across)? SlideHolding(this LayoutPiece root, int offset)
+    {
+        var caret = root.CaretRect(offset);
+        if (caret.IsEmpty) return null;
+
+        (LayoutPiece Piece, LayoutSlide Slide, double Across)? found = null;
+        var middle = new LayoutPoint(caret.X, caret.Y + (caret.Height / 2));
+
+        foreach (var piece in SittingIn(root, offset, offset))
+            if (piece.Acts?.Slide is { } slide && piece.Part is { } part && offset >= part.Start && offset <= part.End())
+                found = (piece, slide, Local(piece, middle).X);
+
+        return found;
     }
 
     /// <summary>Every leaf a caret stands in that is level with <paramref name="y"/> on the page, and where it stands: a row of what is set there.</summary>

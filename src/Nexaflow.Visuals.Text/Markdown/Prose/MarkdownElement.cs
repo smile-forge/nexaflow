@@ -159,6 +159,10 @@ public sealed class MarkdownElement : LinkedElement
             return true;
         }
 
+        // A box slid away from it slides to it: its end, and then its start, which is what shows where it cannot all show at once.
+        SlideOnto(what.Start + what.Length);
+        SlideOnto(what.Start);
+
         var shown = Whole(what);
 
         BringOnto(new LayoutRect(shown.X, shown.Y, shown.Width, shown.Height));

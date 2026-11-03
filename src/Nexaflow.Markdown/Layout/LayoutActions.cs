@@ -11,6 +11,30 @@ public sealed record LayoutActions
 
     /// <summary>What choosing it means, for a host following the selection.</summary>
     public LayoutAsk? Select { get; init; }
+
+    /// <summary>What sliding it sideways means, for a piece showing only part of what it holds across (<see cref="LayoutSlide"/>).</summary>
+    public LayoutSlide? Slide { get; init; }
+}
+
+/// <summary>
+/// A piece showing only part of what it holds across — a box narrower than the lines of code it keeps whole — and so slid sideways
+/// to show the rest: <paramref name="Shown"/> across of the <paramref name="Whole"/> it holds, from <paramref name="At"/> along. The
+/// host knows what is slid by <paramref name="Reader"/>, which it handed the builder (<see cref="LayoutHost.SlideOf"/>), so how far
+/// the reader slid it is kept against the same content through every edit; nothing a builder reads.
+/// </summary>
+public sealed record LayoutSlide(double Shown, double Whole, double At, object Reader)
+{
+    /// <summary>The furthest along it can be slid: to where the last of what it holds shows.</summary>
+    public double Furthest => Math.Max(0, Whole - Shown);
+
+    /// <summary>Where what shows stands, in the piece's own frame.</summary>
+    public LayoutRect Window { get; init; }
+
+    /// <summary>Where the bar saying how much shows, and where along it, stands in the piece's own frame — empty where it has none.</summary>
+    public LayoutRect Bar { get; init; }
+
+    /// <summary>Where the part of that bar standing for what shows stands, in the piece's own frame: what the reader takes hold of.</summary>
+    public LayoutRect Thumb { get; init; }
 }
 
 /// <summary>

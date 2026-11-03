@@ -345,10 +345,59 @@
           "method": "Fenced"
         }
       ]
+    },
+    "md-code-slide": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutActions.cs",
+          "class": "LayoutSlide"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "SlidIn"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutQuery.cs",
+          "class": "LayoutQuery",
+          "method": "SlideAt"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Slides.cs",
+          "class": "ContentEngine",
+          "method": "SlideOnto"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/ContentElement.cs",
+          "class": "ContentElement",
+          "method": "PointerSlid"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutBuilder.cs",
+          "class": "LayoutBuilder",
+          "method": "Close"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/SlidingBoxTests.cs",
+            "class": "SlidingBoxTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 11,
+  "changed_sets": 13,
   "touched_nodes": [
     "content-margins",
     "markdown-find",
@@ -357,6 +406,7 @@
     "markdown-source-line-numbers",
     "markdown-split",
     "md-code-highlighting",
+    "md-code-slide",
     "md-plain-text",
     "windowed-reading"
   ]

@@ -352,7 +352,7 @@ public class MarkdownBuilderTests
     }
 
     [TestMethod]
-    public void AFenceOfCodeIsSetInTheBoxToo_ItsLinesKeptWhole_TheBoxWideningWithThem()
+    public void AFenceOfCodeIsSetInTheBoxABareFenceIs()
     {
         const string body = "var x = 1;\nvar y = 2;\n";
         var code = Lay($"```csharp\n{body}```\n", room: 300);
@@ -360,13 +360,7 @@ public class MarkdownBuilderTests
 
         Assert.AreEqual(1, Pieces(code, CodeKinds.Code).Count, "the code language laid it");
         Assert.AreEqual(bare.Size.Height, code.Size.Height, 0.01, "in the box a bare fence is set in");
-        Assert.AreEqual(bare.Size.Width, code.Size.Width, 0.01, "as wide as the room, where its lines fit");
-
-        var line = "var said = \"" + new string('x', 80) + "\";";
-        var wide = Lay($"```csharp\n{line}\n```\n", room: 300);
-
-        Assert.AreEqual(Lay("```csharp\nvar x = 1;\n```\n", room: 300).Size.Height, wide.Size.Height, 0.01, "a long line of code is kept whole");
-        Assert.IsTrue(wide.Size.Width > 300, "and the box widens with it rather than the line running out of it");
+        Assert.AreEqual(bare.Size.Width, code.Size.Width, 0.01, "as wide as the room");
     }
 
     [TestMethod]

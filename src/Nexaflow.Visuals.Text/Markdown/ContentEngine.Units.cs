@@ -219,6 +219,7 @@ public sealed partial class ContentEngine
 
         return window.Staged.TryGetValue(unit.Tree, out var staged) && !staged.Stale && !staged.LaidStale && staged.Key == this.KeyFor(showing, start, unit.Width)
                && staged.Laid is { } laid && laid.Room == room && laid.ReadOnly == readOnly && laid.Folds == this.Folds(window, start, unit.Width)
+               && laid.SlidVersion == _slidVersion
             ? laid
             : null;
     }
@@ -325,7 +326,7 @@ public sealed partial class ContentEngine
                 Func<ContentPart, LayoutFold>? folds = window.Placing is null ? Folding : null;
                 var made = Builder(language, reading, Building(window, showing), standingAs, holding, folds, reaches).Lay(room);
 
-                staged.Laid = new LaidUnit(made, Where(window, start), reading.Root, room, readOnly, this.Folds(window, start, unit.Width));
+                staged.Laid = new LaidUnit(made, Where(window, start), reading.Root, room, readOnly, this.Folds(window, start, unit.Width), _slidVersion);
                 staged.LaidStale = false;
             }
             finally
@@ -768,7 +769,7 @@ public sealed partial class ContentEngine
     /// What a unit was laid into: the laying, where the unit started then, the root of the reading it was laid from, and what it was
     /// laid with — kept while the unit is, and the room, whether it is only read and the folds reaching into it are as they were.
     /// </summary>
-    private sealed record LaidUnit(Laid Laid, int Start, ContentPart Root, double Room, bool ReadOnly, string Folds);
+    private sealed record LaidUnit(Laid Laid, int Start, ContentPart Root, double Room, bool ReadOnly, string Folds, int SlidVersion);
 }
 
 /// <summary>

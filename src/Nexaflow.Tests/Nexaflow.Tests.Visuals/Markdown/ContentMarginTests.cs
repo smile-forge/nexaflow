@@ -47,7 +47,9 @@ public class ContentMarginTests
 
         Shown(text, surface =>
         {
-            Assert.IsTrue(surface.ShowFrom(ContentDocument.Of(text).OffsetOf(19_999)));
+            // The page has a height to stand anywhere only once it is laid out, which a loaded machine can take a while over.
+            Settle(surface);
+            Assert.IsTrue(surface.ShowFrom(ContentDocument.Of(text).OffsetOf(19_999)), "the page could not stand at line 20,000");
 
             Settle(surface);
 

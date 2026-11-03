@@ -16,6 +16,7 @@ using System.Windows.Automation.Peers;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
+using System.Windows.Interop;
 
 namespace Nexaflow.Visuals.Text.Editing;
 
@@ -92,10 +93,12 @@ public class ContentElement : FrameworkElement
         // and faults deep inside the splay tree.
         Focusable = false;
 
+        Loaded += (_, _) => HookSideways();
         Unloaded += (_, _) =>
         {
             StopBlinking();
             Tip(null);
+            UnhookSideways();
         };
     }
 
@@ -640,6 +643,67 @@ public class ContentElement : FrameworkElement
 
     /// <summary>Two presses at a point on this content — taken by the engine as what they mean there.</summary>
     public bool PointerDoubleClick(Point pointInElement) => _engine.Input(new ContentPress(Unscaled(pointInElement), 2));
+
+    /// <summary>How far one notch of the wheel slides a box sideways, in the content's own units.</summary>
+    private const double SlidePerNotch = 48;
+
+    /// <summary>
+    /// The wheel turned sideways over a point on this content, <paramref name="notches"/> notches towards the end of its lines — a touchpad's
+    /// sweep being parts of one — taken by the engine as a slide of the box there. False where nothing there slides.
+    /// </summary>
+    public bool PointerSlid(Point pointInElement, double notches) =>
+        _engine.Input(new ContentSlide(Unscaled(pointInElement), notches * SlidePerNotch));
+
+    /// <summary>Brings <paramref name="offset"/> into the box it is set in, where that box has slid it out of view — see <see cref="ContentEngine.SlideOnto"/>.</summary>
+    protected bool SlideOnto(int offset) => _engine.SlideOnto(offset);
+
+    /// <inheritdoc />
+    protected override void OnMouseWheel(MouseWheelEventArgs e)
+    {
+        base.OnMouseWheel(e);
+
+        if (!e.Handled && WheeledSideways(e)) e.Handled = true;
+    }
+
+    /// <summary>
+    /// The wheel turned with Shift held, which turns it sideways as it does everywhere on Windows — turned up, back towards the start of the
+    /// lines — taken as a slide of the box under the pointer. Whether a box slid.
+    /// </summary>
+    internal bool WheeledSideways(MouseWheelEventArgs e) =>
+        Keyboard.Modifiers == ModifierKeys.Shift && PointerSlid(e.GetPosition(this), -e.Delta / (double)Mouse.MouseWheelDeltaForOneLine);
+
+    /// <summary>The window this is shown in, while it hands this the wheel turned sideways — which WPF hands nothing.</summary>
+    private HwndSource? _sideways;
+
+    /// <summary>What Windows says when the wheel is tilted, or a touchpad swept, sideways.</summary>
+    private const int WmMouseHWheel = 0x020E;
+
+    /// <summary>Listens to the window this is shown in for the wheel turned sideways.</summary>
+    private void HookSideways()
+    {
+        if (_sideways is not null || PresentationSource.FromVisual(this) is not HwndSource window) return;
+
+        _sideways = window;
+        window.AddHook(Sideways);
+    }
+
+    /// <summary>Stops listening for the wheel turned sideways.</summary>
+    private void UnhookSideways()
+    {
+        _sideways?.RemoveHook(Sideways);
+        _sideways = null;
+    }
+
+    /// <summary>The wheel turned sideways while the pointer is over this content: the box under it slid, tilted right being towards the end of its lines.</summary>
+    private IntPtr Sideways(IntPtr window, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (message != WmMouseHWheel || handled || !IsMouseOver) return IntPtr.Zero;
+
+        var delta = (short)((wParam.ToInt64() >> 16) & 0xFFFF);
+        if (PointerSlid(Mouse.GetPosition(this), delta / (double)Mouse.MouseWheelDeltaForOneLine)) handled = true;
+
+        return IntPtr.Zero;
+    }
 
     /// <summary>What the piece under a point means by <paramref name="gesture"/>, or null where nothing there means anything by it.</summary>
     protected LayoutAct? Offered(LayoutPoint at, LayoutGesture gesture) => _engine.Offered(at, gesture);
