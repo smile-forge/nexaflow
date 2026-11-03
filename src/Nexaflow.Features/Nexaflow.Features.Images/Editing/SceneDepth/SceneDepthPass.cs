@@ -32,7 +32,7 @@ public static class SceneDepthPass
         var nearness = plane.OnCanvas(photoToCanvas, photo, new SKSizeI(width, height));
 
         if (recipe.DepthHaze is { } haze)
-            DepthHaze.Apply(rgba, nearness, width, height, (float)haze.Density, (float)haze.Start, haze.Colour is { } colour ? Linear(colour) : distance);
+            DepthHaze.Apply(rgba, plane.Distances(nearness), width, height, (float)haze.Density, (float)haze.Start, haze.Colour is { } colour ? Linear(colour) : distance);
         if (recipe.LensBlur is { } blur)
         {
             float focus = plane.FocusAt(blur.FocusX, blur.FocusY, photo);

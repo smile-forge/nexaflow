@@ -25,7 +25,8 @@ public static class RegionSceneDepths
     /// <summary>
     /// Each pixel's coverage, 0–255, of a <paramref name="canvas"/>-sized picture that <paramref name="photoToCanvas"/> draws a
     /// <paramref name="size"/> photo onto, by the span from <paramref name="near"/> to <paramref name="far"/> of the photo's
-    /// distance, fading out over <paramref name="softness"/> past either end; nothing where the photo does not reach.
+    /// distance (<see cref="SceneDepthPlane.Distance"/>), fading out over <paramref name="softness"/> past either end; nothing
+    /// where the photo does not reach.
     /// </summary>
     public static byte[] SpanOnCanvas(SceneDepthPlane plane, SKMatrix photoToCanvas, SKSizeI size, SKSizeI canvas, double near, double far, double softness)
     {
@@ -42,7 +43,7 @@ public static class RegionSceneDepths
                 double px = toPhoto.ScaleX * cx + toPhoto.SkewX * cy + toPhoto.TransX;
                 double py = toPhoto.SkewY * cx + toPhoto.ScaleY * cy + toPhoto.TransY;
                 if (px < 0 || py < 0 || px >= size.Width || py >= size.Height) continue;
-                double distance = 1 - plane.At(px, py, size);
+                double distance = plane.Distance(plane.At(px, py, size));
                 double inside = distance < near ? Fade(near - distance, soft) : distance > far ? Fade(distance - far, soft) : 1;
                 coverage[row * canvas.Width + col] = (byte)Math.Round(inside * 255);
             }

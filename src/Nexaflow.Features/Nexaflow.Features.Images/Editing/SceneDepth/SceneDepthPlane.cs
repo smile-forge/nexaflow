@@ -8,23 +8,61 @@ namespace Nexaflow.Features.Images.Editing.SceneDepth;
 /// <summary>
 /// The scene depth of an upright photo as <b>nearness</b>: 1 where the estimator saw the nearest part, 0 the farthest — its
 /// disparity spread over 0 to 1 — at the size the estimator read the photo, its corners on the photo's corners. Disparity is
-/// what a lens's blur goes by: how far a part is out of focus grows with how far its disparity is from the focus's. Its
-/// scale is the picture's own, so nearness says what is nearer than what, not how many metres.
+/// what a lens's blur goes by: how far a part is out of focus grows with how far its disparity is from the focus's.
+/// <para>
+/// Disparity falls as one over distance, so on its own scale everything past a few times the nearest part's distance crowds
+/// together near 0. What a person — or an assistant — means by near and far is told on <b>distance</b> instead
+/// (<see cref="Distance"/>): how many times farther a part is than the nearest, on a log scale from 0 at the nearest to 1 at
+/// <see cref="DistanceRange"/> times as far, so each third of it is ten times as far as the last. The scale is the
+/// picture's own: it says how many times farther, not how many metres.
+/// </para>
 /// </summary>
 public sealed class SceneDepthPlane
 {
     private const uint Magic = 0x4453584E;   // "NXSD"
-    private const int FormatVersion = 1;
+    private const int FormatVersion = 2;
+
+    private const int HeaderLength = 24;
+
+    /// <summary>How many times the nearest part's distance a distance of 1 stands for; anything farther — the sky — is 1 too.</summary>
+    public const double DistanceRange = 1000;
 
     private readonly float[] _nearness;
 
-    public SceneDepthPlane(float[] nearness, int width, int height)
+    /// <param name="farthestToNearest">The farthest part's disparity over the nearest's, 0 to 1: what turns a nearness back into
+    /// how many times farther than the nearest part it is. 0 where the farthest is as good as endlessly far, as a sky is.</param>
+    public SceneDepthPlane(float[] nearness, int width, int height, double farthestToNearest = 0)
     {
         if (width <= 0 || height <= 0 || nearness.Length != width * height)
             throw new ArgumentException($"A {width}x{height} plane holds {width * height} values, not {nearness.Length}.", nameof(nearness));
         _nearness = nearness;
         Width = width;
         Height = height;
+        FarthestToNearest = Math.Clamp(farthestToNearest, 0, 1);
+    }
+
+    /// <summary>The farthest part's disparity over the nearest's, 0 to 1.</summary>
+    public double FarthestToNearest { get; }
+
+    /// <summary>
+    /// How far a part of nearness <paramref name="nearness"/> lies, 0 (the nearest part) to 1 (<see cref="DistanceRange"/> times
+    /// as far, or farther): the log of how many times farther it is than the nearest, its disparity being one over its distance.
+    /// </summary>
+    public float Distance(float nearness)
+    {
+        double disparity = FarthestToNearest + Math.Clamp(nearness, 0f, 1f) * (1 - FarthestToNearest);
+        return disparity <= 1 / DistanceRange ? 1f : (float)Math.Clamp(-Math.Log(disparity) / Math.Log(DistanceRange), 0, 1);
+    }
+
+    /// <summary>Each of <paramref name="nearness"/> as a distance (<see cref="Distance"/>).</summary>
+    public float[] Distances(float[] nearness)
+    {
+        var distances = new float[nearness.Length];
+        Parallel.For(0, nearness.Length / 4096 + 1, block =>
+        {
+            for (int i = block * 4096, end = Math.Min(nearness.Length, i + 4096); i < end; i++) distances[i] = Distance(nearness[i]);
+        });
+        return distances;
     }
 
     public int Width { get; }
@@ -34,7 +72,8 @@ public sealed class SceneDepthPlane
     /// <summary>Each value's nearness, row by row.</summary>
     public ReadOnlySpan<float> Nearness => _nearness;
 
-    /// <summary>The estimator's disparity, larger nearer, spread over 0 to 1: its least 0, its most 1 — all 1 where it is flat.</summary>
+    /// <summary>The estimator's disparity, larger nearer, spread over 0 to 1: its least 0, its most 1 — all 1 where it is flat —
+    /// with the least over the most kept, for distance.</summary>
     public static SceneDepthPlane FromDisparity(ReadOnlySpan<float> disparity, int width, int height)
     {
         float least = float.MaxValue, most = float.MinValue;
@@ -48,7 +87,7 @@ public sealed class SceneDepthPlane
         if (span <= 0 || !float.IsFinite(span)) Array.Fill(nearness, 1f);
         else
             for (int i = 0; i < disparity.Length; i++) nearness[i] = Math.Clamp((disparity[i] - least) / span, 0f, 1f);
-        return new SceneDepthPlane(nearness, width, height);
+        return new SceneDepthPlane(nearness, width, height, span > 0 && most > 0 ? Math.Max(0, least) / most : 1);
     }
 
     /// <summary>The nearness at (<paramref name="x"/>, <paramref name="y"/>) on a <paramref name="photo"/>-sized upright photo, in
@@ -119,14 +158,15 @@ public sealed class SceneDepthPlane
         return top * (1 - fy) + bottom * fy;
     }
 
-    /// <summary>The plane as it is kept: a header, then each nearness in 16 bits.</summary>
+    /// <summary>The plane as it is kept: a header — its size and the farthest over the nearest — then each nearness in 16 bits.</summary>
     public void Write(Stream into)
     {
-        Span<byte> header = stackalloc byte[16];
+        Span<byte> header = stackalloc byte[HeaderLength];
         BinaryPrimitives.WriteUInt32LittleEndian(header, Magic);
         BinaryPrimitives.WriteInt32LittleEndian(header[4..], FormatVersion);
         BinaryPrimitives.WriteInt32LittleEndian(header[8..], Width);
         BinaryPrimitives.WriteInt32LittleEndian(header[12..], Height);
+        BinaryPrimitives.WriteDoubleLittleEndian(header[16..], FarthestToNearest);
         into.Write(header);
         var values = new byte[_nearness.Length * 2];
         for (int i = 0; i < _nearness.Length; i++)
@@ -138,14 +178,15 @@ public sealed class SceneDepthPlane
     /// <exception cref="InvalidDataException">It is not one, or it is cut short.</exception>
     public static SceneDepthPlane Read(ReadOnlySpan<byte> kept)
     {
-        if (kept.Length < 16 || BinaryPrimitives.ReadUInt32LittleEndian(kept) != Magic || BinaryPrimitives.ReadInt32LittleEndian(kept[4..]) != FormatVersion)
-            throw new InvalidDataException("This is not a scene depth Nexaflow kept.");
+        if (kept.Length < HeaderLength || BinaryPrimitives.ReadUInt32LittleEndian(kept) != Magic || BinaryPrimitives.ReadInt32LittleEndian(kept[4..]) != FormatVersion)
+            throw new InvalidDataException("This is not a scene depth this build keeps.");
         int width = BinaryPrimitives.ReadInt32LittleEndian(kept[8..]), height = BinaryPrimitives.ReadInt32LittleEndian(kept[12..]);
-        if (width <= 0 || height <= 0 || kept.Length != 16 + (long)width * height * 2)
+        if (width <= 0 || height <= 0 || kept.Length != HeaderLength + (long)width * height * 2)
             throw new InvalidDataException("The kept scene depth is cut short.");
+        double farthestToNearest = BinaryPrimitives.ReadDoubleLittleEndian(kept[16..]);
         var nearness = new float[width * height];
-        var values = kept[16..];
+        var values = kept[HeaderLength..];
         for (int i = 0; i < nearness.Length; i++) nearness[i] = BinaryPrimitives.ReadUInt16LittleEndian(values[(i * 2)..]) / (float)ushort.MaxValue;
-        return new SceneDepthPlane(nearness, width, height);
+        return new SceneDepthPlane(nearness, width, height, farthestToNearest);
     }
 }

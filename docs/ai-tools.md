@@ -175,7 +175,12 @@ resizes to what OpenCV and PyTorch make of small pictures.
 
 **For features.** `ISceneDepth.EstimateAsync` takes a picture by file and writes its disparity, at its working size, to
 another. Images keeps each photo's in `SceneDepthMaps`, by the photo's content and `ISceneDepth.ModelsVersion`, as
-nearness from 0 (its farthest part) to 1 (its nearest) in 16 bits — under a megabyte a photo (`SceneDepthPlane`).
+nearness from 0 (its farthest part) to 1 (its nearest) in 16 bits — under a megabyte a photo (`SceneDepthPlane`) — with
+the farthest part's disparity over the nearest's. A lens's blur goes by disparity, but disparity falls as one over
+distance, so on its scale everything past a few times the nearest part's distance crowds against far: what a person or an
+assistant means by near and far — haze, selecting by distance, the assistant's answers — is told on **distance**
+(`SceneDepthPlane.Distance`), the log of how many times farther a part is than the nearest, from 0 to 1 at a thousand times
+as far or the sky, so each third is ten times as far as the last.
 
 **Memory.** The graph peaks at 1.6 GB of GPU memory for a 3:2 photo and 2.9 GB at its longest, so it runs on a 4 GB card,
 and on the CPU where there is none: 9 ms on an RTX PRO 6000, 0.2 s on 16 CPU threads. The download is 96 MB. The host is
@@ -200,7 +205,8 @@ never runs the model again. The render pipeline draws both in a pass of its own 
   layers behind it, farthest first, the light divided by the coverage at the end: a pixel shared between rungs keeps its
   light, a blurred layer's edge leaves no seam, what is in front spreads over what is behind but never the reverse, and
   what lay behind a sharp subject is filled from round it rather than with its colour.
-- **The haze** keeps `e^(−thickness × distance)` of each part's light, its distance measured from where the haze starts.
+- **The haze** keeps `e^(−thickness × distance)` of each part's light, its distance measured on the picture's distance
+  from where the haze starts.
 
 Select and Retouch select **by distance** too: a span from near to far with a soft edge, in their modes. On a photo it is a
 region step kept as its span (`RegionSceneDepth`), worked out from the photo's kept depth wherever a mask is made of it

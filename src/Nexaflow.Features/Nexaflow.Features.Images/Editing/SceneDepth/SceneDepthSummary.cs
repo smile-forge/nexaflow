@@ -52,7 +52,7 @@ public static class SceneDepthSummary
             for (int y = 0; y < h; y++)
                 for (int x = 0; x < w; x++)
                 {
-                    if (BandOf(1 - nearness[y * w + x]) != band) continue;
+                    if (BandOf(plane.Distance(nearness[y * w + x])) != band) continue;
                     columns[x]++;
                     rows[y]++;
                     count++;
@@ -84,7 +84,8 @@ public static class SceneDepthSummary
                                   IReadOnlyList<string> unfound)
     {
         var text = new StringBuilder();
-        text.Append(CultureInfo.InvariantCulture, $"Scene depth of {picture} ({size.Width}x{size.Height}), as distance from 0 (its nearest part) to 1 (its farthest). ");
+        text.Append(CultureInfo.InvariantCulture, $"Scene depth of {picture} ({size.Width}x{size.Height}), as distance from 0 (its nearest part) to 1 (a thousand times as far, or the sky), ");
+        text.Append("each third ten times as far as the last — so near is within ten times the nearest part's distance, far past a hundred times. ");
         text.AppendLine("Boxes are [left, top, right, bottom] in fractions of the picture's width and height.");
         foreach (var band in bands)
         {

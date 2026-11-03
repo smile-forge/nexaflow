@@ -3,7 +3,8 @@ namespace Nexaflow.Features.Images.Editing.SceneDepth;
 /// <summary>
 /// Haze laid over a picture by its scene depth, as air lays it over distance: each part keeps
 /// <c>e^(−thickness × distance)</c> of its own light and takes the rest from the haze's colour, so the near stays clear and
-/// the far fades into it. Distance runs from the haze's start, nearer than which is clear, to the farthest part.
+/// the far fade into it. Distance is the picture's own (<see cref="SceneDepthPlane.Distance"/>), on which each third is ten
+/// times as far as the last, run from the haze's start, nearer than which is clear, to the farthest part.
 /// </summary>
 public static class DepthHaze
 {
@@ -18,17 +19,17 @@ public static class DepthHaze
     /// <paramref name="start"/> (0–1, nearest to farthest) say, in <paramref name="haze"/>'s linear light. A pixel's coverage is
     /// kept: haze lies over what is there, never over what is not.
     /// </summary>
-    /// <param name="nearness">Each pixel's nearness (<see cref="SceneDepthPlane"/>), 1 nearest.</param>
-    public static void Apply(float[] rgba, float[] nearness, int width, int height, float density, float start, (float R, float G, float B) haze)
+    /// <param name="distances">Each pixel's distance (<see cref="SceneDepthPlane.Distance"/>), 0 nearest.</param>
+    public static void Apply(float[] rgba, float[] distances, int width, int height, float density, float start, (float R, float G, float B) haze)
     {
-        if (rgba.Length != width * height * 4 || nearness.Length != width * height) throw new ArgumentException("The picture and its depth are not the size given.");
+        if (rgba.Length != width * height * 4 || distances.Length != width * height) throw new ArgumentException("The picture and its depth are not the size given.");
         float thickness = Math.Clamp(density, 0, 1) * Thickest;
         float from = Math.Clamp(start, 0, 0.99f);
         Parallel.For(0, height, y =>
         {
             for (int i = y * width, end = i + width; i < end; i++)
             {
-                float distance = Math.Max(0, 1 - nearness[i] - from) / (1 - from);
+                float distance = Math.Max(0, distances[i] - from) / (1 - from);
                 float kept = MathF.Exp(-thickness * distance);
                 float a = rgba[i * 4 + 3], into = (1 - kept) * a;
                 rgba[i * 4] = rgba[i * 4] * kept + haze.R * into;

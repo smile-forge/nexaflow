@@ -120,12 +120,18 @@ public class ImageSceneDepthTests
     {
         var plane = SceneDepthPlane.FromDisparity([2f, 4f, 6f, 10f], 2, 2);
         CollectionAssert.AreEqual(new[] { 0f, 0.25f, 0.5f, 1f }, plane.Nearness.ToArray());
+        Assert.AreEqual(0.2, plane.FarthestToNearest, 1e-6, "the farthest's disparity over the nearest's is kept");
+        Assert.AreEqual(0f, plane.Distance(1f), 1e-6f, "the nearest part is at distance 0");
+        Assert.AreEqual((float)(Math.Log(5) / Math.Log(SceneDepthPlane.DistanceRange)), plane.Distance(0f), 1e-6f,
+                        "the farthest, five times as far, at the log of five on a scale of a thousand");
+        Assert.AreEqual(1f, new SceneDepthPlane([0f, 1f], 2, 1).Distance(0f), "a sky, endlessly far, is as far as distance goes");
 
         using var kept = new MemoryStream();
         plane.Write(kept);
         var read = SceneDepthPlane.Read(kept.ToArray());
         Assert.AreEqual(2, read.Width);
         for (int i = 0; i < 4; i++) Assert.AreEqual(plane.Nearness[i], read.Nearness[i], 1e-4f);
+        Assert.AreEqual(plane.FarthestToNearest, read.FarthestToNearest, "and read back");
         Assert.ThrowsExactly<InvalidDataException>(() => SceneDepthPlane.Read(kept.ToArray().AsSpan(0, 20)));
     }
 
@@ -200,8 +206,8 @@ public class ImageSceneDepthTests
     public void Haze_LeavesTheNearClear_AndFadesTheFarIntoItsColour()
     {
         var rgba = new float[] { 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0 };
-        var nearness = new float[] { 1f, 0f, 0f };
-        DepthHaze.Apply(rgba, nearness, 3, 1, density: 1, start: 0, (0.8f, 0.8f, 0.8f));
+        var distances = new float[] { 0f, 1f, 1f };
+        DepthHaze.Apply(rgba, distances, 3, 1, density: 1, start: 0, (0.8f, 0.8f, 0.8f));
         Assert.AreEqual(0f, rgba[0], 1e-6f, "the nearest part is clear");
         Assert.AreEqual(0.8f * (1 - MathF.Exp(-DepthHaze.Thickest)), rgba[4], 1e-4f, "the farthest is nearly the haze");
         Assert.AreEqual(0f, rgba[8], 1e-6f, "haze lies over what is there, never over what is not");
@@ -364,13 +370,16 @@ public class ImageSceneDepthTests
     [CoversNode("images-edit-ai-describe-scene-depth")]
     public void TheDepthSummary_TellsNearMiddleAndFar_WithBoxes_NeverTheDepth()
     {
-        var plane = new SceneDepthPlane([1f, 1f, 0.5f, 0f, 1f, 1f, 0.5f, 0f], 4, 2);
+        // Nearness 1 at the nearest, 0.05 twenty times as far (the middle), 0 the sky.
+        var plane = new SceneDepthPlane([1f, 1f, 0.05f, 0f, 1f, 1f, 0.05f, 0f], 4, 2);
         var bands = SceneDepthSummary.Bands(plane);
         Assert.AreEqual(0.5, bands[0].Share, 1e-9, "half of it is near");
         Assert.AreEqual(0, bands[0].Box!.Left, 1e-9);
         Assert.AreEqual(0.5, bands[0].Box!.Right, 1e-9);
+        Assert.AreEqual(0.25, bands[1].Share, 1e-9, "twenty times as far is the middle: between ten and a hundred times");
+        Assert.AreEqual(0.25, bands[2].Share, 1e-9, "the sky is far");
         var text = SceneDepthSummary.Describe("p.jpg", new SKSizeI(400, 200), bands,
-                                              [new ThingDepth("dog", 0.9, new PictureBox(0.1, 0.2, 0.3, 0.9), new SubjectDepth(0.1, 0.05, 0.2, new MarkupPoint(10, 10)))], ["cat"]);
+                                              [new ThingDepth("dog", 0.9, new PictureBox(0.1, 0.2, 0.3, 0.9), new SubjectDepth(0.1, 0.05, 0.2, new MarkupPoint(10, 10), 0.03))], ["cat"]);
         StringAssert.Contains(text, "near (0-0.33): 50%");
         StringAssert.Contains(text, "\"dog\" (0.90 sure) at [0.10, 0.20, 0.30, 0.90]: near, distance 0.10");
         StringAssert.Contains(text, "\"cat\": not found");
@@ -414,7 +423,8 @@ public class ImageSceneDepthTests
         Assert.IsNull(vm.CurrentSession!.Recipe.DepthHaze);
     }
 
-    /// <summary>Scene depth: the nearest at the left edge, the farthest at the right, at a small working size; counts its asks.</summary>
+    /// <summary>Scene depth: the nearest at the left edge and a thousand times as far at the right, its disparity — and so its
+    /// nearness — falling evenly across, at a small working size; counts its asks.</summary>
     private sealed class Ramp : ISceneDepth
     {
         private int _asks;
@@ -435,7 +445,7 @@ public class ImageSceneDepthTests
             const int w = 48, h = 32;
             var disparity = new float[w * h];
             for (int y = 0; y < h; y++)
-                for (int x = 0; x < w; x++) disparity[y * w + x] = 3f * (1 - x / (float)(w - 1)) + 0.5f;
+                for (int x = 0; x < w; x++) disparity[y * w + x] = 10f * (1 - x / (float)(w - 1)) + 0.01f;
             File.WriteAllBytes(request.Into, MemoryMarshal.AsBytes(disparity.AsSpan()).ToArray());
             return Task.FromResult(new SceneDepthEstimate(w, h));
         }
