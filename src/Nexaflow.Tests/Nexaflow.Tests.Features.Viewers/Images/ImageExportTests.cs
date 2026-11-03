@@ -126,6 +126,35 @@ public class ImageExportTests
     }
 
     [TestMethod]
+    [CoversNode("images-decode")]
+    public void ASixteenBitPng_IsReadAtSixteenBits_AnEightBitOneAtEight()
+    {
+        using var wide = new SKBitmap(new SKImageInfo(4, 4, SKColorType.RgbaF16, SKAlphaType.Premul, SKColorSpace.CreateSrgb()));
+        // Half way: 127.5 on an 8-bit scale, between two of its levels.
+        using (var canvas = new SKCanvas(wide)) canvas.Clear(new SKColorF(0.5f, 0.5f, 0.5f, 1));
+        using var picture = SKImage.FromBitmap(wide);
+        var png = Services.Encoders.Encode(picture, ImageContainer.Png, new EncodeOptions(90), MetadataBlocks.None);
+        Assert.AreEqual(16, ImageContainers.DeclaredBitsPerChannel(png, ImageContainer.Png), "the PNG's header declares its depth");
+
+        using var deep = Services.Decoders.Decode(png, null);
+        Assert.IsTrue(deep.IsHighBitDepth, "read back as more than 8 bits a channel, as its header declares");
+        Assert.AreEqual(SKColorType.RgbaF16, deep.Pixels.ColorType);
+    using var read = new SKBitmap(new SKImageInfo(4, 4, SKColorType.RgbaF16, SKAlphaType.Unpremul, SKColorSpace.CreateSrgb()));
+    Assert.IsTrue(deep.Pixels.ReadPixels(read.Info, read.GetPixels(), read.RowBytes, 0, 0));
+        Assert.AreEqual(0.5f, ReadRed(read), 0.0005f, "a tone between two 8-bit levels survives");
+
+        using var narrow = new SKBitmap(new SKImageInfo(4, 4, SKColorType.Rgba8888, SKAlphaType.Premul, SKColorSpace.CreateSrgb()));
+        narrow.Erase(new SKColor(128, 128, 128));
+        using var narrowPicture = SKImage.FromBitmap(narrow);
+        var eightBit = Services.Encoders.Encode(narrowPicture, ImageContainer.Png, new EncodeOptions(90), MetadataBlocks.None);
+        Assert.AreEqual(8, ImageContainers.DeclaredBitsPerChannel(eightBit, ImageContainer.Png));
+        using var shallow = Services.Decoders.Decode(eightBit, null);
+        Assert.IsFalse(shallow.IsHighBitDepth, "an 8-bit PNG stays 8-bit");
+
+        static float ReadRed(SKBitmap bitmap) => (float)System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Half>(bitmap.GetPixelSpan())[0];
+    }
+
+    [TestMethod]
     [CoversNode("images-bake")]
     public async Task SavingOverTheOriginal_LeavesOnlyTheNewFile()
     {

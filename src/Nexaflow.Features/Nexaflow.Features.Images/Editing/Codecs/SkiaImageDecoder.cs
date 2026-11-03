@@ -4,7 +4,8 @@ namespace Nexaflow.Features.Images.Editing.Codecs;
 
 /// <summary>
 /// JPEG, PNG, WebP, GIF, BMP and ICO through Skia's codecs. A reduced JPEG is decoded reduced — the codec scales in
-/// the DCT, so a preview of a 50-megapixel photo never decodes 50 megapixels.
+/// the DCT, so a preview of a 50-megapixel photo never decodes 50 megapixels. A picture storing more than 8 bits a channel
+/// — a 16-bit PNG — is decoded into half floats, keeping its depth.
 /// </summary>
 public sealed class SkiaImageDecoder : IImageDecoder
 {
@@ -17,7 +18,9 @@ public sealed class SkiaImageDecoder : IImageDecoder
         using var codec = SKCodec.Create(skData) ?? throw new ImageDecodeException($"Not a readable {container} image.");
 
         var info = codec.Info;
-        bool highBitDepth = info.ColorType is SKColorType.Rgba16161616 or SKColorType.RgbaF16 or SKColorType.RgbaF32 or SKColorType.Rgba1010102;
+        // The codec's own colour type is what it suggests decoding into — 8-bit for a 16-bit PNG — so the file's header says first.
+        bool highBitDepth = ImageContainers.DeclaredBitsPerChannel(data, container) > 8
+                            || info.ColorType is SKColorType.Rgba16161616 or SKColorType.RgbaF16 or SKColorType.RgbaF32 or SKColorType.Rgba1010102;
         var colorType = highBitDepth ? SKColorType.RgbaF16 : SKImageInfo.PlatformColorType;
         var alphaType = info.AlphaType == SKAlphaType.Opaque ? SKAlphaType.Opaque : SKAlphaType.Premul;
 
