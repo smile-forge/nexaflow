@@ -205,16 +205,73 @@
           "class": "LineNumberMargin"
         }
       ]
+    },
+    "md-plain-text": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/PlainText/TextParser.cs",
+          "class": "TextParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/PlainText/TextIntoLines.cs",
+          "class": "TextIntoLines"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/PlainText/TextBuilder.cs",
+          "class": "TextBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Lines/LinedBuilder.cs",
+          "class": "LinedBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Fenced"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
+          "class": "Shipped"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/LineIndenting.cs",
+          "class": "LineIndenting"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/PlainText/TextParserTests.cs",
+            "class": "TextParserTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/PlainText/TextBuilderTests.cs",
+            "class": "TextBuilderTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 6,
+  "changed_sets": 8,
   "touched_nodes": [
     "content-margins",
     "markdown-find",
     "markdown-source-box",
     "markdown-source-line-numbers",
     "markdown-split",
+    "md-plain-text",
     "windowed-reading"
   ]
 }

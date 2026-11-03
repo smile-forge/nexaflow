@@ -13,8 +13,8 @@ namespace Nexaflow.Markdown.Layout.Lines;
 ///
 /// <para>
 /// Lines are kept. Code that reflowed would be code that lied about where a statement ended, and a reader counting columns is the whole
-/// reason it is set in a monospaced face. Where the host asks for text shown as typed instead (<see cref="LayoutHost.WrapsLines"/>) — a
-/// page's source, read as a page — a line too long for the room carries on in rows beneath, broken after the last space that fits
+/// reason it is set in a monospaced face. Where the host asks for text instead (<see cref="LayoutHost.WrapsLines"/>) — a page's source,
+/// read as a page, or a text fence in its box — a line too long for the room carries on in rows beneath, broken after the last space that fits
 /// (<see cref="LineRows"/>), and a piece a row break cuts is laid as pieces standing for their share of it.
 /// </para>
 /// <para>

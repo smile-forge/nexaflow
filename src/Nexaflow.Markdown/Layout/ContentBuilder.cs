@@ -43,8 +43,8 @@ public sealed record LayoutHost(LayoutStanding Standing, LayoutNesting Nesting)
     public LayoutReach? Reach { get; init; }
 
     /// <summary>
-    /// Whether a line too long for the room carries on in rows beneath — for text shown as typed, a page's source read as a page, rather
-    /// than code, whose lines are kept. A builder that heeds it is as tall as the rows it breaks its lines onto.
+    /// Whether a line too long for the room carries on in rows beneath — for text, a page's source read as a page or a text fence in its
+    /// box, rather than code, whose lines are kept. A builder that heeds it is as tall as the rows it breaks its lines onto.
     /// </summary>
     public bool WrapsLines { get; init; }
 

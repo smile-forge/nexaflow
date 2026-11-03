@@ -201,20 +201,26 @@ end of a long document — goes there as it is, and is laid there and brought on
 brought onto the page — found, gone to, laid to — is left where it stands if it is on the screen already, and otherwise stood
 half way down it, so what comes before and after it is there to read it by (`ContentElement.BringOnto`); a caret kept on the
 screen as it moves is brought only as far as it needs. A builder that cannot lay part
-of what it reads lays all of it, as every builder but code's does. A line is coloured
+of what it reads lays all of it, as every builder but those laying line by line does. A line of code is coloured
 and cut in one pass (`CodeParser.InLines`), and one said and coloured as a line the reading was cut into before is that
 line again (`CodeLinePool`), moved along where it now stands — so colours landing for a unit make only the lines they
 changed, and a block kept is hashed once (`WithUnchanged` keeps what each node it asked about came to).
 
-**Text shown as typed** — a page's source beside the page, under `ContentLanguages.AsTyped`, which no language reads — is
-code with no grammar whose lines wrap (`LayoutHost.WrapsLines`, set by `MarkdownSurface.WrapsLines`): a line too long for
-the room carries on in rows beneath, broken after the last space that fits and a word wider than a row broken where the row
-ends, the spaces a row ends on hanging past it and no row ended after nothing but the line's indent, and the rows after
-the first carrying on under that indent — unless it takes half the room or more (`CodeRows`). A token a row break cuts is laid as pieces standing for their
-share of it (`PartSlice`), and a line is set down again only in the room it was laid in. A unit not laid is said as tall as
-the rows its characters break onto with each set at the face's advance (`CodeSetting.HeightOf`), counted where they are held
-— the same rule laying applies to each character measured, so for a monospaced face what is said is what is laid. Only the
-content the engine shows wraps (`ContentShowing.WrapsLines`); content inside it keeps its lines.
+**Text shown as typed** — a page's source beside the page, under `ContentLanguages.AsTyped` — is plain text (`Shipped.Text`). Its
+reading holds the characters as written, cut for the stretches laid into lines, each its words and the spaces between them
+(`TextParser.InLines`, run as the stage `TextIntoLines`): the pieces whatever looks into text — a spelling, a name — finds there.
+Text and code are laid line by line on one base (`LinedBuilder`): the language says what its stretch and its lines are laid as,
+what each piece is inked in and which runs a line is set as — a token each for code, the whole line for text — and the base lays,
+keeps and wraps them. Where the host asks for it (`LayoutHost.WrapsLines`, set by `MarkdownSurface.WrapsLines`), a line too long
+for the room carries on in rows beneath, broken after the last space that fits and a word wider than a row broken where the row
+ends, the spaces a row ends on hanging past it and no row ended after nothing but the line's indent, and the rows after the
+first carrying on under that indent — unless it takes half the room or more (`LineRows`). A run a row break cuts is laid as
+pieces standing for their share of it (`PartSlice`), and a line is set down again only in the room it was laid in. A unit not
+laid is said as tall as the rows its characters break onto with each set at the face's advance (`LinedSetting.HeightOf`),
+counted where they are held — the same rule laying applies to each character measured, so for a monospaced face what is said is
+what is laid. Content inside what the engine shows keeps its lines, unless its language is set as a page sets what it shows as
+written (`ContentLanguage.BoxedAsWritten`, `ContentShowing.WrapsLines`): a text fence is laid in the room inside the box a bare
+fence has, its lines wrapped to fit inside it (`MarkdownBuilder.Fenced`), while code and pictures draw themselves.
 
 **What stands beside the page is drawn from the lines, not into the content.** A builder that lays content line by line says
 where each line it laid stands (`Laid.Lines`); the engine says which of them stand between two heights on the page, and
