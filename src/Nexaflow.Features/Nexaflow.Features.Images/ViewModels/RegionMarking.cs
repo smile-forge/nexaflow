@@ -522,16 +522,32 @@ public sealed partial class RegionMarking : ObservableObject
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private void Smooth() => Refine(new RegionSmooth(RefineBy));
 
-    /// <summary>The photo's subject picked by picture selection — the one thing a box round the whole photo means — in
-    /// place of everything selected before.</summary>
+    /// <summary>The photo's subject picked by picture selection, in place of everything selected before: boxed where its scene depth
+    /// says it stands — the nearest stretch, toward the middle — or, where there is no depth to read, the photo boxed whole.</summary>
     [RelayCommand(CanExecute = nameof(CanSelectSubject))]
     private async Task SelectSubject()
     {
         if (_photoSize() is not { } size) return;
         Clear();
-        await _cutter.BoxedAsync(new PictureBox(0, 0, size.Width, size.Height));
+        var box = await SubjectBoxAsync(size) ?? new PictureBox(0, 0, size.Width, size.Height);
+        await _cutter.BoxedAsync(box);
         // In a layered picture, the subject picked on the active picture layer becomes the canvas's selection.
         TakePicked();
+    }
+
+    // Where the subject stands by the scene depth of the photo, or of the active picture layer; null where there is no depth.
+    private async Task<PictureBox?> SubjectBoxAsync(SKSize photo)
+    {
+        try
+        {
+            var plane = _document is { } document ? await document.SceneDepthAsync()
+                      : _photo is { } path && _readDepth is not null ? await DepthAsync(path) : null;
+            return plane is null ? null : await Task.Run(() => DepthSubject.Box(plane, photo.Width, photo.Height));
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException)
+        {
+            return null;
+        }
     }
 
     /// <summary>
