@@ -118,9 +118,9 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
 
             // AI enhance, kept from the edits, can still be turned off; then it waits for the picture tools, which the panel offers
             // over the picture in place of the kept edits' banner — the AI tools journey turns it on where they are here.
-            Check("AI enhance from the kept edits turns off; its banner goes, and the panel's offer of the AI picture models takes over",
-                  () => SetToggle("Image_EditAiEnhance", false) && WaitForGone("Image_RestoreAction", 3)
-                        && WaitForFs(() => WaitForId("Image_PictureModelsDownload", 1)?.IsEnabled == true, 3));
+            Check("AI enhance from the kept edits turns off", () => SetToggle("Image_EditAiEnhance", false));
+            Check("Its banner goes", () => WaitForGone("Image_RestoreAction", 3));
+            Check("The panel's offer of the AI picture models takes over", () => WaitForFs(() => WaitForId("Image_PictureModelsDownload", 1)?.IsEnabled == true, 3));
             Check("AI enhance now waits for the AI picture models", () => !Enabled("Image_EditAiEnhance"));
 
             // Markup: its tools and how they draw
@@ -150,8 +150,8 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
             Check("Keep proportions toggles", () => SetToggle("Image_EditResizeLock", false) && SetToggle("Image_EditResizeLock", true));
             CheckInvoke("Original size", "Image_EditResetResize");
             Check("Resize by percent", () => SelectRadio("Image_EditResizePercent"));
-            Check("AI upscale waits for the AI picture models, offered over the picture", () => !Enabled("Image_EditUpscaleTwice") && !Enabled("Image_EditUpscaleFourTimes")
-                                                                                              && Exists("Image_PictureModelsDownload"));
+            Check("AI upscale waits for the AI picture models", () => !Enabled("Image_EditUpscaleTwice") && !Enabled("Image_EditUpscaleFourTimes"));
+            Check("They are offered over the picture", () => Exists("Image_PictureModelsDownload"));
             Check("AI upscale stays off", () => SelectRadio("Image_EditUpscaleOff"));
 
             // Cut out: picture selection is never here (the AI folder is the journey's own), so picking waits for it, saying why, and

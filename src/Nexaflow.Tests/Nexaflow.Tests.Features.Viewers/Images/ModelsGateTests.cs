@@ -197,6 +197,39 @@ public class ModelsGateTests
         finally { try { Directory.Delete(dir, recursive: true); } catch { } }
     }
 
+    [TestMethod]
+    public void AiCleanUpKept_ItsBannerOffersTheModels_AndTurnedOffThePanelOffersThem()
+    {
+        var dir = TestTemp.CreateSubdirectory("nexaflow-models-gate-").FullName;
+        using var ui = new ViewerUiThread();
+        try
+        {
+            var photo = Path.Combine(dir, "plain.png");
+            using (var bitmap = Flat(24, 16, new SKColor(90, 120, 160))) File.WriteAllBytes(photo, EncodePng(bitmap));
+            var shell = Substitute.For<IShellServices>();
+            shell.RunOnUiAsync(Arg.Any<Action>()).Returns(call => ui.Run(call.Arg<Action>()));
+            var pictures = Missing<IPictureTools>(640L << 20);
+            pictures.Restores(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>()).Returns(true);
+            var vm = new ArtistViewModel(photo, shell, new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1))),
+                                         pictures: pictures, selection: Missing<IPictureSelection>(1800L << 20), erasing: Missing<IPictureErasing>(210L << 20));
+            Until(() => vm.Canvas is not null);
+            var editor = vm.Editor;
+            void OnUi(Action action) => ui.Run(action).Wait();
+
+            OnUi(() => editor.Tool = EditTool.Adjust);
+            OnUi(() => vm.CurrentSession!.History.Commit(vm.CurrentRecipe with { Restore = new RecipeRestore() }));
+            Until(() => ui.Invoke(() => vm.Stage.Restorer.HasNotice));
+            Assert.IsFalse(ui.Invoke(() => editor.ShowsModelsOffer), "the clean-up's own banner offers them: the panel stands back");
+
+            OnUi(() => editor.AiEnhance = false);
+            Until(() => ui.Invoke(() => !vm.Stage.Restorer.HasNotice));
+            Assert.IsTrue(ui.Invoke(() => editor.RestoringModels.ShowsOffer), "turned off, the panel offers them again");
+            Assert.IsTrue(ui.Invoke(() => editor.ShowsModelsOffer), "in the bar over the picture");
+            vm.Dispose();
+        }
+        finally { try { Directory.Delete(dir, recursive: true); } catch { } }
+    }
+
     private static T Missing<T>(long bytes) where T : class, IToolModels
     {
         var models = Substitute.For<T>();

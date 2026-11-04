@@ -84,7 +84,7 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
 
         // ── What a selection does to the active layer, from Select ──
         Check("Select is chosen", () => SelectRadio("Image_EditToolSelect"));
-        Check("Select all of the canvas", SelectAllOnCanvas);
+        Check("Select all of the canvas", () => SelectAllOnCanvas());
         CheckInvoke("Fill the selection", "Image_SelectFill");
         CheckInvoke("Copy it", "Image_SelectCopy");
         CheckInvoke("Copy what shows of every layer", "Image_SelectCopyMerged");
@@ -133,7 +133,7 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
                                        "Image_LayersAnchorBottomRight", "Image_LayersAnchorCentre" })
             Check($"Anchored at {anchor}", () => SelectRadio(anchor));
         CheckInvoke("Resize the canvas", "Image_LayersCanvasApply");
-        Check("Select all of the canvas again", SelectAllOnCanvas);
+        Check("Select all of the canvas again", () => SelectAllOnCanvas("Image_LayersCropToSelection"));
         CheckInvoke("Crop the canvas to the selection", "Image_LayersCropToSelection");
 
         // ── Notes, groups and flattening ──
@@ -342,7 +342,7 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         // ── Move and transform ──
         Check("Move is chosen, its panel showing", () => SelectRadio("Image_EditToolMove") && WaitForFs(() => Exists("Image_ArrangePanel"), 3));
         Check("A drag moves the layer", () => DragOnCanvas(0, 0, 20, 10));
-        Check("What is selected floats once it is moved", () => SelectAllOnCanvas() && DragOnCanvas(0, 0, -10, -5)
+        Check("What is selected floats once it is moved", () => SelectAllOnCanvas(witness: null) && DragOnCanvas(0, 0, -10, -5)
               && WaitForFs(() => Exists("Image_ArrangeDrop"), 3) && LayersBecome(2));
         CheckDoes("Drop lays it back into its layer", "Image_ArrangeDrop", () => LayersBecome(1));
         CheckDoes("Transform shows its frame and the panel's turns and flips", "Image_ArrangeTransform", () => WaitForFs(() => Exists("Image_ArrangeApply"), 3));
@@ -463,12 +463,13 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         return WaitForFs(() => section.ExpandCollapseState.Value == ExpandCollapseState.Expanded, 2);
     }
 
-    /// <summary>Ctrl+A over the canvas: everything selected, whichever tool is out — seen in the pixels section's Fill being offered.</summary>
-    private bool SelectAllOnCanvas()
+    // Ctrl+A on the canvas, then waits for witness — a control the open tool enables once something is selected — to say so;
+    // with none, what follows checks it.
+    private bool SelectAllOnCanvas(string? witness = "Image_SelectFill")
     {
         if (!Expand("Image_LayersPixelsSection") || !ClickCanvas()) return false;
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Wait.UntilInputIsProcessed();
-        return WaitForFs(() => Enabled("Image_SelectFill"), 2);
+        return witness is null || WaitForFs(() => Enabled(witness), 2);
     }
 }
