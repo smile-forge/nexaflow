@@ -10,32 +10,21 @@ using SkiaSharp;
 
 namespace Nexaflow.Features.Images.ViewModels;
 
-/// <summary>Which AI edit of a layered picture is being set up.</summary>
-public enum PictureEditKind
-{
-    /// <summary>The selection drawn again from a prompt.</summary>
-    Fill,
-
-    /// <summary>The canvas grown and its new border drawn.</summary>
-    Expand,
-
-    /// <summary>A layer or the whole picture changed by an instruction.</summary>
-    Change,
-}
-
 /// <summary>
-/// AI edits of a layered picture by the workspace's Image Editing model: the selection drawn again from a prompt (Fill), the
-/// canvas grown and its new border drawn (Expand), and a layer or the whole picture changed by an instruction (Change). Each
-/// sends the picture as it is shown — and, for Fill and Expand, a mask of what is drawn again — as one of the workspace's
-/// background jobs, which passes the picture check like every picture made, and what comes back arrives as a new layer laid
-/// exactly over what it was made from, shown only where it was drawn: the original stays beneath, so nothing is lost.
+/// Generative edits of the picture by the workspace's Image Editing model, each set up where its kind of edit lives: a fill of
+/// what is selected with Select's other ways with a selection, an expansion where the crop frame reaches past a photo's edge
+/// in Reshape — or a layered picture's canvas grows in Layers — and a change of the picture or a layer in Adjust. Each sends
+/// the picture as it is shown — and, for a fill or an expansion, a mask of what is drawn again — as one of the workspace's
+/// background jobs, which passes the picture check like every picture made; a photo is made a layered picture first, and
+/// what comes back arrives as a new layer laid exactly over what it was made from, shown only where it was drawn: the
+/// original stays beneath, so nothing is lost.
 /// </summary>
 public sealed partial class PictureEdits : ObservableObject
 {
     /// <summary>The least context, in pixels, a fill is shown on each side of its selection.</summary>
     private const int ContextMargin = 64;
 
-    /// <summary>How far an expansion's new border is drawn over the picture it grows from, blended into it so the two meet
+    /// <summary>How far an expansion's new area is drawn over the picture it grows from, blended into it so the two meet
     /// with no seam.</summary>
     private const int ExpandOverlap = 24;
 
@@ -66,103 +55,123 @@ public sealed partial class PictureEdits : ObservableObject
     /// <summary>Whether the selection can be drawn again and the canvas expanded: the model draws again under a mask.</summary>
     public bool OffersFill => Editing is { Masks: true };
 
-    /// <summary>Whether any AI edit is offered.</summary>
+    /// <summary>Whether any generative edit is offered.</summary>
     public bool OffersEditing => OffersChange || OffersFill;
 
-    /// <summary>The edit being set up; null when none is.</summary>
+    /// <summary>Whether a photo's crop frame can reach past its edge to generate what lies beyond: a photo, not a layered
+    /// picture, whose canvas grows in Layers instead.</summary>
+    public bool OffersExpansionFromCrop => OffersFill && !_viewer.IsLayered;
+
+    // ── Fill, in Select ──────────────────────────────────────────────────────
+
+    /// <summary>Generate fill being set up: what to draw in the selection asked for beneath Select's other ways with it.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsAsking), nameof(IsAskingExpand), nameof(IsAskingChange), nameof(PromptLabel))]
-    [NotifyCanExecuteChangedFor(nameof(GoCommand))]
-    private PictureEditKind? _asking;
+    private bool _isAskingFill;
 
-    public bool IsAsking => Asking is not null;
-
-    public bool IsAskingExpand => Asking == PictureEditKind.Expand;
-
-    public bool IsAskingChange => Asking == PictureEditKind.Change;
-
-    /// <summary>What to draw in the selection, what to draw in the new border, or the instruction.</summary>
+    /// <summary>What to draw in the selection.</summary>
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(GoCommand))]
-    private string _prompt = string.Empty;
+    [NotifyCanExecuteChangedFor(nameof(GenerateFillCommand))]
+    private string _fillPrompt = string.Empty;
 
-    /// <summary>What the prompt is asked for as, for the edit being set up.</summary>
-    public string PromptLabel => Asking switch
+    [RelayCommand(CanExecute = nameof(CanAskFill))]
+    private void AskFill()
     {
-        PictureEditKind.Fill   => Str.Get("Images.Edits.FillPrompt"),
-        PictureEditKind.Expand => Str.Get("Images.Edits.ExpandPromptLabel"),
-        _                      => Str.Get("Images.Edits.ChangePrompt"),
-    };
+        FillPrompt = string.Empty;
+        IsAskingFill = true;
+    }
+
+    private bool CanAskFill() => OffersFill && _viewer.Editor.HoldsSelection;
+
+    [RelayCommand]
+    private void CancelFill() => IsAskingFill = false;
+
+    /// <summary>The selection drawn again from what was asked; the prompt closes once it is begun.</summary>
+    [RelayCommand(CanExecute = nameof(CanGenerateFill))]
+    private async Task GenerateFillAsync()
+    {
+        if (Reported(await FillAsync(FillPrompt))) IsAskingFill = false;
+    }
+
+    private bool CanGenerateFill() => !string.IsNullOrWhiteSpace(FillPrompt);
+
+    // ── Expand, in Reshape and Layers ────────────────────────────────────────
+
+    /// <summary>What the new area shows; blank, the picture is carried on as it would go.</summary>
+    [ObservableProperty]
+    private string _expandPrompt = string.Empty;
+
+    /// <summary>The new area the photo's crop frame reaches past its edge generated, the frame put back on the picture.</summary>
+    [RelayCommand(CanExecute = nameof(CanGenerateExpansion))]
+    private async Task GenerateExpansionAsync()
+    {
+        if (_viewer.Editor.NewArea is not { } area) return;
+        if (!Reported(await ExpandAsync(area.Left, area.Top, area.Right, area.Bottom, ExpandPrompt))) return;
+        _viewer.Editor.ForgetNewArea();
+        ExpandPrompt = string.Empty;
+    }
+
+    private bool CanGenerateExpansion() => OffersExpansionFromCrop && _viewer.Editor.NewArea is not null;
+
+    /// <summary>Canvas size: what the canvas gains generated, rather than left transparent.</summary>
+    [ObservableProperty]
+    private bool _generatesCanvasBorder;
+
+    /// <summary>The layered picture's canvas grown to the size and anchor its Canvas size asks, and what it gains generated.</summary>
+    [RelayCommand(CanExecute = nameof(CanGenerateCanvas))]
+    private async Task GenerateCanvasAsync()
+    {
+        var layers = _viewer.Layers;
+        if (_viewer.CurrentDocument is not { } document) return;
+        var (dx, dy) = LayersViewModel.AnchorOffset(layers.CanvasAnchor, document.Picture.Width, document.Picture.Height, layers.CanvasWidth, layers.CanvasHeight);
+        if (Reported(await ResizeCanvasAsync(layers.CanvasWidth, layers.CanvasHeight, dx, dy, ExpandPrompt))) ExpandPrompt = string.Empty;
+    }
+
+    private bool CanGenerateCanvas() => OffersFill && _viewer.Layers.ResizeCanvasCommand.CanExecute(null);
+
+    // ── Change, in Adjust ────────────────────────────────────────────────────
+
+    /// <summary>What to change.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(GenerateChangeCommand))]
+    private string _changePrompt = string.Empty;
 
     /// <summary>Change: the whole picture as shown, rather than the active layer alone.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActiveLayerOnly))]
     private bool _wholePicture = true;
 
-    /// <summary>Change: the active layer alone — the other of <see cref="WholePicture"/>'s two ways.</summary>
+    /// <summary>Change: the active layer alone — the other of <see cref="WholePicture"/>'s two ways, a layered picture's only.</summary>
     public bool ActiveLayerOnly
     {
         get => !WholePicture;
         set => WholePicture = !value;
     }
 
-    /// <summary>Expand: how many pixels the canvas grows by on each side.</summary>
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(GoCommand))] private int _expandLeft = 256;
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(GoCommand))] private int _expandTop;
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(GoCommand))] private int _expandRight = 256;
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(GoCommand))] private int _expandBottom;
-
-    /// <summary>Whether the layered picture shown has a selection to fill.</summary>
-    private bool HasSelection => _viewer.CurrentDocument?.Picture.Selection.IsEmpty == false;
-
-    [RelayCommand(CanExecute = nameof(CanAskFill))]
-    private void AskFill() => Ask(PictureEditKind.Fill);
-
-    private bool CanAskFill() => OffersFill && HasSelection;
-
-    [RelayCommand(CanExecute = nameof(OffersFill))]
-    private void AskExpand() => Ask(PictureEditKind.Expand);
-
-    [RelayCommand(CanExecute = nameof(OffersChange))]
-    private void AskChange() => Ask(PictureEditKind.Change);
-
-    private void Ask(PictureEditKind kind)
+    /// <summary>The picture, or a layered picture's active layer, changed as asked; the prompt is cleared once it is begun.</summary>
+    [RelayCommand(CanExecute = nameof(CanGenerateChange))]
+    private async Task GenerateChangeAsync()
     {
-        Prompt = string.Empty;
-        Asking = kind;
+        if (Reported(await ChangeAsync(ChangePrompt, WholePicture || !_viewer.IsLayered))) ChangePrompt = string.Empty;
     }
 
-    [RelayCommand]
-    private void Cancel() => Asking = null;
+    private bool CanGenerateChange() => OffersChange && !string.IsNullOrWhiteSpace(ChangePrompt);
 
-    /// <summary>The edit set up, begun; the panel closes once it is.</summary>
-    [RelayCommand(CanExecute = nameof(CanGo))]
-    private async Task GoAsync()
+    /// <summary>Why an edit was not begun, shown; true where it was.</summary>
+    private bool Reported(string? problem)
     {
-        var problem = Asking switch
-        {
-            PictureEditKind.Fill   => await FillAsync(Prompt),
-            PictureEditKind.Expand => await ExpandAsync(ExpandLeft, ExpandTop, ExpandRight, ExpandBottom, Prompt),
-            PictureEditKind.Change => await ChangeAsync(Prompt, WholePicture),
-            _                      => null,
-        };
-        if (problem is not null) _shell?.ShowError(problem);
-        else Asking = null;
+        if (problem is null) return true;
+        _shell?.ShowError(problem);
+        return false;
     }
 
-    private bool CanGo() => Asking switch
-    {
-        PictureEditKind.Expand => ExpandLeft >= 0 && ExpandTop >= 0 && ExpandRight >= 0 && ExpandBottom >= 0
-                                  && ExpandLeft + ExpandTop + ExpandRight + ExpandBottom > 0,
-        null                   => false,
-        _                      => !string.IsNullOrWhiteSpace(Prompt),
-    };
-
-    /// <summary>The layered picture shown changed: whether its selection can be filled may have.</summary>
+    /// <summary>The picture shown, what is selected on it, or its crop frame changed: what can be generated may have.</summary>
     internal void Refresh()
     {
         AskFillCommand.NotifyCanExecuteChanged();
-        if (Asking == PictureEditKind.Fill && !HasSelection) Asking = null;
+        GenerateExpansionCommand.NotifyCanExecuteChanged();
+        GenerateCanvasCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(OffersExpansionFromCrop));
+        if (IsAskingFill && !_viewer.Editor.HoldsSelection) IsAskingFill = false;
     }
 
     // ── The edits ───────────────────────────────────────────────────────────
@@ -170,8 +179,8 @@ public sealed partial class PictureEdits : ObservableObject
     /// <summary>
     /// The selection drawn again from <paramref name="prompt"/>: the picture as shown around it — its bounds and as much
     /// again of what lies about them — sent with the selection as the mask, and what comes back a new layer over that area,
-    /// masked by the selection, above the active layer. The photo is made a layered picture first, its selection kept.
-    /// Returns why it was not begun; null once it is.
+    /// masked by the selection, above the active layer. A photo is made a layered picture first, what is selected on it
+    /// carried over. Returns why it was not begun; null once it is.
     /// </summary>
     public async Task<string?> FillAsync(string prompt)
     {
@@ -189,10 +198,9 @@ public sealed partial class PictureEdits : ObservableObject
     }
 
     /// <summary>
-    /// The canvas grown by the given pixels on each side — one step of its history — and its new border drawn from
-    /// <paramref name="prompt"/>, or as the picture would go on where none is given: the whole canvas sent with the border as
-    /// the mask, and what comes back a new layer above the active one, shown in the border and blended a little way over the
-    /// picture it grew from. Returns why it was not begun; null once it is.
+    /// The canvas grown by the given pixels on each side — one step of its history — and its new area generated from
+    /// <paramref name="prompt"/>, or as the picture would go on where none is given. A photo is made a layered picture first.
+    /// Returns why it was not begun; null once it is.
     /// </summary>
     public async Task<string?> ExpandAsync(int left, int top, int right, int bottom, string? prompt)
     {
@@ -200,17 +208,45 @@ public sealed partial class PictureEdits : ObservableObject
         if (left < 0 || top < 0 || right < 0 || bottom < 0 || left + top + right + bottom == 0) return Str.Get("Images.Edits.NoExpansion");
         if (_viewer.MakeLayered() is not { } document) return Str.Get("Images.Edits.NotReady");
         var before = document.Picture;
-        int width = before.Width + left + right, height = before.Height + top + bottom;
-        if (width > LayeredPicture.MaxSide || height > LayeredPicture.MaxSide)
-            return Str.Format("Images.Edits.TooLargeFormat", LayeredPicture.MaxSide);
+        return await GrowAsync(document, before.Width + left + right, before.Height + top + bottom, left, top, prompt);
+    }
 
-        document.Commit(p => LayerEdits.Resized(p, width, height, left, top));
-        var picture = document.Picture;
+    /// <summary>
+    /// The layered picture's canvas made <paramref name="width"/> × <paramref name="height"/>, what it held moved by
+    /// (<paramref name="dx"/>, <paramref name="dy"/>) as Canvas size's anchor places it, and what it gains generated from
+    /// <paramref name="prompt"/>. Returns why it was not begun; null once it is.
+    /// </summary>
+    public async Task<string?> ResizeCanvasAsync(int width, int height, int dx, int dy, string? prompt)
+    {
+        if (!OffersFill) return Str.Get("Images.Edits.NoFill");
+        if (_viewer.CurrentDocument is not { } document) return Str.Get("Images.Edits.NotReady");
+        return await GrowAsync(document, width, height, dx, dy, prompt);
+    }
+
+    /// <summary>
+    /// The canvas resized — one step of its history — with what it held moved by (<paramref name="dx"/>,
+    /// <paramref name="dy"/>), and the area it gains generated: the whole canvas sent with that area as the mask, and what
+    /// comes back a new layer above the active one, shown in the new area and blended a little way over the picture where
+    /// the two meet.
+    /// </summary>
+    private async Task<string?> GrowAsync(LayeredSession document, int width, int height, int dx, int dy, string? prompt)
+    {
+        if (width > LayeredPicture.MaxSide || height > LayeredPicture.MaxSide) return Str.Format("Images.Edits.TooLargeFormat", LayeredPicture.MaxSide);
+        if (width < 1 || height < 1) return Str.Get("Images.Edits.NoExpansion");
+        var before = document.Picture;
         var area = new SKRectI(0, 0, width, height);
-        var inner = SKRectI.Inflate(new SKRectI(left, top, left + before.Width, top + before.Height), -ExpandOverlap / 2, -ExpandOverlap / 2);
+        var kept = SKRectI.Intersect(new SKRectI(dx, dy, dx + before.Width, dy + before.Height), area);
+        if (kept == area) return Str.Get("Images.Edits.NoExpansion");
+
+        document.Commit(p => LayerEdits.Resized(p, width, height, dx, dy));
+        var picture = document.Picture;
+        // The picture's sides that meet the new area are drawn over a little, to blend; those at the canvas's edge are kept.
+        int overlap = ExpandOverlap / 2;
+        var inner = new SKRectI(kept.Left + (kept.Left > 0 ? overlap : 0), kept.Top + (kept.Top > 0 ? overlap : 0),
+                                kept.Right - (kept.Right < width ? overlap : 0), kept.Bottom - (kept.Bottom < height ? overlap : 0));
         var border = TiledCoverage.Covered(width, height);
         if (inner.Width > 0 && inner.Height > 0) border = border.Written(inner, new byte[inner.Width * inner.Height]);
-        border = border.Feathered(ExpandOverlap / 2.0);
+        border = border.Feathered(overlap);
 
         if (await ShownAsync(document, picture, area) is not { } png) return Str.Get("Images.Layers.WaitForTools");
         var asked = string.IsNullOrWhiteSpace(prompt) ? ContinuePrompt : prompt.Trim();
@@ -219,8 +255,8 @@ public sealed partial class PictureEdits : ObservableObject
 
     /// <summary>
     /// The whole picture as shown, or the active layer alone, changed by <paramref name="instruction"/>: what comes back a new
-    /// layer over what was sent, above the active layer — a layer's change shown only where that layer is. Returns why it
-    /// was not begun; null once it is.
+    /// layer over what was sent, above the active layer — a layer's change shown only where that layer is. A photo is made a
+    /// layered picture first. Returns why it was not begun; null once it is.
     /// </summary>
     public async Task<string?> ChangeAsync(string instruction, bool wholePicture)
     {

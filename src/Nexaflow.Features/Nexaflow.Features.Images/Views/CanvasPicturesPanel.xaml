@@ -6,8 +6,8 @@
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="Image_LayersPictures">
 
-    <!-- Above the layers: Generate layer being set up, and the pictures being drawn for the canvas with their progress and
-         Stop. Bound to a CanvasPictures. -->
+    <!-- In the layers panel, beneath its heading: Generate layer being set up, and the pictures being generated for the canvas
+         — every generative edit's — with their progress and Stop. Bound to a CanvasPictures. -->
 
     <UserControl.Resources>
         <ResourceDictionary>
@@ -19,25 +19,22 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <StackPanel Margin="8,0,8,0">
-        <!-- Generate layer, being set up: what the model offers, the proportions the canvas's nearest. Its button sits with
-             the other picture actions above (ImageEditView). -->
-        <Border Margin="0,2,0,0" Padding="8" Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
-                Visibility="{Binding IsAsking, Converter={StaticResource BoolVis}}">
-            <StackPanel>
-                <ContentControl Content="{Binding Options.View}" Focusable="False"/>
-                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                    <Button Command="{Binding GenerateLayerCommand}" Style="{StaticResource ToolbarPrimaryButtonStyle}" Padding="12,4" Margin="0,0,6,0"
-                            AutomationProperties.AutomationId="Image_LayersGenerateGo">
-                        <icons:IconLabel Icon="fluent:sparkle" Text="{loc:Str Images.Layers.GenerateGo}"/>
-                    </Button>
-                    <Button Command="{Binding CancelAskingCommand}" Style="{StaticResource ToolbarButtonStyle}" Padding="12,4"
-                            AutomationProperties.AutomationId="Image_LayersGenerateCancel">
-                        <icons:IconLabel Icon="fluent:dismiss" Text="{loc:Str Images.Layers.GenerateCancel}"/>
-                    </Button>
-                </StackPanel>
+    <StackPanel>
+        <!-- Generate layer, being set up: what the model offers, the proportions the canvas's nearest. Its button is in the
+             layers panel's heading. -->
+        <StackPanel Margin="0,0,0,6" Visibility="{Binding IsAsking, Converter={StaticResource BoolVis}}">
+            <ContentControl Content="{Binding Options.View}" Focusable="False"/>
+            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                <Button Command="{Binding GenerateLayerCommand}" Style="{StaticResource ToolbarPrimaryButtonStyle}" Margin="0,0,4,0"
+                        AutomationProperties.AutomationId="Image_LayersGenerateGo">
+                    <icons:IconLabel Icon="fluent:sparkle" Text="{loc:Str Images.Layers.GenerateGo}" FontSize="11"/>
+                </Button>
+                <Button Command="{Binding CancelAskingCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                        AutomationProperties.AutomationId="Image_LayersGenerateCancel">
+                    <icons:IconLabel Icon="fluent:dismiss" Text="{loc:Str Images.Layers.GenerateCancel}" FontSize="11"/>
+                </Button>
             </StackPanel>
-        </Border>
+        </StackPanel>
 
         <!-- The pictures being drawn: each a layer once it arrives. -->
         <ItemsControl ItemsSource="{Binding Pending}" Margin="0,6,0,0">

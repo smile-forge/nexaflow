@@ -501,35 +501,42 @@ closed. The New picker's *Layered picture* makes its canvas in the picker itself
 `PictureJob` whose `Made` task completes with the saved path (null when stopped, withheld by the picture check, or
 failed), and `PictureAsked` gains `OpensWhenMade` (default true, as today). The canvas asks for a draft path, does not
 open it, and adds the picture as a picture layer, fitted to the canvas and centred, when it arrives — on the start screen
-beneath the empty layer, as the canvas's first. Until then a row above the layers panel (`CanvasPictures.Pending`)
+beneath the empty layer, as the canvas's first. Until then a row in the layers panel, beneath its heading (`CanvasPictures.Pending`),
 shows the job's progress (`PictureJob.Progress`, the step its model reports) and Stop; it is not a layer of the picture,
 so nothing of it is ever saved. A picture that arrives while its canvas is not shown is added once it is. The job stays
 one of the workspace's background jobs, listed and stoppable as now.
 
-- **Generate layer** (layers panel): the same, at the canvas size, into a new layer above the active one.
+- **Generate layer** (the layers panel's heading): the same, at the canvas size, into a new layer above the active one.
 - **Dropping pictures** on the canvas adds each as a picture layer above the active one, fitted and centred — a photo made
   a layered picture first (§4.3).
 
 ### 9.3 Editing with a model
 
 The workspace's Image Editing model — one that works from pictures, its row taking no other (`AiAbilityNames.Serves`)
-— makes three edits, set up above the layers below the picture actions (`PictureEdits`, `PictureEditsPanel`), each as one
-of the workspace's background jobs through `IAIService.EditPicture` — the call `edit_image` would be given — so it passes
-the picture check as every picture does:
+— makes three edits (`PictureEdits`), each set up where its kind of edit lives and each one of the workspace's background
+jobs through `IAIService.EditPicture` — the call `edit_image` would be given — so it passes the picture check as every
+picture does. A photo is made a layered picture first.
 
-- **Fill selection**: the composite about the selection — its bounds and as much again around them, held to the canvas —
-  sent with the selection as the mask (transparent where it is drawn again); a photo is made a layered picture first, its
-  selection kept.
-- **Expand**: the canvas grown by the pixels given on each side (`LayerEdits.Resized`, one step of the history), then the
-  whole composite sent with the new border as the mask — feathered a little way over the old edges, so the two meet with no
-  seam — and, told nothing, a prompt that carries the picture on.
-- **Change**: the whole composite, or the active layer alone, sent with no mask and an instruction.
+- **Generate fill**, in Select's *With what's selected* beside Erase and Remove background: the composite about the
+  selection — its bounds and as much again around them, held to the canvas — sent with the selection as the mask
+  (transparent where it is drawn again); a photo's selection is carried onto its layers.
+- **Expand**, in Reshape, for a photo: with *Generate the new area* on, the canvas shows the picture with room about it
+  half its longer side each way (`RenderFrame.CropReaching`), and the crop frame may be dragged onto it. Each edge that
+  would leave the picture is held where it meets it — edge by edge, so a corner dragged out keeps all of the picture it
+  passes over (`CropGeometry.ReachInside`) — and what the frame reaches beyond is the new area, measured as the picture is
+  shown, turned and at its finished size (`CropGeometry.Reach`). Generate makes the photo a layered picture of the crop it
+  keeps, grows the canvas by the new area (`LayerEdits.Resized`, one step of the history) and sends the whole composite
+  with the new area as the mask — feathered a little way over the sides of the picture that meet it, so the two meet with
+  no seam — and, told nothing, a prompt that carries the picture on. A layered picture's canvas grows in Layers' Canvas
+  size instead, whose own *Generate the new area* sends what the canvas gains the same way.
+- **Change picture**, a group of Adjust: the whole composite, or a layered picture's active layer alone, sent with no mask
+  and an instruction.
 
 What comes back arrives as a picture layer above the active one, laid exactly over the area it was sent from — stretched
 each way by the few pixels the model's sizes cut its sides to (`EditedPlace`) — and masked by what was drawn: the
 selection, the border, or the layer's own transparency; a whole-picture change is not masked. The original stays beneath,
 so an edit is undone by deleting its layer or hiding it, and kept by flattening. A canvas changed in size meanwhile takes
-the layer fitted, unmasked. While no model edits, the row is hidden.
+the layer fitted, unmasked. Where no model edits, none of them is offered.
 
 ## 10. Print
 

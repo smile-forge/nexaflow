@@ -17,14 +17,17 @@ using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 using SkiaSharp;
 using static Nexaflow.Tests.Features.Images.EditingFixtures;
+using Nexaflow.Features.Images.Editing.Rendering;
 
 namespace Nexaflow.Tests.Features.Images;
 
 /// <summary>
-/// The AI edits of a layered picture: Fill sending the picture about the selection with the selection as its mask and laying
-/// what comes back exactly over that area under the selection; Expand growing the canvas and drawing its border; Change
-/// sending the whole picture, or the active layer alone, and laying the result over it; each one of the workspace's jobs
-/// through <see cref="IAIService.MakePicture"/>, and none offered where the workspace has no model that edits.
+/// The generative edits, each from where it lives: Fill sending the picture about the selection with the selection as its
+/// mask and laying what comes back exactly over that area under the selection — Select's Generate fill taking a photo's
+/// selection too; Expand growing the canvas and generating what it gains — from a photo's crop frame dragged past its edge,
+/// or a layered picture's Canvas size; Change sending the whole picture, or the active layer alone, and laying the result
+/// over it; each one of the workspace's jobs through <see cref="IAIService.EditPicture"/>, and none offered where the
+/// workspace has no model that edits.
 /// <para>
 /// The editing model here is a stand-in whose jobs end when the test says, with a picture of the size it names — half
 /// the size sent, so a result laid over its area is seen to be stretched back onto it.
@@ -95,6 +98,17 @@ public class ImageAiEditsTests
         return vm;
     }
 
+    /// <summary>A photo of <paramref name="width"/> × <paramref name="height"/> open in edit mode, once a frame of it is shown.</summary>
+    private ArtistViewModel Photo(IAIService ai, int width = 80, int height = 60)
+    {
+        var path = Path.Combine(_dir, "photo.png");
+        using (var bitmap = Flat(width, height, new SKColor(40, 120, 200))) File.WriteAllBytes(path, EncodePng(bitmap));
+        var vm = _ui.Invoke(() => new ArtistViewModel(path, Shell(), _services, ai: ai, config: new ImagesConfig()));
+        Until(() => vm.Canvas is not null);
+        Assert.IsNotNull(_ui.Invoke(() => vm.Canvas), "the photo was never decoded and shown");
+        return vm;
+    }
+
     private static TiledCoverage Rectangle(int width, int height, SKRectI rect) =>
         TiledCoverage.Clear(width, height).Written(rect, Enumerable.Repeat((byte)255, rect.Width * rect.Height).ToArray());
 
@@ -111,6 +125,9 @@ public class ImageAiEditsTests
     private LayeredPicture Picture(ArtistViewModel vm) => _ui.Invoke(() => vm.CurrentDocument!.Picture);
 
     private async Task<string?> OnUi(Func<Task<string?>> begin) => await _ui.Invoke(begin);
+
+    /// <summary><paramref name="action"/> on the UI thread, waited for.</summary>
+    private void RunOnUi(Action action) => _ui.Run(action).GetAwaiter().GetResult();
 
     private void Until(Func<bool> done)
     {
@@ -255,5 +272,113 @@ public class ImageAiEditsTests
 
         var nothing = await vm.GetClientTools().Single(t => t.Name == "expand_canvas").InvokeAsync([], CancellationToken.None);
         Assert.IsFalse(nothing.Success, "grown by nothing, it is not begun");
+    }
+
+    [TestMethod]
+    [CoversNode("images-edit-ai-expand")]
+    public async Task ACropFrameDraggedPastAPhotosEdge_GeneratesWhatItReaches_AsALayerOverTheGrownCanvas()
+    {
+        var vm = Photo(Ai(), 80, 60);
+        var editor = vm.Editor;
+        _ui.Invoke(() => editor.CropReachesBeyond = true);
+        Until(() => vm.Canvas is { Frame: RenderFrame.CropReaching });
+
+        var shown = _ui.Invoke(() => editor.ShownCrop!.Value);
+        var edge = new SKPoint(shown.Right, shown.MidY);
+        RunOnUi(() =>
+        {
+        editor.BeginCropDrag(CropHandle.Right, edge);
+            editor.ContinueCropDrag(edge + new SKPoint(shown.Width / 4, 0));
+            editor.EndCropDrag();
+        });
+
+        Assert.AreEqual(new CropReach(0, 0, 20, 0), _ui.Invoke(() => editor.NewArea), "a quarter of its width past the right edge");
+        var kept = _ui.Invoke(() => CropGeometry.EffectiveCrop(vm.CurrentRecipe.Geometry, new SKSize(80, 60)));
+        Assert.AreEqual((0.0, 0.0, 80.0, 60.0), (Math.Round(kept.X), Math.Round(kept.Y), Math.Round(kept.Width), Math.Round(kept.Height)), "the photo itself is kept whole");
+        Assert.IsTrue(_ui.Invoke(() => vm.Edits.GenerateExpansionCommand.CanExecute(null)));
+
+        await _ui.Invoke(() => vm.Edits.GenerateExpansionCommand.ExecuteAsync(null));
+
+        Assert.IsTrue(_ui.Invoke(() => vm.IsLayered), "the photo is made a layered picture");
+        Assert.AreEqual((100, 60), (Picture(vm).Width, Picture(vm).Height), "its canvas grown by what the frame reached");
+        var job = _jobs.Single();
+        Assert.AreEqual(PictureEdits.ContinuePrompt, job.Asked.Instruction, "told nothing, it carries the picture on");
+        using (var mask = SKBitmap.Decode(job.Asked.Mask!))
+        {
+            Assert.AreEqual(0, mask.GetPixel(98, 30).Alpha, "the new area is generated");
+            Assert.AreEqual(255, mask.GetPixel(10, 30).Alpha, "the photo is kept");
+            Assert.AreEqual(255, mask.GetPixel(40, 0).Alpha, "even at the canvas's top edge, where nothing was added");
+        }
+        Assert.IsNull(_ui.Invoke(() => editor.NewArea), "the frame is back on the picture");
+    }
+
+    [TestMethod]
+    [CoversNode("images-edit-ai-fill")]
+    public async Task GenerateFill_TakesWhatIsSelectedOnAPhoto_TheSelectionCarriedOntoItsLayers()
+    {
+        var vm = Photo(Ai(), 80, 60);
+        Assert.IsFalse(_ui.Invoke(() => vm.Edits.AskFillCommand.CanExecute(null)), "nothing is selected yet");
+        _ui.Invoke(() => vm.Editor.Tool = EditTool.Select);
+        RunOnUi(() => vm.Editor.RegionMarks.Add(new RegionRectangle(20, 20, 40, 40) { Mode = RegionMode.Replace }));
+        Until(() => vm.Edits.AskFillCommand.CanExecute(null));
+
+        RunOnUi(() => vm.Edits.AskFillCommand.Execute(null));
+        Assert.IsTrue(_ui.Invoke(() => vm.Edits.IsAskingFill));
+        _ui.Invoke(() => vm.Edits.FillPrompt = "a red ball");
+        await _ui.Invoke(() => vm.Edits.GenerateFillCommand.ExecuteAsync(null));
+
+        Assert.IsFalse(_ui.Invoke(() => vm.Edits.IsAskingFill), "begun, the prompt closes");
+        Assert.IsTrue(_ui.Invoke(() => vm.IsLayered));
+        var job = _jobs.Single();
+        Assert.AreEqual("a red ball", job.Asked.Instruction);
+        using var mask = SKBitmap.Decode(job.Asked.Mask!);
+        using var source = SKBitmap.Decode(job.Asked.Sources.Single());
+        Assert.AreEqual((source.Width, source.Height), (mask.Width, mask.Height));
+        Assert.IsTrue(Enumerable.Range(0, mask.Width).Any(x => mask.GetPixel(x, mask.Height / 2).Alpha == 0), "what was selected is drawn again");
+    }
+
+    [TestMethod]
+    [CoversNode("images-edit-ai-expand")]
+    public async Task CanvasSize_GeneratesWhatTheCanvasGains_WhereTheSwitchSays()
+    {
+        var vm = Canvas(Ai(), 64, 48);
+        RunOnUi(() =>
+        {
+        vm.Layers.BeginCanvasSizeCommand.Execute(null);
+            vm.Layers.CanvasWidth = 96;
+            vm.Layers.CanvasAnchor = CanvasAnchor.Left;
+            vm.Edits.GeneratesCanvasBorder = true;
+        });
+        Assert.IsTrue(_ui.Invoke(() => vm.Edits.GenerateCanvasCommand.CanExecute(null)));
+
+        await _ui.Invoke(() => vm.Edits.GenerateCanvasCommand.ExecuteAsync(null));
+
+        Assert.AreEqual((96, 48), (Picture(vm).Width, Picture(vm).Height));
+        using var mask = SKBitmap.Decode(_jobs.Single().Asked.Mask!);
+        Assert.AreEqual(0, mask.GetPixel(90, 24).Alpha, "what the canvas gained on the right is generated");
+        Assert.AreEqual(255, mask.GetPixel(10, 24).Alpha, "held at the left, the picture is kept");
+        Assert.AreEqual(255, mask.GetPixel(30, 0).Alpha, "and along the edges where it gained nothing");
+    }
+
+    [TestMethod]
+    [CoversNode("images-edit-ai-change")]
+    public async Task ChangePicture_InAdjust_ChangesAPhotoWhole_AsALayerAboveIt()
+    {
+        var vm = Photo(Ai(), 40, 30);
+        Assert.IsFalse(_ui.Invoke(() => vm.Edits.GenerateChangeCommand.CanExecute(null)), "nothing asked yet");
+        RunOnUi(() =>
+        {
+        vm.Edits.ActiveLayerOnly = true;   // a photo has no layers to choose between: the whole of it is changed
+            vm.Edits.ChangePrompt = "make it night";
+        });
+
+        await _ui.Invoke(() => vm.Edits.GenerateChangeCommand.ExecuteAsync(null));
+
+        var job = _jobs.Single();
+        Assert.AreEqual("make it night", job.Asked.Instruction);
+        Assert.IsNull(job.Asked.Mask, "the whole picture is changed");
+        Assert.AreEqual(string.Empty, _ui.Invoke(() => vm.Edits.ChangePrompt), "begun, the prompt is cleared");
+        job.Made.SetResult(Made(job));
+        Until(() => Picture(vm).Layers.Length == 2);
     }
 }

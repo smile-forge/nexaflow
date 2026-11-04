@@ -14,6 +14,21 @@ public enum RenderFrame
     /// dragged over. Its corners outside the tilted picture are transparent.
     /// </summary>
     CropEditing,
+
+    /// <summary>
+    /// The whole straightened picture as <see cref="CropEditing"/> shows it, with room about it half its longer side each
+    /// way — what a crop frame is dragged over while it may reach past the picture, to have what lies beyond generated. The
+    /// room is transparent.
+    /// </summary>
+    CropReaching,
+}
+
+/// <summary>The pixels of the finished picture a crop frame reaching past it adds on each side — the new area an expansion
+/// generates — as the picture is shown, turned and flipped, and at its finished size.</summary>
+public readonly record struct CropReach(int Left, int Top, int Right, int Bottom)
+{
+    /// <summary>Whether it adds nothing on any side.</summary>
+    public bool IsEmpty => Left <= 0 && Top <= 0 && Right <= 0 && Bottom <= 0;
 }
 
 /// <summary>
@@ -37,6 +52,10 @@ public static class CropGeometry
 
     private const double Epsilon = 1e-3;
 
+    /// <summary>How far the room about the picture reaches each way while the crop frame may go past it, as a share of the
+    /// straightened picture's longer side.</summary>
+    public const double ReachShare = 0.5;
+
     // ── Straightening ───────────────────────────────────────────────────────
 
     /// <summary>Source → straightened: a clockwise turn by <paramref name="degrees"/> about the picture's centre.</summary>
@@ -46,6 +65,15 @@ public static class CropGeometry
     /// <summary>The bounding box of the straightened picture, in the straightened frame.</summary>
     public static SKRect StraightenedBounds(SKSize source, double degrees) =>
         Straighten(source, degrees).MapRect(SKRect.Create(source));
+
+    /// <summary>The straightened picture with the room about it a crop frame may reach into: <see cref="ReachShare"/> of its
+    /// longer side each way — the region <see cref="RenderFrame.CropReaching"/> shows.</summary>
+    public static SKRect ReachBounds(SKSize source, double degrees)
+    {
+        var bounds = StraightenedBounds(source, degrees);
+        float room = (float)(Math.Max(bounds.Width, bounds.Height) * ReachShare);
+        return SKRect.Inflate(bounds, room, room);
+    }
 
     /// <summary>True when every corner of <paramref name="crop"/> lies on the straightened picture.</summary>
     public static bool Contains(SKSize source, double degrees, CropRect crop)
@@ -123,18 +151,111 @@ public static class CropGeometry
     /// </summary>
     public static CropRect ClampTowards(SKSize source, double degrees, CropRect valid, CropRect desired)
     {
-        if (Acceptable(desired)) return desired;
-
         // Containment is convex in the edges, so the valid share of the path is one interval from its start.
+        return Towards(valid, desired, Acceptable);
+
+        bool Acceptable(CropRect r) => r.Width >= MinCropEdge && r.Height >= MinCropEdge && Contains(source, degrees, r);
+    }
+
+    /// <summary>
+    /// The furthest point from <paramref name="valid"/> towards <paramref name="desired"/> that lies within
+    /// <paramref name="bounds"/> and is at least <see cref="MinCropEdge"/> across — how a frame reaching past the picture
+    /// stops at the edge of the room about it. Its shape is kept, as a frame held to an aspect must be.
+    /// </summary>
+    public static CropRect ClampWithin(SKRect bounds, CropRect valid, CropRect desired)
+    {
+        return Towards(valid, desired, r => r.Width >= MinCropEdge && r.Height >= MinCropEdge
+                                             && r.X >= bounds.Left - Epsilon && r.Y >= bounds.Top - Epsilon
+                                             && r.X + r.Width <= bounds.Right + Epsilon && r.Y + r.Height <= bounds.Bottom + Epsilon);
+    }
+
+    /// <summary>
+    /// What a frame reaching past the picture keeps of it, as the crop: <paramref name="desired"/> with each edge that would
+    /// leave the picture held where it meets it, the others where they were dragged. Found edge by edge from
+    /// <paramref name="valid"/>, which lies on the picture: the edges still free move together until one is stopped, then the
+    /// rest go on without it — so a corner dragged out keeps every pixel of the picture it passes over, and a frame moved
+    /// partly off the picture keeps the part still on it. What lies between it and <paramref name="desired"/> is the new area.
+    /// </summary>
+    public static CropRect ReachInside(SKSize source, double degrees, CropRect valid, CropRect desired)
+    {
+        double[] at = Edges(valid), wanted = Edges(desired);
+        var free = new bool[4];
+        for (int i = 0; i < 4; i++) free[i] = Math.Abs(wanted[i] - at[i]) > Epsilon;
+
+        for (int pass = 0; pass < 4 && free.Any(f => f); pass++)
+        {
+            var target = Moved(at, wanted, free, 1);
+            if (Acceptable(target))
+            {
+                at = target;
+                break;
+            }
+            double lo = 0, hi = 1;
+            for (int i = 0; i < 24; i++)
+            {
+                double mid = (lo + hi) / 2;
+                if (Acceptable(Moved(at, wanted, free, mid))) lo = mid; else hi = mid;
+            }
+            at = Moved(at, wanted, free, lo);
+
+            // An edge is stopped where it cannot go on alone; the others carry on without it.
+            bool stopped = false;
+            for (int i = 0; i < 4; i++)
+            {
+                if (!free[i]) continue;
+                var nudged = (double[])at.Clone();
+                nudged[i] += Math.Clamp(wanted[i] - at[i], -0.5, 0.5);
+                if (Acceptable(nudged)) continue;
+                free[i] = false;
+                stopped = true;
+            }
+            if (!stopped) break;
+        }
+        return CropRect.FromEdges(at[0], at[1], at[2], at[3]);
+
+        bool Acceptable(double[] e) => e[2] - e[0] >= MinCropEdge && e[3] - e[1] >= MinCropEdge
+                                       && Contains(source, degrees, CropRect.FromEdges(e[0], e[1], e[2], e[3]));
+
+        static double[] Edges(CropRect r) => [r.X, r.Y, r.X + r.Width, r.Y + r.Height];
+
+        static double[] Moved(double[] from, double[] to, bool[] moving, double t)
+        {
+            var e = (double[])from.Clone();
+            for (int i = 0; i < 4; i++) if (moving[i]) e[i] = from[i] + (to[i] - from[i]) * t;
+            return e;
+        }
+    }
+
+    /// <summary>
+    /// The new area a frame reaching past the picture adds: how far <paramref name="beyond"/> lies past the crop the recipe
+    /// keeps on each side, as the picture is shown — turned and flipped — and in the finished picture's pixels.
+    /// </summary>
+    public static CropReach Reach(ImageRecipe recipe, SKSize source, CropRect beyond)
+    {
+        var kept = EffectiveCrop(recipe.Geometry, source);
+        var toShown = FrameToCanvas(recipe, source, RenderFrame.CropEditing, 1, out _);
+        var shownKept = toShown.MapRect(SKRect.Create((float)kept.X, (float)kept.Y, (float)kept.Width, (float)kept.Height));
+        var shownBeyond = toShown.MapRect(SKRect.Create((float)beyond.X, (float)beyond.Y, (float)beyond.Width, (float)beyond.Height));
+        var output = OutputSize(recipe, source);
+        double sx = output.Width / (double)shownKept.Width, sy = output.Height / (double)shownKept.Height;
+        return new CropReach(Pixels(shownKept.Left - shownBeyond.Left, sx), Pixels(shownKept.Top - shownBeyond.Top, sy),
+                             Pixels(shownBeyond.Right - shownKept.Right, sx), Pixels(shownBeyond.Bottom - shownKept.Bottom, sy));
+
+        static int Pixels(double shown, double scale) => Math.Max(0, (int)Math.Round(shown * scale));
+    }
+
+    /// <summary>The furthest point of the path from <paramref name="valid"/> to <paramref name="desired"/> that
+    /// <paramref name="acceptable"/> takes, where its takings are one interval from the start.</summary>
+    private static CropRect Towards(CropRect valid, CropRect desired, Func<CropRect, bool> acceptable)
+    {
+        if (acceptable(desired)) return desired;
         double lo = 0, hi = 1;
         for (int i = 0; i < 24; i++)
         {
             double mid = (lo + hi) / 2;
-            if (Acceptable(Lerp(valid, desired, mid))) lo = mid; else hi = mid;
+            if (acceptable(Lerp(valid, desired, mid))) lo = mid; else hi = mid;
         }
         return Lerp(valid, desired, lo);
-
-        bool Acceptable(CropRect r) => r.Width >= MinCropEdge && r.Height >= MinCropEdge && Contains(source, degrees, r);
     }
 
     // ── Turns, flips and aspect ─────────────────────────────────────────────
@@ -223,9 +344,9 @@ public static class CropGeometry
         var geometry = recipe.Geometry;
         SKRect region;
         SKSizeI natural;
-        if (frame == RenderFrame.CropEditing)
+        if (frame is RenderFrame.CropEditing or RenderFrame.CropReaching)
         {
-            region = StraightenedBounds(source, geometry.StraightenDegrees);
+            region = frame == RenderFrame.CropReaching ? ReachBounds(source, geometry.StraightenDegrees) : StraightenedBounds(source, geometry.StraightenDegrees);
             var shown = Turned(region.Size, geometry.QuarterTurns);
             natural = Round(shown.Width, shown.Height);
         }

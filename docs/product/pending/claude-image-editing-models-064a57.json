@@ -110,7 +110,7 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/PictureEditsPanel.xaml"
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/ImageEditView.xaml"
         },
         {
           "type": "code",
@@ -135,6 +135,12 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageAiEditsTests.cs",
             "class": "ImageAiEditsTests",
             "method": "AFill_SendsThePictureAboutTheSelection_AndLaysWhatComesBackOverIt_UnderTheSelection"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageAiEditsTests.cs",
+            "class": "ImageAiEditsTests",
+            "method": "GenerateFill_TakesWhatIsSelectedOnAPhoto_TheSelectionCarriedOntoItsLayers"
           }
         ]
       }
@@ -146,6 +152,18 @@
           "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PictureEdits.cs",
           "class": "PictureEdits",
           "method": "ExpandAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Rendering/CropGeometry.cs",
+          "class": "CropGeometry",
+          "method": "ReachInside"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageEditorViewModel.cs",
+          "class": "ImageEditorViewModel",
+          "method": "ContinueCropDrag"
         }
       ],
       "concerns": {
@@ -155,6 +173,12 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageAiEditsTests.cs",
             "class": "ImageAiEditsTests",
             "method": "AnExpansion_GrowsTheCanvas_AndDrawsItsBorder_OverTheWholeCanvas"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageAiEditsTests.cs",
+            "class": "ImageAiEditsTests",
+            "method": "ACropFrameDraggedPastAPhotosEdge_GeneratesWhatItReaches_AsALayerOverTheGrownCanvas"
           }
         ]
       }
@@ -175,6 +199,12 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageAiEditsTests.cs",
             "class": "ImageAiEditsTests",
             "method": "AChange_OfTheWholePicture_SendsItWithNoMask_AndLaysTheResultOverTheCanvas"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageAiEditsTests.cs",
+            "class": "ImageAiEditsTests",
+            "method": "ChangePicture_InAdjust_ChangesAPhotoWhole_AsALayerAboveIt"
           }
         ]
       }
