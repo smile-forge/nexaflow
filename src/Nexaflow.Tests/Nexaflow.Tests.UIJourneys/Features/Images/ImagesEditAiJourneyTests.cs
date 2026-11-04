@@ -82,13 +82,9 @@ public class ImagesEditAiJourneyTests : ImageEditJourneyBase
             CheckDoes("Remove background keeps what is picked", "Image_CutOutRemoveBackground", () => WaitForFs(() => Exists("Image_CutOutKeepBackground"), 5));
             CheckDoes("Keep background puts it back", "Image_CutOutKeepBackground", () => WaitForGone("Image_CutOutKeepBackground", 5));
 
-            // Retouch: something picked, erased and filled by AI as a step of the edits.
-            Check("Retouch, picking", () => SelectRadio("Image_EditToolRetouch") && SelectRadio("Image_EraseMarkPick"));
+            // Retouch: what Select picked, erased and filled by AI as a step of the edits.
+            Check("Retouch takes what Select picked, ready to erase", () => SelectRadio("Image_EditToolRetouch") && WaitForFs(() => Enabled("Image_EraseApply"), Affordable(30)));
             NeedsHere("Image_PictureModelsDownload", "AI picture models");
-            Check("A phrase is typed for Find", () => TypeInto("Image_ErasePhrase", "square") && Enabled("Image_EraseFind"));
-            CheckInvoke("Find", "Image_EraseFind");
-            Check("A click picks what to erase, with nothing to try again",
-                  () => ClickCanvas() && WaitForFs(() => Enabled("Image_EraseApply"), Affordable(30)) && !Exists("Image_ErasePickAction"));
             Check("AI fill erases it as a step: Save is ready, with nothing to download or try again",
                   () => SelectRadio("Image_EraseFillAi") && PressNth("Image_EraseApply", 0)
                         && WaitForFs(() => Enabled("Image_EditSave"), Affordable(60)) && !Exists("Image_EraseAction"));

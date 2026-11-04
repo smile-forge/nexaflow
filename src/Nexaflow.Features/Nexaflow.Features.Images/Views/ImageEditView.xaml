@@ -18,6 +18,7 @@
             <BooleanToVisibilityConverter x:Key="BoolToVis"/>
             <cv:EnumToBoolConverter x:Key="EnumToBool"/>
             <cv:NullToVisibilityConverter x:Key="NullToCollapsed"/>
+            <cv:InverseBoolToVisibilityConverter x:Key="NotBoolToVis"/>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -786,98 +787,18 @@
 
                             <views:FoldingGroup Icon="fluent:eraser" Title="{loc:Str Images.Erase.Mark}" IsOpen="{Binding Folds[RetouchMark]}"
                                                 AutomationProperties.AutomationId="Image_GroupRetouchMark">
-                            <StackPanel>
-                            <!-- The ways of marking, each once: picked, brushed, or a shape drawn by hand. -->
-                            <Border Style="{StaticResource SegGroup}">
-                                <StackPanel Orientation="Horizontal">
-                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkPick" AutomationProperties.Name="{loc:Str Images.Erase.Pick}"
-                                                 ToolTip="{Binding Editor.PickingModels.DisabledReason, TargetNullValue={loc:Str Images.Erase.PickTip}}"
-                                                 IsEnabled="{Binding Editor.PickingModels.IsReady}" ToolTipService.ShowOnDisabled="True"
-                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Pick}">
-                                        <icons:IconGlyph Icon="fluent:cursor_click" FontSize="15"/>
-                                    </RadioButton>
-                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkBrush" AutomationProperties.Name="{loc:Str Images.Erase.Brush}"
-                                                 ToolTip="{loc:Str Images.Erase.BrushTip}"
-                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Brush}">
-                                        <icons:IconGlyph Icon="fluent:paint_brush" FontSize="15"/>
-                                    </RadioButton>
-                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseRectangle" AutomationProperties.Name="{loc:Str Images.Region.Rectangle}"
-                                                 ToolTip="{loc:Str Images.Region.RectangleTip}"
-                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Rectangle}">
-                                        <icons:IconGlyph Icon="fluent:rectangle_landscape" FontSize="15"/>
-                                    </RadioButton>
-                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseEllipse" AutomationProperties.Name="{loc:Str Images.Region.Ellipse}"
-                                                 ToolTip="{loc:Str Images.Region.EllipseTip}"
-                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Ellipse}">
-                                        <icons:IconGlyph Icon="fluent:oval" FontSize="15"/>
-                                    </RadioButton>
-                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseLasso" AutomationProperties.Name="{loc:Str Images.Region.Lasso}"
-                                                 ToolTip="{loc:Str Images.Region.FreehandTip}"
-                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Lasso}">
-                                        <icons:IconGlyph Icon="fluent:lasso" FontSize="15"/>
-                                    </RadioButton>
-                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_ErasePolygon" AutomationProperties.Name="{loc:Str Images.Region.Polygon}"
-                                                 ToolTip="{loc:Str Images.Region.PolygonTip}"
-                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Polygon}">
-                                        <icons:IconGlyph Icon="fluent:pentagon" FontSize="15"/>
-                                    </RadioButton>
-                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseColour" AutomationProperties.Name="{loc:Str Images.Region.Colour}"
-                                                 ToolTip="{loc:Str Images.Region.ColourTip}"
-                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Colour}">
-                                        <icons:IconGlyph Icon="fluent:color" FontSize="15"/>
-                                    </RadioButton>
-                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseDistance" AutomationProperties.Name="{loc:Str Images.Region.Distance}"
-                                                 ToolTip="{Binding Editor.DepthModels.DisabledReason, TargetNullValue={loc:Str Images.Region.DistanceTip}}"
-                                                 IsEnabled="{Binding Editor.DepthModels.IsReady}" ToolTipService.ShowOnDisabled="True"
-                                                 Visibility="{Binding Editor.DepthModels.IsOffered, Converter={StaticResource BoolToVis}}"
-                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Distance}">
-                                        <icons:IconGlyph Icon="fluent:layer_diagonal" FontSize="15"/>
-                                    </RadioButton>
+                                <!-- What is erased: what the brush marks, and what the Select tool has selected. -->
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Text="{loc:Str Images.Erase.MarkHint}"/>
+                                    <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Erase.BrushSize}" ValueFormat="0' px'" Margin="0,8,0,0"
+                                                            Minimum="4" Maximum="400" SmallChange="1" LargeChange="10" DefaultValue="40"
+                                                            Value="{Binding Editor.EraseMarks.BrushSize, Mode=TwoWay}" AutomationProperties.AutomationId="Image_EraseBrushSize"/>
                                 </StackPanel>
-                            </Border>
-
-                            <!-- Picking, as the cut-out tool picks: what is picked here is what it has picked. -->
-                            <StackPanel Margin="0,8,0,0" Visibility="{Binding Editor.EraseMarks.IsPicking, Converter={StaticResource BoolToVis}}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBox Style="{StaticResource FieldBox}"
-                                             Text="{Binding Editor.Cutter.Phrase, UpdateSourceTrigger=PropertyChanged}"
-                                             AutomationProperties.AutomationId="Image_ErasePhrase" AutomationProperties.Name="{loc:Str Images.CutOut.Phrase}">
-                                        <TextBox.InputBindings>
-                                            <KeyBinding Key="Enter" Command="{Binding Editor.Cutter.FindCommand}"/>
-                                        </TextBox.InputBindings>
-                                    </TextBox>
-                                    <Button Grid.Column="1" Margin="6,0,0,0" Style="{StaticResource ToolbarButtonStyle}"
-                                            Command="{Binding Editor.Cutter.FindCommand}" ToolTip="{loc:Str Images.CutOut.FindTip}"
-                                            AutomationProperties.AutomationId="Image_EraseFind">
-                                        <TextBlock Text="{loc:Str Images.CutOut.Find}" FontSize="11"/>
-                                    </Button>
-                                </Grid>
-                                <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Margin="0,8,0,0" Text="{Binding Editor.Cutter.Notice}"/>
-                                <Button Style="{StaticResource ToolbarButtonStyle}" HorizontalAlignment="Left" Margin="0,8,0,0"
-                                        Command="{Binding Editor.Cutter.ActCommand}"
-                                        Visibility="{Binding Editor.Cutter.HasAction, Converter={StaticResource BoolToVis}}"
-                                        AutomationProperties.AutomationId="Image_ErasePickAction" AutomationProperties.Name="{Binding Editor.Cutter.ActionLabel}">
-                                    <TextBlock Text="{Binding Editor.Cutter.ActionLabel}" FontSize="11"/>
-                                </Button>
-                            </StackPanel>
-
-                            <!-- Brushing: the brush's width in the photo's pixels. -->
-                            <StackPanel Margin="0,8,0,0" Visibility="{Binding Editor.EraseMarks.IsBrushing, Converter={StaticResource BoolToVis}}">
-                                <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Erase.BrushSize}" ValueFormat="0' px'"
-                                                        Minimum="4" Maximum="400" SmallChange="1" LargeChange="10" DefaultValue="40"
-                                                        Value="{Binding Editor.EraseMarks.BrushSize, Mode=TwoWay}" AutomationProperties.AutomationId="Image_EraseBrushSize"/>
-
-                            </StackPanel>
-                            </StackPanel>
                             </views:FoldingGroup>
 
                         </StackPanel>
 
-                        <!-- ── The selection Cut out and Retouch both take: shapes drawn, how they meet it, and refinements ── -->
+                        <!-- ── The selection Select makes, which every other tool acts on: shapes drawn, how they meet it, and refinements ── -->
                         <views:RegionMarkingPanel DataContext="{Binding Editor}" Visibility="{Binding TakesSelection, Converter={StaticResource BoolToVis}}"/>
 
                         <!-- ── Select: what is done with what is selected — kept apart from the picture, kept in it, moved, made a layer, erased ── -->
@@ -904,9 +825,25 @@
                                     <icons:IconLabel Icon="fluent:paint_brush_sparkle" Text="{loc:Str Images.Edits.Fill}" FontSize="11"/>
                                 </Button>
                                 <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Editor.CopyCutOutCommand}"
+                                        Visibility="{Binding IsLayered, Converter={StaticResource NotBoolToVis}}"
                                         ToolTip="{loc:Str Images.CutOut.CopyTip}" AutomationProperties.AutomationId="Image_CutOutCopy">
                                     <icons:IconLabel Icon="fluent:copy" Text="{loc:Str Images.CutOut.Copy}" FontSize="11"/>
                                 </Button>
+                                <!-- A layered picture's selection, on its active layer or every layer that shows. -->
+                                <WrapPanel Visibility="{Binding IsLayered, Converter={StaticResource BoolToVis}}">
+                                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Layers.CopyCommand}" ToolTip="{loc:Str Images.Layers.CopyTip}"
+                                            AutomationProperties.AutomationId="Image_SelectCopy"><icons:IconLabel Icon="fluent:copy" Text="{loc:Str Images.Layers.Copy}" FontSize="11"/></Button>
+                                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Layers.CopyMergedCommand}" ToolTip="{loc:Str Images.Layers.CopyMergedTip}"
+                                            AutomationProperties.AutomationId="Image_SelectCopyMerged"><icons:IconLabel Icon="fluent:copy_select" Text="{loc:Str Images.Layers.CopyMerged}" FontSize="11"/></Button>
+                                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Layers.CutCommand}" ToolTip="{loc:Str Images.Layers.CutTip}"
+                                            AutomationProperties.AutomationId="Image_SelectCut"><icons:IconLabel Icon="fluent:cut" Text="{loc:Str Images.Layers.Cut}" FontSize="11"/></Button>
+                                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Layers.PasteCommand}" ToolTip="{loc:Str Images.Layers.PasteTip}"
+                                            AutomationProperties.AutomationId="Image_SelectPaste"><icons:IconLabel Icon="fluent:clipboard_paste" Text="{loc:Str Images.Layers.Paste}" FontSize="11"/></Button>
+                                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Layers.FillCommand}" ToolTip="{loc:Str Images.Layers.FillTip}"
+                                            AutomationProperties.AutomationId="Image_SelectFill"><icons:IconLabel Icon="fluent:paint_bucket" Text="{loc:Str Images.Layers.Fill}" FontSize="11"/></Button>
+                                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Layers.DeleteSelectedCommand}" ToolTip="{loc:Str Images.Layers.ClearTip}"
+                                            AutomationProperties.AutomationId="Image_SelectClear"><icons:IconLabel Icon="fluent:eraser" Text="{loc:Str Images.Layers.Clear}" FontSize="11"/></Button>
+                                </WrapPanel>
                                 <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Editor.SaveCutOutCommand}"
                                         ToolTip="{loc:Str Images.CutOut.SaveTip}" AutomationProperties.AutomationId="Image_CutOutSave">
                                     <icons:IconLabel Icon="fluent:save" Text="{loc:Str Images.CutOut.Save}" FontSize="11"/>

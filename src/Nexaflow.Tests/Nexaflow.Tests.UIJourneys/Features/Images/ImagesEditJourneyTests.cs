@@ -187,10 +187,8 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
             // Retouch: picking waits for picture selection and AI fill for picture erasing, neither of which the journey's AI folder
             // has, so it opens on the brush and content-aware fill, which need nothing and erase at once; the AI tools journey picks
             // and fills by AI where they are here.
-            Check("Retouch opens on the brush: picking waits for picture selection", () => SelectRadio("Image_EditToolRetouch")
-                  && WaitForFs(() => Exists("Image_EraseBrushSize"), 3) && SelectRadio("Image_EraseMarkBrush") && !Enabled("Image_EraseMarkPick"));
-            Check("Retouch marks with the shapes Select draws too", () => SelectRadio("Image_EraseRectangle") && SelectRadio("Image_EraseEllipse")
-                  && SelectRadio("Image_EraseLasso") && SelectRadio("Image_ErasePolygon") && SelectRadio("Image_EraseColour") && SelectRadio("Image_EraseMarkBrush"));
+            Check("Retouch brushes what to erase, and erases what Select selects", () => SelectRadio("Image_EditToolRetouch")
+                  && WaitForFs(() => Exists("Image_EraseBrushSize"), 3) && !Exists("Image_SelectRectangle"));
             Check("AI fill waits for the AI picture models, offered over the picture", () => !Enabled("Image_EraseFillAi")
                   && WaitForFs(() => WaitForId("Image_PictureModelsDownload", 1)?.IsEnabled == true, 3));
             Check("Brush size slider moves", () => MoveSlider("Image_EraseBrushSize"));

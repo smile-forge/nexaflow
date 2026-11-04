@@ -82,15 +82,16 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         CheckInvoke("Move it up", "Image_LayersMoveUp");
         CheckDoes("Delete it", "Image_LayersDelete", () => LayersBecome(2));
 
-        // ── What a selection does to the active layer ──
-        Check("The pixels section opens", () => Expand("Image_LayersPixelsSection"));
+        // ── What a selection does to the active layer, from Select ──
+        Check("Select is chosen", () => SelectRadio("Image_EditToolSelect"));
         Check("Select all of the canvas", SelectAllOnCanvas);
-        CheckInvoke("Fill the selection", "Image_LayersFill");
-        CheckInvoke("Copy it", "Image_LayersCopy");
-        CheckInvoke("Copy what shows of every layer", "Image_LayersCopyMerged");
-        CheckDoes("Paste it as a layer", "Image_LayersPaste", () => LayersBecome(3));
-        CheckInvoke("Cut it", "Image_LayersCut");
-        CheckInvoke("Clear what is selected", "Image_LayersClear");
+        CheckInvoke("Fill the selection", "Image_SelectFill");
+        CheckInvoke("Copy it", "Image_SelectCopy");
+        CheckInvoke("Copy what shows of every layer", "Image_SelectCopyMerged");
+        CheckDoes("Paste it as a layer", "Image_SelectPaste", () => LayersBecome(3));
+        CheckInvoke("Cut it", "Image_SelectCut");
+        CheckInvoke("Clear what is selected", "Image_SelectClear");
+        Check("The pixels section opens", () => Expand("Image_LayersPixelsSection"));
         CheckDoes("Merge it down", "Image_LayersMergeDown", () => LayersBecome(2));
 
         // ── Select, then act on what is selected ──
@@ -163,8 +164,8 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         CheckDoes("Add layer makes the photo a layered picture, with a layer above it", "Image_EditAddLayer",
                   () => WaitForFs(() => Exists("Image_LayersPanel"), 5) && LayersBecome(2));
         Check("The photo is untouched beside it: nothing is written until it is saved", () => !File.Exists(Path.Combine(_folder, "photo.ora")));
-        Check("The pixels section opens", () => Expand("Image_LayersPixelsSection"));
-        CheckInvoke("Copy what shows", "Image_LayersCopyMerged");
+        Check("Select is chosen, all of the canvas selected", () => SelectRadio("Image_EditToolSelect") && SelectAllOnCanvas());
+        CheckInvoke("Copy what shows", "Image_SelectCopyMerged");
         CheckDoes("Paste as layer adds what was copied", "Image_EditPasteLayer", () => LayersBecome(3));
 
         AssertJourney();
@@ -468,6 +469,6 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         if (!Expand("Image_LayersPixelsSection") || !ClickCanvas()) return false;
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Wait.UntilInputIsProcessed();
-        return WaitForFs(() => Enabled("Image_LayersFill"), 2);
+        return WaitForFs(() => Enabled("Image_SelectFill"), 2);
     }
 }

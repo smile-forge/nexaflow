@@ -396,7 +396,7 @@ public sealed class EditOverlay : FrameworkElement
                 dc.DrawLine(pen, new Point(at.X, at.Y - arm), new Point(at.X, at.Y + arm));
             }
         }
-        if (marks.IsBrushing && _brushAt is { } pointer && toCanvas.TryInvert(out var toSource))
+        if (_brushAt is { } pointer && toCanvas.TryInvert(out var toSource))
         {
             double radius = marks.BrushSize / 2 * sourceScale;
             dc.DrawEllipse(null, halo, pointer, radius, radius);
@@ -519,7 +519,7 @@ public sealed class EditOverlay : FrameworkElement
             _cutDragging = false;
             Begin(Gesture.CutOut, e);
         }
-        else if (editor.IsRetouchTool && editor.EraseMarks.IsBrushing && canvas.SourceToCanvas.TryInvert(out var brushToSource))
+        else if (editor.IsRetouchTool && canvas.SourceToCanvas.TryInvert(out var brushToSource))
         {
             var under = brushToSource.MapPoint(p);
             if (OnPhoto(under) is not { } onPhoto) return;
@@ -584,7 +584,7 @@ public sealed class EditOverlay : FrameworkElement
                     _pointer = at;
                     InvalidateVisual();
                 }
-                if (editor.IsRetouchTool && editor.EraseMarks.IsBrushing)
+                if (editor.IsRetouchTool)
                 {
                     _brushAt = at;
                     InvalidateVisual();
@@ -782,7 +782,7 @@ public sealed class EditOverlay : FrameworkElement
             return;
         }
         if (OnPhoto(toSource.MapPoint(Sk(e.GetPosition(this)))) is not { } at) return;
-        if (editor.IsRetouchTool && editor.EraseMarks.IsBrushing)
+        if (editor.IsRetouchTool)
         {
             editor.EraseMarks.BeginStroke(new MarkupPoint(at.X, at.Y), marks: false);
             Begin(Gesture.Erase, e);

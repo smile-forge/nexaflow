@@ -205,10 +205,7 @@
   "Images.Erase.Failed": "L'effacement a échoué : {0}",
   "Images.Erase.Retry": "Réessayer",
   "Images.Erase.Mark": "Marquer ce qu'il faut effacer",
-  "Images.Erase.Pick": "Objet",
-  "Images.Erase.PickTip": "Cliquer, encadrer ou nommer l'objet à effacer",
-  "Images.Erase.Brush": "Pinceau",
-  "Images.Erase.BrushTip": "Peindre sur ce qu'il faut effacer ; glisser avec clic droit pour retirer",
+  "Images.Erase.MarkHint": "Peignez sur ce qu'il faut retirer ; glissez avec clic droit pour annuler. Ce qui est sélectionné avec l'outil Sélection est retiré aussi.",
   "Images.Erase.BrushSize": "Taille du pinceau",
 
   "Images.Erase.Fill": "Remplir avec",
@@ -288,9 +285,9 @@
   "Images.Layers.MergeDownTip": "Fusionner le calque actif avec celui du dessous",
   "Images.Layers.Flatten": "Aplatir",
   "Images.Layers.FlattenTip": "Fusionner tous les calques en un seul",
-  "Images.Layers.Selection": "Sélection",
+
   "Images.Layers.Fill": "Remplir",
-  "Images.Layers.FillTip": "Remplir la sélection avec la couleur d'annotation (Maj+F5)",
+  "Images.Layers.FillTip": "Remplir la sélection avec la couleur actuelle (Maj+F5)",
   "Images.Layers.Clear": "Effacer",
   "Images.Layers.ClearTip": "Effacer la sélection du calque actif (Suppr)",
   "Images.Layers.Copy": "Copier",

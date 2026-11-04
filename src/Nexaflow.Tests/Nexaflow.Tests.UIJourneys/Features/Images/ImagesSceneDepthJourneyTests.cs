@@ -98,9 +98,7 @@ public class ImagesSceneDepthJourneyTests : ImageEditJourneyBase
                   && MoveSliderTo("Image_RegionDistanceSpanLower", 5) && WaitForFs(() => Enabled("Image_CutOutCopy"), Affordable(30)));
             Check("Its soft edge moves", () => MoveSlider("Image_RegionDistanceSoftness"));
 
-            // Retouch marks by distance too.
-            Check("Retouch by distance", () => SelectRadio("Image_EditToolRetouch") && SelectRadio("Image_EraseDistance")
-                  && WaitForFs(() => Exists("Image_RegionDistanceSpan"), 3));
+
 
             // The depth itself: a layer above the photo, then the photo's mask.
             Check("Adjust panel again", () => SelectRadio("Image_EditToolAdjust"));

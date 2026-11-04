@@ -268,9 +268,9 @@ canvas pixels through `EditCanvas.SourceToCanvas`.
 
 ### 6.4 In the photo editor (no layers)
 
-Marquee and lasso are offered in Cut out and in Erase as two more ways of marking, beside Pick and Brush
-(`EraseMarkWay`, `CutOutMarkWay`), with the refinements beside them, so a photo edit benefits without becoming layered.
-Cut out and Erase share one selection: what Pick has picked, with the region drawn over it.
+Marquee and lasso are ways of selecting in Select, beside Pick (`CutOutMarkWay`), with the refinements beside them, so a
+photo edit benefits without becoming layered. There is one selection, and only Select makes it: what Pick has picked, with
+the region drawn over it. Every other tool shows it and acts on it — Retouch erases it, with what its brush marks.
 
 They stay non-destructive: recipe **version 5** adds a `Region` (`RecipeRegion`) to `RecipeCutOut` and `RecipeErase`
 — the steps the selection was made by, in order, in oriented-source pixels as every recipe value is: each shape as drawn

@@ -166,9 +166,8 @@ public class ModelsGateTests
             void OnUi(Action action) => ui.Run(action).Wait();
 
             OnUi(() => editor.Tool = EditTool.Retouch);
-            Assert.IsTrue(editor.EraseMarks.IsBrushing, "picking waits for picture selection, so retouching starts with the brush");
             Assert.AreEqual(EraseFill.ContentAware, editor.EraseMarks.Fill, "AI fill waits for picture erasing");
-            Assert.IsTrue(editor.PickingModels.ShowsOffer);
+            Assert.IsFalse(editor.PickingModels.ShowsOffer, "Retouch erases what Select selects: it picks nothing itself");
             Assert.IsTrue(editor.ErasingModels.ShowsOffer);
             Assert.IsFalse(editor.RestoringModels.ShowsOffer, "Retouch does not need the picture tools");
             Assert.IsTrue(editor.ShowsModelsOffer, "the banner offers them");

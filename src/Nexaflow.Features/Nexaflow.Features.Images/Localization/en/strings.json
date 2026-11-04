@@ -203,10 +203,7 @@
   "Images.Erase.Failed": "Couldn't erase: {0}",
   "Images.Erase.Retry": "Try again",
   "Images.Erase.Mark": "Mark what to erase",
-  "Images.Erase.Pick": "Object",
-  "Images.Erase.PickTip": "Click, box or name the object to erase",
-  "Images.Erase.Brush": "Brush",
-  "Images.Erase.BrushTip": "Paint over what to erase; right-drag to unmark",
+  "Images.Erase.MarkHint": "Brush over what to remove; right-drag to unmark. Anything selected with the Select tool is removed too.",
   "Images.Erase.BrushSize": "Brush size",
 
   "Images.Erase.Fill": "Fill with",
@@ -286,9 +283,9 @@
   "Images.Layers.MergeDownTip": "Merge the active layer into the one beneath it",
   "Images.Layers.Flatten": "Flatten",
   "Images.Layers.FlattenTip": "Merge every layer into one",
-  "Images.Layers.Selection": "Selection",
+
   "Images.Layers.Fill": "Fill",
-  "Images.Layers.FillTip": "Fill the selection with the markup colour (Shift+F5)",
+  "Images.Layers.FillTip": "Fill the selection with the current colour (Shift+F5)",
   "Images.Layers.Clear": "Clear",
   "Images.Layers.ClearTip": "Clear the selection from the active layer (Delete)",
   "Images.Layers.Copy": "Copy",
