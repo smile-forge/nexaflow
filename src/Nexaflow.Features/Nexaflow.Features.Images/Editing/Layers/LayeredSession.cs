@@ -32,6 +32,9 @@ public sealed class LayeredSession : IPictureLayerImages, IDisposable
     private readonly Dictionary<Guid, LayerRendering> _renderings = [];
     private readonly LayerCompositor _compositor;
     private (double Exposure, ImmutableArray<byte> Profile)? _shownLook;
+
+    // The frame being composited is drawn while something moves: picture layers draw their scene depth at less detail.
+    private bool _previewing;
     private bool _disposed;
 
     /// <param name="path">Where the picture is kept: its package, or the draft it is kept in until it is saved somewhere.</param>
@@ -309,6 +312,7 @@ public sealed class LayeredSession : IPictureLayerImages, IDisposable
         lock (_gate)
         {
             if (_disposed) return false;
+            _previewing = options.Previewing;
             var composite = _compositor.Render(picture, scale, this, options);
             // The exposure and the profile it is shown through reach every pixel: either changed, the whole frame is new,
             // whatever the layers did.
@@ -343,7 +347,8 @@ public sealed class LayeredSession : IPictureLayerImages, IDisposable
     {
         if (RenderingOf(layer.Id) is not { Proxy: { } proxy } rendering) return null;
         double renderScale = Math.Max(1e-3, scale * layer.Placement.Scale);
-        if (rendering.RenderHeld(layer.Recipe, new RenderRequest(RenderFrame.Output, renderScale)) is not { } image) return null;
+        var request = new RenderRequest(RenderFrame.Output, renderScale, DepthDetail: _previewing ? RenderRequest.PreviewDepthDetail : 1);
+        if (rendering.RenderHeld(layer.Recipe, request) is not { } image) return null;
         var toCanvas = PixelsToCanvas(layer, proxy.SourceSize, renderScale);
         return new PictureLayerImage(image, toCanvas, rendering.Version);
     }

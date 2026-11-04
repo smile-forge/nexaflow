@@ -22,8 +22,9 @@ namespace Nexaflow.Features.Images.ViewModels;
 /// <param name="FitToWindow">Outside the editor: fitted to the viewport, or at actual size.</param>
 /// <param name="MaskAlone">In a layered picture, this layer's mask shown alone instead of the layers.</param>
 /// <param name="Tones">Whether each frame's tones are read, and which ends are marked where they clip.</param>
+/// <param name="Previewing">A slider or a drag is moving: what is costly to draw is drawn at less detail until it stops.</param>
 public readonly record struct ImageDisplayMode(bool Editing, bool ShowOriginal, RenderFrame EditFrame, bool FitToWindow, Guid? MaskAlone = null,
-                                               ToneAsk Tones = default);
+                                               ToneAsk Tones = default, bool Previewing = false);
 
 /// <summary>
 /// Puts the picture being viewed on screen — a photo, or a layered picture — decoding each picture it is drawn from off the
@@ -202,7 +203,8 @@ public sealed class ImageDisplay : IDisposable
         var sourceToLayout = CropGeometry.Straighten(source, recipe.Geometry.StraightenDegrees).PostConcat(straightenedToLayout);
         var canvas = new EditCanvas(recipe, frame, source, layoutScale, layout, straightenedToLayout, sourceToLayout, source, sourceToLayout);
 
-        var request = new RenderRequest(frame, renderScale, Adjustments: !showOriginal, Markup: !showOriginal);
+        var request = new RenderRequest(frame, renderScale, Adjustments: !showOriginal, Markup: !showOriginal,
+                                        DepthDetail: mode.Previewing ? RenderRequest.PreviewDepthDetail : 1);
         double dpi = mode.Editing ? 96 * renderScale / layoutScale : 96;
         _presenter.Present(consume => rendering.Render(recipe, request, picture => consume(picture, FrameChange.Whole)), dpi, canvas, ToneReadingFor(mode));
     }
@@ -269,7 +271,7 @@ public sealed class ImageDisplay : IDisposable
                                     documentSize, documentToLayout);
         }
 
-        var options = new CompositeOptions(MaskAlone: mode.Editing ? mode.MaskAlone : null);
+        var options = new CompositeOptions(MaskAlone: mode.Editing ? mode.MaskAlone : null, Previewing: mode.Previewing);
         double dpi = mode.Editing ? 96 * renderScale / layoutScale : 96;
         _presenter.Present(consume => document.Render(picture, renderScale, options, consume), dpi, canvas, ToneReadingFor(mode));
     }

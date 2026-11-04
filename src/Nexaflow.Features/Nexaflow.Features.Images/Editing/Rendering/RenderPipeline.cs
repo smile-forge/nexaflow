@@ -6,13 +6,17 @@ using Nexaflow.Features.Images.Editing.SceneDepth;
 namespace Nexaflow.Features.Images.Editing.Rendering;
 
 /// <summary>What to render, and how big.</summary>
-/// <param name="Frame">The finished picture, or the uncropped picture the crop frame is dragged over.</param>
-/// <param name="Scale">Canvas pixels per pixel of the frame's natural size (1 = the saved size).</param>
-/// <param name="Adjustments">Apply tone and colour; off for a before/after look.</param>
-/// <param name="Markup">Paint the annotations.</param>
-public readonly record struct RenderRequest(RenderFrame Frame, double Scale, bool Adjustments = true, bool Markup = true)
+/// <param name="DepthDetail">The share of the frame's pixels the scene depth pass is drawn at, along a side: <see cref="PreviewDepthDetail"/>
+/// while a slider or a drag is moving, so lens blur and haze keep up with it; 1 for every frame that stays.</param>
+public readonly record struct RenderRequest(RenderFrame Frame, double Scale, bool Adjustments = true, bool Markup = true, double DepthDetail = 1)
 {
     public static RenderRequest Saved => new(RenderFrame.Output, 1);
+
+/// <summary>The scene depth pass's detail while something moves: half along each side, so a sixteenth of the blur's work.</summary>
+    public const double PreviewDepthDetail = 0.5;
+
+/// <summary>The detail asked for, read as 1 where it says nothing usable.</summary>
+    public double DepthDetailAsked => DepthDetail is > 0 and < 1 ? DepthDetail : 1;
 }
 
 /// <summary>
@@ -49,6 +53,7 @@ public sealed class RenderPipeline : IDisposable
     private GeometryKey? _geometryKey;
     private SKImage? _geometryLayer;
     private SceneDepthKey? _depthKey;
+    private double _depthDetail = 1;
     private SKImage? _depthLayer;
     private RecipeAdjustments? _toneKey;
     private SKImage? _toneLayer;
@@ -100,18 +105,22 @@ public sealed class RenderPipeline : IDisposable
         }
 
         // The scene depth pass, where the recipe asks for it and the depth is here; otherwise tone works on the geometry pass.
+        // Drawn at the detail asked for when it has to be drawn again, and kept at any detail as fine — so a pass drawn whole
+        // stays while something else moves, and one drawn to keep up with a slider is drawn whole once it stops.
         var depthKey = _sceneDepth is not null && recipe.AsksSceneDepth ? new SceneDepthKey(recipe.LensBlur, recipe.DepthHaze) : null;
+        double detail = request.DepthDetailAsked;
         if (depthKey is null && _depthLayer is not null)
         {
             DropTone();
             DropDepth();
         }
-        else if (depthKey is not null && (_depthLayer is null || _depthKey != depthKey))
+        else if (depthKey is not null && (_depthLayer is null || _depthKey != depthKey || _depthDetail < detail))
         {
             DropTone();
             DropDepth();
-            _depthLayer = DrawDepth(_geometryLayer!, recipe, sourceToCanvas);
-            _depthKey   = depthKey;
+            _depthLayer  = DrawDepth(_geometryLayer!, recipe, sourceToCanvas, detail);
+            _depthKey    = depthKey;
+            _depthDetail = detail;
             if (!_cache) DropGeometry();
         }
         var beneathTone = _depthLayer ?? _geometryLayer!;
@@ -170,12 +179,30 @@ public sealed class RenderPipeline : IDisposable
 
     /// <summary>The recipe's haze and lens blur over the geometry pass's picture, from the source's scene depth; the colour of the
     /// source's distance, for a haze with none of its own, read once.</summary>
-    private SKImage DrawDepth(SKImage geometry, ImageRecipe recipe, SKMatrix sourceToCanvas)
+    private SKImage DrawDepth(SKImage geometry, ImageRecipe recipe, SKMatrix sourceToCanvas, double detail)
     {
         var photo = new SKSizeI((int)Math.Round(_source.SourceSize.Width), (int)Math.Round(_source.SourceSize.Height));
         if (recipe.DepthHaze is { Colour: null }) _distance ??= SceneDepthPass.FarColour(_source, _sceneDepth!);
-        return SceneDepthPass.Draw(geometry, recipe, _sceneDepth!, sourceToCanvas, photo, _distance ?? (0.5f, 0.5f, 0.5f), NewInfo(new SKSizeI(geometry.Width, geometry.Height)),
-                                   recipe.LensBlur?.Subject is not null ? _subject : null);
+        var distance = _distance ?? (0.5f, 0.5f, 0.5f);
+        var subject = recipe.LensBlur?.Subject is not null ? _subject : null;
+        var size = new SKSizeI(geometry.Width, geometry.Height);
+        if (detail >= 1) return SceneDepthPass.Draw(geometry, recipe, _sceneDepth!, sourceToCanvas, photo, distance, NewInfo(size), subject);
+
+        // Fewer pixels, the frame's own drawn back over it: the pass where the canvas lies scaled to them.
+        var reduced = new SKSizeI(Math.Max(1, (int)Math.Round(size.Width * detail)), Math.Max(1, (int)Math.Round(size.Height * detail)));
+        var toReduced = SKMatrix.CreateScale(reduced.Width / (float)size.Width, reduced.Height / (float)size.Height);
+        using var smaller = Resampled(geometry, reduced);
+        using var drawn = SceneDepthPass.Draw(smaller, recipe, _sceneDepth!, sourceToCanvas.PostConcat(toReduced), photo, distance, NewInfo(reduced), subject);
+        return Resampled(drawn, size);
+    }
+
+    // image drawn to size, smoothly either way.
+    private SKImage Resampled(SKImage image, SKSizeI size)
+    {
+        using var surface = NewSurface(size);
+        using var paint = new SKPaint { BlendMode = SKBlendMode.Src };
+        surface.Canvas.DrawImage(image, SKRect.Create(size.Width, size.Height), new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.None), paint);
+        return surface.Snapshot();
     }
 
     private SKImage DrawTone(SKImage geometry, RecipeAdjustments adjustments)

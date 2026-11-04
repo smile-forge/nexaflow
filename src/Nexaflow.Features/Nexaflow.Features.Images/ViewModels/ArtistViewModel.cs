@@ -283,9 +283,11 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
 
     // ── What is edited ────────────────────────────────────────────────────
 
-    /// <summary>How the picture is shown: on the edit canvas, before or after, cropping or not, a layer's mask alone.</summary>
+    /// <summary>How the picture is shown: on the edit canvas, before or after, cropping or not, a layer's mask alone, and whether a
+    /// slider or drag is moving.</summary>
     private ImageDisplayMode DisplayMode() =>
-        new(IsEditing, IsEditing && Editor.ShowOriginal, Editor.Frame, FitToWindow: true, Layers.MaskAlone, IsEditing ? Tones.Ask : default);
+        new(IsEditing, IsEditing && Editor.ShowOriginal, Editor.Frame, FitToWindow: true, Layers.MaskAlone, IsEditing ? Tones.Ask : default,
+            Previewing: IsEditing && Stage.Previewing);
 
     /// <summary>Renders the picture for the way it is shown now.</summary>
     internal void RequestRender() => Stage.Render();

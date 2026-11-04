@@ -391,14 +391,21 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
     /// picture's, history until <see cref="EndEditGesture"/>.</summary>
     public void BeginEditGesture()
     {
+        Previewing = true;
         if (CurrentDocument is { } document) document.History.BeginGesture();
         else CurrentSession?.History.BeginGesture();
     }
+
+    /// <summary>A slider or a drag is moving, as one step: frames are drawn to keep up with it, and drawn whole once it ends.</summary>
+    public bool Previewing { get; private set; }
 
     public void EndEditGesture()
     {
         if (CurrentDocument is { } document) document.History.EndGesture();
         else CurrentSession?.History.EndGesture();
+        if (!Previewing) return;
+        Previewing = false;
+        Render();
     }
 
     public bool CanUndo => CurrentDocument?.History.CanUndo ?? CurrentSession?.History.CanUndo == true;

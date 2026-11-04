@@ -20,7 +20,7 @@ public interface IPictureLayerImages
 /// <summary>How a composite is drawn; the default draws the layers over the background.</summary>
 /// <param name="LeaveOutBackground">Draw the layers over nothing, without the canvas's background.</param>
 /// <param name="MaskAlone">Instead of the layers, show this layer's mask alone, in greys.</param>
-public readonly record struct CompositeOptions(bool LeaveOutBackground = false, Guid? MaskAlone = null);
+public readonly record struct CompositeOptions(bool LeaveOutBackground = false, Guid? MaskAlone = null, bool Previewing = false);
 
 /// <summary>
 /// Stacks a layered picture's layers into one picture, for the display at the zoom's scale and for a save at full size:

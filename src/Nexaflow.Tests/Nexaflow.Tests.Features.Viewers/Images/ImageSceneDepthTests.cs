@@ -452,6 +452,40 @@ public class ImageSceneDepthTests
     }
 
     [TestMethod]
+    [CoversNode("images-scene-depth-lens-blur")]
+    public void WhileASliderMoves_TheDepthPassIsDrawnAtLessDetail_AndWholeOnceItStops()
+    {
+        var vm = Editing();
+        OnUi(() => vm.Depth.LensBlur = true);
+        var session = vm.CurrentSession!;
+        Until(() => session.SceneDepth is not null);
+        OnUi(() => vm.Depth.Aperture = 100);
+        byte[] Drawn(double detail)
+        {
+            byte[]? pixels = null;
+            session.Render(session.Recipe, new RenderRequest(RenderFrame.Output, 1, DepthDetail: detail), image =>
+            {
+                using var bitmap = new SKBitmap(new SKImageInfo(image.Width, image.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+                image.ReadPixels(bitmap.Info, bitmap.GetPixels(), bitmap.RowBytes, 0, 0);
+                pixels = bitmap.Bytes;
+            });
+            return pixels!;
+        }
+
+        var whole = Drawn(1);
+        CollectionAssert.AreEqual(whole, Drawn(RenderRequest.PreviewDepthDetail), "a pass drawn whole is kept while something else moves");
+
+        OnUi(() => vm.Editor.BeginGesture());
+        Assert.IsTrue(_ui.Invoke(() => vm.Stage.Previewing), "a slider dragged: frames keep up with it");
+        OnUi(() => vm.Depth.Aperture = 80);
+        var moving = Drawn(RenderRequest.PreviewDepthDetail);
+        OnUi(() => vm.Editor.EndGesture());
+        Assert.IsFalse(_ui.Invoke(() => vm.Stage.Previewing), "let go, the frame is drawn whole");
+        var still = Drawn(1);
+        CollectionAssert.AreNotEqual(moving, still, "drawn at less detail while it moved, then whole");
+    }
+
+    [TestMethod]
     [CoversNode("images-selection-distance")]
     public void SelectingByDistance_OnAPhoto_IsARegionStep_KeptAsItsSpan_AndMovingTheEndsSelectsAgain()
     {
