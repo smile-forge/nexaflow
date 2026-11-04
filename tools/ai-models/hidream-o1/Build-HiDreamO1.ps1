@@ -1,16 +1,18 @@
 <#
 .SYNOPSIS
-    Builds the ONNX graph of HiDream-O1-Image that Nexaflow draws its high-quality pictures with, published at
-    huggingface.co/smile-forge/hidream-o1-image-onnx.
+    Builds the ONNX graphs of HiDream-O1-Image that Nexaflow draws its high-quality pictures and edits pictures with,
+    published at huggingface.co/smile-forge/hidream-o1-image-onnx.
 
 .DESCRIPTION
     No ONNX build of HiDream-O1-Image is published upstream, so Nexaflow makes its own — once, offline, on a machine with
     an NVIDIA GPU of at least 48 GB — and publishes the result; the app never converts anything on a user's machine.
-    build_hidream_o1.py traces HiDream's PyTorch model into one graph, its denoiser with the prompt cached, and
-    check_hidream_o1.py draws twelve prompts with it and with PyTorch, so a build is never published unchecked:
+    build_hidream_o1.py traces HiDream's PyTorch model into two graphs — its denoiser with the prompt cached, and its
+    picture reader, the vision tower an edit reads its pictures with — and check_hidream_o1.py draws twelve prompts and
+    makes four edits with them and with PyTorch, so a build is never published unchecked:
 
-      <Out>\denoiser        the denoiser, 8-bit weights, fp16 arithmetic on an fp32 residual stream, + tokenizer.json
-      <Out>\denoiser-fp16   the same with fp16 weights, for a GPU with the room, + tokenizer.json
+      <Out>\denoiser         the denoiser, 8-bit weights, fp16 arithmetic on an fp32 residual stream, + tokenizer.json
+      <Out>\denoiser-fp16    the same with fp16 weights, for a GPU with the room, + tokenizer.json
+      <Out>\picture-reader   the picture reader, fp32, which either denoiser reads pictures with
 
     and beside it the model card (README.md) and the recipe, so the published repository says how to rebuild itself.
     Upload with
@@ -89,7 +91,12 @@ foreach ($folder in 'denoiser', 'denoiser-fp16') {
         Copy-Item (Join-Path $build "$folder\$file") $target -Force
     }
 }
-foreach ($file in 'README.md', 'build_hidream_o1.py', 'check_hidream_o1.py', 'Build-HiDreamO1.ps1') { Copy-Item (Join-Path $Here $file) (Join-Path $Out $file) -Force }
+$reader = Join-Path $Out 'picture-reader'
+New-Item -ItemType Directory -Force $reader | Out-Null
+foreach ($file in 'picture-reader.onnx', 'picture-reader.onnx.data') { Copy-Item (Join-Path $build "picture-reader\$file") $reader -Force }
+foreach ($file in 'README.md', 'build_hidream_o1.py', 'check_hidream_o1.py', 'edit_reference.py', 'Build-HiDreamO1.ps1') {
+    Copy-Item (Join-Path $Here $file) (Join-Path $Out $file) -Force
+}
 
 Get-ChildItem $Out -Recurse -File | Sort-Object FullName | ForEach-Object {
     '{0}  {1,12}  {2}' -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Length, $_.FullName.Substring($Out.Length + 1)

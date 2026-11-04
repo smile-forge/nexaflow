@@ -19,9 +19,15 @@ internal sealed class MossDrawing(ModelRegistry models, GpuScheduler gpu) : IDra
 
     public bool Draws(int width, int height) => MossSampler.Draws(width, height);
 
+    public bool Reads(int width, int height) => false;
+
     public bool TakesNegativePrompts => true;
 
     public bool TakesLoras => true;
+
+    public int MaxSources => 0;
+
+    public bool Masks => false;
 
     public async Task<byte[]> DrawAsync(Draw request, Func<string, Task> stage, Func<int, int, Task> stepped, ModelRegistry.Room room, CancellationToken ct)
     {

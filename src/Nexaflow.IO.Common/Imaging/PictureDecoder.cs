@@ -7,17 +7,21 @@ namespace Nexaflow.IO.Common.Imaging;
 /// <summary>A picture as 8-bit RGB: <see cref="Rgb"/> row by row, three bytes a pixel.</summary>
 public sealed record RgbPicture(int Width, int Height, byte[] Rgb);
 
+/// <summary>A picture's transparency: <see cref="Alpha"/> row by row, a byte a pixel, 255 opaque.</summary>
+public sealed record AlphaPicture(int Width, int Height, byte[] Alpha);
+
 /// <summary>
 /// Reads a picture in any format Windows reads — PNG, JPEG, WebP, and whatever codecs are installed — through the
 /// Windows Imaging Component, as 8-bit RGB: for code that takes pictures but has no UI stack, such as an owned model's
-/// provider handing a clip's first frame to the AI host. Transparency is dropped; the first frame of an animated or
-/// multi-page picture is the one read.
+/// provider handing a clip's first frame to the AI host. Transparency is dropped, or read alone (<see cref="DecodeAlpha"/>);
+/// the first frame of an animated or multi-page picture is the one read.
 /// </summary>
 [SupportedOSPlatform("windows")]
 public static class PictureDecoder
 {
     private static readonly Guid FactoryClass = new("cacaf262-9370-4615-a13b-9f5539da4c0a");
     private static readonly Guid Rgb24 = new("6fddc324-4e03-4bfe-b185-3d77768dc90d");
+    private static readonly Guid Rgba32 = new("f5c7ad2d-6a8d-43dd-a7a8-a29935261ae9");
 
     private const int DecodeMetadataCacheOnDemand = 0;
     private const int DitherNone = 0;
@@ -25,6 +29,24 @@ public static class PictureDecoder
 
     /// <exception cref="InvalidDataException">Windows reads no picture from <paramref name="encoded"/>.</exception>
     public static RgbPicture DecodeRgb(byte[] encoded)
+    {
+        var (width, height, rgb) = Decode(encoded, Rgb24, 3);
+        return new RgbPicture(width, height, rgb);
+    }
+
+    /// <summary>A picture's transparency alone: a byte a pixel, row by row, 0 where it is wholly transparent and 255 where it
+    /// is opaque — for a mask whose transparent part says what is drawn again. A picture with no transparency is opaque.</summary>
+    /// <exception cref="InvalidDataException">Windows reads no picture from <paramref name="encoded"/>.</exception>
+    public static AlphaPicture DecodeAlpha(byte[] encoded)
+    {
+        var (width, height, rgba) = Decode(encoded, Rgba32, 4);
+        var alpha = new byte[width * height];
+        for (int i = 0; i < alpha.Length; i++) alpha[i] = rgba[i * 4 + 3];
+        return new AlphaPicture(width, height, alpha);
+    }
+
+    /// <summary>The first frame of <paramref name="encoded"/> converted to <paramref name="format"/>, row by row.</summary>
+    private static (int Width, int Height, byte[] Pixels) Decode(byte[] encoded, Guid format, int channels)
     {
         ArgumentNullException.ThrowIfNull(encoded);
         var factory = (IWICImagingFactory)Activator.CreateInstance(Type.GetTypeFromCLSID(FactoryClass, throwOnError: true)!)!;
@@ -39,13 +61,13 @@ public static class PictureDecoder
                 throw new InvalidDataException("Windows reads no picture from these bytes.");
             Check(decoder.GetFrame(0, out frame));
             Check(factory.CreateFormatConverter(out converter));
-            Check(converter.Initialize(frame, Rgb24, DitherNone, IntPtr.Zero, 0.0, PaletteCustom));
+            Check(converter.Initialize(frame, format, DitherNone, IntPtr.Zero, 0.0, PaletteCustom));
             Check(converter.GetSize(out uint width, out uint height));
 
-            int stride = checked((int)width * 3);
-            var rgb = new byte[checked(stride * (int)height)];
-            Check(converter.CopyPixels(IntPtr.Zero, (uint)stride, (uint)rgb.Length, rgb));
-            return new RgbPicture((int)width, (int)height, rgb);
+            int stride = checked((int)width * channels);
+            var pixels = new byte[checked(stride * (int)height)];
+            Check(converter.CopyPixels(IntPtr.Zero, (uint)stride, (uint)pixels.Length, pixels));
+            return ((int)width, (int)height, pixels);
         }
         finally
         {

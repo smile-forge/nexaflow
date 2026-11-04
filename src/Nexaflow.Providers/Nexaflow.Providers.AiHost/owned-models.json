@@ -1124,35 +1124,56 @@
       "kind": "imageGeneration",
       "tier": "highQuality",
       "sampler": { "method": "hiDream", "steps": 50, "shift": 3.0, "guidance": 5.0,
-                   "sizes": { "square": [2048, 2048], "landscape": [2560, 1440], "portrait": [1440, 2560] } },
+                   "sizes": { "square": [2048, 2048], "landscape": [2560, 1440], "portrait": [1440, 2560] },
+                   "editing": { "sources": 4, "masks": true, "pixels": 4194304, "multiple": 32, "sizing": "filled" } },
       "parts": [
         {
           "role": "denoiser",
           "runner": "hidream-denoiser",
           "folder": "models/hidream-o1-image/denoiser",
           "file": "denoiser.onnx",
-          "memoryBytes": 13837008896,
+          "memoryBytes": 15589179392,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "pictureReader",
+          "runner": "hidream-picture-reader",
+          "folder": "models/hidream-o1-image/picture-reader",
+          "file": "picture-reader.onnx",
+          "memoryBytes": 3289382912,
           "executionProvider": "cuda"
         }
       ],
       "files": [
         {
           "path": "models/hidream-o1-image/denoiser/denoiser.onnx",
-          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/1749a0c0d0e5807da381d5de051a44d2b162469d/denoiser/denoiser.onnx",
-          "size": 3112593,
-          "sha256": "4c580594367c6ec334219ffc450224533814f1c713ea094ecff407d40ac8c9e5"
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/da0b9a59b941234400b21917b36f19f58f0d63c6/denoiser/denoiser.onnx",
+          "size": 3014804,
+          "sha256": "c969bc06020f01f1f0cdc748f5f0cd89551104396869db314d26b2639948a444"
         },
         {
           "path": "models/hidream-o1-image/denoiser/denoiser.onnx.data",
-          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/1749a0c0d0e5807da381d5de051a44d2b162469d/denoiser/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/da0b9a59b941234400b21917b36f19f58f0d63c6/denoiser/denoiser.onnx.data",
           "size": 8776790016,
           "sha256": "a4724f29fa18a4b963582cac17ad62ce3b5a76bd5c0f55b9a053c64479ede03c"
         },
         {
           "path": "models/hidream-o1-image/denoiser/tokenizer.json",
-          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/1749a0c0d0e5807da381d5de051a44d2b162469d/denoiser/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/da0b9a59b941234400b21917b36f19f58f0d63c6/denoiser/tokenizer.json",
           "size": 7033338,
           "sha256": "a14b1a1a5f4d16de13dc773daf791bc701216f3361a2ab6530b08228950ad85f"
+        },
+        {
+          "path": "models/hidream-o1-image/picture-reader/picture-reader.onnx",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/da0b9a59b941234400b21917b36f19f58f0d63c6/picture-reader/picture-reader.onnx",
+          "size": 1382418,
+          "sha256": "9e561d8eda6531184cc9262faa1019277309f945d335ccd92912f2324338f3ad"
+        },
+        {
+          "path": "models/hidream-o1-image/picture-reader/picture-reader.onnx.data",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/da0b9a59b941234400b21917b36f19f58f0d63c6/picture-reader/picture-reader.onnx.data",
+          "size": 2306932736,
+          "sha256": "340a0386ee46f916e02fd10225c50892b0751eba85a72536c611eb4856d7903a"
         }
       ]
     },
@@ -1294,35 +1315,388 @@
       "kind": "imageGeneration",
       "tier": "highQuality",
       "sampler": { "method": "hiDream", "steps": 50, "shift": 3.0, "guidance": 5.0,
-                   "sizes": { "square": [2048, 2048], "landscape": [2560, 1440], "portrait": [1440, 2560] } },
+                   "sizes": { "square": [2048, 2048], "landscape": [2560, 1440], "portrait": [1440, 2560] },
+                   "editing": { "sources": 4, "masks": true, "pixels": 4194304, "multiple": 32, "sizing": "filled" } },
       "parts": [
         {
           "role": "denoiser",
           "runner": "hidream-denoiser",
           "folder": "models/hidream-o1-image/denoiser-fp16",
           "file": "denoiser.onnx",
-          "memoryBytes": 20025704448,
+          "memoryBytes": 23080206336,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "pictureReader",
+          "runner": "hidream-picture-reader",
+          "folder": "models/hidream-o1-image/picture-reader",
+          "file": "picture-reader.onnx",
+          "memoryBytes": 3289382912,
           "executionProvider": "cuda"
         }
       ],
       "files": [
         {
           "path": "models/hidream-o1-image/denoiser-fp16/denoiser.onnx",
-          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/1749a0c0d0e5807da381d5de051a44d2b162469d/denoiser-fp16/denoiser.onnx",
-          "size": 3323423,
-          "sha256": "a50f0f9d547c071f80f05e7a7d54adbbd13f43bac9e05745b85868a4594749ed"
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/da0b9a59b941234400b21917b36f19f58f0d63c6/denoiser-fp16/denoiser.onnx",
+          "size": 3221529,
+          "sha256": "fd1babeeb24e67146692b37783155e94b271c1cbf902e52a1aa152b163fe18e1"
         },
         {
           "path": "models/hidream-o1-image/denoiser-fp16/denoiser.onnx.data",
-          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/1749a0c0d0e5807da381d5de051a44d2b162469d/denoiser-fp16/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/da0b9a59b941234400b21917b36f19f58f0d63c6/denoiser-fp16/denoiser.onnx.data",
           "size": 15288500224,
           "sha256": "b923e69a5b7c84af1b264385d19cb37a1442c28921a67eb18216869c9071007b"
         },
         {
           "path": "models/hidream-o1-image/denoiser-fp16/tokenizer.json",
-          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/1749a0c0d0e5807da381d5de051a44d2b162469d/denoiser-fp16/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/da0b9a59b941234400b21917b36f19f58f0d63c6/denoiser-fp16/tokenizer.json",
           "size": 7033338,
           "sha256": "a14b1a1a5f4d16de13dc773daf791bc701216f3361a2ab6530b08228950ad85f"
+        },
+        {
+          "path": "models/hidream-o1-image/picture-reader/picture-reader.onnx",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/da0b9a59b941234400b21917b36f19f58f0d63c6/picture-reader/picture-reader.onnx",
+          "size": 1382418,
+          "sha256": "9e561d8eda6531184cc9262faa1019277309f945d335ccd92912f2324338f3ad"
+        },
+        {
+          "path": "models/hidream-o1-image/picture-reader/picture-reader.onnx.data",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/da0b9a59b941234400b21917b36f19f58f0d63c6/picture-reader/picture-reader.onnx.data",
+          "size": 2306932736,
+          "sha256": "340a0386ee46f916e02fd10225c50892b0751eba85a72536c611eb4856d7903a"
+        }
+      ]
+    },
+    {
+      "id": "flux2-klein-4b",
+      "displayName": "FLUX.2 [klein] 4B",
+      "kind": "imageGeneration",
+      "sampler": { "method": "flux2Klein", "steps": 4, "shift": 0, "guidance": 0,
+                   "sizes": { "square": [1024, 1024], "landscape": [1360, 768], "portrait": [768, 1360] },
+                   "editing": { "sources": 2, "masks": true, "pixels": 1048576, "multiple": 16 } },
+      "parts": [
+        {
+          "role": "promptEncoder",
+          "runner": "klein-prompt-encoder",
+          "folder": "models/flux2-klein-4b/encoder",
+          "file": "encoder.onnx",
+          "memoryBytes": 5219811328,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "denoiser",
+          "runner": "klein-denoiser",
+          "folder": "models/flux2-klein-4b/denoiser",
+          "file": "denoiser.onnx",
+          "memoryBytes": 11515461632,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "pictureEncoder",
+          "runner": "klein-picture-encoder",
+          "folder": "models/flux2-klein-4b/picture-encoder",
+          "file": "picture-encoder.onnx",
+          "memoryBytes": 2196766720,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "decoder",
+          "runner": "klein-decoder",
+          "folder": "models/flux2-klein-4b/decoder",
+          "file": "decoder.onnx",
+          "memoryBytes": 5192548352,
+          "executionProvider": "cuda"
+        }
+      ],
+      "files": [
+        {
+          "path": "models/flux2-klein-4b/decoder/decoder.onnx",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/decoder/decoder.onnx",
+          "size": 735313,
+          "sha256": "362d4fc0b00b0668c9e0d1077b5430c1192bb99b63f6c0bbc92601233121af6e"
+        },
+        {
+          "path": "models/flux2-klein-4b/decoder/decoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/decoder/decoder.onnx.data",
+          "size": 99287040,
+          "sha256": "a18a3b77db207d2b37648e879cf7508f39b8053c40d1cc11d04b196b93e86341"
+        },
+        {
+          "path": "models/flux2-klein-4b/denoiser/denoiser.onnx",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/denoiser/denoiser.onnx",
+          "size": 1634080,
+          "sha256": "fdc9053d248e5657b429101c4806c563ea4e0f0750112ccf2789629cc065bbb4"
+        },
+        {
+          "path": "models/flux2-klein-4b/denoiser/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/denoiser/denoiser.onnx.data",
+          "size": 4620636160,
+          "sha256": "858ef2af4881462972756953e169fb370f35382ed0a2823dafb59ee2b92aee8c"
+        },
+        {
+          "path": "models/flux2-klein-4b/encoder/encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/encoder/encoder.onnx",
+          "size": 3745515,
+          "sha256": "2bb3a35b988e4ab298d7c9254becd4d440434ad056b25fa4dc35d094c8340e6d"
+        },
+        {
+          "path": "models/flux2-klein-4b/encoder/encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/encoder/encoder.onnx.data",
+          "size": 3844476928,
+          "sha256": "da6e9401467e733d836817ed8573595d45d9b152ef9c5e1cf58218ce2fa74bf9"
+        },
+        {
+          "path": "models/flux2-klein-4b/encoder/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/encoder/tokenizer.json",
+          "size": 11422654,
+          "sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"
+        },
+        {
+          "path": "models/flux2-klein-4b/picture-encoder/picture-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/picture-encoder/picture-encoder.onnx",
+          "size": 560213,
+          "sha256": "4fb1e93cf3bec76877eaa409390a6794e0f2d1b0bd4f90fcf666e752028d30ff"
+        },
+        {
+          "path": "models/flux2-klein-4b/picture-encoder/picture-encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/picture-encoder/picture-encoder.onnx.data",
+          "size": 68878336,
+          "sha256": "e2ff803aee95765ac6004cf77d80148af15d2b9f0d192a6c09ad43bec4f3c1ba"
+        }
+      ]
+    },
+    {
+      "id": "qwen-image-edit-2511",
+      "displayName": "Qwen-Image-Edit-2511 (8-bit)",
+      "kind": "imageGeneration",
+      "sampler": { "method": "qwenImageEdit", "steps": 40, "shift": 0, "guidance": 4.0,
+                   "editing": { "sources": 3, "masks": true, "pixels": 1048576, "multiple": 32, "sizing": "rounded" } },
+      "parts": [
+        {
+          "role": "pictureReader",
+          "runner": "qwen-edit-picture-reader",
+          "folder": "models/qwen-image-edit-2511/picture-reader",
+          "file": "picture-reader.onnx",
+          "memoryBytes": 3794796544,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "promptEncoder",
+          "runner": "qwen-edit-prompt-encoder",
+          "folder": "models/qwen-image-edit-2511/prompt-encoder",
+          "file": "prompt-encoder.onnx",
+          "memoryBytes": 10305404928,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "pictureEncoder",
+          "runner": "qwen-edit-picture-encoder",
+          "folder": "models/qwen-image-edit-2511/picture-encoder",
+          "file": "picture-encoder.onnx",
+          "memoryBytes": 4652531712,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "denoiser",
+          "runner": "qwen-edit-denoiser",
+          "folder": "models/qwen-image-edit-2511/denoiser",
+          "file": "denoiser.onnx",
+          "memoryBytes": 29583474688,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "decoder",
+          "runner": "qwen-edit-decoder",
+          "folder": "models/qwen-image-edit-2511/decoder",
+          "file": "decoder.onnx",
+          "memoryBytes": 4318035968,
+          "executionProvider": "cuda"
+        }
+      ],
+      "files": [
+        {
+          "path": "models/qwen-image-edit-2511/picture-reader/picture-reader.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-reader/picture-reader.onnx",
+          "size": 1650840,
+          "sha256": "f0029a761ac1801a77ec3e206c904a828192062abcfa75ccda88efe42ae781ea"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/picture-reader/picture-reader.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-reader/picture-reader.onnx.data",
+          "size": 2711355392,
+          "sha256": "bfac799544434775d9f5f83974c8b99586af3b36cc8b4f32edbd9aa334ea1e31"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/prompt-encoder/prompt-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/prompt-encoder/prompt-encoder.onnx",
+          "size": 3918782,
+          "sha256": "1963636ff5472dea601eaa0fdd48f2747b235c878c4d846c382507946ff9bf38"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/prompt-encoder/prompt-encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/prompt-encoder/prompt-encoder.onnx.data",
+          "size": 8432277504,
+          "sha256": "59bdda72cc483afd6cb1a28afbcf4ebd6411c732012d977e6bc3dca2da9be7cb"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/prompt-encoder/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/prompt-encoder/tokenizer.json",
+          "size": 11421896,
+          "sha256": "9c5ae00e602b8860cbd784ba82a8aa14e8feecec692e7076590d014d7b7fdafa"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/picture-encoder/picture-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-encoder/picture-encoder.onnx",
+          "size": 706599,
+          "sha256": "2657291b4f07a31c8db9a0dd8fcba6c0a22fab4482a7810950b33476ea0212b6"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/picture-encoder/picture-encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-encoder/picture-encoder.onnx.data",
+          "size": 106594304,
+          "sha256": "4b452fd69967821f0e85ee064153dd27fb8a9cf41c50ae074e8c888d15ab74b2"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/denoiser/denoiser.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/denoiser/denoiser.onnx",
+          "size": 8633482,
+          "sha256": "99830d36547024901282c78cbd43efea0615d4f062087b87857013372bf11d57"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/denoiser/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/denoiser/denoiser.onnx.data",
+          "size": 21863458816,
+          "sha256": "f10240b5c8af5189722313025ab14387073c3baa8afed53791a98a9ca9fa14c9"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/decoder/decoder.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/decoder/decoder.onnx",
+          "size": 1072667,
+          "sha256": "880cea5de12b43bb19c35931b540a9e6a9bdf1d7fc18b3dc8d9492c3f688e2a6"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/decoder/decoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/decoder/decoder.onnx.data",
+          "size": 143884288,
+          "sha256": "b06a535c22ac605182da5cc6dffa5a97a68a68b446f65fee9aa7fad508d4ef18"
+        }
+      ]
+    },
+    {
+      "id": "qwen-image-edit-2511-fp16",
+      "displayName": "Qwen-Image-Edit-2511 (16-bit)",
+      "kind": "imageGeneration",
+      "sampler": { "method": "qwenImageEdit", "steps": 40, "shift": 0, "guidance": 4.0,
+                   "editing": { "sources": 3, "masks": true, "pixels": 1048576, "multiple": 32, "sizing": "rounded" } },
+      "parts": [
+        {
+          "role": "pictureReader",
+          "runner": "qwen-edit-picture-reader",
+          "folder": "models/qwen-image-edit-2511/picture-reader",
+          "file": "picture-reader.onnx",
+          "memoryBytes": 3794796544,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "promptEncoder",
+          "runner": "qwen-edit-prompt-encoder",
+          "folder": "models/qwen-image-edit-2511/prompt-encoder",
+          "file": "prompt-encoder.onnx",
+          "memoryBytes": 10305404928,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "pictureEncoder",
+          "runner": "qwen-edit-picture-encoder",
+          "folder": "models/qwen-image-edit-2511/picture-encoder",
+          "file": "picture-encoder.onnx",
+          "memoryBytes": 4652531712,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "denoiser",
+          "runner": "qwen-edit-denoiser",
+          "folder": "models/qwen-image-edit-2511/denoiser-fp16",
+          "file": "denoiser.onnx",
+          "memoryBytes": 47631564800,
+          "executionProvider": "cuda"
+        },
+        {
+          "role": "decoder",
+          "runner": "qwen-edit-decoder",
+          "folder": "models/qwen-image-edit-2511/decoder",
+          "file": "decoder.onnx",
+          "memoryBytes": 4318035968,
+          "executionProvider": "cuda"
+        }
+      ],
+      "files": [
+        {
+          "path": "models/qwen-image-edit-2511/picture-reader/picture-reader.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-reader/picture-reader.onnx",
+          "size": 1650840,
+          "sha256": "f0029a761ac1801a77ec3e206c904a828192062abcfa75ccda88efe42ae781ea"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/picture-reader/picture-reader.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-reader/picture-reader.onnx.data",
+          "size": 2711355392,
+          "sha256": "bfac799544434775d9f5f83974c8b99586af3b36cc8b4f32edbd9aa334ea1e31"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/prompt-encoder/prompt-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/prompt-encoder/prompt-encoder.onnx",
+          "size": 3918782,
+          "sha256": "1963636ff5472dea601eaa0fdd48f2747b235c878c4d846c382507946ff9bf38"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/prompt-encoder/prompt-encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/prompt-encoder/prompt-encoder.onnx.data",
+          "size": 8432277504,
+          "sha256": "59bdda72cc483afd6cb1a28afbcf4ebd6411c732012d977e6bc3dca2da9be7cb"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/prompt-encoder/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/prompt-encoder/tokenizer.json",
+          "size": 11421896,
+          "sha256": "9c5ae00e602b8860cbd784ba82a8aa14e8feecec692e7076590d014d7b7fdafa"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/picture-encoder/picture-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-encoder/picture-encoder.onnx",
+          "size": 706599,
+          "sha256": "2657291b4f07a31c8db9a0dd8fcba6c0a22fab4482a7810950b33476ea0212b6"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/picture-encoder/picture-encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-encoder/picture-encoder.onnx.data",
+          "size": 106594304,
+          "sha256": "4b452fd69967821f0e85ee064153dd27fb8a9cf41c50ae074e8c888d15ab74b2"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/denoiser-fp16/denoiser.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/denoiser-fp16/denoiser.onnx",
+          "size": 9350572,
+          "sha256": "cbc64337b47626663237fe6861a160021b6ba31867e8b31ebd66d98d28cef874"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/denoiser-fp16/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/denoiser-fp16/denoiser.onnx.data",
+          "size": 40858877952,
+          "sha256": "bb19839edd2b8c495747d8ec9d6b971871f215a66cd506c8bc79ff1856fa1942"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/decoder/decoder.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/decoder/decoder.onnx",
+          "size": 1072667,
+          "sha256": "880cea5de12b43bb19c35931b540a9e6a9bdf1d7fc18b3dc8d9492c3f688e2a6"
+        },
+        {
+          "path": "models/qwen-image-edit-2511/decoder/decoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/decoder/decoder.onnx.data",
+          "size": 143884288,
+          "sha256": "b06a535c22ac605182da5cc6dffa5a97a68a68b446f65fee9aa7fad508d4ef18"
         }
       ]
     },

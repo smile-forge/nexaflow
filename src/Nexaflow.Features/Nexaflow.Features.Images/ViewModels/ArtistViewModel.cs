@@ -105,6 +105,9 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         Layers.PropertyChanged += (_, e) => { if (e.PropertyName is nameof(LayersViewModel.MaskAlone) or nameof(LayersViewModel.ViewExposure)) RequestRender(); };
         Start = new ImageStartViewModel(this, shell, ai, editing, _config);
         Pictures = new CanvasPictures(this, shell, ai, editing);
+        Edits    = new PictureEdits(this, shell, ai);
+        Editor.HeldSelectionChanged += Edits.Refresh;
+        Layers.ResizeCanvasCommand.CanExecuteChanged += (_, _) => Edits.GenerateCanvasCommand.NotifyCanExecuteChanged();
         Painting = new LayerPainting(this, Editor);
         Arranging = new LayerArranging(this, editing);
         Printing = new PicturePrinting(Stage, editing, shell);
@@ -112,6 +115,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         {
             if (e.PropertyName == nameof(ImageEditorViewModel.Tool)) Depth.OnRecipeChanged();
             if (e.PropertyName == nameof(ImageEditorViewModel.SelectsByDistance) && Editor.SelectsByDistance) _ = Editor.RegionMarks.ShowDistancesAsync();
+            if (e.PropertyName == nameof(ImageEditorViewModel.NewArea)) Edits.Refresh();
             if (e.PropertyName != nameof(ImageEditorViewModel.Tool) || Editor.IsMoveTool) return;
             // Leaving Move: an open transform is applied, and what floats is dropped back into its layer.
             if (Arranging.IsTransforming) Arranging.Apply();
@@ -165,6 +169,9 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
 
     /// <summary>Pictures brought into a layered picture as layers: dropped on the canvas, or drawn by the image model.</summary>
     public CanvasPictures Pictures { get; }
+
+    /// <summary>The AI edits of a layered picture: fill the selection, expand the canvas, change a layer or the picture.</summary>
+    public PictureEdits Edits { get; }
 
     /// <summary>The Paint tool: brush, eraser, eyedropper and fill on the active pixel layer or its mask.</summary>
     public LayerPainting Painting { get; }
@@ -289,6 +296,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
             OnPropertyChanged(nameof(SavedLookNotice));
             if (document.History.CanUndo) ScheduleDocumentSave();
         }
+        Edits.Refresh();
         Editor.OnRecipeChanged();
         Depth.OnRecipeChanged();
     }

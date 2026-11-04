@@ -239,16 +239,43 @@ public static class PictureResampling
     /// first then down, each pass rounded to 8 bits.
     /// </summary>
     public static byte[] ResizeBilinearAsPil(ReadOnlySpan<byte> pixels, int width, int height, int channels, int newWidth, int newHeight)
+        => ResizeAsPil(pixels, width, height, channels, newWidth, newHeight, PilFilter.Bilinear);
+
+    /// <summary>
+    /// Resizes interleaved 8-bit <paramref name="channels"/>-channel pixels as PIL's <c>Image.resize</c> does with
+    /// <paramref name="filter"/>: each output pixel a weighted average of the source pixels about where its centre falls, the
+    /// filter widened by the reduction so a large picture is averaged rather than sampled; the weights in PIL's 22-bit fixed
+    /// point, across first then down, each pass rounded and clipped to 8 bits.
+    /// </summary>
+    public static byte[] ResizeAsPil(ReadOnlySpan<byte> pixels, int width, int height, int channels, int newWidth, int newHeight, PilFilter filter)
+        => ResizeSeparable(pixels, width, height, channels, newWidth, newHeight, filter, sixteenBit: false);
+
+    /// <summary>
+    /// Resizes interleaved 8-bit <paramref name="channels"/>-channel pixels as PyTorch's <c>interpolate(…, antialias=True)</c>
+    /// does an 8-bit picture with a bilinear or bicubic <paramref name="filter"/> — as torchvision's resize, and the image
+    /// processors built on it, do: PIL's filters and arithmetic, but each pass's weights in 16 bits, as precise as its
+    /// largest weight lets them be.
+    /// </summary>
+    public static byte[] ResizeAsTorch(ReadOnlySpan<byte> pixels, int width, int height, int channels, int newWidth, int newHeight, PilFilter filter)
+    {
+        if (filter is not (PilFilter.Bilinear or PilFilter.Bicubic))
+            throw new ArgumentOutOfRangeException(nameof(filter), filter, "PyTorch resizes 8-bit pictures bilinearly or bicubically");
+        return ResizeSeparable(pixels, width, height, channels, newWidth, newHeight, filter, sixteenBit: true);
+    }
+
+    /// <summary>A separable fixed-point resize: across first, over only the source rows the downward pass reads, then
+    /// down, each pass rounded and clipped to 8 bits at its weights' precision.</summary>
+    private static byte[] ResizeSeparable(ReadOnlySpan<byte> pixels, int width, int height, int channels, int newWidth, int newHeight,
+                                          PilFilter filter, bool sixteenBit)
     {
         if (pixels.Length != width * height * channels) throw new ArgumentException("The pixels are not the size given.", nameof(pixels));
         if (newWidth <= 0 || newHeight <= 0) throw new ArgumentOutOfRangeException(nameof(newWidth), "A picture has a size.");
         if (newWidth == width && newHeight == height) return pixels.ToArray();
 
-        var across = PilTaps(width, newWidth);
-        var down = PilTaps(height, newHeight);
+        var across = PilTaps(width, newWidth, filter, sixteenBit);
+        var down = PilTaps(height, newHeight, filter, sixteenBit);
         var source = pixels.ToArray();
 
-        // Across, over only the source rows the downward pass reads.
         int firstRow = down.Start[0], lastRow = down.Start[newHeight - 1] + down.Count[newHeight - 1];
         byte[] rows = source;
         if (newWidth != width)
@@ -263,9 +290,9 @@ public static class PictureResampling
                     int start = across.Start[x], count = across.Count[x], taps = x * across.Size;
                     for (int c = 0; c < channels; c++)
                     {
-                        int sum = PilHalf;
+                        int sum = 1 << (across.Precision - 1);
                         for (int k = 0; k < count; k++) sum += source[row + (start + k) * channels + c] * across.Weight[taps + k];
-                        rows[outRow + x * channels + c] = PilClip(sum);
+                        rows[outRow + x * channels + c] = FixedClip(sum, across.Precision);
                     }
                 }
             });
@@ -280,9 +307,9 @@ public static class PictureResampling
             int start = down.Start[y] - firstRow, count = down.Count[y], taps = y * down.Size;
             for (int i = 0; i < stride; i++)
             {
-                int sum = PilHalf;
+                int sum = 1 << (down.Precision - 1);
                 for (int k = 0; k < count; k++) sum += rows[(start + k) * stride + i] * down.Weight[taps + k];
-                result[y * stride + i] = PilClip(sum);
+                result[y * stride + i] = FixedClip(sum, down.Precision);
             }
         });
         return result;
@@ -291,22 +318,23 @@ public static class PictureResampling
     /// <summary>PIL's fixed point for 8-bit pictures: weights carry 22 fractional bits, a sum starts at a half.</summary>
     private const int PilPrecisionBits = 32 - 8 - 2;
 
-    private const int PilHalf = 1 << (PilPrecisionBits - 1);
+    private static byte FixedClip(int sum, int precision) => sum <= 0 ? (byte)0 : sum >= 255 << precision ? (byte)255 : (byte)(sum >> precision);
 
-    private static byte PilClip(int sum) => sum <= 0 ? (byte)0 : sum >= 255 << PilPrecisionBits ? (byte)255 : (byte)(sum >> PilPrecisionBits);
-
-    /// <summary>PIL's <c>precompute_coeffs</c> for its bilinear filter: for each output position, the first source position
-    /// it reads, how many it reads, and their weights, normalised to 1 and then put in fixed point.</summary>
-    private static (int[] Start, int[] Count, int[] Weight, int Size) PilTaps(int size, int newSize)
+    /// <summary>PIL's <c>precompute_coeffs</c>: for each output position, the first source position it reads, how many it
+    /// reads, and their weights under <paramref name="filter"/>, normalised to 1 and then put in fixed point — PIL's 22 bits,
+    /// or, <paramref name="sixteenBit"/>, as many as keep the largest weight within 16 bits, as PyTorch's 8-bit resize puts
+    /// them.</summary>
+    private static (int[] Start, int[] Count, int[] Weight, int Size, int Precision) PilTaps(int size, int newSize, PilFilter filter, bool sixteenBit)
     {
         double scale = (double)size / newSize;
         double filterScale = Math.Max(scale, 1.0);
-        double support = filterScale;   // the bilinear filter's support is 1, widened by the reduction
+        double support = PilSupport(filter) * filterScale;   // the filter's reach, widened by the reduction
+        double inverse = 1.0 / filterScale;
         int taps = (int)Math.Ceiling(support) * 2 + 1;
         var start = new int[newSize];
         var count = new int[newSize];
-        var weight = new int[newSize * taps];
-        var w = new double[taps];
+        var normalised = new double[newSize * taps];
+        double largest = 0;
         for (int d = 0; d < newSize; d++)
         {
             double centre = (d + 0.5) * scale;
@@ -315,20 +343,70 @@ public static class PictureResampling
             double total = 0;
             for (int k = 0; k < max; k++)
             {
-                double x = Math.Abs((k + min - centre + 0.5) / filterScale);
-                w[k] = x < 1 ? 1 - x : 0;
-                total += w[k];
+                double w = PilKernel(filter, (k + min - centre + 0.5) * inverse);
+                normalised[d * taps + k] = w;
+                total += w;
             }
             for (int k = 0; k < max; k++)
             {
-                double normalised = total != 0 ? w[k] / total : w[k];
-                weight[d * taps + k] = normalised < 0 ? (int)(-0.5 + normalised * (1 << PilPrecisionBits))
-                                                      : (int)(0.5 + normalised * (1 << PilPrecisionBits));
+                if (total != 0) normalised[d * taps + k] /= total;
+                largest = Math.Max(largest, normalised[d * taps + k]);
             }
             start[d] = min;
             count[d] = max;
         }
-        return (start, count, weight, taps);
+
+        int precision = PilPrecisionBits;
+        if (sixteenBit)
+            for (precision = 0; precision < PilPrecisionBits; precision++)
+                if ((int)(0.5 + largest * (1 << (precision + 1))) >= 1 << 15) break;
+        var weight = new int[newSize * taps];
+        for (int i = 0; i < weight.Length; i++)
+        {
+            double v = normalised[i] * (1 << precision);
+            weight[i] = v < 0 ? (int)(-0.5 + v) : (int)(0.5 + v);
+        }
+        return (start, count, weight, taps, precision);
+    }
+
+    /// <summary>How far each PIL filter reaches either side of a pixel, before any widening.</summary>
+    private static double PilSupport(PilFilter filter) => filter switch
+    {
+        PilFilter.Box      => 0.5,
+        PilFilter.Bilinear => 1.0,
+        PilFilter.Bicubic  => 2.0,
+        PilFilter.Lanczos  => 3.0,
+        _ => throw new ArgumentOutOfRangeException(nameof(filter), filter, "PIL has no such filter"),
+    };
+
+    /// <summary>PIL's filters at <paramref name="x"/> source pixels from where an output pixel's centre falls.</summary>
+    private static double PilKernel(PilFilter filter, double x)
+    {
+        switch (filter)
+        {
+            case PilFilter.Box:
+                return x > -0.5 && x <= 0.5 ? 1.0 : 0.0;
+            case PilFilter.Bilinear:
+                x = Math.Abs(x);
+                return x < 1.0 ? 1.0 - x : 0.0;
+            case PilFilter.Bicubic:
+                const double a = -0.5;
+                x = Math.Abs(x);
+                if (x < 1.0) return ((a + 2.0) * x - (a + 3.0)) * x * x + 1;
+                if (x < 2.0) return (((x - 5) * x + 8) * x - 4) * a;
+                return 0.0;
+            case PilFilter.Lanczos:
+                return x >= -3.0 && x < 3.0 ? Sinc(x) * Sinc(x / 3) : 0.0;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(filter), filter, "PIL has no such filter");
+        }
+
+        static double Sinc(double x)
+        {
+            if (x == 0.0) return 1.0;
+            x *= Math.PI;
+            return Math.Sin(x) / x;
+        }
     }
 
     /// <summary>

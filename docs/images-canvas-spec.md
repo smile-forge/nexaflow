@@ -501,16 +501,42 @@ closed. The New picker's *Layered picture* makes its canvas in the picker itself
 `PictureJob` whose `Made` task completes with the saved path (null when stopped, withheld by the picture check, or
 failed), and `PictureAsked` gains `OpensWhenMade` (default true, as today). The canvas asks for a draft path, does not
 open it, and adds the picture as a picture layer, fitted to the canvas and centred, when it arrives — on the start screen
-beneath the empty layer, as the canvas's first. Until then a row above the layers panel (`CanvasPictures.Pending`)
+beneath the empty layer, as the canvas's first. Until then a row in the layers panel, beneath its heading (`CanvasPictures.Pending`),
 shows the job's progress (`PictureJob.Progress`, the step its model reports) and Stop; it is not a layer of the picture,
 so nothing of it is ever saved. A picture that arrives while its canvas is not shown is added once it is. The job stays
 one of the workspace's background jobs, listed and stoppable as now.
 
-- **Generate layer** (layers panel): the same, at the canvas size, into a new layer above the active one.
+- **Generate layer** (the layers panel's heading): the same, at the canvas size, into a new layer above the active one.
 - **Dropping pictures** on the canvas adds each as a picture layer above the active one, fitted and centred — a photo made
   a layered picture first (§4.3).
 
-Generating into a selection (generative fill) waits for a local model that takes a mask (§13).
+### 9.3 Editing with a model
+
+The workspace's Image Editing model — one that works from pictures, its row taking no other (`AiAbilityNames.Serves`)
+— makes three edits (`PictureEdits`), each set up where its kind of edit lives and each one of the workspace's background
+jobs through `IAIService.EditPicture` — the call `edit_image` would be given — so it passes the picture check as every
+picture does. A photo is made a layered picture first.
+
+- **Generate fill**, in Select's *With what's selected* beside Erase and Remove background: the composite about the
+  selection — its bounds and as much again around them, held to the canvas — sent with the selection as the mask
+  (transparent where it is drawn again); a photo's selection is carried onto its layers.
+- **Expand**, in Reshape, for a photo: with *Generate the new area* on, the canvas shows the picture with room about it
+  half its longer side each way (`RenderFrame.CropReaching`), and the crop frame may be dragged onto it. Each edge that
+  would leave the picture is held where it meets it — edge by edge, so a corner dragged out keeps all of the picture it
+  passes over (`CropGeometry.ReachInside`) — and what the frame reaches beyond is the new area, measured as the picture is
+  shown, turned and at its finished size (`CropGeometry.Reach`). Generate makes the photo a layered picture of the crop it
+  keeps, grows the canvas by the new area (`LayerEdits.Resized`, one step of the history) and sends the whole composite
+  with the new area as the mask — feathered a little way over the sides of the picture that meet it, so the two meet with
+  no seam — and, told nothing, a prompt that carries the picture on. A layered picture's canvas grows in Layers' Canvas
+  size instead, whose own *Generate the new area* sends what the canvas gains the same way.
+- **Change picture**, a group of Adjust: the whole composite, or a layered picture's active layer alone, sent with no mask
+  and an instruction.
+
+What comes back arrives as a picture layer above the active one, laid exactly over the area it was sent from — stretched
+each way by the few pixels the model's sizes cut its sides to (`EditedPlace`) — and masked by what was drawn: the
+selection, the border, or the layer's own transparency; a whole-picture change is not masked. The original stays beneath,
+so an edit is undone by deleting its layer or hiding it, and kept by flattening. A canvas changed in size meanwhile takes
+the layer fitted, unmasked. Where no model edits, none of them is offered.
 
 ## 10. Print
 
@@ -548,8 +574,9 @@ Print has no dependency and can ship with phase 1.
 
 On an Images tab with a layered document, beside the tools it has: `list_layers` (names, kinds, visibility, order),
 `set_layer` (rename, show / hide, opacity, blend, move up / down), `generate_layer` (a background job, as
-`generate_image` is), and `select_in_picture` sets the document's selection rather than only showing a cut-out. They act
-only on the document the tab has open.
+`generate_image` is), `fill_selection`, `expand_canvas` and `change_picture` (the edits of §9.3, offered where the
+workspace's Image Editing row has a model), and `select_in_picture` sets the document's selection rather than only showing
+a cut-out. They act only on the document the tab has open.
 
 ### 12.2 Product tree
 
@@ -578,8 +605,7 @@ New nodes under `images-edit`, added as each phase is built, with snaplinks in `
 
 ## 13. Forward look
 
-Not in scope, and nothing here should block them: **generative fill** — a selection regenerated from a prompt by a
-local model that takes a mask, its result a new layer masked by the selection, so the original stays beneath; adjustment
+Not in scope, and nothing here should block them: adjustment
 layers (a layer holding an `ImageRecipe`'s tone section, applied to what is beneath), which would let a Photoshop
 adjustment layer be drawn rather than kept; layer effects drawn; text layers; vector masks; printing several pictures as
 a contact sheet from the album.

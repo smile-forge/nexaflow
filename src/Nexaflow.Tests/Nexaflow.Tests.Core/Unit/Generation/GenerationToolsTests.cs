@@ -50,12 +50,12 @@ public class GenerationToolsTests
     public void EachTool_IsOfferedOnlyWhereTheWorkspaceHasAModelForIt()
     {
         string[] Offered(IImageGenerationProvider? images, ITextToSpeechProvider? voice, IVideoGenerationProvider? videos)
-            => [.. new GenerationTools(images, null, voice, videos, null, Files).Tools.Select(t => t.Name)];
+            => [.. new GenerationTools(images, null, null, voice, videos, null, Files).Tools.Select(t => t.Name)];
 
         CollectionAssert.AreEqual(Array.Empty<string>(), Offered(null, null, null));
         CollectionAssert.AreEqual(new[] { "generate_image" }, Offered(new Painter(), null, null));
         CollectionAssert.AreEqual(new[] { "generate_image", "generate_speech", "generate_video" }, Offered(new Painter(), new FakeSpeaker(), new Filmer()));
-        CollectionAssert.AreEqual(new[] { "generate_video" }, new GenerationTools(null, null, null, null, new Filmer(), Files).Tools.Select(t => t.Name).ToArray(),
+        CollectionAssert.AreEqual(new[] { "generate_video" }, new GenerationTools(null, null, null, null, null, new Filmer(), Files).Tools.Select(t => t.Name).ToArray(),
                                   "a high-quality video model alone offers clips too");
     }
 
@@ -297,7 +297,8 @@ public class GenerationToolsTests
 
         CollectionAssert.AreEqual(new[] { "standard", "high" }, tool.Parameters.Single(p => p.Name == "quality").Choices!.ToArray());
         Assert.AreEqual(ToolSafety.SafeOperation, tool.SafetyOf(new JsonObject { ["prompt"] = "a fox" }));
-        Assert.IsNull(tool.Announce(new JsonObject { ["prompt"] = "a fox" }), "a standard picture is just drawn");
+        Assert.AreEqual(Str.Get("Shell.Generate.Announce.DrawingPicture"), tool.Announce(new JsonObject { ["prompt"] = "a fox" })!.Doing,
+                        "a standard picture is named for what it does, not for its tool");
         Assert.AreEqual(ToolSafety.RequiresApproval, tool.SafetyOf(asked), "a high-quality picture is slow and dearer");
         Assert.AreEqual(Str.Get("Shell.Generate.Announce.HighQualityPicture"), tool.Announce(asked)!.Target);
 
@@ -319,16 +320,12 @@ public class GenerationToolsTests
     }
 
     [TestMethod]
-    public async Task AQualityThatTakesNoSources_IsToldSo_WhenTheOtherDoes()
+    public void GenerateImage_DrawsFromADescriptionAlone_PicturesToWorkFromAreEditImages()
     {
-        var source = Path.Combine(Context, "fox.png");
-        File.WriteAllBytes(source, Drawn);
-        var tool = new GenerateImageTool(new Painter { Sources = 3 }, new Painter { Sources = 0 }, Files);
+        var tool = new GenerateImageTool(new Painter { Sources = 3, Masking = true }, new Painter { Sources = 0 }, Files);
 
-        StringAssert.Contains(tool.Parameters.Single(p => p.Name == "sources").Description, "Standard takes 3, high 0");
-        var result = await tool.InvokeAsync(new JsonObject { ["prompt"] = "night", ["quality"] = "high", ["sources"] = new JsonArray(source) }, default);
-
-        Assert.IsTrue(result.IsError);
+        Assert.IsFalse(tool.Parameters.Any(p => p.Name is "sources" or "mask"), "a model that edits too still only draws here");
+        StringAssert.Contains(tool.Description, "from a description");
     }
 
     [TestMethod]
@@ -350,24 +347,57 @@ public class GenerationToolsTests
         => Assert.AreEqual(name, GeneratedFiles.NameFrom(about));
 
     [TestMethod]
-    public async Task PicturesToWorkFrom_AreOfferedOnlyToAModelThatTakesThem_AndReachIt()
+    public async Task EditImage_TakesPicturesAndAMask_AsItsModelDoes_AndTheyReachIt()
     {
         var source = Path.Combine(Context, "fox.png");
         File.WriteAllBytes(source, Drawn);
-        var drawsOnly = new Painter { Sources = 0 };
-        var editor    = new Painter { Sources = 2, Masking = true };
+        var editor = new Painter { Sources = 2, Masking = true };
+        var unmasked = new EditImageTool(new Painter { Sources = 1 }, Files);
 
-        Assert.IsFalse(new GenerateImageTool(drawsOnly, null, Files).Parameters.Any(p => p.Name is "sources" or "mask"));
-        CollectionAssert.IsSubsetOf(new[] { "sources", "mask" }, new GenerateImageTool(editor, null, Files).Parameters.Select(p => p.Name).ToArray());
+        CollectionAssert.IsSubsetOf(new[] { "instruction", "sources", "mask" }, new EditImageTool(editor, Files).Parameters.Select(p => p.Name).ToArray());
+        Assert.IsFalse(unmasked.Parameters.Any(p => p.Name == "mask"), "a mask only for a model that masks");
+        StringAssert.Contains(new EditImageTool(editor, Files).Parameters.Single(p => p.Name == "sources").Description, "1 to 2");
 
-        var result = await new GenerateImageTool(editor, null, Files).InvokeAsync(
-            new JsonObject { ["prompt"] = "make it night", ["sources"] = new JsonArray(source), ["mask"] = source }, default);
+        var result = await new EditImageTool(editor, Files).InvokeAsync(
+            new JsonObject { ["instruction"] = "make it night", ["sources"] = new JsonArray(source), ["mask"] = source }, default);
 
         Assert.IsTrue(result.Success, result.ModelText);
         var asked = editor.Asked.Single();
+        Assert.AreEqual("make it night", asked.Prompt);
         CollectionAssert.AreEqual(Drawn, asked.Sources.Single().Bytes);
         Assert.AreEqual("image/png", asked.Sources.Single().MimeType);
         Assert.IsNotNull(asked.Mask);
+        Assert.IsTrue(_opened.Count == 1, "what it made opens for the user");
+    }
+
+    [TestMethod]
+    public async Task AnEdit_RunsInTheBackground_NeedsAPicture_AndKeepsTheFirstOnesProportions_WhereItsModelDoes()
+    {
+        var source = Path.Combine(Context, "fox.png");
+        File.WriteAllBytes(source, Drawn);
+        var keeps = new Painter { Sources = 2, Settings = new([new(1, 1)]) { KeepsSourceProportions = true } };
+        var tool  = new EditImageTool(keeps, Files);
+
+        Assert.IsTrue(tool.RunsInBackground([]), "an edit is one of the workspace's jobs");
+        Assert.IsFalse(tool.Parameters.Any(p => p.Name == "shape"), "its proportions are the picture's");
+        Assert.IsTrue((await tool.InvokeAsync(new JsonObject { ["instruction"] = "make it night" }, default)).IsError, "an edit needs a picture");
+        Assert.IsTrue((await tool.InvokeAsync(new JsonObject { ["instruction"] = "make it night", ["sources"] = new JsonArray(source, source, source) }, default)).IsError,
+                      "no more pictures than its model reads");
+        Assert.IsTrue((await tool.InvokeAsync(new JsonObject { ["instruction"] = "make it night", ["sources"] = new JsonArray(source) }, default)).Success);
+        Assert.AreEqual(1, keeps.Asked.Count);
+        Assert.ThrowsExactly<ArgumentException>(() => new EditImageTool(new Painter { Sources = 0 }, Files), "a model that only draws edits nothing");
+    }
+
+    [TestMethod]
+    public void EditImage_IsOfferedOnlyWhereTheImageEditingRowHasAModelThatWorksFromPictures()
+    {
+        string[] Offered(IImageGenerationProvider? edits) => [.. new GenerationTools(new Painter(), null, edits, null, null, null, Files).Tools.Select(t => t.Name)];
+
+        CollectionAssert.AreEqual(new[] { "generate_image", "edit_image" }, Offered(new Painter { Sources = 1 }));
+        CollectionAssert.AreEqual(new[] { "generate_image" }, Offered(new Painter { Sources = 0 }));
+        CollectionAssert.AreEqual(new[] { "generate_image" }, Offered(null));
+        CollectionAssert.AreEqual(new[] { "edit_image" }, new GenerationTools(null, null, new Painter(), null, null, null, Files).Tools.Select(t => t.Name).ToArray(),
+                                  "a workspace that edits without drawing offers edits alone");
     }
 
     [TestMethod]
@@ -377,11 +407,11 @@ public class GenerationToolsTests
         File.WriteAllBytes(outside, Drawn);
         var editor = new Painter { Sources = 1 };
 
-        var refused = await new GenerateImageTool(editor, null, Files).InvokeAsync(
-            new JsonObject { ["prompt"] = "night", ["sources"] = new JsonArray(outside) }, default);
+        var refused = await new EditImageTool(editor, Files).InvokeAsync(
+            new JsonObject { ["instruction"] = "night", ["sources"] = new JsonArray(outside) }, default);
         var openAlone = new GeneratedFiles(new PathScope([outside], []), Drafts, _ => _home, _ => Task.CompletedTask);
-        var given = await new GenerateImageTool(editor, null, openAlone).InvokeAsync(
-            new JsonObject { ["prompt"] = "night", ["sources"] = new JsonArray(outside) }, default);
+        var given = await new EditImageTool(editor, openAlone).InvokeAsync(
+            new JsonObject { ["instruction"] = "night", ["sources"] = new JsonArray(outside) }, default);
 
         Assert.IsTrue(refused.IsError);
         StringAssert.Contains(refused.ModelText, "outside what the user has given you");
@@ -393,8 +423,8 @@ public class GenerationToolsTests
     public async Task APictureThatCannotBeRead_OrAFailedDrawing_IsToldToTheModel_AndNothingIsSaved()
     {
         var editor = new Painter { Sources = 1 };
-        var missing = await new GenerateImageTool(editor, null, Files).InvokeAsync(
-            new JsonObject { ["prompt"] = "night", ["sources"] = new JsonArray(Path.Combine(Context, "nope.png")) }, default);
+        var missing = await new EditImageTool(editor, Files).InvokeAsync(
+            new JsonObject { ["instruction"] = "night", ["sources"] = new JsonArray(Path.Combine(Context, "nope.png")) }, default);
         var refused = await new GenerateImageTool(new Painter { Refusal = "the picture was withheld: people" }, null, Files).InvokeAsync(
             new JsonObject { ["prompt"] = "a crowd" }, default);
 
@@ -545,6 +575,8 @@ public class GenerationToolsTests
         public string Name => "painter";
         public DataResidency Residency => DataResidency.LeavesMachine;
         public int MaxSources => Sources;
+
+        public int MaxSourcesOf(string model) => Sources;
         public bool Masks => Masking;
         public ImageSettings Settings { get; init; } = new([new(1, 1), new(3, 2), new(2, 3)]);
         public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<string>>([]);

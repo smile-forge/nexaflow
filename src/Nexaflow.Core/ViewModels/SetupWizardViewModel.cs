@@ -370,7 +370,7 @@ internal sealed class ModelKindsStep(WorkspaceSetupContext ctx) : ObservableObje
     [
         (ModelKind.SpeechToText,    [AiAbility.SpeechIn]),
         (ModelKind.TextToSpeech,    [AiAbility.SpeechOut]),
-        (ModelKind.ImageGeneration, [AiAbility.ImageGeneration, AiAbility.HighQualityImageGeneration]),
+        (ModelKind.ImageGeneration, [AiAbility.ImageGeneration, AiAbility.HighQualityImageGeneration, AiAbility.ImageEditing]),
         (ModelKind.VideoGeneration, [AiAbility.VideoGeneration, AiAbility.HighQualityVideoGeneration]),
     ];
 

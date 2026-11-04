@@ -91,6 +91,10 @@ public sealed record ImageSettings(IReadOnlyList<MediaAspect> Aspects)
     /// <summary>The LoRAs it draws with when asked — one at a time; empty where it takes none.</summary>
     public IReadOnlyList<ImageLora> Loras { get; init; } = [];
 
+    /// <summary>Whether a picture made from sources is made at its first source's proportions, whatever
+    /// <see cref="ImageGenerationRequest.Aspect"/> asks — an edit keeping the picture it changes as it is.</summary>
+    public bool KeepsSourceProportions { get; init; }
+
     /// <summary>The LoRA of that id, or null where it has none.</summary>
     public ImageLora? LoraOf(string? id) => Loras.FirstOrDefault(l => l.Id == id);
 
@@ -100,7 +104,7 @@ public sealed record ImageSettings(IReadOnlyList<MediaAspect> Aspects)
     /// <summary>Why <paramref name="request"/> asks for something this model does not do, or null where it asks for nothing it does not.</summary>
     public string? Refusal(ImageGenerationRequest request)
     {
-        if (!Aspects.Contains(request.Aspect))
+        if (!Aspects.Contains(request.Aspect) && !(KeepsSourceProportions && request.Sources.Count > 0))
             return $"It draws at {string.Join(", ", Aspects)}, not {request.Aspect}.";
         if (request.Resolution is { } resolution && !Resolutions.Contains(resolution, StringComparer.OrdinalIgnoreCase))
             return Resolutions.Count == 0 ? "It draws at one size." : $"It draws at {string.Join(", ", Resolutions)}, not {resolution}.";

@@ -219,4 +219,57 @@ public class ImageEditGeometryTests
         var already = new RecipeGeometry { StraightenDegrees = 40 };
         Assert.AreEqual(45, CropGeometry.LevelAngle(already, a, new SKPoint(100, -20)), 1e-6, "clamped to the range");
     }
+
+    // ── A crop frame reaching past the picture ─────────────────────────────
+
+    [TestMethod]
+    [CoversNode("images-edit-ai-expand")]
+    public void AFrameReachingPastThePicture_KeepsEveryPixelOfItThatItCovers_EdgeByEdge()
+    {
+        var start = new CropRect(100, 50, 200, 150);
+
+        var corner = CropGeometry.ReachInside(Source, 0, start, CropRect.FromEdges(100, 50, 520, 380));
+        Assert.AreEqual((100, 50, 400, 300), Edges(corner), "a corner dragged out: both its edges stop at the picture's, the others stay");
+
+        var moved = CropGeometry.ReachInside(Source, 0, start, CropRect.FromEdges(320, 50, 520, 200));
+        Assert.AreEqual((320, 50, 400, 200), Edges(moved), "moved partly off: the edges still on the picture go where they were dragged, the one past it stops at its edge");
+
+        var inside = CropRect.FromEdges(120, 60, 280, 190);
+        Assert.AreEqual(inside, CropGeometry.ReachInside(Source, 0, start, inside), "a frame on the picture is the crop itself");
+    }
+
+    /// <summary>A crop's edges to the nearest hundredth of a pixel — as near as the frame is found.</summary>
+    private static (double Left, double Top, double Right, double Bottom) Edges(CropRect r) =>
+        (Math.Round(r.X, 2), Math.Round(r.Y, 2), Math.Round(r.X + r.Width, 2), Math.Round(r.Y + r.Height, 2));
+
+    [TestMethod]
+    [CoversNode("images-edit-ai-expand")]
+    public void AStraightenedPicturesFrameReachingPastIt_KeepsACropThatLiesOnIt()
+    {
+        var start = CropGeometry.DefaultCrop(Source, 10);
+        var desired = CropRect.FromEdges(start.X, start.Y, start.X + start.Width + 200, start.Y + start.Height);
+
+        var kept = CropGeometry.ReachInside(Source, 10, start, desired);
+
+        Assert.IsTrue(CropGeometry.Contains(Source, 10, kept), "what is kept lies on the tilted picture");
+        Assert.AreEqual(start.X, kept.X, 1e-6, "the edges not dragged stay");
+        Assert.IsTrue(kept.Width >= start.Width - 1e-6, "the dragged edge goes as far as the picture lets it");
+    }
+
+    [TestMethod]
+    [CoversNode("images-edit-ai-expand")]
+    public void TheNewArea_IsMeasuredAsThePictureIsShown_AtItsFinishedSize()
+    {
+        var beyond = CropRect.FromEdges(0, 0, 500, 300);   // 100 px past the right edge of an uncropped picture
+
+        Assert.AreEqual(new CropReach(0, 0, 100, 0), CropGeometry.Reach(ImageRecipe.Identity, Source, beyond));
+
+        var turned = ImageRecipe.Identity with { Geometry = new RecipeGeometry { QuarterTurns = 1 } };
+        Assert.AreEqual(new CropReach(0, 0, 0, 100), CropGeometry.Reach(turned, Source, beyond), "turned a quarter clockwise, the right edge is shown at the bottom");
+
+        var halved = ImageRecipe.Identity with { Resize = new RecipeResize { Mode = ResizeMode.Percent, Percent = 50 } };
+        Assert.AreEqual(new CropReach(0, 0, 50, 0), CropGeometry.Reach(halved, Source, beyond), "in the finished picture's pixels");
+
+        Assert.IsTrue(CropGeometry.ReachBounds(Source, 0).Contains(SKRect.Create(-200, -200, 800, 700)), "the room about it is half its longer side each way");
+    }
 }

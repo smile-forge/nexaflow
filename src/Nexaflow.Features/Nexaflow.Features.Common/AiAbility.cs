@@ -7,7 +7,9 @@ namespace Nexaflow.Features.Common;
 /// solving a problem, analysing or condensing a conversation. Disambiguation routes requests and Image Recognition looks at
 /// pictures; each takes its own model, the smaller and cheaper the better. <see cref="Documents"/> works through a whole
 /// document a piece at a time — a book's worth of questions — so it has a row of its own, which a workspace can give to a
-/// model on its own machine while its conversation stays with a provider.</remarks>
+/// model on its own machine while its conversation stays with a provider. <see cref="ImageEditing"/> takes a model that
+/// makes pictures and works from pictures given to it — changing a picture, or filling part of it — not one that only
+/// draws.</remarks>
 public enum AiAbility
 {
     Disambiguation,
@@ -18,6 +20,7 @@ public enum AiAbility
     SpeechOut,
     ImageGeneration,
     HighQualityImageGeneration,
+    ImageEditing,
     VideoGeneration,
     HighQualityVideoGeneration,
 }

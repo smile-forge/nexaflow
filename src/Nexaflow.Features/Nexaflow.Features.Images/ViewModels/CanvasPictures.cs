@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.Editing.Layers;
+using Nexaflow.Features.Images.Editing.Selection;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Drafts;
 using Nexaflow.Visuals.Common.Localization;
@@ -18,13 +19,17 @@ namespace Nexaflow.Features.Images.ViewModels;
 /// </summary>
 public sealed partial class PendingPicture : ObservableObject
 {
-    internal PendingPicture(string name, PictureJob job, string canvas, Guid? above)
+    internal PendingPicture(string name, PictureJob job, string canvas, Guid? above, EditedPlace? place = null)
     {
         Name   = name;
         Job    = job;
         Canvas = canvas;
         Above  = above;
+        Place  = place;
     }
+
+    /// <summary>Where an edit's picture lies once it arrives; null for a picture fitted to the canvas.</summary>
+    internal EditedPlace? Place { get; }
 
     /// <summary>The layer's name once it arrives: what was asked for, in its first words.</summary>
     public string Name { get; }
@@ -45,6 +50,14 @@ public sealed partial class PendingPicture : ObservableObject
     [RelayCommand]
     private void Stop() => Job.Stop();
 }
+
+/// <summary>
+/// Where an AI edit's picture lies on its canvas once it arrives: laid exactly over <paramref name="Over"/> — stretched
+/// each way as its model kept that area's proportions to within a few pixels — and shown only where
+/// <paramref name="Shown"/> covers, on a canvas still <paramref name="CanvasWidth"/> × <paramref name="CanvasHeight"/>.
+/// </summary>
+/// <param name="Shown">What of it is shown, over the whole canvas; null to show all of it.</param>
+internal sealed record EditedPlace(int CanvasWidth, int CanvasHeight, SKRectI Over, TiledCoverage? Shown);
 
 /// <summary>
 /// Pictures brought into a layered picture as picture layers, each fitted to the canvas: files dropped on the canvas — a photo
@@ -89,8 +102,9 @@ public sealed partial class CanvasPictures : ObservableObject, IDisposable
     }
 
     /// <summary>The pictures at <paramref name="pictures"/>' paths as picture layers of <paramref name="document"/> under their
-    /// names, above <paramref name="above"/> — beneath every layer where null — the last of them active: one step of its history.</summary>
-    private async Task AddAsync(LayeredSession document, IReadOnlyList<(string Path, string Name)> pictures, Guid? above)
+    /// names, above <paramref name="above"/> — beneath every layer where null — the last of them active: one step of its history.
+    /// Each is fitted to the canvas and centred, or, an edit's, laid where <paramref name="place"/> says.</summary>
+    private async Task AddAsync(LayeredSession document, IReadOnlyList<(string Path, string Name)> pictures, Guid? above, EditedPlace? place = null)
     {
         var layers = new List<PictureLayer>();
         foreach (var (path, name) in pictures)
@@ -107,7 +121,9 @@ public sealed partial class CanvasPictures : ObservableObject, IDisposable
                 continue;
             }
             var picture = document.Picture;
-            layers.Add(LayerEdits.Fitted(new PictureSource(path, null), size, picture.Width, picture.Height, name));
+            layers.Add(place is { } at && (at.CanvasWidth, at.CanvasHeight) == (picture.Width, picture.Height)
+                ? Laid(new PictureSource(path, null), size, at, name)
+                : LayerEdits.Fitted(new PictureSource(path, null), size, picture.Width, picture.Height, name));
         }
         if (layers.Count == 0) return;
         document.Commit(p =>
@@ -122,6 +138,15 @@ public sealed partial class CanvasPictures : ObservableObject, IDisposable
             return placed;
         });
     }
+
+    /// <summary>An edit's picture as a layer laid exactly over the area it was made from, masked to what of it is shown.</summary>
+    private static PictureLayer Laid(PictureSource source, SKSize size, EditedPlace place, string name) => new()
+    {
+        Name      = name,
+        Source    = source,
+        Placement = new LayerPlacement(place.Over.Width / (double)size.Width, 0, place.Over.Left, 0, place.Over.Height / (double)size.Height, place.Over.Top),
+        Mask      = place.Shown is { } shown ? new LayerMask(shown) : null,
+    };
 
     // ── Drawn by the image model ─────────────────────────────────────────────
 
@@ -186,7 +211,8 @@ public sealed partial class CanvasPictures : ObservableObject, IDisposable
         }
     }
 
-    private static string NameOf(string prompt)
+    /// <summary>The name a layer drawn from <paramref name="prompt"/> is known by: its first words.</summary>
+    internal static string NameOf(string prompt)
     {
         var words = prompt.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         return words.Length <= NameWords ? string.Join(' ', words) : string.Join(' ', words.Take(NameWords)) + "…";
@@ -195,11 +221,11 @@ public sealed partial class CanvasPictures : ObservableObject, IDisposable
     /// <summary>
     /// Follows <paramref name="job"/> in the layers panel while it draws, and once it arrives adds it to the layered picture at
     /// <paramref name="canvas"/> above <paramref name="above"/> — beneath every layer where null — as soon as that picture is
-    /// open here; stopped, withheld or failed, it goes.
+    /// open here, fitted to the canvas or, an edit's, laid where <paramref name="place"/> says; stopped, withheld or failed, it goes.
     /// </summary>
-    internal void Follow(PictureJob job, string name, string canvas, Guid? above)
+    internal void Follow(PictureJob job, string name, string canvas, Guid? above, EditedPlace? place = null)
     {
-        var pending = new PendingPicture(name, job, canvas, above);
+        var pending = new PendingPicture(name, job, canvas, above, place);
         Pending.Add(pending);
         _ = ArriveAsync(pending);
     }
@@ -228,7 +254,7 @@ public sealed partial class CanvasPictures : ObservableObject, IDisposable
             || !string.Equals(document.Path, pending.Canvas, StringComparison.OrdinalIgnoreCase)) return;
         Pending.Remove(pending);
         var above = pending.Above is { } id && document.Picture.Find(id) is null ? document.Picture.ActiveId : pending.Above;
-        await AddAsync(document, [(arrived, pending.Name)], above);
+        await AddAsync(document, [(arrived, pending.Name)], above, pending.Place);
     }
 
     public void Dispose()
