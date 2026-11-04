@@ -123,7 +123,7 @@ public class ImageCutOutTests
     }
 
     [TestMethod]
-    public void APhrase_FindsEverythingItNames_AndAClickAfterwardsStartsAgain()
+    public void APhrase_FindsEverythingItNames_AndClicksAfterwardsRefineWhatItFound()
     {
         var selection = new Patch();
         var vm = Editing(selection);
@@ -136,10 +136,21 @@ public class ImageCutOutTests
         Assert.AreEqual(Str.Format("Images.CutOut.FoundFormat", 2, "mug"), vm.Cutter.Notice);
         Assert.IsTrue(vm.Cutter.HasSelection);
 
-        OnUi(() => vm.Cutter.Click(3, 3, include: true));
+        // A right-click on what was found lets it go — both finds here lie on the one patch — and finds nothing again.
+        OnUi(() => vm.Cutter.Click(8, 6, include: false));
+        Until(() => !vm.Cutter.IsWorking && !vm.Cutter.HasSelection);
+        Assert.AreEqual("mug", vm.Cutter.Found, "a click refines what was found, rather than starting again");
+        Assert.IsFalse(vm.Cutter.HasSelection, "the found things under the click are let go");
+        Assert.AreEqual(1, selection.Phrases.Count, "and nothing is found again");
+        Assert.AreEqual(0, selection.Asks.Count, "letting a find go asks picture selection nothing");
+
+        // A click on something not found adds the thing there.
+        OnUi(() => vm.Cutter.Click(8, 6, include: true));
         Until(() => selection.Asks.Count == 1 && !vm.Cutter.IsWorking);
-        Assert.IsNull(vm.Cutter.Found, "a click picks anew");
-        Assert.AreEqual(1, vm.Cutter.Points.Count);
+        Assert.IsTrue(vm.Cutter.HasSelection, "a click on what is not picked adds it");
+        var kept = _ui.Invoke(() => vm.Cutter.PickedCutOut)!;
+        Assert.AreEqual("mug", kept.Phrase, "the cut-out keeps the phrase");
+        Assert.AreEqual(2, kept.Clicks.Length, "with the clicks that refined it, so a mask made later is the one shown");
     }
 
     [TestMethod]

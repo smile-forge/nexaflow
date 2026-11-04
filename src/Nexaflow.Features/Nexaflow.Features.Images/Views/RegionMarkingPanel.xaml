@@ -34,8 +34,8 @@
                           AutomationProperties.AutomationId="Image_RegionEveryLayer"/>
         </StackPanel>
 
-        <!-- By distance: the span of the picture's depth selected, near to far, and how softly it fades past its ends; moving
-             the ends selects again over what the span met. -->
+        <!-- By distance: the span of the picture's depth selected, near to far, and how softly it fades past its ends. Chosen with
+             nothing selected, the span is selected at once; moving its ends selects it as the mode says. -->
         <StackPanel Margin="0,0,0,8" Visibility="{Binding SelectsByDistance, Converter={StaticResource BoolToVis}}">
             <Grid Height="24" ToolTip="{loc:Str Images.Region.DistanceSpanTip}">
                 <views:DepthStrip Margin="4,0" Shares="{Binding RegionMarks.DistanceShares}" Background="{StaticResource Surface2Brush}" Fill="{StaticResource TextMutedBrush}"/>
@@ -51,10 +51,6 @@
                                     Minimum="0" Maximum="50" SmallChange="1" LargeChange="5" DefaultValue="5"
                                     Value="{Binding RegionMarks.DistanceSoftness, Mode=TwoWay}"
                                     AutomationProperties.AutomationId="Image_RegionDistanceSoftness" AutomationProperties.Name="{loc:Str Images.Region.DistanceSoftness}"/>
-            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding SelectDistanceCommand}" Margin="0,8,0,0" HorizontalAlignment="Left"
-                    ToolTip="{loc:Str Images.Region.DistanceSelectTip}" AutomationProperties.AutomationId="Image_RegionDistanceSelect">
-                <icons:IconLabel Icon="fluent:layer_diagonal" Text="{loc:Str Images.Region.DistanceSelect}" FontSize="11"/>
-            </Button>
         </StackPanel>
 
         <!-- How a shape or a colour meets what is selected: as set here, or as a key held as it is begun says. -->

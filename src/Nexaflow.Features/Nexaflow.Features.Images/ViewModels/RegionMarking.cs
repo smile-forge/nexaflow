@@ -354,12 +354,16 @@ public sealed partial class RegionMarking : ObservableObject
 
     /// <summary>The span's ends moved: the span last selected, while it is still what the selection ends with, is selected again over
     /// what it met.</summary>
-    private Task MoveDistanceAsync()
-    {
-        if (_document is { } document)
-            return _distanceOver is { } over && ReferenceEquals(document.Selection, over.Made) ? DistanceAsync(over.Mode, again: true) : Task.CompletedTask;
-        return _steps.Count > 0 && _steps[^1] is RegionSceneDepth last ? DistanceAsync(last.Mode, again: true) : Task.CompletedTask;
-    }
+    private Task MoveDistanceAsync() => HoldsSpan ? DistanceAsync(SpanMode, again: true) : Task.CompletedTask;
+
+    /// <summary>The selection ends with a span of distance, which moving the span's ends selects again; until it does, the first move
+    /// selects it (<see cref="ImageEditorViewModel"/>).</summary>
+    public bool HoldsSpan => _document is { } document
+        ? _distanceOver is { } over && ReferenceEquals(document.Selection, over.Made)
+        : _steps.Count > 0 && _steps[^1] is RegionSceneDepth;
+
+    /// <summary>How the span last selected met the selection.</summary>
+    private RegionMode SpanMode => _document is not null ? _distanceOver!.Value.Mode : ((RegionSceneDepth)_steps[^1]).Mode;
 
     private async Task DistanceAsync(RegionMode mode, bool again)
     {

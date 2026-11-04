@@ -212,9 +212,13 @@ public partial class ImageEditorViewModel : ObservableObject
     /// of distance chosen.</summary>
     public bool ShowsRegionMode => DrawsShapes || SelectsByColour || SelectsByDistance;
 
-    /// <summary>What lies within the span of distance chosen, selected — meeting what is selected as the mode says.</summary>
-    [RelayCommand]
-    private Task SelectDistance() => RegionMarks.SelectDistanceAsync(RegionMarks.Mode);
+    /// <summary>Selecting by distance was chosen: the strip shows the picture's depths, and with nothing selected yet the span is
+    /// selected at once, so something happens without a further press.</summary>
+    public async Task ShowDistancesAsync()
+    {
+        await RegionMarks.ShowDistancesAsync();
+        if (SelectsByDistance && !RegionMarks.HasSelection) await RegionMarks.SelectDistanceAsync(RegionMarks.Mode);
+    }
 
     /// <summary>The picture is a layered one: a colour clicked may be read from what shows or from the active layer alone.</summary>
     public bool EditsLayeredPicture => _viewer.IsLayered;
@@ -498,6 +502,10 @@ public partial class ImageEditorViewModel : ObservableObject
                 OnPropertyChanged(nameof(EraseBy));
             }
             if (e.PropertyName is nameof(RegionMarking.Region) or nameof(RegionMarking.Shown)) SelectionMoved();
+            // Selecting by distance, the span's first move selects it, as the mode says; later moves select it again.
+            if (e.PropertyName is nameof(RegionMarking.DistanceNear) or nameof(RegionMarking.DistanceFar) or nameof(RegionMarking.DistanceSoftness)
+                && SelectsByDistance && !RegionMarks.HoldsSpan)
+                _ = RegionMarks.SelectDistanceAsync(RegionMarks.Mode);
         };
         EraseMarks.PropertyChanged += (_, e) =>
         {

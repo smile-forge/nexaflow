@@ -121,10 +121,11 @@ public sealed class CutOutMasks(string folder, long budgetBytes)
         await using (var session = await selection.OpenAsync(upright.Rgba, width, height, ct))
         {
             progress?.Report(0.7);
+            var clicks = cutOut.Clicks.Select(c => new PicturePoint(c.X, c.Y, c.Include)).ToList();
             masks = cutOut.Phrase is { } phrase
-                ? [.. (await session.FindAsync(phrase, [], width, height, ct)).Select(f => f.Mask.Pixels)]
-                : [(await session.SelectAsync([.. cutOut.Clicks.Select(c => new PicturePoint(c.X, c.Y, c.Include))],
-                                              cutOut.Box is { } b ? new PictureBox(b.Left, b.Top, b.Right, b.Bottom) : null,
+                ? [(await FoundPicks.CombineAsync(await session.FindAsync(phrase, [], width, height, ct), clicks, width, height, width, height,
+                                                  click => session.SelectAsync([click], null, width, height, ct))).Mask.Pixels]
+                : [(await session.SelectAsync(clicks, cutOut.Box is { } b ? new PictureBox(b.Left, b.Top, b.Right, b.Bottom) : null,
                                               width, height, ct)).Pixels];
         }
         return (Union(masks, width * height), width, height);

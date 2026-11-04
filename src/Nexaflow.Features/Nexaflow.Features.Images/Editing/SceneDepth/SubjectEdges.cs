@@ -132,6 +132,23 @@ public static class SubjectEdges
         }
     }
 
+    /// <summary>
+    /// The subject kept sharp all over: each pixel's nearness brought into the band kept sharp — <paramref name="sharpFrom"/> to
+    /// <paramref name="sharpTo"/> — by as much as the subject covers it, so all of the subject is in focus whatever distances it
+    /// spans, the soft pixels of its outline part way.
+    /// </summary>
+    public static void KeepSharp(float[] nearness, float[] covered, int count, float sharpFrom, float sharpTo)
+    {
+        if (nearness.Length < count || covered.Length < count) throw new ArgumentException("The depth and the subject are not the size given.");
+        for (int i = 0; i < count; i++)
+        {
+            float c = covered[i];
+            if (c <= 0) continue;
+            float n = nearness[i];
+            nearness[i] = n + Math.Min(c, 1) * (Math.Clamp(n, sharpFrom, sharpTo) - n);
+        }
+    }
+
     /// <summary>How many pixels the square of <paramref name="reach"/> round (<paramref name="x"/>, <paramref name="y"/>) holds
     /// on the canvas — a whole square, short where it meets an edge.</summary>
     private static float Window(int x, int y, int width, int height, int reach, float full)

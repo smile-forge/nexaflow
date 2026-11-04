@@ -362,7 +362,8 @@ public sealed record RecipeCutOut
     /// <summary>The box drawn round the thing; null where none was.</summary>
     public RecipeCutBox? Box { get; init; }
 
-    /// <summary>What the kept things are called — everything it names is kept — instead of clicks and a box.</summary>
+    /// <summary>What the kept things are called — everything it names is kept, refined by <see cref="Clicks"/>: a click off a
+    /// thing it found lets that one go, a click on one it did not find adds it — instead of clicks and a box.</summary>
     public string? Phrase { get; init; }
 
     /// <summary>The selection drawn by hand, starting from what picture selection picks — or from nothing, where it is asked
@@ -381,10 +382,13 @@ public sealed record RecipeCutOut
     /// <summary>The cut-out as one line of text, the same for the same cut-out: what its kept mask is filed by.</summary>
     public string Describe()
     {
+        string clicks = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"clicks:{string.Join(";", Clicks.Select(c => $"{c.X:R},{c.Y:R},{(c.Include ? 1 : 0)}"))}");
+        // A phrase's finds refined by clicks name the clicks too; a phrase alone is filed as it always was.
         var picked = Phrase is { } phrase
-            ? $"phrase:{phrase}"
+            ? Clicks.IsEmpty ? $"phrase:{phrase}" : $"phrase:{phrase}|{clicks}"
             : string.Create(System.Globalization.CultureInfo.InvariantCulture,
-                $"clicks:{string.Join(";", Clicks.Select(c => $"{c.X:R},{c.Y:R},{(c.Include ? 1 : 0)}"))}|box:{(Box is { } b ? $"{b.Left:R},{b.Top:R},{b.Right:R},{b.Bottom:R}" : "")}");
+                $"{clicks}|box:{(Box is { } b ? $"{b.Left:R},{b.Top:R},{b.Right:R},{b.Bottom:R}" : "")}");
         return Region is { } region ? $"{picked}|region:{region.Describe()}" : picked;
     }
 }

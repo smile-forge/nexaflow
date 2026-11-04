@@ -408,46 +408,39 @@
                                               IsEnabled="{Binding Depth.CanEdit}" ToolTipService.ShowOnDisabled="True"
                                               AutomationProperties.AutomationId="Image_DepthLensBlur"/>
                                 <StackPanel Visibility="{Binding Depth.LensBlur, Converter={StaticResource BoolToVis}}">
-                                    <Grid Margin="0,0,0,6">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Style="{StaticResource EditRowLabel}" Text="{loc:Str Images.SceneDepth.FocusBy}"/>
-                                        <Border Grid.Column="1" Style="{StaticResource SegGroup}">
-                                            <StackPanel Orientation="Horizontal">
-                                                <RadioButton GroupName="DepthFocusWay" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthFocusPoint"
-                                                             AutomationProperties.Name="{loc:Str Images.SceneDepth.FocusPoint}" ToolTip="{loc:Str Images.SceneDepth.FocusPointTip}"
-                                                             IsChecked="{Binding Depth.FocusWay, Converter={StaticResource EnumToBool}, ConverterParameter=Point}">
-                                                    <icons:IconGlyph Icon="fluent:cursor_click" FontSize="15"/>
-                                                </RadioButton>
-                                                <RadioButton GroupName="DepthFocusWay" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthFocusThing"
-                                                             AutomationProperties.Name="{loc:Str Images.SceneDepth.FocusThing}"
-                                                             ToolTip="{Binding Editor.PickingModels.DisabledReason, TargetNullValue={loc:Str Images.SceneDepth.FocusThingTip}}"
-                                                             IsEnabled="{Binding Editor.PickingModels.IsReady}" ToolTipService.ShowOnDisabled="True"
-                                                             IsChecked="{Binding Depth.FocusWay, Converter={StaticResource EnumToBool}, ConverterParameter=Thing}">
-                                                    <icons:IconGlyph Icon="fluent:sparkle" FontSize="15"/>
-                                                </RadioButton>
-                                                <RadioButton GroupName="DepthFocusWay" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthFocusRectangle"
-                                                             AutomationProperties.Name="{loc:Str Images.SceneDepth.FocusRectangle}" ToolTip="{loc:Str Images.SceneDepth.FocusRectangleTip}"
-                                                             IsChecked="{Binding Depth.FocusWay, Converter={StaticResource EnumToBool}, ConverterParameter=Rectangle}">
-                                                    <icons:IconGlyph Icon="fluent:rectangle_landscape" FontSize="15"/>
-                                                </RadioButton>
-                                                <RadioButton GroupName="DepthFocusWay" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthFocusLasso"
-                                                             AutomationProperties.Name="{loc:Str Images.SceneDepth.FocusLasso}" ToolTip="{loc:Str Images.SceneDepth.FocusLassoTip}"
-                                                             IsChecked="{Binding Depth.FocusWay, Converter={StaticResource EnumToBool}, ConverterParameter=Lasso}">
-                                                    <icons:IconGlyph Icon="fluent:lasso" FontSize="15"/>
-                                                </RadioButton>
-                                            </StackPanel>
-                                        </Border>
-                                        <Button Grid.Column="2" Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Depth.FocusOnSelectionCommand}"
-                                                AutomationProperties.Name="{loc:Str Images.SceneDepth.FocusSelection}" ToolTip="{loc:Str Images.SceneDepth.FocusSelectionTip}"
-                                                ToolTipService.ShowOnDisabled="True" AutomationProperties.AutomationId="Image_DepthFocusSelection">
-                                            <icons:IconGlyph Icon="fluent:select_object" FontSize="14"/>
-                                        </Button>
-                                    </Grid>
-                                    <!-- The band kept sharp, over how much of the picture lies at each distance; pointed at or dragged, it shows on the picture. -->
+                                <!-- How it is focused: a click on the picture, the selection made with Select, or the band set by hand. -->
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Style="{StaticResource EditRowLabel}" Text="{loc:Str Images.SceneDepth.FocusBy}"/>
+                                    <Border Grid.Column="1" Style="{StaticResource SegGroup}" HorizontalAlignment="Left">
+                                        <StackPanel Orientation="Horizontal">
+                                            <RadioButton GroupName="DepthFocusWay" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthFocusPoint"
+                                                         AutomationProperties.Name="{loc:Str Images.SceneDepth.FocusPoint}" ToolTip="{loc:Str Images.SceneDepth.FocusPointTip}"
+                                                         IsChecked="{Binding Depth.FocusWay, Converter={StaticResource EnumToBool}, ConverterParameter=Point}">
+                                                <icons:IconGlyph Icon="fluent:cursor_click" FontSize="15"/>
+                                            </RadioButton>
+                                            <RadioButton GroupName="DepthFocusWay" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthFocusSelection"
+                                                         AutomationProperties.Name="{loc:Str Images.SceneDepth.FocusSelection}" ToolTip="{loc:Str Images.SceneDepth.FocusSelectionTip}"
+                                                         IsChecked="{Binding Depth.FocusWay, Converter={StaticResource EnumToBool}, ConverterParameter=Selection}">
+                                                <icons:IconGlyph Icon="fluent:select_object" FontSize="15"/>
+                                            </RadioButton>
+                                            <RadioButton GroupName="DepthFocusWay" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthFocusRange"
+                                                         AutomationProperties.Name="{loc:Str Images.SceneDepth.FocusRange}" ToolTip="{loc:Str Images.SceneDepth.FocusRangeTip}"
+                                                         IsChecked="{Binding Depth.FocusWay, Converter={StaticResource EnumToBool}, ConverterParameter=Range}">
+                                                <icons:IconGlyph Icon="fluent:layer_diagonal" FontSize="15"/>
+                                            </RadioButton>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                                <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.SceneDepth.NeedsSelection}" Margin="0,0,0,6" TextWrapping="Wrap"
+                                           Visibility="{Binding Depth.NeedsSelection, Converter={StaticResource BoolToVis}}"/>
+                                <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.SceneDepth.Focusing}" Margin="0,0,0,6"
+                                           Foreground="{StaticResource AccentBrush}" Visibility="{Binding Depth.IsFocusing, Converter={StaticResource BoolToVis}}"/>
+                                <!-- Specify depth: the band kept sharp, over how much of the picture lies at each distance; pointed at or dragged, it shows on the picture. -->
+                                <StackPanel Visibility="{Binding Depth.ShowsBand, Converter={StaticResource BoolToVis}}">
                                     <Grid Height="24" ToolTip="{loc:Str Images.SceneDepth.FocusBandTip}" MouseEnter="DepthFocusBand_Pointed" MouseLeave="DepthFocusBand_Pointed">
                                         <views:DepthStrip Margin="4,0" Shares="{Binding Depth.DistanceShares}" Background="{StaticResource Surface2Brush}" Fill="{StaticResource TextMutedBrush}"/>
                                         <vcc:RangeSlider x:Name="DepthFocusBand" Height="24" Background="Transparent" Minimum="0" Maximum="100" SmallChange="1" LargeChange="10"
@@ -456,16 +449,14 @@
                                     </Grid>
                                     <Grid Margin="0,2,0,6">
                                         <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.SceneDepth.Near}" HorizontalAlignment="Left"/>
-                                        <!-- Picture selection finding the thing clicked, or a part drawn being read: a moment, the first time several. -->
-                                        <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.SceneDepth.Focusing}" HorizontalAlignment="Center"
-                                                   Foreground="{StaticResource AccentBrush}" Visibility="{Binding Depth.IsFocusing, Converter={StaticResource BoolToVis}}"/>
                                         <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.SceneDepth.Far}" HorizontalAlignment="Right"/>
                                     </Grid>
-                                    <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.SceneDepth.Aperture}"
+                                </StackPanel>
+                                <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.SceneDepth.Aperture}"
                                                             Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" DefaultValue="50"
                                                             Value="{Binding Depth.Aperture, Mode=TwoWay}" AutomationProperties.AutomationId="Image_DepthAperture"/>
                                     <StackPanel Orientation="Horizontal" Margin="0,2">
-                                        <TextBlock Style="{StaticResource EditRowLabel}" Text="{loc:Str Images.SceneDepth.Bokeh}"/>
+                                        <TextBlock Style="{StaticResource EditRowLabel}" Text="{loc:Str Images.SceneDepth.Bokeh}" ToolTip="{loc:Str Images.SceneDepth.BokehTip}"/>
                                         <Border Style="{StaticResource SegGroup}">
                                             <StackPanel Orientation="Horizontal">
                                                 <RadioButton GroupName="DepthBokeh" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthBokehCircle"

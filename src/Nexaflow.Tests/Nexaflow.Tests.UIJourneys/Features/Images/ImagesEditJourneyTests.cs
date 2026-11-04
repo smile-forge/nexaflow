@@ -108,7 +108,8 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
             CheckInvoke("Reset crop and straighten", "Image_EditResetCrop");
 
             // Adjust
-            Check("Adjust panel", () => SelectRadio("Image_EditToolAdjust"));
+            Check("Adjust panel, its Light and Colour opened", () => SelectRadio("Image_EditToolAdjust")
+                  && OpenGroup("Image_GroupAdjustLight") && OpenGroup("Image_GroupAdjustColour"));
             CheckInvoke("Auto enhance", "Image_EditAuto");
             foreach (var slider in new[] { "Image_EditExposure", "Image_EditContrast", "Image_EditHighlights", "Image_EditShadows",
                                            "Image_EditSaturation", "Image_EditTemperature", "Image_EditTint" })

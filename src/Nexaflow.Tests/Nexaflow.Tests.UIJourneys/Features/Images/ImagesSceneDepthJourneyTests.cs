@@ -60,7 +60,7 @@ public class ImagesSceneDepthJourneyTests : ImageEditJourneyBase
             CheckDoes("Edit opens the photo in an Artist tab", "Image_Edit", () => WaitForFs(() => Exists("ArtistView") && Exists("ImageEditView"), 8));
 
             // Adjust: a lens blur, focused on a point clicked, a thing clicked, a rectangle and an outline drawn, and its band dragged.
-            Check("Adjust panel", () => SelectRadio("Image_EditToolAdjust") && FitCanvas());
+            Check("Adjust panel, its Depth opened", () => SelectRadio("Image_EditToolAdjust") && FitCanvas() && OpenGroup("Image_GroupAdjustDepth"));
             NeedsHere("Image_PictureModelsDownload", "AI picture models");
             Check("Lens blur turns on, its controls with it", () => SetToggle("Image_DepthLensBlur", true) && WaitForFs(() => Exists("Image_DepthAperture"), 3));
             Check("The depth is estimated: Save is ready, with nothing to download or try again",
@@ -72,14 +72,11 @@ public class ImagesSceneDepthJourneyTests : ImageEditJourneyBase
             double Value(string id) => FindInAppWindows(id)?.Patterns.RangeValue.PatternOrDefault?.Value.Value ?? double.NaN;
             bool Parked() => MoveSliderTo("Image_DepthFocusBandUpper", 90) && MoveSliderTo("Image_DepthFocusBandLower", 80);
             bool Refocused() => WaitForFs(() => Band() != (80, 90), Affordable(60));
-            Check("A click on the picture focuses on that distance", () => SelectRadio("Image_DepthFocusPoint") && Parked() && ClickCanvas() && Refocused());
-            Check("Focusing on things, a click focuses on the thing", () => SelectRadio("Image_DepthFocusThing") && Parked() && ClickCanvas() && Refocused());
-            Check("Its outline is found, so its edge stays crisp: Save is ready, with nothing to try again",
-                  () => WaitForFs(() => Enabled("Image_EditSave"), Affordable(60)) && !Exists("Image_FocusedSubjectAction"));
-            Check("A rectangle drawn is focused on", () => SelectRadio("Image_DepthFocusRectangle") && Parked() && DragOnCanvas(-12, -24, 12, 24) && Refocused());
-            Check("An outline drawn is focused on", () => SelectRadio("Image_DepthFocusLasso") && Parked()
-                  && TraceOnCanvas((-12, -24), (12, -24), (12, 24), (-12, 24), (-12, -20)) && Refocused());
-            CheckPresent("Focus on the selection, waiting for one", "Image_DepthFocusSelection");
+            Check("Click for depth: a click on the picture focuses on that distance", () => SelectRadio("Image_DepthFocusRange") && Parked()
+                  && SelectRadio("Image_DepthFocusPoint") && ClickCanvas() && SelectRadio("Image_DepthFocusRange") && Refocused());
+            Check("From selection, with nothing selected, hides the band and waits", () => SelectRadio("Image_DepthFocusSelection")
+                  && WaitForFs(() => !Exists("Image_DepthFocusBand"), 3) && !Exists("Image_FocusedSubjectAction"));
+            Check("Specify depth shows the band", () => SelectRadio("Image_DepthFocusRange") && WaitForFs(() => Exists("Image_DepthFocusBand"), 3));
             Check("The band in focus is there, and its ends move", () => Exists("Image_DepthFocusBand")
                   && MoveSliderTo("Image_DepthFocusBandUpper", 60) && MoveSliderTo("Image_DepthFocusBandLower", 20));
             Check("Narrowed, both ends of the band still move", () => MoveSliderTo("Image_DepthFocusBandUpper", 22)
@@ -95,16 +92,15 @@ public class ImagesSceneDepthJourneyTests : ImageEditJourneyBase
             Check("Lens blur and haze off", () => SetToggle("Image_DepthHaze", false) && SetToggle("Image_DepthLensBlur", false));
 
             // Select: what lies within a span of distance, the span moved after it is selected.
-            Check("Select by distance", () => SelectRadio("Image_EditToolSelect") && SelectRadio("Image_SelectDistance")
-                  && WaitForFs(() => Exists("Image_RegionDistanceSelect"), 3));
-            Check("The span is there, and its ends move", () => Exists("Image_RegionDistanceSpan")
-                  && MoveSliderTo("Image_RegionDistanceSpanUpper", 40) && MoveSliderTo("Image_RegionDistanceSpanLower", 5));
+            Check("Select by distance selects the span at once, with no press: Copy is ready", () => SelectRadio("Image_EditToolSelect")
+                  && SelectRadio("Image_SelectDistance") && WaitForFs(() => Exists("Image_RegionDistanceSpan") && Enabled("Image_CutOutCopy"), Affordable(30)));
+            Check("The span's ends move, selecting as they go", () => MoveSliderTo("Image_RegionDistanceSpanUpper", 40)
+                  && MoveSliderTo("Image_RegionDistanceSpanLower", 5) && WaitForFs(() => Enabled("Image_CutOutCopy"), Affordable(30)));
             Check("Its soft edge moves", () => MoveSlider("Image_RegionDistanceSoftness"));
-            Check("Select takes the span: Copy is ready", () => PressNth("Image_RegionDistanceSelect", 0) && WaitForFs(() => Enabled("Image_CutOutCopy"), Affordable(30)));
 
             // Retouch marks by distance too.
             Check("Retouch by distance", () => SelectRadio("Image_EditToolRetouch") && SelectRadio("Image_EraseDistance")
-                  && WaitForFs(() => Exists("Image_RegionDistanceSelect"), 3));
+                  && WaitForFs(() => Exists("Image_RegionDistanceSpan"), 3));
 
             // The depth itself: a layer above the photo, then the photo's mask.
             Check("Adjust panel again", () => SelectRadio("Image_EditToolAdjust"));

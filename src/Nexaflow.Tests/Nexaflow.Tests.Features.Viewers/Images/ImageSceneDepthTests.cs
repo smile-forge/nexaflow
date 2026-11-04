@@ -236,7 +236,7 @@ public class ImageSceneDepthTests
 
     [TestMethod]
     [CoversNode("images-scene-depth-lens-blur")]
-    public async Task FocusingOnARectangleOrAnOutline_KeepsAllOfItSharp()
+    public async Task FocusingFromTheSelection_KeepsAllOfItSharp_WhateverDistancesItSpans()
     {
         var vm = Editing();
         OnUi(() => vm.Depth.LensBlur = true);
@@ -246,19 +246,28 @@ public class ImageSceneDepthTests
         var photo = new SKSizeI(Wide, High);
         double At(double x) => plane.Distance(plane.At(x, 80, photo));
 
-        await _ui.Invoke(() => vm.Depth.FocusOnAsync(new RegionRectangle(100, 40, 160, 120)));
+        // A rectangle selected with the Select tool, then focused on from Adjust.
+        OnUi(() => vm.Editor.Tool = EditTool.Select);
+        OnUi(() => vm.Editor.RegionMarks.Add(new RegionRectangle(100, 40, 160, 120) { Mode = RegionMode.Replace }));
+        OnUi(() => vm.Editor.Tool = EditTool.Adjust);
+        OnUi(() => vm.Depth.FocusWay = LensFocusWay.Selection);
+        Until(() => session.Recipe.LensBlur?.Subject is not null);
         var blur = session.Recipe.LensBlur!;
-        Assert.IsTrue(blur.Near <= At(110) && At(150) <= blur.Far, $"the rectangle's middle is all in the band: {blur.Near:0.000}-{blur.Far:0.000}");
-        Assert.IsTrue(At(40) < blur.Near && blur.Far < At(220), "and what lies well outside it is not");
+        Assert.IsTrue(blur.Near <= At(110) && At(150) <= blur.Far, $"the band lies over the selection's distances: {blur.Near:0.000}-{blur.Far:0.000}");
+        Until(() => session.SubjectMask is not null);
 
-        await _ui.Invoke(() => vm.Depth.FocusOnAsync(new RegionPolygon { Points = [new(20, 20), new(60, 20), new(60, 140), new(20, 140)] }));
-        blur = session.Recipe.LensBlur!;
-        Assert.IsTrue(blur.Near <= At(30) && At(50) <= blur.Far && blur.Far < At(120), $"an outline focuses on what it holds: {blur.Near:0.000}-{blur.Far:0.000}");
+        // The band narrowed to the selection's near edge alone: its far side is still sharp, kept so by the selection, and what
+        // lies beyond it, as far, is blurred.
+        double near = At(100) * 100;
+        OnUi(() => { vm.Depth.FocusFar = Math.Round(near) + 1; vm.Depth.FocusNear = Math.Round(near); vm.Depth.Aperture = 100; });
+        using var drawn = await _services.Exporter.RenderAsync(session.Path, session.Recipe, session.Made);
+        Assert.IsTrue(Contrast(drawn, 140) > 100, $"inside the selection, far from the band, it is sharp: {Contrast(drawn, 140):0}");
+        Assert.IsTrue(Contrast(drawn, 200) < 60, $"outside it, as far, it is blurred: {Contrast(drawn, 200):0}");
     }
 
     [TestMethod]
     [CoversNode("images-scene-depth-edges")]
-    public async Task FocusingOnAThing_KeepsItsOutline_MadeForTheSave_UntilAFocusThatFollowsNone()
+    public async Task FocusingFromAThingSelected_KeepsItsOutline_MadeForTheSave_UntilAnotherWayOfFocusing()
     {
         var patch = new Patch();
         var vm = Editing(patch);
@@ -267,57 +276,34 @@ public class ImageSceneDepthTests
         var session = vm.CurrentSession!;
         Until(() => session.SceneDepth is not null);
 
-        OnUi(() => vm.Depth.FocusWay = LensFocusWay.Thing);
-        await _ui.Invoke(() => vm.Depth.FocusAtAsync(new MarkupPoint(25, 80)));
-        var subject = session.Recipe.LensBlur!.Subject;
-        Assert.IsNotNull(subject, "focused on a thing, the blur keeps the thing");
-        CollectionAssert.AreEqual(new[] { new RecipeCutClick(25, 80, true) }, subject.Clicks.ToArray(), "as the click that picks it");
+        // The thing picked with the Select tool, then focused on from Adjust.
+        OnUi(() => vm.Editor.Tool = EditTool.Select);
+        OnUi(() => vm.Cutter.Click(25, 80, include: true));
+        Until(() => vm.Editor.RegionMarks.HasSelection);
+        OnUi(() => vm.Editor.Tool = EditTool.Adjust);
+        OnUi(() => vm.Depth.FocusWay = LensFocusWay.Selection);
+        Until(() => session.Recipe.LensBlur?.Subject is not null);
+        var subject = session.Recipe.LensBlur!.Subject!;
+        CollectionAssert.AreEqual(new[] { new RecipeCutClick(25, 80, true) }, subject.Clicks.ToArray(), "kept as the click that picks it");
 
         Until(() => session.SubjectMask is not null);
         Assert.IsNotNull(session.SubjectMask, "its outline is made, kept and drawn from");
-        Assert.AreEqual(1, patch.Opens, "picked from the session the click opened: the photo is read in once, not again for its outline");
+        Assert.AreEqual(1, patch.Opens, "picked from the session the pick opened: the photo is read in once, not again for its outline");
         Assert.IsTrue(session.Made.Serves(session.Recipe), "a save has everything the recipe asks for");
         using var saved = await _services.Exporter.RenderAsync(session.Path, session.Recipe, session.Made);
         Assert.AreEqual(Wide, saved.Width, "and draws it at full size");
 
-        OnUi(() => vm.Depth.FocusFar += 5);
-        Assert.AreEqual(subject, session.Recipe.LensBlur!.Subject, "the band dragged, the outline is the subject's still");
-
-        // Narrowed end by end to a single step, as the strip's ends are dragged, and opened again.
+        // Narrowed end by end to a single step, as the strip's ends are dragged, and opened again: the subject stays.
         foreach (var (end, to) in new[] { ("far", 60.0), ("near", 20.0), ("far", 22.0), ("near", 21.0), ("far", 40.0) })
         {
             OnUi(() => { if (end == "far") vm.Depth.FocusFar = to; else vm.Depth.FocusNear = to; });
             double now = _ui.Invoke(() => end == "far" ? vm.Depth.FocusFar : vm.Depth.FocusNear);
-            Assert.AreEqual(to, now, 0.01, $"the band's {end} end set to {to} stands at {now} (band {_ui.Invoke(() => vm.Depth.FocusNear)}–{_ui.Invoke(() => vm.Depth.FocusFar)})");
+            Assert.AreEqual(to, now, 0.01, $"the band's {end} end set to {to} stands at {now}");
         }
+        Assert.AreEqual(subject, session.Recipe.LensBlur!.Subject, "the band dragged, the selection is still what is kept sharp");
 
         OnUi(() => vm.Depth.FocusWay = LensFocusWay.Point);
-        await _ui.Invoke(() => vm.Depth.FocusAtAsync(new MarkupPoint(200, 80)));
-        Assert.IsNull(session.Recipe.LensBlur!.Subject, "a point follows no outline");
-    }
-
-    [TestMethod]
-    [CoversNode("images-scene-depth-lens-blur")]
-    public async Task AThingStillBeingFound_WhenAnotherFocusIsChosen_ChangesNothingOnceFound()
-    {
-        var held = new Held();
-        var vm = Editing(held);
-        OnUi(() => vm.Cutter.Follow(_photo));
-        OnUi(() => vm.Depth.LensBlur = true);
-        var session = vm.CurrentSession!;
-        Until(() => session.SceneDepth is not null);
-
-        OnUi(() => vm.Depth.FocusWay = LensFocusWay.Thing);
-        var finding = _ui.Invoke(() => vm.Depth.FocusAtAsync(new MarkupPoint(25, 80)));
-        Until(() => vm.Depth.IsFocusing);
-
-        await _ui.Invoke(() => vm.Depth.FocusOnAsync(new RegionRectangle(100, 40, 160, 120)));
-        var chosen = session.Recipe.LensBlur!;
-
-        held.LetGo();
-        await finding;
-        Until(() => !vm.Depth.IsFocusing);
-        Assert.AreEqual(chosen, session.Recipe.LensBlur, "the thing found after the rectangle was chosen changes nothing: the later focus stands");
+        Assert.IsNull(session.Recipe.LensBlur!.Subject, "focused by a click instead, nothing is kept sharp but the band");
     }
 
     [TestMethod]
@@ -363,7 +349,7 @@ public class ImageSceneDepthTests
         OnUi(() => vm.Depth.Aperture = 90);
         OnUi(() => vm.Depth.FocusFar = 4);
         foreach (var x in new[] { 10.0, 120.0, 230.0, 60.0 })
-            await _ui.Invoke(() => vm.Depth.FocusAtAsync(new MarkupPoint(x, 80)));
+            OnUi(() => vm.Depth.FocusAt(new MarkupPoint(x, 80)));
         Until(() => session.SceneDepth is not null);
         var plane = session.SceneDepth!;
         double clicked = plane.Distance(plane.FocusAt(60, 80, new SKSizeI(Wide, High)));
@@ -416,7 +402,7 @@ public class ImageSceneDepthTests
         OnUi(() => vm.Depth.LensBlur = true);
         var session = vm.CurrentSession!;
         Until(() => session.SceneDepth is not null);
-        await _ui.Invoke(() => vm.Depth.FocusAtAsync(new MarkupPoint(8, 80)));
+        OnUi(() => vm.Depth.FocusAt(new MarkupPoint(8, 80)));
         OnUi(() => vm.Depth.Aperture = 100);
 
         // The screen draws from the photo as decoded for it, which may be smaller than the photo: its checks are judged against each other.
@@ -451,17 +437,20 @@ public class ImageSceneDepthTests
 
     [TestMethod]
     [CoversNode("images-selection-distance")]
-    public async Task SelectingByDistance_OnAPhoto_IsARegionStep_KeptAsItsSpan_AndMovingTheEndsSelectsAgain()
+    public void SelectingByDistance_OnAPhoto_IsARegionStep_KeptAsItsSpan_AndMovingTheEndsSelectsAgain()
     {
         var vm = Editing();
         OnUi(() => vm.Editor.Tool = EditTool.Select);
         OnUi(() => vm.Editor.SelectBy = SelectionWay.Distance);
         Assert.IsTrue(_ui.Invoke(() => vm.Editor.SelectsByDistance));
-        OnUi(() => { vm.Editor.RegionMarks.DistanceNear = 0; vm.Editor.RegionMarks.DistanceFar = 40; vm.Editor.RegionMarks.DistanceSoftness = 0; });
-        await _ui.Invoke(() => vm.Editor.RegionMarks.SelectDistanceAsync(RegionMode.Replace));
+        // Chosen with nothing selected, the span is selected at once: no further press.
+        Until(() => vm.Editor.RegionMarks.Region?.Steps.SingleOrDefault() is RegionSceneDepth);
+        Assert.IsInstanceOfType<RegionSceneDepth>(_ui.Invoke(() => vm.Editor.RegionMarks.Region?.Steps.SingleOrDefault()), "the span is selected as Distance is chosen");
 
+        OnUi(() => { vm.Editor.RegionMarks.DistanceSoftness = 0; vm.Editor.RegionMarks.DistanceNear = 0; vm.Editor.RegionMarks.DistanceFar = 40; });
+        Until(() => vm.Editor.RegionMarks.Region?.Steps.SingleOrDefault() is RegionSceneDepth { Far: 0.4, Softness: 0 });
         var step = _ui.Invoke(() => vm.Editor.RegionMarks.Region!.Steps.Single()) as RegionSceneDepth;
-        Assert.IsNotNull(step);
+        Assert.IsNotNull(step, "moving the ends selects the span again in its place");
         Assert.AreEqual(0.4, step.Far, 1e-9);
         var shown = _ui.Invoke(() => vm.Editor.RegionMarks.Shown)!;
         Assert.IsFalse(shown.IsEmpty, "what lies near is selected");
@@ -669,42 +658,6 @@ public class ImageSceneDepthTests
             var mask = Mask(maskWidth, maskHeight);
             return Task.FromResult<IReadOnlyList<PictureFind>>([new PictureFind(0.9, mask.Bounds!, mask)]);
         }
-
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-    }
-
-    /// <summary>Picture selection that answers a pick only once let go — as a slow machine answers long after the click.</summary>
-    private sealed class Held : IPictureSelection, IPictureSelectionSession
-    {
-        private readonly Patch _patch = new();
-        private readonly TaskCompletionSource _go = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public void LetGo() => _go.TrySetResult();
-
-        public ToolModelsState State => ToolModelsState.Ready;
-        public string ModelsVersion => "held-1";
-        public long DownloadBytes => 0;
-        public int DownloadPercent => 0;
-        public string? DownloadFailure => null;
-        public event EventHandler? Changed { add { } remove { } }
-        public void Download() { }
-        public int Width => _patch.Width;
-        public int Height => _patch.Height;
-
-        public async Task<IPictureSelectionSession> OpenAsync(ReadOnlyMemory<byte> rgba, int width, int height, CancellationToken ct)
-        {
-            await _patch.OpenAsync(rgba, width, height, ct);
-            return this;
-        }
-
-        public async Task<PictureMask> SelectAsync(IReadOnlyList<PicturePoint> points, PictureBox? box, int maskWidth, int maskHeight, CancellationToken ct)
-        {
-            await _go.Task;
-            return await _patch.SelectAsync(points, box, maskWidth, maskHeight, ct);
-        }
-
-        public Task<IReadOnlyList<PictureFind>> FindAsync(string phrase, IReadOnlyList<PictureExample> examples, int maskWidth, int maskHeight, CancellationToken ct)
-            => _patch.FindAsync(phrase, examples, maskWidth, maskHeight, ct);
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

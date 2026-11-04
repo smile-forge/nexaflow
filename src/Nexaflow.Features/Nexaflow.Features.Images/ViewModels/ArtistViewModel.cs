@@ -110,8 +110,12 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         Printing = new PicturePrinting(Stage, editing, shell);
         Editor.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(ImageEditorViewModel.Tool)) Depth.OnRecipeChanged();
-            if (e.PropertyName == nameof(ImageEditorViewModel.SelectsByDistance) && Editor.SelectsByDistance) _ = Editor.RegionMarks.ShowDistancesAsync();
+            if (e.PropertyName == nameof(ImageEditorViewModel.Tool))
+            {
+                Depth.OnRecipeChanged();
+                _ = Depth.FollowSelectionAsync();
+            }
+            if (e.PropertyName == nameof(ImageEditorViewModel.SelectsByDistance) && Editor.SelectsByDistance) _ = Editor.ShowDistancesAsync();
             if (e.PropertyName == nameof(ImageEditorViewModel.NewArea)) Edits.Refresh();
             if (e.PropertyName != nameof(ImageEditorViewModel.Tool) || Editor.IsMoveTool) return;
             // Leaving Move: an open transform is applied, and what floats is dropped back into its layer.

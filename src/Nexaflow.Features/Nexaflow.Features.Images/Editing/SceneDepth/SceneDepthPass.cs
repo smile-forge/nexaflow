@@ -36,24 +36,18 @@ public static class SceneDepthPass
             // The canvas-sized buffers come from a pool and go back to it: a slider drag redraws this pass many times a second.
             var rgba = Pool.Rent(count * 4);
             var nearness = Pool.Rent(count);
+            float[]? covered = null;
             try
             {
                 Read(drawn, linear, rgba);
                 plane.OnCanvas(photoToCanvas, photo, new SKSizeI(width, height), nearness);
                 if (subject is not null)
                 {
-                    var covered = Pool.Rent(count);
-                    try
-                    {
-                        Covered(subject, photoToCanvas, width, height, covered);
-                        double canvasPerPlane = Math.Max(photo.Width, photo.Height) / (double)Math.Max(plane.Width, plane.Height)
-                                                / CropGeometry.SourcePixelsPerCanvasPixel(photoToCanvas);
-                        SubjectEdges.Refine(nearness, covered, width, height, SubjectEdges.Reach(canvasPerPlane));
-                    }
-                    finally
-                    {
-                        Pool.Return(covered);
-                    }
+                    covered = Pool.Rent(count);
+                    Covered(subject, photoToCanvas, width, height, covered);
+                    double canvasPerPlane = Math.Max(photo.Width, photo.Height) / (double)Math.Max(plane.Width, plane.Height)
+                                            / CropGeometry.SourcePixelsPerCanvasPixel(photoToCanvas);
+                    SubjectEdges.Refine(nearness, covered, width, height, SubjectEdges.Reach(canvasPerPlane));
                 }
                 if (recipe.DepthHaze is { } haze)
                 {
@@ -68,6 +62,8 @@ public static class SceneDepthPass
                     float sharpFrom = plane.NearnessAt(blur.Far), sharpTo = plane.NearnessAt(blur.Near);
                     double canvasPerPhoto = 1 / CropGeometry.SourcePixelsPerCanvasPixel(photoToCanvas);
                     float widest = (float)(Math.Clamp(blur.Aperture, 0, 1) * RecipeLensBlur.WidestBlur * Math.Max(photo.Width, photo.Height) * canvasPerPhoto);
+                    // The subject focused on is sharp all over, whatever distances it spans — the band only says where the rest is.
+                    if (covered is not null) SubjectEdges.KeepSharp(nearness, covered, count, sharpFrom, sharpTo);
                     LensBlur.Apply(rgba, nearness, width, height, sharpFrom, sharpTo, widest, blur.Shape);
                 }
                 return Drawn(rgba, linear, into);
@@ -76,6 +72,7 @@ public static class SceneDepthPass
             {
                 Pool.Return(rgba);
                 Pool.Return(nearness);
+                if (covered is not null) Pool.Return(covered);
             }
         }
 

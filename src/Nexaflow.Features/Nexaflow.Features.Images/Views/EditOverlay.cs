@@ -43,7 +43,7 @@ public sealed class EditOverlay : FrameworkElement
     private RegionSelection? _tintFor;
     private BitmapSource? _tint;
 
-    private enum Gesture { None, Crop, Level, Markup, CutOut, Erase, Marquee, Lasso, FocusPress, FocusRectangle, FocusLasso }
+    private enum Gesture { None, Crop, Level, Markup, CutOut, Erase, Marquee, Lasso, FocusPress }
 
     // A marquee or freehand lasso being drawn: where it began, where the pointer is, the keys held as it began and the mode
     // they gave it; the freehand outline so far, in the photo's pixels.
@@ -132,11 +132,12 @@ public sealed class EditOverlay : FrameworkElement
             DrawLevelLine(dc);
         if (editor.IsMarkupTool && editor.SelectedOutline is { } outline)
             DrawSelection(dc, outline);
-        bool marching = (editor.TakesSelection || _viewer!.IsLayered) && DrawRegion(dc, editor);   // a layered picture's selection shows to every tool
+        // The selection shows to every tool, as marching ants; the tools that make it also tint it and show their picks.
+        bool marching = DrawRegion(dc, editor, picking: editor.TakesSelection);
         March(marching);
         if (editor.IsRetouchTool)
             DrawErase(dc, editor.EraseMarks);
-        if (_viewer!.Depth.ChoosesFocus)
+        if (_viewer!.Depth.LensBlur)
             DrawFocusing(dc);
     }
 
@@ -177,28 +178,16 @@ public sealed class EditOverlay : FrameworkElement
         dc.DrawLine(new Pen(Brush("AccentBrush"), 1.5 * px), _levelFrom, _levelTo);
     }
 
-    /// <summary>What a lens blur keeps sharp, shown while it is asked for by dimming the rest of the photo as a crop dims what it
-    /// cuts away; and a focus being drawn, as it will be taken.</summary>
+    /// <summary>What the lens blur keeps sharp, tinted on the picture while it is asked to be shown — the strip pointed at, or the
+    /// picture held pressed to focus.</summary>
     private void DrawFocusing(DrawingContext dc)
     {
         if (_viewer?.Canvas is not { } canvas) return;
         var depth = _viewer.Depth;
-        if (depth.ShowsInFocus && depth.Plane is { } plane && canvas.Recipe.LensBlur is { } blur)
-        {
-            dc.PushTransform(Transform(canvas.SourceToCanvas));
-            dc.DrawImage(InFocus(plane, blur.Near, blur.Far), new Rect(0, 0, canvas.Source.Width, canvas.Source.Height));
-            dc.Pop();
-        }
-        double px = 1 / _zoom;
-        Geometry? drawing = _gesture switch
-        {
-            Gesture.FocusRectangle => new RectangleGeometry(MarqueeRect()),
-            Gesture.FocusLasso when _freehand.Count > 1 => Polyline(_freehand.Select(p => Wpf(canvas.SourceToCanvas.MapPoint(new SKPoint((float)p.X, (float)p.Y)))), closed: false),
-            _ => null,
-        };
-        if (drawing is null) return;
-        dc.DrawGeometry(null, new Pen(Brush("OnAccentBrush"), 3 * px), drawing);
-        dc.DrawGeometry(null, new Pen(Brush("AccentBrush"), 1.5 * px) { DashStyle = new DashStyle([4, 3], 0) }, drawing);
+        if (!depth.ShowsInFocus || depth.Plane is not { } plane || canvas.Recipe.LensBlur is not { } blur) return;
+        dc.PushTransform(Transform(canvas.SourceToCanvas));
+        dc.DrawImage(InFocus(plane, blur.Near, blur.Far), new Rect(0, 0, canvas.Source.Width, canvas.Source.Height));
+        dc.Pop();
     }
 
     private (SceneDepthPlane Plane, double Near, double Far)? _inFocusFor;
@@ -241,10 +230,11 @@ public sealed class EditOverlay : FrameworkElement
         dc.DrawGeometry(null, new Pen(Brush("AccentBrush"), 1.5 * px) { DashStyle = new DashStyle([4, 3], 0) }, geometry);
     }
 
-    /// <summary>What is selected — the cut-out tool's picks and the region drawn over them — tinted over the photo where it
-    /// lies, marching ants round it; the picks' clicks marked — on the thing in the accent, off it in the danger colour — and
-    /// the box drawn round it, or being drawn; the marquee or lasso being drawn. Gives whether ants were drawn.</summary>
-    private bool DrawRegion(DrawingContext dc, ImageEditorViewModel editor)
+    /// <summary>What is selected — the cut-out tool's picks and the region drawn over them — with marching ants round it. While
+    /// a tool that selects is out (<paramref name="picking"/>), it is also tinted over the photo where it lies, the picks' clicks
+    /// marked — on the thing in the accent, off it in the danger colour — the box drawn round it, or being drawn, and the marquee
+    /// or lasso being drawn. Gives whether ants were drawn.</summary>
+    private bool DrawRegion(DrawingContext dc, ImageEditorViewModel editor, bool picking)
     {
         if (_viewer?.Canvas is not { } canvas) return false;
         // The selection lies over the document — the photo, or a layered picture's canvas; the picks over the picture they pick from.
@@ -260,14 +250,18 @@ public sealed class EditOverlay : FrameworkElement
         bool marching = false;
         if (marks.Shown is { IsEmpty: false } shown)
         {
-            dc.PushTransform(Transform(documentToCanvas));
-            dc.DrawImage(Tint(shown), new Rect(0, 0, document.Width, document.Height));
-            dc.Pop();
+            if (picking)
+            {
+                dc.PushTransform(Transform(documentToCanvas));
+                dc.DrawImage(Tint(shown), new Rect(0, 0, document.Width, document.Height));
+                dc.Pop();
+            }
             var outline = Outline(shown, marks.ShownScale, documentToCanvas);
             dc.DrawGeometry(null, new Pen(Brush("OnAccentBrush"), 1.5 * px), outline);
             dc.DrawGeometry(null, new Pen(Brush("AccentBrush"), 1.5 * px) { DashStyle = _ants }, outline);
             marching = true;
         }
+        if (!picking) return marching;
 
         var outlinePen = new Pen(Brush("OnAccentBrush"), 1.5 * px);
         if (cutter.Box is { } box)
@@ -483,24 +477,10 @@ public sealed class EditOverlay : FrameworkElement
             var depth = _viewer.Depth;
             var under = focusToSource.MapPoint(p);
         
-            switch (depth.FocusWay)
-            {
-                case LensFocusWay.Rectangle:
-                    _regionFrom = _regionTo = at;
-                    Begin(Gesture.FocusRectangle, e);
-                    break;
-                case LensFocusWay.Lasso:
-                    _freehand.Clear();
-                    _freehand.Add(new MarkupPoint(under.X, under.Y));
-                    Begin(Gesture.FocusLasso, e);
-                    break;
-                default:
-                    // Held, the press shows what the focus keeps sharp.
-                    depth.ShowsInFocus = true;
-                    _ = depth.FocusAtAsync(new MarkupPoint(under.X, under.Y));
-                    Begin(Gesture.FocusPress, e);
-                    break;
-            }
+            // Held, the press shows what the focus keeps sharp.
+            depth.ShowsInFocus = true;
+            depth.FocusAt(new MarkupPoint(under.X, under.Y));
+            Begin(Gesture.FocusPress, e);
         }
         else if (editor.DrawsMarquee)
         {
@@ -575,18 +555,11 @@ public sealed class EditOverlay : FrameworkElement
                 _cutDragging |= (at - _cutFrom).Length * _zoom > DragReach;
                 if (_cutDragging) InvalidateVisual();
                 break;
-            case Gesture.Marquee or Gesture.FocusRectangle:
+            case Gesture.Marquee:
                 _regionTo = at;
                 InvalidateVisual();
                 break;
-            case Gesture.FocusLasso when _viewer?.Canvas is { } canvas && canvas.SourceToCanvas.TryInvert(out var toPhoto):
-                var outlined = toPhoto.MapPoint(Sk(at));
-                double spacing = StrokeStep / _zoom * CropGeometry.SourcePixelsPerCanvasPixel(canvas.SourceToCanvas);
-                var previous = _freehand[^1];
-                if (Math.Abs(outlined.X - previous.X) < spacing && Math.Abs(outlined.Y - previous.Y) < spacing) break;
-                _freehand.Add(new MarkupPoint(outlined.X, outlined.Y));
-                InvalidateVisual();
-                break;
+
             case Gesture.Lasso when _viewer?.Canvas is { } canvas && canvas.DocumentToCanvas.TryInvert(out var toSource):
                 var traced = toSource.MapPoint(Sk(at));
                 double reach = StrokeStep / _zoom * CropGeometry.SourcePixelsPerCanvasPixel(canvas.DocumentToCanvas);
@@ -692,15 +665,7 @@ public sealed class EditOverlay : FrameworkElement
             case Gesture.FocusPress:
                 if (_viewer is { } pressed) pressed.Depth.ShowsInFocus = false;
                 break;
-            case Gesture.FocusRectangle:
-                if (!cancelled) FocusRectangleReleased();
-                InvalidateVisual();
-                break;
-            case Gesture.FocusLasso:
-                if (!cancelled && _freehand.Count >= 3 && _viewer is { } traced) _ = traced.Depth.FocusOnAsync(new RegionPolygon { Points = [.. _freehand] });
-                _freehand.Clear();
-                InvalidateVisual();
-                break;
+
         }
     }
 
@@ -731,20 +696,6 @@ public sealed class EditOverlay : FrameworkElement
             return;
         }
         editor.RegionMarks.Add(MarqueeIn(MarqueeRect(), editor.RegionMarks.Marquee, _regionMode, canvas.DocumentToCanvas, toSource));
-    }
-
-    /// <summary>A focus rectangle let go: the lens focused on all of it — or, barely dragged, on the point pressed.</summary>
-    private void FocusRectangleReleased()
-    {
-
-        if (_viewer?.Canvas is not { } canvas || !canvas.SourceToCanvas.TryInvert(out var toPhoto)) return;
-        if ((_regionTo - _regionFrom).Length * _zoom <= DragReach)
-        {
-            var under = toPhoto.MapPoint(Sk(_regionFrom));
-            _ = _viewer.Depth.FocusAtAsync(new MarkupPoint(under.X, under.Y));
-            return;
-        }
-        _ = _viewer.Depth.FocusOnAsync(MarqueeIn(MarqueeRect(), MarqueeShape.Rectangle, RegionMode.Replace, canvas.SourceToCanvas, toPhoto));
     }
 
     /// <summary>The marquee as dragged: from where it began to the pointer — square with Shift, and out from where it began

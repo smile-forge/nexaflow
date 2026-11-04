@@ -111,4 +111,13 @@ public abstract class ImageEditJourneyBase : UiJourneyTestBase
 
     /// <summary>Whether a control takes input — in the main window or a popup over it; one not there is not.</summary>
     protected bool Enabled(string automationId) => FindInAppWindows(automationId)?.IsEnabled == true;
+
+    /// <summary>Opens the panel group <paramref name="automationId"/>, if it is folded — Adjust's Light, Colour and Depth begin
+    /// folded — so its controls are there to be driven.</summary>
+    protected bool OpenGroup(string automationId)
+    {
+        if (FindInAppWindows(automationId)?.Patterns.ExpandCollapse.PatternOrDefault is not { } fold) return false;
+        if (fold.ExpandCollapseState.Value != FlaUI.Core.Definitions.ExpandCollapseState.Expanded) fold.Expand();
+        return WaitForFs(() => fold.ExpandCollapseState.Value == FlaUI.Core.Definitions.ExpandCollapseState.Expanded, 2);
+    }
 }
