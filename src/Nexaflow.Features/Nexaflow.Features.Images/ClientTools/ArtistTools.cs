@@ -467,8 +467,8 @@ internal sealed class ArtistTools(ArtistViewModel artist, IShellServices? shell,
         return await OnUiAsync(() =>
         {
             if (artist.EditTarget is null) return NoPicture();
-            if (edit!.Notes.Count > 0 && artist.MarkupTarget is null)
-                return ToolResult.Error("nowhere to annotate", "The active layer takes no annotations: make a picture or notes layer active, or add a notes layer with edit_layers.");
+            if (edit!.Notes.Count > 0 && artist.CurrentDocument?.Picture.Active is MarkupLayer { Locked: true })
+                return ToolResult.Error("nowhere to annotate", "The active notes layer is locked: unlock it, or make another layer active.");
             var editor = artist.Editor;
             using (artist.Stage.Batch())
             {
@@ -491,7 +491,7 @@ internal sealed class ArtistTools(ArtistViewModel artist, IShellServices? shell,
                     if (edit.Width is { } w) editor.ResizeWidth = w;
                     if (edit.Height is { } h) editor.ResizeHeight = h;
                 }
-                if (edit.Notes.Count > 0) artist.MarkupTarget!.CommitMarkup(markup => markup.AddRange(edit.Notes));
+                if (edit.Notes.Count > 0) Annotate(artist, edit.Notes);
                 if (edit.Background == "remove")
                 {
                     if (!editor.RemoveBackgroundCommand.CanExecute(null))
@@ -503,6 +503,27 @@ internal sealed class ArtistTools(ArtistViewModel artist, IShellServices? shell,
             if (editor.IsCropTool && (edit.Crop is not null || edit.Uncrop)) editor.Tool = EditTool.Adjust;   // the crop shown applied, not its frame
             return ToolResult.Ok($"edited {artist.CurrentFileName}", Edits(artist.CurrentRecipe).ToJsonString(Indented));
         });
+    }
+
+    /// <summary>
+    /// <paramref name="notes"/> added to the markup layer the Markup tool marks, made where there is none. A layered picture's are
+    /// in the canvas's pixels and are carried into that layer's own; a photo's, in its own pixels, are already in the layer made
+    /// for them, placed as the photo draws.
+    /// </summary>
+    private static void Annotate(ArtistViewModel artist, IReadOnlyList<MarkupElement> notes)
+    {
+        bool onCanvas = artist.CurrentDocument is not null;
+        if (artist.NotesToMark(openStep: true) is not { } layer) return;
+        var toLayer = onCanvas && artist.CurrentDocument?.Picture.Active is MarkupLayer active && active.Placement.ToMatrix().TryInvert(out var inverse)
+            ? inverse
+            : SKMatrix.Identity;
+        MarkupPoint Carried(MarkupPoint p)
+        {
+            var mapped = toLayer.MapPoint((float)p.X, (float)p.Y);
+            return new MarkupPoint(mapped.X, mapped.Y);
+        }
+    layer.CommitMarkup(markup => markup.AddRange(toLayer.IsIdentity ? notes : notes.Select(n => n.Mapped(Carried))));
+        layer.EndGesture();
     }
 
     private ToolResult? ReadEdit(JsonObject args, out PictureEdit? edit)

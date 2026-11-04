@@ -172,7 +172,7 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
 
     /// <summary>The annotations the Markup tool works on: the photo's, or — in a layered picture — the active picture layer's or
     /// markup layer's; null where there are none.</summary>
-    public IMarkupEditing? MarkupTarget => CurrentDocument is { } document ? document.ActiveNotes : CurrentSession;
+    public IMarkupEditing? MarkupTarget => CurrentDocument?.ActiveNotes;
 
     /// <summary>The edits of the picture the tools work on — the photo, or the active picture layer — nothing while there is none.</summary>
     public ImageRecipe CurrentRecipe => EditTarget?.Recipe ?? ImageRecipe.Identity;

@@ -24,14 +24,7 @@
     <StackPanel>
 
 
-        <StackPanel Visibility="{Binding CanPaint, Converter={StaticResource NotBoolVis}}" Margin="0,8,0,0">
-            <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Foreground="{StaticResource WarningBrush}" Text="{Binding Notice}"/>
-            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding AddLayerCommand}" HorizontalAlignment="Left" Margin="0,6,0,0"
-                    Visibility="{Binding OffersLayer, Converter={StaticResource BoolVis}}"
-                    ToolTip="{loc:Str Images.Edit.AddLayerTip}" AutomationProperties.AutomationId="Image_PaintAddLayer">
-                <icons:IconLabel Icon="fluent:layer_diagonal_add" Text="{loc:Str Images.Edit.AddLayer}"/>
-            </Button>
-        </StackPanel>
+
 
         <!-- What a press on the layer does: paint, rub out, take a colour, or fill. -->
         <views:FoldingGroup Icon="fluent:paint_brush" Title="{loc:Str Images.Paint.ToolHeader}"
@@ -93,13 +86,7 @@
                 <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Paint.Flow}" ValueFormat="0'%'"
                                         Minimum="1" Maximum="100" SmallChange="1" LargeChange="10" DefaultValue="100"
                                         Value="{Binding Flow, Mode=TwoWay}" AutomationProperties.AutomationId="Image_PaintFlow"/>
-                <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Paint.Spacing}" ValueFormat="0'%'"
-                                        Minimum="1" Maximum="200" SmallChange="1" LargeChange="10" DefaultValue="15"
-                                        Value="{Binding Spacing, Mode=TwoWay}" AutomationProperties.AutomationId="Image_PaintSpacing"/>
-                <ToggleButton Style="{StaticResource RowSwitch}" Content="{loc:Str Images.Paint.PressureSize}" IsChecked="{Binding PressureSizes, Mode=TwoWay}"
-                              AutomationProperties.AutomationId="Image_PaintPressureSize"/>
-                <ToggleButton Style="{StaticResource RowSwitch}" Content="{loc:Str Images.Paint.PressureOpacity}" IsChecked="{Binding PressureOpacity, Mode=TwoWay}"
-                              AutomationProperties.AutomationId="Image_PaintPressureOpacity"/>
+
             </StackPanel>
         </views:FoldingGroup>
 

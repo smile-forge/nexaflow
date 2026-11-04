@@ -154,9 +154,8 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         File.Copy(sample, Path.Combine(_folder, "photo.png"));
         OpenEditorOnTheFolder();
 
-        // A photo has no layer to paint on or move: the Paint and Move tools offer one.
-        Check("Paint offers a layer to paint on", () => SelectRadio("Image_EditToolPaint") && WaitForFs(() => Exists("Image_PaintPanel"), 3)
-              && WaitForFs(() => Exists("Image_PaintAddLayer"), 3));
+        // A photo has no layer to move: the Move tool offers one. Paint makes its own as it paints.
+        Check("Paint is ready on the photo", () => SelectRadio("Image_EditToolPaint") && WaitForFs(() => Exists("Image_PaintPanel"), 3));
         Check("Move offers a layer to move", () => SelectRadio("Image_EditToolMove") && WaitForFs(() => Exists("Image_ArrangePanel"), 3)
               && WaitForFs(() => Exists("Image_ArrangeAddLayer"), 3));
         Check("Back to the crop", () => SelectRadio("Image_EditToolCrop"));
@@ -167,6 +166,27 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         Check("The pixels section opens", () => Expand("Image_LayersPixelsSection"));
         CheckInvoke("Copy what shows", "Image_LayersCopyMerged");
         CheckDoes("Paste as layer adds what was copied", "Image_EditPasteLayer", () => LayersBecome(3));
+
+        AssertJourney();
+    }
+
+    [TestMethod]
+    [CoversNode("images-layers")]
+    public void APhotosAnnotations_GoOnAMarkupLayerMadeForThem()
+    {
+        var sample = TestSampleData.Files("images").First(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase));
+        File.Copy(sample, Path.Combine(_folder, "photo.png"));
+        OpenEditorOnTheFolder();
+
+        // The small sample stays where it was laid out: fit it to the canvas, so the canvas's centre is on the photo.
+        Check("Markup's text tool", () => SelectRadio("Image_EditToolMarkup") && SelectRadio("Image_EditMarkupText"));
+        Check("The photo fitted, a click places text, typed in the panel", () => FitCanvas() && ClickCanvas() && TypeInto("Image_EditMarkupTextBox", "Hello"));
+        Check("The text is on a markup layer made above the photo", () => WaitForFs(() => Exists("Image_LayersPanel"), 5) && LayersBecome(2));
+        Check("An arrow drawn goes on the same layer", () => SelectRadio("Image_EditMarkupArrow") && DragOnCanvas(-8, -8, 8, 8) && LayersBecome(2));
+        Check("Select tool picks the arrow", () => SelectRadio("Image_EditMarkupSelect") && ClickCanvas()
+                                                   && WaitForFs(() => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Image_EditDeleteMarkup"))?.IsEnabled == true, 3));
+        CheckInvoke("Delete the selected annotation", "Image_EditDeleteMarkup");
+        CheckInvoke("Clear every annotation", "Image_EditClearMarkup");
 
         AssertJourney();
     }
@@ -304,12 +324,12 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         // ── Paint ──
         Check("Paint is chosen, its panel showing", () => SelectRadio("Image_EditToolPaint") && WaitForFs(() => Exists("Image_PaintPanel"), 3));
         Check("The brush", () => SelectRadio("Image_PaintBrush"));
-        foreach (var slider in new[] { "Image_PaintSize", "Image_PaintHardness", "Image_PaintOpacity", "Image_PaintFlow", "Image_PaintSpacing" })
+        foreach (var slider in new[] { "Image_PaintSize", "Image_PaintHardness", "Image_PaintOpacity", "Image_PaintFlow" })
             Check($"{slider} moves", () => MoveSlider(slider));
-        Check("Pen pressure sets the size, and back", () => ToggleAndBack("Image_PaintPressureSize"));
-        Check("Pen pressure sets the opacity, and back", () => ToggleAndBack("Image_PaintPressureOpacity"));
         Check("A stroke is painted, one step of the history", () => FitCanvas() && DragOnCanvas(-30, -10, 30, 10) && WaitForFs(() => Enabled("Image_EditUndo"), 3));
         Check("The eraser takes some away", () => SelectRadio("Image_PaintEraser") && DragOnCanvas(-10, -10, 10, 10));
+        Check("The Layers panel hides, and shows again", () => SetToggle("Image_EditShowLayers", false) && WaitForFs(() => !Exists("Image_LayersPanel"), 3)
+                                                               && SetToggle("Image_EditShowLayers", true) && WaitForFs(() => Exists("Image_LayersPanel"), 3));
         Check("The fill", () => SelectRadio("Image_PaintFill") && WaitForFs(() => Exists("Image_PaintTolerance"), 2));
         Check("Its tolerance moves", () => MoveSlider("Image_PaintTolerance"));
         Check("Joined only, and back", () => ToggleAndBack("Image_PaintContiguous"));

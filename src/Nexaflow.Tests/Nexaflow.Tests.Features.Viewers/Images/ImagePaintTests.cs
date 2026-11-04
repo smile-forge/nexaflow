@@ -101,6 +101,21 @@ public class ImagePaintTests
 
     [TestMethod]
     [CoversNode("images-paint")]
+    public void APenPressedLightly_PaintsOneUnbrokenLine_ItsSmallerBrushSpacedByItsOwnSize()
+    {
+        var brush = new BrushSettings { Size = 20, Hardness = 1, Spacing = 0.5, PressureSizes = true };
+        var before = Solid(60, 20, Red, SKRectI.Empty);
+        var stroke = new PaintStroke(brush, PaintKind.Brush, 60, 20, null);
+        var area = stroke.To(new SKPoint(5, 10), 0.2f);
+        area = SKRectI.Union(area, stroke.To(new SKPoint(55, 10), 0.2f));
+        var painted = stroke.Drawn(before, before, area, Red, alphaLocked: false, SKColors.Transparent);
+        for (int x = 5; x <= 53; x++)
+            Assert.IsTrue(PixelOf(painted, x, 10).Alpha > 0, $"painted all along its way, at {x} too");
+        Assert.AreEqual(0, PixelOf(painted, 30, 15).Alpha, "as thin as the light pressure made it");
+    }
+
+    [TestMethod]
+    [CoversNode("images-paint")]
     public void TheEraser_TakesAway_ALockedTransparencyIsKept_AndAMaskIsPaintedInGreys()
     {
         var full = new SKRectI(0, 0, 20, 20);
@@ -182,7 +197,7 @@ public class ImagePaintTests
         {
             vm.Editor.Tool = EditTool.Paint;
             vm.Painting.Size = 6;
-            vm.Painting.PressureSizes = false;
+
             Assert.IsTrue(vm.Painting.BeginStroke(new SKPoint(5, 15), 1));
             vm.Painting.ContinueStroke(new SKPoint(20, 15), 1);
             vm.Painting.ContinueStroke(new SKPoint(35, 15), 1);
@@ -202,6 +217,43 @@ public class ImagePaintTests
 
         OnUi(() => vm.UndoEditCommand.Execute(null));
         Assert.IsTrue(((PixelLayer)Picture(vm).Active!).Pixels.IsEmpty, "one undo takes the whole stroke back");
+    }
+
+    [TestMethod]
+    [CoversNode("images-paint")]
+    public void PaintingAPhoto_MakesTheLayerItPaintsOn_AndOneUndoTakesBothBack()
+    {
+        var photo = Path.Combine(_dir, "photo.png");
+        using (var bitmap = Flat(40, 30, new SKColor(40, 90, 200))) File.WriteAllBytes(photo, EncodePng(bitmap));
+        var shell = Substitute.For<IShellServices>();
+        shell.RunOnUiAsync(Arg.Any<Action>()).Returns(call => _ui.Run(call.Arg<Action>()));
+        var vm = _ui.Invoke(() => new ArtistViewModel(photo, shell, _services, config: new ImagesConfig()));
+        Until(() => vm.Canvas is not null);
+        OnUi(() =>
+        {
+            vm.Editor.InkColour = ColorSpec.Custom(Color.FromRgb(Red.Red, Red.Green, Red.Blue));
+            vm.Editor.Tool = EditTool.Paint;
+            vm.Painting.Size = 6;
+            Assert.IsTrue(vm.Painting.BeginStroke(new SKPoint(5, 15), 1), "a stroke begins on the photo itself");
+            vm.Painting.ContinueStroke(new SKPoint(35, 15), 1);
+            vm.Painting.EndStroke();
+        });
+        var picture = Picture(vm);
+        Assert.AreEqual(2, picture.Layers.Length, "the photo became a layered picture, a layer above it");
+        var painted = (PixelLayer)picture.Active!;
+        AssertNear(Red, PixelOf(painted.Pixels, 20, 15), because: "painted on the layer made for it");
+        Assert.IsInstanceOfType<PictureLayer>(picture.Layers.Single(l => l.Id != painted.Id), "the photo kept, untouched, below");
+
+        // On a layer that holds no pixels, a fill lands on a new layer above it.
+    var photoLayer = picture.Layers.Single(l => l is PictureLayer).Id;
+        OnUi(() => vm.CurrentDocument!.Amend(p => p with { ActiveId = photoLayer }));
+        OnUi(() => { vm.Painting.Tool = PaintTool.Fill; vm.Painting.FillAt(new SKPoint(20, 20)); });
+        Assert.AreEqual(3, Picture(vm).Layers.Length, "filled on a layer of its own, not the photo");
+
+        OnUi(() => vm.UndoEditCommand.Execute(null));
+        Assert.AreEqual(2, Picture(vm).Layers.Length, "one undo takes the fill and its layer back");
+        OnUi(() => vm.UndoEditCommand.Execute(null));
+        Assert.AreEqual(1, Picture(vm).Layers.Length, "and the stroke and its layer");
     }
 
     [TestMethod]
@@ -388,6 +440,33 @@ public class ImagePaintTests
         var flipped = (MarkupLayer)Picture(vm).Active!;
         Assert.AreEqual(arrow, flipped.Elements.Single(), "the notes are kept as drawn");
         Assert.IsTrue(flipped.Placement.ScaleX < 0, "the layer's placement takes the flip");
+    }
+
+    [TestMethod]
+    [CoversNode("images-layers")]
+    public void MarkingUpAPixelLayer_DrawsOnAMarkupLayerMadeAboveIt_AndTheNextMarkGoesThereToo()
+    {
+        var vm = Canvas(LayeredPicture.Blank(40, 30, LayerBackground.Transparent, "Layer 1"));
+        var pixels = Picture(vm).Active!.Id;
+        void Arrow(float x) => OnUi(() =>
+        {
+            vm.Editor.Tool = EditTool.Markup;
+            vm.Editor.MarkupTool = MarkupTool.Arrow;
+            vm.Editor.MarkupPress(new SKPoint(x, 5), 1);
+            vm.Editor.MarkupDrag(new SKPoint(x + 10, 20), 0.5f);
+            vm.Editor.MarkupRelease();
+        });
+
+        Arrow(5);
+        var picture = Picture(vm);
+        Assert.AreEqual(2, picture.Layers.Length, "a markup layer was made for it");
+        var notes = (MarkupLayer)picture.Active!;
+        Assert.AreEqual(1, notes.Elements.Length, "the arrow is on it");
+        Assert.IsTrue(((PixelLayer)picture.Find(pixels)!).Pixels.IsEmpty, "the pixel layer is untouched");
+
+        Arrow(15);
+        Assert.AreEqual(2, Picture(vm).Layers.Length, "the next mark goes on the same markup layer");
+        Assert.AreEqual(2, ((MarkupLayer)Picture(vm).Active!).Elements.Length);
     }
 
     [TestMethod]

@@ -105,7 +105,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         Edits    = new PictureEdits(this, shell, ai);
         Editor.HeldSelectionChanged += Edits.Refresh;
         Layers.ResizeCanvasCommand.CanExecuteChanged += (_, _) => Edits.GenerateCanvasCommand.NotifyCanExecuteChanged();
-        Painting = new LayerPainting(this, Editor);
+        Painting = new LayerPainting(this, Editor, _config);
         Arranging = new LayerArranging(this, editing);
         Printing = new PicturePrinting(Stage, editing, shell);
         Editor.PropertyChanged += (_, e) =>
@@ -204,6 +204,24 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
 
     public bool IsLayered => Stage.IsLayered;
 
+    /// <summary>Whether a layered picture's Layers panel shows beside the tools: kept in the Images settings, so every tab opens
+    /// it as it was left.</summary>
+    public bool ShowsLayersPanel
+    {
+        get => _config.ShowsLayersPanel;
+        set
+        {
+            if (value == _config.ShowsLayersPanel) return;
+            _config.ShowsLayersPanel = value;
+            _shell?.SaveFeatureConfig(_config);
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(LayersPanelShown));
+        }
+    }
+
+    /// <summary>The Layers panel is on screen: the picture is layered, and the panel is shown.</summary>
+    public bool LayersPanelShown => IsLayered && ShowsLayersPanel;
+
     public ImageRecipe CurrentRecipe => Stage.CurrentRecipe;
 
     public bool IsEdited => Stage.IsEdited;
@@ -211,6 +229,27 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     internal IRecipeEditing? EditTarget => Stage.EditTarget;
 
     internal IMarkupEditing? MarkupTarget => Stage.MarkupTarget;
+
+    /// <summary>
+    /// The markup layer the Markup tool marks: the active one, or one made above the active layer — the photo made a layered
+    /// picture first where it is not one — so every annotation lives in a markup layer. <paramref name="openStep"/> opens the step
+    /// what is drawn joins before anything is made, so a layer made comes and goes with it. Null where there is no picture, or the
+    /// active markup layer is locked.
+    /// </summary>
+    internal IMarkupEditing? NotesToMark(bool openStep)
+    {
+        // A photo about to become a layered picture: its size is known here, before its layer's rendering has read it.
+        SKSize? photo = CurrentDocument is null ? CurrentSession?.Proxy?.SourceSize : null;
+        if (MakeLayered() is not { } document || document.Picture.Active is MarkupLayer { Locked: true }) return null;
+        if (openStep) document.History.BeginGesture();
+        return document.ActiveNotes ?? document.MakeNotes(Layers.NextName("Images.Layers.MarkupName"), photo);
+    }
+
+    /// <summary>What the Markup tool would take over into a layer of its own: the annotations the photo's recipe, or the active
+    /// picture layer's, holds.</summary>
+    internal bool HoldsMarkupToLift => CurrentDocument is { } document
+        ? document.Picture.Active is PictureLayer layer && !layer.Recipe.Markup.IsDefaultOrEmpty
+        : CurrentSession?.Recipe.Markup.IsDefaultOrEmpty == false;
 
     /// <summary>The picture opened on the look the application that wrote it saved: a way on is offered.</summary>
     public bool ShowsSavedLookBar => CurrentDocument?.SavedLook is not null;
@@ -232,6 +271,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     {
         if (e.PropertyName is not { } name || !RaisedStageProperties.Contains(name)) return;
         OnPropertyChanged(name);
+        if (name == nameof(PictureStage.IsLayered)) OnPropertyChanged(nameof(LayersPanelShown));
         if (name != nameof(PictureStage.CurrentDocument)) return;
         OnPropertyChanged(nameof(ShowsSavedLookBar));
         OnPropertyChanged(nameof(SavedLookNotice));

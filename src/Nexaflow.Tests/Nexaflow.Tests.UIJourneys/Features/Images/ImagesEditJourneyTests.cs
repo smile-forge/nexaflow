@@ -123,7 +123,7 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
                         && WaitForFs(() => WaitForId("Image_PictureModelsDownload", 1)?.IsEnabled == true, 3));
             Check("AI enhance now waits for the AI picture models", () => !Enabled("Image_EditAiEnhance"));
 
-            // Markup: a text annotation typed, an arrow drawn, selected and deleted
+            // Markup: its tools and how they draw
             Check("Markup panel", () => SelectRadio("Image_EditToolMarkup"));
             CheckPresent("Ink colour picker", "Image_EditInk_Hex");
             Check("Line weight slider moves", () => MoveSlider("Image_EditWeight"));
@@ -135,14 +135,8 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
             CheckPresent("Font list", "Image_EditFont");
             Check("Text size slider moves", () => MoveSlider("Image_EditTextSize"));
             Check("Text backing toggles", () => SetToggle("Image_EditTextBacking", true) && SetToggle("Image_EditTextBacking", false));
-            // The banners over the picture come and go with the panels, and the small sample stays where it was laid out: fit it
-            // to the canvas, so the canvas's centre is on the photo.
-            Check("The photo fitted, a click places text, typed in the panel", () => FitCanvas() && ClickCanvas() && TypeInto("Image_EditMarkupTextBox", "Hello"));
-            Check("Arrow tool draws an arrow", () => SelectRadio("Image_EditMarkupArrow") && DragOnCanvas(-8, -8, 8, 8));
-            Check("Select tool picks the arrow", () => SelectRadio("Image_EditMarkupSelect") && ClickCanvas()
-                                                       && WaitForFs(() => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Image_EditDeleteMarkup"))?.IsEnabled == true, 3));
-            CheckInvoke("Delete the selected annotation", "Image_EditDeleteMarkup");
-            CheckInvoke("Clear every annotation", "Image_EditClearMarkup");
+            // Drawing goes on a markup layer, which makes the photo a layered picture: the layers journey draws, so this one can
+            // go on to save the photo as a photo.
 
             // Resize
             Check("Resize panel", () => SelectRadio("Image_EditToolResize"));

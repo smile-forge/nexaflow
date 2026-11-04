@@ -31,6 +31,7 @@ public sealed class LayeredSession : IPictureLayerImages, IDisposable
     private readonly Lock _gate = new();
     private readonly Dictionary<Guid, LayerRendering> _renderings = [];
     private readonly LayerCompositor _compositor;
+    private (double Exposure, ImmutableArray<byte> Profile)? _shownLook;
     private bool _disposed;
 
     /// <param name="path">Where the picture is kept: its package, or the draft it is kept in until it is saved somewhere.</param>
@@ -64,9 +65,34 @@ public sealed class LayeredSession : IPictureLayerImages, IDisposable
     public IRecipeEditing? ActivePicture => Picture.Active is PictureLayer layer && RenderingOf(layer.Id) is { } rendering
         ? new LayerRecipeEditing(this, layer.Id, rendering) : null;
 
-    /// <summary>The annotations the Markup tool works on: the active markup layer's own, through its placement, or the active
-    /// picture layer's, as its recipe keeps them; null where the active layer has none to edit.</summary>
-    public IMarkupEditing? ActiveNotes => Picture.Active is MarkupLayer layer ? new MarkupLayerEditing(this, layer.Id) : ActivePicture;
+    /// <summary>The annotations the Markup tool works on: the active markup layer's own, through its placement; null where the
+    /// active layer is no markup layer — <see cref="MakeNotes"/> adds one.</summary>
+    public IMarkupEditing? ActiveNotes => Picture.Active is MarkupLayer layer ? new MarkupLayerEditing(this, layer.Id) : null;
+
+    /// <summary>
+    /// A markup layer added above the active layer and made active, for the Markup tool — so every annotation lives in a markup
+    /// layer. Above a picture layer it is placed as that layer draws, and takes over what the layer's recipe annotates, so nothing
+    /// moves; above any other it lies on the canvas as it is. One step, or part of the open gesture's.
+    /// </summary>
+    /// <param name="activeSource">The active picture layer's source size, where it is known before the layer's own rendering has
+    /// read it — a photo just made a layered picture.</param>
+    public IMarkupEditing MakeNotes(string name, SKSize? activeSource = null)
+    {
+        var notes = new MarkupLayer { Name = name };
+        bool lifts = false;
+        if (Picture.Active is PictureLayer picture && (RenderingOf(picture.Id)?.Proxy?.SourceSize ?? activeSource) is { } source)
+        {
+            notes = notes with { Placement = LayerPlacement.FromMatrix(SourceToCanvas(picture, source)) };
+            lifts = !picture.Locked && !picture.Recipe.Markup.IsDefaultOrEmpty;
+            if (lifts) notes = notes with { Elements = picture.Recipe.Markup };
+        }
+        var made = notes;
+        Commit(p => (lifts && p.Active is PictureLayer from
+                        ? p.WithLayer(from.Id, l => l is PictureLayer layer ? layer with { Recipe = layer.Recipe with { Markup = [] } } : l)
+                        : p)
+                    .Inserted(made, p.ActiveId));
+        return new MarkupLayerEditing(this, made.Id);
+    }
 
     /// <summary>The picture is kept somewhere else from now on — saved as another package.</summary>
     public void MovedTo(string path)
@@ -278,12 +304,18 @@ public sealed class LayeredSession : IPictureLayerImages, IDisposable
     /// Composites <paramref name="picture"/> — the picture as it stood when the frame was asked for — at <paramref name="scale"/>
     /// and hands it to <paramref name="consume"/> while it is still valid. False once the session has closed.
     /// </summary>
-    public bool Render(LayeredPicture picture, double scale, CompositeOptions options, Action<SKImage> consume)
+    public bool Render(LayeredPicture picture, double scale, CompositeOptions options, Action<SKImage, FrameChange> consume)
     {
         lock (_gate)
         {
             if (_disposed) return false;
-            PictureDisplay.Show(_compositor.Render(picture, scale, this, options), picture, ViewExposure, consume);
+            var composite = _compositor.Render(picture, scale, this, options);
+            // The exposure and the profile it is shown through reach every pixel: either changed, the whole frame is new,
+            // whatever the layers did.
+            var look = (ViewExposure, picture.Profile);
+            var change = look == _shownLook ? _compositor.Change : _compositor.Change.AllOfIt();
+            _shownLook = look;
+            PictureDisplay.Show(composite, picture, ViewExposure, shown => consume(shown, change));
             return true;
         }
     }

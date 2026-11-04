@@ -31,6 +31,9 @@ public abstract record MarkupElement
 
     /// <summary>The same element moved by (<paramref name="dx"/>, <paramref name="dy"/>).</summary>
     public abstract MarkupElement Offset(double dx, double dy);
+
+    /// <summary>Its points carried by <paramref name="map"/> — into another layer's coordinates — its sizes kept.</summary>
+    public abstract MarkupElement Mapped(Func<MarkupPoint, MarkupPoint> map);
 }
 
 /// <summary>A straight arrow, its head at <see cref="To"/>.</summary>
@@ -40,6 +43,8 @@ public sealed record MarkupArrow : MarkupElement
     public MarkupPoint To { get; init; }
 
     public override MarkupElement Offset(double dx, double dy) => this with { From = From.Offset(dx, dy), To = To.Offset(dx, dy) };
+
+    public override MarkupElement Mapped(Func<MarkupPoint, MarkupPoint> map) => this with { From = map(From), To = map(To) };
 }
 
 /// <summary>A rectangle outline, with an optional fill.</summary>
@@ -53,6 +58,8 @@ public sealed record MarkupBox : MarkupElement
 
     public override MarkupElement Offset(double dx, double dy) =>
         this with { Corner = Corner.Offset(dx, dy), OppositeCorner = OppositeCorner.Offset(dx, dy) };
+
+    public override MarkupElement Mapped(Func<MarkupPoint, MarkupPoint> map) => this with { Corner = map(Corner), OppositeCorner = map(OppositeCorner) };
 }
 
 /// <summary>A line or more of text whose top-left is <see cref="Anchor"/>, turned about it by <see cref="RotationDegrees"/>.</summary>
@@ -70,6 +77,8 @@ public sealed record MarkupText : MarkupElement
     public uint Backing { get; init; }
 
     public override MarkupElement Offset(double dx, double dy) => this with { Anchor = Anchor.Offset(dx, dy) };
+
+    public override MarkupElement Mapped(Func<MarkupPoint, MarkupPoint> map) => this with { Anchor = map(Anchor) };
 }
 
 /// <summary>How a freehand stroke is laid down.</summary>
@@ -97,6 +106,8 @@ public sealed record MarkupStroke : MarkupElement
 
     public override MarkupElement Offset(double dx, double dy) =>
         this with { Points = [.. Points.Select(p => p.Offset(dx, dy))] };
+
+    public override MarkupElement Mapped(Func<MarkupPoint, MarkupPoint> map) => this with { Points = [.. Points.Select(map)] };
 
     public bool Equals(MarkupStroke? other) =>
         other is not null

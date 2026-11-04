@@ -30,7 +30,7 @@
 
         <!-- ══ Layers: a layered picture's, beside the tools ══ -->
         <Border Grid.Column="2" Width="260" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0"
-                Visibility="{Binding IsLayered, Converter={StaticResource BoolToVis}}" Thumb.DragStarted="Slider_DragStarted" Thumb.DragCompleted="Slider_DragCompleted">
+                Visibility="{Binding LayersPanelShown, Converter={StaticResource BoolToVis}}" Thumb.DragStarted="Slider_DragStarted" Thumb.DragCompleted="Slider_DragCompleted">
             <DockPanel>
                 <views:LayersPanel DataContext="{Binding Layers}"/>
             </DockPanel>

@@ -31,16 +31,19 @@ public sealed partial class LayerPainting : ObservableObject
 {
     private readonly ArtistViewModel _viewer;
     private readonly ImageEditorViewModel _editor;
+    private readonly ImagesConfig _config;
 
     private PaintStroke? _stroke;
 
     // What the open stroke lands on, as it was when it began.
     private (LayeredSession Document, Guid Layer, bool Mask, TiledPixels? Pixels, TiledCoverage? Coverage)? _strokeOn;
 
-    internal LayerPainting(ArtistViewModel viewer, ImageEditorViewModel editor)
+    /// <param name="config">The Images settings, read as each stroke begins: the pen's pressure and the brush's spacing.</param>
+    internal LayerPainting(ArtistViewModel viewer, ImageEditorViewModel editor, ImagesConfig config)
     {
         _viewer = viewer;
         _editor = editor;
+        _config = config;
         editor.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(ImageEditorViewModel.InkColour) or "") OnPropertyChanged(nameof(Colour));
@@ -71,12 +74,7 @@ public sealed partial class LayerPainting : ObservableObject
     /// <summary>How much each dab adds, in percent.</summary>
     [ObservableProperty] private double _flow = 100;
 
-    /// <summary>The distance between dabs, in percent of the size.</summary>
-    [ObservableProperty] private double _spacing = 15;
 
-    [ObservableProperty] private bool _pressureSizes = true;
-
-    [ObservableProperty] private bool _pressureOpacity;
 
     /// <summary>How far from the colour clicked the fill still reaches, 0–255 on each channel.</summary>
     [ObservableProperty] private double _tolerance = 32;
@@ -103,12 +101,9 @@ public sealed partial class LayerPainting : ObservableObject
     internal BrushSettings Brush => new()
     {
         Size = Math.Clamp(Size, BrushSettings.MinSize, BrushSettings.MaxSize),
-        Hardness = Hardness / 100, Opacity = Opacity / 100, Flow = Flow / 100, Spacing = Math.Max(1, Spacing) / 100,
-        PressureSizes = PressureSizes, PressureOpacity = PressureOpacity,
+        Hardness = Hardness / 100, Opacity = Opacity / 100, Flow = Flow / 100, Spacing = Math.Clamp(_config.BrushSpacing, 1, 200) / 100.0,
+        PressureSizes = _config.PenPressureSize, PressureOpacity = _config.PenPressureOpacity,
     };
-
-    /// <summary>Makes the photo a layered picture with an empty layer to paint on, where it is not one.</summary>
-    public IRelayCommand AddLayerCommand => _viewer.AddLayerCommand;
 
     // What paint lands on now: the active layer's mask while it is edited, else the active layer where it holds pixels.
     private (LayeredSession Document, Layer Layer, bool Mask)? Surface()
@@ -118,21 +113,27 @@ public sealed partial class LayerPainting : ObservableObject
         return layer is PixelLayer ? (document, layer, false) : null;
     }
 
-    /// <summary>Whether there is something to paint on: a pixel layer, or a mask being edited, not locked.</summary>
-    public bool CanPaint => Surface() is not null;
+    // What paint lands on, made where there is none — the photo made a layered picture, and a new pixel layer added above the
+    // active one where that holds no pixels or is locked — inside the step that begins here, so a layer made comes and goes with
+    // the stroke or fill that made it. Null where there is no picture to paint.
+    private (LayeredSession Document, Layer Layer, bool Mask)? BeginOnSurface()
+    {
+        if (Surface() is { } found)
+        {
+            found.Document.History.BeginGesture();
+            return found;
+        }
+        if (_viewer.MakeLayered() is not { } document) return null;
+        document.History.BeginGesture();
+        _viewer.Layers.AddPixelLayerCommand.Execute(null);
+        if (Surface() is { } made) return made;
+        document.History.CancelGesture();
+        return null;
+    }
 
-    /// <summary>Why nothing can be painted on, where nothing can.</summary>
-    public string Notice => _viewer.CurrentDocument is null ? Str.Get("Images.Paint.NoLayers") : Str.Get("Images.Paint.NotPixels");
-
-    /// <summary>The photo is no layered picture yet: Add layer is offered, to paint on.</summary>
-    public bool OffersLayer => _viewer.CurrentDocument is null;
-
-    /// <summary>The picture or its active layer changed: whether it can be painted on is read again.</summary>
+    /// <summary>The picture or its active layer changed: whether it holds light is read again.</summary>
     internal void Refresh()
     {
-        OnPropertyChanged(nameof(CanPaint));
-        OnPropertyChanged(nameof(Notice));
-        OnPropertyChanged(nameof(OffersLayer));
         OnPropertyChanged(nameof(PaintsLight));
     }
 
@@ -150,17 +151,16 @@ public sealed partial class LayerPainting : ObservableObject
 
     // ── Strokes ──────────────────────────────────────────────────────────────
 
-    /// <summary>A stroke begins at <paramref name="at"/> (canvas pixels): one undo step until it ends. Gives whether it did — the
-    /// brush or eraser chosen, and something to paint on.</summary>
+    /// <summary>A stroke begins at <paramref name="at"/> (canvas pixels): one undo step until it ends, with the layer it lands on
+    /// where one had to be made. Gives whether it did — the brush or eraser chosen, and a picture to paint.</summary>
     public bool BeginStroke(SKPoint at, float pressure)
     {
-        if (!PaintsWithTip || Surface() is not { } surface) return false;
+        if (!PaintsWithTip || BeginOnSurface() is not { } surface) return false;
         var (document, layer, mask) = surface;
         var picture = document.Picture;
         _stroke = new PaintStroke(Brush, Tool == PaintTool.Eraser ? PaintKind.Eraser : PaintKind.Brush, picture.Width, picture.Height,
                                   picture.Selection.IsEmpty ? null : picture.Selection);
         _strokeOn = (document, layer.Id, mask, (layer as PixelLayer)?.Pixels, mask ? layer.Mask!.Coverage : null);
-        document.History.BeginGesture();
         ContinueStroke(at, pressure);
         return true;
     }
@@ -202,19 +202,35 @@ public sealed partial class LayerPainting : ObservableObject
     // ── Fill ─────────────────────────────────────────────────────────────────
 
     /// <summary>Floods what is near the colour at <paramref name="at"/> with the colour — inside the selection, where there is one:
-    /// one step.</summary>
+    /// one step, with the layer it lands on where one had to be made.</summary>
     public void FillAt(SKPoint at)
     {
-        if (Surface() is not { } surface) return;
+        if (BeginOnSurface() is not { } surface) return;
         var (document, layer, mask) = surface;
+        bool filled = false;
+        try
+        {
+            filled = Flood(document, layer, mask, at);
+        }
+        finally
+        {
+            // Nothing reached — a click past the picture — takes back the layer made for it too.
+            if (filled) document.History.EndGesture();
+            else document.History.CancelGesture();
+        }
+    }
+
+    // The fill at at, on layer or its mask: whether it reached anything.
+    private bool Flood(LayeredSession document, Layer layer, bool mask, SKPoint at)
+    {
         var picture = document.Picture;
         int x = (int)Math.Floor(at.X), y = (int)Math.Floor(at.Y), tolerance = (int)Math.Round(Tolerance);
-        if (x < 0 || y < 0 || x >= picture.Width || y >= picture.Height) return;
+        if (x < 0 || y < 0 || x >= picture.Width || y >= picture.Height) return false;
         var reach = mask
             ? FloodFill.Reach(layer.Mask!.Coverage, x, y, tolerance, Contiguous)
             : FloodFill.Reach(((PixelLayer)layer).Pixels, picture.Width, picture.Height, x, y, tolerance, Contiguous);
         if (!picture.Selection.IsEmpty) reach = reach.Combined(picture.Selection, RegionMode.Intersect);
-        if (reach.IsEmpty) return;
+        if (reach.IsEmpty) return false;
         document.Commit(p =>
         {
             var colour = InkIn(p);
@@ -222,6 +238,7 @@ public sealed partial class LayerPainting : ObservableObject
                 ? l with { Mask = m with { Coverage = m.Coverage.LaidOver(reach, p.Colour.ShownGrey(colour)) } }
                 : l is PixelLayer pixels ? pixels with { Pixels = pixels.Pixels.Filled(reach, colour, keepAlpha: pixels.AlphaLocked) } : l);
         });
+        return true;
     }
 
     // ── Eyedropper ───────────────────────────────────────────────────────────

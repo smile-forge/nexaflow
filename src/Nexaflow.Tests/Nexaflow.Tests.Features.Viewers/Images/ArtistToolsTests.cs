@@ -173,8 +173,8 @@ public class ArtistToolsTests
                 new JsonObject { ["kind"] = "text", ["from"] = new JsonArray(5, 20), ["text"] = "Look", ["colour"] = "#102030" }),
         });
 
-        var markup = _ui.Invoke(() => vm.CurrentRecipe.Markup);
-        Assert.AreEqual(2, markup.Length);
+        var markup = _ui.Invoke(() => vm.CurrentDocument?.Picture.Active is Nexaflow.Features.Images.Editing.Layers.MarkupLayer notes ? notes.Elements : []);
+        Assert.AreEqual(2, markup.Length, "added to a markup layer made above the photo");
         Assert.IsInstanceOfType<MarkupArrow>(markup[0]);
         Assert.AreEqual(0xFF102030u, ((MarkupText)markup[1]).Color);
         Assert.AreEqual(1, UndoSteps(vm));

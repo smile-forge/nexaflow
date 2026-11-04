@@ -1053,7 +1053,11 @@ public partial class ImageEditorViewModel : ObservableObject
     /// </summary>
     public void MarkupPress(SKPoint at, float tolerance)
     {
-        if (Notes is not { } session) return;
+        // Every annotation lives in a markup layer: drawing where none is active makes one, and so does choosing what a photo's
+        // recipe annotated, which moves into it. Made as the step what is drawn joins opens, so both come and go together.
+        var session = Notes;
+        if (session is null && (MarkupTool != MarkupTool.Select || _viewer.HoldsMarkupToLift)) session = _viewer.NotesToMark(openStep: true);
+        if (session is null) return;
         EndTextEdit();   // a press elsewhere finishes the text being typed
         _markupFrom = at;
 
@@ -1061,9 +1065,13 @@ public partial class ImageEditorViewModel : ObservableObject
         {
             var hit = Markup.Reverse().FirstOrDefault(e => _services.Markup.HitTest(e, at, tolerance));
             SelectedId = hit?.Id;
-            if (hit is null) return;
+            if (hit is null)
+            {
+                if (session.InGesture) session.EndGesture();
+                return;
+            }
             PullStyleFrom(hit);
-            session.BeginGesture();
+            if (!session.InGesture) session.BeginGesture();
             _moving = true;
             return;
         }
@@ -1083,7 +1091,7 @@ public partial class ImageEditorViewModel : ObservableObject
             },
         };
 
-        session.BeginGesture();
+        if (!session.InGesture) session.BeginGesture();
         session.CommitMarkup(m => m.Add(created));
         _drawing = created.Id;
         SelectedId = created.Id;
@@ -1207,8 +1215,8 @@ public partial class ImageEditorViewModel : ObservableObject
 
     private double StrokeFor(bool highlighter) => Math.Max(1, Weight * WeightUnit * (LongEdge ?? 1000) * (highlighter ? 4 : 1));
 
-    /// <summary>Text placed on a turned or straightened picture is turned back, so it reads upright as it was typed.</summary>
-    private double UprightTextRotation() => -(Recipe.Geometry.QuarterTurns * 90 + Recipe.Geometry.StraightenDegrees);
+    // Text reads upright on screen however the markup layer it is written on is turned.
+    private double UprightTextRotation() => _viewer.CurrentDocument?.Picture.Active is MarkupLayer notes ? -notes.Placement.RotationDegrees : 0;
 
     private static uint HighlighterInk(uint ink) => 0x66000000u | (ink & 0x00FFFFFF);
     private static uint Wash(uint ink) => 0x40000000u | (ink & 0x00FFFFFF);

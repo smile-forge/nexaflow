@@ -204,7 +204,7 @@ public sealed class ImageDisplay : IDisposable
 
         var request = new RenderRequest(frame, renderScale, Adjustments: !showOriginal, Markup: !showOriginal);
         double dpi = mode.Editing ? 96 * renderScale / layoutScale : 96;
-        _presenter.Present(consume => rendering.Render(recipe, request, consume), dpi, canvas, ToneReadingFor(mode));
+        _presenter.Present(consume => rendering.Render(recipe, request, picture => consume(picture, FrameChange.Whole)), dpi, canvas, ToneReadingFor(mode));
     }
 
     /// <summary>

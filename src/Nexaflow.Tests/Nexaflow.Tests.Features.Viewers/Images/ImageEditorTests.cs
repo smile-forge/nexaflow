@@ -13,6 +13,8 @@ using Nexaflow.Visuals.Common.Theming;
 using NSubstitute;
 using SkiaSharp;
 using static Nexaflow.Tests.Features.Images.EditingFixtures;
+using System.Collections.Immutable;
+using Nexaflow.Features.Images.Editing.Layers;
 
 namespace Nexaflow.Tests.Features.Images;
 
@@ -91,6 +93,10 @@ public class ImageEditorTests
         for (int i = 0; i < steps; i++) vm.RedoEditCommand.Execute(null);
         return steps;
     }
+
+    // The annotations of the markup layer the Markup tool marks.
+    private static ImmutableArray<MarkupElement> Notes(ArtistViewModel vm)
+        => vm.CurrentDocument?.Picture.Active is MarkupLayer layer ? layer.Elements : [];
 
     // The sample is stored 64×32 on its side, so upright it is 32 wide and 64 tall.
     private static readonly SKSize Upright = new(OrientedPhotoSample.StoredHeight, OrientedPhotoSample.StoredWidth);
@@ -236,15 +242,16 @@ public class ImageEditorTests
             editor.MarkupRelease();
         }
         CollectionAssert.AreEqual(new[] { typeof(MarkupArrow), typeof(MarkupBox), typeof(MarkupStroke), typeof(MarkupStroke) },
-                                  vm.CurrentRecipe.Markup.Select(m => m.GetType()).ToArray());
-        Assert.AreEqual(StrokeStyle.Highlighter, ((MarkupStroke)vm.CurrentRecipe.Markup[3]).Style);
-        Assert.AreEqual(3, ((MarkupStroke)vm.CurrentRecipe.Markup[2]).Points.Length);
-        Assert.AreEqual(4, Steps(vm), "one step per annotation");
+                                  Notes(vm).Select(m => m.GetType()).ToArray(), "drawn on a markup layer made for them");
+        Assert.AreEqual(2, vm.CurrentDocument!.Picture.Layers.Length, "the photo became a layered picture, the markup layer above it");
+        Assert.AreEqual(StrokeStyle.Highlighter, ((MarkupStroke)Notes(vm)[3]).Style);
+        Assert.AreEqual(3, ((MarkupStroke)Notes(vm)[2]).Points.Length);
+        Assert.AreEqual(4, Steps(vm), "one step per annotation, the first with the layer it made");
 
         editor.MarkupTool = MarkupTool.Arrow;
         editor.MarkupPress(new SKPoint(4, 4), 1);
         editor.MarkupRelease();
-        Assert.AreEqual(4, vm.CurrentRecipe.Markup.Length, "a click is not an arrow");
+        Assert.AreEqual(4, Notes(vm).Length, "a click is not an arrow");
     }
 
     [TestMethod]
@@ -264,12 +271,12 @@ public class ImageEditorTests
         editor.SelectedText = "Hi";
         editor.EndTextEdit();
 
-        Assert.AreEqual("Hi", ((MarkupText)vm.CurrentRecipe.Markup.Single()).Text);
+        Assert.AreEqual("Hi", ((MarkupText)Notes(vm).Single()).Text);
         Assert.AreEqual(1, Steps(vm), "placing and typing are one step");
 
         editor.MarkupPress(new SKPoint(9, 9), 1);
         editor.EndTextEdit();
-        Assert.AreEqual(1, vm.CurrentRecipe.Markup.Length, "nothing typed, nothing kept");
+        Assert.AreEqual(1, Notes(vm).Length, "nothing typed, nothing kept");
     }
 
     [TestMethod]
@@ -283,14 +290,15 @@ public class ImageEditorTests
 
         editor.MarkupTool = MarkupTool.Select;
         editor.MarkupPress(new SKPoint(2, 10), 2);
-        Assert.IsTrue(editor.HasSelection);
+        Assert.IsTrue(editor.HasSelection, "what the photo's recipe annotated is chosen, taken over by a markup layer");
+        Assert.AreEqual(0, ((PictureLayer)vm.CurrentDocument!.Picture.Layers[0]).Recipe.Markup.Length, "and kept there alone");
         editor.MarkupDrag(new SKPoint(7, 10), 0.5f);
         editor.MarkupRelease();
-        Assert.AreEqual(new MarkupPoint(7, 2), ((MarkupBox)vm.CurrentRecipe.Markup[0]).Corner);
+        Assert.AreEqual(new MarkupPoint(7, 2), ((MarkupBox)Notes(vm)[0]).Corner, "moved where it was, on the layer placed as the photo draws");
         Assert.IsNotNull(editor.SelectedOutline, "the selection is drawn around it");
 
         editor.DeleteSelectedCommand.Execute(null);
-        Assert.AreEqual(0, vm.CurrentRecipe.Markup.Length);
+        Assert.AreEqual(0, Notes(vm).Length);
         Assert.IsFalse(editor.DeleteSelectedCommand.CanExecute(null));
 
         editor.MarkupPress(new SKPoint(30, 50), 2);
@@ -313,7 +321,7 @@ public class ImageEditorTests
         editor.Weight = 20;
         editor.FillBoxes = true;
 
-        var box = (MarkupBox)vm.CurrentRecipe.Markup[0];
+        var box = (MarkupBox)Notes(vm)[0];
         Assert.AreEqual(0xFF123456u, box.Color);
         Assert.AreEqual(20 * Math.Max(Upright.Width, Upright.Height) / 800.0, box.StrokeWidth, 1e-6, "weight is relative to the picture");
         Assert.AreEqual(0x40123456u, box.Fill, "a wash of the ink");
