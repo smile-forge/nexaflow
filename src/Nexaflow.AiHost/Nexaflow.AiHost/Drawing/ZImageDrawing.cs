@@ -15,9 +15,15 @@ internal sealed class ZImageDrawing(ModelRegistry models, GpuScheduler gpu) : ID
 
     public bool Draws(int width, int height) => ZImageSampler.Draws(width, height);
 
+    public bool Reads(int width, int height) => false;
+
     public bool TakesNegativePrompts => false;
 
     public bool TakesLoras => false;
+
+    public int MaxSources => 0;
+
+    public bool Masks => false;
 
     public async Task<byte[]> DrawAsync(Draw request, Func<string, Task> stage, Func<int, int, Task> stepped, ModelRegistry.Room room, CancellationToken ct)
     {

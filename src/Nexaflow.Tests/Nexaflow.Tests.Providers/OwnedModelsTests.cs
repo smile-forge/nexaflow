@@ -84,7 +84,7 @@ public class OwnedModelsTests
     }
 
     [TestMethod]
-    public void TheShippedHighQualityImageModel_IsHiDreamO1_ItsDenoiserAlone_BuiltForCuda()
+    public void TheShippedHighQualityImageModel_IsHiDreamO1_ItsDenoiserAndPictureReader_BuiltForCuda_EditingUpToFourPicturesUnderAMask()
     {
         var image = OwnedModels.OfKind(ModelKind.ImageGeneration).Single(m => m.Id == "hidream-o1-image");
 
@@ -92,14 +92,81 @@ public class OwnedModelsTests
         Assert.AreEqual((DrawingMethod.HiDream, 50, 3f, 5f), (image.Sampler!.Method, image.Sampler.Steps, image.Sampler.Shift, image.Sampler.Guidance));
         Assert.AreEqual((2048, 2048), image.Sampler.Sizes[MediaShape.Square]);
         Assert.AreEqual((2560, 1440), image.Sampler.Sizes[MediaShape.Landscape]);
+        Assert.AreEqual(new OwnedEditing(4, true, 2048 * 2048, 32, OwnedSizing.Filled), image.Sampler.Editing,
+                        "each picture read as HiDream reads it, filled to whole patches within 2048²");
         Assert.IsTrue(image.RunsOn(OwnedModels.Cuda));
-        Assert.IsFalse(image.RunsOn(OwnedModels.Cpu), "its graph is built for the GPU");
+        Assert.IsFalse(image.RunsOn(OwnedModels.Cpu), "its graphs are built for the GPU");
         Assert.AreEqual("hidream-denoiser", image.Part(OwnedRoles.Denoiser, OwnedModels.Cuda).Runner);
+        Assert.AreEqual("hidream-picture-reader", image.Part(DrawingParts.PictureReader, OwnedModels.Cuda).Runner);
+        Assert.IsTrue(image.Part(OwnedRoles.Denoiser, OwnedModels.Cuda).MemoryBytes < 15L << 30, "editing with pictures it fits a 16 GB card");
         var files = image.Catalog.Files.Select(f => f.RelativePath).ToArray();
         CollectionAssert.Contains(files, "models/hidream-o1-image/denoiser/tokenizer.json", "the host reads the prompt with it");
-        Assert.IsTrue(image.Catalog.Files.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/hidream-o1-image-onnx/resolve/1749a0c0")),
+        CollectionAssert.Contains(files, "models/hidream-o1-image/picture-reader/picture-reader.onnx.data");
+        Assert.IsTrue(image.Catalog.Files.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/hidream-o1-image-onnx/resolve/da0b9a59")),
                       "every file pinned to the published revision");
     }
+
+    [TestMethod]
+    public void ThePictureEditingModel_IsFluxKlein_ItsFourPartsBuiltForCuda_WorkingFromTwoPicturesUnderAMask()
+    {
+        var image = OwnedModels.OfKind(ModelKind.ImageGeneration).Single(m => m.Id == "flux2-klein-4b");
+
+        Assert.AreEqual((DrawingMethod.Flux2Klein, 4, 0f, 0f), (image.Sampler!.Method, image.Sampler.Steps, image.Sampler.Shift, image.Sampler.Guidance),
+                        "its shift follows the picture's size");
+        Assert.AreEqual(new OwnedEditing(2, true, 1024 * 1024, 16), image.Sampler.Editing);
+        Assert.AreEqual((1360, 768), image.Sampler.Sizes[MediaShape.Landscape]);
+        Assert.AreEqual(ModelTier.Standard, image.Catalog.Tier);
+        Assert.IsFalse(image.RunsOn(OwnedModels.Cpu), "its graphs are built for the GPU");
+        CollectionAssert.AreEquivalent(new[] { "klein-prompt-encoder", "klein-denoiser", "klein-picture-encoder", "klein-decoder" },
+                                       image.PartsFor(OwnedModels.Cuda).Select(p => p.Runner).ToArray());
+        Assert.IsTrue(image.Part(OwnedRoles.Denoiser, OwnedModels.Cuda).MemoryBytes < 12L << 30, "with two pictures it fits a 16 GB card");
+        CollectionAssert.Contains(image.Catalog.Files.Select(f => f.RelativePath).ToArray(), "models/flux2-klein-4b/encoder/tokenizer.json");
+        Assert.IsTrue(image.Catalog.Files.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8")),
+                      "every file pinned to the published revision");
+    }
+
+    [TestMethod]
+    public void QwenImageEdit_OnlyChangesPictures_ItsFivePartsBuiltForCuda_FromThreePicturesUnderAMask_OnA32GbCard()
+    {
+        var image = OwnedModels.OfKind(ModelKind.ImageGeneration).Single(m => m.Id == "qwen-image-edit-2511");
+
+        Assert.AreEqual((DrawingMethod.QwenImageEdit, 40, 0f, 4f), (image.Sampler!.Method, image.Sampler.Steps, image.Sampler.Shift, image.Sampler.Guidance),
+                        "true guidance at 4, its shift following the picture's size");
+        Assert.AreEqual(0, image.Sampler.Sizes.Count, "it draws nothing from a prompt alone");
+        Assert.AreEqual(new OwnedEditing(3, true, 1024 * 1024, 32, OwnedSizing.Rounded), image.Sampler.Editing);
+        Assert.IsFalse(image.RunsOn(OwnedModels.Cpu), "its graphs are built for the GPU");
+        CollectionAssert.AreEquivalent(new[] { "qwen-edit-picture-reader", "qwen-edit-prompt-encoder", "qwen-edit-picture-encoder", "qwen-edit-denoiser", "qwen-edit-decoder" },
+                                       image.PartsFor(OwnedModels.Cuda).Select(p => p.Runner).ToArray());
+        long denoiser = image.Part(OwnedRoles.Denoiser, OwnedModels.Cuda).MemoryBytes;
+        Assert.IsTrue(denoiser is > 24L << 30 and < 30L << 30, "with three pictures it needs a 32 GB card, and no smaller is offered it");
+        CollectionAssert.Contains(image.Catalog.Files.Select(f => f.RelativePath).ToArray(), "models/qwen-image-edit-2511/prompt-encoder/tokenizer.json");
+        Assert.IsTrue(image.Catalog.Files.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be11")),
+                      "every file pinned to the published revision");
+    }
+
+    [TestMethod]
+    [DataRow(2000, 1000, 1440, 720)]
+    [DataRow(1024, 768, 1024, 768)]
+    [DataRow(100, 70, 96, 64)]
+    public void APictureToWorkFrom_IsReadAtItsProportions_WithinAMegapixel_NeverScaledUp(int width, int height, int readWidth, int readHeight) =>
+        Assert.AreEqual((readWidth, readHeight), new OwnedEditing(2, true, 1024 * 1024, 16).SizeOf(width, height));
+
+    [TestMethod]
+    [DataRow(1024, 1024, 2048, 2048)]
+    [DataRow(3000, 2000, 2496, 1664)]
+    [DataRow(5000, 3300, 2496, 1664)]
+    [DataRow(640, 480, 2336, 1760)]
+    public void APictureToWorkFrom_IsFilledToTheModelsSquare_UpOrDown_AsHiDreamReadsIt(int width, int height, int readWidth, int readHeight) =>
+        Assert.AreEqual((readWidth, readHeight), new OwnedEditing(2, true, 2048 * 2048, 32, OwnedSizing.Filled).SizeOf(width, height));
+
+    [TestMethod]
+    [DataRow(1024, 1024, 1024, 1024)]
+    [DataRow(1920, 1080, 1376, 768)]
+    [DataRow(640, 480, 1184, 896)]
+    [DataRow(333, 777, 672, 1568)]
+    [DataRow(100, 100, 1024, 1024)]
+    public void APictureToWorkFrom_IsRoundedAboutTheModelsPixels_UpOrDown_AsQwenImageEditReadsIt(int width, int height, int readWidth, int readHeight) =>
+        Assert.AreEqual((readWidth, readHeight), new OwnedEditing(3, true, 1024 * 1024, 32, OwnedSizing.Rounded).SizeOf(width, height));
 
     [TestMethod]
     public void HiDreamO1_AlsoShipsWithFp16Weights_ForAGpuWithTheRoom_AfterThe8BitBuild()
@@ -324,13 +391,14 @@ public class OwnedModelsTests
     }
 
     [TestMethod]
-    public void AModelDrawnTheHiDreamWay_IsItsDenoiserAlone_WithItsGuidanceAndTier()
+    public void AModelDrawnTheHiDreamWay_IsItsDenoiserAndPictureReader_WithItsGuidanceAndTier()
     {
         var json = $$"""
             { "models": [ { "id": "h", "kind": "imageGeneration", "tier": "highQuality",
                 "sampler": { "method": "hiDream", "steps": 50, "shift": 3, "guidance": 5,
                              "sizes": { "square": [2048, 2048], "landscape": [2560, 1440], "portrait": [1440, 2560] } },
-                "parts": [ { "role": "denoiser", "runner": "hidream-denoiser", "folder": "models/h", "memoryBytes": 1, "executionProvider": "cuda" } ],
+                "parts": [ { "role": "denoiser", "runner": "hidream-denoiser", "folder": "models/h", "memoryBytes": 1, "executionProvider": "cuda" },
+                           { "role": "pictureReader", "runner": "hidream-picture-reader", "folder": "models/h", "memoryBytes": 1, "executionProvider": "cuda" } ],
                 "files": [ {{File("models/h/denoiser.onnx")}} ] } ] }
             """;
 
@@ -339,7 +407,7 @@ public class OwnedModelsTests
         Assert.AreEqual(ModelTier.HighQuality, model.Catalog.Tier);
         Assert.AreEqual((DrawingMethod.HiDream, 50, 3f, 5f), (model.Sampler!.Method, model.Sampler.Steps, model.Sampler.Shift, model.Sampler.Guidance));
         Assert.AreEqual((2560, 1440), model.Sampler.Sizes[MediaShape.Landscape]);
-        CollectionAssert.AreEqual(new[] { OwnedRoles.Denoiser }, model.PartsFor(OwnedModels.Cuda).Select(p => p.Role).ToArray());
+        CollectionAssert.AreEqual(new[] { OwnedRoles.Denoiser, DrawingParts.PictureReader }, model.PartsFor(OwnedModels.Cuda).Select(p => p.Role).ToArray());
     }
 
     private const string Clip = """

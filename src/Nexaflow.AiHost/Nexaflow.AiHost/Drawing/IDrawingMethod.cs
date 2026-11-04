@@ -16,11 +16,22 @@ internal interface IDrawingMethod
     /// <summary>Whether it draws pictures of this size.</summary>
     bool Draws(int width, int height);
 
+    /// <summary>Whether it draws an edit — a picture made from pictures to work from — at this size, and reads a picture to
+    /// work from at it.</summary>
+    bool Reads(int width, int height);
+
     /// <summary>Whether it is told what to keep out of a picture (<see cref="Draw.NegativePrompt"/>).</summary>
     bool TakesNegativePrompts { get; }
 
     /// <summary>Whether it draws with a LoRA (<see cref="Draw.Lora"/>).</summary>
     bool TakesLoras { get; }
+
+    /// <summary>How many pictures to work from it reads (<see cref="Draw.Sources"/>); 0 for a method that draws from a
+    /// prompt alone.</summary>
+    int MaxSources { get; }
+
+    /// <summary>Whether it draws again only what a mask covers over the first source (<see cref="Draw.Mask"/>).</summary>
+    bool Masks { get; }
 
     /// <summary>Draws <paramref name="request"/>'s picture, as interleaved 8-bit RGB rows.</summary>
     /// <param name="stage">Told of a part loading, by what it is doing.</param>

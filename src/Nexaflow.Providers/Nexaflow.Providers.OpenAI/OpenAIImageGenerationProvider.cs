@@ -34,7 +34,9 @@ public sealed class OpenAIImageGenerationProvider : IImageGenerationProvider
 
     public bool IsAvailable => !string.IsNullOrWhiteSpace(_config.ApiKey);
 
-    public int MaxSources => DrawsOnly(_model) ? 0 : 1;
+    public int MaxSources => MaxSourcesOf(_model);
+
+    public int MaxSourcesOf(string model) => DrawsOnly(model) ? 0 : 1;
 
     public bool Masks => MaxSources > 0;
 

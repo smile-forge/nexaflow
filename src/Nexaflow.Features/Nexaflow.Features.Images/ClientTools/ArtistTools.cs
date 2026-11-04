@@ -143,7 +143,52 @@ internal sealed class ArtistTools(ArtistViewModel artist, IShellServices? shell,
                 new ClientToolParameter("above", "The layer it goes above, by id or name. The active layer when not given.", Required: false),
             ],
             ToolSafety.SafeOperation,
-            async (args, _) => await GenerateLayerAsync(ToolArgs.Str(args, "description"), ToolArgs.Str(args, "above"))),
+                async (args, _) => await GenerateLayerAsync(ToolArgs.Str(args, "description"), ToolArgs.Str(args, "above"))),
+
+            new DelegateClientTool(
+                "fill_selection",
+                "Draw what is selected again from a description, with the workspace's picture-editing model — a background job: what comes "
+              + "back is a new layer over the selection, masked by it and blended into what is around it, the original kept beneath. "
+              + "Select first (select_in_picture, or the user's selection). The photo is made a layered picture first, its selection kept.",
+                [new ClientToolParameter("description", "What to draw in the selection, as you would tell an illustrator.")],
+                ToolSafety.SafeOperation,
+                async (args, _) => await EditAsync(edits => edits.FillAsync(ToolArgs.Str(args, "description") ?? ""), "the fill"))
+            { Needs = [AiAbility.ImageEditing] },
+
+            new DelegateClientTool(
+                "expand_canvas",
+                "Grow the canvas by so many pixels on each side and draw its new border with the workspace's picture-editing model — a "
+              + "background job: what comes back is a new layer shown in the border and blended over the picture's edges, the picture "
+              + "itself unchanged. The photo is made a layered picture first.",
+                [
+                    new ClientToolParameter("left", "Pixels added on the left.", Required: false, Type: "integer"),
+                    new ClientToolParameter("top", "Pixels added at the top.", Required: false, Type: "integer"),
+                    new ClientToolParameter("right", "Pixels added on the right.", Required: false, Type: "integer"),
+                    new ClientToolParameter("bottom", "Pixels added at the bottom.", Required: false, Type: "integer"),
+                    new ClientToolParameter("description", "What the new border shows. The picture carried on naturally when not given.", Required: false),
+                ],
+                ToolSafety.SafeOperation,
+                async (args, _) => await EditAsync(edits => edits.ExpandAsync(ToolArgs.IntOrNull(args, "left") ?? 0, ToolArgs.IntOrNull(args, "top") ?? 0,
+                                                                              ToolArgs.IntOrNull(args, "right") ?? 0, ToolArgs.IntOrNull(args, "bottom") ?? 0,
+                                                                              ToolArgs.Str(args, "description")), "the expansion"))
+            { Needs = [AiAbility.ImageEditing] },
+
+            new DelegateClientTool(
+                "change_picture",
+                "Change the whole picture as shown, or the active layer alone, by an instruction — \"make it night\", \"turn it into a "
+              + "watercolour\", \"give the cat a red collar\" — with the workspace's picture-editing model, a background job: what comes back "
+              + "is a new layer above the active one, the original kept beneath; a layer's change is shown only where that layer is. "
+              + "For a slider edit — brightness, crop, a turn — use edit_picture instead.",
+                [
+                    new ClientToolParameter("instruction", "What to change, in a sentence."),
+                    new ClientToolParameter("what", "picture: the whole picture as shown; layer: the active layer alone. The whole picture when not given.",
+                                            Required: false, Choices: ["picture", "layer"]),
+                ],
+                ToolSafety.SafeOperation,
+                async (args, _) => await EditAsync(edits => edits.ChangeAsync(ToolArgs.Str(args, "instruction") ?? "",
+                                                                              !string.Equals(ToolArgs.Str(args, "what"), "layer", StringComparison.OrdinalIgnoreCase)),
+                                                   "the change"))
+            { Needs = [AiAbility.ImageEditing] },
 
         new DelegateClientTool(
             "erase_in_picture",
@@ -1000,6 +1045,19 @@ internal sealed class ArtistTools(ArtistViewModel artist, IShellServices? shell,
     }
 
     // ── erase_in_picture, restore_picture, cut_out ────────────────────────
+
+    // ── fill_selection, expand_canvas, change_picture ─────────────────────
+
+    /// <summary>An AI edit begun on the editor: answered at once, the edit following among the workspace's jobs — as
+    /// generate_layer is — or with why it could not begin.</summary>
+    private async Task<ToolResult> EditAsync(Func<PictureEdits, Task<string?>> begin, string what)
+    {
+        var begun = await OnUiAsync(() => artist.IsEditing ? begin(artist.Edits) : null);
+        if (begun is null) return NoPicture();
+        if (await begun is { } why) return ToolResult.Error($"{what} was not begun", why);
+        return ToolResult.Ok($"{what} begun", $"Drawing {what} among the workspace's jobs; it shows in the layers panel while it is drawn and arrives as a new "
+                                             + "layer above the active one, the original kept beneath.");
+    }
 
     /// <summary>restore_picture: the restore section of the recipe set, the tool showing it out, answered once it is made.</summary>
     private async Task<ToolResult> RestoreAsync(string? scale, string? faces, string? strength, CancellationToken ct)

@@ -591,9 +591,14 @@ public sealed partial class LayersViewModel : ObservableObject
     {
         if (_document is not { } document) return;
         var picture = document.Picture;
-        int dx = (CanvasWidth - picture.Width) * ((int)CanvasAnchor % 3) / 2, dy = (CanvasHeight - picture.Height) * ((int)CanvasAnchor / 3) / 2;
+        var (dx, dy) = AnchorOffset(CanvasAnchor, picture.Width, picture.Height, CanvasWidth, CanvasHeight);
         document.Commit(p => LayerEdits.Resized(p, CanvasWidth, CanvasHeight, dx, dy));
     }
+
+    /// <summary>How far what a canvas holds moves as it goes from <paramref name="width"/> × <paramref name="height"/> to
+    /// <paramref name="toWidth"/> × <paramref name="toHeight"/>, held where <paramref name="anchor"/> says.</summary>
+    internal static (int Dx, int Dy) AnchorOffset(CanvasAnchor anchor, int width, int height, int toWidth, int toHeight)
+        => ((toWidth - width) * ((int)anchor % 3) / 2, (toHeight - height) * ((int)anchor / 3) / 2);
 
     private bool CanResizeCanvas() => _document is not null && CanvasWidth is >= 1 and <= LayeredPicture.MaxSide && CanvasHeight is >= 1 and <= LayeredPicture.MaxSide
                                       && (CanvasWidth != Picture!.Width || CanvasHeight != Picture.Height);

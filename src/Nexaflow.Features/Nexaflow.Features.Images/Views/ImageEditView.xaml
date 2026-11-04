@@ -32,7 +32,6 @@
         <Border Grid.Column="2" Width="260" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0"
                 Visibility="{Binding IsLayered, Converter={StaticResource BoolToVis}}" Thumb.DragStarted="Slider_DragStarted" Thumb.DragCompleted="Slider_DragCompleted">
             <DockPanel>
-                <views:CanvasPicturesPanel DockPanel.Dock="Top" DataContext="{Binding Pictures}"/>
                 <views:LayersPanel DataContext="{Binding Layers}"/>
             </DockPanel>
         </Border>
@@ -204,6 +203,37 @@
                             </StackPanel>
                             </StackPanel>
                             </views:FoldingGroup>
+
+                            <!-- Expand: the crop frame dragged past a photo's edge, onto room shown about it, and what it reaches beyond generated. -->
+                            <views:FoldingGroup Icon="fluent:arrow_expand" Title="{loc:Str Images.Edits.ExpandHeader}" IsOpen="{Binding Folds[CropExpand]}"
+                                                Visibility="{Binding Edits.OffersExpansionFromCrop, Converter={StaticResource BoolToVis}}"
+                                                AutomationProperties.AutomationId="Image_GroupCropExpand">
+                                <StackPanel>
+                                    <ToggleButton Style="{StaticResource RowSwitch}" Content="{loc:Str Images.Edits.GenerateNewArea}" IsChecked="{Binding Editor.CropReachesBeyond, Mode=TwoWay}"
+                                                  ToolTip="{loc:Str Images.Edits.GenerateNewAreaTip}" AutomationProperties.AutomationId="Image_EditCropGenerate"/>
+                                    <StackPanel Visibility="{Binding Editor.CropReachesBeyond, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Style="{StaticResource EditCaption}" Margin="0,2,0,0" Text="{loc:Str Images.Edits.DragPastEdge}"/>
+                                        <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Edits.ExpandPromptLabel}"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Style="{StaticResource FieldBox}" Text="{Binding Edits.ExpandPrompt, UpdateSourceTrigger=PropertyChanged}"
+                                                     AutomationProperties.AutomationId="Image_EditCropGeneratePrompt" AutomationProperties.Name="{loc:Str Images.Edits.ExpandPromptLabel}">
+                                                <TextBox.InputBindings>
+                                                    <KeyBinding Key="Enter" Command="{Binding Edits.GenerateExpansionCommand}"/>
+                                                </TextBox.InputBindings>
+                                            </TextBox>
+                                            <Button Grid.Column="1" Margin="6,0,0,0" Style="{StaticResource ToolbarPrimaryButtonStyle}" Command="{Binding Edits.GenerateExpansionCommand}"
+                                                    ToolTip="{loc:Str Images.Edits.GenerateExpansionTip}" ToolTipService.ShowOnDisabled="True"
+                                                    AutomationProperties.AutomationId="Image_EditCropGenerateGo">
+                                                <icons:IconLabel Icon="fluent:sparkle" Text="{loc:Str Images.Edits.Generate}" FontSize="11"/>
+                                            </Button>
+                                        </Grid>
+                                    </StackPanel>
+                                </StackPanel>
+                            </views:FoldingGroup>
                         </StackPanel>
 
                         <!-- ── Adjust ── -->
@@ -285,6 +315,45 @@
                                 </StackPanel>
                             </StackPanel>
                             </StackPanel>
+                            </views:FoldingGroup>
+
+
+                            <!-- Change picture: the picture — or a layered picture's active layer — generated again as described, a new layer above it. -->
+                            <views:FoldingGroup Icon="fluent:image_sparkle" Title="{loc:Str Images.Edits.Change}" IsOpen="{Binding Folds[AdjustChange]}"
+                                                Visibility="{Binding Edits.OffersChange, Converter={StaticResource BoolToVis}}"
+                                                AutomationProperties.AutomationId="Image_GroupAdjustChange">
+                                <StackPanel>
+                                    <Border Style="{StaticResource SegGroup}" Margin="0,0,0,2" Visibility="{Binding IsLayered, Converter={StaticResource BoolToVis}}">
+                                        <UniformGrid Rows="1">
+                                            <RadioButton GroupName="ChangeWhat" Style="{StaticResource SegRadioStyle}" IsChecked="{Binding Edits.WholePicture}"
+                                                         AutomationProperties.AutomationId="Image_EditChangeWhole">
+                                                <TextBlock Text="{loc:Str Images.Edits.WholePicture}" FontSize="11"/>
+                                            </RadioButton>
+                                            <RadioButton GroupName="ChangeWhat" Style="{StaticResource SegRadioStyle}" IsChecked="{Binding Edits.ActiveLayerOnly}"
+                                                         AutomationProperties.AutomationId="Image_EditChangeLayer">
+                                                <TextBlock Text="{loc:Str Images.Edits.ActiveLayer}" FontSize="11"/>
+                                            </RadioButton>
+                                        </UniformGrid>
+                                    </Border>
+                                    <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Edits.ChangePrompt}"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Style="{StaticResource FieldBox}" Text="{Binding Edits.ChangePrompt, UpdateSourceTrigger=PropertyChanged}"
+                                                 AutomationProperties.AutomationId="Image_EditChangePrompt" AutomationProperties.Name="{loc:Str Images.Edits.ChangePrompt}">
+                                            <TextBox.InputBindings>
+                                                <KeyBinding Key="Enter" Command="{Binding Edits.GenerateChangeCommand}"/>
+                                            </TextBox.InputBindings>
+                                        </TextBox>
+                                        <Button Grid.Column="1" Margin="6,0,0,0" Style="{StaticResource ToolbarPrimaryButtonStyle}" Command="{Binding Edits.GenerateChangeCommand}"
+                                                ToolTip="{loc:Str Images.Edits.GenerateChangeTip}" ToolTipService.ShowOnDisabled="True"
+                                                AutomationProperties.AutomationId="Image_EditChangeGo">
+                                            <icons:IconLabel Icon="fluent:sparkle" Text="{loc:Str Images.Edits.Generate}" FontSize="11"/>
+                                        </Button>
+                                    </Grid>
+                                </StackPanel>
                             </views:FoldingGroup>
 
 
@@ -824,6 +893,7 @@
                         <StackPanel Visibility="{Binding Editor.IsSelectTool, Converter={StaticResource BoolToVis}}">
                             <views:FoldingGroup Icon="fluent:copy_select" Title="{loc:Str Images.Select.With}" IsOpen="{Binding Folds[SelectWith]}"
                                                 AutomationProperties.AutomationId="Image_GroupSelectWith">
+                            <StackPanel>
                             <WrapPanel>
                                 <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Editor.MoveSelectionCommand}"
                                         ToolTip="{loc:Str Images.Select.MoveTip}" AutomationProperties.AutomationId="Image_SelectMove">
@@ -836,6 +906,11 @@
                                 <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Editor.EraseSelectionCommand}"
                                         ToolTip="{loc:Str Images.Select.EraseTip}" AutomationProperties.AutomationId="Image_SelectErase">
                                     <icons:IconLabel Icon="fluent:eraser" Text="{loc:Str Images.Select.Erase}" FontSize="11"/>
+                                </Button>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Edits.AskFillCommand}"
+                                        Visibility="{Binding Edits.OffersFill, Converter={StaticResource BoolToVis}}"
+                                        ToolTip="{loc:Str Images.Edits.FillTip}" ToolTipService.ShowOnDisabled="True" AutomationProperties.AutomationId="Image_SelectGenerateFill">
+                                    <icons:IconLabel Icon="fluent:paint_brush_sparkle" Text="{loc:Str Images.Edits.Fill}" FontSize="11"/>
                                 </Button>
                                 <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Editor.CopyCutOutCommand}"
                                         ToolTip="{loc:Str Images.CutOut.CopyTip}" AutomationProperties.AutomationId="Image_CutOutCopy">
@@ -859,6 +934,33 @@
                                     <icons:IconLabel Icon="fluent:dismiss" Text="{loc:Str Images.CutOut.Clear}" FontSize="11"/>
                                 </Button>
                             </WrapPanel>
+                            <!-- Generate fill, set up: what the selection shows, generated as a new layer masked by it — a photo made a layered picture first. -->
+                            <StackPanel Visibility="{Binding Edits.IsAskingFill, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Edits.FillPrompt}"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Style="{StaticResource FieldBox}" Text="{Binding Edits.FillPrompt, UpdateSourceTrigger=PropertyChanged}"
+                                             AutomationProperties.AutomationId="Image_SelectFillPrompt" AutomationProperties.Name="{loc:Str Images.Edits.FillPrompt}">
+                                        <TextBox.InputBindings>
+                                            <KeyBinding Key="Enter" Command="{Binding Edits.GenerateFillCommand}"/>
+                                            <KeyBinding Key="Escape" Command="{Binding Edits.CancelFillCommand}"/>
+                                        </TextBox.InputBindings>
+                                    </TextBox>
+                                    <Button Grid.Column="1" Margin="6,0,0,0" Style="{StaticResource ToolbarPrimaryButtonStyle}" Command="{Binding Edits.GenerateFillCommand}"
+                                            ToolTip="{loc:Str Images.Edits.FillTip}" AutomationProperties.AutomationId="Image_SelectFillGo">
+                                        <icons:IconLabel Icon="fluent:sparkle" Text="{loc:Str Images.Edits.Generate}" FontSize="11"/>
+                                    </Button>
+                                    <Button Grid.Column="2" Margin="4,0,0,0" Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Edits.CancelFillCommand}"
+                                            ToolTip="{loc:Str Images.Edits.Cancel}" AutomationProperties.Name="{loc:Str Images.Edits.Cancel}" AutomationProperties.AutomationId="Image_SelectFillCancel">
+                                        <icons:IconGlyph Icon="fluent:dismiss" FontSize="14"/>
+                                    </Button>
+                                </Grid>
+                            </StackPanel>
+                            </StackPanel>
                             </views:FoldingGroup>
                         </StackPanel>
 

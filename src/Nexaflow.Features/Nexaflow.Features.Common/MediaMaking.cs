@@ -27,6 +27,16 @@ public sealed record PictureChoices(IReadOnlyList<string> Aspects)
     /// <summary>The LoRAs it draws with when asked, one at a time — one meant for adults only among them only while
     /// Enhanced AI Protection Mode is off; empty where it takes none.</summary>
     public IReadOnlyList<PictureLora> Loras { get; init; } = [];
+
+    /// <summary>How many pictures it works from; 0 where it only draws from a prompt.</summary>
+    public int Sources { get; init; }
+
+    /// <summary>Whether it draws again only what a mask leaves transparent over the first picture.</summary>
+    public bool Masks { get; init; }
+
+    /// <summary>Whether a picture made from pictures keeps the first one's proportions, whatever
+    /// <see cref="PictureAsked.Aspect"/> asks.</summary>
+    public bool KeepsSourceProportions { get; init; }
 }
 
 /// <summary>A LoRA a model draws with when asked — a style, or a faster way of drawing — as it is offered.</summary>
@@ -66,8 +76,29 @@ public sealed record PictureAsked(string Prompt, string Path, bool HighQuality)
     /// <summary>The id of one of its <see cref="PictureChoices.Loras"/>; null for none.</summary>
     public string? Lora { get; init; }
 
+
+
     /// <summary>Opened in the workspace's viewers once it is made, as a picture asked for in the file view is; false for one
     /// whoever asked for it takes in themselves — a canvas, adding it as a layer.</summary>
+    public bool OpensWhenMade { get; init; } = true;
+}
+
+/// <summary>A picture the user asks to have changed by the workspace's Image Editing model, as they set it up.</summary>
+/// <param name="Instruction">What to change, or how to combine the pictures, in the user's words.</param>
+/// <param name="Sources">The pictures to work from, as files — the first the one changed — at most the model's
+/// <see cref="PictureChoices.Sources"/>.</param>
+/// <param name="Path">The file what it makes is saved as — its extension that of what the model makes — in a folder that exists.</param>
+public sealed record PictureEditAsked(string Instruction, IReadOnlyList<string> Sources, string Path)
+{
+    /// <summary>A PNG the size of the first source whose transparent part is what is drawn again, where the model
+    /// <see cref="PictureChoices.Masks"/>; null to change the whole picture.</summary>
+    public string? Mask { get; init; }
+
+    /// <summary>0 or more, where it <see cref="PictureChoices.Seeds"/>; null for a new one.</summary>
+    public int? Seed { get; init; }
+
+    /// <summary>Opened in the workspace's viewers once it is made; false for one whoever asked for it takes in themselves — a
+    /// canvas, adding it as a layer.</summary>
     public bool OpensWhenMade { get; init; } = true;
 }
 

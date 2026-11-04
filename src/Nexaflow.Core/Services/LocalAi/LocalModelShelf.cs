@@ -35,13 +35,15 @@ public sealed class LocalModelShelf(ProviderSet providers, ModelAssetStore store
     public ModelAssetStore Store => store;
 
     /// <summary>
-    /// The models <paramref name="slot"/> can hold: those this machine runs first, in their catalogs' order. Speech to text
-    /// holds a conversation, so it offers Nexaflow's own speech models; where this machine runs none of them it offers only
-    /// <see cref="LocalColumns.Dictation"/>.
+    /// The models <paramref name="slot"/> can hold: those this machine runs first, in their catalogs' order — each a model that
+    /// serves every row of the job (<see cref="AiAbilityNames.Serves"/>), so picture editing offers only models that work from
+    /// pictures. Speech to text holds a conversation, so it offers Nexaflow's own speech models; where this machine runs none
+    /// of them it offers only <see cref="LocalColumns.Dictation"/>.
     /// </summary>
     public IReadOnlyList<LocalModelOption> OptionsFor(LocalSlot slot)
     {
-        var options = Catalogued(LocalColumns.KindOf(slot));
+        var kind    = LocalColumns.KindOf(slot);
+        var options = Catalogued(kind).Where(o => LocalColumns.AbilitiesOf(slot).All(a => AiAbilityNames.Serves(a, providers.Find(o.ProviderName, kind), o.Model.Id))).ToList();
         if (slot == LocalSlot.SpeechToText)
         {
             var converse = options.Where(o => !LocalColumns.Dictates(o.Column())).ToList();

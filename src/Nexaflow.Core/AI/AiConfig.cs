@@ -42,11 +42,11 @@ public sealed class AiConfig : IProviderConfig
 
     /// <summary>
     /// Brings a grid saved by an earlier version up to the abilities there are now — <see cref="FoldIntoGeneralIntelligence"/>,
-    /// then <see cref="AddDefaultSpeechIn"/> and <see cref="AddDefaultDocuments"/>. Run on every grid as it is read; a grid already
-    /// up to date is left as it is.
+    /// then <see cref="AddDefaultSpeechIn"/>, <see cref="AddDefaultDocuments"/> and <see cref="AddDefaultImageEditing"/>. Run on
+    /// every grid as it is read; a grid already up to date is left as it is.
     /// Returns whether anything changed, so the caller saves it.
     /// </summary>
-    public bool BringUpToDate() => FoldIntoGeneralIntelligence() | AddDefaultSpeechIn() | AddDefaultDocuments();
+    public bool BringUpToDate() => FoldIntoGeneralIntelligence() | AddDefaultSpeechIn() | AddDefaultDocuments() | AddDefaultImageEditing();
 
     /// <summary>The rows General Intelligence took the place of, as a grid saved before it names them.</summary>
     private static readonly string[] FoldedIntoGeneralIntelligence = ["Conversation", "ProblemSolving", "Analysis"];
@@ -95,6 +95,26 @@ public sealed class AiConfig : IProviderConfig
         if (Assignments.ContainsKey(key) || !Assignments.TryGetValue(nameof(AiAbility.GeneralIntelligence), out var general)) return false;
 
         Assignments[key] = AbilityChain.Of([.. general.ColumnIds]);
+        return true;
+    }
+
+    /// <summary>
+    /// Gives Image Editing its starting chain when this grid has never had that row — a grid saved before the row existed: the
+    /// Local column, whose picture-editing model the workspace settles on when it loads (<see cref="LocalColumns.Settle"/>),
+    /// then the columns its picture rows hold, so a provider's model that changed pictures before the row existed still does.
+    /// The row takes only those of them that work from pictures (<see cref="AiAbilityNames.Serves"/>), which only a
+    /// workspace's providers can say, so the rest are passed over where the row is read. A chain the user has emptied is a
+    /// chain, and is left alone. Returns whether anything was added.
+    /// </summary>
+    public bool AddDefaultImageEditing()
+    {
+        var key = nameof(AiAbility.ImageEditing);
+        if (Assignments.ContainsKey(key)) return false;
+
+        string[] drawing = [.. new[] { AiAbility.ImageGeneration, AiAbility.HighQualityImageGeneration }
+                                .SelectMany(a => Assignments.GetValueOrDefault(a.ToString())?.ColumnIds ?? [])
+                                .Where(id => !LocalColumns.IsLocal(id))];
+        Assignments[key] = AbilityChain.Of([LocalColumns.IdOf(LocalSlot.ImageEditing), .. drawing.Distinct()]);
         return true;
     }
 }

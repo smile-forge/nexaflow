@@ -73,7 +73,7 @@ public class ImagesCanvasGenerateJourneyTests : ImageEditJourneyBase
                   () => WaitForFs(() => Exists("Image_LayersPanel"), 15) && WaitForFs(() => Exists("Image_LayersPendingStop"), 5));
         Check("The picture arrives as the canvas's first layer", () => WaitForFs(() => !Exists("Image_LayersPendingStop") && LayerCount() == 2, Affordable(240)));
 
-        CheckPresent("Generate layer sits above the layers", "Image_LayersPictures");
+        CheckPresent("What is being generated shows in the layers panel, beneath its heading", "Image_LayersPictures");
         CheckDoes("Generate layer is set up", "Image_LayersGenerate", () => WaitForFs(() => Exists("Image_LayersGenerateGo"), 3));
         CheckDoes("and let go", "Image_LayersGenerateCancel", () => WaitForGone("Image_LayersGenerateGo", 3));
         CheckDoes("Generate layer again", "Image_LayersGenerate", () => WaitForFs(() => Exists("Image_LayersGenerateGo"), 3));

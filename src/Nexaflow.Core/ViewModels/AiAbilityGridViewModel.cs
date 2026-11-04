@@ -73,6 +73,7 @@ public partial class AiAbilityCellViewModel : ObservableObject
 {
     private readonly AiAbilityRowViewModel _row;
     private readonly Func<AiAbility, LocalCellState>? _local;
+    private readonly Func<AiAbility, AiColumnViewModel, bool>? _serves;
 
     public AiColumnViewModel Column { get; }
 
@@ -107,10 +108,14 @@ public partial class AiAbilityCellViewModel : ObservableObject
     public IRelayCommand ToggleCommand { get; }
 
     /// <param name="local">For the Local column: whether a row's job can use it, and the note to show.</param>
-    public AiAbilityCellViewModel(AiAbilityRowViewModel row, AiColumnViewModel column, Func<AiAbility, LocalCellState>? local = null)
+    /// <param name="serves">For another column: whether its model serves a row beyond being of the row's kind
+    /// (<see cref="AiAbilityNames.Serves"/>); none for a row that asks only its kind.</param>
+    public AiAbilityCellViewModel(AiAbilityRowViewModel row, AiColumnViewModel column, Func<AiAbility, LocalCellState>? local = null,
+                                  Func<AiAbility, AiColumnViewModel, bool>? serves = null)
     {
         _row    = row;
         _local  = local;
+        _serves = serves;
         Column  = column;
         ChainId = column.IsLocal ? LocalColumns.IdOf(LocalColumns.SlotOf(row.Ability)) : column.Id;
 
@@ -128,7 +133,7 @@ public partial class AiAbilityCellViewModel : ObservableObject
     /// <summary>Takes again whether the cell can be used — a Local model chosen or fetched since.</summary>
     public void Refresh()
     {
-        if (_local is null) { IsUsable = Column.Kind == _row.Kind; return; }
+        if (_local is null) { IsUsable = Column.Kind == _row.Kind && (_serves?.Invoke(_row.Ability, Column) ?? true); return; }
         var state = _local(_row.Ability);
         IsUsable      = state.Usable;
         Note          = state.Note;
@@ -255,12 +260,12 @@ public partial class AiAbilityGridViewModel : ObservableObject
         foreach (var pair in config.Columns.Where(c => !LocalColumns.IsLocal(c.Id)))
             Columns.Add(NewColumn(pair.Id, pair.ProviderName, pair.Model, pair.Kind, pair.AssemblyFileName));
 
-        // Build rows for every defined ability, keeping only the saved chain's columns that still exist and hold the
-        // ability's kind of model, and its job's Local model where one is chosen.
+        // Build rows for every defined ability, keeping only the saved chain's columns that still exist and hold a model
+        // that serves the ability, and its job's Local model where one is chosen.
         foreach (AiAbility ability in Enum.GetValues<AiAbility>())
         {
             var kind   = AiAbilityNames.Kind(ability);
-            var usable = Columns.Where(c => !c.IsLocal && c.Kind == kind).Select(c => c.Id).ToHashSet();
+            var usable = Columns.Where(c => !c.IsLocal && c.Kind == kind && Serves(ability, c)).Select(c => c.Id).ToHashSet();
             if (_local.ContainsKey(LocalColumns.SlotOf(ability))) usable.Add(LocalColumns.IdOf(LocalColumns.SlotOf(ability)));
             var saved  = config.Assignments.GetValueOrDefault(ability.ToString()) ?? AbilityChain.Empty;
             var row    = new AiAbilityRowViewModel(ability, new AbilityChain(saved.ColumnIds.Where(usable.Contains)));
@@ -299,7 +304,12 @@ public partial class AiAbilityGridViewModel : ObservableObject
     }
 
     private AiAbilityCellViewModel Cell(AiAbilityRowViewModel row, AiColumnViewModel column)
-        => new(row, column, column.IsLocal ? LocalCell : null);
+        => new(row, column, column.IsLocal ? LocalCell : null, Serves);
+
+    /// <summary>Whether <paramref name="column"/>'s model serves <paramref name="ability"/> beyond being of its kind — judged
+    /// by its provider's capability, so a column added here is judged before it is bound to its model.</summary>
+    private bool Serves(AiAbility ability, AiColumnViewModel column)
+        => AiAbilityNames.Serves(ability, _config.Providers?.Find(column.ProviderName, column.Kind), column.Model);
 
     /// <summary>A row's Local cell: whether it can be used, its note — the job's model, or why there is none — and whether that
     /// model has yet to be downloaded.</summary>
