@@ -436,7 +436,6 @@
   "Images.Edits.ExpandPromptLabel": "What the new area shows (optional)",
 
   "Images.Edits.Change": "Change picture",
-  "Images.Edits.ChangeWhat": "Change",
   "Images.Edits.ChangePrompt": "What to change",
   "Images.Edits.GenerateChangeTip": "Generate the picture, or the active layer, changed as described, as a new layer above it",
   "Images.Edits.WholePicture": "Whole picture",

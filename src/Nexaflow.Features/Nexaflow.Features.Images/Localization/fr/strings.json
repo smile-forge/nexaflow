@@ -434,7 +434,6 @@
   "Images.Edits.ExpandPromptLabel": "Ce que montre la nouvelle zone (facultatif)",
 
   "Images.Edits.Change": "Modifier l'image",
-  "Images.Edits.ChangeWhat": "Modifier",
   "Images.Edits.ChangePrompt": "Ce qu'il faut modifier",
   "Images.Edits.GenerateChangeTip": "Générer l'image, ou le calque actif, modifié comme décrit, dans un nouveau calque au-dessus",
   "Images.Edits.WholePicture": "Toute l'image",

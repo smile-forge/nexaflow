@@ -323,25 +323,18 @@
                                                 Visibility="{Binding Edits.OffersChange, Converter={StaticResource BoolToVis}}"
                                                 AutomationProperties.AutomationId="Image_GroupAdjustChange">
                                 <StackPanel>
-                                    <Grid Margin="0,0,0,2" Visibility="{Binding IsLayered, Converter={StaticResource BoolToVis}}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Style="{StaticResource EditRowLabel}" Text="{loc:Str Images.Edits.ChangeWhat}"/>
-                                        <Border Grid.Column="1" Style="{StaticResource SegGroup}">
-                                            <UniformGrid Rows="1">
-                                                <RadioButton GroupName="ChangeWhat" Style="{StaticResource SegRadioStyle}" IsChecked="{Binding Edits.WholePicture}"
-                                                             AutomationProperties.AutomationId="Image_EditChangeWhole">
-                                                    <TextBlock Text="{loc:Str Images.Edits.WholePicture}" FontSize="11"/>
-                                                </RadioButton>
-                                                <RadioButton GroupName="ChangeWhat" Style="{StaticResource SegRadioStyle}" IsChecked="{Binding Edits.ActiveLayerOnly}"
-                                                             AutomationProperties.AutomationId="Image_EditChangeLayer">
-                                                    <TextBlock Text="{loc:Str Images.Edits.ActiveLayer}" FontSize="11"/>
-                                                </RadioButton>
-                                            </UniformGrid>
-                                        </Border>
-                                    </Grid>
+                                    <Border Style="{StaticResource SegGroup}" Margin="0,0,0,2" Visibility="{Binding IsLayered, Converter={StaticResource BoolToVis}}">
+                                        <UniformGrid Rows="1">
+                                            <RadioButton GroupName="ChangeWhat" Style="{StaticResource SegRadioStyle}" IsChecked="{Binding Edits.WholePicture}"
+                                                         AutomationProperties.AutomationId="Image_EditChangeWhole">
+                                                <TextBlock Text="{loc:Str Images.Edits.WholePicture}" FontSize="11"/>
+                                            </RadioButton>
+                                            <RadioButton GroupName="ChangeWhat" Style="{StaticResource SegRadioStyle}" IsChecked="{Binding Edits.ActiveLayerOnly}"
+                                                         AutomationProperties.AutomationId="Image_EditChangeLayer">
+                                                <TextBlock Text="{loc:Str Images.Edits.ActiveLayer}" FontSize="11"/>
+                                            </RadioButton>
+                                        </UniformGrid>
+                                    </Border>
                                     <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Edits.ChangePrompt}"/>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
