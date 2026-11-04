@@ -45,6 +45,9 @@
             <TextBlock Text="{loc:Str Images.LoadFailed}" Foreground="{StaticResource TextMutedBrush}"
                        HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
                        Visibility="{Binding Stage.LoadFailed, Converter={StaticResource BoolToVis}}"/>
+            <!-- The colour the open tool uses, and its palette, down the canvas's left edge. -->
+            <views:ColourDock DataContext="{Binding Colours}" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="12,0,0,0"
+                              Visibility="{Binding IsShown, Converter={StaticResource BoolToVis}}"/>
         </Grid>
 
         <!-- ══ Tools ══ -->
@@ -575,10 +578,7 @@
                             </views:FoldingGroup>
 
 
-                            <views:FoldingGroup Icon="fluent:pen" Title="{loc:Str Images.Edit.Markup.InkHeader}" IsOpen="{Binding Folds[MarkupInk]}"
-                                                AutomationProperties.AutomationId="Image_GroupMarkupInk">
-                            <vcc:ColorPicker AutomationPrefix="Image_EditInk" AllowDefault="False" Value="{Binding Editor.InkColour, Mode=TwoWay}"/>
-                            </views:FoldingGroup>
+
 
                             <views:FoldingGroup Icon="fluent:highlight" Title="{loc:Str Images.Edit.Markup.StrokeHeader}" IsOpen="{Binding Folds[MarkupStroke]}"
                                                 AutomationProperties.AutomationId="Image_GroupMarkupStroke">

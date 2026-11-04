@@ -106,6 +106,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         Editor.HeldSelectionChanged += Edits.Refresh;
         Layers.ResizeCanvasCommand.CanExecuteChanged += (_, _) => Edits.GenerateCanvasCommand.NotifyCanExecuteChanged();
         Painting = new LayerPainting(this, Editor, _config);
+        Colours = new PictureColours(Editor, Depth, _config, shell);
         Arranging = new LayerArranging(this, editing);
         Printing = new PicturePrinting(Stage, editing, shell);
         Editor.PropertyChanged += (_, e) =>
@@ -221,6 +222,9 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
 
     /// <summary>The Layers panel is on screen: the picture is layered, and the panel is shown.</summary>
     public bool LayersPanelShown => IsLayered && ShowsLayersPanel;
+
+    /// <summary>The colour Markup, Paint and Haze share, and its palette, down the canvas's left edge.</summary>
+    public PictureColours Colours { get; }
 
     public ImageRecipe CurrentRecipe => Stage.CurrentRecipe;
 

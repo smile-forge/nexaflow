@@ -125,7 +125,10 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
 
             // Markup: its tools and how they draw
             Check("Markup panel", () => SelectRadio("Image_EditToolMarkup"));
-            CheckPresent("Ink colour picker", "Image_EditInk_Hex");
+            Check("The shared colour shows beside the picture, its picker opening over it",
+                  () => WaitForFs(() => Exists("Image_ColourDock"), 3) && SetToggle("Image_ColourCurrent", true)
+                        && WaitFor(() => FindInAppWindows("Image_Colour_Hex"), 3) is not null && SetToggle("Image_ColourCurrent", false));
+            Check("A colour on the palette is chosen, and the current colour added to it", () => PressNth("Image_ColourSwatch", 1) && PressNth("Image_ColourAdd", 0));
             Check("Line weight slider moves", () => MoveSlider("Image_EditWeight"));
             Check("Fill boxes toggles", () => SetToggle("Image_EditFillBoxes", true) && SetToggle("Image_EditFillBoxes", false));
             Check("Box tool", () => SelectRadio("Image_EditMarkupBox"));

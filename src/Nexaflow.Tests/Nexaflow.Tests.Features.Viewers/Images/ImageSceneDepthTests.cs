@@ -19,6 +19,7 @@ using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 using SkiaSharp;
 using static Nexaflow.Tests.Features.Images.EditingFixtures;
+using Nexaflow.Visuals.Common.Theming;
 
 namespace Nexaflow.Tests.Features.Images;
 
@@ -433,6 +434,21 @@ public class ImageSceneDepthTests
         OnUi(() => vm.UndoEditCommand.Execute(null));
         OnUi(() => vm.UndoEditCommand.Execute(null));
         Assert.IsNull(session.Recipe.DepthHaze, "taken back as the steps it was made in");
+    }
+
+    [TestMethod]
+    [CoversNode("images-scene-depth")]
+    public void HazeInTheCurrentColour_TakesAColourChosenAgain_AndTheColourShowsBesideThePicture()
+    {
+        var vm = Editing();
+        OnUi(() => { vm.Editor.Tool = EditTool.Adjust; vm.Depth.Haze = true; });
+        Assert.IsFalse(_ui.Invoke(() => vm.Colours.IsShown), "hazing in the scene's own colour, there is no colour to choose");
+        OnUi(() => vm.Depth.HazeTakesInk = true);
+        Assert.IsTrue(_ui.Invoke(() => vm.Colours.IsShown), "hazing in the current colour, it shows beside the picture");
+
+        var chosen = System.Windows.Media.Color.FromRgb(0x20, 0x60, 0xA0);
+        OnUi(() => vm.Colours.Current = ColorSpec.Custom(chosen));
+        Assert.AreEqual(0xFF2060A0u, vm.CurrentSession!.Recipe.DepthHaze!.Colour, "the haze takes the colour chosen again");
     }
 
     [TestMethod]

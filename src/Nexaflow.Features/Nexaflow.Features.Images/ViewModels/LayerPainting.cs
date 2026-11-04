@@ -25,7 +25,8 @@ public enum PaintTool
 /// <summary>
 /// The Paint tool: the round brush and the eraser stroked onto the active pixel layer — or, while its mask is edited, onto the
 /// mask in greys — each stroke one undo step and only inside the selection; the eyedropper picking the colour of what shows or of
-/// the active layer; and the fill flooding what is near the colour clicked. The colour is the one markup chooses.
+/// the active layer; and the fill flooding what is near the colour clicked. The colour is the one beside the canvas, which
+/// Markup and Haze share (<see cref="PictureColours"/>).
 /// </summary>
 public sealed partial class LayerPainting : ObservableObject
 {
@@ -44,10 +45,6 @@ public sealed partial class LayerPainting : ObservableObject
         _viewer = viewer;
         _editor = editor;
         _config = config;
-        editor.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName is nameof(ImageEditorViewModel.InkColour) or "") OnPropertyChanged(nameof(Colour));
-        };
     }
 
     [ObservableProperty]
@@ -90,13 +87,6 @@ public sealed partial class LayerPainting : ObservableObject
 
     /// <summary>The picture is 32-bit: its colour is light, and Intensity applies.</summary>
     public bool PaintsLight => _viewer.CurrentDocument?.Picture.Colour.IsLinear == true;
-
-    /// <summary>The colour painted with: markup's, one choice for both.</summary>
-    public ColorSpec Colour
-    {
-        get => _editor.InkColour;
-        set => _editor.InkColour = value;
-    }
 
     internal BrushSettings Brush => new()
     {
@@ -254,7 +244,7 @@ public sealed partial class LayerPainting : ObservableObject
         float scale = (float)Math.Pow(2, -stops);
         var shown = colour.ToSrgb(new SKColorF(value.Red * scale, value.Green * scale, value.Blue * scale, 1));
         static byte Byte(float v) => (byte)Math.Clamp((int)MathF.Round(v * 255), 0, 255);
-        Colour = ColorSpec.Custom(Color.FromArgb(255, Byte(shown.Red), Byte(shown.Green), Byte(shown.Blue)));
+        _editor.InkColour = ColorSpec.Custom(Color.FromArgb(255, Byte(shown.Red), Byte(shown.Green), Byte(shown.Blue)));
         if (colour.IsLinear) Intensity = Math.Round(stops, 2);
     }
 

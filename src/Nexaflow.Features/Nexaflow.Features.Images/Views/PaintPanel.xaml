@@ -8,7 +8,8 @@
              xmlns:views="clr-namespace:Nexaflow.Features.Images.Views"
              AutomationProperties.AutomationId="Image_PaintPanel">
 
-    <!-- The Paint tool's panel, bound to a LayerPainting: its way, the colour, the tip, the fill's reach, the eyedropper's sampling. -->
+    <!-- The Paint tool's panel, bound to a LayerPainting: its way, the tip, the fill's reach, the eyedropper's sampling. The colour
+         is the one beside the canvas. -->
 
     <UserControl.Resources>
         <ResourceDictionary>
@@ -52,21 +53,15 @@
                 <ToggleButton Style="{StaticResource RowSwitch}" Content="{loc:Str Images.Paint.SampleMerged}" IsChecked="{Binding SampleMerged, Mode=TwoWay}" Margin="0,6,0,0"
                               Visibility="{Binding IsEyedropper, Converter={StaticResource BoolVis}}"
                               AutomationProperties.AutomationId="Image_PaintSampleMerged"/>
-            </StackPanel>
-        </views:FoldingGroup>
-
-        <!-- The colour painted — in a 32-bit picture, brighter than white by stops of intensity. -->
-        <views:FoldingGroup Icon="fluent:color" Title="{loc:Str Images.Paint.Colour}"
-                            IsOpen="{Binding DataContext.Folds[PaintColour], RelativeSource={RelativeSource AncestorType=views:ImageEditView}}"
-                            AutomationProperties.AutomationId="Image_GroupPaintColour">
-            <StackPanel>
-                <vcc:ColorPicker AutomationPrefix="Image_PaintColour" AllowDefault="False" Value="{Binding Colour, Mode=TwoWay}"/>
+                <!-- In a 32-bit picture, the colour beside the canvas painted brighter than white by stops of intensity. -->
                 <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Paint.Intensity}" ValueFormat="+0.0;−0.0;0" Margin="0,6,0,2"
                                         Minimum="-4" Maximum="10" SmallChange="0.1" LargeChange="1" DefaultValue="0"
                                         Value="{Binding Intensity, Mode=TwoWay}" AutomationProperties.AutomationId="Image_PaintIntensity"
                                         Visibility="{Binding PaintsLight, Converter={StaticResource BoolVis}}"/>
             </StackPanel>
         </views:FoldingGroup>
+
+
 
         <!-- The tip a brush or the eraser lays down, and how a pen's pressure moves it. -->
         <views:FoldingGroup Icon="fluent:paint_brush_sparkle" Title="{loc:Str Images.Paint.BrushHeader}"

@@ -327,6 +327,34 @@ public class ImageEditorTests
         Assert.AreEqual(0x40123456u, box.Fill, "a wash of the ink");
     }
 
+    [TestMethod]
+    [CoversNode("images-edit-markup-style")]
+    public void TheSharedColour_IsChosenFromThePalette_AddedToIt_AndTakenOff_ShownWhereAToolUsesIt()
+    {
+        var vm = Editing();
+        var colours = vm.Colours;
+        vm.Editor.Tool = EditTool.Crop;
+        Assert.IsFalse(colours.IsShown, "Crop uses no colour");
+        vm.Editor.Tool = EditTool.Markup;
+        Assert.IsTrue(colours.IsShown, "Markup draws in it");
+        vm.Editor.Tool = EditTool.Paint;
+        Assert.IsTrue(colours.IsShown, "Paint paints in it");
+
+        var swatch = colours.Palette[2];
+        colours.ChooseCommand.Execute(swatch);
+        Assert.AreEqual(swatch.Colour, vm.Editor.InkColour, "chosen from the palette, it is what is drawn with");
+
+        var mine = ColorSpec.Custom(System.Windows.Media.Color.FromRgb(0x12, 0x34, 0x56));
+        vm.Editor.InkColour = mine;
+        int count = colours.Palette.Count;
+        colours.AddCommand.Execute(null);
+        Assert.AreEqual(mine, colours.Palette[0].Colour, "added first");
+        colours.AddCommand.Execute(null);
+        Assert.AreEqual(count + 1, colours.Palette.Count, "and only once");
+        colours.RemoveCommand.Execute(colours.Palette[0]);
+        Assert.AreEqual(count, colours.Palette.Count, "taken off again");
+    }
+
     // ── Resize, export ──────────────────────────────────────────────────────
 
     [TestMethod]

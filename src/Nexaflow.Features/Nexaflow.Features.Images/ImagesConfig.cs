@@ -32,6 +32,14 @@ public sealed class ImagesConfig : IFeatureConfig
     /// Colour and Depth, so the panel opens short, on the histogram and the quick fixes.</summary>
     public List<string> FoldedPanelGroups { get; set; } = ["LayersMask", "LayersPixels", "LayersCanvas", "AdjustLight", "AdjustColour", "AdjustDepth"];
 
+    /// <summary>
+    /// The colours kept on the palette beside the canvas, as colour specs — a swatch the theme tunes, or a colour of its own —
+    /// in the order shown. Not an Options setting: written as colours are added and taken off. To begin with, the swatch bank's
+    /// main hues.
+    /// </summary>
+    public List<string> Palette { get; set; } =
+        ["swatch:Red", "swatch:Orange", "swatch:Yellow", "swatch:Green", "swatch:Teal", "swatch:Blue", "swatch:Purple", "swatch:Pink", "swatch:Slate"];
+
     /// <summary>Paint's spacing unless set: close enough that a stroke reads as one line, however light the pen.</summary>
     public const int DefaultBrushSpacing = 10;
 

@@ -56,6 +56,13 @@ public sealed partial class SceneDepthTools : ObservableObject
             DepthAsLayerCommand.NotifyCanExecuteChanged();
             DepthAsMaskCommand.NotifyCanExecuteChanged();
         };
+        // The haze takes the current colour: a colour chosen again, it takes the new one.
+        viewer.Editor.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(ImageEditorViewModel.InkColour) || !HazeTakesInk) return;
+            uint ink = SpecColours.Argb(viewer.Editor.InkColour);
+            if (Recipe.DepthHaze?.Colour != ink) Hazed(h => h with { Colour = ink });
+        };
         viewer.Editor.RegionMarks.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(RegionMarking.HasSelection) or nameof(RegionMarking.Shown)) OnPropertyChanged(nameof(NeedsSelection));
