@@ -167,8 +167,9 @@ public sealed class ImageEditingServices : IDisposable
     }
 
     /// <summary>A pipeline over <paramref name="source"/> — and its restoration, cut-out mask and scene depth, where the recipe asks for them.</summary>
-    public RenderPipeline Pipeline(DecodedImage source, bool cache = true, DecodedImage? restored = null, SKImage? cutOut = null, SceneDepthPlane? sceneDepth = null)
-        => new(source, Adjustments, Markup, cache, restored, cutOut, sceneDepth);
+    public RenderPipeline Pipeline(DecodedImage source, bool cache = true, DecodedImage? restored = null, SKImage? cutOut = null, SceneDepthPlane? sceneDepth = null,
+                                   SKImage? subject = null)
+        => new(source, Adjustments, Markup, cache, restored, cutOut, sceneDepth, subject);
 
     /// <summary>
     /// A picture the tools made of the photo — its restoration, or the photo as erased — kept at <paramref name="path"/>,

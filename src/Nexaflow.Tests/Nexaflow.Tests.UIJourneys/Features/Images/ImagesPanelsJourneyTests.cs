@@ -85,7 +85,7 @@ public class ImagesPanelsJourneyTests : ImageEditJourneyBase
 
             // Markup, its text group with the text tool.
             Check("Markup's groups fold and open", () => SelectRadio("Image_EditToolMarkup") && FoldsAndOpens("Image_GroupMarkupTool")
-                  && FoldsAndOpens("Image_GroupMarkupInk") && FoldsAndOpens("Image_GroupMarkupStroke"));
+                  && FoldsAndOpens("Image_GroupMarkupStroke"));
             Check("With the text tool, its text group folds and opens", () => SelectRadio("Image_EditMarkupText") && FoldsAndOpens("Image_GroupMarkupText"));
 
             // Resize.
@@ -103,7 +103,7 @@ public class ImagesPanelsJourneyTests : ImageEditJourneyBase
 
             // Paint, its fill group with the fill.
             Check("Paint's groups fold and open", () => SelectRadio("Image_EditToolPaint") && FoldsAndOpens("Image_GroupPaintTool")
-                  && FoldsAndOpens("Image_GroupPaintColour") && FoldsAndOpens("Image_GroupPaintBrush"));
+                  && FoldsAndOpens("Image_GroupPaintBrush"));
             Check("With the fill, its group folds and opens", () => SelectRadio("Image_PaintFill") && FoldsAndOpens("Image_GroupPaintFill"));
 
             AssertJourney();

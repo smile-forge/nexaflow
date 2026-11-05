@@ -1,3 +1,4 @@
+using Nexaflow.Features.Images.Editing.Rendering;
 using SkiaSharp;
 using System.Windows;
 using System.Windows.Media;
@@ -27,6 +28,11 @@ public sealed class SkiaBitmapPresenter : IDisposable
     private bool _disposed;
     private SKBitmap? _staging;
 
+    // The frame the staging buffer holds, and the part of it the next blit writes — all of it when the frame owed nothing to the
+    // one before. Written by the render loop, read by the blit it then waits for.
+    private FrameChange _staged;
+    private SKRectI _toBlit;
+
     /// <param name="runOnUi">Runs an action on the UI thread.</param>
     public SkiaBitmapPresenter(Func<Action, Task> runOnUi) => _runOnUi = runOnUi;
 
@@ -42,12 +48,13 @@ public sealed class SkiaBitmapPresenter : IDisposable
 
     /// <summary>
     /// Asks for a frame. <paramref name="render"/> runs off the UI thread, and hands its picture to the callback it is
-    /// given while that picture is valid; it returns false when there is nothing to show yet.
+    /// given while that picture is valid, with what it changed from the frame its source drew before; it returns false when
+    /// there is nothing to show yet.
     /// </summary>
     /// <param name="dpi">The bitmap's density, so a frame rendered at more pixels keeps its layout size.</param>
     /// <param name="tag">Handed back with <see cref="Presented"/> — what the frame is a picture of, for whoever draws over it.</param>
     /// <param name="read">Reads the picture as rendered, on the render thread; what it returns is handed back with <see cref="Presented"/>.</param>
-    public void Present(Func<Action<SKImage>, bool> render, double dpi = 96, object? tag = null, Func<SKImage, object?>? read = null)
+    public void Present(Func<Action<SKImage, FrameChange>, bool> render, double dpi = 96, object? tag = null, Func<SKImage, object?>? read = null)
     {
         lock (_gate)
         {
@@ -89,15 +96,17 @@ public sealed class SkiaBitmapPresenter : IDisposable
             object? reading = null;
             try
             {
-                rendered = frame.Render(picture =>
+                rendered = frame.Render((picture, change) =>
                 {
-                    CopyToStaging(picture);
+                    CopyToStaging(picture, change);
                     reading = ReadOf(frame, picture);
                 });
             }
             catch (InvalidOperationException)
             {
-                // A frame Skia could not allocate or draw: the last one stays on screen, and the next request tries again.
+                // A frame Skia could not allocate or draw: the last one stays on screen, and the next request tries again —
+                // whole, since what the buffer holds is no longer known.
+                _staged = FrameChange.Whole;
                 rendered = false;
             }
             if (!rendered) continue;
@@ -109,7 +118,8 @@ public sealed class SkiaBitmapPresenter : IDisposable
             catch (InvalidOperationException)
             {
                 // A frame the screen could not take is skipped like one Skia could not draw: the loop must outlive
-                // it, or no later frame would ever be shown.
+                // it, or no later frame would ever be shown. The screen missed it, so the next is shown whole.
+                _staged = FrameChange.Whole;
             }
         }
     }
@@ -127,27 +137,44 @@ public sealed class SkiaBitmapPresenter : IDisposable
         }
     }
 
-    private void CopyToStaging(SKImage picture)
+    // The frame into the staging buffer: only what changed where the buffer holds the frame its source drew just before — so a
+    // stroke copies the brush's reach, not the screen — and all of it otherwise. What was copied is what the blit writes.
+    private void CopyToStaging(SKImage picture, FrameChange change)
     {
         var info = new SKImageInfo(picture.Width, picture.Height, SKColorType.Bgra8888, SKAlphaType.Premul, SKColorSpace.CreateSrgb());
-        if (_staging is null || _staging.Width != info.Width || _staging.Height != info.Height)
+        bool fresh = _staging is null || _staging.Width != info.Width || _staging.Height != info.Height;
+        if (fresh)
         {
             _staging?.Dispose();
             _staging = new SKBitmap(info);
         }
-        if (!picture.ReadPixels(_staging.Info, _staging.GetPixels(), _staging.RowBytes, 0, 0))
-            throw new InvalidOperationException("The rendered picture could not be read back.");
+        var whole = new SKRectI(0, 0, info.Width, info.Height);
+        var area = !fresh && change.Continues(_staged) ? SKRectI.Intersect(change.Region!.Value, whole) : whole;
+        _staged = FrameChange.Whole;
+        if (!area.IsEmpty)
+        {
+            var staging = _staging!;
+            var into = staging.GetPixels() + area.Top * staging.RowBytes + area.Left * staging.BytesPerPixel;
+            if (!picture.ReadPixels(info.WithSize(area.Width, area.Height), into, staging.RowBytes, area.Left, area.Top))
+                throw new InvalidOperationException("The rendered picture could not be read back.");
+        }
+        _staged = change;
+        _toBlit = area;
     }
 
     private void Blit(double dpi, object? tag, object? reading)
     {
         if (_disposed || _staging is not { } staging) return;
+        var area = _toBlit;
         if (Bitmap is null || Bitmap.PixelWidth != staging.Width || Bitmap.PixelHeight != staging.Height || Math.Abs(Bitmap.DpiX - dpi) > 0.01)
         {
             Bitmap = new WriteableBitmap(staging.Width, staging.Height, dpi, dpi, PixelFormats.Pbgra32, null);
+            area = new SKRectI(0, 0, staging.Width, staging.Height);
             BitmapChanged?.Invoke();
         }
-        Bitmap.WritePixels(new Int32Rect(0, 0, staging.Width, staging.Height), staging.GetPixels(), staging.ByteCount, staging.RowBytes);
+        if (!area.IsEmpty)
+            Bitmap.WritePixels(new Int32Rect(area.Left, area.Top, area.Width, area.Height), staging.GetPixels(), staging.ByteCount, staging.RowBytes,
+                               area.Left, area.Top);
         Presented?.Invoke(tag, reading);
     }
 
@@ -168,5 +195,5 @@ public sealed class SkiaBitmapPresenter : IDisposable
         _staging = null;
     }
 
-    private readonly record struct Frame(Func<Action<SKImage>, bool> Render, double Dpi, object? Tag, Func<SKImage, object?>? Read);
+    private readonly record struct Frame(Func<Action<SKImage, FrameChange>, bool> Render, double Dpi, object? Tag, Func<SKImage, object?>? Read);
 }

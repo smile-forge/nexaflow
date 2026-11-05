@@ -88,15 +88,12 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         Cutter = new PictureCutter(editing, selection, shell, runOnUi, Stage.Models);
 
         // What each model-backed control waits for; while a panel that needs any is open, the banner offers AI picture editing's
-        // models as one — unless a picture tool's banner, for an edit the recipe asks for, is offering them already.
+        // models as one — unless a picture tool's banner, for an edit the recipe asks for, is offering them already (the stage
+        // tells its models which banners those are).
         var picking = new ModelsGate(selection, Stage.Models, runOnUi);
         var erasingModels = new ModelsGate(erasing, Stage.Models, runOnUi);
         var restoring = new ModelsGate(pictures, Stage.Models, runOnUi);
         var depthModels = new ModelsGate(editing.SceneDepth, Stage.Models, runOnUi);
-        picking.Defer(Stage.Remover, Stage.Eraser);
-        erasingModels.Defer(Stage.Eraser);
-        restoring.Defer(Stage.Restorer);
-        depthModels.Defer(Stage.SceneDepth);
 
         Editor = new ImageEditorViewModel(this, shell, editing, Stage.Restorer, Stage.Remover, Cutter, Stage.Eraser, Stage.Models, picking, erasingModels, restoring,
                                           depthModels);
@@ -108,13 +105,18 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         Edits    = new PictureEdits(this, shell, ai);
         Editor.HeldSelectionChanged += Edits.Refresh;
         Layers.ResizeCanvasCommand.CanExecuteChanged += (_, _) => Edits.GenerateCanvasCommand.NotifyCanExecuteChanged();
-        Painting = new LayerPainting(this, Editor);
+        Painting = new LayerPainting(this, Editor, _config);
+        Colours = new PictureColours(Editor, Depth, _config, shell);
         Arranging = new LayerArranging(this, editing);
         Printing = new PicturePrinting(Stage, editing, shell);
         Editor.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(ImageEditorViewModel.Tool)) Depth.OnRecipeChanged();
-            if (e.PropertyName == nameof(ImageEditorViewModel.SelectsByDistance) && Editor.SelectsByDistance) _ = Editor.RegionMarks.ShowDistancesAsync();
+            if (e.PropertyName == nameof(ImageEditorViewModel.Tool))
+            {
+                Depth.OnRecipeChanged();
+                _ = Depth.FollowSelectionAsync();
+            }
+            if (e.PropertyName == nameof(ImageEditorViewModel.SelectsByDistance) && Editor.SelectsByDistance) _ = Editor.ShowDistancesAsync();
             if (e.PropertyName == nameof(ImageEditorViewModel.NewArea)) Edits.Refresh();
             if (e.PropertyName != nameof(ImageEditorViewModel.Tool) || Editor.IsMoveTool) return;
             // Leaving Move: an open transform is applied, and what floats is dropped back into its layer.
@@ -203,6 +205,27 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
 
     public bool IsLayered => Stage.IsLayered;
 
+    /// <summary>Whether a layered picture's Layers panel shows beside the tools: kept in the Images settings, so every tab opens
+    /// it as it was left.</summary>
+    public bool ShowsLayersPanel
+    {
+        get => _config.ShowsLayersPanel;
+        set
+        {
+            if (value == _config.ShowsLayersPanel) return;
+            _config.ShowsLayersPanel = value;
+            _shell?.SaveFeatureConfig(_config);
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(LayersPanelShown));
+        }
+    }
+
+    /// <summary>The Layers panel is on screen: the picture is layered, and the panel is shown.</summary>
+    public bool LayersPanelShown => IsLayered && ShowsLayersPanel;
+
+    /// <summary>The colour Markup, Paint and Haze share, and its palette, down the canvas's left edge.</summary>
+    public PictureColours Colours { get; }
+
     public ImageRecipe CurrentRecipe => Stage.CurrentRecipe;
 
     public bool IsEdited => Stage.IsEdited;
@@ -210,6 +233,27 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     internal IRecipeEditing? EditTarget => Stage.EditTarget;
 
     internal IMarkupEditing? MarkupTarget => Stage.MarkupTarget;
+
+    /// <summary>
+    /// The markup layer the Markup tool marks: the active one, or one made above the active layer — the photo made a layered
+    /// picture first where it is not one — so every annotation lives in a markup layer. <paramref name="openStep"/> opens the step
+    /// what is drawn joins before anything is made, so a layer made comes and goes with it. Null where there is no picture, or the
+    /// active markup layer is locked.
+    /// </summary>
+    internal IMarkupEditing? NotesToMark(bool openStep)
+    {
+        // A photo about to become a layered picture: its size is known here, before its layer's rendering has read it.
+        SKSize? photo = CurrentDocument is null ? CurrentSession?.Proxy?.SourceSize : null;
+        if (MakeLayered() is not { } document || document.Picture.Active is MarkupLayer { Locked: true }) return null;
+        if (openStep) document.History.BeginGesture();
+        return document.ActiveNotes ?? document.MakeNotes(Layers.NextName("Images.Layers.MarkupName"), photo);
+    }
+
+    /// <summary>What the Markup tool would take over into a layer of its own: the annotations the photo's recipe, or the active
+    /// picture layer's, holds.</summary>
+    internal bool HoldsMarkupToLift => CurrentDocument is { } document
+        ? document.Picture.Active is PictureLayer layer && !layer.Recipe.Markup.IsDefaultOrEmpty
+        : CurrentSession?.Recipe.Markup.IsDefaultOrEmpty == false;
 
     /// <summary>The picture opened on the look the application that wrote it saved: a way on is offered.</summary>
     public bool ShowsSavedLookBar => CurrentDocument?.SavedLook is not null;
@@ -231,6 +275,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     {
         if (e.PropertyName is not { } name || !RaisedStageProperties.Contains(name)) return;
         OnPropertyChanged(name);
+        if (name == nameof(PictureStage.IsLayered)) OnPropertyChanged(nameof(LayersPanelShown));
         if (name != nameof(PictureStage.CurrentDocument)) return;
         OnPropertyChanged(nameof(ShowsSavedLookBar));
         OnPropertyChanged(nameof(SavedLookNotice));
@@ -238,9 +283,11 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
 
     // ── What is edited ────────────────────────────────────────────────────
 
-    /// <summary>How the picture is shown: on the edit canvas, before or after, cropping or not, a layer's mask alone.</summary>
+    /// <summary>How the picture is shown: on the edit canvas, before or after, cropping or not, a layer's mask alone, and whether a
+    /// slider or drag is moving.</summary>
     private ImageDisplayMode DisplayMode() =>
-        new(IsEditing, IsEditing && Editor.ShowOriginal, Editor.Frame, FitToWindow: true, Layers.MaskAlone, IsEditing ? Tones.Ask : default);
+        new(IsEditing, IsEditing && Editor.ShowOriginal, Editor.Frame, FitToWindow: true, Layers.MaskAlone, IsEditing ? Tones.Ask : default,
+            Previewing: IsEditing && Stage.Previewing);
 
     /// <summary>Renders the picture for the way it is shown now.</summary>
     internal void RequestRender() => Stage.Render();

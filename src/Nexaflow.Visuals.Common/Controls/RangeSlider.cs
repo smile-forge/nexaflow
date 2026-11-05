@@ -221,19 +221,36 @@ public class RangeSlider : Control
 
     private double PixelOf(double value) => Maximum > Minimum ? Inset + (value - Minimum) / (Maximum - Minimum) * Usable : Inset;
 
-    /// <summary>The thumbs and the band laid where the ends are.</summary>
+    /// <summary>
+    /// The thumbs and the band laid where the ends are. A band too narrow for both ends to sit on it side by side — they would lie
+    /// over each other, and over the band, so only one could be taken hold of — has its ends step aside, each to its own side of
+    /// the band, and the band between them kept half an end wide to be dragged by; the step grows as the band narrows, so
+    /// nothing jumps. The pair stays on the rail at either bound.
+    /// </summary>
     private void Place()
     {
         if (_rail is null) return;
         // Set from outside, the ends may cross for a moment, one set before the other: the band is drawn between them either way.
         double from = PixelOf(Math.Min(LowerValue, UpperValue)), to = PixelOf(Math.Max(LowerValue, UpperValue));
+        double end = _lower?.Width is > 0 and var width ? width : 0, grip = end / 2;
+        double lower = from, upper = to;
+        if (to - from < end + grip)
+        {
+            double centre = (from + to) / 2, apart = (end + grip) / 2;
+            (lower, upper) = (centre - apart, centre + apart);
+            // Kept on the rail: an end may not step past either bound's place.
+            double low = Inset, high = Inset + Usable;
+            if (lower < low) (lower, upper) = (low, low + 2 * apart);
+            if (upper > high) (lower, upper) = (high - 2 * apart, high);
+        }
         if (_span is not null)
         {
-            Canvas.SetLeft(_span, from);
-            _span.Width = Math.Max(0, to - from);
+            double left = to - from < end + grip ? lower + end / 2 : from, right = to - from < end + grip ? upper - end / 2 : to;
+            Canvas.SetLeft(_span, left);
+            _span.Width = Math.Max(0, right - left);
         }
-        if (_lower is not null) Canvas.SetLeft(_lower, from - _lower.Width / 2);
-        if (_upper is not null) Canvas.SetLeft(_upper, to - _upper.Width / 2);
+        if (_lower is not null) Canvas.SetLeft(_lower, lower - _lower.Width / 2);
+        if (_upper is not null) Canvas.SetLeft(_upper, upper - _upper.Width / 2);
     }
 
     private static void OnBoundsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)

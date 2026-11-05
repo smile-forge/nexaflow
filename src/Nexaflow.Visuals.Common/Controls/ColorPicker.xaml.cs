@@ -65,6 +65,18 @@ public partial class ColorPicker : UserControl
         set => SetValue(AllowDefaultProperty, value);
     }
 
+    /// <summary>Whether a colour may be sampled from anywhere on screen. Off where the place it is used has an eyedropper of its own.</summary>
+    public static readonly DependencyProperty AllowScreenSampleProperty = DependencyProperty.Register(
+        nameof(AllowScreenSample), typeof(bool), typeof(ColorPicker),
+        new PropertyMetadata(true, (d, e) => ((ColorPicker)d).ScreenSampleChip.Visibility =
+            (bool)e.NewValue ? Visibility.Visible : Visibility.Collapsed));
+
+    public bool AllowScreenSample
+    {
+        get => (bool)GetValue(AllowScreenSampleProperty);
+        set => SetValue(AllowScreenSampleProperty, value);
+    }
+
     /// <summary>What "Theme default" looks like where this colour is used, so the square can start from it.</summary>
     public static readonly DependencyProperty DefaultColorProperty = DependencyProperty.Register(
         nameof(DefaultColor), typeof(Color), typeof(ColorPicker),

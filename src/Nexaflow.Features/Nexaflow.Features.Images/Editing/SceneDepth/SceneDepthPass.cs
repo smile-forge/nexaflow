@@ -26,18 +26,29 @@ public static class SceneDepthPass
     /// <paramref name="into"/>'s format. The caller owns it.
     /// </summary>
     /// <param name="distance">The colour of the photo's distance in linear light (<see cref="FarColour"/>), for a haze with none of its own.</param>
+    /// <param name="subject">The outline of what the lens blur is focused on, as alpha over the upright photo; the depth is set
+    /// right at its edge (<see cref="SubjectEdges"/>) before the haze and the blur are drawn from it.</param>
     public static SKImage Draw(SKImage drawn, ImageRecipe recipe, SceneDepthPlane plane, SKMatrix photoToCanvas, SKSizeI photo,
-                               (float R, float G, float B) distance, SKImageInfo into)
+                               (float R, float G, float B) distance, SKImageInfo into, SKImage? subject = null)
     {
             int width = drawn.Width, height = drawn.Height, count = width * height;
             var linear = new SKImageInfo(width, height, SKColorType.RgbaF32, SKAlphaType.Premul, SKColorSpace.CreateSrgbLinear());
             // The canvas-sized buffers come from a pool and go back to it: a slider drag redraws this pass many times a second.
             var rgba = Pool.Rent(count * 4);
             var nearness = Pool.Rent(count);
+            float[]? covered = null;
             try
             {
                 Read(drawn, linear, rgba);
                 plane.OnCanvas(photoToCanvas, photo, new SKSizeI(width, height), nearness);
+                if (subject is not null)
+                {
+                    covered = Pool.Rent(count);
+                    Covered(subject, photoToCanvas, width, height, covered);
+                    double canvasPerPlane = Math.Max(photo.Width, photo.Height) / (double)Math.Max(plane.Width, plane.Height)
+                                            / CropGeometry.SourcePixelsPerCanvasPixel(photoToCanvas);
+                    SubjectEdges.Refine(nearness, covered, width, height, SubjectEdges.Reach(canvasPerPlane));
+                }
                 if (recipe.DepthHaze is { } haze)
                 {
                     var distances = Pool.Rent(count);
@@ -51,6 +62,8 @@ public static class SceneDepthPass
                     float sharpFrom = plane.NearnessAt(blur.Far), sharpTo = plane.NearnessAt(blur.Near);
                     double canvasPerPhoto = 1 / CropGeometry.SourcePixelsPerCanvasPixel(photoToCanvas);
                     float widest = (float)(Math.Clamp(blur.Aperture, 0, 1) * RecipeLensBlur.WidestBlur * Math.Max(photo.Width, photo.Height) * canvasPerPhoto);
+                    // The subject focused on is sharp all over, whatever distances it spans — the band only says where the rest is.
+                    if (covered is not null) SubjectEdges.KeepSharp(nearness, covered, count, sharpFrom, sharpTo);
                     LensBlur.Apply(rgba, nearness, width, height, sharpFrom, sharpTo, widest, blur.Shape);
                 }
                 return Drawn(rgba, linear, into);
@@ -59,6 +72,7 @@ public static class SceneDepthPass
             {
                 Pool.Return(rgba);
                 Pool.Return(nearness);
+                if (covered is not null) Pool.Return(covered);
             }
         }
 
@@ -76,6 +90,25 @@ public static class SceneDepthPass
             canvas.DrawImage(made, 0, 0, SKSamplingOptions.Default, paint);
         return ImageDecoders.Seal(bitmap);
     }
+
+        /// <summary>How much of each canvas pixel <paramref name="subject"/> — alpha over the upright photo — covers, 0…1, laid on the
+        /// canvas through the same matrix as the picture, into the first values of <paramref name="covered"/>.</summary>
+        private static void Covered(SKImage subject, SKMatrix photoToCanvas, int width, int height, float[] covered)
+        {
+            var info = new SKImageInfo(width, height, SKColorType.Alpha8, SKAlphaType.Premul);
+            using var surface = SKSurface.Create(info) ?? throw new InvalidOperationException($"No memory for a {width}×{height} outline.");
+            surface.Canvas.Clear(SKColors.Transparent);
+            surface.Canvas.SetMatrix(photoToCanvas);
+            using (var paint = new SKPaint { BlendMode = SKBlendMode.Src })
+                surface.Canvas.DrawImage(subject, 0, 0, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear), paint);
+            using var pixels = surface.PeekPixels();
+    int rowBytes = pixels.RowBytes;
+            Parallel.For(0, height, y =>
+            {
+                var row = pixels.GetPixelSpan().Slice(y * rowBytes, width);
+                for (int x = 0; x < width; x++) covered[y * width + x] = row[x] / 255f;
+            });
+        }
 
     /// <summary>
     /// The colour of <paramref name="source"/>'s distance in linear light — its farthest parts' (<see cref="DepthHaze.FarthestColour"/>)

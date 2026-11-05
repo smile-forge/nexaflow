@@ -22,20 +22,22 @@ public class ArtistPanelTests
         var config = new ImagesConfig();
         var shell = Substitute.For<IShellServices>();
         var folds = new PanelFolds(config, shell);
-        Assert.IsTrue(folds["AdjustLight"], "a group is open until folded");
+        Assert.IsTrue(folds["AdjustQuickFix"], "a group is open until folded");
         Assert.IsFalse(folds["LayersMask"], "the Layers panel's sections begin folded, wanted less often than its list");
+        foreach (var group in new[] { "AdjustLight", "AdjustColour", "AdjustDepth" })
+            Assert.IsFalse(folds[group], $"{group} begins folded, so Adjust opens short");
 
         int told = 0;
         folds.PropertyChanged += (_, e) => { if (e.PropertyName == "Item[]") told++; };
-        folds["AdjustLight"] = false;
-        Assert.IsFalse(new PanelFolds(config, null)["AdjustLight"], "folded, it stays folded for the next tab, which reads the same settings");
+        folds["AdjustQuickFix"] = false;
+        Assert.IsFalse(new PanelFolds(config, null)["AdjustQuickFix"], "folded, it stays folded for the next tab, which reads the same settings");
         shell.Received(1).SaveFeatureConfig(config);
 
-        folds["AdjustLight"] = false;
+        folds["AdjustQuickFix"] = false;
         shell.Received(1).SaveFeatureConfig(config);   // folded again: nothing to keep
 
-        folds["AdjustLight"] = true;
-        Assert.IsTrue(folds["AdjustLight"]);
+        folds["AdjustQuickFix"] = true;
+        Assert.IsTrue(folds["AdjustQuickFix"]);
         Assert.AreEqual(2, told, "each change is told, so every group bound to it follows");
     }
 

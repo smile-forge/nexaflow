@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing;
+using Nexaflow.Features.Images.Editing.CuttingOut;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Services;
 using Nexaflow.IO.Common.Imaging;
@@ -90,7 +91,7 @@ public sealed partial class PictureCutter : ObservableObject
     /// <summary>What is picked, as a recipe's cut-out — the phrase whose finds are shown, else the clicks and the box — for
     /// removing the photo's background by; null where nothing is picked.</summary>
     public RecipeCutOut? PickedCutOut => !HasSelection ? null
-        : Found is { } found ? new RecipeCutOut { Phrase = found }
+        : Found is { } found ? new RecipeCutOut { Phrase = found, Clicks = [.. _points.Select(p => new RecipeCutClick(p.X, p.Y, p.Include))] }
         : new RecipeCutOut
         {
             Clicks = [.. _points.Select(p => new RecipeCutClick(p.X, p.Y, p.Include))],
@@ -145,13 +146,13 @@ public sealed partial class PictureCutter : ObservableObject
     // ── Picking ─────────────────────────────────────────────────────────────
 
     /// <summary>A click on the photo at (<paramref name="x"/>, <paramref name="y"/>) in its pixels as it stands: on the
-    /// thing to keep where <paramref name="include"/>, else off it. Finds a phrase showed give way to it.</summary>
+    /// thing to keep where <paramref name="include"/>, else off it. With things a phrase found shown, it refines them — off one
+    /// lets it go, on one not found adds it (<see cref="FoundPicks"/>); otherwise it picks with the clicks before it.</summary>
     public void Click(double x, double y, bool include)
     {
-        if (Found is not null) ClearPicks();
         _points.Add(new CutPoint(x, y, include));
         OnPropertyChanged(nameof(Points));
-        _ = PickAsync(phrase: null);
+        _ = PickAsync(phrase: Found);
     }
 
     /// <summary>A box drawn round the thing, in the photo's pixels as it stands; it takes the place of any drawn before.</summary>
@@ -204,6 +205,21 @@ public sealed partial class PictureCutter : ObservableObject
         var (width, height) = ShownSize(opened.Photo.Width, opened.Photo.Height);
         var mask = await opened.Session.SelectAsync([new PicturePoint(x, y, true)], null, width, height, ct);
         return mask.Bounds is null ? null : mask;
+    }
+
+    /// <summary>
+    /// Keeps the mask <paramref name="cutOut"/> — clicks and a box, no phrase or region — picks at the photo's full size, from the
+    /// session already open on the photo, as the cut-out masks are kept: what asks for it next (<see cref="FocusedSubject"/>)
+    /// finds it made, and picture selection does not read the photo a second time.
+    /// </summary>
+    public async Task KeepPickedAsync(RecipeCutOut cutOut, CancellationToken ct)
+    {
+        if (_selection is not { State: ToolModelsState.Ready } selection || _photo is not { } photo || cutOut.Phrase is not null || cutOut.Region is not null) return;
+        var opened = await Open();
+        int width = opened.Photo.Width, height = opened.Photo.Height;
+        var mask = await opened.Session.SelectAsync([.. cutOut.Clicks.Select(c => new PicturePoint(c.X, c.Y, c.Include))],
+                                                    cutOut.Box is { } b ? new PictureBox(b.Left, b.Top, b.Right, b.Bottom) : null, width, height, ct);
+        await _services.CutOuts.KeepPickedAsync(photo, cutOut, CutOutMasks.ModelsVersionFor(cutOut, selection), mask.Pixels, width, height, ct);
     }
 
     /// <summary>Everything <paramref name="phrase"/> names in the photo, surest first, each at the size picks are shown at — asked
@@ -265,15 +281,18 @@ public sealed partial class PictureCutter : ObservableObject
             var opened = await Open();
             var (width, height) = ShownSize(opened.Photo.Width, opened.Photo.Height);
             PictureMask mask;
-            if (phrase is not null)
-            {
-                var finds = await opened.Session.FindAsync(phrase, [], width, height, asking.Token);
-                mask = Union(finds, width, height);
-                if (asking.IsCancellationRequested) return;
-    Found = phrase;
-                _finds = finds;
-                Notice = finds.Count == 0 ? Str.Format("Images.CutOut.NothingFound", phrase) : Str.Format("Images.CutOut.FoundFormat", finds.Count, phrase);
-            }
+    if (phrase is not null)
+    {
+        // Refining what was found reuses the finds: only the clicks changed.
+        var finds = phrase == Found && _finds.Count > 0 ? _finds : await opened.Session.FindAsync(phrase, [], width, height, asking.Token);
+        var (combined, things) = await FoundPicks.CombineAsync(finds, Asked(), opened.Photo.Width, opened.Photo.Height, width, height,
+                                                               click => opened.Session.SelectAsync([click], null, width, height, asking.Token));
+        mask = combined;
+        if (asking.IsCancellationRequested) return;
+        Found = phrase;
+        _finds = finds;
+        Notice = things == 0 ? Str.Format("Images.CutOut.NothingFound", phrase) : Str.Format("Images.CutOut.FoundFormat", things, phrase);
+    }
             else
             {
                 mask = await opened.Session.SelectAsync(Asked(), Box, width, height, asking.Token);
@@ -344,17 +363,6 @@ public sealed partial class PictureCutter : ObservableObject
     {
         double scale = Math.Min(1.0, (double)ShownLongSide / Math.Max(width, height));
         return (Math.Max(1, (int)Math.Round(width * scale)), Math.Max(1, (int)Math.Round(height * scale)));
-    }
-
-    /// <summary>Everything found as one mask, its bounds round them all.</summary>
-    private static PictureMask Union(IReadOnlyList<PictureFind> finds, int width, int height)
-    {
-        var pixels = new byte[width * height];
-        foreach (var find in finds)
-            for (int i = 0; i < pixels.Length; i++) pixels[i] |= find.Mask.Pixels[i];
-        PictureBox? bounds = finds.Count == 0 ? null : new PictureBox(finds.Min(f => f.Box.Left), finds.Min(f => f.Box.Top),
-                                                                       finds.Max(f => f.Box.Right), finds.Max(f => f.Box.Bottom));
-        return new PictureMask(pixels, width, height, bounds);
     }
 
     // ── Keeping it ──────────────────────────────────────────────────────────

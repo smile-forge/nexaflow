@@ -387,7 +387,7 @@ public sealed partial class LayersViewModel : ObservableObject
     private bool HasDocumentNow() => _document is not null;
 
     /// <summary>"Layer 3": the kind's name and the next number no layer of the picture has in its name.</summary>
-    private string NextName(string key)
+    internal string NextName(string key)
     {
         var names = Picture?.All.Select(l => l.Name).ToHashSet() ?? [];
         int n = names.Count + 1;

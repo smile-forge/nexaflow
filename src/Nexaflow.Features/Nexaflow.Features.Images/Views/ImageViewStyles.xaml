@@ -548,23 +548,23 @@
     </Style>
 
 
-    <!-- A histogram's clip mark: a corner triangle, lit while its end clips (Tag true), ringed while its clipping is kept shown. -->
-    <Style x:Key="ClipMark" TargetType="ToggleButton">
+    <!-- A histogram's clip mark: a corner triangle, lit while its end clips, ringed while its clipping is kept shown. -->
+    <Style TargetType="views:ClipMark">
         <Setter Property="Width" Value="18"/>
         <Setter Property="Height" Value="18"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Template">
             <Setter.Value>
-                <ControlTemplate TargetType="ToggleButton">
+                <ControlTemplate TargetType="views:ClipMark">
                     <Border x:Name="Ring" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="3">
                         <Path x:Name="Mark" Data="M 3,3 L 12,3 L 3,12 Z" Fill="{StaticResource TextMutedBrush}" Opacity="0.5"/>
                     </Border>
                     <ControlTemplate.Triggers>
-                        <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                        <Trigger Property="IsClipping" Value="True">
                             <Setter TargetName="Mark" Property="Fill" Value="{StaticResource TextBrush}"/>
                             <Setter TargetName="Mark" Property="Opacity" Value="1"/>
-                        </DataTrigger>
+                        </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Ring" Property="BorderBrush" Value="{StaticResource TextMutedBrush}"/>
                         </Trigger>

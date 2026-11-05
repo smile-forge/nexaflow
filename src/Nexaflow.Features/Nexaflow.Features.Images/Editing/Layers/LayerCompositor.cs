@@ -20,7 +20,7 @@ public interface IPictureLayerImages
 /// <summary>How a composite is drawn; the default draws the layers over the background.</summary>
 /// <param name="LeaveOutBackground">Draw the layers over nothing, without the canvas's background.</param>
 /// <param name="MaskAlone">Instead of the layers, show this layer's mask alone, in greys.</param>
-public readonly record struct CompositeOptions(bool LeaveOutBackground = false, Guid? MaskAlone = null);
+public readonly record struct CompositeOptions(bool LeaveOutBackground = false, Guid? MaskAlone = null, bool Previewing = false);
 
 /// <summary>
 /// Stacks a layered picture's layers into one picture, for the display at the zoom's scale and for a save at full size:
@@ -48,6 +48,11 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
     private double _drawnScale;
     private CompositeOptions _drawnOptions;
     private Dictionary<Guid, long> _drawnVersions = [];
+    private long _frames;
+
+    /// <summary>What the last <see cref="Render"/> changed from the one before it: only what it redrew, where it built on the
+    /// frame it kept; all of it otherwise.</summary>
+    public FrameChange Change { get; private set; }
 
     /// <summary>
     /// The picture composited at <paramref name="scale"/> output pixels per canvas pixel. Kept between renders — valid until the
@@ -66,6 +71,7 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
         {
             var once = NewBitmap(picture.Colour, size);
             Draw(once, picture, scale, images, options, new SKRectI(0, 0, size.Width, size.Height));
+            Change = FrameChange.Whole;
             return ImageDecoders.Seal(once);
         }
 
@@ -73,6 +79,7 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
                          && _drawnScale == scale && _drawnOptions == options && SameVersions(versions)
             ? DirtyBetween(before, picture, scale, size)
             : null;
+        bool whole = dirty is null;
         if (dirty is null)
         {
             _composite?.Dispose();
@@ -81,6 +88,7 @@ public sealed class LayerCompositor(MarkupPainter markup, bool cache = true) : I
         }
         if (!dirty.Value.IsEmpty) Draw(_composite!, picture, scale, images, options, dirty.Value);
         (_drawn, _drawnScale, _drawnOptions, _drawnVersions) = (picture, scale, options, versions);
+        Change = new FrameChange(this, ++_frames, whole ? null : dirty.Value);
         return SKImage.FromPixels(_composite!.PeekPixels());
     }
 

@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing;
+using Nexaflow.Features.Images.Editing.CuttingOut;
 using Nexaflow.Features.Images.Editing.Recipe;
 
 namespace Nexaflow.Features.Images.ViewModels;
@@ -32,9 +33,7 @@ public sealed class BackgroundRemover : ToolEdit<RecipeCutOut>
 
     /// <summary>A cut-out that asks picture selection nothing — a region drawn by hand alone — needs no models at all; one whose
     /// region selects by distance needs scene depth.</summary>
-    protected override IReadOnlyList<IToolModels?> Needs(RecipeCutOut ask)
-        => [.. ask.AsksPictureSelection ? [_selection] : Array.Empty<IToolModels?>(),
-            .. ask.Region?.SelectsByDistance == true ? [Services.SceneDepth] : Array.Empty<IToolModels?>()];
+    protected override IReadOnlyList<IToolModels?> Needs(RecipeCutOut ask) => CutOutMasks.ModelsFor(ask, _selection, Services.SceneDepth);
 
     /// <summary>Removing the background is always offered: a region drawn by hand cuts out on any machine.</summary>
     public override bool Available => true;

@@ -82,15 +82,16 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         CheckInvoke("Move it up", "Image_LayersMoveUp");
         CheckDoes("Delete it", "Image_LayersDelete", () => LayersBecome(2));
 
-        // ── What a selection does to the active layer ──
+        // ── What a selection does to the active layer, from Select ──
+        Check("Select is chosen", () => SelectRadio("Image_EditToolSelect"));
+        Check("Select all of the canvas", () => SelectAllOnCanvas());
+        CheckInvoke("Fill the selection", "Image_SelectFill");
+        CheckInvoke("Copy it", "Image_SelectCopy");
+        CheckInvoke("Copy what shows of every layer", "Image_SelectCopyMerged");
+        CheckDoes("Paste it as a layer", "Image_SelectPaste", () => LayersBecome(3));
+        CheckInvoke("Cut it", "Image_SelectCut");
+        CheckInvoke("Clear what is selected", "Image_SelectClear");
         Check("The pixels section opens", () => Expand("Image_LayersPixelsSection"));
-        Check("Select all of the canvas", SelectAllOnCanvas);
-        CheckInvoke("Fill the selection", "Image_LayersFill");
-        CheckInvoke("Copy it", "Image_LayersCopy");
-        CheckInvoke("Copy what shows of every layer", "Image_LayersCopyMerged");
-        CheckDoes("Paste it as a layer", "Image_LayersPaste", () => LayersBecome(3));
-        CheckInvoke("Cut it", "Image_LayersCut");
-        CheckInvoke("Clear what is selected", "Image_LayersClear");
         CheckDoes("Merge it down", "Image_LayersMergeDown", () => LayersBecome(2));
 
         // ── Select, then act on what is selected ──
@@ -132,7 +133,7 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
                                        "Image_LayersAnchorBottomRight", "Image_LayersAnchorCentre" })
             Check($"Anchored at {anchor}", () => SelectRadio(anchor));
         CheckInvoke("Resize the canvas", "Image_LayersCanvasApply");
-        Check("Select all of the canvas again", SelectAllOnCanvas);
+        Check("Select all of the canvas again", () => SelectAllOnCanvas("Image_LayersCropToSelection"));
         CheckInvoke("Crop the canvas to the selection", "Image_LayersCropToSelection");
 
         // ── Notes, groups and flattening ──
@@ -154,9 +155,8 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         File.Copy(sample, Path.Combine(_folder, "photo.png"));
         OpenEditorOnTheFolder();
 
-        // A photo has no layer to paint on or move: the Paint and Move tools offer one.
-        Check("Paint offers a layer to paint on", () => SelectRadio("Image_EditToolPaint") && WaitForFs(() => Exists("Image_PaintPanel"), 3)
-              && WaitForFs(() => Exists("Image_PaintAddLayer"), 3));
+        // A photo has no layer to move: the Move tool offers one. Paint makes its own as it paints.
+        Check("Paint is ready on the photo", () => SelectRadio("Image_EditToolPaint") && WaitForFs(() => Exists("Image_PaintPanel"), 3));
         Check("Move offers a layer to move", () => SelectRadio("Image_EditToolMove") && WaitForFs(() => Exists("Image_ArrangePanel"), 3)
               && WaitForFs(() => Exists("Image_ArrangeAddLayer"), 3));
         Check("Back to the crop", () => SelectRadio("Image_EditToolCrop"));
@@ -164,9 +164,30 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         CheckDoes("Add layer makes the photo a layered picture, with a layer above it", "Image_EditAddLayer",
                   () => WaitForFs(() => Exists("Image_LayersPanel"), 5) && LayersBecome(2));
         Check("The photo is untouched beside it: nothing is written until it is saved", () => !File.Exists(Path.Combine(_folder, "photo.ora")));
-        Check("The pixels section opens", () => Expand("Image_LayersPixelsSection"));
-        CheckInvoke("Copy what shows", "Image_LayersCopyMerged");
+        Check("Select is chosen, all of the canvas selected", () => SelectRadio("Image_EditToolSelect") && SelectAllOnCanvas());
+        CheckInvoke("Copy what shows", "Image_SelectCopyMerged");
         CheckDoes("Paste as layer adds what was copied", "Image_EditPasteLayer", () => LayersBecome(3));
+
+        AssertJourney();
+    }
+
+    [TestMethod]
+    [CoversNode("images-layers")]
+    public void APhotosAnnotations_GoOnAMarkupLayerMadeForThem()
+    {
+        var sample = TestSampleData.Files("images").First(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase));
+        File.Copy(sample, Path.Combine(_folder, "photo.png"));
+        OpenEditorOnTheFolder();
+
+        // The small sample stays where it was laid out: fit it to the canvas, so the canvas's centre is on the photo.
+        Check("Markup's text tool", () => SelectRadio("Image_EditToolMarkup") && SelectRadio("Image_EditMarkupText"));
+        Check("The photo fitted, a click places text, typed in the panel", () => FitCanvas() && ClickCanvas() && TypeInto("Image_EditMarkupTextBox", "Hello"));
+        Check("The text is on a markup layer made above the photo", () => WaitForFs(() => Exists("Image_LayersPanel"), 5) && LayersBecome(2));
+        Check("An arrow drawn goes on the same layer", () => SelectRadio("Image_EditMarkupArrow") && DragOnCanvas(-8, -8, 8, 8) && LayersBecome(2));
+        Check("Select tool picks the arrow", () => SelectRadio("Image_EditMarkupSelect") && ClickCanvas()
+                                                   && WaitForFs(() => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Image_EditDeleteMarkup"))?.IsEnabled == true, 3));
+        CheckInvoke("Delete the selected annotation", "Image_EditDeleteMarkup");
+        CheckInvoke("Clear every annotation", "Image_EditClearMarkup");
 
         AssertJourney();
     }
@@ -304,12 +325,12 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         // ── Paint ──
         Check("Paint is chosen, its panel showing", () => SelectRadio("Image_EditToolPaint") && WaitForFs(() => Exists("Image_PaintPanel"), 3));
         Check("The brush", () => SelectRadio("Image_PaintBrush"));
-        foreach (var slider in new[] { "Image_PaintSize", "Image_PaintHardness", "Image_PaintOpacity", "Image_PaintFlow", "Image_PaintSpacing" })
+        foreach (var slider in new[] { "Image_PaintSize", "Image_PaintHardness", "Image_PaintOpacity", "Image_PaintFlow" })
             Check($"{slider} moves", () => MoveSlider(slider));
-        Check("Pen pressure sets the size, and back", () => ToggleAndBack("Image_PaintPressureSize"));
-        Check("Pen pressure sets the opacity, and back", () => ToggleAndBack("Image_PaintPressureOpacity"));
         Check("A stroke is painted, one step of the history", () => FitCanvas() && DragOnCanvas(-30, -10, 30, 10) && WaitForFs(() => Enabled("Image_EditUndo"), 3));
         Check("The eraser takes some away", () => SelectRadio("Image_PaintEraser") && DragOnCanvas(-10, -10, 10, 10));
+        Check("The Layers panel hides, and shows again", () => SetToggle("Image_EditShowLayers", false) && WaitForFs(() => !Exists("Image_LayersPanel"), 3)
+                                                               && SetToggle("Image_EditShowLayers", true) && WaitForFs(() => Exists("Image_LayersPanel"), 3));
         Check("The fill", () => SelectRadio("Image_PaintFill") && WaitForFs(() => Exists("Image_PaintTolerance"), 2));
         Check("Its tolerance moves", () => MoveSlider("Image_PaintTolerance"));
         Check("Joined only, and back", () => ToggleAndBack("Image_PaintContiguous"));
@@ -321,7 +342,7 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         // ── Move and transform ──
         Check("Move is chosen, its panel showing", () => SelectRadio("Image_EditToolMove") && WaitForFs(() => Exists("Image_ArrangePanel"), 3));
         Check("A drag moves the layer", () => DragOnCanvas(0, 0, 20, 10));
-        Check("What is selected floats once it is moved", () => SelectAllOnCanvas() && DragOnCanvas(0, 0, -10, -5)
+        Check("What is selected floats once it is moved", () => SelectAllOnCanvas(witness: null) && DragOnCanvas(0, 0, -10, -5)
               && WaitForFs(() => Exists("Image_ArrangeDrop"), 3) && LayersBecome(2));
         CheckDoes("Drop lays it back into its layer", "Image_ArrangeDrop", () => LayersBecome(1));
         CheckDoes("Transform shows its frame and the panel's turns and flips", "Image_ArrangeTransform", () => WaitForFs(() => Exists("Image_ArrangeApply"), 3));
@@ -442,12 +463,13 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         return WaitForFs(() => section.ExpandCollapseState.Value == ExpandCollapseState.Expanded, 2);
     }
 
-    /// <summary>Ctrl+A over the canvas: everything selected, whichever tool is out — seen in the pixels section's Fill being offered.</summary>
-    private bool SelectAllOnCanvas()
+    // Ctrl+A on the canvas, then waits for witness — a control the open tool enables once something is selected — to say so;
+    // with none, what follows checks it.
+    private bool SelectAllOnCanvas(string? witness = "Image_SelectFill")
     {
         if (!Expand("Image_LayersPixelsSection") || !ClickCanvas()) return false;
         Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
         Wait.UntilInputIsProcessed();
-        return WaitForFs(() => Enabled("Image_LayersFill"), 2);
+        return witness is null || WaitForFs(() => Enabled(witness), 2);
     }
 }

@@ -87,7 +87,10 @@ public sealed class PaintStroke
             return Dab(at, pressure);
         }
 
-        double step = Math.Max(0.5, _brush.Spacing * _brush.Size);
+        // Spaced by the brush as it is laid here — a pen pressed lightly lays a smaller one, which spacing by the full size would
+        // leave as dots — at the lighter of the two ends, so the dabs overlap all the way along.
+        double laid = _brush.Size * (_brush.PressureSizes ? Math.Min(_lastPressure, pressure) : 1);
+        double step = Math.Max(0.5, _brush.Spacing * laid);
         double dx = at.X - from.X, dy = at.Y - from.Y, length = Math.Sqrt(dx * dx + dy * dy);
         var touched = SKRectI.Empty;
         double along = step - _sinceDab;

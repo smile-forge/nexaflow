@@ -354,12 +354,16 @@ public sealed partial class RegionMarking : ObservableObject
 
     /// <summary>The span's ends moved: the span last selected, while it is still what the selection ends with, is selected again over
     /// what it met.</summary>
-    private Task MoveDistanceAsync()
-    {
-        if (_document is { } document)
-            return _distanceOver is { } over && ReferenceEquals(document.Selection, over.Made) ? DistanceAsync(over.Mode, again: true) : Task.CompletedTask;
-        return _steps.Count > 0 && _steps[^1] is RegionSceneDepth last ? DistanceAsync(last.Mode, again: true) : Task.CompletedTask;
-    }
+    private Task MoveDistanceAsync() => HoldsSpan ? DistanceAsync(SpanMode, again: true) : Task.CompletedTask;
+
+    /// <summary>The selection ends with a span of distance, which moving the span's ends selects again; until it does, the first move
+    /// selects it (<see cref="ImageEditorViewModel"/>).</summary>
+    public bool HoldsSpan => _document is { } document
+        ? _distanceOver is { } over && ReferenceEquals(document.Selection, over.Made)
+        : _steps.Count > 0 && _steps[^1] is RegionSceneDepth;
+
+    /// <summary>How the span last selected met the selection.</summary>
+    private RegionMode SpanMode => _document is not null ? _distanceOver!.Value.Mode : ((RegionSceneDepth)_steps[^1]).Mode;
 
     private async Task DistanceAsync(RegionMode mode, bool again)
     {
@@ -518,16 +522,32 @@ public sealed partial class RegionMarking : ObservableObject
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private void Smooth() => Refine(new RegionSmooth(RefineBy));
 
-    /// <summary>The photo's subject picked by picture selection — the one thing a box round the whole photo means — in
-    /// place of everything selected before.</summary>
+    /// <summary>The photo's subject picked by picture selection, in place of everything selected before: boxed where its scene depth
+    /// says it stands — the nearest stretch, toward the middle — or, where there is no depth to read, the photo boxed whole.</summary>
     [RelayCommand(CanExecute = nameof(CanSelectSubject))]
     private async Task SelectSubject()
     {
         if (_photoSize() is not { } size) return;
         Clear();
-        await _cutter.BoxedAsync(new PictureBox(0, 0, size.Width, size.Height));
+        var box = await SubjectBoxAsync(size) ?? new PictureBox(0, 0, size.Width, size.Height);
+        await _cutter.BoxedAsync(box);
         // In a layered picture, the subject picked on the active picture layer becomes the canvas's selection.
         TakePicked();
+    }
+
+    // Where the subject stands by the scene depth of the photo, or of the active picture layer; null where there is no depth.
+    private async Task<PictureBox?> SubjectBoxAsync(SKSize photo)
+    {
+        try
+        {
+            var plane = _document is { } document ? await document.SceneDepthAsync()
+                      : _photo is { } path && _readDepth is not null ? await DepthAsync(path) : null;
+            return plane is null ? null : await Task.Run(() => DepthSubject.Box(plane, photo.Width, photo.Height));
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException)
+        {
+            return null;
+        }
     }
 
     /// <summary>

@@ -103,7 +103,8 @@ public sealed class ThumbnailLoadTask : IBackgroundTask
                 ? _editing.DecodeRestored(rubbed, decoded.SourceSize, _size * EditedDecodeFactor)
                 : null;
             var depth = recipe.AsksSceneDepth && made.SceneDepth is { } depthFile ? SceneDepthMaps.Read(depthFile) : null;
-            using var pipeline = _editing.Pipeline(erased ?? decoded, cache: false, restored, mask, depth);
+            using var subject = recipe.LensBlur?.Subject is not null && made.Subject is { } outline ? CutOutMasks.Decode(outline) : null;
+            using var pipeline = _editing.Pipeline(erased ?? decoded, cache: false, restored, mask, depth, subject);
             return SkiaWpf.ToFrozenBitmap(pipeline.Render(recipe, new RenderRequest(RenderFrame.Output, scale)));
         }
         catch (Exception ex) when (ex is ImageDecodeException or IOException or UnauthorizedAccessException or InvalidOperationException or InvalidDataException)

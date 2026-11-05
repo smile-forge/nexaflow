@@ -156,6 +156,9 @@ public readonly record struct LayerPlacement(double ScaleX, double SkewX, double
 
     /// <summary>The scale it amounts to over an area: how many canvas pixels a pixel of the layer covers, along a side.</summary>
     public double Scale => Math.Sqrt(Math.Abs(ScaleX * ScaleY - SkewX * SkewY));
+
+    /// <summary>How far it turns the layer clockwise, in degrees: what text written on it turns back by to read upright.</summary>
+    public double RotationDegrees => Math.Atan2(SkewY, ScaleX) * 180 / Math.PI;
 }
 
 /// <summary>The picture a picture layer shows: a file the file system reads — a photo, or the copy a package keeps — and

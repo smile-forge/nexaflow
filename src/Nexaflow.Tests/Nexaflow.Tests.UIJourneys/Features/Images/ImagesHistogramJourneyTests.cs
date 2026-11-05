@@ -19,7 +19,7 @@ public class ImagesHistogramJourneyTests : ImageEditJourneyBase
 
     private bool SetsExposure(double stops)
     {
-        if (FindInAppWindows("Image_EditExposure")?.Patterns.RangeValue.PatternOrDefault is not { } range) return false;
+        if (!OpenGroup("Image_GroupAdjustLight") || FindInAppWindows("Image_EditExposure")?.Patterns.RangeValue.PatternOrDefault is not { } range) return false;
         range.SetValue(stops);
         return WaitForFs(() => Math.Abs(range.Value.Value - stops) < 1e-6, 2);
     }

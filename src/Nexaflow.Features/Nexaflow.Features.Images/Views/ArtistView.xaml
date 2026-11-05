@@ -48,6 +48,11 @@
                             AutomationProperties.AutomationId="Image_EditPasteLayer">
                         <icons:IconLabel Icon="fluent:clipboard_paste" Text="{loc:Str Images.Edit.PasteLayer}"/>
                     </Button>
+                    <ToggleButton IsChecked="{Binding ShowsLayersPanel, Mode=TwoWay}" ToolTip="{loc:Str Images.Edit.ShowLayersTip}" Style="{StaticResource ToolbarToggleStyle}" Margin="0,0,10,0"
+                                  Visibility="{Binding IsLayered, Converter={StaticResource BoolToVis}}"
+                                  AutomationProperties.AutomationId="Image_EditShowLayers">
+                        <icons:IconLabel Icon="fluent:layer_diagonal" Text="{loc:Str Images.Edit.ShowLayers}"/>
+                    </ToggleButton>
                     <Button Command="{Binding UndoEditCommand}" ToolTip="{loc:Str Images.Edit.UndoTip}" Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,0"
                             AutomationProperties.AutomationId="Image_EditUndo" AutomationProperties.Name="{loc:Str Images.Edit.UndoTip}">
                         <icons:IconLabel Icon="fluent:arrow_undo"/>

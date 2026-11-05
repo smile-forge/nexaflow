@@ -18,6 +18,7 @@
             <BooleanToVisibilityConverter x:Key="BoolToVis"/>
             <cv:EnumToBoolConverter x:Key="EnumToBool"/>
             <cv:NullToVisibilityConverter x:Key="NullToCollapsed"/>
+            <cv:InverseBoolToVisibilityConverter x:Key="NotBoolToVis"/>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -30,7 +31,7 @@
 
         <!-- ══ Layers: a layered picture's, beside the tools ══ -->
         <Border Grid.Column="2" Width="260" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0"
-                Visibility="{Binding IsLayered, Converter={StaticResource BoolToVis}}" Thumb.DragStarted="Slider_DragStarted" Thumb.DragCompleted="Slider_DragCompleted">
+                Visibility="{Binding LayersPanelShown, Converter={StaticResource BoolToVis}}" Thumb.DragStarted="Slider_DragStarted" Thumb.DragCompleted="Slider_DragCompleted">
             <DockPanel>
                 <views:LayersPanel DataContext="{Binding Layers}"/>
             </DockPanel>
@@ -44,6 +45,9 @@
             <TextBlock Text="{loc:Str Images.LoadFailed}" Foreground="{StaticResource TextMutedBrush}"
                        HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
                        Visibility="{Binding Stage.LoadFailed, Converter={StaticResource BoolToVis}}"/>
+            <!-- The colour the open tool uses, and its palette, down the canvas's left edge. -->
+            <views:ColourDock DataContext="{Binding Colours}" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="12,0,0,0"
+                              Visibility="{Binding IsShown, Converter={StaticResource BoolToVis}}"/>
         </Grid>
 
         <!-- ══ Tools ══ -->
@@ -247,35 +251,35 @@
                                 <views:ToneChart x:Name="TonesChart" Histogram="{Binding Tones.Histogram}" IsVisibleChanged="TonesChart_IsVisibleChanged"
                                                  Background="{StaticResource Surface2Brush}" LuminanceFill="{StaticResource TextMutedBrush}"
                                                  RedStroke="{DynamicResource Swatch.Red}" GreenStroke="{DynamicResource Swatch.Green}" BlueStroke="{DynamicResource Swatch.Blue}"/>
-                                <ToggleButton x:Name="ShadowsMark" Style="{StaticResource ClipMark}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="1"
-                                              IsChecked="{Binding Tones.KeepsShadows, Mode=TwoWay}" Tag="{Binding Tones.ShadowsClip}"
-                                              MouseEnter="ClipMark_Pointed" MouseLeave="ClipMark_Pointed"
-                                              AutomationProperties.Name="{loc:Str Images.Edit.Histogram.Shadows}" AutomationProperties.ItemStatus="{Binding Tones.ShadowsStatus}"
-                                              AutomationProperties.AutomationId="Image_HistogramShadows">
-                                    <ToggleButton.ToolTip>
+                                <views:ClipMark x:Name="ShadowsMark" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="1"
+                                                IsChecked="{Binding Tones.KeepsShadows, Mode=TwoWay}" IsClipping="{Binding Tones.ShadowsClip}"
+                                                MouseEnter="ClipMark_Pointed" MouseLeave="ClipMark_Pointed"
+                                                AutomationProperties.Name="{loc:Str Images.Edit.Histogram.Shadows}" AutomationProperties.ItemStatus="{Binding Tones.ShadowsStatus}"
+                                                AutomationProperties.AutomationId="Image_HistogramShadows">
+                                    <views:ClipMark.ToolTip>
                                         <StackPanel MaxWidth="260">
                                             <TextBlock Text="{Binding Tones.ShadowsStatus}" FontWeight="SemiBold"/>
                                             <TextBlock Text="{loc:Str Images.Edit.Histogram.ShadowsTip}" TextWrapping="Wrap"/>
                                         </StackPanel>
-                                    </ToggleButton.ToolTip>
-                                </ToggleButton>
+                                    </views:ClipMark.ToolTip>
+                                </views:ClipMark>
                                 <!-- The highlights' mark is the shadows' turned to the right-hand corner. -->
-                                <ToggleButton x:Name="HighlightsMark" Style="{StaticResource ClipMark}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="1"
-                                              RenderTransformOrigin="0.5,0.5"
-                                              IsChecked="{Binding Tones.KeepsHighlights, Mode=TwoWay}" Tag="{Binding Tones.HighlightsClip}"
-                                              MouseEnter="ClipMark_Pointed" MouseLeave="ClipMark_Pointed"
-                                              AutomationProperties.Name="{loc:Str Images.Edit.Histogram.Highlights}" AutomationProperties.ItemStatus="{Binding Tones.HighlightsStatus}"
-                                              AutomationProperties.AutomationId="Image_HistogramHighlights">
-                                    <ToggleButton.RenderTransform>
+                                <views:ClipMark x:Name="HighlightsMark" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="1"
+                                                RenderTransformOrigin="0.5,0.5"
+                                                IsChecked="{Binding Tones.KeepsHighlights, Mode=TwoWay}" IsClipping="{Binding Tones.HighlightsClip}"
+                                                MouseEnter="ClipMark_Pointed" MouseLeave="ClipMark_Pointed"
+                                                AutomationProperties.Name="{loc:Str Images.Edit.Histogram.Highlights}" AutomationProperties.ItemStatus="{Binding Tones.HighlightsStatus}"
+                                                AutomationProperties.AutomationId="Image_HistogramHighlights">
+                                    <views:ClipMark.RenderTransform>
                                         <ScaleTransform ScaleX="-1"/>
-                                    </ToggleButton.RenderTransform>
-                                    <ToggleButton.ToolTip>
+                                    </views:ClipMark.RenderTransform>
+                                    <views:ClipMark.ToolTip>
                                         <StackPanel MaxWidth="260">
                                             <TextBlock Text="{Binding Tones.HighlightsStatus}" FontWeight="SemiBold"/>
                                             <TextBlock Text="{loc:Str Images.Edit.Histogram.HighlightsTip}" TextWrapping="Wrap"/>
                                         </StackPanel>
-                                    </ToggleButton.ToolTip>
-                                </ToggleButton>
+                                    </views:ClipMark.ToolTip>
+                                </views:ClipMark>
                             </Grid>
                             </views:FoldingGroup>
 
@@ -408,46 +412,39 @@
                                               IsEnabled="{Binding Depth.CanEdit}" ToolTipService.ShowOnDisabled="True"
                                               AutomationProperties.AutomationId="Image_DepthLensBlur"/>
                                 <StackPanel Visibility="{Binding Depth.LensBlur, Converter={StaticResource BoolToVis}}">
-                                    <Grid Margin="0,0,0,6">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Style="{StaticResource EditRowLabel}" Text="{loc:Str Images.SceneDepth.FocusBy}"/>
-                                        <Border Grid.Column="1" Style="{StaticResource SegGroup}">
-                                            <StackPanel Orientation="Horizontal">
-                                                <RadioButton GroupName="DepthFocusWay" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthFocusPoint"
-                                                             AutomationProperties.Name="{loc:Str Images.SceneDepth.FocusPoint}" ToolTip="{loc:Str Images.SceneDepth.FocusPointTip}"
-                                                             IsChecked="{Binding Depth.FocusWay, Converter={StaticResource EnumToBool}, ConverterParameter=Point}">
-                                                    <icons:IconGlyph Icon="fluent:cursor_click" FontSize="15"/>
-                                                </RadioButton>
-                                                <RadioButton GroupName="DepthFocusWay" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthFocusThing"
-                                                             AutomationProperties.Name="{loc:Str Images.SceneDepth.FocusThing}"
-                                                             ToolTip="{Binding Editor.PickingModels.DisabledReason, TargetNullValue={loc:Str Images.SceneDepth.FocusThingTip}}"
-                                                             IsEnabled="{Binding Editor.PickingModels.IsReady}" ToolTipService.ShowOnDisabled="True"
-                                                             IsChecked="{Binding Depth.FocusWay, Converter={StaticResource EnumToBool}, ConverterParameter=Thing}">
-                                                    <icons:IconGlyph Icon="fluent:sparkle" FontSize="15"/>
-                                                </RadioButton>
-                                                <RadioButton GroupName="DepthFocusWay" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthFocusRectangle"
-                                                             AutomationProperties.Name="{loc:Str Images.SceneDepth.FocusRectangle}" ToolTip="{loc:Str Images.SceneDepth.FocusRectangleTip}"
-                                                             IsChecked="{Binding Depth.FocusWay, Converter={StaticResource EnumToBool}, ConverterParameter=Rectangle}">
-                                                    <icons:IconGlyph Icon="fluent:rectangle_landscape" FontSize="15"/>
-                                                </RadioButton>
-                                                <RadioButton GroupName="DepthFocusWay" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthFocusLasso"
-                                                             AutomationProperties.Name="{loc:Str Images.SceneDepth.FocusLasso}" ToolTip="{loc:Str Images.SceneDepth.FocusLassoTip}"
-                                                             IsChecked="{Binding Depth.FocusWay, Converter={StaticResource EnumToBool}, ConverterParameter=Lasso}">
-                                                    <icons:IconGlyph Icon="fluent:lasso" FontSize="15"/>
-                                                </RadioButton>
-                                            </StackPanel>
-                                        </Border>
-                                        <Button Grid.Column="2" Style="{StaticResource ToolbarButtonStyle}" Command="{Binding Depth.FocusOnSelectionCommand}"
-                                                AutomationProperties.Name="{loc:Str Images.SceneDepth.FocusSelection}" ToolTip="{loc:Str Images.SceneDepth.FocusSelectionTip}"
-                                                ToolTipService.ShowOnDisabled="True" AutomationProperties.AutomationId="Image_DepthFocusSelection">
-                                            <icons:IconGlyph Icon="fluent:select_object" FontSize="14"/>
-                                        </Button>
-                                    </Grid>
-                                    <!-- The band kept sharp, over how much of the picture lies at each distance; pointed at or dragged, it shows on the picture. -->
+                                <!-- How it is focused: a click on the picture, the selection made with Select, or the band set by hand. -->
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Style="{StaticResource EditRowLabel}" Text="{loc:Str Images.SceneDepth.FocusBy}"/>
+                                    <Border Grid.Column="1" Style="{StaticResource SegGroup}" HorizontalAlignment="Left">
+                                        <StackPanel Orientation="Horizontal">
+                                            <RadioButton GroupName="DepthFocusWay" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthFocusPoint"
+                                                         AutomationProperties.Name="{loc:Str Images.SceneDepth.FocusPoint}" ToolTip="{loc:Str Images.SceneDepth.FocusPointTip}"
+                                                         IsChecked="{Binding Depth.FocusWay, Converter={StaticResource EnumToBool}, ConverterParameter=Point}">
+                                                <icons:IconGlyph Icon="fluent:cursor_click" FontSize="15"/>
+                                            </RadioButton>
+                                            <RadioButton GroupName="DepthFocusWay" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthFocusSelection"
+                                                         AutomationProperties.Name="{loc:Str Images.SceneDepth.FocusSelection}" ToolTip="{loc:Str Images.SceneDepth.FocusSelectionTip}"
+                                                         IsChecked="{Binding Depth.FocusWay, Converter={StaticResource EnumToBool}, ConverterParameter=Selection}">
+                                                <icons:IconGlyph Icon="fluent:select_object" FontSize="15"/>
+                                            </RadioButton>
+                                            <RadioButton GroupName="DepthFocusWay" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthFocusRange"
+                                                         AutomationProperties.Name="{loc:Str Images.SceneDepth.FocusRange}" ToolTip="{loc:Str Images.SceneDepth.FocusRangeTip}"
+                                                         IsChecked="{Binding Depth.FocusWay, Converter={StaticResource EnumToBool}, ConverterParameter=Range}">
+                                                <icons:IconGlyph Icon="fluent:layer_diagonal" FontSize="15"/>
+                                            </RadioButton>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                                <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.SceneDepth.NeedsSelection}" Margin="0,0,0,6" TextWrapping="Wrap"
+                                           Visibility="{Binding Depth.NeedsSelection, Converter={StaticResource BoolToVis}}"/>
+                                <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.SceneDepth.Focusing}" Margin="0,0,0,6"
+                                           Foreground="{StaticResource AccentBrush}" Visibility="{Binding Depth.IsFocusing, Converter={StaticResource BoolToVis}}"/>
+                                <!-- Specify depth: the band kept sharp, over how much of the picture lies at each distance; pointed at or dragged, it shows on the picture. -->
+                                <StackPanel Visibility="{Binding Depth.ShowsBand, Converter={StaticResource BoolToVis}}">
                                     <Grid Height="24" ToolTip="{loc:Str Images.SceneDepth.FocusBandTip}" MouseEnter="DepthFocusBand_Pointed" MouseLeave="DepthFocusBand_Pointed">
                                         <views:DepthStrip Margin="4,0" Shares="{Binding Depth.DistanceShares}" Background="{StaticResource Surface2Brush}" Fill="{StaticResource TextMutedBrush}"/>
                                         <vcc:RangeSlider x:Name="DepthFocusBand" Height="24" Background="Transparent" Minimum="0" Maximum="100" SmallChange="1" LargeChange="10"
@@ -456,16 +453,14 @@
                                     </Grid>
                                     <Grid Margin="0,2,0,6">
                                         <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.SceneDepth.Near}" HorizontalAlignment="Left"/>
-                                        <!-- Picture selection finding the thing clicked, or a part drawn being read: a moment, the first time several. -->
-                                        <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.SceneDepth.Focusing}" HorizontalAlignment="Center"
-                                                   Foreground="{StaticResource AccentBrush}" Visibility="{Binding Depth.IsFocusing, Converter={StaticResource BoolToVis}}"/>
                                         <TextBlock Style="{StaticResource EditCaption}" Text="{loc:Str Images.SceneDepth.Far}" HorizontalAlignment="Right"/>
                                     </Grid>
-                                    <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.SceneDepth.Aperture}"
+                                </StackPanel>
+                                <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.SceneDepth.Aperture}"
                                                             Minimum="0" Maximum="100" SmallChange="1" LargeChange="10" DefaultValue="50"
                                                             Value="{Binding Depth.Aperture, Mode=TwoWay}" AutomationProperties.AutomationId="Image_DepthAperture"/>
                                     <StackPanel Orientation="Horizontal" Margin="0,2">
-                                        <TextBlock Style="{StaticResource EditRowLabel}" Text="{loc:Str Images.SceneDepth.Bokeh}"/>
+                                        <TextBlock Style="{StaticResource EditRowLabel}" Text="{loc:Str Images.SceneDepth.Bokeh}" ToolTip="{loc:Str Images.SceneDepth.BokehTip}"/>
                                         <Border Style="{StaticResource SegGroup}">
                                             <StackPanel Orientation="Horizontal">
                                                 <RadioButton GroupName="DepthBokeh" Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_DepthBokehCircle"
@@ -583,10 +578,7 @@
                             </views:FoldingGroup>
 
 
-                            <views:FoldingGroup Icon="fluent:pen" Title="{loc:Str Images.Edit.Markup.InkHeader}" IsOpen="{Binding Folds[MarkupInk]}"
-                                                AutomationProperties.AutomationId="Image_GroupMarkupInk">
-                            <vcc:ColorPicker AutomationPrefix="Image_EditInk" AllowDefault="False" Value="{Binding Editor.InkColour, Mode=TwoWay}"/>
-                            </views:FoldingGroup>
+
 
                             <views:FoldingGroup Icon="fluent:highlight" Title="{loc:Str Images.Edit.Markup.StrokeHeader}" IsOpen="{Binding Folds[MarkupStroke]}"
                                                 AutomationProperties.AutomationId="Image_GroupMarkupStroke">
@@ -795,98 +787,18 @@
 
                             <views:FoldingGroup Icon="fluent:eraser" Title="{loc:Str Images.Erase.Mark}" IsOpen="{Binding Folds[RetouchMark]}"
                                                 AutomationProperties.AutomationId="Image_GroupRetouchMark">
-                            <StackPanel>
-                            <!-- The ways of marking, each once: picked, brushed, or a shape drawn by hand. -->
-                            <Border Style="{StaticResource SegGroup}">
-                                <StackPanel Orientation="Horizontal">
-                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkPick" AutomationProperties.Name="{loc:Str Images.Erase.Pick}"
-                                                 ToolTip="{Binding Editor.PickingModels.DisabledReason, TargetNullValue={loc:Str Images.Erase.PickTip}}"
-                                                 IsEnabled="{Binding Editor.PickingModels.IsReady}" ToolTipService.ShowOnDisabled="True"
-                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Pick}">
-                                        <icons:IconGlyph Icon="fluent:cursor_click" FontSize="15"/>
-                                    </RadioButton>
-                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseMarkBrush" AutomationProperties.Name="{loc:Str Images.Erase.Brush}"
-                                                 ToolTip="{loc:Str Images.Erase.BrushTip}"
-                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Brush}">
-                                        <icons:IconGlyph Icon="fluent:paint_brush" FontSize="15"/>
-                                    </RadioButton>
-                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseRectangle" AutomationProperties.Name="{loc:Str Images.Region.Rectangle}"
-                                                 ToolTip="{loc:Str Images.Region.RectangleTip}"
-                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Rectangle}">
-                                        <icons:IconGlyph Icon="fluent:rectangle_landscape" FontSize="15"/>
-                                    </RadioButton>
-                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseEllipse" AutomationProperties.Name="{loc:Str Images.Region.Ellipse}"
-                                                 ToolTip="{loc:Str Images.Region.EllipseTip}"
-                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Ellipse}">
-                                        <icons:IconGlyph Icon="fluent:oval" FontSize="15"/>
-                                    </RadioButton>
-                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseLasso" AutomationProperties.Name="{loc:Str Images.Region.Lasso}"
-                                                 ToolTip="{loc:Str Images.Region.FreehandTip}"
-                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Lasso}">
-                                        <icons:IconGlyph Icon="fluent:lasso" FontSize="15"/>
-                                    </RadioButton>
-                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_ErasePolygon" AutomationProperties.Name="{loc:Str Images.Region.Polygon}"
-                                                 ToolTip="{loc:Str Images.Region.PolygonTip}"
-                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Polygon}">
-                                        <icons:IconGlyph Icon="fluent:pentagon" FontSize="15"/>
-                                    </RadioButton>
-                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseColour" AutomationProperties.Name="{loc:Str Images.Region.Colour}"
-                                                 ToolTip="{loc:Str Images.Region.ColourTip}"
-                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Colour}">
-                                        <icons:IconGlyph Icon="fluent:color" FontSize="15"/>
-                                    </RadioButton>
-                                    <RadioButton Style="{StaticResource SegRadioStyle}" AutomationProperties.AutomationId="Image_EraseDistance" AutomationProperties.Name="{loc:Str Images.Region.Distance}"
-                                                 ToolTip="{Binding Editor.DepthModels.DisabledReason, TargetNullValue={loc:Str Images.Region.DistanceTip}}"
-                                                 IsEnabled="{Binding Editor.DepthModels.IsReady}" ToolTipService.ShowOnDisabled="True"
-                                                 Visibility="{Binding Editor.DepthModels.IsOffered, Converter={StaticResource BoolToVis}}"
-                                                 IsChecked="{Binding Editor.EraseBy, Converter={StaticResource EnumToBool}, ConverterParameter=Distance}">
-                                        <icons:IconGlyph Icon="fluent:layer_diagonal" FontSize="15"/>
-                                    </RadioButton>
+                                <!-- What is erased: what the brush marks, and what the Select tool has selected. -->
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Text="{loc:Str Images.Erase.MarkHint}"/>
+                                    <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Erase.BrushSize}" ValueFormat="0' px'" Margin="0,8,0,0"
+                                                            Minimum="4" Maximum="400" SmallChange="1" LargeChange="10" DefaultValue="40"
+                                                            Value="{Binding Editor.EraseMarks.BrushSize, Mode=TwoWay}" AutomationProperties.AutomationId="Image_EraseBrushSize"/>
                                 </StackPanel>
-                            </Border>
-
-                            <!-- Picking, as the cut-out tool picks: what is picked here is what it has picked. -->
-                            <StackPanel Margin="0,8,0,0" Visibility="{Binding Editor.EraseMarks.IsPicking, Converter={StaticResource BoolToVis}}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBox Style="{StaticResource FieldBox}"
-                                             Text="{Binding Editor.Cutter.Phrase, UpdateSourceTrigger=PropertyChanged}"
-                                             AutomationProperties.AutomationId="Image_ErasePhrase" AutomationProperties.Name="{loc:Str Images.CutOut.Phrase}">
-                                        <TextBox.InputBindings>
-                                            <KeyBinding Key="Enter" Command="{Binding Editor.Cutter.FindCommand}"/>
-                                        </TextBox.InputBindings>
-                                    </TextBox>
-                                    <Button Grid.Column="1" Margin="6,0,0,0" Style="{StaticResource ToolbarButtonStyle}"
-                                            Command="{Binding Editor.Cutter.FindCommand}" ToolTip="{loc:Str Images.CutOut.FindTip}"
-                                            AutomationProperties.AutomationId="Image_EraseFind">
-                                        <TextBlock Text="{loc:Str Images.CutOut.Find}" FontSize="11"/>
-                                    </Button>
-                                </Grid>
-                                <TextBlock Style="{StaticResource EditCaption}" TextWrapping="Wrap" Margin="0,8,0,0" Text="{Binding Editor.Cutter.Notice}"/>
-                                <Button Style="{StaticResource ToolbarButtonStyle}" HorizontalAlignment="Left" Margin="0,8,0,0"
-                                        Command="{Binding Editor.Cutter.ActCommand}"
-                                        Visibility="{Binding Editor.Cutter.HasAction, Converter={StaticResource BoolToVis}}"
-                                        AutomationProperties.AutomationId="Image_ErasePickAction" AutomationProperties.Name="{Binding Editor.Cutter.ActionLabel}">
-                                    <TextBlock Text="{Binding Editor.Cutter.ActionLabel}" FontSize="11"/>
-                                </Button>
-                            </StackPanel>
-
-                            <!-- Brushing: the brush's width in the photo's pixels. -->
-                            <StackPanel Margin="0,8,0,0" Visibility="{Binding Editor.EraseMarks.IsBrushing, Converter={StaticResource BoolToVis}}">
-                                <views:AdjustmentSlider Style="{StaticResource EditSliderRow}" Label="{loc:Str Images.Erase.BrushSize}" ValueFormat="0' px'"
-                                                        Minimum="4" Maximum="400" SmallChange="1" LargeChange="10" DefaultValue="40"
-                                                        Value="{Binding Editor.EraseMarks.BrushSize, Mode=TwoWay}" AutomationProperties.AutomationId="Image_EraseBrushSize"/>
-
-                            </StackPanel>
-                            </StackPanel>
                             </views:FoldingGroup>
 
                         </StackPanel>
 
-                        <!-- ── The selection Cut out and Retouch both take: shapes drawn, how they meet it, and refinements ── -->
+                        <!-- ── The selection Select makes, which every other tool acts on: shapes drawn, how they meet it, and refinements ── -->
                         <views:RegionMarkingPanel DataContext="{Binding Editor}" Visibility="{Binding TakesSelection, Converter={StaticResource BoolToVis}}"/>
 
                         <!-- ── Select: what is done with what is selected — kept apart from the picture, kept in it, moved, made a layer, erased ── -->
@@ -913,9 +825,25 @@
                                     <icons:IconLabel Icon="fluent:paint_brush_sparkle" Text="{loc:Str Images.Edits.Fill}" FontSize="11"/>
                                 </Button>
                                 <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Editor.CopyCutOutCommand}"
+                                        Visibility="{Binding IsLayered, Converter={StaticResource NotBoolToVis}}"
                                         ToolTip="{loc:Str Images.CutOut.CopyTip}" AutomationProperties.AutomationId="Image_CutOutCopy">
                                     <icons:IconLabel Icon="fluent:copy" Text="{loc:Str Images.CutOut.Copy}" FontSize="11"/>
                                 </Button>
+                                <!-- A layered picture's selection, on its active layer or every layer that shows. -->
+                                <WrapPanel Visibility="{Binding IsLayered, Converter={StaticResource BoolToVis}}">
+                                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Layers.CopyCommand}" ToolTip="{loc:Str Images.Layers.CopyTip}"
+                                            AutomationProperties.AutomationId="Image_SelectCopy"><icons:IconLabel Icon="fluent:copy" Text="{loc:Str Images.Layers.Copy}" FontSize="11"/></Button>
+                                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Layers.CopyMergedCommand}" ToolTip="{loc:Str Images.Layers.CopyMergedTip}"
+                                            AutomationProperties.AutomationId="Image_SelectCopyMerged"><icons:IconLabel Icon="fluent:copy_select" Text="{loc:Str Images.Layers.CopyMerged}" FontSize="11"/></Button>
+                                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Layers.CutCommand}" ToolTip="{loc:Str Images.Layers.CutTip}"
+                                            AutomationProperties.AutomationId="Image_SelectCut"><icons:IconLabel Icon="fluent:cut" Text="{loc:Str Images.Layers.Cut}" FontSize="11"/></Button>
+                                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Layers.PasteCommand}" ToolTip="{loc:Str Images.Layers.PasteTip}"
+                                            AutomationProperties.AutomationId="Image_SelectPaste"><icons:IconLabel Icon="fluent:clipboard_paste" Text="{loc:Str Images.Layers.Paste}" FontSize="11"/></Button>
+                                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Layers.FillCommand}" ToolTip="{loc:Str Images.Layers.FillTip}"
+                                            AutomationProperties.AutomationId="Image_SelectFill"><icons:IconLabel Icon="fluent:paint_bucket" Text="{loc:Str Images.Layers.Fill}" FontSize="11"/></Button>
+                                    <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Layers.DeleteSelectedCommand}" ToolTip="{loc:Str Images.Layers.ClearTip}"
+                                            AutomationProperties.AutomationId="Image_SelectClear"><icons:IconLabel Icon="fluent:eraser" Text="{loc:Str Images.Layers.Clear}" FontSize="11"/></Button>
+                                </WrapPanel>
                                 <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding Editor.SaveCutOutCommand}"
                                         ToolTip="{loc:Str Images.CutOut.SaveTip}" AutomationProperties.AutomationId="Image_CutOutSave">
                                     <icons:IconLabel Icon="fluent:save" Text="{loc:Str Images.CutOut.Save}" FontSize="11"/>

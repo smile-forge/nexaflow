@@ -108,23 +108,29 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
             CheckInvoke("Reset crop and straighten", "Image_EditResetCrop");
 
             // Adjust
-            Check("Adjust panel", () => SelectRadio("Image_EditToolAdjust"));
+            Check("Adjust panel, its Light and Colour opened", () => SelectRadio("Image_EditToolAdjust")
+                  && OpenGroup("Image_GroupAdjustLight") && OpenGroup("Image_GroupAdjustColour"));
             CheckInvoke("Auto enhance", "Image_EditAuto");
             foreach (var slider in new[] { "Image_EditExposure", "Image_EditContrast", "Image_EditHighlights", "Image_EditShadows",
                                            "Image_EditSaturation", "Image_EditTemperature", "Image_EditTint" })
                 Check($"{slider} moves", () => MoveSlider(slider));
             CheckInvoke("Reset adjustments", "Image_EditResetAdjust");
 
-            // AI enhance, kept from the edits, can still be turned off; then it waits for the picture tools, which the panel offers
-            // over the picture in place of the kept edits' banner — the AI tools journey turns it on where they are here.
-            Check("AI enhance from the kept edits turns off; its banner goes, and the panel's offer of the AI picture models takes over",
-                  () => SetToggle("Image_EditAiEnhance", false) && WaitForGone("Image_RestoreAction", 3)
-                        && WaitForFs(() => WaitForId("Image_PictureModelsDownload", 1)?.IsEnabled == true, 3));
+            // AI enhance, kept from the edits, can still be turned off; then it waits for the picture tools. The removed background
+            // kept with it waits on the same models and its banner already offers them, so they are offered there, once — the panel's
+            // own offer takes over only when that banner goes, below. The AI tools journey turns it on where they are here.
+            Check("AI enhance from the kept edits turns off", () => SetToggle("Image_EditAiEnhance", false));
+            Check("Its banner goes", () => WaitForGone("Image_RestoreAction", 3));
+            Check("The AI picture models are offered once, by the removed background's banner",
+                  () => WaitForFs(() => WaitForId("Image_RemoveBackgroundAction", 1)?.IsEnabled == true, 3) && !Exists("Image_PictureModelsDownload"));
             Check("AI enhance now waits for the AI picture models", () => !Enabled("Image_EditAiEnhance"));
 
-            // Markup: a text annotation typed, an arrow drawn, selected and deleted
+            // Markup: its tools and how they draw
             Check("Markup panel", () => SelectRadio("Image_EditToolMarkup"));
-            CheckPresent("Ink colour picker", "Image_EditInk_Hex");
+            Check("The shared colour shows beside the picture, its picker opening over it",
+                  () => WaitForFs(() => Exists("Image_ColourDock"), 3) && SetToggle("Image_ColourCurrent", true)
+                        && WaitFor(() => FindInAppWindows("Image_Colour_Hex"), 3) is not null && SetToggle("Image_ColourCurrent", false));
+            Check("A colour on the palette is chosen, and the current colour added to it", () => PressNth("Image_ColourSwatch", 1) && PressNth("Image_ColourAdd", 0));
             Check("Line weight slider moves", () => MoveSlider("Image_EditWeight"));
             Check("Fill boxes toggles", () => SetToggle("Image_EditFillBoxes", true) && SetToggle("Image_EditFillBoxes", false));
             Check("Box tool", () => SelectRadio("Image_EditMarkupBox"));
@@ -134,14 +140,8 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
             CheckPresent("Font list", "Image_EditFont");
             Check("Text size slider moves", () => MoveSlider("Image_EditTextSize"));
             Check("Text backing toggles", () => SetToggle("Image_EditTextBacking", true) && SetToggle("Image_EditTextBacking", false));
-            // The banners over the picture come and go with the panels, and the small sample stays where it was laid out: fit it
-            // to the canvas, so the canvas's centre is on the photo.
-            Check("The photo fitted, a click places text, typed in the panel", () => FitCanvas() && ClickCanvas() && TypeInto("Image_EditMarkupTextBox", "Hello"));
-            Check("Arrow tool draws an arrow", () => SelectRadio("Image_EditMarkupArrow") && DragOnCanvas(-8, -8, 8, 8));
-            Check("Select tool picks the arrow", () => SelectRadio("Image_EditMarkupSelect") && ClickCanvas()
-                                                       && WaitForFs(() => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Image_EditDeleteMarkup"))?.IsEnabled == true, 3));
-            CheckInvoke("Delete the selected annotation", "Image_EditDeleteMarkup");
-            CheckInvoke("Clear every annotation", "Image_EditClearMarkup");
+            // Drawing goes on a markup layer, which makes the photo a layered picture: the layers journey draws, so this one can
+            // go on to save the photo as a photo.
 
             // Resize
             Check("Resize panel", () => SelectRadio("Image_EditToolResize"));
@@ -152,8 +152,8 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
             Check("Keep proportions toggles", () => SetToggle("Image_EditResizeLock", false) && SetToggle("Image_EditResizeLock", true));
             CheckInvoke("Original size", "Image_EditResetResize");
             Check("Resize by percent", () => SelectRadio("Image_EditResizePercent"));
-            Check("AI upscale waits for the AI picture models, offered over the picture", () => !Enabled("Image_EditUpscaleTwice") && !Enabled("Image_EditUpscaleFourTimes")
-                                                                                              && Exists("Image_PictureModelsDownload"));
+            Check("AI upscale waits for the AI picture models", () => !Enabled("Image_EditUpscaleTwice") && !Enabled("Image_EditUpscaleFourTimes"));
+            Check("They are offered over the picture, once", () => Exists("Image_RemoveBackgroundAction") && !Exists("Image_PictureModelsDownload"));
             Check("AI upscale stays off", () => SelectRadio("Image_EditUpscaleOff"));
 
             // Cut out: picture selection is never here (the AI folder is the journey's own), so picking waits for it, saying why, and
@@ -192,10 +192,8 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
             // Retouch: picking waits for picture selection and AI fill for picture erasing, neither of which the journey's AI folder
             // has, so it opens on the brush and content-aware fill, which need nothing and erase at once; the AI tools journey picks
             // and fills by AI where they are here.
-            Check("Retouch opens on the brush: picking waits for picture selection", () => SelectRadio("Image_EditToolRetouch")
-                  && WaitForFs(() => Exists("Image_EraseBrushSize"), 3) && SelectRadio("Image_EraseMarkBrush") && !Enabled("Image_EraseMarkPick"));
-            Check("Retouch marks with the shapes Select draws too", () => SelectRadio("Image_EraseRectangle") && SelectRadio("Image_EraseEllipse")
-                  && SelectRadio("Image_EraseLasso") && SelectRadio("Image_ErasePolygon") && SelectRadio("Image_EraseColour") && SelectRadio("Image_EraseMarkBrush"));
+            Check("Retouch brushes what to erase, and erases what Select selects", () => SelectRadio("Image_EditToolRetouch")
+                  && WaitForFs(() => Exists("Image_EraseBrushSize"), 3) && !Exists("Image_SelectRectangle"));
             Check("AI fill waits for the AI picture models, offered over the picture", () => !Enabled("Image_EraseFillAi")
                   && WaitForFs(() => WaitForId("Image_PictureModelsDownload", 1)?.IsEnabled == true, 3));
             Check("Brush size slider moves", () => MoveSlider("Image_EraseBrushSize"));

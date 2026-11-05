@@ -57,17 +57,49 @@ public sealed class CutOutMasks(string folder, long budgetBytes)
         var mask = await Task.Run(() => RegionRaster.Apply(TiledCoverage.FromBytes(picked, width, height), region, 1).ToBytes(), ct);
 
         progress?.Report(0.9);
+        await KeepAtAsync(path, mask, width, height, ct);
+        return path;
+    }
+
+    /// <summary>
+    /// Keeps <paramref name="picked"/> — what picture selection picked for <paramref name="cutOut"/>, at the photo's full size as
+    /// it stands — as that cut-out's mask, unless one is kept already: for a mask picked by a session already open on the photo,
+    /// so what asks for the mask next finds it made and the photo is not read again. Only for a cut-out with no region, whose
+    /// mask is what was picked.
+    /// </summary>
+    public async Task<string> KeepPickedAsync(string photo, RecipeCutOut cutOut, string modelsVersion, byte[] picked, int width, int height, CancellationToken ct)
+    {
+        if (cutOut.Region is not null) throw new ArgumentException("A cut-out with a region is made from it, not kept as picked.", nameof(cutOut));
+        var path = PathOf(photo, cutOut, modelsVersion);
+        if (File.Exists(path))
+        {
+            KeptFiles.Touch(path);
+            return path;
+        }
+        var mask = TiledCoverage.FromBytes(picked, width, height).ToBytes();
+        await KeepAtAsync(path, mask, width, height, ct);
+        return path;
+    }
+
+    /// <summary>Writes <paramref name="mask"/> beside <paramref name="path"/> and keeps it there, whole or not at all.</summary>
+    private async Task KeepAtAsync(string path, byte[] mask, int width, int height, CancellationToken ct)
+    {
         Directory.CreateDirectory(Folder);
         var written = path + ".tmp";
         await Task.Run(() => Encode(mask, width, height, written), ct);
         _kept.Keep(written, path);
-        return path;
     }
 
     /// <summary>What names the models <paramref name="cutOut"/>'s mask is made with: picture selection's, where it is asked
     /// anything — else none, as a region drawn by hand is the same mask whatever models are here.</summary>
     public static string ModelsVersionFor(RecipeCutOut cutOut, IToolModels? selection)
         => cutOut.AsksPictureSelection ? selection?.ModelsVersion ?? "" : "";
+
+    /// <summary>The models <paramref name="cutOut"/>'s mask is made with: picture selection where it is asked anything — a region
+    /// drawn by hand alone needs none — and scene depth where its region selects by distance.</summary>
+    public static IReadOnlyList<IToolModels?> ModelsFor(RecipeCutOut cutOut, IPictureSelection? selection, ISceneDepth? sceneDepth)
+        => [.. cutOut.AsksPictureSelection ? [selection] : Array.Empty<IToolModels?>(),
+            .. cutOut.Region?.SelectsByDistance == true ? [sceneDepth] : Array.Empty<IToolModels?>()];
 
     /// <summary>What picture selection picks for <paramref name="cutOut"/>, at the photo's full size as it stands — nothing
     /// where it is asked nothing, at the photo's size read without its pixels.</summary>
@@ -89,10 +121,11 @@ public sealed class CutOutMasks(string folder, long budgetBytes)
         await using (var session = await selection.OpenAsync(upright.Rgba, width, height, ct))
         {
             progress?.Report(0.7);
+            var clicks = cutOut.Clicks.Select(c => new PicturePoint(c.X, c.Y, c.Include)).ToList();
             masks = cutOut.Phrase is { } phrase
-                ? [.. (await session.FindAsync(phrase, [], width, height, ct)).Select(f => f.Mask.Pixels)]
-                : [(await session.SelectAsync([.. cutOut.Clicks.Select(c => new PicturePoint(c.X, c.Y, c.Include))],
-                                              cutOut.Box is { } b ? new PictureBox(b.Left, b.Top, b.Right, b.Bottom) : null,
+                ? [(await FoundPicks.CombineAsync(await session.FindAsync(phrase, [], width, height, ct), clicks, width, height, width, height,
+                                                  click => session.SelectAsync([click], null, width, height, ct))).Mask.Pixels]
+                : [(await session.SelectAsync(clicks, cutOut.Box is { } b ? new PictureBox(b.Left, b.Top, b.Right, b.Bottom) : null,
                                               width, height, ct)).Pixels];
         }
         return (Union(masks, width * height), width, height);

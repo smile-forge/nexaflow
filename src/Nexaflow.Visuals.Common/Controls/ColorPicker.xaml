@@ -93,7 +93,8 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <Button Style="{StaticResource PickerTextButton}"
+            <Button x:Name="ScreenSampleChip"
+                    Style="{StaticResource PickerTextButton}"
                     Content="{loc:Str Common.ColorPicker.Eyedropper}"
                     ToolTip="{loc:Str Common.ColorPicker.EyedropperTip}"
                     AutomationProperties.AutomationId="{Binding EyedropperAutomationId, ElementName=Self}"

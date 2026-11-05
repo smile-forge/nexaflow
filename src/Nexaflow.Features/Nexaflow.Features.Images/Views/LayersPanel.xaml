@@ -155,7 +155,7 @@
             </DockPanel>
         </StackPanel>
 
-        <!-- Masks, pixels, the canvas and what a selection does: beneath the layer's settings, folded until wanted. -->
+        <!-- Masks, pixels and the canvas: beneath the layer's settings, folded until wanted. What the selection does is Select's. -->
         <StackPanel Margin="0,10,0,0">
             <views:FoldingGroup Icon="fluent:eye" Title="{loc:Str Images.Layers.Mask}"
                                 IsOpen="{Binding DataContext.Folds[LayersMask], RelativeSource={RelativeSource AncestorType=views:ImageEditView}}"
@@ -181,15 +181,7 @@
                         <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding MergeDownCommand}" ToolTip="{loc:Str Images.Layers.MergeDownTip}" AutomationProperties.AutomationId="Image_LayersMergeDown"><icons:IconLabel Icon="fluent:merge" Text="{loc:Str Images.Layers.MergeDown}" FontSize="11"/></Button>
                         <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding FlattenCommand}" ToolTip="{loc:Str Images.Layers.FlattenTip}" AutomationProperties.AutomationId="Image_LayersFlatten"><icons:IconLabel Icon="fluent:layer_diagonal" Text="{loc:Str Images.Layers.Flatten}" FontSize="11"/></Button>
                     </WrapPanel>
-                    <TextBlock Style="{StaticResource EditSliderLabel}" Text="{loc:Str Images.Layers.Selection}"/>
-                    <WrapPanel>
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding FillCommand}" ToolTip="{loc:Str Images.Layers.FillTip}" AutomationProperties.AutomationId="Image_LayersFill"><icons:IconLabel Icon="fluent:paint_bucket" Text="{loc:Str Images.Layers.Fill}" FontSize="11"/></Button>
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding DeleteSelectedCommand}" ToolTip="{loc:Str Images.Layers.ClearTip}" AutomationProperties.AutomationId="Image_LayersClear"><icons:IconLabel Icon="fluent:eraser" Text="{loc:Str Images.Layers.Clear}" FontSize="11"/></Button>
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding CopyCommand}" ToolTip="{loc:Str Images.Layers.CopyTip}" AutomationProperties.AutomationId="Image_LayersCopy" AutomationProperties.Name="{loc:Str Images.Layers.Copy}"><icons:IconLabel Icon="fluent:copy" FontSize="11"/></Button>
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding CopyMergedCommand}" ToolTip="{loc:Str Images.Layers.CopyMergedTip}" AutomationProperties.AutomationId="Image_LayersCopyMerged"><icons:IconLabel Icon="fluent:copy_select" Text="{loc:Str Images.Layers.CopyMerged}" FontSize="11"/></Button>
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding CutCommand}" ToolTip="{loc:Str Images.Layers.CutTip}" AutomationProperties.AutomationId="Image_LayersCut" AutomationProperties.Name="{loc:Str Images.Layers.Cut}"><icons:IconLabel Icon="fluent:cut" FontSize="11"/></Button>
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Margin="0,0,4,4" Command="{Binding PasteCommand}" ToolTip="{loc:Str Images.Layers.PasteTip}" AutomationProperties.AutomationId="Image_LayersPaste" AutomationProperties.Name="{loc:Str Images.Layers.Paste}"><icons:IconLabel Icon="fluent:clipboard_paste" FontSize="11"/></Button>
-                    </WrapPanel>
+
                 </StackPanel>
             </views:FoldingGroup>
             <views:FoldingGroup Icon="fluent:resize" Title="{loc:Str Images.Layers.Canvas}" Opened="Canvas_Expanded"

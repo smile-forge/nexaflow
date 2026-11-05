@@ -19,6 +19,7 @@ using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 using SkiaSharp;
 using static Nexaflow.Tests.Features.Images.EditingFixtures;
+using Nexaflow.Visuals.Common.Theming;
 
 namespace Nexaflow.Tests.Features.Images;
 
@@ -236,7 +237,7 @@ public class ImageSceneDepthTests
 
     [TestMethod]
     [CoversNode("images-scene-depth-lens-blur")]
-    public async Task FocusingOnARectangleOrAnOutline_KeepsAllOfItSharp()
+    public async Task FocusingFromTheSelection_KeepsAllOfItSharp_WhateverDistancesItSpans()
     {
         var vm = Editing();
         OnUi(() => vm.Depth.LensBlur = true);
@@ -246,14 +247,64 @@ public class ImageSceneDepthTests
         var photo = new SKSizeI(Wide, High);
         double At(double x) => plane.Distance(plane.At(x, 80, photo));
 
-        await _ui.Invoke(() => vm.Depth.FocusOnAsync(new RegionRectangle(100, 40, 160, 120)));
+        // A rectangle selected with the Select tool, then focused on from Adjust.
+        OnUi(() => vm.Editor.Tool = EditTool.Select);
+        OnUi(() => vm.Editor.RegionMarks.Add(new RegionRectangle(100, 40, 160, 120) { Mode = RegionMode.Replace }));
+        OnUi(() => vm.Editor.Tool = EditTool.Adjust);
+        OnUi(() => vm.Depth.FocusWay = LensFocusWay.Selection);
+        Until(() => session.Recipe.LensBlur?.Subject is not null);
         var blur = session.Recipe.LensBlur!;
-        Assert.IsTrue(blur.Near <= At(110) && At(150) <= blur.Far, $"the rectangle's middle is all in the band: {blur.Near:0.000}-{blur.Far:0.000}");
-        Assert.IsTrue(At(40) < blur.Near && blur.Far < At(220), "and what lies well outside it is not");
+        Assert.IsTrue(blur.Near <= At(110) && At(150) <= blur.Far, $"the band lies over the selection's distances: {blur.Near:0.000}-{blur.Far:0.000}");
+        Until(() => session.SubjectMask is not null);
 
-        await _ui.Invoke(() => vm.Depth.FocusOnAsync(new RegionPolygon { Points = [new(20, 20), new(60, 20), new(60, 140), new(20, 140)] }));
-        blur = session.Recipe.LensBlur!;
-        Assert.IsTrue(blur.Near <= At(30) && At(50) <= blur.Far && blur.Far < At(120), $"an outline focuses on what it holds: {blur.Near:0.000}-{blur.Far:0.000}");
+        // The band narrowed to the selection's near edge alone: its far side is still sharp, kept so by the selection, and what
+        // lies beyond it, as far, is blurred.
+        double near = At(100) * 100;
+        OnUi(() => { vm.Depth.FocusFar = Math.Round(near) + 1; vm.Depth.FocusNear = Math.Round(near); vm.Depth.Aperture = 100; });
+        using var drawn = await _services.Exporter.RenderAsync(session.Path, session.Recipe, session.Made);
+        Assert.IsTrue(Contrast(drawn, 140) > 100, $"inside the selection, far from the band, it is sharp: {Contrast(drawn, 140):0}");
+        Assert.IsTrue(Contrast(drawn, 200) < 60, $"outside it, as far, it is blurred: {Contrast(drawn, 200):0}");
+    }
+
+    [TestMethod]
+    [CoversNode("images-scene-depth-edges")]
+    public async Task FocusingFromAThingSelected_KeepsItsOutline_MadeForTheSave_UntilAnotherWayOfFocusing()
+    {
+        var patch = new Patch();
+        var vm = Editing(patch);
+        OnUi(() => vm.Cutter.Follow(_photo));
+        OnUi(() => vm.Depth.LensBlur = true);
+        var session = vm.CurrentSession!;
+        Until(() => session.SceneDepth is not null);
+
+        // The thing picked with the Select tool, then focused on from Adjust.
+        OnUi(() => vm.Editor.Tool = EditTool.Select);
+        OnUi(() => vm.Cutter.Click(25, 80, include: true));
+        Until(() => vm.Editor.RegionMarks.HasSelection);
+        OnUi(() => vm.Editor.Tool = EditTool.Adjust);
+        OnUi(() => vm.Depth.FocusWay = LensFocusWay.Selection);
+        Until(() => session.Recipe.LensBlur?.Subject is not null);
+        var subject = session.Recipe.LensBlur!.Subject!;
+        CollectionAssert.AreEqual(new[] { new RecipeCutClick(25, 80, true) }, subject.Clicks.ToArray(), "kept as the click that picks it");
+
+        Until(() => session.SubjectMask is not null);
+        Assert.IsNotNull(session.SubjectMask, "its outline is made, kept and drawn from");
+        Assert.AreEqual(1, patch.Opens, "picked from the session the pick opened: the photo is read in once, not again for its outline");
+        Assert.IsTrue(session.Made.Serves(session.Recipe), "a save has everything the recipe asks for");
+        using var saved = await _services.Exporter.RenderAsync(session.Path, session.Recipe, session.Made);
+        Assert.AreEqual(Wide, saved.Width, "and draws it at full size");
+
+        // Narrowed end by end to a single step, as the strip's ends are dragged, and opened again: the subject stays.
+        foreach (var (end, to) in new[] { ("far", 60.0), ("near", 20.0), ("far", 22.0), ("near", 21.0), ("far", 40.0) })
+        {
+            OnUi(() => { if (end == "far") vm.Depth.FocusFar = to; else vm.Depth.FocusNear = to; });
+            double now = _ui.Invoke(() => end == "far" ? vm.Depth.FocusFar : vm.Depth.FocusNear);
+            Assert.AreEqual(to, now, 0.01, $"the band's {end} end set to {to} stands at {now}");
+        }
+        Assert.AreEqual(subject, session.Recipe.LensBlur!.Subject, "the band dragged, the selection is still what is kept sharp");
+
+        OnUi(() => vm.Depth.FocusWay = LensFocusWay.Point);
+        Assert.IsNull(session.Recipe.LensBlur!.Subject, "focused by a click instead, nothing is kept sharp but the band");
     }
 
     [TestMethod]
@@ -299,7 +350,7 @@ public class ImageSceneDepthTests
         OnUi(() => vm.Depth.Aperture = 90);
         OnUi(() => vm.Depth.FocusFar = 4);
         foreach (var x in new[] { 10.0, 120.0, 230.0, 60.0 })
-            await _ui.Invoke(() => vm.Depth.FocusAtAsync(new MarkupPoint(x, 80)));
+            OnUi(() => vm.Depth.FocusAt(new MarkupPoint(x, 80)));
         Until(() => session.SceneDepth is not null);
         var plane = session.SceneDepth!;
         double clicked = plane.Distance(plane.FocusAt(60, 80, new SKSizeI(Wide, High)));
@@ -352,7 +403,7 @@ public class ImageSceneDepthTests
         OnUi(() => vm.Depth.LensBlur = true);
         var session = vm.CurrentSession!;
         Until(() => session.SceneDepth is not null);
-        await _ui.Invoke(() => vm.Depth.FocusAtAsync(new MarkupPoint(8, 80)));
+        OnUi(() => vm.Depth.FocusAt(new MarkupPoint(8, 80)));
         OnUi(() => vm.Depth.Aperture = 100);
 
         // The screen draws from the photo as decoded for it, which may be smaller than the photo: its checks are judged against each other.
@@ -386,18 +437,70 @@ public class ImageSceneDepthTests
     }
 
     [TestMethod]
+    [CoversNode("images-scene-depth")]
+    public void HazeInTheCurrentColour_TakesAColourChosenAgain_AndTheColourShowsBesideThePicture()
+    {
+        var vm = Editing();
+        OnUi(() => { vm.Editor.Tool = EditTool.Adjust; vm.Depth.Haze = true; });
+        Assert.IsFalse(_ui.Invoke(() => vm.Colours.IsShown), "hazing in the scene's own colour, there is no colour to choose");
+        OnUi(() => vm.Depth.HazeTakesInk = true);
+        Assert.IsTrue(_ui.Invoke(() => vm.Colours.IsShown), "hazing in the current colour, it shows beside the picture");
+
+        var chosen = System.Windows.Media.Color.FromRgb(0x20, 0x60, 0xA0);
+        OnUi(() => vm.Colours.Current = ColorSpec.Custom(chosen));
+        Assert.AreEqual(0xFF2060A0u, vm.CurrentSession!.Recipe.DepthHaze!.Colour, "the haze takes the colour chosen again");
+    }
+
+    [TestMethod]
+    [CoversNode("images-scene-depth-lens-blur")]
+    public void WhileASliderMoves_TheDepthPassIsDrawnAtLessDetail_AndWholeOnceItStops()
+    {
+        var vm = Editing();
+        OnUi(() => vm.Depth.LensBlur = true);
+        var session = vm.CurrentSession!;
+        Until(() => session.SceneDepth is not null);
+        OnUi(() => vm.Depth.Aperture = 100);
+        byte[] Drawn(double detail)
+        {
+            byte[]? pixels = null;
+            session.Render(session.Recipe, new RenderRequest(RenderFrame.Output, 1, DepthDetail: detail), image =>
+            {
+                using var bitmap = new SKBitmap(new SKImageInfo(image.Width, image.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+                image.ReadPixels(bitmap.Info, bitmap.GetPixels(), bitmap.RowBytes, 0, 0);
+                pixels = bitmap.Bytes;
+            });
+            return pixels!;
+        }
+
+        var whole = Drawn(1);
+        CollectionAssert.AreEqual(whole, Drawn(RenderRequest.PreviewDepthDetail), "a pass drawn whole is kept while something else moves");
+
+        OnUi(() => vm.Editor.BeginGesture());
+        Assert.IsTrue(_ui.Invoke(() => vm.Stage.Previewing), "a slider dragged: frames keep up with it");
+        OnUi(() => vm.Depth.Aperture = 80);
+        var moving = Drawn(RenderRequest.PreviewDepthDetail);
+        OnUi(() => vm.Editor.EndGesture());
+        Assert.IsFalse(_ui.Invoke(() => vm.Stage.Previewing), "let go, the frame is drawn whole");
+        var still = Drawn(1);
+        CollectionAssert.AreNotEqual(moving, still, "drawn at less detail while it moved, then whole");
+    }
+
+    [TestMethod]
     [CoversNode("images-selection-distance")]
-    public async Task SelectingByDistance_OnAPhoto_IsARegionStep_KeptAsItsSpan_AndMovingTheEndsSelectsAgain()
+    public void SelectingByDistance_OnAPhoto_IsARegionStep_KeptAsItsSpan_AndMovingTheEndsSelectsAgain()
     {
         var vm = Editing();
         OnUi(() => vm.Editor.Tool = EditTool.Select);
         OnUi(() => vm.Editor.SelectBy = SelectionWay.Distance);
         Assert.IsTrue(_ui.Invoke(() => vm.Editor.SelectsByDistance));
-        OnUi(() => { vm.Editor.RegionMarks.DistanceNear = 0; vm.Editor.RegionMarks.DistanceFar = 40; vm.Editor.RegionMarks.DistanceSoftness = 0; });
-        await _ui.Invoke(() => vm.Editor.RegionMarks.SelectDistanceAsync(RegionMode.Replace));
+        // Chosen with nothing selected, the span is selected at once: no further press.
+        Until(() => vm.Editor.RegionMarks.Region?.Steps.SingleOrDefault() is RegionSceneDepth);
+        Assert.IsInstanceOfType<RegionSceneDepth>(_ui.Invoke(() => vm.Editor.RegionMarks.Region?.Steps.SingleOrDefault()), "the span is selected as Distance is chosen");
 
+        OnUi(() => { vm.Editor.RegionMarks.DistanceSoftness = 0; vm.Editor.RegionMarks.DistanceNear = 0; vm.Editor.RegionMarks.DistanceFar = 40; });
+        Until(() => vm.Editor.RegionMarks.Region?.Steps.SingleOrDefault() is RegionSceneDepth { Far: 0.4, Softness: 0 });
         var step = _ui.Invoke(() => vm.Editor.RegionMarks.Region!.Steps.Single()) as RegionSceneDepth;
-        Assert.IsNotNull(step);
+        Assert.IsNotNull(step, "moving the ends selects the span again in its place");
         Assert.AreEqual(0.4, step.Far, 1e-9);
         var shown = _ui.Invoke(() => vm.Editor.RegionMarks.Shown)!;
         Assert.IsFalse(shown.IsEmpty, "what lies near is selected");
@@ -577,9 +680,13 @@ public class ImageSceneDepthTests
         public int Width { get; private set; }
         public int Height { get; private set; }
 
+        /// <summary>How many times a photo was read in to pick from: what costs picture selection the most.</summary>
+        public int Opens { get; private set; }
+
         public Task<IPictureSelectionSession> OpenAsync(ReadOnlyMemory<byte> rgba, int width, int height, CancellationToken ct)
         {
             (Width, Height) = (width, height);
+            Opens++;
             return Task.FromResult<IPictureSelectionSession>(this);
         }
 

@@ -144,6 +144,7 @@ public partial class ArtistView : UserControl, IPageView
             case Key.Escape:
                 if (editor.RegionMarks.CancelDraft()) break;   // an outline half drawn goes first
                 if (editor.IsCropTool) editor.CancelCrop();
+                else if (editor.RegionMarks.HasSelection) editor.RegionMarks.DeselectCommand.Execute(null);   // then the selection, as Ctrl+D lets it go
                 break;
             default:
                 return;

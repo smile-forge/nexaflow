@@ -4,31 +4,13 @@ using Nexaflow.Features.Images.Editing.Recipe;
 namespace Nexaflow.Features.Images.ViewModels;
 
 /// <summary>How the Erase tool marks what to erase.</summary>
-public enum EraseMarkWay
-{
-    /// <summary>A thing picked as the cut-out tool picks it: clicks on it and off it, a box round it, or a phrase.</summary>
-    Pick,
 
-    /// <summary>Brushed over: left to mark, right to take marking back.</summary>
-    Brush,
-
-    /// <summary>A rectangle or an ellipse dragged out — the selection the Cut out tool draws too.</summary>
-    Marquee,
-
-    /// <summary>An outline drawn round it, freehand or click to click — the selection the Cut out tool draws too.</summary>
-    Lasso,
-
-    /// <summary>What is near the colour clicked — the selection the Cut out tool makes so too.</summary>
-    Colour,
-
-    /// <summary>What lies within a span of distance, by the photo's scene depth — the selection the Cut out tool makes so too.</summary>
-    Distance,
-}
 
 /// <summary>
-/// What the Erase tool has marked so far, before it is erased: the brush strokes, how the place will be filled, and —
-/// for the healing brush — where texture is copied from. What is picked is the cut-out tool's (<see cref="PictureCutter"/>),
-/// so a thing picked and its shadow brushed over are erased in one step. Strokes are in the photo's pixels as it stands.
+/// What Retouch has brushed so far, before it is erased: the strokes, how the place will be filled, and — for the healing
+/// brush — where texture is copied from. What is selected is the Select tool's — what it picked (<see cref="PictureCutter"/>)
+/// and drew — so a thing selected and its shadow brushed over are erased in one step. Strokes are in the photo's pixels as it
+/// stands.
 /// </summary>
 public sealed partial class EraseMarking : ObservableObject
 {
@@ -42,14 +24,6 @@ public sealed partial class EraseMarking : ObservableObject
 
     /// <param name="aiOffered">Whether picture erasing runs here: what a new photo's fill starts as.</param>
     public EraseMarking(bool aiOffered) => _fill = aiOffered ? EraseFill.Ai : EraseFill.ContentAware;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsPicking), nameof(IsBrushing))]
-    private EraseMarkWay _way = EraseMarkWay.Pick;
-
-    public bool IsPicking => Way == EraseMarkWay.Pick;
-
-    public bool IsBrushing => Way == EraseMarkWay.Brush;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsHealing), nameof(NeedsHealSource))]

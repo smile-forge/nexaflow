@@ -169,7 +169,9 @@ internal sealed class SceneDepthClientTools(ArtistViewModel artist, IShellServic
             var subject = finds[which - 1];
             if (SceneDepthFocus.Of(subject.Mask, plane, photo) is not { } depth)
                 return ToolResult.Ok($"found no {focus}", $"\"{focus}\" in '{name}' covers too little to focus on; nothing was blurred.");
-            var blur = SceneDepthFocus.FocusedOn(new RecipeLensBlur { Aperture = open / 100, Shape = chosen }, depth);
+            // The thing kept as the box that picks it out — this one of those found — so its outline keeps the blur off its edge.
+            var outline = new RecipeCutOut { Box = new RecipeCutBox(subject.Box.Left, subject.Box.Top, subject.Box.Right, subject.Box.Bottom) };
+            var blur = SceneDepthFocus.FocusedOn(new RecipeLensBlur { Aperture = open / 100, Shape = chosen }, depth) with { Subject = outline };
             if (!await OnUiAsync(() => Commit(r => r with { LensBlur = blur })))
                 return NoPicture();
             var box = Fraction(subject.Box, photo);

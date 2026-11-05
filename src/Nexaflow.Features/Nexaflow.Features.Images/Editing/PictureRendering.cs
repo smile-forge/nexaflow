@@ -30,6 +30,9 @@ public abstract class PictureRendering : IDisposable
     private SKImage? _cutOutMask;
     private string? _sceneDepthPath;
     private SceneDepthPlane? _sceneDepth;
+
+    private string? _subjectPath;
+    private SKImage? _subjectMask;
     private RenderPipeline? _pipeline;
     private long _version;
     private bool _disposed;
@@ -166,7 +169,7 @@ public abstract class PictureRendering : IDisposable
     /// <summary>What the tools made for the recipe, by file — what a save renders from.</summary>
     public MadeByTools Made
     {
-        get { lock (Gate) return new MadeByTools(_restoredPath, _cutOutPath, _erasedPath, _sceneDepthPath); }
+        get { lock (Gate) return new MadeByTools(_restoredPath, _cutOutPath, _erasedPath, _sceneDepthPath, _subjectPath); }
     }
 
     /// <summary>
@@ -249,6 +252,53 @@ public abstract class PictureRendering : IDisposable
         }
     }
 
+    /// <summary>The outline of what the recipe's lens blur is focused on, once it is made: the file it is kept in; null while there is none.</summary>
+    public string? SubjectPath
+    {
+        get { lock (Gate) return _subjectPath; }
+    }
+
+    /// <summary>The outline decoded, once there is one.</summary>
+    public SKImage? SubjectMask
+    {
+        get { lock (Gate) return _subjectMask; }
+    }
+
+    /// <summary>
+    /// The outline the lens blur keeps crisp from now on — its file, or null for none. A different file lets the decoded mask go;
+    /// the display decodes again from the new file.
+    /// </summary>
+    public void UseSubject(string? path)
+    {
+        lock (Gate)
+        {
+            if (string.Equals(path, _subjectPath, StringComparison.OrdinalIgnoreCase)) return;
+            _subjectPath = path;
+            DropPipeline();
+            _subjectMask?.Dispose();
+            _subjectMask = null;
+        }
+    }
+
+    /// <summary>
+    /// Hands over the outline decoded from <paramref name="path"/>: kept crisp from the next frame. One that is no longer the
+    /// outline in use — or arrives after disposal — is disposed at once. The caller hands ownership over.
+    /// </summary>
+    public void AttachSubject(SKImage mask, string path)
+    {
+        lock (Gate)
+        {
+            if (_disposed || !string.Equals(path, _subjectPath, StringComparison.OrdinalIgnoreCase))
+            {
+                mask.Dispose();
+                return;
+            }
+            DropPipeline();
+            _subjectMask?.Dispose();
+            _subjectMask = mask;
+        }
+    }
+
     /// <summary>
     /// Takes a newly decoded picture to render from, replacing a smaller one. The caller hands ownership over; a picture
     /// arriving after disposal is disposed at once.
@@ -296,7 +346,7 @@ public abstract class PictureRendering : IDisposable
             _pipeline = null;
         }
         _pipelineBase = source;
-        _pipeline ??= _services.Pipeline(source, restored: _restoredProxy, cutOut: _cutOutMask, sceneDepth: _sceneDepth);
+        _pipeline ??= _services.Pipeline(source, restored: _restoredProxy, cutOut: _cutOutMask, sceneDepth: _sceneDepth, subject: _subjectMask);
         return _pipeline.Render(recipe, request);
     }
 
@@ -313,7 +363,7 @@ public abstract class PictureRendering : IDisposable
         lock (Gate)
         {
             if (_disposed || _proxy is null) return null;
-            using var pipeline = _services.Pipeline(SourceFor(recipe), cache: false, _restoredProxy, _cutOutMask, _sceneDepth);
+            using var pipeline = _services.Pipeline(SourceFor(recipe), cache: false, _restoredProxy, _cutOutMask, _sceneDepth, _subjectMask);
             using var picture = pipeline.Render(recipe, request);
             return SKImage.FromBitmap(SKBitmap.FromImage(picture));
         }
@@ -348,6 +398,8 @@ public abstract class PictureRendering : IDisposable
             _cutOutMask?.Dispose();
             _cutOutMask = null;
             _sceneDepth = null;
+            _subjectMask?.Dispose();
+            _subjectMask = null;
             _proxy?.Dispose();
             _proxy = null;
         }

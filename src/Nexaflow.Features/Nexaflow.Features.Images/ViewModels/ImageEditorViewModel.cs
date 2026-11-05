@@ -79,7 +79,7 @@ public partial class ImageEditorViewModel : ObservableObject
 
     /// <summary>What is selected as a recipe's cut-out: what the cut-out tool picked and the region drawn over it; null where
     /// neither is.</summary>
-    private RecipeCutOut? MarkedCutOut => MarkedRegion is { } region ? (Cutter.PickedCutOut ?? new RecipeCutOut()) with { Region = region } : Cutter.PickedCutOut;
+    internal RecipeCutOut? MarkedCutOut => MarkedRegion is { } region ? (Cutter.PickedCutOut ?? new RecipeCutOut()) with { Region = region } : Cutter.PickedCutOut;
 
     /// <summary>
     /// The selection drawn by hand as the recipe of the picture the tools work on keeps it: the photo editor's region; in a
@@ -151,33 +151,6 @@ public partial class ImageEditorViewModel : ObservableObject
         }
     }
 
-    /// <summary>How Retouch marks what to erase, as one of its buttons: picked, brushed, a shape drawn by hand, or a colour clicked.</summary>
-    public SelectionWay EraseBy
-    {
-        get => EraseMarks.Way switch
-        {
-            EraseMarkWay.Brush   => SelectionWay.Brush,
-            EraseMarkWay.Marquee => DrawnBy(marquee: true),
-            EraseMarkWay.Lasso   => DrawnBy(marquee: false),
-            EraseMarkWay.Colour   => SelectionWay.Colour,
-            EraseMarkWay.Distance => SelectionWay.Distance,
-            _                     => SelectionWay.Pick,
-        };
-        set
-        {
-            DrawWith(value);
-            EraseMarks.Way = value switch
-            {
-                SelectionWay.Brush                             => EraseMarkWay.Brush,
-                SelectionWay.Rectangle or SelectionWay.Ellipse => EraseMarkWay.Marquee,
-                SelectionWay.Lasso or SelectionWay.Polygon     => EraseMarkWay.Lasso,
-                SelectionWay.Colour                            => EraseMarkWay.Colour,
-                SelectionWay.Distance                          => EraseMarkWay.Distance,
-                _                                              => EraseMarkWay.Pick,
-            };
-        }
-    }
-
     /// <summary>The shape the marquee or the lasso draws now, as the button that stands for it.</summary>
     private SelectionWay DrawnBy(bool marquee) => marquee
         ? RegionMarks.Marquee == MarqueeShape.Ellipse ? SelectionWay.Ellipse : SelectionWay.Rectangle
@@ -191,30 +164,34 @@ public partial class ImageEditorViewModel : ObservableObject
     }
 
     /// <summary>The open tool draws on the photo with the marquee.</summary>
-    public bool DrawsMarquee => IsSelectTool && CutOutWay == CutOutMarkWay.Marquee || IsRetouchTool && EraseMarks.Way == EraseMarkWay.Marquee;
+    public bool DrawsMarquee => IsSelectTool && CutOutWay == CutOutMarkWay.Marquee;
 
     /// <summary>The open tool draws on the photo with the lasso.</summary>
-    public bool DrawsLasso => IsSelectTool && CutOutWay == CutOutMarkWay.Lasso || IsRetouchTool && EraseMarks.Way == EraseMarkWay.Lasso;
+    public bool DrawsLasso => IsSelectTool && CutOutWay == CutOutMarkWay.Lasso;
 
     /// <summary>The open tool picks things out of the photo by picture selection.</summary>
-    public bool PicksByModel => IsSelectTool && CutOutWay == CutOutMarkWay.Pick || IsRetouchTool && EraseMarks.IsPicking;
+    public bool PicksByModel => IsSelectTool && CutOutWay == CutOutMarkWay.Pick;
 
     /// <summary>The open tool draws on the photo with the marquee or the lasso.</summary>
     public bool DrawsShapes => DrawsMarquee || DrawsLasso;
 
     /// <summary>The open tool selects what is near the colour clicked.</summary>
-    public bool SelectsByColour => IsSelectTool && CutOutWay == CutOutMarkWay.Colour || IsRetouchTool && EraseMarks.Way == EraseMarkWay.Colour;
+    public bool SelectsByColour => IsSelectTool && CutOutWay == CutOutMarkWay.Colour;
 
     /// <summary>The open tool selects what lies within a span of distance, by the photo's scene depth.</summary>
-    public bool SelectsByDistance => IsSelectTool && CutOutWay == CutOutMarkWay.Distance || IsRetouchTool && EraseMarks.Way == EraseMarkWay.Distance;
+    public bool SelectsByDistance => IsSelectTool && CutOutWay == CutOutMarkWay.Distance;
 
     /// <summary>The open tool's way of selecting meets what is selected as a mode says: a shape drawn, a colour clicked, or a span
     /// of distance chosen.</summary>
     public bool ShowsRegionMode => DrawsShapes || SelectsByColour || SelectsByDistance;
 
-    /// <summary>What lies within the span of distance chosen, selected — meeting what is selected as the mode says.</summary>
-    [RelayCommand]
-    private Task SelectDistance() => RegionMarks.SelectDistanceAsync(RegionMarks.Mode);
+    /// <summary>Selecting by distance was chosen: the strip shows the picture's depths, and with nothing selected yet the span is
+    /// selected at once, so something happens without a further press.</summary>
+    public async Task ShowDistancesAsync()
+    {
+        await RegionMarks.ShowDistancesAsync();
+        if (SelectsByDistance && !RegionMarks.HasSelection) await RegionMarks.SelectDistanceAsync(RegionMarks.Mode);
+    }
 
     /// <summary>The picture is a layered one: a colour clicked may be read from what shows or from the active layer alone.</summary>
     public bool EditsLayeredPicture => _viewer.IsLayered;
@@ -223,27 +200,28 @@ public partial class ImageEditorViewModel : ObservableObject
     public void ChooseMarquee()
     {
         if (DrawsMarquee) RegionMarks.Marquee = RegionMarks.Marquee == MarqueeShape.Rectangle ? MarqueeShape.Ellipse : MarqueeShape.Rectangle;
-        else MarkBy(CutOutMarkWay.Marquee, EraseMarkWay.Marquee);
+        else SelectWith(CutOutMarkWay.Marquee);
     }
 
     /// <summary>The lasso (L): taken up — or, held already, turned from freehand to polygon and back.</summary>
     public void ChooseLasso()
     {
         if (DrawsLasso) RegionMarks.Lasso = RegionMarks.Lasso == LassoShape.Freehand ? LassoShape.Polygon : LassoShape.Freehand;
-        else MarkBy(CutOutMarkWay.Lasso, EraseMarkWay.Lasso);
+        else SelectWith(CutOutMarkWay.Lasso);
     }
 
     /// <summary>Selecting by colour (W) taken up.</summary>
-    public void ChooseColour() => MarkBy(CutOutMarkWay.Colour, EraseMarkWay.Colour);
+    public void ChooseColour() => SelectWith(CutOutMarkWay.Colour);
 
-    private void MarkBy(CutOutMarkWay cutOut, EraseMarkWay erase)
+    // Only the Select tool makes a selection: a way of selecting taken up from any other tool opens it, on that way.
+    private void SelectWith(CutOutMarkWay way)
     {
-        if (IsSelectTool) CutOutWay = cutOut;
-        else if (IsRetouchTool) EraseMarks.Way = erase;
+        Tool = EditTool.Select;
+        CutOutWay = way;
     }
 
-    /// <summary>Whether the open tool takes a selection — Cut out and Erase do.</summary>
-    public bool TakesSelection => IsSelectTool || IsRetouchTool;
+    /// <summary>Whether the open tool makes the selection: only Select does. Every other tool shows it and acts on it.</summary>
+    public bool TakesSelection => IsSelectTool;
 
     /// <summary>Keeps only what is selected — what the cut-out tool has picked and the region drawn over it — in the photo or
     /// picture layer itself, an edit like any other, undone or put back by Keep background; the mask is made at full size in the
@@ -443,20 +421,18 @@ public partial class ImageEditorViewModel : ObservableObject
     /// <summary>The models the open panel needs are offered over the picture while they are not here.</summary>
     private void WantModels(bool editing)
     {
-        PickingModels.IsWanted   = editing && Tool is EditTool.Select or EditTool.Retouch;
+        PickingModels.IsWanted   = editing && Tool == EditTool.Select;
         ErasingModels.IsWanted   = editing && Tool == EditTool.Retouch;
         RestoringModels.IsWanted = editing && Tool is EditTool.Adjust or EditTool.Resize;
         DepthModels.IsWanted     = editing && (Tool == EditTool.Adjust || SelectsByDistance);
     }
 
-    /// <summary>Cut out and Retouch mark and fill only with what is here: picking waits for picture selection and AI fill for
-    /// picture erasing, so each gives way — to the marquee, the brush and content-aware fill — until they are.</summary>
+    /// <summary>Select and Retouch work only with what is here: picking waits for picture selection, selecting by distance for
+    /// scene depth, and AI fill for picture erasing, so each gives way — to the marquee and content-aware fill — until they are.</summary>
     private void SettleRetouchChoices()
     {
-        if (EraseMarks.IsPicking && !PickingModels.IsReady) EraseMarks.Way = EraseMarkWay.Brush;
         if (CutOutWay == CutOutMarkWay.Pick && !PickingModels.IsReady) CutOutWay = CutOutMarkWay.Marquee;
         if (EraseMarks.Fill == EraseFill.Ai && !ErasingModels.IsReady) EraseMarks.Fill = EraseFill.ContentAware;
-        if (EraseMarks.Way == EraseMarkWay.Distance && !DepthModels.IsReady) EraseMarks.Way = EraseMarkWay.Brush;
         if (CutOutWay == CutOutMarkWay.Distance && !DepthModels.IsReady) CutOutWay = CutOutMarkWay.Marquee;
     }
 
@@ -492,28 +468,14 @@ public partial class ImageEditorViewModel : ObservableObject
         RegionMarks.PropertyChanged += (_, e) =>
         {
             // A shape chosen by its key (M, L) is a way of selecting chosen: the buttons follow it.
-            if (e.PropertyName is nameof(RegionMarking.Marquee) or nameof(RegionMarking.Lasso))
-            {
-                OnPropertyChanged(nameof(SelectBy));
-                OnPropertyChanged(nameof(EraseBy));
-            }
+            if (e.PropertyName is nameof(RegionMarking.Marquee) or nameof(RegionMarking.Lasso)) OnPropertyChanged(nameof(SelectBy));
             if (e.PropertyName is nameof(RegionMarking.Region) or nameof(RegionMarking.Shown)) SelectionMoved();
+            // Selecting by distance, the span's first move selects it, as the mode says; later moves select it again.
+            if (e.PropertyName is nameof(RegionMarking.DistanceNear) or nameof(RegionMarking.DistanceFar) or nameof(RegionMarking.DistanceSoftness)
+                && SelectsByDistance && !RegionMarks.HoldsSpan)
+                _ = RegionMarks.SelectDistanceAsync(RegionMarks.Mode);
         };
-        EraseMarks.PropertyChanged += (_, e) =>
-        {
-            EraseCommand.NotifyCanExecuteChanged();
-            if (e.PropertyName != nameof(EraseMarking.Way)) return;
-            OnPropertyChanged(nameof(EraseBy));
-            RegionMarks.CancelDraft();
-            OnPropertyChanged(nameof(DrawsMarquee));
-            OnPropertyChanged(nameof(DrawsLasso));
-            OnPropertyChanged(nameof(DrawsShapes));
-            OnPropertyChanged(nameof(SelectsByColour));
-            OnPropertyChanged(nameof(SelectsByDistance));
-            OnPropertyChanged(nameof(ShowsRegionMode));
-            OnPropertyChanged(nameof(PicksByModel));
-            WantModels(_viewer.IsEditing);
-        };
+        EraseMarks.PropertyChanged += (_, _) => EraseCommand.NotifyCanExecuteChanged();
         // The banner offers the models while any open panel waits on some of them.
         depth.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(ModelsGate.IsReady)) SettleRetouchChoices(); };
         foreach (var gate in new[] { picking, erasing, restoring, depth })
@@ -1045,7 +1007,11 @@ public partial class ImageEditorViewModel : ObservableObject
     /// </summary>
     public void MarkupPress(SKPoint at, float tolerance)
     {
-        if (Notes is not { } session) return;
+        // Every annotation lives in a markup layer: drawing where none is active makes one, and so does choosing what a photo's
+        // recipe annotated, which moves into it. Made as the step what is drawn joins opens, so both come and go together.
+        var session = Notes;
+        if (session is null && (MarkupTool != MarkupTool.Select || _viewer.HoldsMarkupToLift)) session = _viewer.NotesToMark(openStep: true);
+        if (session is null) return;
         EndTextEdit();   // a press elsewhere finishes the text being typed
         _markupFrom = at;
 
@@ -1053,9 +1019,13 @@ public partial class ImageEditorViewModel : ObservableObject
         {
             var hit = Markup.Reverse().FirstOrDefault(e => _services.Markup.HitTest(e, at, tolerance));
             SelectedId = hit?.Id;
-            if (hit is null) return;
+            if (hit is null)
+            {
+                if (session.InGesture) session.EndGesture();
+                return;
+            }
             PullStyleFrom(hit);
-            session.BeginGesture();
+            if (!session.InGesture) session.BeginGesture();
             _moving = true;
             return;
         }
@@ -1075,7 +1045,7 @@ public partial class ImageEditorViewModel : ObservableObject
             },
         };
 
-        session.BeginGesture();
+        if (!session.InGesture) session.BeginGesture();
         session.CommitMarkup(m => m.Add(created));
         _drawing = created.Id;
         SelectedId = created.Id;
@@ -1199,8 +1169,8 @@ public partial class ImageEditorViewModel : ObservableObject
 
     private double StrokeFor(bool highlighter) => Math.Max(1, Weight * WeightUnit * (LongEdge ?? 1000) * (highlighter ? 4 : 1));
 
-    /// <summary>Text placed on a turned or straightened picture is turned back, so it reads upright as it was typed.</summary>
-    private double UprightTextRotation() => -(Recipe.Geometry.QuarterTurns * 90 + Recipe.Geometry.StraightenDegrees);
+    // Text reads upright on screen however the markup layer it is written on is turned.
+    private double UprightTextRotation() => _viewer.CurrentDocument?.Picture.Active is MarkupLayer notes ? -notes.Placement.RotationDegrees : 0;
 
     private static uint HighlighterInk(uint ink) => 0x66000000u | (ink & 0x00FFFFFF);
     private static uint Wash(uint ink) => 0x40000000u | (ink & 0x00FFFFFF);

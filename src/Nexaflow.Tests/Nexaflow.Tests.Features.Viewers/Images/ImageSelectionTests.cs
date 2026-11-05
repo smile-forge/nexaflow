@@ -371,11 +371,11 @@ public class ImageSelectionTests
     [CoversNode("images-selection-lasso")]
     public void ALassoedSpot_IsErased_ByContentAwareFill()
     {
-        var vm = Editing(EditTool.Retouch);
+        // Lassoed with the Select tool, then erased from Retouch: one selection, made by Select and taken by the rest.
+        var vm = Editing(EditTool.Select);
         OnUi(() =>
         {
-            vm.Editor.EraseMarks.Way = EraseMarkWay.Lasso;
-            vm.Editor.EraseMarks.Fill = EraseFill.ContentAware;
+            vm.Editor.SelectBy = SelectionWay.Polygon;
             vm.Editor.RegionMarks.Lasso = LassoShape.Polygon;
             vm.Editor.RegionMarks.AddDraftPoint(new MarkupPoint(12, 8), RegionMode.Replace);
             vm.Editor.RegionMarks.AddDraftPoint(new MarkupPoint(20, 8), RegionMode.Add);
@@ -386,6 +386,11 @@ public class ImageSelectionTests
         Assert.AreEqual(0, _ui.Invoke(() => vm.Editor.RegionMarks.Draft.Count));
         Assert.AreEqual(RegionMode.Replace, _ui.Invoke(() => ((RegionShape)vm.Editor.RegionMarks.Region!.Steps[0]).Mode), "the outline is in the mode its first point began it in");
 
+        OnUi(() =>
+        {
+            vm.Editor.Tool = EditTool.Retouch;
+            vm.Editor.EraseMarks.Fill = EraseFill.ContentAware;
+        });
         Until(() => vm.Editor.EraseCommand.CanExecute(null));
         OnUi(() => vm.Editor.EraseCommand.Execute(null));
         Until(() => vm.CurrentSession!.ErasedProxy is not null);
@@ -509,7 +514,7 @@ public class ImageSelectionTests
 
         OnUi(() => vm.Editor.Tool = EditTool.Retouch);
         OnUi(() => vm.Editor.ChooseColour());
-        Assert.AreEqual(SelectionWay.Colour, _ui.Invoke(() => vm.Editor.EraseBy), "W takes it up in Retouch too");
+        Assert.AreEqual((EditTool.Select, SelectionWay.Colour), _ui.Invoke(() => (vm.Editor.Tool, vm.Editor.SelectBy)), "W in Retouch takes up Select, by colour");
     }
 
     [TestMethod]

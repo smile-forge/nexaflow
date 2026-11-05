@@ -5,7 +5,7 @@ namespace Nexaflow.Features.Images.ViewModels;
 
 /// <summary>
 /// What the picture tools make for one picture's recipe — its restoration, its removed background, its erasing, its scene
-/// depth — made in the background as each is asked for, the restoration and the scene depth following the erasing they are
+/// depth and the outline its lens blur is focused on — made in the background as each is asked for, the restoration and the scene depth following the erasing they are
 /// made from. The viewer's own follow the picture on screen and say what they are doing; a layered picture's other picture
 /// layers each have one of these, quietly.
 /// </summary>
@@ -18,9 +18,11 @@ internal sealed class PictureToolEdits : IDisposable
         Remover = new BackgroundRemover(services, selection, runOnUi, models);
         Eraser = new PhotoEraser(services, erasing, selection, runOnUi, models);
         SceneDepth = new PhotoSceneDepth(services, services.SceneDepth, runOnUi, models);
+        FocusedSubject = new FocusedSubject(services, selection, runOnUi, models);
         Restorer.Made += made;
         Remover.Made += made;
         SceneDepth.Made += made;
+        FocusedSubject.Made += made;
         // The restoration and the scene depth are of the picture as erased: they follow each erasing as it is made.
         Eraser.Made += () =>
         {
@@ -38,6 +40,8 @@ internal sealed class PictureToolEdits : IDisposable
 
     public PhotoSceneDepth SceneDepth { get; }
 
+    public FocusedSubject FocusedSubject { get; }
+
     /// <summary>The picture followed; null while none is.</summary>
     public PictureRendering? Followed { get; private set; }
 
@@ -49,10 +53,11 @@ internal sealed class PictureToolEdits : IDisposable
         Restorer.Follow(rendering);
         Remover.Follow(rendering);
         SceneDepth.Follow(rendering);
+        FocusedSubject.Follow(rendering);
     }
 
     /// <summary>Whether what the recipe asks of them is all here.</summary>
-    public bool IsPending => Restorer.IsPending || Remover.IsPending || Eraser.IsPending || SceneDepth.IsPending;
+    public bool IsPending => Restorer.IsPending || Remover.IsPending || Eraser.IsPending || SceneDepth.IsPending || FocusedSubject.IsPending;
 
     public void Dispose()
     {
@@ -60,5 +65,6 @@ internal sealed class PictureToolEdits : IDisposable
         Remover.Dispose();
         Eraser.Dispose();
         SceneDepth.Dispose();
+        FocusedSubject.Dispose();
     }
 }

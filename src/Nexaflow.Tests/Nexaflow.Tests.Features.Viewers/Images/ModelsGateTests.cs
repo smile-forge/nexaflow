@@ -124,16 +124,19 @@ public class ModelsGateTests
     public void ABannerAlreadyOfferingTheModels_HasTheGateStandBack()
     {
         var models = new Models { State = ToolModelsState.NotDownloaded, DownloadBytes = 1 };
-        var gate = new ModelsGate(models, Set(models), Here) { IsWanted = true };
+        var set = Set(models);
+        var restoring = new ModelsGate(models, set, Here) { IsWanted = true };
+        var depth = new ModelsGate(models, set, Here) { IsWanted = true };
         var banner = new Offer();
-        gate.Defer(banner);
-        Assert.IsTrue(gate.ShowsOffer);
+        set.OfferedBy(banner, new Offer());
+        Assert.IsTrue(restoring.ShowsOffer);
 
         banner.CanDownload = true;
-        Assert.IsFalse(gate.ShowsOffer, "one download is offered once");
+        Assert.IsFalse(restoring.ShowsOffer, "one download is offered once");
+        Assert.IsFalse(depth.ShowsOffer, "whichever tool's banner offers it: lens blur's banner quiets the restore gate too");
 
         banner.CanDownload = false;
-        Assert.IsTrue(gate.ShowsOffer);
+        Assert.IsTrue(restoring.ShowsOffer);
     }
 
     private static PictureModels Set(params IToolModels?[] sets) => new(sets, Here);
@@ -163,9 +166,8 @@ public class ModelsGateTests
             void OnUi(Action action) => ui.Run(action).Wait();
 
             OnUi(() => editor.Tool = EditTool.Retouch);
-            Assert.IsTrue(editor.EraseMarks.IsBrushing, "picking waits for picture selection, so retouching starts with the brush");
             Assert.AreEqual(EraseFill.ContentAware, editor.EraseMarks.Fill, "AI fill waits for picture erasing");
-            Assert.IsTrue(editor.PickingModels.ShowsOffer);
+            Assert.IsFalse(editor.PickingModels.ShowsOffer, "Retouch erases what Select selects: it picks nothing itself");
             Assert.IsTrue(editor.ErasingModels.ShowsOffer);
             Assert.IsFalse(editor.RestoringModels.ShowsOffer, "Retouch does not need the picture tools");
             Assert.IsTrue(editor.ShowsModelsOffer, "the banner offers them");
@@ -190,6 +192,39 @@ public class ModelsGateTests
             Until(() => ui.Invoke(() => editor.PickingModels.IsReady));
             OnUi(() => editor.Tool = EditTool.Select);
             Assert.IsFalse(editor.PickingModels.ShowsOffer, "here now, so nothing to offer");
+            vm.Dispose();
+        }
+        finally { try { Directory.Delete(dir, recursive: true); } catch { } }
+    }
+
+    [TestMethod]
+    public void AiCleanUpKept_ItsBannerOffersTheModels_AndTurnedOffThePanelOffersThem()
+    {
+        var dir = TestTemp.CreateSubdirectory("nexaflow-models-gate-").FullName;
+        using var ui = new ViewerUiThread();
+        try
+        {
+            var photo = Path.Combine(dir, "plain.png");
+            using (var bitmap = Flat(24, 16, new SKColor(90, 120, 160))) File.WriteAllBytes(photo, EncodePng(bitmap));
+            var shell = Substitute.For<IShellServices>();
+            shell.RunOnUiAsync(Arg.Any<Action>()).Returns(call => ui.Run(call.Arg<Action>()));
+            var pictures = Missing<IPictureTools>(640L << 20);
+            pictures.Restores(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>()).Returns(true);
+            var vm = new ArtistViewModel(photo, shell, new ImageEditingServices(VirtualFileSystem.Instance, new ImageRecipeStore(TimeSpan.FromHours(1))),
+                                         pictures: pictures, selection: Missing<IPictureSelection>(1800L << 20), erasing: Missing<IPictureErasing>(210L << 20));
+            Until(() => vm.Canvas is not null);
+            var editor = vm.Editor;
+            void OnUi(Action action) => ui.Run(action).Wait();
+
+            OnUi(() => editor.Tool = EditTool.Adjust);
+            OnUi(() => vm.CurrentSession!.History.Commit(vm.CurrentRecipe with { Restore = new RecipeRestore() }));
+            Until(() => ui.Invoke(() => vm.Stage.Restorer.HasNotice));
+            Assert.IsFalse(ui.Invoke(() => editor.ShowsModelsOffer), "the clean-up's own banner offers them: the panel stands back");
+
+            OnUi(() => editor.AiEnhance = false);
+            Until(() => ui.Invoke(() => !vm.Stage.Restorer.HasNotice));
+            Assert.IsTrue(ui.Invoke(() => editor.RestoringModels.ShowsOffer), "turned off, the panel offers them again");
+            Assert.IsTrue(ui.Invoke(() => editor.ShowsModelsOffer), "in the bar over the picture");
             vm.Dispose();
         }
         finally { try { Directory.Delete(dir, recursive: true); } catch { } }

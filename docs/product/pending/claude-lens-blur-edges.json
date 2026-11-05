@@ -1,0 +1,106 @@
+{
+  "branch": "claude/lens-blur-edges",
+  "nodes": {
+    "images-scene-depth-edges": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/SceneDepth/SubjectEdges.cs",
+          "class": "SubjectEdges"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/FocusedSubject.cs",
+          "class": "FocusedSubject"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/SubjectEdgesTests.cs",
+            "class": "SubjectEdgesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageSceneDepthTests.cs",
+            "class": "ImageSceneDepthTests",
+            "method": "FocusingFromAThingSelected_KeepsItsOutline_MadeForTheSave_UntilAnotherWayOfFocusing"
+          }
+        ]
+      }
+    },
+    "vcommon-range-slider": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Controls/RangeSliderTests.cs",
+            "class": "RangeSliderTests",
+            "method": "ANarrowBand_HasItsEndsStepAside_SoEachEndAndTheBandCanBeTakenHoldOf"
+          }
+        ]
+      }
+    },
+    "images-selection-subject": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/SceneDepth/DepthSubject.cs",
+          "class": "DepthSubject"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/DepthSubjectTests.cs",
+            "class": "DepthSubjectTests"
+          }
+        ]
+      }
+    },
+    "images-edit-colour": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PictureColours.cs",
+          "class": "PictureColours"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/ColourDock.xaml.cs",
+          "class": "ColourDock"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageEditorTests.cs",
+            "class": "ImageEditorTests",
+            "method": "TheSharedColour_IsChosenFromThePalette_AddedToIt_AndTakenOff_ShownWhereAToolUsesIt"
+          }
+        ]
+      }
+    },
+    "images-paint": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Editing/Rendering/FrameChange.cs",
+          "class": "FrameChange"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 8,
+  "touched_nodes": [
+    "images-edit-colour",
+    "images-paint",
+    "images-scene-depth-edges",
+    "images-selection-subject",
+    "vcommon-range-slider"
+  ]
+}

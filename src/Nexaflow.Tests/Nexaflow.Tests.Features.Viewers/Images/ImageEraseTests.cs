@@ -87,7 +87,7 @@ public class ImageEraseTests
     {
         OnUi(() =>
         {
-            vm.Editor.EraseMarks.Way = EraseMarkWay.Brush;
+
             vm.Editor.EraseMarks.Fill = fill;
             vm.Editor.EraseMarks.BrushSize = width;
             vm.Editor.EraseMarks.BeginStroke(new MarkupPoint(16, 12), marks: true);
