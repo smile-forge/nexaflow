@@ -1,6 +1,7 @@
 using Microsoft.ML.OnnxRuntime;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Models;
+using Nexaflow.AiHost.Tiling;
 
 namespace Nexaflow.AiHost.Drawing;
 
@@ -11,8 +12,20 @@ internal sealed class KleinDecoder(ModelSpec spec, InferenceSession session) : I
 
     public float[] Decode(ReadOnlySpan<float> tokens, int rows, int cols)
     {
-        using var input = OrtValue.CreateTensorValueFromMemory(KleinSampler.Planes(tokens, rows, cols), [1, KleinSampler.Channels, rows, cols]);
-        using var run = GraphSessions.Releasing(Spec);
+        var planes = KleinSampler.Planes(tokens, rows, cols);
+        return Spec.TileCells == 0 ? Run(planes, rows, cols, last: true)
+             : LatentTiling.Decode(rows, cols, Scale, Spec.TileCells,
+                                   (tile, last) => Run(LatentTiling.Planar(planes, KleinSampler.Channels, rows, cols, tile), tile.Height, tile.Width, last));
+    }
+
+    /// <summary>Pixels a latent cell decodes to, along each side.</summary>
+    private const int Scale = 16;
+
+    /// <param name="last">The picture's last run: the session gives its scratch memory back after it.</param>
+    private float[] Run(float[] planes, int rows, int cols, bool last)
+    {
+        using var input = OrtValue.CreateTensorValueFromMemory(planes, [1, KleinSampler.Channels, rows, cols]);
+        using var run = last ? GraphSessions.Releasing(Spec) : new RunOptions();
         using var outputs = session.Run(run, ["latents"], [input], session.OutputNames);
         return outputs[0].GetTensorDataAsSpan<float>().ToArray();
     }
