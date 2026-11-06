@@ -1,8 +1,8 @@
 # Nexaflow — product status
 
-_Version **v1.8.5** · 2026-10-23_
+_Version **v1.9.0** · 2026-11-07_
 
-**93% shipping** — 1672/1802 components done (124 should · 0 faulted · 6 shouldn't)
+**93% shipping** — 1756/1891 components done (129 should · 0 faulted · 6 shouldn't)
 
 ## Tree
 
@@ -199,11 +199,7 @@ _Version **v1.8.5** · 2026-10-23_
         - **get_image_info** — _done_
         - **next_image** — _done_
         - **previous_image** — _done_
-        - **select_in_picture** — _done_
         - **read_page** — _done_
-        - **cut_out** — _done_
-        - **restore_picture** — _done_
-        - **erase_in_picture** — _done_
       - **Preview - IContextPreview** — _done_ — Built fresh on each chip selection and discarded on deselect, per the IContextPreview contract. Binds to the page's own Thumbnails and asks the page to load them, since only the grid views otherwise do and a single image never leaves the carousel. Virtualized, and opens scrolled to the current image. In-archive images keep the placeholder (ShellThumbnail cannot read VFS paths), as in the album.
     - **UI** — _done_
       - **Top Toolbar** — _done_
@@ -215,6 +211,7 @@ _Version **v1.8.5** · 2026-10-23_
         - **Make Video** — _done_
         - **Convert to Markdown** — _done_
         - **Details Toggle** — _done_
+        - **Edit in Artist** — _done_
       - **Carousel** — _done_
         - **Previous / Next Arrows** — _done_
         - **Wheel & Keyboard Stepping** — _done_
@@ -236,48 +233,11 @@ _Version **v1.8.5** · 2026-10-23_
         - **Rotate Left / Right** — _done_
         - **Fit / Actual Size** — _done_
         - **Flip Horizontal / Vertical** — _done_
-      - **Edit Mode** — _should_
-        - **Edit Toolbar** — _should_
-          - **Undo / Redo** — _done_
-          - **Before / After** — _done_
-          - **Revert to Original** — _done_
-          - **Save** — _done_
-          - **Save as Copy** — _done_
-          - **Done** — _done_
-          - **Save Options** — _done_
-          - **Remove Location Only** — _should_
-        - **Tool Tiles** — _done_
-        - **Crop & Rotate** — _should_
-          - **Crop Frame** — _done_
-          - **Aspect Presets** — _done_
-          - **Straighten** — _done_
-          - **Level Tool** — _done_
-          - **Auto Straighten** — _should_
-        - **Adjust** — _should_
-          - **Auto Enhance** — _done_
-          - **AI Enhance and Upscale** — _done_
-          - **Light and Colour Sliders** — _done_
-          - **Vibrance** — _should_
-          - **Sharpen** — _should_
-          - **Noise Reduction** — _should_
-          - **Vignette** — _should_
-        - **Retouch** — _done_
-          - **Erase** — _done_
-          - **Red-Eye Removal** — _should_
-        - **Cut Out** — _should_
-          - **Remove Background** — _done_
-        - **Markup** — _should_
-          - **Markup Tools** — _done_
-          - **Select, Move and Delete** — _done_
-          - **Colour, Weight and Font** — _done_
-          - **Blur or Pixelate** — _should_
-        - **Resize** — _done_
-        - **Filters** — _should_
-        - **Models Not Here Yet** — _done_
-        - **Recipe Status Banner** — _done_
       - **Details Panel** — _done_
         - **Facts Read from the File** — _done_
         - **Show on a Map** — _should_
+      - **Start Screen** — _done_
+      - **Print** — _done_
     - **Functionality** — _done_
       - **Stepping and Clamping** — _done_
       - **Slideshow Timing** — _done_
@@ -303,6 +263,89 @@ _Version **v1.8.5** · 2026-10-23_
         - **Encoders** — _done_
       - **Metadata Transfer** — _done_
       - **Baking a Save** — _done_
+      - **Gen Image** — _done_
+    - **Artist** — _should_
+      - **Edit Toolbar** — _should_
+        - **Undo / Redo** — _done_
+        - **Before / After** — _done_
+        - **Revert to Original** — _done_
+        - **Save** — _done_
+        - **Save as Copy** — _done_
+        - **Save Options** — _done_
+        - **Remove Location Only** — _should_
+      - **Tool Tiles** — _done_
+      - **Crop & Rotate** — _should_
+        - **Crop Frame** — _done_
+        - **Aspect Presets** — _done_
+        - **Straighten** — _done_
+        - **Level Tool** — _done_
+        - **Auto Straighten** — _should_
+      - **Adjust** — _should_
+        - **Auto Enhance** — _done_
+        - **AI Enhance and Upscale** — _done_
+        - **Light and Colour Sliders** — _done_
+        - **Vibrance** — _should_
+        - **Sharpen** — _should_
+        - **Noise Reduction** — _should_
+        - **Vignette** — _should_
+        - **Scene Depth** — _done_
+          - **Lens Blur** — _done_
+            - **Crisp Subject Edges** — _done_
+          - **Depth Haze** — _done_
+          - **Depth as Layer or Mask** — _done_
+        - **Histogram** — _done_
+      - **Retouch** — _done_
+        - **Erase** — _done_
+        - **Red-Eye Removal** — _should_
+      - **Select** — _should_
+        - **Remove Background** — _done_
+      - **Markup** — _should_
+        - **Markup Tools** — _done_
+        - **Select, Move and Delete** — _done_
+        - **Colour, Weight and Font** — _done_
+        - **Blur or Pixelate** — _should_
+      - **Resize** — _done_
+      - **Filters** — _should_
+      - **AI Picture Models** — _done_
+      - **Recipe Status Banner** — _done_
+      - **Selection** — _should_
+        - **Marquee** — _done_
+        - **Lasso** — _done_
+        - **Refine** — _done_
+        - **By Colour** — _done_
+        - **By Distance** — _done_
+        - **Subject** — _done_
+      - **Layers** — _done_
+      - **Layers Panel** — _done_
+      - **Layer Masks** — _done_
+      - **OpenRaster** — _done_
+      - **Paint** — _done_
+      - **Move and Transform** — _done_
+      - **Assistant tools** — _done_
+        - **select_in_picture** — _done_
+        - **cut_out** — _done_
+        - **restore_picture** — _done_
+        - **erase_in_picture** — _done_
+        - **describe_picture** — _done_
+        - **capture_image** — _done_
+        - **edit_picture** — _done_
+        - **edit_layers** — _done_
+        - **generate_layer** — _done_
+        - **history** — _done_
+        - **describe_scene_depth** — _done_
+        - **blur_background** — _done_
+        - **add_haze** — _done_
+        - **fill_selection** — _done_
+        - **expand_canvas** — _done_
+        - **change_picture** — _done_
+      - **Colour and Depth** — _done_
+      - **Photoshop** — _done_
+      - **AI Edits** — _done_
+        - **Generate Fill** — _done_
+        - **Expand** — _done_
+        - **Change** — _done_
+      - **Edit Panels** — _done_
+      - **Current Colour** — _done_
   - **Json** — _should_
     - **UI** — _done_
       - **Path Breadcrumb** — _done_
@@ -390,8 +433,10 @@ _Version **v1.8.5** · 2026-10-23_
         - **Inline (live) editor** — _done_
           - **Caret crossing** — _done_
           - **Drop text in** — _done_
+          - **Home, End and a press beside a row** — _done_
         - **Source-only editor** — _done_
-        - **Render-mode context menu** — _done_ — A themed WPF ContextMenu built in code-behind over the RichTextBox selection; needs a focused, rendered control and has no view-model state. Covered by the UI journey's presence check.
+          - **Line numbers** — _done_
+        - **Render-mode context menu** — _done_ — Drawn in code (DiagramRibbon) in a popup over the document from the controls the language returns; covered by ContentOffersTests and each diagram's editing tests, which open it through BuildRibbon and use its controls by automation id.
         - **Block corner buttons** — _done_
         - **Split view** — _done_
       - **Editor toolbar** — _done_
@@ -400,6 +445,7 @@ _Version **v1.8.5** · 2026-10-23_
         - **Save button** — _done_
         - **Summarise button** — _should_
         - **Translate button** — _should_
+        - **Print button** — _done_
       - **Formatting** — _done_
         - **Outline buttons (P/H1-H6)** — _done_
         - **Inline formatting (emphasis/strong/strike/sub/sup/marked/inserted)** — _done_
@@ -409,6 +455,7 @@ _Version **v1.8.5** · 2026-10-23_
       - **Status Bar** — _should_
         - **Zoom** — _done_
         - **Document Stats** — _done_
+      - **Outline panel** — _done_
     - **Functionality** — _done_
       - **Edit keys** — _done_
       - **Undo and redo** — _done_
@@ -909,6 +956,7 @@ _Version **v1.8.5** · 2026-10-23_
         - **New Folder** — _done_
         - **ShellNew Types** — _done_
         - **Templated Create** — _done_
+        - **Kinds that ask for options** — _done_
       - **Drag & Drop** — _done_
         - **Right-Drag Destination Menu** — _done_
       - **Keyboard Shortcuts** — _done_
@@ -1179,6 +1227,7 @@ _Version **v1.8.5** · 2026-10-23_
       - **Media Info Model** — _done_
       - **Keyframe Sampling** — _done_ — Sampling itself spins up a second libVLC decoder, so only the strip own model - the time labels the thumbnails carry, and the empty-until-sampled state - is unit-tested; the sampling run is left to the UI journey.
       - **Open Actions** — _done_
+      - **Gen Video** — _done_
   - **AI Chat** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_
@@ -1601,14 +1650,27 @@ _Version **v1.8.5** · 2026-10-23_
   - **Whisper** — _done_
   - **AI host** — _done_
     - **Machine setup** — _done_
+      - **Experts kept in this machine's memory** — _done_
     - **Model residency** — _done_
+    - **Conversations cut back** — _done_
   - **Nexaflow (owned models)** — _done_
   - **Text to speech** — _done_
   - **Nexaflow speech (owned)** — _done_
   - **Image generation** — _done_
   - **Video generation** — _done_
   - **Nexaflow images (owned)** — _done_
+    - **MOSS-Image** — _done_
+      - **Prompt Encoder** — _done_
+      - **LoRAs** — _done_
+    - **FLUX.2 [klein] 4B** — _done_
+    - **HiDream-O1 editing** — _done_
+    - **Qwen-Image-Edit-2511** — _done_
+    - **Denoisers streamed** — _done_
+    - **Decoders in tiles** — _done_
+    - **Prompt encoders on the CPU** — _done_
   - **Nexaflow video (owned)** — _done_
+  - **xAI** — _done_
+  - **OpenAI-compatible chat** — _done_
 - **Common / Shared** — _should_
   - **Visuals.Text** — _done_
     - **Markdown Rendering** — _should_
@@ -1625,6 +1687,8 @@ _Version **v1.8.5** · 2026-10-23_
         - **Fenced Code Blocks** — _done_
           - **Syntax-highlighted code** — _done_
           - **Selecting and copying code** — _done_
+          - **Plain text** — _done_
+          - **Long lines slide sideways** — _done_
         - **Inline Code** — _done_
         - **Emphasis** — _done_
         - **Strong** — _done_
@@ -1740,6 +1804,19 @@ _Version **v1.8.5** · 2026-10-23_
         - **Bound Words** — _done_
         - **Nested Content** — _done_
         - **Bound Content** — _done_
+        - **Packet** — _done_
+          - **Packet Syntax Tree** — _done_
+          - **Written In Place** — _done_
+        - **Treemap** — _should_
+          - **Treemap Syntax Tree** — _done_
+          - **Written In Place** — _done_
+        - **Use Case** — _should_
+        - **Wardley** — _should_
+        - **Event Modeling** — _should_
+        - **Tree View** — _should_
+          - **Tree View Syntax Tree** — _done_
+          - **Written In Place** — _done_
+        - **ZenUML** — _should_
       - **Markdown extensions** — _should_
         - **Pipe tables** — _done_
         - **Grid tables** — _done_
@@ -1862,12 +1939,15 @@ _Version **v1.8.5** · 2026-10-23_
         - **What may be done where a gesture landed** — _done_
         - **Finding a place in a document** — _done_
         - **A whole document on one page** — _done_
+          - **Margins beside the page** — _done_
         - **The document surfaces read from it** — _done_
         - **A block that reads as it did is laid as it was** — _done_
         - **A document written out in another format** — _done_
         - **Sections** — _should_
         - **Fold a section** — _should_
         - **A long document reads as quickly as a short one** — _done_
+        - **A document on paper** — _done_
+        - **Writing in a long document costs what the edit touches** — _should_
       - **Background Reading** — _done_
       - **Moving what is picked out** — _done_
       - **Rich Text (RTF)** — _done_
@@ -1923,6 +2003,7 @@ _Version **v1.8.5** · 2026-10-23_
   - **IO.Terminal (PTY)** — _done_
     - **Terminal Screen** — _done_
     - **Process Lifetime** — _done_
+    - **Terminal transport** — _done_
   - **IO.Common** — _done_
     - **Encoding Detector** — _done_
     - **File Change Watcher** — _done_
@@ -1930,6 +2011,16 @@ _Version **v1.8.5** · 2026-10-23_
     - **Virtual File System** — _done_
       - **Pass-through mounts** — _done_
       - **Archive Progress & Cancellation** — _done_
+      - **Async VFS** — _done_
+      - **Remote locations** — _done_
+        - **Location provider contract** — _done_
+        - **Location paths** — _done_
+        - **Runtime file system** — _done_
+        - **Blocking IO guard** — _done_
+        - **Transfers through locations** — _done_
+        - **Location backends registry** — _done_
+        - **Connections and credentials** — _done_
+        - **Session pool** — _done_
     - **Codec / Archive Contracts** — _done_
     - **Text Transforms & Hashing** — _done_
     - **Audio endpoints and test signals** — _done_
@@ -1952,12 +2043,14 @@ _Version **v1.8.5** · 2026-10-23_
       - **Drafts: files made for you, with Save as** — _done_
       - **Reader's place held** — _done_
       - **Insertion marker** — _done_
+      - **Range Slider** — _done_
     - **Value Converters** — _done_
     - **Formatters** — _done_
     - **Collections** — _done_
     - **Snapshot History** — _done_
     - **Shell File Icons** — _done_
     - **Cloud Sync Status** — _done_
+    - **Shell Resource Icons** — _done_
   - **Visuals.Web** — _done_
   - **Maths** — _should_
     - **LaTeX Parse Tree** — _should_
@@ -2016,12 +2109,16 @@ _Version **v1.8.5** · 2026-10-23_
   - **Visuals.Icons** — _done_
     - **Icon Catalog** — _done_
     - **Icon Picker** — _done_
+    - **Resource Icon** — _done_
+    - **Icon Packs** — _done_
   - **IO.CompoundFile** — _done_
   - **AI tools** — _should_
     - **Picture tools** — _done_
     - **Picture selection** — _done_
     - **Page reading** — _done_
     - **Picture erasing** — _done_
+    - **Picture checking** — _done_
+    - **Scene depth** — _done_
   - **IO.Usb (USB device layer)** — _should_
     - **Descriptor parsing** — _done_
     - **usb.ids names** — _done_
@@ -2103,6 +2200,9 @@ _Version **v1.8.5** · 2026-10-23_
       - **Theme Switch (Window Restart)** — _done_
       - **Freeze-on-Merge** — _done_
       - **Immersive theme tuning** — _should_
+      - **Themed Control Styles** — _done_
+        - **Combo Box** — _done_
+        - **Date Picker & Calendar** — _done_
     - **Arctic** — _done_
     - **Flowers** — _done_
     - **Desert** — _done_
@@ -2165,6 +2265,7 @@ _Version **v1.8.5** · 2026-10-23_
     - **Save / Validate / Dirty Tracking** — _done_
     - **Shell Settings** — _done_
       - **Text Size** — _done_
+      - **Enhanced AI Protection Mode** — _done_
     - **File-Type Actions Editor** — _done_
     - **Workspaces (Profiles) Editor** — _done_
     - **Manage AI / Configure Workspace** — _done_
@@ -2172,6 +2273,7 @@ _Version **v1.8.5** · 2026-10-23_
         - **Add Provider / Model Column** — _done_
         - **Local models** — _done_
         - **Documents row** — _should_
+        - **Image Editing row** — _done_
       - **AI Persona** — _done_
       - **Provider Config / API Keys** — _done_
       - **Workspace Identity Page** — _done_
@@ -2250,6 +2352,7 @@ _Version **v1.8.5** · 2026-10-23_
     - **Tools chosen per step** — _done_
     - **Unreadable calls written again** — _done_
     - **Generation tools** — _done_
+      - **edit_image** — _done_
     - **Requests routed by weight** — _done_
     - **Reading handed to the machine's model** — _done_
     - **Background tasks pill** — _done_
@@ -2269,6 +2372,7 @@ _Version **v1.8.5** · 2026-10-23_
     - **Themed File Picker** — _done_
     - **Themed Folder Picker** — _done_
     - **Tab Reuse on Open** — _done_
+    - **Window Placement Restore** — _done_
   - **Shell Prompt Overlays** — _done_
     - **Input Prompt Dialog** — _done_
     - **Confirmation Dialog** — _done_
@@ -2322,6 +2426,7 @@ _Version **v1.8.5** · 2026-10-23_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_
       - **Act - help tools** — _done_
+  - **Safety Log** — _done_
 - **OptionalTools** — _should_
   - **nfi CLI** — _should_
     - **Verb surface and argument parsing** — _done_
@@ -2339,8 +2444,8 @@ _Nothing faulted._
 
 | Concern | Done |
 |---|---|
-| i18n | 7/1802 |
-| theming | 754/1802 |
-| tests | 1473/1802 |
-| docs | 9/1802 |
-| Expanded | 25/1802 |
+| i18n | 9/1891 |
+| theming | 794/1891 |
+| tests | 1552/1891 |
+| docs | 13/1891 |
+| Expanded | 25/1891 |
