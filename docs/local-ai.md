@@ -134,6 +134,54 @@ with accented French and basic German, and native French with B2 German:
 | A CUDA pack | cuBLAS 13 (484 MB) + cuDNN 9 for CUDA 13 (407 MB), plus the CUDA provider and onnxruntime-genai's CUDA layer (183 MB) — about 1.1 GB |
 | TensorRT-RTX on Kokoro and Silero graphs | both rejected (an unsupported `Squeeze` kernel; an engine build failure) — **identically in a Windows-ML-only process**, so this is the provider's graph support, not the mix |
 
+### On a smaller card
+
+Measured on the RTX PRO 6000 with `tools/bench/Hold-GpuMemory.ps1` holding all but what a smaller card leaves free, so
+the host finds the budget that card gives it — 7.5 GiB for a 10 GB card. Its PCIe 5 link copies 28 GB/s from pinned memory;
+a PCIe 4 machine copies about half that.
+
+- **Mixtures of experts**: the table under *Models*. Kept in this machine's memory, Gemma 4 26B's and Qwen 3.6's experts
+  leave 2.4 and 2.9 GB on the card; at the 10 GB card's own seat — 32k of context, eight conversations — Qwen 3.6 peaks
+  at 3.6 GB and Gemma 4 26B at 7.3 GB.
+- **A conversation cut back** (Qwen 3.5 9B, on the CPU): a save of its recurrent state is 53 MB, saved in 8 ms and given
+  back in 3 ms; an edited turn reads in 0.4 s where its whole prompt takes 4.6 s, scoring exactly as a whole re-read.
+  A save is 66 MB on Qwen 3.6 and 111 MB on Gemma 4 26B, its sliding window in 8 bits.
+- **A denoiser streamed** (Z-Image, 1024², one step): the graph cut at its narrowest points into 12 groups of about
+  560 MB of 8-bit weights each, the weights left where the build put them and read into pinned memory once, each group's
+  copied to the card on a stream of its own while the group before runs, all of them sharing one arena:
+
+  | | a step | the card holds at its peak |
+  |---|---|---|
+  | whole | 244 ms | 9.1 GB |
+  | streamed | 308 ms | 4.2 GB |
+  | streamed, each group's arena given back after it | 370 ms | 3.9 GB |
+
+  The scores it gives are the whole graph's to fp16 rounding (relative difference 3 × 10⁻⁵).
+- **A picture decoded in tiles** (Z-Image's decoder, 1536², a smooth latent standing for a picture's): tiles that overlap
+  by an eighth, blended across it.
+
+  | | takes | the card holds | against whole |
+  |---|---|---|---|
+  | whole | 0.49 s | 7.7 GB | |
+  | tiles of 96 | 0.58 s | 2.8 GB | 40.1 dB |
+  | tiles of 64 | 0.41 s | 1.4 GB | 37.5 dB |
+
+- **A clip decoded in tiles** (Wan's decoder, 1280 × 704, six latent frames): each tile a decoding of its own, with its own
+  causal cache, agrees with the whole to 41–46 dB, but the caches every tile keeps for the whole clip, more of them than the
+  whole frame's where the tiles overlap, hold the card at 11–13 GB whatever the tile's size: tiles fit a small card only
+  with each one's caches kept in pinned memory between its calls.
+- **Prompt encoders on the CPU** (8 of the 16 cores, a 60-token prompt): every encoder graph runs on the CPU as built,
+  slowly; its 8-bit products read with 8-bit inputs (`accuracy_level` 4 — the graph's own file rewritten, its weights
+  untouched) are fifty times faster:
+
+  | | as built | `accuracy_level` 4 | against as built |
+  |---|---|---|---|
+  | Z-Image (Qwen3 4B) | 16.6 s | 0.32 s | worst row's cosine 0.9995 |
+  | Wan (UMT5-XXL) | 15.5 s | 0.33 s | worst row's cosine 0.937 — to be checked in a clip before it is used |
+  | Klein (Qwen3) | 10.9 s | | |
+  | Qwen-Image-Edit (Qwen2.5-VL 7B) | 11.4 s | | |
+  | MOSS (Qwen 3.5 9B, Q8_0 GGUF on llama.cpp) | 3.3 s | | |
+
 ### Foundry Local — evaluated, not adopted
 
 [Foundry Local](https://www.nuget.org/packages/Microsoft.AI.Foundry.Local) is Microsoft's on-device model runtime:
@@ -858,7 +906,8 @@ whole Qwen3-VL language model reading the prompt, a timestep token and one token
 - **An fp32 residual stream.** A few tokens' activations pass 10⁵ from layer 6 on and reach 2.8×10⁶ in the last layer;
   the stream stays fp32 and every branch runs in fp16, the few that would overflow scaled by powers of two where their
   values are made and back as they rejoin it. Unlike Z-Image's, these branches have no norm after them to cancel a scale.
-- **Two builds.** With 8-bit weights it fits a 16 GB card (13.2 GB at its peak); with fp16 weights it needs a 24 GB one
+- **Two builds.** With 8-bit weights it peaks at 13.2 GB, and its catalog counts 14.5 GiB — more than a 16 GB card's
+  13.5 GiB budget, so it is offered from a 20 GB card; with fp16 weights it needs a 24 GB one
   (19.1 GB) and draws 0.1–2.3 dB closer to HiDream's model in fp32 — a difference too small to measure as better, so
   both are offered and the Local page lets the user choose, the 8-bit build first.
 - **Its own sampler, in C#.** Fifty steps of HiDream's flow-matching UniPC at shift 3, each asking the denoiser with the
@@ -954,7 +1003,7 @@ DeepStack features, and whole as clean 32×32 pixel patches the denoiser reads a
   mask leaves comes back to the pixel.
 
 Loaded part by part — picture reader 3.1 GiB, denoiser 14.5 GiB with pictures at 2048² (21.5 GiB with fp16 weights) —
-it is offered with up to four pictures to work from, so the 8-bit build fits a 16 GB card.
+it is offered with up to four pictures to work from, so the 8-bit build is offered from a 20 GB card.
 
 Qwen-Image-Edit-2511 edits as diffusers' QwenImageEditPlusPipeline does, with five ONNX graphs Nexaflow builds and
 publishes (`tools/ai-models/qwen-image-edit`, huggingface.co/smile-forge/qwen-image-edit-2511-onnx), sampled by the host
