@@ -43,6 +43,16 @@ public sealed record PlacementNeed(ModelSpec OnGpu, ModelSpec? OnCpu = null, lon
             : OnGpu.MemoryBytes + BytesPerToken * context + more;
     }
 
+    /// <summary>What it holds in this machine's memory beside what <see cref="BytesAt"/> holds on a GPU, with <paramref name="context"/>
+    /// tokens of context and <paramref name="layers"/> of its layers there: cut, the share of its weights and context the CPU's layers
+    /// keep; nothing when every layer is on the GPU.</summary>
+    public long HostBytesAt(int context, int? layers = null)
+    {
+        if (layers is not { } some) return 0;
+        long cut = WeightsBytes + BytesPerToken * context;
+        return cut - cut * some / Layers;
+    }
+
     /// <summary>The longest context, in whole <see cref="ModelPlacement.ContextStep"/>s and no longer than its own, that
     /// fits in <paramref name="room"/>; below its shortest when nothing useful does.</summary>
     internal int LongestIn(long room)
@@ -86,9 +96,10 @@ public sealed record Placement(IReadOnlyList<HostGpu> Gpus, IReadOnlyList<ModelS
 /// picture. A language model is given its own context where there is room for it, and a shorter one where there is
 /// not; a model that finds no room takes it from the contexts of the language models on a GPU, down to their
 /// shortest; a language model that still finds none runs cut between the GPU with the most room and the CPU, where at
-/// least half its layers fit there — and only then on the CPU, and only a model with no CPU build is left out. On the
-/// CPU the other models hold what their builds hold, and a language model is given the longest context the memory budget
-/// has left for it, never shorter than its shortest: the budget is a share of the machine, not a wall. What every GPU
+/// least half its layers fit there — and only then on the CPU, and only a model with no CPU build is left out. A cut
+/// model's CPU layers, and the context they keep, are held in this machine's memory and counted against the memory budget
+/// first. On the CPU the other models hold what their builds hold, and a language model is given the longest context the
+/// memory budget has left for it, never shorter than its shortest: the budget is a share of the machine, not a wall. What every GPU
 /// has left once all are placed lets each language model wholly on it read a prompt in longer steps.
 /// </summary>
 public static class ModelPlacement
@@ -142,6 +153,7 @@ public static class ModelPlacement
         /// it holds — it is made only while there is such work, and only where that room is free then.</summary>
         public bool Background { get; set; }
         public long Bytes => Need.BytesAt(Context, Layers, Batch, Sequences);
+        public long HostBytes => Need.HostBytesAt(Context, Layers);
         public long Spare => Need.HasContext && Layers is null ? Need.BytesPerToken * (Context - Need.ShortestContext) : 0;
     }
 
@@ -176,9 +188,10 @@ public static class ModelPlacement
         foreach (var seat in seats.Where(s => s.Layers is null && s.Need.BackgroundBytes > 0))
             seat.Background = Free(gpus.First(g => g.Device == seat.Device)) >= seat.Need.BackgroundBytes;
 
-        var placed = CpuPlaced(onCpu, memoryBudget);
+        // What models cut between a GPU and the CPU keep in this machine's memory comes out of the share the CPU's models are given.
+        var placed = CpuPlaced(onCpu, memoryBudget - seats.Sum(s => s.HostBytes));
         placed.AddRange(seats.Select(s => s.Need.OnGpu with { Device = s.Device, ContextTokens = s.Context, MemoryBytes = s.Bytes, BatchTokens = s.Batch,
-                                                              GpuLayers = s.Layers, Sequences = s.Sequences,
+                                                              GpuLayers = s.Layers, Sequences = s.Sequences, HostBytes = s.HostBytes,
                                                               BackgroundSequences = s.Background ? BackgroundSequences : 0,
                                                               BackgroundTokens = s.Background ? BackgroundTokens : 0,
                                                               BackgroundBytes = s.Background ? s.Need.BackgroundBytes : 0 }));

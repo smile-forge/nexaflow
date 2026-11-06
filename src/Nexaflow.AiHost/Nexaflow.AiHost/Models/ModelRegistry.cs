@@ -126,7 +126,8 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
         }
     }
 
-    /// <summary>Unloads what must go for <paramref name="spec"/> to fit on its GPU.</summary>
+    /// <summary>Unloads what must go for <paramref name="spec"/> to fit: on its GPU, and in this machine's memory for what it holds
+    /// there — the whole of a model on the CPU, the CPU's layers of one cut between a GPU and the CPU.</summary>
     /// <param name="madeWay">The residents that made way for the picture <paramref name="room"/> is borrowed for — they load
     /// again once it is done.</param>
     /// <returns>False when only models in use stand in the way and it may wait for them: a picture's part, or a
@@ -135,19 +136,18 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
     private bool MakeRoomFor(ModelSpec spec, Room? room, out IReadOnlyList<string> madeWay)
     {
         madeWay = [];
-        // A GPU's budget is a wall: past it a load fails in the middle of somebody's reply. The CPU's is a share of this
-        // machine's memory, kept by letting idle models go — never by refusing a model, or making it wait, for it.
-        long budget = spec.Device is { } device ? gpus.Gpu(device).BudgetBytes : (memory ?? HostMemory.Unbounded).BudgetBytes;
-
         lock (_gate)
         {
-            var held = _loaded.Values.Concat(_replaced).Where(e => e.Model.Spec.Device == spec.Device)
-                              .Select(e => new VramBudget.Loaded(e.Model.Spec.Id, e.Model.Spec.MemoryBytes, e.Resident, e.Users > 0, e.LastUsed))
-                              .ToList();
-            var admission = VramBudget.Plan(budget, held, spec.MemoryBytes, displaceResidents: room is not null);
-            if (admission is null || admission.Waits)
+            var entries = _loaded.Values.Concat(_replaced).ToList();
+            var unload = new List<string>();
+
+            // A GPU's budget is a wall: past it a load fails in the middle of somebody's reply.
+            if (spec.Device is { } gpu)
             {
-                if (spec.Device is { } gpu)
+                long budget = gpus.Gpu(gpu).BudgetBytes;
+                var held = Held(entries.Where(e => e.Model.Spec.Device == gpu), e => e.Model.Spec.MemoryBytes);
+                var admission = VramBudget.Plan(budget, held, spec.MemoryBytes, displaceResidents: room is not null);
+                if (admission is null || admission.Waits)
                 {
                     if (admission is null || room is null && !_displaced.ContainsKey(spec.Id))
                         throw new HostRequestException(HostErrorKind.Refused,
@@ -155,12 +155,26 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
                             + string.Join(", ", held.Select(m => m.Id)) + ".");
                     return false;
                 }
-                admission = new VramBudget.Admission([.. held.Where(m => !m.InUse && (!m.Resident || room is not null)).Select(m => m.Id)], Waits: false);
-                log.Write($"{spec.Id} needs {spec.MemoryBytes >> 20} MiB on the CPU, past its {budget >> 20} MiB share beside the models in use; it loads past it");
+                unload.AddRange(admission.Unload);
+            }
+
+            // This machine's memory is a share of it, kept by letting idle models go — never by refusing a model, or making it
+            // wait, for it.
+            if (InMemory(spec) is > 0 and var bytes)
+            {
+                long budget = (memory ?? HostMemory.Unbounded).BudgetBytes;
+                var held = Held(entries.Where(e => InMemory(e.Model.Spec) > 0 && !unload.Contains(e.Model.Spec.Id)), e => InMemory(e.Model.Spec));
+                var admission = VramBudget.Plan(budget, held, bytes, displaceResidents: room is not null);
+                if (admission is null || admission.Waits)
+                {
+                    admission = new VramBudget.Admission([.. held.Where(m => !m.InUse && (!m.Resident || room is not null)).Select(m => m.Id)], Waits: false);
+                    log.Write($"{spec.Id} needs {bytes >> 20} MiB of this machine's memory, past its {budget >> 20} MiB share beside the models in use; it loads past it");
+                }
+                unload.AddRange(admission.Unload);
             }
 
             var residents = new List<string>();
-            foreach (var id in admission.Unload)
+            foreach (var id in unload.Distinct())
             {
                 var entry = _loaded[id];
                 if (entry.Resident)
@@ -173,7 +187,13 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
             madeWay = residents;
             return true;
         }
+
+        static List<VramBudget.Loaded> Held(IEnumerable<Entry> entries, Func<Entry, long> bytes)
+            => [.. entries.Select(e => new VramBudget.Loaded(e.Model.Spec.Id, bytes(e), e.Resident, e.Users > 0, e.LastUsed))];
     }
+
+    /// <summary>What <paramref name="spec"/> holds in this machine's memory, against the host's share of it.</summary>
+    private static long InMemory(ModelSpec spec) => spec.Device is null ? spec.MemoryBytes : spec.HostBytes;
 
     /// <summary>Room for one picture: while any is out, residents nothing is using may make way for its parts.</summary>
     /// <param name="madeWay">Told the residents that make way for this picture, as they do.</param>

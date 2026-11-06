@@ -359,7 +359,7 @@ writes 33 tokens/s with 20 of its 30 layers on a GPU, against 204 with all of th
 and one with no CPU build is left out. Once everything is placed, a language model wholly on a GPU reads its prompts in
 steps of 2,048 tokens where what is left there holds them, and its catalog says what they cost — on Gemma 4 26B, 13,700
 tokens/s against 9,400 in steps of 512, for 2 GB; steps of 4,096 read no faster. On the CPU, the other models hold what their builds' files hold,
-and a language model is given the longest context the host's memory share leaves it, never under 8k. When a workspace takes models on, the plan is redone and each
+and a language model is given the longest context the host's memory share leaves it, never under 8k — once a cut model's CPU layers, and the context they keep, are counted in that share: the host admits a cut model against its GPU's budget and the share both, idle models on the CPU making way for its layers there. When a workspace takes models on, the plan is redone and each
 model it moves is loaded again where it now runs; letting models go moves nothing. A picture's parts are placed each
 time: on a GPU where they fit beside the residents, else on the one with the most room, where the residents make way.
 

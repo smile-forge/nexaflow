@@ -190,6 +190,24 @@ public class ModelPlacementTests
     }
 
     [TestMethod]
+    public void ALanguageModelCutBetweenTheCardAndTheCpu_HoldsItsCpuLayersInThisMachinesMemory_OutOfTheShareTheCpusModelsAreGiven()
+    {
+        var gemmaOnCpu = Gemma() with { OnGpu = Spec("gemma", 6 * GB, 32768) with { MemoryBytes = 0 } };
+        var alone = Placed(ModelPlacement.Plan([Gpu(0, 14)], [Large()]), "large");
+        Assert.AreEqual(Large().HostBytesAt(ModelPlacement.CutContext, 21), alone.HostBytes, "its 9 CPU layers' share of its weights and context");
+        Assert.AreEqual(Large().BytesAt(ModelPlacement.CutContext), alone.MemoryBytes + alone.HostBytes,
+                        "the card and the machine together hold what the card would hold of it whole");
+
+        long budget = alone.HostBytes + 6 * GB + 10_240L * 18432;
+        var placement = ModelPlacement.Plan([Gpu(0, 14)], [Large(), gemmaOnCpu], memoryBudget: budget);
+        Assert.AreEqual((null, 10_240), (Placed(placement, "gemma").Device, Placed(placement, "gemma").ContextTokens),
+                        "the model on the CPU is given what the share leaves once the cut model's CPU layers are in it");
+
+        var whole = Placed(ModelPlacement.Plan([Gpu(0, 40)], [Large()]), "large");
+        Assert.AreEqual(0, whole.HostBytes, "wholly on its card, it holds none of the machine's memory");
+    }
+
+    [TestMethod]
     public void ACardWithRoomLeftOver_HasItsLanguageModelReadInLongerSteps_OnlyOnceItHasItsWholeContext()
     {
         var roomy = Placed(ModelPlacement.Plan([Gpu(0, 40)], [Large()]), "large");
