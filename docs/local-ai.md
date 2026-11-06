@@ -894,7 +894,8 @@ Against PyTorch bf16 from the same noise, the build draws at a median of 29 dB P
 comes — in 2.3 s, its tokenizer (Microsoft.ML.Tokenizers over Qwen3's `tokenizer.json`) giving the same ids as Hugging
 Face's. Loaded part by part — encoder 5.1 GB, denoiser 9.4 GB, decoder 5.3 GB at their peaks — a picture needs room
 for the denoiser alone, and where the resident models leave less, they make way while it draws. It is built for CUDA
-only, and offered where a GPU's budget holds the denoiser.
+only, and offered where a GPU's budget holds the denoiser — whole, or streamed (*On a card that holds less*): from a
+10 GB card.
 
 HiDream-O1 (the full model, MIT) is the high-quality one: one ONNX graph Nexaflow builds and publishes
 (`tools/ai-models/hidream-o1`, huggingface.co/smile-forge/hidream-o1-image-onnx), with no VAE — it draws in pixels, a
@@ -907,7 +908,7 @@ whole Qwen3-VL language model reading the prompt, a timestep token and one token
   the stream stays fp32 and every branch runs in fp16, the few that would overflow scaled by powers of two where their
   values are made and back as they rejoin it. Unlike Z-Image's, these branches have no norm after them to cancel a scale.
 - **Two builds.** With 8-bit weights it peaks at 13.2 GB, and its catalog counts 14.5 GiB — more than a 16 GB card's
-  13.5 GiB budget, so it is offered from a 20 GB card; with fp16 weights it needs a 24 GB one
+  13.5 GiB budget, where its denoiser runs streamed, in 10.2 GiB; with fp16 weights it needs a 24 GB one
   (19.1 GB) and draws 0.1–2.3 dB closer to HiDream's model in fp32 — a difference too small to measure as better, so
   both are offered and the Local page lets the user choose, the 8-bit build first.
 - **Its own sampler, in C#.** Fifty steps of HiDream's flow-matching UniPC at shift 3, each asking the denoiser with the
@@ -1003,7 +1004,8 @@ DeepStack features, and whole as clean 32×32 pixel patches the denoiser reads a
   mask leaves comes back to the pixel.
 
 Loaded part by part — picture reader 3.1 GiB, denoiser 14.5 GiB with pictures at 2048² (21.5 GiB with fp16 weights) —
-it is offered with up to four pictures to work from, so the 8-bit build is offered from a 20 GB card.
+it is offered with up to four pictures to work from, so the 8-bit build is offered from a 16 GB card, its denoiser
+streamed there.
 
 Qwen-Image-Edit-2511 edits as diffusers' QwenImageEditPlusPipeline does, with five ONNX graphs Nexaflow builds and
 publishes (`tools/ai-models/qwen-image-edit`, huggingface.co/smile-forge/qwen-image-edit-2511-onnx), sampled by the host
@@ -1029,7 +1031,8 @@ Image Editing row only (`IImageGenerationProvider.DrawsFromPromptsOf`).
 
 Loaded part by part — picture reader 3.5 GiB, prompt encoder 9.6 GiB, picture encoder 4.3 GiB, decoder 4.0 GiB, and the
 denoiser 24.0 GiB with one picture at a megapixel, 27.6 GiB with three (44.4 GiB with fp16 weights) — it is offered
-with up to three pictures, on a 32 GB card or larger. Built for CUDA only.
+with up to three pictures, on a 32 GB card or larger whole, and from a 24 GB card with its 8-bit denoiser streamed, in
+20.8 GiB. Built for CUDA only.
 
 ### Making clips on this machine
 
@@ -1067,8 +1070,50 @@ FastWan makes a five-second clip in 7–8 s of denoising and 10 s of decoding; t
 drifting over the steps, where unrelated clips are 5–9.5 dB apart — and the full build is as close to the model in fp32
 (14.2 dB) as its own bf16 pipeline is. Loaded part by part — the prompt encoder
 8.1 GB, the denoiser 15.4 GB, the decoder 20.8 GB, the frame encoder 1.8 GB at their peaks — a clip needs room for the
-decoder, a 24 GB card. On a smaller card neither row is offered, and a workspace makes clips with a cloud provider's
-model. Built for CUDA only.
+decoder whole, a 24 GB card; from a 10 GB card the denoiser runs streamed (3.8 GiB) and the decoder in tiles of 16 cells
+(7.0 GiB), each tile's cache parked in this machine's memory between its calls, and below 12 GB the prompt is read on the
+CPU — a five-second 720p FastWan clip in 69 s on a 10 GB card's budget. On a smaller card neither row is offered, and a
+workspace makes clips with a cloud provider's model. Built for CUDA only.
+
+### On a card that holds less
+
+A picture's or a clip's part that no GPU's budget holds whole runs lighter, where its catalog entry has a lighter build:
+placement (`ModelPlacement.PlaceOnDemand`) takes the part whole where a budget holds it, else the first of its lighter
+builds one does — streamed, then in tiles — else its CPU build. Each is built from the graph already published, and
+shares its weights file, so it adds a few small files to the repository, not a second copy of the weights.
+
+- **A denoiser streamed** (`StreamedGraph`). `tools/ai-models/streaming` cuts the graph where the fewest tensors cross,
+  between its blocks, into groups of about 400 MB of the weights its products read, which become each group's inputs;
+  the groups and their manifest (`denoiser.stream.json`) lie beside the graph. The host reads every group's weights once
+  into pinned memory, runs each group in a session of its own — every session on one shared arena, so one group's
+  scratch is held at a time — and copies the next group's weights to the GPU on a stream of their own, into one of two
+  buffers, while a group runs from the other. What a picture draws is what the whole graph draws, to fp16 rounding.
+- **A decoder in tiles** (`LatentTiling`). The latent is cut into squares that overlap by an eighth, each decoded alone
+  and blended back across the overlap. Wan's decoder carries a cache from frame to frame, so each tile keeps its own,
+  parked in pinned memory between its calls and copied to the GPU for its next, the next tile's while one runs.
+- **A prompt encoder on the CPU.** `tools/ai-models/cpu-builds` writes the graph's CPU build beside it, its 8-bit
+  products reading 8-bit inputs — fifty times faster on the CPU than as built — where it reads a prompt as the graph
+  does: Z-Image's (worst row's cosine 0.9995) does; Klein's and Qwen-Image-Edit's do not, and Wan's drifts, so those run
+  on the CPU as built, 11–16 s a prompt. MOSS's GGUF runs on llama.cpp's CPU build.
+
+What each holds — Z-Image's, HiDream's and Qwen-Image-Edit's as the whole graph's peak less what the lighter build saved
+beside it; Klein's, MOSS's and the clip's as run under `tools/bench/Hold-GpuMemory.ps1` on a 10 GB card's budget, Klein
+editing from two 1024² pictures in 29 s, MOSS drawing 1024² with its distillation LoRA in 33 s and with a style LoRA's fifty
+guided steps in 63 s — and the smallest card each model is offered on. A peak measured on a large card is not what a part
+needs: ONNX Runtime's arena grows into the room there is, and makes do with less where there is less, so MOSS's
+denoiser, 9.1 GiB at its peak on the RTX PRO 6000, draws in a 10 GB card's budget. On a 10 GB card, with 32 GB of memory,
+every kind of model Nexaflow runs itself has one to run and every picture tool runs (`TenGigabyteCardTests`).
+
+| Model | Lighter where it must be | Offered from |
+|---|---|---|
+| Z-Image Turbo | denoiser streamed, 6.1 GiB, its 6.7 GB of weights pinned | 10 GB |
+| FLUX.2 [klein] 4B | denoiser streamed, 7.0 GiB, 4.6 GB pinned — editing from two pictures | 10 GB |
+| MOSS-Image | prompt encoder on the CPU; its denoiser whole with any LoRA, in 7.0 GiB | 10 GB |
+| FastWan2.2 / Wan2.2-TI2V-5B | prompt encoder on the CPU below 12 GB; denoiser streamed, 3.8 GiB, 10.1 GB pinned; decoder in tiles of 16, 7.0 GiB, 4.2 GB of caches pinned | 10 GB |
+| HiDream-O1, 8-bit | denoiser streamed, 10.2 GiB | 16 GB |
+| Qwen-Image-Edit-2511, 8-bit | denoiser streamed, 20.8 GiB | 24 GB |
+
+The pinned memory counts against the host's share of this machine's memory, as a cut language model's layers do.
 
 ## Models
 
@@ -1115,6 +1160,11 @@ on the RTX PRO 6000 with a Ryzen 9 9950X3D, an 8k context in one conversation, w
 
 A machine is offered such a model only where the host's share of its memory holds the experts: 12.8 GB for Gemma 4 26B,
 18.1 GB for Qwen 3.6.
+
+FreeToken's split of a token's missed experts — some copied to the cache, the rest read on the CPU where they lie, in the
+ratio of the link's bandwidth to the memory's — is not built: llama.cpp's cache is upstream's, and the split would need a
+fork of it and a CUDA build of our own. What it would win is where the cache is small — the 10 GB card's no cache writes
+48 tokens/s, its estimated best near 60 — while a card with a quarter of the experts' room is already at 145.
 
 - Reading a large photo adds 0.3–0.6 GB while it is read; the catalog's figures include it.
 - Every one is prompted by the chat template its own GGUF carries, rendered by the host's Jinja engine and held to

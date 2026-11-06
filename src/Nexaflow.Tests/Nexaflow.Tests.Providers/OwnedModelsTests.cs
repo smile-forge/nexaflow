@@ -76,10 +76,15 @@ public class OwnedModelsTests
         Assert.IsFalse(image.RunsOn(OwnedModels.Cpu), "its fp16 graphs are built for the GPU");
         CollectionAssert.AreEquivalent(new[] { "z-image-prompt-encoder", "z-image-denoiser", "z-image-decoder" },
                                        image.PartsFor(OwnedModels.Cuda).Select(p => p.Runner).ToArray());
-        Assert.IsTrue(image.Parts.All(p => p.MemoryBytes > 0), "each part's peak is what admission counts");
+        Assert.IsTrue(image.PartsFor(OwnedModels.Cuda).All(p => p.MemoryBytes > 0), "each GPU part's peak is what admission counts");
+        var denoiser = image.Part(OwnedRoles.Denoiser, OwnedModels.Cuda);
+        Assert.IsTrue(denoiser.Streamed is { File: "denoiser.stream.json", MemoryBytes: < (15L << 29), HostBytes: > 0 },
+                      "streamed, it fits a 10 GB card's 7.5 GiB budget, its weights pinned in this machine's memory");
+        Assert.AreEqual("encoder.cpu.onnx", image.Parts.Single(p => p.Role == OwnedRoles.PromptEncoder && p.ExecutionProvider == OwnedModels.Cpu).File,
+                        "its prompt encoder reads on the CPU, where a GPU cannot hold it, from the build that reads 8-bit inputs");
         var files = image.Catalog.Files.Select(f => f.RelativePath).ToArray();
         CollectionAssert.Contains(files, "models/z-image-turbo/encoder/tokenizer.json");
-        Assert.IsTrue(image.Catalog.Files.All(f => f.Source.ToString().Contains("smile-forge/z-image-turbo-onnx/resolve/4e7bc3c4")),
+        Assert.IsTrue(image.Catalog.Files.All(f => f.Source.ToString().Contains("smile-forge/z-image-turbo-onnx/resolve/afa4ac5b")),
                       "every file from the one published revision");
     }
 
@@ -102,7 +107,7 @@ public class OwnedModelsTests
         var files = image.Catalog.Files.Select(f => f.RelativePath).ToArray();
         CollectionAssert.Contains(files, "models/hidream-o1-image/denoiser/tokenizer.json", "the host reads the prompt with it");
         CollectionAssert.Contains(files, "models/hidream-o1-image/picture-reader/picture-reader.onnx.data");
-        Assert.IsTrue(image.Catalog.Files.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/hidream-o1-image-onnx/resolve/da0b9a59")),
+        Assert.IsTrue(image.Catalog.Files.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b13")),
                       "every file pinned to the published revision");
     }
 
@@ -121,7 +126,7 @@ public class OwnedModelsTests
                                        image.PartsFor(OwnedModels.Cuda).Select(p => p.Runner).ToArray());
         Assert.IsTrue(image.Part(OwnedRoles.Denoiser, OwnedModels.Cuda).MemoryBytes < 12L << 30, "with two pictures it fits a 16 GB card");
         CollectionAssert.Contains(image.Catalog.Files.Select(f => f.RelativePath).ToArray(), "models/flux2-klein-4b/encoder/tokenizer.json");
-        Assert.IsTrue(image.Catalog.Files.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8")),
+        Assert.IsTrue(image.Catalog.Files.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/flux2-klein-4b-onnx/resolve/526df514")),
                       "every file pinned to the published revision");
     }
 
@@ -140,7 +145,7 @@ public class OwnedModelsTests
         long denoiser = image.Part(OwnedRoles.Denoiser, OwnedModels.Cuda).MemoryBytes;
         Assert.IsTrue(denoiser is > 24L << 30 and < 30L << 30, "with three pictures it needs a 32 GB card, and no smaller is offered it");
         CollectionAssert.Contains(image.Catalog.Files.Select(f => f.RelativePath).ToArray(), "models/qwen-image-edit-2511/prompt-encoder/tokenizer.json");
-        Assert.IsTrue(image.Catalog.Files.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be11")),
+        Assert.IsTrue(image.Catalog.Files.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763")),
                       "every file pinned to the published revision");
     }
 
@@ -196,7 +201,8 @@ public class OwnedModelsTests
         Assert.IsFalse(moss.RunsOn(OwnedModels.Cpu), "its graphs are built for the GPU");
         CollectionAssert.AreEquivalent(new[] { "moss-image-prompt-encoder", "moss-image-denoiser", "moss-image-decoder" },
                                        moss.PartsFor(OwnedModels.Cuda).Select(p => p.Runner).ToArray());
-        Assert.IsTrue(moss.Parts.Max(p => p.MemoryBytes) < 10L << 30, "its largest part, the denoiser with a LoRA, under 10 GiB");
+        Assert.IsTrue(moss.Part(OwnedRoles.Denoiser, OwnedModels.Cuda).MemoryBytes <= 7L << 30,
+                      "its denoiser with any LoRA runs in a 10 GB card's budget, its prompt read on the CPU there");
 
         var gguf = moss.Catalog.Files.Single(f => f.RelativePath.EndsWith(".gguf", StringComparison.Ordinal));
         Assert.AreEqual("models/moss-image/encoder/Qwen3.5-9B-Q8_0.gguf", gguf.RelativePath);
@@ -314,7 +320,10 @@ public class OwnedModelsTests
             Assert.AreEqual((704, 1280), model.Filming.Sizes[MediaShape.Portrait]);
             Assert.IsFalse(model.RunsOn(OwnedModels.Cpu), "its graphs are built for the GPU");
             Assert.IsTrue(model.Parts.Max(p => p.MemoryBytes) < 24L << 30, "its largest part, the decoder, fits a 24 GB card");
-            Assert.IsTrue(model.Catalog.Files.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386")),
+            var decoder = model.Part(FilmingParts.Decoder, OwnedModels.Cuda);
+            Assert.IsTrue(decoder.Tiled is { MemoryBytes: < 15L << 29 } && model.Part(FilmingParts.Denoiser, OwnedModels.Cuda).Streamed is { MemoryBytes: < 15L << 29 },
+                          "in tiles and streamed it fits a 10 GB card's 7.5 GiB budget");
+            Assert.IsTrue(model.Catalog.Files.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c")),
                           "every file pinned to the published revision");
         }
         CollectionAssert.AreEquivalent(new[] { "wan-prompt-encoder", "wan-denoiser", "wan-decoder" },
