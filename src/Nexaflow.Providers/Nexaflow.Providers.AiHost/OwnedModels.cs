@@ -135,8 +135,13 @@ internal abstract record OwnedEntry(CatalogModel Catalog, IReadOnlyList<OwnedPar
     /// tool's — rather than stay resident beside the language and speech models.</summary>
     public abstract bool LoadsOnDemand { get; }
 
-    /// <summary>Whether it has a build for <paramref name="executionProvider"/> — an image model is built for CUDA only.</summary>
-    public bool RunsOn(string executionProvider) => PartsFor(executionProvider).Count > 0;
+    /// <summary>Whether it has a build for <paramref name="executionProvider"/>: every one of its parts does — an image model is built
+    /// for CUDA, though its prompt encoder has a CPU build for a GPU that cannot hold it.</summary>
+    public bool RunsOn(string executionProvider)
+    {
+        var there = PartsFor(executionProvider);
+        return there.Count > 0 && Parts.Select(p => p.Name).Distinct().All(name => there.Any(p => p.Name == name));
+    }
 
     /// <summary>The parts that run on <paramref name="executionProvider"/>: one per role.</summary>
     public IReadOnlyList<OwnedPart> PartsFor(string executionProvider)
@@ -424,6 +429,14 @@ internal static class OwnedModels
         {
             var onRuntime = entry.PartsFor(runtime);
             if (onRuntime.Count == 0) continue;   // not built for this runtime
+            if (!entry.RunsOn(runtime))
+            {
+                // Parts built for a runtime the model does not run on whole are fallbacks — a GPU part's CPU build, for a GPU that cannot
+                // hold it — each beside the part it stands in for.
+                if (onRuntime.FirstOrDefault(p => p.ExecutionProvider == runtime && !entry.Parts.Any(o => o.Name == p.Name && o.ExecutionProvider != runtime)) is { } alone)
+                    throw new InvalidDataException($"{what} '{entry.Id}' has a {runtime} build of its {alone.Name} beside no other build of it, and does not run on {runtime} whole.");
+                continue;
+            }
             var roles = onRuntime.Select(p => p.Role).ToList();
             bool complete = needed.All(roles.Contains) && roles.All(needed.Contains)
                          && roles.Where(r => !OwnedRoles.Repeats(r)).GroupBy(r => r).All(g => g.Count() == 1)
