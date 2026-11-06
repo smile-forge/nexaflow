@@ -378,13 +378,13 @@ logs, with the picture.
 read (0.2–0.5 s) and a prompt read 512 tokens at a time. Barge-in does not wait on any of them: playback stops at once,
 and cancellation only frees the GPU.
 
-### The context as an append-only log
+### The context as a log
 
 A model keeps what it has read as a KV cache, and each token's entry depends on every token before it — so a cached
 prefix can be reused, but changing anything invalidates everything after it. Re-reading the whole conversation each
 turn is what makes a large local model slow to answer: Qwen 3.8 27B takes 1.3–1.9 s to read a 4k-token prompt.
 
-So each conversation keeps one sequence of its model's KV cache, and its context only ever grows: a follow-up reads
+So each conversation keeps one sequence of its model's KV cache, and its context grows: a follow-up reads
 only its own turn (the AI host's model tests hold it to under half of the prompt), where re-reading a 16k-token
 conversation costs E4B 1.1 s. Appending gives the next token's scores of a single read to rounding; where a reply
 drifts from a re-read, it is greedy decoding branching on that rounding.
@@ -393,8 +393,17 @@ drifts from a re-read, it is greedy decoding branching on that rounding.
   started on, then the turns.
 - **Changes are appended, never edited.** Moving to another page appends an event carrying the new page's context;
   tool results and audio are appended like any other turn.
-- **Appending is the one mechanism.** A barge-in cancels generation and appends what the user actually heard as a
-  note; a conversation cut short is dropped, and the next request reads it afresh.
+- **Appending is how a conversation goes on.** A barge-in cancels generation and appends what the user actually heard
+  as a note; a conversation cut short is dropped, and the next request reads it afresh.
+- **A prompt that parts from what was read is read from where it parts.** An edited last turn, a reply whose reasoning
+  the template leaves out of what was answered: the kept conversation sharing the longest start with the prompt — 256
+  tokens or more — is cut back to it, and only the rest is read. A model whose sequences are their cells alone is cut
+  back where the two part. One holding more — a recurrent layer's state (Qwen 3.5's gated DeltaNet), a sliding window's
+  cells (Gemma 4) — is cut back to where that state was saved: at the end of each turn it read, and where each prompt
+  ends, eight saves kept across its conversations (`ModelPlacement.Checkpoints`) and counted in the host's memory share
+  from the catalog's `stateBytes` — 53 MB a save for Qwen 3.5 9B, 111 MB for Gemma 4 26B. On Qwen 3.5 9B a save takes
+  8 ms and a restore 3 ms, the edited turn is read in 0.4 s against 4.6 s for the whole prompt on the CPU, and what it
+  reads next scores exactly as a whole re-read does.
 - **New turns are rendered as deltas against the cache.** The cache holds the prompt the conversation was last given,
   then its reply as generated, up to the token the reply stopped on — which it has not read. The template's rendering
   of the history must begin with that prompt; the delta is the history from that token on, then the new turns and the

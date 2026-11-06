@@ -275,7 +275,8 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
         bool language = part.BytesPerToken > 0;
         return new PlacementNeed(Unresolved(model, part), onCpu is null ? null : Unresolved(model, onCpu) with { MemoryBytes = FilesBytes(model, onCpu) },
                                  language ? ContextCache.Q8.BytesPerToken(part.BytesPerToken) : 0, language ? OwnedModels.ShortestContext : 0,
-                                 part.Layers, language ? WeightsBytes(model, part) : 0, part.BatchBytesPerToken, ContextCache.Q8.BytesPerToken(part.BytesPerSequence), part.BackgroundBytes);
+                                 part.Layers, language ? WeightsBytes(model, part) : 0, part.BatchBytesPerToken, ContextCache.Q8.BytesPerToken(part.BytesPerSequence), part.BackgroundBytes,
+                                 part.StateBytes);
     }
 
     /// <summary>What <paramref name="part"/>'s own file holds — a language model's weights, its GGUF — read whole.</summary>

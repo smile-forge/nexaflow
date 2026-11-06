@@ -208,6 +208,22 @@ public class ModelPlacementTests
     }
 
     [TestMethod]
+    public void ALanguageModelHoldingPartialState_KeepsSavesOfIt_InThisMachinesMemory_WhereverItRuns()
+    {
+        var hybrid = Gemma() with { StateBytes = 50 << 20 };
+
+        var onCard = Placed(ModelPlacement.Plan([Gpu(0, 22)], [hybrid]), "gemma");
+        Assert.AreEqual((0, ModelPlacement.Checkpoints), (onCard.Device, onCard.Checkpoints));
+        Assert.AreEqual(ModelPlacement.Checkpoints * (50L << 20), onCard.HostBytes, "wholly on its card, its saves are all it holds of the machine's memory");
+
+        var onCpu = Placed(ModelPlacement.Plan([], [hybrid], memoryBudget: 64 * GB), "gemma");
+        Assert.AreEqual(ModelPlacement.Checkpoints, onCpu.Checkpoints);
+        Assert.AreEqual(6 * GB + 18432L * onCpu.ContextTokens + ModelPlacement.Checkpoints * (50L << 20), onCpu.MemoryBytes, "counted with what it holds on the CPU");
+
+        Assert.AreEqual(0, Placed(ModelPlacement.Plan([Gpu(0, 22)], [Gemma()]), "gemma").Checkpoints, "a model that holds no such state keeps none");
+    }
+
+    [TestMethod]
     public void ACardWithRoomLeftOver_HasItsLanguageModelReadInLongerSteps_OnlyOnceItHasItsWholeContext()
     {
         var roomy = Placed(ModelPlacement.Plan([Gpu(0, 40)], [Large()]), "large");

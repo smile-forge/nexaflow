@@ -33,13 +33,17 @@ namespace Nexaflow.AiHost.Contracts;
 /// <param name="BackgroundTokens">How long each conversation in that context may grow.</param>
 /// <param name="BackgroundBytes">What that context holds on <see cref="Device"/>: it is made only where that much is free.</param>
 /// <param name="HostBytes">What a model on a GPU holds in this machine's memory besides — the layers of a language model cut between
-/// the GPU and the CPU, and the context they keep — counted against the host's share of it (<see cref="HostMemory"/>); 0 for a
-/// model wholly where <see cref="Device"/> places it.</param>
+/// the GPU and the CPU, and the context they keep; the saves of its partial state (<see cref="Checkpoints"/>) — counted against the
+/// host's share of it (<see cref="HostMemory"/>); 0 for a model wholly where <see cref="Device"/> places it, keeping none.</param>
+/// <param name="Checkpoints">How many saves of a conversation's partial state a language model holding such state keeps — a recurrent
+/// layer's state, a sliding window's cells — each where a turn ends: what lets a conversation whose start a prompt shares be cut back
+/// to it and read on from there, rather than read again whole. Held in this machine's memory, and counted with
+/// <see cref="HostBytes"/>; 0 for none.</param>
 public sealed record ModelSpec(string Id, string Runner, string Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
                                IReadOnlyDictionary<string, string>? CudaOptions = null, string? Projector = null, int? Device = null,
                                int BatchTokens = ModelSpec.DefaultBatch, ContextCache ContextCache = ContextCache.F16, int? GpuLayers = null,
                                int Sequences = ModelSpec.DefaultSequences, int BackgroundSequences = 0, int BackgroundTokens = 0, long BackgroundBytes = 0,
-                               long HostBytes = 0)
+                               long HostBytes = 0, int Checkpoints = 0)
 {
     /// <summary>Whether <paramref name="other"/> runs the same model in the same place at the same size — a model held
     /// as one and asked for as the other is loaded again.</summary>
@@ -48,7 +52,7 @@ public sealed record ModelSpec(string Id, string Runner, string Folder, string? 
            && File == other.File && Folder == other.Folder && Projector == other.Projector
            && BatchTokens == other.BatchTokens && ContextCache == other.ContextCache && GpuLayers == other.GpuLayers && Sequences == other.Sequences
                       && BackgroundSequences == other.BackgroundSequences && BackgroundTokens == other.BackgroundTokens && BackgroundBytes == other.BackgroundBytes
-                      && HostBytes == other.HostBytes;
+                      && HostBytes == other.HostBytes && Checkpoints == other.Checkpoints;
 
     /// <summary>The sequences a language model's context holds where nothing gives it room for more: as many as the catalog's figures
     /// were measured holding.</summary>

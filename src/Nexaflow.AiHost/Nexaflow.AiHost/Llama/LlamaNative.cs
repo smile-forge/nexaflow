@@ -245,6 +245,31 @@ internal static unsafe partial class LlamaNative
     [LibraryImport(Llama, EntryPoint = "llama_memory_clear")]
     public static partial void MemoryClear(IntPtr memory, [MarshalAs(UnmanagedType.U1)] bool data);
 
+    [LibraryImport(Llama, EntryPoint = "llama_model_is_recurrent")]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool ModelIsRecurrent(IntPtr model);
+
+    [LibraryImport(Llama, EntryPoint = "llama_model_is_hybrid")]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool ModelIsHybrid(IntPtr model);
+
+    /// <summary>How many tokens back the model's sliding-window layers read; 0 where it has none.</summary>
+    [LibraryImport(Llama, EntryPoint = "llama_model_n_swa")]
+    public static partial int ModelSlidingWindow(IntPtr model);
+
+    /// <summary><c>LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY</c>: a sequence's state but for what its cells' positions say — a recurrent
+    /// layer's state, a sliding window's cells.</summary>
+    public const uint StatePartialOnly = 1;
+
+    [LibraryImport(Llama, EntryPoint = "llama_state_seq_get_size_ext")]
+    public static partial nuint StateSize(IntPtr context, int sequence, uint flags);
+
+    [LibraryImport(Llama, EntryPoint = "llama_state_seq_get_data_ext")]
+    public static partial nuint StateGet(IntPtr context, byte* destination, nuint size, int sequence, uint flags);
+
+    [LibraryImport(Llama, EntryPoint = "llama_state_seq_set_data_ext")]
+    public static partial nuint StateSet(IntPtr context, byte* source, nuint size, int sequence, uint flags);
+
     [LibraryImport(Llama, EntryPoint = "llama_vocab_n_tokens")]
     public static partial int VocabSize(IntPtr vocab);
 

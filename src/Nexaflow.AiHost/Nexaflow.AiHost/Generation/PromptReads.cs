@@ -98,7 +98,7 @@ internal sealed class PromptReads(LlamaContext context)
     {
         for (int i = 0; i < taken.Count; i++)
         {
-            taken[i].Conversation.ReadIn(taken[i].Tokens.Length, chosen[i]);
+            taken[i].Conversation.ReadIn(taken[i].Tokens.Span, chosen[i]);
             taken[i].Done.TrySetResult();
         }
     }

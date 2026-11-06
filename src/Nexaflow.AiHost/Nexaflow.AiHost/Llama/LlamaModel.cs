@@ -22,6 +22,7 @@ internal sealed unsafe class LlamaModel : IDisposable
         ChatTemplate = template is null ? null : Marshal.PtrToStringUTF8((IntPtr)template);
         BosText = TokenText(LlamaNative.VocabBos(Vocab));
         EosText = TokenText(LlamaNative.VocabEos(Vocab));
+        HoldsPartialState = LlamaNative.ModelIsRecurrent(model) || LlamaNative.ModelIsHybrid(model) || LlamaNative.ModelSlidingWindow(model) > 0;
     }
 
     public IntPtr Handle => _model != IntPtr.Zero ? _model : throw new ObjectDisposedException(nameof(LlamaModel));
@@ -40,6 +41,13 @@ internal sealed unsafe class LlamaModel : IDisposable
     public string BosText { get; }
 
     public string EosText { get; }
+
+    /// <summary>
+    /// Whether what a sequence holds is more than its cells, position by position: a recurrent layer's state, which every token
+    /// read changes, or a sliding window's cells, of which only the last window are kept. Such a sequence is cut back only to where
+    /// that state was saved (<see cref="LlamaContext.SavePartial"/>); any other is cut back anywhere.
+    /// </summary>
+    public bool HoldsPartialState { get; }
 
     /// <param name="device">The GPU it runs on, or null for the CPU.</param>
     /// <param name="gpuLayers">How many of its layers run on <paramref name="device"/>, the rest on the CPU; null for all of them.</param>

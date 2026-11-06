@@ -21,8 +21,11 @@ namespace Nexaflow.AiHost.Client;
 /// 0 where that is not known, and it holds that many.</param>
 /// <param name="BackgroundBytes">What its context for work nobody is watching holds while it is made; 0 where that is not known,
 /// and it has none.</param>
+/// <param name="StateBytes">What one save of a language model's partial state holds, for cutting a conversation back; 0 for a model
+/// that keeps none.</param>
 public sealed record PlacementNeed(ModelSpec OnGpu, ModelSpec? OnCpu = null, long BytesPerToken = 0, int ShortestContext = 0, int Layers = 0,
-                                   long WeightsBytes = 0, long BatchBytesPerToken = 0, long BytesPerSequence = 0, long BackgroundBytes = 0)
+                                   long WeightsBytes = 0, long BatchBytesPerToken = 0, long BytesPerSequence = 0, long BackgroundBytes = 0,
+                                   long StateBytes = 0)
 {
     public string Id => OnGpu.Id;
 
@@ -31,6 +34,12 @@ public sealed record PlacementNeed(ModelSpec OnGpu, ModelSpec? OnCpu = null, lon
 
     /// <summary>A language model, whose context can be shortened to fit.</summary>
     public bool HasContext => BytesPerToken > 0;
+
+    /// <summary>How many saves of its partial state it keeps: <see cref="ModelPlacement.Checkpoints"/> where it holds such state.</summary>
+    public int Checkpoints => HasContext && StateBytes > 0 ? ModelPlacement.Checkpoints : 0;
+
+    /// <summary>What those saves hold, in this machine's memory wherever the model runs.</summary>
+    public long CheckpointBytes => Checkpoints * StateBytes;
 
     /// <summary>What it holds on a GPU with <paramref name="context"/> tokens of context, <paramref name="layers"/> of its layers
     /// there — all of them, when null — reading <paramref name="batch"/> tokens a step, and holding <paramref name="sequences"/>. Cut,
@@ -137,6 +146,11 @@ public static class ModelPlacement
     /// wherever it is held, so its layers come before its length.</summary>
     public const int CutContext = 32768;
 
+    /// <summary>The saves of its partial state a language model holding such state keeps, all its conversations' together: two turns
+    /// back for each of the four it keeps — enough to cut back past an edited last turn, or a reply whose reasoning is left out of what
+    /// is answered.</summary>
+    public const int Checkpoints = 8;
+
     private sealed class Seat(PlacementNeed need, int device, int context)
     {
         public PlacementNeed Need { get; } = need;
@@ -153,7 +167,7 @@ public static class ModelPlacement
         /// it holds — it is made only while there is such work, and only where that room is free then.</summary>
         public bool Background { get; set; }
         public long Bytes => Need.BytesAt(Context, Layers, Batch, Sequences);
-        public long HostBytes => Need.HostBytesAt(Context, Layers);
+        public long HostBytes => Need.HostBytesAt(Context, Layers) + Need.CheckpointBytes;
         public long Spare => Need.HasContext && Layers is null ? Need.BytesPerToken * (Context - Need.ShortestContext) : 0;
     }
 
@@ -191,7 +205,7 @@ public static class ModelPlacement
         // What models cut between a GPU and the CPU keep in this machine's memory comes out of the share the CPU's models are given.
         var placed = CpuPlaced(onCpu, memoryBudget - seats.Sum(s => s.HostBytes));
         placed.AddRange(seats.Select(s => s.Need.OnGpu with { Device = s.Device, ContextTokens = s.Context, MemoryBytes = s.Bytes, BatchTokens = s.Batch,
-                                                              GpuLayers = s.Layers, Sequences = s.Sequences, HostBytes = s.HostBytes,
+                                                              GpuLayers = s.Layers, Sequences = s.Sequences, HostBytes = s.HostBytes, Checkpoints = s.Need.Checkpoints,
                                                               BackgroundSequences = s.Background ? BackgroundSequences : 0,
                                                               BackgroundTokens = s.Background ? BackgroundTokens : 0,
                                                               BackgroundBytes = s.Background ? s.Need.BackgroundBytes : 0 }));
@@ -250,7 +264,8 @@ public static class ModelPlacement
             if (need.HasContext)
             {
                 int context = Math.Max(need.ShortestContext, need.LongestOnCpuIn(left, build));
-                build = build with { ContextTokens = context, MemoryBytes = build.MemoryBytes + need.BytesPerToken * context };
+                build = build with { ContextTokens = context, MemoryBytes = build.MemoryBytes + need.BytesPerToken * context + need.CheckpointBytes,
+                Checkpoints = need.Checkpoints };
                 left -= build.MemoryBytes;
             }
             placed.Add(build);

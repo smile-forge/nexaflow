@@ -1,0 +1,50 @@
+{
+  "branch": "claude/small-gpu-model-support-debd62",
+  "nodes": {
+    "conversation-cut-back": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Generation/ConversationMatch.cs",
+          "class": "ConversationMatch",
+          "method": "CutPoint"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Generation/ConversationLog.cs",
+          "class": "ConversationLog",
+          "method": "TakeCutBackFor"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Generation/ConversationLog.cs",
+          "class": "LiveConversation",
+          "method": "CutBack"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/local-ai.md",
+          "title_path": [
+            "Local AI \u2014 voice conversation, on-device models, media generation",
+            "Architecture",
+            "The context as a log"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/CutBackModelTests.cs",
+            "class": "CutBackModelTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "conversation-cut-back"
+  ]
+}

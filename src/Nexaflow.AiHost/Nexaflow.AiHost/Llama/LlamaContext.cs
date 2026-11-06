@@ -35,8 +35,8 @@ internal sealed unsafe class LlamaContext : IDisposable
         parameters.MicroBatch = (uint)batch;
         parameters.MaxSequences = (uint)sequences;
         parameters.KvUnified = (byte)(perConversation ? 0 : 1);
-        // Sliding-window layers keep their window alone: a conversation is appended to or forgotten whole, never cut
-        // back, so nothing older than the window is read again — and a large Gemma 4 holds half the memory.
+        // Sliding-window layers keep their window alone — a large Gemma 4 holds half the memory. A conversation cut back is
+        // given its window again from where it was saved (SavePartial), so nothing older than the window is read again.
         parameters.SwaFull = 0;
         parameters.FlashAttention = cache == ContextCache.Q8 ? LlamaNative.FlashAttention.Enabled : LlamaNative.FlashAttention.Auto;
         if (cache == ContextCache.Q8) parameters.KeyType = parameters.ValueType = (int)LlamaNative.GgmlType.Q8_0;
@@ -50,6 +50,7 @@ internal sealed unsafe class LlamaContext : IDisposable
         Sequences = sequences;
         Batch = batch;
         PerConversation = perConversation;
+        HoldsPartialState = model.HoldsPartialState;
     }
 
     /// <summary>The tokens the cache holds, all sequences together.</summary>
@@ -65,6 +66,9 @@ internal sealed unsafe class LlamaContext : IDisposable
     /// numbers follow one another in the step, each with as many tokens as the others: a step that breaks that is read in several.
     /// </summary>
     public bool PerConversation { get; }
+
+    /// <summary>Whether a sequence is cut back only to where its partial state was saved — see <see cref="LlamaModel.HoldsPartialState"/>.</summary>
+    public bool HoldsPartialState { get; }
 
     /// <summary>Reads each of <paramref name="reads"/> into its sequence, all in one call — <see cref="Batch"/> tokens at most — and
     /// chooses, for each that asks, the token after its last by its sampler, into <paramref name="chosen"/> in the same order;
@@ -129,6 +133,36 @@ internal sealed unsafe class LlamaContext : IDisposable
     {
         lock (_gate)
             if (_context != IntPtr.Zero) LlamaNative.MemoryRemove(_memory, sequence, from, to);
+    }
+
+    /// <summary>What sequence <paramref name="sequence"/> holds as of now beyond its cells — a recurrent layer's state, a sliding
+    /// window's cells — which a conversation cut back to here is given again (<see cref="CutBack"/>).</summary>
+    public byte[] SavePartial(int sequence)
+    {
+        lock (_gate)
+        {
+            nuint size = LlamaNative.StateSize(Handle, sequence, LlamaNative.StatePartialOnly);
+            var state = new byte[(int)size];
+            fixed (byte* bytes = state)
+                if (LlamaNative.StateGet(Handle, bytes, size, sequence, LlamaNative.StatePartialOnly) != size)
+                    throw new HostRequestException(HostErrorKind.Runtime, "llama.cpp did not give a sequence's state; see the host's log.");
+            return state;
+        }
+    }
+
+    /// <summary>Cuts sequence <paramref name="sequence"/> back to what it held before position <paramref name="from"/>: given
+    /// <paramref name="partial"/> again first — what <see cref="SavePartial"/> saved at that position — where it holds partial state.
+    /// False where llama.cpp would not, and the sequence is no longer what it was nor what was asked: it is to be forgotten.</summary>
+    public bool CutBack(int sequence, int from, byte[]? partial)
+    {
+        lock (_gate)
+        {
+            if (partial is not null)
+                fixed (byte* bytes = partial)
+                    if (LlamaNative.StateSet(Handle, bytes, (nuint)partial.Length, sequence, LlamaNative.StatePartialOnly) != (nuint)partial.Length)
+                        return false;
+            return LlamaNative.MemoryRemove(_memory, sequence, from, -1);
+        }
     }
 
     /// <summary>Has sequence <paramref name="to"/> hold the first <paramref name="tokens"/> of what <paramref name="from"/> has read, as
