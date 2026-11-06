@@ -31,6 +31,8 @@ public class RealHostTests
 
         public IAiHostProcess Start(string pipeName, string token, AiHostEnvironment environment)
             => Process = inner.Start(pipeName, token, environment);
+
+        public HostMemory Memory => inner.Memory;
     }
 
     [TestMethod]

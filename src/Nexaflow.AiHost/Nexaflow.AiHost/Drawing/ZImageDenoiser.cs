@@ -9,7 +9,7 @@ namespace Nexaflow.AiHost.Drawing;
 /// One denoising step: the picture's patch tokens and the padded prompt in, the velocity the sampler steps along out —
 /// in the tokens' layout (<see cref="ZImageSampler"/>).
 /// </summary>
-internal sealed class ZImageDenoiser(ModelSpec spec, InferenceSession session) : IHostModel
+internal sealed class ZImageDenoiser(ModelSpec spec, IGraph graph) : IHostModel
 {
     private static readonly string[] Inputs = ["image_tokens", "image_positions", "caption", "caption_padding", "caption_positions", "timestep"];
 
@@ -29,11 +29,11 @@ internal sealed class ZImageDenoiser(ModelSpec spec, InferenceSession session) :
         using var captionPositions = OrtValue.CreateTensorValueFromMemory(promptPositions, [rows, 3]);
         using var step = OrtValue.CreateTensorValueFromMemory(new[] { timestep }, [1]);
         using var run = lastStep ? GraphSessions.Releasing(Spec) : new RunOptions();
-        using var outputs = session.Run(run, Inputs, [image, positions, captionValue, padding, captionPositions, step], session.OutputNames);
+        using var outputs = graph.Run(run, Inputs, [image, positions, captionValue, padding, captionPositions, step], graph.OutputNames);
         return outputs[0].GetTensorDataAsSpan<float>().ToArray();
     }
 
-    public void Dispose() => session.Dispose();
+    public void Dispose() => graph.Dispose();
 }
 
 internal sealed class ZImageDenoiserRunner : IModelRunner
@@ -42,7 +42,7 @@ internal sealed class ZImageDenoiserRunner : IModelRunner
 
     public IHostModel Load(ModelSpec spec)
     {
-        var denoiser = new ZImageDenoiser(spec, GraphSessions.Open(spec));
+        var denoiser = new ZImageDenoiser(spec, GraphSessions.OpenGraph(spec));
         try
         {
             // One step at the common size, so CUDA tunes its kernels at load rather than on somebody's first picture.

@@ -136,7 +136,7 @@ internal sealed class ChatModel : IHostModel
     {
         if (spec.File is null) throw new HostRequestException(HostErrorKind.Invalid, $"{spec.Id} names no GGUF to load.");
         IntPtr? device = spec.Device is { } number ? LlamaBackends.Gpus[number].Device : null;
-        var model = LlamaModel.Load(Path.Combine(spec.Folder, spec.File), device, spec.GpuLayers);
+        var model = LlamaModel.Load(Path.Combine(spec.Folder, spec.File), device, spec.GpuLayers, spec.ExpertsInHost);
         MediaProjector? projector = null;
         try
         {

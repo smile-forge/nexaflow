@@ -13,4 +13,7 @@ public interface IAiHost
 
     /// <inheritdoc cref="AiHostClient.Environment"/>
     AiHostEnvironment Environment { get; set; }
+
+    /// <inheritdoc cref="AiHostClient.Memory"/>
+    HostMemory Memory { get; }
 }

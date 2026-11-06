@@ -152,6 +152,21 @@ public class ModelRegistryTests
         CollectionAssert.AreEqual(new[] { "busy", "more" }, runner.Loads.ToArray(), "the share is kept by letting idle models go, never by refusing one");
     }
 
+    [TestMethod]
+    public async Task AModelCutBetweenAGpuAndTheCpu_HasIdleModelsOnTheCpuMakeWayForItsCpuLayers()
+    {
+        var (registry, runner) = Registry(new HostMemory(16 * GB, 5 * GB));
+        using (await registry.AcquireAsync(Spec("speech", 3, device: null), resident: false, Quiet, default)) { }
+
+        using (await registry.AcquireAsync(Spec("whole", 4, device: 0), resident: false, Quiet, default)) { }
+        Assert.AreEqual(2, runner.Loads.Count, "a model wholly on a GPU holds nothing of the machine's memory share");
+
+        using var cut = await registry.AcquireAsync(Spec("cut", 4, device: 0) with { HostBytes = 3 * GB }, resident: false, Quiet, default);
+        using var speech = await registry.AcquireAsync(Spec("speech", 3, device: null), resident: false, Quiet, default);
+        CollectionAssert.AreEqual(new[] { "speech", "whole", "cut", "speech" }, runner.Loads.ToArray(),
+                                  "the cut model's CPU layers took the share, so speech made way for them and was loaded again, past it, while they are in use");
+    }
+
     private static async Task WaitFor(Func<bool> condition)
     {
         for (int i = 0; i < 200 && !condition(); i++) await Task.Delay(25);

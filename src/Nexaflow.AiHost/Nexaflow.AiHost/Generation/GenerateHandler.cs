@@ -47,10 +47,15 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
             }
             else
             {
-                conversation?.Dispose();
-                conversation = lane.Conversations.Start();
-                conversation.Sampler = sampler;
-                read = await ReadAsync(model, lane, conversation, prompt, media, request.Priority, ct);
+            // Not continued as its turns now render — an edited turn, reasoning the template leaves out of what was answered — it may
+            // still hold this prompt's start, and be cut back to it.
+            if (conversation is not null) lane.Conversations.Keep(conversation);
+            using var prepared = model.Prepare(prompt, [.. media.Select(Bytes)]);
+            conversation = prepared.Pieces is [{ IsText: true, Tokens: { } tokens }] ? lane.Conversations.TakeCutBackFor(tokens) : null;
+            int held = conversation?.Length ?? 0;
+            conversation ??= lane.Conversations.Start();
+            conversation.Sampler = sampler;
+            read = await ReadAsync(model, lane, conversation, prepared, held, request.Priority, ct);
             }
             conversation.Prompted(prompt);
             if (request.Decoding?.WrittenWindow is { } window) conversation.KeepWritten(window);
@@ -77,19 +82,26 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
         => ConversationMatch.Delta(conversation.Read, conversation.Prompt, conversation.StoppedAt, turns,
                                    (t, generationPrompt) => ChatPrompt.Render(model, t, generationPrompt, tools, thinks));
 
-    /// <summary>Reads <paramref name="text"/> into the conversation — its text in slices, read with whatever else is being
-    /// read (<see cref="PromptReads"/>), each medium whole in a step of its own — and chooses the first token of the reply with
-    /// the last. A conversation started afresh with a prompt of text alone begins with the opening it shares with prompts read
-    /// lately, where there is one (<see cref="ConversationLog.OpeningFor"/>), and reads only what follows it. Returns the tokens
-    /// read.</summary>
+    /// <summary>Reads <paramref name="text"/> into the conversation — see the overload that reads a prepared prompt.</summary>
     private async Task<int> ReadAsync(ChatModel model, ChatLane lane, LiveConversation conversation, string text, IReadOnlyList<ChatMedia> media,
                                       RequestPriority priority, CancellationToken ct)
     {
         using var prompt = model.Prepare(text, [.. media.Select(Bytes)]);
+        return await ReadAsync(model, lane, conversation, prompt, held: 0, priority, ct);
+    }
+
+    /// <summary>Reads <paramref name="prompt"/> into the conversation — its text in slices, read with whatever else is being read
+    /// (<see cref="PromptReads"/>), each medium whole in a step of its own — and chooses the first token of the reply with the last.
+    /// A conversation that already holds the start of it, <paramref name="held"/> tokens, cut back to them, reads only what follows;
+    /// one started afresh with a prompt of text alone begins with the opening it shares with prompts read lately, where there is one
+    /// (<see cref="ConversationLog.OpeningFor"/>), and reads only what follows that. Returns the tokens read.</summary>
+    private async Task<int> ReadAsync(ChatModel model, ChatLane lane, LiveConversation conversation, PreparedPrompt prompt, int held,
+                                      RequestPriority priority, CancellationToken ct)
+    {
         var pieces = prompt.Pieces;
 
-        int opened = 0;
-        if (conversation.Length == 0 && pieces is [{ IsText: true, Tokens: { } all }] && lane.Conversations.OpeningFor(all) is { } opening
+        int opened = held;
+        if (held == 0 && conversation.Length == 0 && pieces is [{ IsText: true, Tokens: { } all }] && lane.Conversations.OpeningFor(all) is { } opening
             && await OpenedAsync(model, lane, opening, priority, ct) && lane.Conversations.Open(conversation, opening))
             opened = opening.Tokens.Length;
         await lane.Conversations.MakeRoomAsync(conversation, prompt.Tokens - opened, ct);
@@ -114,17 +126,33 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
     }
 
     /// <summary>Reads <paramref name="tokens"/> into the conversation in slices, read with whatever else is being read, choosing
-    /// the token after the last where <paramref name="sample"/>.</summary>
+    /// the token after the last where <paramref name="sample"/>. Where its lane keeps saves of partial state, a slice ends with each
+    /// token that ends a turn, and the conversation's state is saved there and where the prompt ends — the places a later prompt
+    /// is likeliest to part from it (<see cref="ConversationLog.Checkpoint"/>); an opening's holder, never continued, saves none.</summary>
     private async Task ReadTextAsync(ChatModel model, ChatLane lane, LiveConversation conversation, ReadOnlyMemory<int> tokens, bool sample,
-                                     RequestPriority priority, CancellationToken ct)
+                                     RequestPriority priority, CancellationToken ct, bool checkpoints = true)
     {
-        for (int at = 0; at < tokens.Length; at += lane.Context.Batch)
+        bool saving = checkpoints && lane.Checkpoints > 0;
+        for (int at = 0; at < tokens.Length;)
         {
             int count = Math.Min(lane.Context.Batch, tokens.Length - at);
+            int turnEnd = saving ? TurnEnd(model, tokens.Span, at, at + count) : -1;
+            if (turnEnd > 0) count = turnEnd - at;
             ct.ThrowIfCancellationRequested();
             await lane.Prompts.ReadAsync(conversation, tokens.Slice(at, count), sample && at + count == tokens.Length,
                                          async () => await gpu.NextAsync(priority, model.Spec.Device, ct));
+            at += count;
+            if (turnEnd > 0 || saving && sample && at == tokens.Length) lane.Conversations.Checkpoint(conversation);
         }
+    }
+
+    /// <summary>Where in <paramref name="tokens"/> from <paramref name="from"/> up to <paramref name="to"/> the first turn ends — the
+    /// index after the token that ends it; -1 where none does.</summary>
+    private static int TurnEnd(ChatModel model, ReadOnlySpan<int> tokens, int from, int to)
+    {
+        for (int i = from; i < to; i++)
+            if (model.Model.EndsTurn(tokens[i])) return i + 1;
+        return -1;
     }
 
     /// <summary>Whether <paramref name="opening"/> is read and can be begun with: read here by the request that claims it, waited
@@ -135,7 +163,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
         try
         {
             await lane.Conversations.MakeRoomAsync(opening.Holder, opening.Tokens.Length, ct);
-            await ReadTextAsync(model, lane, opening.Holder, opening.Tokens, sample: false, priority, ct);
+            await ReadTextAsync(model, lane, opening.Holder, opening.Tokens, sample: false, priority, ct, checkpoints: false);
             opening.Ready.TrySetResult(true);
             return true;
         }

@@ -7,6 +7,7 @@ using Nexaflow.Tests.Providers.Support;
 using System.Buffers.Binary;
 using System.IO.Compression;
 using Nexaflow.IO.Common.Imaging;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Providers;
 
@@ -44,6 +45,22 @@ public class OwnedImageGenerationProviderTests
         Assert.AreEqual((0, false), (provider.MaxSources, provider.Masks));
         Assert.IsFalse(provider.IsAvailable, "not until its files are here");
         Assert.IsTrue(Provider(new FakeModelStore(Files), new FakeAiHost()).IsAvailable);
+    }
+
+    /// <summary>Each card's budget and the models it is offered, each part whole where the budget holds it and else as its lighter
+    /// build — a denoiser streamed, a prompt encoder on the CPU.</summary>
+    [TestMethod]
+    [CoversNode("owned-images-streamed")]
+    [DataRow(8, new string[0])]
+    [DataRow(10, new[] { "z-image-turbo", "moss-image", "flux2-klein-4b" })]
+    [DataRow(12, new[] { "z-image-turbo", "moss-image", "flux2-klein-4b" })]
+    [DataRow(16, new[] { "z-image-turbo", "hidream-o1-image", "moss-image", "flux2-klein-4b" })]
+    public void EachCard_ListsThePictureModelsItHolds(int gigabytes, string[] listed)
+    {
+        var card = new ComputeHardwareReport([new ComputeAdapter("gpu", ComputeVendor.Nvidia, (long)gigabytes << 30, IsIntegrated: false, IsNpu: false)], CudaRuntimePack.MinimumDriver);
+        var provider = new OwnedImageGenerationProvider(new FakeActivityManager(), new FakeModelStore(), new FakeAiHost(), new HostModelSetup(new FakeAiHost()), card, new ProviderModel(ModelId));
+
+        CollectionAssert.AreEqual(listed, provider.Catalog.Select(m => m.Id).ToArray());
     }
 
     [TestMethod]

@@ -170,14 +170,28 @@ public class OwnedVideoGenerationProviderTests
     }
 
     [TestMethod]
-    public async Task OnAGpuTooSmallForTheDecoder_NoClipIsMade()
+    public async Task OnAGpuTooSmallForTheDecoderEvenInTiles_NoClipIsMade()
     {
-        var host = new FakeAiHost { Gpus = [new HostGpu(0, "NVIDIA GeForce RTX 4080", null, 16L << 30, 14L << 30, 15L << 30)] };
+        var host = new FakeAiHost { Gpus = [new HostGpu(0, "NVIDIA GeForce RTX 4060", null, 8L << 30, 5L << 30, 6L << 30)] };
 
         var ex = await Assert.ThrowsExactlyAsync<LlmProviderException>(() =>
             Provider(FastWan, Here(), host).GenerateVideoAsync(new VideoGenerationRequest("a fox", new MediaAspect(1280, 704), 5)));
 
         StringAssert.Contains(ex.Message, "needs a GPU with");
         Assert.AreEqual(0, host.Requests.Count, "nothing is asked of a host that could not hold it");
+    }
+
+    [TestMethod]
+    public async Task OnA10GbCard_AClipIsMade_ItsPromptReadOnTheCpu_ItsDenoiserStreamed_ItsDecoderInTiles()
+    {
+        var host = Filming(new Filmed(0, [1]));
+        host.Gpus = [new HostGpu(0, "NVIDIA GeForce RTX 3080", null, 10L << 30, (10L << 30) - (5L << 29), 9L << 30)];
+
+        await Provider(FastWan, Here(), host).GenerateVideoAsync(new VideoGenerationRequest("a fox", new MediaAspect(1280, 704), 5));
+
+        var parts = ((Film)host.Requests.Single()).Model.Parts;
+        Assert.IsNull(parts[FilmingParts.PromptEncoder].Device, "its prompt read on the CPU: the card's budget does not hold the encoder");
+        Assert.AreEqual((0, "denoiser.stream.json"), (parts[FilmingParts.Denoiser].Device, parts[FilmingParts.Denoiser].File), "its denoiser streamed");
+        Assert.AreEqual((0, 16), (parts[FilmingParts.Decoder].Device, parts[FilmingParts.Decoder].TileCells), "its decoder in tiles");
     }
 }

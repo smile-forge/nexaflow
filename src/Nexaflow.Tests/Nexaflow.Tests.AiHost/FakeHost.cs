@@ -130,4 +130,6 @@ internal sealed class FakeHost : IAiHostLauncher
 
         public void Dispose() => _kill.Dispose();
     }
+
+    public HostMemory Memory => HostMemory.Unbounded;
 }

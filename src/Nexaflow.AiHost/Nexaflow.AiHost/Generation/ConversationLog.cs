@@ -80,6 +80,55 @@ internal sealed class ConversationLog : IDisposable
         }
     }
 
+    /// <summary>
+    /// Takes the kept conversation that shares the longest start with <paramref name="prompt"/>, cut back to it — where that start is
+    /// long enough to be worth more than reading it again (<see cref="ShortestOpening"/>), and the conversation can be cut there:
+    /// anywhere, for a model whose sequences are their cells; where a turn ended and its partial state was saved
+    /// (<see cref="Checkpoint"/>), for one holding more. Null where none shares enough; one that llama.cpp would not cut back is let go.
+    /// </summary>
+    public LiveConversation? TakeCutBackFor(int[] prompt)
+    {
+        if (_lane.PerConversation) return null;
+        lock (_gate)
+        {
+            LinkedListNode<LiveConversation>? nearest = null;
+            int point = 0;
+            for (var node = _kept.First; node is not null; node = node.Next)
+                if (node.Value.CutPointFor(prompt) is var at && at > point)
+                {
+                    nearest = node;
+                    point = at;
+                }
+            if (nearest is null) return null;
+            _kept.Remove(nearest);
+            if (nearest.Value.CutBack(point)) return nearest.Value;
+            nearest.Value.Dispose();
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Saves <paramref name="conversation"/>'s partial state where it stands — at the end of a turn it has read — so it can be cut back
+    /// to here, where its lane keeps such saves (<see cref="ChatLane.Checkpoints"/>). Past as many as the lane keeps, the earliest of the
+    /// least recently used kept conversation's go first, then those of the conversations being answered, this one's last.
+    /// </summary>
+    public void Checkpoint(LiveConversation conversation)
+    {
+        if (_lane.Checkpoints == 0 || !conversation.CutsBack) return;
+        var state = _lane.Context.SavePartial(conversation.Sequence);
+        lock (_gate)
+        {
+            conversation.Checkpoint(state);
+            int saved = _live.Sum(c => c.Checkpoints);
+            foreach (var holder in _kept.Reverse().Concat(_live.Except(_kept).Where(c => c != conversation)).Append(conversation))
+                while (saved > _lane.Checkpoints && holder.Checkpoints > 0)
+                {
+                    holder.DropEarliestCheckpoint();
+                    saved--;
+                }
+        }
+    }
+
     /// <summary>Keeps a conversation for the next request, as the most recently used.</summary>
     public void Keep(LiveConversation conversation)
     {
@@ -399,6 +448,16 @@ internal sealed class LiveConversation : IDisposable
     private int? _window;
     private int _promptEnd, _written;
 
+    /// <summary>Every token it has read, in order, up to the first medium — whose positions are not tokens; what a prompt is matched
+    /// against to cut it back (<see cref="CutPointFor"/>).</summary>
+    private readonly List<int> _history = [];
+    private bool _mediumRead;
+    /// <summary>The token <see cref="Readying"/> gave, read once <see cref="Advanced"/> says so.</summary>
+    private int _readying = -1;
+    /// <summary>Its partial state as saved at each position, for a model that holds such state (<see cref="LlamaContext.HoldsPartialState"/>):
+    /// where it may be cut back to. Changed only under its log's gate.</summary>
+    private readonly SortedList<int, byte[]> _checkpoints = [];
+
     public LiveConversation(LlamaContext context, int sequence, Action<LiveConversation> release)
     {
         _context = context;
@@ -440,6 +499,7 @@ internal sealed class LiveConversation : IDisposable
         opening.Lend();
         Opening = opening;
         Positions = opening.Tokens.Length;
+        _history.AddRange(opening.Tokens);
     }
 
     /// <summary>The position its next token is read at.</summary>
@@ -466,18 +526,20 @@ internal sealed class LiveConversation : IDisposable
     /// the last when <paramref name="sample"/>.</summary>
     public SequenceRead Reading(ReadOnlyMemory<int> tokens, bool sample) => new(Sequence, Positions, tokens, sample, Sampler);
 
-    /// <summary>What <see cref="Reading"/> gave, <paramref name="count"/> tokens, has been read, and <paramref name="next"/> chosen
-    /// after it — -1 where it was not asked for.</summary>
-    public void ReadIn(int count, int next)
+    /// <summary>What <see cref="Reading"/> gave, <paramref name="tokens"/>, has been read, and <paramref name="next"/> chosen after it
+    /// — -1 where it was not asked for.</summary>
+    public void ReadIn(ReadOnlySpan<int> tokens, int next)
     {
-        Tokens += count;
-        Positions += count;
+        Tokens += tokens.Length;
+        Positions += tokens.Length;
+        if (!_mediumRead) _history.AddRange(tokens);
         if (next >= 0) Next = next;
     }
 
     /// <summary>Reads a medium through the model's projector.</summary>
     public void ReadMedium(MediaProjector projector, PromptPiece piece, bool sample)
     {
+        _mediumRead = true;
         Positions = projector.Read(_context, piece, Sequence, Positions, sample, out var next, Sampler);
         Tokens += piece.TokenCount;
         if (next is { } chosen) Next = chosen;
@@ -493,6 +555,7 @@ internal sealed class LiveConversation : IDisposable
             _context.Forget(Sequence, oldest, oldest + 1);
             Tokens--;
         }
+        _readying = token;
         return new SequenceRead(Sequence, Positions, new[] { token }, Sample: true, Sampler);
     }
 
@@ -502,6 +565,7 @@ internal sealed class LiveConversation : IDisposable
         Tokens++;
         Positions++;
         _written++;
+        if (!_mediumRead) _history.Add(_readying);
         Next = next;
     }
 
@@ -518,6 +582,47 @@ internal sealed class LiveConversation : IDisposable
     /// <summary>Whether it forgets what it writes, and so holds a context nobody can continue.</summary>
     public bool Forgets => _window is not null;
 
+    /// <summary>Whether it can be cut back: it has read text alone, every token of it as read, and forgets nothing it writes.</summary>
+    public bool CutsBack => !_mediumRead && _window is null && _history.Count == Positions;
+
+    /// <summary>Where it may be cut back to for <paramref name="prompt"/> to be read from there; 0 where it may not, or not usefully —
+    /// see <see cref="ConversationMatch.CutPoint"/>. Called under its log's gate.</summary>
+    public int CutPointFor(int[] prompt)
+        => CutsBack ? ConversationMatch.CutPoint(_history, prompt, _context.HoldsPartialState ? _checkpoints.Keys : null,
+                                                 Opening?.Tokens.Length ?? 0, ConversationLog.ShortestOpening)
+                    : 0;
+
+    /// <summary>The positions its partial state is saved at.</summary>
+    public int Checkpoints => _checkpoints.Count;
+
+    /// <summary>Keeps <paramref name="state"/> — its partial state as <see cref="LlamaContext.SavePartial"/> saved it, at its position
+    /// now. Called under its log's gate.</summary>
+    public void Checkpoint(byte[] state) => _checkpoints[Positions] = state;
+
+    /// <summary>Lets go of the partial state saved earliest. Called under its log's gate.</summary>
+    public void DropEarliestCheckpoint() => _checkpoints.RemoveAt(0);
+
+    /// <summary>
+    /// Cuts it back to <paramref name="point"/> — a position <see cref="CutPointFor"/> gave — its cells after that forgotten and, for
+    /// a model holding partial state, that state given again as saved there; what it was asked and answered is forgotten with them,
+    /// and only a read from <paramref name="point"/> on continues it. False where llama.cpp would not, and it is to be let go. Called
+    /// under its log's gate.
+    /// </summary>
+    public bool CutBack(int point)
+    {
+        byte[]? partial = null;
+        if (_context.HoldsPartialState && !_checkpoints.TryGetValue(point, out partial)) return false;
+        if (!_context.CutBack(Sequence, point, partial)) return false;
+        Tokens -= Positions - point;
+        Positions = point;
+        _history.RemoveRange(point, _history.Count - point);
+        while (_checkpoints.Count > 0 && _checkpoints.Keys[^1] > point) _checkpoints.RemoveAt(_checkpoints.Count - 1);
+        Read = [];
+        Prompt = "";
+        StoppedAt = "";
+        return true;
+    }
+
     /// <summary>The prompt now read in full, before its reply is generated.</summary>
     public void Prompted(string prompt) => Prompt = prompt;
 
@@ -531,6 +636,7 @@ internal sealed class LiveConversation : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _checkpoints.Clear();
         _context.Forget(Sequence);
         _release(this);
     }

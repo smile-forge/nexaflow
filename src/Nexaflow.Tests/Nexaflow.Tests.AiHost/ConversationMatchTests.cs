@@ -111,4 +111,45 @@ public class ConversationMatchTests
         Assert.IsNull(ConversationMatch.Delta(read, Gemma(read[..2], true), "", [.. read, User("And Germany?")], Gemma),
                       "a reply that stopped on no token, cut short, is not continued");
     }
+
+    private static int[] Run(int from, int count) => [.. Enumerable.Range(from, count)];
+
+    [TestMethod]
+    public void APromptPartingFromWhatWasRead_CutsAModelOfCellsAloneBackToWhereTheyPart()
+    {
+        int[] history = [.. Run(0, 600), .. Run(10_000, 50)];
+        int[] prompt = [.. Run(0, 600), .. Run(20_000, 30)];
+
+        Assert.AreEqual(600, ConversationMatch.CutPoint(history, prompt, checkpoints: null, floor: 0, shortest: 256));
+    }
+
+    [TestMethod]
+    public void AModelHoldingPartialState_IsCutBackToTheDeepestSaveBeforeTheyPart()
+    {
+        int[] history = [.. Run(0, 600), .. Run(10_000, 50)];
+        int[] prompt = [.. Run(0, 600), .. Run(20_000, 30)];
+
+        Assert.AreEqual(420, ConversationMatch.CutPoint(history, prompt, [120, 420, 640], floor: 0, shortest: 256),
+                        "640 lies past where they part; 420 is the deepest before");
+        Assert.AreEqual(0, ConversationMatch.CutPoint(history, prompt, [120, 640], floor: 0, shortest: 256),
+                        "a save at 120 keeps too little to be worth more than reading it again");
+    }
+
+    [TestMethod]
+    public void APromptThatIsWhatWasRead_IsCutBackByItsLastToken_WhichTheReplyIsChosenFrom()
+    {
+        int[] history = Run(0, 600);
+
+        Assert.AreEqual(599, ConversationMatch.CutPoint(history, Run(0, 600), checkpoints: null, floor: 0, shortest: 256));
+    }
+
+    [TestMethod]
+    public void AConversation_IsNeverCutBackIntoTheOpeningWhoseCellsItShares()
+    {
+        int[] history = [.. Run(0, 600), .. Run(10_000, 50)];
+        int[] prompt = [.. Run(0, 400), .. Run(20_000, 30)];
+
+        Assert.AreEqual(0, ConversationMatch.CutPoint(history, prompt, checkpoints: null, floor: 500, shortest: 256));
+        Assert.AreEqual(400, ConversationMatch.CutPoint(history, prompt, checkpoints: null, floor: 300, shortest: 256));
+    }
 }

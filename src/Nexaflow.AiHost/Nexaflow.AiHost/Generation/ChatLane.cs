@@ -15,7 +15,11 @@ internal sealed class ChatLane : IDisposable
 {
     public ChatLane(ChatModel model, int contextTokens, int sequences, int batch, bool perConversation)
     {
-        Context = new LlamaContext(model.Model, contextTokens, sequences, batch, model.Spec.ContextCache, perConversation);
+        // Its own lane holds the expert cache its spec gives; the lane for work nobody is watching is made only beside a model wholly on
+        // its GPU, which keeps none.
+        Context = new LlamaContext(model.Model, contextTokens, sequences, batch, model.Spec.ContextCache, perConversation,
+                                   perConversation ? 0 : model.Spec.ExpertCacheBytes);
+        Checkpoints = perConversation || !Context.HoldsPartialState ? 0 : model.Spec.Checkpoints;
         try
         {
             Prompts = new PromptReads(Context);
@@ -44,6 +48,10 @@ internal sealed class ChatLane : IDisposable
 
     /// <summary>Whether each conversation has a slice of the cache of its own.</summary>
     public bool PerConversation => Context.PerConversation;
+
+    /// <summary>How many saves of its conversations' partial state it keeps, all of them together: none where its model holds no
+    /// such state, and cuts a conversation back anywhere, or where each conversation has a slice of its own, and none is kept.</summary>
+    public int Checkpoints { get; }
 
     /// <summary>The longest a conversation in it may grow: the whole cache where its conversations share it, each one's slice where
     /// they do not.</summary>

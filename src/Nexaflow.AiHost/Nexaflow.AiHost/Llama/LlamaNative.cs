@@ -155,6 +155,23 @@ internal static unsafe partial class LlamaNative
     [LibraryImport(GgmlBase, EntryPoint = "ggml_backend_dev_memory")]
     public static partial void DeviceMemory(IntPtr device, nuint* free, nuint* total);
 
+    /// <summary>The first device of <paramref name="kind"/> the loaded backends offer; zero where none does.</summary>
+    [LibraryImport(Ggml, EntryPoint = "ggml_backend_dev_by_type")]
+    public static partial IntPtr DeviceByType(DeviceKind kind);
+
+    /// <summary>The buffer type a device keeps tensors in.</summary>
+    [LibraryImport(GgmlBase, EntryPoint = "ggml_backend_dev_buffer_type")]
+    public static partial IntPtr DeviceBufferType(IntPtr device);
+
+    /// <summary><c>llama_model_tensor_buft_override</c>: the tensors whose names match <see cref="Pattern"/>, a regular expression, kept in
+    /// <see cref="BufferType"/> wherever their layer runs. An array of them ends with one whose pattern is null.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct TensorBufferTypeOverride
+    {
+        public IntPtr Pattern;
+        public IntPtr BufferType;
+    }
+
     /// <summary><c>ggml_backend_dev_props</c>: what a device is, and its memory as it stands.</summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct DeviceProps
@@ -244,6 +261,31 @@ internal static unsafe partial class LlamaNative
     /// <summary>Forgets everything the context has read, every sequence — a recurrent model's state with it.</summary>
     [LibraryImport(Llama, EntryPoint = "llama_memory_clear")]
     public static partial void MemoryClear(IntPtr memory, [MarshalAs(UnmanagedType.U1)] bool data);
+
+    [LibraryImport(Llama, EntryPoint = "llama_model_is_recurrent")]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool ModelIsRecurrent(IntPtr model);
+
+    [LibraryImport(Llama, EntryPoint = "llama_model_is_hybrid")]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool ModelIsHybrid(IntPtr model);
+
+    /// <summary>How many tokens back the model's sliding-window layers read; 0 where it has none.</summary>
+    [LibraryImport(Llama, EntryPoint = "llama_model_n_swa")]
+    public static partial int ModelSlidingWindow(IntPtr model);
+
+    /// <summary><c>LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY</c>: a sequence's state but for what its cells' positions say — a recurrent
+    /// layer's state, a sliding window's cells.</summary>
+    public const uint StatePartialOnly = 1;
+
+    [LibraryImport(Llama, EntryPoint = "llama_state_seq_get_size_ext")]
+    public static partial nuint StateSize(IntPtr context, int sequence, uint flags);
+
+    [LibraryImport(Llama, EntryPoint = "llama_state_seq_get_data_ext")]
+    public static partial nuint StateGet(IntPtr context, byte* destination, nuint size, int sequence, uint flags);
+
+    [LibraryImport(Llama, EntryPoint = "llama_state_seq_set_data_ext")]
+    public static partial nuint StateSet(IntPtr context, byte* source, nuint size, int sequence, uint flags);
 
     [LibraryImport(Llama, EntryPoint = "llama_vocab_n_tokens")]
     public static partial int VocabSize(IntPtr vocab);

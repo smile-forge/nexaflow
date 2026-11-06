@@ -134,6 +134,54 @@ with accented French and basic German, and native French with B2 German:
 | A CUDA pack | cuBLAS 13 (484 MB) + cuDNN 9 for CUDA 13 (407 MB), plus the CUDA provider and onnxruntime-genai's CUDA layer (183 MB) — about 1.1 GB |
 | TensorRT-RTX on Kokoro and Silero graphs | both rejected (an unsupported `Squeeze` kernel; an engine build failure) — **identically in a Windows-ML-only process**, so this is the provider's graph support, not the mix |
 
+### On a smaller card
+
+Measured on the RTX PRO 6000 with `tools/bench/Hold-GpuMemory.ps1` holding all but what a smaller card leaves free, so
+the host finds the budget that card gives it — 7.5 GiB for a 10 GB card. Its PCIe 5 link copies 28 GB/s from pinned memory;
+a PCIe 4 machine copies about half that.
+
+- **Mixtures of experts**: the table under *Models*. Kept in this machine's memory, Gemma 4 26B's and Qwen 3.6's experts
+  leave 2.4 and 2.9 GB on the card; at the 10 GB card's own seat — 32k of context, eight conversations — Qwen 3.6 peaks
+  at 3.6 GB and Gemma 4 26B at 7.3 GB.
+- **A conversation cut back** (Qwen 3.5 9B, on the CPU): a save of its recurrent state is 53 MB, saved in 8 ms and given
+  back in 3 ms; an edited turn reads in 0.4 s where its whole prompt takes 4.6 s, scoring exactly as a whole re-read.
+  A save is 66 MB on Qwen 3.6 and 111 MB on Gemma 4 26B, its sliding window in 8 bits.
+- **A denoiser streamed** (Z-Image, 1024², one step): the graph cut at its narrowest points into 12 groups of about
+  560 MB of 8-bit weights each, the weights left where the build put them and read into pinned memory once, each group's
+  copied to the card on a stream of its own while the group before runs, all of them sharing one arena:
+
+  | | a step | the card holds at its peak |
+  |---|---|---|
+  | whole | 244 ms | 9.1 GB |
+  | streamed | 308 ms | 4.2 GB |
+  | streamed, each group's arena given back after it | 370 ms | 3.9 GB |
+
+  The scores it gives are the whole graph's to fp16 rounding (relative difference 3 × 10⁻⁵).
+- **A picture decoded in tiles** (Z-Image's decoder, 1536², a smooth latent standing for a picture's): tiles that overlap
+  by an eighth, blended across it.
+
+  | | takes | the card holds | against whole |
+  |---|---|---|---|
+  | whole | 0.49 s | 7.7 GB | |
+  | tiles of 96 | 0.58 s | 2.8 GB | 40.1 dB |
+  | tiles of 64 | 0.41 s | 1.4 GB | 37.5 dB |
+
+- **A clip decoded in tiles** (Wan's decoder, 1280 × 704, six latent frames): each tile a decoding of its own, with its own
+  causal cache, agrees with the whole to 41–46 dB, but the caches every tile keeps for the whole clip, more of them than the
+  whole frame's where the tiles overlap, hold the card at 11–13 GB whatever the tile's size: tiles fit a small card only
+  with each one's caches kept in pinned memory between its calls.
+- **Prompt encoders on the CPU** (8 of the 16 cores, a 60-token prompt): every encoder graph runs on the CPU as built,
+  slowly; its 8-bit products read with 8-bit inputs (`accuracy_level` 4 — the graph's own file rewritten, its weights
+  untouched) are fifty times faster:
+
+  | | as built | `accuracy_level` 4 | against as built |
+  |---|---|---|---|
+  | Z-Image (Qwen3 4B) | 16.6 s | 0.32 s | worst row's cosine 0.9995 |
+  | Wan (UMT5-XXL) | 15.5 s | 0.33 s | worst row's cosine 0.937 — to be checked in a clip before it is used |
+  | Klein (Qwen3) | 10.9 s | | |
+  | Qwen-Image-Edit (Qwen2.5-VL 7B) | 11.4 s | | |
+  | MOSS (Qwen 3.5 9B, Q8_0 GGUF on llama.cpp) | 3.3 s | | |
+
 ### Foundry Local — evaluated, not adopted
 
 [Foundry Local](https://www.nuget.org/packages/Microsoft.AI.Foundry.Local) is Microsoft's on-device model runtime:
@@ -353,13 +401,15 @@ read from its GGUF header: 256k for most, 128k for Gemma 4 E4B, 16k for Phi-4 �
 where there is not, in steps of 1,024 tokens down to 8k; its catalog entry gives what it
 holds with no context and what each token adds, measured as 16-bit values and held in 8 (34 bytes for every 64, which on
 Gemma 4 26B is 3 GB less at 256k, with nothing a reply shows). A model short of room takes it from those contexts; a language
-model that still has none runs cut between the GPU with the most room and the CPU — its layers' share of its weights and
+model that still has none and is a mixture of experts keeps its routed experts in this machine's memory and the rest on the
+GPU with the most room, at a 32k context, where that rest fits there (the table under *Models*); one that still has none runs
+cut between the GPU with the most room and the CPU — its layers' share of its weights and
 context on the GPU, everything else whole there, its context 32k — where at least half of its layers fit there: Gemma 4 26B
-writes 33 tokens/s with 20 of its 30 layers on a GPU, against 204 with all of them. Only then does it run on its CPU build,
+writes 58 tokens/s with 21 of its 30 layers on a GPU, against 209 with all of them. Only then does it run on its CPU build,
 and one with no CPU build is left out. Once everything is placed, a language model wholly on a GPU reads its prompts in
 steps of 2,048 tokens where what is left there holds them, and its catalog says what they cost — on Gemma 4 26B, 13,700
 tokens/s against 9,400 in steps of 512, for 2 GB; steps of 4,096 read no faster. On the CPU, the other models hold what their builds' files hold,
-and a language model is given the longest context the host's memory share leaves it, never under 8k. When a workspace takes models on, the plan is redone and each
+and a language model is given the longest context the host's memory share leaves it, never under 8k — once a cut model's CPU layers, and the context they keep, are counted in that share: the host admits a cut model against its GPU's budget and the share both, idle models on the CPU making way for its layers there. When a workspace takes models on, the plan is redone and each
 model it moves is loaded again where it now runs; letting models go moves nothing. A picture's parts are placed each
 time: on a GPU where they fit beside the residents, else on the one with the most room, where the residents make way.
 
@@ -378,13 +428,13 @@ logs, with the picture.
 read (0.2–0.5 s) and a prompt read 512 tokens at a time. Barge-in does not wait on any of them: playback stops at once,
 and cancellation only frees the GPU.
 
-### The context as an append-only log
+### The context as a log
 
 A model keeps what it has read as a KV cache, and each token's entry depends on every token before it — so a cached
 prefix can be reused, but changing anything invalidates everything after it. Re-reading the whole conversation each
 turn is what makes a large local model slow to answer: Qwen 3.8 27B takes 1.3–1.9 s to read a 4k-token prompt.
 
-So each conversation keeps one sequence of its model's KV cache, and its context only ever grows: a follow-up reads
+So each conversation keeps one sequence of its model's KV cache, and its context grows: a follow-up reads
 only its own turn (the AI host's model tests hold it to under half of the prompt), where re-reading a 16k-token
 conversation costs E4B 1.1 s. Appending gives the next token's scores of a single read to rounding; where a reply
 drifts from a re-read, it is greedy decoding branching on that rounding.
@@ -393,8 +443,17 @@ drifts from a re-read, it is greedy decoding branching on that rounding.
   started on, then the turns.
 - **Changes are appended, never edited.** Moving to another page appends an event carrying the new page's context;
   tool results and audio are appended like any other turn.
-- **Appending is the one mechanism.** A barge-in cancels generation and appends what the user actually heard as a
-  note; a conversation cut short is dropped, and the next request reads it afresh.
+- **Appending is how a conversation goes on.** A barge-in cancels generation and appends what the user actually heard
+  as a note; a conversation cut short is dropped, and the next request reads it afresh.
+- **A prompt that parts from what was read is read from where it parts.** An edited last turn, a reply whose reasoning
+  the template leaves out of what was answered: the kept conversation sharing the longest start with the prompt — 256
+  tokens or more — is cut back to it, and only the rest is read. A model whose sequences are their cells alone is cut
+  back where the two part. One holding more — a recurrent layer's state (Qwen 3.5's gated DeltaNet), a sliding window's
+  cells (Gemma 4) — is cut back to where that state was saved: at the end of each turn it read, and where each prompt
+  ends, eight saves kept across its conversations (`ModelPlacement.Checkpoints`) and counted in the host's memory share
+  from the catalog's `stateBytes` — 53 MB a save for Qwen 3.5 9B, 111 MB for Gemma 4 26B. On Qwen 3.5 9B a save takes
+  8 ms and a restore 3 ms, the edited turn is read in 0.4 s against 4.6 s for the whole prompt on the CPU, and what it
+  reads next scores exactly as a whole re-read does.
 - **New turns are rendered as deltas against the cache.** The cache holds the prompt the conversation was last given,
   then its reply as generated, up to the token the reply stopped on — which it has not read. The template's rendering
   of the history must begin with that prompt; the delta is the history from that token on, then the new turns and the
@@ -835,7 +894,8 @@ Against PyTorch bf16 from the same noise, the build draws at a median of 29 dB P
 comes — in 2.3 s, its tokenizer (Microsoft.ML.Tokenizers over Qwen3's `tokenizer.json`) giving the same ids as Hugging
 Face's. Loaded part by part — encoder 5.1 GB, denoiser 9.4 GB, decoder 5.3 GB at their peaks — a picture needs room
 for the denoiser alone, and where the resident models leave less, they make way while it draws. It is built for CUDA
-only, and offered where a GPU's budget holds the denoiser.
+only, and offered where a GPU's budget holds the denoiser — whole, or streamed (*On a card that holds less*): from a
+10 GB card.
 
 HiDream-O1 (the full model, MIT) is the high-quality one: one ONNX graph Nexaflow builds and publishes
 (`tools/ai-models/hidream-o1`, huggingface.co/smile-forge/hidream-o1-image-onnx), with no VAE — it draws in pixels, a
@@ -847,7 +907,8 @@ whole Qwen3-VL language model reading the prompt, a timestep token and one token
 - **An fp32 residual stream.** A few tokens' activations pass 10⁵ from layer 6 on and reach 2.8×10⁶ in the last layer;
   the stream stays fp32 and every branch runs in fp16, the few that would overflow scaled by powers of two where their
   values are made and back as they rejoin it. Unlike Z-Image's, these branches have no norm after them to cancel a scale.
-- **Two builds.** With 8-bit weights it fits a 16 GB card (13.2 GB at its peak); with fp16 weights it needs a 24 GB one
+- **Two builds.** With 8-bit weights it peaks at 13.2 GB, and its catalog counts 14.5 GiB — more than a 16 GB card's
+  13.5 GiB budget, where its denoiser runs streamed, in 10.2 GiB; with fp16 weights it needs a 24 GB one
   (19.1 GB) and draws 0.1–2.3 dB closer to HiDream's model in fp32 — a difference too small to measure as better, so
   both are offered and the Local page lets the user choose, the 8-bit build first.
 - **Its own sampler, in C#.** Fifty steps of HiDream's flow-matching UniPC at shift 3, each asking the denoiser with the
@@ -943,7 +1004,8 @@ DeepStack features, and whole as clean 32×32 pixel patches the denoiser reads a
   mask leaves comes back to the pixel.
 
 Loaded part by part — picture reader 3.1 GiB, denoiser 14.5 GiB with pictures at 2048² (21.5 GiB with fp16 weights) —
-it is offered with up to four pictures to work from, so the 8-bit build fits a 16 GB card.
+it is offered with up to four pictures to work from, so the 8-bit build is offered from a 16 GB card, its denoiser
+streamed there.
 
 Qwen-Image-Edit-2511 edits as diffusers' QwenImageEditPlusPipeline does, with five ONNX graphs Nexaflow builds and
 publishes (`tools/ai-models/qwen-image-edit`, huggingface.co/smile-forge/qwen-image-edit-2511-onnx), sampled by the host
@@ -969,7 +1031,8 @@ Image Editing row only (`IImageGenerationProvider.DrawsFromPromptsOf`).
 
 Loaded part by part — picture reader 3.5 GiB, prompt encoder 9.6 GiB, picture encoder 4.3 GiB, decoder 4.0 GiB, and the
 denoiser 24.0 GiB with one picture at a megapixel, 27.6 GiB with three (44.4 GiB with fp16 weights) — it is offered
-with up to three pictures, on a 32 GB card or larger. Built for CUDA only.
+with up to three pictures, on a 32 GB card or larger whole, and from a 24 GB card with its 8-bit denoiser streamed, in
+20.8 GiB. Built for CUDA only.
 
 ### Making clips on this machine
 
@@ -1007,8 +1070,50 @@ FastWan makes a five-second clip in 7–8 s of denoising and 10 s of decoding; t
 drifting over the steps, where unrelated clips are 5–9.5 dB apart — and the full build is as close to the model in fp32
 (14.2 dB) as its own bf16 pipeline is. Loaded part by part — the prompt encoder
 8.1 GB, the denoiser 15.4 GB, the decoder 20.8 GB, the frame encoder 1.8 GB at their peaks — a clip needs room for the
-decoder, a 24 GB card. On a smaller card neither row is offered, and a workspace makes clips with a cloud provider's
-model. Built for CUDA only.
+decoder whole, a 24 GB card; from a 10 GB card the denoiser runs streamed (3.8 GiB) and the decoder in tiles of 16 cells
+(7.0 GiB), each tile's cache parked in this machine's memory between its calls, and below 12 GB the prompt is read on the
+CPU — a five-second 720p FastWan clip in 69 s on a 10 GB card's budget. On a smaller card neither row is offered, and a
+workspace makes clips with a cloud provider's model. Built for CUDA only.
+
+### On a card that holds less
+
+A picture's or a clip's part that no GPU's budget holds whole runs lighter, where its catalog entry has a lighter build:
+placement (`ModelPlacement.PlaceOnDemand`) takes the part whole where a budget holds it, else the first of its lighter
+builds one does — streamed, then in tiles — else its CPU build. Each is built from the graph already published, and
+shares its weights file, so it adds a few small files to the repository, not a second copy of the weights.
+
+- **A denoiser streamed** (`StreamedGraph`). `tools/ai-models/streaming` cuts the graph where the fewest tensors cross,
+  between its blocks, into groups of about 400 MB of the weights its products read, which become each group's inputs;
+  the groups and their manifest (`denoiser.stream.json`) lie beside the graph. The host reads every group's weights once
+  into pinned memory, runs each group in a session of its own — every session on one shared arena, so one group's
+  scratch is held at a time — and copies the next group's weights to the GPU on a stream of their own, into one of two
+  buffers, while a group runs from the other. What a picture draws is what the whole graph draws, to fp16 rounding.
+- **A decoder in tiles** (`LatentTiling`). The latent is cut into squares that overlap by an eighth, each decoded alone
+  and blended back across the overlap. Wan's decoder carries a cache from frame to frame, so each tile keeps its own,
+  parked in pinned memory between its calls and copied to the GPU for its next, the next tile's while one runs.
+- **A prompt encoder on the CPU.** `tools/ai-models/cpu-builds` writes the graph's CPU build beside it, its 8-bit
+  products reading 8-bit inputs — fifty times faster on the CPU than as built — where it reads a prompt as the graph
+  does: Z-Image's (worst row's cosine 0.9995) does; Klein's and Qwen-Image-Edit's do not, and Wan's drifts, so those run
+  on the CPU as built, 11–16 s a prompt. MOSS's GGUF runs on llama.cpp's CPU build.
+
+What each holds — Z-Image's, HiDream's and Qwen-Image-Edit's as the whole graph's peak less what the lighter build saved
+beside it; Klein's, MOSS's and the clip's as run under `tools/bench/Hold-GpuMemory.ps1` on a 10 GB card's budget, Klein
+editing from two 1024² pictures in 29 s, MOSS drawing 1024² with its distillation LoRA in 33 s and with a style LoRA's fifty
+guided steps in 63 s — and the smallest card each model is offered on. A peak measured on a large card is not what a part
+needs: ONNX Runtime's arena grows into the room there is, and makes do with less where there is less, so MOSS's
+denoiser, 9.1 GiB at its peak on the RTX PRO 6000, draws in a 10 GB card's budget. On a 10 GB card, with 32 GB of memory,
+every kind of model Nexaflow runs itself has one to run and every picture tool runs (`TenGigabyteCardTests`).
+
+| Model | Lighter where it must be | Offered from |
+|---|---|---|
+| Z-Image Turbo | denoiser streamed, 6.1 GiB, its 6.7 GB of weights pinned | 10 GB |
+| FLUX.2 [klein] 4B | denoiser streamed, 7.0 GiB, 4.6 GB pinned — editing from two pictures | 10 GB |
+| MOSS-Image | prompt encoder on the CPU; its denoiser whole with any LoRA, in 7.0 GiB | 10 GB |
+| FastWan2.2 / Wan2.2-TI2V-5B | prompt encoder on the CPU below 12 GB; denoiser streamed, 3.8 GiB, 10.1 GB pinned; decoder in tiles of 16, 7.0 GiB, 4.2 GB of caches pinned | 10 GB |
+| HiDream-O1, 8-bit | denoiser streamed, 10.2 GiB | 16 GB |
+| Qwen-Image-Edit-2511, 8-bit | denoiser streamed, 20.8 GiB | 24 GB |
+
+The pinned memory counts against the host's share of this machine's memory, as a cut language model's layers do.
 
 ## Models
 
@@ -1027,13 +1132,39 @@ loaded, sliding-window layers holding their window alone (RTX PRO 6000):
 | Model | Build | Download | Holds at 8k / 32k | Writes | Sees | Tool calls | Offered from |
 |---|---|---|---|---|---|---|---|
 | **Gemma 4 E4B** (default; also hears) | Google's QAT Q4_0 | 6.1 GB | 4.9 / 5.3 GB | ~190 tok/s | yes | yes | any machine |
-| Qwen 3.5 9B | unsloth Q4_K_M | 6.6 GB | 7.3 / 8.0 GB | ~170 tok/s | yes | yes | 11 GB |
-| MiMo V2.6 9B (distilled from Qwen 3.5) | bartowski Q4_K_M | 6.8 GB | 7.5 / 8.2 GB | ~180 tok/s | yes | yes | 11 GB |
-| Phi-4 14B | Microsoft's Q4_K | 9.1 GB | 10.5 / 12.1 GB (16k, its longest) | ~110–130 tok/s | no | not in its template | 16 GB |
-| Gemma 4 26B-A4B | Google's QAT Q4_0 | 15.6 GB | 17.3 / 17.9 GB | ~165–195 tok/s | yes | yes | 24 GB |
-| Qwen 3.8 27B | ggml-org Q4_K_M | 19.6 GB | 20.4 / 21.8 GB | ~60 tok/s | yes | yes | 24 GB |
-| Qwen 3.6 35B-A3B | ggml-org Q4_K_M | 21.0 GB | 21.0 / 21.5 GB | ~210–225 tok/s | yes | yes | 32 GB |
-| Gemma 4 31B | Google's QAT Q4_0 | 18.9 GB | 25.5 / 27.7 GB | ~50–60 tok/s | yes | yes | 32 GB |
+| Qwen 3.5 9B | unsloth Q4_K_M | 6.6 GB | 7.3 / 8.0 GB | ~170 tok/s | yes | yes | 10 GB |
+| MiMo V2.6 9B (distilled from Qwen 3.5) | bartowski Q4_K_M | 6.8 GB | 7.5 / 8.2 GB | ~180 tok/s | yes | yes | 10 GB |
+| Phi-4 14B | Microsoft's Q4_K | 9.1 GB | 10.5 / 12.1 GB (16k, its longest) | ~110–130 tok/s | no | not in its template | 10 GB |
+| Gemma 4 26B-A4B | Google's QAT Q4_0 | 15.6 GB | 17.3 / 17.9 GB | ~165–195 tok/s | yes | yes | 10 GB |
+| Qwen 3.8 27B | ggml-org Q4_K_M | 19.6 GB | 20.4 / 21.8 GB | ~60 tok/s | yes | yes | 16 GB |
+| Qwen 3.6 35B-A3B | ggml-org Q4_K_M | 21.0 GB | 21.0 / 21.5 GB | ~210–225 tok/s | yes | yes | 10 GB |
+| Gemma 4 31B | Google's QAT Q4_0 | 18.9 GB | 25.5 / 27.7 GB | ~50–60 tok/s | yes | yes | 24 GB |
+
+"Offered from" is the smallest card the setup places a model on, as the code decides it — wholly, or else as below. "Holds"
+and "Writes" are the model wholly on a GPU.
+
+**On a card that holds less.** A mixture of experts keeps its routed experts in this machine's memory and the rest on the
+card, where that rest fits — 2.4 GB for Gemma 4 26B and 2.9 GB for Qwen 3.6 at 8k, one conversation; then each token reads
+its few experts on the CPU, and what the card has left holds the experts read last (llama.cpp's expert cache), where that is a
+quarter of them or more: a smaller cache writes slower than none, every expert it misses copied to the card rather than read
+where it is. A dense model is cut by layers, at least half of them on the card. All of it runs on one thread a core. Measured
+on the RTX PRO 6000 with a Ryzen 9 9950X3D, an 8k context in one conversation, writing:
+
+| | Gemma 4 26B-A4B | Qwen 3.6 35B-A3B |
+|---|---|---|
+| wholly on the card | 209 tok/s | 232 tok/s |
+| experts in memory, no cache (a 10 GB card) | 48 tok/s, prompts at 590 | 58 tok/s, prompts at 400 |
+| experts in memory, a 3 GB cache | 58 tok/s | 48 tok/s |
+| experts in memory, a 6 GB cache (a 14 GB card) | 145 tok/s | 127 tok/s |
+| cut, 21 of 30 layers on the card | 58 tok/s, prompts at 1,490 | — |
+
+A machine is offered such a model only where the host's share of its memory holds the experts: 12.8 GB for Gemma 4 26B,
+18.1 GB for Qwen 3.6.
+
+FreeToken's split of a token's missed experts — some copied to the cache, the rest read on the CPU where they lie, in the
+ratio of the link's bandwidth to the memory's — is not built: llama.cpp's cache is upstream's, and the split would need a
+fork of it and a CUDA build of our own. What it would win is where the cache is small — the 10 GB card's no cache writes
+48 tokens/s, its estimated best near 60 — while a card with a quarter of the experts' room is already at 145.
 
 - Reading a large photo adds 0.3–0.6 GB while it is read; the catalog's figures include it.
 - Every one is prompted by the chat template its own GGUF carries, rendered by the host's Jinja engine and held to

@@ -22,6 +22,7 @@ internal sealed unsafe class LlamaModel : IDisposable
         ChatTemplate = template is null ? null : Marshal.PtrToStringUTF8((IntPtr)template);
         BosText = TokenText(LlamaNative.VocabBos(Vocab));
         EosText = TokenText(LlamaNative.VocabEos(Vocab));
+        HoldsPartialState = LlamaNative.ModelIsRecurrent(model) || LlamaNative.ModelIsHybrid(model) || LlamaNative.ModelSlidingWindow(model) > 0;
     }
 
     public IntPtr Handle => _model != IntPtr.Zero ? _model : throw new ObjectDisposedException(nameof(LlamaModel));
@@ -41,10 +42,23 @@ internal sealed unsafe class LlamaModel : IDisposable
 
     public string EosText { get; }
 
+    /// <summary>
+    /// Whether what a sequence holds is more than its cells, position by position: a recurrent layer's state, which every token
+    /// read changes, or a sliding window's cells, of which only the last window are kept. Such a sequence is cut back only to where
+    /// that state was saved (<see cref="LlamaContext.SavePartial"/>); any other is cut back anywhere.
+    /// </summary>
+    public bool HoldsPartialState { get; }
+
+    /// <summary>The tensors of a mixture-of-experts model's routed experts, as llama.cpp names them in every architecture it reads —
+    /// its own pattern for keeping them on the CPU: each layer's banks of up, gate and down projections, one slice an expert.</summary>
+    internal const string RoutedExperts = @"\.ffn_(up|down|gate|gate_up)_(ch|)exps";
+
     /// <param name="device">The GPU it runs on, or null for the CPU.</param>
     /// <param name="gpuLayers">How many of its layers run on <paramref name="device"/>, the rest on the CPU; null for all of them.</param>
+    /// <param name="expertsInHost">Keep a mixture-of-experts model's routed experts (<see cref="RoutedExperts"/>) in this machine's
+    /// memory, every layer's, and the rest of it on <paramref name="device"/>.</param>
     /// <exception cref="HostRequestException">The file would not load.</exception>
-    public static LlamaModel Load(string path, IntPtr? device, int? gpuLayers = null)
+    public static LlamaModel Load(string path, IntPtr? device, int? gpuLayers = null, bool expertsInHost = false)
     {
         var parameters = LlamaNative.ModelDefaults();
         // One GPU, the one whose budget it was admitted against, as for every model the host runs.
@@ -53,14 +67,34 @@ internal sealed unsafe class LlamaModel : IDisposable
         parameters.GpuLayers = device is null ? 0 : gpuLayers ?? -1;
         parameters.Split = LlamaNative.SplitMode.None;
         parameters.MainGpu = 0;
+        bool partlyOnCpu = gpuLayers is not null || expertsInHost;
         // A model wholly on a GPU is read into it: mapped, its file would stay in this process's working set long after its
         // weights are on the device, every gigabyte counted as the host's memory. Where any of it is on the CPU, the mapping is
         // those weights.
-        parameters.LoadMode = device is not null && gpuLayers is null ? LlamaNative.LoadMode.None : LlamaNative.LoadMode.Auto;
-        IntPtr model = LlamaNative.ModelLoad(path, parameters);
-        return model == IntPtr.Zero
-            ? throw new HostRequestException(HostErrorKind.Runtime, $"llama.cpp could not load {path}; see the host's log.")
-            : new LlamaModel(model);
+        parameters.LoadMode = device is not null && !partlyOnCpu ? LlamaNative.LoadMode.None : LlamaNative.LoadMode.Auto;
+
+        var overrides = stackalloc LlamaNative.TensorBufferTypeOverride[2];
+        IntPtr pattern = IntPtr.Zero;
+        try
+        {
+            if (device is not null && expertsInHost)
+            {
+                IntPtr cpu = LlamaNative.DeviceByType(LlamaNative.DeviceKind.Cpu);
+                if (cpu == IntPtr.Zero) throw new HostRequestException(HostErrorKind.Runtime, "llama.cpp offers no CPU device to keep a model's experts on.");
+                pattern = Marshal.StringToCoTaskMemUTF8(RoutedExperts);
+                overrides[0] = new LlamaNative.TensorBufferTypeOverride { Pattern = pattern, BufferType = LlamaNative.DeviceBufferType(cpu) };
+                overrides[1] = default;
+                parameters.TensorBufferTypeOverrides = (IntPtr)overrides;
+            }
+            IntPtr model = LlamaNative.ModelLoad(path, parameters);
+            return model == IntPtr.Zero
+                ? throw new HostRequestException(HostErrorKind.Runtime, $"llama.cpp could not load {path}; see the host's log.")
+                : new LlamaModel(model);
+        }
+        finally
+        {
+            if (pattern != IntPtr.Zero) Marshal.FreeCoTaskMem(pattern);
+        }
     }
 
     /// <summary>The tokens of <paramref name="text"/>, its special tokens read as such and nothing added before it — a

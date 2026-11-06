@@ -52,4 +52,28 @@ internal static class ConversationMatch
         => a.Count == b.Count && a.Zip(b).All(p => p.First.Kind == p.Second.Kind
                                                   && p.First.Path == p.Second.Path
                                                   && (p.First.Bytes ?? []).AsSpan().SequenceEqual(p.Second.Bytes ?? []));
+
+    /// <summary>
+    /// Where a conversation holding <paramref name="history"/> — every token it has read, in order — may be cut back to, for
+    /// <paramref name="prompt"/> to be read from there: the start the two share, never the prompt's last token, which the reply is
+    /// chosen from the read of; for a model holding partial state, the deepest of <paramref name="checkpoints"/> — where its state was
+    /// saved — at or before that. 0 where that is short of <paramref name="shortest"/>, or of <paramref name="floor"/>, the opening
+    /// whose cells it shares.
+    /// </summary>
+    /// <param name="checkpoints">The positions its partial state was saved at, in order; null for a model that holds none, and is cut
+    /// back anywhere.</param>
+    public static int CutPoint(IReadOnlyList<int> history, ReadOnlySpan<int> prompt, IEnumerable<int>? checkpoints, int floor, int shortest)
+    {
+        int length = Math.Min(history.Count, prompt.Length - 1), common = 0;
+        while (common < length && history[common] == prompt[common]) common++;
+        int point = common;
+        if (checkpoints is not null)
+        {
+            point = 0;
+            foreach (int at in checkpoints)
+                if (at <= common) point = at;
+                else break;
+        }
+        return point >= Math.Max(floor, shortest) ? point : 0;
+    }
 }

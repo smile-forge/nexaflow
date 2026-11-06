@@ -147,6 +147,21 @@ public class ModelPlacementTests
     }
 
     [TestMethod]
+    [CoversNode("owned-images-streamed")]
+    public void APicturesPartNoCardHoldsWhole_RunsStreamed_WhereItsStreamedBuildFits()
+    {
+        var denoiser = Part("denoiser", 10) with { Lighter = [Spec("denoiser", (long)(4.5 * GB)) with { File = "denoiser.stream.json", HostBytes = 6 * GB }] };
+
+        var whole = ModelPlacement.PlaceOnDemand(ModelPlacement.Plan([Gpu(0, 12)], []), denoiser)!;
+        Assert.AreEqual((0, (string?)null), (whole.Device, whole.File), "whole on a card whose budget holds it");
+
+        var streamed = ModelPlacement.PlaceOnDemand(ModelPlacement.Plan([Gpu(0, 7.5)], []), denoiser)!;
+        Assert.AreEqual((0, "denoiser.stream.json", 6 * GB), (streamed.Device, streamed.File, streamed.HostBytes), "streamed on a 10 GB card's budget, its weights pinned in this machine's memory");
+
+        Assert.IsNull(ModelPlacement.PlaceOnDemand(ModelPlacement.Plan([Gpu(0, 4)], []), denoiser), "nowhere on a card that holds neither");
+    }
+
+    [TestMethod]
     public void BeforeTheHostRuns_ItsGpusAreExpectedFromTheAdapters()
     {
         var hardware = new ComputeHardwareReport(
@@ -165,7 +180,10 @@ public class ModelPlacementTests
     /// of context held in 8 bits, 262k of it where there is room; and what reading in longer steps, and holding more sequences, cost it.</summary>
     private static PlacementNeed Large()
         => new(Spec("large", 18_790_481_920L, 262_144), Spec("large", 18_790_481_920L, 262_144), BytesPerToken: 13_600, ShortestContext: 8192,
-               Layers: 30, WeightsBytes: 14_439_363_584L, BatchBytesPerToken: 1_376_256, BytesPerSequence: 113_639_424, BackgroundBytes: 9_428_795_392L);
+        Layers: 30, WeightsBytes: 14_439_363_584L, BatchBytesPerToken: 1_376_256, BytesPerSequence: 113_639_424, BackgroundBytes: 9_428_795_392L);
+
+        /// <summary><see cref="Large"/> with what its GGUF says its routed experts hold: 12.8 GB of its 14.4 GB of weights.</summary>
+        private static PlacementNeed Mixture() => Large() with { ExpertBytes = 12_846_382_080L };
 
     [TestMethod]
     public void ALanguageModelNoCardHasRoomFor_IsCutBetweenTheCardAndTheCpu_AsManyOfItsLayersOnTheCardAsFit()
@@ -187,6 +205,71 @@ public class ModelPlacementTests
         var large = Placed(ModelPlacement.Plan([Gpu(0, 9)], [Large()]), "large");
 
         Assert.AreEqual((null, null), (large.Device, large.GpuLayers));
+    }
+
+    [TestMethod]
+    [CoversNode("experts-in-host")]
+    public void AMixtureOfExpertsNoCardHoldsWhole_KeepsItsExpertsInThisMachinesMemory_AndTheRestOnTheCard_TheRoomLeftHoldingExpertsReadLast()
+    {
+        var placement = ModelPlacement.Plan([Gpu(0, 7.5)], [Mixture()]);
+        var mixture = Placed(placement, "large");
+
+        Assert.AreEqual((0, true, null), (mixture.Device, mixture.ExpertsInHost, mixture.GpuLayers), "on a 10 GB card's budget, its every layer there");
+        Assert.AreEqual(ModelPlacement.CutContext, mixture.ContextTokens);
+        Assert.AreEqual(Mixture().ExpertBytes, mixture.HostBytes, "its experts held in this machine's memory");
+        Assert.AreEqual(0, mixture.ExpertCacheBytes, "what the card has left holds too few of its experts to be worth caching");
+        Assert.AreEqual(Mixture().ExpertsOutBytesAt(mixture.ContextTokens), mixture.MemoryBytes);
+        Assert.IsTrue(placement.FreeOn(placement.Gpus[0]) >= 0, "within the card's budget");
+
+        var onFourteen = Placed(ModelPlacement.Plan([Gpu(0, 14)], [Mixture()]), "large");
+        Assert.IsTrue(onFourteen.ExpertCacheBytes * ModelPlacement.ExpertCacheShare >= Mixture().ExpertBytes
+                      && onFourteen.ExpertCacheBytes % ModelPlacement.ExpertCacheStep == 0, "where a card has room for a quarter of them, it holds those read last");
+    }
+
+    [TestMethod]
+    [CoversNode("experts-in-host")]
+    public void AMixtureOfExperts_RunsWholeWhereItFits_AndKeepsItsExpertsOutBeforeItIsCut()
+    {
+        Assert.IsFalse(Placed(ModelPlacement.Plan([Gpu(0, 40)], [Mixture()]), "large").ExpertsInHost, "wholly on a card with room for it");
+
+        var onFourteen = Placed(ModelPlacement.Plan([Gpu(0, 14)], [Mixture()]), "large");
+        Assert.AreEqual((true, null), (onFourteen.ExpertsInHost, onFourteen.GpuLayers), "where Gemma 4 26B was cut 21 of 30, its experts go out instead");
+
+        Assert.AreEqual(null, Placed(ModelPlacement.Plan([Gpu(0, 5)], [Mixture()]), "large").Device, "a card short of the rest of it runs it on the CPU");
+    }
+
+    [TestMethod]
+    public void ALanguageModelCutBetweenTheCardAndTheCpu_HoldsItsCpuLayersInThisMachinesMemory_OutOfTheShareTheCpusModelsAreGiven()
+    {
+        var gemmaOnCpu = Gemma() with { OnGpu = Spec("gemma", 6 * GB, 32768) with { MemoryBytes = 0 } };
+        var alone = Placed(ModelPlacement.Plan([Gpu(0, 14)], [Large()]), "large");
+        Assert.AreEqual(Large().HostBytesAt(ModelPlacement.CutContext, 21), alone.HostBytes, "its 9 CPU layers' share of its weights and context");
+        Assert.AreEqual(Large().BytesAt(ModelPlacement.CutContext), alone.MemoryBytes + alone.HostBytes,
+                        "the card and the machine together hold what the card would hold of it whole");
+
+        long budget = alone.HostBytes + 6 * GB + 10_240L * 18432;
+        var placement = ModelPlacement.Plan([Gpu(0, 14)], [Large(), gemmaOnCpu], memoryBudget: budget);
+        Assert.AreEqual((null, 10_240), (Placed(placement, "gemma").Device, Placed(placement, "gemma").ContextTokens),
+                        "the model on the CPU is given what the share leaves once the cut model's CPU layers are in it");
+
+        var whole = Placed(ModelPlacement.Plan([Gpu(0, 40)], [Large()]), "large");
+        Assert.AreEqual(0, whole.HostBytes, "wholly on its card, it holds none of the machine's memory");
+    }
+
+    [TestMethod]
+    public void ALanguageModelHoldingPartialState_KeepsSavesOfIt_InThisMachinesMemory_WhereverItRuns()
+    {
+        var hybrid = Gemma() with { StateBytes = 50 << 20 };
+
+        var onCard = Placed(ModelPlacement.Plan([Gpu(0, 22)], [hybrid]), "gemma");
+        Assert.AreEqual((0, ModelPlacement.Checkpoints), (onCard.Device, onCard.Checkpoints));
+        Assert.AreEqual(ModelPlacement.Checkpoints * (50L << 20), onCard.HostBytes, "wholly on its card, its saves are all it holds of the machine's memory");
+
+        var onCpu = Placed(ModelPlacement.Plan([], [hybrid], memoryBudget: 64 * GB), "gemma");
+        Assert.AreEqual(ModelPlacement.Checkpoints, onCpu.Checkpoints);
+        Assert.AreEqual(6 * GB + 18432L * onCpu.ContextTokens + ModelPlacement.Checkpoints * (50L << 20), onCpu.MemoryBytes, "counted with what it holds on the CPU");
+
+        Assert.AreEqual(0, Placed(ModelPlacement.Plan([Gpu(0, 22)], [Gemma()]), "gemma").Checkpoints, "a model that holds no such state keeps none");
     }
 
     [TestMethod]

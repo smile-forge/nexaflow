@@ -3,6 +3,7 @@ using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Models;
+using Nexaflow.AiHost.Tiling;
 
 namespace Nexaflow.AiHost.Filming;
 
@@ -24,8 +25,10 @@ internal sealed class WanDecoder(ModelSpec spec, InferenceSession first, Inferen
 
     public ModelSpec Spec => spec;
 
-    /// <summary>A clip's decoding, its latents <paramref name="rows"/> × <paramref name="cols"/>, from its first latent frame.</summary>
-    public WanDecoding Start(int rows, int cols) => new(Spec, first, next, slots, rows, cols);
+    /// <summary>A clip's decoding, its latents <paramref name="rows"/> × <paramref name="cols"/>, from its first latent frame: whole, or
+    /// in tiles where its spec says so.</summary>
+    public IClipDecoding Start(int rows, int cols)
+        => Spec.TileCells > 0 ? new WanTiledDecoding(Spec, first, next, slots, rows, cols) : new WanDecoding(Spec, first, next, slots, rows, cols);
 
     public void Dispose()
     {
@@ -34,9 +37,19 @@ internal sealed class WanDecoder(ModelSpec spec, InferenceSession first, Inferen
     }
 }
 
+/// <summary>A clip's decoding, a latent frame at a time: its frames, as interleaved 8-bit RGB.</summary>
+internal interface IClipDecoding : IDisposable
+{
+    /// <summary>The frames of <paramref name="latentFrame"/>, [frames, 16·rows, 16·cols, 3]: one for the clip's first latent frame,
+    /// four for each after.</summary>
+    /// <param name="latentFrame">[48, 1, rows, cols].</param>
+    /// <param name="lastCall">The clip's last: the decoder gives its scratch memory back after it.</param>
+    byte[] Next(float[] latentFrame, bool lastCall);
+}
+
 /// <summary>One clip's decoding: each call takes the clip's next latent frame and gives its frames, the cache carried
 /// from call to call in two sets of buffers on the GPU, read from one and written to the other.</summary>
-internal sealed class WanDecoding : IDisposable
+internal sealed class WanDecoding : IClipDecoding
 {
     private readonly ModelSpec _spec;
     private readonly InferenceSession _first, _next;
@@ -94,6 +107,146 @@ internal sealed class WanDecoding : IDisposable
         foreach (var value in _caches.SelectMany(set => set)) value.Dispose();
         _allocator.Dispose();
         if (!ReferenceEquals(_memory, OrtMemoryInfo.DefaultInstance)) _memory.Dispose();
+    }
+}
+
+/// <summary>
+/// One clip's decoding in tiles (<see cref="ModelSpec.TileCells"/>), for a GPU that does not hold a whole frame's decoding: each
+/// latent frame cut into overlapping tiles, each tile decoded with a cache of its own and the tiles' frames blended back
+/// (<see cref="TileBlend"/>). A tile's cache spans the clip, so every tile's is kept in pinned memory between its calls — they
+/// come to more than a whole frame's, where tiles overlap — and copied to the GPU for its next call, into one of two sets of
+/// buffers while the tile before runs from the other; what a call writes is copied back. The GPU holds four tile-sized cache sets
+/// and one tile's work.
+/// </summary>
+internal sealed class WanTiledDecoding : IClipDecoding
+{
+    private readonly ModelSpec _spec;
+    private readonly int _device;
+    private readonly InferenceSession _first, _next;
+    private readonly IReadOnlyList<WanCacheSlot> _slots;
+    private readonly int _rows, _cols;
+    private readonly LatentTiles _grid;
+    private readonly long _cacheBytes;
+    private readonly IntPtr[] _parked;
+    private readonly IntPtr[] _read = new IntPtr[2], _written = new IntPtr[2];
+    private readonly IntPtr _copies;
+    private readonly OrtMemoryInfo _onDevice;
+    private int _calls;
+
+    /// <summary>Pixels a latent cell decodes to, along each side.</summary>
+    private const int Scale = 16;
+
+    public WanTiledDecoding(ModelSpec spec, InferenceSession first, InferenceSession next, IReadOnlyList<WanCacheSlot> slots, int rows, int cols)
+    {
+        if (spec.Device is not { } device) throw new HostRequestException(HostErrorKind.Invalid, $"{spec.Id} decodes in tiles on a GPU, and was asked for on the CPU.");
+        (_spec, _device, _first, _next, _slots, _rows, _cols) = (spec, device, first, next, slots, rows, cols);
+        _grid = LatentTiles.Over(cols, rows, spec.TileCells, Math.Max(1, spec.TileCells / 8));
+        int side = _grid.Tiles.Max(t => Math.Max(t.Width, t.Height));
+        _cacheBytes = CacheBytes(slots, side, side);
+        _onDevice = new OrtMemoryInfo(OrtMemoryInfo.allocatorCUDA, OrtAllocatorType.DeviceAllocator, device, OrtMemType.Default);
+        _parked = new IntPtr[_grid.Tiles.Count];
+        try
+        {
+            for (int t = 0; t < _parked.Length; t++)
+                _parked[t] = CudaRuntime.PinnedAlloc(device, CacheBytes(slots, _grid.Tiles[t].Height, _grid.Tiles[t].Width));
+            for (int b = 0; b < 2; b++)
+            {
+                _read[b] = CudaRuntime.DeviceAlloc(device, _cacheBytes);
+                _written[b] = CudaRuntime.DeviceAlloc(device, _cacheBytes);
+            }
+            _copies = CudaRuntime.StreamCreate(device);
+        }
+        catch
+        {
+            Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>What a tile of <paramref name="rows"/> × <paramref name="cols"/> cells' cache holds: every slot's last two frames, in 16 bits.</summary>
+    public static long CacheBytes(IReadOnlyList<WanCacheSlot> slots, int rows, int cols)
+        => slots.Sum(slot => (long)slot.Channels * 2 * slot.Scale * rows * slot.Scale * cols * 2);
+
+    /// <summary>One slot's place in a tile's cache, its values over <paramref name="at"/>, as the graph names and shapes it.</summary>
+    private IEnumerable<(string Name, OrtValue Value)> Slots(IReadOnlyList<string> names, int first, IntPtr at, LatentTile tile)
+    {
+        long offset = 0;
+        for (int i = 0; i < _slots.Count; i++)
+        {
+            var slot = _slots[i];
+            long[] shape = [1, slot.Channels, 2, slot.Scale * tile.Height, slot.Scale * tile.Width];
+            long bytes = shape.Aggregate(2L, (product, dim) => product * dim);
+            yield return (names[first + i], OrtValue.CreateTensorValueWithData(_onDevice, TensorElementType.Float16, shape, at + (nint)offset, bytes));
+            offset += bytes;
+        }
+    }
+
+    public byte[] Next(float[] latentFrame, bool lastCall)
+    {
+        var session = _calls == 0 ? _first : _next;
+        bool reads = _calls > 0;
+        var blends = new List<TileBlend>();
+        int frames = 0;
+        if (reads) CudaRuntime.CopyToDevice(_device, _read[0], _parked[0], CacheBytes(_slots, _grid.Tiles[0].Height, _grid.Tiles[0].Width), _copies);
+        for (int t = 0; t < _grid.Tiles.Count; t++)
+        {
+            var tile = _grid.Tiles[t];
+            bool lastTile = t == _grid.Tiles.Count - 1;
+            CudaRuntime.Wait(_device, _copies);              // this tile's cache is in, and the tile before's is out
+            if (reads && !lastTile)                          // the next tile's goes in beside it as it runs
+                CudaRuntime.CopyToDevice(_device, _read[(t + 1) % 2], _parked[t + 1], CacheBytes(_slots, _grid.Tiles[t + 1].Height, _grid.Tiles[t + 1].Width), _copies);
+
+            using var latent = OrtValue.CreateTensorValueFromMemory(LatentTiling.Planar(latentFrame, WanSampler.Channels, _rows, _cols, tile),
+                                                                    [1, WanSampler.Channels, 1, tile.Height, tile.Width]);
+            using var binding = session.CreateIoBinding();
+            var held = new List<OrtValue>();
+            binding.BindInput("latent", latent);
+            if (reads)
+                foreach (var (name, value) in Slots(session.InputNames, 1, _read[t % 2], tile))
+                {
+                    held.Add(value);
+                    binding.BindInput(name, value);
+                }
+            binding.BindOutputToDevice(session.OutputNames[0], OrtMemoryInfo.DefaultInstance);
+            foreach (var (name, value) in Slots(session.OutputNames, 1, _written[t % 2], tile))
+            {
+                held.Add(value);
+                binding.BindOutput(name, value);
+            }
+
+            // Scratch goes back after each first-graph call, and after the clip's last tile.
+            using var run = !reads || lastCall && lastTile ? GraphSessions.Releasing(_spec) : new RunOptions();
+            try
+            {
+                session.RunWithBinding(run, binding);
+                using var values = binding.GetOutputValues();
+                var rgb = values[0].GetTensorDataAsSpan<byte>();
+                int plane = tile.Height * Scale * tile.Width * Scale * 3;
+                frames = rgb.Length / plane;
+                while (blends.Count < frames) blends.Add(new TileBlend(_grid, 3, Scale));
+                for (int f = 0; f < frames; f++) blends[f].Add(tile, LatentTiling.PlanarOf(rgb.Slice(f * plane, plane)));
+            }
+            finally
+            {
+                foreach (var value in held) value.Dispose();
+            }
+            CudaRuntime.CopyToHost(_device, _parked[t], _written[t % 2], CacheBytes(_slots, tile.Height, tile.Width), _copies);
+        }
+        CudaRuntime.Wait(_device, _copies);
+        _calls++;
+        return [.. blends.SelectMany(blend => LatentTiling.RgbOf(blend.Result()))];
+    }
+
+    public void Dispose()
+    {
+        if (_copies != IntPtr.Zero)
+        {
+            CudaRuntime.Wait(_device, _copies);
+            CudaRuntime.StreamDestroy(_device, _copies);
+        }
+        foreach (var buffer in _read.Concat(_written).Where(b => b != IntPtr.Zero)) CudaRuntime.DeviceFree(_device, buffer);
+        foreach (var parked in _parked.Where(p => p != IntPtr.Zero)) CudaRuntime.PinnedFree(parked);
+        _onDevice.Dispose();
     }
 }
 

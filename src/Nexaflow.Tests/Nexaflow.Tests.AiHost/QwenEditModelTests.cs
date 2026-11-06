@@ -108,6 +108,37 @@ public class QwenEditModelTests
         Assert.IsTrue(edited.Rgb.Average(b => (double)b) < source.Average(b => (double)b) - 10, "night is darker than the day it was");
     }
 
+    /// <summary>The same edit with the denoiser whole and streamed, where its folder holds the streamed build: one picture, to the
+    /// rounding of fp16 arithmetic done in another order.</summary>
+    [TestMethod]
+    [Timeout(2_400_000, CooperativeCancellation = true)]
+    [CoversNode("owned-images-streamed")]
+    public async Task AStreamedDenoiser_EditsAsTheWholeOneEdits()
+    {
+        var (_, model) = Host();
+        var denoiser = model.Parts[DrawingParts.Denoiser];
+        if (!File.Exists(Path.Combine(denoiser.Folder, "denoiser.stream.json"))) Assert.Inconclusive("The denoiser's folder holds no streamed build.");
+        var streamed = model with
+        {
+            Parts = new Dictionary<string, ModelSpec>(model.Parts) { [DrawingParts.Denoiser] = denoiser with { File = "denoiser.stream.json", MemoryBytes = 8L << 30 } },
+        };
+        const int width = 1184, height = 896;
+        var source = Scene(width, height);
+        Draw Edit(long id, DrawingModel drawing) => new(id, drawing, "Make it night, a full moon in the sky.", width, height, 4, RequestPriority.Job)
+                                                    { Sources = [new DrawingSource(width, height, source)] };
+
+        PngReader.Picture whole, stream;
+        
+        long streamedPeak, wholePeak;
+        using (var watch = GpuMemoryWatch.Start()) { stream = (await EditAsync(id => Edit(id, streamed), "night-qwen-streamed.png")).Picture; streamedPeak = watch.PeakBytes; }
+        using (var watch = GpuMemoryWatch.Start()) { whole = (await EditAsync(id => Edit(id, model), "night-qwen-whole.png")).Picture; wholePeak = watch.PeakBytes; }
+        TestContext.WriteLine($"the GPU at its peak: streamed {streamedPeak / 1e9:0.00} GB, whole {wholePeak / 1e9:0.00} GB");
+        Assert.IsTrue(streamedPeak < wholePeak, $"streamed, the GPU held {streamedPeak / 1e9:0.00} GB at its peak, whole {wholePeak / 1e9:0.00} GB");
+        double mse = whole.Rgb.Zip(stream.Rgb).Average(p => (p.First - p.Second) * (double)(p.First - p.Second));
+        double psnr = mse == 0 ? double.PositiveInfinity : 10 * Math.Log10(255.0 * 255 / mse);
+        Assert.IsTrue(psnr >= 35, $"the streamed denoiser's picture is {psnr:0.0} dB from the whole one's");
+    }
+
     [TestMethod]
     [Timeout(1_200_000, CooperativeCancellation = true)]
     public async Task UnderAMask_OnlyWhatItCovers_IsDrawnAgain()

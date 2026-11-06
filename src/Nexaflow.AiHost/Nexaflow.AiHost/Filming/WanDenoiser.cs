@@ -9,7 +9,7 @@ namespace Nexaflow.AiHost.Filming;
 /// each latent frame's timestep, and the prompt's rows, in; the flow (noise − clean) the model predicts out, laid out as
 /// the latents (<see cref="WanSampler"/>).
 /// </summary>
-internal sealed class WanDenoiser(ModelSpec spec, InferenceSession session) : IHostModel
+internal sealed class WanDenoiser(ModelSpec spec, IGraph graph) : IHostModel
 {
     private static readonly string[] Inputs = ["latents", "timesteps", "text"];
 
@@ -25,11 +25,11 @@ internal sealed class WanDenoiser(ModelSpec spec, InferenceSession session) : IH
         using var steps = OrtValue.CreateTensorValueFromMemory(timesteps, [1, shape.Frames]);
         using var rows = OrtValue.CreateTensorValueFromMemory(text, [1, WanPromptEncoder.Rows, WanPromptEncoder.Width]);
         using var run = lastCall ? GraphSessions.Releasing(Spec) : new RunOptions();
-        using var outputs = session.Run(run, Inputs, [input, steps, rows], session.OutputNames);
+        using var outputs = graph.Run(run, Inputs, [input, steps, rows], graph.OutputNames);
         return outputs[0].GetTensorDataAsSpan<float>().ToArray();
     }
 
-    public void Dispose() => session.Dispose();
+    public void Dispose() => graph.Dispose();
 }
 
 internal sealed class WanDenoiserRunner : IModelRunner
@@ -38,7 +38,7 @@ internal sealed class WanDenoiserRunner : IModelRunner
 
     public IHostModel Load(ModelSpec spec)
     {
-        var denoiser = new WanDenoiser(spec, GraphSessions.Open(spec));
+        var denoiser = new WanDenoiser(spec, GraphSessions.OpenGraph(spec));
         try
         {
             // One call on a short clip, so CUDA tunes its kernels at load rather than on somebody's first clip.

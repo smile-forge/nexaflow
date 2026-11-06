@@ -8,6 +8,9 @@ namespace Nexaflow.AiHost.Client;
 public interface IAiHostLauncher
 {
     IAiHostProcess Start(string pipeName, string token, AiHostEnvironment environment);
+
+    /// <summary>The share of this machine's memory the models on a host it starts may hold, as that host finds it.</summary>
+    HostMemory Memory { get; }
 }
 
 /// <summary>A started host, as the client watches it.</summary>
@@ -116,4 +119,7 @@ public sealed class ProcessAiHostLauncher(string hostPath, string aiDir, int mem
             return process.ExitCode;
         }
     }
+
+    /// <summary>The share the host takes of the memory .NET says this process has — the host's own reading of it.</summary>
+    public HostMemory Memory { get; } = HostMemory.Of(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes, memoryShare);
 }

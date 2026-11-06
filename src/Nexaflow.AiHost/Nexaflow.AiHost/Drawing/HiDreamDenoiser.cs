@@ -13,7 +13,7 @@ namespace Nexaflow.AiHost.Drawing;
 /// it works from in it, as the picture reader's tokens (<see cref="HiDreamPictureReader"/>); its tokenizer is Qwen's, its
 /// tokenizer.json beside the graph.
 /// </summary>
-internal sealed class HiDreamDenoiser(ModelSpec spec, InferenceSession session, Tokenizer tokenizer) : IHostModel
+internal sealed class HiDreamDenoiser(ModelSpec spec, IGraph graph, Tokenizer tokenizer) : IHostModel
 {
     public const int Layers = 36, KeyHeads = 8, HeadWidth = 128;
 
@@ -89,7 +89,7 @@ internal sealed class HiDreamDenoiser(ModelSpec spec, InferenceSession session, 
         using var keys = Tensor(prompt.Keys, cacheShape);
         using var values = Tensor(prompt.Values, cacheShape);
         using var run = lastStep ? GraphSessions.Releasing(Spec) : new RunOptions();
-        using var outputs = session.Run(run, Inputs, [ids, embeds, deepStack, image, promptAt, imageAt, step, keys, values], session.OutputNames);
+        using var outputs = graph.Run(run, Inputs, [ids, embeds, deepStack, image, promptAt, imageAt, step, keys, values], graph.OutputNames);
         if (reading)
             prompt.Keep(outputs[1].GetTensorDataAsSpan<Float16>().ToArray(), outputs[2].GetTensorDataAsSpan<Float16>().ToArray(), unread.Length);
         return outputs[0].GetTensorDataAsSpan<float>().ToArray();
@@ -101,7 +101,7 @@ internal sealed class HiDreamDenoiser(ModelSpec spec, InferenceSession session, 
             ? OrtValue.CreateTensorValueFromMemory(data, shape)
             : OrtValue.CreateAllocatedTensorValue(OrtAllocator.DefaultInstance, TensorBase.GetTypeInfo(typeof(T)).ElementType, shape);
 
-    public void Dispose() => session.Dispose();
+    public void Dispose() => graph.Dispose();
 }
 
 /// <summary>
@@ -176,7 +176,7 @@ internal sealed class HiDreamDenoiserRunner : IModelRunner
     {
         string tokenizerPath = Path.Combine(spec.Folder, "tokenizer.json");
         if (!File.Exists(tokenizerPath)) throw new HostRequestException(HostErrorKind.NotFound, $"{spec.Id} has no tokenizer.json in {spec.Folder}.");
-        var denoiser = new HiDreamDenoiser(spec, GraphSessions.Open(spec), QwenTokenizer.FromJson(File.ReadAllText(tokenizerPath)));
+        var denoiser = new HiDreamDenoiser(spec, GraphSessions.OpenGraph(spec), QwenTokenizer.FromJson(File.ReadAllText(tokenizerPath)));
         try
         {
             // One call at the square size, so CUDA tunes its kernels at load rather than on somebody's first picture.

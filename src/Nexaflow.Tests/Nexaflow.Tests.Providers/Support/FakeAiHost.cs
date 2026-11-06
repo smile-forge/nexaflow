@@ -26,6 +26,9 @@ internal sealed class FakeAiHost : IAiHost
 
     public AiHostEnvironment Environment { get; set; } = AiHostEnvironment.Cpu;
 
+    /// <summary>The share of memory its host's models may hold: none unless a test sets one.</summary>
+    public HostMemory Memory { get; set; } = HostMemory.Unbounded;
+
     /// <summary>The GPUs it finds when started from a pack: one 24 GB card, unless a test gives others.</summary>
     public IReadOnlyList<HostGpu> Gpus { get; set; } = [new HostGpu(0, "NVIDIA GeForce RTX 4090", "0000:01:00.0", 24L << 30, 22L << 30, 23L << 30)];
 

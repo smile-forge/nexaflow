@@ -51,6 +51,7 @@
           "folder": "models/qwen-3.5-9b",
           "file": "Qwen3.5-9B-Q4_K_M.gguf",
           "layers": 32,
+          "stateBytes": 52691548,
           "projector": "mmproj-F16.gguf",
           "memoryBytes": 8321499136,
           "bytesPerToken": 30720,
@@ -151,6 +152,8 @@
           "folder": "models/gemma-4-26b-a4b-it-qat",
           "file": "gemma-4-26B_q4_0-it.gguf",
           "layers": 30,
+          "stateBytes": 111424120,
+          "expertBytes": 12846382080,
           "batchBytesPerToken": 1376256,
           "bytesPerSequence": 213909504,
           "backgroundBytes": 9428795392,
@@ -190,6 +193,8 @@
           "folder": "models/qwen-3.6-35b-a3b",
           "file": "Qwen3.6-35B-A3B-Q4_K_M.gguf",
           "layers": 40,
+          "expertBytes": 18119393280,
+          "stateBytes": 65864428,
           "projector": "mmproj-Qwen3.6-35B-A3B-Q8_0.gguf",
           "memoryBytes": 23085449216,
           "bytesPerToken": 22528,
@@ -1057,12 +1062,20 @@
           "executionProvider": "cuda"
         },
         {
+          "role": "promptEncoder",
+          "runner": "z-image-prompt-encoder",
+          "folder": "models/z-image-turbo/encoder",
+          "file": "encoder.cpu.onnx",
+          "executionProvider": "cpu"
+        },
+        {
           "role": "denoiser",
           "runner": "z-image-denoiser",
           "folder": "models/z-image-turbo/denoiser",
           "file": "denoiser.onnx",
           "memoryBytes": 10468982784,
-          "executionProvider": "cuda"
+          "executionProvider": "cuda",
+          "streamed": { "file": "denoiser.stream.json", "memoryBytes": 6588982784, "hostBytes": 6667860992 }
         },
         {
           "role": "decoder",
@@ -1076,43 +1089,57 @@
       "files": [
         {
           "path": "models/z-image-turbo/encoder/encoder.onnx",
-          "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/4e7bc3c434c44b9b8ab079e2a0814d6c2f8469d4/encoder/encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/afa4ac5b54baed391841402e7706b6cb01b555f7/encoder/encoder.onnx",
           "size": 5255694,
           "sha256": "f1f490d8f4d537b5aa6e94d541245a6facaf73679fab538e9f7c3c3396b11e6a"
         },
         {
           "path": "models/z-image-turbo/encoder/encoder.onnx.data",
-          "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/4e7bc3c434c44b9b8ab079e2a0814d6c2f8469d4/encoder/encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/afa4ac5b54baed391841402e7706b6cb01b555f7/encoder/encoder.onnx.data",
           "size": 4752568320,
           "sha256": "2381ce8bcfedf6b4197e094bd3b51102839e61261dcadbbb44e100d3b075f38f"
         },
         {
           "path": "models/z-image-turbo/encoder/tokenizer.json",
-          "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/4e7bc3c434c44b9b8ab079e2a0814d6c2f8469d4/encoder/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/afa4ac5b54baed391841402e7706b6cb01b555f7/encoder/tokenizer.json",
           "size": 11422654,
           "sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"
         },
         {
           "path": "models/z-image-turbo/denoiser/denoiser.onnx",
-          "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/4e7bc3c434c44b9b8ab079e2a0814d6c2f8469d4/denoiser/denoiser.onnx",
+          "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/afa4ac5b54baed391841402e7706b6cb01b555f7/denoiser/denoiser.onnx",
           "size": 5396208,
           "sha256": "6a2a3ba50b6d4166f67ed79cf3b44d1aad9bc7d68a363347779ac5011eccf075"
         },
         {
           "path": "models/z-image-turbo/denoiser/denoiser.onnx.data",
-          "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/4e7bc3c434c44b9b8ab079e2a0814d6c2f8469d4/denoiser/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/afa4ac5b54baed391841402e7706b6cb01b555f7/denoiser/denoiser.onnx.data",
           "size": 6670821888,
           "sha256": "db0318246697925ba6545d907538564c16f4b22226ea00f293d85980fbdb4e76"
         },
+        { "path": "models/z-image-turbo/denoiser/denoiser.group00.onnx", "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/afa4ac5b54baed391841402e7706b6cb01b555f7/denoiser/denoiser.group00.onnx", "size": 463484, "sha256": "0793b05b73ec8986afd872bb75ccaa0e9e0807cdd5271d81567a46e5b04e66eb" },
+        { "path": "models/z-image-turbo/denoiser/denoiser.group01.onnx", "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/afa4ac5b54baed391841402e7706b6cb01b555f7/denoiser/denoiser.group01.onnx", "size": 319971, "sha256": "5cb936cc0b1b1216e85ea5052326626cda3974e5d51f0b0029a99bb5d44dc36e" },
+        { "path": "models/z-image-turbo/denoiser/denoiser.group02.onnx", "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/afa4ac5b54baed391841402e7706b6cb01b555f7/denoiser/denoiser.group02.onnx", "size": 431677, "sha256": "e8f9aeeac6e9ab947c9573b930a8befb0ddc41dff1fc75242204e6685ba787cf" },
+        { "path": "models/z-image-turbo/denoiser/denoiser.group03.onnx", "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/afa4ac5b54baed391841402e7706b6cb01b555f7/denoiser/denoiser.group03.onnx", "size": 432135, "sha256": "b5b17e8e1889a7394daedad9c4f57435e4707934b79ae30cbb5f2e1921697bc0" },
+        { "path": "models/z-image-turbo/denoiser/denoiser.group04.onnx", "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/afa4ac5b54baed391841402e7706b6cb01b555f7/denoiser/denoiser.group04.onnx", "size": 432559, "sha256": "ba6fe88fb1c8902160d579b8a05611d2c3d1bd7659378094beca28ec6160809f" },
+        { "path": "models/z-image-turbo/denoiser/denoiser.group05.onnx", "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/afa4ac5b54baed391841402e7706b6cb01b555f7/denoiser/denoiser.group05.onnx", "size": 434101, "sha256": "e234599c9bb56025495a09721a64ed54c9c04f2c1ef242237bfe42e92ecd1017" },
+        { "path": "models/z-image-turbo/denoiser/denoiser.group06.onnx", "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/afa4ac5b54baed391841402e7706b6cb01b555f7/denoiser/denoiser.group06.onnx", "size": 434489, "sha256": "171f64533ddbfc867b8cc0f05b90fc410c576e203a46e3892ee492f1922dab00" },
+        { "path": "models/z-image-turbo/denoiser/denoiser.group07.onnx", "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/afa4ac5b54baed391841402e7706b6cb01b555f7/denoiser/denoiser.group07.onnx", "size": 434511, "sha256": "35408e6296d7505508127d5134c58dbcaeb8c26ce9e2a31a33d1d18ebf61a746" },
+        { "path": "models/z-image-turbo/denoiser/denoiser.group08.onnx", "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/afa4ac5b54baed391841402e7706b6cb01b555f7/denoiser/denoiser.group08.onnx", "size": 434511, "sha256": "912ea6db1a28dc9d1c05886c03dce33fc390134b4019db1b7a12959bd42f96ff" },
+        { "path": "models/z-image-turbo/denoiser/denoiser.group09.onnx", "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/afa4ac5b54baed391841402e7706b6cb01b555f7/denoiser/denoiser.group09.onnx", "size": 434949, "sha256": "53065d1428a047f33c30aac81e2647ad81495df6914bc5dde15ae54dcaf207b4" },
+        { "path": "models/z-image-turbo/denoiser/denoiser.group10.onnx", "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/afa4ac5b54baed391841402e7706b6cb01b555f7/denoiser/denoiser.group10.onnx", "size": 435350, "sha256": "553ced578f5757308f1c5c998e1c7e62a184b56cdbc146f98b66dcd5a12024d6" },
+        { "path": "models/z-image-turbo/denoiser/denoiser.group11.onnx", "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/afa4ac5b54baed391841402e7706b6cb01b555f7/denoiser/denoiser.group11.onnx", "size": 303525, "sha256": "6f2186e4a674f2ec0a0c3c5c9a220db8e55df5f4f7566ca93944f7489ccf660b" },
+        { "path": "models/z-image-turbo/denoiser/denoiser.stream.json", "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/afa4ac5b54baed391841402e7706b6cb01b555f7/denoiser/denoiser.stream.json", "size": 91437, "sha256": "477a3643d9ac314ffeb15f0b1569bee19a4681a2fcf8cf10f0fa0ffebbd1cad5" },
+        { "path": "models/z-image-turbo/encoder/encoder.cpu.onnx", "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/afa4ac5b54baed391841402e7706b6cb01b555f7/encoder/encoder.cpu.onnx", "size": 5261329, "sha256": "706f142b0f19fbedc6c87ac86dd95e8f2ef3d000ddccec87d77b67f24bf329bf" },
         {
           "path": "models/z-image-turbo/decoder/decoder.onnx",
-          "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/4e7bc3c434c44b9b8ab079e2a0814d6c2f8469d4/decoder/decoder.onnx",
+          "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/afa4ac5b54baed391841402e7706b6cb01b555f7/decoder/decoder.onnx",
           "size": 716998,
           "sha256": "57bd3eeae688f437177c751119c6f5e3bb2d711dad0f0b9b6e68538aa8e1e8dc"
         },
         {
           "path": "models/z-image-turbo/decoder/decoder.onnx.data",
-          "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/4e7bc3c434c44b9b8ab079e2a0814d6c2f8469d4/decoder/decoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/z-image-turbo-onnx/resolve/afa4ac5b54baed391841402e7706b6cb01b555f7/decoder/decoder.onnx.data",
           "size": 99090432,
           "sha256": "fd3137e9b33ec6f639e4aee6dc25343dc355606bf1308e859181504e9abd67b7"
         }
@@ -1133,7 +1160,8 @@
           "folder": "models/hidream-o1-image/denoiser",
           "file": "denoiser.onnx",
           "memoryBytes": 15589179392,
-          "executionProvider": "cuda"
+          "executionProvider": "cuda",
+          "streamed": { "file": "denoiser.stream.json", "memoryBytes": 10929179392, "hostBytes": 7530872832 }
         },
         {
           "role": "pictureReader",
@@ -1145,33 +1173,50 @@
         }
       ],
       "files": [
+        { "path": "models/hidream-o1-image/denoiser/denoiser.group00.onnx", "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser/denoiser.group00.onnx", "size": 227237, "sha256": "e14b3ff0b7bc3d4e7a35fa5897e744c486137f8083e53741f009811fc73c0b7d" },
+        { "path": "models/hidream-o1-image/denoiser/denoiser.group01.onnx", "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser/denoiser.group01.onnx", "size": 152253, "sha256": "65894ca12ee3440f800858580b461e442044fda389950d961b991a5203905d7e" },
+        { "path": "models/hidream-o1-image/denoiser/denoiser.group02.onnx", "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser/denoiser.group02.onnx", "size": 185668, "sha256": "a13775b543ec3032458a5017b5219720631210847f72d06599de0a886e64c6fe" },
+        { "path": "models/hidream-o1-image/denoiser/denoiser.group03.onnx", "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser/denoiser.group03.onnx", "size": 150776, "sha256": "45d70a46a22aa4a6f6e91b658168e279407f43479b43b0b3767e8113aae049d7" },
+        { "path": "models/hidream-o1-image/denoiser/denoiser.group04.onnx", "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser/denoiser.group04.onnx", "size": 145281, "sha256": "808dc7827dde245fec98279f115b6a2a44bacc03cfe688d16f51d1f1dfb49ee6" },
+        { "path": "models/hidream-o1-image/denoiser/denoiser.group05.onnx", "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser/denoiser.group05.onnx", "size": 186218, "sha256": "bf4e04c719203c7af7ae6abc46747c7d65e3569531e110abc3994fb34bca71bd" },
+        { "path": "models/hidream-o1-image/denoiser/denoiser.group06.onnx", "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser/denoiser.group06.onnx", "size": 150807, "sha256": "d5f3f819cc7551d92f911b9bea22f541201207ce4f15a2bf2e7afe32a8608cf2" },
+        { "path": "models/hidream-o1-image/denoiser/denoiser.group07.onnx", "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser/denoiser.group07.onnx", "size": 146396, "sha256": "ab2465faa43b89c06a4bb157b7be4fcc82d1b9a08ec8a4975a232f316b59329d" },
+        { "path": "models/hidream-o1-image/denoiser/denoiser.group08.onnx", "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser/denoiser.group08.onnx", "size": 186682, "sha256": "c871599890ca64ee1b3010fc43769a75fe35b5d87251f0c7dc256a46fe7e0897" },
+        { "path": "models/hidream-o1-image/denoiser/denoiser.group09.onnx", "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser/denoiser.group09.onnx", "size": 150907, "sha256": "b368fd134c0f761d2ccdd4060c3715748c7836dd090cbfef0d78fe3db061631b" },
+        { "path": "models/hidream-o1-image/denoiser/denoiser.group10.onnx", "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser/denoiser.group10.onnx", "size": 145947, "sha256": "bb85d75a40eafcac617dc6c798811857b8d8d48ff84a6da3599beef798211be6" },
+        { "path": "models/hidream-o1-image/denoiser/denoiser.group11.onnx", "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser/denoiser.group11.onnx", "size": 187171, "sha256": "7acbe80f5f9efa3fda65b09579f576ceaa7e7fd7953daf20469b47d43b06a2be" },
+        { "path": "models/hidream-o1-image/denoiser/denoiser.group12.onnx", "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser/denoiser.group12.onnx", "size": 151233, "sha256": "f3f5485244215d7a0fcc38a72a83921122ad4723821ed26eb5f7cf38fe034c5d" },
+        { "path": "models/hidream-o1-image/denoiser/denoiser.group13.onnx", "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser/denoiser.group13.onnx", "size": 146340, "sha256": "4454fbc8be7b8bcb3a19cc5e817e8e1ea66f45e33776c3264569a2e0c58c6cb6" },
+        { "path": "models/hidream-o1-image/denoiser/denoiser.group14.onnx", "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser/denoiser.group14.onnx", "size": 277669, "sha256": "323383c1f40eaa1839a9ebd9ba9ca5d3dc51e9330bc722dc41974f42912c3852" },
+        { "path": "models/hidream-o1-image/denoiser/denoiser.group15.onnx", "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser/denoiser.group15.onnx", "size": 82730, "sha256": "dfc5be360cc792ae0a9d06e6291f2b48958f40ba0690cb75fe49d4e7fb1e97dd" },
+        { "path": "models/hidream-o1-image/denoiser/denoiser.stream.json", "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser/denoiser.stream.json", "size": 94575, "sha256": "76a66c7f508fa779a806bdaf9ecb1f3f4ffd45da718c10eef9e3e3af833b6b63" },
         {
           "path": "models/hidream-o1-image/denoiser/denoiser.onnx",
-          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/da0b9a59b941234400b21917b36f19f58f0d63c6/denoiser/denoiser.onnx",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser/denoiser.onnx",
           "size": 3014804,
           "sha256": "c969bc06020f01f1f0cdc748f5f0cd89551104396869db314d26b2639948a444"
         },
         {
           "path": "models/hidream-o1-image/denoiser/denoiser.onnx.data",
-          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/da0b9a59b941234400b21917b36f19f58f0d63c6/denoiser/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser/denoiser.onnx.data",
           "size": 8776790016,
           "sha256": "a4724f29fa18a4b963582cac17ad62ce3b5a76bd5c0f55b9a053c64479ede03c"
         },
         {
           "path": "models/hidream-o1-image/denoiser/tokenizer.json",
-          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/da0b9a59b941234400b21917b36f19f58f0d63c6/denoiser/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser/tokenizer.json",
           "size": 7033338,
           "sha256": "a14b1a1a5f4d16de13dc773daf791bc701216f3361a2ab6530b08228950ad85f"
         },
         {
           "path": "models/hidream-o1-image/picture-reader/picture-reader.onnx",
-          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/da0b9a59b941234400b21917b36f19f58f0d63c6/picture-reader/picture-reader.onnx",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/picture-reader/picture-reader.onnx",
           "size": 1382418,
           "sha256": "9e561d8eda6531184cc9262faa1019277309f945d335ccd92912f2324338f3ad"
         },
         {
           "path": "models/hidream-o1-image/picture-reader/picture-reader.onnx.data",
-          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/da0b9a59b941234400b21917b36f19f58f0d63c6/picture-reader/picture-reader.onnx.data",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/picture-reader/picture-reader.onnx.data",
           "size": 2306932736,
           "sha256": "340a0386ee46f916e02fd10225c50892b0751eba85a72536c611eb4856d7903a"
         }
@@ -1194,11 +1239,18 @@
           "executionProvider": "cuda"
         },
         {
+          "role": "promptEncoder",
+          "runner": "moss-image-prompt-encoder",
+          "folder": "models/moss-image/encoder",
+          "file": "Qwen3.5-9B-Q8_0.gguf",
+          "executionProvider": "cpu"
+        },
+        {
           "role": "denoiser",
           "runner": "moss-image-denoiser",
           "folder": "models/moss-image/denoiser",
           "file": "denoiser.onnx",
-          "memoryBytes": 9810477056,
+          "memoryBytes": 7516192768,
           "executionProvider": "cuda"
         },
         {
@@ -1338,31 +1390,31 @@
       "files": [
         {
           "path": "models/hidream-o1-image/denoiser-fp16/denoiser.onnx",
-          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/da0b9a59b941234400b21917b36f19f58f0d63c6/denoiser-fp16/denoiser.onnx",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser-fp16/denoiser.onnx",
           "size": 3221529,
           "sha256": "fd1babeeb24e67146692b37783155e94b271c1cbf902e52a1aa152b163fe18e1"
         },
         {
           "path": "models/hidream-o1-image/denoiser-fp16/denoiser.onnx.data",
-          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/da0b9a59b941234400b21917b36f19f58f0d63c6/denoiser-fp16/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser-fp16/denoiser.onnx.data",
           "size": 15288500224,
           "sha256": "b923e69a5b7c84af1b264385d19cb37a1442c28921a67eb18216869c9071007b"
         },
         {
           "path": "models/hidream-o1-image/denoiser-fp16/tokenizer.json",
-          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/da0b9a59b941234400b21917b36f19f58f0d63c6/denoiser-fp16/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/denoiser-fp16/tokenizer.json",
           "size": 7033338,
           "sha256": "a14b1a1a5f4d16de13dc773daf791bc701216f3361a2ab6530b08228950ad85f"
         },
         {
           "path": "models/hidream-o1-image/picture-reader/picture-reader.onnx",
-          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/da0b9a59b941234400b21917b36f19f58f0d63c6/picture-reader/picture-reader.onnx",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/picture-reader/picture-reader.onnx",
           "size": 1382418,
           "sha256": "9e561d8eda6531184cc9262faa1019277309f945d335ccd92912f2324338f3ad"
         },
         {
           "path": "models/hidream-o1-image/picture-reader/picture-reader.onnx.data",
-          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/da0b9a59b941234400b21917b36f19f58f0d63c6/picture-reader/picture-reader.onnx.data",
+          "url": "https://huggingface.co/smile-forge/hidream-o1-image-onnx/resolve/4d4d6b1364ee1b829da2397a7645956e77faa892/picture-reader/picture-reader.onnx.data",
           "size": 2306932736,
           "sha256": "340a0386ee46f916e02fd10225c50892b0751eba85a72536c611eb4856d7903a"
         }
@@ -1385,12 +1437,20 @@
           "executionProvider": "cuda"
         },
         {
+          "role": "promptEncoder",
+          "runner": "klein-prompt-encoder",
+          "folder": "models/flux2-klein-4b/encoder",
+          "file": "encoder.onnx",
+          "executionProvider": "cpu"
+        },
+        {
           "role": "denoiser",
           "runner": "klein-denoiser",
           "folder": "models/flux2-klein-4b/denoiser",
           "file": "denoiser.onnx",
           "memoryBytes": 11515461632,
-          "executionProvider": "cuda"
+          "executionProvider": "cuda",
+          "streamed": { "file": "denoiser.stream.json", "memoryBytes": 7516192768, "hostBytes": 4619083776 }
         },
         {
           "role": "pictureEncoder",
@@ -1412,55 +1472,65 @@
       "files": [
         {
           "path": "models/flux2-klein-4b/decoder/decoder.onnx",
-          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/decoder/decoder.onnx",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/526df514f5cc715b3a0b3a36930cd1787775a122/decoder/decoder.onnx",
           "size": 735313,
           "sha256": "362d4fc0b00b0668c9e0d1077b5430c1192bb99b63f6c0bbc92601233121af6e"
         },
         {
           "path": "models/flux2-klein-4b/decoder/decoder.onnx.data",
-          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/decoder/decoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/526df514f5cc715b3a0b3a36930cd1787775a122/decoder/decoder.onnx.data",
           "size": 99287040,
           "sha256": "a18a3b77db207d2b37648e879cf7508f39b8053c40d1cc11d04b196b93e86341"
         },
         {
           "path": "models/flux2-klein-4b/denoiser/denoiser.onnx",
-          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/denoiser/denoiser.onnx",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/526df514f5cc715b3a0b3a36930cd1787775a122/denoiser/denoiser.onnx",
           "size": 1634080,
           "sha256": "fdc9053d248e5657b429101c4806c563ea4e0f0750112ccf2789629cc065bbb4"
         },
         {
           "path": "models/flux2-klein-4b/denoiser/denoiser.onnx.data",
-          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/denoiser/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/526df514f5cc715b3a0b3a36930cd1787775a122/denoiser/denoiser.onnx.data",
           "size": 4620636160,
           "sha256": "858ef2af4881462972756953e169fb370f35382ed0a2823dafb59ee2b92aee8c"
         },
+        { "path": "models/flux2-klein-4b/denoiser/denoiser.group00.onnx", "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/526df514f5cc715b3a0b3a36930cd1787775a122/denoiser/denoiser.group00.onnx", "size": 26708, "sha256": "2f580296e285ff5c4997b913906eeefa0f4c5316ef0a82322e12b9b44635285a" },
+        { "path": "models/flux2-klein-4b/denoiser/denoiser.group01.onnx", "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/526df514f5cc715b3a0b3a36930cd1787775a122/denoiser/denoiser.group01.onnx", "size": 182518, "sha256": "00530d7e32005867c66a64280d6704437ab1ce11017e846bc4141cba66141c77" },
+        { "path": "models/flux2-klein-4b/denoiser/denoiser.group02.onnx", "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/526df514f5cc715b3a0b3a36930cd1787775a122/denoiser/denoiser.group02.onnx", "size": 212845, "sha256": "e9f5d32f9e6bb81be8930068f138aeca91604227c017af690e60b1a5ca73662e" },
+        { "path": "models/flux2-klein-4b/denoiser/denoiser.group03.onnx", "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/526df514f5cc715b3a0b3a36930cd1787775a122/denoiser/denoiser.group03.onnx", "size": 180106, "sha256": "3e28da7abbf0720ed8ec7fa4b83f4a385119ee4e72b89a67b1b315b29afadd1b" },
+        { "path": "models/flux2-klein-4b/denoiser/denoiser.group04.onnx", "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/526df514f5cc715b3a0b3a36930cd1787775a122/denoiser/denoiser.group04.onnx", "size": 186413, "sha256": "1e2a6921f7698a1141eb404d68b44bf02cd27ea7505d60f7011a7bedcd0905b6" },
+        { "path": "models/flux2-klein-4b/denoiser/denoiser.group05.onnx", "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/526df514f5cc715b3a0b3a36930cd1787775a122/denoiser/denoiser.group05.onnx", "size": 186747, "sha256": "efbf78d4da5fd7ed595158f3d1624f0c9dbb4e84af4a9e88037936dfd1fe92f3" },
+        { "path": "models/flux2-klein-4b/denoiser/denoiser.group06.onnx", "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/526df514f5cc715b3a0b3a36930cd1787775a122/denoiser/denoiser.group06.onnx", "size": 186877, "sha256": "c692d42c250457aa380ea6b284dbc7af36b420733a4569aa0a228dc6aad25e28" },
+        { "path": "models/flux2-klein-4b/denoiser/denoiser.group07.onnx", "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/526df514f5cc715b3a0b3a36930cd1787775a122/denoiser/denoiser.group07.onnx", "size": 235835, "sha256": "28374a1b94f5c0eb5e00b7d3add77d41ff214b2558e865538bc7d0cd330763e6" },
+        { "path": "models/flux2-klein-4b/denoiser/denoiser.group08.onnx", "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/526df514f5cc715b3a0b3a36930cd1787775a122/denoiser/denoiser.group08.onnx", "size": 53434, "sha256": "cb3efb7dc8d33fbcd9467ce9282988574c300f146827ba5d4cc023f1f2434421" },
+        { "path": "models/flux2-klein-4b/denoiser/denoiser.stream.json", "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/526df514f5cc715b3a0b3a36930cd1787775a122/denoiser/denoiser.stream.json", "size": 39601, "sha256": "887b2d4db88857f63eb1b66942fcff4ac70b13ce4010b74a270e21a823042943" },
         {
           "path": "models/flux2-klein-4b/encoder/encoder.onnx",
-          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/encoder/encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/526df514f5cc715b3a0b3a36930cd1787775a122/encoder/encoder.onnx",
           "size": 3745515,
           "sha256": "2bb3a35b988e4ab298d7c9254becd4d440434ad056b25fa4dc35d094c8340e6d"
         },
         {
           "path": "models/flux2-klein-4b/encoder/encoder.onnx.data",
-          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/encoder/encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/526df514f5cc715b3a0b3a36930cd1787775a122/encoder/encoder.onnx.data",
           "size": 3844476928,
           "sha256": "da6e9401467e733d836817ed8573595d45d9b152ef9c5e1cf58218ce2fa74bf9"
         },
         {
           "path": "models/flux2-klein-4b/encoder/tokenizer.json",
-          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/encoder/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/526df514f5cc715b3a0b3a36930cd1787775a122/encoder/tokenizer.json",
           "size": 11422654,
           "sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"
         },
         {
           "path": "models/flux2-klein-4b/picture-encoder/picture-encoder.onnx",
-          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/picture-encoder/picture-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/526df514f5cc715b3a0b3a36930cd1787775a122/picture-encoder/picture-encoder.onnx",
           "size": 560213,
           "sha256": "4fb1e93cf3bec76877eaa409390a6794e0f2d1b0bd4f90fcf666e752028d30ff"
         },
         {
           "path": "models/flux2-klein-4b/picture-encoder/picture-encoder.onnx.data",
-          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/7cfe68f8f9687674cf031c479b3b99e351fce336/picture-encoder/picture-encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/flux2-klein-4b-onnx/resolve/526df514f5cc715b3a0b3a36930cd1787775a122/picture-encoder/picture-encoder.onnx.data",
           "size": 68878336,
           "sha256": "e2ff803aee95765ac6004cf77d80148af15d2b9f0d192a6c09ad43bec4f3c1ba"
         }
@@ -1490,6 +1560,13 @@
           "executionProvider": "cuda"
         },
         {
+          "role": "promptEncoder",
+          "runner": "qwen-edit-prompt-encoder",
+          "folder": "models/qwen-image-edit-2511/prompt-encoder",
+          "file": "prompt-encoder.onnx",
+          "executionProvider": "cpu"
+        },
+        {
           "role": "pictureEncoder",
           "runner": "qwen-edit-picture-encoder",
           "folder": "models/qwen-image-edit-2511/picture-encoder",
@@ -1503,7 +1580,8 @@
           "folder": "models/qwen-image-edit-2511/denoiser",
           "file": "denoiser.onnx",
           "memoryBytes": 29583474688,
-          "executionProvider": "cuda"
+          "executionProvider": "cuda",
+          "streamed": { "file": "denoiser.stream.json", "memoryBytes": 22343474688, "hostBytes": 21839413248 }
         },
         {
           "role": "decoder",
@@ -1517,67 +1595,113 @@
       "files": [
         {
           "path": "models/qwen-image-edit-2511/picture-reader/picture-reader.onnx",
-          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-reader/picture-reader.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/picture-reader/picture-reader.onnx",
           "size": 1650840,
           "sha256": "f0029a761ac1801a77ec3e206c904a828192062abcfa75ccda88efe42ae781ea"
         },
         {
           "path": "models/qwen-image-edit-2511/picture-reader/picture-reader.onnx.data",
-          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-reader/picture-reader.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/picture-reader/picture-reader.onnx.data",
           "size": 2711355392,
           "sha256": "bfac799544434775d9f5f83974c8b99586af3b36cc8b4f32edbd9aa334ea1e31"
         },
         {
           "path": "models/qwen-image-edit-2511/prompt-encoder/prompt-encoder.onnx",
-          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/prompt-encoder/prompt-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/prompt-encoder/prompt-encoder.onnx",
           "size": 3918782,
           "sha256": "1963636ff5472dea601eaa0fdd48f2747b235c878c4d846c382507946ff9bf38"
         },
         {
           "path": "models/qwen-image-edit-2511/prompt-encoder/prompt-encoder.onnx.data",
-          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/prompt-encoder/prompt-encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/prompt-encoder/prompt-encoder.onnx.data",
           "size": 8432277504,
           "sha256": "59bdda72cc483afd6cb1a28afbcf4ebd6411c732012d977e6bc3dca2da9be7cb"
         },
         {
           "path": "models/qwen-image-edit-2511/prompt-encoder/tokenizer.json",
-          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/prompt-encoder/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/prompt-encoder/tokenizer.json",
           "size": 11421896,
           "sha256": "9c5ae00e602b8860cbd784ba82a8aa14e8feecec692e7076590d014d7b7fdafa"
         },
         {
           "path": "models/qwen-image-edit-2511/picture-encoder/picture-encoder.onnx",
-          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-encoder/picture-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/picture-encoder/picture-encoder.onnx",
           "size": 706599,
           "sha256": "2657291b4f07a31c8db9a0dd8fcba6c0a22fab4482a7810950b33476ea0212b6"
         },
         {
           "path": "models/qwen-image-edit-2511/picture-encoder/picture-encoder.onnx.data",
-          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-encoder/picture-encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/picture-encoder/picture-encoder.onnx.data",
           "size": 106594304,
           "sha256": "4b452fd69967821f0e85ee064153dd27fb8a9cf41c50ae074e8c888d15ab74b2"
         },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group00.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group00.onnx", "size": 179440, "sha256": "30b47063683ae3e164569470d44c39491d4924b828c4861f391c69f65ed181c4" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group01.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group01.onnx", "size": 122009, "sha256": "a67af78cf98fffe7fa2f96bed9369eb2d50587ede0c1038e937173ec305e1a7f" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group02.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group02.onnx", "size": 211499, "sha256": "1b75bf4532e2cc7841543420d5d3cf653fd94189b47f5ecb938264329de25cd5" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group03.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group03.onnx", "size": 154672, "sha256": "8f8207e5940bfab79560ae24fb431dc1d671e429c29044312c35b42f26d2c3c1" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group04.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group04.onnx", "size": 123058, "sha256": "765e9d2098dcba6a9f7db3263c73141992d64c63d3e2a17fcce9822aaa09d8a2" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group05.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group05.onnx", "size": 212520, "sha256": "f34b3224110fa5a27383f20c7695a5da975ebf719b1112c098be8212f80d48c3" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group06.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group06.onnx", "size": 155194, "sha256": "d2eba9c482b77ba52fe32a6261dbbe07929540995d119687a1e44349e7879a30" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group07.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group07.onnx", "size": 123184, "sha256": "61425b0dd84a390b0e2aff5bdd532a61211dc8ff0ab15b03ff580c9a91ecf6a6" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group08.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group08.onnx", "size": 212988, "sha256": "a83f3210dc8e879018a8729bd691e860a12b55bf2f7a6d9982360f926831c5ce" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group09.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group09.onnx", "size": 155465, "sha256": "3b3b09ba422f11617e81844282f13cb36b2e6b32953969ae2b6fe8834a58ff32" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group10.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group10.onnx", "size": 123470, "sha256": "31b40f734a3b44b1ad170b260deb05286d0bd2ac0111157cfe86099bf6d6b4be" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group11.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group11.onnx", "size": 213012, "sha256": "c27d56e5807a257114fef6fa519453281f01a5c76e3d55cf49c2ac4844ab3838" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group12.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group12.onnx", "size": 155538, "sha256": "0bc1fefc0bf7ddabcfcb6c7e461b3f60b5701e8ff05a8ad667fefff9e871cc83" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group13.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group13.onnx", "size": 123439, "sha256": "4b771a79d337b74b4e78cb25cd3d0c5133c892400b3341602d636b9845c871dc" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group14.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group14.onnx", "size": 213024, "sha256": "01fe2e832b52a297da7ddf102ab308d8d40d0fabde19233667f280eda8940b08" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group15.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group15.onnx", "size": 155661, "sha256": "c4643793f39586d17b428115694f31c554523ccb67bdfddd33882255bc22fdeb" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group16.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group16.onnx", "size": 123707, "sha256": "ee7c0fd971f7d86ba1a9a7f57b5a9303ef5c45d4fe51a8a3ee0176a82a207b51" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group17.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group17.onnx", "size": 212413, "sha256": "ceb94ce7a3155d0f4904c939230346f267ffd46c05f1e43eb5ef573d49953a03" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group18.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group18.onnx", "size": 155424, "sha256": "9c60eb06ac239ac617e5ed69f813d857e83cc9629d431155dcfb005ae11a4cd6" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group19.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group19.onnx", "size": 123325, "sha256": "bcfb03957a5eb40c63c131914d131a9d0e07a4336aeac310ee1445c13b3d8d33" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group20.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group20.onnx", "size": 212693, "sha256": "8b629424ce4a6779666b01d39d6e5c0fb461b3c32256c814a71cf7eed5b1cfb5" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group21.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group21.onnx", "size": 155553, "sha256": "8958f23d3ac7267803d12c00a2af2f02cf3075ac1823ac2a0e439bf61f042dd8" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group22.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group22.onnx", "size": 123352, "sha256": "1f42e819266d545f6759dd88b534e70d5d682e1042b645586ca2e844b71d3e88" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group23.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group23.onnx", "size": 212699, "sha256": "c888f8530d196fe72bbc4a9a6351847e27ba68a7f424347f59e0b82532475344" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group24.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group24.onnx", "size": 155594, "sha256": "9b75fb8ebd31d0dfaad9aa085c74980fb3ba743877c545505c7d00b6939dd06a" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group25.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group25.onnx", "size": 123999, "sha256": "ab9a950bd4ea68a18121050159f8ff207ad3c79a2b4275c2164749d2676dc635" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group26.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group26.onnx", "size": 123569, "sha256": "df8184d18138dfe6d42a272811cd4d39deffbc6f7987456f64a04148595a6ca0" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group27.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group27.onnx", "size": 213093, "sha256": "7c40ca6633bf96a01bd82553c9b83b848b0d4f77a6897a8748faa3ed48e82679" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group28.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group28.onnx", "size": 155187, "sha256": "76973266b8f9ca8a88fa6483a90815b05ee2b8069713ae7867e9b935df9c20a5" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group29.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group29.onnx", "size": 123567, "sha256": "098382460f57633d989581bd2efc37e315a02aca0bd86b383addd0a6bce3de78" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group30.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group30.onnx", "size": 213150, "sha256": "78a4a3862b78c592546f7b20c5d186b7b3fdd0cce3528c211dc12f7eb4988b6b" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group31.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group31.onnx", "size": 155833, "sha256": "16e2dd128451cef4ea14f2a27d26a8ccd482fa5d6a79b67488862bc906c8cf3c" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group32.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group32.onnx", "size": 123603, "sha256": "f968bbc6b54db53b40161f30c5626e1d34ef329d1544776929406dda3d836ae4" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group33.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group33.onnx", "size": 213150, "sha256": "a1bd2a8b88aa39f573d557cd73349542a16c74462f52d158ccf6bac802bcb9da" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group34.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group34.onnx", "size": 155878, "sha256": "2de5af89b5bf1fadb94ce78eefeef86f84efa34cc199ee711198f6334342edc5" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group35.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group35.onnx", "size": 123590, "sha256": "2e00c8816c80e649de71fe5ec38c81d31ef9d2030036992c619663393c8280b7" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group36.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group36.onnx", "size": 213143, "sha256": "e9445e30425408590aacb8b86335b8778f2dc803789d8bcae691fc315b5f408a" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group37.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group37.onnx", "size": 155871, "sha256": "6d47100caf333b43c0b1cd26084a9eeb45633d9c60cff1716529186909b6d5d1" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group38.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group38.onnx", "size": 123645, "sha256": "525536c4686f50fb92fb914caed7327bc6bed19c41dee03de398a47a3732cacd" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group39.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group39.onnx", "size": 213300, "sha256": "0327755373981490a57a443047f100f4ac2962a68066e8ee9f673c4a0d1dbe14" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group40.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group40.onnx", "size": 155990, "sha256": "7833d7ac83c66772fcd553e315c1aaee8adf2323b3a2715a1140ad4cd6d8ec12" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group41.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group41.onnx", "size": 123644, "sha256": "a2d1669f20ac54b324dbe196d22d2a6c5242cffc0c3ffe9b2abeee124b4096b9" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group42.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group42.onnx", "size": 213559, "sha256": "4b116f85c9a74f24ccfa6c2182093fa5e39c4070cf77c9b3cfe4721eb1809f74" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group43.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group43.onnx", "size": 156283, "sha256": "a3ac8ade57aa854617f50fe8cff77fd7f699b584a20acef67c6bbef021be0f9b" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.group44.onnx", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.group44.onnx", "size": 243522, "sha256": "b897fea25b2669b6bea4735c75a691cdc87bcf242769f2c2ee389a2f151b30a0" },
+        { "path": "models/qwen-image-edit-2511/denoiser/denoiser.stream.json", "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.stream.json", "size": 301424, "sha256": "e5eddbd0c380b5352c79acf01303d2d219ccf5a277c4e36e5fb5ace349ce8ac7" },
         {
           "path": "models/qwen-image-edit-2511/denoiser/denoiser.onnx",
-          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/denoiser/denoiser.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.onnx",
           "size": 8633482,
           "sha256": "99830d36547024901282c78cbd43efea0615d4f062087b87857013372bf11d57"
         },
         {
           "path": "models/qwen-image-edit-2511/denoiser/denoiser.onnx.data",
-          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/denoiser/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser/denoiser.onnx.data",
           "size": 21863458816,
           "sha256": "f10240b5c8af5189722313025ab14387073c3baa8afed53791a98a9ca9fa14c9"
         },
         {
           "path": "models/qwen-image-edit-2511/decoder/decoder.onnx",
-          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/decoder/decoder.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/decoder/decoder.onnx",
           "size": 1072667,
           "sha256": "880cea5de12b43bb19c35931b540a9e6a9bdf1d7fc18b3dc8d9492c3f688e2a6"
         },
         {
           "path": "models/qwen-image-edit-2511/decoder/decoder.onnx.data",
-          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/decoder/decoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/decoder/decoder.onnx.data",
           "size": 143884288,
           "sha256": "b06a535c22ac605182da5cc6dffa5a97a68a68b446f65fee9aa7fad508d4ef18"
         }
@@ -1607,6 +1731,13 @@
           "executionProvider": "cuda"
         },
         {
+          "role": "promptEncoder",
+          "runner": "qwen-edit-prompt-encoder",
+          "folder": "models/qwen-image-edit-2511/prompt-encoder",
+          "file": "prompt-encoder.onnx",
+          "executionProvider": "cpu"
+        },
+        {
           "role": "pictureEncoder",
           "runner": "qwen-edit-picture-encoder",
           "folder": "models/qwen-image-edit-2511/picture-encoder",
@@ -1634,67 +1765,67 @@
       "files": [
         {
           "path": "models/qwen-image-edit-2511/picture-reader/picture-reader.onnx",
-          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-reader/picture-reader.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/picture-reader/picture-reader.onnx",
           "size": 1650840,
           "sha256": "f0029a761ac1801a77ec3e206c904a828192062abcfa75ccda88efe42ae781ea"
         },
         {
           "path": "models/qwen-image-edit-2511/picture-reader/picture-reader.onnx.data",
-          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-reader/picture-reader.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/picture-reader/picture-reader.onnx.data",
           "size": 2711355392,
           "sha256": "bfac799544434775d9f5f83974c8b99586af3b36cc8b4f32edbd9aa334ea1e31"
         },
         {
           "path": "models/qwen-image-edit-2511/prompt-encoder/prompt-encoder.onnx",
-          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/prompt-encoder/prompt-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/prompt-encoder/prompt-encoder.onnx",
           "size": 3918782,
           "sha256": "1963636ff5472dea601eaa0fdd48f2747b235c878c4d846c382507946ff9bf38"
         },
         {
           "path": "models/qwen-image-edit-2511/prompt-encoder/prompt-encoder.onnx.data",
-          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/prompt-encoder/prompt-encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/prompt-encoder/prompt-encoder.onnx.data",
           "size": 8432277504,
           "sha256": "59bdda72cc483afd6cb1a28afbcf4ebd6411c732012d977e6bc3dca2da9be7cb"
         },
         {
           "path": "models/qwen-image-edit-2511/prompt-encoder/tokenizer.json",
-          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/prompt-encoder/tokenizer.json",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/prompt-encoder/tokenizer.json",
           "size": 11421896,
           "sha256": "9c5ae00e602b8860cbd784ba82a8aa14e8feecec692e7076590d014d7b7fdafa"
         },
         {
           "path": "models/qwen-image-edit-2511/picture-encoder/picture-encoder.onnx",
-          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-encoder/picture-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/picture-encoder/picture-encoder.onnx",
           "size": 706599,
           "sha256": "2657291b4f07a31c8db9a0dd8fcba6c0a22fab4482a7810950b33476ea0212b6"
         },
         {
           "path": "models/qwen-image-edit-2511/picture-encoder/picture-encoder.onnx.data",
-          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/picture-encoder/picture-encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/picture-encoder/picture-encoder.onnx.data",
           "size": 106594304,
           "sha256": "4b452fd69967821f0e85ee064153dd27fb8a9cf41c50ae074e8c888d15ab74b2"
         },
         {
           "path": "models/qwen-image-edit-2511/denoiser-fp16/denoiser.onnx",
-          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/denoiser-fp16/denoiser.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser-fp16/denoiser.onnx",
           "size": 9350572,
           "sha256": "cbc64337b47626663237fe6861a160021b6ba31867e8b31ebd66d98d28cef874"
         },
         {
           "path": "models/qwen-image-edit-2511/denoiser-fp16/denoiser.onnx.data",
-          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/denoiser-fp16/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/denoiser-fp16/denoiser.onnx.data",
           "size": 40858877952,
           "sha256": "bb19839edd2b8c495747d8ec9d6b971871f215a66cd506c8bc79ff1856fa1942"
         },
         {
           "path": "models/qwen-image-edit-2511/decoder/decoder.onnx",
-          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/decoder/decoder.onnx",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/decoder/decoder.onnx",
           "size": 1072667,
           "sha256": "880cea5de12b43bb19c35931b540a9e6a9bdf1d7fc18b3dc8d9492c3f688e2a6"
         },
         {
           "path": "models/qwen-image-edit-2511/decoder/decoder.onnx.data",
-          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/fca3be119a85c14b2ba87207d682aec54ca9869d/decoder/decoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763679ec20dce70d6d4ce62ea9b8a0b8d44/decoder/decoder.onnx.data",
           "size": 143884288,
           "sha256": "b06a535c22ac605182da5cc6dffa5a97a68a68b446f65fee9aa7fad508d4ef18"
         }
@@ -1718,12 +1849,20 @@
           "executionProvider": "cuda"
         },
         {
+          "role": "promptEncoder",
+          "runner": "wan-prompt-encoder",
+          "folder": "models/wan2.2-ti2v-5b/prompt-encoder",
+          "file": "prompt-encoder.onnx",
+          "executionProvider": "cpu"
+        },
+        {
           "role": "denoiser",
           "runner": "wan-denoiser",
           "folder": "models/wan2.2-ti2v-5b/denoiser-fast",
           "file": "denoiser.onnx",
           "memoryBytes": 16575889408,
-          "executionProvider": "cuda"
+          "executionProvider": "cuda",
+          "streamed": { "file": "denoiser.stream.json", "memoryBytes": 4085889408, "hostBytes": 10127278080 }
         },
         {
           "role": "decoder",
@@ -1731,61 +1870,79 @@
           "folder": "models/wan2.2-ti2v-5b/decoder",
           "file": "decoder.onnx",
           "memoryBytes": 22347251712,
-          "executionProvider": "cuda"
+          "executionProvider": "cuda",
+          "tiled": { "cells": 16, "memoryBytes": 7516192768, "hostBytes": 4209868800 }
         }
       ],
       "files": [
         {
           "path": "models/wan2.2-ti2v-5b/decoder/caches.json",
-          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/decoder/caches.json",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/decoder/caches.json",
           "size": 2301,
           "sha256": "902948e9880c1239ed963a139a84be3f78c6b46e4d32f41e3843a68970eeacd4"
         },
         {
           "path": "models/wan2.2-ti2v-5b/decoder/decoder-first.onnx",
-          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/decoder/decoder-first.onnx",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/decoder/decoder-first.onnx",
           "size": 1138787,
           "sha256": "ff228a04bfb85f626c0b18f9f0d1e99b1b0055f0a5a4851e1d6d69aa0b3aaf37"
         },
         {
           "path": "models/wan2.2-ti2v-5b/decoder/decoder-first.onnx.data",
-          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/decoder/decoder-first.onnx.data",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/decoder/decoder-first.onnx.data",
           "size": 1085014016,
           "sha256": "16ba4444fa9fd0109d5e42017b075f286a496e2a4bac6eb65bb0f85d1bed68ff"
         },
         {
           "path": "models/wan2.2-ti2v-5b/decoder/decoder.onnx",
-          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/decoder/decoder.onnx",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/decoder/decoder.onnx",
           "size": 26424224,
           "sha256": "1536eafb887f15cc5b2fcf47f88efec853221819a1f6b6d211d504dc4855db4a"
         },
+        { "path": "models/wan2.2-ti2v-5b/denoiser-fast/denoiser.group00.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser-fast/denoiser.group00.onnx", "size": 150279, "sha256": "20add02b734b5ea10ad607e6af22ef091b257cc6883165366be9dabc3e516e4c" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser-fast/denoiser.group01.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser-fast/denoiser.group01.onnx", "size": 194504, "sha256": "650f45bafbc54e90d3149424edf40384755ee63393af38a9dad029015024302f" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser-fast/denoiser.group02.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser-fast/denoiser.group02.onnx", "size": 195429, "sha256": "c62467660ee6f150d31429aeb6285eeabd100df7d100f170b85be09c0eeb846a" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser-fast/denoiser.group03.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser-fast/denoiser.group03.onnx", "size": 195912, "sha256": "639768c39bd9b30c72d6609fb803ba99f7e51e54b78941697705998a17f7bbda" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser-fast/denoiser.group04.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser-fast/denoiser.group04.onnx", "size": 195960, "sha256": "8c46ba2fdf5cc650b2c58eceafe3198c75af234816bae26e470262932de3fea2" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser-fast/denoiser.group05.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser-fast/denoiser.group05.onnx", "size": 196299, "sha256": "e3a28ed15a37e301636e79a5e19e073c2a55f6a6da5fc342638f472c79eef91e" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser-fast/denoiser.group06.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser-fast/denoiser.group06.onnx", "size": 196546, "sha256": "254cd94c4aa07fd0225c7aa552fb494dded2cd343b0d8c03e3f774cfb27ce3f0" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser-fast/denoiser.group07.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser-fast/denoiser.group07.onnx", "size": 196612, "sha256": "c239d6a868c4619449d87e097a7fbc84e55c393a4d137087ff71b94c44dd6966" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser-fast/denoiser.group08.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser-fast/denoiser.group08.onnx", "size": 196636, "sha256": "d4dd4c366f0447730e52395ade352fc3206ed7c81f7850e2b2c2ce86ae5b41a5" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser-fast/denoiser.group09.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser-fast/denoiser.group09.onnx", "size": 196659, "sha256": "64c5e60f5db71cac77cc01fe3a5e9aa67ff943763c1bbdf67a14f341f075b7be" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser-fast/denoiser.group10.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser-fast/denoiser.group10.onnx", "size": 196666, "sha256": "49d8ce1ea415ecd619902eb08efa09a3d95a9d09035248468f56b8eb43633bec" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser-fast/denoiser.group11.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser-fast/denoiser.group11.onnx", "size": 196666, "sha256": "33babc2f0d6ac91b9c1abac294e86443e20357e7d49d981c3573ada0609142f4" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser-fast/denoiser.group12.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser-fast/denoiser.group12.onnx", "size": 196808, "sha256": "875e570e8ecbdab048d68b7401c6536e24ff65a9ca7f025edb1863ac68d9fdbd" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser-fast/denoiser.group13.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser-fast/denoiser.group13.onnx", "size": 197104, "sha256": "1e6ad86c9fc9c719b06ececad6cf0605014c6457d07aa3f4c599603f07fdbbb7" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser-fast/denoiser.group14.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser-fast/denoiser.group14.onnx", "size": 197384, "sha256": "37b1e4237fc0d03f0a7be48cedfefbec1f401eea7a135ec4420269d7cad7190e" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser-fast/denoiser.group15.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser-fast/denoiser.group15.onnx", "size": 117044, "sha256": "3d10f78d244b981e81bdd305e22cb81b03e6b7c57a2d241479ea82fbe101425b" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser-fast/denoiser.stream.json", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser-fast/denoiser.stream.json", "size": 53972, "sha256": "2daa510943707b0b7a2f7206bd90b9ff112b9ad688c4f32f66bb17e901fe52e4" },
         {
           "path": "models/wan2.2-ti2v-5b/denoiser-fast/denoiser.onnx",
-          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/denoiser-fast/denoiser.onnx",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser-fast/denoiser.onnx",
           "size": 3440714,
           "sha256": "1de38583e60dc2db7c60db438d1641d064bb301a4254d7eb9060c69bf82640dd"
         },
         {
           "path": "models/wan2.2-ti2v-5b/denoiser-fast/denoiser.onnx.data",
-          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/denoiser-fast/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser-fast/denoiser.onnx.data",
           "size": 10137370624,
           "sha256": "8eb5754dc27a5bce4e88967c20c8cad7b5c19e65df9fe99ddb21ecc17f3026b3"
         },
         {
           "path": "models/wan2.2-ti2v-5b/prompt-encoder/prompt-encoder.onnx",
-          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/prompt-encoder/prompt-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/prompt-encoder/prompt-encoder.onnx",
           "size": 2551732,
           "sha256": "06af16bb8f0f206c4ab41a6a3fe610de6ebdeccf38e768ba79cedf70a99f97cc"
         },
         {
           "path": "models/wan2.2-ti2v-5b/prompt-encoder/prompt-encoder.onnx.data",
-          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/prompt-encoder/prompt-encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/prompt-encoder/prompt-encoder.onnx.data",
           "size": 7310524416,
           "sha256": "442c58ed9cc49e6c6f6233199fc33161af506f1508e9d6c401fe18468d117002"
         },
         {
           "path": "models/wan2.2-ti2v-5b/prompt-encoder/spiece.model",
-          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/prompt-encoder/spiece.model",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/prompt-encoder/spiece.model",
           "size": 4548313,
           "sha256": "e3909a67b780650b35cf529ac782ad2b6b26e6d1f849d3fbb6a872905f452458"
         }
@@ -1810,12 +1967,20 @@
           "executionProvider": "cuda"
         },
         {
+          "role": "promptEncoder",
+          "runner": "wan-prompt-encoder",
+          "folder": "models/wan2.2-ti2v-5b/prompt-encoder",
+          "file": "prompt-encoder.onnx",
+          "executionProvider": "cpu"
+        },
+        {
           "role": "denoiser",
           "runner": "wan-denoiser",
           "folder": "models/wan2.2-ti2v-5b/denoiser",
           "file": "denoiser.onnx",
           "memoryBytes": 16575889408,
-          "executionProvider": "cuda"
+          "executionProvider": "cuda",
+          "streamed": { "file": "denoiser.stream.json", "memoryBytes": 4085889408, "hostBytes": 10127278080 }
         },
         {
           "role": "decoder",
@@ -1823,7 +1988,8 @@
           "folder": "models/wan2.2-ti2v-5b/decoder",
           "file": "decoder.onnx",
           "memoryBytes": 22347251712,
-          "executionProvider": "cuda"
+          "executionProvider": "cuda",
+          "tiled": { "cells": 16, "memoryBytes": 7516192768, "hostBytes": 4209868800 }
         },
         {
           "role": "frameEncoder",
@@ -1837,67 +2003,84 @@
       "files": [
         {
           "path": "models/wan2.2-ti2v-5b/decoder/caches.json",
-          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/decoder/caches.json",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/decoder/caches.json",
           "size": 2301,
           "sha256": "902948e9880c1239ed963a139a84be3f78c6b46e4d32f41e3843a68970eeacd4"
         },
         {
           "path": "models/wan2.2-ti2v-5b/decoder/decoder-first.onnx",
-          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/decoder/decoder-first.onnx",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/decoder/decoder-first.onnx",
           "size": 1138787,
           "sha256": "ff228a04bfb85f626c0b18f9f0d1e99b1b0055f0a5a4851e1d6d69aa0b3aaf37"
         },
         {
           "path": "models/wan2.2-ti2v-5b/decoder/decoder-first.onnx.data",
-          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/decoder/decoder-first.onnx.data",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/decoder/decoder-first.onnx.data",
           "size": 1085014016,
           "sha256": "16ba4444fa9fd0109d5e42017b075f286a496e2a4bac6eb65bb0f85d1bed68ff"
         },
         {
           "path": "models/wan2.2-ti2v-5b/decoder/decoder.onnx",
-          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/decoder/decoder.onnx",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/decoder/decoder.onnx",
           "size": 26424224,
           "sha256": "1536eafb887f15cc5b2fcf47f88efec853221819a1f6b6d211d504dc4855db4a"
         },
+        { "path": "models/wan2.2-ti2v-5b/denoiser/denoiser.group00.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser/denoiser.group00.onnx", "size": 150279, "sha256": "20add02b734b5ea10ad607e6af22ef091b257cc6883165366be9dabc3e516e4c" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser/denoiser.group01.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser/denoiser.group01.onnx", "size": 194504, "sha256": "650f45bafbc54e90d3149424edf40384755ee63393af38a9dad029015024302f" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser/denoiser.group02.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser/denoiser.group02.onnx", "size": 195429, "sha256": "c62467660ee6f150d31429aeb6285eeabd100df7d100f170b85be09c0eeb846a" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser/denoiser.group03.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser/denoiser.group03.onnx", "size": 195912, "sha256": "639768c39bd9b30c72d6609fb803ba99f7e51e54b78941697705998a17f7bbda" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser/denoiser.group04.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser/denoiser.group04.onnx", "size": 195960, "sha256": "8c46ba2fdf5cc650b2c58eceafe3198c75af234816bae26e470262932de3fea2" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser/denoiser.group05.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser/denoiser.group05.onnx", "size": 196299, "sha256": "e3a28ed15a37e301636e79a5e19e073c2a55f6a6da5fc342638f472c79eef91e" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser/denoiser.group06.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser/denoiser.group06.onnx", "size": 196546, "sha256": "254cd94c4aa07fd0225c7aa552fb494dded2cd343b0d8c03e3f774cfb27ce3f0" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser/denoiser.group07.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser/denoiser.group07.onnx", "size": 196612, "sha256": "c239d6a868c4619449d87e097a7fbc84e55c393a4d137087ff71b94c44dd6966" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser/denoiser.group08.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser/denoiser.group08.onnx", "size": 196636, "sha256": "d4dd4c366f0447730e52395ade352fc3206ed7c81f7850e2b2c2ce86ae5b41a5" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser/denoiser.group09.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser/denoiser.group09.onnx", "size": 196659, "sha256": "64c5e60f5db71cac77cc01fe3a5e9aa67ff943763c1bbdf67a14f341f075b7be" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser/denoiser.group10.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser/denoiser.group10.onnx", "size": 196666, "sha256": "49d8ce1ea415ecd619902eb08efa09a3d95a9d09035248468f56b8eb43633bec" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser/denoiser.group11.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser/denoiser.group11.onnx", "size": 196666, "sha256": "33babc2f0d6ac91b9c1abac294e86443e20357e7d49d981c3573ada0609142f4" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser/denoiser.group12.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser/denoiser.group12.onnx", "size": 196808, "sha256": "875e570e8ecbdab048d68b7401c6536e24ff65a9ca7f025edb1863ac68d9fdbd" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser/denoiser.group13.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser/denoiser.group13.onnx", "size": 197104, "sha256": "1e6ad86c9fc9c719b06ececad6cf0605014c6457d07aa3f4c599603f07fdbbb7" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser/denoiser.group14.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser/denoiser.group14.onnx", "size": 197384, "sha256": "37b1e4237fc0d03f0a7be48cedfefbec1f401eea7a135ec4420269d7cad7190e" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser/denoiser.group15.onnx", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser/denoiser.group15.onnx", "size": 117044, "sha256": "3d10f78d244b981e81bdd305e22cb81b03e6b7c57a2d241479ea82fbe101425b" },
+        { "path": "models/wan2.2-ti2v-5b/denoiser/denoiser.stream.json", "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser/denoiser.stream.json", "size": 53972, "sha256": "2daa510943707b0b7a2f7206bd90b9ff112b9ad688c4f32f66bb17e901fe52e4" },
         {
           "path": "models/wan2.2-ti2v-5b/denoiser/denoiser.onnx",
-          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/denoiser/denoiser.onnx",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser/denoiser.onnx",
           "size": 3440714,
           "sha256": "972db4b3605ac46caf2ece25603dda78547b811b0cf54a072233c6d373afb4c8"
         },
         {
           "path": "models/wan2.2-ti2v-5b/denoiser/denoiser.onnx.data",
-          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/denoiser/denoiser.onnx.data",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/denoiser/denoiser.onnx.data",
           "size": 10137370624,
           "sha256": "de3e39d3131fc7102427a8bf59d3c68610aeebfc99d9e1bbcc0468fa060993f9"
         },
         {
           "path": "models/wan2.2-ti2v-5b/frame-encoder/frame-encoder.onnx",
-          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/frame-encoder/frame-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/frame-encoder/frame-encoder.onnx",
           "size": 832797,
           "sha256": "a886e76dfc48fa6f6ff24220811d77a3ce313cbc14310664f2450b4de9db9eee"
         },
         {
           "path": "models/wan2.2-ti2v-5b/frame-encoder/frame-encoder.onnx.data",
-          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/frame-encoder/frame-encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/frame-encoder/frame-encoder.onnx.data",
           "size": 297107456,
           "sha256": "ca1bab78499be8b0ae89f892e3cec9a6f1cfebc715422bb72db03a0468cc7d99"
         },
         {
           "path": "models/wan2.2-ti2v-5b/prompt-encoder/prompt-encoder.onnx",
-          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/prompt-encoder/prompt-encoder.onnx",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/prompt-encoder/prompt-encoder.onnx",
           "size": 2551732,
           "sha256": "06af16bb8f0f206c4ab41a6a3fe610de6ebdeccf38e768ba79cedf70a99f97cc"
         },
         {
           "path": "models/wan2.2-ti2v-5b/prompt-encoder/prompt-encoder.onnx.data",
-          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/prompt-encoder/prompt-encoder.onnx.data",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/prompt-encoder/prompt-encoder.onnx.data",
           "size": 7310524416,
           "sha256": "442c58ed9cc49e6c6f6233199fc33161af506f1508e9d6c401fe18468d117002"
         },
         {
           "path": "models/wan2.2-ti2v-5b/prompt-encoder/spiece.model",
-          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/3d2b1386f20eeb174f649ebc312a5da29d02963c/prompt-encoder/spiece.model",
+          "url": "https://huggingface.co/smile-forge/wan2.2-ti2v-5b-onnx/resolve/e232a74c4c40dde0f8f7718e154597f087aa09a1/prompt-encoder/spiece.model",
           "size": 4548313,
           "sha256": "e3909a67b780650b35cf529ac782ad2b6b26e6d1f849d3fbb6a872905f452458"
         }
