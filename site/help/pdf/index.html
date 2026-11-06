@@ -19,7 +19,7 @@
   <h1>PDF reader</h1>
   <p class="lede">Shows a PDF's pages, drawn here from the document itself, and lists what the document records about itself.</p>
 </header>
-<nav class="topics"><h2>Topics</h2><ul><li><a href="#opening-a-document">Opening a document</a></li><li><a href="#reading">Reading</a></li><li><a href="#properties">Properties</a></li><li><a href="#contents">Contents</a></li><li><a href="#converting-to-markdown">Converting to Markdown</a></li><li><a href="#the-panel">The panel</a></li><li><a href="#with-the-assistant">With the assistant</a></li><li><a href="#extracting-images">Extracting images</a></li></ul></nav>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#opening-a-document">Opening a document</a></li><li><a href="#reading">Reading</a></li><li><a href="#pages">Pages</a></li><li><a href="#properties">Properties</a></li><li><a href="#contents">Contents</a></li><li><a href="#converting-to-markdown">Converting to Markdown</a></li><li><a href="#the-panel">The panel</a></li><li><a href="#with-the-assistant">With the assistant</a></li><li><a href="#extracting-images">Extracting images</a></li></ul></nav>
 <article class="prose"><hr />
 <h2 id="opening-a-document">Opening a document</h2>
 <ul>
@@ -38,8 +38,27 @@
 <li>Drag across text to select it — across pages too — double-click to select a word, and Ctrl+C to copy. Ctrl+A selects the whole document.</li>
 <li>Links on a page work: one to another place in the document goes there, one to a web address opens it.</li>
 <li><span class="locate" title="In the app this points at Pdf_Find">Find</span> a word or phrase: Enter goes to the next match, Shift+Enter the previous, and Esc clears the search. Every match is lit on the pages, and <span class="locate" title="In the app this points at Pdf_FindStatus">the count</span> says which one you are on; <span class="locate" title="In the app this points at Pdf_FindPrevious">previous</span> and <span class="locate" title="In the app this points at Pdf_FindNext">next</span> step through them too.</li>
+<li><span class="locate" title="In the app this points at Pdf_ExtractImages">Extract the images</span> the document carries into a folder you pick, one file per picture, as Extract images does in the file browser — from the document as you see it, page edits not yet saved included.</li>
 <li><span class="locate" title="In the app this points at Pdf_Print">Print</span> the document, each page as large as fits the sheet. <span class="locate" title="In the app this points at Pdf_OpenExternal">Open the file in your usual PDF application</span> for anything this does not do.</li>
 <li>Layers the document hides are not drawn, and form fields and stamps show as the document draws them.</li>
+</ul>
+<h2 id="pages">Pages</h2>
+<ul>
+<li><span class="locate" title="In the app this points at Pdf_Tab_Pages, Pdf_Thumbnails">The Pages tab</span> shows every page as a small picture, in the order the document now has; the page you are reading is outlined, and clicking a page goes there. Ctrl+click and Shift+click select several.</li>
+<li>Drag pages into a new order — a line shows where they will land, and the list scrolls when you drag to its edge — or move the selected pages up and down a place with Alt+Up and Alt+Down.</li>
+<li>Right-click a page to delete it, or the pages selected, or press Delete. A document keeps at least one page.</li>
+<li>A sheet printed with two or more pages on it — a programme, a folded leaflet — can be split into its pages: select the sheets, right-click and choose Split pages, then pick <span class="locate" title="In the app this points at Pdf_Split_Parts">how many pages each holds</span> and <span class="locate" title="In the app this points at Pdf_Split_Direction">how they sit on it</span> — side by side, one above another, or across whichever side is longer. The lines it will be cut along are drawn on the pages; a line crossing the artwork — a picture that runs over the fold — is drawn solid in the warning colour and the page named, so you can check it before you <span class="locate" title="In the app this points at Pdf_Sheet_Apply">split</span> or <span class="locate" title="In the app this points at Pdf_Sheet_Cancel">cancel</span>.</li>
+<li>Sheets printed for a stapled booklet hold the last page beside the first, the second beside the second-last, and so on. <span class="locate" title="In the app this points at Pdf_Split_Booklet">Unfold as a booklet</span> puts their halves into reading order. Each page split off keeps exactly what the sheet showed there, its links, notes and tags going with it, so nothing on the sheet is redrawn or lost.</li>
+<li>Pages can go back onto sheets too: select two or more, right-click and choose Merge pages, then pick <span class="locate" title="In the app this points at Pdf_Merge_Parts">how many go on each sheet</span> and <span class="locate" title="In the app this points at Pdf_Merge_Direction">how they sit on it</span> — side by side, one above another, or along their shorter side, so upright pages go side by side. Each page sits in the middle of a space the size of the largest, and a last sheet short of pages keeps its empty spaces.</li>
+<li><span class="locate" title="In the app this points at Pdf_Merge_Booklet">Fold into a booklet</span> takes the pages in reading order and puts them on a stapled booklet's sheets — the last page beside the first, and so on — adding blank pages at the end to fill the last sheet. Halves split from the same sheet and put back where they were become that sheet again, so unfolding a booklet and folding it back gives you the file you started with.</li>
+<li>A sheet of merged pages is <span class="locate" title="In the app this points at Pdf_Merge_Paper">as large as its pages together</span>, nothing made smaller — or on the pages' own paper, or a paper you name, the pages scaled down to share it: two A4 pages become A5 side by side on an A4 sheet, turned to suit.</li>
+<li>Right-click a page and choose Set page size to put it on <span class="locate" title="In the app this points at Pdf_Size_Paper">other paper</span> — a named size, or one of your own in millimetres or inches — <span class="locate" title="In the app this points at Pdf_Size_Orientation">whichever way up fits</span>, its content <span class="locate" title="In the app this points at Pdf_Size_Fit">scaled to fit</span> or kept its size, with a margin around it or its edges cut off.</li>
+<li><span class="locate" title="In the app this points at Pdf_SheetEdit">Split, merge or set the size of every page at once</span> from the toolbar, choosing which <span class="locate" title="In the app this points at Pdf_Sheet_Edit">here</span>.</li>
+<li>Right-click between two pages to insert a picture or another PDF there, or right-click a page to insert before or after it. A picture becomes a page the size of the page beside it, the picture fitted to it and turned the right way up; a PDF brings all its pages, with its bookmarks, form fields and page labels.</li>
+<li>Edits change the document on screen straight away, but not the file: <span class="locate" title="In the app this points at Pdf_Undo">undo</span> and <span class="locate" title="In the app this points at Pdf_Redo">redo</span> them with Ctrl+Z and Ctrl+Y, and <span class="locate" title="In the app this points at Pdf_Save">save</span> them with Ctrl+S, or <span class="locate" title="In the app this points at Pdf_SaveAs">save as another file</span> with Ctrl+Shift+S. The tab's title is marked with * while there are edits to save.</li>
+<li>Saving keeps everything the document carries beyond its pages — its bookmarks, form, page labels, named places and attachments, its tags for screen readers, article threads and layers — following the pages to their new places. Only what was on a page you deleted goes with it.</li>
+<li>A document that is encrypted or signed is asked about before it is saved: the file written is not encrypted, and its signatures no longer hold. A document whose form is an XFA form lays itself out, so its pages cannot be rearranged.</li>
+<li>While there are edits, the file and any PDF inserted are kept from being changed by other programs, so the edits always apply to the file as it was read.</li>
 </ul>
 <h2 id="properties">Properties</h2>
 <ul>
@@ -95,7 +114,7 @@
 
 </main>
 <footer class="site">
-  <p>Nexaflow v1.8.0 &middot; public domain under the Unlicense &middot;
+  <p>Nexaflow v1.9.0 &middot; public domain under the Unlicense &middot;
      <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
   <p class="small">These pages are the app's own help, published from the same files it ships.</p>
 </footer>

@@ -19,7 +19,7 @@
   <h1>Markdown — Diagrams: charts &amp; analysis</h1>
   <p class="lede">Diagrams for proportion, distribution, comparison and cause: pie, XY, radar and quadrant charts, Sankey, Ishikawa, Venn and Cynefin diagrams.</p>
 </header>
-<nav class="topics"><h2>Topics</h2><ul><li><a href="#pie-chart">Pie chart</a></li><li><a href="#xy-chart">XY chart</a></li><li><a href="#radar-chart">Radar chart</a></li><li><a href="#quadrant-chart">Quadrant chart</a></li><li><a href="#sankey-diagram">Sankey diagram</a></li><li><a href="#ishikawa-fishbone-diagram">Ishikawa (fishbone) diagram</a></li><li><a href="#venn-diagram">Venn diagram</a></li><li><a href="#cynefin-diagram">Cynefin diagram</a></li></ul></nav>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#pie-chart">Pie chart</a></li><li><a href="#xy-chart">XY chart</a></li><li><a href="#radar-chart">Radar chart</a></li><li><a href="#quadrant-chart">Quadrant chart</a></li><li><a href="#sankey-diagram">Sankey diagram</a></li><li><a href="#treemap">Treemap</a></li><li><a href="#ishikawa-fishbone-diagram">Ishikawa (fishbone) diagram</a></li><li><a href="#venn-diagram">Venn diagram</a></li><li><a href="#cynefin-diagram">Cynefin diagram</a></li></ul></nav>
 <article class="prose"><hr />
 <h2 id="pie-chart">Pie chart</h2>
 <p>Proportional slices with a title.</p>
@@ -101,6 +101,28 @@ Electricity,Losses,50
 </code></pre>
 <p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-sankey.png" alt="A Sankey diagram of energy flowing from sources to uses" /></p>
 <hr />
+<h2 id="treemap">Treemap</h2>
+<p>Values as tiles, each as big as its share: a section holds the items indented under it, with its total in its band, and a
+leaf is a label and its value. Labels and values are typed into where they are drawn, and <code>valueFormat</code> under
+<code>config: treemap:</code> sets how values read. You work with the boxes: right-click a group's band to add a box, type its name,
+press Enter, type its value and press Enter again. While you type a value the tiles hold still, and they move once you
+are done. Right-click a box to split it in two, to merge the boxes you have picked out with Ctrl+click, or to put it in a
+new group; right-click a group's band to ungroup it. Drag a tile onto a group to move it in — the group it would go into
+is outlined, and nothing moves until you let go. A box with no value yet waits under the map until you give it one.</p>
+<pre><code class="language-markdown">```mermaid
+treemap-beta
+&quot;Products&quot;
+    &quot;Electronics&quot;
+        &quot;Phones&quot;: 50
+        &quot;Computers&quot;: 30
+        &quot;Accessories&quot;: 20
+    &quot;Clothing&quot;
+        &quot;Men's&quot;: 40
+        &quot;Women's&quot;: 40
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-treemap.png" alt="A treemap of products, electronics and clothing sections each holding tiles sized by value" /></p>
+<hr />
 <h2 id="ishikawa-fishbone-diagram">Ishikawa (fishbone) diagram</h2>
 <p>Cause-and-effect / root-cause analysis: an effect on the spine, with categories and nested causes
 branching off it.</p>
@@ -159,7 +181,7 @@ cynefin-beta
 
 </main>
 <footer class="site">
-  <p>Nexaflow v1.8.0 &middot; public domain under the Unlicense &middot;
+  <p>Nexaflow v1.9.0 &middot; public domain under the Unlicense &middot;
      <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
   <p class="small">These pages are the app's own help, published from the same files it ships.</p>
 </footer>

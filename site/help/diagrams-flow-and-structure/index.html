@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Markdown — Diagrams: flow &amp; structure — Nexaflow help</title>
-<meta name="description" content="Diagrams for how something is built, and how it runs: flowcharts, swimlanes, sequence, class, state and ER diagrams, and the C4 family.">
+<meta name="description" content="Diagrams for how something is built, and how it runs: flowcharts, swimlanes, sequence, class, state and ER diagrams, packets, and the C4 family.">
 <link rel="stylesheet" href="../../assets/site.css">
 </head>
 <body>
@@ -17,9 +17,9 @@
 <nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../author/">Author &amp; draw</a></nav>
 <header class="page-head">
   <h1>Markdown — Diagrams: flow &amp; structure</h1>
-  <p class="lede">Diagrams for how something is built, and how it runs: flowcharts, swimlanes, sequence, class, state and ER diagrams, and the C4 family.</p>
+  <p class="lede">Diagrams for how something is built, and how it runs: flowcharts, swimlanes, sequence, class, state and ER diagrams, packets, and the C4 family.</p>
 </header>
-<nav class="topics"><h2>Topics</h2><ul><li><a href="#flowchart">Flowchart</a></li><li><a href="#swimlane-diagram">Swimlane diagram</a></li><li><a href="#sequence-diagram">Sequence diagram</a></li><li><a href="#class-diagram">Class diagram</a></li><li><a href="#state-diagram">State diagram</a></li><li><a href="#entity-relationship-diagram">Entity-relationship diagram</a></li><li><a href="#block-diagram">Block diagram</a></li><li><a href="#architecture-diagram">Architecture diagram</a></li><li><a href="#c4-diagrams">C4 diagrams</a></li><li><a href="#c4-sequence">C4 sequence</a></li></ul></nav>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#flowchart">Flowchart</a></li><li><a href="#swimlane-diagram">Swimlane diagram</a></li><li><a href="#sequence-diagram">Sequence diagram</a></li><li><a href="#class-diagram">Class diagram</a></li><li><a href="#state-diagram">State diagram</a></li><li><a href="#entity-relationship-diagram">Entity-relationship diagram</a></li><li><a href="#block-diagram">Block diagram</a></li><li><a href="#architecture-diagram">Architecture diagram</a></li><li><a href="#packet-diagram">Packet diagram</a></li><li><a href="#tree-view">Tree view</a></li><li><a href="#c4-diagrams">C4 diagrams</a></li><li><a href="#c4-sequence">C4 sequence</a></li></ul></nav>
 <article class="prose"><hr />
 <h2 id="flowchart">Flowchart</h2>
 <p>Boxes, decisions and flows in any direction, with shaped nodes, labelled edges, subgraphs that gather them and classes that
@@ -195,6 +195,59 @@ architecture-beta
 </code></pre>
 <p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-architecture.png" alt="An architecture diagram with a cloud group holding a database, two disks and a server" /></p>
 <hr />
+<h2 id="packet-diagram">Packet diagram</h2>
+<p>The fields of a network packet or a register, drawn along rows of 32 bits: each field is its bits — <code>0-15</code>, one bit as
+<code>106</code>, or <code>+16</code> to count on from the field before it — and its label in quotes. The first and last bit of each field are
+numbered over it, and a label and a bit number written are typed into where they are drawn. Fence it as <code>packet</code> and it
+needs no header; <code>bitOrder: descending</code> under <code>config: packet:</code> numbers each row from its highest bit, as a register is
+drawn.</p>
+<pre><code class="language-markdown">```mermaid
+packet
+title UDP Packet
++16: &quot;Source Port&quot;
++16: &quot;Destination Port&quot;
+32-47: &quot;Length&quot;
+48-63: &quot;Checksum&quot;
+64-95: &quot;Data (variable length)&quot;
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-packet.png" alt="A UDP header drawn as two rows of fields, each numbered at its ends" /></p>
+<hr />
+<h2 id="tree-view">Tree view</h2>
+<p>A folder tree, or any outline drawn as one: each node on a row of its own, set in by how deep it stands and joined to the
+folder it is in. Nest the lines by indenting them, or draw the tree with <code>├──</code>, <code>└──</code> and <code>│</code> as <code>tree</code> prints one; a
+slash after a name makes it a folder, drawn in bold. After a name, <code>## words</code> says something beside it, <code>:::highlight</code>
+picks its row out and <code>icon(name)</code> draws an icon. Every icon of the Material Icon Theme is there to draw — named in full,
+<code>icon(material-icon-theme:rust)</code>, or by its name alone once the front matter makes it the <code>defaultIconPack</code>; with
+<code>showIcons: true</code> every node is drawn with one, a folder's or a file's unless <code>filenameIcons</code> or <code>extensionIcons</code> picks
+another by the file's name or its extension. It works like an outline: Enter adds a node after the one you are in, Tab
+moves it into the node before it, a right-click puts nodes in, takes them out, moves them a level in or out or makes one a
+file or a folder, and a node dragged by its row onto another goes before it, after it or inside it — a tree drawn with
+<code>├──</code> and <code>└──</code> is drawn again round it.</p>
+<pre><code class="language-markdown">```mermaid
+---
+config:
+  treeView:
+    showIcons: true
+    defaultIconPack: material-icon-theme
+    filenameIcons:
+      .env: tune
+      package.json: nodejs
+    extensionIcons:
+      .tsx: react-ts
+      .js: javascript
+---
+treeView-beta
+    my-project/
+        src/
+            App.tsx :::highlight ## main component
+            index.js ## entry point
+        .env ## environment variables
+        package.json
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-treeview.png" alt="A folder tree with a project, its src folder and the files in each drawn with their file-type icons, one highlighted and some described" /></p>
+<hr />
 <h2 id="c4-diagrams">C4 diagrams</h2>
 <p>Software architecture at C4's zoom levels — context, containers, components — plus deployment and dynamic views.
 Elements are cards carrying their kind, technology and description, graded so the deeper the colour the higher the
@@ -255,7 +308,7 @@ end
 
 </main>
 <footer class="site">
-  <p>Nexaflow v1.8.0 &middot; public domain under the Unlicense &middot;
+  <p>Nexaflow v1.9.0 &middot; public domain under the Unlicense &middot;
      <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
   <p class="small">These pages are the app's own help, published from the same files it ships.</p>
 </footer>

@@ -42,6 +42,17 @@
 <li><strong>Audio input</strong> meters every channel live, and <span class="locate" title="In the app this points at UsbAudio_Record">Record…</span> saves a few seconds to a WAV exactly as the device sent it.</li>
 <li><strong>HID</strong> shows each collection's report layout as the HID class driver decoded it, <span class="locate" title="In the app this points at UsbHid_StartMonitor">watches its input</span> live, and reads and sends feature and output reports. Sending a report asks first. Windows keeps keyboards and mice to itself, so their input cannot be watched here; their layout and feature reports can.</li>
 <li><strong>Serial port</strong> names the COM port of a serial device — or of a phone's modem — and <span class="locate" title="In the app this points at UsbSerial_OpenTerminal">opens the serial terminal</span> on it.</li>
+<li><strong>Driver</strong> shows the driver Windows has on a part of the device, and <span class="locate" title="In the app this points at UsbTakeOver_TakeOver">Take over…</span> puts that part on WinUSB, Windows' own generic driver, so Nexaflow can talk to it directly. It says first what stops working while it is taken over — an audio device stops playing, a serial port goes away — and Windows asks for administrator permission. Another of the same model plugged in later gets WinUSB too. <span class="locate" title="In the app this points at UsbTakeOver_Restore">Restore its driver…</span> gives it back, and <span class="locate" title="In the app this points at UsbTakeOver_RestoreAll">Restore all…</span> gives back every part Nexaflow took over on this PC, with one permission prompt. Hubs, disks, keyboards and mice in use are never taken over. Uninstalling Nexaflow restores them all.</li>
+<li><strong>Raw access</strong> talks to a part on WinUSB — one Nexaflow took over, or a device that asked for WinUSB itself:
+<ul>
+<li><span class="locate" title="In the app this points at UsbRaw_SendControl">Send</span> a control transfer: a standard read from the list, or any request typed in field by field.</li>
+<li><span class="locate" title="In the app this points at UsbRaw_StartRead">Read</span> a bulk or interrupt endpoint as data arrives, and pause it.</li>
+<li><span class="locate" title="In the app this points at UsbRaw_Write">Send…</span> hex or text to an endpoint, once or repeated.</li>
+<li>Every transfer goes into the session below it, newest first, and <span class="locate" title="In the app this points at UsbRaw_SaveSession">Save log…</span> saves the whole session as text.</li>
+<li>Anything that sends data to the device asks first. Requests and data its maker did not document can change its settings, erase it, or start a firmware update.</li>
+<li>The part stays open — no other program can open it — until you <span class="locate" title="In the app this points at UsbRaw_LetGo">let it go</span> or close the page.</li>
+</ul>
+</li>
 <li>Anything on the device no tool covers is listed last, with what it is and what a tool for it would use.</li>
 </ul>
 <h2 id="interfaces">Interfaces</h2>
@@ -51,19 +62,19 @@
 <h2 id="diagnostics">Diagnostics</h2>
 <ul>
 <li>Problems Windows or the descriptors report: problem codes in plain words, descriptors that do not add up, strings the device did not answer for. <span class="locate" title="In the app this points at UsbDevice_Tab_Diagnostics, UsbDevice_Problems">Show me</span></li>
-<li>Everything the live tools did — copies, recordings, reports sent — with the time. <span class="locate" title="In the app this points at UsbDevice_Log">Show me</span></li>
+<li>Everything the live tools did — copies, recordings, reports sent, drivers changed, control transfers and writes — with the time. <span class="locate" title="In the app this points at UsbDevice_Log">Show me</span></li>
 <li><span class="locate" title="In the app this points at UsbDevice_ReRead">Read device again</span> asks the device for its descriptors and strings, waking it if it slept.</li>
 <li><span class="locate" title="In the app this points at UsbDevice_CopyDebug">Copy</span> or <span class="locate" title="In the app this points at UsbDevice_SaveDebug">save</span> the device's debug details for the Nexaflow developers: its descriptors raw, what Windows made of it, its HID report descriptors, what each live tool sees, and what they did. Send them when a device does not work as it should. Serial numbers and volume labels are left out.</li>
 </ul>
 <h2 id="asking-the-assistant">Asking the assistant</h2>
 <ul>
-<li>The assistant sees the device and every live tool's state. It can run any tool's read-only operations by itself — list a folder, read a feature report, read the audio levels — and, with your approval each time, the ones that act: copying, playing, recording, sending a report.</li>
+<li>The assistant sees the device and every live tool's state. It can run any tool's read-only operations by itself — list a folder, read a feature report, read the audio levels — and, with your approval each time, the ones that act: copying, playing, recording, sending a report, sending a control request or writing to an endpoint, and taking a part over or restoring its driver — which Windows also asks permission for.</li>
 </ul>
 </article>
 
 </main>
 <footer class="site">
-  <p>Nexaflow v1.8.0 &middot; public domain under the Unlicense &middot;
+  <p>Nexaflow v1.9.0 &middot; public domain under the Unlicense &middot;
      <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
   <p class="small">These pages are the app's own help, published from the same files it ships.</p>
 </footer>

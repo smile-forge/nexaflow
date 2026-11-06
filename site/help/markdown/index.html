@@ -19,7 +19,7 @@
   <h1>Markdown</h1>
   <p class="lede">Nexaflow renders Markdown <strong>natively</strong> — no browser, no JavaScript, no round-trip to a web view. Open a <code>.md</code> file and you get a fast, scrollable, fully-styled document: headings, tables, task lists, callouts, real LaTeX math, and a complete family of diagrams drawn directly on the canvas.</p>
 </header>
-<nav class="topics"><h2>Topics</h2><ul><li><a href="#viewing--authoring">Viewing &amp; authoring</a></li><li><a href="#the-basics">The basics</a></li><li><a href="#tables--task-lists">Tables &amp; task lists</a></li><li><a href="#callouts">Callouts</a></li><li><a href="#rich-inline-extensions">Rich inline extensions</a></li><li><a href="#math">Math</a></li><li><a href="#more-in-a-document">More in a document</a></li><li><a href="#good-to-know">Good to know</a></li></ul></nav>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#viewing--authoring">Viewing &amp; authoring</a></li><li><a href="#summarise--translate">Summarise &amp; translate</a></li><li><a href="#the-basics">The basics</a></li><li><a href="#tables--task-lists">Tables &amp; task lists</a></li><li><a href="#callouts">Callouts</a></li><li><a href="#rich-inline-extensions">Rich inline extensions</a></li><li><a href="#math">Math</a></li><li><a href="#more-in-a-document">More in a document</a></li><li><a href="#good-to-know">Good to know</a></li></ul></nav>
 <article class="prose"><p>This page covers reading and writing a document. The drawing — diagrams, codes, chemistry and
 plots — is large enough to have pages of its own, listed under <a href="#more-in-a-document">More in a document</a>.</p>
 <hr />
@@ -37,12 +37,55 @@ to hand-tune the exact text (front-matter, a fiddly table, a diagram fence), the
 <strong>Markdown Package</strong> (<code>*.mdz</code>), offered first, keeps the document and the pictures and files it links to in one
 file, as a Word document keeps its pictures, so it reads the same wherever it goes. A <strong>Markdown</strong> file (<code>*.md</code>)
 has them copied beside it instead. <span class="locate" title="In the app this points at Markdown_SaveAs">Show me</span></li>
+<li><strong>Print</strong> — <code>Ctrl</code>+<code>P</code> prints the whole document as it is drawn here, diagrams and formulas included, on white
+paper whatever the theme. Every section is printed, folded or not. A sheet ends between two lines, never through a
+diagram, and never just after a heading; anything wider or taller than a sheet is drawn smaller to fit it. Each
+sheet is numbered at its foot. <span class="locate" title="In the app this points at Markdown_Print">Show me</span></li>
 <li><strong>Markdown Packages</strong> open in the editor like any Markdown file — from a folder, or from inside a zip or a disc
 image — and save back into themselves. One inside a disc image can't be written to: save it as a file elsewhere.</li>
 <li><strong>Drafts</strong> — a document made for you, such as a page of writing converted to Markdown, opens as a draft. Its first
 save asks where to keep it, starting beside what it was made from.</li>
+<li><strong>Fold a section</strong> — rest the pointer on a heading and its corner offers <strong>Fold this section</strong>: everything under it,
+sections and all, is put away, and a small <strong>+n</strong> under the heading says how many blocks wait there — press it to open
+the section again. Folding is how you are reading, not what is written: the document is unchanged, and a search or a
+link that lands inside a folded section opens it.</li>
 </ul>
 <p>Everything below works in both the rendered view and the preview — it's the same renderer.</p>
+<hr />
+<h2 id="summarise--translate">Summarise &amp; translate</h2>
+<p>Two toolbar buttons work through the whole document with the model the workspace gives its <strong>Documents</strong> row — choose
+one on the AI page of the workspace's configuration. A model on this machine is enough, however little it reads at once:
+the document is worked through a piece at a time, each piece sized to what the model can read.</p>
+<ul>
+<li><strong>What it is, first.</strong> Before any part is worked on, the document is read for what it is — what kind of writing, what
+about, for whom, in what register, tone and voice, in what language — from its headings and passages spread through it.
+Every part is then worked on knowing that, so the pieces read as the one document they came from.</li>
+<li><strong>Summarise</strong> — each section is summarised from the deepest up, from what it says and the summaries of the sections
+under it, and the whole document from those. The summary opens beside the document: the abstract on top, then every
+section's heading and summary at its own depth. Fold a section away or open it to go from the whole to the part; each
+heading's <strong>↗</strong> leads back to that section in the document. <span class="locate" title="In the app this points at Markdown_Summarize">Show me</span></li>
+<li><strong>Translate</strong> — choose the language, named in English, and the document is written again in it a passage at a time,
+several chapters at once, keeping to its register, tone and voice, its names and terms given the same way throughout.
+Its markup, code, diagrams, front matter and where its links go stay exactly as they are. A passage no translation
+keeps the markup of, or one the model gives no answer for, stays as the document writes it, with a note before it
+saying so — the rest is translated all the same, and you are told which sections those are. Translating again tries
+them again, and carries on from what was translated before. <span class="locate" title="In the app this points at Markdown_Translate">Show me</span></li>
+<li><strong>In the background.</strong> Either is listed with the workspace's background tasks, saying how far it has got, and can be
+stopped there. While it works, its button shows <strong>⟳</strong> and its tooltip says what it is doing and how far it has got —
+whether you set it going or the assistant did. A second summary of the same document waits for the first; a
+translation into another language can go at the same time. What it makes opens as a draft; its first save starts beside
+the document.</li>
+<li><strong>Again is quicker.</strong> What was worked out is kept for the workspace, on this machine: summarise or translate an edited
+document again and only the sections that changed are read again — and a stopped translation carries on where it was.</li>
+<li><strong>The assistant can too</strong> — ask it to summarise or translate a markdown document open in a tab.</li>
+<li><strong>Ask about the whole document.</strong> Ask the assistant a question about a markdown document too long to read at once —
+<em>which chapters deal with complex numbers?</em> It goes down the document's summary to the sections that bear on the
+question, reads only those, and links each section its answer cites back to where it is. A document not yet summarised
+as it stands is summarised first, in the background.</li>
+<li><strong>A Markdown document.</strong> It works on a Markdown file or a Markdown Package (<code>.mdz</code>) as the editor holds it, unsaved edits
+included — a package's pictures come with it, as a Word document's do. A draft is saved first, so what is made leads back
+to where it is. When a button cannot be used, its tooltip says why.</li>
+</ul>
 <hr />
 <h2 id="the-basics">The basics</h2>
 <p>Standard CommonMark — headings, <strong>bold</strong>, <em>italic</em>, <code>inline code</code>, ordered and unordered lists,
@@ -151,7 +194,7 @@ to work, scan it from the app that owns the thing it describes before suspecting
 
 </main>
 <footer class="site">
-  <p>Nexaflow v1.8.0 &middot; public domain under the Unlicense &middot;
+  <p>Nexaflow v1.9.0 &middot; public domain under the Unlicense &middot;
      <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
   <p class="small">These pages are the app's own help, published from the same files it ships.</p>
 </footer>

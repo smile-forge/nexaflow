@@ -87,6 +87,7 @@ internal sealed class HelpCorpus
         ["MarkdownCodes"] = new("Author & draw"),
         ["MarkdownScience"] = new("Author & draw"),
         ["Solver"] = new("Author & draw", "solver"),
+        ["Artist"] = new("Author & draw", "images-edit"),
 
         ["Console"] = new("Run your machine", "console"),
         ["Processes"] = new("Run your machine", "processes"),

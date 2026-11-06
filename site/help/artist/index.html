@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Artist — Nexaflow help</title>
+<meta name="description" content="Artist edits one picture. It can be a photo, whose edits are kept beside it until you save them, or a layered picture you paint and arrange. With no picture open, it helps you make one.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../themes/">Themes</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../author/">Author &amp; draw</a></nav>
+<header class="page-head">
+  <h1>Artist</h1>
+  <p class="lede">Artist edits one picture. It can be a photo, whose edits are kept beside it until you save them, or a layered picture you paint and arrange. With no picture open, it helps you make one.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#opening-a-picture">Opening a picture</a></li><li><a href="#the-start-screen">The start screen</a></li><li><a href="#editing">Editing</a></li><li><a href="#layers">Layers</a></li><li><a href="#openraster-files">OpenRaster files</a></li><li><a href="#photoshop-files">Photoshop files</a></li><li><a href="#printing">Printing</a></li><li><a href="#drafts-and-the-assistant">Drafts and the assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="opening-a-picture">Opening a picture</h2>
+<ul>
+<li>In the <a href="../images/">Images</a> viewer, click <strong>Edit</strong> at the top right, or press E. The picture opens in its own Artist tab, and the viewer stays where it was.</li>
+<li>In the <a href="../file-system/">File System</a> page, <strong>Edit</strong> in a picture's actions opens it here too, each selected picture in its own tab. Double-clicking an OpenRaster file (.ora) or a Photoshop file (.psd, .psb) also opens it here.</li>
+<li>The tab is named after the picture, and the breadcrumb shows its folder.</li>
+</ul>
+<h2 id="the-start-screen">The start screen</h2>
+<ul>
+<li><strong>Artist</strong> on the ribbon opens a tab with no picture. It shows the start screen, where you choose what to make. <span class="locate" title="In the app this points at Images_Start">Show me</span></li>
+<li><strong>Create</strong> makes a blank canvas. It starts at your screen's size; you can pick another size by name, or type one in pixels, millimetres or inches at a resolution. ⇄ swaps width and height. Choose a transparent, white or coloured background. The canvas is a draft until you save it: <strong>Save as</strong> in the strip above it, or <strong>Save</strong>, asks where to keep it, and the tab becomes that file. <span class="locate" title="In the app this points at Images_StartCreate">Show me</span></li>
+<li><strong>Generate a picture</strong> draws what you describe with the workspace's image model, as the canvas's first layer. While it draws, the Layers panel shows it with <strong>Stop</strong>. If the workspace has no image model, the screen says so and links to its AI settings. <span class="locate" title="In the app this points at Images_StartGenerate, Images_StartAiSettings">Show me</span></li>
+<li><strong>Paste from clipboard</strong> makes a canvas from the picture on the clipboard. <strong>Open picture…</strong> edits a picture from disk. <span class="locate" title="In the app this points at Images_StartPaste, Images_StartOpen">Show me</span></li>
+<li><strong>Recent canvases</strong> lists the layered pictures you opened lately, including unsaved drafts. Click one to open it again. <span class="locate" title="In the app this points at Images_StartRecentList">Show me</span></li>
+</ul>
+<h2 id="editing">Editing</h2>
+<p>The picture sits on a canvas you can pan and zoom. Beside it are the tools, in the order you usually need them: <strong>Crop</strong>,
+<strong>Adjust</strong>, <strong>Retouch</strong>, <strong>Select</strong>, <strong>Markup</strong>, <strong>Paint</strong>, <strong>Move</strong> and <strong>Resize</strong>. <span class="locate" title="In the app this points at Image_EditToolCrop">Show me</span></p>
+<ul>
+<li>Each tool's panel is split into groups, such as <strong>Light</strong>, <strong>Colour</strong> and <strong>Brush</strong>. Click a group's title to fold it away. It stays folded, in every Artist tab, until you open it again. Some groups start folded, so each panel opens short.</li>
+<li>Every slider is one row with its value at the end. Drag it, double-click it to reset it, or click the value and type a new one.</li>
+<li>Your edits never change the file until you save. They are kept beside the picture in a hidden file named after it. Every view shows the picture with its edits: the carousel, thumbnails, full screen, and what the assistant sees. An edited picture is marked <em>edited</em> beside its name.</li>
+</ul>
+<h3 id="the-selection">The selection</h3>
+<p>There is one selection, and only the <strong>Select</strong> tool makes it. Every other tool shows it as a dotted outline and works on it:
+Retouch erases it, lens blur can keep it sharp, and Paint paints only inside it. Press Esc to deselect.</p>
+<h3 id="crop">Crop</h3>
+<ul>
+<li><strong>Crop</strong> crops, turns, flips and straightens. It shows the whole picture with a crop frame over it. Drag a corner or an edge, or drag inside the frame to move it. Choose a shape — free, the picture's own, square, 4:3 or 16:9 — and switch it with <strong>Portrait</strong>. A rule-of-thirds grid helps you place the frame. Press Enter to apply the crop, or Esc to put it back as it was. <span class="locate" title="In the app this points at Image_EditToolCrop, Image_EditAspectFree, Image_EditAspectPortrait">Show me</span></li>
+<li>To straighten, drag the <strong>Straighten</strong> slider, or turn on <strong>Level line</strong> and draw along something that should be level or upright, like a horizon. The crop shrinks to keep empty corners out, and grows back if you turn back. <span class="locate" title="In the app this points at Image_EditStraighten, Image_EditLevel">Show me</span></li>
+<li><strong>Expand</strong> grows a photo past its edges with the workspace's picture-editing model. Turn on <strong>Generate the new area</strong>, drag the frame's edges out, describe the new area if you like, and click <strong>Generate</strong>. The photo becomes a layered picture, with the new area as a layer of its own and the photo kept beneath it. <span class="locate" title="In the app this points at Image_GroupCropExpand, Image_EditCropGenerate, Image_EditCropGenerateGo">Show me</span></li>
+</ul>
+<h3 id="adjust">Adjust</h3>
+<ul>
+<li><strong>Adjust</strong> opens on the <strong>Histogram</strong>. It shows how the picture's brightness spreads from black on the left to white on the right, and follows every change you make. It reads 16- and 32-bit pictures at their own depth. The marks at its top corners light up when shadows or highlights clip, which means they lose all detail. Point at a mark to see where on the picture, in blue for shadows and red for highlights, or click it to keep them shown. <span class="locate" title="In the app this points at Image_EditToolAdjust, Image_HistogramShadows, Image_HistogramHighlights">Show me</span></li>
+<li><strong>Auto</strong> sets the sliders for the picture in one go. You can still change any of them afterwards. <strong>Reset</strong> puts them all back. <span class="locate" title="In the app this points at Image_EditAuto">Show me</span></li>
+<li><strong>Light</strong> has exposure, contrast, highlights and shadows. <strong>Colour</strong> has saturation, temperature and tint.</li>
+<li><strong>AI clean-up</strong> removes softness, noise and JPEG blocks, and repairs faces, on this PC. It stays on until you turn it off. <strong>Strength</strong> sets how much of it you see. The first time, it needs the AI picture models, offered in the bar above the picture. A cleaned-up picture is kept, so coming back to it is instant. <span class="locate" title="In the app this points at Image_EditAiEnhance">Show me</span></li>
+<li><strong>Change picture</strong> changes the picture as you describe it, like “make it night” or “turn it into a watercolour”. In a layered picture it changes the active layer. <strong>Generate</strong> draws the result as a new layer above, so the original is kept. <span class="locate" title="In the app this points at Image_GroupAdjustChange, Image_EditChangePrompt, Image_EditChangeGo">Show me</span></li>
+</ul>
+<h3 id="depth">Depth</h3>
+<p><strong>Depth</strong>, in Adjust, works out how far each part of the picture is from the camera, on this PC. The first time, it needs the AI
+picture models. After that the picture's depth is kept, so changes here are quick. <span class="locate" title="In the app this points at Image_DepthLensBlur">Show me</span></p>
+<ul>
+<li><strong>Lens blur</strong> blurs the picture the way a wide-open lens would. Choose how to focus:
+<ul>
+<li><strong>Click for depth</strong>: click the picture where it should be sharp. Everything at that distance stays sharp. <span class="locate" title="In the app this points at Image_DepthFocusPoint">Show me</span></li>
+<li><strong>From selection</strong>: keeps everything you selected with Select sharp, with a crisp edge, and blurs the rest. <span class="locate" title="In the app this points at Image_DepthFocusSelection">Show me</span></li>
+<li><strong>Specify depth</strong>: shows a strip of the picture's distances, near on the left and far on the right. Drag the band's ends to keep more or less sharp, or drag the band to move it. Point at the strip to see what it keeps sharp. <span class="locate" title="In the app this points at Image_DepthFocusRange">Show me</span></li>
+</ul>
+</li>
+<li><strong>Aperture</strong> sets how blurred the rest becomes. <strong>Bokeh shape</strong> sets the shape of out-of-focus lights: round or hexagonal. While you drag Aperture or Density, the picture is drawn at lower detail so it keeps up, then drawn sharp when you let go.</li>
+<li><strong>Haze</strong> adds haze that thickens with distance. Set its <strong>Density</strong>, where it <strong>Starts at</strong>, and its colour: the scene's own, or the <strong>Current colour</strong>, which you choose beside the picture. <span class="locate" title="In the app this points at Image_DepthHaze, Image_DepthHazeInk">Show me</span></li>
+<li><strong>Depth as layer</strong> adds the depth as a layer of greys, white for near and black for far. In a layered picture, <strong>Depth as mask</strong> gives the active picture layer a mask from it. <span class="locate" title="In the app this points at Image_DepthAsLayer">Show me</span></li>
+</ul>
+<h3 id="retouch">Retouch</h3>
+<p><strong>Retouch</strong> removes things from the picture, like scratches, dust, wires, people and signs, and fills in where they were.
+<span class="locate" title="In the app this points at Image_EditToolRetouch">Show me</span></p>
+<ul>
+<li>It removes what you brush over and anything selected with Select. Right-drag to unbrush. So you can select a person with Select, then brush over their shadow. <strong>Brush size</strong> sets the brush. <span class="locate" title="In the app this points at Image_EraseBrushSize">Show me</span></li>
+<li>Then choose how to fill. <strong>AI</strong> fills from what's around it, and is best where an edge or a shape runs through. The first time it needs the AI picture models. <strong>Content-aware</strong> copies the picture's own texture, and works well on grass, walls, roads, sky and fabric. <strong>Heal</strong> copies texture from where you Alt-click, matched to the light around it. <span class="locate" title="In the app this points at Image_EraseFillAi">Show me</span></li>
+<li><strong>Erase</strong> applies it as one step of your edits, which you can undo. <span class="locate" title="In the app this points at Image_EraseApply">Show me</span></li>
+</ul>
+<h3 id="select">Select</h3>
+<p><strong>Select</strong> picks out part of the picture. <span class="locate" title="In the app this points at Image_EditToolSelect">Show me</span></p>
+<ul>
+<li><strong>Object</strong> picks something out on this PC. Click the thing to keep, right-click what to leave out, or drag a box round it. You can also type what it is, like “mug” or “child in a red vest”, and click <strong>Find</strong> to select every one; then click to add something it missed, or right-click to drop one it found. The first time, it needs the AI picture models. <span class="locate" title="In the app this points at Image_CutOutMarkPick">Show me</span></li>
+<li><strong>Rectangle</strong> and <strong>Ellipse</strong> (M) drag out a shape. Hold Shift for a square or circle, and Alt to draw from the centre. <strong>Lasso</strong> (L) draws round something freehand, and <strong>Polygon</strong> goes click by click: double-click or press Enter to close it, and Backspace removes the last point. <strong>By colour</strong> (W) selects colours close to the one you click, within its <strong>Tolerance</strong>. <strong>By distance</strong> selects what lies within a range of distances, and moving the range's ends selects again. None of these need a download. <span class="locate" title="In the app this points at Image_SelectRectangle, Image_SelectColour">Show me</span></li>
+<li>Each shape starts a new selection, or adds to it, subtracts from it or keeps only the overlap. Choose with the mode buttons, or hold Shift, Alt or both as you start. <span class="locate" title="In the app this points at Image_RegionModeAdd">Show me</span></li>
+<li><strong>All</strong> (Ctrl+A), <strong>None</strong> (Ctrl+D) and <strong>Invert</strong> (Ctrl+Shift+I) work on the whole selection. <strong>Subject</strong> selects the photo's main subject, found from the picture's depth: the nearest thing towards the middle. <strong>Feather</strong>, <strong>Grow</strong>, <strong>Shrink</strong> and <strong>Smooth</strong> change the selection's edge by the pixels in <strong>Refine by</strong>. <span class="locate" title="In the app this points at Image_RegionSelectSubject, Image_RegionFeather">Show me</span></li>
+<li>With something selected you can:
+<ul>
+<li><strong>Move</strong> it to float where you drag it. A photo becomes a layered picture for this, and keeps what was moved hidden under a mask. <strong>New layer</strong> copies it into a layer of its own. <strong>Erase</strong> takes it to Retouch. <strong>Generate fill</strong> redraws it from what you describe, as a new layer. <span class="locate" title="In the app this points at Image_SelectMove, Image_SelectNewLayer, Image_SelectErase, Image_SelectGenerateFill">Show me</span></li>
+<li><strong>Copy</strong> it without its background, or <strong>Save cut-out</strong> as a transparent PNG. <strong>Remove background</strong> makes everything else transparent, as an edit you can undo with <strong>Keep background</strong>. A JPEG can't be transparent, so it is then saved as a PNG copy. <span class="locate" title="In the app this points at Image_CutOutSave, Image_CutOutRemoveBackground">Show me</span></li>
+<li>In a layered picture, <strong>Copy</strong>, <strong>Copy merged</strong> (every layer), <strong>Cut</strong>, <strong>Paste</strong>, <strong>Fill</strong> with the current colour (Shift+F5) and <strong>Clear</strong> (Delete) work on the active layer. <span class="locate" title="In the app this points at Image_SelectFill">Show me</span></li>
+</ul>
+</li>
+</ul>
+<h3 id="markup">Markup</h3>
+<ul>
+<li><strong>Markup</strong> draws arrows, boxes, text, pen lines and highlighter. Pick a tool and drag on the picture. For text, click where it goes and type in the panel. The <strong>Select</strong> tool in Markup picks an annotation to move, restyle or delete with Del. <span class="locate" title="In the app this points at Image_EditToolMarkup, Image_EditMarkupArrow, Image_EditMarkupText">Show me</span></li>
+<li>Annotations always go on a markup layer. The first time you draw, a markup layer is added above the active layer, and a photo becomes a layered picture for it. Annotations a photo already had move onto that layer, staying where they were.</li>
+</ul>
+<h3 id="the-current-colour">The current colour</h3>
+<p>Markup, Paint and Haze share one colour. While one of them is in use, it shows on the left of the canvas with your palette below it.
+<span class="locate" title="In the app this points at Image_ColourCurrent">Show me</span></p>
+<ul>
+<li>Click the current colour to open the colour picker over the canvas.</li>
+<li>Click a colour on the palette to use it, and right-click it to remove it. Click <strong>+</strong> to add the current colour to the palette. The palette is the same in every Artist tab. <span class="locate" title="In the app this points at Image_ColourAdd">Show me</span></li>
+</ul>
+<h3 id="resize-and-save">Resize and save</h3>
+<ul>
+<li><strong>Resize</strong> sets the size the picture is saved at, as a percentage or in pixels, keeping its proportions unless you say otherwise. <span class="locate" title="In the app this points at Image_EditToolResize">Show me</span></li>
+<li><strong>AI upscale</strong> makes the picture two or four times larger on this PC, restoring detail rather than stretching it. It also turns AI clean-up on. A picture too large for four times is offered two times only. <span class="locate" title="In the app this points at Image_EditUpscaleTwice">Show me</span></li>
+<li><strong>Save options</strong>, beside <strong>Save as copy</strong>, choose whether saving removes the camera details, location, dates and descriptions, and set the <strong>Quality</strong> of JPEG and WebP files. The colour profile is always kept. A dot on the button means there is something to know before you save, explained inside. <span class="locate" title="In the app this points at Image_EditSaveOptions">Show me</span></li>
+<li><strong>Undo</strong> and <strong>Redo</strong> step through everything you did since the picture opened. A slider drag, a crop drag or a pen line counts as one step. <strong>Before</strong> shows the picture as it is on disk. <strong>Revert</strong> removes every edit, and can itself be undone. <span class="locate" title="In the app this points at Image_EditUndo, Image_EditRedo, Image_EditCompare, Image_EditRevert">Show me</span></li>
+<li><strong>Save</strong> writes the edits into the picture after asking you. The original pixels are replaced, the picture is saved upright, and its camera details are kept unless you chose to remove them. <strong>Save as copy</strong> writes a new file in the format its name asks for, and leaves the original and its edits alone. A picture inside an archive, an animated GIF or WebP, or an icon can only be saved as a copy. <span class="locate" title="In the app this points at Image_EditSave, Image_EditSaveCopy">Show me</span></li>
+<li>Ctrl+Z and Ctrl+Y undo and redo. Ctrl+S saves and Ctrl+Shift+S saves a copy. Closing the tab keeps the edits beside the picture.</li>
+<li>In the File System page, a picture's edits go wherever it goes: copying, moving, renaming and deleting take them along. <strong>Revert edits</strong> appears in an edited picture's actions.</li>
+<li>If another program changes a picture after you edited it, Artist asks whether to keep your edits on the new picture or discard them. A picture inside an archive can be edited, but its edits last only while it is open, so save a copy to keep them.</li>
+<li>Tools that need a model this PC doesn't have yet are greyed out; hover one to see why. While such a tool's panel is open, the bar above the picture offers the AI picture models as one download.</li>
+</ul>
+<h2 id="layers">Layers</h2>
+<ul>
+<li><strong>Add layer</strong> on the toolbar turns a photo into a layered picture: the photo becomes the bottom layer, with its edits, and an empty layer goes above it. <strong>Paste as layer</strong> does the same with the picture on the clipboard. Painting or drawing markup on a photo does this for you. The photo itself is never overwritten; the layered picture is kept separately until you save it. <span class="locate" title="In the app this points at Image_EditAddLayer, Image_EditPasteLayer">Show me</span></li>
+<li><strong>New → Layered picture (.ora)</strong> in the <a href="../file-system/">File System</a> page makes a blank canvas in the folder and opens it here. Choose its size, background, colour mode (colour or grey) and depth: 8 or 16 bits per channel, or 32-bit for light brighter than white.</li>
+<li>The <strong>Layers</strong> panel beside the tools lists the layers, top first. <strong>Layers</strong> on the toolbar shows or hides it. Click a layer's thumbnail to make it active, and drag its row or use the arrows to move it. The eye hides and shows it. You can name it, set its opacity and blend mode, <strong>Clip</strong> it to the layer beneath, <strong>Keep transparency</strong> so painting stays where it already has pixels, or <strong>Lock</strong> it. <strong>Layer</strong>, <strong>Notes</strong>, <strong>Group</strong>, <strong>Duplicate</strong> and <strong>Delete</strong> are at the top. A group can be <strong>Isolated</strong>, so its layers blend only with each other. <span class="locate" title="In the app this points at Image_EditShowLayers, Image_LayersPanel, Image_LayersAddPixel, Image_LayersOpacity, Image_LayersBlend">Show me</span></li>
+<li>Crop, Adjust, Retouch, Select and Resize work on the active picture layer. On a pixel layer, <strong>Erase</strong> in Retouch and <strong>Remove background</strong> in Select change the pixels themselves.</li>
+<li>A <strong>Mask</strong> hides part of a layer without erasing it. You can reveal or hide all of it, make it from the selection, from the layer's transparency, or from what Select picked, invert it, apply it, or delete it. Click the mask's thumbnail to paint and fill the mask. Alt-click shows the mask alone, Ctrl-click loads it as the selection, and Shift-click turns it off. <span class="locate" title="In the app this points at Image_LayersMaskSection">Show me</span></li>
+<li><strong>Generate layer</strong> draws a new layer above the active one with the workspace's image model. Pictures dropped on the canvas become layers too. <span class="locate" title="In the app this points at Image_LayersGenerate">Show me</span></li>
+<li>Every generated edit — <strong>Generate fill</strong>, <strong>Expand</strong>, <strong>Change picture</strong>, and a canvas grown with <strong>Generate the new area</strong> — shows in the Layers panel while it is made, with <strong>Stop</strong>, and arrives as a new layer above the active one. <span class="locate" title="In the app this points at Image_LayersPictures">Show me</span></li>
+<li><strong>Paint</strong> paints on the active pixel layer, or on its mask while you edit the mask, and only inside the selection if there is one. If the active layer can't take paint, or the picture is a photo, painting adds a new pixel layer first. The <strong>Brush</strong> (B) paints in the current colour, with its size, hardness, opacity and flow. The <strong>Eraser</strong> (E) removes paint, and on a mask shows the layer again. The <strong>Eyedropper</strong> (I, or Alt with the brush) picks a colour from the picture, and <strong>Fill</strong> (G) fills colours close to the one you click. Each stroke is one undo step. Whether pen pressure sets the brush's size and opacity, and how closely the brush is spaced, are in the Images options. <span class="locate" title="In the app this points at Image_EditToolPaint, Image_PaintBrush">Show me</span></li>
+<li><strong>Move</strong> (V) drags the active layer, or what's selected on a pixel layer, which floats until you <strong>Drop</strong> it (or press Enter). To move part of a photo, select it and click <strong>Move</strong> in Select. <span class="locate" title="In the app this points at Image_ArrangeMoving">Show me</span> <strong>Transform</strong> (Ctrl+T) puts a frame round the layer or selection: drag a side or corner to scale (Shift keeps proportions), the round handle to rotate (Shift snaps to 15°), or inside to move. <strong>Flip</strong> and <strong>Turn</strong> are in the panel. <strong>Apply</strong> (Enter) keeps it, <strong>Cancel</strong> (Esc) puts it back. Photos and notes layers are placed again rather than resampled, so they never get softer. <span class="locate" title="In the app this points at Image_EditToolMove, Image_ArrangeTransform">Show me</span></li>
+<li><strong>Rasterize</strong> turns notes or a picture layer into pixels, <strong>Merge down</strong> joins a layer with the one beneath, and <strong>Flatten</strong> makes one layer of them all.</li>
+<li><strong>Canvas</strong> sets a new canvas size, anchored at any of nine points, or crops the canvas to the selection. With <strong>Generate the new area</strong> on, the workspace's picture-editing model draws what a larger canvas gains. Canvas also converts the picture to another colour mode or depth. A 32-bit picture is shown at a <strong>view exposure</strong> you set there, and Paint's <strong>Intensity</strong> paints brighter than white. <span class="locate" title="In the app this points at Image_LayersCanvasSection">Show me</span></li>
+<li>Undo and redo step through layers and selections too. How much history a layered picture keeps is set in the Images options.</li>
+<li><strong>Save</strong> keeps a layered picture as OpenRaster or Photoshop. The first time, it asks where, starting beside the photo it came from. OpenRaster holds 8 and 16 bits; a 32-bit picture is saved as Photoshop. <strong>Save as copy</strong> exports it flattened, as a PNG or another format, at 16 bits where PNG and TIFF allow.</li>
+</ul>
+<h2 id="openraster-files">OpenRaster files</h2>
+<ul>
+<li>Double-click an .ora file — from Krita, GIMP, MyPaint, Pinta, or saved here — to open it in Artist. Its layers come back with their opacity, blend modes, visibility, locks, masks and groups, and those programs can open what Nexaflow saves.</li>
+<li>If a file holds a layer Nexaflow can't draw, such as a Krita filter layer, it opens on the look the other program saved, with a bar naming the layer. <strong>Use the saved look</strong> replaces the layers with one showing that look. <strong>Edit the layers</strong> shows what Nexaflow can draw, and keeps the other layer to save it back unchanged. Editing anything first chooses Edit the layers. <span class="locate" title="In the app this points at Image_SavedLookUse, Image_SavedLookEditLayers">Show me</span></li>
+<li>In the File System page, an .ora file also opens as a folder, like any package.</li>
+</ul>
+<h2 id="photoshop-files">Photoshop files</h2>
+<ul>
+<li>Double-click a .psd or .psb file — RGB or grayscale, at 8, 16 or 32 bits — to open it on its layers: pixels, groups, opacity and fill, blend modes, visibility, locks and masks. A layer clipped to the one beneath stays clipped. Editing saves it back as Photoshop.</li>
+<li>Text, smart objects and shapes open as the pixels Photoshop drew for them. If you leave them alone they are saved back as they were; if you paint on them they become pixels.</li>
+<li>Layer effects, vector masks and adjustment layers are kept and saved back, but not drawn here. A file with any of them opens on the look Photoshop saved, with the same choice as for OpenRaster files.</li>
+<li>CMYK, Lab, indexed and other print modes don't open. Convert the file to RGB or grayscale in Photoshop first.</li>
+</ul>
+<h2 id="printing">Printing</h2>
+<ul>
+<li><strong>Print</strong> (Ctrl+P) at the top left prints the picture as edited, or a layered picture as it shows. You can fit it to the page, fill the page, print at actual size, at its resolution, or at a width in millimetres. A picture larger than the page runs across several pages. Choose portrait or landscape, the margins, and whether to centre it, then click <strong>Print…</strong> to choose the printer. The picture is printed at full size, never from the screen. <span class="locate" title="In the app this points at Image_Print">Show me</span></li>
+</ul>
+<h2 id="drafts-and-the-assistant">Drafts and the assistant</h2>
+<ul>
+<li>A picture made for you — drawn by the assistant, cut out, or a frame taken from a video — opens here as a draft, with a strip saying it isn't saved yet. <strong>Save as</strong> keeps it, with any edits, and the tab becomes that file. A draft you never save is kept only until Windows clears its temporary files. <span class="locate" title="In the app this points at Draft_SaveAs">Show me</span></li>
+<li>The assistant can see the picture as edited, and works on this picture only.</li>
+<li>Ask it to select something — “select the dog”, “find the woman with red hair” — and Select opens with everything it found selected. Ask it to cut something out, and the cut-out opens in its own Artist tab as a draft.</li>
+<li>Ask it to clean up or enlarge the picture, or to remove something — “remove the sign”, “get rid of the people in the background” — and it does so as one of your edits, which you can undo.</li>
+<li>If the workspace has a picture-editing model, ask it to fill the selection, extend the picture, or change it — “put a lamp on the table”, “make it look like autumn” — and it adds a new layer, as Generate fill, Expand and Change picture do.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.9.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>
