@@ -104,11 +104,16 @@ under the original's licence.
 | [Smart Turn v3](https://huggingface.co/pipecat-ai/smart-turn-v3) (Pipecat) | BSD-2-Clause |
 | [Z-Image Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo) (Tongyi-MAI) | Apache-2.0 |
 | [HiDream-O1](https://huggingface.co/HiDream-ai/HiDream-O1-Image) (HiDream.ai) | MIT |
+| [MOSS-Image](https://huggingface.co/OpenMOSS-Team/MOSS-Image-SFT) (OpenMOSS), with LoRAs by [lodestones](https://huggingface.co/lodestones/MOSS-Image-SFT-8-steps-dmd), [axiomofmind](https://huggingface.co/axiomofmind) and [Kandoo](https://huggingface.co/Kandoo/MOSS-Image-Impressionism-LoRA) | Apache-2.0 |
+| [FLUX.2 \[klein\] 4B](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B) (Black Forest Labs) | Apache-2.0 |
+| [Qwen-Image-Edit-2511](https://huggingface.co/Qwen/Qwen-Image-Edit-2511) (Alibaba) | Apache-2.0 |
 | [Wan2.2-TI2V-5B](https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B-Diffusers) (Wan-AI) and [FastWan2.2](https://huggingface.co/FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers) (Hao AI Lab) | Apache-2.0 |
 | [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) | BSD-3-Clause |
 | [GFPGAN](https://github.com/TencentARC/GFPGAN) (Tencent ARC) | Apache-2.0 |
 | RetinaFace and ParseNet from [facexlib](https://github.com/xinntao/facexlib) | MIT |
 | [LaMa](https://github.com/advimman/lama) | Apache-2.0 |
+| [Depth Anything V2 Small](https://huggingface.co/depth-anything/Depth-Anything-V2-Small) | Apache-2.0 |
+| [Image Safety Classifier (M)](https://huggingface.co/OwenElliott/image-safety-classifier-m) (Owen Elliott) | MIT |
 | [SAM 3.1](https://github.com/facebookresearch/sam3) (Meta) | SAM License |
 | [Unlimited-OCR](https://huggingface.co/baidu/Unlimited-OCR) (Baidu) | MIT |
 | [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR)'s PP-OCRv5 mobile text detector | Apache-2.0 |

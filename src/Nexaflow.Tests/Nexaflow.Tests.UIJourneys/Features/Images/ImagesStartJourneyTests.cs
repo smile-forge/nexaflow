@@ -28,6 +28,12 @@ public class ImagesStartJourneyTests : ImageEditJourneyBase
 {
     protected override string? LaunchTabKind => "Artist";
 
+    /// <summary>None of Nexaflow's own models, whatever this machine's store holds, so the start screen offers the image model's
+    /// download here as it does on a machine that has never fetched one.</summary>
+    private readonly EmptyModelStore _store = new();
+
+    protected override IReadOnlyDictionary<string, string> LaunchEnvironment => _store.LaunchEnvironment;
+
     private string _folder = "";
     private string _recent = "";
 

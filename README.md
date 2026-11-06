@@ -6,7 +6,7 @@ Nexaflow replaces the scattered pile of apps you juggle every day — file explo
 
 The goal isn't to add more features. It's to reduce the friction between you and the thing you're actually trying to do.
 
-![Version 1.8.5](https://img.shields.io/badge/version-1.8.5-brightgreen)
+![Version 1.9.0](https://img.shields.io/badge/version-1.9.0-brightgreen)
 ![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)
 ![Platform: Windows](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)
 ![.NET 10](https://img.shields.io/badge/.NET-10.0-purple)
@@ -43,11 +43,9 @@ A built-in file tree with full-text Windows Search and AI-assisted query refinem
 
 **📝 Editors and viewers that understand their content**
 
-A live Markdown editor with LaTeX, native Mermaid diagrams, and QR codes, barcodes and C4 architecture diagrams generated straight from a fenced block. Formulas aren't pictures — you can put a caret in one and edit it. A code editor with syntax highlighting, code folding, colour previews, and a class/structure map. Dedicated viewers for PDFs, DICOM medical imaging, images (carousel, album, collage, explore), logs, JSON, Email (.eml/.msg), rich text (.rtf), CSV/TSV tables, hex/binary, fonts, SVG, web pages, and Jupyter notebooks. PDFs, RTF and Outlook messages are read and drawn by Nexaflow itself, and a long document opens at once. This list keeps growing — understanding more formats, better, is an ongoing focus.
+A live Markdown editor with LaTeX, native Mermaid diagrams, QR codes, barcodes, abc, lilypond and more. Of course diagrams and music aren't pictures — you can put a caret in one and edit it. A code editor with syntax highlighting, code folding, colour previews, and a class/structure map. Dedicated viewers for PDFs, DICOM medical imaging, images, logs, JSON, Email (.eml/.msg), rich text (.rtf), CSV/TSV tables, hex/binary, fonts, SVG, web pages, and Jupyter notebooks. This list keeps growing — understanding more formats, better, is an ongoing focus.
 
-Photos are edited without touching the file until you save: crop, straighten, adjust, mark up — and, on a capable graphics card, AI enhance, upscale and cut-out. A PDF or a picture of a page converts to Markdown, read on your machine.
-
-It isn't only diagrams. Sheet music engraved from ABC or LilyPond, QR codes, and five barcode families — all drawn from a fenced block, on your machine.
+Photos are edited without touching the file until you save, and **Artist** turns that into a proper paint program: layers, masks, brushes, and Photoshop files that open and save with their layers intact. With a capable graphics card AI Model enhanced editing lets you work with images like a pro.
 
 <p align="center">
   <img src="src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/images/markdown/music-abc.png" width="56%" alt="A reel engraved from ABC notation, with beaming, repeats and a lyric line">
@@ -84,7 +82,7 @@ An AI input bar on every window, and a dedicated AI Chat tab with saved history.
 
 **🧠 AI that runs on your machine**
 
-With a capable graphics card, Nexaflow runs its own models — no service to install, nothing sent anywhere. A language model for the assistant, sized to the card it finds; speech in and out for dictation and a voice conversation in English, French and German; pictures and video clips; and tools you use yourself — picture restoration, cut-out, and page reading. Put a local model and a cloud model side by side and they share the work: everyday requests stay on your machine, the heavy reasoning goes to the larger model. Pages that hold sensitive data ask before anything leaves the PC.
+With a 10 GB graphics card or better, Nexaflow runs its own models — no service to install, nothing sent anywhere. A language model for the assistant, sized to the card it finds; speech in and out for dictation and a voice conversation in English, French and German; pictures, picture edits and video clips; and tools you use yourself — picture restoration, cut-out, and page reading. Put a local model and a cloud model side by side and they share the work: everyday requests stay on your machine, the heavy reasoning goes to the larger model. Pages that hold sensitive data ask before anything leaves the PC.
 
 **[How the AI works →](https://smile-forge.github.io/nexaflow/together/)**
 
@@ -132,7 +130,9 @@ Concretely:
 
 - **Deeper AI context** — giving the AI more of what it needs to be genuinely useful in the tab you're in, not just adjacent to it
 
-- **Local AI on more machines** — Nexaflow's own models on smaller cards and more vendors' GPUs
+- **Remote locations** — SFTP, SMB and WSL folders in tabs like any other, with a terminal that opens on the far end
+
+- **Local AI on more machines** — Nexaflow's own models on more vendors' GPUs, not just NVIDIA
 
 - **The USB probe, finished** — raw access to a device, on more of the hardware testers bring us
 
@@ -150,4 +150,6 @@ Contributions are welcome — please open an issue before starting significant w
 
 ## License
 
-Nexaflow is free and unencumbered software released into the public domain under the [Unlicense](LICENSE.txt). No accounts. No telemetry. No lock-in. Use it, modify it, ship it.
+Nexaflow is free and unencumbered software released into the public domain under the [Unlicense](LICENSE.txt).
+
+No accounts. No telemetry. No lock-in. Use it, modify it, redistribute it, basically do what you like with it.

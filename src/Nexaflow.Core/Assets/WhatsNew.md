@@ -1,36 +1,22 @@
 # What's New in Nexaflow
 
-Welcome to **Nexaflow 1.8.5** 🎉
+Welcome to **Nexaflow 1.9.0** 🎉
 
-This release rounds out 1.8: PDF pages you can rearrange and combine, whole documents summarised and translated on your own machine, French throughout, and a lighter start.
+Meet **Artist**: a photo editor and paint program, with layers, Photoshop files, and AI that edits pictures on your own PC.
 
-### 📄 PDF pages
-*   A **Pages** tab with a thumbnail of every page: drag to reorder, delete, insert a picture or another PDF, or split a page — saved with the document's bookmarks, links and form fields kept.
-*   **Merge pages** two, three or four to a sheet, **fold a booklet** in reading order, or set pages on paper of another size.
-*   **Save As** works, and **Extract images** takes every picture out of a PDF.
+### 🎨 Artist
+*   **Layers**, masks and blend modes; paint, select, move and transform; 16- and 32-bit pictures with a live histogram.
+*   **PSD**, **PSB** and **OpenRaster** files open and save with their layers.
+*   **Lens blur** and **haze** worked out from each photo's depth, and selection by distance or by subject.
+*   **Generate fill**, **Expand** and **Change picture**, each as a new layer, with FLUX.2 [klein], HiDream-O1 or Qwen-Image-Edit.
 
-### 📚 Whole documents, on this PC
-*   **Summarise** or **translate** a whole Markdown document — `.md` or a Markdown Package (`.mdz`) — with a local model. Long documents are worked through a piece at a time, keeping their tone and their terms.
-*   A translation that stops picks up where it left off when you run it again.
+### 🤖 AI
+*   **MOSS-Image** with eight LoRA styles, and **Gen Image** and **Gen Video** in the New menu.
+*   Every kind of local model now runs on a **10 GB graphics card**.
+*   **Grok** joins the providers, and **Enhanced AI Protection Mode** keeps the assistant and its pictures fit for everyone.
 
-### 🗂️ Files and folders
-*   **Explorer's own file icons** in every file list, **cloud status** for OneDrive files, and a folder view that updates when something changes outside Nexaflow.
-*   **Open in Nexaflow** on Explorer's right-click menu for files, folders and drives (under "Show more options" on Windows 11).
-*   **`.Z`**, **`.lz`** and **`.lzma`** archives open, with or without a tar inside.
-*   AV Scan works on OneDrive files and on files inside archives.
-
-### 🔌 USB
-*   A device with **no driver** now shows on the USB page, and can be taken over with Windows' WinUSB driver, talked to directly, and given its driver back.
-
-### 🌍 French throughout
-*   Every feature now speaks **French** as well as English.
-
-### ⚡ Smaller things you'll notice
-*   Local models load **only when they are first needed**, and no longer hold their files in memory.
-*   Long, formula-heavy Markdown documents scroll and select smoothly.
-*   Select and copy part of a **code block** in Markdown.
-*   **Copy** a photo, edits included, from the image viewer's right-click menu.
-*   Options asks about saving only when you have changed something.
-*   Updates are checked against their published SHA-256 before they install.
+### 📝 Markdown and more
+*   Mermaid **packet**, **treemap** and **tree view** diagrams, **Print**, and a quicker source view for long files.
+*   Windows reopen where you left them, and every drop-down follows the theme.
 
 Thank you for being part of the journey. Press **Next** to continue.

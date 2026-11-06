@@ -119,7 +119,8 @@ internal sealed class OpenAISpeakingSession : ITextToSpeechSession
                 if (streams)
                 {
                     var whole = new SampleAligner();
-                    await foreach (var update in client.GenerateSpeechStreamingAsync(text, voice, options, _stop.Token))
+                    await using var updates = await client.GenerateSpeechStreamingAsync(text, voice, options, _stop.Token);
+                    await foreach (var update in updates.WithCancellation(_stop.Token))
                         if (update is StreamingSpeechAudioDeltaUpdate delta && whole.Take(delta.AudioBytes.ToArray()) is { Length: > 0 } pcm)
                             await _audio.Writer.WriteAsync(new SpeechAudioChunk(segment, pcm), _stop.Token);
                 }

@@ -14,7 +14,7 @@
   <ItemGroup>
     <PackageReference Include="MSTest" Version="4.5.1" />
     <!-- Windows' own voice, for speech the speech-model tests listen to. -->
-    <PackageReference Include="System.Speech" Version="10.0.13" />
+    <PackageReference Include="System.Speech" Version="10.0.14" />
   </ItemGroup>
 
   <ItemGroup>
