@@ -26,9 +26,12 @@ namespace Nexaflow.AiHost.Client;
 /// <param name="ExpertBytes">What a mixture-of-experts language model's routed experts hold, every layer's together — part of
 /// <paramref name="WeightsBytes"/>, and what it keeps in this machine's memory where its GPU has no room for them; 0 for a model with
 /// none.</param>
+/// <param name="Lighter">How a part loaded on demand runs holding less on a GPU — streamed, its weights in this machine's memory and
+/// brought to the GPU a group at a time; decoded in tiles — tried in this order where no GPU's budget holds it whole; null or empty
+/// for a part with no such build.</param>
 public sealed record PlacementNeed(ModelSpec OnGpu, ModelSpec? OnCpu = null, long BytesPerToken = 0, int ShortestContext = 0, int Layers = 0,
                                    long WeightsBytes = 0, long BatchBytesPerToken = 0, long BytesPerSequence = 0, long BackgroundBytes = 0,
-                                   long StateBytes = 0, long ExpertBytes = 0)
+                                   long StateBytes = 0, long ExpertBytes = 0, IReadOnlyList<ModelSpec>? Lighter = null)
 {
     public string Id => OnGpu.Id;
 
@@ -318,21 +321,25 @@ public static class ModelPlacement
     }
 
     /// <summary>Where a model loaded on demand — a picture's part — runs: on a GPU it fits beside the resident models
-    /// if one has the room, else on the GPU with the most room once residents make way for it; on the CPU, or nowhere,
-    /// when no GPU's whole budget is enough.</summary>
+    /// if one has the room, else on the GPU with the most room once residents make way for it; where no GPU's whole budget holds
+    /// it, as the first of its lighter builds one's budget holds — streamed, in tiles; on the CPU, or nowhere, when none holds any.</summary>
     public static ModelSpec? PlaceOnDemand(Placement residents, PlacementNeed need)
     {
         if (need.CpuOnly) return (need.OnCpu ?? need.OnGpu) with { Device = null };
-        long bytes = need.OnGpu.MemoryBytes;
-        var gpu = residents.Gpus.Where(g => g.BudgetBytes >= bytes)
-                                .OrderByDescending(g => residents.FreeOn(g) >= bytes)
-                                .ThenByDescending(residents.FreeOn)
-                                .ThenBy(g => g.Device)
-                                .FirstOrDefault();
-        return gpu is not null ? need.OnGpu with { Device = gpu.Device }
-             : need.OnCpu is { } cpu ? cpu with { Device = null }
-             : null;
+        if (GpuFor(residents, need.OnGpu.MemoryBytes) is { } gpu) return need.OnGpu with { Device = gpu.Device };
+        foreach (var lighter in need.Lighter ?? [])
+            if (GpuFor(residents, lighter.MemoryBytes) is { } small) return lighter with { Device = small.Device };
+        return need.OnCpu is { } cpu ? cpu with { Device = null } : null;
     }
+
+    /// <summary>The GPU a part holding <paramref name="bytes"/> loads on: one it fits beside the residents, else the one with the most
+    /// room once they make way; null where no GPU's whole budget holds it.</summary>
+    private static HostGpu? GpuFor(Placement residents, long bytes)
+        => residents.Gpus.Where(g => g.BudgetBytes >= bytes)
+                         .OrderByDescending(g => residents.FreeOn(g) >= bytes)
+                         .ThenByDescending(residents.FreeOn)
+                         .ThenBy(g => g.Device)
+                         .FirstOrDefault();
 
     /// <summary>The GPUs the host would find on this machine, as far as its adapters tell before the host has run:
     /// each NVIDIA GPU of its own where the CUDA pack suits the machine, less what the desktop is taken to hold and the

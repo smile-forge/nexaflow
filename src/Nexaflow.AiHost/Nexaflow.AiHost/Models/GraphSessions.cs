@@ -7,8 +7,10 @@ namespace Nexaflow.AiHost.Models;
 /// them on, else the CPU.</summary>
 internal static class GraphSessions
 {
+    /// <param name="sharedArena">Take the GPU's memory from the one arena every such session on it shares, rather than one of its
+    /// own (<see cref="CudaSessions.ShareArena"/>).</param>
     /// <exception cref="HostRequestException">The part names no file, or it is not there.</exception>
-    public static InferenceSession Open(ModelSpec spec)
+    public static InferenceSession Open(ModelSpec spec, bool sharedArena = false)
     {
         string path = Path.Combine(spec.Folder, spec.File ?? throw new HostRequestException(HostErrorKind.Invalid, $"{spec.Id} does not name its file."));
         if (!File.Exists(path)) throw new HostRequestException(HostErrorKind.NotFound, $"{spec.Id}'s graph is not in {spec.Folder}.");
@@ -21,10 +23,19 @@ internal static class GraphSessions
             LogSeverityLevel       = OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR,
             EnableMemoryPattern    = false,
         };
-        if (spec.Device is { } device) CudaSessions.Append(options, device);
+        if (spec.Device is { } device)
+        {
+            CudaSessions.Append(options, device);
+            if (sharedArena) CudaSessions.ShareArena(options, device);
+        }
         else options.IntraOpNumThreads = Math.Max(1, Environment.ProcessorCount / 2);
         return new InferenceSession(path, options);
     }
+
+    /// <summary>The part's graph: streamed (<see cref="StreamedGraph"/>) where its file is a <see cref="StreamManifest"/>, else whole
+    /// in one session.</summary>
+    public static IGraph OpenGraph(ModelSpec spec)
+        => spec.File?.EndsWith(StreamManifest.Suffix, StringComparison.OrdinalIgnoreCase) == true ? StreamedGraph.Open(spec) : new WholeGraph(Open(spec));
 
     /// <summary>
     /// Options for a run after which the session gives its scratch memory back: a part between pictures then holds its

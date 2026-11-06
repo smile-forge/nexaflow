@@ -41,11 +41,28 @@ namespace Nexaflow.Providers.AiHost;
 /// it is not known, and it keeps none.</param>
 /// <param name="ExpertBytes">What a mixture-of-experts language model's routed experts hold, every layer's together, as its GGUF's
 /// tensors say: what it keeps in this machine's memory where its GPU has room for the rest of it alone; 0 for a model with none.</param>
+/// <param name="Streamed">The same part built to be streamed — its weights in this machine's memory, brought to the GPU a group at a
+/// time — for a GPU whose budget does not hold it whole; null where it has no such build.</param>
+/// <param name="Tiled">How the part — a decoder — runs in tiles for a GPU whose budget does not hold it whole; null where it does not.</param>
 
 internal sealed record OwnedPart(string Role, string Runner, string Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
                                  IReadOnlyDictionary<string, string>? CudaOptions, string? ExecutionProvider, string Name, string? Projector = null,
                                  long BytesPerToken = 0, bool LoadsOnDemand = false, int Layers = 0, long BatchBytesPerToken = 0,
-                                 long BytesPerSequence = 0, long BackgroundBytes = 0, long StateBytes = 0, long ExpertBytes = 0);
+                                 long BytesPerSequence = 0, long BackgroundBytes = 0, long StateBytes = 0, long ExpertBytes = 0, OwnedStreamedBuild? Streamed = null,
+                                 OwnedTiledBuild? Tiled = null);
+
+/// <summary>A part's streamed build, beside its whole one in its folder, sharing its weights' file.</summary>
+/// <param name="File">Its manifest (<c>*.stream.json</c>): the groups it is run as, and where each one's weights lie.</param>
+/// <param name="MemoryBytes">What it holds on the GPU at its peak: two groups' weights, the graph's small ones, one group's work.</param>
+/// <param name="HostBytes">What it holds in this machine's memory: its streamed weights, pinned.</param>
+internal sealed record OwnedStreamedBuild(string File, long MemoryBytes, long HostBytes);
+
+/// <summary>A decoder run in tiles: the latent cut into overlapping squares of <paramref name="Cells"/> cells, each decoded alone
+/// and blended back (<see cref="ModelSpec.TileCells"/>).</summary>
+/// <param name="MemoryBytes">What it holds on the GPU at its peak, a tile at a time.</param>
+/// <param name="HostBytes">What it holds in this machine's memory: for a decoder that carries a cache from frame to frame, every
+/// tile's cache, pinned between its calls; 0 for one that carries none.</param>
+internal sealed record OwnedTiledBuild(int Cells, long MemoryBytes, long HostBytes = 0);
 
 /// <summary>What each part of an owned model does.</summary>
 internal static class OwnedRoles
@@ -320,8 +337,11 @@ internal static class OwnedModels
     private sealed record Part(string? Role, string? Runner, string? Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
                                Dictionary<string, string>? CudaOptions, string? ExecutionProvider, string? Name, string? Projector, long BytesPerToken,
                                                               bool RunsOnCpu, bool LoadsOnDemand, int Layers = 0, long BatchBytesPerToken = 0,
-                                                              long BytesPerSequence = 0, long BackgroundBytes = 0, long StateBytes = 0, long ExpertBytes = 0);
+                                                              long BytesPerSequence = 0, long BackgroundBytes = 0, long StateBytes = 0, long ExpertBytes = 0,
+                                                              StreamedBuild? Streamed = null, TiledBuild? Tiled = null);
 
+    private sealed record StreamedBuild(string? File, long MemoryBytes, long HostBytes);
+    private sealed record TiledBuild(int Cells, long MemoryBytes, long HostBytes);
     public static IReadOnlyList<OwnedModel> All { get; } = Read(Embedded());
 
     /// <summary>The tools' entries: the models each tool works with.</summary>
@@ -527,12 +547,18 @@ internal static class OwnedModels
         if (onDemand && p.ExecutionProvider != Cpu && !p.RunsOnCpu && p.MemoryBytes <= 0)
             throw new InvalidDataException($"{what} '{id}' does not say how much its {p.Role} holds.");
 
+        if (p.Streamed is { } streamed && (!onDemand || p.ExecutionProvider != Cuda || streamed.File?.EndsWith(".stream.json", StringComparison.Ordinal) != true
+                                           || streamed.MemoryBytes <= 0 || streamed.HostBytes <= 0))
+            throw new InvalidDataException($"{what} '{id}' has a streamed build of its {p.Role} that is not a CUDA part's loaded on demand, names no manifest, or does not say what it holds.");
+        if (p.Tiled is { } tiled && (!onDemand || p.ExecutionProvider != Cuda || tiled.Cells < 16 || tiled.MemoryBytes <= 0))
+            throw new InvalidDataException($"{what} '{id}' runs its {p.Role} in tiles that are not a CUDA part's loaded on demand, are under 16 cells, or do not say what they hold.");
         if (p.LoadsOnDemand && (language || onDemand))
             throw new InvalidDataException($"{what} '{id}' loads its {p.Role} on demand, which only a part of a model kept loaded can.");
 
         return new OwnedPart(p.Role, p.Runner, p.Folder, p.File, p.Adapter, p.MemoryBytes, p.ContextTokens, p.CudaOptions, p.ExecutionProvider,
                              p.Name ?? p.Role, p.Projector, p.BytesPerToken, p.LoadsOnDemand, p.Layers, p.BatchBytesPerToken, p.BytesPerSequence, p.BackgroundBytes,
-                             p.StateBytes, p.ExpertBytes);
+                             p.StateBytes, p.ExpertBytes, p.Streamed is { } s ? new OwnedStreamedBuild(s.File!, s.MemoryBytes, s.HostBytes) : null,
+                             p.Tiled is { } t ? new OwnedTiledBuild(t.Cells, t.MemoryBytes, t.HostBytes) : null);
     }
 
     private static OwnedVoice ToVoice(string modelId, CatalogModel model, List<OwnedPart> parts, Voice v)

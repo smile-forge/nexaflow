@@ -278,7 +278,19 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
         return new PlacementNeed(Unresolved(model, part), onCpu is null ? null : Unresolved(model, onCpu) with { MemoryBytes = FilesBytes(model, onCpu) },
                                  language ? ContextCache.Q8.BytesPerToken(part.BytesPerToken) : 0, language ? OwnedModels.ShortestContext : 0,
                                  part.Layers, language ? WeightsBytes(model, part) : 0, part.BatchBytesPerToken, ContextCache.Q8.BytesPerToken(part.BytesPerSequence), part.BackgroundBytes,
-                                 part.StateBytes, part.ExpertBytes);
+                                 part.StateBytes, part.ExpertBytes,
+                                 Lighter(model, part));
+    }
+
+    /// <summary>How <paramref name="part"/> runs holding less on a GPU, most first: streamed, then decoded in tiles.</summary>
+    private static IReadOnlyList<ModelSpec> Lighter(OwnedEntry model, OwnedPart part)
+    {
+        var builds = new List<ModelSpec>();
+        if (part.Streamed is { } streamed)
+            builds.Add(Unresolved(model, part) with { File = streamed.File, MemoryBytes = streamed.MemoryBytes, HostBytes = streamed.HostBytes });
+        if (part.Tiled is { } tiled)
+            builds.Add(Unresolved(model, part) with { TileCells = tiled.Cells, MemoryBytes = tiled.MemoryBytes, HostBytes = tiled.HostBytes });
+        return builds;
     }
 
     /// <summary>What <paramref name="part"/>'s own file holds — a language model's weights, its GGUF — read whole.</summary>

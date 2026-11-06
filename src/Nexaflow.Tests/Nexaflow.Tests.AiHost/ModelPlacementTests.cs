@@ -147,6 +147,21 @@ public class ModelPlacementTests
     }
 
     [TestMethod]
+    [CoversNode("owned-images-streamed")]
+    public void APicturesPartNoCardHoldsWhole_RunsStreamed_WhereItsStreamedBuildFits()
+    {
+        var denoiser = Part("denoiser", 10) with { Lighter = [Spec("denoiser", (long)(4.5 * GB)) with { File = "denoiser.stream.json", HostBytes = 6 * GB }] };
+
+        var whole = ModelPlacement.PlaceOnDemand(ModelPlacement.Plan([Gpu(0, 12)], []), denoiser)!;
+        Assert.AreEqual((0, (string?)null), (whole.Device, whole.File), "whole on a card whose budget holds it");
+
+        var streamed = ModelPlacement.PlaceOnDemand(ModelPlacement.Plan([Gpu(0, 7.5)], []), denoiser)!;
+        Assert.AreEqual((0, "denoiser.stream.json", 6 * GB), (streamed.Device, streamed.File, streamed.HostBytes), "streamed on a 10 GB card's budget, its weights pinned in this machine's memory");
+
+        Assert.IsNull(ModelPlacement.PlaceOnDemand(ModelPlacement.Plan([Gpu(0, 4)], []), denoiser), "nowhere on a card that holds neither");
+    }
+
+    [TestMethod]
     public void BeforeTheHostRuns_ItsGpusAreExpectedFromTheAdapters()
     {
         var hardware = new ComputeHardwareReport(

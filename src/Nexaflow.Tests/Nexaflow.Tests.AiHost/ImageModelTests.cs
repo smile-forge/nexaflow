@@ -78,6 +78,42 @@ public class ImageModelTests
         Assert.IsTrue(spread > 20, $"a picture, not a flat field (spread {spread:F1})");
     }
 
+    /// <summary>The same prompt and seed drawn with the denoiser whole and streamed — its weights in this machine's memory, brought
+    /// to the GPU a group at a time — where its folder holds the streamed build: the two pictures are one, to the rounding of fp16
+    /// arithmetic done in another order.</summary>
+    [TestMethod]
+    [Timeout(900_000, CooperativeCancellation = true)]
+    [CoversNode("owned-images-streamed")]
+    public async Task AStreamedDenoiser_DrawsThePictureTheWholeOneDraws()
+    {
+        var (client, model) = Host();
+        var denoiser = model.Parts[DrawingParts.Denoiser];
+        if (!File.Exists(Path.Combine(denoiser.Folder, "denoiser.stream.json"))) Assert.Inconclusive("The denoiser's folder holds no streamed build.");
+        var streamed = model with
+        {
+            Parts = new Dictionary<string, ModelSpec>(model.Parts) { [DrawingParts.Denoiser] = denoiser with { File = "denoiser.stream.json", MemoryBytes = 5L << 30 } },
+        };
+
+        async Task<PngReader.Picture> Draw(DrawingModel drawing)
+        {
+            await foreach (var reply in client.SendAsync(id => new Draw(id, drawing, "A red fox asleep in the snow, watercolour.", 1024, 1024, 7, RequestPriority.Job),
+                                                         TimeSpan.FromMinutes(5)))
+                if (reply is Drawn drawn) return PngReader.Read(drawn.Png);
+            throw new AssertFailedException("nothing was drawn");
+        }
+
+        PngReader.Picture whole, stream;
+        
+        long streamedPeak, wholePeak;
+        using (var watch = GpuMemoryWatch.Start()) { stream = await Draw(streamed); streamedPeak = watch.PeakBytes; }
+        using (var watch = GpuMemoryWatch.Start()) { whole = await Draw(model); wholePeak = watch.PeakBytes; }
+        TestContext.WriteLine($"the GPU at its peak: streamed {streamedPeak / 1e9:0.00} GB, whole {wholePeak / 1e9:0.00} GB");
+        Assert.IsTrue(streamedPeak < wholePeak, $"streamed, the GPU held {streamedPeak / 1e9:0.00} GB at its peak, whole {wholePeak / 1e9:0.00} GB");
+        double mse = whole.Rgb.Zip(stream.Rgb).Average(p => (p.First - p.Second) * (double)(p.First - p.Second));
+        double psnr = mse == 0 ? double.PositiveInfinity : 10 * Math.Log10(255.0 * 255 / mse);
+        Assert.IsTrue(psnr >= 35, $"the streamed denoiser's picture is {psnr:0.0} dB from the whole one's");
+    }
+
     [TestMethod]
     [Timeout(600_000, CooperativeCancellation = true)]
     public async Task TheSameSeedAndPrompt_DrawTheSamePicture()

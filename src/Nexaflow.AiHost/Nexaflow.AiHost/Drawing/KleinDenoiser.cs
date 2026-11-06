@@ -9,7 +9,7 @@ namespace Nexaflow.AiHost.Drawing;
 /// rows and theirs, and the step's noise level in; the velocity of every token out, the latents' first
 /// (<see cref="KleinSampler"/>).
 /// </summary>
-internal sealed class KleinDenoiser(ModelSpec spec, InferenceSession session) : IHostModel
+internal sealed class KleinDenoiser(ModelSpec spec, IGraph graph) : IHostModel
 {
     private static readonly string[] Inputs = ["image_tokens", "image_positions", "prompt", "prompt_positions", "timestep"];
 
@@ -27,11 +27,11 @@ internal sealed class KleinDenoiser(ModelSpec spec, InferenceSession session) : 
         using var textPositions = OrtValue.CreateTensorValueFromMemory(promptPositions, [rows, 4]);
         using var step = OrtValue.CreateTensorValueFromMemory(new[] { sigma }, [1]);
         using var run = lastStep ? GraphSessions.Releasing(Spec) : new RunOptions();
-        using var outputs = session.Run(run, Inputs, [image, positions, text, textPositions, step], session.OutputNames);
+        using var outputs = graph.Run(run, Inputs, [image, positions, text, textPositions, step], graph.OutputNames);
         return outputs[0].GetTensorDataAsSpan<float>().ToArray();
     }
 
-    public void Dispose() => session.Dispose();
+    public void Dispose() => graph.Dispose();
 }
 
 internal sealed class KleinDenoiserRunner : IModelRunner
@@ -40,7 +40,7 @@ internal sealed class KleinDenoiserRunner : IModelRunner
 
     public IHostModel Load(ModelSpec spec)
     {
-        var denoiser = new KleinDenoiser(spec, GraphSessions.Open(spec));
+        var denoiser = new KleinDenoiser(spec, GraphSessions.OpenGraph(spec));
         try
         {
             // One step at the common size, so CUDA tunes its kernels at load rather than on somebody's first picture.

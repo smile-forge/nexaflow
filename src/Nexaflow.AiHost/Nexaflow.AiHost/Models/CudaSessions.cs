@@ -21,4 +21,24 @@ internal static class CudaSessions
     /// <summary>The arena a run gives its scratch memory back to: the GPU's, or the CPU's.</summary>
     public static string Arena(int? device)
         => device is { } number ? $"gpu:{number.ToString(CultureInfo.InvariantCulture)}" : "cpu:0";
+
+    private static readonly HashSet<int> SharedArenas = [];
+
+    /// <summary>
+    /// Has a session take its GPU memory from the one arena every session sharing it on <paramref name="device"/> takes it from —
+    /// registered with the runtime the first time it is asked for, grown only by what is asked for. A graph run as many sessions one
+    /// after another (<see cref="StreamedGraph"/>) then holds one session's scratch at a time, not one for each.
+    /// </summary>
+    public static void ShareArena(SessionOptions options, int device)
+    {
+        lock (SharedArenas)
+            if (SharedArenas.Add(device))
+            {
+                using var info = new OrtMemoryInfo(OrtMemoryInfo.allocatorCUDA, OrtAllocatorType.DeviceAllocator, device, OrtMemType.Default);
+                using var arena = new OrtArenaCfg(0, 1, -1, -1);   // no cap; kSameAsRequested; ONNX Runtime's own chunk and dead-byte limits
+                OrtEnv.Instance().CreateAndRegisterAllocator("CUDAExecutionProvider", info, arena,
+                    new Dictionary<string, string> { ["device_id"] = device.ToString(CultureInfo.InvariantCulture) });
+            }
+        options.AddSessionConfigEntry("session.use_env_allocators", "1");
+    }
 }
