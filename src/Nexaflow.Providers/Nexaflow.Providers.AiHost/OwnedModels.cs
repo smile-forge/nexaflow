@@ -39,11 +39,13 @@ namespace Nexaflow.Providers.AiHost;
 /// cells held in 8 bits, at their fullest — as measured: what each of the saves it keeps to cut a conversation back
 /// (<see cref="ModelSpec.Checkpoints"/>) costs this machine's memory; 0 for a model with no such state, cut back anywhere, or where
 /// it is not known, and it keeps none.</param>
+/// <param name="ExpertBytes">What a mixture-of-experts language model's routed experts hold, every layer's together, as its GGUF's
+/// tensors say: what it keeps in this machine's memory where its GPU has room for the rest of it alone; 0 for a model with none.</param>
 
 internal sealed record OwnedPart(string Role, string Runner, string Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
                                  IReadOnlyDictionary<string, string>? CudaOptions, string? ExecutionProvider, string Name, string? Projector = null,
                                  long BytesPerToken = 0, bool LoadsOnDemand = false, int Layers = 0, long BatchBytesPerToken = 0,
-                                 long BytesPerSequence = 0, long BackgroundBytes = 0, long StateBytes = 0);
+                                 long BytesPerSequence = 0, long BackgroundBytes = 0, long StateBytes = 0, long ExpertBytes = 0);
 
 /// <summary>What each part of an owned model does.</summary>
 internal static class OwnedRoles
@@ -318,7 +320,7 @@ internal static class OwnedModels
     private sealed record Part(string? Role, string? Runner, string? Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
                                Dictionary<string, string>? CudaOptions, string? ExecutionProvider, string? Name, string? Projector, long BytesPerToken,
                                                               bool RunsOnCpu, bool LoadsOnDemand, int Layers = 0, long BatchBytesPerToken = 0,
-                                                              long BytesPerSequence = 0, long BackgroundBytes = 0, long StateBytes = 0);
+                                                              long BytesPerSequence = 0, long BackgroundBytes = 0, long StateBytes = 0, long ExpertBytes = 0);
 
     public static IReadOnlyList<OwnedModel> All { get; } = Read(Embedded());
 
@@ -530,7 +532,7 @@ internal static class OwnedModels
 
         return new OwnedPart(p.Role, p.Runner, p.Folder, p.File, p.Adapter, p.MemoryBytes, p.ContextTokens, p.CudaOptions, p.ExecutionProvider,
                              p.Name ?? p.Role, p.Projector, p.BytesPerToken, p.LoadsOnDemand, p.Layers, p.BatchBytesPerToken, p.BytesPerSequence, p.BackgroundBytes,
-                             p.StateBytes);
+                             p.StateBytes, p.ExpertBytes);
     }
 
     private static OwnedVoice ToVoice(string modelId, CatalogModel model, List<OwnedPart> parts, Voice v)

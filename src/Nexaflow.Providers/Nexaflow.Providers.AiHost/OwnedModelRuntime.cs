@@ -61,8 +61,9 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
 
     /// <summary>
     /// Whether <paramref name="model"/> fits this machine, as its GPUs are expected before the host has run: every part
-    /// placed — a picture's, a clip's or a tool's parts each on a GPU in turn — and a language model on a GPU, but for the
-    /// catalog's first, which runs wherever there is none.
+    /// placed — a picture's, a clip's or a tool's parts each on a GPU in turn — and a language model on a GPU, what it keeps in this
+    /// machine's memory beside it (the layers of a cut, the experts of a mixture) within the host's share of it, but for the catalog's
+    /// first, which runs wherever there is none.
     /// </summary>
     public bool Fits(OwnedEntry model)
     {
@@ -73,12 +74,13 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
             var none = ModelPlacement.Plan(gpus, []);
             return needs.All(n => ModelPlacement.PlaceOnDemand(none, n) is not null);
         }
-        var placement = ModelPlacement.Plan(gpus, needs);
+        long memory = host.Memory.BudgetBytes;
+        var placement = ModelPlacement.Plan(gpus, needs, memory);
         if (placement.Unplaced.Count > 0) return false;
         if (model.PartsFor(ExecutionProvider).Where(p => p.LoadsOnDemand).Any(p => ModelPlacement.PlaceOnDemand(placement, Need(model, p)) is null))
             return false;
         return model is not OwnedModel { Kind: ModelKind.Language } language || language == OwnedModels.OfKind(ModelKind.Language).First()
-               || needs.All(n => n.CpuOnly || placement.Of(n.Id)!.Device is not null);
+               || needs.All(n => n.CpuOnly || placement.Of(n.Id)!.Device is not null) && placement.Placed.Sum(s => s.HostBytes) <= memory;
     }
 
     /// <summary>What the setup needs to place each of <paramref name="model"/>'s parts held with it on this machine — all
@@ -276,7 +278,7 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
         return new PlacementNeed(Unresolved(model, part), onCpu is null ? null : Unresolved(model, onCpu) with { MemoryBytes = FilesBytes(model, onCpu) },
                                  language ? ContextCache.Q8.BytesPerToken(part.BytesPerToken) : 0, language ? OwnedModels.ShortestContext : 0,
                                  part.Layers, language ? WeightsBytes(model, part) : 0, part.BatchBytesPerToken, ContextCache.Q8.BytesPerToken(part.BytesPerSequence), part.BackgroundBytes,
-                                 part.StateBytes);
+                                 part.StateBytes, part.ExpertBytes);
     }
 
     /// <summary>What <paramref name="part"/>'s own file holds — a language model's weights, its GGUF — read whole.</summary>

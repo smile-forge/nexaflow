@@ -21,13 +21,18 @@ internal sealed unsafe class LlamaContext : IDisposable
     private readonly int _vocabulary;
     private LlamaNative.Batch _batch;
 
+    /// <summary>The threads a context's CPU work runs on: one a core, half the logical processors where each core runs two.</summary>
+    internal static int CpuThreads => Math.Max(1, Environment.ProcessorCount / 2);
+
     /// <param name="batch">The tokens read per call, every sequence's together.</param>
     /// <param name="cache">How the cache holds each token. Held in 8 bits, flash attention reads it: llama.cpp reads quantized
     /// values no other way.</param>
     /// <param name="perConversation">Whether each sequence has a slice of the cache of its own — a step reading each token against its
     /// own sequence's cells alone — rather than all of them sharing one, every token read against every cell in use.</param>
+    /// <param name="expertCacheBytes">What the GPU holds of a model's experts kept in this machine's memory, the most recently read;
+    /// 0 for none.</param>
     public LlamaContext(LlamaModel model, int contextTokens, int sequences, int batch = DefaultBatch, ContextCache cache = ContextCache.F16,
-                        bool perConversation = false)
+                        bool perConversation = false, long expertCacheBytes = 0)
     {
         var parameters = LlamaNative.ContextDefaults();
         parameters.Context = (uint)contextTokens;
@@ -35,6 +40,10 @@ internal sealed unsafe class LlamaContext : IDisposable
         parameters.MicroBatch = (uint)batch;
         parameters.MaxSequences = (uint)sequences;
         parameters.KvUnified = (byte)(perConversation ? 0 : 1);
+        parameters.MoeCacheSize = (nuint)expertCacheBytes;
+        // What runs on the CPU — a cut model's layers there, a mixture's experts kept in this machine's memory, a model on the CPU — runs on
+        // as many threads as the machine has cores, as onnxruntime's CPU sessions do; llama.cpp's own default is four.
+        parameters.Threads = parameters.BatchThreads = CpuThreads;
         // Sliding-window layers keep their window alone — a large Gemma 4 holds half the memory. A conversation cut back is
         // given its window again from where it was saved (SavePartial), so nothing older than the window is read again.
         parameters.SwaFull = 0;

@@ -191,9 +191,11 @@ public class OwnedLlmProviderTests
     }
 
     [TestMethod]
-    // Wholly on the card, or cut between it and the CPU where at least half its layers fit there — Phi 4's 31 of 40 on 11 GB,
-    // Gemma 4 26B's 20 of 30 on 16 GB, Gemma 4 31B's 42 of 60 on 24 GB.
-    [DataRow(11, new[] { "gemma-4-e4b-it", "qwen-3.5-9b", "mimo-v2.6-9b", "phi-4" })]
+    // Wholly on the card; its routed experts in this machine's memory and the rest on the card — Gemma 4 26B and Qwen 3.6 35B from
+    // 10 GB; or cut
+    // between it and the CPU where at least half its layers fit there — Phi 4's 31 of 40 on 11 GB, Gemma 4 31B's 42 of 60 on 24 GB.
+    [DataRow(10, new[] { "gemma-4-e4b-it", "qwen-3.5-9b", "mimo-v2.6-9b", "phi-4", "gemma-4-26b-a4b-it", "qwen-3.6-35b-a3b" })]
+    [DataRow(11, new[] { "gemma-4-e4b-it", "qwen-3.5-9b", "mimo-v2.6-9b", "phi-4", "gemma-4-26b-a4b-it", "qwen-3.6-35b-a3b" })]
     [DataRow(16, new[] { "gemma-4-e4b-it", "qwen-3.5-9b", "mimo-v2.6-9b", "phi-4", "gemma-4-26b-a4b-it", "qwen-3.6-35b-a3b", "qwen-3.8-27b" })]
     [DataRow(24, new[] { "gemma-4-e4b-it", "qwen-3.5-9b", "mimo-v2.6-9b", "phi-4", "gemma-4-26b-a4b-it", "qwen-3.6-35b-a3b", "qwen-3.8-27b", "gemma-4-31b-it" })]
     [DataRow(32, new[] { "gemma-4-e4b-it", "qwen-3.5-9b", "mimo-v2.6-9b", "phi-4", "gemma-4-26b-a4b-it", "qwen-3.6-35b-a3b", "qwen-3.8-27b", "gemma-4-31b-it" })]
@@ -202,6 +204,19 @@ public class OwnedLlmProviderTests
         var card = new ComputeHardwareReport([new ComputeAdapter("gpu", ComputeVendor.Nvidia, (long)gigabytes << 30, false, false)], CudaRuntimePack.MinimumDriver);
 
         CollectionAssert.AreEqual(listed, Provider(new FakeModelStore(), new FakeAiHost(), card).Catalog.Select(m => m.Id).ToArray());
+    }
+
+    [TestMethod]
+    public void AModelKeepingItsExpertsInThisMachinesMemory_IsListedOnlyWhereTheHostsShareOfItHoldsThem()
+    {
+        var card = new ComputeHardwareReport([new ComputeAdapter("gpu", ComputeVendor.Nvidia, 11L << 30, false, false)], CudaRuntimePack.MinimumDriver);
+        long gb = 1L << 30;
+
+        var roomy = Provider(new FakeModelStore(), new FakeAiHost { Memory = HostMemory.Of(64 * gb, 50) }, card).Catalog.Select(m => m.Id);
+        var tight = Provider(new FakeModelStore(), new FakeAiHost { Memory = HostMemory.Of(16 * gb, 50) }, card).Catalog.Select(m => m.Id);
+
+        CollectionAssert.Contains(roomy.ToArray(), "gemma-4-26b-a4b-it", "32 GB of a 64 GB machine holds its 12.8 GB of experts");
+        CollectionAssert.DoesNotContain(tight.ToArray(), "gemma-4-26b-a4b-it", "8 GB of a 16 GB machine does not");
     }
 
     [TestMethod]

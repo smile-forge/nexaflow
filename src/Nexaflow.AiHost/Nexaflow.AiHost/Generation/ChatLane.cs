@@ -15,7 +15,10 @@ internal sealed class ChatLane : IDisposable
 {
     public ChatLane(ChatModel model, int contextTokens, int sequences, int batch, bool perConversation)
     {
-        Context = new LlamaContext(model.Model, contextTokens, sequences, batch, model.Spec.ContextCache, perConversation);
+        // Its own lane holds the expert cache its spec gives; the lane for work nobody is watching is made only beside a model wholly on
+        // its GPU, which keeps none.
+        Context = new LlamaContext(model.Model, contextTokens, sequences, batch, model.Spec.ContextCache, perConversation,
+                                   perConversation ? 0 : model.Spec.ExpertCacheBytes);
         Checkpoints = perConversation || !Context.HoldsPartialState ? 0 : model.Spec.Checkpoints;
         try
         {

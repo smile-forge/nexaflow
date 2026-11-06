@@ -23,9 +23,12 @@ namespace Nexaflow.AiHost.Client;
 /// and it has none.</param>
 /// <param name="StateBytes">What one save of a language model's partial state holds, for cutting a conversation back; 0 for a model
 /// that keeps none.</param>
+/// <param name="ExpertBytes">What a mixture-of-experts language model's routed experts hold, every layer's together — part of
+/// <paramref name="WeightsBytes"/>, and what it keeps in this machine's memory where its GPU has no room for them; 0 for a model with
+/// none.</param>
 public sealed record PlacementNeed(ModelSpec OnGpu, ModelSpec? OnCpu = null, long BytesPerToken = 0, int ShortestContext = 0, int Layers = 0,
                                    long WeightsBytes = 0, long BatchBytesPerToken = 0, long BytesPerSequence = 0, long BackgroundBytes = 0,
-                                   long StateBytes = 0)
+                                   long StateBytes = 0, long ExpertBytes = 0)
 {
     public string Id => OnGpu.Id;
 
@@ -61,6 +64,12 @@ public sealed record PlacementNeed(ModelSpec OnGpu, ModelSpec? OnCpu = null, lon
         long cut = WeightsBytes + BytesPerToken * context;
         return cut - cut * some / Layers;
     }
+
+    /// <summary>What it holds on a GPU with <paramref name="context"/> tokens of context, its routed experts kept in this machine's
+    /// memory, and <paramref name="cache"/> of them held on the GPU besides — with the room llama.cpp copies a layer's experts into to
+    /// read a prompt step on the GPU, two layers' worth: measured on Gemma 4 26B, 0.9 GB past the rest of it at its peak.</summary>
+    public long ExpertsOutBytesAt(int context, long cache = 0)
+        => OnGpu.MemoryBytes - ExpertBytes + BytesPerToken * context + cache + (Layers > 0 ? 2 * ExpertBytes / Layers : 0);
 
     /// <summary>The longest context, in whole <see cref="ModelPlacement.ContextStep"/>s and no longer than its own, that
     /// fits in <paramref name="room"/>; below its shortest when nothing useful does.</summary>
@@ -104,7 +113,9 @@ public sealed record Placement(IReadOnlyList<HostGpu> Gpus, IReadOnlyList<ModelS
 /// rest from the largest down, each on the GPU it fills most nearly — so a GPU is left as whole as can be for a
 /// picture. A language model is given its own context where there is room for it, and a shorter one where there is
 /// not; a model that finds no room takes it from the contexts of the language models on a GPU, down to their
-/// shortest; a language model that still finds none runs cut between the GPU with the most room and the CPU, where at
+/// shortest; a mixture of experts that still finds none keeps its routed experts in this machine's memory and the rest on the
+/// GPU with the most room, where that rest fits there; a language model that still finds none runs cut between the GPU with the
+/// most room and the CPU, where at
 /// least half its layers fit there — and only then on the CPU, and only a model with no CPU build is left out. A cut
 /// model's CPU layers, and the context they keep, are held in this machine's memory and counted against the memory budget
 /// first. On the CPU the other models hold what their builds hold, and a language model is given the longest context the
@@ -151,6 +162,16 @@ public static class ModelPlacement
     /// is answered.</summary>
     public const int Checkpoints = 8;
 
+    /// <summary>An expert cache is given in whole steps of this many bytes.</summary>
+    public const long ExpertCacheStep = 1L << 20;
+
+    /// <summary>
+    /// An expert cache is given only where it holds at least one in this many of a model's experts. llama.cpp copies each expert a
+    /// token reads and the cache does not hold onto the GPU, where without a cache it reads it on the CPU: measured on Gemma 4 26B,
+    /// its experts 12.8 GB, a 1.5 GB cache writes 27 tokens/s against 48 with none, 3 GB 58, and 6 GB 145.
+    /// </summary>
+    public const int ExpertCacheShare = 4;
+
     private sealed class Seat(PlacementNeed need, int device, int context)
     {
         public PlacementNeed Need { get; } = need;
@@ -160,15 +181,22 @@ public static class ModelPlacement
         /// <summary>How many of its layers it has on its GPU; null for all of them.</summary>
         public int? Layers { get; init; }
 
+        /// <summary>Whether it keeps its routed experts in this machine's memory, and what it holds of them on its GPU.</summary>
+        public bool ExpertsInHost { get; init; }
+        public long ExpertCache { get; set; }
+
         public int Batch { get; set; } = ModelSpec.DefaultBatch;
         public int Sequences { get; set; } = ModelSpec.DefaultSequences;
 
         /// <summary>Whether it may make a context for work nobody is watching: room for one left beside it. Not counted in what
         /// it holds — it is made only while there is such work, and only where that room is free then.</summary>
         public bool Background { get; set; }
-        public long Bytes => Need.BytesAt(Context, Layers, Batch, Sequences);
-        public long HostBytes => Need.HostBytesAt(Context, Layers) + Need.CheckpointBytes;
-        public long Spare => Need.HasContext && Layers is null ? Need.BytesPerToken * (Context - Need.ShortestContext) : 0;
+        public long Bytes => ExpertsInHost ? Need.ExpertsOutBytesAt(Context, ExpertCache) : Need.BytesAt(Context, Layers, Batch, Sequences);
+        public long HostBytes => (ExpertsInHost ? Need.ExpertBytes : Need.HostBytesAt(Context, Layers)) + Need.CheckpointBytes;
+
+        /// <summary>Wholly on its GPU, every layer and every expert there.</summary>
+        public bool Whole => Layers is null && !ExpertsInHost;
+        public long Spare => Need.HasContext && Whole ? Need.BytesPerToken * (Context - Need.ShortestContext) : 0;
     }
 
     /// <param name="memoryBudget">What models on the CPU may hold — <see cref="HostMemory.BudgetBytes"/>.</param>
@@ -189,7 +217,7 @@ public static class ModelPlacement
 
         // Longer steps, then more replies at once, for a language model wholly on a GPU, from what is left there once everything
         // is placed.
-        foreach (var seat in seats.Where(s => s.Layers is null))
+        foreach (var seat in seats.Where(s => s.Whole))
         {
             var gpu = gpus.First(g => g.Device == seat.Device);
             if (seat.Need.BatchBytesPerToken > 0 && Free(gpu) >= seat.Need.BatchBytesPerToken * (LongestBatch - ModelSpec.DefaultBatch))
@@ -199,13 +227,22 @@ public static class ModelPlacement
         }
 
         // A context for work nobody is watching, where what is left once all that is placed would hold it.
-        foreach (var seat in seats.Where(s => s.Layers is null && s.Need.BackgroundBytes > 0))
-            seat.Background = Free(gpus.First(g => g.Device == seat.Device)) >= seat.Need.BackgroundBytes;
+        foreach (var seat in seats.Where(s => s.Whole && s.Need.BackgroundBytes > 0))
+        seat.Background = Free(gpus.First(g => g.Device == seat.Device)) >= seat.Need.BackgroundBytes;
+
+        // What a GPU has left then holds the experts of a model keeping them in this machine's memory that were read last — where it
+        // holds enough of them to be worth it (ExpertCacheShare).
+        foreach (var seat in seats.Where(s => s.ExpertsInHost))
+        {
+            long room = Math.Min(Free(gpus.First(g => g.Device == seat.Device)), seat.Need.ExpertBytes) / ExpertCacheStep * ExpertCacheStep;
+            seat.ExpertCache = room * ExpertCacheShare >= seat.Need.ExpertBytes ? room : 0;
+        }
 
         // What models cut between a GPU and the CPU keep in this machine's memory comes out of the share the CPU's models are given.
         var placed = CpuPlaced(onCpu, memoryBudget - seats.Sum(s => s.HostBytes));
         placed.AddRange(seats.Select(s => s.Need.OnGpu with { Device = s.Device, ContextTokens = s.Context, MemoryBytes = s.Bytes, BatchTokens = s.Batch,
                                                               GpuLayers = s.Layers, Sequences = s.Sequences, HostBytes = s.HostBytes, Checkpoints = s.Need.Checkpoints,
+                                                              ExpertsInHost = s.ExpertsInHost, ExpertCacheBytes = s.ExpertCache,
                                                               BackgroundSequences = s.Background ? BackgroundSequences : 0,
                                                               BackgroundTokens = s.Background ? BackgroundTokens : 0,
                                                               BackgroundBytes = s.Background ? s.Need.BackgroundBytes : 0 }));
@@ -237,6 +274,13 @@ public static class ModelPlacement
                 }
                 return new Seat(need, gpu.Device, need.HasContext ? need.LongestIn(Free(gpu)) : need.OnGpu.ContextTokens);
             }
+
+            // Its routed experts in this machine's memory, everything else on the GPU with the most room: each token reads a few of
+            // its experts and all of the rest, so the GPU holds what every token reads.
+            if (need.HasContext && need.ExpertBytes > 0 && gpus.OrderByDescending(Free).ThenBy(g => g.Device).FirstOrDefault() is { } spacious
+            && Math.Max(need.ShortestContext, Math.Min(need.OnGpu.ContextTokens, CutContext)) is var expertsContext
+            && need.ExpertsOutBytesAt(expertsContext) <= Free(spacious))
+            return new Seat(need, spacious.Device, expertsContext) { ExpertsInHost = true };
 
             // Cut between the GPU with the most room and the CPU, where at least half its layers fit there: each layer on the
             // GPU is read many times faster than on the CPU.

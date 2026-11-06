@@ -353,9 +353,11 @@ read from its GGUF header: 256k for most, 128k for Gemma 4 E4B, 16k for Phi-4 �
 where there is not, in steps of 1,024 tokens down to 8k; its catalog entry gives what it
 holds with no context and what each token adds, measured as 16-bit values and held in 8 (34 bytes for every 64, which on
 Gemma 4 26B is 3 GB less at 256k, with nothing a reply shows). A model short of room takes it from those contexts; a language
-model that still has none runs cut between the GPU with the most room and the CPU — its layers' share of its weights and
+model that still has none and is a mixture of experts keeps its routed experts in this machine's memory and the rest on the
+GPU with the most room, at a 32k context, where that rest fits there (the table under *Models*); one that still has none runs
+cut between the GPU with the most room and the CPU — its layers' share of its weights and
 context on the GPU, everything else whole there, its context 32k — where at least half of its layers fit there: Gemma 4 26B
-writes 33 tokens/s with 20 of its 30 layers on a GPU, against 204 with all of them. Only then does it run on its CPU build,
+writes 58 tokens/s with 21 of its 30 layers on a GPU, against 209 with all of them. Only then does it run on its CPU build,
 and one with no CPU build is left out. Once everything is placed, a language model wholly on a GPU reads its prompts in
 steps of 2,048 tokens where what is left there holds them, and its catalog says what they cost — on Gemma 4 26B, 13,700
 tokens/s against 9,400 in steps of 512, for 2 GB; steps of 4,096 read no faster. On the CPU, the other models hold what their builds' files hold,
@@ -1036,13 +1038,34 @@ loaded, sliding-window layers holding their window alone (RTX PRO 6000):
 | Model | Build | Download | Holds at 8k / 32k | Writes | Sees | Tool calls | Offered from |
 |---|---|---|---|---|---|---|---|
 | **Gemma 4 E4B** (default; also hears) | Google's QAT Q4_0 | 6.1 GB | 4.9 / 5.3 GB | ~190 tok/s | yes | yes | any machine |
-| Qwen 3.5 9B | unsloth Q4_K_M | 6.6 GB | 7.3 / 8.0 GB | ~170 tok/s | yes | yes | 11 GB |
-| MiMo V2.6 9B (distilled from Qwen 3.5) | bartowski Q4_K_M | 6.8 GB | 7.5 / 8.2 GB | ~180 tok/s | yes | yes | 11 GB |
-| Phi-4 14B | Microsoft's Q4_K | 9.1 GB | 10.5 / 12.1 GB (16k, its longest) | ~110–130 tok/s | no | not in its template | 16 GB |
-| Gemma 4 26B-A4B | Google's QAT Q4_0 | 15.6 GB | 17.3 / 17.9 GB | ~165–195 tok/s | yes | yes | 24 GB |
-| Qwen 3.8 27B | ggml-org Q4_K_M | 19.6 GB | 20.4 / 21.8 GB | ~60 tok/s | yes | yes | 24 GB |
-| Qwen 3.6 35B-A3B | ggml-org Q4_K_M | 21.0 GB | 21.0 / 21.5 GB | ~210–225 tok/s | yes | yes | 32 GB |
-| Gemma 4 31B | Google's QAT Q4_0 | 18.9 GB | 25.5 / 27.7 GB | ~50–60 tok/s | yes | yes | 32 GB |
+| Qwen 3.5 9B | unsloth Q4_K_M | 6.6 GB | 7.3 / 8.0 GB | ~170 tok/s | yes | yes | 10 GB |
+| MiMo V2.6 9B (distilled from Qwen 3.5) | bartowski Q4_K_M | 6.8 GB | 7.5 / 8.2 GB | ~180 tok/s | yes | yes | 10 GB |
+| Phi-4 14B | Microsoft's Q4_K | 9.1 GB | 10.5 / 12.1 GB (16k, its longest) | ~110–130 tok/s | no | not in its template | 10 GB |
+| Gemma 4 26B-A4B | Google's QAT Q4_0 | 15.6 GB | 17.3 / 17.9 GB | ~165–195 tok/s | yes | yes | 10 GB |
+| Qwen 3.8 27B | ggml-org Q4_K_M | 19.6 GB | 20.4 / 21.8 GB | ~60 tok/s | yes | yes | 16 GB |
+| Qwen 3.6 35B-A3B | ggml-org Q4_K_M | 21.0 GB | 21.0 / 21.5 GB | ~210–225 tok/s | yes | yes | 10 GB |
+| Gemma 4 31B | Google's QAT Q4_0 | 18.9 GB | 25.5 / 27.7 GB | ~50–60 tok/s | yes | yes | 24 GB |
+
+"Offered from" is the smallest card the setup places a model on, as the code decides it — wholly, or else as below. "Holds"
+and "Writes" are the model wholly on a GPU.
+
+**On a card that holds less.** A mixture of experts keeps its routed experts in this machine's memory and the rest on the
+card, where that rest fits — 2.4 GB for Gemma 4 26B and 2.9 GB for Qwen 3.6 at 8k, one conversation; then each token reads
+its few experts on the CPU, and what the card has left holds the experts read last (llama.cpp's expert cache), where that is a
+quarter of them or more: a smaller cache writes slower than none, every expert it misses copied to the card rather than read
+where it is. A dense model is cut by layers, at least half of them on the card. All of it runs on one thread a core. Measured
+on the RTX PRO 6000 with a Ryzen 9 9950X3D, an 8k context in one conversation, writing:
+
+| | Gemma 4 26B-A4B | Qwen 3.6 35B-A3B |
+|---|---|---|
+| wholly on the card | 209 tok/s | 232 tok/s |
+| experts in memory, no cache (a 10 GB card) | 48 tok/s, prompts at 590 | 58 tok/s, prompts at 400 |
+| experts in memory, a 3 GB cache | 58 tok/s | 48 tok/s |
+| experts in memory, a 6 GB cache (a 14 GB card) | 145 tok/s | 127 tok/s |
+| cut, 21 of 30 layers on the card | 58 tok/s, prompts at 1,490 | — |
+
+A machine is offered such a model only where the host's share of its memory holds the experts: 12.8 GB for Gemma 4 26B,
+18.1 GB for Qwen 3.6.
 
 - Reading a large photo adds 0.3–0.6 GB while it is read; the catalog's figures include it.
 - Every one is prompted by the chat template its own GGUF carries, rendered by the host's Jinja engine and held to

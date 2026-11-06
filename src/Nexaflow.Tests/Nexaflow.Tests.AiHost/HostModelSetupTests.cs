@@ -33,6 +33,8 @@ public class HostModelSetupTests
 
         public Task<IHostStream> OpenStreamAsync(Func<long, HostRequest> create, TimeSpan stallLimit, CancellationToken ct = default)
             => throw new NotSupportedException();
+
+        public HostMemory Memory => HostMemory.Unbounded;
     }
 
     /// <summary>A holder that keeps every placement it is told of.</summary>

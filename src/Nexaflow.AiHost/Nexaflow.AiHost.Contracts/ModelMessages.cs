@@ -39,11 +39,16 @@ namespace Nexaflow.AiHost.Contracts;
 /// layer's state, a sliding window's cells — each where a turn ends: what lets a conversation whose start a prompt shares be cut back
 /// to it and read on from there, rather than read again whole. Held in this machine's memory, and counted with
 /// <see cref="HostBytes"/>; 0 for none.</param>
+/// <param name="ExpertsInHost">Whether a mixture-of-experts language model on a GPU keeps its routed experts in this machine's memory,
+/// the rest of it — attention, the shared weights, its context — on the GPU: each token reads a few of its experts, so the GPU holds
+/// what every token reads and the CPU what few do. Their weights are counted with <see cref="HostBytes"/>.</param>
+/// <param name="ExpertCacheBytes">What a model keeping its experts in this machine's memory holds of them on its GPU besides, the
+/// most recently read kept there (llama.cpp's expert cache); 0 for none.</param>
 public sealed record ModelSpec(string Id, string Runner, string Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
                                IReadOnlyDictionary<string, string>? CudaOptions = null, string? Projector = null, int? Device = null,
                                int BatchTokens = ModelSpec.DefaultBatch, ContextCache ContextCache = ContextCache.F16, int? GpuLayers = null,
                                int Sequences = ModelSpec.DefaultSequences, int BackgroundSequences = 0, int BackgroundTokens = 0, long BackgroundBytes = 0,
-                               long HostBytes = 0, int Checkpoints = 0)
+                               long HostBytes = 0, int Checkpoints = 0, bool ExpertsInHost = false, long ExpertCacheBytes = 0)
 {
     /// <summary>Whether <paramref name="other"/> runs the same model in the same place at the same size — a model held
     /// as one and asked for as the other is loaded again.</summary>
@@ -52,7 +57,8 @@ public sealed record ModelSpec(string Id, string Runner, string Folder, string? 
            && File == other.File && Folder == other.Folder && Projector == other.Projector
            && BatchTokens == other.BatchTokens && ContextCache == other.ContextCache && GpuLayers == other.GpuLayers && Sequences == other.Sequences
                       && BackgroundSequences == other.BackgroundSequences && BackgroundTokens == other.BackgroundTokens && BackgroundBytes == other.BackgroundBytes
-                      && HostBytes == other.HostBytes && Checkpoints == other.Checkpoints;
+                      && HostBytes == other.HostBytes && Checkpoints == other.Checkpoints
+                      && ExpertsInHost == other.ExpertsInHost && ExpertCacheBytes == other.ExpertCacheBytes;
 
     /// <summary>The sequences a language model's context holds where nothing gives it room for more: as many as the catalog's figures
     /// were measured holding.</summary>

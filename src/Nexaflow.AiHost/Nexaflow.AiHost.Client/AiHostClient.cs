@@ -45,6 +45,10 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
         set => Volatile.Write(ref _environment, value);
     }
 
+    /// <summary>The share of this machine's memory the models on its host may hold — what the host it starts will find, before it has
+    /// started.</summary>
+    public HostMemory Memory => _launcher.Memory;
+
     /// <summary>
     /// Sends the request <paramref name="create"/> makes from a fresh id and yields its replies until it ends.
     /// <paramref name="stallLimit"/> is the longest the request may go without a reply; past it the host is taken for

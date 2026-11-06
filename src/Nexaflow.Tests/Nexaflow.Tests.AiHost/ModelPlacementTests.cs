@@ -165,7 +165,10 @@ public class ModelPlacementTests
     /// of context held in 8 bits, 262k of it where there is room; and what reading in longer steps, and holding more sequences, cost it.</summary>
     private static PlacementNeed Large()
         => new(Spec("large", 18_790_481_920L, 262_144), Spec("large", 18_790_481_920L, 262_144), BytesPerToken: 13_600, ShortestContext: 8192,
-               Layers: 30, WeightsBytes: 14_439_363_584L, BatchBytesPerToken: 1_376_256, BytesPerSequence: 113_639_424, BackgroundBytes: 9_428_795_392L);
+        Layers: 30, WeightsBytes: 14_439_363_584L, BatchBytesPerToken: 1_376_256, BytesPerSequence: 113_639_424, BackgroundBytes: 9_428_795_392L);
+
+        /// <summary><see cref="Large"/> with what its GGUF says its routed experts hold: 12.8 GB of its 14.4 GB of weights.</summary>
+        private static PlacementNeed Mixture() => Large() with { ExpertBytes = 12_846_382_080L };
 
     [TestMethod]
     public void ALanguageModelNoCardHasRoomFor_IsCutBetweenTheCardAndTheCpu_AsManyOfItsLayersOnTheCardAsFit()
@@ -187,6 +190,37 @@ public class ModelPlacementTests
         var large = Placed(ModelPlacement.Plan([Gpu(0, 9)], [Large()]), "large");
 
         Assert.AreEqual((null, null), (large.Device, large.GpuLayers));
+    }
+
+    [TestMethod]
+    [CoversNode("experts-in-host")]
+    public void AMixtureOfExpertsNoCardHoldsWhole_KeepsItsExpertsInThisMachinesMemory_AndTheRestOnTheCard_TheRoomLeftHoldingExpertsReadLast()
+    {
+        var placement = ModelPlacement.Plan([Gpu(0, 7.5)], [Mixture()]);
+        var mixture = Placed(placement, "large");
+
+        Assert.AreEqual((0, true, null), (mixture.Device, mixture.ExpertsInHost, mixture.GpuLayers), "on a 10 GB card's budget, its every layer there");
+        Assert.AreEqual(ModelPlacement.CutContext, mixture.ContextTokens);
+        Assert.AreEqual(Mixture().ExpertBytes, mixture.HostBytes, "its experts held in this machine's memory");
+        Assert.AreEqual(0, mixture.ExpertCacheBytes, "what the card has left holds too few of its experts to be worth caching");
+        Assert.AreEqual(Mixture().ExpertsOutBytesAt(mixture.ContextTokens), mixture.MemoryBytes);
+        Assert.IsTrue(placement.FreeOn(placement.Gpus[0]) >= 0, "within the card's budget");
+
+        var onFourteen = Placed(ModelPlacement.Plan([Gpu(0, 14)], [Mixture()]), "large");
+        Assert.IsTrue(onFourteen.ExpertCacheBytes * ModelPlacement.ExpertCacheShare >= Mixture().ExpertBytes
+                      && onFourteen.ExpertCacheBytes % ModelPlacement.ExpertCacheStep == 0, "where a card has room for a quarter of them, it holds those read last");
+    }
+
+    [TestMethod]
+    [CoversNode("experts-in-host")]
+    public void AMixtureOfExperts_RunsWholeWhereItFits_AndKeepsItsExpertsOutBeforeItIsCut()
+    {
+        Assert.IsFalse(Placed(ModelPlacement.Plan([Gpu(0, 40)], [Mixture()]), "large").ExpertsInHost, "wholly on a card with room for it");
+
+        var onFourteen = Placed(ModelPlacement.Plan([Gpu(0, 14)], [Mixture()]), "large");
+        Assert.AreEqual((true, null), (onFourteen.ExpertsInHost, onFourteen.GpuLayers), "where Gemma 4 26B was cut 21 of 30, its experts go out instead");
+
+        Assert.AreEqual(null, Placed(ModelPlacement.Plan([Gpu(0, 5)], [Mixture()]), "large").Device, "a card short of the rest of it runs it on the CPU");
     }
 
     [TestMethod]

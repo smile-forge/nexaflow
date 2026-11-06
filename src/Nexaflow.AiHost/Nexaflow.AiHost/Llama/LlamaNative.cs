@@ -155,6 +155,23 @@ internal static unsafe partial class LlamaNative
     [LibraryImport(GgmlBase, EntryPoint = "ggml_backend_dev_memory")]
     public static partial void DeviceMemory(IntPtr device, nuint* free, nuint* total);
 
+    /// <summary>The first device of <paramref name="kind"/> the loaded backends offer; zero where none does.</summary>
+    [LibraryImport(Ggml, EntryPoint = "ggml_backend_dev_by_type")]
+    public static partial IntPtr DeviceByType(DeviceKind kind);
+
+    /// <summary>The buffer type a device keeps tensors in.</summary>
+    [LibraryImport(GgmlBase, EntryPoint = "ggml_backend_dev_buffer_type")]
+    public static partial IntPtr DeviceBufferType(IntPtr device);
+
+    /// <summary><c>llama_model_tensor_buft_override</c>: the tensors whose names match <see cref="Pattern"/>, a regular expression, kept in
+    /// <see cref="BufferType"/> wherever their layer runs. An array of them ends with one whose pattern is null.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct TensorBufferTypeOverride
+    {
+        public IntPtr Pattern;
+        public IntPtr BufferType;
+    }
+
     /// <summary><c>ggml_backend_dev_props</c>: what a device is, and its memory as it stands.</summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct DeviceProps
