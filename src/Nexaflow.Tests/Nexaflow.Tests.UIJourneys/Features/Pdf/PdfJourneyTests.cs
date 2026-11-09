@@ -317,7 +317,11 @@ if (WaitForId("Pdf_ConvertScans", 10) is not null)
                 CheckPresent("How many pages go on each sheet", "Pdf_Merge_Parts", 3);
                 CheckPresent("How the pages sit on the sheet", "Pdf_Merge_Direction", 2);
                 CheckPresent("How large each sheet is made", "Pdf_Merge_Paper", 2);
-                CheckPresent("Fold into a booklet", "Pdf_Merge_Booklet", 2);
+                CheckPresent("Fold into a booklet", "Pdf_Merge_Booklet", 2)?.Click();
+                Wait.UntilInputIsProcessed();
+                CheckPresent("How the booklet's sheets are printed", "Pdf_Merge_BookletCut", 2);
+                CheckPresent("Unfold it again", "Pdf_Merge_Booklet", 2)?.Click();
+                Wait.UntilInputIsProcessed();
                 CheckDoes("Merge them onto one sheet", "Pdf_Sheet_Apply", () => PageCountIs('2', 4));
                 CheckDoes("Undo the merge", "Pdf_Undo", () => PageCountIs('3', 4));
             }

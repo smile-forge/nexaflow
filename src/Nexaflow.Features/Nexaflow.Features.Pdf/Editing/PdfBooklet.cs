@@ -46,4 +46,39 @@ internal static class PdfBooklet
 
         return halves;
     }
+
+    /// <summary>
+    /// <paramref name="sides"/> — a booklet's sheets' sides, each sheet's front then its back — put on the sides of the papers
+    /// they print on, as <paramref name="cut"/> says: each paper side's booklet sides, top to bottom, a paper's front then its
+    /// back. Stacked, paper <c>j</c> carries booklet sheet <c>j</c> above and sheet <c>j</c> plus half the papers below, so the
+    /// pile's top halves laid on its bottom halves are the sheets in order; a last paper short of a sheet leaves its lower
+    /// half blank — null.
+    /// </summary>
+    public static IReadOnlyList<IReadOnlyList<T?>> OnPapers<T>(IReadOnlyList<T> sides, PdfBookletCut cut) where T : class
+    {
+        if (sides.Count % 2 != 0)
+            throw new ArgumentException("A booklet's sheets each have two sides.", nameof(sides));
+
+        switch (cut)
+        {
+            case PdfBookletCut.Uncut:
+                return sides.Select(side => (IReadOnlyList<T?>)[side]).ToList();
+            case PdfBookletCut.Copies:
+                return sides.Select(side => (IReadOnlyList<T?>)[side, side]).ToList();
+            case PdfBookletCut.Stacked:
+                var sheets = sides.Count / 2;
+                var papers = (sheets + 1) / 2;
+                var printed = new List<IReadOnlyList<T?>>(papers * 2);
+                for (var paper = 0; paper < papers; paper++)
+                {
+                    var below = paper + papers;
+                    for (var face = 0; face < 2; face++)
+                        printed.Add([sides[2 * paper + face], below < sheets ? sides[2 * below + face] : null]);
+                }
+
+                return printed;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(cut), cut, "Not a way of printing a booklet's sheets.");
+        }
+    }
 }

@@ -1,0 +1,67 @@
+{
+  "branch": "claude/pdf-booklet-cut",
+  "nodes": {
+    "pdf-page-merge": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfDocumentSession.cs",
+          "class": "PdfDocumentSession",
+          "method": "Merge"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfSheet.cs",
+          "class": "PdfSheet",
+          "method": "Merged"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfBooklet.cs",
+          "class": "PdfBooklet",
+          "method": "Fold"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfPaper.cs",
+          "class": "PdfMergePaper"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/ViewModels/PdfPagesPanel.cs",
+          "class": "PdfPagesPanel",
+          "method": "BeginMerge"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfBookletCut.cs",
+          "class": "PdfBookletCut"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Editing/PdfBooklet.cs",
+          "class": "PdfBooklet",
+          "method": "OnPapers"
+        }
+      ]
+    },
+    "pdf-ai-act-merge-pages": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfViewModelAiTests.cs",
+            "class": "PdfViewModelAiTests",
+            "method": "MergePages_PrintsABookletHalfThePapersSize_TwoCopiesToAPaper_AndSaysHowToCutIt"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "pdf-ai-act-merge-pages",
+    "pdf-page-merge"
+  ]
+}
