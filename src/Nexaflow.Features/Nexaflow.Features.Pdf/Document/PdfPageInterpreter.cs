@@ -103,9 +103,10 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
         int pageNumber, IResourceStore resourceStore, IPdfTokenScanner pdfScanner, IPageContentParser pageContentParser,
         ILookupFilterProvider filterProvider, CropBox cropBox, UserSpaceUnit userSpaceUnit, PageRotationDegrees rotation,
         TransformationMatrix initialMatrix, IIccProfile? outputIntent, ParsingOptions parsingOptions,
-        PdfReadingCaches caches, Matrix output, List<PdfUnsupported> unsupported, StringBuilder? text, bool onPage)
+    PdfReadingCaches caches, Matrix output, List<PdfUnsupported> unsupported, StringBuilder? text, bool onPage,
+        CancellationToken token)
         : base(pageNumber, resourceStore, pdfScanner, pageContentParser, filterProvider, cropBox, userSpaceUnit,
-            rotation, initialMatrix, outputIntent, parsingOptions)
+            rotation, initialMatrix, outputIntent, parsingOptions, token)
     {
         _caches      = caches;
         _output      = output;
@@ -176,10 +177,9 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
     /// </summary>
     protected override void ProcessOperations(IReadOnlyList<IGraphicsStateOperation> operations)
     {
-        var cancellation = _caches.Cancellation;
         for (var i = 0; i < operations.Count; i++)
         {
-            if ((i & 63) == 0) cancellation.ThrowIfCancellationRequested();
+            if ((i & 63) == 0) CancellationToken.ThrowIfCancellationRequested();
 
             var operation = operations[i];
             try
@@ -431,7 +431,7 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
             var cell = new PdfPageInterpreter(PageNumber, ResourceStore, PdfScanner, PageContentParser, FilterProvider,
                 new CropBox(tiling.BBox), UserSpaceUnit, default, TransformationMatrix.Identity,
                 GetCurrentState().OutputIntentProfile, ParsingOptions,
-                _caches, Matrix.Identity, _unsupported, text: null, onPage: false);
+                _caches, Matrix.Identity, _unsupported, text: null, onPage: false, CancellationToken);
             return cell.Process(PageNumber, operations);
         }
         finally
@@ -480,7 +480,7 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
                 _cropBox, UserSpaceUnit, Rotation,
                 _maskMatrices.TryGetValue(mask, out var setAt) ? setAt : CurrentTransformationMatrix,
                 GetCurrentState().OutputIntentProfile, ParsingOptions, _caches, _output, _unsupported,
-                text: null, onPage: false);
+                text: null, onPage: false, CancellationToken);
             var drawing = reader.ProcessForm(group, NameToken.Create("SMask"));
             read = new PdfSoftMask(
                 mask.Subtype == SoftMaskType.Luminosity ? PdfMaskKind.Luminosity : PdfMaskKind.Alpha,

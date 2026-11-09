@@ -30,12 +30,6 @@ internal sealed class PdfReadingCaches
     public PdfOptionalContent OptionalContent { get; set; } = PdfOptionalContent.None;
 
     /// <summary>
-    /// What cancels the page being read. Pages of one document are read one at a time, under the lock that guards the
-    /// document, and the reader sets this for each before it starts.
-    /// </summary>
-    public System.Threading.CancellationToken Cancellation { get; set; }
-
-    /// <summary>
     /// How the page being read is read, while it is: as itself, or as a part of it — read as though the part were its crop
     /// box — put on a sheet. Null between pages.
     /// </summary>

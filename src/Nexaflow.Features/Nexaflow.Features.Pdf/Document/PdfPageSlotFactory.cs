@@ -34,8 +34,10 @@ internal sealed class PdfPageSlotFactory : IPageFactory<PdfPageSlot>
         _scanner = pdfScanner;
     }
 
-    public PdfPageSlot Create(int number, DictionaryToken dictionary, PageTreeMembers pageTreeMembers, NamedDestinations namedDestinations)
+    public PdfPageSlot Create(int number, DictionaryToken dictionary, PageTreeMembers pageTreeMembers, NamedDestinations namedDestinations,
+        CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
         var rotation = new PageRotationDegrees(
             dictionary.TryGet(NameToken.Rotate, _scanner, out NumericToken? rotate) ? rotate.Int : pageTreeMembers.Rotation);
 
