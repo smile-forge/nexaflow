@@ -65,7 +65,7 @@ public class ThemedRegionScenePolicyTests
     });
 
     /// <summary>The real <c>ThemedRegion</c> style from Visuals.Common's generic.xaml.</summary>
-    private static Style ShippedStyle()
+    internal static Style ShippedStyle()
     {
         var generic = new ResourceDictionary
         {
@@ -75,7 +75,7 @@ public class ThemedRegionScenePolicyTests
     }
 
     /// <summary>A scene stand-in: any template will do, since the assertion is whether it was realised.</summary>
-    private static DataTemplate SceneTemplate()
+    internal static DataTemplate SceneTemplate()
     {
         var border = new FrameworkElementFactory(typeof(Border));
         border.SetValue(FrameworkElement.NameProperty, "SceneRoot");
@@ -86,7 +86,7 @@ public class ThemedRegionScenePolicyTests
     }
 
     /// <summary>The scene host inside the control template - realised only when a scene is allowed.</summary>
-    private static ContentControl SceneHost(ThemedRegion region)
+    internal static ContentControl SceneHost(ThemedRegion region)
     {
         var host = FindDescendant<ContentControl>(region, c => c.Name == "PART_Scene");
         Assert.IsNotNull(host, "ThemedRegion's template should expose a PART_Scene ContentControl.");
@@ -194,39 +194,4 @@ public class ThemedRegionScenePolicyTests
             Assert.IsNotNull(SceneHost(region).Content,
                 "With a still backdrop available, suppression must not leave the region with nothing.");
         }, "StillScene.Window", "Scene.Window");
-
-    /// <summary>
-    /// A window set aside hidden — the standby a resident app keeps ready — draws nothing, so its animated scene is dropped
-    /// as on battery rather than left animating unseen, and comes back when the window is shown.
-    /// </summary>
-    [TestMethod]
-    public void AHiddenWindow_DropsItsAnimatedScene_AndShowingItBringsItBack() => UiThread.Run(() =>
-    {
-        bool original = BackgroundAnimationPolicy.ScenesEnabled;
-        var region = new ThemedRegion { Region = "Window", Style = ShippedStyle() };
-        region.Resources.Add("Scene.Window", SceneTemplate());
-        var window = new Window
-        {
-            Content = region, Width = 400, Height = 300, ShowActivated = false, ShowInTaskbar = false,
-            WindowStartupLocation = WindowStartupLocation.Manual, Left = -10000, Top = -10000,
-        };
-        try
-        {
-            BackgroundAnimationPolicy.ScenesEnabled = true;
-            window.Show();
-            window.UpdateLayout();
-            Assert.IsNotNull(SceneHost(region).Content, "Baseline: shown, the scene is up.");
-
-            window.Hide();
-            Assert.IsNull(SceneHost(region).Content, "Hidden, nothing of it draws, so nothing of it should animate.");
-
-            window.Show();
-            Assert.IsNotNull(SceneHost(region).Content, "Shown again, the scene comes back on its own.");
-        }
-        finally
-        {
-            window.Close();
-            BackgroundAnimationPolicy.ScenesEnabled = original;
-        }
-    });
 }

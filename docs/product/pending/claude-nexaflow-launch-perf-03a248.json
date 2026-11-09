@@ -79,8 +79,8 @@
           },
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Controls/ThemedRegionScenePolicyTests.cs",
-            "class": "ThemedRegionScenePolicyTests",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Controls/ThemedRegionHiddenWindowTests.cs",
+            "class": "ThemedRegionHiddenWindowTests",
             "method": "AHiddenWindow_DropsItsAnimatedScene_AndShowingItBringsItBack"
           }
         ]
