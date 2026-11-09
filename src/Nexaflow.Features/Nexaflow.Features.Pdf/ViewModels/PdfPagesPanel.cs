@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
@@ -47,6 +48,14 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
 
     private CancellationTokenSource? _inspecting;
 
+    /// <summary>
+    /// The box each page's content covers, in points as the page is shown, by the page it is — null for a page with nothing
+    /// on it — found while margins are set up.
+    /// </summary>
+    private readonly Dictionary<PdfPageId, Rect?> _content = new();
+
+    private CancellationTokenSource? _measuring;
+
     internal PdfPagesPanel(PdfDocumentSession session, IShellServices shell, Func<int, bool> goToPage, Func<PdfPageSource?> source)
     {
         _session = session;
@@ -60,13 +69,21 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
             new(PdfSheetEdit.Split, Str.Get("Pdf.Sheet.Split")),
             new(PdfSheetEdit.Merge, Str.Get("Pdf.Sheet.Merge")),
             new(PdfSheetEdit.Size, Str.Get("Pdf.Sheet.Size")),
+            new(PdfSheetEdit.Margins, Str.Get("Pdf.Sheet.Margins")),
         ];
         SplitCounts = SheetParts.Select(count => new PdfSplitChoice<int>(count, Str.Format("Pdf.Split.PartsFormat", count))).ToList();
-        SplitDirections =
+        _allSplitDirections =
         [
             new(PdfSplitDirection.Auto, Str.Get("Pdf.Split.Direction.Auto")),
             new(PdfSplitDirection.Across, Str.Get("Pdf.Split.Direction.Across")),
             new(PdfSplitDirection.Down, Str.Get("Pdf.Split.Direction.Down")),
+            new(PdfSplitDirection.Grid, Str.Get("Pdf.Split.Direction.Grid")),
+        ];
+        _allSplitOrders =
+        [
+            new(PdfSplitOrder.AsTheyLie, Str.Get("Pdf.Split.Order.AsTheyLie")),
+            new(PdfSplitOrder.FoldedBooklet, Str.Get("Pdf.Split.Order.FoldedBooklet")),
+            new(PdfSplitOrder.DoubleSidedCut, Str.Get("Pdf.Split.Order.DoubleSidedCut")),
         ];
         MergeCounts = SheetParts.Select(count => new PdfSplitChoice<int>(count, Str.Format("Pdf.Merge.PartsFormat", count))).ToList();
         MergeDirections =
@@ -103,10 +120,21 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
             new(PdfContentFit.Scale, Str.Get("Pdf.Size.Fit.Scale")),
             new(PdfContentFit.Keep, Str.Get("Pdf.Size.Fit.Keep")),
         ];
+        MarginAcrossChoices =
+        [
+            new(PdfMarginAcross.Centre, Str.Get("Pdf.Margins.Across.Centre")),
+            new(PdfMarginAcross.Left, Str.Get("Pdf.Margins.Across.Left")),
+        ];
+        MarginDownChoices =
+        [
+            new(PdfMarginDown.Top, Str.Get("Pdf.Margins.Down.Top")),
+            new(PdfMarginDown.Centre, Str.Get("Pdf.Margins.Down.Centre")),
+        ];
 
         _sheetEdit = SheetEdits[0];
         _splitCount = SplitCounts[0];
-        _splitDirection = SplitDirections[0];
+        _splitDirection = _allSplitDirections[0];
+        _splitOrder = _allSplitOrders[0];
         _mergeCount = MergeCounts[0];
         _mergeDirection = MergeDirections[0];
         _mergePaper = MergePapers[0];
@@ -116,6 +144,14 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
         _sizeFit = SizeFits[0];
         _customWidth = Measure(PdfPaper.A4.Size.Width);
         _customHeight = Measure(PdfPaper.A4.Size.Height);
+        _marginUnit = SizeUnits[0];
+        _marginAcross = MarginAcrossChoices[0];
+        _marginDown = MarginDownChoices[0];
+        var margin = InUnit(PdfMargins.DefaultMillimetres * PdfMargins.PointsPerMillimetre, MillimetresPerPoint);
+        _marginTop = margin;
+        _marginBottom = margin;
+        _marginLeft = margin;
+        _marginRight = margin;
     }
 
     /// <summary>Every page, in order.</summary>
@@ -128,7 +164,7 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(NotEditableMessage))]
     [NotifyCanExecuteChangedFor(nameof(ReorderCommand), nameof(DeleteSelectedCommand), nameof(InsertImagesAtCommand),
         nameof(InsertPdfsAtCommand), nameof(MoveSelectionCommand), nameof(BeginSplitCommand), nameof(BeginMergeCommand),
-        nameof(BeginResizeCommand), nameof(BeginSheetEditCommand), nameof(ApplySheetEditCommand))]
+        nameof(BeginResizeCommand), nameof(BeginMarginsCommand), nameof(BeginSheetEditCommand), nameof(ApplySheetEditCommand))]
     private bool _canEdit;
 
     /// <summary>Why the pages cannot be edited, where they cannot.</summary>
@@ -140,13 +176,13 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
     // ── Sheets: split, merged, set on paper ───────────────────────────────
 
     /// <summary>
-    /// Whether a split, a merge or a new page size is being set up, in the bar above the pages — a split's cut lines drawn
-    /// on the pages it would cut.
+    /// Whether a split, a merge, a new page size or margins are being set up, in the bar above the pages — a split's cut
+    /// lines drawn on the pages it would cut, margins' room and the content placed in it on the pages they are for.
     /// </summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsSplitShown), nameof(IsMergeShown), nameof(IsSizeShown), nameof(MergeSummary))]
+    [NotifyPropertyChangedFor(nameof(IsSplitShown), nameof(IsMergeShown), nameof(IsSizeShown), nameof(IsMarginsShown), nameof(MergeSummary))]
     [NotifyCanExecuteChangedFor(nameof(BeginSplitCommand), nameof(BeginMergeCommand), nameof(BeginResizeCommand),
-        nameof(BeginSheetEditCommand), nameof(ApplySheetEditCommand))]
+        nameof(BeginMarginsCommand), nameof(BeginSheetEditCommand), nameof(ApplySheetEditCommand))]
     private bool _isEditingSheets;
 
     /// <summary>
@@ -163,7 +199,7 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
 
     /// <summary>Which edit the bar sets up.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsSplitShown), nameof(IsMergeShown), nameof(IsSizeShown), nameof(SheetHeading), nameof(ApplyLabel), nameof(MergeSummary))]
+    [NotifyPropertyChangedFor(nameof(IsSplitShown), nameof(IsMergeShown), nameof(IsSizeShown), nameof(IsMarginsShown), nameof(SheetHeading), nameof(ApplyLabel), nameof(MergeSummary))]
     [NotifyCanExecuteChangedFor(nameof(ApplySheetEditCommand))]
     private PdfSplitChoice<PdfSheetEdit> _sheetEdit;
 
@@ -172,6 +208,8 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
     public bool IsMergeShown => IsEditingSheets && SheetEdit.Value == PdfSheetEdit.Merge;
 
     public bool IsSizeShown => IsEditingSheets && SheetEdit.Value == PdfSheetEdit.Size;
+
+    public bool IsMarginsShown => IsEditingSheets && SheetEdit.Value == PdfSheetEdit.Margins;
 
     /// <summary>What the bar is headed: the edit, and the pages it is for.</summary>
     public string SheetHeading => Str.Get($"Pdf.Sheet.Heading.{SheetEdit.Value}{(AppliesToAll ? "All" : "Selected")}");
@@ -182,25 +220,37 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
     /// <summary>How many parts a page may be split into.</summary>
     public IReadOnlyList<PdfSplitChoice<int>> SplitCounts { get; }
 
-    /// <summary>Which ways a page may be cut.</summary>
-    public IReadOnlyList<PdfSplitChoice<PdfSplitDirection>> SplitDirections { get; }
+    /// <summary>Which ways a page may be cut into the parts chosen: in a row, or — for four — in a grid, two by two.</summary>
+    public IReadOnlyList<PdfSplitChoice<PdfSplitDirection>> SplitDirections =>
+        PdfSplitLayout.Square(SplitCount.Value) is null
+            ? _allSplitDirections.Where(choice => choice.Value != PdfSplitDirection.Grid).ToList()
+            : _allSplitDirections;
+
+    private readonly IReadOnlyList<PdfSplitChoice<PdfSplitDirection>> _allSplitDirections;
+
+    /// <summary>
+    /// The orders the pages split off may be put in: as they lie; a folded booklet's halves unfolded — for halves only; or
+    /// sheets printed on both sides and cut, each leaf's front then its back.
+    /// </summary>
+    public IReadOnlyList<PdfSplitChoice<PdfSplitOrder>> SplitOrders =>
+        SplitCount.Value == 2 && SplitDirection.Value != PdfSplitDirection.Grid
+            ? _allSplitOrders
+            : _allSplitOrders.Where(choice => choice.Value != PdfSplitOrder.FoldedBooklet).ToList();
+
+    private readonly IReadOnlyList<PdfSplitChoice<PdfSplitOrder>> _allSplitOrders;
 
     /// <summary>How many parts each page is split into.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanUnfoldBooklet))]
+    [NotifyPropertyChangedFor(nameof(SplitDirections), nameof(SplitOrders))]
     private PdfSplitChoice<int> _splitCount;
 
     /// <summary>Which way each page is cut.</summary>
-    [ObservableProperty] private PdfSplitChoice<PdfSplitDirection> _splitDirection;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SplitOrders))]
+    private PdfSplitChoice<PdfSplitDirection> _splitDirection;
 
-    /// <summary>
-    /// Whether the pages are a folded booklet's sheets, their halves put into reading order rather than left in place —
-    /// for halves only.
-    /// </summary>
-    [ObservableProperty] private bool _splitBooklet;
-
-    /// <summary>Whether a booklet can be unfolded from the parts chosen: only from halves.</summary>
-    public bool CanUnfoldBooklet => SplitCount.Value == 2;
+    /// <summary>What order the pages split off are put in.</summary>
+    [ObservableProperty] private PdfSplitChoice<PdfSplitOrder> _splitOrder;
 
     /// <summary>Which pages' artwork a cut would cross, said where there are any.</summary>
     [ObservableProperty] private string _splitWarning = string.Empty;
@@ -293,6 +343,58 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
 
     /// <summary>What happens to each page's content on its new paper.</summary>
     [ObservableProperty] private PdfSplitChoice<PdfContentFit> _sizeFit;
+
+    /// <summary>Where a page's content may sit across the room its margins leave.</summary>
+    public IReadOnlyList<PdfSplitChoice<PdfMarginAcross>> MarginAcrossChoices { get; }
+
+    /// <summary>Where a page's content may sit down the room its margins leave.</summary>
+    public IReadOnlyList<PdfSplitChoice<PdfMarginDown>> MarginDownChoices { get; }
+
+    /// <summary>The unit the margins are given in.</summary>
+    [ObservableProperty] private PdfSplitChoice<double> _marginUnit;
+
+    /// <summary>The top margin, in <see cref="MarginUnit"/>.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ApplySheetEditCommand))]
+    private string _marginTop;
+
+    /// <summary>The bottom margin, in <see cref="MarginUnit"/>.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ApplySheetEditCommand))]
+    private string _marginBottom;
+
+    /// <summary>The left margin, in <see cref="MarginUnit"/>.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ApplySheetEditCommand))]
+    private string _marginLeft;
+
+    /// <summary>The right margin, in <see cref="MarginUnit"/>.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ApplySheetEditCommand))]
+    private string _marginRight;
+
+    /// <summary>Where each page's content sits across its room.</summary>
+    [ObservableProperty] private PdfSplitChoice<PdfMarginAcross> _marginAcross;
+
+    /// <summary>Where each page's content sits down its room.</summary>
+    [ObservableProperty] private PdfSplitChoice<PdfMarginDown> _marginDown;
+
+    /// <summary>
+    /// Whether every page's content is made as small as the one that must be made smallest, so the text is one size
+    /// throughout, rather than each only as small as it must be.
+    /// </summary>
+    [ObservableProperty] private bool _marginsSameScale = true;
+
+    /// <summary>Whether some of the pages margins are set on are still being looked at for where their content is.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ApplySheetEditCommand))]
+    private bool _isFindingContent;
+
+    /// <summary>Which pages margins leave as they are, and why, said where there are any.</summary>
+    [ObservableProperty] private string _marginsNote = string.Empty;
+
+    /// <summary>The finding of the pages' content last set going: complete once every page margins are set on has been looked at.</summary>
+    internal Task ContentFound { get; private set; } = Task.CompletedTask;
 
     /// <summary>
     /// Brings the thumbnails into line with the pages: those gone removed, the rest moved, the new added — each kept
@@ -400,6 +502,10 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanBeginSplit))]
     private void BeginResize() => OpenSheetEdit(PdfSheetEdit.Size, all: false);
 
+    /// <summary>Sets up setting the selected pages' content within margins.</summary>
+    [RelayCommand(CanExecute = nameof(CanBeginSplit))]
+    private void BeginMargins() => OpenSheetEdit(PdfSheetEdit.Margins, all: false);
+
     /// <summary>Sets up a split, a merge or a new size for every page, the edit chosen in the bar.</summary>
     [RelayCommand(CanExecute = nameof(CanBeginSheetEdit))]
     private void BeginSheetEdit() => OpenSheetEdit(SheetEdit.Value, all: true);
@@ -414,14 +520,23 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
         switch (SheetEdit.Value)
         {
             case PdfSheetEdit.Split:
-                var (parts, cut, unfold) = (SplitCount.Value, SplitDirection.Value, SplitBooklet && CanUnfoldBooklet);
+                var (parts, cut, order) = (SplitCount.Value, SplitDirection.Value, SplitOrder.Value);
                 EndSheetEdit();
-                Edit(() => _session.Split(indices, parts, cut, unfold));
+                Edit(() => _session.Split(indices, parts, cut, order));
                 break;
             case PdfSheetEdit.Merge:
                 var (pages, put, fold, paper) = (MergeCount.Value, MergeDirection.Value, MergeBooklet && CanFoldBooklet, MergePaper.Value);
                 EndSheetEdit();
                 Edit(() => _session.Merge(indices, pages, put, fold, paper));
+                break;
+            case PdfSheetEdit.Margins:
+                if (Margins() is not { } margins) return;
+                var content = indices
+                    .Where(index => _content.TryGetValue(Pages[index].Id, out var box) && box is not null)
+                    .ToDictionary(index => index, index => _content[Pages[index].Id]!.Value);
+                var sameScale = MarginsSameScale;
+                EndSheetEdit();
+                Edit(() => _session.SetMargins(content, margins, sameScale));
                 break;
             default:
                 if (Sizing() is not { } sizing) return;
@@ -433,23 +548,40 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
 
     private bool CanApplySheetEdit() => CanEdit && IsEditingSheets && SheetEdit.Value switch
     {
-        PdfSheetEdit.Merge => Targets().Count >= 2,
-        PdfSheetEdit.Size  => Targets().Count > 0 && Sizing() is not null,
-        _                  => Targets().Count > 0,
+        PdfSheetEdit.Merge   => Targets().Count >= 2,
+        PdfSheetEdit.Size    => Targets().Count > 0 && Sizing() is not null,
+        PdfSheetEdit.Margins => Margins() is not null && !IsFindingContent
+                                && Targets().Any(index => _content.TryGetValue(Pages[index].Id, out var box) && box is not null),
+        _                    => Targets().Count > 0,
     };
 
     [RelayCommand]
     private void CancelSheetEdit() => EndSheetEdit();
 
-    partial void OnSheetEditChanged(PdfSplitChoice<PdfSheetEdit> value) => ShowCuts();
+    partial void OnSheetEditChanged(PdfSplitChoice<PdfSheetEdit> value)
+    {
+        ShowCuts();
+        ShowMargins();
+    }
 
     partial void OnSplitCountChanged(PdfSplitChoice<int> value)
     {
-        if (!CanUnfoldBooklet) SplitBooklet = false;
+        KeepSplitChoices();
         ShowCuts();
     }
 
-    partial void OnSplitDirectionChanged(PdfSplitChoice<PdfSplitDirection> value) => ShowCuts();
+    partial void OnSplitDirectionChanged(PdfSplitChoice<PdfSplitDirection> value)
+    {
+        KeepSplitChoices();
+        ShowCuts();
+    }
+
+    /// <summary>A way of cutting, or an order, the parts now chosen do not allow gives way to the first that they do.</summary>
+    private void KeepSplitChoices()
+    {
+        if (!SplitDirections.Contains(SplitDirection)) SplitDirection = SplitDirections[0];
+        if (!SplitOrders.Contains(SplitOrder)) SplitOrder = SplitOrders[0];
+    }
 
     partial void OnMergeCountChanged(PdfSplitChoice<int> value)
     {
@@ -464,19 +596,46 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
         if (Points(CustomHeight, oldValue.Value) is { } height) CustomHeight = Measure(height);
     }
 
+    /// <summary>The margins keep their size when their unit changes: the figures given are said again in the new unit.</summary>
+    partial void OnMarginUnitChanged(PdfSplitChoice<double>? oldValue, PdfSplitChoice<double> newValue)
+    {
+        if (oldValue is null) return;
+        if (MarginPoints(MarginTop, oldValue.Value) is { } top) MarginTop = InUnit(top, newValue.Value);
+        if (MarginPoints(MarginBottom, oldValue.Value) is { } bottom) MarginBottom = InUnit(bottom, newValue.Value);
+        if (MarginPoints(MarginLeft, oldValue.Value) is { } left) MarginLeft = InUnit(left, newValue.Value);
+        if (MarginPoints(MarginRight, oldValue.Value) is { } right) MarginRight = InUnit(right, newValue.Value);
+    }
+
+    partial void OnMarginTopChanged(string value) => DrawMargins();
+
+    partial void OnMarginBottomChanged(string value) => DrawMargins();
+
+    partial void OnMarginLeftChanged(string value) => DrawMargins();
+
+    partial void OnMarginRightChanged(string value) => DrawMargins();
+
+    partial void OnMarginAcrossChanged(PdfSplitChoice<PdfMarginAcross> value) => DrawMargins();
+
+    partial void OnMarginDownChanged(PdfSplitChoice<PdfMarginDown> value) => DrawMargins();
+
+    partial void OnMarginsSameScaleChanged(bool value) => DrawMargins();
+
     private void OpenSheetEdit(PdfSheetEdit edit, bool all)
     {
         AppliesToAll = all;
         SheetEdit = SheetEdits.First(choice => choice.Value == edit);
         IsEditingSheets = true;
         ShowCuts();
+        ShowMargins();
     }
 
     private void EndSheetEdit()
     {
         IsEditingSheets = false;
         ShowCuts();
+        ShowMargins();
         _ink.Clear();
+        _content.Clear();
     }
 
     /// <summary>The paper each page is to be set on, as chosen; null while a size of its own is not a size.</summary>
@@ -497,8 +656,27 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
             : null;
 
     /// <summary><paramref name="points"/> said in the unit chosen, to a tenth.</summary>
-    private string Measure(double points) =>
-        Math.Round(points * SizeUnit.Value, 1).ToString(System.Globalization.CultureInfo.CurrentCulture);
+    private string Measure(double points) => InUnit(points, SizeUnit.Value);
+
+    /// <summary><paramref name="points"/> said in units <paramref name="perPoint"/> to the point, to a tenth.</summary>
+    private static string InUnit(double points, double perPoint) =>
+        Math.Round(points * perPoint, 1).ToString(System.Globalization.CultureInfo.CurrentCulture);
+
+    /// <summary><paramref name="text"/>, a margin in units <paramref name="perPoint"/> to the point, in points; null when it is no margin.</summary>
+    private static double? MarginPoints(string text, double perPoint) =>
+        double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.CurrentCulture, out var value)
+        && value >= 0 && double.IsFinite(value)
+            ? value / perPoint
+            : null;
+
+    /// <summary>The margins as given; null while one of them is not a margin.</summary>
+    private PdfMargins? Margins() =>
+        MarginPoints(MarginLeft, MarginUnit.Value) is { } left
+        && MarginPoints(MarginTop, MarginUnit.Value) is { } top
+        && MarginPoints(MarginRight, MarginUnit.Value) is { } right
+        && MarginPoints(MarginBottom, MarginUnit.Value) is { } bottom
+            ? new PdfMargins(left, top, right, bottom, MarginAcross.Value, MarginDown.Value)
+            : null;
 
     /// <summary>The pages the bar is for, in order: every one, or those selected.</summary>
     private List<int> Targets() => AppliesToAll ? Enumerable.Range(0, Pages.Count).ToList() : SelectedIndices();
@@ -538,7 +716,7 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
     }
 
     private void ShowCuts(PdfPageThumbnail page, int index) =>
-        page.ShowCuts(PdfPagePart.Cuts(SplitCount.Value, _session.SplitsAcross(index, SplitDirection.Value)),
+        page.ShowCuts(PdfPagePart.Cuts(_session.Layout(index, SplitCount.Value, SplitDirection.Value)),
             cut => _ink.TryGetValue(page.Id, out var crossed) && crossed.TryGetValue(cut, out var crosses) && crosses);
 
     /// <summary>
@@ -589,6 +767,110 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
         var crossed = cut.Where(page => page.Cuts.Any(line => line.CrossesInk)).Select(page => page.Number).ToList();
         SplitWarning = crossed.Count > 0 ? Str.Format("Pdf.Split.CrossesFormat", string.Join(", ", crossed)) : string.Empty;
         IsCheckingCuts = cut.Any(page => !_ink.ContainsKey(page.Id));
+    }
+
+    /// <summary>
+    /// Draws, while margins are set up, the room they leave and where each page's content would go on the pages they are
+    /// for — on none once they are not — and has the pages whose content is not yet found looked at.
+    /// </summary>
+    private void ShowMargins()
+    {
+        _measuring?.Cancel();
+        _measuring = null;
+
+        var unread = IsMarginsShown ? Pages.Where(page => IsTarget(page) && !_content.ContainsKey(page.Id)).ToList() : [];
+        if (unread.Count > 0)
+        {
+            _measuring = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+            ContentFound = FindContentAsync(unread, _measuring.Token);
+        }
+
+        DrawMargins();
+    }
+
+    /// <summary>
+    /// Draws the margins' room, and the content placed in it, on every page they are for, as they are now given — every page's
+    /// content placed together, since with one scale for all where one goes depends on the rest — and says what they leave.
+    /// </summary>
+    private void DrawMargins()
+    {
+        var margins = IsMarginsShown ? Margins() : null;
+        var found = new List<(PdfPageThumbnail Page, Rect Content, Size Paper)>();
+        for (var i = 0; i < Pages.Count; i++)
+        {
+            var page = Pages[i];
+            if (margins is not { } given || !IsTarget(page))
+            {
+                page.ShowMargins(default, null, null);
+                continue;
+            }
+
+            var paper = _session.PageSize(i);
+            page.ShowMargins(paper, given.Room(paper), null);
+            if (_content.TryGetValue(page.Id, out var box) && box is { } content) found.Add((page, content, paper));
+        }
+
+        if (margins is { } set)
+        {
+            var placements = set.Placements(found.Select(entry => (entry.Content, entry.Paper)).ToList(), MarginsSameScale);
+            for (var at = 0; at < found.Count; at++)
+            {
+                var (page, content, paper) = found[at];
+                page.ShowMargins(paper, set.Room(paper), placements[at], content);
+            }
+        }
+
+        NoteMargins(margins);
+    }
+
+    /// <summary>
+    /// Finds where each of <paramref name="pages"/>' content is, from a picture of it, one page at a time — the margins
+    /// redrawn as each is found.
+    /// </summary>
+    private async Task FindContentAsync(IReadOnlyList<PdfPageThumbnail> pages, CancellationToken ct)
+    {
+        foreach (var page in pages)
+        {
+            if (_source() is not { } source) return;
+            var index = source.Arrangement.IndexOf(page.Id);
+            if (index < 0) continue;
+
+            Rect? box;
+            try
+            {
+                box = await PdfPageContent.FindAsync(source, index, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (InvalidOperationException)
+            {
+                box = null;   // the page's document can no longer be read
+            }
+
+            _content[page.Id] = box;
+            DrawMargins();
+        }
+    }
+
+    /// <summary>
+    /// Says which pages margins leave as they are — those with nothing on them, those the margins leave no room on — and
+    /// whether any are still being looked at.
+    /// </summary>
+    private void NoteMargins(PdfMargins? margins)
+    {
+        var targets = IsMarginsShown ? Pages.Select((page, index) => (page, index)).Where(entry => IsTarget(entry.page)).ToList() : [];
+        IsFindingContent = targets.Any(entry => !_content.ContainsKey(entry.page.Id));
+        ApplySheetEditCommand.NotifyCanExecuteChanged();
+
+        var notes = new List<string>();
+        if (margins is { } given && targets.Any(entry => given.Room(_session.PageSize(entry.index)) is null))
+            notes.Add(Str.Get("Pdf.Margins.NoRoom"));
+        var blank = targets.Where(entry => _content.TryGetValue(entry.page.Id, out var box) && box is null).Select(entry => entry.page.Number).ToList();
+        if (blank.Count > 0)
+            notes.Add(Str.Format("Pdf.Margins.BlankFormat", string.Join(", ", blank)));
+        MarginsNote = string.Join(" ", notes);
     }
 
     [RelayCommand]
@@ -666,8 +948,10 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
         BeginSplitCommand.NotifyCanExecuteChanged();
         BeginMergeCommand.NotifyCanExecuteChanged();
         BeginResizeCommand.NotifyCanExecuteChanged();
+        BeginMarginsCommand.NotifyCanExecuteChanged();
         BeginSheetEditCommand.NotifyCanExecuteChanged();
         ApplySheetEditCommand.NotifyCanExecuteChanged();
         if (IsSplitShown) ShowCuts();
+        if (IsMarginsShown) ShowMargins();
     }
 }

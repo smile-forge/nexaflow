@@ -285,6 +285,8 @@ internal sealed class ArtistTools(ArtistViewModel artist, IShellServices? shell,
         state["can_undo"] = artist.UndoEditCommand.CanExecute(null);
         state["can_redo"] = artist.RedoEditCommand.CanExecute(null);
         state["tool"] = ToolName(artist.Editor.Tool);
+        // What the user's Save does with the picture: write it where it is, or — where it cannot — why only a copy can be saved.
+        state["save"] = artist.Editor.CanSaveInPlace ? "in place, when the user saves" : artist.Editor.SaveNote ?? "only as a copy";
         return state;
     }
 

@@ -3,6 +3,8 @@ using Nexaflow.Features.Images.Editing.CuttingOut;
 using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
+using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 using Nexaflow.Visuals.Common.Editing;
 using SkiaSharp;
 
@@ -14,17 +16,22 @@ namespace Nexaflow.Features.Images.Editing;
 /// </summary>
 /// <remarks>
 /// The recipe is written to the photo's sidecar after every change (the store debounces), when the photo is a file on disk
-/// and its sidecar is one this build may write. A photo inside an archive, or whose sidecar is unreadable or from a newer
-/// build, is still edited — for the session only. History and persistence belong to the UI thread.
+/// and its sidecar is one this build may write. A photo elsewhere — inside an archive, at a location — or whose sidecar is
+/// unreadable or from a newer build, is still edited, for the session only. History and persistence belong to the UI thread.
 /// </remarks>
 public sealed class ImageEditSession : PictureRendering, IRecipeEditing
 {
     private readonly ImageEditingServices _services;
 
+    /// <summary>Whether the file system writes the picture's file where it is, rather than rebuilding an archive round it.</summary>
+    private readonly bool _writesInPlace;
+
     public ImageEditSession(string path, ImageEditingServices services) : base(path, services)
     {
         _services = services;
         IsFileBacked = ImageEditingServices.IsFileBacked(path);
+        _writesInPlace = services.FileSystem.GetBacking(path).WritesInPlace();
+        SaveIsUndoable = services.FileSystem.GetCapabilities(path).HasFlag(LocationCapabilities.StagedWrites);
 
         var load = IsFileBacked ? services.Recipes.Load(path) : new RecipeLoadResult(RecipeLoadStatus.None, null);
         LoadStatus = load.Status;
@@ -35,6 +42,33 @@ public sealed class ImageEditSession : PictureRendering, IRecipeEditing
 
     /// <summary>A file on disk, as opposed to one inside an archive.</summary>
     public bool IsFileBacked { get; }
+
+    /// <summary>
+    /// A save writes the picture where it is — on disk, or wherever the file system keeps it in place — as opposed to inside
+    /// an archive, which would have to be rebuilt round it; and its file is still there. A picture that can be replaced but
+    /// is not on disk is saved in place while its edits, with no sidecar beside it, last only as long as the viewer.
+    /// </summary>
+    public bool CanReplace => _writesInPlace && !IsSourceGone;
+
+    /// <summary>
+    /// The file the picture was opened from is no longer there — deleted or moved, or the document it was published from saved
+    /// or closed — so it can only be saved as a copy.
+    /// </summary>
+    public bool IsSourceGone { get; private set; }
+
+    /// <summary>Notes that the file the picture was opened from is no longer there. Raised as a change of the recipe, once.</summary>
+    public void SourceRemoved()
+    {
+        if (IsSourceGone) return;
+        IsSourceGone = true;
+        RecipeChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// A save is an edit where the picture is kept — undone there, and kept only when that is saved — so it replaces nothing
+    /// for good, and is made without warning that it does: an image of a document open in its own tab.
+    /// </summary>
+    public bool SaveIsUndoable { get; }
 
     /// <summary>Edits are kept in the sidecar; false means they last as long as the viewer.</summary>
     public bool CanPersist { get; private set; }

@@ -11,4 +11,7 @@ public enum PdfSplitDirection
 
     /// <summary>Into parts one above another, cut from side to side.</summary>
     Down = 2,
+
+    /// <summary>Into a grid as many parts down as across: four parts, two by two.</summary>
+    Grid = 3,
 }

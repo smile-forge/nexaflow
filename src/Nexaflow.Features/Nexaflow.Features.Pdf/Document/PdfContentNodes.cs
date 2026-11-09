@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.Graphics.Core;
 
 namespace Nexaflow.Features.Pdf.Document;
@@ -214,12 +215,14 @@ internal sealed class PdfImageNode : PdfContentNode
     /// <param name="toPage">From the unit square (0,0 bottom left, 1,1 top right, as PDF places images) to page space.</param>
     /// <param name="opacity">The graphics state's fill alpha.</param>
     /// <param name="stencil">For an image mask, the paint that shows through its set samples; null for an ordinary image.</param>
-    public PdfImageNode(PdfPicture picture, Matrix toPage, double opacity, PdfPaint? stencil)
+    /// <param name="image">The image XObject drawn, by its object; null for an image written inline in the content.</param>
+    public PdfImageNode(PdfPicture picture, Matrix toPage, double opacity, PdfPaint? stencil, IndirectReference? image)
     {
         Picture = picture;
         ToPage  = toPage;
         Opacity = opacity;
         Stencil = stencil;
+        Image   = image;
         Bounds  = PdfSpace.UnitSquare.Bounds(toPage);
     }
 
@@ -227,6 +230,9 @@ internal sealed class PdfImageNode : PdfContentNode
     public Matrix ToPage { get; }
     public double Opacity { get; }
     public PdfPaint? Stencil { get; }
+
+    /// <summary>The image XObject drawn, by its object — what a picture put in its place replaces; null for an inline image.</summary>
+    public IndirectReference? Image { get; }
     public override Rect Bounds { get; }
 }
 

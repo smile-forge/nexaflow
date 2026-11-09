@@ -15,8 +15,9 @@ namespace Nexaflow.Features.Pdf.Editing;
 internal sealed record PdfSourceFile(string Path, AssembledContentTag? Tag);
 
 /// <summary>
-/// Writes an arrangement as one PDF, through the PdfPig fork's assembler: the pages in order from each source, and
-/// everything the sources hold beyond their pages carried to where each page now is. Each source is opened afresh for
+/// Writes an arrangement as one PDF, through the PdfPig fork's assembler: the pages in order from each source, everything
+/// the sources hold beyond their pages carried to where each page now is, and each picture put in place of an image
+/// written where the image was. Each source is opened afresh for
 /// the write — never the reader's own instance, which is not thread-safe — so the reader goes on while a document is
 /// written.
 /// </summary>
@@ -47,7 +48,12 @@ internal static class PdfArrangementWriter
 
             var pages = arrangement.Pages.Select(page => Assembled(page.Sheet, opened, sources)).ToList();
 
-            PdfDocumentAssembler.Assemble(pages, output, new AssemblyOptions { Primary = opened[primary].Document }, ct);
+            var images = arrangement.Images
+                .Where(entry => opened.ContainsKey(entry.Key.Source))
+                .Select(entry => Replacement(opened[entry.Key.Source].Document, entry.Key.Image, entry.Value))
+                .ToList();
+
+            PdfDocumentAssembler.Assemble(pages, output, new AssemblyOptions { Primary = opened[primary].Document, ImageReplacements = images }, ct);
         }
         finally
         {
@@ -55,6 +61,12 @@ internal static class PdfArrangementWriter
                 scope.Dispose();
         }
     }
+
+    /// <summary>A picture put in place of <paramref name="image"/> of <paramref name="document"/>, as the assembler writes it.</summary>
+    private static AssembledImageReplacement Replacement(UglyToad.PdfPig.PdfDocument document, IndirectReference image, PdfImageReplacement picture) =>
+        picture.Format == PdfPictureFormat.Jpeg
+            ? AssembledImageReplacement.Jpeg(document, image, picture.Bytes)
+            : AssembledImageReplacement.Png(document, image, picture.Bytes);
 
     /// <summary>
     /// A sheet as it is written: a page as it is, or a part of one, as itself; any other sheet as a page of its size with

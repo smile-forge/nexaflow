@@ -716,6 +716,8 @@
   "Images.Edit.Notice.Keep": "Keep edits",
   "Images.Edit.Notice.Discard": "Discard edits",
   "Images.Edit.Notice.Archive": "This image is in an archive, so edits are lost when you close it. Use Save as copy to keep them.",
+  "Images.Edit.Notice.SessionOnly": "Edits to this image last only while it's open. Save writes them into it.",
+  "Images.Edit.Notice.SourceGone": "The file this image was opened from is no longer there: it was moved or deleted, or the document it came from was saved or closed. Save a copy to keep your edits.",
   "Images.Edit.Notice.Newer": "These edits were made in a newer version of Nexaflow, so the image is shown without them. New edits won't be kept.",
   "Images.Edit.Notice.Unreadable": "This image's edits file can't be read, so the image is shown without edits. New edits won't be kept.",
 
@@ -727,6 +729,7 @@
   "Images.Edit.Save.FailedFormat": "Couldn't save '{0}': {1}",
   "Images.Edit.Save.StatusFormat": "Saving {0}",
   "Images.Edit.Save.NoteArchive": "This image is inside an archive, so it can only be saved as a copy.",
+  "Images.Edit.Save.NoteSourceGone": "The file this image was opened from is no longer there, so it can only be saved as a copy.",
   "Images.Edit.Save.NoteAnimated": "This image is animated and saving keeps only the first frame, so it can only be saved as a copy.",
   "Images.Edit.Save.NoteFormatFormat": "{0} images can't be written here, so this one can only be saved as a copy.",
   "Images.Edit.Save.NoteNoTransparencyFormat": "{0} files don't support transparency. Save this photo as a copy in PNG or WebP.",

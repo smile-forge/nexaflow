@@ -130,10 +130,10 @@ public class PdfPagesPanelTests
 
         panel.SplitCount = panel.SplitCounts[1];
         Assert.AreEqual(2, panel.Pages[0].Cuts.Count, "three parts, two cuts, read from the picture already taken");
-        Assert.IsFalse(panel.CanUnfoldBooklet);
+        Assert.IsFalse(panel.SplitOrders.Any(order => order.Value == PdfSplitOrder.FoldedBooklet), "a booklet unfolds from halves only");
 
         panel.SplitCount = panel.SplitCounts[0];
-        panel.SplitBooklet = true;
+        panel.SplitOrder = panel.SplitOrders.First(order => order.Value == PdfSplitOrder.FoldedBooklet);
         panel.ApplySheetEditCommand.Execute(null);
 
         Assert.IsFalse(panel.IsEditingSheets);
@@ -177,6 +177,40 @@ public class PdfPagesPanelTests
 
         Assert.IsFalse(panel.IsEditingSheets);
         Assert.AreEqual(100 * 72 / 25.4, session.PageSize(0).Width, 0.01, "set on paper 100 by 200 millimetres, upright as the sheet is");
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    [CoversNode("pdf-page-margins")]
+    public async Task Margins_FindEachPagesContent_DrawWhereItWouldGo_AndAreSetAsOneEdit()
+    {
+        var (session, panel) = await Opened();
+        using var _ = session;
+
+        panel.Pages[0].IsSelected = true;
+        Assert.IsTrue(panel.BeginMarginsCommand.CanExecute(null));
+        panel.BeginMarginsCommand.Execute(null);
+        Assert.IsTrue(panel.IsMarginsShown);
+        await panel.ContentFound;
+
+        Assert.IsFalse(panel.IsFindingContent);
+        Assert.IsNotNull(panel.Pages[0].MarginRoom, "the room the margins leave is drawn");
+        Assert.IsFalse(panel.Pages[0].Preview.Value.IsIdentity, "and the page drawn as they would leave it");
+        Assert.IsNull(panel.Pages[1].MarginRoom, "only on the pages they are for");
+
+        panel.MarginTop = "not a margin";
+        Assert.IsFalse(panel.ApplySheetEditCommand.CanExecute(null));
+        Assert.IsNull(panel.Pages[0].MarginRoom);
+        panel.MarginTop = "30";
+        Assert.IsTrue(panel.ApplySheetEditCommand.CanExecute(null));
+
+        panel.ApplySheetEditCommand.Execute(null);
+
+        Assert.IsFalse(panel.IsEditingSheets);
+        Assert.IsTrue(session.CanUndo);
+        Assert.IsFalse(session.Arrangement[0].Sheet.IsPlain, "the page's content was moved");
+        Assert.IsTrue(session.Arrangement[1].Sheet.IsPlain, "a page not selected was not");
+        Assert.IsTrue(panel.Pages.All(page => page.MarginRoom is null && page.Preview.Value.IsIdentity));
     }
 
     /// <summary>

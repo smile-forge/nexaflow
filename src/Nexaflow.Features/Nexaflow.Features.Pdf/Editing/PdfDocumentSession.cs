@@ -27,6 +27,9 @@ internal sealed class PdfDocumentSession : IDisposable
     /// <summary>Why the drafts are on the disk directly: they are the session's own, in a folder of its own under the temp folder.</summary>
     private const string DraftFolder = "the session's drafts — inserted pictures, working copies — in its own folder under the temp folder";
 
+    /// <summary>How near its place, in points, a page's content may be and be left where it is.</summary>
+    private const double InPlace = 0.05;
+
     /// <summary>The runtime's file system the documents are read, and saved, through.</summary>
     private readonly IVirtualFileSystem _vfs;
 
@@ -142,32 +145,54 @@ internal sealed class PdfDocumentSession : IDisposable
     public void Delete(IReadOnlyCollection<int> indices) => Commit(Arrangement.Remove(indices));
 
     /// <summary>
-    /// The pages at <paramref name="indices"/> each cut into <paramref name="count"/> equal parts — a part of a page cut
-    /// into parts of itself — each page's parts in its place; or, with <paramref name="booklet"/>, the pages taken as a
-    /// booklet's sheets printed two to a side, unfolded into reading order where the first of them was. One edit.
+    /// The pages at <paramref name="indices"/> each cut into <paramref name="count"/> equal parts the way
+    /// <paramref name="direction"/> says — a part of a page cut into parts of itself — put in the order
+    /// <paramref name="order"/> says: each page's parts in its place, as they lie; or, for a folded booklet's sheets printed two
+    /// to a side, unfolded into reading order; or, for sheets printed on both sides and cut into leaves, each leaf's front then
+    /// its back — those two where the first of the pages was. One edit.
     /// </summary>
-    public void Split(IReadOnlyCollection<int> indices, int count, PdfSplitDirection direction, bool booklet)
+    /// <exception cref="ArgumentException">A booklet is unfolded from parts other than halves, or a grid asked of a count that makes none.</exception>
+    public void Split(IReadOnlyCollection<int> indices, int count, PdfSplitDirection direction, PdfSplitOrder order)
     {
-        if (booklet && count != 2)
-            throw new ArgumentException("A booklet is unfolded from sheets of two pages.", nameof(booklet));
-
         var sheets = indices.Distinct().Order().ToList();
-        if (booklet)
+        var layouts = sheets.ToDictionary(index => index, index => Layout(index, count, direction));
+        IReadOnlyList<PdfSheet?> PartsOf(int index) => Arrangement[index].Sheet.Split(layouts[index], ShownSize);
+
+        switch (order)
         {
-            // A blank half — of a booklet's last sheet, padded out — stays in its place until the halves are in
-            // reading order, and is no page after.
-            var halves = sheets.SelectMany(index => Arrangement[index].Sheet.Split(count, SplitsAcross(index, direction), ShownSize)).ToList();
-            var read = PdfBooklet.Unfold(halves).OfType<PdfSheet>().Select(sheet => new PdfArrangedPage(NewPageId(), sheet)).ToList();
-            Commit(Arrangement.Replace(sheets, read));
-            return;
+            case PdfSplitOrder.FoldedBooklet:
+                if (layouts.Values.Any(layout => layout.Count != 2))
+                    throw new ArgumentException("A booklet is unfolded from sheets of two pages.", nameof(order));
+
+                // A blank half — of a booklet's last sheet, padded out — stays in its place until the halves are in reading
+                // order, and is no page after.
+                Commit(Arrangement.Replace(sheets, Pages(PdfBooklet.Unfold(sheets.SelectMany(PartsOf).ToList()))));
+                return;
+
+            case PdfSplitOrder.DoubleSidedCut:
+                Commit(Arrangement.Replace(sheets, Pages(PdfCutLeaves.Order(sheets.Select(index => (PartsOf(index), layouts[index].Columns)).ToList()))));
+                return;
         }
 
         // Last first, so the pages before each one replaced are still where the indices say.
         var split = Arrangement;
         for (var at = sheets.Count - 1; at >= 0; at--)
-            split = split.Replace([sheets[at]], PartsOf(sheets[at], count, direction));
+            split = split.Replace([sheets[at]], Pages(PartsOf(sheets[at])));
         Commit(split);
     }
+
+    /// <summary>
+    /// How the page at <paramref name="index"/> is cut into <paramref name="count"/> parts the way <paramref name="direction"/>
+    /// says: in a row, or for <see cref="PdfSplitDirection.Grid"/> a grid as many down as across.
+    /// </summary>
+    /// <exception cref="ArgumentException">A grid is asked of a count that makes none.</exception>
+    public PdfSplitLayout Layout(int index, int count, PdfSplitDirection direction) => direction == PdfSplitDirection.Grid
+        ? PdfSplitLayout.Square(count) ?? throw new ArgumentException($"{count} parts make no grid as many down as across.", nameof(direction))
+        : PdfSplitLayout.Strip(count, SplitsAcross(index, direction));
+
+    /// <summary>Each of <paramref name="sheets"/> that holds anything, as a page of its own.</summary>
+    private List<PdfArrangedPage> Pages(IEnumerable<PdfSheet?> sheets) =>
+        sheets.OfType<PdfSheet>().Select(sheet => new PdfArrangedPage(NewPageId(), sheet)).ToList();
 
     /// <summary>
     /// Whether the page at <paramref name="index"/> is cut <paramref name="direction"/> into parts side by side — for
@@ -238,6 +263,49 @@ internal sealed class PdfDocumentSession : IDisposable
     }
 
     /// <summary>
+    /// The pages at the indices <paramref name="content"/> holds each with its content — the box given for it, in points as
+    /// the page is shown, and nothing outside it — moved, and made smaller where it must be, into the room
+    /// <paramref name="margins"/> leave on its paper, which keeps its size. With <paramref name="sameScale"/> every page is made as small as the smallest must be.
+    /// One edit; a page the margins leave no room on, or whose content is already in place, stays as it is.
+    /// </summary>
+    public void SetMargins(IReadOnlyDictionary<int, Rect> content, PdfMargins margins, bool sameScale)
+    {
+        var pages = content.Keys.Order().ToList();
+        var placements = margins.Placements(pages.Select(index => (content[index], PageSize(index))).ToList(), sameScale);
+        var placed = Arrangement;
+        for (var at = 0; at < pages.Count; at++)
+        {
+            if (placements[at] is not { } place || place.IsCloseTo(PdfPageTransform.Identity, InPlace)) continue;
+
+            // Only the content is moved: what lies outside it — the ends of the marks a sheet was cut by, kept at a page's edges
+            // — goes, rather than coming along into the page.
+            var index = pages[at];
+            var box = content[index];
+            if (Arrangement[index].Sheet.Cropped(box, ShownSize) is not { } cropped) continue;
+            var moved = cropped.Transformed(PdfPageTransform.Translate(box.X, box.Y).Then(place), PageSize(index), ShownSize);
+            placed = placed.Replace([index], [new PdfArrangedPage(NewPageId(), moved)]);
+        }
+
+        Commit(placed);
+    }
+
+    /// <summary>
+    /// <paramref name="replacement"/> put in place of <paramref name="image"/>, wherever the document draws it — the picture
+    /// filling the place each drawing of it had. One edit, undone as any other, and saved with the document.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The image's source is no longer one of the document's.</exception>
+    public void ReplaceImage(PdfImageKey image, PdfImageReplacement replacement)
+    {
+        lock (_sources)
+        {
+            if (!_sources.ContainsKey(image.Source))
+                throw new InvalidOperationException("The image's document is no longer one this document is made from.");
+        }
+
+        Commit(Arrangement.WithImage(image, replacement, NewPageId));
+    }
+
+    /// <summary>
     /// Whether pages in cells <paramref name="cell"/> large are merged <paramref name="direction"/> side by side — for
     /// <see cref="PdfSplitDirection.Auto"/>, when they are taller than they are wide, so a sheet of them splits back the
     /// way they were put — rather than one above another.
@@ -264,13 +332,6 @@ internal sealed class PdfDocumentSession : IDisposable
         var (place, size) = new PdfPageSizing(on, PdfOrientation.Auto, PdfContentFit.Scale).SetOnPaper(sheet.ShownSize(ShownSize));
         return sheet.Transformed(place, size, ShownSize);
     }
-
-    /// <summary>The page at <paramref name="index"/> cut into <paramref name="count"/> parts, each a page of its own.</summary>
-    private IReadOnlyList<PdfArrangedPage> PartsOf(int index, int count, PdfSplitDirection direction) =>
-        Arrangement[index].Sheet.Split(count, SplitsAcross(index, direction), ShownSize)
-            .OfType<PdfSheet>()
-            .Select(sheet => new PdfArrangedPage(NewPageId(), sheet))
-            .ToList();
 
     /// <summary>
     /// Every page of each PDF at <paramref name="paths"/>, in order, inserted into <paramref name="gap"/> — one edit.

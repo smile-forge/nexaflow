@@ -14,6 +14,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 
@@ -276,6 +277,41 @@ public partial class PdfView : UserControl, IPageView, IDisposable
     }
 
     /// <summary>
+    /// Fills the pages' menu for what is under the pointer: over an image the document holds, Edit image, which opens it in
+    /// the image editor; over anything else the menu does not open.
+    /// </summary>
+    private void Pages_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        var menu = Pages.ContextMenu;
+        menu.Items.Clear();
+
+        if (Pages.PagePointAt(Mouse.GetPosition(Pages)) is not var (page, local)
+            || ViewModel.EditableImageAt(page, new Point(local.X / PdfPageLayout.DipsPerPoint, local.Y / PdfPageLayout.DipsPerPoint)) is not { } image)
+        {
+            e.Handled = true;
+            return;
+        }
+
+    menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.EditImage"), "Pdf_Page_EditImage", ViewModel.EditImageCommand, image));
+
+        // The image the menu is for, framed while it is open.
+        var dips = new Rect(image.Bounds.X * PdfPageLayout.DipsPerPoint, image.Bounds.Y * PdfPageLayout.DipsPerPoint,
+                            image.Bounds.Width * PdfPageLayout.DipsPerPoint, image.Bounds.Height * PdfPageLayout.DipsPerPoint);
+        if (_areaMarker is null && AdornerLayer.GetAdornerLayer(Pages) is { } layer)
+        {
+            _areaMarker = new PdfAreaMarker(Pages);
+            layer.Add(_areaMarker);
+        }
+
+        _areaMarker?.Show(Pages.ElementRectOf(page, dips));
+    }
+
+    /// <summary>The frame round what the pages' menu is for, made when it is first needed.</summary>
+    private PdfAreaMarker? _areaMarker;
+
+    private void PagesMenu_Closed(object sender, RoutedEventArgs e) => _areaMarker?.Show(null);
+
+    /// <summary>
     /// Opens the file in the default PDF application — the file as saved, so with unsaved page edits the reader is asked
     /// first.
     /// </summary>
@@ -381,6 +417,7 @@ public partial class PdfView : UserControl, IPageView, IDisposable
         menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.SplitPages"), "Pdf_Thumb_Split", panel.BeginSplitCommand, null));
         if (selected >= 2) menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.MergePages"), "Pdf_Thumb_Merge", panel.BeginMergeCommand, null));
         menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.SetPageSize"), "Pdf_Thumb_SetSize", panel.BeginResizeCommand, null));
+        menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.SetMargins"), "Pdf_Thumb_SetMargins", panel.BeginMarginsCommand, null));
             menu.Items.Add(new Separator());
             menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.InsertImageBefore"), "Pdf_Thumb_InsertImageBefore", panel.InsertImagesAtCommand, index));
             menu.Items.Add(MenuItemFor(Str.Get("Pdf.Menu.InsertImageAfter"), "Pdf_Thumb_InsertImageAfter", panel.InsertImagesAtCommand, index + 1));

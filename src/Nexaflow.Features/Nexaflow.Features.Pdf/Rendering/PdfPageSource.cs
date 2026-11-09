@@ -45,6 +45,12 @@ internal sealed class PdfPageSource : IRearrangingPagedSource
     private readonly Brush _paper;
     private readonly ConcurrentDictionary<PdfSheet, string> _texts = new();
     private readonly ConcurrentDictionary<PdfSheet, IReadOnlyList<(Matrix FromUser, Rect Bounds)>> _placements = new();
+
+    /// <summary>The images each sheet read draws by object, in painting order — what a point on the page is hit-tested against.</summary>
+    private readonly ConcurrentDictionary<PdfSheet, IReadOnlyList<PdfPlacedImage>> _images = new();
+
+    /// <summary>Counts the changes to the pictures put in place of images: a page laid before one is not kept after it.</summary>
+    private int _imagesVersion;
     private readonly LinkedList<(PdfSheet Key, LaidPage Page)> _laid = new();
 
     /// <param name="arrangement">The pages, in order.</param>
@@ -75,13 +81,25 @@ internal sealed class PdfPageSource : IRearrangingPagedSource
 
     /// <summary>
     /// The pages in a new order, from <paramref name="sources"/>: the same source, so what it has laid — kept by the sheet
-    /// each page shows — is not laid again, and the reader is told where each page was.
+    /// each page shows — is not laid again, and the reader is told where each page was. A page from a source whose images
+    /// were given other pictures is laid again.
     /// </summary>
     public void Rearrange(PdfPageArrangement next, IReadOnlyDictionary<PdfSourceId, PdfOpenedSource> sources)
     {
         var previous = Arrangement;
+        var changed = previous.Images.Keys.Concat(next.Images.Keys)
+            .Where(key => !(previous.Images.TryGetValue(key, out var was) && next.Images.TryGetValue(key, out var now) && ReferenceEquals(was, now)))
+            .Select(key => key.Source)
+            .ToHashSet();
+
         _sources = sources;
         Arrangement = next;
+        if (changed.Count > 0)
+        {
+            Interlocked.Increment(ref _imagesVersion);
+            Forget(sheet => sheet.Pieces.Any(piece => changed.Contains(piece.Source)));
+        }
+
         Rearranged?.Invoke(this, new PagesRearranged(previous.Before(next), previous.MadeFrom(next)));
     }
 
@@ -94,10 +112,11 @@ internal sealed class PdfPageSource : IRearrangingPagedSource
         var sheet = Arrangement[index].Sheet;
         if (Kept(sheet) is { } kept) return kept;
 
+        var version = Volatile.Read(ref _imagesVersion);
         var read = await Read(sheet, ct).ConfigureAwait(false);
         var tree = await Task.Run(() => PdfPageLayout.Lay(read, _paper, ct), ct).ConfigureAwait(false);
         var laid = new LaidPage(tree, Dips(read.Size), read.Text);
-        Keep(sheet, laid);
+        if (version == Volatile.Read(ref _imagesVersion)) Keep(sheet, laid);
         return laid;
     }
 
@@ -124,6 +143,41 @@ internal sealed class PdfPageSource : IRearrangingPagedSource
     {
         var picture = await PaintedAsync(index, width, ct).ConfigureAwait(false);
         return picture is null ? null : await Task.Run(() => WpfPainter.Png(picture), ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The topmost image page <paramref name="index"/> draws at <paramref name="point"/> — in points on the page as shown — of
+    /// the images its sources hold as objects, image masks aside; null where it draws none there, or has not been read yet.
+    /// </summary>
+    public PdfPlacedImage? ImageAt(int index, Point point)
+    {
+        if (index < 0 || index >= Arrangement.Count || !_images.TryGetValue(Arrangement[index].Sheet, out var images)) return null;
+
+        for (var at = images.Count - 1; at >= 0; at--)
+            if (images[at].Bounds.Contains(point)) return images[at];
+        return null;
+    }
+
+    /// <summary>The images page <paramref name="index"/> draws by object, image masks aside, in painting order — reading it first if need be.</summary>
+    public async Task<IReadOnlyList<PdfPlacedImage>> ImagesAsync(int index, CancellationToken ct)
+    {
+        var sheet = Arrangement[index].Sheet;
+        if (_images.TryGetValue(sheet, out var known)) return known;
+
+        await Read(sheet, ct).ConfigureAwait(false);
+        return _images.TryGetValue(sheet, out var read) ? read : [];
+    }
+
+    /// <summary>
+    /// The picture page <paramref name="index"/> draws for <paramref name="image"/>, decoded as it now is drawn — the image's
+    /// own, or the picture put in its place; frozen. Null when the page does not draw it.
+    /// </summary>
+    public async Task<BitmapSource?> ImagePictureAsync(int index, PdfImageKey image, CancellationToken ct)
+    {
+        var pieces = await ReadPieces(Arrangement[index].Sheet, ct).ConfigureAwait(false);
+        foreach (var (piece, read, _) in pieces)
+            if (piece.Source == image.Source && Drawing(read.Content, image.Image) is { } node) return node.Picture.Bitmap;
+        return null;
     }
 
     /// <summary>
@@ -177,28 +231,68 @@ internal sealed class PdfPageSource : IRearrangingPagedSource
         return piece.Part.InUserSpace(slot.Crop, slot.Rotation);
     }
 
-    /// <summary>
-    /// The sheet read: each of its pieces read onto it from its own source, one after another, so each knows where its
-    /// text starts in the sheet's.
-    /// </summary>
+    /// <summary>The sheet read, and what it shows noted: its text, where each of its pieces lies, the images it draws.</summary>
     private async Task<PdfPageNode> Read(PdfSheet sheet, CancellationToken ct)
     {
-        var pieces = new List<(PdfPageNode Read, Rect Bounds)>(sheet.Pieces.Length);
+        var pieces = await ReadPieces(sheet, ct).ConfigureAwait(false);
+        var page = sheet.IsPlain
+            ? pieces[0].Read
+            : PdfSheetComposer.Compose(sheet.ShownSize(ShownSize), pieces.Select(piece => (piece.Read, piece.Bounds)).ToList());
+        _texts[sheet] = page.Text;
+        _placements[sheet] = pieces.Select(piece => (piece.Read.FromUser, piece.Bounds)).ToList();
+        _images[sheet] = pieces.SelectMany(piece => Images(piece.Piece.Source, piece.Read.Content)).ToList();
+        return page;
+    }
+
+    /// <summary>
+    /// Each of the sheet's pieces read onto it from its own source, one after another, so each knows where its text starts
+    /// in the sheet's — the images its source has had pictures put in place of drawn as those pictures.
+    /// </summary>
+    private async Task<List<(PdfSheetPiece Piece, PdfPageNode Read, Rect Bounds)>> ReadPieces(PdfSheet sheet, CancellationToken ct)
+    {
+        var arrangement = Arrangement;
+        var pieces = new List<(PdfSheetPiece Piece, PdfPageNode Read, Rect Bounds)>(sheet.Pieces.Length);
         var textStart = 0;
         foreach (var piece in sheet.Pieces)
         {
             var placement = new PdfReadingPlacement(piece.Part, piece.Place.Matrix, textStart);
             var number = piece.Number;
-            var read = await _sources[piece.Source].Access.ReadAsync(scope => scope.Pages.ReadPage(number, placement, ct), ct).ConfigureAwait(false)
+            var replacements = arrangement.ImagesOf(piece.Source);
+            var read = await _sources[piece.Source].Access.ReadAsync(scope => scope.Pages.ReadPage(number, placement, replacements, ct), ct).ConfigureAwait(false)
                        ?? throw new InvalidOperationException($"Page {number} could not be read: the document is no longer readable.");
-            pieces.Add((read, piece.Bounds(ShownSize)));
+            pieces.Add((piece, read, piece.Bounds(ShownSize)));
             textStart += read.Text.Length + 1;
         }
 
-        var page = sheet.IsPlain ? pieces[0].Read : PdfSheetComposer.Compose(sheet.ShownSize(ShownSize), pieces);
-        _texts[sheet] = page.Text;
-        _placements[sheet] = pieces.Select(piece => (piece.Read.FromUser, piece.Bounds)).ToList();
-        return page;
+        return pieces;
+    }
+
+    /// <summary>The images <paramref name="content"/> draws by object from <paramref name="source"/>, image masks aside, in painting order.</summary>
+    private static IEnumerable<PdfPlacedImage> Images(PdfSourceId source, PdfGroupNode content)
+    {
+        foreach (var child in content.Children)
+        {
+            if (child is PdfGroupNode group)
+            {
+                foreach (var nested in Images(source, group)) yield return nested;
+            }
+            else if (child is PdfImageNode { Image: { } image, Stencil: null } node)
+            {
+                yield return new PdfPlacedImage(new PdfImageKey(source, image), node.Bounds);
+            }
+        }
+    }
+
+    /// <summary>The first drawing in <paramref name="content"/> of the image <paramref name="image"/>; null where there is none.</summary>
+    private static PdfImageNode? Drawing(PdfGroupNode content, IndirectReference image)
+    {
+        foreach (var child in content.Children)
+        {
+            if (child is PdfGroupNode group && Drawing(group, image) is { } nested) return nested;
+            if (child is PdfImageNode node && node.Image == image) return node;
+        }
+
+        return null;
     }
 
     private Size ShownSize(PdfSourceId source, int number) => Slot(source, number).Size;
@@ -236,6 +330,20 @@ internal sealed class PdfPageSource : IRearrangingPagedSource
             _laid.AddFirst((key, page));
             while (_laid.Count > KeptLaid)
                 _laid.RemoveLast();
+        }
+    }
+
+    /// <summary>Lets go of every page laid whose sheet <paramref name="laidAgain"/> says must be laid again.</summary>
+    private void Forget(Func<PdfSheet, bool> laidAgain)
+    {
+        lock (_laid)
+        {
+            for (var node = _laid.First; node is not null;)
+            {
+                var next = node.Next;
+                if (laidAgain(node.Value.Key)) _laid.Remove(node);
+                node = next;
+            }
         }
     }
 

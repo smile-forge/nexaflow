@@ -28,6 +28,9 @@ internal sealed class PdfPicture
         IsStencil = isStencil;
     }
 
+    /// <summary>A picture decoded elsewhere — one put in place of an image — as a page draws it; frozen.</summary>
+    public static PdfPicture Of(BitmapSource bitmap) => new(bitmap.IsFrozen ? bitmap : (BitmapSource)bitmap.GetCurrentValueAsFrozen(), isStencil: false);
+
     /// <summary>The decoded image.</summary>
     public BitmapSource Bitmap { get; }
 

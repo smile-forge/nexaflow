@@ -210,4 +210,37 @@ public sealed class LocationFileSystemTests
         Assert.ThrowsExactly<ArgumentException>(() => _vfs.RegisterLocation(
             _location with { Connection = _location.Connection with { Id = "a:b" } }));
     }
+
+    [TestMethod]
+    public async Task APublishedLocationRoutesUntilItsHandleIsDisposed_AndNeverTakesAnotherPlace()
+    {
+        var host     = new MemoryLocationHost("pictures", TimeSpan.Zero);
+        var provider = new MemoryLocationProvider(host);
+        var profile  = new ConnectionProfile("published", "memory", "Pictures", "pictures");
+        var location = new LocationMount(profile, provider.Capabilities,
+                                         new MemoryLocationSessionSource(provider, profile, new StoredCredentials(null)));
+
+        var handle = _vfs.Publish(location);
+        await _vfs.WriteAllTextAsync(@"::published\a.txt", "served");
+
+        Assert.AreEqual("served", await _vfs.ReadAllTextAsync(@"::published\a.txt"));
+        Assert.IsTrue(_vfs.GetBacking(@"::published\a.txt").WritesInPlace(), "a published file is written where it is");
+        Assert.ThrowsExactly<ArgumentException>(() => _vfs.Publish(location), "an id routed is not published over");
+        Assert.ThrowsExactly<ArgumentException>(() => _vfs.Publish(_location), "nor is a connected location's");
+
+        handle.Dispose();
+        handle.Dispose();
+
+        Assert.IsFalse(_vfs.Locations.Contains(location));
+        Assert.IsTrue(_vfs.Locations.Contains(_location), "withdrawing one leaves the rest");
+    }
+
+    [TestMethod]
+    public void AnArchiveEntryIsTheOneBackingNotWrittenInPlace()
+    {
+        Assert.IsTrue(VirtualBacking.Real.WritesInPlace());
+        Assert.IsTrue(VirtualBacking.PassThrough.WritesInPlace());
+        Assert.IsTrue(VirtualBacking.Remote.WritesInPlace());
+        Assert.IsFalse(VirtualBacking.Materialized.WritesInPlace());
+    }
 }

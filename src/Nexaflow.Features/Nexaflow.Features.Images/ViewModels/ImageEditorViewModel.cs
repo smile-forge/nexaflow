@@ -1308,14 +1308,15 @@ public partial class ImageEditorViewModel : ObservableObject
     /// <summary>The picture can be saved in place (Save), not only copied: a layered picture always — where it is kept — and a
     /// photo whose format can be written and holds the transparency a removed background leaves.</summary>
     public bool CanSaveInPlace => _viewer.IsLayered
-                                  || Session is { IsFileBacked: true, Proxy: not null } && Capability is { CanSaveInPlace: true } capability
+                                  || Session is { CanReplace: true, Proxy: not null } && Capability is { CanSaveInPlace: true } capability
                                      && (Recipe.CutOut is null || capability.KeepsTransparency);
 
     /// <summary>Why Save is unavailable, or what it will not keep; null when there is nothing to say.</summary>
     public string? SaveNote => _viewer.IsLayered ? null : Session switch
     {
         null or { Proxy: null }             => null,
-        { IsFileBacked: false }             => Str.Get("Images.Edit.Save.NoteArchive"),
+        { IsSourceGone: true }              => Str.Get("Images.Edit.Save.NoteSourceGone"),
+        { CanReplace: false }               => Str.Get("Images.Edit.Save.NoteArchive"),
         { Proxy.IsAnimated: true }          => Str.Get("Images.Edit.Save.NoteAnimated"),
         _ when !Capability.CanSaveInPlace   => Str.Format("Images.Edit.Save.NoteFormatFormat", SourceContainer.ToString().ToUpperInvariant()),
         _ when Recipe.CutOut is not null && !Capability.KeepsTransparency
@@ -1352,7 +1353,9 @@ public partial class ImageEditorViewModel : ObservableObject
         }
         if (_shell is null || Session is not { } session) return;
         var name = Path.GetFileName(session.Path);
-        if (!await _shell.ConfirmAsync(Str.Get("Images.Edit.Save.ConfirmTitle"), Str.Format("Images.Edit.Save.ConfirmMessageFormat", name)))
+        // A save that replaces the file for good is confirmed; one that is an edit where the picture is kept, undone there, is not.
+        if (!session.SaveIsUndoable
+            && !await _shell.ConfirmAsync(Str.Get("Images.Edit.Save.ConfirmTitle"), Str.Format("Images.Edit.Save.ConfirmMessageFormat", name)))
             return;
 
         Queue(new ImageSaveTask(_services, session.Path, session.Recipe, SourceContainer, session.Path, session.Made), success =>

@@ -1,6 +1,9 @@
 namespace Nexaflow.Features.Pdf.Editing;
 
-/// <summary>What is done to pages as sheets: the pages printed on one cut apart, several put on one, or one set on paper of another size.</summary>
+/// <summary>
+/// What is done to pages as sheets: the pages printed on one cut apart, several put on one, one set on paper of another
+/// size, or its content set within margins.
+/// </summary>
 public enum PdfSheetEdit
 {
     /// <summary>Each page cut into the pages printed on it.</summary>
@@ -11,4 +14,7 @@ public enum PdfSheetEdit
 
     /// <summary>Each page set on paper of another size.</summary>
     Size = 2,
+
+    /// <summary>Each page's content moved, and made smaller where it must be, to sit within margins on its paper.</summary>
+    Margins = 3,
 }

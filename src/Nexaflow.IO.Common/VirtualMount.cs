@@ -36,6 +36,13 @@ public static class VirtualBackings
     public static bool IsFullyOnDisk(this VirtualBacking backing)
         => backing is VirtualBacking.Real or VirtualBacking.PassThrough;
 
+    /// <summary>
+    /// True when a write replaces the file where it is — on this disk, under a mount, or by its location's own write — rather
+    /// than by rebuilding an archive round it: <see cref="VirtualBacking.Materialized"/> is the one backing that does not.
+    /// </summary>
+    public static bool WritesInPlace(this VirtualBacking backing)
+        => backing is VirtualBacking.Real or VirtualBacking.PassThrough or VirtualBacking.Remote;
+
     /// <summary>Where <paramref name="path"/> is on this disk, when the whole of it is — null for a path in an archive or on a
     /// location. What a reader that has to open the file by its own path, or may read the disk directly, goes by.</summary>
     public static string? ResolveOnDisk(this IVirtualFileSystem vfs, string path)

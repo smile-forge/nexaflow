@@ -4,6 +4,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Pdf.Document;
 using Nexaflow.Features.Pdf.Editing;
+using Nexaflow.Features.Pdf.Images;
 using Nexaflow.Features.Pdf.Models;
 using Nexaflow.Features.Pdf.Reading;
 using Nexaflow.Features.Pdf.Rendering;
@@ -17,6 +18,7 @@ using Nexaflow.Visuals.Text.Pages;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -74,6 +76,27 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
 
     private readonly PdfDocumentSession _session;
     private bool _disposed;
+
+    /// <summary>The image editor's page kind — the Images feature's Artist, named by its kind as one feature opens another's page.</summary>
+    private const string ImageEditorPageKind = "Artist";
+
+    /// <summary>Where the document's images are published; null where they are not.</summary>
+    private readonly ILocationPublisher? _publisher;
+
+    /// <summary>The document's images as files, while they are published.</summary>
+    private PdfImageFiles? _images;
+
+    /// <summary>The location the images are published as, while they are.</summary>
+    private PdfImageLocation? _imagesLocation;
+
+    /// <summary>The image files opened in the image editor, whose breadcrumbs lead back here while they are published.</summary>
+    private readonly List<string> _imagesOpened = [];
+
+    /// <summary>The root the images are published at, <c>::{id}</c>, while they are.</summary>
+    private string? _imagesRoot;
+
+    /// <summary>The publication of the images: disposed, they are withdrawn.</summary>
+    private IDisposable? _imagesPublished;
 
     /// <summary>
     /// The document as a file on this disk, for the default PDF application, which cannot open one inside an archive: the
@@ -208,13 +231,15 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
 
     /// <param name="reading">Page reading, which reads the document's scanned pages into Markdown, where the app has it.</param>
     /// <param name="ai">The workspace's AI, whose image model draws the scanned pages' diagrams again.</param>
+    /// <param name="publisher">Where the document's images are published for the image editor; none, and Edit image is not offered.</param>
     public PdfViewModel(string path, IShellServices shell, IVirtualFileSystem vfs, PdfConfig config, IPageReading? reading = null,
-                        IAIService? ai = null)
+                        IAIService? ai = null, ILocationPublisher? publisher = null)
     {
         _path    = path;
         _shell   = shell;
         _vfs     = vfs;
         _config  = config;
+        _publisher = publisher;
         FileName = Path.GetFileName(path);
         Conversion = new PageConversion(reading, ai, shell);
         Conversion.TextRead += () => _readPages = _askedPages;
@@ -272,6 +297,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
             Pages     = _source;
             PagesPanel.Show(_session.Arrangement);
             PagesPanel.MarkCurrent(CurrentPage);
+            PublishImages();
 
             try
             {
@@ -495,6 +521,9 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         if (_source is null) return;
 
         _source.Rearrange(next, _session.Opened());
+        // A save makes the document another file, its images other objects: they are published afresh, so a name handed out
+        // before can never come to mean another image.
+        if (_images is { } images && images.Base != _session.Base.Id) PublishImages();
         PageCount = next.Count;
         PagesPanel.Show(next);
         PagesPanel.MarkCurrent(CurrentPage);
@@ -518,6 +547,92 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         _ = DescribeFileAsync();
         OnPropertyChanged(nameof(FileName));
         Moved?.Invoke(path);
+    }
+
+    // ── Images ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Publishes the document's images as a location of their own, in place of any published before — which is withdrawn
+    /// first, so a tab holding one of its files hears that it is gone.
+    /// </summary>
+    private void PublishImages()
+    {
+        _imagesPublished?.Dispose();
+        _imagesLocation?.Withdrawn();
+        _images?.Dispose();
+        lock (_imagesOpened)
+        {
+            foreach (var opened in _imagesOpened) OriginBreadcrumbs.Clear(opened);
+            _imagesOpened.Clear();
+        }
+        _imagesPublished = null;
+        _imagesLocation = null;
+        _images = null;
+        _imagesRoot = null;
+        if (_disposed || _publisher is null || _source is null) return;
+
+        var files = new PdfImageFiles(_session, () => _source, _shell.RunOnUiAsync);
+        var location = new PdfImageLocation(files);
+        var mount = location.Mount("pdf-" + Guid.NewGuid().ToString("N"), FileName);
+        _imagesPublished = _publisher.Publish(mount);
+        _imagesLocation = location;
+        _images = files;
+        _imagesRoot = mount.Root;
+    }
+
+    /// <summary>
+    /// The image page <paramref name="index"/> (from 0) draws at <paramref name="point"/> — in points on the page as shown —
+    /// that Edit image opens; null where it draws none there, or its images cannot be edited.
+    /// </summary>
+    internal PdfPlacedImage? EditableImageAt(int index, System.Windows.Point point) =>
+        _images is null || !PagesPanel.CanEdit ? null : _source?.ImageAt(index, point);
+
+    /// <summary>Opens an image in the image editor, as the pages' menu offers it: <see cref="EditImageAsync"/>.</summary>
+    internal IAsyncRelayCommand<PdfPlacedImage?> EditImageCommand => _editImage ??= new AsyncRelayCommand<PdfPlacedImage?>(EditImageAsync);
+
+    private IAsyncRelayCommand<PdfPlacedImage?>? _editImage;
+
+    /// <summary>The image editor opened on <paramref name="image"/>, as the pages' menu asks — the reader told where it cannot be.</summary>
+    private async Task EditImageAsync(PdfPlacedImage? image)
+    {
+        if (image is null) return;
+        try
+        {
+            if (await OpenImageInEditorAsync(image.Key, _cts.Token) is null) _shell.ShowError(Str.Get("Pdf.EditImage.Unreadable"));
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    /// <summary>
+    /// Opens <paramref name="image"/> in the image editor, as a file of the document's published images: the editor's save
+    /// puts the picture in the image's place — an edit of the document, undone and saved with the rest. Its breadcrumb leads
+    /// back to the document. Gives the file's name and the file opened; null when the document cannot read the image, or its
+    /// images are not published.
+    /// </summary>
+    private async Task<(string Name, PdfImageFile File)?> OpenImageInEditorAsync(PdfImageKey image, CancellationToken ct)
+    {
+        if (_images is not { } files || _imagesRoot is not { } root) return null;
+
+        PdfImageFile? file;
+        try
+        {
+            file = await files.FileAsync(image, ct);
+        }
+        catch (InvalidOperationException)
+        {
+            file = null;   // the document can no longer be read
+        }
+
+        if (file is null) return null;
+
+        var name = files.NameOf(image, file.Extension);
+        var path = root + "\\" + name;
+        OriginBreadcrumbs.Register(path, PdfTabRegistration.StaticPageKind, new Dictionary<string, string> { ["path"] = _path }, FileName);
+        lock (_imagesOpened) _imagesOpened.Add(path);
+        await _shell.RunOnUiAsync(() => _shell.OpenTab(ImageEditorPageKind, new Dictionary<string, string> { ["path"] = path }));
+        return (name, file);
     }
 
     partial void OnCurrentPageChanged(int value) => PagesPanel.MarkCurrent(value);
@@ -752,7 +867,11 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
          + "call pdf_page_image and read the picture instead. pdf_outline gives the table of contents with page "
          + "numbers, so you can go straight to the section that matters rather than reading the whole document. "
          + "Page text comes back in reading order, so a multi-column page reads down each column in turn - "
-         + "but an unusual layout can still defeat that, so if a page reads like nonsense, look at its image.";
+         + "but an unusual layout can still defeat that, so if a page reads like nonsense, look at its image. "
+         + "You can edit the document as the user can: pdf_split_pages cuts sheets printed several to a page into their pages "
+         + "and puts them in reading order, pdf_merge_pages puts pages several to a sheet or folds them into a booklet, "
+         + "pdf_set_margins gives pages even margins and centres their content, and pdf_edit_image opens a page's image in the "
+         + "image editor. Each is an edit the user can undo, kept when they save the PDF.";
 
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
@@ -841,6 +960,84 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
             ToolSafety.SafeOperation,
             PageImageToolAsync,
             parallelizable: false) { Needs = [AiAbility.ImageRecognition] },
+
+        new DelegateClientTool(
+            "pdf_split_pages",
+            "Cut pages printed several to a sheet into pages of their own, as the Pages tab's Split does: each into two, three or "
+            + "four equal parts, side by side, one above another, across the longer side, or four two by two — and put them in "
+            + "reading order: as they lie; a stapled booklet's halves unfolded; or sheets printed double-sided and then cut into "
+            + "leaves, each leaf's front followed by its back (the front holding 1, 3, 5, 7 and the back 4, 2, 8, 6). Look at the "
+            + "pages first (pdf_page_image) to tell how they are printed. One edit the user can undo, kept when they save the PDF.",
+            [
+                new ClientToolParameter("parts", "How many pages each sheet holds: 2, 3 or 4.", Type: "number"),
+                new ClientToolParameter("direction", "How they sit on the sheet. Defaults to auto, across its longer side; grid is for four, two by two.",
+                    Required: false, Choices: ["auto", "across", "down", "grid"]),
+                new ClientToolParameter("order", "What order the pages are put in. Defaults to as_they_lie; folded_booklet is for halves only.",
+                    Required: false, Choices: ["as_they_lie", "folded_booklet", "double_sided_cut"]),
+                new ClientToolParameter("pages", "The sheets to split, 1-based. Omit for every page.", Required: false, Type: "array", ItemType: "number"),
+            ],
+            ToolSafety.SafeOperation,
+            SplitPagesToolAsync,
+            parallelizable: false),
+
+        new DelegateClientTool(
+            "pdf_merge_pages",
+            "Put pages several to a sheet, as the Pages tab's Merge does: two, three or four to a sheet, side by side or one above "
+            + "another; or, with booklet, fold them in reading order into a stapled booklet's sheets, two to a side, to print "
+            + "double-sided and fold. Each sheet can be as large as its pages together, on the pages' own paper, or on a named "
+            + "paper, the pages scaled to share it. One edit the user can undo, kept when they save the PDF.",
+            [
+                new ClientToolParameter("per_sheet", "How many pages go on each sheet: 2, 3 or 4. A booklet is two to a side.", Type: "number"),
+                new ClientToolParameter("direction", "How they sit on the sheet. Defaults to auto, side by side for upright pages.",
+                    Required: false, Choices: ["auto", "across", "down"]),
+                new ClientToolParameter("booklet", "Fold the pages into a stapled booklet's sheets. Defaults to false.", Required: false, Type: "boolean"),
+                new ClientToolParameter("paper", "What each sheet is made as large as. Defaults to none: the pages side by side, nothing scaled.",
+                    Required: false, Choices: ["none", "pages_own", "A3", "A4", "A5", "Letter", "Legal", "Tabloid"]),
+                new ClientToolParameter("pages", "The pages to merge, 1-based. Omit for every page.", Required: false, Type: "array", ItemType: "number"),
+            ],
+            ToolSafety.SafeOperation,
+            MergePagesToolAsync,
+            parallelizable: false),
+
+        new DelegateClientTool(
+            "pdf_set_margins",
+            "Give pages margins of a size you choose and put their content within them, as the Pages tab's Margins does: each "
+            + "page's content — everything on it that is not the paper's colour — is moved as one block into the room the margins "
+            + "leave, centred across or against the left margin, against the top or centred down, and made smaller only where it "
+            + "would not otherwise fit. Nothing is reflowed and the paper keeps its size; a blank page stays as it is. One edit, "
+            + "which the user can undo, kept when they save the PDF. Use it to give a document — often a generated one — even "
+            + "margins and centred content.",
+            [
+                new ClientToolParameter("top",    "Top margin, in 'unit'. Defaults to 20 mm.", Required: false, Type: "number"),
+                new ClientToolParameter("bottom", "Bottom margin, in 'unit'. Defaults to 20 mm.", Required: false, Type: "number"),
+                new ClientToolParameter("left",   "Left margin, in 'unit'. Defaults to 20 mm.", Required: false, Type: "number"),
+                new ClientToolParameter("right",  "Right margin, in 'unit'. Defaults to 20 mm.", Required: false, Type: "number"),
+                new ClientToolParameter("unit",   "What the margins are given in. Defaults to mm.", Required: false, Choices: ["mm", "in", "pt"]),
+                new ClientToolParameter("across", "Where the content sits across the page. Defaults to centre.", Required: false, Choices: ["centre", "left"]),
+                new ClientToolParameter("down",   "Where the content sits down the page. Defaults to top, so a short last page starts where the others do.",
+                    Required: false, Choices: ["top", "centre"]),
+                new ClientToolParameter("same_scale", "Make every page's content as small as the one that must shrink most, so the text stays "
+                    + "one size throughout. Defaults to true.", Required: false, Type: "boolean"),
+                new ClientToolParameter("pages",  "The pages to set, 1-based. Omit for every page.", Required: false, Type: "array", ItemType: "number"),
+            ],
+            ToolSafety.SafeOperation,
+            SetMarginsToolAsync,
+            parallelizable: false),
+
+        new DelegateClientTool(
+            "pdf_edit_image",
+            "Open one of a page's images in the image editor, as the user's right-click Edit image does, so it can be edited there "
+            + "with the image editor's own tools. When the user saves it in the image editor, the picture goes back into the PDF in "
+            + "the image's place, on every page that draws it — an edit of the PDF they can undo, kept when they save the PDF. An "
+            + "image written inline in the page's instructions, or used only as a mask, cannot be edited this way.",
+            [
+                new ClientToolParameter("page",  "Page the image is on, 1-based.", Type: "number"),
+                new ClientToolParameter("index", "Which of the page's editable images, 1-based, in the order the page draws them. Leave it out "
+                    + "when the page has one; with several, the answer lists them to choose from.", Required: false, Type: "number"),
+            ],
+            ToolSafety.SafeOperation,
+            EditImageToolAsync,
+            parallelizable: false),
 
         new DelegateClientTool(
             "pdf_view_page",
@@ -1230,6 +1427,293 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
             : ToolResult.Error($"{FileName} has no page {page}; it has {PageCount}."));
     }
 
+    /// <summary>
+    /// <c>pdf_set_margins</c>: the pages' content found and moved within the margins asked for, as one edit — refused when the
+    /// pages change while their content is being found, so the edit is never made to pages other than those measured.
+    /// </summary>
+    private async Task<ToolResult> SetMarginsToolAsync(JsonObject args, CancellationToken ct)
+    {
+        if (_source is not { } pages) return Unreadable();
+        if (!PagesPanel.CanEdit) return ToolResult.Error("This document's pages can't be edited: an XFA form lays the whole document out itself.");
+
+        var unit = ReadText(args, "unit") ?? "mm";
+        double perPoint;
+        switch (unit)
+        {
+            case "mm": perPoint = 1 / PdfMargins.PointsPerMillimetre; break;
+            case "in": perPoint = 1.0 / 72; break;
+            case "pt": perPoint = 1; break;
+            default: return ToolResult.Error($"'{unit}' is not a unit margins are given in: use mm, in or pt.");
+        }
+
+        var given = new double[4];
+        string[] edges = ["left", "top", "right", "bottom"];
+        for (var at = 0; at < edges.Length; at++)
+        {
+            var margin = ReadNumber(args, edges[at]) is { } value ? value / perPoint : PdfMargins.DefaultMillimetres * PdfMargins.PointsPerMillimetre;
+            if (margin < 0 || !double.IsFinite(margin)) return ToolResult.Error($"The {edges[at]} margin must be a length of 0 or more.");
+            given[at] = margin;
+        }
+
+        var across = (ReadText(args, "across") ?? "centre") switch
+        {
+            "centre" => PdfMarginAcross.Centre,
+            "left"   => PdfMarginAcross.Left,
+            _        => (PdfMarginAcross?)null,
+        };
+        var down = (ReadText(args, "down") ?? "top") switch
+        {
+            "top"    => PdfMarginDown.Top,
+            "centre" => PdfMarginDown.Centre,
+            _        => (PdfMarginDown?)null,
+        };
+        if (across is null) return ToolResult.Error("'across' is centre or left.");
+        if (down is null) return ToolResult.Error("'down' is top or centre.");
+        var margins = new PdfMargins(given[0], given[1], given[2], given[3], across.Value, down.Value);
+        var sameScale = ReadFlag(args, "same_scale") ?? true;
+
+        var arrangement = _session.Arrangement;
+        var numbers = ReadNumbers(args, "pages") is { Count: > 0 } asked ? asked.Distinct().Order().ToList() : Enumerable.Range(1, arrangement.Count).ToList();
+        if (numbers.FirstOrDefault(number => number < 1 || number > arrangement.Count) is var stray and not 0)
+            return ToolResult.Error($"{FileName} has no page {stray}; it has {arrangement.Count}.");
+
+        var noRoom = numbers.Where(number => margins.Room(_session.PageSize(number - 1)) is null).ToList();
+        if (noRoom.Count > 0) return ToolResult.Error($"Those margins leave no room on page {string.Join(", ", noRoom)}.");
+
+        var content = new Dictionary<int, System.Windows.Rect>();
+        var blank = new List<int>();
+        try
+        {
+            foreach (var number in numbers)
+            {
+                if (await PdfPageContent.FindAsync(pages, number - 1, ct) is { } box) content[number - 1] = box;
+                else blank.Add(number);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            return Unreadable();
+        }
+
+        if (content.Count == 0) return ToolResult.Ok("nothing to move", $"The pages asked for have nothing on them; {FileName} is as it was.");
+
+        var made = await _shell.RunOnUiAsync(() =>
+        {
+            if (!ReferenceEquals(_session.Arrangement, arrangement)) return Task.FromResult(false);
+            _session.SetMargins(content, margins, sameScale);
+            return Task.FromResult(true);
+        });
+        if (!made) return ToolResult.Error("The pages changed while their content was being found, so nothing was moved; ask again.");
+
+        var said = string.Create(CultureInfo.InvariantCulture,
+            $"Set margins on {content.Count} page(s) of {FileName}: top {given[1] * perPoint:0.#}, bottom {given[3] * perPoint:0.#}, "
+            + $"left {given[0] * perPoint:0.#}, right {given[2] * perPoint:0.#} {unit}; the content {(across == PdfMarginAcross.Centre ? "centred across" : "against the left margin")}, "
+            + $"{(down == PdfMarginDown.Top ? "against the top" : "centred down")}{(sameScale ? ", one scale for every page" : string.Empty)}.");
+        if (blank.Count > 0) said += $" Pages with nothing on them were left as they are: {string.Join(", ", blank)}.";
+        return ToolResult.Ok($"set margins on {content.Count} page(s)", said + " The user can undo it, and keeps it by saving the PDF.");
+    }
+
+    /// <summary><c>pdf_edit_image</c>: one of a page's editable images opened in the image editor.</summary>
+    private async Task<ToolResult> EditImageToolAsync(JsonObject args, CancellationToken ct)
+    {
+        if (ReadInt(args, "page") is not int page) return ToolResult.Error("No page number was given.");
+        if (_source is not { } pages) return Unreadable();
+        if (_images is null) return ToolResult.Error("This document's images can't be opened in the image editor here.");
+        if (!PagesPanel.CanEdit) return ToolResult.Error("This document can't be edited: an XFA form lays the whole document out itself.");
+        if (page < 1 || page > pages.PageCount) return ToolResult.Error($"{FileName} has no page {page}; it has {pages.PageCount}.");
+
+        IReadOnlyList<PdfPlacedImage> drawn;
+        try
+        {
+            drawn = (await pages.ImagesAsync(page - 1, ct)).DistinctBy(image => image.Key).ToList();
+        }
+        catch (InvalidOperationException)
+        {
+            return Unreadable();
+        }
+
+        if (drawn.Count == 0)
+            return ToolResult.Ok($"page {page} has no image to edit",
+                $"Page {page} of {FileName} draws no image that can be edited: none at all, or only images written inline or used as masks.");
+
+        var index = ReadInt(args, "index");
+        if ((index is null && drawn.Count > 1) || index < 1 || index > drawn.Count)
+            return ToolResult.Error($"Page {page} draws {drawn.Count} images that can be edited; say which with 'index' (1–{drawn.Count}):\n" + Described(drawn));
+
+        var image = drawn[(index ?? 1) - 1];
+        if (await OpenImageInEditorAsync(image.Key, ct) is not var (name, file))
+            return ToolResult.Error("That image can't be read from the document, so it can't be edited.");
+
+        return ToolResult.Ok($"opened {name} in the image editor",
+            $"'{name}' — image {(index ?? 1)} of page {page}, {Placement(image)}, a {file.Extension.TrimStart('.').ToUpperInvariant()} — is open in the "
+            + $"image editor, whose tools now act on it. When the user saves it there, the picture goes back into {FileName} in the image's "
+            + "place on every page that draws it, as an edit of the PDF they can undo and keep by saving the PDF. Nothing has changed yet.");
+    }
+
+    /// <summary><c>pdf_split_pages</c>: the sheets asked for cut into their pages and put in the order asked for, as one edit.</summary>
+    private async Task<ToolResult> SplitPagesToolAsync(JsonObject args, CancellationToken ct)
+    {
+        if (_source is null) return Unreadable();
+        if (!PagesPanel.CanEdit) return ToolResult.Error("This document's pages can't be edited: an XFA form lays the whole document out itself.");
+        if (ReadInt(args, "parts") is not { } parts || parts is not (2 or 3 or 4)) return ToolResult.Error("'parts' is 2, 3 or 4: how many pages each sheet holds.");
+
+        var direction = (ReadText(args, "direction") ?? "auto") switch
+        {
+            "auto"   => PdfSplitDirection.Auto,
+            "across" => PdfSplitDirection.Across,
+            "down"   => PdfSplitDirection.Down,
+            "grid"   => PdfSplitDirection.Grid,
+            _        => (PdfSplitDirection?)null,
+        };
+        var order = (ReadText(args, "order") ?? "as_they_lie") switch
+        {
+            "as_they_lie"      => PdfSplitOrder.AsTheyLie,
+            "folded_booklet"   => PdfSplitOrder.FoldedBooklet,
+            "double_sided_cut" => PdfSplitOrder.DoubleSidedCut,
+            _                  => (PdfSplitOrder?)null,
+        };
+        if (direction is null) return ToolResult.Error("'direction' is auto, across, down or grid.");
+        if (order is null) return ToolResult.Error("'order' is as_they_lie, folded_booklet or double_sided_cut.");
+        if (direction == PdfSplitDirection.Grid && parts != 4) return ToolResult.Error("Only four parts make a grid, two by two.");
+        if (order == PdfSplitOrder.FoldedBooklet && (parts != 2 || direction == PdfSplitDirection.Grid))
+            return ToolResult.Error("A folded booklet unfolds from halves only: parts 2.");
+
+        if (Targets(args) is not { } targets) return ToolResult.Error(NoSuchPage(args));
+        var before = _session.Arrangement.Count;
+        if (await EditPagesAsync(() => _session.Split(targets, parts, direction.Value, order.Value)) is { } refused) return ToolResult.Error(refused);
+
+        var now = _session.Arrangement.Count;
+        return ToolResult.Ok($"split {targets.Count} page(s) into {now - before + targets.Count}",
+            $"Split {targets.Count} page(s) of {FileName} into {now - before + targets.Count} pages, {Said(order.Value)}; the document now has {now} pages. "
+            + "The user can undo it, and keeps it by saving the PDF.");
+
+        static string Said(PdfSplitOrder order) => order switch
+        {
+            PdfSplitOrder.FoldedBooklet  => "the booklet's halves unfolded into reading order",
+            PdfSplitOrder.DoubleSidedCut => "each leaf's front followed by its back",
+            _                            => "as they lay on each sheet",
+        };
+    }
+
+    /// <summary><c>pdf_merge_pages</c>: the pages asked for put several to a sheet, or folded into a booklet, as one edit.</summary>
+    private async Task<ToolResult> MergePagesToolAsync(JsonObject args, CancellationToken ct)
+    {
+        if (_source is null) return Unreadable();
+        if (!PagesPanel.CanEdit) return ToolResult.Error("This document's pages can't be edited: an XFA form lays the whole document out itself.");
+        if (ReadInt(args, "per_sheet") is not { } perSheet || perSheet is not (2 or 3 or 4)) return ToolResult.Error("'per_sheet' is 2, 3 or 4: how many pages go on each sheet.");
+
+        var direction = (ReadText(args, "direction") ?? "auto") switch
+        {
+            "auto"   => PdfSplitDirection.Auto,
+            "across" => PdfSplitDirection.Across,
+            "down"   => PdfSplitDirection.Down,
+            _        => (PdfSplitDirection?)null,
+        };
+        if (direction is null) return ToolResult.Error("'direction' is auto, across or down.");
+
+        var booklet = ReadFlag(args, "booklet") ?? false;
+        if (booklet && perSheet != 2) return ToolResult.Error("A booklet is folded two pages to a side: per_sheet 2.");
+
+        var asked = args.TryGetPropertyValue("paper", out var node) && node is not null ? node.ToString().Trim() : "none";
+        PdfMergePaper? paper = asked.ToLowerInvariant() switch
+        {
+            "none"      => PdfMergePaper.None,
+            "pages_own" => PdfMergePaper.ThePagesOwn,
+            _           => PdfPaper.Named.FirstOrDefault(named => string.Equals(named.Key, asked, StringComparison.OrdinalIgnoreCase)) is { } named
+                               ? PdfMergePaper.Of(named.Size)
+                               : null,
+        };
+        if (paper is null) return ToolResult.Error("'paper' is none, pages_own, or one of A3, A4, A5, Letter, Legal, Tabloid.");
+
+        if (Targets(args) is not { } targets) return ToolResult.Error(NoSuchPage(args));
+        if (targets.Count < 2) return ToolResult.Error("Pages are merged two or more at a time.");
+        if (await EditPagesAsync(() => _session.Merge(targets, perSheet, direction.Value, booklet, paper.Value)) is { } refused) return ToolResult.Error(refused);
+
+        var now = _session.Arrangement.Count;
+        return ToolResult.Ok(booklet ? $"folded {targets.Count} page(s) into a booklet" : $"merged {targets.Count} page(s), {perSheet} to a sheet",
+            (booklet
+                ? $"Folded {targets.Count} page(s) of {FileName} into a stapled booklet's sheets, two to a side — print them double-sided, flipping on the short edge, and fold"
+                : $"Put {targets.Count} page(s) of {FileName} {perSheet} to a sheet")
+            + $"{asked.ToLowerInvariant() switch { "none" => string.Empty, "pages_own" => ", each on the pages' own paper", _ => $", on {asked}" }}; the document now has {now} pages. The user can undo it, and keeps it by saving the PDF.");
+    }
+
+    /// <summary>
+    /// The pages a sheet tool is asked to edit, as indices: those its <c>pages</c> names, or every page when it names none;
+    /// null when it names one the document does not have.
+    /// </summary>
+    private IReadOnlyCollection<int>? Targets(JsonObject args)
+    {
+        var count = _session.Arrangement.Count;
+        if (ReadNumbers(args, "pages") is not { Count: > 0 } asked) return Enumerable.Range(0, count).ToList();
+        return asked.All(number => number >= 1 && number <= count) ? asked.Distinct().Order().Select(number => number - 1).ToList() : null;
+    }
+
+    private string NoSuchPage(JsonObject args) =>
+        $"{FileName} has no page {ReadNumbers(args, "pages")!.First(number => number < 1 || number > _session.Arrangement.Count)}; it has {_session.Arrangement.Count}.";
+
+    /// <summary>A page edit made on the thread edits are made on; why it was refused, or null when it was made.</summary>
+    private async Task<string?> EditPagesAsync(Action edit)
+    {
+        string? refused = null;
+        await _shell.RunOnUiAsync(() =>
+        {
+            try
+            {
+                edit();
+            }
+            catch (PdfEditRefusedException refusal)
+            {
+                refused = PdfPagesPanel.Refusal(refusal);
+            }
+            catch (ArgumentException wrong)
+            {
+                refused = wrong.Message;
+            }
+        });
+        return refused;
+    }
+
+    /// <summary>Where an image is drawn on its page, in points from the page's top left, as the assistant is told it.</summary>
+    private static string Placement(PdfPlacedImage image) => string.Create(CultureInfo.InvariantCulture,
+        $"drawn {image.Bounds.Width:0}×{image.Bounds.Height:0} pt at {image.Bounds.X:0}, {image.Bounds.Y:0} pt from the page's top left");
+
+    /// <summary>A page's editable images, one to a line, numbered as <c>pdf_edit_image</c> takes them.</summary>
+    private static string Described(IReadOnlyList<PdfPlacedImage> drawn) =>
+        string.Join("\n", drawn.Select((image, at) => $"{at + 1}: {Placement(image)}"));
+
+    private static double? ReadNumber(JsonObject args, string name)
+    {
+        if (!args.TryGetPropertyValue(name, out var node) || node is null) return null;
+        try { return node.GetValue<double>(); }
+        catch
+        {
+            return double.TryParse(node.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) ? parsed : null;
+        }
+    }
+
+    private static string? ReadText(JsonObject args, string name) =>
+        args.TryGetPropertyValue(name, out var node) && node is not null ? node.ToString().Trim().ToLowerInvariant() : null;
+
+    private static bool? ReadFlag(JsonObject args, string name)
+    {
+        if (!args.TryGetPropertyValue(name, out var node) || node is null) return null;
+        try { return node.GetValue<bool>(); }
+        catch
+        {
+            return bool.TryParse(node.ToString(), out var parsed) ? parsed : null;
+        }
+    }
+
+    private static IReadOnlyList<int>? ReadNumbers(JsonObject args, string name)
+    {
+        if (!args.TryGetPropertyValue(name, out var node) || node is not JsonArray items) return null;
+        var numbers = new List<int>();
+        foreach (var item in items)
+            if (item is not null && double.TryParse(item.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var number))
+                numbers.Add((int)number);
+        return numbers;
+    }
+
     private ToolResult Unreadable()
         => ToolResult.Error($"Nexaflow couldn't read {FileName} — it may be damaged, or protected with a "
                           + "password. The on-screen view may still render it.");
@@ -1260,6 +1744,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
 
         try { _cts.Cancel(); } catch { }
         PagesPanel.Dispose();
+        PublishImages();   // withdrawn, now the tab is closing: published again it is not
         _session.Dispose();
         _cts.Dispose();
 

@@ -2,6 +2,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Pdf.ViewModels;
 using Nexaflow.Features.Pdf.Views;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 using System.Collections.Generic;
 using System.IO;
 
@@ -10,10 +11,11 @@ namespace Nexaflow.Features.Pdf;
 /// <summary>
 /// Registers the PDF reader page. Takes the document's path, and optionally the page to open at, so a
 /// deep link from elsewhere ("see page 42 of the spec") lands where it means to. Page reading, where the app has it,
-/// reads a document's scanned pages into Markdown; the workspace's AI draws their diagrams again.
+/// reads a document's scanned pages into Markdown; the workspace's AI draws their diagrams again. A document's images are
+/// published on the runtime's file system while its tab is open, for the image editor to open and save.
 /// </summary>
 public sealed class PdfTabRegistration(IShellServices shell, PdfConfig config, IAIService ai, IVirtualFileSystem vfs,
-                                       IPageReading? reading = null) : IPageRegistration
+                                       ILocationPublisher publisher, IPageReading? reading = null) : IPageRegistration
 {
     public static string StaticPageKind => "Pdf";
     public string PageKind => StaticPageKind;
@@ -37,7 +39,7 @@ public sealed class PdfTabRegistration(IShellServices shell, PdfConfig config, I
 
         page.ContentFactory = () =>
         {
-            var vm   = new PdfViewModel(path, shell, vfs, config, reading, ai);
+            var vm   = new PdfViewModel(path, shell, vfs, config, reading, ai, publisher);
             var view = new PdfView(vm, shell);
 
             // Unsaved page edits ride on the tab's title; a Save As makes the tab that file.

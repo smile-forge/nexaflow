@@ -7,9 +7,11 @@ using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Images.Editing.Layers;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
+using Nexaflow.IO.Common.Locations;
 using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -37,6 +39,12 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
     private readonly Dictionary<Guid, PictureToolEdits> _layerTools = [];
 
     private IFileWatch? _sidecarWatch;
+
+    /// <summary>In the editor, the watch on the picture's own file, which notes when it is gone.</summary>
+    private ILocationWatch? _sourceWatch;
+
+    /// <summary>The watch on the picture's file being set up, until the next picture is shown.</summary>
+    private CancellationTokenSource? _watchingSource;
 
     /// <param name="mode">How the tab shows the picture now: asked each time it is rendered.</param>
     /// <param name="lifetime">The tab's lifetime: decoding and rendering stop with it.</param>
@@ -150,7 +158,7 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
     /// <summary>The photo on show, with its recipe and history; null while nothing is.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentRecipe), nameof(IsEdited), nameof(HasChangedSourceNotice), nameof(SessionOnlyNotice),
-                              nameof(HasSessionOnlyNotice), nameof(ShowsSessionOnlyNotice), nameof(IsEmpty))]
+                              nameof(HasSessionOnlyNotice), nameof(ShowsSessionOnlyNotice), nameof(ShowsSourceGoneNotice), nameof(IsEmpty))]
     [NotifyCanExecuteChangedFor(nameof(RotateLeftCommand), nameof(RotateRightCommand), nameof(FlipHorizontalCommand),
                                 nameof(FlipVerticalCommand), nameof(RevertEditsCommand))]
     private ImageEditSession? _currentSession;
@@ -187,8 +195,10 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
     public string? SessionOnlyNotice => CurrentSession switch
     {
         null                                        => null,
+        { IsSourceGone: true }                      => null,   // the editor's own banner says so, and offers the copy
         { CanPersist: true }                        => null,
-        { IsFileBacked: false }                     => Str.Get("Images.Edit.Notice.Archive"),
+        { CanReplace: false }                       => Str.Get("Images.Edit.Notice.Archive"),
+        { IsFileBacked: false }                     => Str.Get("Images.Edit.Notice.SessionOnly"),
         { LoadStatus: RecipeLoadStatus.Newer }      => Str.Get("Images.Edit.Notice.Newer"),
         { LoadStatus: RecipeLoadStatus.Unreadable } => Str.Get("Images.Edit.Notice.Unreadable"),
         _                                           => null,
@@ -198,6 +208,9 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
 
     /// <summary>The session-only notice, once it matters: in the editor, or once there are edits to lose.</summary>
     public bool ShowsSessionOnlyNotice => HasSessionOnlyNotice && (IsEditor || IsEdited);
+
+    /// <summary>Whether the editor says the file the picture was opened from is no longer there, and offers to save a copy.</summary>
+    public bool ShowsSourceGoneNotice => IsEditor && CurrentSession is { IsSourceGone: true };
 
     /// <summary>A different photo is on show.</summary>
     public event Action? SessionShown;
@@ -229,6 +242,7 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
         if (CurrentSession is { } previous) previous.RecipeChanged -= OnRecipeChanged;
         _sidecarWatch?.Dispose();
         _sidecarWatch = null;
+        StopWatchingSource();
 
         CurrentSession = session;
         LoadFailed = false;
@@ -244,9 +258,71 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
         session.RecipeChanged += OnRecipeChanged;
         if (session.CanPersist && _shell is not null)
             _sidecarWatch = _shell.WatchFile(ImageRecipeStore.SidecarPath(session.Path), () => CurrentSession?.ReloadFromSidecar());
+            if (IsEditor)
+            {
+                _watchingSource = new CancellationTokenSource();
+                _ = WatchSourceAsync(session, _watchingSource.Token);
+            }
         FollowTools();
         SessionShown?.Invoke();
         Render();
+    }
+
+    /// <summary>
+    /// Watches the file <paramref name="session"/>'s picture was opened from, wherever the file system keeps it, and notes it
+    /// gone once it is no longer there. A file the file system cannot watch — inside an archive — is not watched.
+    /// </summary>
+    private async Task WatchSourceAsync(ImageEditSession session, CancellationToken ct)
+    {
+        ILocationWatch? watch;
+        try
+        {
+            watch = await _editing.FileSystem.WatchChangesAsync(session.Path, recursive: false, ct);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or OperationCanceledException)
+        {
+            return;
+        }
+
+        if (watch is null) return;
+        if (ct.IsCancellationRequested)
+        {
+            watch.Dispose();
+            return;
+        }
+
+        _sourceWatch = watch;
+        watch.Changed += changed => _ = CheckSourceAsync(session, ct);
+    }
+
+    /// <summary>After a change to the picture's file: whether it is still there, and if not, the session told so on the UI thread.</summary>
+    private async Task CheckSourceAsync(ImageEditSession session, CancellationToken ct)
+    {
+        bool there;
+        try
+        {
+            there = await _editing.FileSystem.ExistsAsync(session.Path, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            there = false;
+        }
+
+        if (!there && !ct.IsCancellationRequested)
+            await RunOnUi(() => { if (ReferenceEquals(CurrentSession, session)) session.SourceRemoved(); });
+    }
+
+    private void StopWatchingSource()
+    {
+        _watchingSource?.Cancel();
+        _watchingSource?.Dispose();
+        _watchingSource = null;
+        _sourceWatch?.Dispose();
+        _sourceWatch = null;
     }
 
     /// <summary>Shows <paramref name="document"/> in the photo's place — null, the photo again. The layered picture stays the
@@ -294,6 +370,7 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SessionOnlyNotice));
         OnPropertyChanged(nameof(HasSessionOnlyNotice));
         OnPropertyChanged(nameof(ShowsSessionOnlyNotice));
+        OnPropertyChanged(nameof(ShowsSourceGoneNotice));
         FollowTools();
         Changed?.Invoke();
         Render();
@@ -471,6 +548,7 @@ public sealed partial class PictureStage : ObservableObject, IDisposable
         foreach (var tools in _layerTools.Values) tools.Dispose();
         _layerTools.Clear();
         _sidecarWatch?.Dispose();
+        StopWatchingSource();
         _display.Dispose();
     }
 

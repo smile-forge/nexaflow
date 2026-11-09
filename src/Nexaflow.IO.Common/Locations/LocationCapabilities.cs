@@ -34,6 +34,13 @@ public enum LocationCapabilities
 
     /// <summary><see cref="ILocationSession.Shell"/> opens a shell on the same host.</summary>
     Shell = 1 << 7,
+
+    /// <summary>
+    /// A write is an edit the location's owner stages — undone as its others are, and kept only when the owner is saved — so
+    /// nothing written there is lost for good, and a writer need not warn that it replaces what was there: a document's
+    /// images, published while it is open.
+    /// </summary>
+    StagedWrites = 1 << 8,
 }
 
 /// <summary>What a reader is about to do with a stream, so a provider can choose how to fetch the bytes.</summary>

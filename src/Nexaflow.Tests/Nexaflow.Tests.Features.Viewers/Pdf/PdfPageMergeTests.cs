@@ -122,7 +122,7 @@ public class PdfPageMergeTests
     public async Task ABookletUnfolded_FoldsBack_IntoTheSheetsItWasPrintedOn()
     {
         using var session = await Opened();
-        session.Split([0, 1], 2, PdfSplitDirection.Auto, booklet: true);
+        session.Split([0, 1], 2, PdfSplitDirection.Auto, PdfSplitOrder.FoldedBooklet);
         Assert.AreEqual("1 2 2 1", Numbers(session.Arrangement));
 
         session.Merge([0, 1, 2, 3], 2, PdfSplitDirection.Auto, booklet: true, PdfMergePaper.None);
@@ -141,7 +141,7 @@ public class PdfPageMergeTests
     public async Task PagesMerged_AreCentredInCellsOfTheLargest_ALastShortOfPagesLeavingCellsEmpty()
     {
         using var session = await Opened();
-        session.Split([0, 1], 2, PdfSplitDirection.Auto, booklet: false);
+        session.Split([0, 1], 2, PdfSplitDirection.Auto, PdfSplitOrder.AsTheyLie);
 
         session.Merge([1, 2, 3], 2, PdfSplitDirection.Across, booklet: false, PdfMergePaper.None);
 
@@ -157,7 +157,7 @@ public class PdfPageMergeTests
     public async Task PagesMerged_OntoTheirOwnPaper_AreScaledDownToShareIt()
     {
         using var session = await Opened();
-        session.Split([0, 1], 2, PdfSplitDirection.Auto, booklet: false);
+        session.Split([0, 1], 2, PdfSplitDirection.Auto, PdfSplitOrder.AsTheyLie);
 
         session.Merge([1, 2], 2, PdfSplitDirection.Auto, booklet: false, PdfMergePaper.ThePagesOwn);
 
@@ -183,11 +183,39 @@ public class PdfPageMergeTests
 
     [TestMethod]
     [TestCategory("Unit")]
+    [CoversNode("pdf-page-margins")]
+    public async Task PagesGivenMargins_HaveTheirContentMovedIntoTheRoom_OnTheirOwnPaper_AsOneEdit()
+    {
+        using var session = await Opened();
+        
+        var paper = session.PageSize(0);
+        var content = new Rect(30, 40, 300, 200);
+        var margins = new PdfMargins(72, 72, 72, 72, PdfMarginAcross.Centre, PdfMarginDown.Top);
+
+        session.SetMargins(new Dictionary<int, Rect> { [0] = content, [1] = content }, margins, sameScale: true);
+
+        Assert.IsTrue(session.CanUndo);
+        Assert.AreEqual(Rounded(paper), Rounded(session.PageSize(0)), "the paper keeps its size");
+        var piece = session.Arrangement[0].Sheet.Pieces.Single();
+        var placed = piece.Bounds(Sizes);
+        Assert.AreEqual((paper.Width - 300) / 2, placed.X, 0.01, "centred across");
+        Assert.AreEqual(72, placed.Y, 0.01, "against the top margin");
+        Assert.AreEqual(300, placed.Width, 0.01, "its content alone, cropped to it: nothing outside it comes along");
+        Assert.AreNotEqual(PdfPagePart.Whole, piece.Part);
+        
+
+        session.Undo();
+        Assert.IsTrue(session.Arrangement[0].Sheet.IsPlain, "one undo puts every page back");
+        Assert.IsFalse(session.CanUndo);
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
     [CoversNode("pdf-page-merge")]
     public async Task ALinkOnAMergedSheet_SaysWhichPieceItIsOn_AndATargetOnOne_IsFoundOnIt()
     {
         using var session = await Opened();
-        session.Split([0, 1], 2, PdfSplitDirection.Auto, booklet: false);
+        session.Split([0, 1], 2, PdfSplitDirection.Auto, PdfSplitOrder.AsTheyLie);
         session.Merge([1, 2], 2, PdfSplitDirection.Across, booklet: false, PdfMergePaper.None);
         var pages = new PdfPageSource(session.Arrangement, session.Opened(), Brushes.White);
         var source = session.Arrangement[1].Sheet.Pieces[1].Source;
@@ -210,7 +238,7 @@ public class PdfPageMergeTests
         {
             // Page two before page one, side by side: each sheet is placed whole, so the rest of each lies under the
             // other's half — drawn over, and its text no part of the page.
-            session.Split([0, 1], 2, PdfSplitDirection.Auto, booklet: false);
+            session.Split([0, 1], 2, PdfSplitDirection.Auto, PdfSplitOrder.AsTheyLie);
             session.Move([2], 1);
             session.Merge([1, 2], 2, PdfSplitDirection.Across, booklet: false, PdfMergePaper.None);
             session.Resize([0], new PdfPageSizing(PdfPaper.A5.Size, PdfOrientation.Auto, PdfContentFit.Scale));

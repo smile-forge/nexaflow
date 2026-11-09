@@ -150,6 +150,14 @@ public sealed class PanZoomSurface : UserControl
     public double MaxScale { get; set; } = 4.0;
 
     /// <summary>
+    /// The largest scale a fit makes the content. 1, the default, so content smaller than the viewport keeps its own size:
+    /// a four-node diagram blown up to fill the panel looks broken, not helpful. A host whose content is a picture to work on
+    /// gives more — up to <see cref="MaxScale"/>, which bounds every zoom — so a small picture fills its window as far as the
+    /// zoom allows.
+    /// </summary>
+    public double FitUpTo { get; set; } = 1.0;
+
+    /// <summary>
     /// When false (the default) a plain wheel is left alone to scroll whatever page the surface sits
     /// on, and only Ctrl+wheel zooms. A surface that owns its whole viewport (a canvas tab rather than
     /// a block inside a document) sets this true.
@@ -301,8 +309,8 @@ public sealed class PanZoomSurface : UserControl
 
     // ── Zoom ──────────────────────────────────────────────────────────────────
 
-    /// <summary>Scales the content to sit wholly inside the viewport, centred. Never scales up past
-    /// 1:1 — a four-node diagram blown up to fill the panel looks broken, not helpful.</summary>
+    /// <summary>Scales the content to sit wholly inside the viewport, centred — never larger than
+    /// <see cref="FitUpTo"/> allows.</summary>
     public void FitToContent() => FitToContent(automatic: false);
 
     /// <summary>
@@ -317,7 +325,7 @@ public sealed class PanZoomSurface : UserControl
         if (Extent is not { Width: > 0, Height: > 0 } bounds) return;
 
         var (scale, x, y) = ViewportFit.FitScaled(bounds.Width, bounds.Height,
-                                                  ActualWidth, ActualHeight, MinScale, 1.0);
+                                                  ActualWidth, ActualHeight, MinScale, Math.Min(FitUpTo, MaxScale));
         if (scale <= 0) return;
 
         // The fit is reckoned as though the content started at the origin; content that starts somewhere

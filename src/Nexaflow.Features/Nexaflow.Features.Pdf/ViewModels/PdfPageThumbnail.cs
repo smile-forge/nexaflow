@@ -66,6 +66,20 @@ public sealed partial class PdfPageThumbnail : ObservableObject
     public Geometry? CrossingCutLines => CutLines(crossing: true);
 
     /// <summary>
+    /// The room the margins would leave on the sheet while margins are set up, drawn as a frame; null otherwise.
+    /// </summary>
+    [ObservableProperty] private Geometry? _marginRoom;
+
+    /// <summary>
+    /// The page as the margins set up would leave it: its picture moved, and made smaller where it must be, into the room —
+    /// what the sheet draws while margins are set up; no change otherwise, and while its content is not yet found.
+    /// </summary>
+    [ObservableProperty] private Transform _preview = Transform.Identity;
+
+    /// <summary>What of the page the preview shows: its content alone, as margins move it; null shows it all.</summary>
+    [ObservableProperty] private Geometry? _previewClip;
+
+    /// <summary>
     /// Sizes the sheet to the page's proportions, as large as fits <see cref="SheetBox"/> by <see cref="SheetTallest"/>.
     /// </summary>
     internal void Fit(System.Windows.Size page)
@@ -82,6 +96,36 @@ public sealed partial class PdfPageThumbnail : ObservableObject
                 ? new PdfThumbnailCut(cut.At * SheetWidth, 0, cut.At * SheetWidth, SheetHeight, crossing(cut))
                 : new PdfThumbnailCut(0, cut.At * SheetHeight, SheetWidth, cut.At * SheetHeight, crossing(cut)))
             .ToList();
+
+    /// <summary>
+    /// Draws on the sheet of a page <paramref name="page"/> large the <paramref name="room"/> its margins leave, in the page's
+    /// points, and the page as <paramref name="placed"/> would leave it — its <paramref name="content"/> alone, moved; null for
+    /// either draws none of it.
+    /// </summary>
+    internal void ShowMargins(System.Windows.Size page, System.Windows.Rect? room, PdfPageTransform? placed, System.Windows.Rect? content = null)
+    {
+        var scale = page.Width > 0 ? SheetWidth / page.Width : 0;
+        MarginRoom = Frame(room, scale);
+        PreviewClip = placed is null ? null : Frame(content, scale);
+        Preview = placed is { Matrix: var place } && scale > 0
+            ? Frozen(new MatrixTransform(new Matrix(place.M11, place.M12, place.M21, place.M22, place.OffsetX * scale, place.OffsetY * scale)))
+            : Transform.Identity;
+    }
+
+    private static Transform Frozen(Transform transform)
+    {
+        transform.Freeze();
+        return transform;
+    }
+
+    private static Geometry? Frame(System.Windows.Rect? area, double scale)
+    {
+        if (area is not { } rect || scale <= 0) return null;
+
+        var frame = new RectangleGeometry(new System.Windows.Rect(rect.X * scale, rect.Y * scale, rect.Width * scale, rect.Height * scale));
+        frame.Freeze();
+        return frame;
+    }
 
     private Geometry? CutLines(bool crossing)
     {

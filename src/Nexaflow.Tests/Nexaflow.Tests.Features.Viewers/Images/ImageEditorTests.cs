@@ -15,6 +15,7 @@ using SkiaSharp;
 using static Nexaflow.Tests.Features.Images.EditingFixtures;
 using System.Collections.Immutable;
 using Nexaflow.Features.Images.Editing.Layers;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.Images;
 
@@ -469,6 +470,23 @@ public class ImageEditorTests
         Assert.IsFalse(vm.Editor.SaveCommand.CanExecute(null));
         Assert.IsTrue(vm.Editor.SaveCopyCommand.CanExecute(null));
         Assert.IsNotNull(vm.Editor.SaveNote);
+    }
+
+    [TestMethod]
+    [CoversNode("images-edit-save")]
+    public void APhotoWhoseFileIsGone_SaysSo_AndIsOfferedOnlyAsACopy()
+    {
+        var vm = Editing();
+        Assert.IsTrue(_ui.Invoke(() => vm.Editor.CanSaveInPlace));
+
+        File.Delete(_photo);
+        Settle(vm, () => _ui.Invoke(() => vm.Stage.ShowsSourceGoneNotice));
+
+        Assert.IsTrue(_ui.Invoke(() => vm.Stage.ShowsSourceGoneNotice), "the editor says the file is gone");
+        Assert.IsNull(_ui.Invoke(() => vm.Stage.SessionOnlyNotice), "and says it once");
+        Assert.IsFalse(_ui.Invoke(() => vm.Editor.SaveCommand.CanExecute(null)), "Save has nowhere to write");
+        Assert.IsTrue(_ui.Invoke(() => vm.Editor.SaveCopyCommand.CanExecute(null)), "a copy keeps the edits");
+        Assert.AreEqual(Str.Get("Images.Edit.Save.NoteSourceGone"), _ui.Invoke(() => vm.Editor.SaveNote));
     }
 
     /// <summary>A one-image ICO wrapping <paramref name="png"/> — the format nothing here writes.</summary>
