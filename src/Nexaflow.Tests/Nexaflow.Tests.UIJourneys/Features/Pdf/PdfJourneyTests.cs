@@ -225,6 +225,23 @@ if (WaitForId("Pdf_ConvertScans", 10) is not null)
     Check("The notice gives way to the conversion's banner", () => WaitForGone("Pdf_ConvertScans", 3));
 }
 
+        // ── An image on a page: right-clicked, opened in the image editor from the document's published images ──
+        Assert.IsNotNull(DoubleClickOpen("image-only.pdf"), "The reader did not open image-only.pdf to edit its image.");
+        CheckDoes("Fit the page, its image filling it", "Pdf_FitPage", () => WaitForId("Pdf_Zoom", 2)?.Name is { Length: > 0 });
+        if (CheckPresent("Pages", "Pdf_Pages") is { } drawn)
+        {
+            var middle = drawn.BoundingRectangle;
+            RightClickAt(new System.Drawing.Point(middle.X + middle.Width / 2, middle.Y + middle.Height / 2));
+            Wait.UntilInputIsProcessed();
+            CheckDoes("Edit the image", "Pdf_Page_EditImage", () => WaitForId("Image_EditSaveOptions", 10) is not null, seconds: 4);
+
+            // The document closed, the image the editor holds is gone with it: the editor says so, and offers only a copy.
+            CloseReaderTab();
+            CheckPresent("The editor says the image's document is gone, and offers a copy", "Image_SourceGoneSaveCopy", 10);
+            WaitForId("CloseTab_Artist", 6)?.Click();
+            Wait.UntilInputIsProcessed();
+        }
+
         // ── Editing the pages: a copy of the outlined document, so the sample stays as it is ──
         var copies = TestTemp.CreateSubdirectory("pdf-pages").FullName;
         System.IO.File.Copy(TestSampleData.Path("pdf", "outline.pdf"), System.IO.Path.Combine(copies, "pages.pdf"));
@@ -275,7 +292,7 @@ if (WaitForId("Pdf_ConvertScans", 10) is not null)
             Wait.UntilInputIsProcessed();
             CheckPresent("How many pages each sheet holds", "Pdf_Split_Parts", 3);
             CheckPresent("How the pages sit on the sheet", "Pdf_Split_Direction", 2);
-            CheckPresent("Unfold a booklet", "Pdf_Split_Booklet", 2);
+            CheckPresent("The order the pages are put in", "Pdf_Split_Order", 2);
             CheckDoes("Cancel the split", "Pdf_Sheet_Cancel", () => WaitForId("Pdf_Sheet_Apply", 1) is null);
 
             rows[1].RightClick();
@@ -329,6 +346,28 @@ if (WaitForId("Pdf_ConvertScans", 10) is not null)
                 CheckPresent("What its content does", "Pdf_Size_Fit", 2);
                 CheckDoes("Set its size", "Pdf_Sheet_Apply", () => WaitForId("Pdf_Sheet_Apply", 1) is null && PageCountIs('3', 2));
                 CheckDoes("Undo the new size", "Pdf_Undo", () => WaitForId("Pdf_Undo", 2)?.IsEnabled == false);
+            }
+
+            // Set margins on a page: its content found from a picture of it, then moved into the room they leave; undone.
+            if (Thumbnails(thumbnails) is { Length: 3 } margined)
+            {
+                margined[1].Click();
+                Wait.UntilInputIsProcessed();
+                margined[1].RightClick();
+                Wait.UntilInputIsProcessed();
+                CheckPresent("Set the page's margins", "Pdf_Thumb_SetMargins", 3)?.Click();
+                Wait.UntilInputIsProcessed();
+                CheckPresent("The top margin", "Pdf_Margins_Top", 3);
+                CheckPresent("The bottom margin", "Pdf_Margins_Bottom", 2);
+                CheckPresent("The left margin", "Pdf_Margins_Left", 2);
+                CheckPresent("The right margin", "Pdf_Margins_Right", 2);
+                CheckPresent("The unit they are in", "Pdf_Margins_Unit", 2);
+                CheckPresent("Where the content sits across", "Pdf_Margins_Across", 2);
+                CheckPresent("Where the content sits down", "Pdf_Margins_Down", 2);
+                CheckPresent("One size of text throughout", "Pdf_Margins_SameScale", 2);
+                Check("The page's content is found", () => EnabledWithin("Pdf_Sheet_Apply", 10));
+                CheckDoes("Set its margins", "Pdf_Sheet_Apply", () => WaitForId("Pdf_Sheet_Apply", 1) is null && PageCountIs('3', 2));
+                CheckDoes("Undo the margins", "Pdf_Undo", () => WaitForId("Pdf_Undo", 2)?.IsEnabled == false);
             }
 
             // Every page at once, from the toolbar: the edit chosen in the bar; cancelled.
@@ -393,6 +432,20 @@ if (WaitForId("Pdf_ConvertScans", 10) is not null)
         do
         {
             if (WaitForId("Pdf_PageCount", 1) is { } count && count.Name.Contains(pages)) return true;
+            Thread.Sleep(150);
+        }
+        while (sw.Elapsed < TimeSpan.FromSeconds(seconds));
+
+        return false;
+    }
+
+    /// <summary>Whether the control <paramref name="automationId"/> is there and enabled within <paramref name="seconds"/>.</summary>
+    private bool EnabledWithin(string automationId, int seconds)
+    {
+        var sw = Stopwatch.StartNew();
+        do
+        {
+            if (WaitForId(automationId, 1) is { IsEnabled: true }) return true;
             Thread.Sleep(150);
         }
         while (sw.Elapsed < TimeSpan.FromSeconds(seconds));

@@ -618,6 +618,13 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
     {
         if (_hidden > 0) return;
 
+        // A picture put in the image's place is drawn instead, filling its place; the image itself is not decoded.
+        if (_xObject is { } reference && _caches.Replacements.TryGetValue(reference, out var replacement))
+        {
+            Image(replacement.Picture, "the picture put in its place cannot be decoded", replacement.HasAlpha, reference);
+            return;
+        }
+
         var picture = _caches.Picture(_xObject, () =>
         {
             var image = XObjectFactory.ReadImage(xObjectContentRecord, PdfScanner, FilterProvider, ResourceStore, ParsingOptions);
@@ -626,17 +633,17 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
         }, out var failure);
 
         var dictionary = xObjectContentRecord.Stream.StreamDictionary;
-        Image(picture, failure, ownSoftMask: dictionary.ContainsKey(NameToken.Smask) || PdfJpxSamples.CarriesSoftMask(dictionary));
+        Image(picture, failure, ownSoftMask: dictionary.ContainsKey(NameToken.Smask) || PdfJpxSamples.CarriesSoftMask(dictionary), _xObject);
     }
 
     protected override void RenderInlineImage(InlineImage inlineImage)
     {
         if (_hidden > 0) return;
         // An inline image has no soft mask of its own: the graphics state's masks it.
-        Image(PdfPicture.TryDecode(inlineImage, out var failure), failure, ownSoftMask: false);
+        Image(PdfPicture.TryDecode(inlineImage, out var failure), failure, ownSoftMask: false, image: null);
     }
 
-    private void Image(PdfPicture? picture, string? failure, bool ownSoftMask)
+    private void Image(PdfPicture? picture, string? failure, bool ownSoftMask, IndirectReference? image)
     {
         if (picture is null)
         {
@@ -649,7 +656,7 @@ internal sealed class PdfPageInterpreter : BaseStreamProcessor<PdfGroupNode>
         var stencil = picture.IsStencil
             ? Paint(state.CurrentNonStrokingColor, state.AlphaConstantNonStroking, stroking: false)
             : null;
-        Add(new PdfImageNode(picture, UserToOutput(), state.AlphaConstantNonStroking, stencil), ownSoftMask);
+        Add(new PdfImageNode(picture, UserToOutput(), state.AlphaConstantNonStroking, stencil, image), ownSoftMask);
     }
 
     public override void PaintShading(NameToken shadingName)

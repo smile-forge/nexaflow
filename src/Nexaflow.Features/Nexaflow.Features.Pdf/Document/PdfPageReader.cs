@@ -58,17 +58,20 @@ internal sealed class PdfPageReader
     /// part were the page's crop box: its size, its place, and what lies outside it all follow.
     /// </summary>
     public PdfPageNode ReadPage(int number, CancellationToken ct, PdfPagePart? part = null) =>
-        ReadPage(number, PdfReadingPlacement.Alone(part), ct);
+        ReadPage(number, PdfReadingPlacement.Alone(part), PdfReadingCaches.NoReplacements, ct);
 
     /// <summary>
     /// Page <paramref name="number"/> (1-based) read as <paramref name="placement"/> says: its part, read as though it were
-    /// the page's crop box, onto a sheet — everything read of it in the sheet's space, its glyphs naming the sheet's text.
+    /// the page's crop box, onto a sheet — everything read of it in the sheet's space, its glyphs naming the sheet's text —
+    /// each of the document's images in <paramref name="replacements"/> drawn as the picture put in its place.
     /// </summary>
-    public PdfPageNode ReadPage(int number, PdfReadingPlacement placement, CancellationToken ct)
+    public PdfPageNode ReadPage(int number, PdfReadingPlacement placement,
+                                IReadOnlyDictionary<UglyToad.PdfPig.Core.IndirectReference, PdfImageReplacement> replacements, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
         _caches.Cancellation = ct;
         _caches.Reading = placement;
+        _caches.Replacements = replacements;
         try
         {
             return _document.GetPage<PdfPageNode>(number);
@@ -77,6 +80,7 @@ internal sealed class PdfPageReader
         {
             _caches.Cancellation = CancellationToken.None;
             _caches.Reading = null;
+            _caches.Replacements = PdfReadingCaches.NoReplacements;
         }
     }
 

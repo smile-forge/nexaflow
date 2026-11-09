@@ -4,6 +4,25 @@ using UglyToad.PdfPig.Core;
 namespace Nexaflow.Features.Pdf.Document;
 
 /// <summary>
+/// How a page is cut into parts: <paramref name="Columns"/> side by side and <paramref name="Rows"/> one above another,
+/// the parts read left to right, top to bottom.
+/// </summary>
+internal readonly record struct PdfSplitLayout(int Columns, int Rows)
+{
+    public int Count => Columns * Rows;
+
+    /// <summary><paramref name="count"/> parts in a row: side by side when cut <paramref name="across"/>, otherwise one above another.</summary>
+    public static PdfSplitLayout Strip(int count, bool across) => across ? new(count, 1) : new(1, count);
+
+    /// <summary><paramref name="count"/> parts as a grid as many down as across — four, two by two; null when there is none.</summary>
+    public static PdfSplitLayout? Square(int count)
+    {
+        var side = (int)Math.Round(Math.Sqrt(count));
+        return side > 1 && side * side == count ? new PdfSplitLayout(side, side) : null;
+    }
+}
+
+/// <summary>
 /// Part of a page as it is shown — one page of several printed to a sheet — as fractions of the shown page measured
 /// from its top left, so a part is the same whatever size the page is drawn at and however the page is turned.
 /// </summary>
@@ -20,15 +39,33 @@ internal readonly record struct PdfPagePart(double Left, double Top, double Widt
         if (count < 2)
             throw new ArgumentOutOfRangeException(nameof(count), count, "A page is split into two parts or more.");
 
-        var share = 1.0 / count;
-        return Enumerable.Range(0, count)
-            .Select(i => (across ? new PdfPagePart(i * share, 0, share, 1) : new PdfPagePart(0, i * share, 1, share)).Snapped())
+        return Split(PdfSplitLayout.Strip(count, across));
+    }
+
+    /// <summary>A page cut into equal parts as <paramref name="layout"/> says, read left to right, top to bottom.</summary>
+    public static IReadOnlyList<PdfPagePart> Split(PdfSplitLayout layout)
+    {
+        if (layout.Columns < 1 || layout.Rows < 1 || layout.Count < 2)
+            throw new ArgumentOutOfRangeException(nameof(layout), layout, "A page is split into two parts or more.");
+
+        var across = 1.0 / layout.Columns;
+        var down = 1.0 / layout.Rows;
+        return Enumerable.Range(0, layout.Count)
+            .Select(i => new PdfPagePart(i % layout.Columns * across, i / layout.Columns * down, across, down).Snapped())
             .ToList();
     }
 
-    /// <summary>The lines a page is cut along into <see cref="Split"/>'s parts: one between each part and the next.</summary>
-    public static IReadOnlyList<PdfPageCut> Cuts(int count, bool across) =>
-        Split(count, across).Skip(1).Select(part => new PdfPageCut(across ? part.Left : part.Top, across)).ToList();
+    /// <summary>The lines a page is cut along into <see cref="Split(int, bool)"/>'s parts: one between each part and the next.</summary>
+    public static IReadOnlyList<PdfPageCut> Cuts(int count, bool across) => Cuts(PdfSplitLayout.Strip(count, across));
+
+    /// <summary>The lines a page is cut along into <paramref name="layout"/>'s parts: down between columns, across between rows.</summary>
+    public static IReadOnlyList<PdfPageCut> Cuts(PdfSplitLayout layout)
+    {
+        var parts = Split(layout);
+        return parts.Select(part => part.Left).Where(at => at > 0).Distinct().Select(at => new PdfPageCut(at, true))
+            .Concat(parts.Select(part => part.Top).Where(at => at > 0).Distinct().Select(at => new PdfPageCut(at, false)))
+            .ToList();
+    }
 
     /// <summary>This part of <paramref name="outer"/> — a part of a part — as a part of the whole page.</summary>
     public PdfPagePart Of(PdfPagePart outer) =>

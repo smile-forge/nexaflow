@@ -56,12 +56,12 @@ public class PdfViewModelAiTests
                 new[]
                 {
                     "pdf_get_info", "pdf_outline", "pdf_read_text", "pdf_find_text", "pdf_read_scans",
-                    "pdf_list_images", "pdf_get_image", "pdf_page_image", "pdf_view_page",
+                    "pdf_list_images", "pdf_get_image", "pdf_page_image", "pdf_view_page", "pdf_set_margins", "pdf_edit_image", "pdf_split_pages", "pdf_merge_pages",
                 },
                 names);
 
-            // Reading a document the user already opened changes nothing, so nothing here should stop to ask
-            // permission — a confirmation prompt per page would make reading a report unusable.
+            // Reading a document the user already opened changes nothing, and an edit is staged — undone as the user's are, written
+            // only when they save — so nothing here stops to ask permission: a prompt per page would make reading a report unusable.
             Assert.IsTrue(vm.GetClientTools().All(t => t.Safety == ToolSafety.SafeOperation));
         }
         finally { vm.Dispose(); }
@@ -83,6 +83,138 @@ public class PdfViewModelAiTests
         shell.RunOnUiAsync(Arg.Any<Action>()).Returns(call => { call.Arg<Action>()(); return Task.CompletedTask; });
         shell.RunOnUiAsync(Arg.Any<Func<Task<PagesRead?>>>()).Returns(call => call.Arg<Func<Task<PagesRead?>>>()());
         return shell;
+    }
+
+    /// <summary>A shell that runs what it is handed on the calling thread, edits and their answers alike.</summary>
+    private static IShellServices EditingShell()
+    {
+        var shell = RunningShell();
+        shell.RunOnUiAsync(Arg.Any<Func<Task<bool>>>()).Returns(call => call.Arg<Func<Task<bool>>>()());
+        return shell;
+    }
+
+    /// <summary>A copy of <paramref name="sample"/> open as its tab opens it, its images published on a runtime's file system.</summary>
+    private static PdfViewModel EditableVm(string sample, IShellServices shell)
+    {
+        var copy = System.IO.Path.Combine(TestTemp.CreateSubdirectory().FullName, sample);
+        System.IO.File.Copy(Sample(sample), copy);
+        var vm = new PdfViewModel(copy, shell, VirtualFileSystem.Instance, new PdfConfig(),
+                                  publisher: new Nexaflow.IO.Common.Locations.LocationFileSystem(VirtualFileSystem.Instance));
+        vm.LoadAsync(System.Windows.Media.Brushes.White).GetAwaiter().GetResult();
+        vm.PagesPanel.CanEdit = true;
+        return vm;
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-page-margins")]
+    public async Task SetMargins_MovesThePagesContent_AsOneEditTheUserCanUndo_AndRefusesWhatCannotBe()
+    {
+        var vm = EditableVm("outline.pdf", EditingShell());
+        try
+        {
+            var refused = await Invoke(vm, "pdf_set_margins", new JsonObject { ["unit"] = "cubits" });
+            Assert.IsFalse(refused.Success, "a unit margins are not given in is refused");
+            var tooWide = await Invoke(vm, "pdf_set_margins", new JsonObject { ["left"] = 400, ["right"] = 400, ["unit"] = "pt" });
+            Assert.IsFalse(tooWide.Success, "margins that leave no room are refused");
+            Assert.IsFalse(vm.IsDirty);
+
+            var result = await Invoke(vm, "pdf_set_margins", new JsonObject
+            {
+                ["top"] = 15, ["bottom"] = 15, ["left"] = 25, ["right"] = 25, ["pages"] = new JsonArray(1, 2),
+            });
+
+            Assert.IsTrue(result.Success, result.ModelText);
+            StringAssert.Contains(result.ModelText, "2 page(s)");
+            Assert.IsTrue(vm.IsDirty, "staged on the document, as the user's own edit is");
+            vm.UndoCommand.Execute(null);
+            Assert.IsFalse(vm.IsDirty, "one edit, undone");
+        }
+        finally { vm.Dispose(); }
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-image-edit")]
+    public async Task EditImage_OpensThePagesImage_InTheImageEditor_FromTheDocumentsPublishedImages()
+    {
+        var shell = EditingShell();
+        var vm = EditableVm("image-only.pdf", shell);
+        try
+        {
+            var outOfRange = await Invoke(vm, "pdf_edit_image", new JsonObject { ["page"] = 1, ["index"] = 2 });
+            Assert.IsFalse(outOfRange.Success, "the page draws one image");
+            StringAssert.Contains(outOfRange.ModelText, "1:", "and the answer says which there are");
+
+            var result = await Invoke(vm, "pdf_edit_image", new JsonObject { ["page"] = 1 });
+
+            Assert.IsTrue(result.Success, result.ModelText);
+            shell.Received(1).OpenTab("Artist", Arg.Is<Dictionary<string, string>>(given => given["path"].StartsWith("::pdf-", StringComparison.Ordinal)));
+            Assert.IsFalse(vm.IsDirty, "opening it changes nothing");
+        }
+        finally { vm.Dispose(); }
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-image-edit")]
+    public async Task EditImage_SaysSo_WhenThePageHasNoImageToEdit()
+    {
+        var vm = EditableVm("text.pdf", EditingShell());
+        try
+        {
+            var result = await Invoke(vm, "pdf_edit_image", new JsonObject { ["page"] = 1 });
+
+            Assert.IsTrue(result.Success);
+            StringAssert.Contains(result.ModelText, "no image that can be edited");
+        }
+        finally { vm.Dispose(); }
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-ai-act-split-pages")]
+    public async Task SplitPages_CutsSheetsPrintedDoubleSided_TwoByTwo_IntoReadingOrder_AsOneEdit()
+    {
+        var vm = EditableVm("outline.pdf", EditingShell());
+        try
+        {
+            var refused = await Invoke(vm, "pdf_split_pages", new JsonObject { ["parts"] = 3, ["direction"] = "grid" });
+            Assert.IsFalse(refused.Success, "three parts make no grid");
+            var noPage = await Invoke(vm, "pdf_split_pages", new JsonObject { ["parts"] = 2, ["pages"] = new JsonArray(9) });
+            Assert.IsFalse(noPage.Success, "the document has no page 9");
+            Assert.IsFalse(vm.IsDirty);
+
+            var result = await Invoke(vm, "pdf_split_pages", new JsonObject
+            {
+                ["parts"] = 4, ["direction"] = "grid", ["order"] = "double_sided_cut", ["pages"] = new JsonArray(1, 2),
+            });
+
+            Assert.IsTrue(result.Success, result.ModelText);
+            Assert.AreEqual(9, vm.PageCount, "two sheets cut into eight pages, the third left as it was");
+            vm.UndoCommand.Execute(null);
+            Assert.AreEqual(3, vm.PageCount, "one edit, undone");
+        }
+        finally { vm.Dispose(); }
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-ai-act-merge-pages")]
+    public async Task MergePages_FoldsThePagesIntoABooklet_OnPaperAsked_AsOneEdit()
+    {
+        var vm = EditableVm("outline.pdf", EditingShell());
+        try
+        {
+            var refused = await Invoke(vm, "pdf_merge_pages", new JsonObject { ["per_sheet"] = 3, ["booklet"] = true });
+            Assert.IsFalse(refused.Success, "a booklet is two to a side");
+            var unknown = await Invoke(vm, "pdf_merge_pages", new JsonObject { ["per_sheet"] = 2, ["paper"] = "B7" });
+            Assert.IsFalse(unknown.Success, "a paper not offered is refused");
+
+            var result = await Invoke(vm, "pdf_merge_pages", new JsonObject { ["per_sheet"] = 2, ["booklet"] = true, ["paper"] = "A4" });
+
+            Assert.IsTrue(result.Success, result.ModelText);
+            Assert.AreEqual(2, vm.PageCount, "three pages, padded to four, on one sheet's two sides");
+            StringAssert.Contains(result.ModelText, "booklet");
+            vm.UndoCommand.Execute(null);
+            Assert.AreEqual(3, vm.PageCount, "one edit, undone");
+        }
+        finally { vm.Dispose(); }
     }
 
     [TestMethod]

@@ -6,8 +6,8 @@ namespace Nexaflow.IO.Common.Locations;
 
 /// <summary>
 /// One workspace runtime's file system: the shared <see cref="VirtualFileSystem"/> for real, archive and mounted
-/// paths, plus the remote locations this runtime has connected. A <c>::{connectionId}\…</c> path routes to its
-/// connection's session; every other path passes to the shared file system unchanged.
+/// paths, plus the remote locations this runtime has connected and the locations its features publish. A
+/// <c>::{id}\…</c> path routes to its location's session; every other path passes to the shared file system unchanged.
 /// <para>
 /// Sessions are per runtime, so this — not the process-wide instance — is what a feature is given. The sync IO
 /// members serve local paths only and throw <see cref="LocationRequiresAsyncException"/> on a remote one; the async
@@ -16,7 +16,7 @@ namespace Nexaflow.IO.Common.Locations;
 /// <see cref="IsContainerAsync"/> answers false for one. Thread-safe.
 /// </para>
 /// </summary>
-public sealed class LocationFileSystem : IVirtualFileSystem
+public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher
 {
     private readonly IVirtualFileSystem _shared;
 
@@ -65,6 +65,55 @@ public sealed class LocationFileSystem : IVirtualFileSystem
             if (ReferenceEquals(Interlocked.CompareExchange(ref _locations, next, current), current)) break;
         }
         LocationsChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Routes <paramref name="location"/>'s paths until the handle returned is disposed — never in place of another: an id
+    /// already routed, or naming a shared mount, is refused with <see cref="ArgumentException"/>.
+    /// </summary>
+    public IDisposable Publish(LocationMount location)
+    {
+        if (!LocationPath.IsSegmentSafeId(location.Id))
+            throw new ArgumentException(
+                $"Location id '{location.Id}' must be non-empty and free of \\ / : — it forms a single path segment.",
+                nameof(location));
+        if (_shared.Mounts.Any(m => IdEquals(m.Id, location.Id)))
+            throw new ArgumentException($"Location id '{location.Id}' already names a mount.", nameof(location));
+
+        while (true)
+        {
+            var current = Volatile.Read(ref _locations);
+            if (current.Any(l => IdEquals(l.Id, location.Id)))
+                throw new ArgumentException($"Location id '{location.Id}' already names a location.", nameof(location));
+            var next = current.Append(location).ToArray();
+            if (ReferenceEquals(Interlocked.CompareExchange(ref _locations, next, current), current)) break;
+        }
+        LocationsChanged?.Invoke();
+        return new Publication(this, location);
+    }
+
+    /// <summary>Stops routing <paramref name="location"/>, if it is still what its id routes to.</summary>
+    private void Withdraw(LocationMount location)
+    {
+        while (true)
+        {
+            var current = Volatile.Read(ref _locations);
+            if (!current.Contains(location)) return;
+            var next = current.Where(l => !l.Equals(location)).ToArray();
+            if (ReferenceEquals(Interlocked.CompareExchange(ref _locations, next, current), current)) break;
+        }
+        LocationsChanged?.Invoke();
+    }
+
+    /// <summary>A published location's handle: disposing it withdraws the location, once.</summary>
+    private sealed class Publication(LocationFileSystem files, LocationMount location) : IDisposable
+    {
+        private int _withdrawn;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _withdrawn, 1) == 0) files.Withdraw(location);
+        }
     }
 
     private static bool IdEquals(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);

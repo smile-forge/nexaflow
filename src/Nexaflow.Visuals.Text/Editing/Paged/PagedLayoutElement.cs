@@ -402,6 +402,25 @@ public sealed class PagedLayoutElement : FrameworkElement, IScrollInfo
     }
 
     /// <summary>
+    /// The page under <paramref name="point"/> — in this element's coordinates — and where on it, in the page's own
+    /// device-independent pixels as its source sized it; null over no page.
+    /// </summary>
+    public (int Page, Point Local)? PagePointAt(Point point) => PageAt(point, out var index, out var local) ? (index, local) : null;
+
+    /// <summary>
+    /// Where <paramref name="local"/> — an area of page <paramref name="page"/>, in its own device-independent pixels — lies in
+    /// this element's coordinates as it is now scrolled and zoomed; null for a page it does not have.
+    /// </summary>
+    public Rect? ElementRectOf(int page, Rect local)
+    {
+        if (page < 0 || page >= _sizes.Length) return null;
+
+        var origin = Origin(page);
+        var zoom = Zoom;
+        return new Rect(origin.X + local.X * zoom, origin.Y + local.Y * zoom, local.Width * zoom, local.Height * zoom);
+    }
+
+    /// <summary>
     /// Brings the shown pages into line with the viewport: places them, shows those that came near, lets go of those that
     /// went far, and asks for the ones that are near and not yet laid.
     /// </summary>

@@ -67,6 +67,34 @@ public class PdfPageSplitTests
     [TestMethod]
     [TestCategory("Unit")]
     [CoversNode("pdf-page-split")]
+    public void APage_IsCutTwoByTwo_ReadLeftToRightThenDown_AlongACutEachWay()
+    {
+        var grid = PdfSplitLayout.Square(4)!.Value;
+
+        CollectionAssert.AreEqual(
+            new[] { new PdfPagePart(0, 0, 0.5, 0.5), new PdfPagePart(0.5, 0, 0.5, 0.5), new PdfPagePart(0, 0.5, 0.5, 0.5), new PdfPagePart(0.5, 0.5, 0.5, 0.5) },
+            PdfPagePart.Split(grid).ToArray());
+        CollectionAssert.AreEquivalent(new[] { new PdfPageCut(0.5, true), new PdfPageCut(0.5, false) }, PdfPagePart.Cuts(grid).ToArray());
+        Assert.IsNull(PdfSplitLayout.Square(3), "three parts make no grid");
+        CollectionAssert.AreEqual(PdfPagePart.Split(3, across: true).ToArray(), PdfPagePart.Split(PdfSplitLayout.Strip(3, across: true)).ToArray());
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    [CoversNode("pdf-page-split")]
+    public void LeavesCutFromSheetsPrintedDoubleSided_AreReadFrontThenBack_TheBackMirrored()
+    {
+        // A notice printed four to a sheet: the front holds 1, 3, 5, 7; turned over its long edge, the back 4, 2, 8, 6.
+        (IReadOnlyList<int>, int)[] fourUp = [([1, 3, 5, 7], 2), ([4, 2, 8, 6], 2), ([9, 11, 13, 15], 2), ([12, 10, 16, 14], 2)];
+        CollectionAssert.AreEqual(Enumerable.Range(1, 16).ToArray(), PdfCutLeaves.Order(fourUp).ToArray());
+
+        (IReadOnlyList<int>, int)[] twoUp = [([1, 3], 2), ([4, 2], 2), ([5, 7], 2)];
+        CollectionAssert.AreEqual(new[] { 1, 2, 3, 4, 5, 7 }, PdfCutLeaves.Order(twoUp).ToArray(), "a last front with no back is read as it lies");
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    [CoversNode("pdf-page-split")]
     public void ReplacingPages_PutsTheNewOnesWhereTheFirstWas()
     {
         var pages = PdfPageArrangement.Of(Enumerable.Range(1, 4).Select(number => new PdfArrangedPage(new PdfPageId(number), new PdfSourceId(0), number)));
@@ -105,7 +133,7 @@ public class PdfPageSplitTests
     public async Task EachPage_IsSplitInItsOwnPlace_TheWayItIsLonger_AsOneEdit()
     {
         using var session = await Opened();
-        session.Split([0, 1], 2, PdfSplitDirection.Auto, booklet: false);
+        session.Split([0, 1], 2, PdfSplitDirection.Auto, PdfSplitOrder.AsTheyLie);
 
         Assert.AreEqual("1 1 2 2", Numbers(session.Arrangement));
         Assert.AreEqual(new Size(396, 612), session.PageSize(0));
@@ -123,13 +151,37 @@ public class PdfPageSplitTests
     {
         using var session = await Opened();
 
-        session.Split([0], 3, PdfSplitDirection.Down, booklet: false);
+        session.Split([0], 3, PdfSplitDirection.Down, PdfSplitOrder.AsTheyLie);
         Assert.AreEqual(4, session.Arrangement.Count);
         Assert.AreEqual(new Size(792, 204), session.PageSize(0));
 
-        session.Split([1], 2, PdfSplitDirection.Auto, booklet: false);
+        session.Split([1], 2, PdfSplitDirection.Auto, PdfSplitOrder.AsTheyLie);
         Assert.AreEqual(new Size(396, 204), session.PageSize(1), "a part wider than it is tall is cut side by side");
         Assert.AreEqual(new Size(792, 204), session.PageSize(3), "the parts after it are where they were");
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    [CoversNode("pdf-page-split")]
+    public async Task SheetsPrintedDoubleSided_AreCutTwoByTwo_AndPutInReadingOrder_AsOneEdit()
+    {
+        using var session = await Opened();
+        Assert.ThrowsExactly<ArgumentException>(() => session.Split([0], 3, PdfSplitDirection.Grid, PdfSplitOrder.AsTheyLie), "three parts make no grid");
+        Assert.ThrowsExactly<ArgumentException>(() => session.Split([0, 1], 4, PdfSplitDirection.Grid, PdfSplitOrder.FoldedBooklet), "a booklet unfolds from halves only");
+
+        session.Split([0, 1], 4, PdfSplitDirection.Grid, PdfSplitOrder.DoubleSidedCut);
+
+        var (left, top, right, bottom) = (0.0, 0.0, 0.5, 0.5);
+        var read = session.Arrangement.Pages.Select(page => (page.Sheet.Pieces[0].Number, page.Sheet.Pieces[0].Part.Left, page.Sheet.Pieces[0].Part.Top)).ToList();
+        CollectionAssert.AreEqual(new[]
+        {
+            (1, left, top), (2, right, top), (1, right, top), (2, left, top),
+            (1, left, bottom), (2, right, bottom), (1, right, bottom), (2, left, bottom),
+        }, read, "each leaf's front, then the part of the back behind it");
+        Assert.AreEqual(new Size(396, 306), session.PageSize(0));
+
+        session.Undo();
+        Assert.AreEqual("1 2", Numbers(session.Arrangement), "one edit");
     }
 
     [TestMethod]
@@ -139,8 +191,8 @@ public class PdfPageSplitTests
     {
         using var session = await Opened();
 
-        Assert.ThrowsExactly<ArgumentException>(() => session.Split([0, 1], 3, PdfSplitDirection.Auto, booklet: true));
-        session.Split([0, 1], 2, PdfSplitDirection.Auto, booklet: true);
+        Assert.ThrowsExactly<ArgumentException>(() => session.Split([0, 1], 3, PdfSplitDirection.Auto, PdfSplitOrder.FoldedBooklet));
+        session.Split([0, 1], 2, PdfSplitDirection.Auto, PdfSplitOrder.FoldedBooklet);
 
         CollectionAssert.AreEqual(new[] { "page one", "page two", "page three", "page four" }, await Texts(session));
     }
@@ -154,7 +206,7 @@ public class PdfPageSplitTests
         var path = Copy();
         using (var session = await Opened(path))
         {
-            session.Split([0, 1], 2, PdfSplitDirection.Auto, booklet: true);
+            session.Split([0, 1], 2, PdfSplitDirection.Auto, PdfSplitOrder.FoldedBooklet);
             await session.SaveAsync(null, CancellationToken.None);
         }
 
@@ -175,7 +227,7 @@ public class PdfPageSplitTests
     public async Task ALinkIntoASplitPage_GoesToThePartItsPointLiesIn()
     {
         using var session = await Opened();
-        session.Split([0], 2, PdfSplitDirection.Across, booklet: false);
+        session.Split([0], 2, PdfSplitDirection.Across, PdfSplitOrder.AsTheyLie);
         var pages = new PdfPageSource(session.Arrangement, session.Opened(), Brushes.White);
         var source = session.Arrangement[0].Sheet.Pieces[0].Source;
 
@@ -197,6 +249,22 @@ public class PdfPageSplitTests
         Assert.IsFalse(clear.Crosses(new PdfPageCut(0.5, Vertical: true)), "a gutter of the sheet's own colour, whatever that is");
         Assert.IsTrue(crossed.Crosses(new PdfPageCut(0.5, Vertical: true)));
         Assert.IsFalse(crossed.Crosses(new PdfPageCut(0.9, Vertical: false)), "below the artwork");
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    [CoversNode("pdf-page-split")]
+    public void TheMarksASheetIsCutBy_AtTheEndsOfTheLine_AreNotArtworkCrossingIt()
+    {
+        var white = (B: (byte)255, G: (byte)255, R: (byte)255);
+        // Hairlines on the cut line, reaching in from the top and bottom edges as crop marks do; the pages either side clear of it.
+        var marked = PdfInk.Of(Picture(200, 400, white, (99, 101, 0, 12), (99, 101, 388, 400), (10, 90, 30, 370), (110, 190, 30, 370)));
+        var crossed = PdfInk.Of(Picture(200, 400, white, (99, 101, 0, 12), (99, 101, 388, 400), (10, 150, 150, 250)));
+        var bleeding = PdfInk.Of(Picture(200, 400, white, (60, 140, 0, 60)));
+
+        Assert.IsFalse(marked.Crosses(new PdfPageCut(0.5, Vertical: true)), "the marks to cut by are not artwork");
+        Assert.IsTrue(crossed.Crosses(new PdfPageCut(0.5, Vertical: true)), "artwork across the middle still is");
+        Assert.IsTrue(bleeding.Crosses(new PdfPageCut(0.5, Vertical: true)), "and a picture running in from the edge past where a mark would reach");
     }
 
     /// <summary>A sheet of one colour with dark blocks on it, each given as its columns and rows, ends excluded.</summary>

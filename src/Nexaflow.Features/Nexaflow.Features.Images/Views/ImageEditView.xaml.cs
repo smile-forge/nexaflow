@@ -123,6 +123,9 @@ public partial class ImageEditView : UserControl
         // The picture is laid out at LayoutScale of its own pixels to a screen unit: 1:1 and the readout count its pixels on screen.
         Surface.NaturalScale = 1 / (canvas.LayoutScale * VisualTreeHelper.GetDpi(this).PixelsPerDip);
         Surface.MaxScale     = Surface.NaturalScale * MaxZoom;
+        // A picture smaller than the window is fitted to it as a larger one is — a logo taken from a document is worked on at a
+        // size it can be seen at — as far as the zoom goes.
+        Surface.FitUpTo      = Surface.MaxScale;
         if (!sameShape) Surface.SetSurfaceContent(_content, new Size(canvas.Size.Width, canvas.Size.Height));
         _overlay.InvalidateVisual();
     }

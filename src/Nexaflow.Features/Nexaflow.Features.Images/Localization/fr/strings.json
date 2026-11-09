@@ -716,6 +716,8 @@
   "Images.Edit.Notice.Keep": "Garder les modifications",
   "Images.Edit.Notice.Discard": "Abandonner les modifications",
   "Images.Edit.Notice.Archive": "Cette image est dans une archive : les modifications sont perdues à la fermeture. Utilisez Enregistrer une copie pour les garder.",
+  "Images.Edit.Notice.SessionOnly": "Les modifications de cette image ne durent que tant qu'elle est ouverte. Enregistrer les y écrit.",
+  "Images.Edit.Notice.SourceGone": "Le fichier d'où vient cette image n'existe plus : il a été déplacé ou supprimé, ou le document d'où elle vient a été enregistré ou fermé. Enregistrez une copie pour garder vos modifications.",
   "Images.Edit.Notice.Newer": "Ces modifications viennent d'une version plus récente de Nexaflow : l'image s'affiche sans elles. Les nouvelles modifications ne seront pas gardées.",
   "Images.Edit.Notice.Unreadable": "Le fichier de modifications de cette image est illisible : l'image s'affiche sans modifications. Les nouvelles modifications ne seront pas gardées.",
 
@@ -727,6 +729,7 @@
   "Images.Edit.Save.FailedFormat": "Impossible d'enregistrer « {0} » : {1}",
   "Images.Edit.Save.StatusFormat": "Enregistrement de {0}",
   "Images.Edit.Save.NoteArchive": "Cette image est dans une archive : elle ne peut être enregistrée que sous forme de copie.",
+  "Images.Edit.Save.NoteSourceGone": "Le fichier d'où vient cette image n'existe plus : elle ne peut être enregistrée que sous forme de copie.",
   "Images.Edit.Save.NoteNoTransparencyFormat": "Les fichiers {0} ne gèrent pas la transparence. Enregistrez cette photo en copie au format PNG ou WebP.",
   "Images.Edit.Save.NoteAnimated": "Cette image est animée et l'enregistrement ne garde que la première image : elle ne peut être enregistrée qu'en copie.",
   "Images.Edit.Save.NoteFormatFormat": "Les images {0} ne peuvent pas être écrites ici : celle-ci ne peut être enregistrée que sous forme de copie.",

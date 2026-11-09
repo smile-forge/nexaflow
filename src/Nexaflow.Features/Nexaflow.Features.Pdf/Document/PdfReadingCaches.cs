@@ -42,6 +42,16 @@ internal sealed class PdfReadingCaches
     public PdfReadingPlacement? Reading { get; set; }
 
     /// <summary>
+    /// The pictures put in place of the document's images, by the image each replaces, while the page being read is read —
+    /// as the edits now have them; none between pages.
+    /// </summary>
+    public IReadOnlyDictionary<IndirectReference, PdfImageReplacement> Replacements { get; set; } = NoReplacements;
+
+    /// <summary>A document with none of its images replaced.</summary>
+    public static IReadOnlyDictionary<IndirectReference, PdfImageReplacement> NoReplacements { get; } =
+        new Dictionary<IndirectReference, PdfImageReplacement>();
+
+    /// <summary>
     /// The picture the image XObject at <paramref name="reference"/> decodes to, decoding it with <paramref name="decode"/>
     /// when it is not among those kept; a failure is kept too, so an undecodable logo on every page is tried once. An image
     /// with no reference of its own (a direct object) is decoded each time.

@@ -124,6 +124,18 @@
             <!-- A picture made for the user and not saved yet; Save asks where it goes, so the strip carries no Save as of its own. -->
             <drafts:DraftBanner DataContext="{Binding Draft}" OffersSaveAs="False"/>
             <views:PictureNotices DataContext="{Binding Stage}"/>
+            <!-- The file the picture was opened from is no longer there — deleted, moved, or the document it came from saved or closed:
+                 Save cannot write it back, so the edits are kept by saving a copy, offered here. -->
+            <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource WarningBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                    Visibility="{Binding Stage.ShowsSourceGoneNotice, Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Command="{Binding Editor.SaveCopyCommand}" Style="{StaticResource ToolbarButtonStyle}"
+                            ToolTip="{loc:Str Images.Edit.SaveCopyTip}" AutomationProperties.AutomationId="Image_SourceGoneSaveCopy">
+                        <icons:IconLabel Icon="fluent:save" Text="{loc:Str Images.Edit.SaveCopy}"/>
+                    </Button>
+                    <TextBlock Text="{loc:Str Images.Edit.Notice.SourceGone}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                </DockPanel>
+            </Border>
             <!-- A layered picture opened on the look the application that wrote it saved: which layers cannot be drawn, and the two ways on. -->
             <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
                     Visibility="{Binding ShowsSavedLookBar, Converter={StaticResource BoolToVis}}">

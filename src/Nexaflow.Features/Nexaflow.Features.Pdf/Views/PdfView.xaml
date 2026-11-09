@@ -285,13 +285,14 @@
                                                            DisplayMemberPath="Label"
                                                            ToolTip="{loc:Str Pdf.Split.DirectionTip}"
                                                            AutomationProperties.AutomationId="Pdf_Split_Direction"/>
-                                                 <CheckBox Margin="0,8,0,0"
-                                                           Content="{loc:Str Pdf.Split.Booklet}"
-                                                           ToolTip="{loc:Str Pdf.Split.BookletTip}"
-                                                           Foreground="{DynamicResource TextBrush}"
-                                                           IsChecked="{Binding SplitBooklet, Mode=TwoWay}"
-                                                           IsEnabled="{Binding CanUnfoldBooklet}"
-                                                           AutomationProperties.AutomationId="Pdf_Split_Booklet"/>
+                                                 <ComboBox Margin="0,6,0,0"
+                                                           Style="{StaticResource DarkComboBox}"
+                                                           ItemsSource="{Binding SplitOrders}"
+                                                           SelectedItem="{Binding SplitOrder, Mode=TwoWay}"
+                                                           DisplayMemberPath="Label"
+                                                           ToolTip="{loc:Str Pdf.Split.OrderTip}"
+                                                           AutomationProperties.Name="{loc:Str Pdf.Split.OrderTip}"
+                                                           AutomationProperties.AutomationId="Pdf_Split_Order"/>
                                                  <TextBlock Margin="0,8,0,0"
                                                             FontSize="12"
                                                             TextWrapping="Wrap"
@@ -394,6 +395,116 @@
                                                            ToolTip="{loc:Str Pdf.Size.FitTip}"
                                                            AutomationProperties.AutomationId="Pdf_Size_Fit"/>
                                              </StackPanel>
+                                             <!-- Margins: each page's content found from a picture of it, then moved as one block — and made smaller only
+                                                  where it must be — into the room the margins leave; the room and where the content would go are drawn on
+                                                  the thumbnails as the figures change. -->
+                                             <StackPanel Visibility="{Binding IsMarginsShown, Converter={StaticResource BoolToVis}}">
+                                                 <DockPanel Margin="0,8,0,0">
+                                                     <TextBlock DockPanel.Dock="Left"
+                                                                Margin="0,0,8,0"
+                                                                VerticalAlignment="Center"
+                                                                Foreground="{DynamicResource TextMutedBrush}"
+                                                                Text="{loc:Str Pdf.Margins.UnitLabel}"/>
+                                                     <ComboBox Style="{StaticResource DarkComboBox}"
+                                                               ItemsSource="{Binding SizeUnits}"
+                                                               SelectedItem="{Binding MarginUnit, Mode=TwoWay}"
+                                                               DisplayMemberPath="Label"
+                                                               ToolTip="{loc:Str Pdf.Margins.UnitTip}"
+                                                               AutomationProperties.Name="{loc:Str Pdf.Margins.UnitLabel}"
+                                                               AutomationProperties.AutomationId="Pdf_Margins_Unit"/>
+                                                 </DockPanel>
+                                                 <Grid Margin="0,6,0,0">
+                                                     <Grid.ColumnDefinitions>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="*"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="*"/>
+                                                     </Grid.ColumnDefinitions>
+                                                     <Grid.RowDefinitions>
+                                                         <RowDefinition Height="Auto"/>
+                                                         <RowDefinition Height="Auto"/>
+                                                     </Grid.RowDefinitions>
+                                                     <TextBlock Grid.Row="0" Grid.Column="0"
+                                                                Margin="0,0,6,0"
+                                                                VerticalAlignment="Center"
+                                                                Foreground="{DynamicResource TextMutedBrush}"
+                                                                Text="{loc:Str Pdf.Margins.Top}"/>
+                                                     <TextBox Grid.Row="0" Grid.Column="1"
+                                                              Style="{StaticResource DarkTextBox}"
+                                                              Text="{Binding MarginTop, UpdateSourceTrigger=PropertyChanged}"
+                                                              ToolTip="{loc:Str Pdf.Margins.TopTip}"
+                                                              AutomationProperties.Name="{loc:Str Pdf.Margins.Top}"
+                                                              AutomationProperties.AutomationId="Pdf_Margins_Top"/>
+                                                     <TextBlock Grid.Row="0" Grid.Column="2"
+                                                                Margin="10,0,6,0"
+                                                                VerticalAlignment="Center"
+                                                                Foreground="{DynamicResource TextMutedBrush}"
+                                                                Text="{loc:Str Pdf.Margins.Bottom}"/>
+                                                     <TextBox Grid.Row="0" Grid.Column="3"
+                                                              Style="{StaticResource DarkTextBox}"
+                                                              Text="{Binding MarginBottom, UpdateSourceTrigger=PropertyChanged}"
+                                                              ToolTip="{loc:Str Pdf.Margins.BottomTip}"
+                                                              AutomationProperties.Name="{loc:Str Pdf.Margins.Bottom}"
+                                                              AutomationProperties.AutomationId="Pdf_Margins_Bottom"/>
+                                                     <TextBlock Grid.Row="1" Grid.Column="0"
+                                                                Margin="0,6,6,0"
+                                                                VerticalAlignment="Center"
+                                                                Foreground="{DynamicResource TextMutedBrush}"
+                                                                Text="{loc:Str Pdf.Margins.Left}"/>
+                                                     <TextBox Grid.Row="1" Grid.Column="1"
+                                                              Margin="0,6,0,0"
+                                                              Style="{StaticResource DarkTextBox}"
+                                                              Text="{Binding MarginLeft, UpdateSourceTrigger=PropertyChanged}"
+                                                              ToolTip="{loc:Str Pdf.Margins.LeftTip}"
+                                                              AutomationProperties.Name="{loc:Str Pdf.Margins.Left}"
+                                                              AutomationProperties.AutomationId="Pdf_Margins_Left"/>
+                                                     <TextBlock Grid.Row="1" Grid.Column="2"
+                                                                Margin="10,6,6,0"
+                                                                VerticalAlignment="Center"
+                                                                Foreground="{DynamicResource TextMutedBrush}"
+                                                                Text="{loc:Str Pdf.Margins.Right}"/>
+                                                     <TextBox Grid.Row="1" Grid.Column="3"
+                                                              Margin="0,6,0,0"
+                                                              Style="{StaticResource DarkTextBox}"
+                                                              Text="{Binding MarginRight, UpdateSourceTrigger=PropertyChanged}"
+                                                              ToolTip="{loc:Str Pdf.Margins.RightTip}"
+                                                              AutomationProperties.Name="{loc:Str Pdf.Margins.Right}"
+                                                              AutomationProperties.AutomationId="Pdf_Margins_Right"/>
+                                                 </Grid>
+
+                                                 <ComboBox Margin="0,6,0,0"
+                                                           Style="{StaticResource DarkComboBox}"
+                                                           ItemsSource="{Binding MarginAcrossChoices}"
+                                                           SelectedItem="{Binding MarginAcross, Mode=TwoWay}"
+                                                           DisplayMemberPath="Label"
+                                                           ToolTip="{loc:Str Pdf.Margins.AcrossTip}"
+                                                           AutomationProperties.AutomationId="Pdf_Margins_Across"/>
+                                                 <ComboBox Margin="0,6,0,0"
+                                                           Style="{StaticResource DarkComboBox}"
+                                                           ItemsSource="{Binding MarginDownChoices}"
+                                                           SelectedItem="{Binding MarginDown, Mode=TwoWay}"
+                                                           DisplayMemberPath="Label"
+                                                           ToolTip="{loc:Str Pdf.Margins.DownTip}"
+                                                           AutomationProperties.AutomationId="Pdf_Margins_Down"/>
+                                                 <CheckBox Margin="0,8,0,0"
+                                                           Content="{loc:Str Pdf.Margins.SameScale}"
+                                                           ToolTip="{loc:Str Pdf.Margins.SameScaleTip}"
+                                                           Foreground="{DynamicResource TextBrush}"
+                                                           IsChecked="{Binding MarginsSameScale, Mode=TwoWay}"
+                                                           AutomationProperties.AutomationId="Pdf_Margins_SameScale"/>
+                                                 <TextBlock Margin="0,8,0,0"
+                                                            FontSize="12"
+                                                            TextWrapping="Wrap"
+                                                            Foreground="{DynamicResource TextMutedBrush}"
+                                                            Text="{loc:Str Pdf.Margins.Finding}"
+                                                            Visibility="{Binding IsFindingContent, Converter={StaticResource BoolToVis}}"/>
+                                                 <TextBlock Margin="0,8,0,0"
+                                                            FontSize="12"
+                                                            TextWrapping="Wrap"
+                                                            Foreground="{DynamicResource WarningBrush}"
+                                                            Text="{Binding MarginsNote}"
+                                                            Visibility="{Binding MarginsNote, Converter={StaticResource StringVis}}"/>
+                                             </StackPanel>
                                              <StackPanel Margin="0,10,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
                                                  <Button Style="{StaticResource PdfToolbarBtn}"
                                                          Content="{loc:Str Pdf.Sheet.Cancel}"
@@ -443,11 +554,15 @@
                                             <Grid Width="{Binding SheetWidth}"
                                                   Height="{Binding SheetHeight}"
                                                   HorizontalAlignment="Center">
+                                                <!-- While margins are set up, the page is drawn as they would leave it. -->
                                                 <Border x:Name="Sheet"
                                                         Background="{DynamicResource Pdf.Paper}"
                                                         BorderBrush="{DynamicResource BorderBrush}"
                                                         BorderThickness="1">
-                                                    <Image Source="{Binding Picture}" Stretch="Uniform"/>
+                                                    <!-- Clipped inside the sheet's edge, so a page drawn moved never covers it. -->
+                                                    <Grid ClipToBounds="True">
+                                                        <Image Source="{Binding Picture}" Stretch="Uniform" RenderTransform="{Binding Preview}" Clip="{Binding PreviewClip}"/>
+                                                    </Grid>
                                                 </Border>
                                                 <!-- The lines the page would be cut along while a split is set up; one crossing the artwork is marked, and the
                                                      row's name says so. Shapes, which a screen reader passes over, so the row is heard as its page alone. -->
@@ -459,6 +574,12 @@
                                                 <Path Data="{Binding CrossingCutLines}"
                                                       Stroke="{DynamicResource WarningBrush}"
                                                       StrokeThickness="2"
+                                                      IsHitTestVisible="False"/>
+                                                <!-- While margins are set up: the room they leave, dashed. -->
+                                                <Path Data="{Binding MarginRoom}"
+                                                      Stroke="{DynamicResource AccentBrush}"
+                                                      StrokeThickness="1"
+                                                      StrokeDashArray="3 2"
                                                       IsHitTestVisible="False"/>
                                             </Grid>
                                             <TextBlock Text="{Binding Number}"
@@ -745,7 +866,7 @@
                                 ToolTip="{loc:Str Pdf.Toolbar.RedoTip}">
                             <TextBlock Text="&#xE7A6;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="{DynamicResource TextMutedBrush}"/>
                         </Button>
-                        <!-- Every page at once: split, merged several to a sheet, or set on paper of another size, set up on the Pages tab. -->
+                        <!-- Every page at once: split, merged several to a sheet, set on paper of another size, or given margins, set up on the Pages tab. -->
                         <Button Style="{StaticResource PdfToolbarBtn}" Margin="0,0,4,0"
                                 AutomationProperties.AutomationId="Pdf_SheetEdit"
                                 Click="SheetEdit_Click"
@@ -829,7 +950,13 @@
                               Paper="{DynamicResource Pdf.Paper}"
                               Selection="{DynamicResource Pdf.Selection}"
                               Highlight="{DynamicResource Pdf.FindHit}"
-                              CurrentHighlight="{DynamicResource Pdf.FindCurrent}"/>
+                              CurrentHighlight="{DynamicResource Pdf.FindCurrent}"
+                              ContextMenuOpening="Pages_ContextMenuOpening">
+        <!-- Filled as it opens, for what is under the pointer: an image the document holds, Edit image. -->
+        <paged:PagedLayoutElement.ContextMenu>
+            <ContextMenu Closed="PagesMenu_Closed"/>
+        </paged:PagedLayoutElement.ContextMenu>
+    </paged:PagedLayoutElement>
 </ScrollViewer>
             <Border Grid.Row="2"
                     AutomationProperties.AutomationId="Pdf_FallbackPanel"

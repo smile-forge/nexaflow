@@ -126,24 +126,34 @@ internal sealed class PdfSheet : IEquatable<PdfSheet>
     /// one above another: each holding what of every piece falls on it — or null, for a part with nothing on it, such as
     /// the blank half of a booklet's last sheet.
     /// </summary>
-    public IReadOnlyList<PdfSheet?> Split(int count, bool across, PdfShownSize sizes)
+    public IReadOnlyList<PdfSheet?> Split(int count, bool across, PdfShownSize sizes) => Split(PdfSplitLayout.Strip(count, across), sizes);
+
+    /// <summary>
+    /// The sheet cut into parts as <paramref name="layout"/> says, read left to right, top to bottom — each a sheet of its
+    /// own, or null where nothing on the sheet lies.
+    /// </summary>
+    public IReadOnlyList<PdfSheet?> Split(PdfSplitLayout layout, PdfShownSize sizes)
     {
         var shown = ShownSize(sizes);
-        var sheets = new List<PdfSheet?>(count);
-        foreach (var share in PdfPagePart.Split(count, across))
-        {
-            var cell = new Rect(share.Left * shown.Width, share.Top * shown.Height, share.Width * shown.Width, share.Height * shown.Height);
-            var toCell = PdfPageTransform.Translate(-cell.X, -cell.Y);
-            var pieces = Pieces
-                .Select(piece => Within(piece, cell, sizes))
-                .OfType<PdfSheetPiece>()
-                .Select(piece => piece with { Place = piece.Place.Then(toCell) })
-                .ToList();
+        return PdfPagePart.Split(layout)
+            .Select(share => Cropped(new Rect(share.Left * shown.Width, share.Top * shown.Height, share.Width * shown.Width, share.Height * shown.Height), sizes))
+            .ToList();
+    }
 
-            sheets.Add(pieces.Count > 0 ? Of(cell.Size, pieces, sizes) : null);
-        }
+    /// <summary>
+    /// The part of the sheet within <paramref name="area"/> — in points on the sheet as shown — as a sheet of its own, that
+    /// part at its top left and what lies outside it gone; null where nothing on the sheet lies within it.
+    /// </summary>
+    public PdfSheet? Cropped(Rect area, PdfShownSize sizes)
+    {
+        var toArea = PdfPageTransform.Translate(-area.X, -area.Y);
+        var pieces = Pieces
+            .Select(piece => Within(piece, area, sizes))
+            .OfType<PdfSheetPiece>()
+            .Select(piece => piece with { Place = piece.Place.Then(toArea) })
+            .ToList();
 
-        return sheets;
+        return pieces.Count > 0 ? Of(area.Size, pieces, sizes) : null;
     }
 
     /// <summary>
