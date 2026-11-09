@@ -861,9 +861,9 @@ else if (entry is IFileCreateAction action) await action.CreateItemAsync(RealFol
     // under its own token; starting a new one cancels the previous so rapid folder
     // clicks always settle on the last-clicked folder and stale enumerations are
     // abandoned. Folders at or below StreamThreshold are sorted and shown in one shot;
-    // larger folders stream in ChunkSize-sized batches (unsorted, filesystem order) so
-    // the first page appears immediately and scrolling stays smooth. Every batch reaches
-    // the list as one notification, never one per entry.
+    // larger folders stream in batches of at least ChunkSize (unsorted, filesystem order)
+    // so the first page appears immediately and the read never waits on the list. Every
+    // batch reaches the list as one notification, never one per entry.
     [ObservableProperty] private bool _isLoadingEntries;
 
     private CancellationTokenSource? _loadCts;
@@ -1870,8 +1870,9 @@ else if (entry is IFileCreateAction action) await action.CreateItemAsync(RealFol
     /// and hands batches through a bounded channel; this method consumes them and is the
     /// only place that touches <see cref="Entries"/>. Because it was invoked on the UI
     /// thread, every <c>await</c> here resumes on this VM's own UI context — no Dispatcher
-    /// or Application reference needed, and the consumer naturally runs at Normal priority.
-    /// The bounded channel gives backpressure so the producer can't outrun the UI.
+    /// or Application reference needed. The channel holds one batch, and the producer does not wait on it
+    /// mid-folder: what it reads while a batch is still waiting joins the next, so each turn here takes
+    /// everything found since the last.
     /// <para>
     /// Every batch is committed with one notification. One <c>Add</c> per entry, arriving straight after
     /// the list was cleared and before it had been laid out again, left a scrolled list's virtualizing
@@ -1984,7 +1985,8 @@ else if (entry is IFileCreateAction action) await action.CreateItemAsync(RealFol
     /// Background enumeration. Buffers entries; if the buffer crosses
     /// <see cref="StreamThreshold"/> it streams chunks (listing order, unsorted) so the
     /// first page shows while the rest loads; the first chunk replaces what the list holds and
-    /// the rest append. Smaller folders are sorted and sent as a single replace batch. Reads the
+    /// the rest append. After the first, a chunk is at least <see cref="ChunkSize"/> and holds everything read
+    /// while the list was taking the one before, so the read goes at the disk's pace and the list at its own. Smaller folders are sorted and sent as a single replace batch. Reads the
     /// file system's listing, which carries name, size, timestamps, flags and — in a synced folder —
     /// cloud state from one pass, with no second stat per entry.
     /// </summary>
@@ -2020,15 +2022,18 @@ else if (entry is IFileCreateAction action) await action.CreateItemAsync(RealFol
                     {
                         if (stream && buffer.Count > StreamThreshold)
                         {
+                            // The first page goes over at once, so the list shows rows while the rest is read.
                             streaming = true;
-                            await writer.WriteAsync(new(buffer.ToArray(), Replace: true, folders, files, inSyncRoot), ct);
-                            buffer.Clear();
+                            await writer.WriteAsync(new(buffer, Replace: true, folders, files, inSyncRoot), ct);
+                            buffer = new List<FileSystemEntry>(ChunkSize);
                         }
                     }
-                    else if (buffer.Count >= ChunkSize)
+                    // Never waits on the list: while it is still taking the last batch, what is read here joins the next one.
+                    // Each turn of the UI thread ends in a rendered frame, so a read that waited would go at one chunk per frame
+                    // however fast the disk answers — seconds for a folder of tens of thousands.
+                    else if (buffer.Count >= ChunkSize && writer.TryWrite(new(buffer, false, folders, files, inSyncRoot)))
                     {
-                        await writer.WriteAsync(new(buffer.ToArray(), false, folders, files, inSyncRoot), ct);
-                        buffer.Clear();
+                        buffer = new List<FileSystemEntry>(ChunkSize);
                     }
                 }
             }
@@ -2065,7 +2070,7 @@ else if (entry is IFileCreateAction action) await action.CreateItemAsync(RealFol
             }
             else if (buffer.Count > 0)
             {
-                await writer.WriteAsync(new(buffer.ToArray(), false, folders, files, inSyncRoot), ct);
+                await writer.WriteAsync(new(buffer, false, folders, files, inSyncRoot), ct);
             }
         }
         catch (Exception ex) { error = ex; }

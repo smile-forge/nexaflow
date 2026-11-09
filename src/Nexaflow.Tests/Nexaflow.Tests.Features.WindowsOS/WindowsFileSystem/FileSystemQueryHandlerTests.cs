@@ -29,6 +29,7 @@ public class FileSystemQueryHandlerTests
         var (shell, ai, configs) = Deps();
         var vm = new FileSystemViewModel(path, shell, ai, configs, VirtualFileSystem.Instance);
         await vm.Browsing;
+        await vm.EntriesLoaded;   // the handler reads the listing, which arrives after the browse
         return vm;
     }
 
