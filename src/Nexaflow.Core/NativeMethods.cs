@@ -223,6 +223,30 @@ namespace Nexaflow.Core
             DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
         }
 
+        private const int DWMWA_CLOAK = 13;
+
+        /// <summary>
+        /// Cloaks <paramref name="window"/>, or uncloaks it: a cloaked window is shown as far as Windows and WPF are concerned
+        /// — it lays out and draws — but the compositor puts nothing of it on screen and Alt+Tab passes it by.
+        /// </summary>
+        public static void Cloak(Window window, bool cloaked)
+        {
+            var hwnd = new WindowInteropHelper(window).Handle;
+            int value = cloaked ? 1 : 0;
+            DwmSetWindowAttribute(hwnd, DWMWA_CLOAK, ref value, sizeof(int));
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool EnableWindow(IntPtr hwnd, bool enable);
+
+        /// <summary>
+        /// Lets <paramref name="window"/> be activated, or stops it: Windows activates no disabled window, so neither a click nor
+        /// a control taking keyboard focus as it loads makes it the foreground window. Only the Win32 window is disabled —
+        /// what WPF draws in it is unchanged, as for the owner of a modal dialog.
+        /// </summary>
+        public static void AllowActivation(Window window, bool allowed)
+            => EnableWindow(new WindowInteropHelper(window).Handle, allowed);
+
         // ── Recycle bin deletion via SHFileOperation ──────────────────────────
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]

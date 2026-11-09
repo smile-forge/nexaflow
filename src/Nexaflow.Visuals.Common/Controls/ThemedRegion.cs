@@ -53,6 +53,8 @@ public class ThemedRegion : ContentControl
         SubscribeToAnimationPolicy();
         Loaded   += (_, _) => { SubscribeToAnimationPolicy(); ApplyRegion(); };
         Unloaded += (_, _) => BackgroundAnimationPolicy.Changed -= OnAnimationPolicyChanged;
+        // A hidden window (one set aside out of sight) or a collapsed region draws nothing, so it animates nothing either.
+        IsVisibleChanged += (_, _) => ApplyRegion();
     }
 
     private void SubscribeToAnimationPolicy()
@@ -99,8 +101,12 @@ public class ThemedRegion : ContentControl
         // against Dark's 0.7% and Ocean's 10.7%. There is nothing there to reclaim, so it is never
         // gated. A theme supplies one key or the other; a still backdrop wins if both are somehow
         // present, being the one that survives either state.
+        //
+        // A region on screen but not visible — its window hidden, or the region collapsed — draws nothing, so its
+        // animated scene is dropped the same way until it is visible again. One in no window at all is taken as shown:
+        // there is nothing to say it is not.
         var backdrop = TryFindResource($"StillScene.{Region}") as DataTemplate
-                       ?? (BackgroundAnimationPolicy.ScenesEnabled
+                       ?? (BackgroundAnimationPolicy.ScenesEnabled && IsShown
                                ? TryFindResource($"Scene.{Region}") as DataTemplate
                                : null);
 
@@ -115,4 +121,7 @@ public class ThemedRegion : ContentControl
             _scene.ContentTemplate = null;
         }
     }
+
+    /// <summary>False only for a region on screen that is not visible: its window hidden, or the region collapsed.</summary>
+    private bool IsShown => IsVisible || PresentationSource.FromVisual(this) is null;
 }

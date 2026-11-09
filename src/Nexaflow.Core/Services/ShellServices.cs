@@ -325,6 +325,9 @@ public sealed class ShellServices : IShellServices
     private DispatcherTimer? _defaultTabsTimer;
     private IReadOnlyList<DefaultTabDescriptor>? _pendingDefaultTabs;
 
+    /// <summary>Raised once the tabs <see cref="OpenDefaultTabs"/> deferred have opened.</summary>
+    internal event EventHandler? DefaultTabsOpened;
+
     /// <summary>
     /// Opens <paramref name="tabs"/> — the workspace's saved startup layout — into the focused window, on a
     /// short debounce so the frame renders first. Left-pane tabs (<see cref="DefaultTabDescriptor.Pane"/> 0)
@@ -352,6 +355,7 @@ public sealed class ShellServices : IShellServices
         _pendingDefaultTabs = null;
         if (tabs is not null) OpenLayout(tabs);
         OfferSessionRestore();   // default tabs are up — offer to swap in the recorded last session
+        DefaultTabsOpened?.Invoke(this, EventArgs.Empty);
     }
 
     private void OpenLayout(IReadOnlyList<DefaultTabDescriptor> tabs)
@@ -394,8 +398,9 @@ public sealed class ShellServices : IShellServices
     /// session — or clears it when the layout matches the default (there's nothing worth restoring).</summary>
     internal void CaptureLastSession(IWindowHost? host = null)
     {
+        // A standby window was never shown to anyone: its tabs and placement are no session of theirs.
         var target = host ?? FocusedWindow;
-        if (target is null) return;
+        if (target is null || _workspace.IsStandby) return;
 
         var ws = _workspace.Workspace;
 

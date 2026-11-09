@@ -33,6 +33,9 @@ public sealed class WorkspaceManager
     /// </summary>
     public event EventHandler? WorkspacesRefreshed;
 
+    /// <summary>Raised when the last window open in any live workspace has closed — the app has no window left.</summary>
+    internal event EventHandler? LastWindowClosed;
+
     /// <summary>The first live workspace, or null when no windows are open (e.g. daemon mode).</summary>
     public WorkspaceRuntime? FirstActive => _workspaces.FirstOrDefault();
 
@@ -217,6 +220,30 @@ public sealed class WorkspaceManager
     }
 
     /// <summary>
+    /// Builds a runtime for <paramref name="workspace"/> ahead of the launch that will use it: bootstrapped as
+    /// <see cref="CreateWorkspace"/> bootstraps one, but on standby (<see cref="WorkspaceRuntime.IsStandby"/>) — not live,
+    /// so nothing that asks which workspaces are open counts it, and with its models left unweighed until
+    /// <see cref="AdoptStandby"/>.
+    /// </summary>
+    internal WorkspaceRuntime CreateStandbyWorkspace(Workspace workspace)
+    {
+        workspace.EnsureSharedServicesLoaded();
+        var ws = new WorkspaceRuntime(workspace) { IsStandby = true };
+        BootstrapServices(ws);
+        return ws;
+    }
+
+    /// <summary>Makes a standby runtime live, as <see cref="CreateWorkspace"/> would have made it: listed among the open
+    /// workspaces, and its assigned models weighed for loading ahead.</summary>
+    internal void AdoptStandby(WorkspaceRuntime ws)
+    {
+        ws.IsStandby = false;
+        _workspaces.Add(ws);
+        if (ws.Providers is { } providers)
+            ProviderManager.Instance.Residency?.Preload(providers.Execution.Values);
+    }
+
+    /// <summary>
     /// Switches <paramref name="ws"/> to a different <paramref name="target"/> workspace in place:
     /// repoints the workspace and reconfigures the runtime (providers + AIService), closing the
     /// Workspace's tabs. Other Workspaces (incl. ones still on the old workspace) are untouched.
@@ -277,6 +304,8 @@ public sealed class WorkspaceManager
         ws.Providers = null;
         ws.AiService = null;
         _workspaces.Remove(ws);
+
+        if (!ws.IsStandby && !AnyWindowsOpen) LastWindowClosed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
@@ -583,8 +612,9 @@ public sealed class WorkspaceManager
         ws.Providers               = fresh;
         workspace.AiConfig.Providers = fresh;
         ProviderManager.Instance.ReleaseProviderSet(old);
-        // Nothing is loaded here: the residency weighs each assigned model for loading ahead once the window is up.
-        ProviderManager.Instance.Residency?.Preload(fresh.Execution.Values);
+        // Nothing is loaded here: the residency weighs each assigned model for loading ahead once the window is up. A standby
+        // runtime's are weighed when a launch adopts it, so a window nobody has asked for yet loads nothing.
+        if (!ws.IsStandby) ProviderManager.Instance.Residency?.Preload(fresh.Execution.Values);
 
         if (ws.AiService is { } svc)
         {

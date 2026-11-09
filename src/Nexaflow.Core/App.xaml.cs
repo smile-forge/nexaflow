@@ -188,11 +188,22 @@ public partial class App : Application
             return;
         }
 
+        // A resident app keeps a window ready while it has none open (StandbyWindow): the first once the warm-up below has
+        // finished, so it is built with every feature's theme and configs in place, then one each time the last window closes.
+        if (prestart)
+        {
+            var standby = new StandbyWindow(StandbyTarget, ws => BuildFirstWindow(activityManager, ws, openPath: null));
+            WorkspaceManager.Instance.LastWindowClosed += (_, _) => standby.Schedule(StandbyWindow.AfterLastWindow);
+            _standby = standby;
+        }
+
         // Feature warm-up — load + activate the remaining feature assemblies off the UI thread now that the
         // first window is up, so deferred features (and their archive handlers / theme / configs) are ready
         // within a second or two without ever blocking first paint. Archive backends go first so browsing
         // into an archive works as early as possible.
-        Task.Run(() => FeatureCatalog.Instance.WarmUpAll(["Nexaflow.Features.Compressed", "Nexaflow.Features.Email"]));
+        var warmUp = Task.Run(() => FeatureCatalog.Instance.WarmUpAll(["Nexaflow.Features.Compressed", "Nexaflow.Features.Email"]));
+        if (_standby is { } ready)
+            warmUp.ContinueWith(_ => ready.Schedule(TimeSpan.Zero), TaskScheduler.FromCurrentSynchronizationContext());
 
         // Drafts are the app's to clear, never Windows': a little after start-up, and daily while the app runs, every draft no tab
         // shows or would open again that has gone untouched too long, or is past the drafts' budget. What the tabs name is asked
@@ -593,6 +604,9 @@ public partial class App : Application
     /// <summary>Tracks whether the first window of this process has already run the setup check.</summary>
     private static bool _setupShown;
 
+    /// <summary>The window a resident app keeps ready while none is open; null in an app that is not resident.</summary>
+    private static StandbyWindow? _standby;
+
     /// <summary>
     /// Creates a shell window for <paramref name="workspace"/>, running the first-run / post-update
     /// wizard first the very first time a window is due (so a <c>--prestart</c> daemon shows nothing
@@ -603,6 +617,16 @@ public partial class App : Application
     private static MainWindow EnsureConfiguredThenCreateWindow(
         BackgroundActivityManager activityManager, Workspace workspace, bool activate, string? openPath = null)
     {
+        // A standby window stands for a plain launch of its workspace: showing it is all this launch has left to do.
+        if (openPath is null && _standby is { } standby && standby.Claim(workspace, out bool drawn) is { } ready)
+        {
+            StartupTimings.Mark("StandbyShown");
+            FollowFirstFrame(ready, drawnBefore: drawn);
+            return ready;
+        }
+        // Any other window opening ends the standby, which stands only while none is open.
+        _standby?.Discard();
+
         // The wizard honours CenterScreen and lands on the active monitor; capture that monitor's work
         // area so the main window opens on the SAME monitor (it otherwise takes the OS default
         // placement, which falls back to the primary monitor).
@@ -626,18 +650,13 @@ public partial class App : Application
                 }
             }
 
-            StampLastRunVersion();
-
-            // The wizard's Shell step may have picked a language: select it before the first window's strings resolve.
-            if (ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault() is { } shell)
-                LanguageManager.Instance.Select(shell.Language);
+            FinishSetup();
         }
 
         var ws = WorkspaceManager.Instance.CreateWorkspace(workspace);
-        ws.ShellServices!.CreateWindowFactory = MakeWindowFactory(activityManager, ws);
         StartupTimings.Mark("WorkspaceBootstrapped");
 
-        var win = new MainWindow(activityManager, ws, openPath: openPath);
+        var win = BuildFirstWindow(activityManager, ws, openPath);
         StartupTimings.Mark("MainWindowBuilt");
         // Back where this workspace's last window was meant to be; the first time, on the wizard's monitor.
         if (workspace.LastWindowPlacement is { IsUsable: true } placement)
@@ -646,10 +665,78 @@ public partial class App : Application
             CenterOnMonitor(win, wizardMonitor);
         win.Show();
         StartupTimings.Mark("WindowShown");
-        // Models load ahead only once a window has drawn, so none of their loading competes with it.
-        win.ContentRendered += (_, _) => _residency?.Open();
+        FollowFirstFrame(win, drawnBefore: false);
         if (activate) win.Activate();
         return win;
+    }
+
+    /// <summary>A runtime's first window, unshown: opening <paramref name="openPath"/>, or the workspace's startup tabs, and
+    /// tearing off into windows of the same runtime.</summary>
+    private static MainWindow BuildFirstWindow(BackgroundActivityManager activityManager, WorkspaceRuntime ws, string? openPath)
+    {
+        ws.ShellServices!.CreateWindowFactory = MakeWindowFactory(activityManager, ws);
+        return new MainWindow(activityManager, ws, openPath: openPath);
+    }
+
+    /// <summary>
+    /// What follows a launch's window drawing: models load ahead only then, so none of their loading competes with it, and a
+    /// <c>--timing</c> run reports and ends. A window that drew before it was shown — a standby — is followed once the frame
+    /// that shows it has drawn.
+    /// </summary>
+    private static void FollowFirstFrame(Window win, bool drawnBefore)
+    {
+        static void Drawn()
+        {
+            _residency?.Open();
+            if (!StartupTimings.Enabled) return;
+            // Startup profiling: the first window's first render is "time to first window"; a harness cold-starts again.
+            StartupTimings.Report();
+            Current.Shutdown();
+        }
+
+        if (!drawnBefore)
+        {
+            win.ContentRendered += (_, _) => Drawn();
+            return;
+        }
+        // Below render priority: it runs once the frame that shows the window has been laid out and drawn.
+        win.Dispatcher.InvokeAsync(Drawn, DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// The workspace a standby window is built for now — the first, which a plain launch opens — or null while none should
+    /// stand: a window is open, the app is updating, the launch asked for a page of its own, the user has turned it off
+    /// (<see cref="ShellConfig.KeepWindowReady"/>), or the setup wizard is still due, which runs before the first window and
+    /// may change what it shows.
+    /// </summary>
+    private static Workspace? StandbyTarget()
+    {
+    if (IsUpdating || OpenTabKind is not null || WorkspaceManager.Instance.AnyWindowsOpen) return null;
+        if (ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault() is not { KeepWindowReady: true }) return null;
+        if (WorkspaceManager.Instance.Workspaces is not [var first, ..]) return null;
+        return SettleSetupAhead(first) ? first : null;
+    }
+
+    /// <summary>
+    /// Settles the first-run / post-update setup ahead of the first window when it has nothing to ask, as that window would
+    /// settle it, and says whether it is settled — false while a wizard is due, which runs when a window is first asked for.
+    /// </summary>
+    private static bool SettleSetupAhead(Workspace workspace)
+    {
+        if (_setupShown) return true;
+        if (!UiTest && !StartupTimings.Enabled && SetupWizardViewModel.Build(workspace) is not null) return false;
+        _setupShown = true;
+        FinishSetup();
+        return true;
+    }
+
+    /// <summary>Ends the setup check before a first window: the run is stamped, so the next launch can tell an update, and
+    /// the language the wizard's Shell step may have picked is selected before the window's strings resolve.</summary>
+    private static void FinishSetup()
+    {
+        StampLastRunVersion();
+        if (ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault() is { } shell)
+            LanguageManager.Instance.Select(shell.Language);
     }
 
     /// <summary>

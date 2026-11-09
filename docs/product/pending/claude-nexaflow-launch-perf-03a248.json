@@ -1,0 +1,96 @@
+{
+  "branch": "claude/nexaflow-launch-perf-03a248",
+  "nodes": {
+    "ws-prestart-daemon": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/App.xaml.cs",
+          "class": "App",
+          "ast": "T:App/P:IsResident"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Services/ShellServices.cs",
+          "class": "ShellServices",
+          "method": "UnregisterWindow"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/StandbyWindow.cs",
+          "class": "StandbyWindow"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/WorkspaceManager.cs",
+          "class": "WorkspaceManager",
+          "method": "CreateStandbyWorkspace"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml.cs",
+          "class": "MainWindow",
+          "method": "ShowOutOfSight"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ShellConfig.cs",
+          "class": "ShellConfig",
+          "method": "KeepWindowReady"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/WorkspaceManagerTests.cs",
+            "class": "WorkspaceManagerTests",
+            "method": "AStandbyRuntime_IsNoOpenWorkspace_UntilALaunchAdoptsIt"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/WorkspaceStartupTabsTests.cs",
+            "class": "WorkspaceStartupTabsTests",
+            "method": "AStandbyWindow_RecordsNoSession_ForItWasNeverShownToAnyone"
+          }
+        ]
+      }
+    },
+    "theme-scene-battery-policy": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Controls/ThemedRegionScenePolicyTests.cs",
+            "class": "ThemedRegionScenePolicyTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/BatteryAnimationGuardTests.cs",
+            "class": "BatteryAnimationGuardTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Controls/ThemedRegionScenePolicyTests.cs",
+            "class": "ThemedRegionScenePolicyTests",
+            "method": "StillScene_SurvivesSceneSuppression"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Controls/ThemedRegionHiddenWindowTests.cs",
+            "class": "ThemedRegionHiddenWindowTests",
+            "method": "AHiddenWindow_DropsItsAnimatedScene_AndShowingItBringsItBack"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 3,
+  "touched_nodes": [
+    "theme-scene-battery-policy",
+    "ws-prestart-daemon"
+  ]
+}

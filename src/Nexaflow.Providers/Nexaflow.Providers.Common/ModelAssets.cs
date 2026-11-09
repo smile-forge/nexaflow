@@ -71,6 +71,9 @@ public interface ILocalModelCatalog
 /// <param name="Tier">Which job of its kind it is made for: the everyday one, or the one where quality is worth the wait.</param>
 public sealed record CatalogModel(string Id, string DisplayName, IReadOnlyList<ModelAsset> Files, ModelTier Tier = ModelTier.Standard);
 
+/// <summary>What a catalog manifest lists: the models providers offer, and the models tools work with.</summary>
+public sealed record CatalogContents(IReadOnlyList<CatalogModel> Models, IReadOnlyList<CatalogModel> Tools);
+
 /// <summary>Which job of its kind a model is made for.</summary>
 public enum ModelTier
 {
@@ -108,13 +111,13 @@ public sealed record LocalRuntime(string Id, string DisplayName, IReadOnlyList<M
 ///                              "archive": { "entry": "nvidia/cudnn/bin/cudnn64_9.dll", "size": 436469905, "sha256": "…" } } ] } ] }
 /// </code>
 /// </summary>
-public static class ModelCatalog
+public static partial class ModelCatalog
 {
-    private static readonly JsonSerializerOptions Options = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
-    };
+    /// <summary>The manifest's shape, read through serializers generated at build time rather than built by reflection on
+    /// first use — the catalogs are read at startup, where that first use is paid on the UI thread.</summary>
+    [JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true, UseStringEnumConverter = true)]
+    [JsonSerializable(typeof(Manifest))]
+    private sealed partial class ManifestJson : JsonSerializerContext;
 
     private sealed record Manifest(List<ManifestModel>? Models, List<ManifestModel>? Tools);
     private sealed record ManifestModel(string? Id, string? DisplayName, List<ManifestFile>? Files, ModelTier? Tier);
@@ -122,27 +125,28 @@ public static class ModelCatalog
     private sealed record ManifestArchive(string? Entry, long Size, string? Sha256);
 
     /// <exception cref="InvalidDataException">The manifest is malformed, or a model or file lacks what it must say.</exception>
-    public static IReadOnlyList<CatalogModel> Read(Stream json)
-    {
-        Manifest? manifest;
-        try { manifest = JsonSerializer.Deserialize<Manifest>(json, Options); }
-        catch (JsonException ex) { throw new InvalidDataException($"The model catalog does not read: {ex.Message}", ex); }
-
-        return [.. (manifest?.Models ?? []).Select(ToModel)];
-    }
+    public static IReadOnlyList<CatalogModel> Read(Stream json) => [.. (ParseManifest(json).Models ?? []).Select(ToModel)];
 
     /// <summary>
     /// The manifest's tools: the models a tool works with, in the same shape as its models — fetched and kept as they are, but
     /// serving no provider (<c>"tools": [ … ]</c> beside <c>"models"</c>).
     /// </summary>
     /// <exception cref="InvalidDataException">The manifest is malformed, or a tool or file lacks what it must say.</exception>
-    public static IReadOnlyList<CatalogModel> ReadTools(Stream json)
-    {
-        Manifest? manifest;
-        try { manifest = JsonSerializer.Deserialize<Manifest>(json, Options); }
-        catch (JsonException ex) { throw new InvalidDataException($"The model catalog does not read: {ex.Message}", ex); }
+    public static IReadOnlyList<CatalogModel> ReadTools(Stream json) => [.. (ParseManifest(json).Tools ?? []).Select(ToModel)];
 
-        return [.. (manifest?.Tools ?? []).Select(ToModel)];
+    /// <summary>The manifest's models and its tools, from one read of it — for a manifest that lists both.</summary>
+    /// <exception cref="InvalidDataException">The manifest is malformed, or a model, tool or file lacks what it must say.</exception>
+    public static CatalogContents ReadContents(Stream json)
+    {
+        var manifest = ParseManifest(json);
+        return new([.. (manifest.Models ?? []).Select(ToModel)], [.. (manifest.Tools ?? []).Select(ToModel)]);
+    }
+
+    /// <exception cref="InvalidDataException">The manifest is not JSON of its shape.</exception>
+    private static Manifest ParseManifest(Stream json)
+    {
+        try { return JsonSerializer.Deserialize(json, ManifestJson.Default.Manifest) ?? new Manifest(null, null); }
+        catch (JsonException ex) { throw new InvalidDataException($"The model catalog does not read: {ex.Message}", ex); }
     }
 
     /// <summary>A file an entry lists apart from its own files — fetched only when a request first needs it, as a LoRA is —

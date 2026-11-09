@@ -65,7 +65,7 @@ public class ThemedRegionScenePolicyTests
     });
 
     /// <summary>The real <c>ThemedRegion</c> style from Visuals.Common's generic.xaml.</summary>
-    private static Style ShippedStyle()
+    internal static Style ShippedStyle()
     {
         var generic = new ResourceDictionary
         {
@@ -75,7 +75,7 @@ public class ThemedRegionScenePolicyTests
     }
 
     /// <summary>A scene stand-in: any template will do, since the assertion is whether it was realised.</summary>
-    private static DataTemplate SceneTemplate()
+    internal static DataTemplate SceneTemplate()
     {
         var border = new FrameworkElementFactory(typeof(Border));
         border.SetValue(FrameworkElement.NameProperty, "SceneRoot");
@@ -86,7 +86,7 @@ public class ThemedRegionScenePolicyTests
     }
 
     /// <summary>The scene host inside the control template - realised only when a scene is allowed.</summary>
-    private static ContentControl SceneHost(ThemedRegion region)
+    internal static ContentControl SceneHost(ThemedRegion region)
     {
         var host = FindDescendant<ContentControl>(region, c => c.Name == "PART_Scene");
         Assert.IsNotNull(host, "ThemedRegion's template should expose a PART_Scene ContentControl.");
