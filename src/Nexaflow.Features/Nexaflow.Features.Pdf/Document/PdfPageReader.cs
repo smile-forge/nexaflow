@@ -42,10 +42,7 @@ internal sealed class PdfPageReader
     {
         var slots = new PdfPageSlot[_document.NumberOfPages];
         for (var i = 0; i < slots.Length; i++)
-        {
-            ct.ThrowIfCancellationRequested();
-            slots[i] = _document.GetPage<PdfPageSlot>(i + 1);
-        }
+            slots[i] = _document.GetPage<PdfPageSlot>(i + 1, ct);
 
         return new PdfDocumentNode(slots, Fields());
     }
@@ -69,16 +66,14 @@ internal sealed class PdfPageReader
                                 IReadOnlyDictionary<UglyToad.PdfPig.Core.IndirectReference, PdfImageReplacement> replacements, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        _caches.Cancellation = ct;
         _caches.Reading = placement;
         _caches.Replacements = replacements;
         try
         {
-            return _document.GetPage<PdfPageNode>(number);
+            return _document.GetPage<PdfPageNode>(number, ct);
         }
         finally
         {
-            _caches.Cancellation = CancellationToken.None;
             _caches.Reading = null;
             _caches.Replacements = PdfReadingCaches.NoReplacements;
         }

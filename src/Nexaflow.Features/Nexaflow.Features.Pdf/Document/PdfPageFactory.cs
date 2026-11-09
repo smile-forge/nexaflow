@@ -65,7 +65,7 @@ internal sealed class PdfPageFactory : BasePageFactory<PdfPageNode>
     protected override PdfPageNode ProcessPage(
         int pageNumber, DictionaryToken dictionary, NamedDestinations namedDestinations, MediaBox mediaBox,
         CropBox cropBox, UserSpaceUnit userSpaceUnit, PageRotationDegrees rotation, TransformationMatrix initialMatrix,
-        IReadOnlyList<IGraphicsStateOperation> operations)
+        IReadOnlyList<IGraphicsStateOperation> operations, CancellationToken token)
     {
         var visible = cropBox.GetVisibleBounds(rotation);
         // Read onto a sheet, the page comes out where it lies on the sheet: shown space, then the sheet's.
@@ -76,11 +76,11 @@ internal sealed class PdfPageFactory : BasePageFactory<PdfPageNode>
         var outputIntent = ResourceStore.GetPageOutputIntentProfile(dictionary);
         var interpreter = new PdfPageInterpreter(pageNumber, ResourceStore, PdfScanner, PageContentParser,
             FilterProvider, cropBox, userSpaceUnit, rotation, initialMatrix, outputIntent, ParsingOptions, _caches, flip,
-            unsupported, text, onPage: true);
+            unsupported, text, onPage: true, token);
         var content = interpreter.Process(pageNumber, operations);
 
         var annotations = Annotations(pageNumber, dictionary, namedDestinations, cropBox, userSpaceUnit, rotation,
-            initialMatrix, outputIntent, flip, unsupported);
+            initialMatrix, outputIntent, flip, unsupported, token);
 
         return new PdfPageNode(pageNumber, new Size(visible.Width, visible.Height),
             PdfSpace.ToMatrix(initialMatrix) * flip, content, annotations, text.ToString(), unsupported);
@@ -89,7 +89,7 @@ internal sealed class PdfPageFactory : BasePageFactory<PdfPageNode>
     private IReadOnlyList<PdfAnnotationNode> Annotations(
         int pageNumber, DictionaryToken page, NamedDestinations destinations, CropBox cropBox, UserSpaceUnit unit,
         PageRotationDegrees rotation, TransformationMatrix initialMatrix, IIccProfile? outputIntent, Matrix flip,
-        List<PdfUnsupported> unsupported)
+        List<PdfUnsupported> unsupported, CancellationToken token)
     {
         IEnumerable<Annotation> read;
         try
@@ -126,7 +126,7 @@ internal sealed class PdfPageFactory : BasePageFactory<PdfPageNode>
             try
             {
                 appearance = Appearance(pageNumber, annotation, rect, cropBox, unit, rotation, initialMatrix, outputIntent,
-                    flip, unsupported);
+                    flip, unsupported, token);
             }
             catch (Exception ex) when (ex is not (OperationCanceledException or ObjectDisposedException or OutOfMemoryException))
             {
@@ -149,7 +149,7 @@ internal sealed class PdfPageFactory : BasePageFactory<PdfPageNode>
     private PdfGroupNode? Appearance(
         int pageNumber, Annotation annotation, PdfRectangle rect, CropBox cropBox, UserSpaceUnit unit,
         PageRotationDegrees rotation, TransformationMatrix initialMatrix, IIccProfile? outputIntent, Matrix flip,
-        List<PdfUnsupported> unsupported)
+        List<PdfUnsupported> unsupported, CancellationToken token)
     {
         if (annotation.NormalAppearance is not { } appearances) return null;
 
@@ -179,7 +179,7 @@ internal sealed class PdfPageFactory : BasePageFactory<PdfPageNode>
 
         var reader = new PdfPageInterpreter(pageNumber, ResourceStore, PdfScanner, PageContentParser, FilterProvider,
             cropBox, unit, rotation, fit.Multiply(initialMatrix), outputIntent, ParsingOptions, _caches, flip, unsupported,
-            text: null, onPage: true);
+            text: null, onPage: true, token);
         var drawn = reader.ProcessForm(stream, NameToken.Create(annotation.Type.ToString()));
         return drawn.Children.Count == 0 ? null : new PdfGroupNode(PdfGroupRole.Appearance, drawn.Children, tag: annotation.Type.ToString());
     }
