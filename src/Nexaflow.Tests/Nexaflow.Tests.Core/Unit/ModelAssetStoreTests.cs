@@ -156,6 +156,58 @@ public class ModelAssetStoreTests
         Assert.AreEqual(1, server.Requests, "what is here and verified is not fetched again");
     }
 
+    /// <summary>An earlier version's folder the store once held — an earlier CUDA pack's — with each file and the mark the
+    /// store left beside it.</summary>
+    private string EarlierFolder(params (string Name, byte[] Bytes, byte[] Marked)[] files)
+    {
+        var dir = Path.Combine(_root, "runtime", "cuda-earlier");
+        Directory.CreateDirectory(dir);
+        foreach (var (name, bytes, marked) in files)
+        {
+            File.WriteAllBytes(Path.Combine(dir, name), bytes);
+            File.WriteAllText(Path.Combine(dir, name + ".verified"), Sha(marked));
+        }
+        return dir;
+    }
+
+    [TestMethod]
+    public async Task FilesAnEarlierFolderHoldsVerified_AreMovedIn_AndTheirArchiveIsNotFetched()
+    {
+        var earlier = EarlierFolder(("cublas.dll", Cublas, Cublas), ("cudnn.dll", Cudnn, Cudnn));
+        var server  = new ArchiveServer(Wheel);
+        var store   = new ModelAssetStore(_root, [earlier], new HttpClient(server));
+        var cublas  = Packed("cublas.dll", "nvidia/bin/cublas.dll", Cublas, Wheel);
+        var cudnn   = Packed("cudnn.dll", "nvidia/bin/cudnn.dll", Cudnn, Wheel);
+
+        Assert.AreEqual(0, store.FetchBytes([cublas, cudnn]), "nothing is downloaded that the earlier folder holds");
+        await store.EnsureAllAsync([cublas, cudnn]);
+
+        Assert.AreEqual(0, server.Requests);
+        CollectionAssert.AreEqual(Cublas, File.ReadAllBytes(store.Locate(cublas)!));
+        CollectionAssert.AreEqual(Cudnn, File.ReadAllBytes(store.Locate(cudnn)!));
+        Assert.AreEqual(0, Directory.GetFiles(earlier).Length, "each file moved, with its mark, rather than costing its size twice");
+    }
+
+    [TestMethod]
+    public async Task AFileThatChanged_IsTheOnlyOneWeighedAndFetched_TheSharedOneMovedIn()
+    {
+        var older   = Cudnn.Select(b => (byte)(b ^ 0x5A)).ToArray();   // the same size, another build
+        var earlier = EarlierFolder(("cublas.dll", Cublas, Cublas), ("cudnn.dll", older, older));
+        var server  = new ArchiveServer(Wheel);
+        var store   = new ModelAssetStore(_root, [earlier], new HttpClient(server));
+        var cublas  = Packed("cublas.dll", "nvidia/bin/cublas.dll", Cublas, Wheel);
+        var cudnn   = Packed("cudnn.dll", "nvidia/bin/cudnn.dll", Cudnn, Wheel);
+
+        Assert.AreEqual(Cudnn.Length, store.FetchBytes([cublas, cudnn]));
+        Assert.AreEqual(Wheel.Length + Cudnn.Length, store.RoomFor([cublas, cudnn]).Bytes, "the archive and the one entry still to come");
+        await store.EnsureAllAsync([cublas, cudnn]);
+
+        Assert.AreEqual(1, server.Requests);
+        CollectionAssert.AreEqual(Cublas, File.ReadAllBytes(store.Locate(cublas)!));
+        CollectionAssert.AreEqual(Cudnn, File.ReadAllBytes(store.Locate(cudnn)!));
+        Assert.IsTrue(File.Exists(Path.Combine(earlier, "cudnn.dll")), "an earlier file that is not the same is left where it was");
+    }
+
     [TestMethod]
     public async Task AnEntryThatIsNotWhatTheCatalogSays_IsRefused_AndNotHandedOut()
     {

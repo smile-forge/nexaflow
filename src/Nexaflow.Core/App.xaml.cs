@@ -314,7 +314,9 @@ public partial class App : Application
         // Which models are loaded ahead, and what they may hold, is this machine's to weigh: what it runs, what was used on it this week.
         var preloadConfig = (ModelPreloadConfig)ConfigManager.Instance.Register(new ModelPreloadConfig(), new ModelPreloadConfig().ConfigName);
         var aiHost = StartAiHost(preloadConfig.MemoryForModelsPercent);
-        var assets = new ModelAssetStore(ModelAssetStore.DefaultRoot(), [Path.Combine(ConfigManager.Instance.BaseDir, "voice", "models")],
+        // An earlier CUDA pack's folder is adopted from as well: a version that moves the pack on fetches only what changed.
+        var aiRoot = ModelAssetStore.DefaultRoot();
+        var assets = new ModelAssetStore(aiRoot, [Path.Combine(ConfigManager.Instance.BaseDir, "voice", "models"), .. CudaRuntimePack.EarlierIn(aiRoot)],
                                          downloadsAllowed: !UiTest);
         // The picture tools run in the same host, on the same plan of its GPUs, from the same store, as the owned models.
         var hostSetup = new HostModelSetup(aiHost);
@@ -324,6 +326,9 @@ public partial class App : Application
         StartupTimings.Mark("Init.ModelStore");
         var hardware = ComputeHardware.Probe();
         StartupTimings.Mark("Init.HardwareProbe");
+        // A machine that had the CUDA pack gets this version's in place of it, in the background, without being asked again.
+        var cudaPack = new CudaPackDownload(assets, aiRoot, hardware, activityManager);
+        if (!UiTest) _ = cudaPack.ReplaceEarlierAsync();
         var pictureTools = new PictureTools(new OwnedPictureTools(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
         var pictureSelection = new PictureSelection(new OwnedPictureSelection(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
         var pageReading = new PageReading(new OwnedPageReading(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
@@ -333,7 +338,7 @@ public partial class App : Application
         var pictureChecking = new PictureChecking(new OwnedPictureChecking(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
         ProviderManager.Instance.Initialize(activityManager, assets, _residency,
             aiHost, hostSetup, hardware,
-            new LocalModelDownloads(assets, activityManager, WorkspaceManager.Instance.UseLocalModel), pictureTools, pictureSelection, pageReading,
+            new LocalModelDownloads(assets, activityManager, WorkspaceManager.Instance.UseLocalModel), cudaPack, pictureTools, pictureSelection, pageReading,
             pictureErasing, sceneDepth, pictureChecking);
         FeatureManager.Instance.ProvideTool<IPictureTools>(pictureTools);
         FeatureManager.Instance.ProvideTool<IPictureSelection>(pictureSelection);

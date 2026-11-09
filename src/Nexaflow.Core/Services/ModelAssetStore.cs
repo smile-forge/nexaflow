@@ -15,8 +15,10 @@ namespace Nexaflow.Core.Services;
 /// <para>
 /// A file is handed out only once verified: its size and SHA-256 match the catalog, recorded beside it in a
 /// <c>.verified</c> file so a large model is not hashed again at every start. A missing file is first looked for in
-/// the <see cref="_adoptFrom"/> folders where earlier versions kept models, and moved into place if it is the same
-/// file; otherwise it is downloaded, resuming any download an earlier attempt left.
+/// the <see cref="_adoptFrom"/> folders where earlier versions kept files — a folder this store once held, such as an
+/// earlier CUDA pack's, or the one voice models were kept in — and moved into place if it is the same file: taken on
+/// the mark the store left beside it there, hashed where it has none. Only what is still missing then is weighed
+/// against the drive and downloaded, resuming any download an earlier attempt left.
 /// </para>
 /// </summary>
 public sealed class ModelAssetStore : IModelAssetStore
@@ -98,9 +100,15 @@ public sealed class ModelAssetStore : IModelAssetStore
         lock (_claims) return Weigh(claims);
     }
 
-    /// <summary>The assets not here, each once.</summary>
+    /// <summary>What fetching <paramref name="assets"/> downloads, in bytes: each file not here, less those an earlier version's
+    /// folder holds verified — they are moved in.</summary>
+    public long FetchBytes(IEnumerable<ModelAsset> assets) => Missing(assets).Sum(a => a.Size);
+
+    /// <summary>The assets not here, each once — less those an earlier version's folder holds verified, which are moved in
+    /// rather than fetched.</summary>
     private List<ModelAsset> Missing(IEnumerable<ModelAsset> assets)
-        => [.. assets.Where(a => Locate(a) is null).DistinctBy(a => a.RelativePath, StringComparer.Ordinal)];
+        => [.. assets.Where(a => Locate(a) is null && !EarlierCopies(a).Any(old => IsVerified(old, a)))
+                     .DistinctBy(a => a.RelativePath, StringComparer.Ordinal)];
 
     /// <summary>What fetching <paramref name="missing"/> claims of the drive: one claim for each file published on its own, and one
     /// for each archive with the entries kept from it, each counting what an interrupted download of it already wrote.</summary>
@@ -176,11 +184,31 @@ public sealed class ModelAssetStore : IModelAssetStore
         public void Wrote(long received) => Volatile.Write(ref _written, received);
     }
 
+    /// <summary>Moves into place each of <paramref name="assets"/> not here that an earlier version's folder holds — before
+    /// anything is weighed or fetched, so a set that shares most of its files with an earlier one downloads only the rest.</summary>
+    private async Task AdoptEarlierAsync(IReadOnlyList<ModelAsset> assets, CancellationToken ct)
+    {
+        foreach (var asset in assets.DistinctBy(a => a.RelativePath, StringComparer.Ordinal))
+        {
+            if (Locate(asset) is not null) continue;
+            var path = PathOf(asset);
+            var gate = LockFor(path);
+            await gate.WaitAsync(ct);
+            try
+            {
+                if (!IsVerified(path, asset) && await AdoptAsync(asset, path, ct))
+                    await MarkVerifiedAsync(path, asset, ct);
+            }
+            finally { gate.Release(); }
+        }
+    }
+
     /// <summary>Fetches what is missing of <paramref name="assets"/> once the drive is known to have room for it, holding that
     /// room against other fetches until it ends.</summary>
     /// <exception cref="ModelRoomException">The drive has too little room left; nothing was fetched.</exception>
     private async Task<IReadOnlyList<string>> FetchMissingAsync(IReadOnlyList<ModelAsset> assets, IProgress<AssetProgress>? progress, CancellationToken ct)
     {
+        await AdoptEarlierAsync(assets, ct);
         var missing = Missing(assets);
         var loose   = missing.Where(a => a.Archive is null).ToList();
         var packed  = missing.Where(a => a.Archive is not null).GroupBy(a => a.Archive!.ArchiveSha256, StringComparer.OrdinalIgnoreCase).ToList();
@@ -199,7 +227,7 @@ public sealed class ModelAssetStore : IModelAssetStore
         return [.. assets.Select(a => Locate(a) ?? throw new InvalidDataException($"{a.RelativePath} did not arrive."))];
     }
 
-    /// <summary>A file published on its own: found, adopted from an earlier version's folder, or downloaded.</summary>
+    /// <summary>A file published on its own: found, or downloaded — an earlier version's copy was moved in before.</summary>
     private async Task EnsureLooseAsync(ModelAsset asset, IProgress<DownloadProgress>? progress, CancellationToken ct)
     {
         var path = PathOf(asset);
@@ -209,12 +237,8 @@ public sealed class ModelAssetStore : IModelAssetStore
         {
             if (IsVerified(path, asset)) return;
 
-            if (!await AdoptAsync(asset, path, ct))
-            {
-                RefuseWhenDownloadsAreOff(path);
-                await VerifiedDownload.DownloadAsync(_http, asset.Source, path, asset.Size, asset.Sha256, progress, ct);
-            }
-
+            RefuseWhenDownloadsAreOff(path);
+            await VerifiedDownload.DownloadAsync(_http, asset.Source, path, asset.Size, asset.Sha256, progress, ct);
             await MarkVerifiedAsync(path, asset, ct);
         }
         finally { gate.Release(); }
@@ -321,22 +345,33 @@ public sealed class ModelAssetStore : IModelAssetStore
         Changed?.Invoke(this, asset);
     }
 
-    /// <summary>Moves a file an earlier version downloaded into place, when it is the same file.</summary>
+    /// <summary>Moves a file an earlier version kept into place, when it is the same file: one this store verified there is
+    /// taken on its mark, any other is hashed first. Its mark goes with it.</summary>
     private async Task<bool> AdoptAsync(ModelAsset asset, string path, CancellationToken ct)
+    {
+        foreach (var old in EarlierCopies(asset))
+        {
+            if (!IsVerified(old, asset)
+                && !string.Equals(await Nexaflow.IO.Common.Hashing.Sha256FileAsync(old, ct), asset.Sha256, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.Move(old, path, overwrite: true);
+            File.Delete(VerifiedMark(old));
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>The files of <paramref name="asset"/>'s name and size in the folders earlier versions kept files in.</summary>
+    private IEnumerable<string> EarlierCopies(ModelAsset asset)
     {
         var name = Path.GetFileName(asset.RelativePath);
         foreach (var dir in _adoptFrom)
         {
             var old = Path.Combine(dir, name);
-            if (!File.Exists(old) || new FileInfo(old).Length != asset.Size) continue;
-            if (!string.Equals(await Nexaflow.IO.Common.Hashing.Sha256FileAsync(old, ct), asset.Sha256, StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.Move(old, path, overwrite: true);
-            return true;
+            if (File.Exists(old) && new FileInfo(old).Length == asset.Size) yield return old;
         }
-        return false;
     }
 
     private string PathOf(ModelAsset asset)

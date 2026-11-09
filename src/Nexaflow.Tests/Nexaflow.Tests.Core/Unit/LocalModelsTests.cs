@@ -17,6 +17,8 @@ using Nexaflow.Core.Services.Tools;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.AiHost.Client;
+using Nexaflow.IO.Common.Hardware;
 
 
 namespace Nexaflow.Tests.Core.Unit;
@@ -668,6 +670,36 @@ public class LocalModelsTests
     });
 
     [TestMethod]
+    public void AToolWhoseOwnFilesAreHere_OffersNoDownload_AndSaysItWaitsForTheCudaPack() => OnUi(async () =>
+    {
+        await _store.EnsureAllAsync(Upscaler.Files);
+        var row = Page(Open(), new FakeTool(_store, Upscaler, lacksRuntime: true)).Tools.Single();
+
+        Assert.IsFalse(row.DownloadCommand.CanExecute(null), "its own files are here: it is not downloaded again for the pack");
+        Assert.AreEqual(Str.Get("Shell.Config.Local.WaitsForCudaPack"), row.Status);
+    });
+
+    [TestMethod]
+    public void TheCudaPack_IsOfferedOnceAboveTheTools_OnlyOnAMachineThatRunsOnItsGpu() => OnUi(() =>
+    {
+        var gpu   = new ComputeHardwareReport([new ComputeAdapter("NVIDIA GeForce RTX 3080", ComputeVendor.Nvidia, 10L << 30, IsIntegrated: false, IsNpu: false)],
+                                              CudaRuntimePack.MinimumDriver);
+        var setup = Open();
+
+        var offered = new LocalModelsViewModel(setup.Shelf, setup.Grid, setup.Workspace, setup.Downloads, () => _saves++, [],
+                                               new CudaPackDownload(_store, _root, gpu, null)).CudaPack!;
+        Assert.IsTrue(offered.IsMissing);
+        Assert.IsTrue(offered.DownloadCommand.CanExecute(null));
+        Assert.AreEqual(Str.Format("Shell.Config.Local.DownloadFormat", SizeFormatter.FormatBytes(CudaRuntimePack.Size)), offered.DownloadLabel);
+
+        var unused = new LocalModelsViewModel(setup.Shelf, setup.Grid, setup.Workspace, setup.Downloads, () => _saves++, [],
+                                              new CudaPackDownload(_store, _root, new ComputeHardwareReport([], null), null)).CudaPack!;
+        Assert.IsFalse(unused.IsMissing, "a machine without an NVIDIA GPU runs on its CPU, and is offered no pack");
+        Assert.IsFalse(unused.DownloadCommand.CanExecute(null));
+        return Task.CompletedTask;
+    });
+
+    [TestMethod]
     public async Task AToolOnDisk_IsListedWithTheModels_AndCanGo_UsedByNoWorkspace()
     {
         await _store.EnsureAllAsync([.. Upscaler.Files]);
@@ -684,18 +716,22 @@ public class LocalModelsTests
     }
 
     /// <summary>A tool whose models are files in the store, fetched when asked.</summary>
-    private sealed class FakeTool(ModelAssetStore store, CatalogModel models) : ILocalTool
+    /// <summary>A tool whose models are files in the store, fetched when asked — and, with <paramref name="lacksRuntime"/>, a
+    /// runtime it shares that is not here, so it is not ready even with its own files.</summary>
+    private sealed class FakeTool(ModelAssetStore store, CatalogModel models, bool lacksRuntime = false) : ILocalTool
     {
         private Task? _fetching;
 
         public string Name => models.DisplayName;
         public string About => "Restores pictures.";
         public IReadOnlyList<ModelAsset> OwnFiles => models.Files;
+
+        public bool OwnFilesHere => models.Files.All(f => store.Locate(f) is not null);
         public int Downloads { get; private set; }
         public Task Fetching => _fetching ?? Task.CompletedTask;
 
         public ToolModelsState State
-            => models.Files.All(f => store.Locate(f) is not null) ? ToolModelsState.Ready
+            => models.Files.All(f => store.Locate(f) is not null) && !lacksRuntime ? ToolModelsState.Ready
              : _fetching is { IsCompleted: false } ? ToolModelsState.Downloading
              : ToolModelsState.NotDownloaded;
 

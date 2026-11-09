@@ -50,6 +50,8 @@ public abstract class LocalToolModels : ILocalTool
 
     public IReadOnlyList<ModelAsset> OwnFiles => _front.Catalog?.Files ?? [];
 
+    public bool OwnFilesHere => OwnFiles.All(f => _store.Locate(f) is not null);
+
     public long DownloadBytes => Files.Where(f => _store.Locate(f) is null).Sum(f => f.Size);
 
     public int DownloadPercent => _percent;

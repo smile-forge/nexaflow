@@ -180,6 +180,8 @@
   "Shell.Config.Local.TooLarge": "Trop grand pour cet ordinateur",
   "Shell.Config.Local.NoBuild": "Non disponible pour cet ordinateur",
   "Shell.Config.Local.DownloadingFormat": "Téléchargement de {0}… {1} %",
+  "Shell.Config.Local.CudaPackAbout": "Les bibliothèques CUDA de NVIDIA, avec lesquelles les outils et les modèles tournent sur le GPU de ce PC. Téléchargées une seule fois pour tous.",
+  "Shell.Config.Local.WaitsForCudaPack": "Ses fichiers sont là ; il n'attend plus que le pack d'exécution CUDA ci-dessus.",
   "Shell.Config.Local.KeepingFormat": "{0} reste utilisé jusqu'à son arrivée.",
   "Shell.Config.Local.LeftSeconds": "encore {0} s environ",
   "Shell.Config.Local.LeftMinutes": "encore {0} min environ",

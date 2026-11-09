@@ -97,6 +97,30 @@
                            FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
                 <TextBlock Text="{loc:Str Shell.Config.Local.ToolsIntro}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,4"
                            Foreground="{StaticResource TextMutedBrush}"/>
+                <!-- The CUDA pack, while a machine that runs on its GPU is without it: one download for every tool and model,
+                     so a tool whose own files are here offers none of its own. -->
+                <Border DataContext="{Binding CudaPack}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="0,10"
+                        Visibility="{Binding IsMissing, Converter={StaticResource BoolVis}, FallbackValue=Collapsed}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="200"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Top" Margin="0,2,0,0"
+                                   Foreground="{StaticResource TextBrush}"/>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="{Binding About}" FontSize="11" TextWrapping="Wrap"
+                                       Foreground="{StaticResource TextMutedBrush}"/>
+                            <Button Style="{StaticResource RowButton}" Content="{Binding DownloadLabel}" Command="{Binding DownloadCommand}"
+                                    Visibility="{Binding CanDownload, Converter={StaticResource BoolVis}}"
+                                    HorizontalAlignment="Left" Margin="0,8,0,0"
+                                    AutomationProperties.AutomationId="LocalModels_CudaPackDownload"
+                                    AutomationProperties.Name="{Binding DownloadLabel}"/>
+                            <TextBlock Text="{Binding Status}" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"
+                                       Foreground="{StaticResource TextMutedBrush}"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
                 <ItemsControl ItemsSource="{Binding Tools}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:LocalToolViewModel}">

@@ -28,10 +28,12 @@ public sealed class LocalModelsViewModel
 
     /// <param name="committed">Saves the grid's config once a choice of a model that is here has been written into it.</param>
     /// <param name="tools">The tools this machine runs with models of their own — app-wide, offered beside the jobs.</param>
+    /// <param name="cudaPack">The CUDA pack's download, app-wide; null where there is none to show.</param>
     public LocalModelsViewModel(LocalModelShelf shelf, AiAbilityGridViewModel grid, Workspace workspace, LocalModelDownloads downloads,
-                                Action committed, IReadOnlyList<ILocalTool> tools)
+                                Action committed, IReadOnlyList<ILocalTool> tools, CudaPackDownload? cudaPack = null)
     {
-    foreach (var tool in tools) Tools.Add(new LocalToolViewModel(tool));
+        CudaPack = cudaPack is null ? null : new LocalCudaPackViewModel(cudaPack);
+        foreach (var tool in tools) Tools.Add(new LocalToolViewModel(tool));
         foreach (var slot in Enum.GetValues<LocalSlot>())
             Jobs.Add(new LocalJobViewModel(slot, shelf, grid, workspace, downloads, committed));
 
@@ -54,6 +56,10 @@ public sealed class LocalModelsViewModel
 
     /// <summary>The tools, each with what it does and Download while it is not here.</summary>
     public ObservableCollection<LocalToolViewModel> Tools { get; } = [];
+
+    /// <summary>The CUDA pack's line above the tools, shown while this machine runs on its GPU without it; null where there is no
+    /// pack download to show.</summary>
+    public LocalCudaPackViewModel? CudaPack { get; }
 }
 
 /// <summary>One job on the Local page: its model, the models it could have, and the download a choice is waiting on.</summary>
@@ -279,13 +285,16 @@ public sealed partial class LocalToolViewModel : ObservableObject
 
     public void Refresh()
     {
-        CanDownload   = _tool.State == ToolModelsState.NotDownloaded;
+        // Its own files here, it lacks only the CUDA pack: that is fetched once, from the pack's own line, not as this tool.
+        bool waitsForPack = _tool.State == ToolModelsState.NotDownloaded && _tool.OwnFilesHere;
+        CanDownload   = _tool.State == ToolModelsState.NotDownloaded && !waitsForPack;
         DownloadLabel = Str.Format("Shell.Config.Local.DownloadFormat", SizeFormatter.FormatBytes(_tool.DownloadBytes));
         Status = _tool.State switch
         {
             ToolModelsState.Unavailable => Str.Get("Shell.Config.Local.NoBuild"),
             ToolModelsState.Downloading => Str.Format("Shell.Config.Local.DownloadingFormat", _tool.Name, _tool.DownloadPercent),
             ToolModelsState.Ready       => Str.Get("Shell.Config.Local.Here"),
+            _ when waitsForPack         => Str.Get("Shell.Config.Local.WaitsForCudaPack"),
             _ when _tool.DownloadFailure is { } why => Str.Format("Shell.Config.Local.FailedFormat", _tool.Name, why),
             _                           => string.Empty,
         };
@@ -293,4 +302,52 @@ public sealed partial class LocalToolViewModel : ObservableObject
 
     [RelayCommand(CanExecute = nameof(CanDownload))]
     private void Download() => _tool.Download();
+}
+
+/// <summary>
+/// The CUDA pack on the Local page, above the tools: shown while a machine it suits is without it, with a Download of its
+/// own — fetched once, app-wide, for every tool and model that runs on the GPU. A tool whose own files are here waits on it
+/// alone, and offers no download of its own.
+/// </summary>
+public sealed partial class LocalCudaPackViewModel : ObservableObject
+{
+    private readonly CudaPackDownload _pack;
+    private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
+
+    public LocalCudaPackViewModel(CudaPackDownload pack)
+    {
+        _pack = pack;
+        pack.Changed += (_, _) => _ui.InvokeAsync(Refresh);
+        Refresh();
+    }
+
+    public string Name => Str.Get("Shell.Components.CudaPack.Name");
+
+    public string About => Str.Get("Shell.Config.Local.CudaPackAbout");
+
+    /// <summary>The machine runs on its GPU and the pack is not here: the line shows.</summary>
+    [ObservableProperty] private bool _isMissing;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(DownloadCommand))]
+    private bool _canDownload;
+
+    /// <summary>What Download fetches: only what an earlier pack does not already hold.</summary>
+    [ObservableProperty] private string _downloadLabel = string.Empty;
+
+    /// <summary>Coming and how far, or why it stopped; empty while it waits to be fetched.</summary>
+    [ObservableProperty] private string _status = string.Empty;
+
+    public void Refresh()
+    {
+        IsMissing     = _pack.Applies && !_pack.IsHere;
+        CanDownload   = IsMissing && !_pack.IsDownloading;
+        DownloadLabel = Str.Format("Shell.Config.Local.DownloadFormat", SizeFormatter.FormatBytes(_pack.DownloadBytes));
+        Status = _pack.IsDownloading                ? Str.Format("Shell.Config.Local.DownloadingFormat", Name, _pack.Percent)
+               : IsMissing && _pack.Failure is { } why ? Str.Format("Shell.Config.Local.FailedFormat", Name, why)
+               : string.Empty;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanDownload))]
+    private void Download() => _pack.Download();
 }

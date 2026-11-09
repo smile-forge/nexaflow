@@ -131,7 +131,8 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         if (_shelf is not null && _downloads is not null)
         {
             var tools = ProviderManager.Instance.Services<ILocalTool>();
-            var local = new LocalModelsViewModel(_shelf, _grid, _workspace, _downloads, CommitLocalChoice, tools);
+            var local = new LocalModelsViewModel(_shelf, _grid, _workspace, _downloads, CommitLocalChoice, tools,
+                                                 ProviderManager.Instance.Service<CudaPackDownload>());
             Sections.Add(GridSection(new LocalModelsControl(local, _grid), "local-models", Str.Get("Shell.Config.Local.Title")));
             Sections.Add(ConfigEditViewModel.ForCustomControl(new DownloadedModelsControl(new DownloadedModelsViewModel(_shelf, SavedGrids, tools)),
                                                               "downloaded-models", Str.Get("Shell.Config.Downloaded.Title")));

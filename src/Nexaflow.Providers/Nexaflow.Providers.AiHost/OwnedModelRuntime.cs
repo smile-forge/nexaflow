@@ -109,8 +109,10 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
         remove => setup.MadeWayChanged -= value;
     }
 
-    /// <summary>Whether <paramref name="asset"/> is one of the model's files on this machine.</summary>
-    public bool IsFileOf(OwnedEntry model, ModelAsset asset) => CatalogOf(model).Files.Contains(asset);
+    /// <summary>One of the files <paramref name="model"/> needs here: its own, or the CUDA pack's where the pack suits the
+    /// machine — its arriving or going changes whether the model is ready, as <see cref="IsReady"/> reads it.</summary>
+    public bool IsFileOf(OwnedEntry model, ModelAsset asset)
+        => CatalogOf(model).Files.Contains(asset) || (Runtime?.Files.Contains(asset) ?? false);
 
     /// <summary>Fetches another build of a model that is here. The store refuses it when its drive has no room, and the
     /// activity says so.</summary>

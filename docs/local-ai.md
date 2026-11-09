@@ -560,8 +560,9 @@ maps roles to models:
   a model: the first time a workspace loads, each such job gets its first model (one already here before any other) and
   every row of the job uses it. Each time a workspace loads, a job on a model it no longer offers here moves to its first
   (`LocalColumns.Settle`). Its cell in a row is the job's model — marked ⬇ while that is not downloaded — or greyed
-  with the reason where the machine runs none. Nothing downloads by itself: warming a model loads it only once it is
-  here. The grid offers to download every model it uses that is missing, or says to add a cloud service where the machine
+  with the reason where the machine runs none. No model downloads by itself: warming a model loads it only once it is
+  here. The CUDA pack alone does, and only on a machine that had it: a version that moves it on fetches the new one at
+  launch (`CudaPackDownload`). The grid offers to download every model it uses that is missing, or says to add a cloud service where the machine
   runs none. The Local page lists every model for a job — downloaded, the download it would take, or why this machine
   cannot run it; choosing one that is not here downloads it with its runtime first, the job keeping its model meanwhile,
   and a job no row used starts on it in every row. Downloads are the app's (`LocalModelDownloads`): one for each model
@@ -573,7 +574,9 @@ maps roles to models:
   what is free, then *Download now* (the app's downloads, followed in the step, going on after the wizard closes) or
   *Later* (each model offering its download on first use). Where the drive is short only *Later* is offered. After an
   update, the same step offers what every workspace's Local column now holds and lacks, each model once
-  (`LocalDownloadPlan`). Pictures, video and the picture tools are offered on first use. The
+  (`LocalDownloadPlan`). Pictures, video and the picture tools are offered on first use. The Local page's tools each offer
+  their own files; the CUDA pack, while a machine that runs on its GPU lacks it, has one line of its own above them, and
+  a tool whose own files are here says it waits for that line rather than offering a download. The
   Downloaded models page lists what is on disk with the workspaces that use it, and deletes only what none uses. They are
   never a provider to add.
 - **Resources are visible**: System Info shows where each model runs and what it holds, and a model too large for
@@ -1213,12 +1216,18 @@ per-machine choice users change later. At most, the bundle's Install page gains 
 - **The host** ships in the base install, in `AiHost\` beside the app: ONNX Runtime and llama.cpp, CPU only, started only when a workspace uses a model Nexaflow runs.
 - **Execution providers**: the CUDA pack (about 1.3 GB on disk) for NVIDIA, fetched with the first owned model on a
   machine with an NVIDIA GPU and a CUDA 13 driver — from Microsoft's NuGet packages and NVIDIA's wheels on PyPI, each
-  archive checked and only the DLLs kept. Windows ML's providers, for other vendors and NPUs, come with the first
+  archive checked and only the DLLs kept. Each pack is kept in a folder of its id, which names the runtimes it carries,
+  so a version that moves one on has a new folder. On a machine that had the pack, that version fetches it at launch
+  (`CudaPackDownload`): the store moves each file the two packs share across from the earlier folder — taken on the
+  mark it left there, not hashed again — and downloads only what changed, about 160 MB for an ONNX Runtime bump
+  rather than the whole pack. Once the new pack is whole, however it came, the earlier folders are deleted; on a
+  machine the pack does not suit, at launch. Windows ML's providers, for other vendors and NPUs, come with the first
   model built for one of them.
 - **Models and voices**: `ModelAssetStore`, under `%LOCALAPPDATA%\Smile\nexaflow\ai\` — a short, real, non-roaming
   path. Each provider ships a catalog manifest naming its models' files with source, size and SHA-256; a download
-  resumes from a `.partial` file and a file is handed out only once verified. Whisper models an earlier version kept
-  in `%APPDATA%\…\voice\models` are moved in when they are the same file.
+  resumes from a `.partial` file and a file is handed out only once verified. A file an earlier version kept — Whisper
+  models in `%APPDATA%\…\voice\models`, an earlier CUDA pack's — is moved in when it is the same file, before anything
+  is weighed against the drive or downloaded.
 - **Hardware probe**: `ComputeHardware` (IO.Common) reads every ML-capable adapter through DXCore — GPUs of every
   vendor with their real memory, and NPUs — and the CUDA driver from `nvcuda.dll`. System Info's Local AI card shows
   it with the local models it suits; the host reads it to decide whether to offer an owned model at all, and on

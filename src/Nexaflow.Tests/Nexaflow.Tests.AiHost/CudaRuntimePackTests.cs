@@ -48,6 +48,17 @@ public class CudaRuntimePackTests
         }
     }
 
+    [TestMethod]
+    public void EarlierPacks_AreTheOtherCudaPacksBesideIt_NotItNorAnotherRuntime()
+    {
+        var root = TestTemp.CreateSubdirectory("nexaflow-packs-").FullName;
+        foreach (var name in new[] { "cuda-ort1.30.0-genai0.17.1", CudaRuntimePack.Id, "directml-1.0" })
+            Directory.CreateDirectory(Path.Combine(root, "runtime", name));
+
+        CollectionAssert.AreEqual(new[] { Path.Combine(root, "runtime", "cuda-ort1.30.0-genai0.17.1") }, CudaRuntimePack.EarlierIn(root).ToArray());
+        Assert.AreEqual(0, CudaRuntimePack.EarlierIn(Path.Combine(root, "none")).Count, "a store no pack was ever kept in has none earlier");
+    }
+
     private static ComputeAdapter Gpu(ComputeVendor vendor, bool integrated = false) => new("gpu", vendor, 24L << 30, integrated, IsNpu: false);
 
     [TestMethod]

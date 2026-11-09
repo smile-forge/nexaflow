@@ -17,4 +17,8 @@ public interface ILocalTool : IToolModels
 
     /// <summary>Its own files: what removing it takes away. A runtime it shares with the models stays.</summary>
     IReadOnlyList<ModelAsset> OwnFiles { get; }
+
+    /// <summary>Its own files are all here: what it still lacks, if anything, is the runtime it shares with the models — fetched
+    /// once for all of them, not as this tool's download.</summary>
+    bool OwnFilesHere { get; }
 }

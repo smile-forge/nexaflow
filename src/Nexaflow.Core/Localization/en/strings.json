@@ -212,6 +212,8 @@
   "Shell.Config.Local.TooLarge": "Too large for this machine",
   "Shell.Config.Local.NoBuild": "Not available for this machine",
   "Shell.Config.Local.DownloadingFormat": "Downloading {0}… {1}%",
+  "Shell.Config.Local.CudaPackAbout": "NVIDIA's CUDA libraries, which the tools and models run on this PC's GPU with. Downloaded once for all of them.",
+  "Shell.Config.Local.WaitsForCudaPack": "Its files are here; it waits only for the CUDA runtime pack above.",
   "Shell.Config.Local.KeepingFormat": "{0} stays in use until it's here.",
   "Shell.Config.Local.LeftSeconds": "about {0} s left",
   "Shell.Config.Local.LeftMinutes": "about {0} min left",

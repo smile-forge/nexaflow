@@ -89,7 +89,10 @@ public class WorkspaceConfigJourneyTests : OptionsOverlayJourney
         Check("Each job this machine runs a model for has its list — speech to text among them, on Nexaflow's own Whisper",
               () => WaitForFs(() => CountOf("LocalModels_Choice") >= 2, 3));
         Check("The tools are listed beneath the jobs — the picture tools offered for download where they are not here",
-              () => WaitForFs(() => Exists("LocalModels_Tool") && (WaitForId("LocalModels_ToolDownload", 1) is not { } download || download.IsEnabled), 3));
+                      () => WaitForFs(() => Exists("LocalModels_Tool") && (WaitForId("LocalModels_ToolDownload", 1) is not { } download || download.IsEnabled), 3));
+              // The CUDA pack has a line of its own above them on a machine that runs on its GPU without it; the sandbox has no NVIDIA GPU.
+              Check("The CUDA pack, where it is missing, is offered once above the tools",
+                    () => WaitForId("LocalModels_CudaPackDownload", 1) is not { } pack || pack.IsEnabled);
 
         SelectSection(sections!, "Downloaded models", "DownloadedModels_List");
         Check("What is on disk is listed", () => Exists("DownloadedModels_List"));
