@@ -17,6 +17,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.Markdown\Nexaflow.Markdown.csproj" />
+        <!-- CacheLocation: the notes are held under their budget as every kept thing is. -->
+        <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
   </ItemGroup>
 
 </Project>

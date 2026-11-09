@@ -3,6 +3,7 @@ using Nexaflow.Core.Models;
 using Nexaflow.Core.Services.Agent;
 using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
@@ -435,6 +436,20 @@ public sealed class WorkspaceManager
     /// <summary>The live workspace running <paramref name="workspace"/>, or null when none is open.</summary>
     public WorkspaceRuntime? FindLiveWorkspace(Workspace workspace)
         => _workspaces.FirstOrDefault(w => ReferenceEquals(w.Workspace, workspace));
+
+    /// <summary>
+    /// Every path a tab names — those open in every live workspace, and those each workspace's default tabs and last session would
+    /// open again — for what the app clears (<see cref="DraftLocation.Sweep"/>) never to take a file a tab shows or will show.
+    /// Called on the UI thread, where the tabs are.
+    /// </summary>
+    internal IReadOnlyList<string> TabPaths()
+    {
+        var saved = Workspaces.SelectMany(workspace => workspace.DefaultTabs.Concat(workspace.LastSessionTabs ?? []))
+                              .SelectMany(tab => DraftLocation.PathsIn(tab.PageParams));
+        var open = _workspaces.SelectMany(runtime => runtime.ShellServices?.GetOpenTabs() ?? [])
+                              .SelectMany(tab => DraftLocation.PathsIn(tab.PageParams));
+        return [.. saved.Concat(open).Distinct(StringComparer.OrdinalIgnoreCase)];
+    }
 
     /// <summary>
     /// The workspace an item opened from outside the app (Explorer's "Open in Nexaflow") goes to: the one workspace with

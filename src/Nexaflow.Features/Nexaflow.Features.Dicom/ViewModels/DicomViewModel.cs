@@ -466,8 +466,7 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
     [LocalDiskOnly(ReportsHere)]
     private string KeepReport(byte[] bytes, string name)
     {
-        var dir = Path.Combine(Path.GetTempPath(), "nexaflow-dicom");
-        Directory.CreateDirectory(dir);
+        var dir = CacheLocation.SessionFolder("dicom-reports");
         var temp = Path.Combine(dir, name);
         File.WriteAllBytes(temp, bytes);
         _tempReports.Add(temp);

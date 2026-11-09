@@ -796,7 +796,7 @@ Video Generation and Video Generation (HQ) rows. Like every tool that takes a pa
 from, a mask and a first frame are files open in a tab or in a folder open in one, and `path` is a folder or file inside
 a folder open in a tab — anywhere else is refused before anything is made. Asked to save there, a tool writes the result
 never over a file already there and opens it as a double-click would; the model is told where it went and the
-conversation carries the file. Asked to save nowhere, the result is kept in a temp folder and opened as a draft
+conversation carries the file. Asked to save nowhere, the result is kept in the app's drafts folder (`DraftLocation`) and opened as a draft
 (`DraftFile`) in Nexaflow's own image, audio or video viewer, whose Save as keeps it where the user chooses; the model is
 told only that it opened. A picture made while the model waits goes back as a `ContextImage` either way, so the model
 sees what it drew; the existing loop, approvals and context handling apply unchanged.

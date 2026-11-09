@@ -19,9 +19,7 @@ public static class NugetCheckCache
     private static readonly TimeSpan MaxAge = TimeSpan.FromHours(24);
     private static readonly object _gate = new();
 
-    private static readonly string CacheFile = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Smile", "nexaflow", "cache", "nuget-outdated.json");
+    private static readonly string CacheFile = Path.Combine(CacheLocation.Root, "nuget-outdated.json");
 
     private sealed record Entry(DateTimeOffset CheckedUtc, List<NugetUpdateChecker.PackageUpdate> Updates);
 

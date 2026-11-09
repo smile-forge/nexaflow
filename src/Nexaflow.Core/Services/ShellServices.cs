@@ -266,6 +266,9 @@ public sealed class ShellServices : IShellServices
     private void OpenTabCore(string pageKind, Dictionary<string, string>? pageParams,
                              IPageView? caller, bool inRightPane)
     {
+        // A draft opened is a draft in use: kept from the app's clearing of drafts (DraftLocation.Sweep).
+        foreach (var path in DraftLocation.PathsIn(pageParams)) DraftLocation.Touch(path);
+
         // 1. Resolve target window from caller page or focused window
         var targetWindow = ResolveTargetWindow(caller);
         if (targetWindow is null) return;

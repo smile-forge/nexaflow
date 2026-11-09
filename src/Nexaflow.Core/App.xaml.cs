@@ -194,6 +194,13 @@ public partial class App : Application
         // into an archive works as early as possible.
         Task.Run(() => FeatureCatalog.Instance.WarmUpAll(["Nexaflow.Features.Compressed", "Nexaflow.Features.Email"]));
 
+        // Drafts are the app's to clear, never Windows': a little after start-up, and daily while the app runs, every draft no tab
+        // shows or would open again that has gone untouched too long, or is past the drafts' budget. What the tabs name is asked
+        // only once the window has nothing else to do, and the sweep itself is off the UI thread.
+        _draftSweeping = new DraftSweeping(() => Dispatcher.InvokeAsync(WorkspaceManager.Instance.TabPaths, DispatcherPriority.ApplicationIdle).Task,
+                                           paths => DraftLocation.Sweep(paths), TimeProvider.System);
+        _draftSweeping.Start();
+
 
 
         // Update check — runs in both paths (the daemon finds updates windowless and posts a message;
@@ -464,9 +471,13 @@ public partial class App : Application
         });
     }
 
+    /// <summary>The app's sweep of its own drafts, at start and daily while it runs.</summary>
+    private DraftSweeping? _draftSweeping;
+
     protected override void OnExit(ExitEventArgs e)
     {
         ShellSafetyLog.Instance.Step($"shutdown begun (exit code {e.ApplicationExitCode})");
+        _draftSweeping?.Dispose();
         CrashLog.Instance.Flush();   // a burst still collapsing at shutdown would otherwise go unrecorded
 
         if (_residency is not null && !_residency.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2)))

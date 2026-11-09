@@ -21,7 +21,8 @@ namespace Nexaflow.Features.Email.Services;
 [LocalDiskOnly("the message's HTML and inline pictures, written to the temp folder for the rendered view and the browser")]
 internal sealed partial class HtmlBodyExporter : IDisposable
 {
-    private static readonly string Root = Path.Combine(Path.GetTempPath(), "nexaflow-email");
+    /// <summary>Where this process writes message bodies out for the viewer: a folder of its session's own, out of the temp folder's clean-up.</summary>
+    private static string Root => CacheLocation.SessionFolder("email-bodies");
     private static int _cleanupHooked;
 
     private readonly EmailDocument _doc;

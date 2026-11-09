@@ -82,7 +82,7 @@ public static class MarkdownPackage
     /// built in a staging folder on this disk first.
     /// </summary>
     /// <exception cref="NotSupportedException">Where the package is cannot be written — inside a disc image.</exception>
-    public static async Task PackAsync(IVirtualFileSystem vfs, string markdown, string folder, string package, CancellationToken ct = default)
+    public static async Task<IReadOnlyList<string>> PackAsync(IVirtualFileSystem vfs, string markdown, string folder, string package, CancellationToken ct = default)
     {
         string staging = Path.Combine(Path.GetTempPath(), "nexaflow-mdz", "packing-" + Guid.NewGuid().ToString("N")[..12]);
         string zip = staging + Extension;
@@ -92,8 +92,10 @@ public static class MarkdownPackage
             var placed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);   // path beside it → its name inside
             var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var attachments = new List<MarkdownAttachment>();
+            var missing = new List<string>();
             foreach (var attachment in MarkdownAttachments.Find(markdown).OrderBy(a => a.At))
                 if (await vfs.ExistsAsync(Path.Combine(folder, attachment.Path), ct)) attachments.Add(attachment);
+                else if (!missing.Contains(attachment.Path, StringComparer.OrdinalIgnoreCase)) missing.Add(attachment.Path);
             // Named in the order the document names them, so the second of two the same is the one numbered…
             foreach (var attachment in attachments)
             {
@@ -111,6 +113,7 @@ public static class MarkdownPackage
 
             await vfs.CreateArchiveAsync(zip, staging, ct: ct);
             await vfs.ReplaceAsync(package, await vfs.ReadAllBytesAsync(zip, ct), ct);
+            return missing;
         }
         finally
         {

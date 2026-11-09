@@ -12,8 +12,9 @@ namespace Nexaflow.Tests.Features.Markdown;
 
 /// <summary>
 /// Save as, drafts and Markdown Packages in the editor: the document written where the reader picks — a package first,
-/// its attachments inside it, or a file with them beside it — the tab then that file; a draft kept in a temp folder saved
-/// where the reader picks, starting where it was made for; a package edited unpacked and packed again on save.
+/// its attachments inside it, or a file with them beside it — the tab then that file, and a file it links to that is gone named
+/// rather than lost without a word; a draft saved where the reader picks, starting where it was made for; a package edited
+/// unpacked and packed again on save.
 /// </summary>
 [TestClass]
 [CoversNode("markdown-save-as")]
@@ -111,6 +112,26 @@ public class MarkdownSaveAsTests
                                        "only what it shows from beside itself is carried — not the web picture, not one up out of its folder");
         CollectionAssert.AreEqual(new byte[] { 1, 2, 3 }, File.ReadAllBytes(Path.Combine(_dir, "kept", "notes.figures", "figure 1.png")));
         Assert.AreEqual(Path.Combine(_dir, "kept"), vm.DocumentFolder, "its pictures are read from beside the new file");
+    }
+
+    [TestMethod]
+    public async Task AFileTheDocumentLinksToGoneBeforeItIsSaved_IsNamed_NotLostWithoutAWord()
+    {
+        // What Windows' clean-up of the temp folder did to a draft left open: its figures went, its text stayed in the editor.
+        foreach (var target in new[] { Path.Combine(_dir, "kept", "notes.md"), Path.Combine(_dir, "packed", "notes.mdz") })
+        {
+            string source = Document();
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            var shell = Picking(target);
+            var vm = new MarkdownViewModel(source, shell, VirtualFileSystem.Instance);
+            await vm.Loaded;
+            File.Delete(Path.Combine(Path.GetDirectoryName(source)!, "notes.figures", "figure 1.png"));
+
+            await vm.SaveAsCommand.ExecuteAsync(null);
+
+            Assert.IsTrue(File.Exists(target), "the document is saved all the same");
+            shell.Received(1).ShowError(Arg.Is<string>(said => said.Contains("figure 1.png", StringComparison.Ordinal)));
+        }
     }
 
     [TestMethod]

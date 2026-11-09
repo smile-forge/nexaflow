@@ -31,7 +31,10 @@ Markdown opens in its own tab — there's nothing to configure.
 - **Markdown Packages** open in the editor like any Markdown file — from a folder, or from inside a zip or a disc
   image — and save back into themselves. One inside a disc image can't be written to: save it as a file elsewhere.
 - **Drafts** — a document made for you, such as a page of writing converted to Markdown, opens as a draft. Its first
-  save asks where to keep it, starting beside what it was made from.
+  save asks where to keep it, starting beside what it was made from. A draft is kept, pictures and all, until you save
+  it — closing its tab doesn't throw it away — and one no tab shows that you haven't opened for a month is cleared.
+- **Nothing lost in silence** — if a file the document links to has gone when you save, the document is still saved and
+  you're told which files are missing.
 - **Fold a section** — rest the pointer on a heading and its corner offers **Fold this section**: everything under it,
   sections and all, is put away, and a small **+n** under the heading says how many blocks wait there — press it to open
   the section again. Folding is how you are reading, not what is written: the document is unchanged, and a search or a

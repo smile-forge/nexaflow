@@ -624,12 +624,9 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
         }
     }
 
-    /// <summary>Where a frame taken to cut something out of is kept: a temporary folder, since what is kept is the cut-out.</summary>
-    public static string FramesFolder => Path.Combine(Path.GetTempPath(), "nexaflow-frames");
-
     /// <summary>The frame on screen, at the video's own size, opened in the image editor's Cut out — playback paused on it.</summary>
     [RelayCommand]
-    [LocalDiskOnly("a frame cut out of the video, kept in the temp folder for the picture editor")]
+    [LocalDiskOnly("a frame cut out of the video, kept as a draft for the picture editor")]
     private async Task CutOutFrame()
     {
         if (_shell is null) return;
@@ -640,8 +637,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
             await OnUi(() => _shell.ShowError(Str.Get("Video.CutOut.Failed")));
             return;
         }
-        Directory.CreateDirectory(FramesFolder);
-        var path = Path.Combine(FramesFolder, $"{Path.GetFileNameWithoutExtension(_path)} {captured.TimeLabel.Replace(':', '.')}.png");
+        var path = DraftLocation.NewFile($"{Path.GetFileNameWithoutExtension(_path)} {captured.TimeLabel.Replace(':', '.')}.png");
         await File.WriteAllBytesAsync(path, captured.Png);
         await OnUi(() => _shell.OpenTab("Artist", new Dictionary<string, string> { ["path"] = path, ["tool"] = "select", [DraftFile.PageParameterName] = Path.GetDirectoryName(_path) ?? "" }));
     }

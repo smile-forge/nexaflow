@@ -18,7 +18,7 @@ public sealed class KeptFiles(string folder, long budgetBytes, string extension)
 
     /// <summary>The app's cache folder for what is kept under <paramref name="name"/>.</summary>
     public static string CacheFolder(string name)
-        => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Smile", "nexaflow", "cache", name);
+        => CacheLocation.Folder(name);
 
     /// <summary>
     /// Where what <paramref name="made"/> describes, made of <paramref name="photo"/>, is kept: by the photo's content, so
