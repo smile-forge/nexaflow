@@ -462,15 +462,29 @@ public class DocumentTranslatorTests
     }
 
     [TestMethod]
-    public async Task APieceGivenAsWrittenBeforeItsTranslation_IsAskedForAgain_AndNeverWrittenIntoTheDocument()
+    public async Task APieceGivenAsWrittenBeforeItsTranslation_HasThatTakenOff_AndIsNotAskedForAgain()
     {
-        // A piece with no marks to be doubled, quoted on its number's line with its translation under it: the shape of the
-        // passage before as the model is shown it, its text and then its translation.
+        // The shape of the passage before as the model is shown it — its text, a dash, its translation — on a line each, under the
+        // piece's number or on its line.
+        var model = new ScriptedModel((instructions, asked) => new(
+            instructions.StartsWith(ScriptedModel.Translation, StringComparison.Ordinal)
+                ? "@@ 1\nDOGS BARK.\n\n@@ 2\nCats purr.\n—\nCATS PURR.\n\n@@ 3 Birds sing.\nBIRDS SING."
+                : ScriptedModel.Answer(instructions, asked), DocumentReplyEnd.Finished));
+
+        var translated = await Translate(model, new MemoryNotes(), source: ThreeParagraphs);
+
+        Assert.AreEqual("DOGS BARK.\n\nCATS PURR.\n\nBIRDS SING.", translated.Trim());
+        Assert.AreEqual(1, model.Of(ScriptedModel.Translation).Count, "what it translates is taken off, and the translation kept");
+    }
+
+    [TestMethod]
+    public async Task APieceOpenedByItsTextOnTheSameLineAsItsTranslation_IsAskedForAgain_AndNeverWrittenIntoTheDocument()
+    {
         var asks = 0;
         var model = new ScriptedModel((instructions, asked) => new(
             instructions.StartsWith(ScriptedModel.Translation, StringComparison.Ordinal)
                 ? asks++ == 0
-                    ? "@@ 1\nDOGS BARK.\n\n@@ 2 Cats purr.\nCATS PURR.\n\n@@ 3\nBIRDS SING."
+                    ? "@@ 1\nDOGS BARK.\n\n@@ 2\nCats purr. CATS PURR.\n\n@@ 3\nBIRDS SING."
                     : ScriptedModel.Translated(asked, ScriptedModel.Shout)
                 : ScriptedModel.Answer(instructions, asked), DocumentReplyEnd.Finished));
 
@@ -481,8 +495,81 @@ public class DocumentTranslatorTests
         var asked = model.Of(ScriptedModel.Translation);
         Assert.AreEqual(2, asked.Count);
         StringAssert.Contains(asked[0], "the translation alone, never the text it translates", "the first ask says so");
-        CollectionAssert.AreEqual(new[] { "Cats purr." }, ScriptedModel.Pieces(asked[1]), "only the piece given as written, asked for again");
+        CollectionAssert.AreEqual(new[] { "Cats purr." }, ScriptedModel.Pieces(asked[1]), "where its translation starts is not guessed: asked for again");
         StringAssert.Contains(asked[1], "give the translation alone", "saying what was wrong with it");
+    }
+
+    [TestMethod]
+    public async Task APieceAnsweredTwice_OnceAsItWasWritten_IsAnsweredByItsTranslation()
+    {
+        var model = new ScriptedModel((instructions, asked) => new(
+            instructions.StartsWith(ScriptedModel.Translation, StringComparison.Ordinal)
+                ? "@@ 1\nDogs bark.\n\n@@ 1\nDOGS BARK.\n\n@@ 2\nCATS PURR.\n\n@@ 3\nBIRDS SING."
+                : ScriptedModel.Answer(instructions, asked), DocumentReplyEnd.Finished));
+
+        var translated = await Translate(model, new MemoryNotes(), source: ThreeParagraphs);
+
+        Assert.AreEqual("DOGS BARK.\n\nCATS PURR.\n\nBIRDS SING.", translated.Trim());
+        Assert.AreEqual(1, model.Of(ScriptedModel.Translation).Count, "the piece as written is no answer to choose between");
+    }
+
+    [TestMethod]
+    public async Task AReplyWithNoNumberedLine_AnswersNothing_EvenAskedForOnePiece()
+    {
+        // A model talking about what it was asked rather than answering it.
+        var asks = 0;
+        var model = new ScriptedModel((instructions, asked) => new(
+            instructions.StartsWith(ScriptedModel.Translation, StringComparison.Ordinal)
+                ? asks++ == 0 ? "Please provide the text you wish to have translated." : ScriptedModel.Translated(asked, ScriptedModel.Shout)
+                : ScriptedModel.Answer(instructions, asked), DocumentReplyEnd.Finished));
+
+        var translated = await Translate(model, new MemoryNotes(), source: "## Dielectric polarisation\n");
+
+        Assert.AreEqual("## DIELECTRIC POLARISATION", translated.Trim(), "never written into the document as the heading");
+
+        var asked = model.Of(ScriptedModel.Translation);
+        Assert.AreEqual(2, asked.Count);
+        StringAssert.Contains(asked[1], "answer with exactly 1 @@ line");
+    }
+
+    [TestMethod]
+    public async Task APassageEndingInALinkWrittenOut_IsTranslated_TheLinkKeptApart()
+    {
+        var translation = await Translation(ScriptedModel.Plain(), new MemoryNotes(), source: "Write to us. https://example.org\n");
+
+        Assert.AreEqual(0, translation.Untranslated.Count);
+        Assert.AreEqual("WRITE TO US. https://example.org", translation.Text.Trim());
+    }
+
+    [TestMethod]
+    public async Task APictureOnItsOwn_IsHandedOverAsItsDescriptionAlone()
+    {
+        var model = ScriptedModel.Plain();
+        var translated = await Translate(model, new MemoryNotes(), source: "![figure 3](pics/figure-3.png)\n");
+
+        Assert.AreEqual("![FIGURE 3](pics/figure-3.png)", translated.Trim());
+        CollectionAssert.AreEqual(new[] { "figure 3" }, ScriptedModel.Pieces(model.Of(ScriptedModel.Translation).Single()),
+            "nothing round words that are all there is for a model to lose");
+    }
+
+    [TestMethod]
+    public async Task AnAnswerMakingMarkupOfItsOwn_IsAskedForAgain_AndNeverWrittenIntoTheDocument()
+    {
+        var asks = 0;
+        var model = new ScriptedModel((instructions, asked) => new(
+            instructions.StartsWith(ScriptedModel.Translation, StringComparison.Ordinal)
+                ? asks++ == 0
+                    ? ScriptedModel.Translated(asked, piece => ScriptedModel.Shout(piece).Replace(" Q ", " $Q$ ", StringComparison.Ordinal))
+                    : ScriptedModel.Translated(asked, ScriptedModel.Shout)
+                : ScriptedModel.Answer(instructions, asked), DocumentReplyEnd.Finished));
+
+        var translated = await Translate(model, new MemoryNotes(), source: "The charge Q sits on a length l.\n");
+
+        Assert.AreEqual("THE CHARGE Q SITS ON A LENGTH L.", translated.Trim(), "no dollar sign written in as words");
+
+        var asked = model.Of(ScriptedModel.Translation);
+        Assert.AreEqual(2, asked.Count);
+        StringAssert.Contains(asked[1], "$Q$ is markup of your own");
     }
 
     [TestMethod]
