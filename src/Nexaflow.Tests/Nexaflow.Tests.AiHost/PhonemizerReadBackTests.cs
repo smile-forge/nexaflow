@@ -48,10 +48,10 @@ public class PhonemizerReadBackTests
         string nemotron = Path.Combine(root, "nemotron-3.5-asr-streaming");
         _models = new ListenModels(
             new ModelSpec("speech/voice-activity", "silero-vad", nemotron, "silero_vad.onnx", null, 0, 0),
-            new ModelSpec("speech/recognizer", "genai-streaming-asr", nemotron, null, "genai-native", pack is null ? 0 : 2L << 30, 0, Device: gpu),
+            new ModelSpec("speech/recognizer", "nemotron-streaming-asr", nemotron, null, null, pack is null ? 0 : 2L << 30, 0, Device: gpu),
             pack is null
-                ? new ModelSpec("speech/transcriber", "genai-whisper", Path.Combine(root, "whisper-large-v3-turbo-cpu"), null, "genai-native", 0, 0)
-                : new ModelSpec("speech/transcriber", "genai-whisper", Path.Combine(root, "whisper-large-v3-turbo-cuda"), null, "genai-native", 4L << 30, 0,
+                ? new ModelSpec("speech/transcriber", "whisper", Path.Combine(root, "whisper-large-v3-turbo-cpu"), null, null, 0, 0)
+                : new ModelSpec("speech/transcriber", "whisper", Path.Combine(root, "whisper-large-v3-turbo-cuda"), null, null, 4L << 30, 0,
                                 new Dictionary<string, string> { ["sdpa_kernel"] = "1" }, Device: gpu),
             new ModelSpec("speech/turn", "smart-turn", Path.Combine(root, "smart-turn-v3"), "smart-turn-v3.2-cpu.onnx", null, 0, 0));
         foreach (var model in new[] { _models.VoiceActivity, _models.Recognizer, _models.Transcriber!, _models.TurnDetector! })

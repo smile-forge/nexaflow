@@ -1,5 +1,4 @@
 using Microsoft.ML.OnnxRuntime;
-using Microsoft.ML.OnnxRuntimeGenAI;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Llama;
 using Nexaflow.AiHost.Models;
@@ -8,9 +7,8 @@ using Nexaflow.IO.Common.Hardware;
 namespace Nexaflow.AiHost;
 
 /// <summary>
-/// The host's one ONNX Runtime and onnxruntime-genai, held for the life of the process: onnxruntime-genai must keep
-/// its handle until exit, or the process can hang at shutdown. With the CUDA pack, models run on the GPUs it finds,
-/// each within its own budget; without it, on the CPU.
+/// The host's one ONNX Runtime and llama.cpp, held for the life of the process. With the CUDA pack, models run on the GPUs
+/// it finds, each within its own budget; without it, on the CPU.
 /// </summary>
 internal sealed class ExecutionRuntime : IHostGpus, IDisposable
 {
@@ -18,14 +16,20 @@ internal sealed class ExecutionRuntime : IHostGpus, IDisposable
 
 
 
-    private readonly OgaHandle _genai = new();
-
     /// <param name="memoryShare">The share of this machine's memory, in percent, models on the CPU may hold.</param>
     public ExecutionRuntime(HostLog log, int memoryShare = AiHostProtocol.DefaultMemoryShare)
     {
         Memory = HostMemory.Of(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes, memoryShare);
-        // The runtime's own warnings (node placement, shape merges) are expected on these exports; errors only.
-        var options = new EnvironmentCreationOptions { logId = "aihost", logLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR };
+        // The runtime's own warnings (node placement, shape merges) are expected on these exports; errors only, into the
+        // host's log rather than its error output — a CUDA failure is written there before the call that met it fails, or
+        // the process with it.
+        var options = new EnvironmentCreationOptions
+        {
+            logId           = "aihost",
+            logLevel        = OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR,
+            loggingFunction = (_, severity, category, _, location, message) =>
+                log.Write($"ONNX Runtime {(severity == OrtLoggingLevel.ORT_LOGGING_LEVEL_FATAL ? "fatal" : "error")} [{category}] {location}: {message}"),
+        };
         var env = OrtEnv.CreateInstanceWithOptions(ref options);
         Version            = env.GetVersionString();
         ExecutionProviders = env.GetAvailableProviders();
@@ -64,6 +68,5 @@ internal sealed class ExecutionRuntime : IHostGpus, IDisposable
     public void Dispose()
     {
         LlamaBackends.Free();
-        _genai.Dispose();
     }
 }

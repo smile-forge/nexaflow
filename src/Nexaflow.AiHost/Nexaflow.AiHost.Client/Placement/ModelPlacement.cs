@@ -346,7 +346,7 @@ public static class ModelPlacement
     /// runtime keeps back.</summary>
     public static IReadOnlyList<HostGpu> Expected(ComputeHardwareReport hardware)
         => !CudaRuntimePack.Applies(hardware) ? []
-           : [.. hardware.Adapters.Where(a => a.Vendor == ComputeVendor.Nvidia && !a.IsIntegrated && !a.IsNpu)
+           : [.. hardware.NvidiaGpus
                                   .Select((a, i) => new HostGpu(i, a.Name, null, a.DedicatedMemoryBytes,
                                                                 Math.Max(0, a.DedicatedMemoryBytes - DesktopBytes - HostGpu.ReservedBytes),
                                                                 a.DedicatedMemoryBytes - DesktopBytes))];

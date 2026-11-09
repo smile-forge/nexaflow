@@ -21,8 +21,9 @@ public interface IAiHostProcess : IDisposable
     /// <summary>Completes when the process has exited, with its exit code.</summary>
     Task<int> Exited { get; }
 
-    /// <summary>The last lines the process wrote to its error output — a native runtime's last words before a crash.</summary>
-    string LastErrors { get; }
+    /// <summary>The last lines the process wrote to its error output, oldest first — a native runtime's last words before
+    /// a crash.</summary>
+    IReadOnlyList<string> LastErrors { get; }
 
     void Kill();
 }
@@ -30,8 +31,10 @@ public interface IAiHostProcess : IDisposable
 /// <summary>Starts <c>Nexaflow.AiHost.exe</c>, hands it the token on standard input, and binds it to the
 /// kill-on-close job so it can never outlive the app.</summary>
 /// <param name="memoryShare">The share of this machine's memory, in percent, models on the host's CPU may hold.</param>
-/// <param name="logDirectory">Asked at each start for the folder the host keeps its log in; null, or a null answer, and the
-/// host keeps none. Asked rather than fixed, so a host started after the setting changes follows it.</param>
+/// <param name="logDirectory">Asked at each start for the folder the host keeps its log in, and its error output is written
+/// to beside it (<see cref="HostErrorOutput"/>); null, or a null answer, and neither is kept — only the error output's last
+/// lines, in memory, for the record of the host's end. Asked rather than fixed, so a host started after the setting
+/// changes follows it.</param>
 public sealed class ProcessAiHostLauncher(string hostPath, string aiDir, int memoryShare = AiHostProtocol.DefaultMemoryShare,
                                           Func<string?>? logDirectory = null) : IAiHostLauncher
 {
@@ -54,7 +57,8 @@ public sealed class ProcessAiHostLauncher(string hostPath, string aiDir, int mem
         info.ArgumentList.Add(aiDir);
         info.ArgumentList.Add(AiHostProtocol.MemoryShareArgument);
         info.ArgumentList.Add(memoryShare.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        if (logDirectory?.Invoke() is { } logs)
+        string? logs = logDirectory?.Invoke();
+        if (logs is not null)
         {
             info.ArgumentList.Add(AiHostProtocol.LogDirArgument);
             info.ArgumentList.Add(logs);
@@ -70,27 +74,21 @@ public sealed class ProcessAiHostLauncher(string hostPath, string aiDir, int mem
         KillOnCloseJob.Assign(process.Handle);
         process.StandardInput.WriteLine(token);
         process.StandardInput.Close();
-        return new HostProcess(process);
+        return new HostProcess(process, logs);
     }
 
     private sealed class HostProcess : IAiHostProcess
     {
-        private const int KeptLines = 20;
-
         private readonly Process _process;
-        private readonly Queue<string> _errors = new();
+        private readonly HostErrorOutput _errors;
 
-        public HostProcess(Process process)
+        public HostProcess(Process process, string? logDirectory)
         {
             _process = process;
+            _errors  = new HostErrorOutput(logDirectory, process.Id);
             process.ErrorDataReceived += (_, e) =>
             {
-                if (e.Data is not { Length: > 0 } line) return;
-                lock (_errors)
-                {
-                    _errors.Enqueue(line);
-                    if (_errors.Count > KeptLines) _errors.Dequeue();
-                }
+                if (e.Data is { Length: > 0 } line) _errors.Take(line);
             };
             process.BeginErrorReadLine();
             Exited = WaitAsync(process);
@@ -98,12 +96,10 @@ public sealed class ProcessAiHostLauncher(string hostPath, string aiDir, int mem
 
         public int Id => _process.Id;
 
+        /// <summary>Completes once the process has exited and its error output has been read to the end.</summary>
         public Task<int> Exited { get; }
 
-        public string LastErrors
-        {
-            get { lock (_errors) return string.Join(Environment.NewLine, _errors); }
-        }
+        public IReadOnlyList<string> LastErrors => _errors.Last;
 
         public void Kill()
         {
@@ -111,7 +107,11 @@ public sealed class ProcessAiHostLauncher(string hostPath, string aiDir, int mem
             catch (InvalidOperationException) { /* already gone */ }
         }
 
-        public void Dispose() => _process.Dispose();
+        public void Dispose()
+        {
+            _process.Dispose();
+            _errors.Dispose();
+        }
 
         private static async Task<int> WaitAsync(Process process)
         {

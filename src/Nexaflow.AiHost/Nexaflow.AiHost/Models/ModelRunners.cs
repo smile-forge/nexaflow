@@ -9,8 +9,8 @@ internal interface IHostModel : IDisposable
 }
 
 /// <summary>
-/// Loads one family of model from its prepared folder — a chat model or a recogniser through onnxruntime-genai, a voice
-/// activity detector through a plain ONNX Runtime session. A new family of model is a new runner.
+/// Loads one family of model from its folder — a chat model through llama.cpp, a recogniser or a voice activity detector
+/// through ONNX Runtime sessions. A new family of model is a new runner.
 /// </summary>
 internal interface IModelRunner
 {

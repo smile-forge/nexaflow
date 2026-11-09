@@ -3,8 +3,8 @@ using Nexaflow.AiHost.Contracts;
 
 namespace Nexaflow.AiHost.Models;
 
-/// <summary>How a generation model's ONNX graphs are opened — a picture's or a clip's parts: on the GPU their spec places
-/// them on, else the CPU.</summary>
+/// <summary>How a model's ONNX graphs are opened — a picture's or a clip's parts, a speech model's encoder and decoder: on the
+/// GPU their spec places them on, with the CUDA options it names, else the CPU.</summary>
 internal static class GraphSessions
 {
     /// <param name="sharedArena">Take the GPU's memory from the one arena every such session on it shares, rather than one of its
@@ -25,7 +25,7 @@ internal static class GraphSessions
         };
         if (spec.Device is { } device)
         {
-            CudaSessions.Append(options, device);
+            CudaSessions.Append(options, device, spec.CudaOptions);
             if (sharedArena) CudaSessions.ShareArena(options, device);
         }
         else options.IntraOpNumThreads = Math.Max(1, Environment.ProcessorCount / 2);

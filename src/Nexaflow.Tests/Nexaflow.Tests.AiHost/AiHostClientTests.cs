@@ -18,7 +18,8 @@ public class AiHostClientTests
         HeartbeatTimeout:  TimeSpan.FromMilliseconds(500),
         CancelGrace:       TimeSpan.FromMilliseconds(500),
         CrashLimit:        3,
-        CrashWindow:       TimeSpan.FromSeconds(2));
+        CrashWindow:       TimeSpan.FromSeconds(2),
+        ExitWait:          TimeSpan.FromSeconds(5));
 
     private static readonly TimeSpan Generous = TimeSpan.FromSeconds(30);
 
@@ -234,6 +235,35 @@ public class AiHostClientTests
         host.Serve = FakeHost.Describe;
         await Describe(client);
         Assert.AreEqual(Fast.CrashLimit + 1, host.Starts);
+    }
+
+    [TestMethod]
+    public async Task AHostThatDiesNatively_EndsWithItsExitCodeAndLastWords_ThoughItsPipeWentFirst()
+    {
+        const int FastFail = unchecked((int)0xC0000409);
+        string[] lastWords = ["CUDA error: an illegal memory access was encountered", "ggml aborted: ggml-cuda.cu:88: CUDA error"];
+        var host = new FakeHost { FaultOnRequest = (FastFail, lastWords) };
+        await using var client = new AiHostClient(host, Fast);
+        var exited = new TaskCompletionSource<AiHostExitedEventArgs>();
+        client.HostExited += (_, e) => exited.TrySetResult(e);
+
+        var ex = await Assert.ThrowsExactlyAsync<AiHostException>(() => Describe(client));
+        var end = await exited.Task.WaitAsync(Generous);
+
+        Assert.AreEqual(AiHostFailure.Lost, ex.Failure);
+        Assert.AreEqual(FastFail, end.ExitCode, "the pipe closed first, and the end waited for the exit that knows why");
+        CollectionAssert.AreEqual(lastWords, end.LastErrors.ToArray());
+        Assert.AreEqual(4242, end.ProcessId);
+        StringAssert.Contains(end.Reason, "0xC0000409 (STATUS_STACK_BUFFER_OVERRUN");
+        StringAssert.Contains(ex.Message, "ggml aborted", "the request's failure carries the host's last line");
+    }
+
+    [TestMethod]
+    public void AnExitCode_IsWrittenInHex_AndACommonFaultIsNamed()
+    {
+        StringAssert.StartsWith(AiHostExitCode.Describe(unchecked((int)0xC0000005)), "0xC0000005 (STATUS_ACCESS_VIOLATION");
+        Assert.AreEqual("0xC0000123", AiHostExitCode.Describe(unchecked((int)0xC0000123)), "a status with no name is still hex");
+        Assert.AreEqual("1", AiHostExitCode.Describe(1), "a code the host chose stays as it chose it");
     }
 
     [TestMethod]

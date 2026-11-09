@@ -2,7 +2,7 @@
   "models": [
     {
       "id": "cuda-ort1.31.0-genai0.18.0",
-      "displayName": "CUDA runtime (ONNX Runtime 1.31.0, onnxruntime-genai 0.18.0, llama.cpp b11606, cuBLAS 13.8, cuDNN 9.27)",
+      "displayName": "CUDA runtime (ONNX Runtime 1.31.0, llama.cpp b11606, cuBLAS 13.8, cuDNN 9.27)",
       "files": [
         {
           "path": "runtime/cuda-ort1.31.0-genai0.18.0/cublas64_13.dll",
@@ -169,28 +169,7 @@
             "sha256": "6ef71832859a6fa1cdbd51d36be301641b6de609c72a2ab206b32f6cc209959d"
           }
         },
-        {
-          "path": "runtime/cuda-ort1.31.0-genai0.18.0/onnxruntime-genai.dll",
-          "url": "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntimegenai.cuda/0.18.0/microsoft.ml.onnxruntimegenai.cuda.0.18.0.nupkg",
-          "size": 8791864,
-          "sha256": "7d8d1ede75ae8f4b58e4beaba406a1dd7417c66fca2a7550da964f0ef7a51b7e",
-          "archive": {
-            "entry": "runtimes/win-x64/native/onnxruntime-genai.dll",
-            "size": 260688580,
-            "sha256": "40fb99c2f6b9d56fd3df0de8a0fff5e92ad8cd8c5abe4ffdeac2d99d3b0316ec"
-          }
-        },
-        {
-          "path": "runtime/cuda-ort1.31.0-genai0.18.0/onnxruntime-genai-cuda.dll",
-          "url": "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntimegenai.cuda/0.18.0/microsoft.ml.onnxruntimegenai.cuda.0.18.0.nupkg",
-          "size": 4953440,
-          "sha256": "06c5531510fd30b6a366480cf9b6114dc2cb68e8aecf835413b54bba3b388ee6",
-          "archive": {
-            "entry": "runtimes/win-x64/native/onnxruntime-genai-cuda.dll",
-            "size": 260688580,
-            "sha256": "40fb99c2f6b9d56fd3df0de8a0fff5e92ad8cd8c5abe4ffdeac2d99d3b0316ec"
-          }
-        },
+
         {
           "path": "runtime/cuda-ort1.31.0-genai0.18.0/ggml-cuda.dll",
           "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11606/llama-b11606-bin-win-cuda-13.4-x64.zip",

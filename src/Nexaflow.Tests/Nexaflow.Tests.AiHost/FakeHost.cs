@@ -20,6 +20,13 @@ internal sealed class FakeHost : IAiHostLauncher
     public bool CrashAfterHandshake { get; set; }
     public string? WrongToken { get; set; }
 
+    /// <summary>Dies as a native fault kills a host once a request arrives: the pipe goes with the process, and the exit —
+    /// this code, and these last lines of error output — is seen <see cref="ExitSeenAfter"/> later, as a real exit waits
+    /// for its error output to drain.</summary>
+    public (int Code, string[] Errors)? FaultOnRequest { get; set; }
+
+    public TimeSpan ExitSeenAfter { get; set; } = TimeSpan.FromMilliseconds(300);
+
     /// <summary>What the host does with a request; by default it describes itself and completes.</summary>
     public Func<HostRequest, HostChannel, Task> Serve { get; set; } = Describe;
 
@@ -88,6 +95,13 @@ internal sealed class FakeHost : IAiHostLauncher
                         InputsReceived.Enqueue(input);
                         await Receive(input, channel);
                         break;
+                    case HostRequest when FaultOnRequest is { } fault:
+                        process.Channel = null;
+                        await channel.DisposeAsync();
+                        await Task.Delay(ExitSeenAfter);
+                        process.LastErrors = fault.Errors;
+                        process.Exit(fault.Code);
+                        return;
                     case HostRequest request:
                         _requestArrived.TrySetResult();
                         _ = Task.Run(() => Serve(request, channel));
@@ -112,7 +126,7 @@ internal sealed class FakeHost : IAiHostLauncher
         public bool WasKilled { get; private set; }
 
         public int Id => 4242;
-        public string LastErrors => "";
+        public IReadOnlyList<string> LastErrors { get; set; } = [];
         public Task<int> Exited => _exited.Task;
 
         public void Exit(int code)

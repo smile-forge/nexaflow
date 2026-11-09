@@ -32,7 +32,7 @@ public static class CudaRuntimePack
 
     /// <summary>Whether the pack can run here: an NVIDIA GPU of its own, and a driver new enough for CUDA 13.</summary>
     public static bool Applies(ComputeHardwareReport hardware)
-        => hardware.Adapters.Any(a => a.Vendor == ComputeVendor.Nvidia && !a.IsIntegrated && !a.IsNpu)
+        => hardware.NvidiaGpus.Any()
         && hardware.CudaDriver is { } driver && driver >= MinimumDriver;
 
     /// <summary>The pack's folder when every file of it is on disk and verified; null otherwise.</summary>

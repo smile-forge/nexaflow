@@ -22,9 +22,9 @@ public sealed record ExternalDependencyReport(
     ExternalDependencyStatus Status,
     IReadOnlyList<string> RequiredBy)
 {
-    /// <summary>True when this is a <c>Required</c> component the probe could not find.</summary>
+    /// <summary>True when this is a <c>Required</c> component the probe could not find, or found unfit to use.</summary>
     public bool IsBlocking
-        => Kind == ExternalDependencyKind.Required && Status.State == ExternalDependencyState.Missing;
+        => Kind == ExternalDependencyKind.Required && Status.State is ExternalDependencyState.Missing or ExternalDependencyState.Unusable;
 
     /// <summary>"needed by PDF, Web" — the features that declared it, for display.</summary>
     public string RequiredByLabel => string.Join(", ", RequiredBy);

@@ -6,7 +6,9 @@ namespace Nexaflow.AiHost;
 /// The host's own log, kept only while the app's safety logging is on: the app then names a folder
 /// (<see cref="Nexaflow.AiHost.Contracts.AiHostProtocol.LogDirArgument"/>) and the host writes a file of its own there
 /// beside the shell's, under the same retention and cap. The host has no window and the app only sees its pipe, so this
-/// is where a load failure or a crash's last words end up. With no folder named it keeps nothing.
+/// is where a load failure or a crash's last words end up: ONNX Runtime's errors (<see cref="ExecutionRuntime"/>),
+/// llama.cpp's warnings and errors, and ggml's message when it aborts (<see cref="Llama.LlamaBackends"/>). Each line is
+/// flushed as it is written, so a process that dies leaves everything up to it. With no folder named it keeps nothing.
 /// </summary>
 internal sealed class HostLog : IDisposable
 {

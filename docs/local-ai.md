@@ -4,7 +4,8 @@
 models that asks before high-risk context leaves this machine; providers serve speech to text beside language
 models, and the mic listens through the grid's Speech In chain (Nexaflow's own Whisper on this machine, OpenAI's
 realtime transcription in the cloud); local models' files live in one verified, resumable store; System Info reports what the
-machine can run. Nexaflow runs Gemma 4 E4B itself, in its AI host — on llama.cpp, from Google's own 4-bit build, on
+machine can run, and Options → About → System components what running on its GPU needs — an NVIDIA GPU of its own, a
+CUDA 13 driver, the CUDA pack and the AI host — with why each is not in place. Nexaflow runs Gemma 4 E4B itself, in its AI host — on llama.cpp, from Google's own 4-bit build, on
 CUDA from a pack fetched from where NVIDIA, Microsoft and llama.cpp publish it, or on the CPU — as the provider
 "Nexaflow", chosen when a workspace is set up; tools can hand a model recordings to hear; and an AI-path suite runs the
 agent loop on it. Every model calls tools in its own protocol, prompted by its own chat template.
@@ -31,8 +32,8 @@ The test beds behind every number here live outside the repository, in `D:\coded
 
 All three run on engines in Nexaflow's own process, and **Nexaflow owns everything around them**: **llama.cpp** for
 language models — Gemma 4 and Qwen 3.5 to 3.8, with the pictures and recordings they take in — and **ONNX Runtime**
-for the rest: onnxruntime-genai for speech recognition, plain sessions for TTS, voice activity detection, diffusion
-and audio generators; our own catalog, downloads, runtime provisioning, chat templates, memory policy and scheduling.
+for the rest: plain sessions for speech recognition, TTS, voice activity detection, diffusion and audio generators,
+each model's decoding the host's own; our own catalog, downloads, runtime provisioning, chat templates, memory policy and scheduling.
 
 ## Decisions
 
@@ -224,7 +225,7 @@ flowchart LR
     subgraph host [AI host process]
         sched[Scheduler + VRAM budget + watchdog]
         llm[llama.cpp<br/>language models, their media]
-        ort[ONNX Runtime + onnxruntime-genai<br/>ASR, VAD, Kokoro, diffusion]
+        ort[ONNX Runtime<br/>ASR, VAD, Kokoro, diffusion]
         eps[Execution providers<br/>our CUDA pack, Windows ML]
     end
     catalog[Our catalog + asset manager]
@@ -257,26 +258,32 @@ the app. Every reason is something the test beds hit:
   provider's `Whisper.net.Runtime.Cuda` (149 MB of ggml CUDA natives in every install) leaves the app for the same
   reason once speech runs in the host.
 - **One owner for the GPU.** Scheduling and the VRAM budget only work if one process decides.
-- **A watchdog.** Neither onnxruntime-genai nor ONNX Runtime has a request timeout; a host that stops answering is
+- **A watchdog.** Neither llama.cpp nor ONNX Runtime has a request timeout; a host that stops answering is
   killed and restarted.
 
-Inside the host there is **one CUDA stack** — NVIDIA's runtime, cuBLAS and cuDNN, loaded once — and three surfaces
+Inside the host there is **one CUDA stack** — NVIDIA's runtime, cuBLAS and cuDNN, loaded once — and two surfaces
 over it:
 
 - **llama.cpp** — the language models: one KV cache per model, a sequence in it per conversation, read and sampled by
   the host's own loop a GPU step at a time; its multimodal library reads pictures and recordings into a sequence.
-- **onnxruntime-genai** — streaming ASR (`StreamingProcessor`) and Whisper.
-- **plain ONNX Runtime sessions** — Silero VAD, Kokoro (KokoroSharp takes the session options) and diffusion
-  pipelines, on the same execution providers.
+- **ONNX Runtime sessions** — Nemotron's streaming recognition and Whisper (their features, caches and greedy decoding
+  the host's own, under `Speech/`), Silero VAD, Kokoro (KokoroSharp takes the session options) and diffusion pipelines,
+  on the same execution providers.
+
+**Every model runs on the GPU its spec names, whichever that is.** Each session is put on its device and every tensor
+it keeps between runs — Whisper's keys and values, Nemotron's encoder caches — is allocated there; llama.cpp is given
+that one device and no split. onnxruntime-genai is not used for this reason: it keeps one allocator and one CUDA stream
+for the whole process, on the first GPU, so a model it ran on a second GPU read and wrote the first one's memory, and
+the CUDA context failed with an illegal memory access.
 
 Execution providers come from two places, into **one host build for every machine** — ONNX Runtime's GPU build,
 which carries the CUDA provider:
 
-- **The CUDA pack** on NVIDIA (`CudaRuntimePack`): ONNX Runtime and onnxruntime-genai built with their CUDA layers,
+- **The CUDA pack** on NVIDIA (`CudaRuntimePack`): ONNX Runtime built with its CUDA layer,
   llama.cpp's CUDA backend from the release the install's llama.cpp comes from (which a test holds them to), and
   NVIDIA's CUDA runtime, cuBLAS and cuDNN. ONNX Runtime loads its CUDA provider from the folder `onnxruntime.dll` came from, so
   the pack carries the runtime itself — the same build as the install's, which a test holds them to — and a host
-  started on it binds both managed wrappers to the pack's copies and puts the folder first on its `PATH` before
+  started on it binds the managed wrapper to the pack's copy and puts the folder first on its `PATH` before
   anything loads. Nothing else NVIDIA is needed, toolkit or not. Without the pack the host runs on the install's CPU
   runtime.
 - **Windows ML's provider catalog** for TensorRT-RTX, OpenVINO and NPUs: `EnsureAndRegisterCertifiedAsync`
@@ -299,10 +306,27 @@ however busy its requests are; a stall limit per request, so a request that stop
 a grace after a cancellation, so a request that will not stop is one. Any of them kills the host; the next request
 starts another, and a host that keeps crashing is not restarted until it has stayed down a while.
 
-A speech model onnxruntime-genai runs is prepared once in its folder by the adapter its catalog names — its export's
-own config made provider-neutral, `genai_config.base.json`; the host writes `genai_config.json` for the runtime it is
-on before loading, since onnxruntime-genai's API can set only the decoder's providers. A language model needs no
-preparing: llama.cpp loads its GGUF and projector as published.
+A host that dies of a native fault — a CUDA error that ggml aborts on, an access violation in a runtime — takes its
+pipe with it a moment before its exit is seen, so a closed or broken pipe waits up to `AiHostTimings.ExitWait` for the
+exit, and the end carries what only the exit knows: its code, in hex and named where it is a common NTSTATUS
+(`AiHostExitCode` — `0xC0000409` is a fast-fail, as `abort()` raises; `0xC0000005` an access violation), and the last
+lines the host wrote to its error output (`AiHostExitedEventArgs`). The request it took down fails with the code and the
+last of those lines. What is written about it follows Options → Shell → Enable safety logging, and nothing is written
+while that is off. While it is on:
+
+- the shell's log records the end — why, with the code named — and those last lines (`ShellSafetyLog.AiHostEnded`);
+- the host's own log, `aihost-<time>-<pid>.log` beside it, takes ONNX Runtime's errors (a logging function on its
+  environment), llama.cpp's warnings and errors, and ggml's message when it aborts (`ggml_set_abort_callback`), each
+  line flushed as it is written;
+- the client writes the host's whole error output, line by line as it arrives, to `aihost-stderr-<time>-<pid>.log`
+  (`HostErrorOutput`, named for the app's process, its first line naming the host's), so what a crash prints is kept
+  even when the app does not live to record the end.
+
+Models are loaded as published. A speech export is read through the config it is published with
+(`genai_config.native.json`, in onnxruntime-genai's format): its graphs' files, their inputs and outputs layer by layer,
+its features and its decoding limits. A language model's GGUF and projector go to llama.cpp as they are. An export that
+needs its files turned into what its runner reads names an adapter in its catalog entry (`IModelAdapter`), which
+prepares its folder once per adapter version.
 
 ### Capabilities instead of one text contract
 
@@ -654,12 +678,12 @@ flowchart LR
     asr -. words .-> cancel[Cancel generation,<br/>keep what was heard]
 ```
 
-- **ASR in two passes.** Nemotron streams partials through onnxruntime-genai's `StreamingProcessor` — what the input
+- **ASR in two passes.** Nemotron streams partials, a 560 ms chunk at a time (`StreamingRecognizer`) — what the input
   bar shows as the user speaks, and the words that confirm a barge-in. When the turn ends, **Whisper large-v3-turbo**
   transcribes the whole utterance once, and that text goes to the agent. Nemotron alone loses short utterances — an
   isolated "No", "Nein", "Stopp" — which a conversation that asks for confirmation cannot lose; Whisper got every one
-  measured. It is a model type onnxruntime-genai runs natively (exported with its builder, which needs a three-line fix
-  for turbo's 4-layer decoder), shares the process with Nemotron (5.4 GB for both), and costs ~11 ms of encoder plus
+  measured. It is exported with onnxruntime-genai's builder (which needs a three-line fix for turbo's 4-layer decoder)
+  and run on plain sessions (`WhisperTranscriber`), shares the process with Nemotron (5.4 GB for both), and costs ~11 ms of encoder plus
   ~1 ms per token — 17–59 ms per turn, run while the turn detector decides. Two settings are required: the session's
   language forced in the prompt (`<|startoftranscript|><|de|><|transcribe|><|notimestamps|>` — left to detect, it heard
   "Nein." as "9."), and the CUDA option `sdpa_kernel=1` with one warm-up call at load (otherwise each new output length
@@ -1186,8 +1210,7 @@ every payload a second time under Package Cache, the standard bootstrapper canno
 per-machine choice users change later. At most, the bundle's Install page gains an opt-in checkbox — like
 `InstallTools` — that the app reads on first run.
 
-- **The host** ships in the base install, in `AiHost\` beside the app: about 26 MB of ONNX Runtime and
-  onnxruntime-genai, CPU only, started only when a workspace uses a model Nexaflow runs.
+- **The host** ships in the base install, in `AiHost\` beside the app: ONNX Runtime and llama.cpp, CPU only, started only when a workspace uses a model Nexaflow runs.
 - **Execution providers**: the CUDA pack (about 1.3 GB on disk) for NVIDIA, fetched with the first owned model on a
   machine with an NVIDIA GPU and a CUDA 13 driver — from Microsoft's NuGet packages and NVIDIA's wheels on PyPI, each
   archive checked and only the DLLs kept. Windows ML's providers, for other vendors and NPUs, come with the first

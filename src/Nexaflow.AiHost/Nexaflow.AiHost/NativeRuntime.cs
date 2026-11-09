@@ -1,20 +1,17 @@
-using System.Reflection;
 using System.Runtime.InteropServices;
 using Microsoft.ML.OnnxRuntime;
-using Microsoft.ML.OnnxRuntimeGenAI;
 
 namespace Nexaflow.AiHost;
 
 /// <summary>
-/// Which ONNX Runtime and onnxruntime-genai this process runs on. The install carries the CPU runtime; a runtime pack
-/// carries the same versions built with their CUDA layers, beside NVIDIA's libraries. ONNX Runtime loads its CUDA
-/// provider from the folder <c>onnxruntime.dll</c> came from, so the pack's own copies are loaded first, by path, and
-/// both managed wrappers are bound to them — before anything touches either runtime.
+/// Which ONNX Runtime this process runs on. The install carries the CPU runtime; a runtime pack carries the same version
+/// built with its CUDA layer, beside NVIDIA's libraries. ONNX Runtime loads its CUDA provider from the folder
+/// <c>onnxruntime.dll</c> came from, so the pack's own copy is loaded first, by path, and the managed wrapper is bound to
+/// it — before anything touches the runtime.
 /// </summary>
 internal static class NativeRuntime
 {
-    public const string OrtLibrary   = "onnxruntime";
-    public const string GenAiLibrary = "onnxruntime-genai";
+    public const string OrtLibrary = "onnxruntime";
 
     /// <summary>The pack the runtime came from, or null for the install's.</summary>
     public static string? Pack { get; private set; }
@@ -29,16 +26,8 @@ internal static class NativeRuntime
         // The pack's folder first on PATH: NVIDIA's libraries are loaded by name, by the CUDA layers.
         Environment.SetEnvironmentVariable("PATH", pack + Path.PathSeparator + Environment.GetEnvironmentVariable("PATH"));
 
-        var ort   = NativeLibrary.Load(Path.Combine(pack, OrtLibrary + ".dll"));
-        var genai = NativeLibrary.Load(Path.Combine(pack, GenAiLibrary + ".dll"));
-        IntPtr Resolve(string name, Assembly assembly, DllImportSearchPath? path) => name switch
-        {
-            OrtLibrary   => ort,
-            GenAiLibrary => genai,
-            _            => IntPtr.Zero,
-        };
-        NativeLibrary.SetDllImportResolver(typeof(OrtEnv).Assembly, Resolve);
-        NativeLibrary.SetDllImportResolver(typeof(OgaHandle).Assembly, Resolve);
+        var ort = NativeLibrary.Load(Path.Combine(pack, OrtLibrary + ".dll"));
+        NativeLibrary.SetDllImportResolver(typeof(OrtEnv).Assembly, (name, _, _) => name == OrtLibrary ? ort : IntPtr.Zero);
         Pack = pack;
     }
 }

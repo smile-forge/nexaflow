@@ -130,7 +130,8 @@ internal sealed class HostConnection : IAsyncDisposable
             {
                 timeout.Cancel();
                 try { await connected.ConfigureAwait(false); } catch (OperationCanceledException) { }
-                throw new AiHostException(AiHostFailure.Unavailable, $"The AI host exited before connecting (exit code {await process.Exited.ConfigureAwait(false)}).");
+                int code = await process.Exited.ConfigureAwait(false);
+                throw new AiHostException(AiHostFailure.Unavailable, $"The AI host exited before connecting, with {DescribeExit(code, process.LastErrors)}.");
             }
             await connected.ConfigureAwait(false);
 
@@ -193,7 +194,7 @@ internal sealed class HostConnection : IAsyncDisposable
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException)
         {
-            End(null, "the pipe broke");
+            await PipeLostAsync("the pipe broke").ConfigureAwait(false);
         }
         return new OpenRequest(this, request.RequestId, replies.Reader);
     }
@@ -219,12 +220,12 @@ internal sealed class HostConnection : IAsyncDisposable
                         break;
                 }
             }
-            End(null, "the AI host closed its pipe");
+            await PipeLostAsync("the AI host closed its pipe").ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (_life.IsCancellationRequested) { }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException or System.Text.Json.JsonException or InvalidDataException)
         {
-            End(null, $"the pipe failed: {ex.Message}");
+            await PipeLostAsync($"the pipe failed: {ex.Message}").ConfigureAwait(false);
         }
     }
 
@@ -256,16 +257,50 @@ internal sealed class HostConnection : IAsyncDisposable
         catch (OperationCanceledException) when (_life.IsCancellationRequested) { }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException)
         {
-            End(null, "the pipe broke");
+            await PipeLostAsync("the pipe broke").ConfigureAwait(false);
         }
     }
 
-    private async Task WatchExitAsync()
+    private async Task WatchExitAsync() => EndExited(await _process.Exited.ConfigureAwait(false));
+
+    /// <summary>
+    /// The pipe closed or broke. A host that dies takes its pipe with it a moment before its exit is seen — the exit waits
+    /// for its error output to drain, and a crash report being written holds it back further — and only the exit knows why,
+    /// so the end waits up to <see cref="AiHostTimings.ExitWait"/> for it. A host still running past that let its pipe go
+    /// while alive, and the end is the pipe's.
+    /// </summary>
+    private async Task PipeLostAsync(string reason)
     {
-        int code = await _process.Exited;
-        if (Volatile.Read(ref _killReason) is { } killed) End(null, killed);
-        else End(code, code == 0 ? "the AI host exited" : $"the AI host exited (code {code})" + (_process.LastErrors is { Length: > 0 } errors ? $": {errors}" : ""));
+        if (!IsAlive) return;
+        int code;
+        try
+        {
+            code = await _process.Exited.WaitAsync(_timings.ExitWait, _time, _life.Token).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            End(null, reason);
+            return;
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
+        {
+            return;   // ended meanwhile: killed by a watchdog, or closed by the app
+        }
+        EndExited(code);
     }
+
+    /// <summary>Ends the connection for its process having exited: with the reason it was killed for, when it was, else
+    /// with the exit itself.</summary>
+    private void EndExited(int code)
+    {
+        if (Volatile.Read(ref _killReason) is { } killed) End(null, killed);
+        else End(code, code == 0 ? "the AI host exited" : $"the AI host exited with {DescribeExit(code, _process.LastErrors)}");
+    }
+
+    /// <summary>An exit in words: its code, named where it is a common fault, and the last line the host wrote to its error
+    /// output — usually the native runtime's own account of what failed.</summary>
+    private static string DescribeExit(int code, IReadOnlyList<string> errors)
+        => $"exit code {AiHostExitCode.Describe(code)}" + (errors is [.., var last] ? $": {last}" : "");
 
     /// <summary>Kills the host — it is hung — and ends the connection with <paramref name="reason"/>, which its exit
     /// then reports rather than a bare exit code.</summary>
@@ -283,7 +318,7 @@ internal sealed class HostConnection : IAsyncDisposable
         var lost = Lost(_closing ? "The AI host was shut down." : $"The AI host was lost: {reason}.");
         foreach (var replies in _open.Values) replies.Writer.TryComplete(lost);
         _open.Clear();
-        if (!_closing) Ended?.Invoke(this, new AiHostExitedEventArgs(exitCode, reason));
+        if (!_closing) Ended?.Invoke(this, new AiHostExitedEventArgs(_process.Id, exitCode, reason, _process.LastErrors));
     }
 
     private static AiHostException Lost(string message) => new(AiHostFailure.Lost, message);
@@ -331,7 +366,7 @@ internal sealed class HostConnection : IAsyncDisposable
             }
             catch (Exception ex) when (ex is IOException or ObjectDisposedException)
             {
-                connection.End(null, "the pipe broke");
+                await connection.PipeLostAsync("the pipe broke").ConfigureAwait(false);
                 throw Lost("The AI host was lost: the pipe broke.");
             }
         }

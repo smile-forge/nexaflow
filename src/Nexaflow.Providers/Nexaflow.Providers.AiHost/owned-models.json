@@ -301,16 +301,14 @@
         },
         {
           "role": "recognizer",
-          "runner": "genai-streaming-asr",
+          "runner": "nemotron-streaming-asr",
           "folder": "models/nemotron-3.5-asr-streaming",
-          "adapter": "genai-native",
           "memoryBytes": 2415919104
         },
         {
           "role": "transcriber",
-          "runner": "genai-whisper",
+          "runner": "whisper",
           "folder": "models/whisper-large-v3-turbo-cuda",
-          "adapter": "genai-native",
           "memoryBytes": 4026531840,
           "cudaOptions": {
             "sdpa_kernel": "1"
@@ -319,9 +317,8 @@
         },
         {
           "role": "transcriber",
-          "runner": "genai-whisper",
+          "runner": "whisper",
           "folder": "models/whisper-large-v3-turbo-cpu",
-          "adapter": "genai-native",
           "executionProvider": "cpu"
         },
         {
@@ -521,16 +518,14 @@
         },
         {
           "role": "recognizer",
-          "runner": "genai-streaming-asr",
+          "runner": "nemotron-streaming-asr",
           "folder": "models/nemotron-3.5-asr-streaming",
-          "adapter": "genai-native",
           "memoryBytes": 2415919104
         },
         {
           "role": "transcriber",
-          "runner": "genai-whisper",
+          "runner": "whisper",
           "folder": "models/whisper-small-cuda",
-          "adapter": "genai-native",
           "memoryBytes": 2952790016,
           "cudaOptions": {
             "sdpa_kernel": "1"
@@ -539,9 +534,8 @@
         },
         {
           "role": "transcriber",
-          "runner": "genai-whisper",
+          "runner": "whisper",
           "folder": "models/whisper-small-cpu",
-          "adapter": "genai-native",
           "executionProvider": "cpu"
         },
         {
@@ -741,16 +735,14 @@
         },
         {
           "role": "recognizer",
-          "runner": "genai-streaming-asr",
+          "runner": "nemotron-streaming-asr",
           "folder": "models/nemotron-3.5-asr-streaming",
-          "adapter": "genai-native",
           "memoryBytes": 2415919104
         },
         {
           "role": "transcriber",
-          "runner": "genai-whisper",
+          "runner": "whisper",
           "folder": "models/whisper-small-en-cuda",
-          "adapter": "genai-native",
           "memoryBytes": 2952790016,
           "cudaOptions": {
             "sdpa_kernel": "1"
@@ -759,9 +751,8 @@
         },
         {
           "role": "transcriber",
-          "runner": "genai-whisper",
+          "runner": "whisper",
           "folder": "models/whisper-small-en-cpu",
-          "adapter": "genai-native",
           "executionProvider": "cpu"
         },
         {

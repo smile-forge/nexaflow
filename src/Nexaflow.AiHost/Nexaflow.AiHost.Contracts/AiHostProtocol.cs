@@ -20,7 +20,7 @@ public static class AiHostProtocol
 
     public const string AiDirArgument = "--ai-dir";
 
-    /// <summary>A runtime pack to load ONNX Runtime and onnxruntime-genai from instead of the install's CPU runtime.</summary>
+    /// <summary>A runtime pack to load ONNX Runtime and llama.cpp's CUDA backend from instead of the install's CPU runtime.</summary>
     public const string RuntimePackArgument = "--runtime-pack";
 
     /// <summary>The share of this machine's memory, in percent, models on the host's CPU may hold.</summary>

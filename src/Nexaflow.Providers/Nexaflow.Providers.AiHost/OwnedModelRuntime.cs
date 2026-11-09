@@ -263,7 +263,8 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
         host.Environment = Environment;
         var part = model.PartNamed(partName, ExecutionProvider);
         var placed = await setup.PlaceOnDemandAsync(Need(model, part), ct)
-                     ?? throw new LlmProviderException($"{model.Catalog.DisplayName} needs a GPU with {Gib(part.MemoryBytes)} free for its {part.Role}.");
+                     ?? throw new LlmProviderException($"{model.Catalog.DisplayName} needs {Gib(Lighter(model, part).Select(b => b.MemoryBytes).Append(part.MemoryBytes).Min())} "
+                                                       + $"of GPU memory for its {part.Role}, more than any GPU here has for local models.");
         return await ResolvedAsync(model, placed, ct);
     }
 

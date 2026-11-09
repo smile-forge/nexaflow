@@ -440,10 +440,11 @@ public partial class App : Application
     /// <param name="memoryShare">The share of this machine's memory, in percent, models on the host's CPU may hold.</param>
     private static AiHostClient StartAiHost(int memoryShare)
     {
-        _aiHost = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"),
+        _aiHost = new AiHostClient(new ProcessAiHostLauncher(AiHostInstall.ExecutablePath,
                                                              ModelAssetStore.DefaultRoot(), memoryShare,
                                                              () => ShellSafetyLog.Instance.Folder));
-        _aiHost.HostExited += (_, e) => CrashLog.Instance.Record(new AiHostException(AiHostFailure.Lost, e.Reason));
+        // A host's end is recorded only while the user keeps logs; the request it took down fails on its own.
+        _aiHost.HostExited += (_, e) => ShellSafetyLog.Instance.AiHostEnded(e);
         return _aiHost;
     }
 

@@ -162,7 +162,7 @@ public class OwnedImageGenerationProviderTests
         var ex = await Assert.ThrowsExactlyAsync<LlmProviderException>(() =>
             Provider(Here(), host).GenerateImageAsync(new ImageGenerationRequest("a fox", new(1, 1))));
 
-        StringAssert.Contains(ex.Message, "needs a GPU with");
+        StringAssert.Contains(ex.Message, "more than any GPU here has for local models");
         Assert.AreEqual(0, host.Requests.Count, "nothing is asked of a host that could not hold it");
     }
 

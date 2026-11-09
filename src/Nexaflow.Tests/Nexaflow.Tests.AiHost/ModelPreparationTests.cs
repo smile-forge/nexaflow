@@ -1,4 +1,3 @@
-using System.Text.Json.Nodes;
 using Nexaflow.AiHost;
 using Nexaflow.AiHost.Models;
 using Nexaflow.Tests.Fixtures;
@@ -6,8 +5,8 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
-/// Turning downloaded files into a model onnxruntime-genai runs: an export's own config made provider-neutral, the
-/// config written for the runtime the host is on, and each folder prepared once per adapter version.
+/// Turning downloaded files into what a runner reads: each folder prepared once per adapter version, and what an adapter
+/// cannot find reported as missing.
 /// </summary>
 [TestClass]
 [CoversNode("ai-host")]
@@ -20,46 +19,6 @@ public class ModelPreparationTests
 
     [TestCleanup]
     public void Done() => Directory.Delete(_folder, recursive: true);
-
-    private const string Native = """
-        { "model": {
-            "encoder": { "filename": "encoder.onnx", "session_options": { "log_id": "w", "provider_options": [ { "cuda": {} } ] } },
-            "decoder": { "filename": "decoder.onnx", "session_options": { "provider_options": [ { "cuda": {} } ] } } },
-          "search": { "max_length": 448 } }
-        """;
-
-    [TestMethod]
-    public void ANativeExport_HasItsProvidersTakenOut_AndTheRestKept()
-    {
-        File.WriteAllText(Path.Combine(_folder, GenAiNativeAdapter.NativeConfig), Native);
-
-        ModelAdapters.Default.EnsurePrepared(_folder, new GenAiNativeAdapter().Id);
-
-        var config = JsonNode.Parse(File.ReadAllText(Path.Combine(_folder, "genai_config.base.json")))!;
-        Assert.IsNull(config["model"]!["decoder"]!["session_options"]!["provider_options"]);
-        Assert.AreEqual("w", (string)config["model"]!["encoder"]!["session_options"]!["log_id"]!, "the rest of the native config stays");
-        Assert.AreEqual(448, (int)config["search"]!["max_length"]!);
-    }
-
-    [TestMethod]
-    [DataRow(1, 1)]
-    [DataRow(null, 0)]
-    public void TheLiveConfig_PutsEverySubModelOnTheGpuItsSpecNames_OrTheCpu(int? device, int providers)
-    {
-        GenAiConfigFile.WriteBase(_folder, JsonNode.Parse(Native)!);
-
-        GenAiConfigFile.WriteFor(_folder, device);
-
-        var model = JsonNode.Parse(File.ReadAllText(Path.Combine(_folder, "genai_config.json")))!["model"]!;
-        foreach (var subModel in new[] { "encoder", "decoder" })
-        {
-            var options = model[subModel]!["session_options"]!["provider_options"]!.AsArray();
-            Assert.AreEqual(providers, options.Count, subModel);
-            if (providers == 0) continue;
-            Assert.AreEqual("0", (string)options[0]!["cuda"]!["enable_cuda_graph"]!);
-            Assert.AreEqual("1", (string)options[0]!["cuda"]!["device_id"]!, "on the GPU the spec names");
-        }
-    }
 
     [TestMethod]
     public void AFolderIsPreparedOnce_PerAdapterVersion()
@@ -86,8 +45,8 @@ public class ModelPreparationTests
     [TestMethod]
     public void MissingFiles_AreReportedAsNotFound()
     {
-        var ex = Assert.ThrowsExactly<HostRequestException>(() =>
-            ModelAdapters.Default.EnsurePrepared(_folder, new GenAiNativeAdapter().Id));
+        var adapter = new MissingFileAdapter();
+        var ex = Assert.ThrowsExactly<HostRequestException>(() => new ModelAdapters([adapter]).EnsurePrepared(_folder, adapter.Id));
         Assert.AreEqual(Nexaflow.AiHost.Contracts.HostErrorKind.NotFound, ex.Kind);
     }
 
@@ -97,5 +56,13 @@ public class ModelPreparationTests
         public int Version { get; set; } = 1;
         public int Prepared { get; private set; }
         public void Prepare(string folder) => Prepared++;
+    }
+
+    /// <summary>An adapter whose export lacks the file it reads.</summary>
+    private sealed class MissingFileAdapter : IModelAdapter
+    {
+        public string Id => "missing";
+        public int Version => 1;
+        public void Prepare(string folder) => File.ReadAllText(Path.Combine(folder, "absent.json"));
     }
 }

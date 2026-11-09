@@ -1,9 +1,9 @@
 namespace Nexaflow.AiHost.Models;
 
 /// <summary>
-/// Turns a model's downloaded files into a folder onnxruntime-genai runs: graph headers rewritten where an export
-/// needs it, and a provider-neutral <c>genai_config.base.json</c>. Runs once per folder and version, on the user's
-/// machine — never a conversion of weights, which would need Python and tens of gigabytes (docs/local-ai.md).
+/// Turns a model's downloaded files into what its runner reads, where an export needs it — a graph's header rewritten, a
+/// config written from the one it is published with. Runs once per folder and version, on the user's machine — never a
+/// conversion of weights, which would need Python and tens of gigabytes (docs/local-ai.md).
 /// </summary>
 internal interface IModelAdapter
 {
@@ -22,7 +22,7 @@ internal sealed class ModelAdapters(IEnumerable<IModelAdapter> adapters)
 
     private readonly Dictionary<string, IModelAdapter> _adapters = adapters.ToDictionary(a => a.Id, StringComparer.Ordinal);
 
-    public static ModelAdapters Default { get; } = new([new GenAiNativeAdapter()]);
+    public static ModelAdapters Default { get; } = new([]);
 
     /// <summary>Prepares <paramref name="folder"/> with the named adapter, unless that version already has.</summary>
     /// <exception cref="HostRequestException">No such adapter, or a file it needs is missing.</exception>
