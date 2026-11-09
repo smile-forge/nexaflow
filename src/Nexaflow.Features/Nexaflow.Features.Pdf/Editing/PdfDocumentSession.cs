@@ -211,12 +211,15 @@ internal sealed class PdfDocumentSession : IDisposable
     /// as a booklet's pages in reading order and folded into its sides, two to a sheet, where the first of them was. Each
     /// page is centred in a cell the size of the largest; the sheet is then set on <paramref name="paper"/>. One edit.
     /// </summary>
-    public void Merge(IReadOnlyCollection<int> indices, int count, PdfSplitDirection direction, bool booklet, PdfMergePaper paper)
+    public void Merge(IReadOnlyCollection<int> indices, int count, PdfSplitDirection direction, bool booklet, PdfMergePaper paper,
+        PdfBookletCut cut = PdfBookletCut.Uncut)
     {
         if (count < 2)
             throw new ArgumentOutOfRangeException(nameof(count), count, "Pages are merged two to a sheet or more.");
         if (booklet && count != 2)
             throw new ArgumentException("A booklet is folded into sheets of two pages.", nameof(booklet));
+            if (!booklet && cut != PdfBookletCut.Uncut)
+                throw new ArgumentException("Only a booklet's sheets are printed two to a paper and cut.", nameof(cut));
 
         var pages = indices.Distinct().Order().ToList();
         if (booklet)
@@ -224,10 +227,15 @@ internal sealed class PdfDocumentSession : IDisposable
             var halves = PdfBooklet.Fold(pages.Select(index => Arrangement[index].Sheet).ToList());
             var cell = Largest(halves);
             var across = PutsSideBySide(cell, direction);
-            var sides = halves.Chunk(2)
-                .Select(side => new PdfArrangedPage(NewPageId(), OnPaper(PdfSheet.Merged(side, across, cell, ShownSize), paper, cell)))
+            var sides = halves.Chunk(2).Select(side => PdfSheet.Merged(side, across, cell, ShownSize)).ToList();
+
+            // Two booklet sheets to a paper go across its longer side, so the cut between them runs along it.
+            var spread = Largest(sides);
+            var printed = PdfBooklet.OnPapers(sides, cut)
+                .Select(face => face.Count == 1 ? face[0]! : PdfSheet.Merged(face, PutsSideBySide(spread, PdfSplitDirection.Auto), spread, ShownSize))
+                .Select(sheet => new PdfArrangedPage(NewPageId(), OnPaper(sheet, paper, cell)))
                 .ToList();
-            Commit(Arrangement.Replace(pages, sides));
+            Commit(Arrangement.Replace(pages, printed));
             return;
         }
 

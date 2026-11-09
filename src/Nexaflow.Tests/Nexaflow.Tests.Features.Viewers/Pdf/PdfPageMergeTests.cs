@@ -96,6 +96,23 @@ public class PdfPageMergeTests
 
     [TestMethod]
     [TestCategory("Unit")]
+    [CoversNode("pdf-page-merge")]
+    public void ABookletsSheets_CutTwoToAPaper_AreStackedIntoOneBooklet_OrPrintedTwice()
+    {
+        // Sixteen pages: four booklet sheets, sides s0 s1 (the first sheet's front and back) to s6 s7.
+        var sides = Enumerable.Range(0, 8).Select(side => $"s{side}").ToList();
+        string Faces(IReadOnlyList<IReadOnlyList<string?>> papers) => string.Join(" ", papers.Select(face => string.Join("/", face.Select(half => half ?? "-"))));
+
+        Assert.AreEqual("s0 s1 s2 s3 s4 s5 s6 s7", Faces(PdfBooklet.OnPapers(sides, PdfBookletCut.Uncut)));
+        Assert.AreEqual("s0/s4 s1/s5 s2/s6 s3/s7", Faces(PdfBooklet.OnPapers(sides, PdfBookletCut.Stacked)),
+            "two papers: the top halves are the first two sheets, the bottom halves the last two, each back behind its front");
+        Assert.AreEqual("s0/s0 s1/s1 s2/s2 s3/s3 s4/s4 s5/s5 s6/s6 s7/s7", Faces(PdfBooklet.OnPapers(sides, PdfBookletCut.Copies)));
+        Assert.AreEqual("s0/s4 s1/s5 s2/- s3/-", Faces(PdfBooklet.OnPapers(sides.Take(6).ToList(), PdfBookletCut.Stacked)),
+            "three sheets: the last paper's lower half is blank");
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
     [CoversNode("pdf-page-size")]
     public void APageSetOnPaper_IsScaledToFitAndCentred_TheWayUpItFitsLarger()
     {
@@ -163,6 +180,31 @@ public class PdfPageMergeTests
 
         Assert.AreEqual(new Size(612, 396), Rounded(session.PageSize(1)), "two upright halves, side by side, on one half turned");
         CollectionAssert.AreEqual(new[] { "page four", "page one page two", "page three" }, await Texts(session));
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    [CoversNode("pdf-page-merge")]
+    public async Task ABookletCutAcross_PutsTwoOfItsSheetsOnEachPaper_OfThePagesOwnSize_AsOneEdit()
+    {
+        using var session = await Opened();
+        session.Split([0, 1], 2, PdfSplitDirection.Auto, PdfSplitOrder.FoldedBooklet);
+        var page = Rounded(session.PageSize(0));
+
+        session.Merge([0, 1, 2, 3], 2, PdfSplitDirection.Auto, booklet: true, PdfMergePaper.ThePagesOwn, PdfBookletCut.Copies);
+
+        Assert.AreEqual("1|1 2|2", Numbers(session.Arrangement),
+            "each side of the one booklet sheet - its halves joined back into the sheet it was - twice, one above the other");
+        Assert.AreEqual(page, Rounded(session.PageSize(0)), "on a paper the size of one page");
+        CollectionAssert.AreEqual(new[] { "page four page one page four page one", "page two page three page two page three" }, await Texts(session));
+
+        session.Undo();
+        session.Merge([0, 1, 2, 3], 2, PdfSplitDirection.Auto, booklet: true, PdfMergePaper.ThePagesOwn, PdfBookletCut.Stacked);
+        Assert.AreEqual("1 2", Numbers(session.Arrangement), "one booklet sheet: the top half of one paper, its lower half blank");
+        Assert.AreEqual(page, Rounded(session.PageSize(0)));
+
+        session.Undo();
+        Assert.AreEqual("1 2 2 1", Numbers(session.Arrangement), "one edit");
     }
 
     [TestMethod]

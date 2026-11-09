@@ -991,6 +991,10 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
                 new ClientToolParameter("direction", "How they sit on the sheet. Defaults to auto, side by side for upright pages.",
                     Required: false, Choices: ["auto", "across", "down"]),
                 new ClientToolParameter("booklet", "Fold the pages into a stapled booklet's sheets. Defaults to false.", Required: false, Type: "boolean"),
+                new ClientToolParameter("cut", "With booklet, for a booklet half the paper's size (A6 pages from A4): two of its sheets printed to each paper, "
+                    + "one above the other, the printed pile then cut across. one_booklet puts them so the top halves laid on the bottom halves "
+                    + "make one booklet; two_copies prints each sheet twice, for two booklets. Set paper to the paper printed on. Defaults to none.",
+                    Required: false, Choices: ["none", "one_booklet", "two_copies"]),
                 new ClientToolParameter("paper", "What each sheet is made as large as. Defaults to none: the pages side by side, nothing scaled.",
                     Required: false, Choices: ["none", "pages_own", "A3", "A4", "A5", "Letter", "Legal", "Tabloid"]),
                 new ClientToolParameter("pages", "The pages to merge, 1-based. Omit for every page.", Required: false, Type: "array", ItemType: "number"),
@@ -1614,6 +1618,16 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         var booklet = ReadFlag(args, "booklet") ?? false;
         if (booklet && perSheet != 2) return ToolResult.Error("A booklet is folded two pages to a side: per_sheet 2.");
 
+        var cut = (ReadText(args, "cut") ?? "none") switch
+        {
+            "none"        => PdfBookletCut.Uncut,
+            "one_booklet" => PdfBookletCut.Stacked,
+            "two_copies"  => PdfBookletCut.Copies,
+            _             => (PdfBookletCut?)null,
+        };
+        if (cut is null) return ToolResult.Error("'cut' is none, one_booklet or two_copies.");
+        if (!booklet && cut != PdfBookletCut.Uncut) return ToolResult.Error("Only a booklet's sheets are printed two to a paper and cut: booklet true.");
+
         var asked = args.TryGetPropertyValue("paper", out var node) && node is not null ? node.ToString().Trim() : "none";
         PdfMergePaper? paper = asked.ToLowerInvariant() switch
         {
@@ -1627,14 +1641,22 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
 
         if (Targets(args) is not { } targets) return ToolResult.Error(NoSuchPage(args));
         if (targets.Count < 2) return ToolResult.Error("Pages are merged two or more at a time.");
-        if (await EditPagesAsync(() => _session.Merge(targets, perSheet, direction.Value, booklet, paper.Value)) is { } refused) return ToolResult.Error(refused);
+        if (await EditPagesAsync(() => _session.Merge(targets, perSheet, direction.Value, booklet, paper.Value, cut.Value)) is { } refused) return ToolResult.Error(refused);
 
         var now = _session.Arrangement.Count;
+        var onPaper = asked.ToLowerInvariant() switch { "none" => string.Empty, "pages_own" => ", each on the pages' own paper", _ => $", on {asked}" };
+        var done = booklet
+            ? $"Folded {targets.Count} page(s) of {FileName} into a stapled booklet's sheets{onPaper}, {Printed(cut.Value)}"
+            : $"Put {targets.Count} page(s) of {FileName} {perSheet} to a sheet{onPaper}";
         return ToolResult.Ok(booklet ? $"folded {targets.Count} page(s) into a booklet" : $"merged {targets.Count} page(s), {perSheet} to a sheet",
-            (booklet
-                ? $"Folded {targets.Count} page(s) of {FileName} into a stapled booklet's sheets, two to a side — print them double-sided, flipping on the short edge, and fold"
-                : $"Put {targets.Count} page(s) of {FileName} {perSheet} to a sheet")
-            + $"{asked.ToLowerInvariant() switch { "none" => string.Empty, "pages_own" => ", each on the pages' own paper", _ => $", on {asked}" }}; the document now has {now} pages. The user can undo it, and keeps it by saving the PDF.");
+            $"{done}. The document now has {now} pages. The user can undo it, and keeps it by saving the PDF.");
+
+        static string Printed(PdfBookletCut cut) => cut switch
+        {
+            PdfBookletCut.Stacked => "two to each paper, one above the other. Print them double-sided, flipping on the long edge, cut the pile across, lay the top half on the bottom half, and fold: one booklet",
+            PdfBookletCut.Copies  => "each printed twice to a paper, one above the other. Print them double-sided, flipping on the long edge, and cut the pile across: each half folds into a booklet",
+            _                     => "two pages to a side. Print them double-sided, flipping on the short edge, and fold",
+        };
     }
 
     /// <summary>

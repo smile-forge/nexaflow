@@ -205,12 +205,35 @@ public class PdfViewModelAiTests
             Assert.IsFalse(refused.Success, "a booklet is two to a side");
             var unknown = await Invoke(vm, "pdf_merge_pages", new JsonObject { ["per_sheet"] = 2, ["paper"] = "B7" });
             Assert.IsFalse(unknown.Success, "a paper not offered is refused");
+            var unfolded = await Invoke(vm, "pdf_merge_pages", new JsonObject { ["per_sheet"] = 2, ["cut"] = "two_copies" });
+            Assert.IsFalse(unfolded.Success, "only a booklet's sheets are cut two to a paper");
 
             var result = await Invoke(vm, "pdf_merge_pages", new JsonObject { ["per_sheet"] = 2, ["booklet"] = true, ["paper"] = "A4" });
 
             Assert.IsTrue(result.Success, result.ModelText);
             Assert.AreEqual(2, vm.PageCount, "three pages, padded to four, on one sheet's two sides");
             StringAssert.Contains(result.ModelText, "booklet");
+            vm.UndoCommand.Execute(null);
+            Assert.AreEqual(3, vm.PageCount, "one edit, undone");
+        }
+        finally { vm.Dispose(); }
+    }
+
+    [TestMethod]
+    [CoversNode("pdf-ai-act-merge-pages")]
+    public async Task MergePages_PrintsABookletHalfThePapersSize_TwoCopiesToAPaper_AndSaysHowToCutIt()
+    {
+        var vm = EditableVm("outline.pdf", EditingShell());
+        try
+        {
+            var result = await Invoke(vm, "pdf_merge_pages", new JsonObject
+            {
+                ["per_sheet"] = 2, ["booklet"] = true, ["paper"] = "pages_own", ["cut"] = "two_copies",
+            });
+
+            Assert.IsTrue(result.Success, result.ModelText);
+            Assert.AreEqual(2, vm.PageCount, "one booklet sheet's two sides, each printed twice on one paper");
+            StringAssert.Contains(result.ModelText, "long edge");
             vm.UndoCommand.Execute(null);
             Assert.AreEqual(3, vm.PageCount, "one edit, undone");
         }

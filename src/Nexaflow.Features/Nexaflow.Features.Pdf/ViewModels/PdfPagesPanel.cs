@@ -138,6 +138,13 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
         _mergeCount = MergeCounts[0];
         _mergeDirection = MergeDirections[0];
         _mergePaper = MergePapers[0];
+        MergeBookletCuts =
+        [
+            new(PdfBookletCut.Uncut, Str.Get("Pdf.Merge.Cut.Uncut")),
+            new(PdfBookletCut.Stacked, Str.Get("Pdf.Merge.Cut.Stacked")),
+            new(PdfBookletCut.Copies, Str.Get("Pdf.Merge.Cut.Copies")),
+        ];
+        _mergeBookletCut = MergeBookletCuts[0];
         _sizePaper = SizePapers[1];
         _sizeUnit = SizeUnits[0];
         _sizeOrientation = SizeOrientations[0];
@@ -292,6 +299,17 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
     /// <summary>Whether a booklet can be folded from the pages to a sheet chosen: only from two.</summary>
     public bool CanFoldBooklet => MergeCount.Value == 2;
 
+    /// <summary>
+    /// How a booklet's sheets may be printed: each on a paper of its own, or two to a paper and the pile cut across — into one
+    /// booklet, or two copies.
+    /// </summary>
+    public IReadOnlyList<PdfSplitChoice<PdfBookletCut>> MergeBookletCuts { get; }
+
+    /// <summary>How the booklet's sheets are printed.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MergeSummary))]
+    private PdfSplitChoice<PdfBookletCut> _mergeBookletCut;
+
     /// <summary>How many pages go onto how many sheets.</summary>
     public string MergeSummary
     {
@@ -299,8 +317,17 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
         {
             if (!IsMergeShown) return string.Empty;
             var pages = Targets().Count;
-            var sheets = MergeBooklet && CanFoldBooklet ? (pages + 3) / 4 * 2 : (pages + MergeCount.Value - 1) / MergeCount.Value;
-            return Str.Format("Pdf.Merge.SummaryFormat", pages, sheets);
+            if (!(MergeBooklet && CanFoldBooklet))
+                return Str.Format("Pdf.Merge.SummaryFormat", pages, (pages + MergeCount.Value - 1) / MergeCount.Value);
+
+            // A booklet sheet is a paper's two sides; cut, two of them share a paper.
+            var bookletSheets = (pages + 3) / 4;
+            return MergeBookletCut.Value switch
+            {
+                PdfBookletCut.Stacked => Str.Format("Pdf.Merge.SummaryStackedFormat", pages, (bookletSheets + 1) / 2),
+                PdfBookletCut.Copies  => Str.Format("Pdf.Merge.SummaryCopiesFormat", pages, bookletSheets),
+                _                     => Str.Format("Pdf.Merge.SummaryFormat", pages, bookletSheets * 2),
+            };
         }
     }
 
@@ -525,9 +552,10 @@ public sealed partial class PdfPagesPanel : ObservableObject, IDisposable
                 Edit(() => _session.Split(indices, parts, cut, order));
                 break;
             case PdfSheetEdit.Merge:
-                var (pages, put, fold, paper) = (MergeCount.Value, MergeDirection.Value, MergeBooklet && CanFoldBooklet, MergePaper.Value);
+                var fold = MergeBooklet && CanFoldBooklet;
+                var (pages, put, paper, printed) = (MergeCount.Value, MergeDirection.Value, MergePaper.Value, fold ? MergeBookletCut.Value : PdfBookletCut.Uncut);
                 EndSheetEdit();
-                Edit(() => _session.Merge(indices, pages, put, fold, paper));
+                Edit(() => _session.Merge(indices, pages, put, fold, paper, printed));
                 break;
             case PdfSheetEdit.Margins:
                 if (Margins() is not { } margins) return;

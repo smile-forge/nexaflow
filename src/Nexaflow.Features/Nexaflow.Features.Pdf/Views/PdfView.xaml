@@ -335,6 +335,14 @@
                                                            IsChecked="{Binding MergeBooklet, Mode=TwoWay}"
                                                            IsEnabled="{Binding CanFoldBooklet}"
                                                            AutomationProperties.AutomationId="Pdf_Merge_Booklet"/>
+                                                 <ComboBox Margin="0,6,0,0"
+                                                           Style="{StaticResource DarkComboBox}"
+                                                           ItemsSource="{Binding MergeBookletCuts}"
+                                                           SelectedItem="{Binding MergeBookletCut, Mode=TwoWay}"
+                                                           DisplayMemberPath="Label"
+                                                           ToolTip="{loc:Str Pdf.Merge.CutTip}"
+                                                           Visibility="{Binding MergeBooklet, Converter={StaticResource BoolToVis}}"
+                                                           AutomationProperties.AutomationId="Pdf_Merge_BookletCut"/>
                                                  <TextBlock Margin="0,8,0,0"
                                                             FontSize="12"
                                                             TextWrapping="Wrap"

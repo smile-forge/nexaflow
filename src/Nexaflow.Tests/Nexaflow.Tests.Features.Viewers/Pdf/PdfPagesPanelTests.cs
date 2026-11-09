@@ -158,6 +158,12 @@ public class PdfPagesPanelTests
         Assert.IsTrue(panel.IsMergeShown);
         Assert.IsFalse(panel.AppliesToAll);
         Assert.AreEqual(Str.Format("Pdf.Merge.SummaryFormat", 2, 1), panel.MergeSummary);
+        panel.MergeBooklet = true;
+        panel.MergeBookletCut = panel.MergeBookletCuts.Single(choice => choice.Value == PdfBookletCut.Copies);
+        Assert.AreEqual(Str.Format("Pdf.Merge.SummaryCopiesFormat", 2, 1), panel.MergeSummary, "one booklet sheet, twice on one paper, says how to cut it");
+        panel.MergeBookletCut = panel.MergeBookletCuts.Single(choice => choice.Value == PdfBookletCut.Stacked);
+        Assert.AreEqual(Str.Format("Pdf.Merge.SummaryStackedFormat", 2, 1), panel.MergeSummary);
+        panel.MergeBooklet = false;
         Assert.IsTrue(panel.Pages.All(page => page.Cuts.Count == 0), "a merge cuts nothing");
         panel.ApplySheetEditCommand.Execute(null);
 
