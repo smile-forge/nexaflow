@@ -39,6 +39,8 @@ internal sealed class WindowPlacementTracker
 
     private readonly PlacementIntent _intent = new();
     private WindowPlacement? _openAt;
+
+    private WindowPlacement? _unseenAt;
     private Dispatcher? _dispatcher;
     private IntPtr _hwnd;
     private IntPtr _displayStateNotification;
@@ -54,6 +56,21 @@ internal sealed class WindowPlacementTracker
 
     /// <summary>Opens the window at <paramref name="placement"/> when it is first shown. Call before <c>Show</c>.</summary>
     internal void OpenAt(WindowPlacement placement) => _openAt = placement;
+
+    /// <summary>
+    /// Sizes the window where <paramref name="placement"/> would open it — over the monitor's work area when it opens
+    /// maximised — when it is first given a handle, without showing or activating it: for a window built out of sight,
+    /// which lays out at the size it will be shown at. <see cref="ShowAt"/> opens it there when it is wanted. Call before
+    /// <c>Show</c>.
+    /// </summary>
+    internal void SizeUnseenAt(WindowPlacement placement) => _unseenAt = placement;
+
+    /// <summary>Shows the window at <paramref name="placement"/>, fitted to the monitors attached now, as opening it there would.</summary>
+    internal void ShowAt(WindowPlacement placement)
+    {
+        if (_hwnd == IntPtr.Zero) return;
+        Apply(_intent.Open(placement, AttachedMonitors.Read()), opening: true);
+    }
 
     internal void Install(Window window)
     {
@@ -76,6 +93,11 @@ internal sealed class WindowPlacementTracker
         {
             window.WindowStartupLocation = WindowStartupLocation.Manual;
             Apply(_intent.Open(placement, AttachedMonitors.Read()), opening: true);
+        }
+        else if (_unseenAt is { } unseen)
+        {
+            window.WindowStartupLocation = WindowStartupLocation.Manual;
+            SizeUnseen(unseen.FitTo(AttachedMonitors.Read(), out _));
         }
     }
 
@@ -223,6 +245,18 @@ internal sealed class WindowPlacementTracker
         finally { _applying = false; }
     }
 
+    // Moves and sizes the window in screen pixels and nothing else: its show state, activation and z-order stay as they are.
+    private void SizeUnseen(WindowPlacement placement)
+    {
+        var shown = placement.Maximized
+            ? placement.Monitor.WorkArea
+            : placement.Normal.Offset(placement.Monitor.WorkArea.Left - placement.Monitor.Bounds.Left,
+                                      placement.Monitor.WorkArea.Top  - placement.Monitor.Bounds.Top);
+        _applying = true;
+        try { SetWindowPos(_hwnd, IntPtr.Zero, shown.Left, shown.Top, shown.Width, shown.Height, SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER); }
+        finally { _applying = false; }
+    }
+
     // ── P/Invoke ──────────────────────────────────────────────────────────
 
     [StructLayout(LayoutKind.Sequential)]
@@ -252,6 +286,13 @@ internal sealed class WindowPlacementTracker
 
     [DllImport("user32.dll")]
     private static extern bool GetWindowRect(IntPtr hwnd, out WindowManager.RECT rect);
+
+    private const uint SWP_NOZORDER       = 0x0004;
+    private const uint SWP_NOACTIVATE     = 0x0010;
+    private const uint SWP_NOOWNERZORDER  = 0x0200;
+
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowPos(IntPtr hwnd, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
 
     [DllImport("user32.dll")]
     private static extern bool IsIconic(IntPtr hwnd);

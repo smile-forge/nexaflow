@@ -45,6 +45,14 @@ public sealed class ShellConfig : IFeatureConfig
     [ConfigDisplayName("Shell.Config.Shell.PrestartAtLogin")]
     public bool PrestartAtLogin { get; set; }
 
+    /// <summary>
+    /// While the resident app (<see cref="PrestartAtLogin"/>) has no window open, keeps the next one built and drawn out of
+    /// sight (<see cref="StandbyWindow"/>) so a click shows it at once, for the memory a window holds meanwhile. On by default.
+    /// Read each time a standby would be built, so a change applies from the next time the last window closes.
+    /// </summary>
+    [ConfigDisplayName("Shell.Config.Shell.KeepWindowReady")]
+    public bool KeepWindowReady { get; set; } = true;
+
 
     /// <summary>
     /// When true, a theme's animated backdrop (the <c>Scene.{Region}</c> layer a <c>ThemedRegion</c>

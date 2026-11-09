@@ -249,6 +249,11 @@ Regions follow the policy live: a `ThemedRegion` subscribes to `Changed`, so unp
 drops the scene and plugging back in rebuilds it, with no restart. A machine with no battery never
 reports "on battery", so the setting is a no-op on a desktop.
 
+A region that is on screen but not visible — its window hidden, as the resident daemon's standby window is
+while it waits, or the region collapsed — drops its animated scene the same way and rebuilds it when it is
+visible again: it draws nothing, so its clocks would tick for nobody. A region in no window at all is taken as
+shown, having nothing to say otherwise.
+
 ### The Ocean scene
 
 `Themes/OceanReefScene.xaml(.cs)` is a procedural `AnimatedScene` (sunlit-reef gradient, sun glow, god

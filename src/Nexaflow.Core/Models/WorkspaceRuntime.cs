@@ -46,6 +46,13 @@ public sealed class WorkspaceRuntime
     /// </summary>
     public RuntimeLocations Locations { get; }
 
+    /// <summary>
+    /// True while this runtime stands ready for a launch that has not come yet (<see cref="StandbyWindow"/>): its window is
+    /// built but not shown, it is not among <see cref="WorkspaceManager"/>'s live runtimes, its models are not weighed for
+    /// loading ahead, and its window closing records no session. Cleared when a launch adopts it.
+    /// </summary>
+    public bool IsStandby { get; internal set; }
+
     public WorkspaceRuntime(Workspace workspace)
     {
         Workspace = workspace;

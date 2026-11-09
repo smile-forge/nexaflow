@@ -426,4 +426,52 @@ public class WorkspaceManagerTests
         Assert.IsTrue(Directory.Exists(Path.Combine(QuarantineDir, "Ghost")),     "Pre-existing bin entry untouched.");
         Assert.IsTrue(Directory.Exists(Path.Combine(QuarantineDir, "Ghost (2)")), "Collision gets a suffixed slot.");
     }
+
+    // ── Standby runtimes (the window a resident app keeps ready) ──
+
+    [TestMethod]
+    public void AStandbyRuntime_IsNoOpenWorkspace_UntilALaunchAdoptsIt()
+    {
+        var workspace = new Workspace { Name = "Ready" };
+        InitWith(workspace);
+        var standby = new WorkspaceRuntime(workspace) { IsStandby = true };
+
+        Assert.IsFalse(WorkspaceManager.Instance.IsWorkspaceInUse(workspace), "a window nobody has asked for yet holds no workspace open");
+        Assert.IsNull(WorkspaceManager.Instance.FindLiveWorkspace(workspace));
+
+        WorkspaceManager.Instance.AdoptStandby(standby);
+        try
+        {
+            Assert.IsFalse(standby.IsStandby);
+            Assert.AreSame(standby, WorkspaceManager.Instance.FindLiveWorkspace(workspace), "adopted, it is the launch's own runtime");
+        }
+        finally
+        {
+            WorkspaceManager.Instance.NotifyWindowClosed(standby);
+        }
+    }
+
+    [TestMethod]
+    public void TheLastWindowClosing_IsSaid_ButAStandbyClosingIsNot()
+    {
+        var workspace = new Workspace { Name = "Ready" };
+        InitWith(workspace);
+        int said = 0;
+        void Count(object? sender, EventArgs e) => said++;
+        WorkspaceManager.Instance.LastWindowClosed += Count;
+        try
+        {
+            WorkspaceManager.Instance.NotifyWindowClosed(new WorkspaceRuntime(workspace) { IsStandby = true });
+            Assert.AreEqual(0, said, "discarding a standby leaves the app as windowless as it was");
+
+            var live = new WorkspaceRuntime(workspace) { IsStandby = true };
+            WorkspaceManager.Instance.AdoptStandby(live);
+            WorkspaceManager.Instance.NotifyWindowClosed(live);
+            Assert.AreEqual(1, said, "a launch's window closing as the last one is what builds the next standby");
+        }
+        finally
+        {
+            WorkspaceManager.Instance.LastWindowClosed -= Count;
+        }
+    }
 }

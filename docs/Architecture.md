@@ -158,7 +158,7 @@ The shell host. Owns the window chrome, tab strip, ribbon bar, breadcrumb bar, a
 
 | File | Responsibility |
 |------|----------------|
-| `App.xaml.cs` | Startup (`InitializeApp`): global-config + provider-**assembly** load, `WorkspaceManager.Initialize` (saved workspaces only), feature discovery, first window (a fresh `WorkspaceRuntime`). Also the windowless `--prestart` daemon, the launch arguments (`LaunchRequest`: `--context "Name"`, and `--open "path"` from Explorer's "Open in Nexaflow"), and the single-instance IPC that forwards a later launch (a new window = a new runtime; an `--open` path goes to the one workspace with windows open, else the first) |
+| `App.xaml.cs` | Startup (`InitializeApp`): global-config + provider-**assembly** load, `WorkspaceManager.Initialize` (saved workspaces only), feature discovery, first window (a fresh `WorkspaceRuntime`). Also the windowless `--prestart` daemon and the window it keeps ready while none is open (`StandbyWindow`), the launch arguments (`LaunchRequest`: `--context "Name"`, and `--open "path"` from Explorer's "Open in Nexaflow"), and the single-instance IPC that forwards a later launch (a new window = a new runtime; an `--open` path goes to the one workspace with windows open, else the first) |
 | `Models/Workspace.cs` | The saved, shared workspace config (holds `AiConfig`/`Persona`/`ProviderConfigs`/`RibbonService`+`RibbonChanged`/conversations dir + default/last-session tabsets) — see [Ownership & Lifetime](#ownership--lifetime) |
 | `Models/WorkspaceRuntime.cs` | The runtime (points at a `Workspace`; holds `Providers`/`AiService`/`ShellServices`/`Vfs`) |
 | `Models/OpenPageRequest.cs` | `(PageKind, PageParams)` carrier for shell-level open commands (breadcrumb follow-links). Core-internal MVVM glue |
@@ -703,6 +703,16 @@ App.OnStartup
   (Each subsequent app/IPC launch = a NEW WorkspaceRuntime. Tear-off / "open in new window" reuse the
    SAME runtime. --prestart launches the windowless resident daemon: InitializeApp runs, NO runtime is
    created; a later click / JumpList signal opens a window — a new runtime — via the IPC listener.)
+
+  (While the daemon has no window open it keeps a StandbyWindow: once the post-paint warm-up finishes, and
+   again a moment after the last window closes, it builds Workspaces[0]'s runtime on standby
+   (WorkspaceManager.CreateStandbyWorkspace — not live, no session recorded, no model weighed for loading
+   ahead) and its first window, shows that window cloaked, disabled and off the taskbar so it lays out and
+   draws without being seen or taking focus, then hides it. A plain launch of that workspace claims it —
+   AdoptStandby makes the runtime live and the window is shown in place — so the click costs a show, not a
+   build. Any other window opening discards it; the setup wizard, when due, runs first and no standby is
+   built ahead of it. Options → Shell → "Keep a window ready" (ShellConfig.KeepWindowReady, offered only
+   beside Start with Windows) turns it off, read each time a standby would be built.)
 ```
 
 ### Opening a tab

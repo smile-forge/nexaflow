@@ -25,6 +25,9 @@ public partial class MainWindow : Window
 
     private readonly WindowPlacementTracker _placement = new();
 
+    /// <summary>True from <see cref="ShowOutOfSight"/> until the window is set aside or shown: shown, but cloaked.</summary>
+    private bool _outOfSight;
+
     public ShellViewModel ViewModel => _vm;
 
     public MainWindow(BackgroundActivityManager activityManager, WorkspaceRuntime workspace,
@@ -63,15 +66,6 @@ public partial class MainWindow : Window
                 else
                     _shellServices.OpenDefaultTabs(workspace.Workspace.DefaultTabs);
             }
-
-            // Startup profiling: the first window's first render is "time to first window". In timing mode
-            // we report and then shut down so a harness can cold-start the process repeatedly.
-            if (StartupTimings.Enabled)
-                ContentRendered += (_, _) =>
-                {
-                    StartupTimings.Report();
-                    Application.Current.Shutdown();
-                };
         }
         else
         {
@@ -297,10 +291,61 @@ public partial class MainWindow : Window
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
+        // Before Show puts the handle on screen: a window built out of sight is never seen being built, and nothing in it
+        // taking focus as it loads can take the foreground from whatever the user is in.
+        if (_outOfSight)
+        {
+            NativeMethods.Cloak(this, true);
+            NativeMethods.AllowActivation(this, false);
+        }
         NativeMethods.EnableDarkMode(this);
         _snapHook = new SnapLayoutHook(MaximizeRestoreButton, ToggleMaxRestore);
         _snapHook.Install(this);
         _placement.Install(this);
+    }
+
+    /// <summary>
+    /// Shows this window out of sight — cloaked, kept off the taskbar, and unable to be activated until
+    /// <see cref="ShowFromStandby"/> — sized where <paramref name="placement"/> would open it, so it lays out and draws as it
+    /// will when shown, without anyone seeing it or losing focus to it. <see cref="SetAside"/> then hides it.
+    /// </summary>
+    internal void ShowOutOfSight(WindowPlacement? placement)
+    {
+        _outOfSight = true;
+        if (placement is not null) _placement.SizeUnseenAt(placement);
+        ShowActivated = false;
+        ShowInTaskbar = false;
+        Show();
+    }
+
+    /// <summary>Hides a window drawn out of sight until it is wanted: hidden, nothing in it draws or animates, and showing
+    /// it is all that is left to do.</summary>
+    internal void SetAside()
+    {
+        Hide();
+        LeaveOutOfSight();
+    }
+
+    /// <summary>
+    /// Shows a window built out of sight — set aside, or still being drawn — at <paramref name="placement"/>, in front, as a
+    /// window opened for this launch would be.
+    /// </summary>
+    internal void ShowFromStandby(WindowPlacement? placement)
+    {
+        NativeMethods.AllowActivation(this, true);
+        if (_outOfSight) LeaveOutOfSight();
+        else             Show();
+        if (placement is not null) _placement.ShowAt(placement);
+        Activate();
+    }
+
+    private void LeaveOutOfSight()
+    {
+        if (!_outOfSight) return;
+        _outOfSight   = false;
+        NativeMethods.Cloak(this, false);
+        ShowInTaskbar = true;
+        ShowActivated = true;
     }
 
     protected override void OnStateChanged(EventArgs e)

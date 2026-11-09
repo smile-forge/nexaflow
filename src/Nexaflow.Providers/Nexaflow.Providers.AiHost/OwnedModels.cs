@@ -310,7 +310,7 @@ internal sealed record OwnedTokenSampling(TokenSampling Thinking, TokenSampling 
 /// The models in <c>owned-models.json</c>: a model catalog (<see cref="ModelCatalog"/>) whose entries also say what kind
 /// of model each is and how the host runs its parts.
 /// </summary>
-internal static class OwnedModels
+internal static partial class OwnedModels
 {
     public const string Cuda = "cuda";
     public const string Cpu  = "cpu";
@@ -318,11 +318,11 @@ internal static class OwnedModels
     /// <summary>The shortest context a language model is given: room for the page it works on, its tools and a reply.</summary>
     public const int ShortestContext = 8192;
 
-    private static readonly JsonSerializerOptions Options = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
-    };
+    /// <summary>The manifest's shape, read through serializers generated at build time rather than built by reflection on
+    /// first use — the shipped catalog is read at startup, where that first use is paid on the UI thread.</summary>
+    [System.Text.Json.Serialization.JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true, UseStringEnumConverter = true)]
+    [System.Text.Json.Serialization.JsonSerializable(typeof(Manifest))]
+    private sealed partial class ManifestJson : System.Text.Json.Serialization.JsonSerializerContext;
 
     private sealed record Manifest(List<Entry>? Models, List<ToolEntry>? Tools);
     private sealed record ToolEntry(string? Id, OwnedToolKind? Kind, List<Part>? Parts);
@@ -347,10 +347,13 @@ internal static class OwnedModels
 
     private sealed record StreamedBuild(string? File, long MemoryBytes, long HostBytes);
     private sealed record TiledBuild(int Cells, long MemoryBytes, long HostBytes);
-    public static IReadOnlyList<OwnedModel> All { get; } = Read(Embedded());
+    /// <summary>The catalog this assembly ships, read once for its models and its tools alike.</summary>
+    private static readonly (IReadOnlyList<OwnedModel> Models, IReadOnlyList<OwnedTool> Tools) Shipped = ReadShipped(Embedded());
+
+    public static IReadOnlyList<OwnedModel> All => Shipped.Models;
 
     /// <summary>The tools' entries: the models each tool works with.</summary>
-    public static IReadOnlyList<OwnedTool> Tools { get; } = ReadTools(Embedded());
+    public static IReadOnlyList<OwnedTool> Tools => Shipped.Tools;
 
     /// <summary>The models of <paramref name="kind"/>.</summary>
     public static IEnumerable<OwnedModel> OfKind(ModelKind kind) => All.Where(m => m.Kind == kind);
@@ -367,10 +370,24 @@ internal static class OwnedModels
     /// <exception cref="InvalidDataException">A model does not say what it is or how its parts run, lacks a part its
     /// kind needs on a runtime, or has a file outside its parts' folders.</exception>
     internal static IReadOnlyList<OwnedModel> Read(byte[] json)
+        => ModelsOf(ModelCatalog.Read(new MemoryStream(json)), ParseManifest(json).Models);
+
+    /// <summary>The models and the tools of one manifest, each read the once.</summary>
+    /// <exception cref="InvalidDataException">As <see cref="Read"/> and <see cref="ReadTools"/>.</exception>
+    private static (IReadOnlyList<OwnedModel> Models, IReadOnlyList<OwnedTool> Tools) ReadShipped(byte[] json)
     {
-        var catalog = ModelCatalog.Read(new MemoryStream(json)).ToDictionary(m => m.Id);
-        var entries = JsonSerializer.Deserialize<Manifest>(json, Options)?.Models ?? [];
-        return [.. entries.Select(e =>
+        var catalog  = ModelCatalog.ReadContents(new MemoryStream(json));
+        var manifest = ParseManifest(json);
+        return (ModelsOf(catalog.Models, manifest.Models), ToolsOf(catalog.Tools, manifest.Tools));
+    }
+
+    private static Manifest ParseManifest(byte[] json) => JsonSerializer.Deserialize(json, ManifestJson.Default.Manifest) ?? new Manifest(null, null);
+
+    /// <summary>The owned models <paramref name="entries"/> make of the catalog's <paramref name="catalogModels"/>.</summary>
+    private static IReadOnlyList<OwnedModel> ModelsOf(IReadOnlyList<CatalogModel> catalogModels, List<Entry>? entries)
+    {
+        var catalog = catalogModels.ToDictionary(m => m.Id);
+        return [.. (entries ?? []).Select(e =>
         {
             if (e.Id is null || !catalog.TryGetValue(e.Id, out var model)) throw new InvalidDataException("An owned model has no id.");
             if (e.Kind is not { } kind) throw new InvalidDataException($"Owned model '{e.Id}' does not say what kind of model it is.");
@@ -406,10 +423,13 @@ internal static class OwnedModels
     /// <exception cref="InvalidDataException">A tool does not say what it does or how its parts run, lacks a part its kind
     /// needs on a runtime, or has a file outside its parts' folders.</exception>
     internal static IReadOnlyList<OwnedTool> ReadTools(byte[] json)
+        => ToolsOf(ModelCatalog.ReadTools(new MemoryStream(json)), ParseManifest(json).Tools);
+
+    /// <summary>The owned tools <paramref name="entries"/> make of the catalog's <paramref name="catalogTools"/>.</summary>
+    private static IReadOnlyList<OwnedTool> ToolsOf(IReadOnlyList<CatalogModel> catalogTools, List<ToolEntry>? entries)
     {
-        var catalog = ModelCatalog.ReadTools(new MemoryStream(json)).ToDictionary(m => m.Id);
-        var entries = JsonSerializer.Deserialize<Manifest>(json, Options)?.Tools ?? [];
-        return [.. entries.Select(e =>
+        var catalog = catalogTools.ToDictionary(m => m.Id);
+        return [.. (entries ?? []).Select(e =>
         {
             if (e.Id is null || !catalog.TryGetValue(e.Id, out var tool)) throw new InvalidDataException("An owned tool has no id.");
             if (e.Kind is not { } kind) throw new InvalidDataException($"Owned tool '{e.Id}' does not say what it does.");

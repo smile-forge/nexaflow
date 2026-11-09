@@ -18,7 +18,6 @@ PageLoadError_Detail
 # src/Nexaflow.Core/Controls/ShellConfigControl.xaml
 ShellBatteryAnimationsToggle
 ShellLanguageCombo
-ShellPrestartToggle
 
 # src/Nexaflow.Core/Controls/WorkspaceIdentityControl.xaml
 identity_Color

@@ -49,6 +49,7 @@ public partial class ShellConfigControl : UserControl, ICustomConfigApply, IConf
             cfg.Language                   = _vm.Language;
             cfg.TextFontSize               = _vm.TextFontSize;
             cfg.PrestartAtLogin            = _vm.PrestartAtLogin;
+            cfg.KeepWindowReady            = _vm.KeepWindowReady;
             cfg.DisableAnimationsOnBattery = _vm.DisableAnimationsOnBattery;
             cfg.EnhancedAiProtection       = _vm.EnhancedAiProtection;
             cfg.SafetyLogging              = _vm.SafetyLogging;
@@ -98,6 +99,7 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private string _selectedLanguage;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private double _textFontSize;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _prestartAtLogin;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _keepWindowReady;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _disableAnimationsOnBattery;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _enhancedAiProtection;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _safetyLogging;
@@ -108,11 +110,11 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
 
     /// <summary>Every choice the page saves, as one value, so the page and its saved state compare whole.</summary>
     private readonly record struct Choices(
-        string Theme, string Language, double TextFontSize, bool PrestartAtLogin, bool DisableAnimationsOnBattery, bool EnhancedAiProtection,
-        bool SafetyLogging);
+        string Theme, string Language, double TextFontSize, bool PrestartAtLogin, bool KeepWindowReady, bool DisableAnimationsOnBattery,
+        bool EnhancedAiProtection, bool SafetyLogging);
 
-    private Choices Current => new(SelectedTheme, SelectedLanguage, TextFontSize, PrestartAtLogin, DisableAnimationsOnBattery, EnhancedAiProtection,
-                                   SafetyLogging);
+    private Choices Current => new(SelectedTheme, SelectedLanguage, TextFontSize, PrestartAtLogin, KeepWindowReady, DisableAnimationsOnBattery,
+                                   EnhancedAiProtection, SafetyLogging);
 
     // What the page last saved, or opened on — taken after the language and size were snapped onto offered values,
     // since a config the page had to normalise is not an edit the user made.
@@ -140,6 +142,7 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
         // silently become whichever size the user happened to click past.
         _textFontSize               = NearestOfferedSize(cfg.TextFontSize);
         _prestartAtLogin            = cfg.PrestartAtLogin;
+        _keepWindowReady            = cfg.KeepWindowReady;
         _disableAnimationsOnBattery = cfg.DisableAnimationsOnBattery;
         _enhancedAiProtection       = cfg.EnhancedAiProtection;
         _safetyLogging              = cfg.SafetyLogging;

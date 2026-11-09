@@ -174,7 +174,18 @@ public class OptionsJourneyTests : OptionsOverlayJourney
         Check("Safety logging is off until the user turns it on", () =>
             WaitForId("ShellSafetyLoggingToggle", 5)?.Patterns.Toggle.PatternOrDefault?.ToggleState.Value == ToggleState.Off);
         Check("Its switch turns it on", () => SetToggle("ShellSafetyLoggingToggle", true));
-        Check("And off again", () => SetToggle("ShellSafetyLoggingToggle", false));
+    Check("And off again", () => SetToggle("ShellSafetyLoggingToggle", false));
+
+        // Keeping a window ready is a choice about the app that starts with Windows, so it is offered only beside it.
+        Check("Keeping a window ready is not offered while Nexaflow does not start with Windows", () =>
+            SetToggle("ShellPrestartToggle", false) && WaitForId("ShellKeepWindowReadyToggle", 1) is null);
+        Check("Starting with Windows offers it, on until the user turns it off", () =>
+            SetToggle("ShellPrestartToggle", true)
+            && WaitForId("ShellKeepWindowReadyToggle", 5)?.Patterns.Toggle.PatternOrDefault?.ToggleState.Value == ToggleState.On);
+        Check("Its switch turns it off", () => SetToggle("ShellKeepWindowReadyToggle", false));
+        Check("And on again", () => SetToggle("ShellKeepWindowReadyToggle", true));
+        Check("Not starting with Windows takes the choice away again", () =>
+            SetToggle("ShellPrestartToggle", false) && WaitForId("ShellKeepWindowReadyToggle", 1) is null);
     }
 
     /// <summary>

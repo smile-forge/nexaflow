@@ -202,6 +202,27 @@ public class WorkspaceStartupTabsTests
     }
 
     [TestMethod]
+    public void AStandbyWindow_RecordsNoSession_ForItWasNeverShownToAnyone()
+    {
+        var workspace = new Workspace { Name = "Ready", DefaultTabs = [Tab("FileSystem")] };
+        WorkspaceManager.Instance.Initialize(new WorkspacesConfig { Contexts = [workspace] });
+        var shell = new ShellServices(new WorkspaceRuntime(workspace) { IsStandby = true });
+        var host  = new FakeWindowHost
+        {
+            Layout            = [Tab("FileSystem"), Tab("Terminal")],
+            IntendedPlacement = new WindowPlacement(new PixelRect(0, 0, 800, 600), Maximized: false,
+                                                    new MonitorArea("laptop", new PixelRect(0, 0, 1920, 1080),
+                                                                    new PixelRect(0, 0, 1920, 1040), IsPrimary: true)),
+        };
+        shell.RegisterWindow(host);
+
+        shell.CaptureLastSession(host);
+
+        Assert.IsNull(workspace.LastSessionTabs, "a standby's tabs are what the last session left, not a session of its own");
+        Assert.IsNull(workspace.LastWindowPlacement, "nor is where it was sized to open a place anyone put a window");
+    }
+
+    [TestMethod]
     public void TheOptOut_RoundTripsWithTheWorkspace()
     {
         var workspace = new Workspace { Name = "Fixed", SuppressSessionRestore = true };
