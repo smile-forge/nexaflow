@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.IO.Documents.Processing;
 
@@ -90,32 +91,7 @@ public sealed class DocumentNotesFolder : IDocumentNotes
 
     /// <summary>Holds the store at <paramref name="root"/> under <paramref name="most"/> bytes, letting go of whole documents' notes, those worked on longest ago first.</summary>
     public static void Bound(string root, long most)
-    {
-        if (!Directory.Exists(root)) return;
-
-        var documents = Directory.EnumerateDirectories(root)
-            .Select(folder => (Folder: folder, Bytes: Bytes(folder), Worked: Directory.GetLastWriteTimeUtc(folder)))
-            .OrderBy(document => document.Worked)
-            .ToList();
-
-        var total = documents.Sum(document => document.Bytes);
-
-        foreach (var document in documents)
-        {
-            if (total <= most) return;
-
-            try
-            {
-                Directory.Delete(document.Folder, recursive: true);
-                total -= document.Bytes;
-            }
-            catch (IOException) { /* in use by a job still running: the next to settle lets it go */ }
-            catch (UnauthorizedAccessException) { }
-        }
-    }
-
-    private static long Bytes(string folder) =>
-        Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories).Sum(file => new FileInfo(file).Length);
+    => CacheLocation.Bound(root, most);
 
     private static void TryDelete(string file)
     {

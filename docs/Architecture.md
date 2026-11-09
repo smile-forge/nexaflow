@@ -621,7 +621,22 @@ they made themselves. `ResolveInFolder` is the stricter test for a new file — 
   frame cut out — is kept under `DraftLocation` and handed to `IShellServices.HandleObject` as a `DraftFile`. The
   viewer for its kind claims it and opens it as a draft tab: `DraftBanner` over the page, its `DraftSaving` keeping the
   file where the user picks (a picture with its edits), and the tab becomes that file. The assistant is told only that
-  the tab opened.
+  the tab opened. Pages converted to Markdown open as a draft the same way, and a Markdown Package is unpacked into one
+  to be worked on.
+- **Drafts are the app's to clear, never Windows'.** `DraftLocation.Root` is under the app's local data, not the temp
+  folder: Windows' clean-up takes files from a draft still open, and an unsaved draft is the only copy. Nothing deletes a
+  draft when its tab closes — tabs and their paths come back with a workspace's last session and default tabs, and the
+  assistant's conversations name the files it made. Instead, a tab opening a draft marks it used (`DraftLocation.Touch`),
+  and two minutes after start-up — the disk left to the starting app — then daily for as long as it runs
+  (`DraftSweeping`), `DraftLocation.Sweep`, off the UI thread, lets go of the drafts no tab shows or would open again
+  (`WorkspaceManager.TabPaths`) that have gone untouched for `DraftLocation.Untouched`, then the least recently used past
+  `DraftLocation.Most`. What the app can make again — readings of pages, a picture tool's results, a model's notes on a
+  document — is kept under `CacheLocation`, each kind held under a budget of its own (`CacheLocation.Bound`). What one
+  process works on while it runs — entries opened out of archives, fonts unpacked, message bodies written out, files
+  fetched from a store, a large file's unsaved edits — is kept in a folder of that session's own
+  (`CacheLocation.SessionFolder`), let go of by its owner, and by the next process to ask for that kind where the session
+  ended without doing so. The temp folder holds only what lives for a single operation. Saving a document names any file
+  it links to that could not be found, rather than saving it without them in silence.
 - The terminal's `run_command` is a shell, which no path check can confine; it stays behind approval.
 
 ---

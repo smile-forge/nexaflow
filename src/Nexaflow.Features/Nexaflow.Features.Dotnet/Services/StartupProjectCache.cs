@@ -20,9 +20,7 @@ public static class StartupProjectCache
 {
     private static readonly object _gate = new();
 
-    private static readonly string CacheFile = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Smile", "nexaflow", "cache", "dotnet-startup.json");
+    private static readonly string CacheFile = Path.Combine(CacheLocation.Root, "dotnet-startup.json");
 
     /// <summary>The project path last chosen for <paramref name="solutionPath"/>, if one was.</summary>
     public static bool TryGet(string solutionPath, out string projectPath)

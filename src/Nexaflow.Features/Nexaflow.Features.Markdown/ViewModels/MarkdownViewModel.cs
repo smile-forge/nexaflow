@@ -236,6 +236,9 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     /// the file may be on a location, where reading it is a round trip nothing should wait for.</summary>
     public Task Loaded { get; }
 
+    /// <summary>The folder a Markdown Package was unpacked into to be worked on, let go of when the document is.</summary>
+    private string? _unpacked;
+
     /// <summary>
     /// Reads the document: a Markdown Package unpacked into a folder of its own under the temp folder, its attachments beside
     /// its document there; anything else read where it is, its attachments beside it. Nothing there is a new document. A
@@ -248,7 +251,9 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
             if (!await _vfs.ExistsAsync(FilePath)) return;
             if (MarkdownPackage.Names(FilePath))
             {
-                var unpacked = Path.Combine(Path.GetTempPath(), "nexaflow-mdz", Guid.NewGuid().ToString("N")[..12]);
+                // A working copy, as a draft is kept: Windows' clean-up of the temp folder would take its attachments while it
+                // is open, and the next save would pack it without them.
+                var unpacked = _unpacked = DraftLocation.NewFolder();
                 var text        = (await MarkdownPackage.UnpackAsync(_vfs, FilePath, unpacked)).ReplaceLineEndings("\n");
                 DocumentFolder  = unpacked;
                 Document.Load(text);
@@ -276,7 +281,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
             await SaveAs();
             return;
         }
-        if (MarkdownPackage.Names(FilePath)) await MarkdownPackage.PackAsync(_vfs, Markdown, DocumentFolder!, FilePath);
+        if (MarkdownPackage.Names(FilePath)) NotFound(await MarkdownPackage.PackAsync(_vfs, Markdown, DocumentFolder!, FilePath));
         else await _vfs.WriteAllTextAsync(FilePath, Markdown);
         Document.MarkSaved();
     }
@@ -296,13 +301,14 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         string extension = Path.GetExtension(FilePath);
         IReadOnlyList<SaveFileType> types = WrittenIn is null ? DocumentTypes : [new(extension.TrimStart('.').ToUpperInvariant(), extension)];
         if (await _shell.PickSaveFileAsync(Path.GetFileNameWithoutExtension(FilePath), types,
-                                           string.IsNullOrEmpty(folder) ? null : folder) is not { } target) return;
+                                                                              string.IsNullOrEmpty(folder) ? null : folder) is not { } target) return;
+                                           IReadOnlyList<string> lost;
         try
         {
-            if (MarkdownPackage.Names(target)) await MarkdownPackage.PackAsync(_vfs, Markdown, DocumentFolder ?? FolderOf(target), target);
+            if (MarkdownPackage.Names(target)) lost = await MarkdownPackage.PackAsync(_vfs, Markdown, DocumentFolder ?? FolderOf(target), target);
             else
             {
-                await CarryAttachmentsAsync(FolderOf(target));
+                lost = await CarryAttachmentsAsync(FolderOf(target));
                 await _vfs.WriteAllTextAsync(target, Markdown);
                 DocumentFolder = FolderOf(target);
             }
@@ -319,23 +325,42 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         WatchWork();
         Document.MarkSaved();
         Moved?.Invoke(target);
+        NotFound(lost);
     }
 
     /// <summary>Says printing the document failed, and why — the printer would not take it, or went away.</summary>
     public void PrintFailed(string why) => _shell.ShowError(Str.Format("Markdown.Error.PrintFormat", why));
 
-    /// <summary>The files the document shows or links to from its folder, copied to the same places under <paramref name="to"/>.</summary>
-    private async Task CarryAttachmentsAsync(string to)
+    /// <summary>
+    /// Copies what the document links to beside it into <paramref name="to"/>, as it is saved there; the links whose files were
+    /// not where it keeps them, so the reader is told rather than finding them gone.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> CarryAttachmentsAsync(string to)
     {
-        if (DocumentFolder is not { } from || string.Equals(Full(from), to, StringComparison.OrdinalIgnoreCase)) return;
+        if (DocumentFolder is not { } from || string.Equals(Full(from), to, StringComparison.OrdinalIgnoreCase)) return [];
+        var missing = new List<string>();
         foreach (var attachment in MarkdownAttachments.Paths(Markdown))
         {
             string source = Path.Combine(from, attachment);
-            if (!await _vfs.ExistsAsync(source)) continue;
+            if (!await _vfs.ExistsAsync(source))
+            {
+                missing.Add(attachment);
+                continue;
+            }
             string copy = Path.Combine(to, attachment);
             await _vfs.CreateDirectoryAsync(Path.GetDirectoryName(copy)!);
             await _vfs.CopyFileAsync(source, copy, replace: true);
         }
+        return missing;
+    }
+
+    /// <summary>Tells the reader the document was saved without the files it links to that could not be found, naming the first few.</summary>
+    private void NotFound(IReadOnlyList<string> missing)
+    {
+        if (missing.Count == 0) return;
+        const int Named = 5;
+        string named = string.Join(", ", missing.Take(Named)) + (missing.Count > Named ? ", …" : "");
+        _shell.ShowError(Str.Format("Markdown.Error.AttachmentsNotFoundFormat", missing.Count, named));
     }
 
     /// <summary>A path made whole — one in a namespace of its own (<c>::id\…</c>, a location) left as it is, which
@@ -347,7 +372,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     private static string FolderOf(string path) => Path.GetDirectoryName(Full(path))!;
 
     /// <summary>Lets go of what follows the workspace's models, and of the folder a Markdown Package was unpacked in, once the document is closed.</summary>
-    [LocalDiskOnly("the folder a Markdown Package was unpacked into under the temp folder")]
+    [LocalDiskOnly("the folder a Markdown Package was unpacked into, a draft folder of the app's own")]
     public void Release()
     {
         if (_work is { } work)
@@ -359,8 +384,8 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         TranslationWork?.Dispose();
         _documentModel?.Dispose();
 
-        if (DocumentFolder is { } folder && folder.StartsWith(Path.Combine(Path.GetTempPath(), "nexaflow-mdz"), StringComparison.OrdinalIgnoreCase))
-            try { Directory.Delete(folder, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        if (_unpacked is { } unpacked)
+            try { Directory.Delete(unpacked, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
     }
 
     // ── Links ─────────────────────────────────────────────────────────────

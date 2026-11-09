@@ -14,9 +14,11 @@ namespace Nexaflow.IO.Documents.Processing;
 /// it marks, <c>&lt;1&gt;the moon&lt;/1&gt;</c>, which a model carries with those words wherever another language puts them.
 /// Inline code and a formula short enough to read stand as <c>⟦n `.md`⟧</c> — what they say shown, not to be translated, so a
 /// model can see what it is placing and put it where it goes in the other language's sentence. Anything else that is not words —
-/// a picture, longer code, the marks a quote or a list puts at the head of a line — stands as <c>⟦n⟧</c>, unseen. What comes
+/// a picture, longer code, the marks a quote or a list puts at the head of a line — stands as <c>⟦n⟧</c>, unseen. Markup round
+/// every word a block has — a picture's description, a caption in emphasis — marks nothing a translation could move, and is
+/// kept either side of the words with the space round them (<see cref="Lead"/>, <see cref="Trail"/>). What comes
 /// back is checked to hold every one once, each pair opened before it is closed and inside the
-/// pairs it was inside (<see cref="Problem"/>); the block is written again from it (<see cref="Rebuilt"/>), every piece of markup
+/// pairs it was inside, no bracket of one standing on its own and no markup made by the words themselves (<see cref="Problem"/>); the block is written again from it (<see cref="Rebuilt"/>), every piece of markup
 /// as it was written, character for character, and the words spelled by the parser where they stand, so nothing in them is read
 /// as markup; and read again (<see cref="Keeps"/>) to prove its markup still reads as the markup it was.
 /// </para>
@@ -40,13 +42,19 @@ public sealed partial class ProtectedText
         _slots = slots;
     }
 
-    /// <summary>What comes before the block's first words — a heading's hashes, a list's first marker — kept as written.</summary>
+    /// <summary>
+    /// What comes before the block's first words — a heading's hashes, a list's first marker, the opening of markup round every
+    /// one of its words, the space before them — kept as written.
+    /// </summary>
     public string Lead { get; }
 
     /// <summary>The block's words, with a tag pair round each run of marked words, and <c>⟦n⟧</c> for anything else between them.</summary>
     public string Masked { get; }
 
-    /// <summary>What comes after the block's last words — the line break closing it, say — kept as written.</summary>
+    /// <summary>
+    /// What comes after the block's last words — the line break closing it, the close of markup round every one of its words, a
+    /// link written out after its last sentence and the space before it — kept as written.
+    /// </summary>
     public string Trail { get; }
 
     /// <summary>Whether the block has any words at all; one that has none is copied as it was written.</summary>
@@ -69,6 +77,15 @@ public sealed partial class ProtectedText
         if (first < 0 || !tokens.Any(token => token.Kind == Said.Words)) return new(block.Print(), string.Empty, string.Empty, [], [], []);
 
         var last = tokens.FindLastIndex(token => token.Kind != Said.Mark);
+
+        // A pair round every word the block has marks nothing a translation could move — a picture's description, a caption in
+        // emphasis — so it is written as it was, either side of the words, and the words are handed over bare.
+        while (tokens[first].Kind == Said.Opens && tokens[last].Kind == Said.Closes && tokens[first].Pair == tokens[last].Pair)
+        {
+            first = tokens.FindIndex(first + 1, token => token.Kind != Said.Mark);
+            last = tokens.FindLastIndex(last - 1, token => token.Kind != Said.Mark);
+        }
+
         var held = new List<string>();
         var slots = new List<ContentPart>();
         var masked = new StringBuilder();
@@ -115,8 +132,14 @@ public sealed partial class ProtectedText
             }
         }
 
-        return new(string.Concat(tokens.Take(first).Select(token => token.Text)), masked.ToString(),
-                   string.Concat(tokens.Skip(last + 1).Select(token => token.Text)), held, pairs, slots);
+        // The space either side of the words is the block's, not theirs: an answer comes back without it, and the space between
+        // the last sentence and a link written out after it is what keeps that a link.
+        var words = masked.ToString();
+        var from = words.Length - words.TrimStart().Length;
+        var to = Math.Max(from, words.TrimEnd().Length);
+
+        return new(string.Concat(tokens.Take(first).Select(token => token.Text)) + words[..from], words[from..to],
+                   words[to..] + string.Concat(tokens.Skip(last + 1).Select(token => token.Text)), held, pairs, slots);
     }
 
     /// <summary>
@@ -172,8 +195,9 @@ public sealed partial class ProtectedText
 
     /// <summary>
     /// What is wrong with <paramref name="answer"/> as words standing in for <paramref name="source"/>'s: a <c>⟦n⟧</c> or a tag of
-    /// the source's missing from it or there twice, one the source never had, or a pair closed before it is opened or across
-    /// another. Null where it holds each of the source's once, every pair opened and closed in its order.
+    /// the source's missing from it or there twice, one the source never had, a bracket of one standing on its own, a pair closed
+    /// before it is opened or across another, or markup its words make that the source's do not. Null where it holds each of the
+    /// source's once, every pair opened and closed in its order, and words that are only words.
     /// </summary>
     public static string? Problem(string source, string answer)
     {
@@ -181,6 +205,11 @@ public sealed partial class ProtectedText
         // words a reader can read either; the passage's own text is the only place one may stand.
         if (Strays().Matches(answer).Select(stray => stray.Value).FirstOrDefault(stray => !Mark().IsMatch(stray) && !source.Contains(stray)) is { } made)
             return $"{made} is no mark of this passage: write what it stands for as words, or the passage's own marks as they are";
+
+        // Half a mark — a bracket written twice, or a ⟦n⟧ with what it shows written again after it — leaves a bracket standing
+        // in the words, which a reader would read.
+        if (LoneBrackets(answer).Count > LoneBrackets(source).Count)
+            return "a ⟦ or ⟧ stands on its own: write each mark whole and once, exactly as it was given, and nothing of it again beside it";
 
         var wanted = Marks(source);
         var given = Marks(answer);
@@ -208,6 +237,11 @@ public sealed partial class ProtectedText
             if (open.Count == 0 || open.Peek() != pair) return $"</{pair}> closes what <{pair}> did not open: keep each pair round the words it marks, one inside another as they were";
             open.Pop();
         }
+
+        // Markup the words make of their own accord — a formula round a name the passage writes plainly, emphasis it never had —
+        // is spelled as the characters it is written with, so a reader would see them.
+        if (MarkupAdded(source, answer).FirstOrDefault() is { Said: { } added })
+            return $"{added} is markup of your own: write it as plain words, as the passage does, and add no formatting";
 
         return null;
 
@@ -252,6 +286,9 @@ public sealed partial class ProtectedText
             .Concat(answerMarks.Where(mark => wrong.Contains(mark.Name)).Select(mark => anchors.Count(anchor => anchor.Answer < mark.At)))
             .Concat(Strays().Matches(answer).Where(stray => !Mark().IsMatch(stray.Value) && !source.Contains(stray.Value))
                             .Select(stray => anchors.Count(anchor => anchor.Answer < stray.Index)))
+            .Concat((LoneBrackets(answer) is var lone && lone.Count > LoneBrackets(source).Count ? lone : [])
+                            .Select(at => anchors.Count(anchor => anchor.Answer < at)))
+            .Concat(MarkupAdded(source, answer).Select(added => anchors.Count(anchor => anchor.Answer < added.At)))
             .ToList();
         if (gaps.Count == 0) return new WrongStretch(0, source.Length, 0, answer.Length);
 
@@ -419,6 +456,75 @@ public sealed partial class ProtectedText
     private static string StandsFor(Match mark) => mark.Groups["hold"].Success
         ? $"⟦{mark.Groups["hold"].Value}⟧"
         : $"<{mark.Groups["closes"].Value}{mark.Groups["pair"].Value}>";
+
+    /// <summary>Where a bracket a mark is written in stands outside every mark of <paramref name="text"/>.</summary>
+    private static List<int> LoneBrackets(string text)
+    {
+        var lone = new List<int>();
+        var at = 0;
+
+        foreach (Match mark in Mark().Matches(text).Append(Match.Empty))
+        {
+            var to = mark.Success ? mark.Index : text.Length;
+            for (; at < to; at++)
+                if (text[at] is '⟦' or '⟧') lone.Add(at);
+
+            at = mark.Success ? mark.Index + mark.Length : text.Length;
+        }
+
+        return lone;
+    }
+
+    /// <summary>
+    /// The markup <paramref name="answer"/>'s words make that <paramref name="source"/>'s do not (<see cref="WordsMarkup"/>), each
+    /// with where it stands in the answer.
+    /// </summary>
+    private static IEnumerable<(string Said, int At)> MarkupAdded(string source, string answer)
+    {
+        var had = WordsMarkup(source).CountBy(markup => markup.Said).ToDictionary();
+
+        foreach (var markup in WordsMarkup(answer))
+        {
+            if (had.GetValueOrDefault(markup.Said) > 0) had[markup.Said]--;
+            else yield return markup;
+        }
+    }
+
+    /// <summary>
+    /// What <paramref name="text"/>'s words read as besides words — a formula, code, emphasis, a link — read as one line of prose,
+    /// each mark a word as long as it is so nothing it holds is read: each the whole of what holds no words, or the markup round
+    /// words, with where it stands.
+    /// </summary>
+    private static List<(string Said, int At)> WordsMarkup(string text)
+    {
+        // Read after a word, so nothing in it opens a block — a heading, a list — that the words were never written as.
+        const string After = "x ";
+
+        var plain = new StringBuilder(After).Append(text);
+        foreach (Match mark in Mark().Matches(text))
+            for (var at = 0; at < mark.Length; at++) plain[After.Length + mark.Index + at] = 'm';
+        for (var at = After.Length; at < plain.Length; at++)
+            if (plain[at] is '\n' or '\r') plain[at] = ' ';
+
+        var read = DocumentReading.Of(plain.ToString());
+        if (read.Blocks(0, read.Root.Children.Count).FirstOrDefault() is not { } line) return [];
+
+        var markup = new List<ContentPart>();
+        foreach (var leaf in line.SelfAndDescendants())
+        {
+            if (leaf.Children.Count > 0 || leaf.Derived || MarkdownParser.ReadsAsWords(leaf) || leaf.Kind == MarkdownKinds.Escape) continue;
+            if (string.IsNullOrWhiteSpace(leaf.Print())) continue;
+
+            // The whole of what holds no words — a formula, not its every symbol.
+            var whole = leaf;
+            while (whole.Parent is { } up && up != line && !up.SelfAndDescendants().Any(part => part.Children.Count == 0 && MarkdownParser.ReadsAsWords(part)))
+                whole = up;
+
+            if (!markup.Contains(whole)) markup.Add(whole);
+        }
+
+        return [.. markup.Select(part => (Said: part.Print().Trim(), At: part.Start - After.Length))];
+    }
 
     /// <summary>What a block is said as, in order.</summary>
     private enum Said

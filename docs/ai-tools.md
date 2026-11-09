@@ -289,8 +289,17 @@ on a page read; the viewer offers Convert to Markdown only for a page.
 `PageReading.IsPage`, 15 regions over 3 % of the picture) and reads a page into `PageBlock`s as it goes (`PageMarks`).
 `Visuals.Text`'s `PageReader` reads pages into Markdown (`PageMarkdown`), `IPageReading.PagesAtOnce` of them at once and
 written in page order, cuts the figures (`PageFigures`), numbered in page order too, and asks
-`IAIService.AskAboutPictureAsync` for each as Mermaid, kept only when `MermaidDiagrams.Troubles` finds nothing wrong
-(`DiagramDrawing`). `PageConversion` converts a feature's pages (`PageSource`): the reading kept in the temp folder by
+`IAIService.AskAboutPictureAsync` for each as Mermaid (`DiagramDrawing`). A figure is cut whole — the blocks read inside
+it, and panels read one after another over one caption, are one picture (`PageFigures.Whole`) — and described by its
+caption. Its drawing replaces it only once shown to hold what it does, and every step can only keep the picture: the
+model names its kind from a list that includes what Mermaid cannot draw (a circuit, a sketch, a plot), and only a kind
+Mermaid draws is drawn; the drawing must be one `MermaidDiagrams.Troubles` finds nothing wrong with; the words the model
+reads in the picture must be the words the drawing draws (`DiagramPicture.WordsAsync`, laid out by the engine); and shown
+the two side by side as one picture (`DiagramPicture.SideBySideAsync`), the model must list nothing that differs — asked
+what differs, never whether they match. An accepted drawing has the picture linked under it; `PagesRead.Drawings` says
+why each stays a picture, and `PageConversion` keeps that beside the reading as `figures.json`. `PageMarkdown` writes a
+heading said again and again in one chapter as the bold title of its box, and a numbered item or step of a section
+(Beispiel 1.4, 1. Schritt within 3.10) under that section. `PageConversion` converts a feature's pages (`PageSource`): the reading kept in the temp folder by
 what was read and the models, a draft written from it — `<source>.md`, only the figures its text shows in
 `<source>.figures` — and opened in the Markdown editor in the right-hand pane (`IShellServices.OpenTab`, `inRightPane`)
 with a `draft` param, so its first save asks where, a Markdown Package by default; `OriginBreadcrumbs` leads it back to

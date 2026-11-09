@@ -41,7 +41,9 @@ public sealed partial class VirtualFileSystem : IVirtualFileSystem
     /// under %TEMP%, so a test asserting on what landed there races every other test in the process.</summary>
     internal VirtualFileSystem(string? tempRoot = null)
     {
-        _tempRoot = tempRoot ?? Path.Combine(Path.GetTempPath(), "nexaflow-vfs");
+        // The entries opened out of archives are worked on while their tabs are open: in a folder of this session's own, which
+        // the temp folder's clean-up does not reach and a later session lets go of if this one ends without doing so.
+        _tempRoot = tempRoot ?? CacheLocation.SessionFolder("vfs");
         try { Directory.CreateDirectory(_tempRoot); } catch { /* best effort */ }
         System.AppDomain.CurrentDomain.ProcessExit += (_, _) => CleanupTemps();
     }

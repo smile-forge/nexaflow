@@ -26,7 +26,9 @@ public sealed record DocumentTranslation(string Text, IReadOnlyList<string> Untr
 /// outermost sections. Runs are translated side by side, each read through in order. Every passage is handed the document's
 /// gist (<see cref="DocumentGist"/>), the glossary entries it uses (<see cref="DocumentGlossary"/>) and the passage before it in
 /// its run with its translation, so the passages read as one text. An answer is held to twice the length of what it translates, and taken piece by piece: what it answers right is
-/// kept, and only a piece it leaves out or gets wrong is asked for again, so one piece costs only itself. A piece with a mark
+/// kept, and only a piece it leaves out or gets wrong is asked for again, so one piece costs only itself. A piece the model
+/// writes out as it was before its translation has that taken off rather than being asked for again; a reply with no numbered
+/// line, and words making markup of their own, answer nothing. A piece with a mark
 /// doubled or missing has just the sentences round it asked for again and put back (<see cref="ProtectedText.Wrong"/>); one
 /// still wrong is asked for again, saying what was wrong, then in halves; one that ran out of room, or ran on past its length,
 /// is asked for in halves. A block whose
@@ -240,9 +242,10 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
 
             if (reply.RanOut) return await HalvesAsync(job, unit, before, hint, ct);
 
-            // A mark the model made up is taken out rather than its whole answer turned away.
-            var answers = AnswersByNumber(reply.Text, unit.Count)
-                .Select((answer, at) => answer is null ? null : ProtectedText.Mended(unit[at].Text, answer)).ToList();
+            // A mark the model made up is taken out rather than its whole answer turned away, and so is the piece written out as
+            // it was before its translation.
+            var answers = AnswersByNumber(reply.Text, [.. unit.Select(piece => piece.Text)])
+                .Select((answer, at) => answer is null ? null : ProtectedText.Mended(unit[at].Text, Unechoed(unit[at].Text, answer))).ToList();
             var right = answers.Select((answer, at) => answer is not null && ProblemWith(unit[at].Text, answer) is null).ToList();
 
             if (answers.All(answer => answer is not null))
@@ -327,9 +330,9 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
                 (string Source, string Target)? before = wrong.SourceFrom > 0 ? (source[..wrong.SourceFrom], answer[..wrong.AnswerFrom]) : null;
 
                 var reply = await model.AnswerAsync(Instructions(job, hits), Asked(job, [stretch], before, hint, problem), Longest([stretch]), ct);
-                if (reply.Ended == DocumentReplyEnd.Failed || reply.RanOut || AnswersByNumber(reply.Text, 1) is not [{ } given]) return null;
+                if (reply.Ended == DocumentReplyEnd.Failed || reply.RanOut || AnswersByNumber(reply.Text, [stretch.Text]) is not [{ } given]) return null;
 
-                var again = ProtectedText.Mended(stretch.Text, given);
+                var again = ProtectedText.Mended(stretch.Text, Unechoed(stretch.Text, given));
                 if (ProblemWith(stretch.Text, again) is not null) return null;
 
                 // Put back as the sentences it stands for were: the space after them after it.
@@ -499,9 +502,9 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
 
     /// <summary>
     /// What is wrong with <paramref name="answer"/> as the translation of <paramref name="source"/>, or null where nothing is: a mark
-    /// wrong (<see cref="ProtectedText.Problem"/>), or the piece given as written before its translation. A model shown the passage
-    /// before as its text and then its translation answers so, and where the piece has no marks to be doubled, nothing else sees it:
-    /// the two would be put in the document as one paragraph.
+    /// wrong (<see cref="ProtectedText.Problem"/>), or the piece given as written before its translation on the same line, which
+    /// <see cref="Unechoed"/> cannot take apart — or in an answer kept from before it was. Where the piece has no marks to be
+    /// doubled, nothing else sees it: the two would be put in the document as one paragraph.
     /// </summary>
     private static string? ProblemWith(string source, string answer) =>
         ProtectedText.Problem(source, answer)
@@ -513,6 +516,27 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
         var (asked, given) = (source.Trim(), answer.TrimStart());
         return asked.Length > 0 && given.Length > asked.Length && given.StartsWith(asked, StringComparison.Ordinal) && char.IsWhiteSpace(given[asked.Length]);
     }
+
+    /// <summary>
+    /// <paramref name="answer"/> with <paramref name="source"/> taken off its front, where the model wrote the piece as it was on a
+    /// line of its own before its translation — the way the passage before is shown it, its text, a dash, then its translation —
+    /// and that dash with it; the answer as it is otherwise. One the piece only opens, the rest on the same line, is left to
+    /// <see cref="ProblemWith"/>: where its translation starts is not the reader's to guess.
+    /// </summary>
+    private static string Unechoed(string source, string answer)
+    {
+        var (asked, given) = (source.Trim(), answer.TrimStart());
+        if (asked.Length == 0 || !given.StartsWith(asked, StringComparison.Ordinal)) return answer;
+
+        var rest = given[asked.Length..].TrimStart(' ', '\t');
+        if (!rest.StartsWith('\n') && !rest.StartsWith("\r\n", StringComparison.Ordinal)) return answer;
+
+        rest = DashLine().Replace(rest, string.Empty, 1).Trim();
+        return rest.Length > 0 ? rest : answer;
+    }
+
+    [GeneratedRegex(@"\A\s*[—–-]+[ \t]*(?:\r?\n|\z)")]
+    private static partial Regex DashLine();
 
     /// <summary>
     /// What every passage is told before it is handed over: what is the same for every passage of the document first — the
@@ -539,37 +563,39 @@ public sealed partial class DocumentTranslator(IDocumentModel model, IDocumentNo
 
     /// <summary>
     /// Each piece's answer in <paramref name="reply"/>, by the number its @@ line gives it — the answer on the lines after that line,
-    /// or on the same line after the number, as a model writes it either way — and null for a piece it gives no answer, or more than
-    /// one: what came back is taken piece by piece, so one piece left out costs only itself. Numbers past the pieces asked, and
-    /// anything before the first @@ line, are nobody's. A reply to one piece with no @@ line at all is that piece's answer.
+    /// or on the same line after the number, as a model writes it either way — and null for a piece it gives no answer: what came back
+    /// is taken piece by piece, so one piece left out costs only itself. Numbers past the pieces asked, and anything before the first
+    /// @@ line, are nobody's, so a reply with no @@ line at all — a model talking about what it was asked rather than answering it —
+    /// answers nothing. A piece answered more than once is answered by the one of them that is not the piece as it was written
+    /// (<paramref name="pieces"/>), as a model writes it before its translation under a number of its own; where more than one is
+    /// not, which was meant is not the reader's to guess, and it is answered by none.
     /// </summary>
-    private static string?[] AnswersByNumber(string reply, int count)
+    private static string?[] AnswersByNumber(string reply, IReadOnlyList<string> pieces)
     {
-        var answers = new string?[count];
+        var given = new List<string>[pieces.Count];
         var marks = Opens().Matches(reply);
-
-        if (marks.Count == 0)
-        {
-            if (count == 1 && reply.Trim() is { Length: > 0 } whole) answers[0] = whole;
-            return answers;
-        }
-
-        var given = new int[count];
 
         for (var at = 0; at < marks.Count; at++)
         {
-            if (!int.TryParse(marks[at].Groups[1].Value, out var numbered) || numbered < 1 || numbered > count) continue;
+            if (!int.TryParse(marks[at].Groups[1].Value, out var numbered) || numbered < 1 || numbered > pieces.Count) continue;
 
             var from = marks[at].Index + marks[at].Length;
             var to = at + 1 < marks.Count ? marks[at + 1].Index : reply.Length;
 
-            given[numbered - 1]++;
-            answers[numbered - 1] = reply[from..to].Trim() is { Length: > 0 } said ? said : null;
+            (given[numbered - 1] ??= []).Add(reply[from..to].Trim());
         }
 
-        // Answered twice is not answered: which of the two was meant is not the reader's to guess.
-        for (var piece = 0; piece < count; piece++)
-            if (given[piece] > 1) answers[piece] = null;
+        var answers = new string?[pieces.Count];
+        for (var piece = 0; piece < pieces.Count; piece++)
+        {
+            if (given[piece] is not { } said) continue;
+
+            var asWritten = pieces[piece].Trim();
+            var translations = said.Where(answer => answer.Length > 0).Distinct(StringComparer.Ordinal).ToList();
+            if (translations.Count > 1) translations.RemoveAll(answer => answer == asWritten);
+
+            answers[piece] = translations is [var only] ? only : null;
+        }
 
         return answers;
     }

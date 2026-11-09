@@ -23,6 +23,7 @@
   "Markdown.Search.MatchFormat": "match {0}",
   "Markdown.Error.OpenFailedFormat": "Couldn't open {0}: {1}",
   "Markdown.Error.SaveFailedFormat": "The document could not be saved: {0}",
+  "Markdown.Error.AttachmentsNotFoundFormat": "The document was saved, but {0} file(s) it links to could not be found and were not saved with it: {1}",
   "Markdown.Error.PictureSaveFailedFormat": "Could not save the picture to {0}: {1}",
   "Markdown.Error.PrintFormat": "The document could not be printed: {0}",
   "Markdown.Toolbar.Summarize": "Summarise",

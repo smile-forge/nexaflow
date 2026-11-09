@@ -157,9 +157,11 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     private bool   _suppressDocChanges;    // guards programmatic Document mutations from the edit pipeline
     private bool   _slidingWindow;         // re-entrancy guard for slides
 
-    /// <summary>The large-file editor's change file — this machine's own scratch, in the temp folder, so a file in an
-    /// archive or on a location is edited as one on disk is.</summary>
-    private readonly string _addBufferPath = Path.Combine(Path.GetTempPath(), $"nexaflow-{Guid.NewGuid():N}.nexedit");
+    /// <summary>
+    /// Where what is typed into a large file is kept until it is saved — the only copy of it — in a folder of this session's own,
+    /// never the temp folder, whose clean-up would take it while the file is open.
+    /// </summary>
+    private readonly string _addBufferPath = Path.Combine(CacheLocation.SessionFolder("text-edits"), $"{Guid.NewGuid():N}.nexedit");
 
     // ── Monitoring ────────────────────────────────────────────────────────────
 

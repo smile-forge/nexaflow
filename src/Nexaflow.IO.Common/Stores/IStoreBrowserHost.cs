@@ -23,8 +23,8 @@ public interface IStoreBrowserHost
     /// </summary>
     string FetchedFilesFolder { get; }
 
-    /// <summary>Where the app fetches such files: a folder of this PC's temp space.</summary>
-    static string DefaultFetchedFilesFolder => Path.Combine(Path.GetTempPath(), "Nexaflow", "Opened");
+    /// <summary>Where the app fetches such files: a folder of this session's own (<see cref="CacheLocation.SessionFolder"/>).</summary>
+    static string DefaultFetchedFilesFolder => CacheLocation.SessionFolder("fetched");
 
     /// <summary>Records what was done to the store, for whoever keeps a log of it.</summary>
     void Log(string message);

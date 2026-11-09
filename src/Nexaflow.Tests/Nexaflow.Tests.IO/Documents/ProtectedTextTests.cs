@@ -156,4 +156,58 @@ public class ProtectedTextTests
 
         Assert.IsNull(ProtectedText.Wrong(source, doubled.Replace("⟦3⟧ ⟦3⟧", "⟦3⟧")), "nothing wrong, nothing to ask for again");
     }
+
+    [TestMethod]
+    public void TheSpaceBeforeALinkWrittenOutAfterTheWords_IsKeptWithIt()
+    {
+        var block = Block("Write to us. https://example.org\n");
+        var text = ProtectedText.Of(block);
+        Assert.AreEqual("Write to us.", text.Masked, "the space is the block's, not the words'");
+
+        var rebuilt = text.Rebuilt("Schreib uns.");
+        Assert.AreEqual("Schreib uns. https://example.org\n", rebuilt, "an answer comes back trimmed, and the link stays apart from it");
+        Assert.IsTrue(ProtectedText.Keeps(block, rebuilt, string.Empty), "so it still reads as a link");
+    }
+
+    [TestMethod]
+    public void MarkupRoundEveryWord_IsKeptEitherSideOfThem_AndTheWordsAreHandedOverBare()
+    {
+        var picture = Block("![figure 3](pics/figure-3.png)\n");
+        var text = ProtectedText.Of(picture);
+        Assert.AreEqual("figure 3", text.Masked, "a pair round all of it marks nothing a translation could move");
+
+        var rebuilt = text.Rebuilt("Abbildung 3");
+        Assert.AreEqual("![Abbildung 3](pics/figure-3.png)\n", rebuilt);
+        Assert.IsTrue(ProtectedText.Keeps(picture, rebuilt, string.Empty));
+
+        var caption = Block("*Figure 1.23: Plates and [a dielectric](d.md)*\n");
+        Assert.AreEqual("Figure 1.23: Plates and <1>a dielectric</1>", ProtectedText.Of(caption).Masked, "a pair inside the words is still handed over");
+    }
+
+    [TestMethod]
+    public void ABracketOfAMarkStandingOnItsOwn_IsAProblem()
+    {
+        var source = ProtectedText.Of(Block("The charge $Q$ spreads out.\n")).Masked;
+        Assert.AreEqual("The charge ⟦0 $Q$⟧ spreads out.", source);
+
+        Assert.IsNull(ProtectedText.Problem(source, "Die Ladung ⟦0 $Q$⟧ verteilt sich."));
+        StringAssert.Contains(ProtectedText.Problem(source, "Die Ladung ⟦0 $Q$⟧⟧ verteilt sich."), "stands on its own", "a bracket written twice");
+        StringAssert.Contains(ProtectedText.Problem(source, "Die Ladung ⟦0⟧ $Q$⟧ verteilt sich."), "stands on its own", "what the mark shows written again after it");
+        Assert.IsNotNull(ProtectedText.Wrong(source, "Die Ladung ⟦0 $Q$⟧⟧ verteilt sich."), "and found, to be asked for again");
+    }
+
+    [TestMethod]
+    public void MarkupTheWordsMakeOfTheirOwn_IsAProblem_AndMarkupThePassageHolds_IsNot()
+    {
+        const string Plain = "The charge Q sits on a length l.";
+
+        StringAssert.Contains(ProtectedText.Problem(Plain, "Die Ladung $Q$ sitzt auf einer Länge l."), "$Q$ is markup of your own",
+            "a formula round a name the passage writes plainly would be written into the document as its dollar signs");
+        StringAssert.Contains(ProtectedText.Problem(Plain, "Die *Ladung* Q sitzt auf einer Länge l."), "is markup of your own", "and emphasis it never had");
+        Assert.IsNull(ProtectedText.Problem(Plain, "Die Ladung Q sitzt auf einer Länge l."));
+
+        Assert.IsNull(ProtectedText.Problem("Dogs <0>bark</0> at ⟦1 $Q$⟧.", "Hunde <0>bellen</0> ⟦1 $Q$⟧ an."), "the passage's own marks are none of the words'");
+        Assert.IsNull(ProtectedText.Problem("Lehrer*innen und a*b", "Lehrer*innen und a*b"), "a star that opens nothing is a star");
+        Assert.IsNotNull(ProtectedText.Wrong(Plain, "Die Ladung $Q$ sitzt auf einer Länge l."), "and found, to be asked for again");
+    }
 }

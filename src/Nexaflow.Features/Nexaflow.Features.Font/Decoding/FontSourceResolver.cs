@@ -22,8 +22,7 @@ public sealed class FontSourceResolver : IDisposable
 
     private readonly IReadOnlyList<IFontFormatDecoder> _decoders = [new WoffDecoder()];
     private readonly List<string> _tempFiles = [];
-    private readonly string _tempDir =
-        Path.Combine(Path.GetTempPath(), "nexaflow-fonts", Guid.NewGuid().ToString("N"));
+    private readonly string _tempDir = Path.Combine(CacheLocation.SessionFolder("fonts"), Guid.NewGuid().ToString("N"));
 
     /// <summary>The extensions a resolver can render (raw sfnt + every registered decoder's).</summary>
     public bool IsSupported(string extension) =>

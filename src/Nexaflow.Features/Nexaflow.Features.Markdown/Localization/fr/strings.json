@@ -23,6 +23,7 @@
   "Markdown.Search.MatchFormat": "occurrence {0}",
   "Markdown.Error.OpenFailedFormat": "Impossible d'ouvrir {0} : {1}",
   "Markdown.Error.SaveFailedFormat": "Le document n'a pas pu être enregistré : {0}",
+  "Markdown.Error.AttachmentsNotFoundFormat": "Le document a été enregistré, mais {0} fichier(s) qu'il référence sont introuvables et n'ont pas été enregistrés avec lui : {1}",
   "Markdown.Error.PictureSaveFailedFormat": "Impossible d'enregistrer l'image dans {0} : {1}",
   "Markdown.Error.PrintFormat": "Le document n'a pas pu être imprimé : {0}",
   "Markdown.Toolbar.Summarize": "Résumer",
