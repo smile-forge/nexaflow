@@ -27,8 +27,10 @@ public sealed record PageSource(string Key, string Path, int Pages, Func<int, Ca
 /// (<see cref="PageReader"/>), or found read before, and opened as a draft in the Markdown editor in the right-hand pane,
 /// to be saved where the reader picks — a Markdown Package by default, its figures inside it.
 /// <para>
-/// A reading is kept, figures and all, under the temp folder by what was read and the models that read it, so the same
-/// pages convert again at once and the assistant reads them without reading again. Until page reading is here, what is
+/// A reading is kept, figures and all, in the app's cache by what was read and the models that read it — the oldest let go past
+/// a budget — so the same
+/// pages convert again at once and the assistant reads them without reading again — with what became of each figure shown to
+/// the image model, and why one stays a picture. Until page reading is here, what is
 /// asked waits for it, and <see cref="Status"/> offers its download; while it reads, it says how far it has got.
 /// </para>
 /// </summary>
@@ -41,6 +43,20 @@ public sealed partial class PageConversion : ObservableObject
     private const string PagesFile = "pages.json";
 
     private const string KeptMarkdown = "page.md";
+
+    /// <summary>What became of each figure shown to the image model, kept beside the reading so why one stays a picture can be looked into.</summary>
+    private const string DrawingsFile = "figures.json";
+
+    private static readonly JsonSerializerOptions Indented = new() { WriteIndented = true };
+
+    /// <summary>The most every kept reading together is let come to, in bytes, before those used longest ago are let go.</summary>
+    private const long ReadingsBudget = 4L << 30;
+
+    /// <summary>The folder each reading is kept in a folder of its own under.</summary>
+    private readonly string _readings;
+
+    /// <summary>Where drafts are made: the app's own drafts folder, unless told otherwise.</summary>
+    private readonly string? _drafts;
 
     private readonly IPageReading? _reading;
     private readonly IAIService? _ai;
@@ -57,11 +73,15 @@ public sealed partial class PageConversion : ObservableObject
 
     /// <param name="reading">Page reading, where the app has it.</param>
     /// <param name="ai">The workspace's AI, whose image model draws diagrams again; none leaves figures as pictures.</param>
-    public PageConversion(IPageReading? reading, IAIService? ai, IShellServices shell)
+    /// <param name="readings">Where readings are kept: the app's cache, unless told otherwise.</param>
+    /// <param name="drafts">Where drafts are made: the app's drafts folder (<see cref="DraftLocation"/>), unless told otherwise.</param>
+    public PageConversion(IPageReading? reading, IAIService? ai, IShellServices shell, string? readings = null, string? drafts = null)
     {
         _reading = reading;
         _ai = ai;
         _shell = shell;
+        _readings = readings ?? CacheLocation.Folder("page-readings");
+        _drafts = drafts;
         if (reading is not null) reading.Changed += (_, _) => _ = shell.RunOnUiAsync(OnToolChanged);
     }
 
@@ -167,6 +187,7 @@ public sealed partial class PageConversion : ObservableObject
         string folder = KeptFolder(source.Key, reading.ModelsVersion);
         if (Kept(folder) is { } kept)
         {
+            CacheLocation.Touch(folder);
             Found(kept);
             return (kept, folder, true);
         }
@@ -202,7 +223,10 @@ public sealed partial class PageConversion : ObservableObject
             var read = await Task.Run(() => reader.ReadAsync(source, System.IO.Path.Combine(folder, Figures), Figures, shown, cts.Token), cts.Token);
             await File.WriteAllTextAsync(System.IO.Path.Combine(folder, PagesFile), JsonSerializer.Serialize(read.Pages), cts.Token);
             await File.WriteAllTextAsync(System.IO.Path.Combine(folder, KeptMarkdown), read.Markdown, cts.Token);
+            if (read.Drawings is { Count: > 0 } drawings)
+                await File.WriteAllTextAsync(System.IO.Path.Combine(folder, DrawingsFile), JsonSerializer.Serialize(drawings, Indented), cts.Token);
             if (cts.IsCancellationRequested) return null;
+            CacheLocation.Bound(_readings, ReadingsBudget, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { System.IO.Path.GetFullPath(folder) });
             Found(read);
             return (read, folder, true);
         }
@@ -234,7 +258,7 @@ public sealed partial class PageConversion : ObservableObject
 
     /// <summary>Why a reading's files are on the disk directly: they are this machine's own — the readings kept in the app's
     /// cache and the drafts under the temp folder — never the file the pages were read from.</summary>
-    private const string ReadingsHere = "readings kept in the app's cache and drafts under the temp folder";
+    private const string ReadingsHere = "readings kept in the app's cache and drafts in its drafts folder";
 
     /// <summary>The reading kept in <paramref name="folder"/>, or null where none is.</summary>
     [LocalDiskOnly(ReadingsHere)]
@@ -255,16 +279,17 @@ public sealed partial class PageConversion : ObservableObject
     }
 
     /// <summary>
-    /// The reading as a draft of its own in the temp folder, named after the source — <c>scan.md</c>, its figures in
-    /// <c>scan.figures</c> — holding only the figures its text shows, for the Markdown editor to open and the reader to save.
+    /// The reading as a draft of its own (<see cref="DraftLocation"/>), named after the source — <c>scan.md</c>, its figures in
+    /// <c>scan.figures</c> beside it — holding only the figures its text shows or links to, for the Markdown editor to open and the
+    /// reader to save. In the app's drafts folder, not the temp folder: Windows' clean-up would take its figures while it is open.
     /// </summary>
     [LocalDiskOnly(ReadingsHere)]
-    private static string Draft(PageSource source, PagesRead read, string kept)
+    private string Draft(PageSource source, PagesRead read, string kept)
     {
         string name = System.IO.Path.GetFileNameWithoutExtension(source.Path);
-        string folder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "nexaflow-pages", "drafts", Guid.NewGuid().ToString("N")[..12]);
+        string draft = DraftLocation.NewFile(name + ".md", _drafts);
+        string folder = System.IO.Path.GetDirectoryName(draft)!;
         string figures = name + ".figures";
-        Directory.CreateDirectory(folder);
         foreach (var figure in MarkdownAttachments.Paths(read.Markdown))
         {
             string from = System.IO.Path.Combine(kept, figure);
@@ -273,7 +298,6 @@ public sealed partial class PageConversion : ObservableObject
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(to)!);
             File.Copy(from, to, overwrite: true);
         }
-        string draft = System.IO.Path.Combine(folder, name + ".md");
         File.WriteAllText(draft, read.Markdown.Replace("](" + Figures + "/", "](" + Uri.EscapeDataString(figures) + "/", StringComparison.Ordinal));
         return draft;
     }
@@ -366,9 +390,8 @@ public sealed partial class PageConversion : ObservableObject
         => done <= 0 || done >= pages ? null : elapsed / done * (pages - done);
 
     /// <summary>Where the reading of <paramref name="key"/> by these models is kept.</summary>
-    private static string KeptFolder(string key, string modelsVersion)
-        => System.IO.Path.Combine(System.IO.Path.GetTempPath(), "nexaflow-pages",
-                                  Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(key + "\n" + modelsVersion)))[..16]);
+    private string KeptFolder(string key, string modelsVersion)
+        => System.IO.Path.Combine(_readings, Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(key + "\n" + modelsVersion)))[..16]);
 
     private sealed class Shown(Action<PagesSoFar> show) : IProgress<PagesSoFar>
     {

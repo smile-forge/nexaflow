@@ -11,8 +11,9 @@ namespace Nexaflow.Visuals.Text.Pages;
 /// <list type="bullet">
 /// <item>a paragraph broken by a column, a page or a figure set into it is one paragraph again, the figures after it —
 /// its rest the text that opens the next column or page, or that goes on in mid-sentence further down;</item>
-/// <item>headings take their level from their numbering (3 → ##, 3.2 → ###); the document's title, before any of them,
-/// is #; others are ##;</item>
+/// <item>headings take their level from their numbering (3 → ##, 3.2 → ###); one naming a numbered item of its section
+/// (Beispiel 1.4) goes under the section it stands in; the document's title, before any of them, is #; a box's title, said
+/// again and again in a chapter (<see cref="BoxTitles"/>), leads its box in bold, opening no section; others are ##;</item>
 /// <item>maths is <c>$…$</c> in a sentence and <c>$$…$$</c> set apart; tables are Markdown tables;</item>
 /// <item>a figure is what <c>figure</c> makes of it — its picture, or a diagram drawn again — its caption under it;</item>
 /// <item>footnotes are gathered at the end; what runs along the pages' edges — running heads, page numbers — is left out.</item>
@@ -30,6 +31,9 @@ public static partial class PageMarkdown
         int open = -1;                       // the paragraph a column, a page or a figure broke off, waiting for its rest
         (int Page, double Top) openAt = default;   // where its last block stands
         bool titled = false;
+        int numbered = 2;                    // the level of the last heading its numbering placed
+        var boxes = BoxTitles(pages);
+        var steps = Steps(pages);
 
         void Close()
         {
@@ -84,7 +88,19 @@ public static partial class PageMarkdown
                         Close();
                         string heading = Prose(block.Content);
                         if (heading.Length == 0) break;
-                        int level = Level(heading) ?? (titled ? 2 : 1);
+                        // A box's title leads what the box says: it opens no section.
+                        if (boxes.Contains(heading))
+                        {
+                            titled = true;
+                            parts.Add("**" + heading + "**");
+                            break;
+                        }
+
+                        // A numbered item of the section it stands in — an example, an exercise, a step — goes under that section.
+                        int level = steps.Contains((p, b)) ? Math.Min(6, numbered + 1)
+                                  : Level(heading) is { } placed ? numbered = placed
+                                  : Labelled().IsMatch(heading) ? Math.Min(6, numbered + 1)
+                                  : titled ? 2 : 1;
                         titled = true;
                         parts.Add(new string('#', level) + " " + heading);
                         break;
@@ -148,6 +164,62 @@ public static partial class PageMarkdown
     internal static int? Level(string heading)
         => Numbering().Match(heading) is { Success: true } m ? Math.Min(6, m.Groups["part"].Captures.Count + 2) : null;
 
+    /// <summary>
+    /// The headings that are the titles of boxes set into the text — a note, a rule to remember, a worked solution — rather than of
+    /// sections: those with no numbering, nor a word and a number naming an item, read more than once in the same chapter. A section's
+    /// name is said once in its chapter; a box's title, as often as the chapter has such boxes. A chapter is what the numbering of
+    /// its sections says — the 1 of 1.13 — and what comes before any such section is one more.
+    /// </summary>
+    internal static HashSet<string> BoxTitles(IReadOnlyList<IReadOnlyList<PageBlock>> pages)
+    {
+        var read = new Dictionary<(string Heading, string Chapter), int>();
+        string chapter = "";
+        foreach (var block in pages.SelectMany(page => page).Where(block => block.Kind == PageBlockKind.Title))
+        {
+            string heading = Prose(block.Content);
+            if (heading.Length == 0 || Labelled().IsMatch(heading)) continue;
+            if (Numbering().Match(heading) is { Success: true } numbering)
+            {
+                if (numbering.Groups["part"].Captures.Count > 0) chapter = heading[..heading.IndexOf('.')];
+                continue;
+            }
+            read[(heading, chapter)] = read.GetValueOrDefault((heading, chapter)) + 1;
+        }
+        return [.. read.Where(seen => seen.Value > 1).Select(seen => seen.Key.Heading)];
+    }
+
+    /// <summary>
+    /// Where the headings numbered by one number that are steps of a section, not chapters — 1. Schritt, 4. Schritt within 3.10 —
+    /// stand, by page and block. A chapter's number never goes back: one lower than the chapter its section numbering is in, or
+    /// higher than the chapter of the next section numbered after it, cannot be a chapter's. One numbered in letters is not weighed.
+    /// </summary>
+    internal static HashSet<(int Page, int Block)> Steps(IReadOnlyList<IReadOnlyList<PageBlock>> pages)
+    {
+        var titles = new List<(int Page, int Block, int? Number, int? Chapter)>();
+        for (int p = 0; p < pages.Count; p++)
+            for (int b = 0; b < pages[p].Count; b++)
+            {
+                if (pages[p][b].Kind != PageBlockKind.Title || Numbering().Match(Prose(pages[p][b].Content)) is not { Success: true } numbering) continue;
+                int? number = int.TryParse(numbering.Value.TrimEnd().Split('.', ' ')[0], out var n) ? n : null;
+                titles.Add(numbering.Groups["part"].Captures.Count > 0 ? (p, b, null, number) : (p, b, number, null));
+            }
+
+        var steps = new HashSet<(int Page, int Block)>();
+        int? chapter = null;
+        for (int at = 0; at < titles.Count; at++)
+        {
+            if (titles[at].Chapter is { } within) chapter = within;
+            if (titles[at].Number is not { } number) continue;
+
+            int? next = titles.Skip(at + 1).Select(title => title.Chapter).FirstOrDefault(later => later is not null);
+            if (number < chapter || next < number) steps.Add((titles[at].Page, titles[at].Block));
+        }
+        return steps;
+    }
+
+    /// <summary>A caption as the description of the picture it captions: its words as prose, the brackets of a picture's link spelled as themselves.</summary>
+    internal static string Described(string caption) => Prose(caption).Replace("[", @"\[", StringComparison.Ordinal).Replace("]", @"\]", StringComparison.Ordinal);
+
     /// <summary>Whether a paragraph ends a sentence, so what comes after it is not its rest.</summary>
     private static bool Finished(string paragraph) => SentenceEnd().IsMatch(paragraph);
 
@@ -169,6 +241,10 @@ public static partial class PageMarkdown
 
     [GeneratedRegex(@"^(?:\d+|[A-Z])(?<part>\.\d+)*\.?\s+\S")]
     private static partial Regex Numbering();
+
+    /// <summary>A heading naming a numbered item — a word and a number with its section's in it: Beispiel 1.4, Exercise 2.3.1.</summary>
+    [GeneratedRegex(@"^\p{L}[\p{L}\p{M}'’-]*\s+(?:\d+|[A-Z])(?:\.\d+)+(?!\w)")]
+    private static partial Regex Labelled();
 
     [GeneratedRegex(@"[.!?:;][""”’)\]*_]*$")]
     private static partial Regex SentenceEnd();

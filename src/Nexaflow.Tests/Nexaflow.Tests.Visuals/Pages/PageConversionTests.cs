@@ -7,6 +7,7 @@ using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Pages;
 using NSubstitute;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Tests.Visuals.Pages;
 
@@ -36,6 +37,10 @@ public class PageConversionTests
         shell.RunOnUiAsync(Arg.Any<Action>()).Returns(call => { call.Arg<Action>()(); return Task.CompletedTask; });
         return shell;
     }
+
+    /// <summary>A conversion keeping its readings and making its drafts in the test folder, never the app's own.</summary>
+    private PageConversion Conversion(IPageReading? reading, IAIService? ai, IShellServices shell) =>
+        new(reading, ai, shell, Path.Combine(_dir, "readings"), Path.Combine(_dir, "drafts"));
 
     private static IPageReading Reading(ToolModelsState state, params PageBlock[] blocks)
     {
@@ -75,7 +80,7 @@ public class PageConversionTests
     public async Task Pages_AreReadOnce_TheirTextKept_AndTheirPicturesLetGo()
     {
         var reading = Reading(ToolModelsState.Ready);
-        var conversion = new PageConversion(reading, null, Shell());
+        var conversion = Conversion(reading, null, Shell());
         var made = new List<string>();
         string key = Guid.NewGuid().ToString();
 
@@ -146,27 +151,35 @@ public class PageConversionTests
             new PageBlock(PageBlockKind.Caption, 0.1, 0.31, 0.5, 0.35, "Figure 1: A flow."),
             new PageBlock(PageBlockKind.Figure, 0.1, 0.5, 0.5, 0.7, ""),
             new PageBlock(PageBlockKind.Caption, 0.1, 0.71, 0.5, 0.75, "Figure 2: A photograph."));
+        // The first figure a flowchart, drawn again with its labels and nothing found missing; the second a photograph.
+        var kinds = new Queue<string>(["flowchart", "photograph"]);
         var ai = Substitute.For<IAIService>();
-        ai.AskAboutPictureAsync(Arg.Any<string>(), Arg.Any<ContextImage>(), Arg.Any<CancellationToken>())
-          .Returns("```mermaid\nflowchart TD\n  A --> B\n```", "NONE");
+        ai.AskAboutPictureAsync(Arg.Any<string>(), Arg.Any<ContextImage>(), Arg.Any<CancellationToken>()).Returns(call => Task.FromResult<string?>(
+            call.Arg<string>() == DiagramDrawing.KindInstruction ? kinds.Dequeue()
+          : call.Arg<string>() == DiagramDrawing.LabelsInstruction ? "Read\nWrite"
+          : call.Arg<string>() == DiagramDrawing.DifferencesInstruction ? "NONE"
+          : "```mermaid\nflowchart TD\n  A[Read] --> B[Write]\n```"));
         var shell = Shell();
         var caller = Substitute.For<IPageView>();
         Dictionary<string, string>? opened = null;
         shell.When(s => s.OpenTab("Markdown", Arg.Any<Dictionary<string, string>?>(), caller, true))
              .Do(call => opened = call.Arg<Dictionary<string, string>?>());
 
-        await new PageConversion(reading, ai, shell).ConvertAsync(Scan([]), caller);
+        await Conversion(reading, ai, shell).ConvertAsync(Scan([]), caller);
 
         Assert.IsNotNull(opened, "the Markdown opens in the right-hand pane beside the source");
         string draft = opened!["path"];
         Assert.AreEqual("scan.md", Path.GetFileName(draft), "named after its source");
+        Assert.IsTrue(DraftLocation.Holds(draft, Path.Combine(_dir, "drafts")), "a draft of its own where drafts are kept, out of the temp folder's clean-up");
+        Assert.AreEqual(1, Directory.GetDirectories(Path.Combine(_dir, "readings")).Length, "the reading kept in the cache it was given");
         Assert.AreEqual(_dir, opened["draft"], "a draft, offered to be saved beside its source");
         string text = File.ReadAllText(draft);
         StringAssert.Contains(text, "```mermaid", "the diagram drawn again stands in its figure's place");
-        StringAssert.Contains(text, "](scan.figures/figure-2.png)");
-        CollectionAssert.AreEqual(new[] { "figure-2.png" },
-                                  Directory.GetFiles(Path.Combine(Path.GetDirectoryName(draft)!, "scan.figures")).Select(Path.GetFileName).ToArray(),
-                                  "only the figure its text shows");
+        StringAssert.Contains(text, "```\n\n[figure-1.png](scan.figures/figure-1.png)", "the picture it was drawn from linked under it");
+        StringAssert.Contains(text, "![Figure 2: A photograph.](scan.figures/figure-2.png)", "a picture described by its caption");
+        CollectionAssert.AreEquivalent(new[] { "figure-1.png", "figure-2.png" },
+                                       Directory.GetFiles(Path.Combine(Path.GetDirectoryName(draft)!, "scan.figures")).Select(Path.GetFileName).ToArray(),
+                                       "the figures its text shows or links to");
         Assert.AreEqual("Images", OriginBreadcrumbs.ParentCrumbFor(draft)?.TargetPageKind, "its crumbs lead back to the picture");
         OriginBreadcrumbs.Clear(draft);
     }
@@ -176,7 +189,7 @@ public class PageConversionTests
     {
         var reading = Reading(ToolModelsState.NotDownloaded);
         var shell = Shell();
-        var conversion = new PageConversion(reading, null, shell);
+        var conversion = Conversion(reading, null, shell);
 
         await conversion.ConvertAsync(Scan([]), null);
 
@@ -198,7 +211,7 @@ public class PageConversionTests
     {
         var reading = Reading(ToolModelsState.NotDownloaded);
         reading.DownloadFailure.Returns("the network went");
-        var conversion = new PageConversion(reading, null, Shell());
+        var conversion = Conversion(reading, null, Shell());
 
         await conversion.ConvertAsync(Scan([]), null);
 
@@ -209,7 +222,7 @@ public class PageConversionTests
     [TestMethod]
     public async Task WherePageReadingCannotRun_ItSaysSo()
     {
-        var conversion = new PageConversion(Reading(ToolModelsState.Unavailable), null, Shell());
+        var conversion = Conversion(Reading(ToolModelsState.Unavailable), null, Shell());
 
         Assert.IsNull(await conversion.ReadAsync(Scan([])));
 
@@ -249,7 +262,7 @@ public class PageConversionTests
         Dictionary<string, string>? opened = null;
         shell.When(s => s.OpenTab("Markdown", Arg.Any<Dictionary<string, string>?>(), caller, true))
              .Do(call => opened = call.Arg<Dictionary<string, string>?>());
-        var conversion = new PageConversion(FirstPageThenWaiting(), null, shell);
+        var conversion = Conversion(FirstPageThenWaiting(), null, shell);
 
         var converting = conversion.ConvertAsync(Scan([]) with { Pages = 3 }, caller);
         await UntilAsync(() => conversion.HasSoFar);
@@ -280,7 +293,7 @@ public class PageConversionTests
     public async Task ADiscardedReading_OpensNothing_AndTheBannerGoes()
     {
         var shell = Shell();
-        var conversion = new PageConversion(FirstPageThenWaiting(), null, shell);
+        var conversion = Conversion(FirstPageThenWaiting(), null, shell);
 
         var converting = conversion.ConvertAsync(Scan([]) with { Pages = 3 }, null);
         await UntilAsync(() => conversion.HasSoFar);
