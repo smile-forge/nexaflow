@@ -321,6 +321,18 @@ public class LocalModelsTests
     }
 
     [TestMethod]
+    public void AJobNoModelRunsFor_SaysWhetherNoneHasABuildHere_OrNoneIsSmallEnough()
+    {
+        Assert.AreEqual("Shell.Config.AiGrid.Local.NoBuild", AiAbilityGridViewModel.WhyNoneRunsKey(UnrunnableReason.NoBuildForThisMachine));
+        Assert.AreEqual("Shell.Config.AiGrid.Local.TooLarge", AiAbilityGridViewModel.WhyNoneRunsKey(UnrunnableReason.TooLargeForThisMachine));
+        Assert.AreEqual("Shell.Config.AiGrid.Local.None", AiAbilityGridViewModel.WhyNoneRunsKey(null));
+
+        var grid = Open(runs: false).Grid;
+        Assert.AreEqual(Str.Get("Shell.Config.AiGrid.Local.TooLarge"), LocalCell(grid, AiAbility.ImageGeneration).Note,
+                        "the picture model has a build here, and is too large for it");
+    }
+
+    [TestMethod]
     public async Task ATickedLocalCell_WhoseModelIsNotHere_IsMarked_AndTheGridOffersToDownloadThem()
     {
         var setup = Open();

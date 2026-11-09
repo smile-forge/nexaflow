@@ -111,7 +111,7 @@ public sealed partial class LocalJobViewModel : ObservableObject
     /// <summary>Why the job has nothing to choose from; null when it has.</summary>
     public string? Note => CanChoose ? null
         : IsDictationOnly ? Str.Get("Shell.Config.Local.DictationNote")
-        : Str.Get(Choices.Count == 0 ? "Shell.Config.AiGrid.Local.None" : "Shell.Config.AiGrid.Local.TooLarge");
+        : Str.Get(AiAbilityGridViewModel.WhyNoneRunsKey(_shelf.WhyNoneRuns(Slot)));
 
     /// <summary>The model chosen — or being downloaded to be chosen.</summary>
     [ObservableProperty] private LocalChoiceViewModel? _selected;

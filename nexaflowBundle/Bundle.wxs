@@ -34,7 +34,7 @@
         Result="exists"
         Bitness="always32" />
 
-    <!-- The Visual C++ runtime the native libraries load: llama.cpp, ONNX Runtime and onnxruntime-genai in the AI
+    <!-- The Visual C++ runtime the native libraries load: llama.cpp and ONNX Runtime in the AI
          host, whisper and assimp in the app. The x64 redistributable records itself under this key in the 64-bit
          view. A DLL needs a runtime at least as new as the toolset that linked it, so the minimum the package below
          detects is the newest linker version among those DLLs' PE headers - 14.44. Raise it when a native

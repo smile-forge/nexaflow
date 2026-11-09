@@ -811,7 +811,7 @@ Nexaflow leaves it) and vital (a failure stops the chain before the MSI).
 | Prerequisite | Needed by | Detected by |
 |---|---|---|
 | .NET 10 Desktop Runtime (x64) | the app, which is framework-dependent | the bundled patch's value under `HKLM\SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App`, 32-bit view |
-| Visual C++ v14 Redistributable (x64) | the native libraries — llama.cpp, ONNX Runtime and onnxruntime-genai in the AI host, whisper, assimp — which import `vcruntime140`, `msvcp140` and `vcomp140`; a clean Windows has none of them | `Installed` = 1 and a minimum `Minor` under `HKLM\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64`, 64-bit view |
+| Visual C++ v14 Redistributable (x64) | the native libraries — llama.cpp and ONNX Runtime in the AI host, whisper, assimp — which import `vcruntime140`, `msvcp140` and `vcomp140`; a clean Windows has none of them | `Installed` = 1 and a minimum `Minor` under `HKLM\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64`, 64-bit view |
 
 A DLL needs a Visual C++ runtime at least as new as the toolset that linked it, so the minimum is the newest linker
 version in those DLLs' PE headers; a native dependency built with a newer toolset raises it in `Bundle.wxs`. Every

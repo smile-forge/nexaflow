@@ -7,14 +7,17 @@ namespace Nexaflow.AiHost.Models;
 /// asked for, so a peak does not double into a power of two.</summary>
 internal static class CudaSessions
 {
-    public static void Append(SessionOptions options, int device)
+    /// <summary>Puts a session on GPU <paramref name="device"/>, with any options its spec adds to the CUDA provider's.</summary>
+    public static void Append(SessionOptions options, int device, IReadOnlyDictionary<string, string>? extra = null)
     {
-        using var cuda = new OrtCUDAProviderOptions();
-        cuda.UpdateOptions(new Dictionary<string, string>
+        var settings = new Dictionary<string, string>
         {
             ["device_id"]             = device.ToString(CultureInfo.InvariantCulture),
             ["arena_extend_strategy"] = "kSameAsRequested",
-        });
+        };
+        foreach (var (key, value) in extra ?? new Dictionary<string, string>()) settings[key] = value;
+        using var cuda = new OrtCUDAProviderOptions();
+        cuda.UpdateOptions(settings);
         options.AppendExecutionProvider_CUDA(cuda);
     }
 

@@ -319,7 +319,8 @@ public interface IShellServices
     /// <b>Treat <see cref="Dependencies.ExternalDependencyState.Unknown"/> as "go ahead and try".</b> It is
     /// the answer for an unrecognised id, for a probe that threw, and for the window before the first probe
     /// finishes — never as evidence the component is absent. Only
-    /// <see cref="Dependencies.ExternalDependencyState.Missing"/> means that.
+    /// <see cref="Dependencies.ExternalDependencyState.Missing"/> means that, and
+    /// <see cref="Dependencies.ExternalDependencyState.Unusable"/> that it is there but cannot be used as it is.
     /// </para>
     /// </summary>
     Dependencies.ExternalDependencyStatus GetDependencyStatus(string id);

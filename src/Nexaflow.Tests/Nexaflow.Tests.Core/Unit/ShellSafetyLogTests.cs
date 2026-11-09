@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using Nexaflow.AiHost.Client;
 using Nexaflow.Core.Services;
 using Nexaflow.Tests.Fixtures;
 
@@ -120,6 +121,29 @@ public class ShellSafetyLogTests
 
         StringAssert.Contains(Read(log.CurrentPath!),
             "FAILED activating Nexaflow.Features.Broken.dll: System.InvalidOperationException: first line second line");
+    }
+
+    [TestMethod]
+    public void AnAiHostThatDied_IsRecordedWithWhyAndItsLastWords_OnlyWhileLoggingIsOn()
+    {
+        var exit = new AiHostExitedEventArgs(4242, unchecked((int)0xC0000409),
+            "the AI host exited with exit code 0xC0000409 (STATUS_STACK_BUFFER_OVERRUN: fast-fail: abort() or a failed runtime check)",
+            ["CUDA error: an illegal memory access was encountered", "ggml aborted: CUDA error"]);
+
+        var off = NewLog();
+        off.Apply(false);
+        off.AiHostEnded(exit);
+        off.Close();
+        Assert.AreEqual(0, Files().Length, "with logging off, a host's crash is written nowhere");
+
+        var on = NewLog();
+        on.Apply(true);
+        on.AiHostEnded(exit);
+
+        var text = Read(on.CurrentPath!);
+        StringAssert.Contains(text, "AI host process 4242 lost: the AI host exited with exit code 0xC0000409 (STATUS_STACK_BUFFER_OVERRUN");
+        StringAssert.Contains(text, "AI host process 4242 error output: CUDA error: an illegal memory access was encountered");
+        StringAssert.Contains(text, "AI host process 4242 error output: ggml aborted: CUDA error");
     }
 
     [TestMethod]

@@ -21,16 +21,16 @@ public sealed class ComponentRow
         Description = report.Description;
         InstallUri  = report.InstallUrl;
 
+        // A component something is broken without is a fault; one it merely does better with is a warning.
+        var trouble = report.Kind == ExternalDependencyKind.Required ? "DangerBrush" : "WarningBrush";
         (Glyph, StatusLabel, var brushKey) = report.Status.State switch
         {
-            ExternalDependencyState.Present => ("●", Installed(report.Status.DetectedVersion), "SuccessBrush"),
-            ExternalDependencyState.Missing => ("●", report.Kind == ExternalDependencyKind.Required
-            ? Str.Get("Shell.Components.Missing")
-            : Str.Get("Shell.Components.NotInstalled"),
-                                                report.Kind == ExternalDependencyKind.Required
-                                                        ? "DangerBrush"
-                                                        : "WarningBrush"),
-            _                               => ("○", Str.Get("Shell.Components.Unknown"), "TextMutedBrush"),
+            ExternalDependencyState.Present  => ("●", Installed(report.Status.DetectedVersion), "SuccessBrush"),
+            ExternalDependencyState.Missing  => ("●", report.Kind == ExternalDependencyKind.Required
+                                                        ? Str.Get("Shell.Components.Missing")
+                                                        : Str.Get("Shell.Components.NotInstalled"), trouble),
+            ExternalDependencyState.Unusable => ("●", Unusable(report.Status.DetectedVersion), trouble),
+            _                                => ("○", Str.Get("Shell.Components.Unknown"), "TextMutedBrush"),
         };
 
         Brush = resolveBrush(brushKey) ?? resolveBrush("TextMutedBrush") ?? Brushes.Gray;
@@ -53,6 +53,12 @@ public sealed class ComponentRow
         => string.IsNullOrWhiteSpace(version)
             ? Str.Get("Shell.Components.Installed")
             : Str.Format("Shell.Components.InstalledFormat", version);
+
+    /// <summary>"Not usable — 12.8": what was found, since the reason in the detail is about it.</summary>
+    private static string Unusable(string? version)
+        => string.IsNullOrWhiteSpace(version)
+            ? Str.Get("Shell.Components.Unusable")
+            : Str.Format("Shell.Components.UnusableFormat", version);
 
     /// <summary>
     /// "Required by PDF, Web" plus whatever the probe wanted to add (a path, or why it couldn't decide).

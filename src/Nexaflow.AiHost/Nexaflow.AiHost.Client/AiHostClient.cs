@@ -174,10 +174,19 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
     }
 }
 
-public sealed class AiHostExitedEventArgs(int? exitCode, string reason) : EventArgs
+/// <summary>How a host ended without being asked to.</summary>
+public sealed class AiHostExitedEventArgs(int processId, int? exitCode, string reason, IReadOnlyList<string> lastErrors) : EventArgs
 {
+    /// <summary>The host's process — the id its own log is named for.</summary>
+    public int ProcessId { get; } = processId;
+
     /// <summary>The process's exit code, when it exited by itself.</summary>
     public int? ExitCode { get; } = exitCode;
 
+    /// <summary>Why it ended, in words: its exit, the code named (<see cref="AiHostExitCode"/>), or the watchdog or the
+    /// pipe that ended it.</summary>
     public string Reason { get; } = reason;
+
+    /// <summary>The last lines the host wrote to its error output, oldest first.</summary>
+    public IReadOnlyList<string> LastErrors { get; } = lastErrors;
 }

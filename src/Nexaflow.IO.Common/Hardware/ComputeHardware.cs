@@ -14,6 +14,10 @@ public sealed record ComputeAdapter(
 public sealed record ComputeHardwareReport(IReadOnlyList<ComputeAdapter> Adapters, Version? CudaDriver)
 {
     public IEnumerable<ComputeAdapter> Npus => Adapters.Where(a => a.IsNpu);
+
+    /// <summary>The NVIDIA GPUs with memory of their own: what CUDA runs local models on. An integrated one shares the
+    /// machine's memory, and is not one of them.</summary>
+    public IEnumerable<ComputeAdapter> NvidiaGpus => Adapters.Where(a => a.Vendor == ComputeVendor.Nvidia && !a.IsIntegrated && !a.IsNpu);
 }
 
 /// <summary>
@@ -26,6 +30,11 @@ public static class ComputeHardware
 {
     public static ComputeHardwareReport Probe() => new(Adapters(), CudaDriver());
 
+    /// <summary>
+    /// The hardware adapters DXCore lists for general machine learning — GPUs and NPUs — or for D3D12 core compute, which
+    /// every DXCore lists a GPU under: an adapter one Windows build leaves out of the first list is still found by the second.
+    /// An adapter in both is listed once.
+    /// </summary>
     private static IReadOnlyList<ComputeAdapter> Adapters()
     {
         var found = new List<ComputeAdapter>();
@@ -33,22 +42,25 @@ public static class ComputeHardware
         {
             if (DXCoreCreateAdapterFactory(in FactoryIid, out var factoryObject) < 0) return found;
             var factory = (IDXCoreAdapterFactory)factoryObject;
-
-            if (factory.CreateAdapterList(1, [GenericMl], in ListIid, out var listObject) < 0) return found;
-            var list = (IDXCoreAdapterList)listObject;
-
-            for (uint i = 0, n = list.GetAdapterCount(); i < n; i++)
+            var seen = new HashSet<ulong>();
+            foreach (var attribute in new[] { GenericMl, D3D12CoreCompute })
             {
-                if (list.GetAdapter(i, in AdapterIid, out var adapterObject) < 0) continue;
-                var adapter = (IDXCoreAdapter)adapterObject;
-                if (!adapter.IsValid() || ReadBool(adapter, Property.IsHardware) != true) continue;   // the software renderer
+                if (factory.CreateAdapterList(1, [attribute], in ListIid, out var listObject) < 0) continue;
+                var list = (IDXCoreAdapterList)listObject;
+                for (uint i = 0, n = list.GetAdapterCount(); i < n; i++)
+                {
+                    if (list.GetAdapter(i, in AdapterIid, out var adapterObject) < 0) continue;
+                    var adapter = (IDXCoreAdapter)adapterObject;
+                    if (!adapter.IsValid() || ReadBool(adapter, Property.IsHardware) != true) continue;   // the software renderer
+                    if (ReadUInt64(adapter, Property.InstanceLuid) is { } luid && !seen.Add(luid)) continue;
 
-                found.Add(new ComputeAdapter(
-                    ReadString(adapter, Property.DriverDescription) ?? "Unknown adapter",
-                    VendorOf(ReadHardwareVendor(adapter)),
-                    (long)(ReadUInt64(adapter, Property.DedicatedAdapterMemory) ?? 0),
-                    ReadBool(adapter, Property.IsIntegrated) == true,
-                    IsNpu: !adapter.IsAttributeSupported(in D3D12Graphics)));
+                    found.Add(new ComputeAdapter(
+                        ReadString(adapter, Property.DriverDescription) ?? "Unknown adapter",
+                        VendorOf(ReadHardwareVendor(adapter)),
+                        (long)(ReadUInt64(adapter, Property.DedicatedAdapterMemory) ?? 0),
+                        ReadBool(adapter, Property.IsIntegrated) == true,
+                        IsNpu: !adapter.IsAttributeSupported(in D3D12Graphics)));
+                }
             }
         }
         catch (Exception ex) when (ex is COMException or DllNotFoundException or EntryPointNotFoundException or InvalidCastException)
@@ -85,12 +97,14 @@ public static class ComputeHardware
     private static readonly Guid FactoryIid    = new("78ee5945-c36e-4b13-a669-005dd11c0f06");
     private static readonly Guid ListIid       = new("526c7776-40e9-459b-b711-f32ad76dfc28");
     private static readonly Guid AdapterIid    = new("f0db4c7f-fe5a-42a2-bd62-f2a6cf6fc83e");
-    private static readonly Guid GenericMl     = new("b71b0d41-1088-422f-a27c-0250b7d3a988");
+    private static readonly Guid GenericMl        = new("b71b0d41-1088-422f-a27c-0250b7d3a988");
+    private static readonly Guid D3D12CoreCompute = new("248e2800-a793-4724-abaa-23a6de1be090");
     private static readonly Guid D3D12Graphics = new("0c9ece4d-2f6e-4f01-8c96-e89e331b47b1");
 
     /// <summary>DXCoreAdapterProperty values this probe reads.</summary>
     private static class Property
     {
+        public const uint InstanceLuid           = 0;
         public const uint DriverDescription      = 2;
         public const uint HardwareId             = 3;
         public const uint DedicatedAdapterMemory = 7;

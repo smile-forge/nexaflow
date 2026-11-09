@@ -3,6 +3,7 @@ using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Models;
+using Nexaflow.AiHost.Speech.Spectra;
 
 namespace Nexaflow.AiHost.Speech;
 
@@ -51,14 +52,9 @@ internal sealed class SmartTurnFeatures
     private const int FftSize = 400;
     private const int Hop = 160;
     public const int Frames = Samples / Hop;
-    private const int Bins = FftSize / 2 + 1;
 
-    // Whisper's window is 400 samples, not a power of two, so the transform is a direct one: a dot product per bin
-    // against precomputed rows, vectorised.
-    private static readonly float[] Window = HannWindow();
-    private static readonly float[][] Cos = Basis(Math.Cos);
-    private static readonly float[][] Sin = Basis(Math.Sin);
-    private static readonly float[][] MelBands = MelFilters();
+    private static readonly PowerSpectrum Spectrum = new(FftSize, SpectralWindows.PeriodicHann(FftSize));
+    private static readonly MelBank Bank = new(Mels, FftSize, Rate);
 
     /// <returns>[<see cref="Mels"/>, <see cref="Frames"/>], row-major.</returns>
     public float[] Compute(ReadOnlySpan<float> audio)
@@ -86,78 +82,21 @@ internal sealed class SmartTurnFeatures
         }
 
         var logSpec = new float[Mels * Frames];
-        var frame = new float[FftSize];
-        var power = new float[Bins];
+        var power = new float[Spectrum.Bins];
+        var energies = new float[Mels];
         float max = float.NegativeInfinity;
         for (int t = 0; t < Frames; t++)   // the extractor computes one more frame and drops it
         {
-            for (int n = 0; n < FftSize; n++) frame[n] = padded[t * Hop + n] * Window[n];
-            for (int k = 0; k < Bins; k++)
-            {
-                float re = Dot(frame, Cos[k]), im = Dot(frame, Sin[k]);
-                power[k] = re * re + im * im;
-            }
+            Spectrum.Compute(padded.AsSpan(t * Hop, FftSize), power);
+            Bank.Project(power, energies);
             for (int m = 0; m < Mels; m++)
             {
-                float v = MathF.Log10(MathF.Max(Dot(power, MelBands[m]), 1e-10f));
+                float v = MathF.Log10(MathF.Max(energies[m], 1e-10f));
                 logSpec[m * Frames + t] = v;
                 if (v > max) max = v;
             }
         }
         for (int i = 0; i < logSpec.Length; i++) logSpec[i] = (MathF.Max(logSpec[i], max - 8f) + 4f) / 4f;
         return logSpec;
-    }
-
-    private static float Dot(ReadOnlySpan<float> a, ReadOnlySpan<float> b)
-    {
-        int width = Vector<float>.Count, i = 0;
-        var sum = Vector<float>.Zero;
-        for (; i <= a.Length - width; i += width) sum += new Vector<float>(a[i..]) * new Vector<float>(b[i..]);
-        float total = Vector.Sum(sum);
-        for (; i < a.Length; i++) total += a[i] * b[i];
-        return total;
-    }
-
-    /// <summary>A periodic Hann window.</summary>
-    private static float[] HannWindow()
-    {
-        var w = new float[FftSize];
-        for (int n = 0; n < FftSize; n++) w[n] = (float)(0.5 - 0.5 * Math.Cos(2 * Math.PI * n / FftSize));
-        return w;
-    }
-
-    private static float[][] Basis(Func<double, double> f)
-    {
-        var rows = new float[Bins][];
-        for (int k = 0; k < Bins; k++)
-        {
-            rows[k] = new float[FftSize];
-            for (int n = 0; n < FftSize; n++) rows[k][n] = (float)f(2 * Math.PI * k * n / FftSize);
-        }
-        return rows;
-    }
-
-    private static double HzToMel(double f) => f < 1000 ? 3.0 * f / 200.0 : 15.0 + Math.Log(f / 1000.0) * 27.0 / Math.Log(6.4);
-    private static double MelToHz(double m) => m < 15 ? 200.0 * m / 3.0 : 1000.0 * Math.Exp(Math.Log(6.4) / 27.0 * (m - 15.0));
-
-    /// <summary>Slaney-scale triangles from 0 to 8 kHz, each normalised by its width; one row of bin weights per band.</summary>
-    private static float[][] MelFilters()
-    {
-        double low = HzToMel(0), high = HzToMel(Rate / 2.0);
-        var edges = Enumerable.Range(0, Mels + 2).Select(i => MelToHz(low + (high - low) * i / (Mels + 1))).ToArray();
-        var bands = new float[Mels][];
-        for (int m = 0; m < Mels; m++)
-        {
-            bands[m] = new float[Bins];
-            double norm = 2.0 / (edges[m + 2] - edges[m]);
-            for (int b = 0; b < Bins; b++)
-            {
-                double hz = b * (Rate / 2.0) / (Bins - 1);
-                double rising = (hz - edges[m]) / (edges[m + 1] - edges[m]);
-                double falling = (edges[m + 2] - hz) / (edges[m + 2] - edges[m + 1]);
-                bands[m][b] = (float)(Math.Max(0, Math.Min(rising, falling)) * norm);
-            }
-        }
-        return bands;
     }
 }

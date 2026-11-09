@@ -177,7 +177,7 @@ public class OwnedVideoGenerationProviderTests
         var ex = await Assert.ThrowsExactlyAsync<LlmProviderException>(() =>
             Provider(FastWan, Here(), host).GenerateVideoAsync(new VideoGenerationRequest("a fox", new MediaAspect(1280, 704), 5)));
 
-        StringAssert.Contains(ex.Message, "needs a GPU with");
+        StringAssert.Contains(ex.Message, "needs 7 GB of GPU memory for its decoder", "the smallest build tried — in tiles — not the whole decoder's 20.8 GB");
         Assert.AreEqual(0, host.Requests.Count, "nothing is asked of a host that could not hold it");
     }
 

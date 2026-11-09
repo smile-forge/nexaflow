@@ -317,7 +317,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
     {
         var slot = LocalColumns.SlotOf(ability);
         if (_shelf is null || !_shelf.Runs(slot))
-            return new(false, Str.Get(_shelf?.OptionsFor(slot).Count > 0 ? "Shell.Config.AiGrid.Local.TooLarge" : "Shell.Config.AiGrid.Local.None"));
+            return new(false, Str.Get(WhyNoneRunsKey(_shelf?.WhyNoneRuns(slot))));
         if (!_local.TryGetValue(slot, out var chosen)) return new(false, Str.Get("Shell.Config.AiGrid.Local.Choose"));
 
         var option = _shelf.OptionsFor(slot).FirstOrDefault(o => o.IsIn(chosen));
@@ -325,6 +325,15 @@ public partial class AiAbilityGridViewModel : ObservableObject
         var absent = option is not null && !_shelf.IsReady(option);
         return new(true, absent ? Str.Format("Shell.Config.AiGrid.Local.NotHereFormat", name) : name, absent);
     }
+
+    /// <summary>The string saying why no model for a job runs here: none offered, none with a build for this machine — whose
+    /// System components say why — or none small enough.</summary>
+    internal static string WhyNoneRunsKey(UnrunnableReason? reason) => reason switch
+    {
+        UnrunnableReason.NoBuildForThisMachine  => "Shell.Config.AiGrid.Local.NoBuild",
+        UnrunnableReason.TooLargeForThisMachine => "Shell.Config.AiGrid.Local.TooLarge",
+        _                                       => "Shell.Config.AiGrid.Local.None",
+    };
 
     /// <summary>Takes the Local cells again — a model fetched or removed since — and what the grid says of them.</summary>
     public void RefreshLocal()

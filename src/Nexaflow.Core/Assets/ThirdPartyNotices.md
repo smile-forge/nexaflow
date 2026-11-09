@@ -45,7 +45,7 @@ licence shown; the full texts are in each project's repository. "via" names the 
 | [Octokit](https://github.com/octokit/octokit.net) (via StageKit.Updatum) | MIT |
 | [OllamaSharp](https://github.com/awaescher/OllamaSharp) | MIT |
 | [ONNX Runtime](https://github.com/microsoft/onnxruntime) | MIT |
-| [onnxruntime-genai](https://github.com/microsoft/onnxruntime-genai) | MIT |
+
 | [OpenAI .NET](https://github.com/openai/openai-dotnet) (+ System.ClientModel) | MIT |
 | [PdfPig](https://github.com/UglyToad/PdfPig) (built from source) | Apache-2.0 |
 | [PeterO.Numbers](https://github.com/peteroupc/Numbers) (via AngouriMath) | CC0-1.0 |
@@ -91,7 +91,7 @@ under the original's licence.
 
 | Component | Licence |
 |-----------|---------|
-| CUDA builds of ONNX Runtime, onnxruntime-genai and llama.cpp | MIT |
+| CUDA builds of ONNX Runtime and llama.cpp | MIT |
 | NVIDIA CUDA runtime and cuBLAS | NVIDIA CUDA Toolkit EULA |
 | NVIDIA cuDNN | NVIDIA cuDNN Software License Agreement |
 | [Gemma 4](https://ai.google.dev/gemma) (Google) | Apache-2.0 |

@@ -8,7 +8,7 @@ namespace Nexaflow.AiHost.Contracts;
 /// <param name="Id">Unique among the models the host holds: the catalog id, with its part for a model made of several.</param>
 /// <param name="Runner">What loads and runs it — <c>llama-chat</c> for a language model; a family of speech models each has its own.</param>
 /// <param name="Folder">Where its files were downloaded.</param>
-/// <param name="File">The file it is — a language model's GGUF, a single graph; null for a folder onnxruntime-genai reads.</param>
+/// <param name="File">The file it is — a language model's GGUF, a single graph; null for a model whose runner reads several files from its folder.</param>
 /// <param name="Adapter">What turns the downloaded files into what the runner reads; null when they are used as downloaded.</param>
 /// <param name="MemoryBytes">Memory it holds loaded where <see cref="Device"/> places it, with its context — what
 /// admission counts: on a GPU against that GPU's budget, on the CPU against the host's share of this machine's

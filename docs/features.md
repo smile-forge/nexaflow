@@ -489,5 +489,12 @@ if (shell.GetDependencyStatus(WebView2Dependency.DependencyId).State == External
     { ShowRuntimeMissing(); return; }
 ```
 
-Only `Missing` means absent. `Unknown` is the answer for an unrecognised id, a probe that threw, and the
-window before the first probe finishes — always treat it as "carry on and try", never as "it isn't there".
+Only `Missing` means absent, and `Unusable` that it is there but cannot be used as it is — too old, or not the
+kind needed — its status's version saying what was found and its detail why. `Unknown` is the answer for an
+unrecognised id, a probe that threw, and the window before the first probe finishes — always treat it as "carry on
+and try", never as "it isn't there".
+
+Core declares what Nexaflow's own models need to run on the GPU the same way (`Services/LocalAi/LocalAiDependencies.cs`):
+an NVIDIA GPU of its own, a driver new enough for the CUDA pack, the pack itself and the AI host. Each is judged by
+`LocalAiRequirements` with the rule the models' runtime decides by — `CudaRuntimePack.Applies` and `Locate` — on the
+hardware report the app probed at startup.

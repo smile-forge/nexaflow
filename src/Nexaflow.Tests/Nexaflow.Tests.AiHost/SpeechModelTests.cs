@@ -47,15 +47,14 @@ public class SpeechModelTests
         string whisper = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_WHISPER") is { Length: > 0 } w ? w : "whisper-large-v3-turbo";
         _models = new ListenModels(
             new ModelSpec("speech/voice-activity", "silero-vad", nemotron, "silero_vad.onnx", null, 0, 0),
-            new ModelSpec("speech/recognizer", "genai-streaming-asr", nemotron, null, "genai-native", Held(2L << 30), 0, Device: gpu),
+            new ModelSpec("speech/recognizer", "nemotron-streaming-asr", nemotron, null, null, Held(2L << 30), 0, Device: gpu),
             pack is null
-                ? new ModelSpec("speech/transcriber", "genai-whisper", Path.Combine(root, $"{whisper}-cpu"), null, "genai-native", 0, 0)
-                : new ModelSpec("speech/transcriber", "genai-whisper", Path.Combine(root, $"{whisper}-cuda"), null, "genai-native", 4L << 30, 0,
+                ? new ModelSpec("speech/transcriber", "whisper", Path.Combine(root, $"{whisper}-cpu"), null, null, 0, 0)
+                : new ModelSpec("speech/transcriber", "whisper", Path.Combine(root, $"{whisper}-cuda"), null, null, 4L << 30, 0,
                                 new Dictionary<string, string> { ["sdpa_kernel"] = "1" }, Device: gpu),
             new ModelSpec("speech/turn", "smart-turn", Path.Combine(root, "smart-turn-v3"), "smart-turn-v3.2-cpu.onnx", null, 0, 0));
 
-        using (var config = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(Path.Combine(_models.Transcriber!.Folder, "genai_config.native.json"))))
-            _englishOnly = config.RootElement.GetProperty("model").GetProperty("vocab_size").GetInt32() < WhisperTranscriber.MultilingualVocabulary;
+        _englishOnly = WhisperExport.Read(_models.Transcriber!.Folder).Vocabulary < WhisperTranscriber.MultilingualVocabulary;
 
         _voice = new VoiceSpec("en", new ModelSpec("speech/kokoro", "kokoro", Path.Combine(root, "kokoro-82m"), "onnx/model.onnx", null, Held(1L << 30), 0,
                                                    Device: gpu),

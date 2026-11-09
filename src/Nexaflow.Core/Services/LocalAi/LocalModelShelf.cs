@@ -76,6 +76,19 @@ public sealed class LocalModelShelf(ProviderSet providers, ModelAssetStore store
     /// <summary>Whether this machine runs any model for <paramref name="slot"/>.</summary>
     public bool Runs(LocalSlot slot) => OptionsFor(slot).Any(o => o.Runs);
 
+    /// <summary>
+    /// Why no model for <paramref name="slot"/> runs here: none has a build for this machine — it has no GPU they run on, or a
+    /// driver too old for them — or the ones that do are too large for it. Null where one runs, or none is offered.
+    /// </summary>
+    public UnrunnableReason? WhyNoneRuns(LocalSlot slot)
+    {
+        var options = OptionsFor(slot);
+        if (options.Count == 0 || options.Any(o => o.Runs)) return null;
+        return options.All(o => o.Unrunnable == UnrunnableReason.NoBuildForThisMachine)
+            ? UnrunnableReason.NoBuildForThisMachine
+            : UnrunnableReason.TooLargeForThisMachine;
+    }
+
     /// <summary>Whether <paramref name="slot"/> only dictates here: the speech job where this machine runs none of Nexaflow's
     /// own speech models, with <see cref="LocalColumns.Dictation"/> in their place.</summary>
     public bool Dictates(LocalSlot slot) => OptionsFor(slot) is { Count: > 0 } options && options.All(o => LocalColumns.Dictates(o.Column()));

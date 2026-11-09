@@ -1,13 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    The AI host: the process every model Nexaflow runs itself is loaded in — llama.cpp for language models,
-    onnxruntime-genai and ONNX Runtime for the rest, one CUDA stack, one owner for the GPU. Started on demand by the app's AiHostClient, bound to its kill-on-close job,
+    The AI host: the process every model Nexaflow runs itself is loaded in —     llama.cpp for language models,
+    ONNX Runtime for the rest, one CUDA stack, one owner for the GPU. Started on demand by the app's AiHostClient, bound to its kill-on-close job,
     and spoken to over a private pipe (Nexaflow.AiHost.Contracts). A native crash or a hang here costs a restart, not
     the app; see docs/local-ai.md.
 
-    Ships in the base install without the CUDA pack: on machines that can use CUDA, the pack — ONNX Runtime and
-    onnxruntime-genai with their CUDA layers, llama.cpp's CUDA backend, and NVIDIA's runtime, cuBLAS and cuDNN — is
+    Ships in the base install without the CUDA pack: on machines that can use CUDA, the pack — ONNX Runtime with its
+    CUDA layer, llama.cpp's CUDA backend, and NVIDIA's runtime, cuBLAS and cuDNN — is
     downloaded into the AI folder and the host loads its runtime from there (NativeRuntime). The install's own runtime
     is the CPU one, so the CUDA layers are left out of this output (ExcludeCudaPack), and llama.cpp's CPU build is
     unpacked into it (IncludeLlamaCpp).
@@ -29,7 +29,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.ML.OnnxRuntimeGenAI.Cuda" Version="0.18.0" />
+    <!-- ONNX Runtime, built with its CUDA layer: the same build as the CUDA pack's (CudaRuntimePackTests). -->
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.Gpu" Version="1.31.0" />
 
     <!-- English text to the phonemes Kokoro reads: misaki, the G2P its voices were trained with, ported to C# (Apache-2.0). -->
     <PackageReference Include="MisakiSharp" Version="2.2.0" />
@@ -50,7 +51,7 @@
   <!-- The CUDA pack's files come from the AI folder at run time, never from the install. The packages hand their
        natives over twice — as package assets and as None items their props copy — so both are filtered. -->
   <PropertyGroup>
-    <_CudaPackFiles>;onnxruntime_providers_cuda;onnxruntime_providers_tensorrt;onnxruntime-genai-cuda;</_CudaPackFiles>
+    <_CudaPackFiles>;onnxruntime_providers_cuda;onnxruntime_providers_tensorrt;</_CudaPackFiles>
   </PropertyGroup>
 
   <Target Name="ExcludeCudaPackAssets" AfterTargets="ResolvePackageAssets">

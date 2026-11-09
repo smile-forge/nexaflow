@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using Nexaflow.AiHost.Client;
 using Nexaflow.IO.Common.Logging;
 
 namespace Nexaflow.Core.Services;
@@ -11,9 +12,11 @@ namespace Nexaflow.Core.Services;
 /// <c>logs</c> folder under <see cref="ConfigManager.LocalDir"/> (<c>%LOCALAPPDATA%\Smile\nexaflow\logs</c>), from the
 /// first step of startup to the last of shutdown, with every load or activation failure the shell meets between — a
 /// feature assembly that will not load or activate, the discovery cache, a provider assembly that is configured but not
-/// installed, a workspace folder it could not tidy — and a one-line account of each fault the crash log takes. A session
-/// with no <c>shutdown complete</c> line ended in a crash or was killed. Files are kept and capped by
-/// <see cref="SessionLogFile"/>; the AI host's log goes into the same folder while this is on (<see cref="Folder"/>).
+/// installed, a workspace folder it could not tidy — a one-line account of each fault the crash log takes, and each AI
+/// host that ended without being asked to, with its exit code and last words (<see cref="AiHostEnded"/>). A session with
+/// no <c>shutdown complete</c> line ended in a crash or was killed. Files are kept and capped by
+/// <see cref="SessionLogFile"/>; the AI host's log, and its error output, go into the same folder while this is on
+/// (<see cref="Folder"/>).
 /// <para>
 /// The shell's own: no contract exposes it, so features cannot write here. The setting is read only once the shell
 /// config has loaded, so what startup records before that is held in memory, then written out or dropped by the first
@@ -96,6 +99,16 @@ internal sealed class ShellSafetyLog
 
     /// <summary>Something the shell tried and could not do, and carried on without.</summary>
     public void Failed(string what, Exception ex) => Append($"FAILED {what}: {Describe(ex)}");
+
+    /// <summary>An AI host that ended without being asked to: why — its exit with the code named, or the watchdog or the
+    /// pipe that ended it — and the last lines it wrote to its error output, where a native fault's own words go. The
+    /// host's own log is the <c>aihost-…-{pid}.log</c> beside this one, and its whole error output the
+    /// <c>aihost-stderr-…</c> file. Nothing is written while logging is off.</summary>
+    public void AiHostEnded(AiHostExitedEventArgs exit)
+    {
+        Append($"AI host process {exit.ProcessId} lost: {exit.Reason}");
+        foreach (var line in exit.LastErrors) Append($"AI host process {exit.ProcessId} error output: {line}");
+    }
 
     /// <summary>The last line of a session: written, then the file is closed. Nothing is written after it.</summary>
     public void Close()

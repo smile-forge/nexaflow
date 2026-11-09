@@ -16,7 +16,6 @@ public class CudaRuntimePackTests
     [TestMethod]
     [DataRow("onnxruntime.dll")]
     [DataRow("onnxruntime_providers_shared.dll")]
-    [DataRow("onnxruntime-genai.dll")]
     public void ThePackCarriesTheHostsOwnRuntime(string library)
     {
         var packed    = CudaRuntimePack.Files.Single(f => Path.GetFileName(f.RelativePath) == library);

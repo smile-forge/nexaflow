@@ -6,7 +6,8 @@ namespace Nexaflow.AiHost.Llama;
 /// <summary>
 /// llama.cpp in this process, set up once: the CPU backend best for this processor, from the libraries beside the
 /// host, and with a runtime pack, the CUDA backend from the pack — loaded by path, its NVIDIA libraries found on the
-/// PATH <see cref="NativeRuntime"/> gave the pack. llama.cpp's warnings and errors go to the host's log.
+/// PATH <see cref="NativeRuntime"/> gave the pack. llama.cpp's warnings and errors go to the host's log, and so does
+/// ggml's message when it aborts the process.
 /// </summary>
 internal static unsafe class LlamaBackends
 {
@@ -26,6 +27,7 @@ internal static unsafe class LlamaBackends
     {
         _log = log;
         string here = AppContext.BaseDirectory;
+        LlamaNative.SetAbortCallback(&GgmlAborting);
         LlamaNative.LogSet(&Log, null);
         MtmdNative.LogSet(&Log, null);
         LlamaNative.LoadBackendsFrom(here);
@@ -70,6 +72,16 @@ internal static unsafe class LlamaBackends
     {
         if (level is not (LlamaNative.LogLevel.Warn or LlamaNative.LogLevel.Error) || text is null) return;
         _log?.Write("llama.cpp: " + Marshal.PtrToStringUTF8((IntPtr)text)?.TrimEnd());
+    }
+
+    /// <summary>ggml's last words: its message as it aborts, before <c>abort()</c> ends the process. Written to the host's
+    /// log, and to the error output ggml would have written it to, where the app keeps the host's last lines.</summary>
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static void GgmlAborting(byte* message)
+    {
+        string line = "ggml aborted: " + (message is null ? "(no message)" : Marshal.PtrToStringUTF8((IntPtr)message)?.TrimEnd());
+        _log?.Write(line);
+        Console.Error.WriteLine(line);
     }
 }
 

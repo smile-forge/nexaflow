@@ -209,6 +209,12 @@ internal static unsafe partial class LlamaNative
     [LibraryImport(Llama, EntryPoint = "llama_log_set")]
     public static partial void LogSet(delegate* unmanaged[Cdecl]<LogLevel, byte*, void*, void> callback, void* userData);
 
+    /// <summary>Sets what ggml calls with its message when it aborts — a CUDA error, a failed assertion — before
+    /// <c>abort()</c> ends the process; set, it replaces ggml's own write of the message to the error output. Returns the
+    /// callback it replaces.</summary>
+    [LibraryImport(GgmlBase, EntryPoint = "ggml_set_abort_callback")]
+    public static partial delegate* unmanaged[Cdecl]<byte*, void> SetAbortCallback(delegate* unmanaged[Cdecl]<byte*, void> callback);
+
     [LibraryImport(Llama, EntryPoint = "llama_model_default_params")]
     public static partial ModelParams ModelDefaults();
 

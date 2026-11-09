@@ -1,0 +1,172 @@
+{
+  "branch": "claude/nexaflow-gpu-compatibility-c7d7ce",
+  "nodes": {
+    "safety-log": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/ShellSafetyLog.cs",
+          "class": "ShellSafetyLog"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Logging/SessionLogFile.cs",
+          "class": "SessionLogFile"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/HostLog.cs",
+          "class": "HostLog"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ShellConfig.cs",
+          "class": "ShellConfig",
+          "method": "SafetyLogging"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Client/HostErrorOutput.cs",
+          "class": "HostErrorOutput"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ShellSafetyLogTests.cs",
+            "class": "ShellSafetyLogTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/SessionLogFileTests.cs",
+            "class": "SessionLogFileTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/RealHostTests.cs",
+            "class": "RealHostTests",
+            "method": "TheHostLogs_InTheFolderTheAppNames"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/HostErrorOutputTests.cs",
+            "class": "HostErrorOutputTests"
+          }
+        ]
+      }
+    },
+    "system-components": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/ExternalDependencyRegistry.cs",
+          "class": "ExternalDependencyRegistry"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/Dependencies/IExternalDependency.cs",
+          "class": "IExternalDependency"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/AboutControl.xaml.cs",
+          "class": "AboutControl",
+          "method": "ShowComponents"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/LocalAi/LocalAiRequirements.cs",
+          "class": "LocalAiRequirements"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ExternalDependencyRegistryTests.cs",
+            "class": "ExternalDependencyRegistryTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/LocalAiRequirementsTests.cs",
+            "class": "LocalAiRequirementsTests"
+          }
+        ]
+      }
+    },
+    "owned-speech": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Speech/Phonemes/LexiconPhonemizer.cs",
+          "class": "LexiconPhonemizer"
+        },
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/whisper-onnx-genai/README.md"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/Nexaflow.Providers.AiHost.csproj"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Speech/WhisperTranscriber.cs",
+          "class": "WhisperTranscriber"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Speech/StreamingRecognizer.cs",
+          "class": "StreamingRecognizer"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Speech/Spectra/WhisperLogMel.cs",
+          "class": "WhisperLogMel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Speech/Spectra/NemoStreamingMel.cs",
+          "class": "NemoStreamingMel"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/SpeechModelTests.cs",
+            "class": "SpeechModelTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/LexiconPhonemizerTests.cs",
+            "class": "LexiconPhonemizerTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/SpeechNormalizerTests.cs",
+            "class": "SpeechNormalizerTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/PhonemizerReadBackTests.cs",
+            "class": "PhonemizerReadBackTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/SpeechExportTests.cs",
+            "class": "SpeechExportTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 6,
+  "touched_nodes": [
+    "owned-speech",
+    "safety-log",
+    "system-components"
+  ]
+}

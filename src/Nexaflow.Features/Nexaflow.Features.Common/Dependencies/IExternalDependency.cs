@@ -21,6 +21,10 @@ public enum ExternalDependencyState
 
     /// <summary>The probe could not decide — it threw, or the component can't be detected without using it.</summary>
     Unknown,
+
+    /// <summary>Found, but not fit to use as it is — too old, or not the kind needed. The status's detail says why, and its
+    /// version says what was found.</summary>
+    Unusable,
 }
 
 /// <summary>The result of one <see cref="IExternalDependency.Probe"/>.</summary>
