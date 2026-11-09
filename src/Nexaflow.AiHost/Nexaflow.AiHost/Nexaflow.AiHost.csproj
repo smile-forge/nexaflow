@@ -30,7 +30,7 @@
 
   <ItemGroup>
     <!-- ONNX Runtime, built with its CUDA layer: the same build as the CUDA pack's (CudaRuntimePackTests). -->
-    <PackageReference Include="Microsoft.ML.OnnxRuntime.Gpu" Version="1.31.0" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.Gpu" Version="1.31.1" />
 
     <!-- English text to the phonemes Kokoro reads: misaki, the G2P its voices were trained with, ported to C# (Apache-2.0). -->
     <PackageReference Include="MisakiSharp" Version="2.2.0" />

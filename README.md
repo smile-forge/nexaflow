@@ -1,12 +1,12 @@
 # Nexaflow
 
-**A Windows workspace that holds your context so you don't have to.**
+**Less time managing technology. More time thinking, creating, learning and doing**
 
-Nexaflow replaces the scattered pile of apps you juggle every day — file explorer, terminal, editors, viewers, trackers — with one fast, tabbed workspace where everything already knows where you are and what you're doing.
+Nexaflow brings your tools, information and work together in one adaptable workspace. It makes everyday tasks easier without the overhead of heavyweight applications, keeps the things that belong together in context, and removes the friction of moving between the tools and information you need.
 
-The goal isn't to add more features. It's to reduce the friction between you and the thing you're actually trying to do.
+The goal is to make technology work more naturally around people, not the other way around. To remove the barriers between ideas and execution, keep knowledge connected to the work it informs, and make room for AI to amplify what we can do without taking away what we know.
 
-![Version 1.9.0](https://img.shields.io/badge/version-1.9.0-brightgreen)
+![Version 1.9.1](https://img.shields.io/badge/version-1.9.1-brightgreen)
 ![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)
 ![Platform: Windows](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)
 ![.NET 10](https://img.shields.io/badge/.NET-10.0-purple)
@@ -18,16 +18,6 @@ The goal isn't to add more features. It's to reduce the friction between you and
 <p align="center"><sub>A document open in the editor, its diagrams drawn as you type — no browser, no diagram server, nothing sent anywhere — and the bar at the bottom that can see it.</sub></p>
 
 <p align="center"><b><a href="https://smile-forge.github.io/nexaflow/">See what it does →</a></b></p>
-
----
-
-## The problem it solves
-
-You know the feeling: you're in the middle of something, and you have to remember which window has the file, which terminal session is running in the right folder, which editor has the thing you were looking at twenty minutes ago. Half your cognitive overhead is just *orientation* — keeping track of where everything is so you can stay in flow.
-
-Nexaflow treats context as a first-class citizen. Open a file and it lands in the right tool automatically. Your AI assistant can see the same tab you can. Your project folders, your tools, your search history, your workspace layout — they're all there when you come back.
-
-Power users shouldn't have to remember everything. They should be able to *build* a context and then get on with it.
 
 ---
 
