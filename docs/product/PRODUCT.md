@@ -1,8 +1,8 @@
 # Nexaflow — product status
 
-_Version **v1.9.0** · 2026-11-07_
+_Version **v1.9.1** · 2026-11-09_
 
-**93% shipping** — 1756/1891 components done (129 should · 0 faulted · 6 shouldn't)
+**93% shipping** — 1764/1899 components done (129 should · 0 faulted · 6 shouldn't)
 
 ## Tree
 
@@ -346,6 +346,7 @@ _Version **v1.9.0** · 2026-11-07_
         - **Change** — _done_
       - **Edit Panels** — _done_
       - **Current Colour** — _done_
+      - **Zoom and fit** — _done_
   - **Json** — _should_
     - **UI** — _done_
       - **Path Breadcrumb** — _done_
@@ -1500,6 +1501,8 @@ _Version **v1.9.0** · 2026-11-07_
         - **Merge pages** — _done_
         - **Set page size** — _done_
         - **Pages as sheets** — _done_
+        - **Set margins** — _done_
+        - **Edit an image** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_
       - **Act - client tools** — _should_
@@ -1512,6 +1515,10 @@ _Version **v1.9.0** · 2026-11-07_
         - **pdf_page_image** — _done_
         - **pdf_view_page** — _done_
         - **pdf_read_scans** — _done_
+        - **pdf_set_margins** — _done_
+        - **pdf_edit_image** — _done_
+        - **pdf_split_pages** — _done_
+        - **pdf_merge_pages** — _done_
       - **Preview - IContextPreview** — _should_
   - **Network** — _should_
     - **UI** — _should_
@@ -2021,6 +2028,7 @@ _Version **v1.9.0** · 2026-11-07_
         - **Location backends registry** — _done_
         - **Connections and credentials** — _done_
         - **Session pool** — _done_
+        - **Published locations** — _done_
     - **Codec / Archive Contracts** — _done_
     - **Text Transforms & Hashing** — _done_
     - **Audio endpoints and test signals** — _done_
@@ -2444,8 +2452,8 @@ _Nothing faulted._
 
 | Concern | Done |
 |---|---|
-| i18n | 9/1891 |
-| theming | 794/1891 |
-| tests | 1552/1891 |
-| docs | 13/1891 |
-| Expanded | 25/1891 |
+| i18n | 9/1899 |
+| theming | 797/1899 |
+| tests | 1560/1899 |
+| docs | 13/1899 |
+| Expanded | 25/1899 |
