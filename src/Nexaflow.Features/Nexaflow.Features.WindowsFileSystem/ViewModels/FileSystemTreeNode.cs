@@ -1,5 +1,5 @@
 using Nexaflow.IO.Common;
-using System.Collections.ObjectModel;
+using Nexaflow.Visuals.Common.Collections;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
@@ -46,7 +46,7 @@ public class FileSystemTreeNode : INotifyPropertyChanged
         set { _driveIconType = value; OnPropertyChanged(); }
     }
 
-    public ObservableCollection<FileSystemTreeNode> Children { get; } = [];
+    public RangeObservableCollection<FileSystemTreeNode> Children { get; } = [];
 
     // Dummy child keeps the expand arrow visible before real load
     internal static readonly FileSystemTreeNode Dummy = new("…");
@@ -119,21 +119,25 @@ public class FileSystemTreeNode : INotifyPropertyChanged
     /// <summary>The folders directly inside <paramref name="path"/>, sorted, as the tree shows them: a folder on disk,
     /// under a mount or on a location — never an archive's insides, which browse in the list. A folder that cannot be
     /// read (gone, access denied, a dropped connection) has none.</summary>
-    internal static async Task<IReadOnlyList<string>> ChildFoldersAsync(IVirtualFileSystem vfs, string path,
-                                                                        CancellationToken ct = default)
-    {
-        if (vfs.GetBacking(path) is VirtualBacking.Materialized) return [];
-        var names = new List<string>();
-        try
+    internal static Task<IReadOnlyList<string>> ChildFoldersAsync(IVirtualFileSystem vfs, string path,
+                                                                  CancellationToken ct = default)
+        // Read off the caller's thread. The tree asks from the UI thread, where a listing awaited page by page resumes on
+        // the dispatcher for each page — queued behind whatever the window is laying out — and where asking the backing
+        // first is a round trip to a share.
+        => Task.Run<IReadOnlyList<string>>(async () =>
         {
-            await foreach (var entry in vfs.EnumerateAsync(path, ct))
-                if (entry.IsDirectory) names.Add(entry.Name);
-        }
-        catch (IOException) { return []; }
-        catch (UnauthorizedAccessException) { return []; }
-        names.Sort(StringComparer.OrdinalIgnoreCase);
-        return names;
-    }
+            if (vfs.GetBacking(path) is VirtualBacking.Materialized) return [];
+            var names = new List<string>();
+            try
+            {
+                await foreach (var entry in vfs.EnumerateAsync(path, ct))
+                    if (entry.IsDirectory) names.Add(entry.Name);
+            }
+            catch (IOException) { return []; }
+            catch (UnauthorizedAccessException) { return []; }
+            names.Sort(StringComparer.OrdinalIgnoreCase);
+            return names;
+        }, CancellationToken.None);
 
     /// <summary>The read of this node's children, once started; every expand after the first awaits the same one.</summary>
     private Task? _childrenLoad;
@@ -159,16 +163,14 @@ public class FileSystemTreeNode : INotifyPropertyChanged
         using (Timing.Measure($"Tree.LoadChildren {FullPath} (read)"))
             names = await ChildFoldersAsync(_vfs, FullPath);
 
+        // Child paths extend THIS node's path, which under a mount is the virtual one — the listing never
+        // surfaces the real location the mount maps onto.
         var made = new List<FileSystemTreeNode>(names.Count);
-        Children.Clear();
         foreach (var name in names)
-        {
-            // Child paths extend THIS node's path, which under a mount is the virtual one — the listing never
-            // surfaces the real location the mount maps onto.
-            var child = new FileSystemTreeNode(name, Path.Combine(FullPath, name), _vfs);
-            Children.Add(child);
-            made.Add(child);
-        }
+            made.Add(new FileSystemTreeNode(name, Path.Combine(FullPath, name), _vfs));
+
+        // One notification for the lot: an Add per child is one per folder, and a folder can hold tens of thousands.
+        Children.ReplaceAll(made);
         Timing.Note($"Tree.LoadChildren {FullPath} children", made.Count.ToString());
         _ = ProbeExpandersAsync(made);
     }
