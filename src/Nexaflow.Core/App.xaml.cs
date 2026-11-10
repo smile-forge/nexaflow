@@ -23,8 +23,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Threading;
-using StageKit.Updatum;
-using StageKit.Runtime;
+
 using Nexaflow.Visuals.Common.Theming;
 using Nexaflow.Core.Localization;
 using Nexaflow.AiHost.Client;
@@ -38,18 +37,19 @@ namespace Nexaflow.Core;
 
 public partial class App : Application
 {
-    private const string RepositoryOwner = "smile-forge";
-    private const string RepositoryName = "nexaflow";
-
-    internal static readonly UpdatumManager AppUpdater = new(RepositoryOwner, RepositoryName)
-    {
-        AssetRegexPattern = $"^{RepositoryName}_{EntryApplication.GenericRuntimeIdentifier}_v",
-        InstallUpdateWindowsExeType = UpdatumWindowsExeType.Installer,
-        InstallUpdateWindowsInstallerArguments = "/qb",
-        InstallUpdateSingleFileExecutableNameStrategy = UpdatumSingleFileExecutableNameStrategy.EntryApplicationName,
-        InstallUpdateSingleFileExecutableName = RepositoryName,
-        InstallUpdateCodesignMacOSApp = true,
-    };
+    /// <summary>
+    /// Where this build stands against its newest release — one per process, shared by the startup check's toast and
+    /// Options → About, so an offer outlives the toast that announced it.
+    /// </summary>
+    internal static readonly AppUpdates Updates = new(
+        new UpdatumReleaseSource(HandOverToInstaller, StrandedMidUpdate),
+        action =>
+        {
+            var ui = Current?.Dispatcher;
+            if (ui is null || ui.CheckAccess()) action();
+            else ui.BeginInvoke(action);
+        },
+        ShellSafetyLog.Instance.Failed);
 
     private static readonly SingleInstanceService _singleInstance = new();
 
@@ -842,64 +842,44 @@ public partial class App : Application
             : WorkspaceManager.Instance.Workspaces.FirstOrDefault(
                 p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
 
-    private async Task CheckForUpdates()
+    /// <summary>
+    /// The startup check: asks for a newer release and, when one is offered, posts a persistent update message with an
+    /// Update action. Whichever window is focused toasts it; if none is open yet (daemon) it waits in the inbox and toasts
+    /// when a window opens.
+    /// </summary>
+    private static async Task CheckForUpdates()
     {
-        try
+        if (await Updates.CheckAsync() is not { } offer) return;
+
+        MessageCenter.Instance.Post(new NotificationItem
         {
-            var updateFound = await AppUpdater.CheckForUpdatesAsync();
-            if (!updateFound) return;
-
-            var release = AppUpdater.LatestRelease;
-            if (release is null) return;
-            var asset = AppUpdater.GetCompatibleReleaseAsset(release);
-            if (asset is null) return;
-            string? changeLog = AppUpdater.GetChangelog(true);
-            var version = release.TagName ?? release.Name ?? "unknown";
-
-            // Post a persistent update message with an Update action. Whichever window is focused toasts
-            // it; if none is open yet (daemon) it waits in the inbox and toasts when a window opens.
-            MessageCenter.Instance.Post(new NotificationItem
-            {
-                Title     = Str.Format("Shell.Notifications.UpdateFormat", version),
-                Body      = changeLog ?? string.Empty,
-                Severity  = MessageSeverity.Update,
-                ShowToast = true,
-                Actions   = [new MessageAction(Str.Get("Shell.Notifications.Update"), new AsyncRelayCommand(DownloadAndInstallUpdate), IsPrimary: true)],
-            });
-        }
-        catch { }
+            Title     = Str.Format("Shell.Notifications.UpdateFormat", offer.Version),
+            Body      = offer.Changelog,
+            Severity  = MessageSeverity.Update,
+            ShowToast = true,
+            Actions   = [new MessageAction(Str.Get("Shell.Notifications.Update"), new AsyncRelayCommand(() => Updates.InstallAsync()), IsPrimary: true)],
+        });
     }
 
-    public async Task DownloadAndInstallUpdate()
+    /// <summary>
+    /// Commits this process to exiting so an update's installer can replace its files. Drops the single-instance mutex so
+    /// the relaunched version can claim it, and closes every window so each saves its state and nothing holds a lock on the
+    /// install directory; <see cref="IsUpdating"/> stops the last window closing from ending the process before the
+    /// updater has started the installer's script.
+    /// </summary>
+    private static void HandOverToInstaller()
     {
-        try
-        {
-            // 1. Download while the app stays fully usable. Only the install step needs us gone.
-            var asset = await AppUpdater.DownloadUpdateAsync();
-            if (asset is null) return;
+        IsUpdating = true;
+        _singleInstance.Dispose();
+        foreach (var window in Current.Windows.Cast<Window>().ToList())
+            window.Close();
+    }
 
-            // 2. Commit to exiting. From here the updater ends this process itself, once the script that runs the
-            //    installer has started; IsUpdating stops the last window closing from ending it any sooner.
-            IsUpdating = true;
-
-            // 3. Drop the single-instance mutex so the relaunched/new version can claim it, and close
-            //    every window so each saves its state and nothing holds a lock on the install directory.
-            _singleInstance.Dispose();
-            foreach (var window in Current.Windows.Cast<Window>().ToList())
-                window.Close();
-
-            // 4. Start the installer's script and terminate (forceTerminate), so msiexec can replace the now
-            //    unlocked files, then relaunch. It returns only when the script could not be started.
-            if (!await AppUpdater.InstallUpdateAsync(asset, forceTerminate: true, runArguments: null))
-                throw new InvalidOperationException($"The installer for {asset.TagVersionStr} could not be started.");
-        }
-        catch (Exception ex) when (IsUpdating)
-        {
-            // Every window is closed and nothing else will end the process: record why, then exit.
-            CrashLog.Instance.Record(ex);
-            CrashLog.Instance.Flush();
-            Current.Shutdown();
-        }
-        catch { }
+    /// <summary>The installer failed to start after every window closed, and nothing else will end the process: record why, then exit.</summary>
+    private static void StrandedMidUpdate(Exception ex)
+    {
+        CrashLog.Instance.Record(ex);
+        CrashLog.Instance.Flush();
+        Current.Shutdown();
     }
 }

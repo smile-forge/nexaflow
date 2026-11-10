@@ -20,12 +20,14 @@ state can render as a blank frame if anything in the view rebuilds on each event
 
 ## UI Automation
 
-**`AutomationProperties.AutomationId` is only reliable on elements that create an `AutomationPeer`** — `Control`
-subclasses (`TextBox`, `TabItem`, `Button`, `ContentControl`, `TabControl`…). Decorators (`Border`) and panels
-(`Grid`, `StackPanel`) create none by default, so an id set on one may never resolve:
-`FindFirstDescendant(ByAutomationId(…))` returns null forever. It is *unpredictable* rather than always-absent —
-`Pdf_Panel` on a `Border` never appears, while `TabItem_{PageKind}` (also a `Border`, set in `TabStrip.xaml.cs`)
-does — so treat an id on a non-control as unusable regardless of whether it happens to work today. The failure is
+**`AutomationProperties.AutomationId` is only reliable on elements that create an `AutomationPeer`** — the
+controls that ship one (`TextBox`, `TabItem`, `Button`, `ScrollViewer`, `ListBox`, `TabControl`…). A plain
+`ContentControl`, decorators (`Border`) and panels (`Grid`, `StackPanel`) create none, so an id set on one never
+resolves: `FindFirstDescendant(ByAutomationId(…))` returns null forever, and what it hosts surfaces as a nameless
+child of the nearest ancestor that has a peer. An element whose type overrides `OnCreateAutomationPeer` does carry
+its id — `TabItem_{PageKind}` on `TabStrip`'s `TabBorder`, `Options_CustomSection` on `OptionsSectionHost` — so
+when a host itself has to be found, give its type a `FrameworkElementAutomationPeer` the same way; otherwise treat an
+id on a non-control as unusable. The failure is
 nastier than a red test: the *inverse* assertion ("hidden → the id is null") passes for the wrong reason, so a toggle
 test reads green while testing nothing. To assert a container is shown/hidden, assert on a real control inside it —
 collapsing the container removes its children from the tree too. Don't reshape the visual tree just to host an id.

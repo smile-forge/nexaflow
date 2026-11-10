@@ -1,0 +1,45 @@
+{
+  "branch": "claude/manual-update-check-6a00ce",
+  "nodes": {
+    "opt-about-updates": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/AppUpdates.cs",
+          "class": "AppUpdates"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/UpdatumReleaseSource.cs",
+          "class": "UpdatumReleaseSource"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/AboutControl.xaml.cs",
+          "class": "AboutControl",
+          "method": "ShowUpdateStatus"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/App.xaml.cs",
+          "class": "App",
+          "method": "CheckForUpdates"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/AppUpdatesTests.cs",
+            "class": "AppUpdatesTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "opt-about-updates"
+  ]
+}
