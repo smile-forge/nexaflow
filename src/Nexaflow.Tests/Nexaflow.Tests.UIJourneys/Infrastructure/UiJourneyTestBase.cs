@@ -287,8 +287,10 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
     {
         if (ModalOwnIds.Contains(automationId, StringComparer.Ordinal)) return false;
 
-        if ((MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Chrome_ConfirmOk"))
-          ?? MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("ShellPromptOk"))) is null) return false;
+        // One search for either answer: a search of the whole window costs about a third of a second, and this runs
+        // before every press and toggle a journey makes.
+        if (MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Chrome_ConfirmOk")
+                                                   .Or(cf.ByAutomationId("ShellPromptOk"))) is null) return false;
 
         _failures.Add($"'{automationId}' was driven while the shell's modal question was still open. "
                     + "Answer it in the journey first: a user could not have reached this control, so "
