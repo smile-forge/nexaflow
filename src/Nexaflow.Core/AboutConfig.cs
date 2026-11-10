@@ -5,7 +5,7 @@ using Nexaflow.Visuals.Common.Localization;
 namespace Nexaflow.Core;
 
 /// <summary>
-/// Read-only "About" section in Options — app version, source link and third-party notices.
+/// "About" section in Options — app version and update status, source link, system components and third-party notices.
 /// Global (one instance). Registered in App.xaml.cs; rendered by <see cref="AboutControl"/>
 /// (no editable properties, so it has nothing to save).
 /// </summary>

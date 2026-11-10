@@ -27,6 +27,26 @@
             <TextBlock x:Name="VersionText"
                        Margin="0,2,0,0" FontSize="12"
                        Foreground="{StaticResource TextMutedBrush}"/>
+
+            <!-- Updates: where this build stands against its newest release. The state is the app's own
+                 (App.Updates), so an update the startup check offered is still offered here after its toast is
+                 dismissed. Update replaces Check for updates while a release is offered. -->
+            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                <TextBlock x:Name="UpdateStatusText"
+                           FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap"
+                           Foreground="{StaticResource TextMutedBrush}"/>
+                <Button x:Name="CheckUpdatesButton"
+                        AutomationProperties.AutomationId="About_CheckForUpdates"
+                        Style="{StaticResource SecondaryAction}"
+                        Content="{loc:Str Shell.About.Updates.Check}" Margin="10,0,0,0" Padding="12,4"
+                        Click="OnCheckUpdatesClick"/>
+                <Button x:Name="InstallUpdateButton"
+                        AutomationProperties.AutomationId="About_InstallUpdate"
+                        Style="{StaticResource PrimaryAction}"
+                        Content="{loc:Str Shell.About.Updates.Install}" Margin="10,0,0,0" Padding="12,4"
+                        Visibility="Collapsed"
+                        Click="OnInstallUpdateClick"/>
+            </StackPanel>
             <TextBlock Margin="0,8,0,0" FontSize="12" TextWrapping="Wrap"
                        Foreground="{StaticResource TextBrush}"
                        Text="{loc:Str Shell.About.Tagline}"/>
@@ -135,11 +155,9 @@
 
                 <Button x:Name="RecheckButton"
                         AutomationProperties.AutomationId="About_Recheck"
+                        Style="{StaticResource SecondaryAction}"
                         Content="{loc:Str Shell.About.Recheck}" HorizontalAlignment="Left" Margin="0,6,0,0"
-                        Padding="12,4" Cursor="Hand" BorderThickness="1"
-                        BorderBrush="{StaticResource BorderBrush}"
-                        Background="Transparent"
-                        Foreground="{StaticResource TextBrush}"
+                        Padding="12,4"
                         Click="OnRecheckClick"/>
             </StackPanel>
         </Border>
