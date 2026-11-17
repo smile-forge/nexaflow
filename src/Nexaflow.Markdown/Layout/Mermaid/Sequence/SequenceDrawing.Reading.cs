@@ -600,7 +600,7 @@ internal sealed partial class SequenceDrawing
         private void Menued(ContentPart stated)
         {
             if (Gathered(stated.Inner(SequenceKinds.Named)) is not { } one) return;
-            if (!string.Equals(Said(stated, MermaidKinds.Key, SequenceRoles.Word), SequenceGrammar.LinksWord, StringComparison.OrdinalIgnoreCase)) return;
+            if (!string.Equals(Said(stated, MermaidKinds.Key, SequenceRoles.Word), SequenceParser.LinksWord, StringComparison.OrdinalIgnoreCase)) return;
 
             foreach (var property in stated.SelfAndDescendants().Where(part => part.Kind == MermaidKinds.Property))
             {

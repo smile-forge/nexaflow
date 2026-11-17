@@ -10,7 +10,7 @@ namespace Nexaflow.Tests.Markdown.Mermaid.Ishikawa;
 [CoversNode("ishikawa-ast")]
 public class IshikawaConfigTests
 {
-    private static IshikawaConfig Config(string source) => ((ConfiguredNode<IshikawaConfig>)MermaidStaged.Read(source)).Config;
+    private static IshikawaConfig Config(string source) => ((ConfiguredNode<IshikawaConfig>)IshikawaParserTests.Staged(source)).Config;
 
     [TestMethod]
     public void TheFrontMatterIsRead()

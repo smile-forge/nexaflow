@@ -293,7 +293,7 @@ written in page order, cuts the figures (`PageFigures`), numbered in page order 
 it, and panels read one after another over one caption, are one picture (`PageFigures.Whole`) — and described by its
 caption. Its drawing replaces it only once shown to hold what it does, and every step can only keep the picture: the
 model names its kind from a list that includes what Mermaid cannot draw (a circuit, a sketch, a plot), and only a kind
-Mermaid draws is drawn; the drawing must be one `MermaidDiagrams.Troubles` finds nothing wrong with; the words the model
+Mermaid draws is drawn; the drawing must be one `ContentEngine.Troubles` finds nothing wrong with; the words the model
 reads in the picture must be the words the drawing draws (`DiagramPicture.WordsAsync`, laid out by the engine); and shown
 the two side by side as one picture (`DiagramPicture.SideBySideAsync`), the model must list nothing that differs — asked
 what differs, never whether they match. An accepted drawing has the picture linked under it; `PagesRead.Drawings` says

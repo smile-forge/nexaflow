@@ -49,6 +49,7 @@ public class MermaidFigureWriter
         ("Timeline", "mermaid-timeline.png"),
         ("User journey", "mermaid-journey.png"),
         ("Git graph", "mermaid-gitgraph.png"),
+        ("Event model", "mermaid-eventmodeling.png"),
         ("Block diagram", "mermaid-block.png"),
         ("Architecture diagram", "mermaid-architecture.png"),
         ("Packet diagram", "mermaid-packet.png"),

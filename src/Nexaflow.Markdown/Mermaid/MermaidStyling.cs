@@ -112,39 +112,6 @@ public sealed class MermaidStyling(Func<char, bool> bare, string idRole, string 
     }
 
     /// <summary>
-    /// Says where a <c>class</c> or a <c>style</c> line names something nothing writes — something the diagram draws nowhere, or a
-    /// class no <c>classDef</c> declares. Mermaid lets the styling be written above what it styles or below it, so whether what it
-    /// names exists is a fact about the whole block rather than about any one line; a diagram runs this from a stage of its own.
-    /// </summary>
-    /// <param name="drawn">The kinds of line that write the things these lines style.</param>
-    /// <param name="missing">What is wrong with an id nothing writes, given the id.</param>
-    public ContentNode Resolve(ContentNode tree, IReadOnlyList<string> drawn, string classDef, string classKind,
-                               string styleKind, Func<string, string?> missing)
-    {
-        var written = Names(tree, drawn, idRole);
-        var classes = Names(tree, [classDef], classRole);
-        var wrong = new Dictionary<ContentNode, string>();
-
-        foreach (var line in tree.SelfAndDescendants().Where(node => node.Kind == classKind || node.Kind == styleKind))
-        {
-            // A name the diagram always has, whether it is written or not — a state diagram's start and stop — is nothing missing.
-            foreach (var name in Said(line, idRole))
-                if (Text(name) is { Length: > 0 } id && !written.Contains(id) && missing(id) is { } reason)
-                    wrong[name] = reason;
-
-            if (line.Kind != classKind) continue;
-
-            foreach (var name in Said(line, classRole))
-                if (Text(name) is { Length: > 0 } taken && !classes.Contains(taken))
-                    wrong[name] = $"No classDef {taken} is written.";
-        }
-
-        if (wrong.Count == 0) return tree;
-
-        return AstRewrite.Each(tree, node => wrong.TryGetValue(node, out var reason) ? node.Saying(reason) : node);
-    }
-
-    /// <summary>
     /// Says what each thing the diagram draws is styled with, on the name first writing it (<see cref="StyledNode"/>): the
     /// <see cref="Every"/> class, then the classes <c>class</c> lines give it, then those it is given where it is written, then
     /// the style written for it (<see cref="Styles"/>). The styling lines may be written above what they style or below it, so
@@ -154,14 +121,20 @@ public sealed class MermaidStyling(Func<char, bool> bare, string idRole, string 
     /// <param name="inline">The classes something is given where it is written — <c>A:::blue</c> — as each id and class.</param>
     /// <param name="idOf">What something is styled by where it is not the name written — a state diagram's <c>[*]</c>, which is the
     /// dot its scope starts or stops at — or null for the name.</param>
+    /// <param name="making">
+    /// The kinds of line whose names make what they name where nothing else writes it — a flowchart's <c>style</c> line, a state
+    /// diagram's <c>class</c> and <c>style</c> lines, as Mermaid makes a node or a state of the name.
+    /// </param>
     public ContentNode Style(ContentNode tree, IReadOnlyList<string> drawn, string classDef, string classKind, string styleKind,
-                             Func<ContentNode, IEnumerable<(string Id, string Class)>>? inline = null, Func<ContentNode, string?>? idOf = null)
+                             Func<ContentNode, IEnumerable<(string Id, string Class)>>? inline = null, Func<ContentNode, string?>? idOf = null,
+                             IReadOnlyList<string>? making = null)
     {
         var classes = new Dictionary<string, MermaidStyle>(StringComparer.Ordinal);
         var taken = new List<(IReadOnlyList<string> Ids, string Class)>();
         var given = new List<(IReadOnlyList<string> Ids, string Class)>();
         var written = new List<(IReadOnlyList<string> Ids, MermaidStyle Style)>();
         var first = new Dictionary<string, ContentNode>(StringComparer.Ordinal);
+        var made = new List<ContentNode>();
 
         foreach (var node in tree.SelfAndDescendants())
         {
@@ -177,8 +150,10 @@ public sealed class MermaidStyling(Func<char, bool> bare, string idRole, string 
             }
             else if (node.Kind == styleKind)
             {
-                written.Add((Texts(node, idRole), MermaidStyle.None.With(node.Inner(MermaidKinds.Properties))));
+            written.Add((Texts(node, idRole), MermaidStyle.None.With(node.Inner(MermaidKinds.Properties))));
             }
+
+            if (making?.Contains(node.Kind) == true) made.AddRange(Said(node, idRole));
             else if (drawn.Contains(node.Kind))
             {
                 foreach (var name in Said(node, idRole))
@@ -188,6 +163,11 @@ public sealed class MermaidStyling(Func<char, bool> bare, string idRole, string 
             if (inline is not null)
                 foreach (var (id, name) in inline(node)) given.Add(([id], name));
         }
+
+        // A name only a styling line writes is what that line makes, where the diagram's lines make what they name — the style is said
+        // on it, since nothing else writes the name.
+        foreach (var name in made)
+            if (Text(name) is { Length: > 0 } key) first.TryAdd(key, name);
 
         if (classes.Count == 0 && written.Count == 0) return tree;
 

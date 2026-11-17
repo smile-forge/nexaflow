@@ -36,7 +36,7 @@ public static class MermaidOutline
     /// </param>
     public static bool Node(MermaidLine line, string idRole, string titleRole, string stops, out bool titled,
                             IReadOnlyList<(string Open, string Close)>? brackets = null, bool spaced = true,
-                            Func<string, int, int>? ends = null)
+                            Func<string, int, int>? ends = null, bool quotesInWords = false)
     {
         var written = brackets ?? Brackets;
         titled = Bracket(line, written) is not null;
@@ -57,7 +57,7 @@ public static class MermaidOutline
 
         if (Bracket(line, written) is var (open, close))
         {
-            if (!line.Label(open, close, titleRole)) return false;
+            if (!line.Label(open, close, titleRole, quotesInWords)) return false;
 
             titled = true;
             if (spaced) line.Space();
@@ -227,5 +227,73 @@ public static class MermaidOutline
 
         void Closed(List<ContentNode> item) =>
             (open.Count > 0 ? open.Peek().Lines : outermost).Add(ContentNode.Branch(kind, item));
+    }
+
+    /// <summary>What ends a title written bare, as Mermaid's outline lexers read one: the first of these, whichever line it is on.</summary>
+    private static readonly char[] Stoppers = [')', ']', '(', '}'];
+
+    /// <summary>The brackets a title opens with at <paramref name="at"/> in <paramref name="text"/>, the longest first — or null where none opens there.</summary>
+    public static (string Open, string Close)? OpenedAt(string text, int at)
+    {
+        foreach (var bracket in Brackets)
+            if (text.AsSpan(at).StartsWith(bracket.Open, StringComparison.Ordinal)) return bracket;
+
+        return null;
+    }
+
+    /// <summary>
+    /// Whether a title still open at the line ending at <paramref name="at"/>, which <paramref name="closing"/> closes, runs on across
+    /// it: Mermaid's mindmap and kanban lexers read a bare title to the first character that could end one, line endings and all, so it
+    /// does where that is where its own closing bracket starts.
+    /// </summary>
+    public static bool Runs(string source, int at, string closing)
+    {
+        var next = source.IndexOfAny(Stoppers, at);
+        return next >= 0 && source.AsSpan(next).StartsWith(closing, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Where a comment closing an outline diagram's line starts — a <c>%%</c> after a node's brackets have closed — or -1. Mermaid's
+    /// mindmap and kanban lexers read a <c>%%</c> in a title, or in an id written bare, as part of it, so only one after the brackets
+    /// is a comment. Handed to <see cref="MermaidLine"/>, which keeps what follows it as the line's comment.
+    /// </summary>
+    public static int CommentAt(string text)
+    {
+        string? closing = null;
+        var closed = false;
+
+        for (var at = 0; at + 1 < text.Length; at++)
+        {
+            if (closing is not null)
+            {
+                if (text[at] == '"' && text.IndexOf('"', at + 1) is var shut and >= 0) at = shut;
+                else if (text.AsSpan(at).StartsWith(closing, StringComparison.Ordinal))
+                {
+                    at += closing.Length - 1;
+                    closing = null;
+                    closed = true;
+                }
+
+                continue;
+            }
+
+            // A kanban card's metadata, which a comment may follow as it may a title.
+            if (text[at] == '@' && text[at + 1] == '{')
+            {
+                closing = "}";
+                at++;
+                continue;
+            }
+
+            if (closed && text[at] == '%' && text[at + 1] == '%') return at;
+
+            if (OpenedAt(text, at) is { } bracket)
+            {
+                closing = bracket.Close;
+                at += bracket.Open.Length - 1;
+            }
+        }
+
+        return -1;
     }
 }

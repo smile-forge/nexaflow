@@ -5,12 +5,12 @@ using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Sankey;
 
-/// <summary>What a <c>sankey-beta</c> block's front matter asks for, as its stages hang it on the block.</summary>
+/// <summary>What a sankey block's front matter asks for, read from the front matter <see cref="SankeyParser"/> read.</summary>
 [TestClass]
 [CoversNode("sankey-ast")]
 public class SankeyConfigTests
 {
-    private static SankeyConfig Config(string source) => ((ConfiguredNode<SankeyConfig>)MermaidStaged.Read(source)).Config;
+    private static SankeyConfig Config(string source) => SankeyConfig.Read(MermaidBlock.Of(SankeyParser.Parse(source)).Config);
 
     [TestMethod]
     public void TheFrontMattersOptionsAreRead()

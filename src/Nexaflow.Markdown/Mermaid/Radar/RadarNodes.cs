@@ -39,7 +39,7 @@ internal sealed class RadarBlockNode : BlockNode
     public double Max { get; init; }
 
     /// <summary>How many rings the graticule has.</summary>
-    public int Ticks { get; init; }
+    public double Ticks { get; init; }
 
     public RadarGraticule Graticule { get; init; }
 

@@ -32,9 +32,6 @@ public class PacketBuilderTests : MermaidBuilderContract
 
     private const string Register = "---\nconfig:\n  packet:\n    bitOrder: descending\n    bitsPerRow: 16\n---\npacket\n0-3: \"Mode\"\n4-7: \"Speed\"\n8: \"Enable\"\n9-15: \"Reserved\"";
 
-    /// <summary>A packet block is a language of its own: its fence names it, though a Mermaid header naming it is read too.</summary>
-    public override MermaidDiagram Diagram => MermaidDiagram.Packet;
-
     /// <inheritdoc/>
     public override string Language => PacketParser.Language;
 

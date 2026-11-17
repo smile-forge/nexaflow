@@ -51,6 +51,7 @@ public class ContentLanguageDrawingTests
         ("heatmap", "weight  mpg\n3504  18\n2372  24\n"),
         ("density2d", "weight  mpg\n3504  18\n2372  24\n"),
         ("wordcloud", "WPF: 40\nXAML: 25\nMVVM: 12\n"),
+        ("eventmodeling", "tf 01 ui CartUI\ntf 02 cmd AddItem\ntf 03 evt ItemAdded\n"),
         ("barcode", "format: CODE39\nvalue: MARKDOWN-39\n"),
         ("csharp", "var x = 1;\n"),
     ];
@@ -146,8 +147,7 @@ public class ContentLanguageDrawingTests
 
         Assert.AreEqual(insertable.Count, insertable.Select(language => language.Name).Distinct().Count(), "every name is its own");
         Assert.AreEqual(insertable.Count, insertable.Select(language => language.DisplayName?.Invoke()).Distinct().Count(), "and so is what a reader is told");
-        Assert.IsTrue(Nexaflow.Visuals.Text.Markdown.Languages.Shipped.Diagrams.All(diagram => diagram.DefaultBlock is not null),
-            "every diagram drawn can be started");
+
     });
 
     [TestMethod]

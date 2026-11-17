@@ -48,6 +48,78 @@ using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Markdown.Layout.Code;
 using Nexaflow.Markdown.PlainText;
 using Nexaflow.Markdown.Layout.PlainText;
+using Nexaflow.Markdown.Mermaid.Sankey;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Sankey;
+using Nexaflow.Markdown.Mermaid.Venn;
+using Nexaflow.Markdown.Mermaid.Venn.Stages;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Venn;
+using Nexaflow.Markdown.Packet.Stages;
+using Nexaflow.Markdown.Treemap.Stages;
+using Nexaflow.Markdown.TreeView.Stages;
+using Nexaflow.Markdown.Mermaid.Quadrant;
+using Nexaflow.Markdown.Mermaid.Quadrant.Stages;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Quadrant;
+using Nexaflow.Markdown.Mermaid.Timeline;
+using Nexaflow.Markdown.Mermaid.Timeline.Stages;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Timeline;
+using Nexaflow.Markdown.Mermaid.Pie;
+using Nexaflow.Markdown.Mermaid.Pie.Stages;
+using Nexaflow.Markdown.Mermaid.Radar;
+using Nexaflow.Markdown.Mermaid.Radar.Stages;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Pie;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Radar;
+using Nexaflow.Markdown.Mermaid.Xy;
+using Nexaflow.Markdown.Mermaid.Ishikawa;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Xy;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Ishikawa;
+using Nexaflow.Markdown.Mermaid.Class;
+using ClassDiagramStages = Nexaflow.Markdown.Mermaid.Class.Stages;
+using Nexaflow.Markdown.Mermaid.Architecture;
+using Nexaflow.Markdown.Mermaid.Architecture.Stages;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Class;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Architecture;
+using Nexaflow.Markdown.Mermaid.C4;
+using C4Stages = Nexaflow.Markdown.Mermaid.C4.Stages;
+using SequenceStages = Nexaflow.Markdown.Mermaid.Sequence.Stages;
+using Nexaflow.Markdown.Mermaid.Sequence;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.C4;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Sequence;
+using Nexaflow.Markdown.Mermaid.Journey;
+using Nexaflow.Markdown.Mermaid.Cynefin;
+using Nexaflow.Markdown.Mermaid.Cynefin.Stages;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Journey;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Cynefin;
+using Nexaflow.Markdown.Mermaid.Mindmap;
+using Nexaflow.Markdown.Mermaid.Mindmap.Stages;
+using Nexaflow.Markdown.Mermaid.Kanban;
+using Nexaflow.Markdown.Mermaid.Kanban.Stages;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Mindmap;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Kanban;
+using Nexaflow.Markdown.Mermaid.Flowchart;
+using FlowchartStages = Nexaflow.Markdown.Mermaid.Flowchart.Stages;
+using Nexaflow.Markdown.Mermaid.Swimlane;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Flowchart;
+using Nexaflow.Markdown.Mermaid.Er;
+using ErStages = Nexaflow.Markdown.Mermaid.Er.Stages;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Er;
+using Nexaflow.Markdown.Mermaid.Block;
+using BlockStages = Nexaflow.Markdown.Mermaid.Block.Stages;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Block;
+using Nexaflow.Markdown.Mermaid.State;
+using StateStages = Nexaflow.Markdown.Mermaid.State.Stages;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.State;
+using Nexaflow.Markdown.Mermaid.Requirement;
+using RequirementStages = Nexaflow.Markdown.Mermaid.Requirement.Stages;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Requirement;
+using Nexaflow.Markdown.Mermaid.Gantt;
+using GanttStages = Nexaflow.Markdown.Mermaid.Gantt.Stages;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Gantt;
+using Nexaflow.Markdown.Mermaid.Git;
+using GitStages = Nexaflow.Markdown.Mermaid.Git.Stages;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Git;
+using Nexaflow.Markdown.EventModeling;
+using Nexaflow.Markdown.EventModeling.Stages;
+using Nexaflow.Visuals.Text.Markdown.EventModeling;
 
 namespace Nexaflow.Visuals.Text.Markdown.Languages;
 
@@ -127,7 +199,7 @@ internal static class Shipped
     /// </summary>
     public static readonly ContentLanguage Mermaid = new(
         Reads: static word => "mermaid".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
-        Parser: static () => static source => ContentParse.Of(MermaidFenceParser.Parse(source)),
+        Parser: static () => static source => ContentParse.Of(MermaidFenceParser.Parse(source, MermaidFenced)),
         Stages: static (_, _) => [],
         Builder: ContentLayouts.MermaidFence)
         {
@@ -136,243 +208,15 @@ internal static class Shipped
         };
 
     /// <summary>
-    /// Every diagram, each a language of its own, answering to the words its header is written with. They read their lines with the
-    /// same parser and are worked over by the stages the header names — which is sharing, not being one language: each is drawn by
-    /// its own builder, and says what an edit means through its own handler.
+    /// Whether a <c>mermaid</c> block headed by <paramref name="word"/> is held in a language that reads it — one of the languages
+    /// written in Mermaid's syntax, not any language at all, so a <c>mermaid</c> block headed <c>latex</c> is the parse error it is.
     /// </summary>
-    public static readonly IReadOnlyList<ContentLanguage> Diagrams =
-    [
-        .. Enum.GetValues<MermaidDiagram>()
-               .Where(diagram => ContentLayouts.Diagram(diagram) is not null)
-               .Select(diagram => Diagram(diagram, ContentLayouts.Diagram(diagram)!)),
-    ];
+    private static bool MermaidFenced(string word) => WrittenInMermaid.Any(language => language.Reads(word));
 
-    /// <summary><paramref name="diagram"/>, drawn by <paramref name="builder"/>.</summary>
-    private static ContentLanguage Diagram(MermaidDiagram diagram, Type builder)
-    {
-        var (shown, icon, block) = Starting(diagram);
+    /// <summary>The languages written in Mermaid's syntax, any of which a <c>mermaid</c> block may be written in.</summary>
+    private static IReadOnlyList<ContentLanguage> WrittenInMermaid => _writtenInMermaid ??= [Pie, Radar, XyChart, Ishikawa, Class, Architecture, C4, C4Sequence, Sequence, Journey, Cynefin, Mindmap, Kanban, Flowchart, Swimlane, Er, Block, State, Requirement, Gantt, GitGraph, EventModeling, Sankey, Venn, Quadrant, Timeline, Packet, Treemap, TreeView];
 
-        // Which parser reads this diagram, and which writes back into it, are MermaidDiagrams' to say and nobody else's.
-        var reads = MermaidDiagrams.ParserFor(diagram);
-
-        return new(
-            Reads: word => !string.IsNullOrWhiteSpace(word) && MermaidDiagrams.Named(word.Trim()) == diagram,
-            Parser: () => source => ContentParse.Of(reads(source)),
-            Stages: static (tree, show) => [.. MermaidPipeline.Of(tree, show.Writing), .. Hosted(show), WordPieces],
-            Builder: builder)
-            {
-                Writable = true,
-                Editing = new DiagramEditing(DiagramEdits.For(diagram)),
-                Bind = MermaidParser.Bind,
-                Transpile = MermaidDiagrams.TranspilerFor(diagram),
-                Name = shown is null ? null : "mermaid." + diagram.ToString().ToLowerInvariant(),
-                DisplayName = shown,
-                Icon = icon,
-                DefaultBlock = block,
-            };
-    }
-
-    /// <summary>What a reader calls <paramref name="diagram"/>, what it is drawn as, and a block of it to start from.</summary>
-    private static (Func<string>? Shown, IconRef Icon, string? Block) Starting(MermaidDiagram diagram) => diagram switch
-    {
-        MermaidDiagram.Flowchart => (static () => Str.Get("Text.Language.Flowchart"), IconRef.Fluent("flowchart"), """
-            ```mermaid
-            flowchart TD
-                A[Start] --> B[Done]
-            ```
-            """),
-        MermaidDiagram.Pie => (static () => Str.Get("Text.Language.Pie"), IconRef.Fluent("data_pie"), """
-            ```mermaid
-            pie
-                title Pets
-                "Dogs" : 40
-            ```
-            """),
-        MermaidDiagram.Quadrant => (static () => Str.Get("Text.Language.Quadrant"), IconRef.Fluent("sub_grid"), """
-            ```mermaid
-            quadrantChart
-                title Priorities
-                x-axis Low effort --> High effort
-                y-axis Low value --> High value
-                Idea: [0.3, 0.7]
-            ```
-            """),
-        MermaidDiagram.Sequence => (static () => Str.Get("Text.Language.Sequence"), IconRef.Fluent("arrow_swap"), """
-            ```mermaid
-            sequenceDiagram
-                Alice->>Bob: Hello
-            ```
-            """),
-        MermaidDiagram.Gantt => (static () => Str.Get("Text.Language.Gantt"), IconRef.Fluent("gantt_chart"), """
-            ```mermaid
-            gantt
-                title Plan
-                dateFormat YYYY-MM-DD
-                section Work
-                    First task :a1, 2026-01-05, 5d
-            ```
-            """),
-        MermaidDiagram.GitGraph => (static () => Str.Get("Text.Language.GitGraph"), IconRef.Fluent("branch_fork"), """
-            ```mermaid
-            gitGraph
-                commit
-                branch feature
-                commit
-            ```
-            """),
-        MermaidDiagram.Mindmap => (static () => Str.Get("Text.Language.Mindmap"), IconRef.Fluent("text_bullet_list_tree"), """
-            ```mermaid
-            mindmap
-              root((Idea))
-                Thought
-            ```
-            """),
-        MermaidDiagram.State => (static () => Str.Get("Text.Language.State"), IconRef.Fluent("flowchart_circle"), """
-            ```mermaid
-            stateDiagram-v2
-                [*] --> Idle
-                Idle --> [*]
-            ```
-            """),
-        MermaidDiagram.Class => (static () => Str.Get("Text.Language.Class"), IconRef.Fluent("diagram"), """
-            ```mermaid
-            classDiagram
-                class Animal {
-                    +String name
-                    +speak()
-                }
-            ```
-            """),
-        MermaidDiagram.Requirement => (static () => Str.Get("Text.Language.Requirement"), IconRef.Fluent("clipboard_task_list_ltr"), """
-            ```mermaid
-            requirementDiagram
-                requirement first {
-                    id: 1
-                    text: The first requirement.
-                    risk: low
-                    verifymethod: test
-                }
-            ```
-            """),
-        MermaidDiagram.Kanban => (static () => Str.Get("Text.Language.Kanban"), IconRef.Fluent("grid_kanban"), """
-            ```mermaid
-            kanban
-              todo[To do]
-                task1[First task]
-            ```
-            """),
-        MermaidDiagram.XyChart => (static () => Str.Get("Text.Language.XyChart"), IconRef.Fluent("data_bar_vertical"), """
-            ```mermaid
-            xychart-beta
-                title "Sales"
-                x-axis [jan, feb, mar]
-                y-axis "Units" 0 --> 10
-                bar [3, 5, 4]
-            ```
-            """),
-        MermaidDiagram.Radar => (static () => Str.Get("Text.Language.Radar"), IconRef.Fluent("radar"), """
-            ```mermaid
-            radar-beta
-                axis a["Speed"], b["Power"], c["Range"]
-                curve x["Model X"]{3, 4, 2}
-            ```
-            """),
-        MermaidDiagram.Ishikawa => (static () => Str.Get("Text.Language.Ishikawa"), IconRef.Fluent("food_fish"), """
-            ```mermaid
-            ishikawa-beta
-                Problem
-                Cause
-                    Detail
-            ```
-            """),
-        MermaidDiagram.Sankey => (static () => Str.Get("Text.Language.Sankey"), IconRef.Fluent("flow"), """
-            ```mermaid
-            sankey
-
-            Source,Target,10
-            ```
-            """),
-        MermaidDiagram.Er => (static () => Str.Get("Text.Language.Er"), IconRef.Fluent("database"), """
-            ```mermaid
-            erDiagram
-                CUSTOMER ||--o{ ORDER : places
-            ```
-            """),
-        MermaidDiagram.Venn => (static () => Str.Get("Text.Language.Venn"), IconRef.Fluent("shape_intersect"), """
-            ```mermaid
-            venn-beta
-                set A
-                set B
-                union A,B["Both"]
-            ```
-            """),
-        MermaidDiagram.Cynefin => (static () => Str.Get("Text.Language.Cynefin"), IconRef.Fluent("shape_organic"), """
-            ```mermaid
-            cynefin-beta
-                complex
-                    "Run an experiment"
-            ```
-            """),
-        MermaidDiagram.Architecture => (static () => Str.Get("Text.Language.Architecture"), IconRef.Fluent("server"), """
-            ```mermaid
-            architecture-beta
-                service api(server)[API]
-                service db(database)[Database]
-                api:R -- L:db
-            ```
-            """),
-        MermaidDiagram.Swimlane => (static () => Str.Get("Text.Language.Swimlane"), IconRef.Fluent("layout_column_three"), """
-            ```mermaid
-            swimlane-beta
-                subgraph team[Team]
-                    start([Start])
-                    done[Done]
-                end
-                start --> done
-            ```
-            """),
-        MermaidDiagram.Timeline => (static () => Str.Get("Text.Language.Timeline"), IconRef.Fluent("timeline"), """
-            ```mermaid
-            timeline
-                title History
-                2026 : Started
-            ```
-            """),
-        MermaidDiagram.Journey => (static () => Str.Get("Text.Language.Journey"), IconRef.Fluent("person_walking"), """
-            ```mermaid
-            journey
-                title My day
-                section Morning
-                  Make tea: 5: Me
-            ```
-            """),
-        MermaidDiagram.Block => (static () => Str.Get("Text.Language.Block"), IconRef.Fluent("square_multiple"), """
-            ```mermaid
-            block-beta
-              columns 2
-              A B
-            ```
-            """),
-        MermaidDiagram.C4 => (static () => Str.Get("Text.Language.C4"), IconRef.Fluent("building"), """
-            ```mermaid
-            C4Context
-            title System context
-            Person(user, "User")
-            System(app, "App")
-            Rel(user, app, "Uses")
-            ```
-            """),
-        MermaidDiagram.C4Sequence => (static () => Str.Get("Text.Language.C4Sequence"), IconRef.Fluent("building_multiple"), """
-            ```mermaid
-            C4Sequence
-            title Sequence
-            Person(user, "User")
-            System(app, "App")
-            Rel(user, app, "Uses")
-            ```
-            """),
-        _ => (null, default, null),
-    };
+    private static IReadOnlyList<ContentLanguage>? _writtenInMermaid;
 
     /// <summary>
     /// UML class notation written its own way — <see href="https://www.nomnoml.com/"/> — read by a parser of its own and drawn
@@ -395,7 +239,7 @@ internal static class Shipped
             };
 
     /// <summary>
-    /// A packet, or a register — its fields, each its bits and a label — read by a parser of its own and drawn as rows of bits
+    /// A packet, or a register — its fields, each its bits and a label — read by a parser of its own, worked over by the stages it offers below, and drawn as rows of bits
     /// (<see cref="PacketParser"/>). Written Mermaid's way, so a <c>mermaid</c> block headed <c>packet</c> is handed here, and fenced as
     /// itself it needs no header.
     /// </summary>
@@ -403,11 +247,26 @@ internal static class Shipped
         Reads: static word => word?.Trim() is { Length: > 0 } said
                               && PacketParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
         Parser: static () => static source => ContentParse.Of(PacketParser.Parse(source)),
-        Stages: static (tree, show) => PacketPipeline.Of(tree, show.Writing),
+        Stages: static (tree, show) =>
+        {
+            var config = PacketConfig.Read(MermaidBlock.Of(tree).Config);
+
+            return
+            [
+                new PlaceFields(config),
+                new WithConfig<PacketConfig>(config),
+                show.Writing ? new WithHoles(PacketParser.Holds) : null,
+                .. Hosted(show),
+
+                // What every run of words is made of, a label's escapes and line endings reading as what they stand for.
+                new WithWordPieces(PacketStandIns.Decoded),
+            ];
+        },
         Builder: ContentLayouts.Packet)
         {
             Writable = true,
             Editing = new DiagramEditing(new PacketEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, PacketParser.Parse),
             Transpile = Transpiles.By<PacketParser>(),
             Name = PacketParser.Language,
             DisplayName = static () => Str.Get("Text.Language.Packet"),
@@ -421,6 +280,1069 @@ internal static class Shipped
         };
 
     /// <summary>
+    /// A sankey diagram — flows between nodes, each a row of three fields — read by a parser of its own (<see cref="SankeyParser"/>)
+    /// and drawn as ribbons as thick as they are worth. Written in Mermaid's syntax, so a <c>mermaid</c> block headed <c>sankey</c>
+    /// is handed here, and fenced as itself it needs no header. What the engine works it over with: what the front matter asks
+    /// for, hung on the block; a hole wherever something is still to be written while somebody writes in it; what a host binds
+    /// into it; and what each run of words is made of.
+    /// </summary>
+    public static readonly ContentLanguage Sankey = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && SankeyParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(SankeyParser.Parse(source)),
+        Stages: static (tree, show) =>
+        [
+            new WithConfig<SankeyConfig>(SankeyConfig.Read(MermaidBlock.Of(tree).Config)),
+            show.Writing ? new WithHoles(SankeyParser.Holds) : null,
+            .. Hosted(show),
+            WordPieces,
+        ],
+        Builder: ContentLayouts.Sankey)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new SankeyEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, SankeyParser.Parse),
+            Transpile = Transpiles.By<SankeyParser>(),
+            Name = SankeyParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.Sankey"),
+            Icon = IconRef.Fluent("flow"),
+            DefaultBlock = """
+                ```mermaid
+                sankey
+
+                Source,Target,10
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// A Venn diagram — sets, the unions where they overlap, the items written in either — read by a parser of its own
+    /// (<see cref="VennParser"/>) and drawn as circles sized by area. Written in Mermaid's syntax, so a <c>mermaid</c> block headed
+    /// <c>venn-beta</c> is handed here, and fenced as itself it needs no header. What the engine works it over with: each set and
+    /// union gathered with the items written in it; which region every part stands for; what styles each; what the front matter
+    /// asks for, hung on the block; a hole wherever something is still to be written while somebody writes in it; what a host
+    /// binds into it; and what each run of words is made of.
+    /// </summary>
+    public static readonly ContentLanguage Venn = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && VennParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(VennParser.Parse(source)),
+        Stages: static (tree, show) =>
+        [
+            new GroupRegions(),
+            new ResolveRegions(),
+            new Nexaflow.Markdown.Mermaid.Venn.Stages.ResolveStyles(),
+            new WithConfig<VennConfig>(VennConfig.Read(MermaidBlock.Of(tree).Config)),
+            show.Writing ? new WithHoles(VennParser.Holds) : null,
+            .. Hosted(show),
+            WordPieces,
+        ],
+        Builder: ContentLayouts.Venn)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new VennEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, VennParser.Parse),
+            Transpile = Transpiles.By<VennParser>(),
+            Name = VennParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.Venn"),
+            Icon = IconRef.Fluent("shape_intersect"),
+            DefaultBlock = """
+                ```mermaid
+                venn-beta
+                    set A
+                    set B
+                    union A,B["Both"]
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// A quadrant chart — four quadrants, two axes and the points standing between them — read by a parser of its own
+    /// (<see cref="QuadrantParser"/>) and drawn as a grid of quadrants with its points where they stand. Written in Mermaid's syntax,
+    /// so a <c>mermaid</c> block headed <c>quadrantChart</c> is handed here, and fenced as itself it needs no header. What the engine
+    /// works it over with: where each point stands and what it is drawn with, and what the front matter asks for, hung on the
+    /// block; a hole wherever something is still to be written while somebody writes in it; what a host binds into it; and what
+    /// each run of words is made of.
+    /// </summary>
+    public static readonly ContentLanguage Quadrant = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && QuadrantParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(QuadrantParser.Parse(source)),
+        Stages: static (tree, show) =>
+        [
+            new ResolvePoints(QuadrantConfig.Read(MermaidBlock.Of(tree).Config)),
+            show.Writing ? new WithHoles(QuadrantParser.Holds) : null,
+            .. Hosted(show),
+            WordPieces,
+        ],
+        Builder: ContentLayouts.Quadrant)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new QuadrantEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, QuadrantParser.Parse),
+            Transpile = Transpiles.By<QuadrantParser>(),
+            Name = QuadrantParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.Quadrant"),
+            Icon = IconRef.Fluent("sub_grid"),
+            DefaultBlock = """
+                ```mermaid
+                quadrantChart
+                    title Priorities
+                    x-axis Low effort --> High effort
+                    y-axis Low value --> High value
+                    Idea: [0.3, 0.7]
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// A pie chart — a slice per line, each its label and its value — read by a parser of its own (<see cref="PieParser"/>) and drawn
+    /// as wedges with a legend. Written in Mermaid's syntax, so a <c>mermaid</c> block headed <c>pie</c> is handed here, and fenced as
+    /// itself it needs no header. What the engine works it over with: the colour each slice is drawn in and whether it is picked out;
+    /// each slice's share of the whole; what the front matter asks for, hung on the block; a hole wherever something is still to be
+    /// written while somebody writes in it; what a host binds into it; and what each run of words is made of, a label's escapes and
+    /// line endings reading as what they stand for.
+    /// </summary>
+    public static readonly ContentLanguage Pie = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && PieParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(PieParser.Parse(source)),
+        Stages: static (tree, show) =>
+        {
+            var config = PieConfig.Read(MermaidBlock.Of(tree).Config);
+
+            return
+            [
+                new ResolveSlices(config),
+                new ResolveShares(show.Writing),
+                new WithConfig<PieConfig>(config),
+                show.Writing ? new WithHoles(PieParser.Holds) : null,
+                .. Hosted(show),
+                new WithWordPieces(PieStandIns.Decoded),
+            ];
+        },
+        Builder: ContentLayouts.Pie)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new PieEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, PieParser.Parse),
+            Transpile = Transpiles.By<PieParser>(),
+            Name = PieParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.Pie"),
+            Icon = IconRef.Fluent("data_pie"),
+            DefaultBlock = """
+                ```mermaid
+                pie
+                    title Pets
+                    "Dogs" : 40
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// A radar chart — axes as spokes, and curves reaching along them — read by a parser of its own (<see cref="RadarParser"/>) and
+    /// drawn over a graticule. Written in Mermaid's syntax, so a <c>mermaid</c> block headed <c>radar-beta</c> is handed here, and
+    /// fenced as itself it needs no header. What the engine works it over with: which axis each of a curve's values is for, and what
+    /// is said where they do not fit; what the options set, hung on the block; a hole wherever something is still to be written while
+    /// somebody writes in it; what a host binds into it; and what each run of words is made of, a label's escapes and line endings
+    /// reading as what they stand for.
+    /// </summary>
+    public static readonly ContentLanguage Radar = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && RadarParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(RadarParser.Parse(source)),
+        Stages: static (tree, show) =>
+        {
+            var config = RadarConfig.Read(MermaidBlock.Of(tree).Config);
+
+            return
+            [
+                new ResolveCurves(config, show.Writing),
+                new ResolveOptions(config),
+                show.Writing ? new WithHoles(RadarParser.Holds) : null,
+                .. Hosted(show),
+                new WithWordPieces(RadarStandIns.Decoded),
+            ];
+        },
+        Builder: ContentLayouts.Radar)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new RadarEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, RadarParser.Parse),
+            Transpile = Transpiles.By<RadarParser>(),
+            Name = RadarParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.Radar"),
+            Icon = IconRef.Fluent("radar"),
+            DefaultBlock = """
+                ```mermaid
+                radar-beta
+                    axis a["Speed"], b["Power"], c["Range"]
+                    curve x["Model X"]{3, 4, 2}
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// An XY chart — bars and lines over an x-axis of categories or a range — read by a parser of its own (<see cref="XyParser"/>) and
+    /// drawn either way up. Written in Mermaid's syntax, so a <c>mermaid</c> block headed <c>xychart</c> is handed here, and fenced as
+    /// itself it needs no header. What the engine works it over with: what the front matter asks for, hung on the block; a hole wherever
+    /// something is still to be written while somebody writes in it; what a host binds into it; and what each run of words is made of.
+    /// </summary>
+    public static readonly ContentLanguage XyChart = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && XyParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(XyParser.Parse(source)),
+        Stages: static (tree, show) =>
+        [
+            new WithConfig<XyConfig>(XyConfig.Read(MermaidBlock.Of(tree).Config)),
+            show.Writing ? new WithHoles(XyParser.Holds) : null,
+            .. Hosted(show),
+            WordPieces,
+        ],
+        Builder: ContentLayouts.XyChart)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new XyEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, XyParser.Parse),
+            Transpile = Transpiles.By<XyParser>(),
+            Name = XyParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.XyChart"),
+            Icon = IconRef.Fluent("data_bar_vertical"),
+            DefaultBlock = """
+                ```mermaid
+                xychart-beta
+                    title "Sales"
+                    x-axis [jan, feb, mar]
+                    y-axis "Units" 0 --> 10
+                    bar [3, 5, 4]
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// An Ishikawa diagram — an event and the causes branching into it, a fishbone — read by a parser of its own
+    /// (<see cref="IshikawaParser"/>). Written in Mermaid's syntax, so a <c>mermaid</c> block headed <c>ishikawa</c> is handed here, and
+    /// fenced as itself it needs no header. What the engine works it over with: what the front matter asks for, hung on the block; what
+    /// a host binds into it; and what each run of words is made of.
+    /// </summary>
+    public static readonly ContentLanguage Ishikawa = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && IshikawaParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(IshikawaParser.Parse(source)),
+        Stages: static (tree, show) =>
+        [
+            new WithConfig<IshikawaConfig>(IshikawaConfig.Read(MermaidBlock.Of(tree).Config)),
+            .. Hosted(show),
+            WordPieces,
+        ],
+        Builder: ContentLayouts.Ishikawa)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new IshikawaEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, IshikawaParser.Parse),
+            Transpile = Transpiles.By<IshikawaParser>(),
+            Name = IshikawaParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.Ishikawa"),
+            Icon = IconRef.Fluent("food_fish"),
+            DefaultBlock = """
+                ```mermaid
+                ishikawa-beta
+                    Problem
+                    Cause
+                        Detail
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// A class diagram — classes and their members, the relations between them, the namespaces boxing them and the notes beside them —
+    /// read by a parser of its own (<see cref="ClassParser"/>). Written in Mermaid's syntax, so a <c>mermaid</c> block headed
+    /// <c>classDiagram</c> is handed here, and fenced as itself it needs no header. What the engine works it over with: each namespace
+    /// gathered with what is written in it; what each member draws; what styles each class; what the front matter asks for, hung on
+    /// the block; a hole wherever something is still to be written while somebody writes in it; what the front matter says about
+    /// folding; what a host binds into it; and what each run of words is made of.
+    /// </summary>
+    public static readonly ContentLanguage Class = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && ClassParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(ClassParser.Parse(source)),
+        Stages: static (tree, show) =>
+        [
+            new ClassDiagramStages.ResolveNamespaces(),
+            new ClassDiagramStages.ResolveMembers(),
+            new ClassDiagramStages.ResolveStyles(),
+            new WithConfig<ClassConfig>(ClassConfig.Read(MermaidBlock.Of(tree).Config)),
+            show.Writing ? new WithHoles(ClassParser.Holds) : null,
+            new WithFolds(),
+            .. Hosted(show),
+            WordPieces,
+        ],
+        Builder: ContentLayouts.Class)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new ClassEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, ClassParser.Parse),
+            Transpile = Transpiles.By<ClassParser>(),
+            Name = ClassParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.Class"),
+            Icon = IconRef.Fluent("diagram"),
+            DefaultBlock = """
+                ```mermaid
+                classDiagram
+                    class Animal {
+                        +String name
+                        +speak()
+                    }
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// An architecture diagram — services and junctions in groups, and the edges between them — read by a parser of its own
+    /// (<see cref="ArchitectureParser"/>). Written in Mermaid's syntax, so a <c>mermaid</c> block headed <c>architecture-beta</c> is
+    /// handed here, and fenced as itself it needs no header. What the engine works it over with: whether what a line names is declared,
+    /// and what it is; what the front matter asks for, hung on the block; which icon everything naming one is; a hole wherever
+    /// something is still to be written while somebody writes in it; what a host binds into it; and what each run of words is made of,
+    /// a title's escapes and line endings reading as what they stand for.
+    /// </summary>
+    public static readonly ContentLanguage Architecture = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && ArchitectureParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(ArchitectureParser.Parse(source)),
+        Stages: static (tree, show) =>
+        [
+            new ResolveArchitecture(),
+            new WithConfig<ArchitectureConfig>(ArchitectureConfig.Read(MermaidBlock.Of(tree).Config)),
+            new WithIcons(),
+            show.Writing ? new WithHoles(ArchitectureParser.Holds) : null,
+            .. Hosted(show),
+            new WithWordPieces(ArchitectureStandIns.Decoded),
+        ],
+        Builder: ContentLayouts.Architecture)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new ArchitectureEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, ArchitectureParser.Parse),
+            Transpile = Transpiles.By<ArchitectureParser>(),
+            Name = ArchitectureParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.Architecture"),
+            Icon = IconRef.Fluent("server"),
+            DefaultBlock = """
+                ```mermaid
+                architecture-beta
+                    service api(server)[API]
+                    service db(database)[Database]
+                    api:R -- L:db
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// A structural C4 diagram — people, systems, containers and components in their boundaries, and the relationships between them —
+    /// read by a parser of its own (<see cref="C4Parser"/>). Written in Mermaid's syntax, so a <c>mermaid</c> block headed
+    /// <c>C4Context</c>, <c>C4Container</c>, <c>C4Component</c>, <c>C4Dynamic</c> or <c>C4Deployment</c> is handed here, and fenced
+    /// as itself it needs no header. What the engine works it over with: which boundary each line is written inside; what each macro
+    /// means — a <c>C4Dynamic</c> numbering its relationships without being asked; what the front matter asks for, hung on the block;
+    /// a hole wherever something is still to be written while somebody writes in it; what the front matter says about folding; what a
+    /// host binds into it; and what each run of words is made of.
+    /// </summary>
+    public static readonly ContentLanguage C4 = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && C4Parser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(C4Parser.Parse(source)),
+        Stages: static (tree, show) =>
+        {
+            var block = MermaidBlock.Of(tree);
+
+            return
+            [
+                new C4Stages.ResolveBoundaries(),
+                new C4Stages.ResolveMacros(string.Equals(block.Keyword?.Text, C4Parser.Dynamic, StringComparison.OrdinalIgnoreCase)),
+                new WithConfig<C4Metrics>(C4Config.Laid(block.Config)),
+                show.Writing ? new WithHoles(C4Parser.Holds) : null,
+                new WithFolds(),
+                .. Hosted(show),
+                WordPieces,
+            ];
+        },
+        Builder: ContentLayouts.C4)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new C4Edits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, C4Parser.Parse),
+            Transpile = Transpiles.By<C4Parser>(),
+            Name = C4Parser.Language,
+            DisplayName = static () => Str.Get("Text.Language.C4"),
+            Icon = IconRef.Fluent("building"),
+            DefaultBlock = """
+                ```mermaid
+                C4Context
+                title System context
+                Person(user, "User")
+                System(app, "App")
+                Rel(user, app, "Uses")
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// A C4 sequence — C4's macros written on a timeline, among the sequence diagram's own lines — read by a parser of its own
+    /// (<see cref="C4SequenceParser"/>). Written in Mermaid's syntax, so a <c>mermaid</c> block headed <c>C4Sequence</c> is handed here,
+    /// and fenced as itself it needs no header. What the engine works it over with: the frames the sequence diagram's lines and the
+    /// boundaries open, as one stack; how its messages are numbered; what each macro means; which participants are drawn at the foot as
+    /// well as the head; which icon everything naming one is; a hole wherever something is still to be written while somebody writes in
+    /// it; what the front matter says about
+    /// folding; what a host binds into it; and what each run of words is made of.
+    /// </summary>
+    public static readonly ContentLanguage C4Sequence = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && C4SequenceParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(C4SequenceParser.Parse(source)),
+        Stages: static (tree, show) =>
+        {
+            var config = MermaidBlock.Of(tree).Config;
+
+            return
+            [
+                new SequenceStages.ResolveFrames([C4Kinds.Boundary], [C4Kinds.Ends]),
+                new SequenceStages.ResolveNumbers(SequenceConfig.Read(config).Numbered),
+                new C4Stages.ResolveMacros(numbered: false),
+                new C4Stages.ResolveFootBoxes(C4Config.Read(config)),
+                new WithIcons(),
+                show.Writing ? new WithHoles(C4SequenceParser.Holds) : null,
+                new WithFolds(),
+                .. Hosted(show),
+                WordPieces,
+            ];
+        },
+        Builder: ContentLayouts.C4Sequence)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new C4SequenceEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, C4SequenceParser.Parse),
+            Transpile = Transpiles.By<C4SequenceParser>(),
+            Name = C4SequenceParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.C4Sequence"),
+            Icon = IconRef.Fluent("building_multiple"),
+            DefaultBlock = """
+                ```mermaid
+                C4Sequence
+                title Sequence
+                Person(user, "User")
+                System(app, "App")
+                Rel(user, app, "Uses")
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// A sequence diagram — participants along the top, the messages between their lifelines, the notes, bars, boxes and frames — read by
+    /// a parser of its own (<see cref="SequenceParser"/>). Written in Mermaid's syntax, so a <c>mermaid</c> block headed
+    /// <c>sequenceDiagram</c> is handed here, and fenced as itself it needs no header. What the engine works it over with: which box or
+    /// frame each line is in; the number <c>autonumber</c> gives each message; what the front matter asks for, hung on the block; which
+    /// icon everything naming one is; a hole wherever something is still to be written while somebody writes in it; what the front
+    /// matter says about folding; what a host binds into it; and what each run of words is made of.
+    /// </summary>
+    public static readonly ContentLanguage Sequence = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && SequenceParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(SequenceParser.Parse(source)),
+        Stages: static (tree, show) =>
+        {
+            var config = SequenceConfig.Read(MermaidBlock.Of(tree).Config);
+
+            return
+            [
+                new SequenceStages.ResolveFrames(),
+                new SequenceStages.ResolveNumbers(config.Numbered),
+                new WithConfig<SequenceConfig>(config),
+                new WithIcons(),
+                show.Writing ? new WithHoles(SequenceParser.Holds) : null,
+                new WithFolds(),
+                .. Hosted(show),
+                WordPieces,
+            ];
+        },
+        Builder: ContentLayouts.Sequence)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new SequenceEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, SequenceParser.Parse),
+            Transpile = Transpiles.By<SequenceParser>(),
+            Name = SequenceParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.Sequence"),
+            Icon = IconRef.Fluent("arrow_swap"),
+            DefaultBlock = """
+                ```mermaid
+                sequenceDiagram
+                    Alice->>Bob: Hello
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// A user journey — tasks scored and shared out among actors, in sections — read by a parser of its own (<see cref="JourneyParser"/>).
+    /// Written in Mermaid's syntax, so a <c>mermaid</c> block headed <c>journey</c> is handed here, and fenced as itself it needs no
+    /// header. What the engine works it over with: what the front matter asks for, hung on the block; a hole wherever something is still
+    /// to be written while somebody writes in it; what a host binds into it; and what each run of words is made of.
+    /// </summary>
+    public static readonly ContentLanguage Journey = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && JourneyParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(JourneyParser.Parse(source)),
+        Stages: static (tree, show) =>
+        [
+            new WithConfig<JourneyConfig>(JourneyConfig.Read(MermaidBlock.Of(tree).Config)),
+            show.Writing ? new WithHoles(JourneyParser.Holds) : null,
+            .. Hosted(show),
+            WordPieces,
+        ],
+        Builder: ContentLayouts.Journey)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new JourneyEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, JourneyParser.Parse),
+            Transpile = Transpiles.By<JourneyParser>(),
+            Name = JourneyParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.Journey"),
+            Icon = IconRef.Fluent("person_walking"),
+            DefaultBlock = """
+                ```mermaid
+                journey
+                    title My day
+                    section Morning
+                      Make tea: 5: Me
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// A Cynefin framework — the five sense-making domains, the items placed in each and the transitions between them — read by a
+    /// parser of its own (<see cref="CynefinParser"/>). Written in Mermaid's syntax, so a <c>mermaid</c> block headed
+    /// <c>cynefin-beta</c> is handed here, and fenced as itself it needs no header. What the engine works it over with: where an item has
+    /// no domain above it; what the front matter asks for, hung on the block; a hole wherever something is still to be written while
+    /// somebody writes in it; what a host binds into it; and what each run of words is made of, a string's escapes and line endings
+    /// reading as what they stand for.
+    /// </summary>
+    public static readonly ContentLanguage Cynefin = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && CynefinParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(CynefinParser.Parse(source)),
+        Stages: static (tree, show) =>
+        [
+            new ResolveDomains(),
+            new WithConfig<CynefinConfig>(CynefinConfig.Read(MermaidBlock.Of(tree).Config)),
+            show.Writing ? new WithHoles(CynefinParser.Holds) : null,
+            .. Hosted(show),
+            new WithWordPieces(CynefinStandIns.Decoded),
+        ],
+        Builder: ContentLayouts.Cynefin)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new CynefinEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, CynefinParser.Parse),
+            Transpile = Transpiles.By<CynefinParser>(),
+            Name = CynefinParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.Cynefin"),
+            Icon = IconRef.Fluent("shape_organic"),
+            DefaultBlock = """
+                ```mermaid
+                cynefin-beta
+                    complex
+                        "Run an experiment"
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// A mindmap — a root and the ideas branching off it, each in the shape its brackets say — read by a parser of its own
+    /// (<see cref="MindmapParser"/>). Written in Mermaid's syntax, so a <c>mermaid</c> block headed <c>mindmap</c> is handed here, and
+    /// fenced as itself it needs no header. What the engine works it over with: whether every node hangs off the root; what the front
+    /// matter asks for, hung on the block; which icon each node names; a hole wherever something is still to be written while somebody
+    /// writes in it; what a host binds into it; and what each run of words is made of.
+    /// </summary>
+    public static readonly ContentLanguage Mindmap = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && MindmapParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(MindmapParser.Parse(source)),
+        Stages: static (tree, show) =>
+        [
+            new ResolveRoot(),
+            new WithConfig<MindmapConfig>(MindmapConfig.Read(MermaidBlock.Of(tree).Config)),
+            new WithIcons(),
+            show.Writing ? new WithHoles(MindmapParser.Holds) : null,
+            .. Hosted(show),
+            WordPieces,
+        ],
+        Builder: ContentLayouts.Mindmap)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new MindmapEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, MindmapParser.Parse),
+            Transpile = Transpiles.By<MindmapParser>(),
+            Name = MindmapParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.Mindmap"),
+            Icon = IconRef.Fluent("text_bullet_list_tree"),
+            DefaultBlock = """
+                ```mermaid
+                mindmap
+                  root((Idea))
+                    Thought
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// A kanban board — columns of cards, each card with what its metadata says — read by a parser of its own
+    /// (<see cref="KanbanParser"/>). Written in Mermaid's syntax, so a <c>mermaid</c> block headed <c>kanban</c> is handed here, and
+    /// fenced as itself it needs no header. What the engine works it over with: whether each node is a column or a card; what the front
+    /// matter asks for, hung on the block; which icon each node names; a hole wherever something is still to be written while somebody
+    /// writes in it; what a host binds into it; and what each run of words is made of.
+    /// </summary>
+    public static readonly ContentLanguage Kanban = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && KanbanParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(KanbanParser.Parse(source)),
+        Stages: static (tree, show) =>
+        {
+            var config = KanbanConfig.Read(MermaidBlock.Of(tree).Config);
+
+            return
+            [
+                new ResolveColumns(config),
+                new WithConfig<KanbanConfig>(config),
+                new WithIcons(),
+                show.Writing ? new WithHoles(KanbanParser.Holds) : null,
+                .. Hosted(show),
+                WordPieces,
+            ];
+        },
+        Builder: ContentLayouts.Kanban)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new KanbanEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, KanbanParser.Parse),
+            Transpile = Transpiles.By<KanbanParser>(),
+            Name = KanbanParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.Kanban"),
+            Icon = IconRef.Fluent("grid_kanban"),
+            DefaultBlock = """
+                ```mermaid
+                kanban
+                  todo[To do]
+                    task1[First task]
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// A flowchart — nodes in the shapes their brackets say, the links between them and the subgraphs gathering them — read by a parser
+    /// of its own (<see cref="FlowchartParser"/>). Written in Mermaid's syntax, so a <c>mermaid</c> block headed <c>flowchart</c> or
+    /// <c>graph</c> is handed here, as is one with no header at all, and fenced as itself it needs no header. What the engine works it
+    /// over with: which subgraph each line is in; what each link joins and is styled with; what each <c>id@{ … }</c> line means; what
+    /// styles each node and subgraph; whether a shape named is one; what the chart amounts to as a graph; what the front matter asks for,
+    /// hung on the block; which icon everything naming one is; a hole wherever something is still to be written while somebody writes in
+    /// it; what the front matter says about folding; what a host binds into it; and what each run of words is made of.
+    /// </summary>
+    public static readonly ContentLanguage Flowchart = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && FlowchartParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(FlowchartParser.Parse(source)),
+        Stages: static (tree, show) =>
+        [
+            new FlowchartStages.ResolveSubgraphs(),
+            new FlowchartStages.ResolveJoins(),
+            new FlowchartStages.ResolveLinks(),
+            new FlowchartStages.ResolveMetadata(),
+            new FlowchartStages.ResolveStyles(),
+            new FlowchartStages.ResolveShapes(),
+            new FlowchartStages.ResolveChart(),
+            new WithConfig<FlowchartConfig>(FlowchartConfig.Read(MermaidBlock.Of(tree).Config)),
+            new WithIcons(),
+            show.Writing ? new WithHoles(FlowchartParser.Holds) : null,
+            new WithFolds(),
+            .. Hosted(show),
+            WordPieces,
+        ],
+        Builder: ContentLayouts.Flowchart)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new FlowchartEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, FlowchartParser.Parse),
+            Transpile = Transpiles.By<FlowchartParser>(),
+            Name = FlowchartParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.Flowchart"),
+            Icon = IconRef.Fluent("flowchart"),
+            DefaultBlock = """
+                ```mermaid
+                flowchart TD
+                    A[Start] --> B[Done]
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// A swimlane — a flowchart laid out in lanes, its outermost subgraphs the lanes — read by a parser of its own
+    /// (<see cref="SwimlaneParser"/>) with the flowchart's pieces, since Mermaid reads the two alike. Written in Mermaid's syntax, so a
+    /// <c>mermaid</c> block headed <c>swimlane-beta</c> is handed here, and fenced as itself it needs no header. What the engine works it
+    /// over with: everything a flowchart is worked over with, but what the front matter asks for is a swimlane's, the chart's own inside
+    /// it; and its words are written as a flowchart's are.
+    /// </summary>
+    public static readonly ContentLanguage Swimlane = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && SwimlaneParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(SwimlaneParser.Parse(source)),
+        Stages: static (tree, show) =>
+        [
+            new FlowchartStages.ResolveSubgraphs(),
+            new FlowchartStages.ResolveJoins(),
+            new FlowchartStages.ResolveLinks(),
+            new FlowchartStages.ResolveMetadata(),
+            new FlowchartStages.ResolveStyles(),
+            new FlowchartStages.ResolveShapes(),
+            new FlowchartStages.ResolveChart(),
+            new WithConfig<SwimlaneConfig>(SwimlaneConfig.Read(MermaidBlock.Of(tree).Config)),
+            new WithIcons(),
+            show.Writing ? new WithHoles(SwimlaneParser.Holds) : null,
+            new WithFolds(),
+            .. Hosted(show),
+            WordPieces,
+        ],
+        Builder: ContentLayouts.Swimlane)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new FlowchartEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, SwimlaneParser.Parse),
+            Transpile = Transpiles.By<SwimlaneParser>(),
+            Name = SwimlaneParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.Swimlane"),
+            Icon = IconRef.Fluent("layout_column_three"),
+            DefaultBlock = """
+                ```mermaid
+                swimlane-beta
+                    subgraph team[Team]
+                        start([Start])
+                        done[Done]
+                    end
+                    start --> done
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// An entity relationship diagram — entities and their attributes, how many of each the other has at either end of a relationship,
+    /// and the subgraphs boxing them — read by a parser of its own (<see cref="ErParser"/>). Written in Mermaid's syntax, so a
+    /// <c>mermaid</c> block headed <c>erDiagram</c> is handed here, and fenced as itself it needs no header. What the engine works it
+    /// over with: each subgraph gathered with what is written in it; which ends of a relationship name a subgraph; what styles each
+    /// entity; what the front matter asks for, hung on the block; a hole wherever something is still to be written while somebody
+    /// writes in it; what the front matter says about folding; what a host binds into it; and what each run of words is made of.
+    /// </summary>
+    public static readonly ContentLanguage Er = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && ErParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(ErParser.Parse(source)),
+        Stages: static (tree, show) =>
+        [
+            new ErStages.ResolveGroups(),
+            new ErStages.ResolveJoins(),
+            new ErStages.ResolveStyles(),
+            new WithConfig<ErConfig>(ErConfig.Read(MermaidBlock.Of(tree).Config)),
+            show.Writing ? new WithHoles(ErParser.Holds) : null,
+            new WithFolds(),
+            .. Hosted(show),
+            WordPieces,
+        ],
+        Builder: ContentLayouts.Er)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new ErEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, ErParser.Parse),
+            Transpile = Transpiles.By<ErParser>(),
+            Name = ErParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.Er"),
+            Icon = IconRef.Fluent("database"),
+            DefaultBlock = """
+                ```mermaid
+                erDiagram
+                    CUSTOMER ||--o{ ORDER : places
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// A block diagram — the grid its author laid out, the blocks in it, the composites nesting a grid of their own and the links between
+    /// blocks — read by a parser of its own (<see cref="BlockParser"/>). Written in Mermaid's syntax, so a <c>mermaid</c> block headed
+    /// <c>block-beta</c> is handed here, and fenced as itself it needs no header. What the engine works it over with: each composite
+    /// gathered with what is written in it; whether a link has blocks to join; what styles each block; what the front matter asks for,
+    /// hung on the block; a hole wherever something is still to be written while somebody writes in it; what a host binds into it; and
+    /// what each run of words is made of.
+    /// </summary>
+    public static readonly ContentLanguage Block = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && BlockParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(BlockParser.Parse(source)),
+        Stages: static (tree, show) =>
+        [
+            new BlockStages.ResolveBlocks(),
+            new BlockStages.ResolveLinks(),
+            new BlockStages.ResolveStyles(),
+            new WithConfig<BlockConfig>(BlockConfig.Read(MermaidBlock.Of(tree).Config)),
+            show.Writing ? new WithHoles(BlockParser.Holds) : null,
+            .. Hosted(show),
+            WordPieces,
+        ],
+        Builder: ContentLayouts.Block)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new BlockEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, BlockParser.Parse),
+            Transpile = Transpiles.By<BlockParser>(),
+            Name = BlockParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.Block"),
+            Icon = IconRef.Fluent("square_multiple"),
+            DefaultBlock = """
+                ```mermaid
+                block-beta
+                  columns 2
+                  A B
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// A state diagram — states and the transitions between them, composite states holding their own, forks, choices and the notes
+    /// beside them — read by a parser of its own (<see cref="StateParser"/>). Written in Mermaid's syntax, so a <c>mermaid</c> block
+    /// headed <c>stateDiagram</c> or <c>stateDiagram-v2</c> is handed here, and fenced as itself it needs no header. What the engine works
+    /// it over with: each composite state gathered with what is written in it; the dot each <c>[*]</c> is and which names are a
+    /// composite's; what styles each state; what the front matter asks for, hung on the block; a hole wherever something is still to be
+    /// written while somebody writes in it; what the front matter says about folding; what a host binds into it; and what each run of
+    /// words is made of.
+    /// </summary>
+    public static readonly ContentLanguage State = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && StateParser.HeaderWords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(StateParser.Parse(source)),
+        Stages: static (tree, show) =>
+        [
+            new StateStages.ResolveComposites(),
+            new StateStages.ResolveStates(),
+            new StateStages.ResolveStyles(),
+            new WithConfig<StateConfig>(StateConfig.Read(MermaidBlock.Of(tree).Config)),
+            show.Writing ? new WithHoles(StateParser.Holds) : null,
+            new WithFolds(),
+            .. Hosted(show),
+            WordPieces,
+        ],
+        Builder: ContentLayouts.State)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new StateEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, StateParser.Parse),
+            Transpile = Transpiles.By<StateParser>(),
+            Name = StateParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.State"),
+            Icon = IconRef.Fluent("flowchart_circle"),
+            DefaultBlock = """
+                ```mermaid
+                stateDiagram-v2
+                    [*] --> Idle
+                    Idle --> [*]
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// A requirement diagram — requirements and the elements meeting them, each with its fields, and the SysML relations between them —
+    /// read by a parser of its own (<see cref="RequirementParser"/>). Written in Mermaid's syntax, so a <c>mermaid</c> block headed
+    /// <c>requirementDiagram</c> is handed here, and fenced as itself it needs no header. What the engine works it over with: what styles
+    /// each requirement; what the front matter asks for, hung on the block; a hole wherever something is still to be written while
+    /// somebody writes in it; what the front matter says about folding; what a host binds into it; and what each run of words is made of.
+    /// </summary>
+    public static readonly ContentLanguage Requirement = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && RequirementParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(RequirementParser.Parse(source)),
+        Stages: static (tree, show) =>
+        [
+            new RequirementStages.ResolveStyles(),
+            new WithConfig<RequirementConfig>(RequirementConfig.Read(MermaidBlock.Of(tree).Config)),
+            show.Writing ? new WithHoles(RequirementParser.Holds) : null,
+            new WithFolds(),
+            .. Hosted(show),
+            WordPieces,
+        ],
+        Builder: ContentLayouts.Requirement)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new RequirementEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, RequirementParser.Parse),
+            Transpile = Transpiles.By<RequirementParser>(),
+            Name = RequirementParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.Requirement"),
+            Icon = IconRef.Fluent("clipboard_task_list_ltr"),
+            DefaultBlock = """
+                ```mermaid
+                requirementDiagram
+                    requirement first {
+                        id: 1
+                        text: The first requirement.
+                        risk: low
+                        verifymethod: test
+                    }
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// A gantt chart — tasks in sections, each when it starts and how long it runs, under the settings that say how dates are read and
+    /// drawn — read by a parser of its own (<see cref="GanttParser"/>). Written in Mermaid's syntax, so a <c>mermaid</c> block headed
+    /// <c>gantt</c> is handed here, and fenced as itself it needs no header. What the engine works it over with: whether each date is one
+    /// and each id names a task; when each task runs, on the chart and the day it is read; a hole wherever something is still to be
+    /// written while somebody writes in it; what a host binds into it; and what each run of words is made of.
+    /// </summary>
+    public static readonly ContentLanguage Gantt = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && GanttParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(GanttParser.Parse(source)),
+        Stages: static (tree, show) =>
+        [
+            new GanttStages.ResolveSchedule(),
+            new GanttStages.ResolveTasks(GanttConfig.Read(MermaidBlock.Of(tree).Config)),
+            show.Writing ? new WithHoles(GanttParser.Holds) : null,
+            .. Hosted(show),
+            WordPieces,
+        ],
+        Builder: ContentLayouts.Gantt)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new GanttEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, GanttParser.Parse),
+            Transpile = Transpiles.By<GanttParser>(),
+            Name = GanttParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.Gantt"),
+            Icon = IconRef.Fluent("gantt_chart"),
+            DefaultBlock = """
+                ```mermaid
+                gantt
+                    title Plan
+                    dateFormat YYYY-MM-DD
+                    section Work
+                        First task :a1, 2026-01-05, 5d
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// A git graph — commits, branches, checkouts, merges and cherry-picks — read by a parser of its own (<see cref="GitParser"/>).
+    /// Written in Mermaid's syntax, so a <c>mermaid</c> block headed <c>gitGraph</c> is handed here, and fenced as itself it needs no
+    /// header. What the engine works it over with: what the history means together — the branch each commit is on, what it follows, where
+    /// it stands and each branch's lane — and what is not there to check out, merge or pick; a hole wherever something is still to be
+    /// written while somebody writes in it; what a host binds into it; and what each run of words is made of.
+    /// </summary>
+    public static readonly ContentLanguage GitGraph = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && GitParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(GitParser.Parse(source)),
+        Stages: static (tree, show) =>
+        [
+            new GitStages.ResolveGraph(GitConfig.Read(MermaidBlock.Of(tree).Config)),
+            show.Writing ? new WithHoles(GitParser.Holds) : null,
+            .. Hosted(show),
+            new WithWordPieces(GitStandIns.Decoded),
+        ],
+        Builder: ContentLayouts.GitGraph)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new GitEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, GitParser.Parse),
+            Transpile = Transpiles.By<GitParser>(),
+            Name = GitParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.GitGraph"),
+            Icon = IconRef.Fluent("branch_fork"),
+            DefaultBlock = """
+                ```mermaid
+                gitGraph
+                    commit
+                    branch feature
+                    commit
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// An event model — the frames of a system's flow along time, each a ui, a processor, a command, a read model or an event in the
+    /// swimlane its type belongs to, with what feeds each, the data it carries, and notes and specifications under it — read by a parser
+    /// of its own (<see cref="EventModelingParser"/>) and drawn as Mermaid draws one. Written in Mermaid's syntax, so a <c>mermaid</c>
+    /// block headed <c>eventmodeling</c> is handed here, and fenced as itself it needs no header. What the engine works it over with:
+    /// the lanes the frames fall in and what feeds each, by Mermaid's rules; a hole wherever a name or data is still to be written while
+    /// somebody writes in it; and what a host binds into it.
+    /// </summary>
+    public static readonly ContentLanguage EventModeling = new(
+        Reads: static word => string.Equals(word?.Trim(), EventModelingParser.Language, StringComparison.Ordinal),
+        Parser: static () => static source => ContentParse.Of(EventModelingParser.Parse(source)),
+        Stages: static (_, show) =>
+        [
+            new ResolveTimeline(),
+            show.Writing ? new WithHoles(EventModelingParser.Holds) : null,
+            show.Inputs.Data is { } data ? new WithBindings(data) : null,
+        ],
+        Builder: ContentLayouts.EventModeling)
+        {
+            Writable = true,
+            Editing = EventModelingEdits.Instance,
+            Transpile = Transpiles.By<EventModelingParser>(),
+            Name = EventModelingParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.EventModeling"),
+            Icon = IconRef.Fluent("board_split"),
+            DefaultBlock = """
+                ```mermaid
+                eventmodeling
+                tf 01 ui Cart
+                tf 02 cmd AddItem
+                tf 03 evt ItemAdded
+                tf 04 rmo CartItems
+                ```
+                """,
+        };
+
+    /// <summary>
+    /// A timeline — periods along a spine, each with its events, grouped into sections — read by a parser of its own
+    /// (<see cref="TimelineParser"/>) and drawn across the page or down it. Written in Mermaid's syntax, so a <c>mermaid</c> block
+    /// headed <c>timeline</c> is handed here, and fenced as itself it needs no header. What the engine works it over with: where a
+    /// line of events has no period above it; what the front matter asks for, hung on the block; a hole wherever something is still
+    /// to be written while somebody writes in it; what a host binds into it; and what each run of words is made of.
+    /// </summary>
+    public static readonly ContentLanguage Timeline = new(
+        Reads: static word => word?.Trim() is { Length: > 0 } said
+                              && TimelineParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
+        Parser: static () => static source => ContentParse.Of(TimelineParser.Parse(source)),
+        Stages: static (tree, show) =>
+        [
+            new ResolveEvents(),
+            new WithConfig<TimelineConfig>(TimelineConfig.Read(MermaidBlock.Of(tree).Config)),
+            show.Writing ? new WithHoles(TimelineParser.Holds) : null,
+            .. Hosted(show),
+            WordPieces,
+        ],
+        Builder: ContentLayouts.Timeline)
+        {
+            Writable = true,
+            Editing = new DiagramEditing(new TimelineEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, TimelineParser.Parse),
+            Transpile = Transpiles.By<TimelineParser>(),
+            Name = TimelineParser.Language,
+            DisplayName = static () => Str.Get("Text.Language.Timeline"),
+            Icon = IconRef.Fluent("timeline"),
+            DefaultBlock = """
+                ```mermaid
+                timeline
+                    title History
+                    2026 : Started
+                ```
+                """,
+        };
+
+    /// <summary>
     /// A treemap — items nested in sections, each drawn as big as its share — read by a parser of its own (<see cref="TreemapParser"/>).
     /// Written Mermaid's way, so a <c>mermaid</c> block headed <c>treemap-beta</c> is handed here, and fenced as itself it needs no
     /// header.
@@ -429,11 +1351,19 @@ internal static class Shipped
         Reads: static word => word?.Trim() is { Length: > 0 } said
                               && TreemapParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase)),
         Parser: static () => static source => ContentParse.Of(TreemapParser.Parse(source)),
-        Stages: static (tree, show) => TreemapPipeline.Of(tree, show.Writing),
+        Stages: static (tree, show) =>
+        [
+            new ResolveItems(),
+            new WithConfig<TreemapConfig>(TreemapConfig.Read(MermaidBlock.Of(tree).Config)),
+            show.Writing ? new WithHoles(TreemapParser.Holds) : null,
+            .. Hosted(show),
+            new WithWordPieces(TreemapStandIns.Decoded),
+        ],
         Builder: ContentLayouts.Treemap)
         {
             Writable = true,
             Editing = new DiagramEditing(new TreemapEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, TreemapParser.Parse),
             Transpile = Transpiles.By<TreemapParser>(),
             Name = TreemapParser.Language,
             DisplayName = static () => Str.Get("Text.Language.Treemap"),
@@ -458,11 +1388,26 @@ internal static class Shipped
                               && (said.Equals(TreeViewParser.Language, StringComparison.OrdinalIgnoreCase)
                                   || TreeViewParser.Keywords.Any(keyword => keyword.Equals(said, StringComparison.OrdinalIgnoreCase))),
         Parser: static () => static source => ContentParse.Of(TreeViewParser.Parse(source)),
-        Stages: static (tree, show) => TreeViewPipeline.Of(tree, show.Writing),
+        Stages: static (tree, show) =>
+        {
+            var config = TreeViewConfig.Read(MermaidBlock.Of(tree).Config);
+
+            return
+            [
+                new ResolveNodes(),
+
+                // Which icon each icon a node names is — a bare name in the pack the front matter makes its default.
+                new WithIcons(config.DefaultIconPack),
+                new WithConfig<TreeViewConfig>(config),
+                show.Writing ? new WithHoles(TreeViewParser.Holds) : null,
+                .. Hosted(show),
+            ];
+        },
         Builder: ContentLayouts.TreeView)
         {
             Writable = true,
             Editing = new DiagramEditing(new TreeViewEdits()),
+            Bind = static (block, supplied) => MermaidParser.Bind(block, supplied, TreeViewParser.Parse),
             Transpile = Transpiles.By<TreeViewParser>(),
             Name = TreeViewParser.Language,
             DisplayName = static () => Str.Get("Text.Language.TreeView"),

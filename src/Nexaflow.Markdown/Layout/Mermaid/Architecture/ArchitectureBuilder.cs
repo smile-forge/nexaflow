@@ -131,6 +131,9 @@ internal sealed class ArchitectureBuilder : ContentBuilder
     {
         /// <summary>The hole standing where what is written under it goes, where holes were asked for and nothing is written yet.</summary>
         public ContentPart? SaidHole { get; init; }
+
+        /// <summary>The words shown in its icon's place, where a string is written there rather than an icon's name.</summary>
+        public ContentPart? IconText { get; init; }
     }
 
     /// <summary>
@@ -234,9 +237,10 @@ internal sealed class ArchitectureBuilder : ContentBuilder
                     case ArchitectureKinds.Service or ArchitectureKinds.Junction:
                         services.Add(new Service(part, Named(part, ArchitectureRoles.Id), Words(part, ArchitectureRoles.Title) ?? Words(part, ArchitectureRoles.Id),
                                                              Words(part, ArchitectureRoles.Icon), In(part),
-                                                             part.Kind == ArchitectureKinds.Junction, services.Count)
+                        part.Kind == ArchitectureKinds.Junction, services.Count)
                         {
                             SaidHole = Hole(part, ArchitectureRoles.Title),
+                            IconText = Words(part, ArchitectureRoles.IconText),
                         });
                         break;
 
@@ -286,7 +290,7 @@ internal sealed class ArchitectureBuilder : ContentBuilder
             return members.Count == 0
                 ? null
                 : new Alignment(part,
-                                            string.Equals(axis, ArchitectureGrammar.ColumnWord, StringComparison.OrdinalIgnoreCase)
+                                            string.Equals(axis, ArchitectureParser.ColumnWord, StringComparison.OrdinalIgnoreCase)
                                                 ? Axis.Column
                                                 : Axis.Row,
                                             members);
@@ -704,7 +708,13 @@ internal sealed class ArchitectureBuilder : ContentBuilder
         build.Open(ArchitecturePiece.Icon, service.Part, stops: LayoutStops.None);
         build.Draw(DiagramMarks.Outlined(build.Medium, DiagramShapes.Outline(build.Medium, DiagramShape.Rounded, room), DiagramInk.Faded(build.Medium, ink, Wash * 2), ink, 1.3));
 
-        if (Wording.Iconed(service.Icon, room.Height * 0.6, ink) is { } icon)
+        // Words written in the icon's place are shown there as they read, as Mermaid shows them.
+        if (service.IconText is { Length: > 0 } text)
+        {
+            var said = Wording.Written(text, hole: null, TextSize + 2, ink);
+            said.Set(build, new LayoutPoint(room.X + ((room.Width - said.Width) / 2), room.Y + ((room.Height - said.Height) / 2)), MermaidPiece.Words);
+        }
+        else if (Wording.Iconed(service.Icon, room.Height * 0.6, ink) is { } icon)
             icon.Set(build, new LayoutPoint(room.X + ((room.Width - icon.Width) / 2), room.Y + ((room.Height - icon.Height) / 2)), MermaidPiece.Glyph);
         else if (service.Icon is { Length: > 0 } named)
         {

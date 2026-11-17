@@ -135,6 +135,9 @@ internal sealed partial class FlowchartDrawing
         /// <summary>Every link written, in the order they are written, which is what a connection says drew it.</summary>
         private readonly List<ContentPart> drawn = [];
 
+        /// <summary>The id a <c>style</c> line names, by what it names: all that is written of a node only a style line makes.</summary>
+        private readonly Dictionary<string, ContentPart> styledIds = new(StringComparer.Ordinal);
+
         private Diagram(FlowchartConfig config, DiagramWay way) => (Config, Way) = (config, way);
 
         /// <summary>What the front matter asks for.</summary>
@@ -213,13 +216,18 @@ internal sealed partial class FlowchartDrawing
 
                 if (part.Stated() is not { } stated) continue;
 
-                if (stated.Node is FlowchartMetadataNode { About: FlowchartSaid.Node or FlowchartSaid.New }
-                    && Words(stated, FlowchartRoles.Id) is { Length: > 0 } about)
-                    this.meant.TryAdd(about, stated);
+                // An id@{ … } line, and metadata written among a line's nodes about the node before it.
+                foreach (var said in stated.SelfAndDescendants())
+                    if (said.Node is FlowchartMetadataNode { About: FlowchartSaid.Node or FlowchartSaid.New, Id: { Length: > 0 } about })
+                        this.meant.TryAdd(about, said);
 
         // A direction line lays out the subgraph it is written in; one written outside them all lays out nothing.
                 if (stated.Kind == FlowchartKinds.Direction && Keyed(inside) is { } laid)
                     laid.Way = Wayward(stated.SelfAndDescendants().FirstOrDefault(inner => inner.Kind == MermaidKinds.Setting && inner.Role == FlowchartRoles.Towards)?.Text) ?? laid.Way;
+
+                if (stated.Kind == FlowchartKinds.Style)
+                    foreach (var id in stated.SelfAndDescendants().Where(inner => inner.Kind == Kinds.Words && inner.Role == FlowchartRoles.Id && inner.Text.Length > 0))
+                        this.styledIds.TryAdd(id.Text, id);
 
                 if (stated.Kind != FlowchartKinds.Nodes) continue;
 
@@ -269,7 +277,8 @@ internal sealed partial class FlowchartDrawing
             var meant = this.meant.GetValueOrDefault(said.Id);
             var link = entry.Children.FirstOrDefault(child => child.Kind == Kinds.Link);
 
-            var node = new Node(written.FirstOrDefault() ?? meant ?? entry, said.Id)
+            var styled = this.styledIds.GetValueOrDefault(said.Id);
+            var node = new Node(written.FirstOrDefault() ?? meant ?? styled ?? entry, said.Id)
             {
                 Shape = said.Shape,
                 Group = said.Group,
@@ -296,8 +305,13 @@ internal sealed partial class FlowchartDrawing
             else if (meant is not null)
             {
                 // A node no line wrote, which its metadata made: the id it names there is the whole of what is written of it.
-                node.Said = meant.SelfAndDescendants().FirstOrDefault(part => part.Kind == Kinds.Words && part.Role == FlowchartRoles.Id);
+            node.Said = meant.SelfAndDescendants().FirstOrDefault(part => part.Kind == Kinds.Words && part.Role == FlowchartRoles.Id);
                 node.SaidHole = node.Said.Hole();
+            }
+            else if (styled is not null)
+            {
+                // A node only a style line makes: the id it names there is the whole of what is written of it.
+                node.Said = styled;
             }
 
 
@@ -389,10 +403,10 @@ internal sealed partial class FlowchartDrawing
         /// <summary>The way a word says something is laid out, or null where it says nothing this reads.</summary>
         private static DiagramWay? Wayward(string? said) => (said ?? string.Empty).ToUpperInvariant() switch
         {
-            "TB" or "TD" => DiagramWay.Down,
-            "BT" => DiagramWay.Up,
-            "LR" => DiagramWay.Right,
-            "RL" => DiagramWay.Left,
+            "TB" or "TD" or "v" => DiagramWay.Down,
+            "BT" or "^" => DiagramWay.Up,
+            "LR" or ">" => DiagramWay.Right,
+            "RL" or "<" => DiagramWay.Left,
             _ => null,
         };
     }

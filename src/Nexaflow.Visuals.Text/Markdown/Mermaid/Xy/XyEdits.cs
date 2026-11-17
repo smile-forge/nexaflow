@@ -16,5 +16,5 @@ internal sealed class XyEdits : IOnEdit
 
     /// <summary>A bare word holds no space, comma, bracket, quote or arrow, and is put in quotes to hold one; see <see cref="MermaidWriting.Escape"/>.</summary>
     internal static MermaidWriting? Escaping(ContentPart part, int caret, string text) =>
-        MermaidWriting.Escape(part, caret, text, (_, said) => said.Length > 0 && said.All(XyGrammar.Letter));
+        MermaidWriting.Escape(part, caret, text, (_, said) => said.Length > 0 && said.All(character => XyParser.Letter(character) && character != ';'));
 }

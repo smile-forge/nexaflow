@@ -8,17 +8,13 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.Architecture;
 
 /// <summary>
-/// Diagrams move onto the shared layout tree one at a time, each built from the Mermaid kit — <c>docs/mermaid-diagrams.md</c>.
-/// These rules hold that shape where whoever is converting a diagram would otherwise go by whatever code is nearest to hand:
-/// a legacy renderer drawing with WPF controls, a legacy parser picking lines apart with regular expressions.
+/// Every diagram is read and drawn on the shared layout tree by a flow of its own, calling the Mermaid kit —
+/// <c>docs/mermaid-diagrams.md</c>. These rules hold that shape where whoever is writing a diagram would otherwise go by
+/// whatever is nearest to hand: a renderer drawing with WPF controls, a parser picking lines apart with regular expressions.
 ///
 /// <list type="bullet">
-/// <item><b>The legacy diagram code is frozen</b> (<c>src/Nexaflow.Visuals.Text/Markdown/Graphs/</c>, its handlers aside): no
-/// file is added to it, none grows, and each says so on its first line. A ratchet, like
-/// <see cref="HandRolledModalRatchetTests"/>: <see cref="BaselineFile"/> holds each file's length, and a file deleted — its
-/// last diagram moved — has to leave the baseline too.</item>
-/// <item><b>Code on the shared tree never reaches into it.</b> A layout the legacy code has that a diagram needs is moved into
-/// the kit and made to take the kit's own input.</item>
+/// <item><b>Nothing brings back the retired diagram code</b> — its parsers, models and layouts (<c>Graphs.*</c>) or its WPF
+/// renderers. A layout a diagram needs goes into the kit, taking the kit's own input.</item>
 /// <item><b>A diagram's own code goes through the kit</b> — its grammar through <c>MermaidLine</c>, its builder through
 /// <c>DiagramWords</c>, <c>DiagramInk</c> and the kit's shapes — so what the kit decides once is not decided again, differently,
 /// per diagram. The kit's own files, directly in the <c>Mermaid</c> folders, are what these rules send everything else to.</item>
@@ -82,7 +78,7 @@ public class MermaidDiagramRulesTests
     /// <summary>
     /// A grammar reads through the line reader — but a language's own parser is the one thing that may read characters, because
     /// turning characters into lines is what a parser is and there is nothing underneath it to ask. What holds a parser instead is
-    /// <c>MermaidGrammarContract</c>: whatever it reads, it prints back exactly as it was written.
+    /// <c>ContentParserContract</c>: whatever it reads, it prints back exactly as it was written.
     /// </summary>
     [TestMethod]
     [TestCategory("Unit")]

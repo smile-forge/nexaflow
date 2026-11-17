@@ -114,7 +114,7 @@ internal sealed record GanttTick(int Every, string Unit)
         var digits = said.TakeWhile(char.IsAsciiDigit).Count();
         var unit = said[digits..].Trim();
 
-        return digits > 0 && MermaidNumber.Read(said[..digits]) is { } every && every > 0 && GanttGrammar.Intervals.Contains(unit)
+        return digits > 0 && MermaidNumber.Read(said[..digits]) is { } every && every > 0 && GanttParser.Intervals.Contains(unit)
             ? new GanttTick((int)every, unit)
             : null;
     }

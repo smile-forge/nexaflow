@@ -25,8 +25,17 @@ internal sealed class ErEdits : IOnEdit
     {
         if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
 
-        if (part.Role is ErRoles.Id or ErRoles.Class or ErRoles.Field) return MermaidWriting.Only(caret, text, ErGrammar.Bare);
-        if (part.Role is ErRoles.Type) return MermaidWriting.Only(caret, text, ErGrammar.Typed);
+        // What a relationship is called, written bare, runs to the end of its line, and a quote typed into it would open a string
+        // running on to the next quote in the block, as Mermaid's lexer reads one: the words are put in quotes to hold it.
+        if (part.Parent?.Kind == ErKinds.Said && part.Kind is Kinds.Words or Kinds.Hole && text.Contains('"'))
+        {
+            var said = part.Kind == Kinds.Hole ? string.Empty : part.Text;
+            var at = Math.Clamp(caret - part.Start, 0, said.Length);
+            return MermaidWriting.Quoting(part.Start, part.Start + said.Length, said[..at] + text, said[at..]);
+        }
+
+        if (part.Role is ErRoles.Id or ErRoles.Class or ErRoles.Field) return MermaidWriting.Only(caret, text, ErParser.Bare);
+        if (part.Role is ErRoles.Type) return MermaidWriting.Only(caret, text, ErParser.Typed);
         if (part.Role is ErRoles.Key or ErRoles.Towards) return MermaidWriting.Only(caret, text, char.IsAsciiLetter);
 
         // A subgraph's name is written in words, and the brackets past it open the label drawn instead of it.

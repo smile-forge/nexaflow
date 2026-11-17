@@ -37,9 +37,9 @@ internal sealed partial class FlowchartEdits : IOnEdit
         if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
 
         if (part.Role is FlowchartRoles.Id or FlowchartRoles.Class or FlowchartRoles.Link)
-            return Bared(part, caret, text, FlowchartGrammar.Subgraphed(part));
+            return Bared(part, caret, text, FlowchartParser.Subgraphed(part));
         if (part.Role is FlowchartRoles.Target or FlowchartRoles.Curve or FlowchartRoles.Call)
-            return MermaidWriting.Only(caret, text, FlowchartGrammar.Bare);
+            return MermaidWriting.Only(caret, text, FlowchartParser.Bare);
 
         if (part.Role is FlowchartRoles.Towards) return MermaidWriting.Only(caret, text, char.IsAsciiLetter);
         if (part.Role is FlowchartRoles.Index) return MermaidWriting.Only(caret, text, char.IsAsciiDigit);
@@ -60,7 +60,7 @@ internal sealed partial class FlowchartEdits : IOnEdit
     /// <param name="worded">Whether it is a name written in words — a subgraph's own — rather than an id, a class or a link's.</param>
     private static MermaidWriting? Bared(ContentPart part, int caret, string text, bool worded)
     {
-        Func<string, int, int> ends = worded ? FlowchartGrammar.Titled : FlowchartGrammar.Ends;
+        Func<string, int, int> ends = worded ? FlowchartParser.Titled : FlowchartParser.Ends;
         var said = part.Kind == Kinds.Hole ? string.Empty : part.Text;
         var at = Math.Clamp(caret - part.Start, 0, said.Length);
         var beyond = said[at..] + Following(part);
@@ -107,7 +107,7 @@ internal sealed partial class FlowchartEdits : IOnEdit
 
         var closes = whole.Contains("--", StringComparison.Ordinal) || whole.Contains("==", StringComparison.Ordinal)
                      || whole.Contains(".-", StringComparison.Ordinal) || whole.Contains("%%", StringComparison.Ordinal)
-                     || whole.Contains('"');
+                     || whole.Contains('"') || whole.Contains(';');
 
         return closes ? MermaidWriting.Quoting(saying.Start, saying.End, before, after) : null;
     }

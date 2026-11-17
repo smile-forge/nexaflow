@@ -159,7 +159,7 @@ public class MermaidLineTests
     [TestMethod]
     public void ALinesIndentIsTheSpaceBeforeWhatItStates()
     {
-        var lines = MermaidParser.Parse("kanban\n  Todo\n\t\ta[Card]").SelfAndDescendants().Where(node => node.Kind == MermaidKinds.Line).ToList();
+        var lines = Nexaflow.Markdown.Mermaid.Kanban.KanbanParser.Parse("kanban\n  Todo\n\t\ta[Card]").SelfAndDescendants().Where(node => node.Kind == MermaidKinds.Line).ToList();
 
         CollectionAssert.AreEqual(new[] { 0, 2, 2 }, lines.Select(line => line.Indent()).ToArray(), "a tab counts as one");
     }

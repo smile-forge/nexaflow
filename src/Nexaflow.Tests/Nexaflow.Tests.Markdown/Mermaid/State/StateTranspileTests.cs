@@ -52,15 +52,14 @@ public class StateTranspileTests
     }
 
     [TestMethod]
-    public void AndTheDiagramIsGivenThatRuleRatherThanTheSharedOne()
+    public void TheRuleIsTheDiagramsOwn_WhereTheSharedSpellingWouldWriteIt()
     {
-        // What the shipped language writes a state diagram through comes from here. A rule the parser has and the diagram
-        // is never handed is a rule nothing ever applies.
+        // A state diagram's language names its own parser as what writes into it (Shipped.State), so this is the rule it is given.
         var part = Named();
         var change = new ContentChange([ContentWrite.Words(part, part.End, 0, " ")], part.End + 1);
 
-        Assert.IsNull(MermaidDiagrams.TranspilerFor(MermaidDiagram.State)(change), "a state diagram refuses the space");
-        Assert.IsNotNull(MermaidDiagrams.TranspilerFor(MermaidDiagram.Pie)(change), "and one with no rule of its own writes it");
+        Assert.IsNull(StateParser.Rewrite(change), "a state diagram refuses the space");
+        Assert.IsNotNull(MermaidParser.Rewrite(change), "which the shared spelling, knowing nothing of state names, would write");
     }
 
     [TestMethod]
@@ -79,7 +78,7 @@ public class StateTranspileTests
 
     /// <summary>The run of words written as <paramref name="said"/> in the role <paramref name="role"/>.</summary>
     private static ContentPart WordsOf(string role, string said) =>
-        ContentReading.Of(MermaidParser.Parse(Diagram)).Root.SelfAndDescendants()
+        ContentReading.Of(StateParser.Parse(Diagram)).Root.SelfAndDescendants()
                       .First(part => part.Kind == Kinds.Words && part.Role == role && part.Text == said);
 
     /// <summary>What <paramref name="text"/> is written as into <paramref name="part"/>, or null where it cannot be.</summary>

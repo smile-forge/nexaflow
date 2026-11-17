@@ -1,7 +1,9 @@
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Pipeline;
+using Nexaflow.Markdown.Pipeline.Stages;
 using Nexaflow.Markdown.TreeView;
+using Nexaflow.Markdown.TreeView.Stages;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.Markdown.Ast;
 
@@ -14,7 +16,7 @@ namespace Nexaflow.Tests.Markdown.TreeView;
 /// </summary>
 [TestClass]
 [CoversNode("treeview-ast")]
-public class TreeViewParserTests
+public class TreeViewParserTests : ContentParserContract
 {
     /// <summary>The blocks Mermaid's documentation shows, which read with nothing wrong with them.</summary>
     public static readonly string[] Documented =
@@ -34,7 +36,7 @@ public class TreeViewParserTests
     ];
 
     /// <summary>Every construct read, and what nobody means to write.</summary>
-    public static readonly (string What, string Source)[] Blocks =
+    protected override IEnumerable<(string What, string Source)> Blocks { get; } =
     [
         ("a header and nothing else", "treeView-beta"),
         ("no header, as a tree view fence needs none", "src/\n    index.js"),
@@ -66,87 +68,42 @@ public class TreeViewParserTests
         ("indentation with no branch in a drawn tree", "treeView-beta\n├── src/\n    a.ts"),
         ("a header taking more than its word", "treeView-beta files\nsrc/"),
         ("nothing at all", ""),
+        ("a binding supplying nodes", "treeView-beta\nsrc/\n{{Nodes}}\n"),
+        ("a binding with no header before it", "src/\n{{Nodes}}"),
     ];
 
-    private static IEnumerable<(string What, string Source)> All => Blocks.Concat(Documented.Select(source => ("documented", source)));
+    /// <summary>A block parsed and worked over by its stages, holes and all where somebody is writing in it.</summary>
+    /// <inheritdoc/>
+    protected override ContentNode Parse(string? source) => TreeViewParser.Parse(source);
+
+    /// <inheritdoc/>
+    protected override IEnumerable<string> DocumentedBlocks => [.. Documented, "treeView-beta\nroot/\n\tsrc/\n\t\ta.js\n  b.js"];
+
+    /// <inheritdoc/>
+    protected override IEnumerable<IAstStage> Stages(ContentNode tree, bool holes) => Offered(tree, holes);
+
+    /// <summary>
+    /// The stages a tree view's language offers the engine (<c>Shipped.TreeView</c>), named again here — what the engine adds for every
+    /// language, what a host binds, is held where the engine reads a block.
+    /// </summary>
+    internal static IReadOnlyList<IAstStage> Offered(ContentNode tree, bool holes)
+    {
+        var config = TreeViewConfig.Read(MermaidBlock.Of(tree).Config);
+
+        return
+        [
+            new ResolveNodes(),
+            new WithIcons(config.DefaultIconPack),
+            new WithConfig<TreeViewConfig>(config),
+            .. holes ? [new WithHoles(TreeViewParser.Holds)] : Array.Empty<IAstStage>(),
+        ];
+    }
 
     /// <summary>A block parsed and worked over by its stages, holes and all where somebody is writing in it.</summary>
     internal static ContentNode Staged(string source, bool holes = false)
     {
         var tree = TreeViewParser.Parse(source);
-        return new AstPipeline(TreeViewPipeline.Of(tree, holes)).Run(tree);
-    }
-
-    [TestMethod, TestCategory("Unit")]
-    public void EveryBlockReadsBackAsItWasWritten()
-    {
-        foreach (var (what, source) in All)
-        {
-            Assert.AreEqual(source, TreeViewParser.Parse(source).Print(), what);
-            Assert.AreEqual(source, Staged(source).Print(), $"{what}, after the stages");
-            Assert.AreEqual(source, Staged(source, holes: true).Print(), $"{what}, with holes");
-        }
-    }
-
-    [TestMethod, TestCategory("Unit")]
-    public void AndSoDoesEveryStageOnTheWayThere()
-    {
-        foreach (var (what, source) in All)
-            foreach (var holes in new[] { false, true })
-            {
-                var tree = TreeViewParser.Parse(source);
-
-                foreach (var stage in TreeViewPipeline.Of(tree, holes))
-                {
-                    tree = stage.Run(tree);
-                    Assert.AreEqual(source, tree.Print(), $"{what}: after {stage.Name}{(holes ? ", with holes" : "")}");
-                }
-            }
-    }
-
-    [TestMethod, TestCategory("Unit")]
-    public void EveryPrefixOfEveryBlockReadsBackToo()
-    {
-        foreach (var (what, source) in All)
-            for (var length = 0; length <= source.Length; length++)
-                Assert.AreEqual(source[..length], Staged(source[..length], holes: true).Print(), $"{what}: after {length} character(s)");
-    }
-
-    [TestMethod, TestCategory("Unit")]
-    public void TheParserOnlyEverCopies()
-    {
-        foreach (var (what, source) in All)
-            foreach (var place in TreeViewParser.Parse(source).Placed())
-                if (place.Node.IsLeaf)
-                    Assert.AreEqual(source.Substring(place.Start, place.Node.Width), place.Node.Text, $"{what}: {place.Node.Kind} at {place.Start}");
-    }
-
-    [TestMethod]
-    public void EveryPieceSaysWhereItWasRead()
-    {
-        foreach (var (what, source) in All)
-            foreach (var (stage, tree) in new[] { ("read", TreeViewParser.Parse(source)), ("after the stages", Staged(source)) })
-            {
-                var faults = AstOracle.Faults(source, tree).ToList();
-                Assert.AreEqual(0, faults.Count, $"{what}, {stage}\n{string.Join("\n", faults)}");
-            }
-    }
-
-    [TestMethod]
-    public void AReversedTreeStillPrintsWhatWasWritten()
-    {
-        foreach (var (what, source) in All)
-            Assert.AreEqual(source, AstOracle.Reversed(TreeViewParser.Parse(source)).Print(), what);
-    }
-
-    [TestMethod, TestCategory("Unit")]
-    public void TheDocumentedBlocksHaveNothingWrongWithThem()
-    {
-        foreach (var source in Documented)
-        {
-            var trouble = Staged(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>().ToList();
-            Assert.AreEqual(0, trouble.Count, $"{source}\n{string.Join("\n", trouble)}");
-        }
+        return new AstPipeline(Offered(tree, holes)).Run(tree);
     }
 
     [TestMethod, TestCategory("Unit")]
@@ -222,11 +179,17 @@ public class TreeViewParserTests
         CollectionAssert.AreEqual(new[] { "src", "b.ts" }, Under(root).Select(Label).ToArray());
     }
 
-    [TestMethod, TestCategory("Unit")]
-    public void AMermaidBlockHeadedTreeViewIsATreeView()
+    [TestMethod]
+    public void AMermaidBlockHeadedTreeViewIsHeldAsWrittenInTheTreeViewLanguage()
     {
-        Assert.AreEqual(MermaidDiagram.TreeView, MermaidDiagrams.Named("treeView-beta"));
-        Assert.AreEqual(MermaidDiagram.TreeView, MermaidBlock.Of(TreeViewParser.Parse("treeView-beta\nsrc/")).Diagram);
+        foreach (var header in TreeViewParser.Keywords)
+        {
+            var source = $"{header}\nsrc/";
+            var held = MermaidFenceParser.Parse(source, word => TreeViewParser.Keywords.Contains(word, StringComparer.OrdinalIgnoreCase));
+
+            Assert.AreEqual(header, ((BlockNode)held).Language, "the fence hands the block to the language its header names");
+            Assert.AreEqual(source, held.Print());
+        }
     }
 
     [TestMethod, TestCategory("Unit")]
@@ -247,4 +210,13 @@ public class TreeViewParserTests
     private static string Label(ContentPart item) => item.Children[0].Stated()!.Inner(TreeViewKinds.Label)!.Words()!.Text;
 
     private static TreeViewNode Said(ContentPart item) => (TreeViewNode)item.Node;
+
+    [TestMethod, TestCategory("Unit")]
+    public void ATabIndentsAsFarAsASpace_WhereNothingIsDrawn()
+    {
+        var root = ContentPart.Of(Staged("treeView-beta\nroot/\n\tsrc/\n\t\ta.js\n  b.js"));
+        var src = Under(Under(root).Single()).Single();
+
+        CollectionAssert.AreEqual(new[] { "a.js", "b.js" }, Under(src).Select(Label).ToArray(), "two tabs and two spaces stand as deep");
+    }
 }

@@ -26,6 +26,7 @@ internal sealed partial class MarkdownSamples : ISampleSet
         SampleFile.Text("mermaid-sequence.md",  Sequence),
         SampleFile.Text("mermaid-gantt.md",     Gantt),
         SampleFile.Text("mermaid-gitgraph.md",  GitGraph),
+        SampleFile.Text("mermaid-eventmodeling.md", EventModeling),
         SampleFile.Text("mermaid-mindmap.md",   Mindmap),
         SampleFile.Text("mermaid-state.md",       State),
         SampleFile.Text("mermaid-class.md",       Class),
@@ -3200,6 +3201,137 @@ internal sealed partial class MarkdownSamples : ISampleSet
            commit id: "exp"
            checkout main
            cherry-pick id: "exp"
+        ```
+        """;
+
+    private const string EventModeling =
+        """
+        # Mermaid — Event model
+
+        An `eventmodeling` diagram lays a system's flow out along time: each frame is a screen, a processor, a command, a read model or
+        an event, in the swimlane its type belongs to, with arrows from each frame to the frames it feeds. The examples below are the
+        ones in Mermaid's own event modeling documentation, in order.
+
+        ## Frames
+
+        ```mermaid
+        eventmodeling
+
+        tf 01 ui CartUI
+        tf 02 cmd AddItem
+        tf 03 evt ItemAdded
+        ```
+
+        Each word has a longer spelling.
+
+        ```mermaid
+        eventmodeling
+
+        timeframe 01 ui CartUI
+        timeframe 02 command AddItem
+        timeframe 03 event ItemAdded
+        ```
+
+        ## Data
+
+        ```mermaid
+        eventmodeling
+
+        tf 01 ui CartUI
+        tf 02 cmd AddItem { description: string }
+        tf 03 evt ItemAdded { description: string }
+        ```
+
+        ```mermaid
+        ---
+        description: >-
+          A command carrying inline data and an event referencing a separate named data block.
+        ---
+        eventmodeling
+
+        tf 01 ui CartScreen
+        tf 02 cmd AddItem { productId: 7 }
+        tf 03 evt ItemAdded [[ItemAddedData]]
+
+        data ItemAddedData
+        {
+          productId: 7,
+          quantity: 1
+        }
+        ```
+
+        ```mermaid
+        eventmodeling
+        tf 01 rmo UserAdded `json`{ "name": "foo" }
+        data UserAdded01 `json`{
+        "name": "foo"
+        }
+        ```
+
+        ## Reset frames and namespaces
+
+        ```mermaid
+        eventmodeling
+
+        tf 01 ui CartUI
+        tf 02 cmd AddItem
+        tf 03 evt ItemAdded
+
+        rf 04 evt External.InventoryChanged
+        tf 05 pcr InventoryProcessor
+        tf 06 cmd ChangeInventory
+        tf 07 evt Cart.InventoryChanged
+        ```
+
+        ```mermaid
+        eventmodeling
+
+        rf 01 evt Inventory.InventoryChanged
+        rf 02 evt External.InventoryChanged
+        ```
+
+        ## What feeds a frame
+
+        ```mermaid
+        eventmodeling
+
+        tf 01 evt ItemAdded
+        tf 02 ui OtherUI
+        rf 03 rmo CartItems ->> 01
+        ```
+
+        ```mermaid
+        eventmodeling
+
+        rf 02 evt CartCreated
+        rf 03 evt ItemAdded
+        rf 04 evt ItemRemoved
+        rf 05 evt CartCleared
+        tf 01 rmo CartUI ->> 02 ->> 03 ->> 04 ->> 05
+        ```
+
+        ```mermaid
+        eventmodeling
+
+        tf 01 ui CartScreen
+        tf 02 cmd AddItem
+        tf 03 cmd RemoveItem
+        tf 04 evt ItemChanged ->> 02 ->> 03
+        ```
+
+        ## Notes and specifications
+
+        ```mermaid
+        eventmodeling
+        title Cart
+        tf 01 ui CartUI
+        tf 02 cmd AddItem
+        tf 03 evt ItemAdded
+        note 02 {
+          Only a signed-in shopper adds to a cart
+        }
+        entity ItemAdded
+        gwt 03 given evt ItemAdded then evt ItemAdded
         ```
         """;
 

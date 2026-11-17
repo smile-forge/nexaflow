@@ -29,8 +29,6 @@ public class KanbanBuilderTests : MermaidBuilderContract
         + "    id4[Create parsing tests that cover every case anybody could think of writing]@{ ticket: MC-2038, assigned: 'K.Sveidqvist', priority: 'High' }\n"
         + "    id66[last item]@{ priority: 'Very Low', assigned: 'knsv' }";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.Kanban;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("a board with metadata", Board),

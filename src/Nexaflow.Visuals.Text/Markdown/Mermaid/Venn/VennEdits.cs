@@ -17,5 +17,5 @@ internal sealed class VennEdits : IOnEdit
     /// put in quotes to hold anything else; see <see cref="MermaidWriting.Escape"/> for quotes and labels.
     /// </summary>
     internal static MermaidWriting? Escaping(ContentPart part, int caret, string text) =>
-        MermaidWriting.Escape(part, caret, text, (name, said) => VennGrammar.Bare(said, set: name.Parent?.Kind == VennKinds.Set));
+        MermaidWriting.Escape(part, caret, text, (name, said) => VennParser.Bare(said, set: name.Parent?.Kind == VennKinds.Set));
 }

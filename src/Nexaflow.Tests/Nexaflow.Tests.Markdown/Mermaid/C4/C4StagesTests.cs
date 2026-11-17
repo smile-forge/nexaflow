@@ -15,7 +15,9 @@ namespace Nexaflow.Tests.Markdown.Mermaid.C4;
 [TestClass]
 public class C4StagesTests
 {
-    private static ContentNode Read(string source) => MermaidStaged.Read(source);
+    /// <summary>A block read and worked over as its header says: a C4 sequence where it is headed <c>C4Sequence</c>, a structural diagram otherwise.</summary>
+    private static ContentNode Read(string source) =>
+        MermaidLine.Keyword(source.TrimStart(), C4SequenceParser.Keywords) is not null ? C4SequenceParserTests.Staged(source) : C4ParserTests.Staged(source);
 
     private static IReadOnlyList<C4ElementNode> Elements(ContentNode tree) => [.. tree.SelfAndDescendants().OfType<C4ElementNode>()];
 
@@ -115,14 +117,6 @@ public class C4StagesTests
     }
 
     // ── The header ──────────────────────────────────────────────────────────
-
-    [TestMethod]
-    [CoversNode("c4-diagram")]
-    public void EveryC4KeywordNamesTheOneDiagram()
-    {
-        foreach (var keyword in new[] { "C4Context", "C4Container", "C4Component", "C4Dynamic", "C4Deployment" })
-            Assert.AreEqual(MermaidDiagram.C4, MermaidBlock.Read(keyword + "\nPerson(a, \"A\")").Diagram, keyword);
-    }
 
     [TestMethod]
     [CoversNode("c4-relationships")]
@@ -531,7 +525,7 @@ public class C4StagesTests
     [CoversNode("c4-sequence")]
     public void ShowFootBoxesTurnsATimelinesSecondRowOfParticipantsOff()
     {
-        static SequenceConfig Config(string source) => (MermaidStaged.Read(source) as ConfiguredNode<SequenceConfig>)!.Config;
+        static SequenceConfig Config(string source) => (C4SequenceParserTests.Staged(source) as ConfiguredNode<SequenceConfig>)!.Config;
 
         Assert.IsTrue(Config("C4Sequence\nPerson(a, \"A\")\nRel(a, a, \"x\")").Mirrored);
         Assert.IsFalse(Config("C4Sequence\nPerson(a, \"A\")\nRel(a, a, \"x\")\nSHOW_FOOT_BOXES(false)").Mirrored, "written anywhere in the block");

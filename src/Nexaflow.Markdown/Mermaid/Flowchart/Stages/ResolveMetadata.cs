@@ -24,6 +24,9 @@ public sealed class ResolveMetadata : IAstStage
         var links = new HashSet<string>(StringComparer.Ordinal);
         var said = new List<ContentNode>();
 
+        // Metadata written among nodes — A@{ shape: cyl } --> B — is about the node written just before it.
+        var before = new Dictionary<ContentNode, string>(ReferenceEqualityComparer.Instance);
+
         foreach (var node in tree.SelfAndDescendants())
         {
             switch (node.Kind)
@@ -34,10 +37,17 @@ public sealed class ResolveMetadata : IAstStage
                     break;
 
                 case FlowchartKinds.Nodes:
+                    string? last = null;
+
                     foreach (var piece in node.Children)
                     {
                         if (piece.Kind == FlowchartKinds.Node && piece.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name).Words()?.Text is { Length: > 0 } id)
+                        {
                             nodes.Add(id);
+                            last = id;
+                        }
+
+                        if (piece.Kind == FlowchartKinds.Said && last is not null) before[piece] = last;
 
                         if (piece.Kind == FlowchartKinds.Link && piece.Children.FirstOrDefault(child => child.Role == FlowchartRoles.Link)?.Text is { Length: > 0 } link)
                             links.Add(link);
@@ -57,7 +67,7 @@ public sealed class ResolveMetadata : IAstStage
 
         foreach (var line in said)
         {
-            if (Id(line) is not { Length: > 0 } id) continue;
+            if ((Id(line) ?? before.GetValueOrDefault(line)) is not { Length: > 0 } id) continue;
 
             var about = groups.Contains(id) ? FlowchartSaid.Group
                         : nodes.Contains(id) ? FlowchartSaid.Node
@@ -68,7 +78,7 @@ public sealed class ResolveMetadata : IAstStage
             var label = Set(properties, "label") ?? Set(properties, "title");
 
             meant[line] = new FlowchartMetadataNode(
-                line, about,
+                line, id, about,
                 Set(properties, "shape") is { } shape ? MermaidShapes.Named(Characters(shape)) ?? MermaidShape.Rectangle : null,
                 label is null ? null : MermaidText.Decode(Characters(label)),
                 Pictured(properties));

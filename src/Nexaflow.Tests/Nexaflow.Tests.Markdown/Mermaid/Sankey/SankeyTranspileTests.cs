@@ -47,15 +47,15 @@ public class SankeyTranspileTests
     }
 
     [TestMethod]
-    public void AndTheDiagramIsGivenThatRuleRatherThanTheSharedOne()
+    public void ItsOwnRuleRefusesWhatTheSharedOneWrites()
     {
         // What the shipped language writes a sankey through comes from here. A rule the parser has and the diagram is
         // never handed is a rule nothing ever applies.
         var part = Bare();
         var change = new ContentChange([ContentWrite.Words(part, part.End, 0, ",")], part.End + 1);
 
-        Assert.IsNull(MermaidDiagrams.TranspilerFor(MermaidDiagram.Sankey)(change), "a sankey refuses the comma");
-        Assert.IsNotNull(MermaidDiagrams.TranspilerFor(MermaidDiagram.Pie)(change), "and one with no rule of its own writes it");
+        Assert.IsNull(Transpiles.By<SankeyParser>()(change), "a sankey refuses the comma");
+        Assert.IsNotNull(Transpiles.By<MermaidParser>()(change), "where the shared spelling writes it");
     }
 
     [TestMethod]
@@ -74,7 +74,7 @@ public class SankeyTranspileTests
 
     /// <summary>The run of words written as <paramref name="said"/> in the role <paramref name="role"/>.</summary>
     private static ContentPart WordsOf(string role, string said) =>
-        ContentReading.Of(MermaidParser.Parse(Diagram)).Root.SelfAndDescendants()
+        ContentReading.Of(SankeyParser.Parse(Diagram)).Root.SelfAndDescendants()
                       .First(part => part.Kind == Kinds.Words && part.Role == role && part.Text == said);
 
     /// <summary>What <paramref name="text"/> is written as into <paramref name="part"/>, or null where it cannot be.</summary>

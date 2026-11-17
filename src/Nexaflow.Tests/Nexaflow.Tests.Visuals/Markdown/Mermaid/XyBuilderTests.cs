@@ -29,8 +29,6 @@ public class XyBuilderTests : MermaidBuilderContract
     private const string Revenue =
         "xychart\n  title \"Sales Revenue\"\n  x-axis \"Month\" [jan, feb, mar]\n  y-axis \"Revenue\" 0 --> 100\n  bar \"Sold\" [20, 50, 80]\n  line \"Target\" [40, 60, 70]";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.XyChart;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("revenue", Revenue),

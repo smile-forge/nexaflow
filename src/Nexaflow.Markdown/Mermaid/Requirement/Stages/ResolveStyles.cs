@@ -4,8 +4,8 @@ using Nexaflow.Markdown.Pipeline;
 namespace Nexaflow.Markdown.Mermaid.Requirement.Stages;
 
 /// <summary>
-/// Works out what styles each requirement and element, and says where a <c>class</c> or a <c>style</c> line names something
-/// nothing writes — a requirement written nowhere, or a class no <c>classDef</c> declares. Mermaid lets the styling be written
+/// Works out what styles each requirement and element. A <c>class</c> or a <c>style</c> line naming a requirement written nowhere,
+/// or a class no <c>classDef</c> declares, styles nothing, as in Mermaid. Mermaid lets the styling be written
 /// above what it styles or below it, so both are facts about the whole block (<see cref="MermaidStyling"/>): what styles a box
 /// is said on the name first writing it.
 /// </summary>
@@ -15,10 +15,9 @@ public sealed class ResolveStyles : IAstStage
 
     public ContentNode Run(ContentNode tree)
     {
-        var styling = RequirementGrammar.Styling;
+        var styling = RequirementParser.Styling;
 
-        tree = styling.Resolve(tree, [RequirementKinds.Named], RequirementKinds.ClassDef, RequirementKinds.CssClass,
-                               RequirementKinds.Style, id => $"No requirement {id} is written in this diagram.");
+
 
         return styling.Style(tree, [RequirementKinds.Named], RequirementKinds.ClassDef, RequirementKinds.CssClass, RequirementKinds.Style, Given);
     }

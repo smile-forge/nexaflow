@@ -32,8 +32,6 @@ public class GitBuilderTests : MermaidBuilderContract
     private const string Kept =
         "gitGraph\n  commit id: \"Alpha\"\n  commit id: \"Normal\" tag: \"v1.0.0\"\n  commit id: \"Reverse\" type: REVERSE\n  commit id: \"Highlight\" type: HIGHLIGHT";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.GitGraph;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("the documented history", History),

@@ -34,7 +34,7 @@ public class SequenceTranspileTests
     }
 
     private static ContentPart Named() =>
-        ContentReading.Of(MermaidParser.Parse(Diagram)).Root.SelfAndDescendants()
+        ContentReading.Of(SequenceParser.Parse(Diagram)).Root.SelfAndDescendants()
                       .First(part => part.Kind == Kinds.Words && part.Role == SequenceRoles.Id && part.Text == "Alice");
 
     private static ContentChange? Rewritten(string text)

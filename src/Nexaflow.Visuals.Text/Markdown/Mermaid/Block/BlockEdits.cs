@@ -28,7 +28,7 @@ internal sealed class BlockEdits : IOnEdit
     {
         if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
 
-        if (part.Role is BlockRoles.Id or BlockRoles.Class or BlockRoles.Direction) return MermaidWriting.Only(caret, text, BlockGrammar.Bare);
+        if (part.Role is BlockRoles.Id or BlockRoles.Class or BlockRoles.Direction) return MermaidWriting.Only(caret, text, BlockParser.Bare);
         if (part.Parent is { Kind: MermaidKinds.Amount }) return MermaidWriting.Only(caret, text, char.IsAsciiDigit);
 
         return null;

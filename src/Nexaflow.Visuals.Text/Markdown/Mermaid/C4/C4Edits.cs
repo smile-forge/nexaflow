@@ -32,13 +32,13 @@ internal sealed class C4Edits : IOnEdit
 
         var role = part.Kind == Kinds.Hole ? part.Parent?.Role ?? part.Role : part.Role;
 
-        if (role is C4Roles.Value) return MermaidWriting.Only(caret, text, C4Grammar.Argued);
+        if (role is C4Roles.Value) return MermaidWriting.Only(caret, text, C4Parser.Argued);
         if (role is C4Roles.Key or C4Roles.Macro) return MermaidWriting.Only(caret, text, MermaidLine.Letter);
         if (role is C4Roles.Aside) return null;
 
         // A name is written bare in a macro's argument list, so what neither that nor a native line can hold is dropped — the
         // same name is used in both, and it has to read in each.
-        if (role is C4Roles.Alias or SequenceRoles.Id) return MermaidWriting.Only(caret, text, C4Grammar.Bare);
+        if (role is C4Roles.Alias or SequenceRoles.Id) return MermaidWriting.Only(caret, text, C4Parser.Bare);
 
         return within?.Invoke(part, caret, text);
     }

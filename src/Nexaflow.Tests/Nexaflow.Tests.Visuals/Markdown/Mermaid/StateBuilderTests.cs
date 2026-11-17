@@ -32,8 +32,6 @@ public class StateBuilderTests : MermaidBuilderContract
         "stateDiagram-v2\n  [*] --> Draft\n  Draft --> Submitted : submit\n  state Review {\n    [*] --> Screening\n"
         + "    Screening --> Decision\n  }\n  Submitted --> Review\n  Review --> Published : approved\n  Published --> [*]";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.State;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("where it starts and where it stops", Intro),
