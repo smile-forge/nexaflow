@@ -54,7 +54,7 @@ public class C4TranspileTests
     }
 
     private static ContentPart Named() =>
-        ContentReading.Of(MermaidParser.Parse(Diagram)).Root.SelfAndDescendants()
+        ContentReading.Of(C4Parser.Parse(Diagram)).Root.SelfAndDescendants()
                       .First(part => part.Kind == Kinds.Words && part.Role == SequenceRoles.Id && part.Text == "customer");
 
     private static ContentChange? Rewritten(string text)

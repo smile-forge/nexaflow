@@ -14,8 +14,9 @@ namespace Nexaflow.Markdown.Mermaid;
 /// One parser for all of them, because they all open the same way: front matter between two <c>---</c> fences if
 /// there is any, then <c>%%</c> comments and <c>%%{ … }%%</c> directives, then the line that names the diagram. After
 /// that, any diagram may carry an accessible title and description. Those are read here, into their parts; every
-/// other line is a <see cref="MermaidKinds.Statement"/>, held whole, because what its characters mean is its
-/// diagram's grammar and not this one's.
+/// other line is a <see cref="MermaidKinds.Statement"/>, held whole, because what its characters mean belongs to the
+/// language the block is written in — every diagram written in Mermaid's syntax is a language of its own, reading its
+/// block with a parser of its own that calls the pieces here for the frame every block shares.
 /// </para>
 /// <para>
 /// <b>Front matter is read only as far as its lines.</b> A <c>key: value</c> line is its key, colon and value — which
@@ -38,8 +39,8 @@ public sealed class MermaidParser : ITranspile
     public const string AccessibleDescription = "accDescr";
 
     /// <summary>
-    /// Reads a block into its lines, every character kept. The first line that says anything names the diagram, and its
-    /// grammar reads every line after it.
+    /// Reads a block into its lines, every character kept. The first line that says anything is its header, and every line
+    /// after it is held whole.
     /// </summary>
     public static ContentNode Parse(string? source)
     {
@@ -59,17 +60,8 @@ public sealed class MermaidParser : ITranspile
 
         while (at < source.Length) at = Next(source, at, reading, lines);
 
-        return new BlockNode(Named(lines), lines, MermaidKinds.Block);
+        return new BlockNode(MermaidFenceParser.Language, lines, MermaidKinds.Block);
     }
-
-    /// <summary>
-    /// The word the diagram <paramref name="lines"/> are is named by: its header's, as written — a flowchart, for a block with no
-    /// header yet, and a <c>mermaid</c> block for one whose header names no diagram.
-    /// </summary>
-    internal static string Named(IEnumerable<ContentNode> lines) =>
-        lines.SelectMany(line => line.Children).FirstOrDefault(part => part.Kind == MermaidKinds.Header) is not { } header ? "flowchart"
-        : header.Part(Roles.Name) is { } keyword && MermaidDiagrams.Named(keyword.Text) != MermaidDiagram.Unknown ? keyword.Text
-        : MermaidFenceParser.Language;
 
     /// <summary>
     /// The header of a block — the line that names its diagram — and where it starts, read no further than it; or null for a block
@@ -99,18 +91,18 @@ public sealed class MermaidParser : ITranspile
     /// still prints as its author wrote it, and everything that works a diagram over sees the supplied lines as it sees the rest.
     ///
     /// <para>
-    /// What a binding supplies is lines of the diagram the header names, and may open with front matter of its own, which is how
-    /// what it supplies says which of its nodes have more behind them. A binding nothing supplies is left as written, saying so. A
-    /// diagram is never bound whole: the header names its type, so a binding before it is not read as one (<see cref="Next"/>).
+    /// What a binding supplies is lines of the diagram the block is written in, and may open with front matter of its own, which
+    /// is how what it supplies says which of its nodes have more behind them. A binding nothing supplies is left as written,
+    /// saying so. A diagram is never bound whole: the header names its type, so a binding before it is not read as one
+    /// (<see cref="Next"/>). A block of a language its fence already names may have no header, and what it is supplied is then
+    /// read as the block is.
     /// </para>
     /// </summary>
     /// <param name="supplied">What the binding naming a path comes to, or null where it comes to nothing.</param>
-    public static ContentNode Bind(ContentNode block, Func<string, string?> supplied)
+    /// <param name="reads">What reads a block of the diagram the header names — its own parser — which what is supplied is read with.</param>
+    public static ContentNode Bind(ContentNode block, Func<string, string?> supplied, Func<string?, ContentNode> reads)
     {
-        if (block.Children.SelectMany(line => line.Children).FirstOrDefault(part => part.Kind == MermaidKinds.Header) is not { } heading)
-            return block;
-
-        var header = heading.Print();
+        var header = block.Children.SelectMany(line => line.Children).FirstOrDefault(part => part.Kind == MermaidKinds.Header)?.Print();
         List<ContentNode>? lines = null;
 
         for (var at = 0; at < block.Children.Count; at++)
@@ -135,7 +127,7 @@ public sealed class MermaidParser : ITranspile
             }
 
             lines.Add(line);
-            lines.AddRange(Supplied(text, header).Select(read => ContentNode.Branch(read.Kind, read.Children, Roles.Supplied)));
+            lines.AddRange(Supplied(text, header, reads).Select(read => ContentNode.Branch(read.Kind, read.Children, Roles.Supplied)));
         }
 
         return lines is null ? block : block.With(lines);
@@ -145,22 +137,24 @@ public sealed class MermaidParser : ITranspile
     public const string LineBreak = "<br>";
 
     /// <summary>
-    /// What a binding supplied, read as lines of the diagram <paramref name="header"/> names — read after it, so its grammar reads
-    /// them — with any front matter they open with read as front matter.
+    /// What a binding supplied, read as lines of the diagram <paramref name="header"/> names — read after it by
+    /// <paramref name="reads"/>, the diagram's own parser — with any front matter they open with read as front matter. Where the
+    /// block has no header, its language needing none, what was supplied is read as the block is: whole.
     /// </summary>
-    private static IEnumerable<ContentNode> Supplied(string text, string header)
+    private static IEnumerable<ContentNode> Supplied(string text, string? header, Func<string?, ContentNode> reads)
     {
+        if (header is null) return reads(text).Children;
         ContentNode? front = null;
         var body = text;
 
         if (Fences(text) is (_, var close))
         {
-            front = Parse(text[..close.Stop]).Children.FirstOrDefault(part => part.Kind == MermaidKinds.FrontMatter);
+            front = reads(text[..close.Stop]).Children.FirstOrDefault(part => part.Kind == MermaidKinds.FrontMatter);
             body = text[close.Stop..];
         }
 
         // The header's own line is not what was supplied: it is there so the lines after it are read as the diagram they belong to.
-        var read = Parse(header + "\n" + body).Children.Skip(1);
+        var read = reads(header + "\n" + body).Children.Skip(1);
 
         return front is null ? read : [front, .. read];
     }
@@ -209,65 +203,15 @@ public sealed class MermaidParser : ITranspile
         if (!reading.Headed)
         {
             reading.Headed = true;
-            lines.Add(Line(source, row.Start, from, [Header(text, from, reading)], to, row));
+            lines.Add(Line(source, row.Start, from, [Header(text, from)], to, row));
             return row.Stop;
         }
 
         if (Accessibility(source, row, from, to, lines) is { } stop) return stop;
 
-        // A statement written across several lines is found here and read by its grammar, line by line.
-        if (reading.Grammar is { } across && Stretched(source, row, from, to, across, lines) is { } spanned) return spanned;
-
-        // What a line says is its diagram's own grammar, handed the line to the end of its row: as much of it as the grammar
-        // reads is what was written, and the rest is the line's. A type without one keeps its lines whole.
-        if (reading.Grammar?.Statement(source[from..row.End], from) is { } said)
-            lines.Add(Line(source, row.Start, from, [said], from + said.Width, row));
-        else
-            lines.Add(Line(source, row.Start, from, [ContentNode.Leaf(MermaidKinds.Statement, text, offset: from)], to, row));
+        // What a line says is the language's the block is written in, so it is held whole.
+        lines.Add(Line(source, row.Start, from, [ContentNode.Leaf(MermaidKinds.Statement, text, offset: from)], to, row));
         return row.Stop;
-    }
-
-    /// <summary>
-    /// A statement written across several lines, where one starts here: the line that opens it, every line inside it and the line that
-    /// ends it, read as one statement and made one line of the tree. Null where no stretch starts here.
-    /// </summary>
-    private static int? Stretched(string source, Row row, int from, int to, IMermaidGrammar grammar, List<ContentNode> lines)
-    {
-        foreach (var stretch in grammar.Stretches)
-        {
-            if (stretch.Opens(source[from..to], from) is not { } opened) continue;
-
-            var pieces = new List<ContentNode> { opened };
-            var end = to;
-
-            for (var next = Row.At(source, row.Stop); next.Start < source.Length; next = Row.At(source, next.Stop))
-            {
-                var (start, stop) = next.Text(source);
-                var text = source[start..stop];
-
-                pieces.Add(Space(source[end..start], end));
-                end = stop;
-
-                if (text.Length == 0) continue;
-
-                if (!stretch.Ends(text))
-                {
-                    pieces.Add(stretch.Inside(text, start));
-                    continue;
-                }
-
-                pieces.Add(stretch.Ended(text, start));
-                lines.Add(Line(source, row.Start, from, [ContentNode.Branch(stretch.Kind, pieces, offset: from)], stop, next));
-                return next.Stop;
-            }
-
-            // Nothing ends it, so what opened it is a statement on its own, said to be never closed.
-            lines.Add(Line(source, row.Start, from,
-                [ContentNode.Branch(stretch.Kind, [opened], offset: from).Saying(stretch.Unclosed)], to, row));
-            return row.Stop;
-        }
-
-        return null;
     }
 
     /// <summary>
@@ -292,6 +236,35 @@ public sealed class MermaidParser : ITranspile
     }
 
     /// <summary>
+    /// The line a statement makes added to <paramref name="lines"/>, and where the next line starts: after the row the statement ends
+    /// on — or, where the statement ends before its row does with more written after it there, right there, the next statement
+    /// starting part-way along the row. Where a statement ends is its diagram's to say: after a ; in a chart, or where the next
+    /// keyword starts in a block diagram, as Mermaid reads them.
+    /// </summary>
+    /// <param name="start">Where the line starts.</param>
+    /// <param name="from">Where the statement starts.</param>
+    /// <param name="said">The statement as read, from <paramref name="from"/>.</param>
+    /// <param name="end">Where the statement ends, as its diagram says.</param>
+    internal static int StatementLine(string source, int start, int from, ContentNode said, int end, List<ContentNode> lines)
+    {
+        var took = from + said.Width;
+        var reach = Math.Max(took, end);
+        var last = Row.Containing(source, Math.Max(from, reach - 1));
+
+        var next = reach;
+        while (next < last.End && source[next] is ' ' or '\t') next++;
+
+        if (next < last.End)
+        {
+            lines.Add(Line(source, start, from, [said], took, new Row(last.Start, next, next)));
+            return next;
+        }
+
+        lines.Add(Line(source, start, from, [said], took, last));
+        return last.Stop;
+    }
+
+    /// <summary>
     /// What follows a construct on the line it ends on. Space is the line's; anything else has no reading, since a
     /// directive or a description closes its line.
     /// </summary>
@@ -311,14 +284,15 @@ public sealed class MermaidParser : ITranspile
     // ── The header ──────────────────────────────────────────────────────────
 
     /// <summary>
-    /// The line naming the diagram: its keyword, then whatever follows. A keyword is a letter and then letters, digits,
-    /// hyphens and underscores, which is what lets <c>gitGraph:</c> and <c>graph TD;</c> name their types.
+    /// The line naming the diagram: its keyword, then whatever follows, held as written. A keyword is a letter and then letters,
+    /// digits, hyphens and underscores, which is what lets <c>gitGraph:</c> and <c>graph TD;</c> name their types. Whether it names
+    /// a diagram is the fence's to say (<see cref="MermaidFenceParser"/>), which hands the block to the language that reads it.
     /// <para>
     /// A line in the header's place that starts with no keyword is still the header — held as written, with the reason —
     /// so a block whose first line names nothing reads as a diagram of no known type rather than as one with no header.
     /// </para>
     /// </summary>
-    internal static ContentNode Header(string text, int at, Reading reading)
+    internal static ContentNode Header(string text, int at)
     {
         if (!char.IsAsciiLetter(text[0]))
             return ContentNode.Branch(MermaidKinds.Header, [ContentNode.Shown(text, text == Fence
@@ -328,35 +302,21 @@ public sealed class MermaidParser : ITranspile
         var length = 1;
         while (length < text.Length && (char.IsAsciiLetterOrDigit(text[length]) || text[length] is '-' or '_')) length++;
 
-        var keyword = text[..length];
-        reading.Grammar = MermaidDiagrams.Grammar(MermaidDiagrams.Named(keyword));
-
-        var trouble = MermaidDiagrams.Named(keyword) == MermaidDiagram.Unknown
-            ? $"'{keyword}' is not a Mermaid diagram type."
-            : null;
-
-        var pieces = new List<ContentNode> { ContentNode.Leaf(MermaidKinds.Keyword, keyword, Roles.Name, trouble, at) };
+        var pieces = new List<ContentNode> { ContentNode.Leaf(MermaidKinds.Keyword, text[..length], Roles.Name, offset: at) };
 
         var rest = text[length..];
         var gap = Leading(rest);
         if (gap > 0) pieces.Add(Space(rest[..gap], at + length));
-        if (gap < rest.Length)
-            pieces.Add(reading.Grammar?.Header(rest[gap..], at + length + gap)
-                       ?? ContentNode.Leaf(Kinds.Verbatim, rest[gap..], MermaidRoles.Arguments, offset: at + length + gap));
+        if (gap < rest.Length) pieces.Add(ContentNode.Leaf(Kinds.Verbatim, rest[gap..], MermaidRoles.Arguments, offset: at + length + gap));
 
         return ContentNode.Branch(MermaidKinds.Header, pieces, offset: at);
     }
 
-    /// <summary>
-    /// How far the read has got: whether the diagram has been named yet, and what its type reads for itself once it has.
-    /// </summary>
+    /// <summary>How far the read has got: whether the diagram has been named yet.</summary>
     internal sealed class Reading
     {
         /// <summary>Whether anything but blank lines, comments and directives has been read — the first of those names the diagram.</summary>
         public bool Headed;
-
-        /// <summary>What this diagram type reads beyond the shared lines, where it has a grammar of its own.</summary>
-        public IMermaidGrammar? Grammar;
     }
 
     // ── Directives ──────────────────────────────────────────────────────────
@@ -380,7 +340,21 @@ public sealed class MermaidParser : ITranspile
         pieces.Add(ContentNode.Leaf(Kinds.Token, "}%%", Roles.Close, offset: close));
 
         var last = Row.Containing(source, close);
-        lines.Add(Line(source, row.Start, from, [ContentNode.Branch(MermaidKinds.Directive, pieces, offset: from)], close + 3, last));
+        var shut = close + 3;
+
+        // Mermaid takes a directive out wherever it stands, so what follows one on its line is read as a line of its own — a header
+        // written after it, most often. The space between is the directive's line.
+        var next = shut;
+        while (next < last.End && source[next] is ' ' or '\t') next++;
+
+        if (next < last.End)
+        {
+            lines.Add(Line(source, row.Start, from, [ContentNode.Branch(MermaidKinds.Directive, pieces, offset: from)], shut,
+                           new Row(last.Start, shut, next)));
+            return next;
+        }
+
+        lines.Add(Line(source, row.Start, from, [ContentNode.Branch(MermaidKinds.Directive, pieces, offset: from)], shut, last));
         return last.Stop;
     }
 
@@ -429,6 +403,30 @@ public sealed class MermaidParser : ITranspile
         var last = Row.Containing(source, close);
         lines.Add(Line(source, row.Start, from, [ContentNode.Branch(MermaidKinds.Accessibility, pieces, offset: from)], close + 1, last));
         return last.Stop;
+    }
+
+    /// <summary>
+    /// An accessible description written as <paramref name="word"/>, a space, and what it says to the end of its row — C4's own
+    /// <c>accDescription The bank's context</c> — read and added to <paramref name="lines"/>, and where the next line starts; or null
+    /// where the line is not one.
+    /// </summary>
+    internal static int? SpacedDescription(string source, Row row, int from, int to, string word, List<ContentNode> lines)
+    {
+        if (Starting(source, from, to, word) is null) return null;
+
+        var gap = from + word.Length;
+        if (gap >= to || source[gap] is not (' ' or '\t')) return null;
+        while (gap < to && source[gap] is ' ' or '\t') gap++;
+
+        var pieces = new List<ContentNode>
+        {
+            ContentNode.Leaf(MermaidKinds.Key, word, Roles.Name, offset: from),
+            Space(source[(from + word.Length)..gap], from + word.Length),
+        };
+
+        pieces.AddRange(Padded(source[gap..to], gap));
+        lines.Add(Line(source, row.Start, from, [ContentNode.Branch(MermaidKinds.Accessibility, pieces, offset: from)], to, row));
+        return row.Stop;
     }
 
     /// <summary>

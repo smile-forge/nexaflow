@@ -16,7 +16,7 @@ public class RequirementStagesTests
 {
     /// <summary>What styles each requirement, by its name.</summary>
     private static Dictionary<string, MermaidStyle> Styles(string source) =>
-        MermaidStaged.Read(source).SelfAndDescendants().OfType<StyledNode>().ToDictionary(named => named.Words()!.Text, named => named.Style);
+        RequirementParserTests.Staged(source).SelfAndDescendants().OfType<StyledNode>().ToDictionary(named => named.Words()!.Text, named => named.Style);
 
     [TestMethod, TestCategory("Unit")]
     public void ANameOnALineOfItsOwnTakesTheClassGivenIt_WhereverTheClassIsDefined() =>
@@ -34,7 +34,7 @@ public class RequirementStagesTests
     [TestMethod, TestCategory("Unit")]
     public void TheStyleIsSaidOnTheNameFirstWritingIt()
     {
-        var tree = MermaidStaged.Read("requirementDiagram\n  a - traces -> b\n  requirement a {\n    id: 1\n  }\n  style a fill:#f00");
+        var tree = RequirementParserTests.Staged("requirementDiagram\n  a - traces -> b\n  requirement a {\n    id: 1\n  }\n  style a fill:#f00");
 
         Assert.AreEqual(1, tree.SelfAndDescendants().OfType<StyledNode>().Count(named => named.Words()!.Text == "a"), "once, where it is first named");
     }
@@ -46,7 +46,7 @@ public class RequirementStagesTests
     [TestMethod, TestCategory("Unit")]
     public void TheFrontMatterSaysHowSmallABoxMayBe()
     {
-        var config = ((ConfiguredNode<RequirementConfig>)MermaidStaged.Read("---\nconfig:\n  requirement:\n    rect_min_width: 140\n    rect_padding: 6\n---\nrequirementDiagram\n  a - traces -> b")).Config;
+        var config = ((ConfiguredNode<RequirementConfig>)RequirementParserTests.Staged("---\nconfig:\n  requirement:\n    rect_min_width: 140\n    rect_padding: 6\n---\nrequirementDiagram\n  a - traces -> b")).Config;
 
         Assert.AreEqual(140, config.MinWidth);
         Assert.AreEqual(6, config.Padding);

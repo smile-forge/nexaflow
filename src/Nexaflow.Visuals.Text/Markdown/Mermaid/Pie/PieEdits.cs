@@ -188,8 +188,14 @@ internal sealed class PieEdits : IContentLanguage, IOnEdit, IOnMove
         return drawn;
     }
 
-    /// <summary>A label holds anything but a quote, which is written <c>#quot;</c>.</summary>
-    internal static MermaidWriting? Escaping(ContentPart part, int caret, string text) => MermaidWriting.Escape(part, caret, text);
+    /// <summary>A label holds anything but what would end it, which a backslash keeps (<see cref="PieParser.Escaped"/>).</summary>
+    internal static MermaidWriting? Escaping(ContentPart part, int caret, string text)
+    {
+        if (PieParser.LabelOf(part) is not { } label || PieParser.Opened(label) is not { } quote) return null;
+
+        var kept = PieParser.Escaped(text, quote);
+        return kept == text ? null : new MermaidWriting(caret, caret, kept, caret + kept.Length);
+    }
 
     // ── Keys ────────────────────────────────────────────────────────────────
 
@@ -231,7 +237,7 @@ internal sealed class PieEdits : IContentLanguage, IOnEdit, IOnMove
 
     /// <summary>
     /// Backspace and Delete: whole slices picked out, their lines; past the end of a label or a value, or before the start of
-    /// one, nothing — what is there holds the slice together.
+    /// one, nothing — what is there holds the slice together; over a backslash and what it keeps in a label, the two together.
     /// </summary>
     private static ContentChange? Erased(ContentEdit edit)
     {
@@ -241,9 +247,25 @@ internal sealed class PieEdits : IContentLanguage, IOnEdit, IOnMove
         var caret = edit.State.Caret;
         var (label, value) = (Label(slice), Value(slice));
 
-        return edit.Kind == EditKind.Deleting
-            ? caret == label.End || caret == value?.End ? ContentChange.Stay(edit.State) : null
-            : caret == label.Start || caret == value?.Start ? ContentChange.Stay(edit.State) : null;
+        if (edit.Kind == EditKind.Deleting ? caret == label.End || caret == value?.End : caret == label.Start || caret == value?.Start)
+            return ContentChange.Stay(edit.State);
+
+        return Unkept(edit);
+    }
+
+    /// <summary>Backspace or Delete over a backslash and what it keeps in a label: the two together, since neither says anything without the other.</summary>
+    private static ContentChange? Unkept(ContentEdit edit)
+    {
+        if (edit.Part is not { } part || PieParser.LabelOf(part) is not { } label) return null;
+
+        var caret = edit.State.Caret;
+        var erasing = edit.Kind == EditKind.Erasing;
+
+        foreach (var escape in label.SelfAndDescendants())
+            if (escape.Kind == PieKinds.Escape && (erasing ? escape.Start < caret && caret <= escape.End : escape.Start <= caret && caret < escape.End))
+                return ContentChange.Write(escape.Start, escape.Length, string.Empty, escape.Start);
+
+        return null;
     }
 
     /// <summary>Tab: from a label to its value, from a value to the next slice's label — and Shift+Tab back the same way.</summary>

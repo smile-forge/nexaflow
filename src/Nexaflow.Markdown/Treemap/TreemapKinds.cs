@@ -14,6 +14,9 @@ public static class TreemapKinds
 
     /// <summary>A <c>classDef</c> line: the class it names, and the style it is.</summary>
     public const string ClassDef = "treemap-classdef";
+
+    /// <summary>A line ending a label in quotes runs across, which Mermaid's grammar lets one do.</summary>
+    public const string Break = "treemap-break";
 }
 
 /// <summary>The roles of the pieces a treemap's lines are read into.</summary>

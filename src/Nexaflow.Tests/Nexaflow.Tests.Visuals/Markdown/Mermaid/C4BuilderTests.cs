@@ -36,8 +36,6 @@ public class C4BuilderTests : MermaidBuilderContract
         + "Rel(customer, spa, \"Visits bigbank.com/ib using\", \"HTTPS\")\nRel(spa, api, \"Makes API calls to\", \"JSON/HTTPS\")\n"
         + "Rel(api, db, \"Reads from and writes to\", \"JDBC\")";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.C4;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("the documentation's own", Intro),

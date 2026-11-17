@@ -111,12 +111,12 @@ internal sealed class RequirementBuilder : ContentBuilder
         /// <summary>What is drawn in front of it, which is Mermaid's own word for the field rather than the key written.</summary>
         public string Label(LayoutStyle style) => Key.ToLowerInvariant() switch
         {
-            RequirementGrammar.IdKey => style.Says("Text.Requirement.Id"),
-            RequirementGrammar.TextKey => style.Says("Text.Requirement.Text"),
-            RequirementGrammar.RiskKey => style.Says("Text.Requirement.Risk"),
-            RequirementGrammar.MethodKey => style.Says("Text.Requirement.Verification"),
-            RequirementGrammar.TypeKey => style.Says("Text.Requirement.Type"),
-            RequirementGrammar.RefKey => style.Says("Text.Requirement.DocRef"),
+            RequirementParser.IdKey => style.Says("Text.Requirement.Id"),
+            RequirementParser.TextKey => style.Says("Text.Requirement.Text"),
+            RequirementParser.RiskKey => style.Says("Text.Requirement.Risk"),
+            RequirementParser.MethodKey => style.Says("Text.Requirement.Verification"),
+            RequirementParser.TypeKey => style.Says("Text.Requirement.Type"),
+            RequirementParser.RefKey => style.Says("Text.Requirement.DocRef"),
             _ => Key,
         };
     }
@@ -177,7 +177,7 @@ internal sealed class RequirementBuilder : ContentBuilder
         /// Whether the one it leaves holds the other, which SysML draws as a crosshair at that end of a solid line rather than as an
         /// arrow at the other.
         /// </summary>
-        public bool Holds => string.Equals(Says, RequirementGrammar.Holding, StringComparison.OrdinalIgnoreCase);
+        public bool Holds => string.Equals(Says, RequirementParser.Holding, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -300,7 +300,7 @@ internal sealed class RequirementBuilder : ContentBuilder
 
             var said = Piece(stated, MermaidKinds.Setting, RequirementRoles.Says);
             var back = stated.SelfAndDescendants()
-                             .Any(part => part.Role == RequirementRoles.Arrow && part.Text == RequirementGrammar.Backward);
+                             .Any(part => part.Role == RequirementRoles.Arrow && part.Text == RequirementParser.Backward);
 
             relations.Add(new Relation(stated, back ? two.Id : one.Id, back ? one.Id : two.Id,
                                                   said?.Text ?? string.Empty, relations.Count)

@@ -22,9 +22,6 @@ public class TreemapBuilderTests : MermaidBuilderContract
     private const string Products =
         "treemap-beta\n\"Products\"\n    \"Electronics\"\n        \"Phones\": 50\n        \"Computers\": 30\n        \"Accessories\": 20\n    \"Clothing\"\n        \"Men's\": 40\n        \"Women's\": 40";
 
-    /// <summary>A treemap is a language of its own: its fence names it, though a Mermaid header naming it is read too.</summary>
-    public override MermaidDiagram Diagram => MermaidDiagram.Treemap;
-
     /// <inheritdoc/>
     public override string Language => TreemapParser.Language;
 

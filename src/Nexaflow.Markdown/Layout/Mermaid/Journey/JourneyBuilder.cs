@@ -95,8 +95,8 @@ internal sealed class JourneyBuilder : ContentBuilder
     /// <param name="Score">How it scored, or null where that is not written, or is not a score.</param>
     private sealed record Job(ContentPart Part, Phrase Says, ContentPart? Scored, double? Score, IReadOnlyList<Actor> Actors)
     {
-        /// <summary>How high it sits: how it scored, or the middle where nothing scores it — a score nobody can reach being no score at all.</summary>
-        public double Height => Score ?? Middling;
+        /// <summary>How high it sits: how it scored, or the middle where nothing scores it — a score past either end drawn at that end.</summary>
+        public double Height => Math.Clamp(Score ?? Middling, JourneyParser.Worst, JourneyParser.Best);
 
         /// <summary>Mermaid's rule: the best two scores smile, the middle one is flat, and the worst two frown.</summary>
         public Mood Mood => Height >= 4 ? Mood.Happy : Height >= 3 ? Mood.Neutral : Mood.Sad;
@@ -121,7 +121,7 @@ internal sealed class JourneyBuilder : ContentBuilder
         var legend = Legend(config, tasks);
         var lane = legend.Size.Height + (legend.Size.Height > 0 ? Gap : 0) + (sectioned ? Band + Gap : 0);
         var banded = legend.Size.Height + (legend.Size.Height > 0 ? Gap : 0);
-        var top = lane + (JourneyGrammar.Best * Step) + Gap;
+        var top = lane + (JourneyParser.Best * Step) + Gap;
 
         var boxes = tasks.Select((_, at) => new LayoutRect(at * (wide + apart), top, wide, tall)).ToList();
 
@@ -242,7 +242,7 @@ internal sealed class JourneyBuilder : ContentBuilder
         for (var at = 0; at < tasks.Count; at++)
         {
             var task = tasks[at].Task;
-            var middle = new LayoutPoint(boxes[at].Left + (boxes[at].Width / 2), lane + ((JourneyGrammar.Best - task.Height) * Step) + Face);
+            var middle = new LayoutPoint(boxes[at].Left + (boxes[at].Width / 2), lane + ((JourneyParser.Best - task.Height) * Step) + Face);
 
             DiagramConnector.Draw(build, JourneyPiece.Thread, task.Part, [new LayoutPoint(middle.X, middle.Y + Face), new LayoutPoint(middle.X, boxes[at].Top)],
                 new DiagramStroke(DiagramInk.Faded(build.Medium, Style.TextMuted, 0.6), 1, DiagramStroke.Dotted), end: DiagramHead.None);

@@ -16,17 +16,17 @@ public class ErStagesTests
 {
     /// <summary>Each end of a relationship naming a subgraph, by the name written, and which subgraph it names.</summary>
     private static Dictionary<string, int> Joined(string source) =>
-        MermaidStaged.Read(source).SelfAndDescendants().OfType<GroupReferenceNode>()
+        ErParserTests.Staged(source).SelfAndDescendants().OfType<GroupReferenceNode>()
                      .ToDictionary(named => named.SelfAndDescendants().First(part => part.Kind == Kinds.Words && part.Role == ErRoles.Id).Text, named => named.Group);
 
     /// <summary>What styles each entity, by its name.</summary>
     private static Dictionary<string, MermaidStyle> Styles(string source) =>
-        MermaidStaged.Read(source).SelfAndDescendants().OfType<StyledNode>().ToDictionary(named => named.Words()!.Text, named => named.Style);
+        ErParserTests.Staged(source).SelfAndDescendants().OfType<StyledNode>().ToDictionary(named => named.Words()!.Text, named => named.Style);
 
     [TestMethod, TestCategory("Unit")]
     public void EachSubgraphIsGatheredWithWhatIsWrittenInIt()
     {
-        var tree = MermaidStaged.Read("erDiagram\n  subgraph Outer\n    subgraph Inner\n      A\n    end\n    B\n  end\n  C");
+        var tree = ErParserTests.Staged("erDiagram\n  subgraph Outer\n    subgraph Inner\n      A\n    end\n    B\n  end\n  C");
         var outer = tree.Children.Single(child => child.Kind == MermaidKinds.Group);
 
         Assert.AreEqual(1, outer.Children.Count(child => child.Kind == MermaidKinds.Group), "the one inside it, inside it");
@@ -73,7 +73,7 @@ public class ErStagesTests
     [TestMethod, TestCategory("Unit")]
     public void TheFrontMatterSaysHowSmallAnEntityMayBe()
     {
-        static ErConfig Config(string source) => ((ConfiguredNode<ErConfig>)MermaidStaged.Read(source)).Config;
+        static ErConfig Config(string source) => ((ConfiguredNode<ErConfig>)ErParserTests.Staged(source)).Config;
 
         var config = Config("---\nconfig:\n  er:\n    minEntityWidth: 140\n    entityPadding: 6\n    fontSize: 16\n---\nerDiagram\n  A");
 
@@ -84,5 +84,14 @@ public class ErStagesTests
 
         var painted = Config("---\nconfig:\n  er:\n    fill: honeydew\n    stroke: gray\n---\nerDiagram\n  A");
         Assert.AreEqual(("honeydew", "gray"), (painted.Fill, painted.Stroke));
+    }
+
+    [TestMethod]
+    public void ASubgraphNamedInQuotesIsReachedByARelationshipNamingItInQuotes()
+    {
+        // The documentation's own example: Mermaid takes the quotes off both.
+        var joined = Joined("erDiagram\nsubgraph \"Customer Domain\"\n  CUSTOMER\nend\n\"Customer Domain\" ||--o{ ORDER : contains");
+
+        Assert.IsTrue(joined.ContainsKey("Customer Domain"), string.Join(", ", joined.Keys));
     }
 }

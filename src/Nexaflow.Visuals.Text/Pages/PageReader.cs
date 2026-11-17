@@ -5,6 +5,7 @@ using System.Windows.Media.Imaging;
 using Nexaflow.Features.Common;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Visuals.Text.Pages;
 
@@ -282,7 +283,7 @@ public sealed record DiagramVerdict(string? Kind, string? Diagram, string Why);
 /// <list type="number">
 /// <item>the model says what kind of figure it is, from a list that names what Mermaid cannot draw as well as what it can — a
 /// circuit, a sketch, a plot of data — and only a kind Mermaid draws is drawn;</item>
-/// <item>the drawing must be one Nexaflow draws as written (<see cref="MermaidDiagrams.Troubles"/>);</item>
+/// <item>the drawing must be one Nexaflow draws as written (<see cref="ContentEngine.Troubles"/>);</item>
 /// <item>its labels must be the picture's: what the model reads written in the picture, against the words Nexaflow draws for the
 /// diagram (<see cref="DiagramPicture.WordsAsync"/>) — none left out, none added;</item>
 /// <item>and shown the two side by side (<see cref="DiagramPicture.SideBySideAsync"/>), in a question of its own, the model must
@@ -399,7 +400,7 @@ public static partial class DiagramDrawing
         var fences = Fence().Matches(reply);
         if (fences.Count == 0) return null;
         string source = fences[^1].Groups["source"].Value.Trim();
-        return source.Length > 0 && MermaidDiagrams.Troubles(source).Count == 0 ? source : null;
+        return source.Length > 0 && new ContentEngine().Troubles(MermaidFenceParser.Language, source).Count == 0 ? source : null;
     }
 
     [GeneratedRegex(@"```mermaid[ \t]*\r?\n(?<source>.*?)```", RegexOptions.Singleline)]

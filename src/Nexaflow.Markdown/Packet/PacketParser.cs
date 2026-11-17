@@ -1,5 +1,6 @@
 using System.Globalization;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Binding;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Mermaid;
 
@@ -114,6 +115,18 @@ public sealed class PacketParser : ITranspile
         {
             lines.Add(MermaidParser.Line(source, row.Start, from,
                                          [ContentNode.Leaf(Kinds.Comment, text, Roles.Trivia, offset: from)], to, row));
+            return row.Stop;
+        }
+
+        // A binding standing on a line of its own is fields supplied by whatever the packet is shown against. Held as written;
+        // read into its place before the packet is worked over.
+        if (BoundText.Path(text) is not null)
+        {
+            lines.Add(MermaidParser.Line(source, row.Start, from,
+                [headed
+                    ? ContentNode.Leaf(Kinds.BoundContent, text, offset: from)
+                    : ContentNode.Shown(text, "A diagram is not bound whole: its first line names its type, and a binding after it supplies lines of it.", offset: from)],
+                to, row));
             return row.Stop;
         }
 

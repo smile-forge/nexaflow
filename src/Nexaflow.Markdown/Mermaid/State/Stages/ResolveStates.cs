@@ -93,7 +93,7 @@ public sealed class ResolveStates : IAstStage
     /// </summary>
     private static string Marker(bool stop, string? scope, int region)
     {
-        var name = stop ? StateGrammar.Pseudo[1] : StateGrammar.Pseudo[0];
+        var name = stop ? StateParser.Pseudo[1] : StateParser.Pseudo[0];
 
         return scope is null ? name : region > 1 ? $"{name}@{scope}#{region}" : $"{name}@{scope}";
     }

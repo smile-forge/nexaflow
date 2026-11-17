@@ -134,8 +134,8 @@ public sealed record XyConfig
             LegendPadding = XyAxisConfig.Length(chart, "legendPadding"),
             Orientation = chart.Value("chartOrientation")?.Trim().ToLowerInvariant() switch
             {
-                XyGrammar.Horizontal => XyOrientation.Horizontal,
-                XyGrammar.Vertical => XyOrientation.Vertical,
+                XyParser.Horizontal => XyOrientation.Horizontal,
+                XyParser.Vertical => XyOrientation.Vertical,
                 _ => null,
             },
             PlotReservedSpacePercent = Math.Clamp(chart.Number("plotReservedSpacePercent") ?? Default.PlotReservedSpacePercent, 0, 100),

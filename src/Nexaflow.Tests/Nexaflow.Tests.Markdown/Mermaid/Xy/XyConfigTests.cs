@@ -13,7 +13,7 @@ public class XyConfigTests
     [TestMethod]
     public void TheFrontMatterIsReadIntoTheConfig()
     {
-        var config = ((ConfiguredNode<XyConfig>)MermaidStaged.Read(
+        var config = ((ConfiguredNode<XyConfig>)XyParserTests.Staged(
             """
             ---
             config:

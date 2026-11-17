@@ -24,26 +24,26 @@ public sealed class ResolveSlices(PieConfig config) : IAstStage
 
     public ContentNode Run(ContentNode tree)
     {
-        // Depth first, so the slices are met in the order they were written — which is the order they are drawn.
-        var order = 0;
-        return AstRewrite.Each(tree, node => node.Kind == PieKinds.Slice ? Said(node, order++) : node);
+        // Depth first, so the slices are met in the order they were written — which is the order they are drawn. A slice whose
+        // label one above it gives takes no place in the palette, as Mermaid keeps only the first.
+        var repeats = PieStandIns.Repeats(tree);
+        var (at, order) = (0, 0);
+        return AstRewrite.Each(tree, node => node.Kind == PieKinds.Slice ? Said(node, repeats[at++] ? null : order++) : node);
     }
 
-    private PieSliceNode Said(ContentNode slice, int order)
+    private PieSliceNode Said(ContentNode slice, int? order)
     {
         // The palette repeats: a thirteenth slice takes pie1 again, as Mermaid's does.
-        var number = (order % 12) + 1;
-        var coloured = config.Swatches.TryGetValue(number, out var colour);
+        int? number = order is { } place ? (place % 12) + 1 : null;
+        string? colour = null;
+        var coloured = number is { } swatch && config.Swatches.TryGetValue(swatch, out colour);
 
         return new PieSliceNode(slice)
         {
             Colour = coloured ? colour : null,
             Swatch = coloured ? number : null,
-            Highlighted = !config.HighlightsOnHover && Named(slice) is { } name
+            Highlighted = !config.HighlightsOnHover && PieStandIns.Label(slice) is { } name
                           && string.Equals(name, config.Highlight, StringComparison.Ordinal),
         };
     }
-
-    /// <summary>What a slice is called, or null for one whose label could not be read.</summary>
-    private static string? Named(ContentNode slice) => slice.Inner(Kinds.Words)?.Text;
 }

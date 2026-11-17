@@ -214,7 +214,9 @@ internal sealed class RadarBuilder : ContentBuilder
 
         build.Open(RadarPiece.Graticule, part: null, stops: LayoutStops.None);
 
-        for (var ring = 1; ring <= chart.Ticks; ring++)
+        // A ring for each tick and one for a part of one, each a 1/ticks of the radius further out, as Mermaid draws them — so a
+        // fractional ticks draws its last ring past the ends of the spokes.
+        for (var ring = 1; ring < chart.Ticks + 1; ring++)
         {
             var reach = radius * ring / chart.Ticks;
 

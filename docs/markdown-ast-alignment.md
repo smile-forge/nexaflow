@@ -169,6 +169,50 @@ and the words in it one run. Read line by line it was silently a node called `Ha
 language is this one — its own `Parse` and its own `Rewrite`, over shared helpers — not one parser every diagram has to
 fit.
 
+Sankey has it whole, and is the template. It is a language entry of its own (`Shipped.Sankey`): `SankeyParser` reads its
+block and its statements — a field in quotes runs to its closing quote across a line ending, as RFC 4180 and Mermaid's
+own lexer have it — the entry offers its stages and the engine runs them, and a `mermaid` fence hands it a block because
+its language reads the header's word. Nothing of its flow is registered anywhere else. Venn has it too:
+`VennParser` reads its block — anything in quotes running to its closing quote across a line ending, as Mermaid's lexer
+takes it — and `Shipped.Venn` offers `GroupRegions`, `ResolveRegions` and `ResolveStyles` with the shared stages. So
+has the quadrant chart: `QuadrantParser` reads its block on the same rule, and `Shipped.Quadrant` offers `ResolvePoints`.
+And so has the timeline, whose statements each end with their line: `TimelineParser` reads its block, the way it runs after
+its keyword included, and `Shipped.Timeline` offers `ResolveEvents`. So have the XY chart, whose words in quotes run to the quote that closes them as Venn's do — `XyParser` reads its block and
+`Shipped.XyChart` offers only `WithConfig` — and the Ishikawa diagram, every line of which is its row — `IshikawaParser`
+reads its block, the event after its keyword included. So has the class diagram, whose members between braces each take a
+line from the class's to the brace closing them, and whose quotes and backticks run to the mark that closes them —
+`ClassParser` reads its block, and `Shipped.Class` offers `ResolveNamespaces`, `ResolveMembers` and `ResolveStyles` — and
+the architecture diagram, whose titles are strings as the pie's labels are, below — `ArchitectureParser` reads its block,
+and `Shipped.Architecture` offers `ResolveArchitecture`. So have the C4 diagrams, whose macros run as far as their quotes
+take them: `C4Parser` reads a structural one, and `Shipped.C4` offers `ResolveBoundaries` and `ResolveMacros`; and
+`C4SequenceParser` reads a C4 sequence, claiming its macros with `C4Parser`'s pieces and reading every other line with the
+sequence diagram's, and `Shipped.C4Sequence` offers the sequence diagram's stages with `ResolveMacros`. So has the sequence
+diagram itself, every statement of which is its row but for a participant's metadata, which runs to the brace closing it:
+`SequenceParser` reads its block, and `Shipped.Sequence` offers `ResolveFrames` and `ResolveNumbers`. So has the user
+journey, every statement of which is its row — `JourneyParser` reads its block and `Shipped.Journey` offers only
+`WithConfig` — and the Cynefin framework, whose items and labels are strings as the pie's labels are, below, opening only
+where Mermaid's grammar puts one — `CynefinParser` reads its block, and `Shipped.Cynefin` offers `ResolveDomains`. So have the mindmap and the kanban board, read
+through the shared outline piece, whose titles in quotes — and a board's metadata — run to the mark closing them where that is
+what closes them: `MindmapParser` and `KanbanParser` read their blocks, `Shipped.Mindmap` offers `ResolveRoot`, and
+`Shipped.Kanban` offers `ResolveColumns`. And so have
+the pie and the radar chart, whose labels
+are strings as Mermaid's newer grammars write them — in either quote, a backslash keeping what follows it, running across
+a line ending to the quote that closes them — so a slice, or a radar line, is as much of the source as its labels take, and
+a radar curve's values as much as its braces take: `PieParser` and `RadarParser` each read their block and their own
+strings, `Shipped.Pie` offers `ResolveSlices` and `ResolveShares`, and `Shipped.Radar` offers `ResolveCurves` and
+`ResolveOptions`. And so have the flowchart, the swimlane, the ER diagram and the block diagram, where a label, a name
+or what a relationship is called written in quotes runs to the quote closing it across line endings, as Mermaid's lexer
+reads a string: `FlowchartParser`, `SwimlaneParser` — reading each line with the flowchart's pieces — `ErParser`, which
+reads an entity's attributes to the brace closing them, and `BlockParser` read their blocks, and `Shipped.Flowchart`,
+`Shipped.Swimlane`, `Shipped.Er` and `Shipped.Block` offer their stages. And so have the state diagram, whose notes
+run from the line opening them to the `end note` closing them and whose description after a colon is the rest of its
+line, quotes and all, and the requirement diagram, whose fields run to the brace closing them: `StateParser` and
+`RequirementParser` read their blocks, and `Shipped.State` and `Shipped.Requirement` offer their stages. And so have the
+gantt chart and the git graph, every statement of which is its row: `GanttParser` and `GitParser` read their blocks, and
+`Shipped.Gantt` offers `ResolveSchedule` and `ResolveTasks`, `Shipped.GitGraph` `ResolveGraph`. Nothing registers a diagram
+by its type: a `mermaid` fence hands its block to the language that reads its header's word, and the shared
+`MermaidParser` reads no more of a block than the frame every one shares — Mermaid is only the syntax being read.
+
 **The copied frame loop is deliberate.** A diagram with its own parser copies that loop rather than sharing one, and
 that duplication is the point: it is what lets one diagram's editing change without touching any other. Editing is
 where the diagrams genuinely differ — a statement, an id, a label and a style line each mean something different per
@@ -176,10 +220,11 @@ diagram — so a diagram owns the reading of its own statements and pays about s
 them. Those lines are not debt, and consolidating them is not an improvement. Rendering is the opposite case: shared
 structure works there, and stays.
 
-**What is shared is the check, not the code.** `MermaidDiagrams.ParserFor` is the single place naming the parser a
-diagram is read by; `Shipped.Diagram` and the test helpers both ask it. `MermaidGrammarContract` reads each block
-through it, so every parser — not only the shared one — is held to printing back exactly what was written, and a
-diagram takes its own parser into its tests the moment it has one.
+**What is shared is the check, not the code.** A language entry names its own parser, and its tests read with it.
+`MermaidParser.Bind` is handed the diagram's parser for what a binding supplies. `ContentParserContract`
+holds every parser, and the stages its test names as the language entry offers them, to printing back exactly what was
+written; as the language entry offers them, the stages are held by the engine too, whose pipeline refuses one
+that changes a character, wherever a block is read and drawn.
 
 What has not started is the migration this section is actually about. The twenty-four `IOnEdit` handlers still compose
 syntax themselves, and `PieEdits.Configured` is still the clearest example: it assembles front-matter syntax by

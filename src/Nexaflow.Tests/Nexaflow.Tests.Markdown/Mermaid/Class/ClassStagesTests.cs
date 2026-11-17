@@ -15,11 +15,11 @@ namespace Nexaflow.Tests.Markdown.Mermaid.Class;
 public class ClassStagesTests
 {
     /// <summary>What each member draws, in the order they are written.</summary>
-    private static List<MemberNode> Members(string source) => [.. MermaidStaged.Read(source).SelfAndDescendants().OfType<MemberNode>()];
+    private static List<MemberNode> Members(string source) => [.. ClassParserTests.Staged(source).SelfAndDescendants().OfType<MemberNode>()];
 
     /// <summary>What styles each class, by its name.</summary>
     private static Dictionary<string, MermaidStyle> Styles(string source) =>
-        MermaidStaged.Read(source).SelfAndDescendants().OfType<StyledNode>().ToDictionary(named => named.Words()!.Text, named => named.Style);
+        ClassParserTests.Staged(source).SelfAndDescendants().OfType<StyledNode>().ToDictionary(named => named.Words()!.Text, named => named.Style);
 
     [TestMethod, TestCategory("Unit")]
     public void AMemberWithBracketsAfterItsNameIsAMethodAndEverythingElseIsAField()
@@ -66,7 +66,7 @@ public class ClassStagesTests
     public void EachNamespaceIsGatheredWithWhatIsWrittenInIt()
     {
         const string source = "classDiagram\n  namespace Outer {\n    namespace Inner {\n      class One\n    }\n    class Two\n  }";
-        var tree = MermaidStaged.Read(source);
+        var tree = ClassParserTests.Staged(source);
         var outer = tree.Children.Single(child => child.Kind == MermaidKinds.Group);
 
         Assert.AreEqual(1, outer.Children.Count(child => child.Kind == MermaidKinds.Group), "Inner inside Outer");
@@ -86,7 +86,7 @@ public class ClassStagesTests
     [TestMethod, TestCategory("Unit")]
     public void TheFrontMatterSaysWhetherAClassWithNoMembersKeepsABoxForThem()
     {
-        static ClassConfig Config(string source) => ((ConfiguredNode<ClassConfig>)MermaidStaged.Read(source)).Config;
+        static ClassConfig Config(string source) => ((ConfiguredNode<ClassConfig>)ClassParserTests.Staged(source)).Config;
 
         Assert.IsFalse(Config("classDiagram\n  class A").HideEmptyMembers);
         Assert.IsTrue(Config("---\nconfig:\n  class:\n    hideEmptyMembersBox: true\n---\nclassDiagram\n  class A").HideEmptyMembers);

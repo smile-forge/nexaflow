@@ -32,18 +32,25 @@ internal sealed class SequenceEdits : IOnEdit
     {
         if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
 
-        // In quotes anything but a quote goes in as it is, and the quote has already been written as its entity code.
-        if (part.Parent?.Children.Any(child => child.Role == Roles.Open && child.Text == "\"") ?? false) return null;
-
         // A hole stands for what is not written yet, so what may go in it is what holds it.
         var role = part.Kind == Kinds.Hole ? part.Parent?.Role ?? part.Role : part.Role;
 
         if (role is SequenceRoles.Id) return Written(part, caret, text);
         if (role is SequenceRoles.Key or SequenceRoles.Type) return MermaidWriting.Only(caret, text, MermaidLine.Letter);
-        if (role is SequenceRoles.Menu) return MermaidWriting.Only(caret, text, character => character != '@');
-        if (role is SequenceRoles.Url) return MermaidWriting.Only(caret, text, SequenceGrammar.Linked);
+
+        // Mermaid's sequence lexer ends a statement at a ; and starts a comment at a #, in quotes or not — so neither goes into what a
+        // menu, a link or a colour is written with, and either typed into words is written as the entity code standing for it.
+        if (role is SequenceRoles.Menu) return MermaidWriting.Only(caret, text, character => character is not ('@' or ';' or '#'));
+        if (role is SequenceRoles.Url) return MermaidWriting.Only(caret, text, character => SequenceParser.Linked(character) && character is not (';' or '#'));
         if (role is SequenceRoles.Colour) return MermaidWriting.Only(caret, text, Tinted);
 
+        if (text.AsSpan().IndexOfAny(';', '#') >= 0)
+        {
+            var coded = string.Concat(text.Select(character => character switch { ';' => "#59;", '#' => "#35;", _ => character.ToString() }));
+            return new MermaidWriting(caret, caret, coded, caret + coded.Length);
+        }
+
+        // In quotes anything else goes in as it is, and the quote has already been written as its entity code.
         return null;
     }
 
@@ -64,8 +71,9 @@ internal sealed class SequenceEdits : IOnEdit
         var at = Math.Clamp(caret - part.Start, 0, said.Length);
         var whole = said[..at] + text + said[at..];
 
-        return SequenceGrammar.Ident(whole, 0) == whole.Length && !whole.Any(char.IsControl)
+        // A # would start a comment, as Mermaid's sequence lexer reads one, so a name cannot hold it.
+        return SequenceParser.Ident(whole, 0) == whole.Length && !whole.Any(char.IsControl) && !whole.Contains('#')
             ? null
-            : MermaidWriting.Only(caret, text, Held);
+            : MermaidWriting.Only(caret, text, character => Held(character) && character != '#');
     }
 }

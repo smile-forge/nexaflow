@@ -175,8 +175,8 @@ public sealed class ResolveGraph(GitConfig config) : IAstStage
         {
             if (Option(line, "id") is { Length: > 0 } id && !given.Add(id)) wrong[line] = $"A commit is given its id once, and {id} is already taken.";
 
-            if (Option(line, "type") is { Length: > 0 } kept && !GitGrammar.Kept.Contains(kept, StringComparer.OrdinalIgnoreCase))
-                wrong[line] = $"A commit is {string.Join(", ", GitGrammar.Kept.SkipLast(1))} or {GitGrammar.Kept[^1]}, not '{kept}'.";
+            if (Option(line, "type") is { Length: > 0 } kept && !GitParser.Kept.Contains(kept, StringComparer.OrdinalIgnoreCase))
+                wrong[line] = $"A commit is {string.Join(", ", GitParser.Kept.SkipLast(1))} or {GitParser.Kept[^1]}, not '{kept}'.";
         }
     }
 
@@ -190,7 +190,7 @@ public sealed class ResolveGraph(GitConfig config) : IAstStage
 
     /// <summary>The branch a line names, or null where it names none yet.</summary>
     private static string? Named(ContentNode line) =>
-        line.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name)?.Inner(Kinds.Words)?.Text;
+        line.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name)?.Inner(Kinds.Words) is { } said ? GitStandIns.Reads(said) : null;
 
     /// <summary>What a line's option says, without the quotes it may be written in — or null where the line does not set it.</summary>
     private static string? Option(ContentNode line, string key) =>
@@ -198,6 +198,6 @@ public sealed class ResolveGraph(GitConfig config) : IAstStage
             .Where(property => property.Kind == MermaidKinds.Property)
             .Where(property => property.Children.Any(child => child.Kind == MermaidKinds.Key && child.Text.Equals(key, StringComparison.OrdinalIgnoreCase)))
             .Select(property => property.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Setting)?.Text)
-            .Select(MermaidText.Bare)
+            .Select(GitParser.Unquoted)
             .FirstOrDefault();
 }

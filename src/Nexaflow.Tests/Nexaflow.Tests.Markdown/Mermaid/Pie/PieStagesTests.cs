@@ -21,7 +21,7 @@ public class PieStagesTests
     [TestMethod]
     public void EverySliceSaysItsShareOfTheWhole()
     {
-        var slices = Slices(MermaidStaged.Read(PieGrammarTests.Documented));
+        var slices = Slices(PieParserTests.Staged(PieParserTests.Documented));
 
         CollectionAssert.AreEqual(new[] { "Calcium", "Potassium", "Magnesium", "Iron" }, slices.Select(Name).ToArray());
         Assert.AreEqual(0.4633, slices[1].Share, 0.001, "Potassium's share of the whole");
@@ -31,7 +31,7 @@ public class PieStagesTests
     [TestMethod]
     public void TheBlockSaysWhatItsFrontMatterAsksFor()
     {
-        var config = Config(MermaidStaged.Read(PieGrammarTests.Documented));
+        var config = Config(PieParserTests.Staged(PieParserTests.Documented));
 
         Assert.AreEqual(0.5, config.TextPosition);
         Assert.AreEqual(0.2, config.DonutHole);
@@ -43,7 +43,7 @@ public class PieStagesTests
     [TestMethod]
     public void WithNoFrontMatterEverythingIsMermaidsDefault()
     {
-        var config = Config(MermaidStaged.Read("pie\n  \"Dogs\" : 386"));
+        var config = Config(PieParserTests.Staged("pie\n  \"Dogs\" : 386"));
 
         Assert.AreEqual(0.75, config.TextPosition);
         Assert.AreEqual(0, config.DonutHole);
@@ -80,12 +80,12 @@ public class PieStagesTests
     [TestMethod]
     public void TheSliceTheConfigPicksOutSaysItIsPickedOut() =>
         CollectionAssert.AreEqual(new[] { false, true, false, false },
-                                  Slices(MermaidStaged.Read(PieGrammarTests.Documented)).Select(slice => slice.Highlighted).ToArray());
+                                  Slices(PieParserTests.Staged(PieParserTests.Documented)).Select(slice => slice.Highlighted).ToArray());
 
     [TestMethod]
     public void HoverPicksNoSliceOut()
     {
-        var tree = MermaidStaged.Read("---\nconfig:\n  pie:\n    highlightSlice: hover\n---\npie\n  \"hover\" : 1\n  \"Dogs\" : 2");
+        var tree = PieParserTests.Staged("---\nconfig:\n  pie:\n    highlightSlice: hover\n---\npie\n  \"hover\" : 1\n  \"Dogs\" : 2");
 
         Assert.IsTrue(Config(tree).HighlightsOnHover);
         Assert.IsFalse(Slices(tree).Any(slice => slice.Highlighted), "not even the one that happens to be called hover");
@@ -94,7 +94,7 @@ public class PieStagesTests
     [TestMethod]
     public void EachSliceTakesTheColourWrittenForItsPlaceInTheOrder()
     {
-        var slices = Slices(MermaidStaged.Read(
+        var slices = Slices(PieParserTests.Staged(
             """
             ---
             config:
@@ -116,7 +116,7 @@ public class PieStagesTests
     public void AndThePaletteStartsAgainAfterTwelve()
     {
         var written = string.Join('\n', Enumerable.Range(1, 13).Select(at => $"  \"n{at}\" : 1"));
-        var slices = Slices(MermaidStaged.Read($"---\nconfig:\n  themeVariables:\n    pie1: red\n---\npie\n{written}"));
+        var slices = Slices(PieParserTests.Staged($"---\nconfig:\n  themeVariables:\n    pie1: red\n---\npie\n{written}"));
 
         Assert.AreEqual(1, slices[0].Swatch);
         Assert.AreEqual(1, slices[12].Swatch, "the thirteenth takes the first colour again");
@@ -126,7 +126,7 @@ public class PieStagesTests
     [TestMethod]
     public void ASliceWhoseValueIsWrongIsNoPartOfTheWholeAndHasNoWedge()
     {
-        var slices = Slices(MermaidStaged.Read("pie\n  \"Dogs\" : 3\n  \"Cats\" : -1\n  \"Fish\" : lots\n  \"Birds\" : 1"));
+        var slices = Slices(PieParserTests.Staged("pie\n  \"Dogs\" : 3\n  \"Cats\" : -1\n  \"Fish\" : lots\n  \"Birds\" : 1"));
 
         CollectionAssert.AreEqual(new[] { 0.75, 0, 0, 0.25 }, slices.Select(slice => slice.Share).ToArray(), "only what is worth drawing shares the whole");
         CollectionAssert.AreEqual(new[] { 0, -1, -1, 1 }, slices.Select(slice => slice.Order).ToArray(),
@@ -137,7 +137,7 @@ public class PieStagesTests
     [TestMethod]
     public void ASliceWorthNoughtHasNoWedgeButKeepsItsPlaceAndItsRow()
     {
-        var slices = Slices(MermaidStaged.Read("pie\n  \"Done\" : 3\n  \"Faulted\" : 0\n  \"Planned\" : 1"));
+        var slices = Slices(PieParserTests.Staged("pie\n  \"Done\" : 3\n  \"Faulted\" : 0\n  \"Planned\" : 1"));
 
         CollectionAssert.AreEqual(new[] { 0.75, 0, 0.25 }, slices.Select(slice => slice.Share).ToArray(), "nought is none of the whole");
         CollectionAssert.AreEqual(new[] { true, false, true }, slices.Select(slice => slice.Drawn).ToArray(), "so it has no wedge");
@@ -151,9 +151,9 @@ public class PieStagesTests
     {
         const string source = "pie\n  \"Dogs\" : 3\n  \"Cats\" : \n";
 
-        CollectionAssert.AreEqual(new[] { true, false }, Slices(MermaidStaged.Read(source)).Select(slice => slice.Listed).ToArray(),
+        CollectionAssert.AreEqual(new[] { true, false }, Slices(PieParserTests.Staged(source)).Select(slice => slice.Listed).ToArray(),
                                   "a chart only being read lists the slices whose value counts");
-        CollectionAssert.AreEqual(new[] { true, true }, Slices(MermaidStaged.Read(source, holes: true)).Select(slice => slice.Listed).ToArray(),
+        CollectionAssert.AreEqual(new[] { true, true }, Slices(PieParserTests.Staged(source, holes: true)).Select(slice => slice.Listed).ToArray(),
                                   "a chart being written lists every slice written, where the reader is typing");
     }
 
@@ -162,11 +162,11 @@ public class PieStagesTests
     {
         const string plain = "pie\n  \"Dogs\" : 3\n  \"Fish\" : lots\n  \"Cats\" : \n";
 
-        CollectionAssert.AreEqual(new[] { false, true, false }, Slices(MermaidStaged.Read(plain)).Select(slice => slice.ValueShown).ToArray(),
+        CollectionAssert.AreEqual(new[] { false, true, false }, Slices(PieParserTests.Staged(plain)).Select(slice => slice.ValueShown).ToArray(),
                                   "a value that is wrong is shown, so it can be put right");
-        CollectionAssert.AreEqual(new[] { false, true, true }, Slices(MermaidStaged.Read(plain, holes: true)).Select(slice => slice.ValueShown).ToArray(),
+        CollectionAssert.AreEqual(new[] { false, true, true }, Slices(PieParserTests.Staged(plain, holes: true)).Select(slice => slice.ValueShown).ToArray(),
                                   "and one still to be written, while the chart is being written");
-        Assert.IsTrue(Slices(MermaidStaged.Read("pie showData\n  \"Dogs\" : 3\n")).All(slice => slice.ValueShown), "and every one, where the chart shows its values");
+        Assert.IsTrue(Slices(PieParserTests.Staged("pie showData\n  \"Dogs\" : 3\n")).All(slice => slice.ValueShown), "and every one, where the chart shows its values");
     }
 
     [TestMethod]
@@ -174,31 +174,31 @@ public class PieStagesTests
     {
         const string source = "pie\n  \"\" : ";
 
-        var writing = ContentPart.Of(MermaidStaged.Read(source, holes: true)).SelfAndDescendants().Where(part => part.Kind == Kinds.Hole).ToList();
+        var writing = ContentPart.Of(PieParserTests.Staged(source, holes: true)).SelfAndDescendants().Where(part => part.Kind == Kinds.Hole).ToList();
         Assert.AreEqual(2, writing.Count);
         Assert.AreEqual(source.IndexOf('"') + 1, writing[0].Start, "between the quotes");
         Assert.AreEqual(source.Length, writing[1].Start, "after the space left for it");
 
-        Assert.IsFalse(MermaidStaged.Read(source).SelfAndDescendants().Any(node => node.Kind == Kinds.Hole), "a chart only being read has none");
+        Assert.IsFalse(PieParserTests.Staged(source).SelfAndDescendants().Any(node => node.Kind == Kinds.Hole), "a chart only being read has none");
     }
 
     [TestMethod]
     public void WhatTheStagesWriteIsNoPartOfTheSource()
     {
-        foreach (var source in new[] { PieGrammarTests.Documented, "pie\n  \"Dogs\" : 1", "pie\n  \"Dogs\" : 3\n  \"\" : \n  \"Cats\" : 1" })
+        foreach (var source in new[] { PieParserTests.Documented, "pie\n  \"Dogs\" : 1", "pie\n  \"Dogs\" : 3\n  \"\" : \n  \"Cats\" : 1" })
         {
-            Assert.AreEqual(source, MermaidStaged.Read(source).Print(), "a stage leaves the characters alone");
-            Assert.AreEqual(source, MermaidStaged.Read(source, holes: true).Print());
+            Assert.AreEqual(source, PieParserTests.Staged(source).Print(), "a stage leaves the characters alone");
+            Assert.AreEqual(source, PieParserTests.Staged(source, holes: true).Print());
         }
     }
 
     [TestMethod]
     public void TheChartsOwnTitleIsTheOneItUses()
     {
-        Assert.AreEqual("Pets", MermaidBlock.Of(MermaidStaged.Read("---\ntitle: Elements\n---\npie title Pets\n  \"Dogs\" : 1")).TitleText);
-        Assert.AreEqual("Elements", MermaidBlock.Of(MermaidStaged.Read("---\ntitle: Elements\n---\npie\n  \"Dogs\" : 1")).TitleText,
+        Assert.AreEqual("Pets", MermaidBlock.Of(PieParserTests.Staged("---\ntitle: Elements\n---\npie title Pets\n  \"Dogs\" : 1")).TitleText);
+        Assert.AreEqual("Elements", MermaidBlock.Of(PieParserTests.Staged("---\ntitle: Elements\n---\npie\n  \"Dogs\" : 1")).TitleText,
                         "and the front matter's where it has none");
-        Assert.IsNull(MermaidBlock.Of(MermaidStaged.Read("pie\n  \"Dogs\" : 1")).TitleText);
+        Assert.IsNull(MermaidBlock.Of(PieParserTests.Staged("pie\n  \"Dogs\" : 1")).TitleText);
     }
 
     private static List<PieSliceNode> Slices(ContentNode tree) =>
@@ -207,4 +207,14 @@ public class PieStagesTests
     private static PieConfig Config(ContentNode tree) => ((ConfiguredNode<PieConfig>)tree).Config;
 
     private static string Name(ContentNode slice) => slice.Inner(Kinds.Words)!.Print();
+
+    [TestMethod]
+    public void ASliceCalledWhatOneAboveItIsCalledIsNoPartOfThePie_AsMermaidKeepsTheFirst()
+    {
+        var slices = Slices(PieParserTests.Staged("pie\n  \"Dogs\" : 3\n  \"Dogs\" : 5\n  \"Cats\" : 1"));
+
+        CollectionAssert.AreEqual(new[] { 0.75, 0, 0.25 }, slices.Select(slice => slice.Share).ToArray(), "the second Dogs counts for nothing");
+        CollectionAssert.AreEqual(new[] { 0, -1, 1 }, slices.Select(slice => slice.Order).ToArray(), "and takes no place in the order");
+        Assert.IsFalse(slices[1].Listed, "nor a row in the legend");
+    }
 }

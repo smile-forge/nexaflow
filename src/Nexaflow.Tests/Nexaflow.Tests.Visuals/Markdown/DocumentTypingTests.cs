@@ -124,7 +124,7 @@ public class DocumentTypingTests
         {
             var ribbon = Ribbon(editor, "Below");
             Press(ribbon, Inserting);
-            Press(ribbon, Inserting + ".mermaid.pie");
+            Press(ribbon, Inserting + ".pie");
 
             Assert.AreEqual("Below:\n\n" + Pie + "\n\nAfter.\n", editor.Document.ToString());
             Assert.AreEqual("Below:\n\n".Length + Pie.LastIndexOf("\n```", System.StringComparison.Ordinal), editor.Shown.Current.Caret,
@@ -139,7 +139,7 @@ public class DocumentTypingTests
         {
             var ribbon = Ribbon(editor, "Only");
             Press(ribbon, Inserting);
-            Press(ribbon, Inserting + ".mermaid.pie");
+            Press(ribbon, Inserting + ".pie");
 
             Assert.AreEqual("Only words\n\n" + Pie + "\n", editor.Document.ToString());
         }));

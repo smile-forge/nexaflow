@@ -14,7 +14,10 @@ namespace Nexaflow.Tests.Markdown.Mermaid;
 [CoversNode("mermaid")]
 public class MermaidFenceParserTests
 {
-    private static BlockNode Read(string source) => (BlockNode)MermaidFenceParser.Parse(source);
+    /// <summary>The words the languages a <c>mermaid</c> block may be written in read — those these tests write.</summary>
+    private static readonly string[] Held = ["graph", "flowchart", "sequenceDiagram", "stateDiagram-v2", "pie", "C4Context", "xychart-beta", "sankey-beta"];
+
+    private static BlockNode Read(string source) => (BlockNode)MermaidFenceParser.Parse(source, word => Held.Contains(word));
 
     [TestMethod]
     public void TheWholeBlockIsHeldInTheLanguageItsHeaderNames()
@@ -52,6 +55,24 @@ public class MermaidFenceParserTests
 
         var wrong = block.SelfAndDescendants().Single(node => node.Trouble is not null);
         Assert.AreEqual("wibble", wrong.Text);
-        StringAssert.Contains(wrong.Trouble, "is not a Mermaid diagram type");
+        StringAssert.Contains(wrong.Trouble, "is not a diagram Nexaflow draws");
+    }
+
+    [TestMethod]
+    public void AHeaderIsHeldOnlyWhereALanguageReadsIt()
+    {
+        // What a word names is the languages' to say: a word Mermaid knows that no language here reads names nothing.
+        const string source = "graph TD\n  a --> b";
+        var block = (BlockNode)MermaidFenceParser.Parse(source, _ => false);
+
+        Assert.AreEqual(source, block.Print());
+        Assert.IsNull(ContentNested.Language(block));
+        StringAssert.Contains(block.SelfAndDescendants().Single(node => node.Trouble is not null).Trouble, "is not a diagram Nexaflow draws");
+    }
+
+    [TestMethod]
+    public void ASankeyIsHeldInTheLanguageThatReadsIt()
+    {
+        Assert.AreEqual("sankey-beta", Read("sankey-beta\na,b,10").Language, "a diagram reading its own block is handed it like any other");
     }
 }

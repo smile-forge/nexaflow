@@ -1,4 +1,5 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Binding;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Mermaid;
 
@@ -115,6 +116,18 @@ public sealed class TreeViewParser : ITranspile
         if (text.StartsWith(Comment, StringComparison.Ordinal))
         {
             lines.Add(MermaidParser.Line(source, row.Start, from, [ContentNode.Leaf(Kinds.Comment, text, Roles.Trivia, offset: from)], to, row));
+            return row.Stop;
+        }
+
+        // A binding standing on a line of its own is nodes supplied by whatever the tree view is shown against. Held as written;
+        // read into its place before the tree view is worked over.
+        if (BoundText.Path(text) is not null)
+        {
+            lines.Add(MermaidParser.Line(source, row.Start, from,
+                [headed
+                    ? ContentNode.Leaf(Kinds.BoundContent, text, offset: from)
+                    : ContentNode.Shown(text, "A diagram is not bound whole: its first line names its type, and a binding after it supplies lines of it.", offset: from)],
+                to, row));
             return row.Stop;
         }
 

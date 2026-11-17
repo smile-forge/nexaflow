@@ -71,22 +71,6 @@ public sealed class MermaidBlock
     public ContentPart? Keyword => Header?.Part(Roles.Name);
 
     /// <summary>
-    /// Which diagram this is. A header that names nothing this reads is <see cref="MermaidDiagram.Unknown"/>; no header at
-    /// all is a <see cref="MermaidDiagram.Flowchart"/> — see <see cref="MermaidDiagrams.Named"/>.
-    /// </summary>
-    public MermaidDiagram Diagram
-    {
-        get
-        {
-            foreach (var node in _tree.SelfAndDescendants())
-                if (node.Kind == MermaidKinds.Header)
-                    return node.Part(Roles.Name) is { } keyword ? MermaidDiagrams.Named(keyword.Text) : MermaidDiagram.Unknown;
-
-            return MermaidDiagram.Flowchart;
-        }
-    }
-
-    /// <summary>
     /// The value of the front matter's <c>title:</c> — the one at the top level, not one nested under <c>config:</c> —
     /// or null. Quotes and all, as written: <see cref="FrontMatterTitleText"/> is what it says.
     /// </summary>

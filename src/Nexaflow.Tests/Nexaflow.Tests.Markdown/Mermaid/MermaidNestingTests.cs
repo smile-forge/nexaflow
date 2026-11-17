@@ -14,7 +14,7 @@ namespace Nexaflow.Tests.Markdown.Mermaid;
 public class MermaidNestingTests
 {
     private static ContentNode Nested(string source) =>
-        MermaidNesting.Nest(MermaidParser.Parse(source), [ErKinds.Subgraph], [ErKinds.Ends],
+        MermaidNesting.Nest(ErParser.Parse(source), [ErKinds.Subgraph], [ErKinds.Ends],
                             stray: "stray", unclosed: "unclosed");
 
     private static List<ContentNode> Groups(ContentNode holder) => [.. holder.Children.Where(child => child.Kind == MermaidKinds.Group)];
@@ -70,7 +70,7 @@ public class MermaidNestingTests
     [TestMethod, TestCategory("Unit")]
     public void ABlockWithNoGroupsIsLeftAsItIs()
     {
-        var tree = MermaidParser.Parse("erDiagram\n  A ||--|| B : x");
+        var tree = ErParser.Parse("erDiagram\n  A ||--|| B : x");
 
         Assert.AreSame(tree, MermaidNesting.Nest(tree, [ErKinds.Subgraph], [ErKinds.Ends], "stray", "unclosed"));
     }

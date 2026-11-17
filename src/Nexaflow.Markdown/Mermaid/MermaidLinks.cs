@@ -161,4 +161,19 @@ public static class MermaidLinks
 
         return end - at;
     }
+
+    /// <summary>
+    /// Whether a link is the last thing written in <paramref name="text"/> — <c>A --&gt;</c> — so a diagram whose lexer takes the space
+    /// after a link, line endings and all, as a flowchart's and a block diagram's do, reads what the next row starts with as what it joins.
+    /// </summary>
+    public static bool Ending(string text)
+    {
+        var start = text.Length;
+        while (start > 0 && (Lines.Contains(text[start - 1]) || Heads.Contains(text[start - 1]))) start--;
+
+        for (var at = start; at < text.Length; at++)
+            if (At(text, at) is { } link && at + link.Length == text.Length) return true;
+
+        return false;
+    }
 }

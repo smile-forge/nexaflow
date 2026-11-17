@@ -37,8 +37,6 @@ public class BlockBuilderTests : MermaidBuilderContract
 
     private const string Nested = "block-beta\n  block:one[\"Outer\"]\n    columns 1\n    a b\n  end\n  c";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.Block;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("the parts of a system", Parts),

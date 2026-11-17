@@ -99,7 +99,7 @@ internal sealed class QuadrantBuilder : ContentBuilder
                     break;
 
                 case { Kind: QuadrantKinds.Axis } when Word(part) is { } word:
-                    if (word.Equals(QuadrantGrammar.XAxis, StringComparison.OrdinalIgnoreCase)) across = part;
+                    if (word.Equals(QuadrantParser.XAxis, StringComparison.OrdinalIgnoreCase)) across = part;
                     else upwards = part;
                     break;
 
@@ -338,7 +338,7 @@ internal sealed class QuadrantBuilder : ContentBuilder
 
     /// <summary>Which quadrant a caption's line is for — the first top right, then anticlockwise — or -1 for none.</summary>
     private static int Region(ContentPart line) =>
-        Word(line) is { } word ? QuadrantGrammar.Regions.ToList().FindIndex(region => region.Equals(word, StringComparison.OrdinalIgnoreCase)) : -1;
+        Word(line) is { } word ? QuadrantParser.Regions.ToList().FindIndex(region => region.Equals(word, StringComparison.OrdinalIgnoreCase)) : -1;
 
     private void Quadrants(LayoutBuilder build, QuadrantConfig config, IReadOnlyList<ContentPart?> regions, IReadOnlyList<ContentPart?> captions,
                            IReadOnlyList<LayoutRect> cells, LayoutVector shift, LayoutShape over)

@@ -101,13 +101,18 @@ internal enum FlowchartSaid { Node, Link, Group, New }
 /// </summary>
 internal sealed class FlowchartMetadataNode : ContentNode
 {
-    internal FlowchartMetadataNode(ContentNode written, FlowchartSaid about, MermaidShape? shape, string? label, FlowchartPicture? picture) : base(written)
+    internal FlowchartMetadataNode(ContentNode written, string id, FlowchartSaid about, MermaidShape? shape, string? label, FlowchartPicture? picture)
+        : base(written)
     {
+        this.Id = id;
         this.About = about;
         this.Shape = shape;
         this.Label = label;
         this.Picture = picture;
     }
+
+    /// <summary>What it is about, by name: the id an <c>id@{ … }</c> line names, or the node written just before metadata written among nodes.</summary>
+    public string Id { get; }
 
     public FlowchartSaid About { get; }
 
@@ -119,7 +124,7 @@ internal sealed class FlowchartMetadataNode : ContentNode
 
     public FlowchartPicture? Picture { get; }
 
-    protected override ContentNode Reshaped(ContentNode shape) => new FlowchartMetadataNode(shape, this.About, this.Shape, this.Label, this.Picture);
+    protected override ContentNode Reshaped(ContentNode shape) => new FlowchartMetadataNode(shape, this.Id, this.About, this.Shape, this.Label, this.Picture);
 }
 
 /// <summary>

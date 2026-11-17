@@ -215,7 +215,7 @@ public class DiagramNestingTests
     [TestMethod]
     public void TheOuterTreeHoldsOneNodeSayingWhatIsInsideIt() => UiThread.Run(() =>
     {
-        var block = Nexaflow.Markdown.Mermaid.MermaidBlock.Read(Src);
+        var block = Nexaflow.Markdown.Mermaid.MermaidBlock.Of(Nexaflow.Markdown.Mermaid.Flowchart.FlowchartParser.Parse(Src));
 
         var links = block.Reading.Root.SelfAndDescendants()
             .Where(part => Nexaflow.Markdown.Ast.ContentNested.Language(part) is not null)

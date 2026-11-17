@@ -21,11 +21,17 @@ internal sealed class JourneyEdits : IOnEdit
     /// </summary>
     internal static MermaidWriting? Escaping(ContentPart part, int caret, string text)
     {
-        if (part.Parent is not { Kind: JourneyKinds.Text or MermaidKinds.Name } || !text.Any(character => character is ':' or '%' or ',')) return null;
+        if (part.Parent is not { Kind: JourneyKinds.Text or MermaidKinds.Name } || !text.Any(character => character is ':' or '%' or ',' or '#')) return null;
 
-        var written = text.Replace(":", "#colon;", StringComparison.Ordinal)
-                          .Replace("%", "#37;", StringComparison.Ordinal)
-                          .Replace(",", "#44;", StringComparison.Ordinal);
+        // A # would start a comment, as Mermaid's lexer reads one, so it is written as its code too.
+        var written = string.Concat(text.Select(character => character switch
+        {
+            ':' => "#colon;",
+            '%' => "#37;",
+            ',' => "#44;",
+            '#' => "#35;",
+            _ => character.ToString(),
+        }));
         return new MermaidWriting(caret, caret, written, caret + written.Length);
     }
 }

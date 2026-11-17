@@ -1,7 +1,9 @@
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Packet;
+using Nexaflow.Markdown.Packet.Stages;
 using Nexaflow.Markdown.Pipeline;
+using Nexaflow.Markdown.Pipeline.Stages;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.Markdown.Ast;
 
@@ -14,7 +16,7 @@ namespace Nexaflow.Tests.Markdown.Packet;
 /// </summary>
 [TestClass]
 [CoversNode("packet-ast")]
-public class PacketParserTests
+public class PacketParserTests : ContentParserContract
 {
     /// <summary>The TCP header Mermaid's documentation draws, titled in its front matter.</summary>
     public const string Tcp =
@@ -81,7 +83,7 @@ public class PacketParserTests
     ];
 
     /// <summary>Every construct read, and what nobody means to write.</summary>
-    public static readonly (string What, string Source)[] Blocks =
+    protected override IEnumerable<(string What, string Source)> Blocks { get; } =
     [
         ("a header and nothing else", "packet"),
         ("the header Mermaid wrote while it was new", "packet-beta\n0-7: \"Flags\""),
@@ -139,87 +141,42 @@ public class PacketParserTests
         ("two fields overlapping", "packet\n0-15: \"A\"\n8-23: \"B\""),
         ("a field ending before it starts", "packet\n0-7: \"A\"\n15-8: \"B\""),
         ("a field taking no bits", "packet\n+0: \"A\""),
+        ("a binding supplying fields", "packet\n0-7: \"A\"\n{{Fields}}\n"),
+        ("a binding with no header before it", "0-7: \"A\"\n{{Fields}}"),
     ];
 
-    private static IEnumerable<(string What, string Source)> All => Blocks.Concat(Documented.Select(source => ("documented", source)));
+    /// <summary>A block parsed and worked over by its stages, holes and all where somebody is writing in it.</summary>
+    /// <inheritdoc/>
+    protected override ContentNode Parse(string? source) => PacketParser.Parse(source);
+
+    /// <inheritdoc/>
+    protected override IEnumerable<string> DocumentedBlocks => Documented;
+
+    /// <inheritdoc/>
+    protected override IEnumerable<IAstStage> Stages(ContentNode tree, bool holes) => Offered(tree, holes);
+
+    /// <summary>
+    /// The stages a packet's language offers the engine (<c>Shipped.Packet</c>), named again here — what the engine adds for every
+    /// language, what a host binds, is held where the engine reads a block.
+    /// </summary>
+    internal static IReadOnlyList<IAstStage> Offered(ContentNode tree, bool holes)
+    {
+        var config = PacketConfig.Read(MermaidBlock.Of(tree).Config);
+
+        return
+        [
+            new PlaceFields(config),
+            new WithConfig<PacketConfig>(config),
+            .. holes ? [new WithHoles(PacketParser.Holds)] : Array.Empty<IAstStage>(),
+            new WithWordPieces(PacketStandIns.Decoded),
+        ];
+    }
 
     /// <summary>A block parsed and worked over by its stages, holes and all where somebody is writing in it.</summary>
     internal static ContentNode Staged(string source, bool holes = false)
     {
         var tree = PacketParser.Parse(source);
-        return new AstPipeline(PacketPipeline.Of(tree, holes)).Run(tree);
-    }
-
-    [TestMethod, TestCategory("Unit")]
-    public void EveryBlockReadsBackAsItWasWritten()
-    {
-        foreach (var (what, source) in All)
-        {
-            Assert.AreEqual(source, PacketParser.Parse(source).Print(), what);
-            Assert.AreEqual(source, Staged(source).Print(), $"{what}, after the stages");
-            Assert.AreEqual(source, Staged(source, holes: true).Print(), $"{what}, with holes");
-        }
-    }
-
-    [TestMethod, TestCategory("Unit")]
-    public void AndSoDoesEveryStageOnTheWayThere()
-    {
-        foreach (var (what, source) in All)
-            foreach (var holes in new[] { false, true })
-            {
-                var tree = PacketParser.Parse(source);
-
-                foreach (var stage in PacketPipeline.Of(tree, holes))
-                {
-                    tree = stage.Run(tree);
-                    Assert.AreEqual(source, tree.Print(), $"{what}: after {stage.Name}{(holes ? ", with holes" : "")}");
-                }
-            }
-    }
-
-    [TestMethod, TestCategory("Unit")]
-    public void EveryPrefixOfEveryBlockReadsBackToo()
-    {
-        foreach (var (what, source) in All)
-            for (var length = 0; length <= source.Length; length++)
-                Assert.AreEqual(source[..length], Staged(source[..length], holes: true).Print(), $"{what}: after {length} character(s)");
-    }
-
-    [TestMethod, TestCategory("Unit")]
-    public void TheParserOnlyEverCopies()
-    {
-        foreach (var (what, source) in All)
-            foreach (var place in PacketParser.Parse(source).Placed())
-                if (place.Node.IsLeaf)
-                    Assert.AreEqual(source.Substring(place.Start, place.Node.Width), place.Node.Text, $"{what}: {place.Node.Kind} at {place.Start}");
-    }
-
-    [TestMethod]
-    public void EveryPieceSaysWhereItWasRead()
-    {
-        foreach (var (what, source) in All)
-            foreach (var (stage, tree) in new[] { ("read", PacketParser.Parse(source)), ("after the stages", Staged(source)) })
-            {
-                var faults = AstOracle.Faults(source, tree).ToList();
-                Assert.AreEqual(0, faults.Count, $"{what}, {stage}\n{string.Join("\n", faults)}");
-            }
-    }
-
-    [TestMethod]
-    public void AReversedTreeStillPrintsWhatWasWritten()
-    {
-        foreach (var (what, source) in All)
-            Assert.AreEqual(source, AstOracle.Reversed(PacketParser.Parse(source)).Print(), what);
-    }
-
-    [TestMethod, TestCategory("Unit")]
-    public void TheDocumentedBlocksHaveNothingWrongWithThem()
-    {
-        foreach (var source in Documented)
-        {
-            var trouble = Staged(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>().ToList();
-            Assert.AreEqual(0, trouble.Count, $"{source}\n{string.Join("\n", trouble)}");
-        }
+        return new AstPipeline(Offered(tree, holes)).Run(tree);
     }
 
     [TestMethod, TestCategory("Unit")]
@@ -303,8 +260,7 @@ public class PacketParserTests
 
         var titled = PacketParser.Parse("packet title TCP\n0-15: \"A\"");
         Assert.AreEqual("TCP", MermaidBlock.Of(titled).TitleText);
-        Assert.AreEqual(MermaidDiagram.Packet, MermaidBlock.Of(titled).Diagram);
-        Assert.AreEqual(MermaidDiagram.Packet, MermaidBlock.Of(PacketParser.Parse("packet-beta\n0-15: \"A\"")).Diagram);
+
     }
 
     [TestMethod, TestCategory("Unit")]
@@ -312,7 +268,7 @@ public class PacketParserTests
     {
         foreach (var header in new[] { "packet", "packet-beta" })
         {
-            var held = MermaidFenceParser.Parse($"{header}\n0-15: \"A\"");
+            var held = MermaidFenceParser.Parse($"{header}\n0-15: \"A\"", word => PacketParser.Keywords.Contains(word, StringComparer.OrdinalIgnoreCase));
 
             Assert.AreEqual(header, ((BlockNode)held).Language, "the fence hands the block to the language its header names");
             Assert.AreEqual(Kinds.Nested, held.Children.Single().Kind);

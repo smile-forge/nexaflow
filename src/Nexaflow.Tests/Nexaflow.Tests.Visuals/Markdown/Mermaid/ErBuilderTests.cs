@@ -38,8 +38,6 @@ public class ErBuilderTests : MermaidBuilderContract
         + "        string driversLicense PK \"The license #\"\n        string(99) firstName \"Only 99 characters\"\n"
         + "        int age\n    }\n    PERSON ||--o{ NAMED-DRIVER : is";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.Er;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("the documentation's own", Intro),

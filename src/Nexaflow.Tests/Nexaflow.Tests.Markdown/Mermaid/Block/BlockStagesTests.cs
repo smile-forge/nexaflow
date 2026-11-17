@@ -16,13 +16,13 @@ public class BlockStagesTests
 {
     /// <summary>What styles each block, by its name.</summary>
     private static Dictionary<string, MermaidStyle> Styles(string source) =>
-        MermaidStaged.Read(source).SelfAndDescendants().OfType<StyledNode>().ToDictionary(named => named.Words()!.Text, named => named.Style);
+        BlockParserTests.Staged(source).SelfAndDescendants().OfType<StyledNode>().ToDictionary(named => named.Words()!.Text, named => named.Style);
 
     [TestMethod, TestCategory("Unit")]
     public void CompositesAreGatheredAsDeepAsTheyAreWritten()
     {
         const string source = "block-beta\n  block:one\n    block:two\n      a\n    end\n  end\n  block:three\n    b\n  end";
-        var tree = MermaidStaged.Read(source);
+        var tree = BlockParserTests.Staged(source);
         var outer = tree.Children.Where(child => child.Kind == MermaidKinds.Group).ToList();
 
         Assert.AreEqual(2, outer.Count, "one and three");
@@ -47,7 +47,7 @@ public class BlockStagesTests
     [TestMethod, TestCategory("Unit")]
     public void TheStyleIsSaidOnTheNameFirstWritingIt()
     {
-        var tree = MermaidStaged.Read("block-beta\n  A space B\n  A --> B\n  style A fill:#f00");
+        var tree = BlockParserTests.Staged("block-beta\n  A space B\n  A --> B\n  style A fill:#f00");
 
         var styled = tree.SelfAndDescendants().OfType<StyledNode>().Where(named => named.Words()!.Text == "A").ToList();
         Assert.AreEqual(1, styled.Count, "once, where it is first laid out");
@@ -57,7 +57,7 @@ public class BlockStagesTests
     [TestMethod, TestCategory("Unit")]
     public void TheFrontMattersPaddingIsRead()
     {
-        static BlockConfig Config(string source) => ((ConfiguredNode<BlockConfig>)MermaidStaged.Read(source)).Config;
+        static BlockConfig Config(string source) => ((ConfiguredNode<BlockConfig>)BlockParserTests.Staged(source)).Config;
 
         Assert.AreEqual(BlockConfig.Air, Config("block-beta\n  a").Padding);
         Assert.AreEqual(12, Config("---\nconfig:\n  block:\n    padding: 12\n---\nblock-beta\n  a").Padding);
