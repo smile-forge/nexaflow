@@ -32,4 +32,9 @@ public interface ITerminalTransport : IDisposable
 
     /// <summary>Ends whatever runs in the foreground, leaving the shell itself running.</summary>
     void TerminateForeground();
+
+    /// <summary>The folder the shell itself is in, asked of its host and named as that host names folders. It is never read
+    /// from what the shell prints: any file printed can imitate a prompt or a report, and the folder decides what the
+    /// assistant may reach. Null when the host cannot say. A transport that wraps another passes it on.</summary>
+    ValueTask<string?> GetWorkingDirectoryAsync(CancellationToken ct) => new((string?)null);
 }

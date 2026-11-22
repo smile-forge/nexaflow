@@ -1,5 +1,4 @@
 using System;
-using Nexaflow.IO.Terminal;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Terminal.Shells;
 
@@ -7,9 +6,9 @@ namespace Nexaflow.Tests.Features.Console;
 
 /// <summary>
 /// How a terminal speaks to its shell. cmd: <c>cd /d</c> and <c>set</c> in double quotes, a mounted folder moved to where
-/// the disk holds it, and the folder read off a prompt ending in <c>&gt;</c>. A location's POSIX shell: every value one
+/// the disk holds it, and a prompt ending in <c>&gt;</c> known for one. A location's POSIX shell: every value one
 /// single-quoted word, so nothing in it is expanded; the file system's paths handed over as the location's own; and the
-/// folder it reports named back as the file system names it — names no Windows path holds encoded on the way.
+/// folder its host names named back as the file system names it — names no Windows path holds encoded on the way.
 /// </summary>
 [TestClass]
 [CoversNode("vterm-shell-dialects")]
@@ -37,11 +36,11 @@ public sealed class ShellDialectTests
     }
 
     [TestMethod]
-    public void Cmd_ReadsTheFolderOffABarePrompt()
+    public void Cmd_KnowsABarePrompt_AndWhetherItShowsAFolder()
     {
-        Assert.AreEqual(new ShellPromptRow(11, @"C:\Windows", IsBare: true), Cmd.ReadPrompt(@"C:\Windows>"));
-        Assert.AreEqual(@"C:\Windows", Cmd.ReadPrompt(@"PS C:\Windows>")?.Folder, "PowerShell inside cmd");
-        Assert.AreEqual(new ShellPromptRow(0, null, IsBare: true), Cmd.ReadPrompt(">"), "a custom prompt shows no folder");
+        Assert.AreEqual(new ShellPromptRow(11, ShowsFolder: true, IsBare: true), Cmd.ReadPrompt(@"C:\Windows>"));
+        Assert.IsTrue(Cmd.ReadPrompt(@"PS C:\Windows>")?.ShowsFolder, "PowerShell inside cmd");
+        Assert.AreEqual(new ShellPromptRow(0, ShowsFolder: false, IsBare: true), Cmd.ReadPrompt(">"), "a custom prompt shows no folder");
     }
 
     [TestMethod]
@@ -49,16 +48,16 @@ public sealed class ShellDialectTests
     {
         var prompt = Cmd.ReadPrompt(@"C:\work>git status");
 
-        Assert.AreEqual(new ShellPromptRow(8, null, IsBare: false), prompt);
+        Assert.AreEqual(new ShellPromptRow(8, ShowsFolder: false, IsBare: false), prompt);
         Assert.IsNull(Cmd.ReadPrompt("Microsoft Windows [Version 10.0]"), "output is no prompt");
     }
 
     [TestMethod]
-    public void Cmd_FollowsAReportedDrivePath_AndNothingElse()
+    public void Cmd_TakesADrivePathFromItsHost_AndNothingElse()
     {
-        Assert.AreEqual(@"C:\work\src", Cmd.ToFolder(new TerminalWorkingFolder("pc", "/C:/work/src")));
-        Assert.AreEqual(@"D:\", Cmd.ToFolder(new TerminalWorkingFolder("pc", "/D:")));
-        Assert.IsNull(Cmd.ToFolder(new TerminalWorkingFolder("probe", "/home/adam")));
+        Assert.AreEqual(@"C:\work\src", Cmd.ToFolder(@"C:\work\src"));
+        Assert.AreEqual(@"D:\", Cmd.ToFolder(@"D:\"));
+        Assert.IsNull(Cmd.ToFolder("/home/adam"));
     }
 
     // ── a location's POSIX shell ─────────────────────────────────────────────
@@ -89,11 +88,11 @@ public sealed class ShellDialectTests
     }
 
     [TestMethod]
-    public void Posix_NamesAReportedFolderAsTheFileSystemDoes()
+    public void Posix_NamesItsHostsFolderAsTheFileSystemDoes()
     {
-        Assert.AreEqual($@"{TerminalFiles.Distro}\srv\a%3Ab c", Posix.ToFolder(new TerminalWorkingFolder("probe", "/srv/a:b c")));
-        Assert.AreEqual(TerminalFiles.Distro, Posix.ToFolder(new TerminalWorkingFolder("probe", "/")));
-        Assert.IsNull(Posix.ToFolder(new TerminalWorkingFolder("probe", "relative/path")));
+        Assert.AreEqual($@"{TerminalFiles.Distro}\srv\a%3Ab c", Posix.ToFolder("/srv/a:b c"));
+        Assert.AreEqual(TerminalFiles.Distro, Posix.ToFolder("/"));
+        Assert.IsNull(Posix.ToFolder("relative/path"));
     }
 
     [TestMethod]

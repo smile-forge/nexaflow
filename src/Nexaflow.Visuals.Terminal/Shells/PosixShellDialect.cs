@@ -1,13 +1,12 @@
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
-using Nexaflow.IO.Terminal;
 
 namespace Nexaflow.Visuals.Terminal.Shells;
 
 /// <summary>
 /// A POSIX shell on a location — bash or zsh in a WSL distro, a shell over SSH: <c>cd -- '…'</c> and
 /// <c>export NAME='…'</c> with every value one single-quoted word, Ctrl+E and Ctrl+U to clear the line, and no prompt to read — the
-/// shell reports its folder (OSC 7) and marks its prompts (OSC 133). The terminal names the location's folders as the
+/// shell marks its prompts (OSC 133) and its host says where it is. The terminal names the location's folders as the
 /// file system does (<c>::wsl-ubuntu\home\adam</c>) and hands the shell its own (<c>/home/adam</c>).
 /// </summary>
 public sealed class PosixShellDialect : TerminalShellDialect
@@ -54,11 +53,11 @@ public sealed class PosixShellDialect : TerminalShellDialect
     public override string DescribeFolder(string folder)
         => ShellPath(folder) is { } path ? $"{path} ({folder})" : folder;
 
-    /// <summary>The reported path on the location, whatever host the shell names — the shell runs there.</summary>
-    public override string? ToFolder(TerminalWorkingFolder reported)
+    /// <summary>The location's own path (<c>/srv/app</c>) as the file system names it.</summary>
+    public override string? ToFolder(string hostFolder)
     {
-        if (!reported.Path.StartsWith('/')) return null;
-        var remainder = LocationPath.ToRemainder(reported.Path);
+        if (!hostFolder.StartsWith('/')) return null;
+        var remainder = LocationPath.ToRemainder(hostFolder);
         return remainder.Length == 0 ? _root : $"{_root}\\{remainder}";
     }
 

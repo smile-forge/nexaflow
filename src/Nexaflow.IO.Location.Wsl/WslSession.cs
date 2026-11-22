@@ -43,7 +43,7 @@ internal sealed class WslSession : ILocationSession
             reader.UInt32();
             reader.Text();
             var loginShell = reader.Text();
-            return new WslSession(distro, start.Link, new WslShell(distro, start.Folder, loginShell));
+            return new WslSession(distro, start.Link, new WslShell(distro, start.Folder, loginShell, start.Link));
         }
         catch
         {

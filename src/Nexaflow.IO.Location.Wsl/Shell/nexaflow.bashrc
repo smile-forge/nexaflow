@@ -1,6 +1,7 @@
 # Nexaflow's shell integration for bash, started as `bash --rcfile <this> -i`.
-# It reads the startup files a login shell would, then reports the working folder (OSC 7) and marks each prompt,
-# command and its end (OSC 133), so Nexaflow's terminal follows `cd` and can hand over one command's output.
+# It reads the startup files a login shell would, then marks each prompt, command and its end (OSC 133), so Nexaflow's
+# terminal can hand over one command's output, and reports the working folder (OSC 7) for any terminal that shows it.
+# Nexaflow takes the folder from Linux itself, never from this report, which any output can imitate.
 
 if [ -f /etc/profile ]; then . /etc/profile; fi
 if [ -f "$HOME/.bash_profile" ]; then . "$HOME/.bash_profile"

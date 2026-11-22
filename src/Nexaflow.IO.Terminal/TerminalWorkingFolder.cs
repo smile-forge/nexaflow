@@ -4,7 +4,9 @@ namespace Nexaflow.IO.Terminal;
 
 /// <summary>
 /// The folder a shell says it works in, as it reports it at a prompt (OSC 7, <c>file://host/path</c>): the host it names
-/// and the path on that host, both percent-decoded and read as UTF-8.
+/// and the path on that host, both percent-decoded and read as UTF-8. It is a claim — any output can print one — so nothing
+/// that grants access follows it: that asks the shell's host
+/// (<see cref="Nexaflow.IO.Common.Terminal.ITerminalTransport.GetWorkingDirectoryAsync"/>).
 /// </summary>
 public sealed record TerminalWorkingFolder(string Host, string Path)
 {

@@ -1,5 +1,6 @@
 # Nexaflow's shell integration for zsh: hands ZDOTDIR back to the user, runs their .zshrc (their .zlogin follows from
-# their own folder), then reports the working folder (OSC 7) and marks each prompt, command and its end (OSC 133).
+# their own folder), then marks each prompt, command and its end (OSC 133) and reports the working folder (OSC 7).
+# Nexaflow takes the folder from Linux itself, never from this report, which any output can imitate.
 
 ZDOTDIR="$NEXAFLOW_ZDOTDIR"
 unset NEXAFLOW_ZDOTDIR

@@ -37,7 +37,7 @@ The groundwork is real but synchronous and Windows-path shaped, so the first job
 | WindowsFileSystem feature | `Features.WindowsFileSystem` | The browser, This PC, file actions, transfers. Browsing, the tree, the address bar, create, rename and the assistant's file tools go through the runtime's async VFS; file actions are awaitable; copy, move and delete go through the engine, and what the Recycle Bin cannot hold is offered as a permanent delete | Dragging out, the clipboard, Open With and shell verbs resolve through the process-wide file system, which knows no locations, so each hands Windows a path it cannot open |
 | `FileTransferEngine` | `IO.Common` | Progress, throughput, ETA, cancel. An item whose ends are both real paths on this disk takes the disk's own path; one with an end only the file system reaches (an archive, a location) goes through `FileTransferRequest.FileSystem` with the same promises | Free-space parking only where the destination is on this disk. Within one location that declares `ServerSideCopy` an unverified copy asks the server (`CopyWithinAsync`) and moves no bytes |
 | `IThisPcItemProvider` | `Features.Common/ThisPc` | Every row of This PC is a provider's: the volumes (the file browser's own provider), OneDrive's sync folders; each provider describes its own rows, and connections use the same seam | — |
-| `PathScope` | `IO.Common/PathScope.cs` | Assistant reach equals what the user has open; a location's path (`::{id}\…`) is made full within its root and compared as the file system holding it says | The file browser's own tools work in location paths; every other tool gets the browser's grant as a Windows path, compared ignoring case, and a terminal's grant follows the folder its output reports |
+| `PathScope` | `IO.Common/PathScope.cs` | Assistant reach equals what the user has open; a location's path (`::{id}\…`) is made full within its root and compared as the file system holding it says | The file browser's own tools work in location paths; every other tool gets the browser's grant as a Windows path, compared ignoring case. A terminal's grant is the folder its shell's host says the shell is in |
 | `PseudoConsoleHostService` + `TerminalScreen` | `IO.Terminal` | The ConPTY transport for cmd/pwsh, started by `PseudoConsoleLauncher`, and a VT100 screen buffer sized to the console the shell is shown in | The view is a scrolling list of finished lines, so full-screen programs (vim, htop, tmux) are not drawn |
 | `ProtectedData` | `Core/ConfigManager.cs` | DPAPI protects stored secrets | Per-file, not a credential store with per-host entries |
 
@@ -203,7 +203,7 @@ shell runs in this computer's ConPTY, as WSL's does — and its own packages, as
 
 | Backend | Phase | Built on | Ranged read | Watch | Shell | Main risk |
 | --- | --- | --- | --- | --- | --- | --- |
-| WSL | 1 | `\\wsl.localhost` for bytes; `Nexaflow.WslHelper`, run with `wsl.exe -d <distro> --exec`, for listings, POSIX metadata, renames and inotify | yes | inotify via the helper | `wsl.exe` in ConPTY, bash and zsh through a shim that reports OSC 7 and OSC 133 | 9P listing is slow on big folders, so the helper lists |
+| WSL | 1 | `\\wsl.localhost` for bytes; `Nexaflow.WslHelper`, run with `wsl.exe -d <distro> --exec`, for listings, POSIX metadata, renames and inotify | yes | inotify via the helper | `wsl.exe` in ConPTY, bash and zsh through a shim that marks prompts (OSC 133) and links the shell's `/proc/<pid>/cwd` for the helper to read | 9P listing is slow on big folders, so the helper lists |
 | SMB | 1 | Windows' SMB client through UNC paths | yes | `ReadDirectoryChangesW` over SMB | none | Credentials, This PC rows and the async path |
 | SFTP | 2 | SSH.NET (MIT) | yes | polling, adaptive | SSH shell on the same session | Polling cost on busy folders |
 | FTP / FTPS | 3 | FluentFTP (MIT) | yes, `REST` | polling | none | Servers that lie about listings; `MLSD` first, `LIST` parsing as fallback |
@@ -234,9 +234,12 @@ full-screen programs, because over SSH that is half of what people run.
   environment and colours.
 - **"Open terminal here" follows the folder.** On `::{sftp-nas}\srv\app` it opens an SSH shell on `nas` at `/srv/app`; on
   a WSL path, that distro at that path.
-- **Shell integration keeps browser and terminal in step.** OSC 7 reports the working folder and OSC 133 marks prompts and
-  command output, so `cd` can move a linked browser, and the assistant can be given one command's output rather than the
-  scrollback.
+- **Shell integration keeps browser and terminal in step.** OSC 133 marks prompts and command output, so the assistant
+  can be given one command's output rather than the scrollback. Where the shell is, is asked of its host
+  (`ITerminalTransport.GetWorkingDirectoryAsync`): cmd's own current folder, read from its process, and a distro shell's
+  `/proc/<pid>/cwd`, read by the helper. Output is only the cue to ask, with a heartbeat for output that swallows the
+  prompt, so `cd` can move a linked browser and sets what the assistant may reach. OSC 7 and the folder in a prompt are
+  never believed: any file printed can carry them.
 - **Full-screen programs get a grid view (2.0, phase 2).** `TerminalScreen` keeps a correct VT100 grid; when a program
   switches to the alternate screen buffer (vim, htop, less, tmux), the view draws that grid with cursor, colours and mouse
   reporting, and returns to the line view when it leaves. This is the largest single piece of new UI in 2.0.
@@ -325,7 +328,7 @@ Bin is never offered for one, and a name Windows would trim has no native path. 
 | Gap | Effect |
 | --- | --- |
 
-| A terminal's grant follows OSC 7, which any output can print | Printing a hostile file can widen what the assistant may reach |
+
 | `ShellPath`, `ShellVerbAction` and `CustomAction` resolve through `VirtualFileSystem.Instance` | Open With, shell verbs, clipboard and drag-out fail on a distro's files |
 | Pages other than the browser's tools are granted Windows paths | The assistant's reach there ignores case, and trims a trailing dot or space |
 | `delete_file` refuses on a location | The person can delete there and the assistant cannot |

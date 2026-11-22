@@ -22,7 +22,7 @@ namespace Nexaflow.Tests.Features.Console;
 /// <summary>
 /// The console over real shells, where a fake cannot answer: what a person types is the shell's; a command from the AI bar
 /// or the assistant runs as written, whatever was half-typed at the prompt; and the assistant gets the command's output.
-/// Every command only prints. Each shell keeps its history to itself, so nothing lands in the person's own.
+/// Commands only print or change folder. Each shell keeps its history to itself, so nothing lands in the person's own.
 /// </summary>
 public abstract class LiveShellTests
 {
@@ -80,6 +80,16 @@ public abstract class LiveShellTests
 
     /// <summary>A command printing 1 to 100, a line each.</summary>
     protected abstract string PrintsAHundredLines { get; }
+
+    /// <summary>A command printing every way a shell shows its folder, each naming a system folder, then staying a moment.</summary>
+    protected abstract string ClaimsASystemFolder { get; }
+
+    /// <summary>A command that really moves the shell, and the folder it moves it to.</summary>
+    protected abstract (string Command, string Folder) MovesTheShell { get; }
+
+    /// <summary>Moves that are awkward to follow, in order — through odd names, changed prompts, output that swallows what
+    /// follows it — and where each leaves the shell.</summary>
+    protected abstract IReadOnlyList<(string Command, string Folder)> AwkwardMoves { get; }
 
     [TestInitialize]
     public async Task StartShell()
@@ -195,6 +205,50 @@ public abstract class LiveShellTests
         StringAssert.Contains(result.ToString(), "END");
         await UntilAsync(() => !_terminal.IsBusy, "the prompt back");
     }
+
+    [TestMethod]
+    public async Task WhatACommandPrints_NeverMovesTheFolderTheAssistantMayReach()
+    {
+        var granted = _ui.Invoke(() => _terminal.GetContextGrant().Folders.Single());
+        var moves   = new List<string>();
+        OnUi(() => _terminal.PropertyChanged += (_, changed) =>
+        {
+            if (changed.PropertyName == nameof(TerminalViewModel.CurrentPath)) moves.Add(_terminal.CurrentPath);
+        });
+
+        OnUi(() => _terminal.SendCommand(ClaimsASystemFolder));
+        await Task.Delay(TimeSpan.FromSeconds(6));
+
+        OnUi(() =>
+        {
+            Assert.AreEqual("", string.Join(", ", moves), "printing moved the folder");
+            Assert.AreEqual(granted, _terminal.GetContextGrant().Folders.Single());
+        });
+    }
+
+    [TestMethod]
+    public async Task ARealMove_IsFollowed_HoweverTheShellShowsIt()
+    {
+        foreach (var (command, folder) in AwkwardMoves)
+        {
+            OnUi(() => _terminal.SendCommand(command));
+            await UntilAsync(() => string.Equals(_terminal.CurrentPath, folder, StringComparison.OrdinalIgnoreCase),
+                             $"'{folder}' after '{command}' (it says '{_ui.Invoke(() => _terminal.CurrentPath)}')");
+            await Task.Delay(700);
+        }
+    }
+
+    [TestMethod]
+    public async Task ARealChangeOfFolder_IsFollowedBeforeTheAssistantGetsItsResult_EvenAfterAFakeOne()
+    {
+        OnUi(() => _terminal.SendCommand(ClaimsASystemFolder));
+        await Task.Delay(TimeSpan.FromSeconds(6));
+        var (command, folder) = MovesTheShell;
+
+        await _terminal.RunCommandCaptureAsync(command, CancellationToken.None);
+
+        Assert.AreEqual(folder, _ui.Invoke(() => _terminal.GetContextGrant().Folders.Single()), ignoreCase: true);
+    }
 }
 
 [TestClass]
@@ -203,12 +257,43 @@ public abstract class LiveShellTests
 [CoversNode("console-enter-classify")]
 public sealed class LiveCmdShellTests : LiveShellTests
 {
+    private string _folder = "";
+
+    private static string Windows => Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+
     protected override Task<(TerminalShellRoute Route, Dictionary<string, string> Variables)> RouteAsync()
-        => Task.FromResult((new TerminalShellRoute(new PseudoConsoleLauncher(), new CmdShellDialect(),
-                                                   TestTemp.CreateSubdirectory("nexa-live-cmd-").FullName),
-                            new Dictionary<string, string>()));
+    {
+        _folder = TestTemp.CreateSubdirectory("nexa-live-cmd-").FullName;
+        System.IO.File.WriteAllText(System.IO.Path.Combine(_folder, "claim.txt"),
+            $"\x1b]7;file://localhost/{Windows.Replace('\\', '/')}\x1b\\{Windows}>");
+        return Task.FromResult((new TerminalShellRoute(new PseudoConsoleLauncher(), new CmdShellDialect(), _folder),
+                                new Dictionary<string, string>()));
+    }
 
     protected override string PrintsAHundredLines => "for /L %i in (1,1,100) do @echo %i";
+
+    protected override string ClaimsASystemFolder => "type claim.txt & ping -n 3 127.0.0.1 >nul";
+
+    protected override (string Command, string Folder) MovesTheShell
+            => ($"cd /d \"{System.IO.Path.GetDirectoryName(_folder)}\"", System.IO.Path.GetDirectoryName(_folder)!);
+
+        protected override IReadOnlyList<(string Command, string Folder)> AwkwardMoves
+        {
+            get
+            {
+                var odd = System.IO.Directory.CreateDirectory(System.IO.Path.Combine(_folder, "a b ü & (x) 日本")).FullName;
+                System.IO.File.WriteAllText(System.IO.Path.Combine(_folder, "hide.txt"), "\x1b]133;B\x1b\\\x1b]0;never ended");
+                return
+                [
+                    ($"cd /d \"{odd}\"", odd),
+                    ("cd ..", _folder),
+                    ("type hide.txt & cd /d C:\\", "C:\\"),
+                    ($"prompt $G & cd /d \"{odd}\"", odd),
+                    ($"pushd \"{Windows}\"", Windows),
+                    ("popd", odd),
+                ];
+            }
+        }
 }
 
 [TestClass]
@@ -254,6 +339,31 @@ public sealed class LiveWslShellTests : LiveShellTests
     }
 
     protected override string PrintsAHundredLines => "seq 1 100";
+
+    protected override string ClaimsASystemFolder
+        => @"printf '\033]7;file://localhost/\033\\\033]133;A\033\\\033]133;B\033\\'; sleep 2";
+
+    protected override (string Command, string Folder) MovesTheShell
+            => ("cd /usr/share", $@"{_set!.Mounts[0].Root}\usr\share");
+
+        protected override IReadOnlyList<(string Command, string Folder)> AwkwardMoves
+        {
+            get
+            {
+                var root = _set!.Mounts[0].Root;
+                var name = $"nexaflow-move-{Guid.NewGuid():N}";
+                return
+                [
+                    ($"mkdir '/tmp/{name}' \"/tmp/{name}/\"$'a b:\\nü' && cd \"/tmp/{name}/\"$'a b:\\nü'", $@"{root}\tmp\{name}\a b%3A%0Aü"),
+                    ($"cd /tmp && rmdir \"/tmp/{name}/\"$'a b:\\nü' '/tmp/{name}'", $@"{root}\tmp"),
+                    (@"printf '\033]0;never ended'; cd /etc", $@"{root}\etc"),
+                    ("PS1='> '; cd /", root),
+                    ("cd /bin", $@"{root}\usr\bin"),
+                    ("exec bash --norc", $@"{root}\usr\bin"),
+                    ("cd /var", $@"{root}\var"),
+                ];
+            }
+        }
 
     [TestMethod]
     public async Task TheBarKnowsTheDistrosOwnPrograms_ThoughWindowsHasNone()

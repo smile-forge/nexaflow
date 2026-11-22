@@ -20,6 +20,8 @@ Runs a Windows command prompt in a tab — or the shell of a location, such as a
 - The assistant reads what the commands it runs print, and can see what else is on the screen then, so a password or token shown there is seen too.
 - While a program is running, what you type goes to that program, so a `y` or a password is never treated as a question or kept in history.
 - The assistant knows the console's folder and which shell runs there — cmd.exe, or a location's own — so it uses that shell's syntax.
+- What the assistant may reach is the console's folder and everything under it. That folder is where the shell really is, asked of Windows — or of Linux in a distro — never read off the screen, so printing a file cannot move it.
+- A shell started inside the console — PowerShell, another cmd, a nested bash — keeps a folder of its own. The path bar, the Files tab and the assistant stay on the console's own shell until you leave it.
 - With your approval it can run commands in this console, read the output and carry on. Plain output reaches it as text; a full-screen program reaches it as its screen.
 - A command that keeps going is watched in the background, and you are told the result when it finishes. If you have moved to another tab, a notification with an Open button brings you back.
 - Ask a follow-up while a command it started is still going and it knows what that command has printed so far.

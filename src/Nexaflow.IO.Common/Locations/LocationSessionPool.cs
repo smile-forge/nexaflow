@@ -480,6 +480,7 @@ internal sealed class PooledLocationSession(ILocationSession inner, PooledConnec
         public void Resize(int columns, int rows) => inner.Resize(columns, rows);
         public void Interrupt() => inner.Interrupt();
         public void TerminateForeground() => inner.TerminateForeground();
+        public ValueTask<string?> GetWorkingDirectoryAsync(CancellationToken ct) => inner.GetWorkingDirectoryAsync(ct);
 
         public void Dispose()
         {

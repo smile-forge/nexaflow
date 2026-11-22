@@ -17,8 +17,8 @@ namespace Nexaflow.Tests.Features.Console;
 
 /// <summary>
 /// The shell a console runs is the one that reaches its folder. On a location with a shell it is the location's own, handed
-/// the folder as the file system names it and spoken to in its dialect: it says where it is (OSC 7) and when a prompt is
-/// back (OSC 133), and a <c>cd</c> to it names the location's path. Anywhere else it is the local shell, started where this
+/// the folder as the file system names it and spoken to in its dialect: its host says where it is, whatever it prints, its
+/// marks say when a prompt is back (OSC 133), and a <c>cd</c> to it names the location's path. Anywhere else it is the local shell, started where this
 /// disk holds the folder — or in the profile when no disk does. A location that cannot be reached says so in the terminal.
 /// </summary>
 [TestClass]
@@ -121,17 +121,63 @@ public sealed class TerminalShellRouteTests
     }
 
     [TestMethod]
-    public async Task TheConsoleFollowsTheFolderTheLocationsShellReports_AndKnowsWhenItsPromptIsBack()
+    public async Task TheConsoleFollowsTheFolderTheLocationsHostNames_AndKnowsWhenItsPromptIsBack()
+    {
+        var terminal = await StartedOn($@"{TerminalFiles.Distro}\home\adam");
+        _distro.WorkingDirectory = "/srv/a b/x:y";
+
+        DistroSays($"{Esc}]133;D;0{St}{Esc}]133;A{St}adam@probe:/srv$ {Esc}]133;B{St}");
+
+        Assert.AreEqual($@"{TerminalFiles.Distro}\srv\a b\x%3Ay", terminal.CurrentPath);
+        Assert.IsFalse(terminal.IsBusy, "the prompt is back");
+    }
+
+    [TestMethod]
+    public async Task ACommandRunsOnceItsOutputStarts()
     {
         var terminal = await StartedOn($@"{TerminalFiles.Distro}\home\adam");
 
         DistroSays($"{Esc}]133;C{St}");
-        Assert.IsTrue(terminal.IsBusy, "a command runs once its output starts");
 
-        DistroSays($"{Esc}]133;D;0{St}{Esc}]7;file://probe/srv/a%20b/x%3Ay{St}{Esc}]133;A{St}adam@probe:/srv$ {Esc}]133;B{St}");
+        Assert.IsTrue(terminal.IsBusy);
+    }
 
-        Assert.AreEqual($@"{TerminalFiles.Distro}\srv\a b\x%3Ay", terminal.CurrentPath);
-        Assert.IsFalse(terminal.IsBusy, "the prompt is back");
+    [TestMethod]
+    public async Task AFolderALocationsShellPrints_IsNotItsFolder()
+    {
+        var start    = $@"{TerminalFiles.Distro}\home\adam";
+        var terminal = await StartedOn(start);
+        terminal.Tab = new Page();
+
+        DistroSays($"{Esc}]7;file://probe/{St}{Esc}]133;A{St}root@probe:/# {Esc}]133;B{St}");
+
+        Assert.AreEqual(start, terminal.CurrentPath);
+        CollectionAssert.AreEqual(new[] { start }, terminal.GetContextGrant().Folders.ToArray());
+        Assert.AreEqual(start, terminal.Tab.PageParams!["path"], "nor the folder the tab reopens at");
+    }
+
+    [TestMethod]
+    [DataRow(@"C:\Windows>", DisplayName = "a prompt")]
+    [DataRow(@"PS C:\Windows>", DisplayName = "PowerShell's prompt")]
+    [DataRow("\x1b]7;file://pc/C:/Windows\x1b\\", DisplayName = "a folder report")]
+    public async Task AFolderCmdPrints_IsNotItsFolder(string printed)
+    {
+        var terminal = await StartedOn(@"C:\work");
+
+        _local.Emit(Encoding.UTF8.GetBytes(printed));
+
+        Assert.AreEqual(@"C:\work", terminal.CurrentPath);
+    }
+
+    [TestMethod]
+    public async Task AFakeMark_DoesNotStopCmdBeingFollowed()
+    {
+        var terminal = await StartedOn(@"C:\work");
+        _local.WorkingDirectory = @"C:\work\src";
+
+        _local.Emit(Encoding.UTF8.GetBytes($"{Esc}]133;B{St}anything at all"));
+
+        Assert.AreEqual(@"C:\work\src", terminal.CurrentPath);
     }
 
     [TestMethod]

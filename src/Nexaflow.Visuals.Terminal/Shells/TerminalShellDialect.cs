@@ -1,10 +1,9 @@
-using Nexaflow.IO.Terminal;
-
 namespace Nexaflow.Visuals.Terminal.Shells;
 
 /// <summary>
 /// How a terminal speaks to the shell it runs: the commands it phrases for it, the words it knows as its own, how its
-/// folders compare, and how it says where it is — in a prompt read off the screen, or as a folder it reports (OSC 7).
+/// folders compare and are named, and what its prompt looks like. Where it is, is its host's to say
+/// (<see cref="Nexaflow.IO.Common.Terminal.ITerminalTransport.GetWorkingDirectoryAsync"/>), never its output's.
 /// Chosen with the shell (<see cref="TerminalShellRoute"/>), so one terminal runs cmd on this computer and a location's
 /// own shell alike. Folders are named as the file system names them (<c>C:\work</c>, <c>::wsl-ubuntu\home\adam</c>); a
 /// dialect turns them into the shell's own.
@@ -45,11 +44,11 @@ public abstract class TerminalShellDialect
     /// shell that does not mark its prompts (OSC 133); one that does is followed by its marks.</summary>
     public virtual ShellPromptRow? ReadPrompt(string row) => null;
 
-    /// <summary>A folder the shell reported (OSC 7), as the file system names it; null when it is none this terminal
+    /// <summary>The folder the shell's host named, as the file system names it; null when it is none this terminal
     /// reaches.</summary>
-    public virtual string? ToFolder(TerminalWorkingFolder reported) => null;
+    public virtual string? ToFolder(string hostFolder) => null;
 }
 
-/// <summary>A prompt read off a screen row: the column typing starts at, the folder it shows when it shows one, and
-/// whether nothing is typed after it yet.</summary>
-public readonly record struct ShellPromptRow(int InputColumn, string? Folder, bool IsBare);
+/// <summary>A prompt read off a screen row: the column typing starts at, whether it is the kind that shows a folder — the
+/// folder shown is not read, as any output can draw one — and whether nothing is typed after it yet.</summary>
+public readonly record struct ShellPromptRow(int InputColumn, bool ShowsFolder, bool IsBare);

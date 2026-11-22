@@ -54,6 +54,11 @@ internal sealed class FakeTerminal : ITerminalLauncher, ITerminalTransport
 
     public void TerminateForeground() => ForegroundEnds++;
 
+    /// <summary>Where the host says the shell is, as it names folders; null when it cannot say.</summary>
+    public string? WorkingDirectory { get; set; }
+
+    public ValueTask<string?> GetWorkingDirectoryAsync(CancellationToken ct) => ValueTask.FromResult(WorkingDirectory);
+
     /// <summary>The shell writes <paramref name="bytes"/>.</summary>
     public void Emit(params byte[] bytes) => _output.Raise(bytes);
 

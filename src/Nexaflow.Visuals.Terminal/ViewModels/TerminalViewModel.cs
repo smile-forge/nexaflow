@@ -25,7 +25,7 @@ namespace Nexaflow.Visuals.Terminal.ViewModels;
 /// <see cref="TerminalShellRoute"/> it is given — cmd in ConPTY on this computer, a location's shell elsewhere — whose
 /// shell stays alive for the tab's lifetime, renders its output at the size the view has room for, and tracks the working
 /// directory, environment snapshot and command history. How to speak to the shell — phrasing <c>cd</c>/<c>set</c>, reading
-/// its prompt or following the folder it reports and the prompts it marks — is the route's
+/// its prompt or following the prompts it marks — is the route's
 /// <see cref="TerminalShellDialect"/>; the environment source/persistence are supplied by a feature-specific subclass — so
 /// cmd and a future PowerShell feature share everything here without referencing each other.
 /// </summary>
@@ -83,8 +83,8 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     /// on each chunk. Together with <see cref="Scrollback"/> this is the full terminal display.</summary>
     [ObservableProperty] private string _screenText = string.Empty;
 
-    /// <summary>The shell's folder, shown in the top bar, as its dialect names folders — read off its prompt, or followed
-    /// as the shell reports it.</summary>
+    /// <summary>The shell's folder, shown in the top bar, as its dialect names folders: where it started, then where its host
+    /// says it is. It is what the assistant is granted and what the tab saves, so nothing printed ever sets it.</summary>
     [ObservableProperty] private string _currentPath =
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
@@ -164,8 +164,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         _rows     = rows;
         _route    = route;
         _screen   = new TerminalScreen(cols, rows);
-        _screen.WorkingFolderReported += OnWorkingFolderReported;
-        _screen.ShellMarked           += OnShellMarked;
+        _screen.ShellMarked += OnShellMarked;
         if (route.StartFolder is { } start) CurrentPath = start;
 
         _envView = CollectionViewSource.GetDefaultView(EnvVars);
@@ -236,6 +235,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         foreach (var text in pending) transport.Write(Encoding.UTF8.GetBytes(text));
         if ((_cols, _rows) != (launch.Columns, launch.Rows)) transport.Resize(_cols, _rows);
         ShellCommandsListed = LoadShellCommandsAsync();
+        _ = KeepFollowingShellFolderAsync(_disposeCts.Token);
     }
 
     /// <summary>Sends <paramref name="text"/> as typed; before the shell is there it waits, and goes once it is.</summary>
@@ -489,6 +489,8 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
     private void ProcessScreenOutput(string rawChunk)
     {
+        // Before the screen reads it: a prompt in this chunk ends a capture, which then waits for the folder asked for here.
+        FollowShellFolder();
         _screen.Feed(rawChunk);
 
         // Lines that scrolled off the top become scrollback; the visible grid is the live screen.
@@ -505,8 +507,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         // _atPrompt simply stays set).
         if (!_marksPrompts && !_atPrompt && Dialect.ReadPrompt(_screen.CursorRowText) is { IsBare: true } prompt)
         {
-            if (prompt.Folder is { } folder) MoveTo(folder);
-            OnPromptReturned(knowsFolder: prompt.Folder is not null);
+            OnPromptReturned(shellsOwn: prompt.ShowsFolder);
         }
 
         ScrollRequested?.Invoke(this, EventArgs.Empty);
@@ -527,34 +528,108 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     // ── Prompts and folders ───────────────────────────────────────────────
     //
     // The screen buffer gives clean text with cursor-move effects already applied, so a prompt the dialect reads off the
-    // cursor row is reliable; a shell that marks its prompts (OSC 133) and reports its folder (OSC 7) needs no reading.
+    // cursor row says when one returns; a shell that marks its prompts (OSC 133) needs no reading. Neither says where the
+    // shell is: printed text can imitate both, so the folder is only ever asked of the host (FollowShellFolder).
 
-    /// <summary>The shell is back at a prompt: the command that ran has finished. With its folder known, the panels catch up,
-    /// the start-up sequence moves on and the tab follows.</summary>
-    private void OnPromptReturned(bool knowsFolder)
+    /// <summary>The shell is back at a prompt: the command that ran has finished. At the shell's own prompt — one it marks,
+    /// or one of the kind that shows a folder, not a bare <c>&gt;</c> another program may print — the panels catch up, the
+    /// start-up sequence moves on and the tab follows.</summary>
+    private void OnPromptReturned(bool shellsOwn)
     {
         _atPrompt = true;
         IsBusy    = false;
         _captureTcs?.TrySetResult(true);   // a capture in flight: the command finished (clean prompt)
-        if (!knowsFolder) return;
+        if (!shellsOwn) return;
 
         RefreshEnvVars();
         HandlePromptDetected();
         SyncTabMeta();
     }
 
-    /// <summary>The shell is in <paramref name="folder"/>; the Files panel is listed again only when that is a move.</summary>
+    // How often the host is asked while output pours, how often while none comes, and how long one answer is waited for.
+    private static readonly TimeSpan FolderPace      = TimeSpan.FromMilliseconds(200);
+    private static readonly TimeSpan FolderHeartbeat = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan FolderPatience  = TimeSpan.FromSeconds(5);
+
+    private volatile bool _folderStale;
+    private long _folderAskedAt = -(long)FolderPace.TotalMilliseconds;
+    private Task _followingFolder = Task.CompletedTask;
+
+    /// <summary>The shell is in <paramref name="folder"/>; the Files panel and the tab follow only when that is a move.</summary>
     private void MoveTo(string folder)
     {
+        if (_disposed) return;
         bool moved  = !string.Equals(folder, CurrentPath, Dialect.PathComparison);
         CurrentPath = folder;
-        if (moved) RefreshFiles();
+        if (!moved) return;
+
+        RefreshFiles();
+        SyncTabMeta();
     }
 
-    /// <summary>Follows the folder the shell reports (OSC 7), where it names one this terminal reaches.</summary>
-    private void OnWorkingFolderReported(TerminalWorkingFolder reported)
+    /// <summary>
+    /// Has the host asked where the shell is. Any output is the cue, whatever it holds — a shell prints once it is back at
+    /// its prompt, so the last answer is the true one, and nothing printed can name a folder. Printed text can stop the
+    /// prompt being printed (an escape left open swallows what follows it), so the host is asked on a heartbeat too
+    /// (<see cref="KeepFollowingShellFolderAsync"/>). Called on the UI thread; asks share one loop.
+    /// </summary>
+    private void FollowShellFolder()
     {
-        if (Dialect.ToFolder(reported) is { } folder) MoveTo(folder);
+        _folderStale = true;
+        if (_followingFolder.IsCompleted) _followingFolder = FollowShellFolderAsync();
+    }
+
+    private async Task FollowShellFolderAsync()
+    {
+        while (_folderStale && !_disposed)
+        {
+            try
+            {
+                var early = (long)FolderPace.TotalMilliseconds - (Environment.TickCount64 - _folderAskedAt);
+                if (early > 0) await Task.Delay(TimeSpan.FromMilliseconds(early), _disposeCts.Token);
+
+                _folderStale   = false;
+                _folderAskedAt = Environment.TickCount64;
+                if (_transport is not { } transport) return;
+
+                using var patience = CancellationTokenSource.CreateLinkedTokenSource(_disposeCts.Token);
+                patience.CancelAfter(FolderPatience);
+                if (await transport.GetWorkingDirectoryAsync(patience.Token) is { } named && Dialect.ToFolder(named) is { } folder)
+                    await _shell.RunOnUiAsync(() => MoveTo(folder));
+            }
+            catch (OperationCanceledException)
+            {
+                // closed, or no answer in time: the last folder the host named stands
+            }
+            catch (Exception e)
+            {
+                System.Diagnostics.Trace.TraceWarning($"The shell's folder could not be read: {e.Message}");
+            }
+        }
+    }
+
+    /// <summary>Asks the host where the shell is every <see cref="FolderHeartbeat"/>, so a move the shell printed nothing
+    /// after is followed too, until the terminal closes.</summary>
+    private async Task KeepFollowingShellFolderAsync(CancellationToken ct)
+    {
+        using var beat = new PeriodicTimer(FolderHeartbeat);
+        try
+        {
+            while (await beat.WaitForNextTickAsync(ct)) await _shell.RunOnUiAsync(FollowShellFolder);
+        }
+        catch (OperationCanceledException) { /* closed */ }
+    }
+
+    /// <summary>Waits for the folder the output so far asked for, so what follows a <c>cd</c> is judged by where it went.</summary>
+    private async Task ShellFolderSettledAsync(CancellationToken ct)
+    {
+        var following = Task.CompletedTask;
+        await _shell.RunOnUiAsync(() => { following = _followingFolder; });
+        try { await following.WaitAsync(FolderPatience, ct); }
+        catch (Exception unsettled) when (unsettled is TimeoutException or OperationCanceledException)
+        {
+            // the last folder the host named stands
+        }
     }
 
     /// <summary>Follows a shell that marks its prompt cycle (OSC 133): a prompt has returned once typing starts after it
@@ -569,7 +644,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
                 break;
             case ShellMarkKind.InputStart:
                 _inputStart = mark;
-                if (!_atPrompt) OnPromptReturned(knowsFolder: true);
+                if (!_atPrompt) OnPromptReturned(shellsOwn: true);
                 break;
             case ShellMarkKind.OutputStart:
                 _atPrompt = false;
@@ -587,7 +662,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
     // ── Init state machine ────────────────────────────────────────────────
     //
-    // Called each time a prompt returns with its folder known. The shell starts in its folder, so only the environment's
+    // Called each time the shell's own prompt returns. The shell starts in its folder, so only the environment's
     // initial command waits for a prompt:
     //   0 — awaiting the very first prompt
     //   1 — awaiting the prompt after a cd (ApplyParams)
@@ -1035,6 +1110,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
             await _shell.RunOnUiAsync(() => { _capturing = false; StopQuietTimer(); });
         }
 
+        if (promptReturned) await ShellFolderSettledAsync(ct);
         var snap = await ReadCaptureAsync();
 
         // Finished (a prompt returned): all it printed, or the screen for a program that draws on the alternate one.

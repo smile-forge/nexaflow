@@ -21,8 +21,8 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Nexaflow.Tests.IO" />
-    <!-- The shell-integration shims deployed beside the helper: they report the working folder (OSC 7) and mark prompts
-         (OSC 133) for bash and zsh, after sourcing the user's own startup file. -->
+    <!-- The shell-integration shims deployed beside the helper: they mark prompts (OSC 133) and report the working folder
+         (OSC 7) for bash and zsh, after sourcing the user's own startup file. -->
     <EmbeddedResource Include="Shell\*" LogicalName="Shell/%(Filename)%(Extension)" />
   </ItemGroup>
 

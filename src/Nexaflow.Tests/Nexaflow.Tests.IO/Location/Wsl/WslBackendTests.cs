@@ -208,4 +208,14 @@ public sealed class WslBackendTests
         CollectionAssert.AreEquivalent(new[] { "apt", "systemctl" }, listed.ToArray(), "a profile's greeting names no program");
         Assert.AreEqual(0, WslShell.ParseCommands("no mark at all\n").Count);
     }
+
+    [TestMethod]
+    [DataRow("/home/adam", "/home/adam")]
+    [DataRow("/srv/a b:\nc", "/srv/a b:\nc")]
+    [DataRow("/srv/gone (deleted)", null, DisplayName = "a folder removed under the shell")]
+    [DataRow("/srv/caf\uFFFD", null, DisplayName = "a name that lost bytes as it was read")]
+    [DataRow("relative", null)]
+    [DataRow(null, null)]
+    public void TheShellsFolder_IsTakenOnlyWhereLinuxNamesItExactly(string? target, string? folder)
+        => Assert.AreEqual(folder, WslTerminal.NamedExactly(target));
 }
