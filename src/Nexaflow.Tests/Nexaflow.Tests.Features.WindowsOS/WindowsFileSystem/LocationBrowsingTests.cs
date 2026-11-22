@@ -7,6 +7,7 @@ using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.IO.Location.Memory;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -211,14 +212,27 @@ public sealed class LocationBrowsingTests
     }
 
     [TestMethod]
-    public async Task TheAssistantsDelete_NeverPromisesARecycleBinTheLocationHasNot()
+    public async Task TheAssistantsDelete_OnALocation_IsAskedForAsForGood_ThenDeletesThroughTheLocation()
     {
-        ReachableAsAFolder();
-        var vm = await AtAsync($@"{Root}\docs");
+        var share = ReachableAsAFolder();
+        _shell.Runs();
+        var vm    = await AtAsync($@"{Root}\docs");
+        await _vfs.CreateDirectoryAsync($@"{Root}\docs\old");
+        vm.Refresh();
+        await vm.EntriesLoaded;
+        var tool  = new Nexaflow.Features.WindowsFileSystem.ClientTools.DeleteTool(vm);
+        var file  = new System.Text.Json.Nodes.JsonObject { ["name"] = "a.txt" };
 
-        await new Nexaflow.Features.WindowsFileSystem.ClientTools.DeleteTool(vm).InvokeAsync(
-            new System.Text.Json.Nodes.JsonObject { ["name"] = "a.txt" }, CancellationToken.None);
+        var asked  = tool.Announce(file)!;
+        var folder = tool.Announce(new System.Text.Json.Nodes.JsonObject { ["name"] = "old" })!;
+        var result = await tool.InvokeAsync(file, CancellationToken.None);
 
-        Assert.AreEqual("lower", await _vfs.ReadAllTextAsync($@"{Root}\docs\a.txt"), "approved as recyclable, so not deleted for good");
+        Assert.AreEqual(Str.Format("WindowsFileSystem.Announce.FileForGoodFormat", "a.txt"), asked.Target, "the approval says it is for good");
+        Assert.AreEqual(Str.Format("WindowsFileSystem.Announce.FolderForGoodFormat", "old"), folder.Target, "and that it is a folder");
+        Assert.IsTrue(result.Success, result.ToString());
+        Assert.IsFalse(await _vfs.ExistsAsync($@"{Root}\docs\a.txt"), "deleted, as the person's own Delete does there");
+        Assert.AreEqual("upper", await _vfs.ReadAllTextAsync($@"{Root}\docs\A.txt"), "only the name asked for, matched exactly");
+        Assert.AreEqual(0, System.IO.Directory.GetFiles(share, "*", System.IO.SearchOption.AllDirectories).Length,
+                        "nothing went through the Windows folder that shows the location");
     }
 }

@@ -328,7 +328,6 @@ never offered for one, and a name Windows would trim has no native path. These a
 
 | Gap | Effect |
 | --- | --- |
-| `delete_file` refuses on a location | The person can delete there and the assistant cannot |
 | Rename takes and shows path segments | An escaped name shows escaped, and a typed `%41` becomes `A` |
 | Editors that save by native path, and copies between a distro and Windows | Linux permissions are lost |
 | Image viewer delete calls the shell's Recycle Bin itself | Given a `\\wsl.localhost` path it deletes for good and reports recycling |

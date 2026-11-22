@@ -16,7 +16,7 @@ Browses the drives and folders on this PC and acts on the files in them.
 - Each WSL distro installed on this PC is a row of This PC, of type Linux (WSL) — nothing to set up. Opening it starts the distro if it is not running, and puts a small helper in your Linux account's cache folder the first time.
 - Go to a folder in one by typing `> wsl://Ubuntu/etc` or `> \\wsl.localhost\Ubuntu\etc` into the bar at the bottom.
 - A distro's folders list their Permissions, Owner and Group as `ls -l` does — a link's permissions start with `l` — and names that differ only by case are different files, as they are in Linux.
-- A distro has no Recycle Bin: Delete there is for good, and asks first saying so. Shift+Delete does not ask. The assistant does not delete there.
+- A distro has no Recycle Bin: Delete there is for good, and asks first saying so. Shift+Delete does not ask. The assistant can delete there too, and asks you first in words that say it is for good.
 - A distro's file goes to other programs by its `\\wsl.localhost` path — Open With, Copy and Cut to the Windows clipboard, dragging out, Windows' own actions for the file type and your external programs — so they open it as they would any file. Renames, moves and deletes in Nexaflow still happen inside the distro.
 - A file copied between a distro and Windows does not keep its Linux permissions, so a script may need `chmod +x` afterwards.
 - Cmd Here opens the distro's own shell at the folder.
@@ -51,4 +51,4 @@ Browses the drives and folders on this PC and acts on the files in them.
 ## Searching and the assistant
 
 - Type `?` and a term into the bar to search the files under this folder, or across the PC from This PC. Results open in a Search tab, which also offers a manual scan when a folder is not in the Windows index.
-- The assistant acts in the folder you are looking at. It can list the files, find them by name, read one, count its lines and report its size, and — with your approval — create a file or folder, copy, move, rename, or send something to the Recycle Bin.
+- The assistant acts in the folder you are looking at. It can list the files, find them by name, read one, count its lines and report its size, and — with your approval — create a file or folder, copy, move, rename, or send something to the Recycle Bin (in a distro, which has none, delete it for good).

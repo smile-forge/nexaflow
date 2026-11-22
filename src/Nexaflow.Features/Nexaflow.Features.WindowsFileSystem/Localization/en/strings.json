@@ -274,6 +274,8 @@
   "WindowsFileSystem.Announce.Delete": "delete",
   "WindowsFileSystem.Announce.FileFormat": "file {0}",
   "WindowsFileSystem.Announce.FolderFormat": "folder {0}",
+  "WindowsFileSystem.Announce.FileForGoodFormat": "file {0} for good",
+  "WindowsFileSystem.Announce.FolderForGoodFormat": "folder {0} for good",
   "WindowsFileSystem.Announce.DeletingFileFormat": "Deleting file {0}",
   "WindowsFileSystem.Announce.DeletingFolderFormat": "Deleting folder {0}",
   "WindowsFileSystem.Announce.FileDeleted": "File deleted.",

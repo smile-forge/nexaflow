@@ -568,10 +568,34 @@
           }
         ]
       }
+    },
+    "win-file-system-ai-act-delete-file": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemViewModelTests.cs",
+            "class": "FileSystemViewModelTests",
+            "method": "DeleteFileTool_RemovesFileFromDisk"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/WslAssistantDeleteTests.cs",
+            "class": "WslAssistantDeleteTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/LocationBrowsingTests.cs",
+            "class": "LocationBrowsingTests",
+            "method": "TheAssistantsDelete_OnALocation_IsAskedForAsForGood_ThenDeletesThroughTheLocation"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 30,
+  "changed_sets": 31,
   "touched_nodes": [
     "ai-context-paths",
     "console-enter-classify",
@@ -590,6 +614,7 @@
     "locations-terminal",
     "locations-this-pc",
     "vterm-shell-dialects",
+    "win-file-system-ai-act-delete-file",
     "winfs-action-backing",
     "winfs-drag-drop"
   ]
