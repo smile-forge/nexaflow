@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Tests.Fixtures;
@@ -55,6 +56,48 @@ public sealed class TerminalTransportTests
 
         Assert.AreEqual(folder, _transport.Launched!.WorkingDirectory);
         Assert.AreEqual("build", _transport.Launched.Environment!["NEXA_MODE"]);
+    }
+
+    [TestMethod]
+    [DataRow(@"C:\Windows>", DisplayName = "a prompt")]
+    [DataRow(@"PS C:\Windows>", DisplayName = "PowerShell's prompt")]
+    public async Task AFolderThePrintedTextShows_IsNotTheShellsFolder(string printed)
+    {
+        var folder   = TestTemp.CreateSubdirectory("nexa-term-").FullName;
+        var terminal = Terminal();
+        await terminal.Start(null, folder);
+        _transport.WorkingDirectory = folder;
+        terminal.Tab = new Page();
+
+        _transport.Emit(System.Text.Encoding.UTF8.GetBytes(printed));
+
+        Assert.AreEqual(folder, terminal.CurrentPath);
+        CollectionAssert.AreEqual(new[] { folder }, terminal.GetContextGrant().Folders.ToArray());
+        Assert.AreEqual(folder, terminal.Tab.PageParams!["path"], "nor the folder the tab reopens at");
+    }
+
+    [TestMethod]
+    public async Task TheShellsFolder_IsWhereItsHostSaysItIs_WhateverIsPrinted()
+    {
+        var terminal = Terminal();
+        await terminal.Start();
+        _transport.WorkingDirectory = @"C:\work\src";
+
+        _transport.Emit("anything at all"u8.ToArray());
+
+        Assert.AreEqual(@"C:\work\src", terminal.CurrentPath);
+    }
+
+    [TestMethod]
+    public async Task AFolderTheHostNamesThatIsNoDrivePath_IsNotFollowed()
+    {
+        var terminal = Terminal();
+        await terminal.Start();
+        _transport.WorkingDirectory = "/home/adam";
+
+        _transport.Emit("x"u8.ToArray());
+
+        Assert.AreEqual(TestTemp.Root, terminal.CurrentPath, ignoreCase: true);
     }
 
     [TestMethod]
