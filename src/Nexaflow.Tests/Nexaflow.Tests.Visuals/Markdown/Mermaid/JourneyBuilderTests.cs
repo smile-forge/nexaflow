@@ -30,8 +30,6 @@ public class JourneyBuilderTests : MermaidBuilderContract
         "journey\n  title My working day\n  section Go to work\n    Make tea: 5: Me\n    Go upstairs: 3: Me\n    Do work: 1: Me, Cat\n"
         + "  section Go home\n    Go downstairs: 5: Me\n    Sit down: 5: Me";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.Journey;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("the documented working day", Working),

@@ -14,20 +14,30 @@ namespace Nexaflow.Tests.Markdown.Mermaid;
 [CoversNode("mermaid-block-ast")]
 public class WithIconsTests
 {
-    private static List<RenderedIconNode> Rendered(string source) => [.. MermaidStaged.Read(source).SelfAndDescendants().OfType<RenderedIconNode>()];
+    private static List<RenderedIconNode> Rendered(string source) => [.. Staged(source).SelfAndDescendants().OfType<RenderedIconNode>()];
+
+    /// <summary>A block read and worked over as its header says: by the mindmap's or the kanban board's own language, or a flowchart's.</summary>
+    private static ContentNode Staged(string source) =>
+        MermaidLine.Keyword(source, Nexaflow.Markdown.Mermaid.Mindmap.MindmapParser.Keywords) is not null ? Mindmap.MindmapParserTests.Staged(source)
+        : MermaidLine.Keyword(source, Nexaflow.Markdown.Mermaid.Kanban.KanbanParser.Keywords) is not null ? Kanban.KanbanParserTests.Staged(source)
+        : Flowchart.FlowchartParserTests.Staged(source);
 
     [TestMethod]
     [DataRow("mindmap\n  root\n    ::icon(fa fa-book)", "book")]
     [DataRow("kanban\n  Todo\n    task[Write it]\n    ::icon(fa:fa-user)", "person")]
     [DataRow("kanban\n  Todo\n    task[Write it]@{ icon: 'mdi:account' }", "person")]
-    [DataRow("architecture-beta\n  service db(database)[Database]", "database")]
-    [DataRow("architecture-beta\n  service web(internet)[Web]", "globe")]
     [DataRow("flowchart TD\n  A@{ icon: \"fa:user\", form: \"square\", label: \"User\" }", "person")]
     [DataRow("mindmap\n  root\n    ::icon(fluent:rocket)", "rocket")]
     public void EveryWayADiagramNamesAnIconIsTheFluentIconDrawingIt(string source, string fluent)
     {
         Assert.AreEqual(IconRef.Fluent(fluent), Rendered(source).Single().Icon);
     }
+
+    [TestMethod]
+    [DataRow("architecture-beta\n  service db(database)[Database]", "database")]
+    [DataRow("architecture-beta\n  service web(internet)[Web]", "globe")]
+    public void AnArchitectureDiagramNamesItsIconsTheSameWay(string source, string fluent) =>
+        Assert.AreEqual(IconRef.Fluent(fluent), Architecture.ArchitectureParserTests.Staged(source).SelfAndDescendants().OfType<RenderedIconNode>().Single().Icon);
 
     [TestMethod]
     public void AnEmojiIsItsOwnIcon() => Assert.AreEqual(IconRef.Emoji("🚀"), Rendered("mindmap\n  root\n    ::icon(🚀)").Single().Icon);
@@ -51,7 +61,7 @@ public class WithIconsTests
     [TestMethod]
     public void AnIconTheAppDrawsNoneOfIsLeftAsWritten()
     {
-        var tree = MermaidStaged.Read("architecture-beta\n  service a(logos:aws-lambda)[A]");
+        var tree = Architecture.ArchitectureParserTests.Staged("architecture-beta\n  service a(logos:aws-lambda)[A]");
 
         Assert.AreEqual(0, tree.SelfAndDescendants().OfType<RenderedIconNode>().Count());
         Assert.AreEqual(1, tree.SelfAndDescendants().Count(node => node.Kind == MermaidKinds.Icon), "it still names an icon");
@@ -62,7 +72,7 @@ public class WithIconsTests
     {
         const string source = "flowchart TD\n  A@{ icon: \"fa:user\", form: \"square\", label: \"User\" }";
 
-        Assert.AreEqual(source, MermaidStaged.Read(source).Print());
+        Assert.AreEqual(source, Flowchart.FlowchartParserTests.Staged(source).Print());
     }
 
     [TestMethod]

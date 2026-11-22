@@ -14,7 +14,7 @@ public class CynefinConfigTests
     private const int Clear = 0;
     private const int Complex = 2;
 
-    private static CynefinConfig Config(string source) => ((ConfiguredNode<CynefinConfig>)MermaidStaged.Read(source)).Config;
+    private static CynefinConfig Config(string source) => ((ConfiguredNode<CynefinConfig>)CynefinParserTests.Staged(source)).Config;
 
     [TestMethod]
     public void TheFrontMattersOptionsAndDomainColoursAreRead()

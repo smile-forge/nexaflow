@@ -10,7 +10,7 @@ namespace Nexaflow.Tests.Markdown.Mermaid.Architecture;
 [CoversNode("architecture-ast")]
 public class ArchitectureConfigTests
 {
-    private static ArchitectureConfig Config(string source) => ((ConfiguredNode<ArchitectureConfig>)MermaidStaged.Read(source)).Config;
+    private static ArchitectureConfig Config(string source) => ((ConfiguredNode<ArchitectureConfig>)ArchitectureParserTests.Staged(source)).Config;
 
     [TestMethod]
     public void TheFrontMattersOptionsAreRead()

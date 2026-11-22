@@ -33,8 +33,6 @@ public class GanttBuilderTests : MermaidBuilderContract
         "gantt\n  title Plan\n  dateFormat YYYY-MM-DD\n  excludes weekends\n  section Build\n  Design the whole thing :done, a1, 2014-01-06, 10d\n  Code :active, a2, after a1, 5d\n"
         + "  section Ship\n  Test :crit, 3d\n  Release :milestone, m1, after a2, 0d\n  Freeze :vert, 2014-01-15, 1d";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.Gantt;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("a plan with every kind of task", Plan),

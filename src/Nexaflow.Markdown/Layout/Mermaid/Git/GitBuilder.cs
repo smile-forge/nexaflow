@@ -216,7 +216,7 @@ internal sealed class GitBuilder : ContentBuilder
             .Where(property => property.Children.Any(child => child.Kind == MermaidKinds.Key && child.Text.Equals(key, StringComparison.OrdinalIgnoreCase)))
             .Select(property => property.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Setting))
             .OfType<ContentPart>()
-            .Select(setting => new Said(setting, MermaidText.Bare(setting.Text)))
+            .Select(setting => new Said(setting, GitParser.Unquoted(setting.Text)))
             .ToList() ?? [];
 
     // ── Laying it out ─────────────────────────────────────────────────────────

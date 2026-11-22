@@ -43,7 +43,7 @@ public sealed class ResolveMacros(bool numbered) : IAstStage
             var macro = C4Macro.Of(stated);
             var word = macro.Name.ToLowerInvariant();
 
-            if (C4Grammar.Elemental(macro.Name)) Standing(stated, macro, said, lines, arguments);
+            if (C4Parser.Elemental(macro.Name)) Standing(stated, macro, said, lines, arguments);
             else if (word.StartsWith("relindex", StringComparison.Ordinal)) Related(stated, macro, said, counter, numbering, lines, arguments, 1, false, false);
             else if (word.StartsWith("rel_back", StringComparison.Ordinal)) Related(stated, macro, said, counter, numbering, lines, arguments, 0, true, false);
             else if (word.StartsWith("birel", StringComparison.Ordinal)) Related(stated, macro, said, counter, numbering, lines, arguments, 0, false, true);

@@ -78,7 +78,7 @@ public sealed class ResolveArchitecture : IAstStage
             if (Text(end) is not { Length: > 0 } name) continue;
 
             if (!declared.TryGetValue(name, out var what)) wrong[end] = $"No service {name} is written in this diagram.";
-            else if (what == Called(ArchitectureKinds.Group)) wrong[end] = $"{name} is a group, and an edge joins services: name a service in it and add {ArchitectureGrammar.GroupMark}.";
+            else if (what == Called(ArchitectureKinds.Group)) wrong[end] = $"{name} is a group, and an edge joins services: name a service in it and add {ArchitectureParser.GroupMark}.";
         }
 
         var sides = line.Children.Where(child => child.Kind == MermaidKinds.Key && child.Role == ArchitectureRoles.Side).ToList();

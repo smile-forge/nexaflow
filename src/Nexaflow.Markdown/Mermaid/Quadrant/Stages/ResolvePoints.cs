@@ -35,8 +35,8 @@ public sealed class ResolvePoints(QuadrantConfig config) : IAstStage
             var style = QuadrantStyle.None;
             if (point.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name) is { } taken && Named(point) is { Length: > 0 } name)
             {
+                // A class no classDef writes styles nothing, as in Mermaid.
                 if (classes.TryGetValue(name, out var inherited)) style = inherited;
-                else point = point.With([.. point.Children.Select(child => ReferenceEquals(child, taken) ? child.Saying($"No classDef {name} is written.") : child)]);
             }
 
             // A point whose name cannot be read is no point: there is nothing to call it.

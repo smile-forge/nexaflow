@@ -190,7 +190,7 @@ internal sealed class TreemapBuilder : ContentBuilder
         holder.Children.Where(part => part.Kind == TreemapKinds.Node && part.Node is TreemapNode);
 
     /// <summary>What an item's label says — nothing, where it says nothing yet.</summary>
-    private static string LabelOf(ContentPart item) => item.Children[0].Stated()?.Inner(TreemapKinds.Label)?.Words()?.Text ?? string.Empty;
+    private static string LabelOf(ContentPart item) => item.Children[0].Stated()?.Inner(TreemapKinds.Label)?.Words() is { } said ? TreemapStandIns.Reads(said.Node) : string.Empty;
 
     private static IEnumerable<Item> Preorder(IEnumerable<Item> items)
     {

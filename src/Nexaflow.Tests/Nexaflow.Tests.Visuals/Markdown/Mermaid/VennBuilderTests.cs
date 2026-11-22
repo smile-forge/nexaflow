@@ -33,8 +33,6 @@ public class VennBuilderTests : MermaidBuilderContract
 
     private const string Sized = "venn-beta\n  title Teams\n  set A[\"Alpha\"]:20\n    text A1[\"React\"]\n  set B[\"Beta\"]:12\n  union A,B[\"AB\"]:3";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.Venn;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("the documented features", Features),

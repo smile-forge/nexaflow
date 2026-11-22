@@ -32,11 +32,11 @@ public sealed class MermaidLine
     private readonly List<ContentNode> _pieces = [];
     private readonly Stack<int> _groups = new();
 
-    private MermaidLine(string text, int at, bool comments)
+    private MermaidLine(string text, int at, int comment)
     {
         _at = at;
         _text = text;
-        _comment = comments ? Comment(text) : -1;
+        _comment = comment;
         _body = _comment < 0 ? text : text[.._comment];
         Written = _body.TrimEnd();
     }
@@ -44,7 +44,14 @@ public sealed class MermaidLine
     /// <summary>Reads a line handed to a grammar — to the end of its row — or what follows a header's keyword.</summary>
     /// <param name="at">Where the first character of <paramref name="text"/> stands in the source, which is what every piece read from it says of itself.</param>
     /// <param name="comments">Whether a <c>%%</c> outside quotes starts a comment closing the line, as it may on a diagram's own lines.</param>
-    public static MermaidLine Of(string text, int at, bool comments = true) => new(text, at, comments);
+    public static MermaidLine Of(string text, int at, bool comments = true) => new(text, at, comments ? Comment(text) : -1);
+
+    /// <summary>
+    /// Reads a line whose comment starts where <paramref name="comment"/> finds it — for a grammar whose strings are written in either
+    /// quote, so only it knows which <c>%%</c> is outside them.
+    /// </summary>
+    /// <param name="comment">Where a comment closing <paramref name="text"/> starts, or -1 where none does.</param>
+    public static MermaidLine Of(string text, int at, Func<string, int> comment) => new(text, at, comment(text));
 
     /// <summary>What is read: the line up to any comment closing it, less the space after it.</summary>
     public string Written { get; }
@@ -106,9 +113,24 @@ public sealed class MermaidLine
     /// </summary>
     public static string? Keyword(string text, Func<char, bool> letter, params string[] words)
     {
+        return Starting(text, letter, words, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Which of <paramref name="words"/> <paramref name="text"/> starts with, as written, case and all — as a word of its own — or
+    /// null. For a diagram whose own lexer matches its words case and all, as flowchart, block, class and state diagrams do, so a node
+    /// called <c>End</c> is a node and only <c>end</c> closes a subgraph.
+    /// </summary>
+    /// <param name="letter">What carries a word on, so the word is matched only where it ends.</param>
+    public static string? ExactKeyword(string text, Func<char, bool> letter, params string[] words) =>
+        Starting(text, letter, words, StringComparison.Ordinal);
+
+    /// <summary>Which of <paramref name="words"/> <paramref name="text"/> starts with, compared as <paramref name="comparison"/> says, as a word of its own — or null.</summary>
+    private static string? Starting(string text, Func<char, bool> letter, string[] words, StringComparison comparison)
+    {
         foreach (var word in words)
         {
-            if (!text.StartsWith(word, StringComparison.OrdinalIgnoreCase)) continue;
+            if (!text.StartsWith(word, comparison)) continue;
             if (text.Length == word.Length || !letter(text[word.Length])) return word;
         }
 
@@ -303,6 +325,24 @@ public sealed class MermaidLine
     }
 
     /// <summary>
+    /// A name read as far as <paramref name="ends"/> says it runs from where it starts — for a diagram whose names hold a character
+    /// only where it does not start something else, as a class's holds a dash only where no relation starts — or words in quotes.
+    /// </summary>
+    /// <param name="ends">Where the name written at a place in a line ends.</param>
+    public bool Name(string role, Func<string, int, int> ends)
+    {
+        if (Next == '"') return Name(role, static _ => false);
+
+        var end = ends(Written, At);
+        if (end <= At) return Fail("A name is a word, or words in quotes.");
+
+        Open();
+        Add(ContentNode.Leaf(Kinds.Words, Written[At..end], role, offset: _at + At));
+        Close(MermaidKinds.Name);
+        return true;
+    }
+
+    /// <summary>
     /// Names with <paramref name="separator"/> between each, each read by <paramref name="name"/>, as a
     /// <see cref="MermaidKinds.Names"/>. Where nothing is written yet, or a separator has nothing written after it yet, a name
     /// still to write follows, standing after the space left for it — which is where typing it puts it.
@@ -362,7 +402,11 @@ public sealed class MermaidLine
     /// the space round its words its own. The brackets are whatever the diagram writes them as — <c>[</c> and <c>]</c>,
     /// <c>((</c> and <c>))</c>, <c>{{</c> and <c>}}</c>.
     /// </summary>
-    public bool Label(string open, string close, string role)
+    /// <param name="quotesInWords">
+    /// Whether a quote may stand in the label's words, as a mindmap's may: then a label opening with one is a string only where a quote
+    /// closes it hard against its bracket, and is otherwise its words, quotes and all.
+    /// </param>
+    public bool Label(string open, string close, string role, bool quotesInWords = false)
     {
         if (!Sees(open)) return false;
 
@@ -370,13 +414,13 @@ public sealed class MermaidLine
         Open();
         Token(open, Roles.Open);
 
-        if (Next == '"')
+        var shut = Next == '"' ? Written.IndexOf("\"" + close, At + 1, StringComparison.Ordinal) : -1;
+        if (Next == '"' && (shut >= 0 || !quotesInWords))
         {
-            var end = Written.IndexOf("\"" + close, At + 1, StringComparison.Ordinal);
-            if (end < 0) return Failed(mark, $"This label is never closed with \"{close}.");
+            if (shut < 0) return Failed(mark, $"This label is never closed with \"{close}.");
 
             Open();
-            Quotes(end, role);
+            Quotes(shut, role);
             Close(MermaidKinds.Quoted);
         }
         else
@@ -385,7 +429,7 @@ public sealed class MermaidLine
             if (end < 0) return Failed(mark, $"This label is never closed with {close}.");
 
             var inner = Written[At..end];
-            if (inner.Contains('"')) return Failed(mark, $"A label with a quote in it is written in quotes: {open}\"Alpha\"{close}.");
+            if (!quotesInWords && inner.Contains('"')) return Failed(mark, $"A label with a quote in it is written in quotes: {open}\"Alpha\"{close}.");
 
             var words = inner.Trim();
             var lead = inner.Length - inner.TrimStart().Length;
@@ -415,6 +459,19 @@ public sealed class MermaidLine
     public void Amount(string role, Func<string, string?> trouble, string? until = null, string? stop = null)
     {
         var number = Upto(until, stop);
+
+        Open();
+        Add(ContentNode.Leaf(Kinds.Number, number, role, number.Length == 0 ? null : trouble(number), _at + At));
+        Close(MermaidKinds.Amount);
+    }
+
+    /// <summary>
+    /// A number read to <paramref name="end"/> — for a diagram reading a number as <c>parseFloat</c> does, as far as one is written, with
+    /// whatever follows it read as something else.
+    /// </summary>
+    public void Amount(string role, Func<string, string?> trouble, int end)
+    {
+        var number = At >= Written.Length ? string.Empty : Written[At..Math.Max(At, Math.Min(end, Written.Length))];
 
         Open();
         Add(ContentNode.Leaf(Kinds.Number, number, role, number.Length == 0 ? null : trouble(number), _at + At));
@@ -627,6 +684,47 @@ public sealed class MermaidLine
         return -1;
     }
 
+    /// <summary>
+    /// Where a comment closing <paramref name="text"/> starts for a diagram whose lexer reads a <c>#</c> as one as well as a <c>%%</c> —
+    /// a sequence diagram, a journey, a timeline, a state or a requirement diagram — or -1 where none does. Neither counts inside double
+    /// quotes, and a <c>#</c> starting an entity code — <c>#35;</c>, <c>#quot;</c> — is a character, not a comment. A diagram whose
+    /// <c>#</c> is a comment only up to the first of some character — a timeline's before the colon its events follow — names it.
+    /// </summary>
+    /// <param name="before">Where a # stops starting a comment: after the first of this character outside quotes, or nowhere where null.</param>
+    public static int HashComment(string text, char? before = null)
+    {
+        var quoted = false;
+        var hashing = true;
+
+        for (var at = 0; at < text.Length; at++)
+        {
+            var character = text[at];
+
+            if (character == '"') quoted = !quoted;
+            if (quoted) continue;
+
+            if (character == '%' && at + 1 < text.Length && text[at + 1] == '%') return at;
+            if (character == before) hashing = false;
+            if (character != '#' || !hashing) continue;
+
+            var entity = EntityLength(text, at);
+            if (entity == 0) return at;
+
+            at += entity - 1;
+        }
+
+        return -1;
+    }
+
+    /// <summary>How many characters the entity code written at <paramref name="at"/> takes — <c>#35;</c>, <c>#quot;</c> — or nought where none is.</summary>
+    public static int EntityLength(string text, int at)
+    {
+        var next = at + 1;
+        while (next < text.Length && char.IsAsciiLetterOrDigit(text[next])) next++;
+
+        return next > at + 1 && next < text.Length && text[next] == ';' ? next + 1 - at : 0;
+    }
+
     /// <summary>Where a property's value ends: at the next comma — or <paramref name="ends"/> — outside quotes and brackets, or the end of what is written.</summary>
     private static int ValueEnd(string written, int at, char? ends = null)
     {
@@ -647,6 +745,8 @@ public sealed class MermaidLine
                 case '"' or '\'': quote = character; break;
                 case '(': depth++; break;
                 case ')': depth = Math.Max(0, depth - 1); break;
+                // A value never runs on past the end of its row, so properties may stand a row each, as YAML writes them.
+                case '\n' or '\r': return at;
                 case ',' when depth == 0: return at;
                 default:
                     if (character == ends && depth == 0) return at;
@@ -667,7 +767,9 @@ public sealed class MermaidLine
             var character = written[at];
             if (quote is not null)
             {
-                if (character == quote) quote = null;
+                // A backslash keeps what follows it in a string, as Mermaid's strings are written.
+                if (character == '\\' && at + 1 < written.Length) at++;
+                else if (character == quote) quote = null;
                 continue;
             }
 

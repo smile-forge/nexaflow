@@ -38,8 +38,6 @@ public class ClassBuilderTests : MermaidBuilderContract
                 + "classG --> classH : Association\nclassI -- classJ : Link(Solid)\nclassK ..> classL : Dependency\n"
                 + "classM ..|> classN : Realization\nclassO .. classP : Link(Dashed)";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.Class;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("the documentation's own", Intro),

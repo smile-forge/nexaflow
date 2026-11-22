@@ -32,8 +32,6 @@ public class TimelineBuilderTests : MermaidBuilderContract
     private const string Pizzas =
         "timeline\n  section 2021-2022\n    Bought pizzas : Lorem Ipsum\n                  : Dolor Sit\n    Ate pizzas : Amet\n  section 2022-2023\n    Bought pizzas : Consectetur";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.Timeline;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("the documented timeline", Social),

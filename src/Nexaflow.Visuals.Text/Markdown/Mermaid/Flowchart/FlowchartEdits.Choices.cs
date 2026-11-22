@@ -296,7 +296,7 @@ internal sealed partial class FlowchartEdits : IContentLanguage
     private static IEnumerable<ContentPart> Styling(ContentPart root, string id) =>
         root.SelfAndDescendants()
             .Where(part => part is { Derived: false, Kind: FlowchartKinds.Style }
-                           && FlowchartGrammar.Styling.Ids(part) is [var only] && only == id);
+                           && FlowchartParser.Styling.Ids(part) is [var only] && only == id);
 
     /// <summary>Every <c>id@{ … }</c> line about a node, in the order they are written.</summary>
     private static IEnumerable<ContentPart> Metadata(ContentPart root, string id) =>

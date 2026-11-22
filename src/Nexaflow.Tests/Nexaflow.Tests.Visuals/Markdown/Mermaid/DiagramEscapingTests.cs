@@ -19,7 +19,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 /// <summary>
 /// Whatever anybody types where something is written in a diagram, the diagram still reads: every diagram in the samples, laid out
 /// to be written in, typed into at the end of every run of words and in every hole it draws, through the engine — so what is checked
-/// is what the diagram's own edit handler makes of the key (<see cref="DiagramEdits"/>), made as the engine makes it.
+/// is what the diagram's own edit handler makes of the key, made as the engine makes it.
 /// </summary>
 [TestClass]
 [TestCategory("Desktop")]
@@ -86,5 +86,5 @@ public class DiagramEscapingTests
 
     /// <summary>How many lines of a block its grammar holds as written, rather than reading them.</summary>
     private static int Held(string source) =>
-        MermaidParser.Parse(source).SelfAndDescendants().Count(node => node is { Kind: Kinds.Verbatim, Trouble: not null });
+        MermaidStaged.Parsed(source).SelfAndDescendants().Count(node => node is { Kind: Kinds.Verbatim, Trouble: not null });
 }

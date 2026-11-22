@@ -1,7 +1,9 @@
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Pipeline;
+using Nexaflow.Markdown.Pipeline.Stages;
 using Nexaflow.Markdown.Treemap;
+using Nexaflow.Markdown.Treemap.Stages;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.Markdown.Ast;
 
@@ -13,7 +15,7 @@ namespace Nexaflow.Tests.Markdown.Treemap;
 /// </summary>
 [TestClass]
 [CoversNode("treemap-ast")]
-public class TreemapParserTests
+public class TreemapParserTests : ContentParserContract
 {
     /// <summary>The blocks Mermaid's documentation shows, which read with nothing wrong with them.</summary>
     public static readonly string[] Documented =
@@ -27,7 +29,7 @@ public class TreemapParserTests
     ];
 
     /// <summary>Every construct read, and what nobody means to write.</summary>
-    public static readonly (string What, string Source)[] Blocks =
+    protected override IEnumerable<(string What, string Source)> Blocks { get; } =
     [
         ("a header and nothing else", "treemap-beta"),
         ("the shorter header", "treemap\n\"A\": 1"),
@@ -62,87 +64,36 @@ public class TreemapParserTests
         ("a class no classDef writes", "treemap-beta\n\"A\": 1:::missing"),
         ("a header taking more than its word", "treemap-beta title\n\"A\": 1"),
         ("nothing at all", ""),
+        ("a binding supplying items", "treemap-beta\n\"A\": 1\n{{Items}}\n"),
+        ("a binding with no header before it", "\"A\": 1\n{{Items}}"),
     ];
 
-    private static IEnumerable<(string What, string Source)> All => Blocks.Concat(Documented.Select(source => ("documented", source)));
+    /// <summary>A block parsed and worked over by its stages, holes and all where somebody is writing in it.</summary>
+    /// <inheritdoc/>
+    protected override ContentNode Parse(string? source) => TreemapParser.Parse(source);
+
+    /// <inheritdoc/>
+    protected override IEnumerable<string> DocumentedBlocks => [.. Documented, "treemap-beta\n\"Sec\ntion\"\n  \"Leaf\nA\": 5\n  \"B\": 1:::undefined", "treemap-beta\n\"S\"\n  \"A\": 1\n    \"B\": 2\n  \"C\": 3"];
+
+    /// <inheritdoc/>
+    protected override IEnumerable<IAstStage> Stages(ContentNode tree, bool holes) => Offered(tree, holes);
+
+    /// <summary>
+    /// The stages a treemap's language offers the engine (<c>Shipped.Treemap</c>), named again here — what the engine adds for every
+    /// language, what a host binds, is held where the engine reads a block.
+    /// </summary>
+    internal static IReadOnlyList<IAstStage> Offered(ContentNode tree, bool holes) =>
+    [
+        new ResolveItems(),
+        new WithConfig<TreemapConfig>(TreemapConfig.Read(MermaidBlock.Of(tree).Config)),
+        .. holes ? [new WithHoles(TreemapParser.Holds)] : Array.Empty<IAstStage>(),
+    ];
 
     /// <summary>A block parsed and worked over by its stages, holes and all where somebody is writing in it.</summary>
     internal static ContentNode Staged(string source, bool holes = false)
     {
         var tree = TreemapParser.Parse(source);
-        return new AstPipeline(TreemapPipeline.Of(tree, holes)).Run(tree);
-    }
-
-    [TestMethod, TestCategory("Unit")]
-    public void EveryBlockReadsBackAsItWasWritten()
-    {
-        foreach (var (what, source) in All)
-        {
-            Assert.AreEqual(source, TreemapParser.Parse(source).Print(), what);
-            Assert.AreEqual(source, Staged(source).Print(), $"{what}, after the stages");
-            Assert.AreEqual(source, Staged(source, holes: true).Print(), $"{what}, with holes");
-        }
-    }
-
-    [TestMethod, TestCategory("Unit")]
-    public void AndSoDoesEveryStageOnTheWayThere()
-    {
-        foreach (var (what, source) in All)
-            foreach (var holes in new[] { false, true })
-            {
-                var tree = TreemapParser.Parse(source);
-
-                foreach (var stage in TreemapPipeline.Of(tree, holes))
-                {
-                    tree = stage.Run(tree);
-                    Assert.AreEqual(source, tree.Print(), $"{what}: after {stage.Name}{(holes ? ", with holes" : "")}");
-                }
-            }
-    }
-
-    [TestMethod, TestCategory("Unit")]
-    public void EveryPrefixOfEveryBlockReadsBackToo()
-    {
-        foreach (var (what, source) in All)
-            for (var length = 0; length <= source.Length; length++)
-                Assert.AreEqual(source[..length], Staged(source[..length], holes: true).Print(), $"{what}: after {length} character(s)");
-    }
-
-    [TestMethod, TestCategory("Unit")]
-    public void TheParserOnlyEverCopies()
-    {
-        foreach (var (what, source) in All)
-            foreach (var place in TreemapParser.Parse(source).Placed())
-                if (place.Node.IsLeaf)
-                    Assert.AreEqual(source.Substring(place.Start, place.Node.Width), place.Node.Text, $"{what}: {place.Node.Kind} at {place.Start}");
-    }
-
-    [TestMethod]
-    public void EveryPieceSaysWhereItWasRead()
-    {
-        foreach (var (what, source) in All)
-            foreach (var (stage, tree) in new[] { ("read", TreemapParser.Parse(source)), ("after the stages", Staged(source)) })
-            {
-                var faults = AstOracle.Faults(source, tree).ToList();
-                Assert.AreEqual(0, faults.Count, $"{what}, {stage}\n{string.Join("\n", faults)}");
-            }
-    }
-
-    [TestMethod]
-    public void AReversedTreeStillPrintsWhatWasWritten()
-    {
-        foreach (var (what, source) in All)
-            Assert.AreEqual(source, AstOracle.Reversed(TreemapParser.Parse(source)).Print(), what);
-    }
-
-    [TestMethod, TestCategory("Unit")]
-    public void TheDocumentedBlocksHaveNothingWrongWithThem()
-    {
-        foreach (var source in Documented)
-        {
-            var trouble = Staged(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>().ToList();
-            Assert.AreEqual(0, trouble.Count, $"{source}\n{string.Join("\n", trouble)}");
-        }
+        return new AstPipeline(Offered(tree, holes)).Run(tree);
     }
 
     [TestMethod, TestCategory("Unit")]
@@ -154,8 +105,8 @@ public class TreemapParserTests
                  })
             Assert.IsTrue(TreemapParser.Parse(source).SelfAndDescendants().Any(node => node.Trouble is not null), source);
 
-        Assert.IsTrue(Staged("treemap-beta\n\"A\": 1:::missing").SelfAndDescendants().Any(node => node.Trouble?.Contains("missing", StringComparison.Ordinal) == true),
-                      "a class nobody defines is the stages' to see");
+        Assert.IsFalse(Staged("treemap-beta\n\"A\": 1:::missing").SelfAndDescendants().Any(node => node.Trouble is not null),
+                       "a class nobody defines styles nothing, as in Mermaid");
     }
 
     [TestMethod, TestCategory("Unit")]
@@ -249,12 +200,17 @@ public class TreemapParserTests
         Assert.IsNull(TreemapValues.Read(","));
     }
 
-    [TestMethod, TestCategory("Unit")]
-    public void AMermaidBlockHeadedTreemapIsATreemap()
+    [TestMethod]
+    public void AMermaidBlockHeadedTreemapIsHeldAsWrittenInTheTreemapLanguage()
     {
-        Assert.AreEqual(MermaidDiagram.Treemap, MermaidDiagrams.Named("treemap-beta"));
-        Assert.AreEqual(MermaidDiagram.Treemap, MermaidDiagrams.Named("treemap"));
-        Assert.AreEqual(MermaidDiagram.Treemap, MermaidBlock.Of(TreemapParser.Parse("treemap-beta\n\"A\": 1")).Diagram);
+        foreach (var header in TreemapParser.Keywords)
+        {
+            var source = $"{header}\n\"A\": 1";
+            var held = MermaidFenceParser.Parse(source, word => TreemapParser.Keywords.Contains(word, StringComparer.OrdinalIgnoreCase));
+
+            Assert.AreEqual(header, ((BlockNode)held).Language, "the fence hands the block to the language its header names");
+            Assert.AreEqual(source, held.Print());
+        }
     }
 
     private static string Label(ContentPart item) => item.Children[0].Stated()!.Inner(TreemapKinds.Label)!.Words()!.Text;
@@ -264,4 +220,14 @@ public class TreemapParserTests
     private static List<ContentPart> Items(ContentNode tree) => [.. ContentPart.Of(tree).SelfAndDescendants().Where(part => part.Kind == TreemapKinds.Node)];
 
     private static TreemapNode Said(List<ContentPart> items, string label) => (TreemapNode)items.Single(item => Label(item) == label).Node;
+
+    [TestMethod, TestCategory("Unit")]
+    public void AnItemWrittenUnderAnItemWithAValueStandsBesideIt_AsMermaidBuildsTheTree()
+    {
+        var items = Items(Staged("treemap-beta\n\"S\"\n  \"A\": 1\n    \"B\": 2\n  \"C\": 3"));
+        var section = items.Single(item => Label(item) == "S");
+
+        CollectionAssert.AreEqual(new[] { "A", "B", "C" }, Under(section).Select(Label).ToArray());
+        Assert.AreEqual(6, Said(items, "S").Total, 1e-9);
+    }
 }

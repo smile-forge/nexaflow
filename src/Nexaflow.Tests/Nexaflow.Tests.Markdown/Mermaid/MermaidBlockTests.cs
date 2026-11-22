@@ -4,81 +4,32 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Markdown.Mermaid;
 
 /// <summary>
-/// A <c>mermaid</c> block read back from its tree: which diagram the header names, and the front matter's title,
+/// A <c>mermaid</c> block read back from its tree: the word its header starts with, and the front matter's title,
 /// config and where the diagram starts — the answers every diagram's renderer is handed.
 /// </summary>
 [TestClass]
 [CoversNode("mermaid-block-ast")]
 public class MermaidBlockTests
 {
-    private static readonly (string Keyword, MermaidDiagram Diagram)[] Keywords =
-    [
-        ("flowchart", MermaidDiagram.Flowchart),
-        ("graph", MermaidDiagram.Flowchart),
-        ("pie", MermaidDiagram.Pie),
-        ("quadrantChart", MermaidDiagram.Quadrant),
-        ("sequenceDiagram", MermaidDiagram.Sequence),
-        ("gantt", MermaidDiagram.Gantt),
-        ("gitGraph", MermaidDiagram.GitGraph),
-        ("mindmap", MermaidDiagram.Mindmap),
-        ("stateDiagram", MermaidDiagram.State),
-        ("stateDiagram-v2", MermaidDiagram.State),
-        ("classDiagram", MermaidDiagram.Class),
-        ("classDiagram-v2", MermaidDiagram.Class),
-        ("requirementDiagram", MermaidDiagram.Requirement),
-        ("kanban", MermaidDiagram.Kanban),
-        ("xychart", MermaidDiagram.XyChart),
-        ("xychart-beta", MermaidDiagram.XyChart),
-        ("radar-beta", MermaidDiagram.Radar),
-        ("ishikawa-beta", MermaidDiagram.Ishikawa),
-        ("sankey-beta", MermaidDiagram.Sankey),
-        ("erDiagram", MermaidDiagram.Er),
-        ("venn-beta", MermaidDiagram.Venn),
-        ("cynefin-beta", MermaidDiagram.Cynefin),
-        ("architecture-beta", MermaidDiagram.Architecture),
-        ("swimlane-beta", MermaidDiagram.Swimlane),
-        ("timeline", MermaidDiagram.Timeline),
-        ("journey", MermaidDiagram.Journey),
-        ("block-beta", MermaidDiagram.Block),
-        ("packet", MermaidDiagram.Packet),
-        ("packet-beta", MermaidDiagram.Packet),
-        ("C4Context", MermaidDiagram.C4),
-        ("C4Container", MermaidDiagram.C4),
-        ("C4Component", MermaidDiagram.C4),
-        ("C4Dynamic", MermaidDiagram.C4),
-        ("C4Deployment", MermaidDiagram.C4),
-        ("C4Sequence", MermaidDiagram.C4Sequence),
-        ("PIE", MermaidDiagram.Pie),
-        ("flowchart-elk", MermaidDiagram.Unknown),
-        ("piechart", MermaidDiagram.Unknown),
-    ];
-
-    [TestMethod]
-    public void EveryKeywordNamesItsDiagram()
-    {
-        foreach (var (keyword, diagram) in Keywords)
-            Assert.AreEqual(diagram, MermaidBlock.Read($"{keyword} rest\n  a").Diagram, keyword);
-    }
-
     [TestMethod]
     public void TheHeaderIsFoundPastFrontMatterCommentsAndDirectives()
     {
-        const string source = "---\ntitle: T\n---\n\n%% a note\n%%{\n  init: {}\n}%%\nsequenceDiagram\n  A->>B: hi";
+        const string source = "---\ntitle: T\n---\n\n%% a note\n%%{\n  init: {}\n}%%\ngitGraph\n  commit";
 
         var block = MermaidBlock.Read(source);
-        Assert.AreEqual(MermaidDiagram.Sequence, block.Diagram);
-        Assert.AreEqual("sequenceDiagram", block.Keyword?.Text);
-        Assert.AreEqual(source.IndexOf("sequenceDiagram", StringComparison.Ordinal), block.Keyword!.Start);
+
+        Assert.AreEqual("gitGraph", block.Keyword?.Text);
+        Assert.AreEqual(source.IndexOf("gitGraph", StringComparison.Ordinal), block.Keyword!.Start);
     }
 
     [TestMethod]
-    public void NoHeaderIsAFlowchart_AndAHeaderNamingNothingIsUnknown()
+    public void NoHeaderHasNoKeyword_AndAnyWordInItsPlaceIsTheKeywordAsWritten()
     {
-        Assert.AreEqual(MermaidDiagram.Flowchart, MermaidBlock.Read("").Diagram);
-        Assert.AreEqual(MermaidDiagram.Flowchart, MermaidBlock.Read("%% only a comment\n\n").Diagram);
-        Assert.AreEqual(MermaidDiagram.Unknown, MermaidBlock.Read("wibble\n  a").Diagram);
-        Assert.AreEqual(MermaidDiagram.Unknown, MermaidBlock.Read("123\n  a").Diagram);
-        Assert.AreEqual(MermaidDiagram.Unknown, MermaidBlock.Read("---\nconfig:\npie\n").Diagram, "a fence never closed is in the header's place");
+        Assert.IsNull(MermaidBlock.Read("").Keyword);
+        Assert.IsNull(MermaidBlock.Read("%% only a comment\n\n").Keyword);
+        Assert.AreEqual("wibble", MermaidBlock.Read("wibble\n  a").Keyword?.Text, "whether it names a diagram is the fence's to say");
+        Assert.IsNull(MermaidBlock.Read("123\n  a").Keyword);
+        Assert.IsNull(MermaidBlock.Read("---\nconfig:\npie\n").Keyword, "a fence never closed is in the header's place");
     }
 
     [TestMethod]

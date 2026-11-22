@@ -30,8 +30,6 @@ public class QuadrantBuilderTests : MermaidBuilderContract
         "quadrantChart\n  title Reach\n  x-axis Low Reach --> High Reach\n  y-axis Low Engagement --> High Engagement\n"
         + "  quadrant-1 Expand\n  quadrant-2 Promote\n  quadrant-3 Re-evaluate\n  quadrant-4 Improve\n  Campaign A: [0.3, 0.6]\n  Campaign B: [0.8, 0.2]";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.Quadrant;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("campaigns", Campaigns),

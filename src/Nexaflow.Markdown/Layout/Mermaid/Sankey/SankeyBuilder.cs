@@ -181,7 +181,7 @@ internal sealed class SankeyBuilder : ContentBuilder
     /// nothing to take out of it.
     /// </summary>
     private static string Says(ContentPart? words) =>
-        words is null ? string.Empty : words.Text.Replace(SankeyGrammar.Quoted, "\"", StringComparison.Ordinal).Trim();
+        words is null ? string.Empty : words.Text.Replace(SankeyParser.DoubledQuote, "\"", StringComparison.Ordinal).Trim();
 
     // ── Where everything sits ───────────────────────────────────────────────
 
@@ -495,7 +495,7 @@ internal sealed class SankeyBuilder : ContentBuilder
 
         // A name written with a quote in it says one quote where it was written twice, so those characters are not the
         // characters drawn and the name is shown rather than typed into.
-        var name = node.Said.Text.Contains(SankeyGrammar.Quoted, StringComparison.Ordinal)
+        var name = node.Said.Text.Contains(SankeyParser.DoubledQuote, StringComparison.Ordinal)
             ? Words.Worked(node.Name, node.Said, TextSize, ink)
             : Words.Written(node.Said, hole: null, TextSize, ink);
 

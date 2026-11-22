@@ -32,8 +32,6 @@ public class SequenceBuilderTests : MermaidBuilderContract
         + "    else is well\n        Bob->>Alice: Feeling fresh like a daisy\n    end\n    opt Extra response\n"
         + "        Bob->>Alice: Thanks for asking\n    end";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.Sequence;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("the documentation's own", Intro),

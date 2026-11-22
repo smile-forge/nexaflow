@@ -63,7 +63,7 @@ public sealed class ResolveSchedule : IAstStage
     private static string? Days(string said, string format) =>
         said.Split([' ', ',', '\t'], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(day =>
             !day.Equals("weekends", StringComparison.OrdinalIgnoreCase)
-            && !GanttGrammar.Weekdays.Contains(day.ToLowerInvariant())
+            && !GanttParser.Weekdays.Contains(day.ToLowerInvariant())
             && MermaidDate.Read(day, format) is null
             && MermaidDate.Read(day, MermaidDate.Default) is null);
 }

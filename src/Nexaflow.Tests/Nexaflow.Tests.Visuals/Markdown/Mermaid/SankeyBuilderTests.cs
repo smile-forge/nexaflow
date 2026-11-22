@@ -28,8 +28,6 @@ public class SankeyBuilderTests : MermaidBuilderContract
         "sankey-beta\n\nAgricultural waste,Bio-conversion,124.729\nBio-conversion,Liquid,0.597\nBio-conversion,Losses,26.862\n"
         + "Bio-conversion,Solid,280.322\nBio-conversion,Gas,81.144";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.Sankey;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("where the energy goes", Energy),

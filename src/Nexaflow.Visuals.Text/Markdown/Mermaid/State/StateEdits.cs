@@ -25,7 +25,7 @@ internal sealed class StateEdits : IOnEdit
     {
         if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
 
-        if (part.Role is StateRoles.Id or StateRoles.Class) return MermaidWriting.Only(caret, text, StateGrammar.Bare);
+        if (part.Role is StateRoles.Id or StateRoles.Class) return MermaidWriting.Only(caret, text, StateParser.Bare);
         if (part.Role is StateRoles.Towards or StateRoles.Kind or StateRoles.Side)
             return MermaidWriting.Only(caret, text, char.IsAsciiLetter);
 

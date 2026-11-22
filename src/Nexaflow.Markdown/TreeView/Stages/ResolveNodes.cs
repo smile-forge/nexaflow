@@ -12,7 +12,7 @@ namespace Nexaflow.Markdown.TreeView.Stages;
 /// The rules are Mermaid's. A block written with a box drawing anywhere in it is read as one throughout: how deep a node stands is
 /// where the branch in front of it stands, a step for each width of the drawing's first indented branch (four, where none is
 /// indented), and a node with no branch in front of it stands at the top — so a node indented with no branch in front of it is wrong,
-/// and is marked. Any other block nests by indentation, a tab counting as four, each node under the nearest one before it indented
+/// and is marked. Any other block nests by indentation, a tab counting as one as a space does, each node under the nearest one before it indented
 /// less, and any number of them at the top.
 /// </para>
 /// </summary>
@@ -43,7 +43,7 @@ public sealed class ResolveNodes : IAstStage
 
     /// <summary>How deep an item's line stands: where its branch is, in steps — or how far it is indented, where nothing is drawn.</summary>
     private static int Depth(ContentNode line, bool drawn, int step) =>
-        !drawn ? Columns(Lead(line)) : Branch(line) is { } column ? (int)Math.Round((double)column / step, MidpointRounding.AwayFromZero) + 1 : 0;
+        !drawn ? Lead(line).Length : Branch(line) is { } column ? (int)Math.Round((double)column / step, MidpointRounding.AwayFromZero) + 1 : 0;
 
     /// <summary>
     /// How wide a step of the drawing is: the column of the first branch drawn further in than the edge — four, where none is.

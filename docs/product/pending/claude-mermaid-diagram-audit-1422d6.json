@@ -1,0 +1,1555 @@
+{
+  "branch": "claude/mermaid-diagram-audit-1422d6",
+  "nodes": {
+    "sankey-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/WithConfig.cs",
+          "class": "WithConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sankey/SankeyConfig.cs",
+          "class": "SankeyConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sankey/SankeyParser.cs",
+          "class": "SankeyParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Sankey/SankeyConfigTests.cs",
+            "class": "SankeyConfigTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Sankey/SankeyParserTests.cs",
+            "class": "SankeyParserTests"
+          }
+        ]
+      }
+    },
+    "mermaid-diagram-kit": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidLine.cs",
+          "class": "MermaidLine"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidParts.cs",
+          "class": "MermaidParts"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidNumber.cs",
+          "class": "MermaidNumber"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidStyle.cs",
+          "class": "MermaidStyle"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/mermaid-diagrams.md",
+          "title_path": [
+            "Diagrams written in Mermaid\u0027s syntax"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/DiagramSpan.cs",
+          "class": "DiagramSpan"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidStretch.cs",
+          "class": "MermaidStretch"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LinkedElement.cs",
+          "class": "LinkedElement"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/DiagramShape.cs",
+          "class": "DiagramShape"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/WithWordPieces.cs",
+          "class": "WithWordPieces"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidWords.cs",
+          "class": "MermaidWords"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutAction.cs",
+          "class": "LayoutAnswers"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramAlignment.cs",
+          "class": "DiagramAlignment"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramAxis.cs",
+          "class": "DiagramAxis"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramAxis.cs",
+          "class": "DiagramGrid"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramBar.cs",
+          "class": "DiagramBar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramBox.cs",
+          "class": "DiagramBox"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramColours.cs",
+          "class": "DiagramColours"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramConnector.cs",
+          "class": "DiagramConnector"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramCurve.cs",
+          "class": "DiagramCurve"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramGlyph.cs",
+          "class": "DiagramGlyphs"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramLanes.cs",
+          "class": "DiagramLanes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramLayers.cs",
+          "class": "DiagramLayers"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramLegend.cs",
+          "class": "DiagramLegend"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramShapes.cs",
+          "class": "DiagramShapes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramShapes.cs",
+          "class": "DiagramShapes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramWords.cs",
+          "class": "DiagramWords"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/ContentLayouts.cs",
+          "class": "ContentLayouts"
+        }
+      ]
+    },
+    "mermaid-fit": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "docs/mermaid-diagrams.md",
+          "title_path": [
+            "Diagrams written in Mermaid\u0027s syntax"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramSheet.cs",
+          "class": "DiagramSheet",
+          "method": "Reduced"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramSheet.cs",
+          "class": "DiagramSheet",
+          "method": "LaidNarrower"
+        }
+      ]
+    },
+    "venn-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Venn/Stages/GroupRegions.cs",
+          "class": "GroupRegions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Venn/Stages/ResolveRegions.cs",
+          "class": "ResolveRegions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Venn/Stages/ResolveStyles.cs",
+          "class": "ResolveStyles"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Venn/VennConfig.cs",
+          "class": "VennConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Venn/VennParser.cs",
+          "class": "VennParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Venn/VennStagesTests.cs",
+            "class": "VennStagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Venn/VennParserTests.cs",
+            "class": "VennParserTests"
+          }
+        ]
+      }
+    },
+    "packet-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packet/PacketParser.cs",
+          "class": "PacketParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packet/Stages/PlaceFields.cs",
+          "class": "PlaceFields"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packet/PacketNodes.cs",
+          "class": "PacketFieldNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packet/PacketConfig.cs",
+          "class": "PacketConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packet/PacketStandIns.cs",
+          "class": "PacketStandIns"
+        }
+      ]
+    },
+    "treemap-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Treemap/TreemapParser.cs",
+          "class": "TreemapParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Treemap/Stages/ResolveItems.cs",
+          "class": "ResolveItems"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Treemap/TreemapNodes.cs",
+          "class": "TreemapNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Treemap/TreemapConfig.cs",
+          "class": "TreemapConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Treemap/TreemapValues.cs",
+          "class": "TreemapValues"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidOutline.cs",
+          "class": "MermaidOutline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Treemap/TreemapStandIns.cs",
+          "class": "TreemapStandIns"
+        }
+      ]
+    },
+    "treeview-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/TreeView/TreeViewParser.cs",
+          "class": "TreeViewParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/TreeView/Stages/ResolveNodes.cs",
+          "class": "ResolveNodes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/TreeView/TreeViewNodes.cs",
+          "class": "TreeViewNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/TreeView/TreeViewConfig.cs",
+          "class": "TreeViewConfig"
+        }
+      ]
+    },
+    "quadrant-graph-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Quadrant/Stages/ResolvePoints.cs",
+          "class": "ResolvePoints"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Quadrant/QuadrantNodes.cs",
+          "class": "QuadrantPointNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Quadrant/QuadrantConfig.cs",
+          "class": "QuadrantConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Quadrant/QuadrantParser.cs",
+          "class": "QuadrantParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Quadrant/QuadrantStagesTests.cs",
+            "class": "QuadrantStagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Quadrant/QuadrantParserTests.cs",
+            "class": "QuadrantParserTests"
+          }
+        ]
+      }
+    },
+    "timeline-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/WithConfig.cs",
+          "class": "WithConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Timeline/TimelineConfig.cs",
+          "class": "TimelineConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Timeline/Stages/ResolveEvents.cs",
+          "class": "ResolveEvents"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidText.cs",
+          "class": "MermaidText",
+          "method": "Decode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Timeline/TimelineParser.cs",
+          "class": "TimelineParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Timeline/TimelineConfigTests.cs",
+            "class": "TimelineConfigTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Timeline/TimelineParserTests.cs",
+            "class": "TimelineParserTests"
+          }
+        ]
+      }
+    },
+    "pie-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Pie/Stages/ResolveShares.cs",
+          "class": "ResolveShares"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Pie/PieConfig.cs",
+          "class": "PieConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Pie/PieNodes.cs",
+          "class": "PieSliceNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Pie/PieParser.cs",
+          "class": "PieParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Pie/PieStandIns.cs",
+          "class": "PieStandIns"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Pie/PieStagesTests.cs",
+            "class": "PieStagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Pie/PieParserTests.cs",
+            "class": "PieParserTests"
+          }
+        ]
+      }
+    },
+    "radar-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Radar/Stages/ResolveCurves.cs",
+          "class": "ResolveCurves"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Radar/RadarNodes.cs",
+          "class": "RadarCurveNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Radar/RadarConfig.cs",
+          "class": "RadarConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Radar/Stages/ResolveOptions.cs",
+          "class": "ResolveOptions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Radar/RadarParser.cs",
+          "class": "RadarParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Radar/RadarStandIns.cs",
+          "class": "RadarStandIns"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Radar/RadarStagesTests.cs",
+            "class": "RadarStagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Radar/RadarParserTests.cs",
+            "class": "RadarParserTests"
+          }
+        ]
+      }
+    },
+    "xy-chart-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/WithConfig.cs",
+          "class": "WithConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Xy/XyConfig.cs",
+          "class": "XyConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Xy/XyParser.cs",
+          "class": "XyParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Xy/XyConfigTests.cs",
+            "class": "XyConfigTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Xy/XyParserTests.cs",
+            "class": "XyParserTests"
+          }
+        ]
+      }
+    },
+    "ishikawa-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/WithConfig.cs",
+          "class": "WithConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Ishikawa/IshikawaConfig.cs",
+          "class": "IshikawaConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidOutline.cs",
+          "class": "MermaidOutline",
+          "method": "Nested"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Ishikawa/IshikawaParser.cs",
+          "class": "IshikawaParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Ishikawa/IshikawaConfigTests.cs",
+            "class": "IshikawaConfigTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Ishikawa/IshikawaParserTests.cs",
+            "class": "IshikawaParserTests"
+          }
+        ]
+      }
+    },
+    "class-diagram": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Class/Stages/ResolveMembers.cs",
+          "class": "ResolveMembers"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Class/ClassConfig.cs",
+          "class": "ClassConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Class/ClassParser.cs",
+          "class": "ClassParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Class/ClassEdits.cs",
+          "class": "ClassEdits",
+          "method": "Edit"
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/classDiagram.html"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Class/ClassBuilder.cs",
+          "class": "ClassBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Class/ClassStagesTests.cs",
+            "class": "ClassStagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/ClassBuilderTests.cs",
+            "class": "ClassBuilderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/ClassEditingTests.cs",
+            "class": "ClassEditingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Class/ClassParserTests.cs",
+            "class": "ClassParserTests"
+          }
+        ]
+      }
+    },
+    "architecture-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/WithConfig.cs",
+          "class": "WithConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Architecture/ArchitectureConfig.cs",
+          "class": "ArchitectureConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Architecture/Stages/ResolveArchitecture.cs",
+          "class": "ResolveArchitecture"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Architecture/ArchitectureParser.cs",
+          "class": "ArchitectureParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Architecture/ArchitectureStandIns.cs",
+          "class": "ArchitectureStandIns"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Architecture/ArchitectureConfigTests.cs",
+            "class": "ArchitectureConfigTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Architecture/ArchitectureParserTests.cs",
+            "class": "ArchitectureParserTests"
+          }
+        ]
+      }
+    },
+    "c4-macro-syntax": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/C4/C4Macro.cs",
+          "class": "C4Macro"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/C4/Stages/ResolveBoundaries.cs",
+          "class": "ResolveBoundaries"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/C4/C4Config.cs",
+          "class": "C4Config"
+        },
+        {
+          "type": "url",
+          "target": "https://github.com/plantuml-stdlib/C4-PlantUML"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/C4/Stages/ResolveMacros.cs",
+          "class": "ResolveMacros"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/C4/C4Parser.cs",
+          "class": "C4Parser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/C4/C4SequenceParser.cs",
+          "class": "C4SequenceParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/C4/C4ParserTests.cs",
+            "class": "C4ParserTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/C4/C4SequenceParserTests.cs",
+            "class": "C4SequenceParserTests"
+          }
+        ]
+      }
+    },
+    "sequence-diagram": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sequence/Stages/ResolveFrames.cs",
+          "class": "ResolveFrames"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sequence/SequenceConfig.cs",
+          "class": "SequenceConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sequence/SequenceParser.cs",
+          "class": "SequenceParser"
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/sequenceDiagram.html"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Sequence/SequenceBuilder.cs",
+          "class": "SequenceBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Sequence/SequenceStagesTests.cs",
+            "class": "SequenceStagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/SequenceBuilderTests.cs",
+            "class": "SequenceBuilderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/SequenceEditingTests.cs",
+            "class": "SequenceEditingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/SequenceReadingTests.cs",
+            "class": "SequenceReadingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Sequence/SequenceParserTests.cs",
+            "class": "SequenceParserTests"
+          }
+        ]
+      }
+    },
+    "journey-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/WithConfig.cs",
+          "class": "WithConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Journey/JourneyConfig.cs",
+          "class": "JourneyConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidConfig.cs",
+          "class": "MermaidConfig",
+          "method": "List"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Journey/JourneyParser.cs",
+          "class": "JourneyParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Journey/JourneyConfigTests.cs",
+            "class": "JourneyConfigTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Journey/JourneyParserTests.cs",
+            "class": "JourneyParserTests"
+          }
+        ]
+      }
+    },
+    "cynefin-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/WithConfig.cs",
+          "class": "WithConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Cynefin/CynefinConfig.cs",
+          "class": "CynefinConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Cynefin/Stages/ResolveDomains.cs",
+          "class": "ResolveDomains"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidLine.cs",
+          "class": "MermaidLine",
+          "method": "Keyword"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Cynefin/CynefinParser.cs",
+          "class": "CynefinParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Cynefin/CynefinStandIns.cs",
+          "class": "CynefinStandIns"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Cynefin/CynefinConfigTests.cs",
+            "class": "CynefinConfigTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Cynefin/CynefinParserTests.cs",
+            "class": "CynefinParserTests"
+          }
+        ]
+      }
+    },
+    "kanban-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Kanban/Stages/ResolveColumns.cs",
+          "class": "ResolveColumns"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Kanban/KanbanNodes.cs",
+          "class": "KanbanCardNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Kanban/KanbanConfig.cs",
+          "class": "KanbanConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Kanban/KanbanParser.cs",
+          "class": "KanbanParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Kanban/KanbanStagesTests.cs",
+            "class": "KanbanStagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Kanban/KanbanParserTests.cs",
+            "class": "KanbanParserTests"
+          }
+        ]
+      }
+    },
+    "mindmap-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Mindmap/Stages/ResolveRoot.cs",
+          "class": "ResolveRoot"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/WithConfig.cs",
+          "class": "WithConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Mindmap/MindmapConfig.cs",
+          "class": "MindmapConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidOutline.cs",
+          "class": "MermaidOutline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidOutline.cs",
+          "class": "MermaidOutline",
+          "method": "Nested"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Mindmap/MindmapParser.cs",
+          "class": "MindmapParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Mindmap/MindmapConfigTests.cs",
+            "class": "MindmapConfigTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Mindmap/MindmapParserTests.cs",
+            "class": "MindmapParserTests"
+          }
+        ]
+      }
+    },
+    "flowchart-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/Stages/ResolveLinks.cs",
+          "class": "ResolveLinks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartConfig.cs",
+          "class": "FlowchartConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/Stages/ResolveShapes.cs",
+          "class": "ResolveShapes"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartParser.cs",
+          "class": "FlowchartParser"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/Stages/ResolveChart.cs",
+          "class": "ResolveChart"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidShapes.cs",
+          "class": "MermaidShapes",
+          "method": "Wording"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Flowchart/FlowchartStagesTests.cs",
+            "class": "FlowchartStagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Flowchart/FlowchartParserTests.cs",
+            "class": "FlowchartParserTests"
+          }
+        ]
+      }
+    },
+    "swimlanes": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "url",
+          "status": "should",
+          "target": "https://mermaid.ai/open-source/syntax/swimlanes.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Swimlane/SwimlaneConfig.cs",
+          "class": "SwimlaneConfig"
+        },
+        {
+          "type": "node",
+          "target": "graph-flowchart"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/DiagramLanes.cs",
+          "class": "DiagramLanes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Swimlane/SwimlaneBuilder.cs",
+          "class": "SwimlaneBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Swimlane/SwimlaneParser.cs",
+          "class": "SwimlaneParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/SwimlaneBuilderTests.cs",
+            "class": "SwimlaneBuilderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/SwimlaneEditingTests.cs",
+            "class": "SwimlaneEditingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Swimlane/SwimlaneParserTests.cs",
+            "class": "SwimlaneParserTests"
+          }
+        ]
+      }
+    },
+    "er-diagram": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Er/Stages/ResolveJoins.cs",
+          "class": "ResolveJoins"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Er/ErConfig.cs",
+          "class": "ErConfig"
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/entityRelationshipDiagram.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Er/ErBuilder.cs",
+          "class": "ErBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Er/ErParser.cs",
+          "class": "ErParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Er/ErStagesTests.cs",
+            "class": "ErStagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/ErBuilderTests.cs",
+            "class": "ErBuilderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/ErEditingTests.cs",
+            "class": "ErEditingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Er/ErParserTests.cs",
+            "class": "ErParserTests"
+          }
+        ]
+      }
+    },
+    "block-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Block/Stages/ResolveStyles.cs",
+          "class": "ResolveStyles"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Block/BlockConfig.cs",
+          "class": "BlockConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Block/Stages/ResolveBlocks.cs",
+          "class": "ResolveBlocks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidShapes.cs",
+          "class": "MermaidShapes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidNesting.cs",
+          "class": "MermaidNesting"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Block/BlockParser.cs",
+          "class": "BlockParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Block/BlockStagesTests.cs",
+            "class": "BlockStagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Block/BlockParserTests.cs",
+            "class": "BlockParserTests"
+          }
+        ]
+      }
+    },
+    "state-diagram": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/State/Stages/ResolveStates.cs",
+          "class": "ResolveStates"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/State/StateConfig.cs",
+          "class": "StateConfig"
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/stateDiagram.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/State/StateParser.cs",
+          "class": "StateParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/State/StateBuilder.cs",
+          "class": "StateBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/State/StateStagesTests.cs",
+            "class": "StateStagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/StateBuilderTests.cs",
+            "class": "StateBuilderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/StateEditingTests.cs",
+            "class": "StateEditingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/State/StateParserTests.cs",
+            "class": "StateParserTests"
+          }
+        ]
+      }
+    },
+    "requirement-diagram": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Requirement/Stages/ResolveStyles.cs",
+          "class": "ResolveStyles"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Requirement/RequirementConfig.cs",
+          "class": "RequirementConfig"
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/requirementDiagram.html"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Mermaid/Requirement/RequirementBuilder.cs",
+          "class": "RequirementBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Requirement/RequirementParser.cs",
+          "class": "RequirementParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Requirement/RequirementStagesTests.cs",
+            "class": "RequirementStagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/RequirementBuilderTests.cs",
+            "class": "RequirementBuilderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/RequirementEditingTests.cs",
+            "class": "RequirementEditingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Requirement/RequirementParserTests.cs",
+            "class": "RequirementParserTests"
+          }
+        ]
+      }
+    },
+    "gantt-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Gantt/Stages/ResolveSchedule.cs",
+          "class": "ResolveSchedule"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Gantt/Stages/ResolveTasks.cs",
+          "class": "ResolveTasks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Gantt/GanttConfig.cs",
+          "class": "GanttConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidTime.cs",
+          "class": "MermaidDate"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Gantt/GanttParser.cs",
+          "class": "GanttParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Gantt/GanttStagesTests.cs",
+            "class": "GanttStagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/MermaidTimeTests.cs",
+            "class": "MermaidTimeTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Gantt/GanttParserTests.cs",
+            "class": "GanttParserTests"
+          }
+        ]
+      }
+    },
+    "gitgraph-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Git/GitNodes.cs",
+          "class": "GitCommitNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Git/GitConfig.cs",
+          "class": "GitConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Git/Stages/ResolveGraph.cs",
+          "class": "ResolveGraph"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidLine.cs",
+          "class": "MermaidLine",
+          "method": "Properties"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Git/GitParser.cs",
+          "class": "GitParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Git/GitStandIns.cs",
+          "class": "GitStandIns"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Git/GitStagesTests.cs",
+            "class": "GitStagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Git/GitParserTests.cs",
+            "class": "GitParserTests"
+          }
+        ]
+      }
+    },
+    "eventmodeling": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/EventModeling/EventModelingBuilder.cs",
+          "class": "EventModelingBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/EventModeling/EventModelingPiece.cs",
+          "class": "EventModelingPiece"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/EventModeling/EventModelingEdits.cs",
+          "class": "EventModelingEdits"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "eventmodeling \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/eventmodeling.html"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/EventModeling/EventModelingBuilderTests.cs",
+            "class": "EventModelingBuilderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/EventModeling/EventModelingEditingTests.cs",
+            "class": "EventModelingEditingTests"
+          }
+        ]
+      }
+    },
+    "eventmodeling-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/EventModeling/EventModelingParser.cs",
+          "class": "EventModelingParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/EventModeling/EventModelingTokens.cs",
+          "class": "EventModelingTokens"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/EventModeling/EventModelingKinds.cs",
+          "class": "EventModelingKinds"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/EventModeling/EventModelingNodes.cs",
+          "class": "EventModelingBlockNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/EventModeling/EventModelingSettings.cs",
+          "class": "EventModelingSettings"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/EventModeling/Stages/ResolveTimeline.cs",
+          "class": "ResolveTimeline"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/EventModeling/EventModelingParserTests.cs",
+            "class": "EventModelingParserTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/EventModeling/EventModelingStagesTests.cs",
+            "class": "EventModelingStagesTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 57,
+  "touched_nodes": [
+    "architecture-ast",
+    "block-ast",
+    "c4-macro-syntax",
+    "class-diagram",
+    "cynefin-ast",
+    "er-diagram",
+    "eventmodeling",
+    "eventmodeling-ast",
+    "flowchart-ast",
+    "gantt-ast",
+    "gitgraph-ast",
+    "ishikawa-ast",
+    "journey-ast",
+    "kanban-ast",
+    "mermaid-diagram-kit",
+    "mermaid-fit",
+    "mindmap-ast",
+    "packet-ast",
+    "pie-ast",
+    "quadrant-graph-ast",
+    "radar-ast",
+    "requirement-diagram",
+    "sankey-ast",
+    "sequence-diagram",
+    "state-diagram",
+    "swimlanes",
+    "timeline-ast",
+    "treemap-ast",
+    "treeview-ast",
+    "venn-ast",
+    "xy-chart-ast"
+  ]
+}

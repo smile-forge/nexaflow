@@ -295,8 +295,8 @@ internal sealed class ErBuilder : ContentBuilder
             Relations.Add(new Relation(stated, from.Id, to.Id,
                                        Headed(cards.Count > 0 ? cards[0] : null),
                                        Headed(cards.Count > 1 ? cards[1] : null),
-                                       ErGrammar.Dotted.Contains(arrow, StringComparer.Ordinal)
-                                       || string.Equals(arrow, ErGrammar.OptionallyWord, StringComparison.OrdinalIgnoreCase))
+                                       ErParser.Dotted.Contains(arrow, StringComparer.Ordinal)
+                                       || string.Equals(arrow, ErParser.OptionallyWord, StringComparison.OrdinalIgnoreCase))
             {
                 Said = said.Words() is { Length: > 0 } words ? words : null,
                 SaidHole = said.Hole(),

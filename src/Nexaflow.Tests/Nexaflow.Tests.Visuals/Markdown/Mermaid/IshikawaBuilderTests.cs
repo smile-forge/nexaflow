@@ -31,8 +31,6 @@ public class IshikawaBuilderTests : MermaidBuilderContract
 
     private const string SingleBones = "---\nconfig:\n  ishikawa:\n    singleBone: true\n---\n" + Photo;
 
-    public override MermaidDiagram Diagram => MermaidDiagram.Ishikawa;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("the documented photo", Photo),

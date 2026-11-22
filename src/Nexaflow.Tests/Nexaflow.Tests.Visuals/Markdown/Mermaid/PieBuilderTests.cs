@@ -27,8 +27,6 @@ public class PieBuilderTests : MermaidBuilderContract
 {
     private const string Pets = "pie showData\n  title Pets\n  \"Dogs\" : 30\n  \"Cats\" : 10";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.Pie;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("pets", Pets),

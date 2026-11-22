@@ -2,6 +2,8 @@ using System.Linq;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Flowchart;
+using Nexaflow.Markdown.Mermaid.Pie;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Tests.Fixtures;
 
@@ -48,8 +50,8 @@ public class ContentNestedTests
     public void EveryParseIsABlockInItsOwnLanguageAtItsRoot()
     {
         Assert.AreEqual(MarkdownParser.Language, ((BlockNode)MarkdownParser.Parsing()("One line.\n").Tree).Language);
-        Assert.AreEqual("pie", ((BlockNode)MermaidParser.Parse("pie\n  \"a\" : 1\n")).Language);
-        Assert.AreEqual("graph", ((BlockNode)MermaidParser.Parse("graph TD\n  a --> b\n")).Language);
+        Assert.AreEqual("pie", ((BlockNode)PieParser.Parse("pie\n  \"a\" : 1\n")).Language);
+        Assert.AreEqual("flowchart", ((BlockNode)FlowchartParser.Parse("graph TD\n  a --> b\n")).Language);
     }
 
     [TestMethod]
@@ -57,7 +59,7 @@ public class ContentNestedTests
     {
         const string source = "graph TD\n  a[\"```latex x^2 + y^2\"] --> b[\"Next\"]\n";
 
-        var label = Holders(MermaidParser.Parse(source)).Single();
+        var label = Holders(FlowchartParser.Parse(source)).Single();
 
         Assert.AreEqual("latex", ContentNested.Language(label));
         Assert.AreEqual("x^2 + y^2", label.Part(Roles.Body)!.Text);

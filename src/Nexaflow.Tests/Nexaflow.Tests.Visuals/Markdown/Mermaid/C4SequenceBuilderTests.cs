@@ -31,8 +31,6 @@ public class C4SequenceBuilderTests : MermaidBuilderContract
         + "Rel_Back(signin, users, \"Returns the record\")\nelse rejected\nRel_Back(spa, signin, \"401 Unauthorized\")\nend\n"
         + "Rel_Back(customer, spa, \"Shows the dashboard\")";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.C4Sequence;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("the documentation's own", Intro),

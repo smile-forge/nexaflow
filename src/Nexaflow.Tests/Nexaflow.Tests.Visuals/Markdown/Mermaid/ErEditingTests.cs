@@ -48,6 +48,18 @@ public class ErEditingTests : MermaidEditing
         }));
 
     [TestMethod]
+    public void AQuoteTypedInWhatARelationshipIsCalledPutsItInQuotes() => UiThread.Run(() =>
+        InADocument((editor, diagram) =>
+        {
+            PressPast(diagram, "places");
+            Write(editor, "\"");
+
+            StringAssert.Contains(diagram.Source, ": \"places#quot;\"", diagram.Source);
+            Assert.AreEqual(1, diagram.Source.Split("CUSTOMER {").Length - 1, "a bare quote would have read on to the next one, swallowing the lines between");
+            Assert.AreEqual(0, diagram.Diagnostics.Count);
+        }));
+
+    [TestMethod]
     public void AndRenamingAnEntityCarriesToEveryRelationshipThatNamesIt() => UiThread.Run(() =>
         InADocument((editor, diagram) =>
         {

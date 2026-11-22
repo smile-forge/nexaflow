@@ -101,15 +101,15 @@ internal sealed class SankeyEdits : IOnEdit
         {
             if (!text.Contains('"')) return null;
 
-            var doubled = text.Replace("\"", SankeyGrammar.Quoted, StringComparison.Ordinal);
+            var doubled = text.Replace("\"", SankeyParser.DoubledQuote, StringComparison.Ordinal);
             return new MermaidWriting(caret, caret, doubled, caret + doubled.Length);
         }
 
         if (!(before + after).Any(character => character is ',' or '"')) return null;
 
         // Written bare and no longer able to be: the whole name is written again, in quotes.
-        var head = "\"" + before.Replace("\"", SankeyGrammar.Quoted, StringComparison.Ordinal);
+        var head = "\"" + before.Replace("\"", SankeyParser.DoubledQuote, StringComparison.Ordinal);
         return new MermaidWriting(part.Start, part.Start + said.Length,
-                                  head + after.Replace("\"", SankeyGrammar.Quoted, StringComparison.Ordinal) + "\"", part.Start + head.Length);
+                                  head + after.Replace("\"", SankeyParser.DoubledQuote, StringComparison.Ordinal) + "\"", part.Start + head.Length);
     }
 }

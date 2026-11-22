@@ -26,7 +26,8 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 /// The checks are the ones a reader relies on whatever the diagram: it draws — read, written in, wide and narrow — without
 /// falling over; it keeps drawing while every character of it is typed; everything it draws stands for a stretch of what
 /// was written; the words a caret can go into are the very characters written; and it is what the Markdown renderer shows.
-/// <see cref="MermaidBuilderRulesTests"/> fails for a builder with no tests deriving from this.
+/// Every block is read through the language its fence word names, by the engine — whose own pipeline refuses a stage that does
+/// not hand back the characters it was given — so the stages the language offers are held here too.
 /// </para>
 /// </summary>
 public abstract class MermaidBuilderContract
@@ -34,16 +35,13 @@ public abstract class MermaidBuilderContract
     /// <summary>What a builder that fell over says instead of drawing — see <c>ContentBuilder.Lay</c>.</summary>
     private static string FellOver => Str.Format("Text.Content.CouldNotSet", string.Empty);
 
-    /// <summary>The diagram this builder draws.</summary>
-    public abstract MermaidDiagram Diagram { get; }
-
     /// <summary>Blocks that draw every part of the diagram, and blocks half written — the record of what the builder draws.</summary>
     protected abstract IEnumerable<(string What, string Source)> Drawn { get; }
 
-    /// <summary>The language a block of this diagram is fenced with — a language of its own, or Mermaid's.</summary>
+    /// <summary>The word a block of this diagram is fenced with, naming the language that reads it — its own, or <c>mermaid</c>, whose header names it.</summary>
     public virtual string Language => "mermaid";
 
-    /// <summary>A block read as the shared renderer reads it: parsed by its grammar and worked over by its stages.</summary>
+    /// <summary>A block read as the engine reads it: parsed by its language and worked over by the stages the language offers.</summary>
     protected Nexaflow.Markdown.Ast.ContentReading Read(string source, bool writing = false) =>
         Laying.Read(Language, source, writing);
 
@@ -74,7 +72,7 @@ public abstract class MermaidBuilderContract
     [TestMethod]
     public void EveryBlockIsNoWiderThanTheRoomItIsGiven() => UiThread.Run(() =>
     {
-        if (!FitsTheRoom) Assert.Inconclusive($"{Diagram} does not fit itself to its room yet");
+        if (!FitsTheRoom) Assert.Inconclusive($"{GetType().Name} does not fit itself to its room yet");
 
         foreach (var (what, source) in Drawn)
             foreach (var room in new[] { 700d, 240d })

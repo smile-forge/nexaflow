@@ -15,7 +15,7 @@ public class WithWordPiecesTests
     /// <summary>The block read and worked over, and the run of words written as <paramref name="written"/> in it.</summary>
     private static (ContentPart Words, MermaidWords Held) Read(string source, string written)
     {
-        var tree = new WithWordPieces().Run(MermaidStaged.Read(source));
+        var tree = new WithWordPieces().Run(Flowchart.FlowchartParserTests.Staged(source));
         var words = ContentPart.Of(tree).SelfAndDescendants().First(part => part.Kind == Kinds.Words && part.Text == written);
 
         return (words, MermaidWords.Held(tree));

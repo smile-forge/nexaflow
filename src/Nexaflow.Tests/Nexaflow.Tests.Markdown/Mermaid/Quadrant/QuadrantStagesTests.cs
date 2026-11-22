@@ -17,7 +17,7 @@ public class QuadrantStagesTests
     [TestMethod]
     public void EveryPointSaysWhereItStands()
     {
-        var tree = MermaidStaged.Read(QuadrantGrammarTests.Campaigns);
+        var tree = QuadrantParserTests.Staged(QuadrantParserTests.Campaigns);
         var points = Points(tree);
 
         Assert.AreEqual("Reach and engagement of campaigns", MermaidBlock.Of(tree).TitleText);
@@ -31,7 +31,7 @@ public class QuadrantStagesTests
     [TestMethod]
     public void APointWithNowhereWrittenToStandIsStillAPoint_ButNotPlaced()
     {
-        var point = Points(MermaidStaged.Read("quadrantChart\n  A: [0.1, lots]")).Single();
+        var point = Points(QuadrantParserTests.Staged("quadrantChart\n  A: [0.1, lots]")).Single();
 
         Assert.AreEqual(0.1, point.X);
         Assert.IsNull(point.Y);
@@ -41,7 +41,7 @@ public class QuadrantStagesTests
     [TestMethod]
     public void APointsOwnStyleIsLaidOverItsClass_WrittenAboveItOrBelow()
     {
-        var points = Points(MermaidStaged.Read(QuadrantGrammarTests.Styled));
+        var points = Points(QuadrantParserTests.Staged(QuadrantParserTests.Styled));
 
         Assert.AreEqual(new QuadrantStyle(10, "#ff3300", null, null), points[1].Style, "its own colour over class1's");
         Assert.AreEqual(new QuadrantStyle(10, "#908342", "#310085", 10), points[4].Style, "class2 whole");
@@ -51,18 +51,18 @@ public class QuadrantStagesTests
     [TestMethod]
     public void TheXAxissWordsGoOverTheChartOnlyWhereThereAreNoPoints_UnlessTheFrontMatterSays()
     {
-        Assert.IsTrue(((QuadrantBlockNode)MermaidStaged.Read("quadrantChart\n  x-axis Low --> High")).XAxisOnTop);
-        Assert.IsFalse(((QuadrantBlockNode)MermaidStaged.Read("quadrantChart\n  A: [0.1, 0.2]")).XAxisOnTop);
-        Assert.IsTrue(((QuadrantBlockNode)MermaidStaged.Read("---\nconfig:\n  quadrantChart:\n    xAxisPosition: top\n---\nquadrantChart\n  A: [0.1, 0.2]")).XAxisOnTop);
+        Assert.IsTrue(((QuadrantBlockNode)QuadrantParserTests.Staged("quadrantChart\n  x-axis Low --> High")).XAxisOnTop);
+        Assert.IsFalse(((QuadrantBlockNode)QuadrantParserTests.Staged("quadrantChart\n  A: [0.1, 0.2]")).XAxisOnTop);
+        Assert.IsTrue(((QuadrantBlockNode)QuadrantParserTests.Staged("---\nconfig:\n  quadrantChart:\n    xAxisPosition: top\n---\nquadrantChart\n  A: [0.1, 0.2]")).XAxisOnTop);
     }
 
     [TestMethod]
     public void WhatTheStagesWriteIsNoPartOfTheSource()
     {
-        foreach (var source in new[] { QuadrantGrammarTests.Campaigns, QuadrantGrammarTests.Styled, "quadrantChart\n  A:::missing: [0.1, " })
+        foreach (var source in new[] { QuadrantParserTests.Campaigns, QuadrantParserTests.Styled, "quadrantChart\n  A:::missing: [0.1, " })
         {
-            Assert.AreEqual(source, MermaidStaged.Read(source).Print(), "a stage leaves the characters alone");
-            Assert.AreEqual(source, MermaidStaged.Read(source, holes: true).Print());
+            Assert.AreEqual(source, QuadrantParserTests.Staged(source).Print(), "a stage leaves the characters alone");
+            Assert.AreEqual(source, QuadrantParserTests.Staged(source, holes: true).Print());
         }
     }
 
