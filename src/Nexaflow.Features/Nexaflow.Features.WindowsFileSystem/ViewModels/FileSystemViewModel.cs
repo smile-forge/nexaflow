@@ -771,6 +771,7 @@ else if (entry is IFileCreateAction action) await action.CreateItemAsync(RealFol
                             ?? (string.IsNullOrEmpty(info.ProgIdDescription) ? null : info.ProgIdDescription);
 
                         verbs.Add(new ShellVerbAction(
+                            Vfs,
                             verb.Verb,
                             verb.FriendlyName,
                             verb.Command,
@@ -784,7 +785,7 @@ else if (entry is IFileCreateAction action) await action.CreateItemAsync(RealFol
             // User-defined external apps — apply to file selections regardless of count
             // (the registry filters out single-file-only definitions on multi-select).
             IReadOnlyList<CustomAction> customs = !useFolderActions
-                ? ExternalAppRegistry.Instance.Resolve(selected)
+                ? ExternalAppRegistry.Instance.Resolve(selected, Vfs)
                 : Array.Empty<CustomAction>();
 
             return (builtIn, verbs, customs);

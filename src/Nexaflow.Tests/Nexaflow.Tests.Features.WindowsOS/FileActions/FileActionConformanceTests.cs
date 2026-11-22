@@ -20,7 +20,7 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem.FileActions;
 [CoversNode("winfs-action-strip")]
 public class CopyFilesConformance : FileActionConformanceTests
 {
-    protected override IFileAction CreateAction() => new CopyFiles(Substitute.For<IShellServices>());
+    protected override IFileAction CreateAction() => new CopyFiles(Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
 }
 
 [TestClass]
@@ -34,7 +34,7 @@ public class CopyPathsConformance : FileActionConformanceTests
 [CoversNode("winfs-action-strip")]
 public class CutFilesConformance : FileActionConformanceTests
 {
-    protected override IFileAction CreateAction() => new CutFiles(Substitute.For<IShellServices>());
+    protected override IFileAction CreateAction() => new CutFiles(Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
 }
 
 [TestClass]
@@ -78,7 +78,7 @@ public class ShellVerbActionConformance : FileActionConformanceTests
 {
     // One action per registered shell verb, so it is constructed with the verb it stands for.
     protected override IFileAction CreateAction() =>
-        new ShellVerbAction("open", "Open", "probe.exe \"%1\"", "/");
+        new ShellVerbAction(VirtualFileSystem.Instance, "open", "Open", "probe.exe \"%1\"", "/");
 }
 
 [TestClass]
@@ -94,5 +94,5 @@ public class FilePropertiesConformance : FileActionConformanceTests
 public class CustomActionConformance : FileActionConformanceTests
 {
     protected override IFileAction CreateAction() =>
-        new CustomAction(new ExternalAppDefinition { DisplayName = "Probe", ApplicationPath = "probe.exe" });
+        new CustomAction(new ExternalAppDefinition { DisplayName = "Probe", ApplicationPath = "probe.exe" }, VirtualFileSystem.Instance);
 }

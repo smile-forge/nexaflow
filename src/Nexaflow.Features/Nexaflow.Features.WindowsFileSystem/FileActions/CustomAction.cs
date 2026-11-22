@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Features.WindowsFileSystem.Services;
 using Nexaflow.Icons;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
@@ -20,11 +21,14 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 public sealed class CustomAction : IFileAction
 {
     private readonly ExternalAppDefinition _def;
+    private readonly ShellPath             _paths;
     private readonly ShellIconRef?         _iconResource;
 
-    public CustomAction(ExternalAppDefinition def, ShellIconRef? iconResource = null)
+    /// <param name="files">The workspace's file system, which says where the program finds the files.</param>
+    public CustomAction(ExternalAppDefinition def, IVirtualFileSystem files, ShellIconRef? iconResource = null)
     {
         _def          = def;
+        _paths        = new ShellPath(files);
         _iconResource = iconResource;
     }
 
@@ -53,52 +57,58 @@ public sealed class CustomAction : IFileAction
     /// input, or use the working directory. Only offered where the folder genuinely exists on disk.</summary>
     public bool RequiresFullyBackedPath => true;
 
-    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default) => Task.FromResult(Launch(new[] { filePath }));
+    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default) => LaunchAsync([filePath], ct);
 
-    public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
+    public async Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
     {
         var paths = filePaths.ToList();
-        if (paths.Count == 0) return Task.FromResult(false);
-        if (paths.Count == 1) return Task.FromResult(Launch(paths));
+        if (paths.Count == 0) return false;
+        if (paths.Count == 1) return await LaunchAsync(paths, ct);
 
         if (_def.MultiFile == MultiFileMode.OneLaunchPerFile)
         {
             bool ok = false;
-            foreach (var p in paths) ok |= Launch(new[] { p });
-            return Task.FromResult(ok);
+            foreach (var p in paths) ok |= await LaunchAsync([p], ct);
+            return ok;
         }
 
         // SingleLaunchAllFiles (or SingleFileOnly slipped through — treat as single launch
         // with full list rather than silently dropping the action).
-        return Task.FromResult(Launch(paths));
+        return await LaunchAsync(paths, ct);
     }
 
-    private bool Launch(IReadOnlyList<string> paths)
+    private async Task<bool> LaunchAsync(IReadOnlyList<string> paths, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(_def.ApplicationPath)) return false;
         try
         {
-            // The external program receives these as plain paths and may look around them, so hand it
-            // real ones. Only reachable where the location is fully backed (RequiresFullyBackedPath).
-            paths = [.. paths.Select(p => VirtualFileSystem.Instance.TryResolveReal(p) ?? p)];
-
-            var args = ActionTemplateExpander.Expand(_def.Arguments,        paths);
-            var wd   = ActionTemplateExpander.Expand(_def.WorkingDirectory, paths);
-            // Unspecified working directory → the launched app runs in the file's own folder,
-            // not Nexaflow's binary directory (the process default).
-            if (string.IsNullOrWhiteSpace(wd) && paths.Count > 0)
-                wd = System.IO.Path.GetDirectoryName(paths[0]) ?? string.Empty;
-            var psi  = new ProcessStartInfo
-            {
-                FileName         = Environment.ExpandEnvironmentVariables(_def.ApplicationPath),
-                Arguments        = args,
-                WorkingDirectory = wd,
-                UseShellExecute  = true,
-            };
-            Process.Start(psi);
+            if (await StartInfoAsync(paths, ct) is not { } start) return false;
+            Process.Start(start);
             return true;
         }
         catch { return false; }
+    }
+
+    /// <summary>What Windows is asked to run: the program, its arguments with the files' paths, and the folder it runs in;
+    /// null when no program is named. The program receives plain paths and may look around them, so it is handed ones
+    /// Windows opens — only reachable where the folder is fully backed (<see cref="RequiresFullyBackedPath"/>).</summary>
+    internal async ValueTask<ProcessStartInfo?> StartInfoAsync(IReadOnlyList<string> paths, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(_def.ApplicationPath)) return null;
+        IReadOnlyList<string> real = await _paths.RealizeAsync(paths, ct);
+
+        var args = ActionTemplateExpander.Expand(_def.Arguments,        real);
+        var wd   = ActionTemplateExpander.Expand(_def.WorkingDirectory, real);
+        // Unspecified working directory → the launched app runs in the file's own folder,
+        // not Nexaflow's binary directory (the process default).
+        if (string.IsNullOrWhiteSpace(wd) && real.Count > 0)
+            wd = System.IO.Path.GetDirectoryName(real[0]) ?? string.Empty;
+        return new ProcessStartInfo
+        {
+            FileName         = Environment.ExpandEnvironmentVariables(_def.ApplicationPath),
+            Arguments        = args,
+            WorkingDirectory = wd,
+            UseShellExecute  = true,
+        };
     }
 
     private static string NormalizeExt(string ext)
@@ -120,7 +130,7 @@ public sealed class CustomAction : IFileAction
         ["multiFile"]       = _def.MultiFile.ToString(),
     };
 
-    public static IFileAction Rehydrate(Dictionary<string, string> p)
+    public static IFileAction Rehydrate(Dictionary<string, string> p, IVirtualFileSystem files)
     {
         var def = new ExternalAppDefinition
         {
@@ -135,6 +145,6 @@ public sealed class CustomAction : IFileAction
                                    out var mf) ? mf : MultiFileMode.SingleFileOnly,
         };
 
-        return new CustomAction(def, Services.ExternalAppRegistry.ResolveIcon(def));
+        return new CustomAction(def, files, ExternalAppRegistry.ResolveIcon(def));
     }
 }

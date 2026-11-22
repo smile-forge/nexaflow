@@ -97,11 +97,13 @@ public sealed class FileSystemDropTarget : IDropTarget, IDropChoiceTarget
     /// dropped into itself, either way round.
     /// </summary>
     public bool CanExecute(DropPlan plan, DropChoice choice)
-        => FileOperationDestinations.Plan(
-               plan.Sources,
-               Services.ShellPath.RealForMutation(plan.Destination),
-               move: choice == DropChoice.Move,
-               out _).Count > 0;
+    {
+        return FileOperationDestinations.Plan(
+                   plan.Sources,
+                   new Services.ShellPath(_viewModel.Vfs).AsWindowsNames(plan.Destination),
+                   move: choice == DropChoice.Move,
+                   out _).Count > 0;
+    }
 
     public string GetChoicePrompt(string? targetFolderName)
         => Str.Format("WindowsFileSystem.Drop.ChoicePromptFormat", FolderLabel(targetFolderName));

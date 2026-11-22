@@ -34,7 +34,7 @@ The groundwork is real but synchronous and Windows-path shaped, so the first job
 | `IVirtualFileSystem` | `IO.Common/IVirtualFileSystem.cs` | Transparent over archives, `::{id}` mounts and connected locations; async, cancellable members beside the sync ones; breadcrumbs, parent paths, display names and display forms | Features and the shared visuals open, save, list and probe through the async members, and what reads this disk directly is marked `[LocalDiskOnly]`; This PC's own probe of its rows is the one place still reported (`NXIO002`) |
 | `VirtualBacking` | `IO.Common/VirtualMount.cs` | Actions ask how a path's bytes are obtained before handing it to a process; `Remote` marks a path on a location, and a location this machine also reaches as Windows folders (WSL) is `PassThrough` | A path on any other location has no materialised copy until the content cache lands, so an action needing a native path is suppressed there |
 | `LocationEntry` | `IO.Common/Locations/LocationEntry.cs` | Name, size, modified, hidden and read-only, symlink target, POSIX mode, owner, group, content hash, archive extras | — |
-| WindowsFileSystem feature | `Features.WindowsFileSystem` | The browser, This PC, file actions, transfers. Browsing, the tree, the address bar, create, rename and the assistant's file tools go through the runtime's async VFS; file actions are awaitable; copy, move and delete go through the engine, and what the Recycle Bin cannot hold is offered as a permanent delete | Dragging out, the clipboard, Open With and shell verbs resolve through the process-wide file system, which knows no locations, so each hands Windows a path it cannot open |
+| WindowsFileSystem feature | `Features.WindowsFileSystem` | The browser, This PC, file actions, transfers. Browsing, the tree, the address bar, create, rename and the assistant's file tools go through the runtime's async VFS; file actions are awaitable; copy, move and delete go through the engine, and what the Recycle Bin cannot hold is offered as a permanent delete. What hands a file to Windows — dragging out, the clipboard, Open With, shell verbs, external programs — asks the runtime's file system for a path Windows opens (`ShellPath`), so a distro's file leaves by its `\\wsl.localhost` path, while a change keeps the location's path | A file on a location Windows cannot reach as a folder has nothing to hand over until the content cache lands |
 | `FileTransferEngine` | `IO.Common` | Progress, throughput, ETA, cancel. An item whose ends are both real paths on this disk takes the disk's own path; one with an end only the file system reaches (an archive, a location) goes through `FileTransferRequest.FileSystem` with the same promises | Free-space parking only where the destination is on this disk. Within one location that declares `ServerSideCopy` an unverified copy asks the server (`CopyWithinAsync`) and moves no bytes |
 | `IThisPcItemProvider` | `Features.Common/ThisPc` | Every row of This PC is a provider's: the volumes (the file browser's own provider), OneDrive's sync folders; each provider describes its own rows, and connections use the same seam | — |
 | `PathScope` | `IO.Common/PathScope.cs` | Assistant reach equals what the user has open; a location's path (`::{id}\…`) is made full within its root and compared as the file system holding it says | The file browser's own tools work in location paths; every other tool gets the browser's grant as a Windows path, compared ignoring case. A terminal's grant is the folder its shell's host says the shell is in |
@@ -322,14 +322,12 @@ and committed in the branch's pending file.
 
 ## What WSL needs before it ships
 
-A native path is for readers: a copy, move or delete named by a location's path goes through the location, the Recycle
-Bin is never offered for one, and a name Windows would trim has no native path. These are open.
+A native path is for readers: a copy, move or delete of a location's file goes through the location, whether it is named
+by the location's path or by the Windows folder showing it (a paste from Explorer, a cut from here), the Recycle Bin is
+never offered for one, and a name Windows would trim has no native path. These are open.
 
 | Gap | Effect |
 | --- | --- |
-
-
-| `ShellPath`, `ShellVerbAction` and `CustomAction` resolve through `VirtualFileSystem.Instance` | Open With, shell verbs, clipboard and drag-out fail on a distro's files |
 | Pages other than the browser's tools are granted Windows paths | The assistant's reach there ignores case, and trims a trailing dot or space |
 | `delete_file` refuses on a location | The person can delete there and the assistant cannot |
 | Rename takes and shows path segments | An escaped name shows escaped, and a typed `%41` becomes `A` |

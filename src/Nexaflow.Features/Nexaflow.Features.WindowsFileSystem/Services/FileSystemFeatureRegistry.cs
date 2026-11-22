@@ -235,8 +235,9 @@ public sealed class FileSystemFeatureRegistry
     /// Finds an <see cref="IFileAction"/> by its concrete type's full or short name.
     /// First checks the cached set; if that misses and <paramref name="reinitParams"/>
     /// is supplied, locates the type and invokes its
-    /// <c>public static IFileAction Rehydrate(Dictionary&lt;string,string&gt;)</c>
-    /// factory — the pattern runtime-constructed types (e.g. <c>ShellVerbAction</c>) use.
+    /// <c>public static IFileAction Rehydrate(Dictionary&lt;string,string&gt;, IVirtualFileSystem)</c>
+    /// factory — the pattern runtime-constructed types (e.g. <c>ShellVerbAction</c>) use — with this registry's
+    /// file system, so a rebuilt action reaches the workspace's locations as the one it was pinned from did.
     /// </summary>
     public IFileAction? FindFileAction(string typeName, Dictionary<string, string>? reinitParams = null)
     {
@@ -265,11 +266,11 @@ public sealed class FileSystemFeatureRegistry
             "Rehydrate",
             BindingFlags.Public | BindingFlags.Static,
             binder: null,
-            types: [typeof(Dictionary<string, string>)],
+            types: [typeof(Dictionary<string, string>), typeof(IVirtualFileSystem)],
             modifiers: null);
         if (factory is null) return null;
 
-        try { return factory.Invoke(null, [reinitParams]) as IFileAction; }
+        try { return factory.Invoke(null, [reinitParams, Vfs]) as IFileAction; }
         catch { return null; }
     }
 }

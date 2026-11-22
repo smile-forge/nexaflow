@@ -1032,14 +1032,30 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     /// </summary>
     private void BeginListDrag(bool rightButton)
     {
-        // Explorer (or whatever receives the drop) understands only real paths, so resolve a mount and
-        // materialise an in-archive entry on the way out.
-        var paths = Services.ShellPath.Realize(
+        // Explorer (or whatever receives the drop) understands only real paths, so resolve a mount or a location's
+        // Windows folder, and materialise an in-archive entry, on the way out.
+        var realizing = new Services.ShellPath(ViewModel.Vfs).RealizeAsync(
             FileListView.SelectedItems
                 .OfType<FileSystemEntry>()
                 .Where(entry => !entry.IsThisPcItem)
-                .Select(entry => entry.FullPath));
+                .Select(entry => entry.FullPath)
+                .ToList());
 
+        if (realizing.IsCompletedSuccessfully) DragOut(realizing.Result, rightButton);
+        else _ = DragOutOnceRealizedAsync(realizing, rightButton);
+    }
+
+    /// <summary>An archive entry is extracted off the UI thread first; the drag starts if the button that began it is
+    /// still down.</summary>
+    private async Task DragOutOnceRealizedAsync(ValueTask<string[]> realizing, bool rightButton)
+    {
+        var paths  = await realizing;
+        var button = rightButton ? Mouse.RightButton : Mouse.LeftButton;
+        if (button == MouseButtonState.Pressed) DragOut(paths, rightButton);
+    }
+
+    private void DragOut(string[] paths, bool rightButton)
+    {
         if (paths.Length == 0) return;
 
         // Whatever receives the drop knows nothing of companions, so they are dragged with their files.

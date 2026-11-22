@@ -17,7 +17,7 @@ Browses the drives and folders on this PC and acts on the files in them.
 - Go to a folder in one by typing `> wsl://Ubuntu/etc` or `> \\wsl.localhost\Ubuntu\etc` into the bar at the bottom.
 - A distro's folders list their Permissions, Owner and Group as `ls -l` does — a link's permissions start with `l` — and names that differ only by case are different files, as they are in Linux.
 - A distro has no Recycle Bin: Delete there is for good, and asks first saying so. Shift+Delete does not ask. The assistant does not delete there.
-- Open With, copying to the Windows clipboard and dragging out to other programs do not work on a distro's files.
+- A distro's file goes to other programs by its `\\wsl.localhost` path — Open With, Copy and Cut to the Windows clipboard, dragging out, Windows' own actions for the file type and your external programs — so they open it as they would any file. Renames, moves and deletes in Nexaflow still happen inside the distro.
 - A file copied between a distro and Windows does not keep its Linux permissions, so a script may need `chmod +x` afterwards.
 - Cmd Here opens the distro's own shell at the folder.
 - A folder that cannot be read — the distro was shut down, you may not read it — says why, with Try again. [Show me](locate:FileListRetryButton)

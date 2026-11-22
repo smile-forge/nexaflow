@@ -47,7 +47,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
         public async Task<bool> PerformActionAsync(string path, CancellationToken ct = default)
         {
-            path           = Services.ShellPath.RealForMutation(path);
+            path           = new Services.ShellPath(_vfs).RealForMutation(path);
             bool isDir     = await _vfs.IsDirectoryAsync(path, ct);
             string dir     = Path.GetDirectoryName(path)!;
             string oldName = Path.GetFileName(path);

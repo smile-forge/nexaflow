@@ -87,9 +87,18 @@ public sealed class FileOperationQueue : IFileOperationHost
     {
         if (sources.Count == 0 || string.IsNullOrEmpty(destinationFolder)) return null;
 
-        destinationFolder = Services.ShellPath.RealForMutation(destinationFolder);
-        // Each file carries its companions, which the engine sends after it under its resolved name.
-        var items = Services.FileCompanions.For(_shell).Attach(FileOperationDestinations.Plan(sources, destinationFolder, move, out var refusals));
+        // Planned as Windows names the files, which is how a clipboard or a drag names them; each file carries its
+        // companions, which the engine sends after it under its resolved name. Then both ends as the change is made by:
+        // a location's file keeps the location's path, however it was named, so the change goes through the location.
+        var paths   = new Services.ShellPath(FileSystem);
+        var planned = Services.FileCompanions.For(_shell).Attach(
+            FileOperationDestinations.Plan(sources, paths.AsWindowsNames(destinationFolder), move, out var refusals));
+        List<TransferItem> items = [.. planned.Select(item => item with
+        {
+            Source      = paths.RealForMutation(item.Source),
+            Destination = paths.RealForMutation(item.Destination),
+        })];
+        destinationFolder = paths.RealForMutation(destinationFolder);
 
         if (items.Count == 0)
         {
@@ -116,7 +125,7 @@ public sealed class FileOperationQueue : IFileOperationHost
     /// archive, on a location — is deleted for good, which the caller asks about first.</summary>
     public FileOperation? EnqueueDelete(IReadOnlyList<string> paths, bool permanent)
     {
-        var real = Services.ShellPath.RealForMutation(paths);
+        var real = new Services.ShellPath(FileSystem).RealForMutation(paths);
         if (real.Length == 0) return null;
 
         var request = new FileTransferRequest(

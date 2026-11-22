@@ -471,7 +471,7 @@ public class FileSystemSurfaceTests
         vm.OnSelectionChanged([new FileSystemEntry { Name = "a.txt", FullPath = @"C:\work\a.txt" },
                                new FileSystemEntry { Name = "b.txt", FullPath = @"C:\work\b.txt" }]);
 
-        var paths = PinnedPaths(vm, shell, new FileActionViewModel(new CopyFiles(shell)));
+        var paths = PinnedPaths(vm, shell, new FileActionViewModel(new CopyFiles(shell, VirtualFileSystem.Instance)));
 
         CollectionAssert.AreEqual(new[] { @"C:\work\a.txt", @"C:\work\b.txt" }, paths,
                                   "the pin remembers the files, so pressing it later re-runs on the same ones");
@@ -484,7 +484,7 @@ public class FileSystemSurfaceTests
         var (vm, shell) = await AtScratchAsync();
         vm.OnSelectionChanged([new FileSystemEntry { Name = "a.txt", FullPath = @"C:\work\a.txt" }]);
 
-        var folderAction = new FileActionViewModel(new FolderActionAdapter(new CopyFiles(shell)));
+        var folderAction = new FileActionViewModel(new FolderActionAdapter(new CopyFiles(shell, VirtualFileSystem.Instance)));
         var paths = PinnedPaths(vm, shell, folderAction);
 
         CollectionAssert.AreEqual(new[] { _scratch }, paths,
@@ -499,7 +499,7 @@ public class FileSystemSurfaceTests
         var (vm, shell) = await AtScratchAsync();
         vm.OnSelectionChanged([new FileSystemEntry { Name = "a.txt", FullPath = @"C:\work\a.txt" }]);
         var program = new ShellIconRef(@"%SystemRoot%\System32\notepad.exe", 0);
-        var verb    = new ShellVerbAction("open", "Open", "notepad.exe \"%1\"", "/text", program);
+        var verb    = new ShellVerbAction(VirtualFileSystem.Instance, "open", "Open", "notepad.exe \"%1\"", "/text", program);
 
         var button = PinnedButton(vm, shell, new FileActionViewModel(verb));
 

@@ -137,8 +137,8 @@ namespace Nexaflow.Features.Common
         /// The ribbon pinning system persists these params alongside the type name so
         /// the action can be rehydrated when its button is clicked. Action types that
         /// override this MUST also expose a
-        /// <c>public static IFileAction Rehydrate(Dictionary&lt;string, string&gt; params)</c>
-        /// static factory; the rehydration path uses reflection to locate it.
+        /// <c>public static IFileAction Rehydrate(Dictionary&lt;string, string&gt; params, IVirtualFileSystem files)</c>
+        /// static factory; the rehydration path uses reflection to locate it, and hands it the workspace's file system.
         /// </summary>
         Dictionary<string, string>? GetReinitParams() => null;
     }
