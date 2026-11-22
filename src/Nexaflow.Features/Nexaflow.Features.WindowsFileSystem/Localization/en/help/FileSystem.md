@@ -16,6 +16,7 @@ Browses the drives and folders on this PC and acts on the files in them.
 - Each WSL distro installed on this PC is a row of This PC, of type Linux (WSL) — nothing to set up. Opening it starts the distro if it is not running, and puts a small helper in your Linux account's cache folder the first time.
 - Go to a folder in one by typing `> wsl://Ubuntu/etc` or `> \\wsl.localhost\Ubuntu\etc` into the bar at the bottom.
 - A distro's folders list their Permissions, Owner and Group as `ls -l` does — a link's permissions start with `l` — and names that differ only by case are different files, as they are in Linux.
+- Names in a distro are Linux's: Rename and New take any name Linux does — `notes:v2`, `draft.`, `50%` — show it as it is, and give the file exactly that name.
 - A distro has no Recycle Bin: Delete there is for good, and asks first saying so. Shift+Delete does not ask. The assistant can delete there too, and asks you first in words that say it is for good.
 - A distro's file goes to other programs by its `\\wsl.localhost` path — Open With, Copy and Cut to the Windows clipboard, dragging out, Windows' own actions for the file type and your external programs — so they open it as they would any file. Renames, moves and deletes in Nexaflow still happen inside the distro.
 - A file copied between a distro and Windows does not keep its Linux permissions, so a script may need `chmod +x` afterwards.

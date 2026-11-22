@@ -119,4 +119,43 @@ public sealed class LocationNativePathTests
         Assert.IsNull(_vfs.TryResolveReal($@"{Root}\{remainder}"), "Windows reads 'notes.' as 'notes', another file");
         Assert.AreEqual(VirtualBacking.Remote, _vfs.GetBacking($@"{Root}\{remainder}"));
     }
+
+    // ── Naming an entry ─────────────────────────────────────────────────────
+
+    [TestMethod]
+    [DataRow("a:b.txt", "a%3Ab.txt")]
+    [DataRow("%41", "%2541", DisplayName = "a percent sign is a character, not an escape")]
+    [DataRow("notes.", "notes%2E", DisplayName = "a trailing dot is kept")]
+    [DataRow("c:evil", "c%3Aevil", DisplayName = "a name like a drive stays in the folder")]
+    public void AnEntryNamedOnALocation_IsTheLocationsEntryOfExactlyThatName(string name, string segment)
+    {
+        Assert.AreEqual($@"{Root}\home\{segment}", _vfs.ChildPath($@"{Root}\home", name));
+        Assert.AreEqual($@"{Root}\home\{segment}", _vfs.ChildPath(@"\\wsl.localhost\Probe\home", name),
+                        "named in the Windows folder showing the location, it is still the location's entry");
+    }
+
+    [TestMethod]
+    [DataRow("a:b?.txt", true)]
+    [DataRow("notes. ", true)]
+    [DataRow("", false)]
+    [DataRow(".", false)]
+    [DataRow("..", false)]
+    [DataRow("a/b", false)]
+    [DataRow("a\0b", false)]
+    public void ALocationTakesAnyNameLinuxDoes(string name, bool allowed)
+        => Assert.AreEqual(allowed, _vfs.CanName($@"{Root}\home", name), name);
+
+    [TestMethod]
+    [DataRow("notes.txt", true)]
+    [DataRow("a:b.txt", false)]
+    [DataRow("what?", false)]
+    [DataRow("notes.", false, DisplayName = "Windows would drop the dot")]
+    [DataRow("notes ", false, DisplayName = "Windows would drop the space")]
+    [DataRow("..", false)]
+    public void ThisDiskTakesTheNamesWindowsKeepsAsTyped(string name, bool allowed)
+    {
+        var folder = TestTemp.CreateSubdirectory("nexa-naming-").FullName;
+        Assert.AreEqual(allowed, _vfs.CanName(folder, name), name);
+        if (allowed) Assert.AreEqual(Path.Combine(folder, name), _vfs.ChildPath(folder, name));
+    }
 }

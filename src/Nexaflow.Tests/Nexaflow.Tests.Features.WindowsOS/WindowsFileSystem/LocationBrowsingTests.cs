@@ -235,4 +235,50 @@ public sealed class LocationBrowsingTests
         Assert.AreEqual(0, System.IO.Directory.GetFiles(share, "*", System.IO.SearchOption.AllDirectories).Length,
                         "nothing went through the Windows folder that shows the location");
     }
+
+    // ── Names typed for a location ──────────────────────────────────────────
+
+    /// <summary>The path of the entry a location lists by <paramref name="name"/>, as the file system names it.</summary>
+    private static string Named(string folder, string name) => $@"{folder}\{LocationPath.EncodeSegment(name)}";
+
+    [TestMethod]
+    public async Task Rename_ShowsALocationsNameAsItIs_AndNamesTheFileExactlyAsTyped()
+    {
+        await _vfs.WriteAllTextAsync(Named($@"{Root}\docs", "a:b.txt"), "colon");
+        string? shown = null;
+        Action<string>? confirm = null;
+        _shell.When(s => s.ShowPrompt(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Action<string>>(), Arg.Any<Action>()))
+              .Do(call => { shown = call.ArgAt<string>(2); confirm = call.ArgAt<Action<string>>(3); });
+
+        await new Nexaflow.Features.WindowsFileSystem.FileActions.RenameFile(_shell, _vfs).PerformActionAsync(Named($@"{Root}\docs", "a:b.txt"));
+        Assert.AreEqual("a:b.txt", shown, "the name as Linux has it, not the segment that stands for it");
+
+        var renamed = _shell.ReceivedCalls().Count();
+        confirm!("c:d %41.txt");
+        for (int i = 0; i < 100 && _shell.ReceivedCalls().Count() == renamed; i++) await Task.Delay(20);
+
+        Assert.AreEqual("colon", await _vfs.ReadAllTextAsync(Named($@"{Root}\docs", "c:d %41.txt")), "named exactly as typed: '%41' is not 'A'");
+        Assert.IsFalse(await _vfs.ExistsAsync($@"{Root}\docs\c%3Ad A.txt"));
+    }
+
+    [TestMethod]
+    public async Task TheAssistantsRename_NamesTheFileExactlyAsAsked()
+    {
+        var vm = await AtAsync($@"{Root}\docs");
+
+        var result = await new Nexaflow.Features.WindowsFileSystem.ClientTools.RenameTool(vm).InvokeAsync(
+            new System.Text.Json.Nodes.JsonObject { ["name"] = "a.txt", ["new_name"] = "x:y %41.txt" }, CancellationToken.None);
+
+        Assert.IsTrue(result.Success, result.ToString());
+        Assert.AreEqual("lower", await _vfs.ReadAllTextAsync(Named($@"{Root}\docs", "x:y %41.txt")));
+    }
+
+    [TestMethod]
+    public async Task New_NamesTheItemExactlyAsTyped_ALinuxNameIncluded()
+    {
+        var folder = await new Nexaflow.Features.WindowsFileSystem.FileActions.NewFolderCreateAction(_vfs).CreateItemAsync($@"{Root}\docs", "n:m %41.");
+
+        Assert.AreEqual(Named($@"{Root}\docs", "n:m %41."), folder);
+        Assert.IsTrue(await _vfs.IsDirectoryAsync(Named($@"{Root}\docs", "n:m %41.")));
+    }
 }

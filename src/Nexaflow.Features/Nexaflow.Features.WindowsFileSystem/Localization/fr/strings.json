@@ -271,6 +271,7 @@
   "WindowsFileSystem.Templates.Stored": "Un fichier modèle est déjà enregistré. Ne choisissez un nouveau fichier que pour le remplacer.",
   "WindowsFileSystem.Templates.NewTemplate": "Nouveau modèle",
   "WindowsFileSystem.Templates.AllFilesFilter": "Tous les fichiers (*.*)|*.*",
+  "WindowsFileSystem.Rename.CannotNameFormat": "« {0} » ne peut pas nommer un fichier ici.",
   "WindowsFileSystem.Announce.Delete": "supprimer",
   "WindowsFileSystem.Announce.FileFormat": "le fichier {0}",
   "WindowsFileSystem.Announce.FolderFormat": "le dossier {0}",

@@ -197,10 +197,11 @@ public sealed class RenameTool(FileSystemViewModel vm) : IClientTool
         var newName = ToolArgs.Str(arguments, "new_name", "newName", "to");
         if (string.IsNullOrWhiteSpace(newName))
             return ToolResult.Error("No new name was provided.");
-        if (newName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-            return ToolResult.Error($"'{newName}' is not a valid file name.");
+        var folder = vm.Vfs.GetParentPath(src) ?? Path.GetDirectoryName(src)!;
+        if (!vm.Vfs.CanName(folder, newName))
+            return ToolResult.Error($"'{newName}' cannot name a file here.");
 
-        var dst = Path.Combine(Path.GetDirectoryName(src)!, newName);
+        var dst = vm.Vfs.ChildPath(folder, newName);
         try
         {
             if (await vm.Vfs.GetEntryAsync(src, ct) is not { } source) return ToolResult.Error($"Not found: {src}");
@@ -215,7 +216,7 @@ public sealed class RenameTool(FileSystemViewModel vm) : IClientTool
         }
 
         vm.Refresh();
-        return ToolResult.Ok($"renamed to {newName}", $"Renamed '{Path.GetFileName(src)}' to '{newName}'.")
+        return ToolResult.Ok($"renamed to {newName}", $"Renamed '{vm.Vfs.GetDisplayName(src)}' to '{newName}'.")
             with { Attachments = [dst] };
     }
 }

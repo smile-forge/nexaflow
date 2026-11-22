@@ -43,7 +43,8 @@ public interface IFileCreateAction : IFileCreateEntry
     /// Creates the new item named <paramref name="fileName"/> inside <paramref name="folderPath"/>.
     /// <paramref name="fileName"/> is already extension-resolved by the host (the user's extension
 /// if they typed one, otherwise <see cref="IFileCreateEntry.FileExtension"/> appended), so implementations use it
-/// verbatim. Answers the full path of the created item, which the browser selects, or <c>null</c> on failure.
+/// verbatim, joined by <c>IVirtualFileSystem.ChildPath</c>: on a location a name such as <c>a:b</c> is the location's to
+/// hold, never a drive. Answers the full path of the created item, which the browser selects, or <c>null</c> on failure.
 /// Awaitable because the folder may be on a location, where the item exists only once the server says so.
 /// </summary>
 Task<string?> CreateItemAsync(string folderPath, string fileName, CancellationToken ct = default);

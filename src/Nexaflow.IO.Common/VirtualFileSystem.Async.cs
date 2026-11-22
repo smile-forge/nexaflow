@@ -235,6 +235,13 @@ public sealed partial class VirtualFileSystem
     // Locations are a runtime's: this disk, its mounts and its archives hold none.
     public bool IsOnLocation(string path) => false;
 
+    public string ChildPath(string folder, string name) => Path.Combine(folder, name);
+
+    public bool CanName(string folder, string name)
+        => name.Length > 0 && name is not ("." or "..")
+           && name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0
+           && name[^1] is not ('.' or ' ');
+
     // Nothing here is on a location: the caller's own shell runs on this computer.
     public ValueTask<ITerminalLauncher?> GetTerminalLauncherAsync(string path, CancellationToken ct = default)
         => ValueTask.FromResult<ITerminalLauncher?>(null);

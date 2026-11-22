@@ -32,7 +32,7 @@ public sealed class ShellNewCreateAction(ShellNewEntry entry, IVirtualFileSystem
         if (string.IsNullOrWhiteSpace(folderPath) || string.IsNullOrWhiteSpace(fileName))
             return null;
 
-        var dest    = Path.Combine(folderPath, fileName);
+        var dest    = vfs.ChildPath(folderPath, fileName);
         var content = ShellNewContentResolver.Resolve(entry.Spec);
 
         // The template is this machine's (ShellNew folder or the registry); the new file goes wherever the folder is.

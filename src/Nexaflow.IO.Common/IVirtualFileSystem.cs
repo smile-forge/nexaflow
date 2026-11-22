@@ -289,6 +289,18 @@ public interface IVirtualFileSystem
     /// Bin holds nothing of a location's — Windows deletes it for good and reports success.</summary>
     bool IsOnLocation(string path);
 
+    /// <summary>The path of the entry named <paramref name="name"/> in <paramref name="folder"/>, as this file system names
+    /// paths: on a location the name is carried as the segment that stands for exactly it (<c>a:b</c> as <c>a%3Ab</c>,
+    /// <c>%41</c> as <c>%2541</c>), and the path is the location's even when the folder is named by a Windows folder showing
+    /// it, so the entry is made there; anywhere else the name is joined as Windows joins it. Ask <see cref="CanName"/>
+    /// first: a name that cannot be one is never joined.</summary>
+    string ChildPath(string folder, string name);
+
+    /// <summary>Whether <paramref name="name"/> can name an entry in <paramref name="folder"/>: on a location any name but
+    /// <c>.</c>, <c>..</c> or one holding <c>/</c> or a NUL, as Linux takes them; anywhere else a name Windows keeps as
+    /// typed — no reserved character, no trailing dot or space, which Windows would drop.</summary>
+    bool CanName(string folder, string name);
+
     /// <summary>A launcher for a shell on the host holding the folder, starting in the folder given as
     /// <see cref="TerminalLaunch.WorkingDirectory"/> — a path of this file system — or null when the folder is not on a
     /// location, and the caller starts its own shell on this computer. Fails with <see cref="LocationException"/> when the

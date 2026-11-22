@@ -210,12 +210,19 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         return Path.HasExtension(name) ? name : name + SelectedCreateAction.FileExtension;
     }
 
+    /// <summary>The folder the selected kind makes its item in, as it names it: a kind made from a name alone goes through
+    /// the file system, so on a location it is the location's folder and takes the location's names; a kind with options
+    /// writes where Windows reaches the folder, and takes Windows' names. Null with no folder open.</summary>
+    private string? CreateFolder()
+        => string.IsNullOrEmpty(CurrentPath) ? null
+         : SelectedCreateAction?.Action is IFileCreateWithOptions ? RealFolder(CurrentPath)
+         : new Services.ShellPath(Vfs).RealForMutation(CurrentPath);
+
     private void RecomputeCreateState()
     {
         var name = ResolveCreateName();
-        bool valid = SelectedCreateAction is not null
-                     && name.Length > 0
-                     && name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
+        var folder = CreateFolder();
+        bool valid = SelectedCreateAction is not null && folder is not null && Vfs.CanName(folder, name);
 
 _createNameCheck?.Cancel();
 if (!valid || string.IsNullOrEmpty(CurrentPath))
@@ -229,7 +236,7 @@ return;
 _createNameFree = false;   // until the folder says the name is free
 ApplyCreateGate();
 var check = _createNameCheck = new CancellationTokenSource();
-CreateNameChecked = CheckCreateNameAsync(Path.Combine(RealFolder(CurrentPath), name), check.Token);
+CreateNameChecked = CheckCreateNameAsync(Vfs.ChildPath(folder!, name), check.Token);
 }
 
 /// <summary>Whether the folder last said the name typed is valid and free; the options the kind asks for are the
@@ -285,7 +292,7 @@ ApplyCreateGate();
         try
         {
 if (SelectedCreateOptions is { } options) options.Create(name);
-else if (entry is IFileCreateAction action) await action.CreateItemAsync(RealFolder(CurrentPath), name);
+else if (entry is IFileCreateAction action && CreateFolder() is { } folder) await action.CreateItemAsync(folder, name);
         }
         catch (Exception ex)
         {

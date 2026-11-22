@@ -592,10 +592,72 @@
           }
         ]
       }
+    },
+    "io-locations-routing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/LocationFileSystem.cs",
+          "class": "LocationFileSystem"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Models/WorkspaceRuntime.cs",
+          "class": "WorkspaceRuntime"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/LocationFileSystem.cs",
+          "class": "LocationFileSystem",
+          "method": "ChildPath"
+        }
+      ]
+    },
+    "winfs-act-rename": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileOperationErrorsTests.cs",
+            "class": "FileOperationErrorsTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/WindowsFileSystem/FileSystemJourneyTests.cs",
+            "class": "FileSystemJourneyTests",
+            "method": "FileSystem_Controls_RespondInOnePass"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/LocationBrowsingTests.cs",
+            "class": "LocationBrowsingTests",
+            "method": "Rename_ShowsALocationsNameAsItIs_AndNamesTheFileExactlyAsTyped"
+          }
+        ]
+      }
+    },
+    "win-file-system-ai-act-rename-file": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemViewModelTests.cs",
+            "class": "FileSystemViewModelTests",
+            "method": "RenameFileTool_RenamesFileOnDisk"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/LocationBrowsingTests.cs",
+            "class": "LocationBrowsingTests",
+            "method": "TheAssistantsRename_NamesTheFileExactlyAsAsked"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 31,
+  "changed_sets": 34,
   "touched_nodes": [
     "ai-context-paths",
     "console-enter-classify",
@@ -606,6 +668,7 @@
     "io-locations-directory",
     "io-locations-discovery",
     "io-locations-native",
+    "io-locations-routing",
     "io-locations-wsl",
     "io-locations-wsl-helper",
     "ioterm-screen",
@@ -615,6 +678,8 @@
     "locations-this-pc",
     "vterm-shell-dialects",
     "win-file-system-ai-act-delete-file",
+    "win-file-system-ai-act-rename-file",
+    "winfs-act-rename",
     "winfs-action-backing",
     "winfs-drag-drop"
   ]

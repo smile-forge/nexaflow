@@ -69,4 +69,41 @@ public sealed class WslHandoverTests
             pool.Release(set);
         }
     }
+
+    [TestMethod]
+    [Timeout(120_000, CooperativeCancellation = true)]
+    public async Task ANameTypedForADistro_IsTheNameLinuxGets()
+    {
+        var provider = new WslLocationProvider();
+        var distros  = await provider.DiscoverAsync(CancellationToken.None);
+        if (distros.Count == 0) Assert.Inconclusive("WSL has no distro installed on this machine.");
+
+        var registry = new LocationProviderRegistry();
+        registry.Register(provider);
+        await using var pool = new LocationSessionPool(registry, new StoredCredentialSource(new NoSecrets()));
+        var set   = pool.Acquire([distros[0]]);
+        var files = new LocationFileSystem(VirtualFileSystem.Instance);
+        files.RegisterLocation(set.Mounts[0]);
+
+        var folder = $@"{set.Mounts[0].Root}\tmp\nexaflow-names-{Guid.NewGuid():N}";
+        await files.CreateDirectoryAsync(folder);
+        try
+        {
+            // Made through New in the Windows folder showing the distro, as the browser would be handed it.
+            var made = await new NewFolderCreateAction(files).CreateItemAsync(files.TryResolveReal(folder)!, "made: %41.");
+            await files.WriteAllTextAsync(files.ChildPath(folder, "old.txt"), "kept");
+            await files.MoveAsync(files.ChildPath(folder, "old.txt"), files.ChildPath(folder, "new? %41 ."), replace: false);
+
+            var names = new System.Collections.Generic.List<string>();
+            await foreach (var entry in files.EnumerateAsync(folder)) names.Add(LocationPath.DecodeSegment(entry.Name));
+            CollectionAssert.AreEquivalent(new[] { "made: %41.", "new? %41 ." }, names, "Linux has each exactly as typed");
+            Assert.AreEqual(files.ChildPath(folder, "made: %41."), made, "and the new folder is named by the distro's own path");
+            Assert.AreEqual("kept", await files.ReadAllTextAsync(files.ChildPath(folder, "new? %41 .")));
+        }
+        finally
+        {
+            await files.DeleteAsync(folder, recursive: true);
+            pool.Release(set);
+        }
+    }
 }

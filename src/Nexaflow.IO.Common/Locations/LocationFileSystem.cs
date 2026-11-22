@@ -525,6 +525,20 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
 
     public bool IsOnLocation(string path) => TryRoute(path, out _, out _) || FromNative(path) is not null;
 
+    public string ChildPath(string folder, string name)
+        => OnLocation(folder) is { } located
+            ? located.TrimEnd('\\', '/') + "\\" + LocationPath.EncodeSegment(name)
+            : _shared.ChildPath(folder, name);
+
+    public bool CanName(string folder, string name)
+        => OnLocation(folder) is null
+            ? _shared.CanName(folder, name)
+            : name.Length > 0 && name is not ("." or "..") && name.IndexOfAny(['/', '\0']) < 0;
+
+    /// <summary>The location's path of <paramref name="path"/>, named by it or by a Windows folder showing the location; null
+    /// off every location.</summary>
+    private string? OnLocation(string path) => TryRoute(path, out _, out _) ? path : FromNative(path);
+
     public async ValueTask<ITerminalLauncher?> GetTerminalLauncherAsync(string path, CancellationToken ct = default)
     {
         if (!TryRoute(path, out var location, out _))
