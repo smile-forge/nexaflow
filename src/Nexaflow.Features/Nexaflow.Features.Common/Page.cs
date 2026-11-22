@@ -23,6 +23,9 @@ public partial class Page : ObservableObject
     /// </summary>
     [ObservableProperty] private ContextSecurityRisk _securityRisk;
 
+    /// <summary>The kind a tab being dragged is carried as: what a drop target that takes tabs names.</summary>
+    public static string DragKind { get; } = typeof(Page).FullName!;
+
     /// <summary>Breadcrumb segments shown when this page is active. Stable identity — mutate in place.</summary>
     public ObservableCollection<BreadcrumbSegment> Breadcrumbs { get; } = [];
 

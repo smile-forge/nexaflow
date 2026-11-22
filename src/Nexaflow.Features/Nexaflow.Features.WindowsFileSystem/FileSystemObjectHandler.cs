@@ -25,16 +25,17 @@ public sealed class FileSystemObjectHandler(
     IReadOnlyDictionary<Type, IFeatureConfig> configs,
     IVirtualFileSystem vfs) : IGenericObjectHandler
 {
-    public bool CanHandleObject(object obj) => ToPath(obj) is not null;
+    public bool CanHandleObject(object obj) => ToPath(obj is FileViewRequest view ? view.Path : obj) is not null;
 
     public void Handle(object obj)
     {
-        if (ToPath(obj) is { } path) _ = OpenAsync(path);
+        var view = obj as FileViewRequest;
+        if (ToPath(view?.Path ?? obj) is { } path) _ = OpenAsync(path, onlyToView: view is not null);
     }
 
     /// <summary>Opens <paramref name="path"/> as a double-click in the file list would. Nothing awaits a handled object,
     /// so a failure is shown here, naming the path, rather than thrown.</summary>
-    private async Task OpenAsync(string path)
+    private async Task OpenAsync(string path, bool onlyToView)
     {
         var shown = Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)) is { Length: > 0 } n
             ? n : path;
@@ -62,7 +63,10 @@ public sealed class FileSystemObjectHandler(
             }
 
             // Same registry the file list uses (shared per shell), so the action set matches.
-            await new DefaultFileOpener(FileSystemFeatureRegistry.For(shell, ai, configs, vfs)).OpenAsync(path);
+            var opener = new DefaultFileOpener(FileSystemFeatureRegistry.For(shell, ai, configs, vfs));
+            if (!onlyToView) await opener.OpenAsync(path);
+            else if (!await opener.OpenInViewerAsync(path))
+                shell.ShowError(Str.Format("WindowsFileSystem.Open.NoViewerFormat", shown));
         }
         catch (Exception ex)
         {

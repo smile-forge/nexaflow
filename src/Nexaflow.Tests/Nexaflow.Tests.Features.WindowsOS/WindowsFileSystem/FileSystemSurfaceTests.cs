@@ -17,6 +17,7 @@ using Nexaflow.Tests.Features.Infrastructure;
 using Nexaflow.Icons;
 using Nexaflow.Features.Common.Ribbon;
 using Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -151,12 +152,11 @@ public class FileSystemSurfaceTests
     {
         var (vm, _) = await AtScratchAsync();
         var target = new FileSystemDropTarget(vm);
-        var data = new DataObject(DataFormats.FileDrop, new[] { @"C:\a.txt" });
 
         Assert.AreEqual(Str.Format("WindowsFileSystem.Drop.CopyToFormat", "Projects"),
-                        target.GetDropDescription(data, "Projects", isMove: false));
+                        target.GetDropDescription("Projects", isMove: false));
         Assert.AreEqual(Str.Format("WindowsFileSystem.Drop.MoveToFormat", "Projects"),
-                        target.GetDropDescription(data, "Projects", isMove: true),
+                        target.GetDropDescription("Projects", isMove: true),
                         "holding Shift turns a copy into a move — the tooltip is the only warning of that");
     }
 
@@ -166,10 +166,9 @@ public class FileSystemSurfaceTests
     {
         var (vm, _) = await AtScratchAsync();
         var target = new FileSystemDropTarget(vm);
-        var data = new DataObject(DataFormats.FileDrop, new[] { @"C:\a.txt" });
 
         Assert.AreEqual(Str.Format("WindowsFileSystem.Drop.CopyToFormat", Path.GetFileName(_scratch)),
-                        target.GetDropDescription(data, targetFolderName: null, isMove: false));
+                        target.GetDropDescription(targetFolderName: null, isMove: false));
     }
 
     [TestMethod]
@@ -179,8 +178,8 @@ public class FileSystemSurfaceTests
         var (vm, _) = await AtScratchAsync();
         var target = new FileSystemDropTarget(vm);
 
-        Assert.IsTrue(target.CanAcceptDrop(new DataObject(DataFormats.FileDrop, new[] { @"C:\a.txt" })));
-        Assert.IsFalse(target.CanAcceptDrop(new DataObject(DataFormats.Text, "hello")));
+        Assert.IsTrue(target.CanAcceptDrop(Files(new[] { @"C:\a.txt" })));
+        Assert.IsFalse(target.CanAcceptDrop(new DragPayload((DragKinds.Text, (object)"hello"))));
     }
 
     /// <summary>
@@ -200,7 +199,7 @@ public class FileSystemSurfaceTests
 
         var (vm, _) = await AtScratchAsync();
         var target = new FileSystemDropTarget(vm);
-        var dragged = new DataObject(DataFormats.FileDrop, new[] { folder });
+        var dragged = Files(new[] { folder });
 
         Assert.IsTrue(target.IsSelfDrop(dragged, folder), "the folder being dragged is not a destination");
         Assert.IsTrue(target.IsSelfDrop(dragged, folder + Path.DirectorySeparatorChar),
@@ -212,7 +211,7 @@ public class FileSystemSurfaceTests
         Assert.IsFalse(target.IsSelfDrop(dragged, _scratch),
                        "the folder it already lives in is a real destination — that lands as \"Copy of folder\"");
         Assert.IsFalse(target.IsSelfDrop(dragged, string.Empty));
-        Assert.IsFalse(target.IsSelfDrop(new DataObject(DataFormats.Text, "hello"), folder));
+        Assert.IsFalse(target.IsSelfDrop(new DragPayload((DragKinds.Text, (object)"hello")), folder));
     }
 
     [TestMethod]
@@ -232,13 +231,13 @@ public class FileSystemSurfaceTests
         var target = new FileSystemDropTarget(vm);
 
         // The drop queues the work and returns — awaiting the operation is the point, not a nicety.
-        target.Drop(new DataObject(DataFormats.FileDrop, new[] { copied }), dest, move: false);
+        target.Drop(Files(new[] { copied }), dest, move: false);
         await vm.Operations.Operations[^1].Completion;
 
         Assert.IsTrue(File.Exists(Path.Combine(dest, "copied.txt")));
         Assert.IsTrue(File.Exists(copied), "a copy leaves the original where it was");
 
-        target.Drop(new DataObject(DataFormats.FileDrop, new[] { moved }), dest, move: true);
+        target.Drop(Files(new[] { moved }), dest, move: true);
         await vm.Operations.Operations[^1].Completion;
 
         Assert.IsTrue(File.Exists(Path.Combine(dest, "moved.txt")));
@@ -254,7 +253,7 @@ public class FileSystemSurfaceTests
         var (vm, shell) = await AtScratchAsync();
         var target = new FileSystemDropTarget(vm);
 
-        target.Drop(new DataObject(DataFormats.FileDrop, new[] { Path.Combine(_scratch, "gone.txt") }),
+        target.Drop(Files(new[] { Path.Combine(_scratch, "gone.txt") }),
                     dest, move: false);
 
         shell.DidNotReceiveWithAnyArgs().ShowError(default!);
@@ -285,40 +284,28 @@ public class FileSystemSurfaceTests
         var (vm, _) = await AtScratchAsync();
         var target = new FileSystemDropTarget(vm);
 
-        Assert.IsNull(target.Capture(new DataObject(DataFormats.Text, "hello"), dest));
-        Assert.IsNull(target.Capture(new DataObject(DataFormats.FileDrop, Array.Empty<string>()), dest));
-        Assert.IsNull(target.Capture(new DataObject(DataFormats.FileDrop, new[] { @"C:\a.txt" }), string.Empty),
+        Assert.IsNull(target.Capture(new DragPayload((DragKinds.Text, (object)"hello")), dest));
+        Assert.IsNull(target.Capture(Files(Array.Empty<string>()), dest));
+        Assert.IsNull(target.Capture(Files(new[] { @"C:\a.txt" }), string.Empty),
                       "a drop that resolved no destination has no question to ask");
     }
 
-    [TestMethod]
-    [CoversNode("winfs-right-drag-menu")]
-    public void TheHoverIsWhatRemembersWhichButtonIsDragging_BecauseTheDropCannotBeAsked()
-    {
-        var latch = new DropChoiceLatch();
-        Assert.IsFalse(latch.OffersChoice, "nothing has been dragged over anything yet");
-
-        latch.Observe(DragDropKeyStates.RightMouseButton);
-
-        // The drop IS the release, so the key state it reports has no button in it at all. Asking the
-        // drop which button started the drag answered "the left one" every time, and a right-drag
-        // silently copied instead of offering the choice.
-        Assert.IsTrue(latch.OffersChoice,
-                      "the hover said right-button, and that is the answer the drop has to use");
-    }
+    private static DragPayload Files(string[] paths) => new((DragKinds.Files, paths));
 
     [TestMethod]
-    [CoversNode("winfs-right-drag-menu")]
-    public void AnOrdinaryDragTakesTheLatchBackOnItsWayPast()
+    [CoversNode("winfs-drag-drop")]
+    public async Task AFileThatCameAsContent_IsWrittenOutThenMovedIn()
     {
-        // Nothing resets the latch on purpose: every hover reports afresh, so a stale "offers a choice"
-        // cannot outlive the next drag over the same target.
-        var latch = new DropChoiceLatch();
+        var dest = Path.Combine(_scratch, "dest");
+        Directory.CreateDirectory(dest);
+        var (vm, _) = await AtScratchAsync();
+        var target = new FileSystemDropTarget(vm);
+        IReadOnlyList<CarriedFile> attachment = [new CarriedFile("attached.txt", false, into => into.Write("from a mail"u8))];
 
-        latch.Observe(DragDropKeyStates.RightMouseButton);
-        latch.Observe(DragDropKeyStates.LeftMouseButton);
+        target.Drop(new DragPayload((DragKinds.FileContents, attachment)), dest, move: false);
+        await vm.Operations.Operations[^1].Completion;
 
-        Assert.IsFalse(latch.OffersChoice);
+        Assert.AreEqual("from a mail", File.ReadAllText(Path.Combine(dest, "attached.txt")));
     }
 
     [TestMethod]
@@ -339,8 +326,8 @@ public class FileSystemSurfaceTests
 
         // Capture and Execute are deliberately separated by the menu: the data object is only valid
         // inside the drop callback, and the answer arrives after it has returned.
-        var copyPlan = target.Capture(new DataObject(DataFormats.FileDrop, new[] { copied }), dest);
-        var movePlan = target.Capture(new DataObject(DataFormats.FileDrop, new[] { moved }), dest);
+        var copyPlan = target.Capture(Files(new[] { copied }), dest);
+        var movePlan = target.Capture(Files(new[] { moved }), dest);
         Assert.IsNotNull(copyPlan);
         Assert.IsNotNull(movePlan);
         Assert.AreEqual("dest", copyPlan.DestinationLabel);
@@ -377,7 +364,7 @@ public class FileSystemSurfaceTests
         var (vm, _) = await AtScratchAsync();
         var target = new FileSystemDropTarget(vm);
 
-        var plan = target.Capture(new DataObject(DataFormats.FileDrop, new[] { source }), dest);
+        var plan = target.Capture(Files(new[] { source }), dest);
         Assert.IsNotNull(plan);
 
         target.Execute(plan, DropChoice.Copy);
@@ -414,7 +401,7 @@ public class FileSystemSurfaceTests
         var (vm, _) = await AtScratchAsync();
         var target = new FileSystemDropTarget(vm);
 
-        var ontoItself = target.Capture(new DataObject(DataFormats.FileDrop, new[] { file }), here);
+        var ontoItself = target.Capture(Files(new[] { file }), here);
         Assert.IsNotNull(ontoItself);
 
         Assert.IsTrue(target.CanExecute(ontoItself, DropChoice.Copy),
@@ -425,7 +412,7 @@ public class FileSystemSurfaceTests
         // Somewhere else, both are on offer.
         var elsewhere = Path.Combine(_scratch, "elsewhere");
         Directory.CreateDirectory(elsewhere);
-        var away = target.Capture(new DataObject(DataFormats.FileDrop, new[] { file }), elsewhere);
+        var away = target.Capture(Files(new[] { file }), elsewhere);
         Assert.IsNotNull(away);
 
         Assert.IsTrue(target.CanExecute(away, DropChoice.Copy));
@@ -443,7 +430,7 @@ public class FileSystemSurfaceTests
         var (vm, _) = await AtScratchAsync();
         var target = new FileSystemDropTarget(vm);
 
-        var plan = target.Capture(new DataObject(DataFormats.FileDrop, new[] { folder }), inside);
+        var plan = target.Capture(Files(new[] { folder }), inside);
         Assert.IsNotNull(plan);
 
         Assert.IsFalse(target.CanExecute(plan, DropChoice.Copy));
@@ -535,9 +522,9 @@ public class FileSystemSurfaceTests
         Assert.IsNotNull(pinned, "a pinned action has to carry a payload or the ribbon button does nothing");
         var handler = new FileActionRibbonPinHandler(shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(),
                                                      VirtualFileSystem.Instance);
-        var button = handler.Pin(pinned!);
-        Assert.IsNotNull(button, "a non-destructive action pins");
-        return button!;
+        var buttons = handler.Pin(new DragPayload((FileSystemPageRegistration.FileActionKind, pinned!)));
+        Assert.AreEqual(1, buttons.Count, "a non-destructive action pins");
+        return buttons[0];
     }
 
     // ── Create overlay ────────────────────────────────────────────────────────

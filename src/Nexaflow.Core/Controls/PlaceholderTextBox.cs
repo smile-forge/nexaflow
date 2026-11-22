@@ -6,6 +6,8 @@ using Nexaflow.Features.Common;
 using System.Runtime.InteropServices;
 using System.Windows.Threading;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Core.Services;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Core.Controls;
 
@@ -55,7 +57,7 @@ public class PlaceholderTextBox : TextBox
     /// shell window; receives (key, modifiers, current text, caret) and returns whether it handled the
     /// key and any replacement text. A non-empty <see cref="CompletionText"/> still wins Tab first.
     /// </summary>
-    public Func<Key, ModifierKeys, string, int, ChatKeyResult>? KeyInterceptor { get; set; }
+    public Func<ConsoleKey, KeyModifiers, string, int, ChatKeyResult>? KeyInterceptor { get; set; }
 
     // ── Constructor ───────────────────────────────────────────────────────
 
@@ -209,7 +211,7 @@ Unloaded       += OnUnloaded;
         // Tab path completion when there's no ghost to accept).
         if (KeyInterceptor is not null)
         {
-            var result = KeyInterceptor(e.Key, Keyboard.Modifiers, Text, CaretIndex);
+            var result = KeyInterceptor(e.Key.ToConsoleKey(), Keyboard.Modifiers.ToKeyModifiers(), Text, CaretIndex);
             if (result.Handled)
             {
                 if (result.NewText is not null)

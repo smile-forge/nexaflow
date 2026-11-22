@@ -54,6 +54,7 @@ src/
     Nexaflow.Features.Common/         ALL contracts (interfaces + small DTOs) — no FeatureManager, that's Core
     Nexaflow.Features.<Feature>/      one assembly per feature (~30)
       …Compressed.{Modern,SecureZip,SharpCompress}/   codec backends — reference IO.Common ONLY
+  Nexaflow.Interaction/               WPF-free input vocabulary: KeyModifiers, drag payloads + IDropTarget — the window's DropRouter does the rest
   Nexaflow.Visuals.Common/            shared WPF controls, converters, formatters
   Nexaflow.Visuals.Text/              markdown shown or written in — one MarkdownSurface, never hand-roll a RichTextBox
   Nexaflow.Visuals.Terminal/          terminal input logic

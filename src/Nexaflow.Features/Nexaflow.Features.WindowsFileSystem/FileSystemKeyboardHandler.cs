@@ -1,7 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
-using System.Windows.Input;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.WindowsFileSystem;
 
@@ -23,27 +23,27 @@ public sealed class FileSystemKeyboardHandler : IKeyboardHandler
     /// <summary>Open acts on exactly one entry, mirroring a double-click on a single row.</summary>
     private bool IsSingleSelection => !_viewModel.IsThisPcMode && _viewModel.CurrentSelection.Count == 1;
 
-    public bool CanProcessKey(Key key, ModifierKeys modifiers)
+    public bool CanProcessKey(ConsoleKey key, KeyModifiers modifiers)
     {
         return (key, modifiers) switch
         {
-            (Key.C, ModifierKeys.Control) => HasSelection,
-            (Key.X, ModifierKeys.Control) => HasSelection,
-            (Key.V, ModifierKeys.Control) => NativeMethods.ClipboardHasFiles(),
-            (Key.Delete, ModifierKeys.None)  => HasSelection,
-            (Key.Delete, ModifierKeys.Shift) => HasSelection,
+            (ConsoleKey.C, KeyModifiers.Control) => HasSelection,
+            (ConsoleKey.X, KeyModifiers.Control) => HasSelection,
+            (ConsoleKey.V, KeyModifiers.Control) => NativeMethods.ClipboardHasFiles(),
+            (ConsoleKey.Delete, KeyModifiers.None)  => HasSelection,
+            (ConsoleKey.Delete, KeyModifiers.Shift) => HasSelection,
             // Shift+Enter opens the selected entry — the keyboard equivalent of double-clicking its row.
             // Shift, not plain Enter: the AI input normally holds focus and Enter submits the prompt there,
             // so an unmodified binding would read as a clash even though the shell's TextBox guard hides it.
-            (Key.Enter, ModifierKeys.Shift)  => IsSingleSelection,
+            (ConsoleKey.Enter, KeyModifiers.Shift)  => IsSingleSelection,
             // Refresh is always available — it re-reads the current path (list + tree),
             // and in This-PC mode re-enumerates the drives.
-            (Key.F5, ModifierKeys.None)      => true,
+            (ConsoleKey.F5, KeyModifiers.None)      => true,
             _ => false,
         };
     }
 
-    public bool ProcessKey(Key key, ModifierKeys modifiers)
+    public bool ProcessKey(ConsoleKey key, KeyModifiers modifiers)
     {
         if (!CanProcessKey(key, modifiers)) return false;
 
@@ -51,15 +51,15 @@ public sealed class FileSystemKeyboardHandler : IKeyboardHandler
         // code path as clicking the button: path resolution, force flag, flash animation.
         return (key, modifiers) switch
         {
-            (Key.C, ModifierKeys.Control)    => _viewModel.TryExecuteAction<CopyFiles>(),
-            (Key.X, ModifierKeys.Control)    => _viewModel.TryExecuteAction<CutFiles>(),
-            (Key.V, ModifierKeys.Control)    => _viewModel.TryExecuteAction<PasteFiles>(),
+            (ConsoleKey.C, KeyModifiers.Control)    => _viewModel.TryExecuteAction<CopyFiles>(),
+            (ConsoleKey.X, KeyModifiers.Control)    => _viewModel.TryExecuteAction<CutFiles>(),
+            (ConsoleKey.V, KeyModifiers.Control)    => _viewModel.TryExecuteAction<PasteFiles>(),
             // Shift+Del: FileActionViewModel.Execute() reads Keyboard.IsKeyDown(Shift) live,
             // so force=true is set automatically — no special handling needed here.
-            (Key.Delete, _)                  => _viewModel.TryExecuteAction<DeleteFile>(),
+            (ConsoleKey.Delete, _)                  => _viewModel.TryExecuteAction<DeleteFile>(),
             // F5: re-read the current path — refreshes both the file list and the tree.
-            (Key.F5, ModifierKeys.None)      => Refresh(),
-            (Key.Enter, ModifierKeys.Shift)  => OpenSelection(),
+            (ConsoleKey.F5, KeyModifiers.None)      => Refresh(),
+            (ConsoleKey.Enter, KeyModifiers.Shift)  => OpenSelection(),
             _                                => false,
         };
     }

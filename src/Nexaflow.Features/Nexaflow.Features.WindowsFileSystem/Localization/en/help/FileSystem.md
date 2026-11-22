@@ -20,7 +20,7 @@ Browses the drives and folders on this PC and acts on the files in them.
 ## Copying, moving and deleting
 
 - Copy, Cut, Paste, Rename, Delete, Run, Install, Open With, Properties and Copy path act on the selection, from the strip above the list or the right-click menu. Ctrl+C, Ctrl+X and Ctrl+V do the first three.
-- Dragging files onto a folder copies them; hold Shift to move. Right-dragging asks at the drop — Copy here, Move here or Cancel.
+- Dragging files onto a folder, from here or any other application, copies them; hold Shift to move. Attachments and files out of a zip are saved there. Right-dragging asks at the drop — Copy here, Move here or Cancel.
 - A copy or move into a folder that already holds that name arrives as "name (2)"; nothing is replaced.
 - Rename takes one item at a time and will not replace a file that already has the name you give.
 - Delete asks first and sends the files to the Recycle Bin. Shift+Delete skips the question and deletes them for good.

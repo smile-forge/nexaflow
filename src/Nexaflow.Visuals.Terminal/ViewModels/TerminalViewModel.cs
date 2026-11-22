@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Elevation.Contracts;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Interaction;
 using Nexaflow.IO.Common.Terminal;
 using Nexaflow.IO.Terminal;
 using Nexaflow.Visuals.Common.Localization;
@@ -419,9 +420,9 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     /// through the command history. Returns <see cref="ChatKeyResult.NotHandled"/> otherwise so normal
     /// bar handling (and Tab ghost-completion) runs. Path completion is layered on later.
     /// </summary>
-    public ChatKeyResult HandleChatKey(Key key, ModifierKeys modifiers, string text, int caretIndex)
+    public ChatKeyResult HandleChatKey(ConsoleKey key, KeyModifiers modifiers, string text, int caretIndex)
     {
-        if (modifiers != ModifierKeys.None) return ChatKeyResult.NotHandled;
+        if (modifiers != KeyModifiers.None) return ChatKeyResult.NotHandled;
 
         // Recall history when the bar is empty or already in console mode ('>' prefix). An empty bar
         // counts because the console tab is active — Up should behave like a terminal. A non-'>' draft
@@ -430,9 +431,9 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
         return key switch
         {
-            Key.Up   => HistoryStep(+1),
-            Key.Down => HistoryStep(-1),
-            _        => ChatKeyResult.NotHandled,
+            ConsoleKey.UpArrow   => HistoryStep(+1),
+            ConsoleKey.DownArrow => HistoryStep(-1),
+            _                    => ChatKeyResult.NotHandled,
         };
     }
 

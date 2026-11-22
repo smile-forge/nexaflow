@@ -5,12 +5,14 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Nexaflow.Features.Common;
+using Nexaflow.Interaction;
+using Nexaflow.Visuals.Common.Dropping;
 using Nexaflow.Visuals.Terminal.Models;
 using Nexaflow.Visuals.Terminal.ViewModels;
 
 namespace Nexaflow.Visuals.Terminal.Views;
 
-public partial class TerminalView : UserControl, IPageView
+public partial class TerminalView : UserControl, IPageView, IDropTarget
 {
     public TerminalViewModel ViewModel { get; }
 
@@ -136,20 +138,19 @@ public partial class TerminalView : UserControl, IPageView
         e.Handled = true;
     }
 
-    private void Terminal_DragOver(object sender, DragEventArgs e)
-    {
-        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
-        e.Handled = true;
-    }
+    private static readonly string[] PathKinds = [DragKinds.Files, DragKinds.FileContents];
 
-    private void Terminal_Drop(object sender, DragEventArgs e)
+    public IReadOnlyList<string> AcceptedKinds => PathKinds;
+
+    /// <summary>The console takes files as their paths, typed. The panels beside it do not: the files panel is where
+    /// they are dragged from.</summary>
+    public DropOffer? OfferDrop(DropRequest request)
+        => DropHitTesting.IsInside(this.ElementUnder(request.At), TerminalSurface) ? new DropOffer(DropEffect.Copy) : null;
+
+    public void AcceptDrop(DropRequest request)
     {
-        var text = TerminalDropLogic.BuildInsertText(e.Data);
-        if (text is not null)
-        {
+        if (TerminalDropLogic.BuildInsertText(request.Payload) is { } text)
             ViewModel.SendText(text);
-            e.Handled = true;
-        }
     }
 
     private void CopyTerminal_Click(object sender, RoutedEventArgs e) => CopyTerminalText();

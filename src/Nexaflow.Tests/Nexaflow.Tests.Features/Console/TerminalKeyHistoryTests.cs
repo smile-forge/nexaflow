@@ -6,6 +6,7 @@ using Nexaflow.Visuals.Terminal.Models;
 using Nexaflow.Visuals.Terminal.ViewModels;
 using NSubstitute;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Tests.Features.Console;
 
@@ -31,7 +32,7 @@ public class TerminalKeyHistoryTests
         var vm = new TestTerminal();
         vm.SendCommand("dir");
 
-        var r = vm.HandleChatKey(Key.Up, ModifierKeys.None, "hello", 5);
+        var r = vm.HandleChatKey(ConsoleKey.UpArrow, KeyModifiers.None, "hello", 5);
 
         Assert.IsFalse(r.Handled, "Up in a plain AI message should not be claimed by the terminal");
     }
@@ -43,7 +44,7 @@ public class TerminalKeyHistoryTests
         vm.SendCommand("first");
         vm.SendCommand("second");   // most recent
 
-        var r = vm.HandleChatKey(Key.Up, ModifierKeys.None, ">", 1);
+        var r = vm.HandleChatKey(ConsoleKey.UpArrow, KeyModifiers.None, ">", 1);
 
         Assert.IsTrue(r.Handled);
         Assert.AreEqual(">second", r.NewText);
@@ -56,8 +57,8 @@ public class TerminalKeyHistoryTests
         vm.SendCommand("first");
         vm.SendCommand("second");
 
-        vm.HandleChatKey(Key.Up, ModifierKeys.None, ">", 1);
-        var r = vm.HandleChatKey(Key.Up, ModifierKeys.None, ">second", 7);
+        vm.HandleChatKey(ConsoleKey.UpArrow, KeyModifiers.None, ">", 1);
+        var r = vm.HandleChatKey(ConsoleKey.UpArrow, KeyModifiers.None, ">second", 7);
 
         Assert.AreEqual(">first", r.NewText);
     }
@@ -68,8 +69,8 @@ public class TerminalKeyHistoryTests
         var vm = new TestTerminal();
         vm.SendCommand("only");
 
-        vm.HandleChatKey(Key.Up, ModifierKeys.None, ">", 1);            // ">only"
-        var r = vm.HandleChatKey(Key.Down, ModifierKeys.None, ">only", 5);
+        vm.HandleChatKey(ConsoleKey.UpArrow, KeyModifiers.None, ">", 1);            // ">only"
+        var r = vm.HandleChatKey(ConsoleKey.DownArrow, KeyModifiers.None, ">only", 5);
 
         Assert.IsTrue(r.Handled);
         Assert.AreEqual(">", r.NewText);
@@ -81,10 +82,10 @@ public class TerminalKeyHistoryTests
         var vm = new TestTerminal();
         vm.SendCommand("a");
         vm.SendCommand("b");
-        vm.HandleChatKey(Key.Up, ModifierKeys.None, ">", 1);            // cursor at "b"
+        vm.HandleChatKey(ConsoleKey.UpArrow, KeyModifiers.None, ">", 1);            // cursor at "b"
         vm.SendCommand("c");                                            // resets; "c" most recent
 
-        var r = vm.HandleChatKey(Key.Up, ModifierKeys.None, ">", 1);
+        var r = vm.HandleChatKey(ConsoleKey.UpArrow, KeyModifiers.None, ">", 1);
 
         Assert.AreEqual(">c", r.NewText, "after sending a command, Up should recall it, not resume mid-history");
     }

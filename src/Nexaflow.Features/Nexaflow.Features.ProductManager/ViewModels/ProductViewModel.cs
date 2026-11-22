@@ -9,6 +9,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.ProductManager.ClientTools;
 using Nexaflow.Features.ProductManager.Services;
+using Nexaflow.Interaction;
 using Nexaflow.IO.Common;
 using Nexaflow.Services.Initiatives.Graph.Store;
 using Nexaflow.Services.Initiatives.Product.Model;
@@ -762,6 +763,11 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     {
         if (!string.IsNullOrWhiteSpace(url)) NewSnaplinkUrl = url.Trim();
     }
+
+    private SnaplinkUrlDropTarget? _urlDrops;
+
+    /// <summary>What the Link URL tab's box takes drops with.</summary>
+    public IDropTarget UrlDrops => _urlDrops ??= new SnaplinkUrlDropTarget(SetDroppedUrl);
 
     private void AddConcernSnaplink(Snaplink link)
     {

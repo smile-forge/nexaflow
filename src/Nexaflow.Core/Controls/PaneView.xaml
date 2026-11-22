@@ -41,6 +41,7 @@
                                PinTabToRibbonCommand="{Binding PinTabToRibbonCommand, ElementName=PaneRoot}"
                                TearOffTabCommand="{Binding TearOffTabCommand, ElementName=PaneRoot}"
                                ReceiveTabCommand="{Binding ReceiveTabCommand, ElementName=PaneRoot}"
+                               OpenDroppedCommand="{Binding OpenDroppedCommand, ElementName=PaneRoot}"
                                SplitTabCommand="{Binding SplitTabCommand, ElementName=PaneRoot}"
                                SplitEmptyCommand="{Binding SplitEmptyCommand, ElementName=PaneRoot}"
                                ClosePaneCommand="{Binding ClosePaneCommand, ElementName=PaneRoot}"

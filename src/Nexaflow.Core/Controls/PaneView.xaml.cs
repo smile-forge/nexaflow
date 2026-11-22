@@ -94,6 +94,16 @@ public partial class PaneView : UserControl
         set => SetValue(ReceiveTabCommandProperty, value);
     }
 
+    public static readonly DependencyProperty OpenDroppedCommandProperty =
+        DependencyProperty.Register(nameof(OpenDroppedCommand), typeof(ICommand), typeof(PaneView));
+
+    /// <summary>Opens what was dropped on this pane's tabs.</summary>
+    public ICommand? OpenDroppedCommand
+    {
+        get => (ICommand?)GetValue(OpenDroppedCommandProperty);
+        set => SetValue(OpenDroppedCommandProperty, value);
+    }
+
     public ICommand? OpenPageCommand
     {
         get => (ICommand?)GetValue(OpenPageCommandProperty);

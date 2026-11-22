@@ -465,10 +465,6 @@ public sealed class FeatureManager
     public IReadOnlyList<IChatInputPreview> GetChatInputPreviews(WorkspaceRuntime ctx)
         => Instantiate<IChatInputPreview>(FeatureCatalog.Instance.TypesImplementing<IChatInputPreview>(), ctx);
 
-    /// <summary>The foreign-drop handler that accepts <paramref name="format"/> (a WPF drag-data key), or null.</summary>
-    public IRibbonPinHandler? GetRibbonPinHandlerForFormat(string format, WorkspaceRuntime ctx)
-        => GetRibbonPinHandlers(ctx).FirstOrDefault(h => h.AcceptedFormats.Contains(format));
-
     /// <summary>The tab-pin handler that snapshots tabs of <paramref name="tabPageKind"/>, or null.</summary>
     public ITabPinHandler? GetTabPinHandler(string tabPageKind, WorkspaceRuntime ctx)
         => Instantiate<ITabPinHandler>(FeatureCatalog.Instance.TypesImplementing<ITabPinHandler>(), ctx)

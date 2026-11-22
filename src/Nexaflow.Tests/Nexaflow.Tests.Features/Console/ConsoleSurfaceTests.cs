@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Windows;
 using Nexaflow.Features.Common;
+using Nexaflow.Interaction;
 using Nexaflow.IO.Terminal;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Terminal;
@@ -210,7 +212,7 @@ public class ConsoleSurfaceTests
     [CoversNode("console-bar-drop")]
     public void ADroppedPathWithASpaceIsQuoted()
     {
-        var data = new DataObject(DataFormats.FileDrop, new[] { @"C:\Program Files\app.exe" });
+        var data = new DragPayload((DragKinds.Files, new[] { @"C:\Program Files\app.exe" }));
 
         Assert.AreEqual(@"""C:\Program Files\app.exe""", TerminalDropLogic.BuildInsertText(data),
                         "unquoted, cmd would read this as two arguments");
@@ -220,7 +222,7 @@ public class ConsoleSurfaceTests
     [CoversNode("console-bar-drop")]
     public void SeveralDroppedPathsBecomeOneSpaceSeparatedArgumentList()
     {
-        var data = new DataObject(DataFormats.FileDrop, new[] { @"C:\a.txt", @"C:\my docs\b.txt" });
+        var data = new DragPayload((DragKinds.Files, new[] { @"C:\a.txt", @"C:\my docs\b.txt" }));
 
         Assert.AreEqual(@"C:\a.txt ""C:\my docs\b.txt""", TerminalDropLogic.BuildInsertText(data),
                         "only the path that needs quoting gets it");
@@ -228,8 +230,51 @@ public class ConsoleSurfaceTests
 
     [TestMethod]
     [CoversNode("console-bar-drop")]
+    [DataRow("x&echo.INJECTED")]
+    [DataRow("x&echo INJECTED (1).txt")]
+    [DataRow("%OS%.txt")]
+    [DataRow("%OS%%OS% 100%.txt")]
+    [DataRow("50% off.txt")]
+    [DataRow("a^b.txt")]
+    [DataRow("a,b;c=d.txt")]
+    public void ADroppedName_MeansOnlyItselfToCmd(string name)
+    {
+        var path = Path.Combine(_tmp, name);
+        File.WriteAllText(path, "READ-IT");
+        var typed = TerminalDropLogic.BuildInsertText(new DragPayload((DragKinds.Files, new[] { path })));
+
+        using var cmd = Process.Start(new ProcessStartInfo("cmd.exe", "/d /q")
+        {
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WorkingDirectory = _tmp,
+        })!;
+        cmd.StandardInput.WriteLine($"type {typed}");
+        cmd.StandardInput.Close();
+        var said = cmd.StandardOutput.ReadToEnd();
+        cmd.WaitForExit();
+
+        StringAssert.Contains(said, "READ-IT", typed);
+        Assert.IsFalse(said.Contains("INJECTED", StringComparison.Ordinal), $"the name ran: {typed}");
+    }
+
+    [TestMethod]
+    [CoversNode("console-bar-drop")]
+    [DataRow("C:\\a.txt\rcalc")]
+    [DataRow("C:\\a.txt\ncalc")]
+    [DataRow("C:\\a\"&calc")]
+    public void APathThatWouldPressEnterOrEndItsQuotesIsNotTyped(string path)
+    {
+        Assert.IsNull(TerminalDropLogic.BuildInsertText(new DragPayload((DragKinds.Files, new[] { path }))));
+    }
+
+    [TestMethod]
+    [CoversNode("console-bar-drop")]
     public void DroppingSomethingThatIsNotAFileInsertsNothing()
     {
-        Assert.IsNull(TerminalDropLogic.BuildInsertText(new DataObject(DataFormats.Text, "hello")));
+        Assert.IsNull(TerminalDropLogic.BuildInsertText(new DragPayload((DragKinds.Text, "hello"))));
     }
 }

@@ -11,6 +11,8 @@
   "Scratchpad.Config.Scratchpad.Infinite": "Infinite",
   "Scratchpad.Page.Title": "Scratchpad",
   "Scratchpad.Task.FetchingPreviewFormat": "Fetching preview: {0}",
+  "Scratchpad.Drop.AttachToNote": "Attach to this note",
+  "Scratchpad.Drop.InsertInNote": "Insert in this note",
   "Scratchpad.Drop.CreatePostIt": "Create post-it",
 
   "Scratchpad.Color.Yellow": "Yellow",

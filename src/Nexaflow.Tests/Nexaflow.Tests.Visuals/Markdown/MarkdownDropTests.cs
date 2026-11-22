@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Windows;
 
+using Nexaflow.Interaction;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
@@ -31,12 +32,12 @@ public class MarkdownDropTests
     {
         editor.Dropping += (_, e) =>
         {
-            e.Words = e.Data.GetData(DataFormats.UnicodeText) as string;
+            e.Words = e.Data.Text();
             e.Markdown = e.Words;
             e.Handled = true;
         };
 
-        editor.DropContent(new DataObject(DataFormats.UnicodeText, "opera"), Over(editor, "chrome"));
+        editor.DropContent(new DragPayload((DragKinds.Text, "opera")), Over(editor, "chrome"));
 
         var sentence = Doc.IndexOf("Some words about", StringComparison.Ordinal);
 
@@ -53,9 +54,37 @@ public class MarkdownDropTests
         var before = MarkdownEditorHarness.Showing(editor);
         editor.Dropping += (_, e) => e.Handled = true;
 
-        editor.DropContent(new DataObject(DataFormats.FileDrop, new[] { @"C:\pets.png" }), Over(editor, "chrome"));
+        editor.DropContent(new DragPayload((DragKinds.Files, new[] { @"C:\pets.png" })), Over(editor, "chrome"));
 
         Assert.AreEqual(before, MarkdownEditorHarness.Showing(editor), "the host kept it, so the document reads as it did");
+    }));
+
+    [TestMethod]
+    public void TextNoHostClaims_IsWrittenWhereItWasLetGo() => UiThread.Run(() => MarkdownEditorHarness.Run(Doc, editor =>
+    {
+        editor.DropContent(new DragPayload((DragKinds.Text, "opera")), Over(editor, "chrome"));
+
+        StringAssert.Contains(MarkdownEditorHarness.Showing(editor), "opera", "an editor with no host of its own still takes words");
+    }));
+
+    [TestMethod]
+    public void TextLetGoBelowTheLastLine_IsWrittenAtTheEnd() => UiThread.Run(() => MarkdownEditorHarness.Run(Doc, editor =>
+    {
+        editor.DropContent(new DragPayload((DragKinds.Text, "opera")), new Point(5, 100_000));
+
+        StringAssert.Contains(MarkdownEditorHarness.Showing(editor), "opera", "a short note is mostly the room below its words");
+    }));
+
+    [TestMethod]
+    public void FilesNoHostClaims_AreNotWrittenAndNotOffered() => UiThread.Run(() => MarkdownEditorHarness.Run(Doc, editor =>
+    {
+        var before = MarkdownEditorHarness.Showing(editor);
+        var files = new DragPayload((DragKinds.Files, new[] { @"C:\pets.png" }), (DragKinds.Text, @"C:\pets.png"));
+
+        Assert.IsNull(editor.OfferDrop(new DropRequest(files, default)), "left to the surface around it");
+        editor.DropContent(files, Over(editor, "chrome"));
+
+        Assert.AreEqual(before, MarkdownEditorHarness.Showing(editor));
     }));
 
     /// <summary>A point on the editor over the piece <paramref name="word"/> is drawn as.</summary>

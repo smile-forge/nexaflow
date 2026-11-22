@@ -28,6 +28,7 @@ the root `CLAUDE.md`. This section fixes the tiers and the rules between them.
 | Shell | `Nexaflow.Core` | WinExe entry point; window chrome, tab strip, ribbon, breadcrumbs, AI input bar; `FeatureManager`/`FeatureCatalog`, `WorkspaceManager`, `ProviderManager`, `ConfigManager` |
 | Contracts | `Nexaflow.Features.Common` | ALL feature-facing interfaces + small DTOs. Features and Core meet only here |
 | Features | `Nexaflow.Features.*` (~30, + 3 `Compressed.*` codec backends) | One assembly per feature; reflection-discovered, lazily loaded |
+| Input vocabulary | `Nexaflow.Interaction` | WPF-free `net10.0` leaf the contracts speak: `KeyModifiers`, `IDragPayload` + `DragKinds`, `IDropTarget`. Beneath `Features.Common` rather than in it, so a shared control can take a drop without seeing `IShellServices` |
 | Shared leaves (non-contract) | `Nexaflow.Visuals.Common` (controls/converters/formatters), `Nexaflow.Visuals.Text` (markdown rendering), `Nexaflow.Visuals.Terminal` (terminal input logic), `Nexaflow.IO.Common` (encoding/line-endings, glob, hashing, base64 + `IStreamCodec`/`IArchiveHandler` codec contracts, the `VirtualFileSystem` over archives and mounts, the remote-location contracts and each runtime's `LocationFileSystem`, text index/transforms, file watching/splitting), `Nexaflow.IO.Terminal` (PTY host), `Nexaflow.Syntax` (tree-sitter engine) | Concrete shared code a feature may reference; never references Core or a feature |
 | Providers | `Nexaflow.Providers.Common` and `Nexaflow.Providers.OpenAICompatible` (the chat-completions wire format OpenAI and xAI share) + one project per backend (Claude, Gemini, OpenAI, xAI, Ollama, Aria) | Loaded by file name at runtime; never compile-time referenced |
 | Elevation | `Nexaflow.Elevation.Contracts` (pure DTO leaf) + `Nexaflow.PrivilegeBridge` (separate elevated exe) | The admin-action trust boundary — see [Elevation / Privilege Bridge](#elevation--privilege-bridge) |
@@ -213,7 +214,7 @@ The contract layer. Every feature depends on this; nothing else does.
 | `Ribbon/*.cs` | `IRibbonPinHandler`, `IRibbonExecutionContext`, `ISelectionProvider`, `RibbonPinResult` — drag-to-ribbon pinning |
 | `Viewlets/*.cs` | `IFolderViewlet`, `IViewletController`, `ViewletDisplayMode` — folder-display extensions |
 | `IKeyboardHandler.cs` | Claims global keyboard shortcuts; queried against the active page |
-| `IDropTarget.cs` | Accepts file drag-drop; resolved from the active page by the file browser |
+| `FileViewRequest.cs` | "Show this file in its viewer" through `HandleObject` — never launches it |
 
 ### Feature assemblies
 
@@ -571,11 +572,14 @@ Two rules the shell applies so it composes cleanly:
 - **The active page gets first refusal, then shell globals** (Ctrl+Tab → AI input, Ctrl+W → close tab). So a
   page may claim a key the shell would otherwise take.
 
-```csharp
-public bool CanProcessKey(Key key, ModifierKeys modifiers)
-    => modifiers == ModifierKeys.Control && key == Key.OemPlus;
+A key is a `ConsoleKey` (a Windows virtual key) and what is held a `KeyModifiers`; Core's `KeyTranslation` is the one
+place WPF's keys become those.
 
-public bool ProcessKey(Key key, ModifierKeys modifiers)
+```csharp
+public bool CanProcessKey(ConsoleKey key, KeyModifiers modifiers)
+    => modifiers == KeyModifiers.Control && key == ConsoleKey.OemPlus;
+
+public bool ProcessKey(ConsoleKey key, KeyModifiers modifiers)
 {
     ZoomIn();
     return true;
@@ -584,9 +588,40 @@ public bool ProcessKey(Key key, ModifierKeys modifiers)
 
 ---
 
-### `IDropTarget` — File drag-drop
+### `IDropTarget` — drag and drop
 
-Implement on your `UserControl`. The file browser resolves this from the active page for drop operations.
+Every drag over a window — from Windows, another application or the app itself — goes through one `DropRouter`
+(`Nexaflow.Visuals.Common/Dropping/`, attached by `MainWindow`). A feature never sets `AllowDrop` for one or handles a
+drag event: it says what it takes (`AcceptedKinds`), what a drop would do (`OfferDrop`, asked as the pointer moves, so
+it touches no disk) and takes it (`AcceptDrop`). Nothing in the contract is WPF's.
+
+A target registers by where it is:
+
+| Where | How |
+|---|---|
+| anywhere on a page | the page's view **or** its view-model implements `IDropTarget` |
+| on one control | the control implements it |
+| on an area of a view | `dropping:DropSurface.Target="{Binding …}"` |
+| the ribbon | `IRibbonPinHandler` — what a drop becomes as buttons |
+| the AI bar | `IChatDropHandler` — what a drop becomes as text |
+
+The tabs are Core's own target: a file dropped there is raised as a `FileViewRequest`, a link as itself.
+
+- **The innermost surface wins, a target or a control's own handling alike.** Words over a text box are the box's; a
+  file over it, which the box refuses, goes to the targets around it. `OfferDrop` returning null passes to the surface
+  around; `DropOffer.Refused` ends the asking.
+- **Kinds, not formats.** `WindowsDragPayload` is the one place Windows' formats become `DragKinds`: `Files` (paths),
+  `FileContents` (files that are only content — a mail's attachment, a file out of a zip), `Link`, `Text`, `Html`,
+  `Image` (PNG bytes). A drag of the app's own names a kind of its own (`Page.DragKind`, `"FileAction"`).
+- **The payload lives as long as the drag.** Read it inside `AcceptDrop`, before the first await. `FilesOnDisk()` gives
+  paths that outlive it, writing content-only files to a staging folder (`DropStaging`) with their names made safe and
+  marked as from the internet.
+- **The source is never told its files were moved**, which is leave to delete them: a target that moves does the whole
+  move. A drag from elsewhere that nothing takes is refused — WPF's own default answer is Move.
+- **Looking never launches.** `FileViewRequest` opens the viewer for the type, or text or bytes where none is mapped.
+- **A control's own gesture stays its own**: a list reordering, a layer dragged onto another. It carries a kind of its
+  own, and the router leaves it with the control that set `AllowDrop` for it.
+- **A native child window is outside all of it**: WebView2 takes the drops over itself.
 
 ---
 

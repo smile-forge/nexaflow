@@ -50,6 +50,7 @@
   "AIChat.Conversation.Context.Header": "Context Items",
   "AIChat.Conversation.Context.None": "no context items",
   "AIChat.Conversation.Context.OverflowFormat": "and {0} more",
+  "AIChat.Conversation.Context.DropAdds": "Add to this conversation",
   "AIChat.Conversation.Context.DropHint": "Drag tabs or files here",
   "AIChat.Conversation.Context.MediumRiskTip": "Elevated risk: the AI can make broad changes within this tab's scope.",
   "AIChat.Conversation.Context.HighRiskTip": "High risk: this tab's scope is broad and sensitive — the AI could read or change critical parts of your system.",

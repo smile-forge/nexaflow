@@ -257,8 +257,7 @@
                 Background="{StaticResource Surface2Brush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="1"
-                CornerRadius="10"
-                AllowDrop="True">
+                CornerRadius="10">
             <Grid Margin="16,10">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>

@@ -1,12 +1,12 @@
 using Nexaflow.IO.Common;
 using System.IO;
-using System.Windows.Input;
 using NSubstitute;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -60,7 +60,7 @@ public class FileSystemKeyboardHandlerTests
         var vm = await AtScratchAsync();
         vm.OnSelectionChanged([Subfolder("one")]);
 
-        Assert.IsTrue(new FileSystemKeyboardHandler(vm).CanProcessKey(Key.Enter, ModifierKeys.Shift));
+        Assert.IsTrue(new FileSystemKeyboardHandler(vm).CanProcessKey(ConsoleKey.Enter, KeyModifiers.Shift));
     }
 
     [TestMethod]
@@ -69,7 +69,7 @@ public class FileSystemKeyboardHandlerTests
         var vm = await AtScratchAsync();
         vm.OnSelectionChanged([]);
 
-        Assert.IsFalse(new FileSystemKeyboardHandler(vm).CanProcessKey(Key.Enter, ModifierKeys.Shift));
+        Assert.IsFalse(new FileSystemKeyboardHandler(vm).CanProcessKey(ConsoleKey.Enter, KeyModifiers.Shift));
     }
 
     [TestMethod]
@@ -78,7 +78,7 @@ public class FileSystemKeyboardHandlerTests
         var vm = await AtScratchAsync();
         vm.OnSelectionChanged([Subfolder("one"), Subfolder("two")]);
 
-        Assert.IsFalse(new FileSystemKeyboardHandler(vm).CanProcessKey(Key.Enter, ModifierKeys.Shift),
+        Assert.IsFalse(new FileSystemKeyboardHandler(vm).CanProcessKey(ConsoleKey.Enter, KeyModifiers.Shift),
             "Open mirrors a double-click, which acts on exactly one row.");
     }
 
@@ -88,7 +88,7 @@ public class FileSystemKeyboardHandlerTests
         var vm = await AtScratchAsync();
         vm.OnSelectionChanged([Subfolder("one")]);
 
-        Assert.IsFalse(new FileSystemKeyboardHandler(vm).CanProcessKey(Key.Enter, ModifierKeys.None));
+        Assert.IsFalse(new FileSystemKeyboardHandler(vm).CanProcessKey(ConsoleKey.Enter, KeyModifiers.None));
     }
 
     [TestMethod]
@@ -98,7 +98,7 @@ public class FileSystemKeyboardHandlerTests
         var target = Subfolder("target");
         vm.OnSelectionChanged([target]);
 
-        Assert.IsTrue(new FileSystemKeyboardHandler(vm).ProcessKey(Key.Enter, ModifierKeys.Shift));
+        Assert.IsTrue(new FileSystemKeyboardHandler(vm).ProcessKey(ConsoleKey.Enter, KeyModifiers.Shift));
         await vm.Browsing;
         Assert.AreEqual(target.FullPath, vm.CurrentPath,
             "Shift+Enter must route through OpenEntryCommand, which navigates into a selected folder.");

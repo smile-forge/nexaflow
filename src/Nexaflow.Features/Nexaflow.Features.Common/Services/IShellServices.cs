@@ -266,7 +266,7 @@ public interface IShellServices
     /// <summary>
     /// Shows <paramref name="overlayViewModel"/> as a shell-modal overlay in the focused window. The shell
     /// renders it lazily via a <c>DataTemplate</c> matched on the VM's type — ship that template in a
-    /// <see cref="System.Windows.ResourceDictionary"/> advertised through your feature's
+    /// <c>ResourceDictionary</c> advertised through your feature's
     /// <see cref="IThemeContribution"/>. Implement <see cref="IShellOverlay"/> on the VM to opt into
     /// backdrop-click dismissal. Dismiss via <see cref="CloseOverlay"/> or the VM's own command.
     /// </summary>
@@ -278,10 +278,10 @@ public interface IShellServices
 
     /// <summary>
     /// Pins <paramref name="payload"/> to the focused window's ribbon using the
-    /// <see cref="Nexaflow.Features.Common.IRibbonPinHandler"/> that accepts the drag-data
-    /// <paramref name="format"/>.
+    /// <see cref="Nexaflow.Features.Common.IRibbonPinHandler"/> that accepts <paramref name="kind"/> — as if
+    /// <paramref name="payload"/> had been dragged there as that kind.
     /// </summary>
-    void PinToRibbon(string format, object payload);
+    void PinToRibbon(string kind, object payload);
 
     /// <summary>
     /// Dispatches <paramref name="obj"/> to the first registered
