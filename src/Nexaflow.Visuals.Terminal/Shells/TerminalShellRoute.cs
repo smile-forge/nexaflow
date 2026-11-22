@@ -36,9 +36,12 @@ public sealed record TerminalShellRoute(ITerminalLauncher Launcher, TerminalShel
 internal sealed class LocationShellLauncher(IVirtualFileSystem files, string folder) : ITerminalLauncher
 {
     public async ValueTask<ITerminalTransport> LaunchAsync(TerminalLaunch launch, CancellationToken ct)
-    {
-        var shell = await files.GetTerminalLauncherAsync(folder, ct).ConfigureAwait(false)
-                    ?? throw new NotSupportedException($"'{folder}' is not on a location with a shell.");
-        return await shell.LaunchAsync(launch, ct).ConfigureAwait(false);
-    }
+        => await (await ShellAsync(ct).ConfigureAwait(false)).LaunchAsync(launch, ct).ConfigureAwait(false);
+
+    public async ValueTask<IReadOnlySet<string>> ListCommandsAsync(CancellationToken ct)
+        => await (await ShellAsync(ct).ConfigureAwait(false)).ListCommandsAsync(ct).ConfigureAwait(false);
+
+    private async ValueTask<ITerminalLauncher> ShellAsync(CancellationToken ct)
+        => await files.GetTerminalLauncherAsync(folder, ct).ConfigureAwait(false)
+           ?? throw new NotSupportedException($"'{folder}' is not on a location with a shell.");
 }

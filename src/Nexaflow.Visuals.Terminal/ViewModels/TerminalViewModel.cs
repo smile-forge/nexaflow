@@ -235,6 +235,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         transport.Exited += OnProcessExited;
         foreach (var text in pending) transport.Write(Encoding.UTF8.GetBytes(text));
         if ((_cols, _rows) != (launch.Columns, launch.Rows)) transport.Resize(_cols, _rows);
+        ShellCommandsListed = LoadShellCommandsAsync();
     }
 
     /// <summary>Sends <paramref name="text"/> as typed; before the shell is there it waits, and goes once it is.</summary>
@@ -283,8 +284,9 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     // ── Public API called by the shell ────────────────────────────────────
 
     /// <summary>
-    /// Runs <paramref name="command"/> in the shell as if it had been typed: sends the text plus a carriage
-    /// return and records it in history. Used by the init sequence, the AI bar, history re-run, env switches
+    /// Runs <paramref name="command"/> in the shell as written: at a prompt it first empties the line, so the command is
+    /// never joined onto what was half-typed, then sends the text plus a carriage return and records it in history.
+    /// Used by the init sequence, the AI bar, the assistant, history re-run, env switches
     /// and <c>set</c> writes — the user types directly into the terminal instead (see <see cref="SendText"/>).
     /// </summary>
     public void SendCommand(string command)
@@ -293,6 +295,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         if (string.IsNullOrEmpty(trimmed)) return;
 
         RecordHistory(trimmed);
+        if (_atPrompt) Send(Dialect.ClearInputLine);
         IsBusy   = true;
         _atPrompt = false;
         Send(trimmed + "\r");
@@ -363,9 +366,8 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     }
 
     /// <summary>
-    /// Handles Enter. At a shell prompt the typed line is classified: a recognised command runs (and is
-    /// recorded in history); natural language is wiped off the shell line and handed to the LLM. While a
-    /// program is running (the cursor row isn't a prompt) Enter is simply forwarded so interactive input works.
+    /// Handles Enter. What is typed in the console is the shell's, whatever it reads like: at a prompt the line runs and is
+    /// recorded in history, and while a program runs Enter is simply forwarded so interactive input works.
     /// </summary>
     public void HandleEnter()
     {
@@ -373,25 +375,14 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         // a background-command watch; the watcher only yields to real typing or Ctrl-C.)
         EngagementInvalidated?.Invoke();
 
-        var decision = TerminalEnterRouting.Decide(_atPrompt ? CurrentInputLine() : null, Dialect.Builtins);
-        switch (decision.Action)
+        var decision = TerminalEnterRouting.Decide(_atPrompt ? CurrentInputLine() : null);
+        if (decision.Action == TerminalEnterAction.RunAsCommand)
         {
-            case TerminalEnterAction.ForwardToProgram:
-                Send("\r");                 // interactive program reading input
-                break;
-
-            case TerminalEnterAction.RunAsCommand:
-                if (decision.Text.Length > 0) RecordHistory(decision.Text);
-                IsBusy    = true;
-                _atPrompt = false;
-                Send("\r");
-                break;
-
-            case TerminalEnterAction.AskTheAssistant:
-                if (decision.ClearShellLine) Send(Dialect.ClearInputLine);
-                _shell.SubmitAiQuery(decision.Text);
-                break;
+            if (decision.Text.Length > 0) RecordHistory(decision.Text);
+            IsBusy    = true;
+            _atPrompt = false;
         }
+        Send("\r");
     }
 
     /// <summary>The text typed after the prompt: from where a marking shell said typing starts, or past the prompt the cursor
@@ -421,13 +412,31 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     }
 
     /// <summary>
-    /// True if <paramref name="input"/> is a recognised shell command (vs. natural language) for this
-    /// terminal. The chat-bar query handler uses it to route a typed line to the shell while letting
-    /// natural language reach the AI; it wraps the same <see cref="CommandClassifier"/> heuristic Enter
-    /// uses, with the dialect's built-ins. Blank input is not a command here.
+    /// What a line typed in the AI bar is, for this terminal's shell — by its built-ins and the programs its host has. The
+    /// query handler runs a command, has a model asked about an unclear line, and leaves a request to the assistant.
     /// </summary>
-    public bool IsConsoleCommand(string input)
-        => !string.IsNullOrWhiteSpace(input) && CommandClassifier.IsCommand(input, Dialect.Builtins);
+    public ConsoleLineVerdict JudgeConsoleLine(string input)
+        => CommandClassifier.JudgeLine(input, name => Dialect.KnowsCommand(name, _shellCommands));
+
+    private volatile IReadOnlySet<string> _shellCommands = System.Collections.Frozen.FrozenSet<string>.Empty;
+
+    /// <summary>The shell's programs being listed, once it has started — awaited by tests.</summary>
+    public Task ShellCommandsListed { get; private set; } = Task.CompletedTask;
+
+    /// <summary>Asks the launcher what the shell runs by name. Without an answer the built-ins stand, and more lines are
+    /// unclear; nothing fails.</summary>
+    private async Task LoadShellCommandsAsync()
+    {
+        try
+        {
+            if (await _route.Launcher.ListCommandsAsync(_disposeCts.Token).ConfigureAwait(false) is { } listed)
+                _shellCommands = listed;
+        }
+        catch (Exception e)
+        {
+            System.Diagnostics.Trace.TraceWarning($"The shell's commands could not be listed: {e.Message}");
+        }
+    }
 
     // ── Chat-bar participation (the bar can still drive the terminal) ──────
 
@@ -487,13 +496,8 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
             Scrollback.Add(line.TrimEnd());
         ScreenText = string.Join("\n", _screen.Snapshot()).TrimEnd('\n');
 
-        // While capturing a command's output: note any VT/ANSI escape (→ return the screen, not plain
-        // text) and reset the quiet-debounce, so the capture settles once output stops.
-        if (_capturing)
-        {
-            if (rawChunk.IndexOf('\x1b') >= 0) _captureSawAnsi = true;
-            ResetQuietTimer();
-        }
+        // While capturing a command's output, reset the quiet-debounce, so the capture settles once output stops.
+        if (_capturing) ResetQuietTimer();
 
         // A shell that marks its prompts says itself when one returns (OnShellMarked). For one that does not, a bare
         // prompt on the cursor row means the previous command finished. Handle it once per prompt (not on every chunk,
@@ -869,7 +873,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
     public string GetContext()
     {
-        var ctx = $"Terminal: '{CurrentPath}'.";
+        var ctx = $"Terminal: '{CurrentPath}', running {Dialect.Description}.";
 
         // If a command the AI ran is still being watched in the background, tell the model about it so a
         // new question carries that state (it hasn't completed; here's the output so far).
@@ -904,8 +908,8 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     {
         var tools = new List<IClientTool>
         {
-            // Lets the model carry out a natural-language request (routed here when the user's typed line
-            // isn't a recognised command) by running real commands in the live shell. Approval-gated.
+            // Lets the model carry out what was asked of it in the AI bar by running real commands in the live shell.
+            // Approval-gated.
             new DelegateClientTool(
                 "run_command",
                 $"Runs a command line in this terminal's running shell: {Dialect.Description}. It is the user's " +
@@ -974,7 +978,9 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
     private bool _capturing;
     private int  _captureMark;
-    private bool _captureSawAnsi;
+
+    /// <summary>The rows above the cursor as the captured command began: an earlier command's, dropped from its output.</summary>
+    private IReadOnlyList<string> _captureBefore = [];
     private TaskCompletionSource<bool>? _captureTcs;
     private Timer? _quietTimer;
 
@@ -989,7 +995,9 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
     private enum CommandKind { StillFinishing, LongRunning, WaitingForInput }
 
-    private sealed record CaptureSnapshot(string Plain, string Screen, bool SawAnsi, bool AltScreen, bool AtPrompt);
+    // Plain is what was printed, scrollback included, with the terminal's escapes already worked out; Screen is for a
+    // program drawing on the alternate screen. An escape in the output says neither: a pseudo-console always sends them.
+    private sealed record CaptureSnapshot(string Plain, string Screen, bool AltScreen, bool AtPrompt);
 
     /// <summary>
     /// Runs <paramref name="command"/> and returns a result for the AI: the plain output (a clean,
@@ -1007,7 +1015,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         await _shell.RunOnUiAsync(() =>
         {
             _captureMark    = Scrollback.Count;
-            _captureSawAnsi = false;
+            _captureBefore  = _screen.Snapshot().Take(_screen.CursorRow).ToList();
             _captureTcs     = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             _capturing      = true;
             ArmQuietTimer();
@@ -1029,9 +1037,9 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
         var snap = await ReadCaptureAsync();
 
-        // Finished (a clean prompt returned): plain text for a clean command, the screen for VT output.
+        // Finished (a prompt returned): all it printed, or the screen for a program that draws on the alternate one.
         if (promptReturned)
-            return (!snap.SawAnsi && !snap.AltScreen)
+            return !snap.AltScreen
                 ? ToolResult.Ok($"ran: {command}", FormatPlain(command, snap.Plain))
                 : ToolResult.Ok($"ran: {command}", FormatScreen(command, snap.Screen));
 
@@ -1069,6 +1077,13 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
             var plainLines = new List<string>();
             for (int i = _captureMark; i < Scrollback.Count; i++) plainLines.Add(Scrollback[i]);
             plainLines.AddRange(AbovePrompt(screenLines));
+
+            // What was on screen already heads the capture unless the command cleared it; only an exact match is dropped.
+            int earlier = 0;
+            while (earlier < _captureBefore.Count && earlier < plainLines.Count
+                   && plainLines[earlier].TrimEnd() == _captureBefore[earlier].TrimEnd())
+                earlier++;
+            if (earlier == _captureBefore.Count) plainLines.RemoveRange(0, earlier);
             // Drop the trailing fresh prompt / blank lines so plain output is just the command's output.
             while (plainLines.Count > 0 &&
                    (plainLines[^1].Trim().Length == 0
@@ -1077,7 +1092,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
             return Task.FromResult(new CaptureSnapshot(
                 Cap(string.Join("\n", plainLines).TrimEnd()), screen,
-                _captureSawAnsi, _screen.IsAltScreen, _atPrompt));
+                _screen.IsAltScreen, _atPrompt));
         });
 
     /// <summary>The screen's rows above the prompt a marking shell is at — the row the prompt starts on cut where it starts;
@@ -1193,7 +1208,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     private Task ReportCompletionAsync(string command, CaptureSnapshot snap)
     {
         var elapsed = DescribeElapsed(DateTime.Now - _watchStart);
-        var output  = (!snap.SawAnsi && !snap.AltScreen) ? snap.Plain : snap.Screen;
+        var output  = snap.AltScreen ? snap.Screen : snap.Plain;
         ClearWatch();
         return ReportToAiAsync(
             $"The command `{command}` you ran earlier has now finished (after {elapsed}). Its output:\n\n" +

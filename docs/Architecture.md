@@ -444,8 +444,11 @@ Implement to handle typed input before it reaches the LLM. Handlers are **auto-d
 `FeatureCatalog` index and built per `WorkspaceRuntime` — there is **no registration step**. Scope is
 expressed inside `CanProcess`: the active page's ViewModel is passed in, so a page-scoped handler is
 just a type check returning 0 for pages it doesn't own, while an app-wide handler scores on the input
-alone. `Symbol` claims a single-character prefix for exact routing; otherwise scores compete and
-`IAIService.DisambiguateToolSelection` breaks ties.
+alone. `Symbol` claims a single-character prefix for exact routing, and when none of its owners claims the line the
+character was no prefix: whoever claims the line as typed has it (`/usr/bin/env` on a console). Otherwise scores
+compete. At 0.8 or more, clear of the next by 0.2, a handler wins with no model seeing the line; anything lower is the
+handler saying it is unsure, and `IAIService.DisambiguateToolSelection` decides, as it breaks ties — the console scores
+a line that could be a command or a request 0.5 for exactly that.
 
 ```csharp
 public sealed class MyQueryHandler : IQueryHandler

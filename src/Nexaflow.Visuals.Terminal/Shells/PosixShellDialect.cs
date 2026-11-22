@@ -6,7 +6,7 @@ namespace Nexaflow.Visuals.Terminal.Shells;
 
 /// <summary>
 /// A POSIX shell on a location — bash or zsh in a WSL distro, a shell over SSH: <c>cd -- '…'</c> and
-/// <c>export NAME='…'</c> with every value one single-quoted word, Ctrl+U to clear the line, and no prompt to read — the
+/// <c>export NAME='…'</c> with every value one single-quoted word, Ctrl+E and Ctrl+U to clear the line, and no prompt to read — the
 /// shell reports its folder (OSC 7) and marks its prompts (OSC 133). The terminal names the location's folders as the
 /// file system does (<c>::wsl-ubuntu\home\adam</c>) and hands the shell its own (<c>/home/adam</c>).
 /// </summary>
@@ -42,7 +42,7 @@ public sealed class PosixShellDialect : TerminalShellDialect
 
     public override StringComparison PathComparison => _comparison;
 
-    public override string ClearInputLine => "\x15";   // Ctrl+U: readline's and zle's kill to the line's start
+    public override string ClearInputLine => "\x05\x15";   // Ctrl+E then Ctrl+U: to the line's end, then kill to its start
 
     // Quotes hold a name from the shell, not from the tty: a control character typed is a key — Ctrl+C drops the line and
     // Enter runs what follows — so a folder named with one is never typed.

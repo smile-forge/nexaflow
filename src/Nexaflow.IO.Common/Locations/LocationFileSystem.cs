@@ -547,6 +547,8 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
                 : null;
             return shell.LaunchAsync(launch with { WorkingDirectory = folder }, ct);
         }
+
+        public ValueTask<IReadOnlySet<string>> ListCommandsAsync(CancellationToken ct) => shell.ListCommandsAsync(ct);
     }
 
     public ValueTask<ArchiveSummary?> DescribeArchiveAsync(string containerPath, CancellationToken ct = default)

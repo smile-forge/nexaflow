@@ -14,13 +14,21 @@ public abstract class TerminalShellDialect
     /// <summary>What the assistant is told the shell is, so the commands it runs use its syntax.</summary>
     public abstract string Description { get; }
 
-    /// <summary>The shell's built-in command names, which make a typed line a command rather than a question.</summary>
+    /// <summary>The shell's built-in command names.</summary>
     public abstract IReadOnlySet<string> Builtins { get; }
+
+    /// <summary>Whether the shell runs something called <paramref name="name"/>, which is what lets a line in the AI bar be
+    /// taken for a command.</summary>
+    /// <param name="name">A bare name, never a path.</param>
+    /// <param name="listed">The programs the shell's launcher listed
+    /// (<see cref="Nexaflow.IO.Common.Terminal.ITerminalLauncher.ListCommandsAsync"/>); empty until it has, or when it cannot.</param>
+    public virtual bool KnowsCommand(string name, IReadOnlySet<string> listed) => Builtins.Contains(name) || listed.Contains(name);
 
     /// <summary>How the terminal's folders compare.</summary>
     public abstract StringComparison PathComparison { get; }
 
-    /// <summary>What clears the line typed at the prompt, so words meant for the assistant do not stay on it.</summary>
+    /// <summary>The keys that empty the line at the prompt wherever the cursor is in it, sent before a command from the AI
+    /// bar, history or the assistant, so it runs as written and never joined onto what was half-typed.</summary>
     public abstract string ClearInputLine { get; }
 
     /// <summary>The command that moves the shell to <paramref name="folder"/>, or null when the shell cannot reach it.</summary>

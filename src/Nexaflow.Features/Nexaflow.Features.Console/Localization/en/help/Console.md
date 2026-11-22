@@ -1,23 +1,24 @@
 # Console
 
-Runs a Windows command prompt in a tab — or the shell of a location, such as a WSL distro — and sends anything that isn't a command to the assistant.
+Runs a Windows command prompt in a tab — or the shell of a location, such as a WSL distro. Type in the console to work in it yourself; type in the AI bar to say what you want done, or to run a command from there.
 
 ---
 
 ## Running commands
-- Each Console tab runs its own cmd.exe for as long as the tab is open, with its own folder, history and environment. Open as many as you need.
+- Each Console tab runs its own shell for as long as the tab is open, with its own folder, history and environment. Open as many as you need.
+- What you type in the console goes to the shell, whatever it reads like. None of it is sent to the assistant when you press Enter.
 - Arrow keys, Tab, Home, End, Page Up, Page Down and Ctrl-combinations go to the shell, so interactive programs work as they do in any terminal.
 - Ctrl+C stops a command. When a command ignores it, Ctrl+Break force-stops that command and everything it started, and leaves the shell running.
 - Ctrl+V pastes into the shell. Right-click Paste puts the clipboard in the AI bar instead, to read over before you run it.
 - Ctrl+Shift+C, or right-click and Copy, copies the whole session including the scrollback.
 - Open a console on a folder or a whole drive with Cmd Here, in the folder's actions on the [File System](help:FileSystem) page. It starts in that folder.
 - On a folder of a location with a shell of its own — a WSL distro — Cmd Here opens that shell instead, starting in the folder. With bash or zsh the path bar follows it as it moves. A location with no shell offers no Cmd Here.
-- In a distro's shell, Enter runs only a line starting with a common shell command (`ls`, `cd`, `grep`, `sudo`…) or with a program that is also on your Windows PATH. Any other line — `apt`, `make`, `./build.sh` — is sent to the assistant, with whatever it holds, so do not type a password or token on one.
 - In a distro's shell the Files tab is empty, and the Environment tab shows and saves Windows' variables, not the distro's.
 
 ## With the assistant
-- At a prompt, Enter runs your line if it starts with a cmd built-in, a program on your PATH or the path of a file that exists. Anything else is taken off the line and sent to the assistant. Answers appear in a banner under the console, which clears when you start typing.
-- While a program is running, Enter goes to that program, so a `y` or a password is never treated as a question.
+- Say what you want done in [the AI bar](locate:AiInputBox) — `what is filling this disk?`. Answers appear in a banner under the console, which clears when you start typing.
+- The assistant reads what the commands it runs print, and can see what else is on the screen then, so a password or token shown there is seen too.
+- While a program is running, what you type goes to that program, so a `y` or a password is never treated as a question or kept in history.
 - The assistant knows the console's folder and which shell runs there — cmd.exe, or a location's own — so it uses that shell's syntax.
 - With your approval it can run commands in this console, read the output and carry on. Plain output reaches it as text; a full-screen program reaches it as its screen.
 - A command that keeps going is watched in the background, and you are told the result when it finishes. If you have moved to another tab, a notification with an Open button brings you back.
@@ -27,7 +28,11 @@ Runs a Windows command prompt in a tab — or the shell of a location, such as a
 - Type into the console or press Ctrl+C and the background watch stops.
 
 ## The AI bar
-- Start a line in [the AI bar](locate:AiInputBox) with `>` to run it in the console — `>git status`. A bare line the console recognises as a command runs there too; anything else goes to the assistant.
+- A line that is clearly a command runs in the console, and no model sees it: `git status`, `./build.sh`, anything with flags such as `ls -la`. In a distro it knows the distro's own programs.
+- A line that is clearly a request goes to the assistant: `why did that fail`, `show me the largest files`.
+- A line that could be either — `find large files`, `make install` — is put to your workspace's Disambiguation model, which may be an online one. It runs only if the model says it is a command; otherwise, or with no such model, the assistant has it.
+- Start the line with `>` to run it in the console whatever it reads like, with no model seeing it — `>git status`. Use it for an unusual command holding a secret.
+- A command from the bar or the assistant first clears anything half-typed at the prompt, so it runs exactly as written.
 - With the bar empty or starting with `>`, Up and Down walk back through your commands, most recent first.
 - Drop files onto the bar to insert their paths, quoted where they contain spaces. This works on every tab.
 

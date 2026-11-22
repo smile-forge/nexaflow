@@ -218,6 +218,10 @@ rows without a new protocol. SFTP is the headline and lands second.
 The terminal opens a shell on whatever host the current folder lives on, through one transport contract, and draws
 full-screen programs, because over SSH that is half of what people run.
 
+- **The console is the console; the AI bar is judged.** A line typed in a terminal is always the shell's. A line typed in
+  the AI bar over one is a command (runs, no model), a request (the assistant's) or unclear (the Disambiguation model is
+  asked, and it runs only on its yes) — `CommandClassifier.JudgeLine`. What a shell runs by name is its launcher's to
+  say (`ITerminalLauncher.ListCommandsAsync`): WSL reads the distro's login PATH, and a wrapping launcher passes it on.
 - **`ITerminalTransport`** (`IO.Common/Terminal`, beside the location contracts that hand one out) sits under the
   terminal view-model: bytes in, bytes out, resize, interrupt, end the foreground program, exit. What a transport
   raises before anyone listens is held for the first listener, so the shell's first words are never lost. An
@@ -320,7 +324,7 @@ Bin is never offered for one, and a name Windows would trim has no native path. 
 
 | Gap | Effect |
 | --- | --- |
-| A distro console classifies a typed line by a built-in list and the Windows PATH | An unlisted command, secrets included, goes to the assistant instead of the shell |
+
 | A terminal's grant follows OSC 7, which any output can print | Printing a hostile file can widen what the assistant may reach |
 | `ShellPath`, `ShellVerbAction` and `CustomAction` resolve through `VirtualFileSystem.Instance` | Open With, shell verbs, clipboard and drag-out fail on a distro's files |
 | Pages other than the browser's tools are granted Windows paths | The assistant's reach there ignores case, and trims a trailing dot or space |

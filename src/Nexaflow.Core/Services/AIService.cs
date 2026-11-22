@@ -663,24 +663,32 @@ public sealed class AIService : IAIService
             string EffectiveText,
             bool Prefixed)
         ScoreHandlers(string text, IPageViewModel? pageVm)
-    {
-        var allHandlers = FeatureManager.Instance.GetQueryHandlers(_workspace).ToList();
+        => RankHandlers(FeatureManager.Instance.GetQueryHandlers(_workspace).ToList(), text, pageVm);
 
-        // A leading Symbol character explicitly routes to the handler(s) that own it: narrow to them and
-        // strip the character. Every narrowed handler is then scored as "prefixed" on the stripped text.
-        // With no such prefix, every handler competes on the raw text (prefixed: false).
+    /// <summary>
+    /// <see cref="ScoreHandlers"/> over the handlers given. A leading symbol character routes to the handlers that own it,
+    /// scored as prefixed on the stripped text. When none of them claims the line the character was no prefix —
+    /// <c>/usr/bin/env</c> and <c>$HOME/bin/deploy</c> on a console — so whoever claims the line as typed has it.
+    /// </summary>
+    internal static (IReadOnlyList<(IQueryHandler Handler, float Score)> Scored,
+                     IQueryHandler? ClearWinner,
+                     string EffectiveText,
+                     bool Prefixed)
+        RankHandlers(IReadOnlyList<IQueryHandler> allHandlers, string text, IPageViewModel? pageVm)
+    {
         var symbolMatches = allHandlers
             .Where(h => h.Symbol is { Length: 1 } s && text.StartsWith(s))
             .ToList();
         var prefixed      = symbolMatches.Count > 0;
-        var considered    = prefixed ? symbolMatches : allHandlers;
         var effectiveText = prefixed ? text[1..].TrimStart() : text;
+        var scored        = Score(prefixed ? symbolMatches : allHandlers, effectiveText, prefixed);
 
-        var scored = considered
-            .Select(h => (Handler: h, Score: h.CanProcess(effectiveText, prefixed, pageVm)))
-            .Where(x => x.Score > 0f)
-            .OrderByDescending(x => x.Score)
-            .ToList();
+        if (prefixed && scored.Count == 0 && Score(allHandlers, text, false) is { Count: > 0 } asTyped)
+        {
+            scored        = asTyped;
+            prefixed      = false;
+            effectiveText = text;
+        }
 
         IQueryHandler? clearWinner = null;
         if (scored.Count > 0)
@@ -692,6 +700,12 @@ public sealed class AIService : IAIService
         }
 
         return (scored, clearWinner, effectiveText, prefixed);
+
+        List<(IQueryHandler Handler, float Score)> Score(IReadOnlyList<IQueryHandler> handlers, string line, bool asPrefixed)
+            => handlers.Select(h => (Handler: h, Score: h.CanProcess(line, asPrefixed, pageVm)))
+                       .Where(x => x.Score > 0f)
+                       .OrderByDescending(x => x.Score)
+                       .ToList();
     }
 
     public async Task<IQueryHandler?> DisambiguateToolSelection(

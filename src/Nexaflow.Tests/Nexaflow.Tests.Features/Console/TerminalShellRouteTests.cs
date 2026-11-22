@@ -156,14 +156,38 @@ public sealed class TerminalShellRouteTests
     }
 
     [TestMethod]
-    public async Task WordsForTheAssistant_AreReadFromWhereTypingStarted_AndClearedTheLocationsWay()
+    public async Task WhateverIsTypedAtThePrompt_IsTheShells_ReadForHistoryFromWhereTypingStarted()
     {
         var terminal = await StartedOn($@"{TerminalFiles.Distro}\home\adam");
         DistroSays($"{Esc}]133;A{St}adam@probe:~$ {Esc}]133;B{St}why is the disk full");
 
         terminal.HandleEnter();
 
-        _shell.Received().SubmitAiQuery("why is the disk full");
-        Assert.AreEqual("\x15", _distro.Written, "Ctrl+U clears the line — Esc is no clear in readline");
+        _shell.DidNotReceiveWithAnyArgs().SubmitAiQuery(default!);
+        Assert.AreEqual("\r", _distro.Written, "Enter and nothing else: the line is neither cleared nor judged");
+        Assert.AreEqual("why is the disk full", terminal.CommandHistory[0]);
+    }
+
+    [TestMethod]
+    public async Task WhatIsTypedIntoARunningProgram_ReachesNeitherTheAssistantNorHistory()
+    {
+        var terminal = await StartedOn($@"{TerminalFiles.Distro}\home\adam");
+        DistroSays($"{Esc}]133;A{St}$ {Esc}]133;B{St}read -p pw{Esc}]133;C{St}\r\npw: hunter2");
+
+        terminal.HandleEnter();
+
+        _shell.DidNotReceiveWithAnyArgs().SubmitAiQuery(default!);
+        Assert.AreEqual(0, terminal.CommandHistory.Count, "a password is no command");
+    }
+
+    [TestMethod]
+    public async Task ACommandFromTheBar_EmptiesTheLineTheLocationsWayFirst()
+    {
+        var terminal = await StartedOn($@"{TerminalFiles.Distro}\home\adam");
+        DistroSays($"{Esc}]133;A{St}$ {Esc}]133;B{St}rm -rf ");
+
+        terminal.SendCommand("ls");
+
+        Assert.AreEqual("\x05\x15ls\r", _distro.Written, "never 'rm -rf ls'");
     }
 }

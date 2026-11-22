@@ -15,6 +15,33 @@ namespace Nexaflow.IO.Location.Wsl;
 /// <param name="loginShell">The user's login shell, as the helper read it.</param>
 internal sealed class WslShell(string distro, string shims, string loginShell) : ILocationShell
 {
+    // Ends whatever a profile prints, so a greeting's words are not taken for programs.
+    private const string ListMark = "--nexaflow-commands--";
+
+    // Every PATH folder of a login sh. The Windows folders WSL appends under /mnt are left out: thousands of slow entries.
+    private const string ListPrograms =
+        "printf '\\n%s\\n' '" + ListMark + "'; IFS=:; "
+        + "for dir in $PATH; do case \"$dir\" in /mnt/*|'') continue;; esac; ls -1 \"$dir\" 2>/dev/null; done; exit 0";
+
+    private static readonly TimeSpan ListPatience = TimeSpan.FromSeconds(15);
+
+    /// <summary>The programs on the distro's login PATH, read beside the shell rather than typed into it.</summary>
+    public async ValueTask<IReadOnlySet<string>> ListCommandsAsync(CancellationToken ct)
+    {
+        using var patience = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        patience.CancelAfter(ListPatience);
+        var listed = await WslHelperDeployment.RunAsync(distro, patience.Token, "--exec", "sh", "-lc", ListPrograms)
+                                              .ConfigureAwait(false);
+        return ParseCommands(listed);
+    }
+
+    /// <summary>The names after the mark; none when there is no mark.</summary>
+    internal static IReadOnlySet<string> ParseCommands(string listed)
+        => listed.Split('\n').Select(line => line.TrimEnd('\r'))
+                 .SkipWhile(line => line != ListMark).Skip(1)
+                 .Where(line => line.Length > 0)
+                 .ToHashSet(StringComparer.Ordinal);
+
     public ValueTask<ITerminalTransport> LaunchAsync(TerminalLaunch launch, CancellationToken ct)
     {
         var arguments = new StringBuilder()

@@ -1540,6 +1540,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             {
                 try   { selected = await svc.DisambiguateToolSelection(pageVm, effective, scored); }
                 catch (Exception ex) { handler.Abort(); ShowError(Str.Get("Shell.Errors.Ai"), ex.Message); return TurnOutcome.Error; }
+
+                // Cancelled while the model weighed it: what it chose — a command, perhaps — must not then run.
+                if (sendToken.IsCancellationRequested) { handler.Abort(); return TurnOutcome.Cancelled; }
             }
 
             // A query handler matched — run it; its result is the final answer.

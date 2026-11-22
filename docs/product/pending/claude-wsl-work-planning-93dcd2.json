@@ -255,6 +255,11 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/TerminalShellRouteTests.cs",
             "class": "TerminalShellRouteTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/LiveShellTests.cs",
+            "class": "LiveWslShellTests"
           }
         ]
       }
@@ -299,13 +304,100 @@
           }
         ]
       }
+    },
+    "console-routing-group": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Terminal/CommandClassifier.cs",
+          "class": "CommandClassifier",
+          "method": "JudgeLine"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/CommandClassifierTests.cs",
+            "class": "CommandClassifierTests",
+            "method": "WhatHasACommandsShape_IsACommand"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/CommandClassifierTests.cs",
+            "class": "CommandClassifierTests",
+            "method": "WhatReadsEitherWay_IsUnclear_SoItRunsOnlyIfAModelSaysSo"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/QueryRankingTests.cs",
+            "class": "QueryRankingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/AiPaths/ConsoleRoutingModelTests.cs",
+            "class": "ConsoleRoutingModelTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/AiPaths/ConsoleAgentModelTests.cs",
+            "class": "ConsoleAgentModelTests"
+          }
+        ]
+      }
+    },
+    "console-gt-prefix": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Console/ChatHandlers/ConsoleQueryHandler.cs",
+          "class": "ConsoleQueryHandler",
+          "method": "CanProcess"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Terminal/ViewModels/TerminalViewModel.cs",
+          "class": "TerminalViewModel",
+          "method": "JudgeConsoleLine"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/AIService.cs",
+          "class": "AIService",
+          "method": "RankHandlers"
+        }
+      ]
+    },
+    "console-enter-classify": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/TerminalEnterRoutingTests.cs",
+            "class": "TerminalEnterRoutingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/LiveShellTests.cs",
+            "class": "LiveCmdShellTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 20,
+  "changed_sets": 24,
   "touched_nodes": [
+    "console-enter-classify",
+    "console-gt-prefix",
     "console-location-shell",
     "console-path-bar",
+    "console-routing-group",
     "io-locations-directory",
     "io-locations-discovery",
     "io-locations-native",

@@ -72,4 +72,14 @@ public class ConsoleQueryHandlerTests
         Assert.IsNull(result, "running a command in the terminal produces no AI message");
         Assert.AreEqual("dir", vm.CommandHistory[0], "the command should have been sent to the terminal");
     }
+
+    [TestMethod]
+    [DataRow("del the temp files")]
+    [DataRow("del temp files")]
+    [DataRow("yes")]
+    public void CanProcess_AnUnclearLine_ClaimsItWithoutWinning_SoAModelIsAsked(string line)
+    {
+        var score = new ConsoleQueryHandler().CanProcess(line, false, new TestTerminal());
+        Assert.IsTrue(score is > 0f and < 0.8f, $"'{line}' should be put to the model, got {score}");
+    }
 }

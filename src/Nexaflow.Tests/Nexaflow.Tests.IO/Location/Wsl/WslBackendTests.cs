@@ -199,4 +199,13 @@ public sealed class WslBackendTests
         Assert.IsNull(WslSession.ParentOf("/"));
         Assert.AreEqual("adam", WslSession.NameOf("/home/adam/"));
     }
+
+    [TestMethod]
+    public void OnlyWhatFollowsTheMark_IsAProgramOfTheDistros()
+    {
+        var listed = WslShell.ParseCommands("Welcome to the machine\n\n--nexaflow-commands--\napt\nsystemctl\n\napt\n");
+
+        CollectionAssert.AreEquivalent(new[] { "apt", "systemctl" }, listed.ToArray(), "a profile's greeting names no program");
+        Assert.AreEqual(0, WslShell.ParseCommands("no mark at all\n").Count);
+    }
 }

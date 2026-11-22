@@ -462,6 +462,8 @@ internal sealed class PooledLocationSession(ILocationSession inner, PooledConnec
             owner.Enter();
             return new HeldTerminal(transport, owner);
         }
+
+        public ValueTask<IReadOnlySet<string>> ListCommandsAsync(CancellationToken ct) => inner.ListCommandsAsync(ct);
     }
 
     /// <summary>A terminal on the location, counted as use until it is closed.</summary>

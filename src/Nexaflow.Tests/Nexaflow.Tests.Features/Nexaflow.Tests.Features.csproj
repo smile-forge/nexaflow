@@ -44,6 +44,8 @@
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Network\Nexaflow.IO.Network.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Terminal\Nexaflow.IO.Terminal.csproj" />
+    <!-- The console's live-shell tests run a distro's own shell, through the backend the app finds it by. -->
+    <ProjectReference Include="..\..\Nexaflow.IO.Location.Wsl\Nexaflow.IO.Location.Wsl.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Search\Nexaflow.Search.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Services.Initiatives\Nexaflow.Services.Initiatives.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Services.Initiatives.Cli\Nexaflow.Services.Initiatives.Cli.csproj" />

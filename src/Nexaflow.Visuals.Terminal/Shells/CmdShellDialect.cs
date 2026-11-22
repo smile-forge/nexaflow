@@ -5,7 +5,7 @@ using Nexaflow.IO.Terminal;
 namespace Nexaflow.Visuals.Terminal.Shells;
 
 /// <summary>
-/// cmd.exe on this computer: <c>cd /d "…"</c>, <c>set "NAME=value"</c>, Esc to clear the line, and a prompt ending in
+/// cmd.exe on this computer: <c>cd /d "…"</c>, <c>set "NAME=value"</c>, Ctrl+End and Ctrl+Home to clear the line, and a prompt ending in
 /// <c>&gt;</c> that shows the folder — <c>C:\work&gt;</c>, or <c>PS C:\work&gt;</c> while PowerShell runs inside it. Its
 /// folders are this disk's: one named by a mount (<c>::docs\…</c>) is moved to where the disk holds it.
 /// </summary>
@@ -21,7 +21,12 @@ public sealed class CmdShellDialect(IVirtualFileSystem? files = null) : Terminal
 
     public override StringComparison PathComparison => StringComparison.OrdinalIgnoreCase;
 
-    public override string ClearInputLine => "\x1b";
+    // Ctrl+End then Ctrl+Home: delete to the line's end, then to its start. Not Esc, which a pseudo-console reads as
+    // Alt with whatever key follows it.
+    public override string ClearInputLine => "\x1b[1;5F\x1b[1;5H";
+
+    public override bool KnowsCommand(string name, IReadOnlySet<string> listed)
+        => base.KnowsCommand(name, listed) || CommandClassifier.IsOnPath(name);
 
     public override string? FormatCdCommand(string folder)
         => OnDisk(folder) is { } local ? $"cd /d \"{local}\"" : null;
