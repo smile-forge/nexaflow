@@ -4,7 +4,6 @@
              xmlns:m="clr-namespace:Nexaflow.Core.Models"
              xmlns:cvn="clr-namespace:Nexaflow.Core.Converters"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
-             AllowDrop="True"
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
     <UserControl.Resources>
         <cvn:RibbonKindVisibilityConverter x:Key="RibbonKindVis"/>

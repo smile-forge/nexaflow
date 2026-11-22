@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 
 using System.Windows.Media.Imaging;
+using Nexaflow.Interaction;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Visuals.Text.Editing;
@@ -221,10 +222,10 @@ public sealed class ContentBlockSavingEventArgs(RoutedEvent routed, ContentPart 
 /// Something dragged in from elsewhere and let go, asked what it comes to. Whoever answers says it in words and in markdown,
 /// or deals with it another way and marks it handled having said neither.
 /// </summary>
-public sealed class ContentDroppingEventArgs(RoutedEvent routed, IDataObject data, Point at) : RoutedEventArgs(routed)
+public sealed class ContentDroppingEventArgs(RoutedEvent routed, IDragPayload data, Point at) : RoutedEventArgs(routed)
 {
     /// <summary>What was dragged, as it was carried.</summary>
-    public IDataObject Data { get; } = data;
+    public IDragPayload Data { get; } = data;
 
     /// <summary>Where it was let go, in the control's own coordinates.</summary>
     public Point At { get; } = at;

@@ -1,8 +1,7 @@
-using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.Interaction;
 using System;
 using System.IO;
-using System.Windows;
 using Nexaflow.Features.WindowsFileSystem.Operations;
 using System.Linq;
 using Nexaflow.Visuals.Common.Localization;
@@ -10,34 +9,41 @@ using Nexaflow.Visuals.Common.Localization;
 namespace Nexaflow.Features.WindowsFileSystem;
 
 /// <summary>
-/// Accepts file drag-drop onto <see cref="FileSystemView"/>, copying (or moving, with Shift)
-/// dropped files into either the hovered folder node or the current directory. It decides nothing
-/// about how: destinations, name clashes and the transfer itself belong to the operation queue.
+/// What a drop of files onto the file browser comes to, once the view has said which folder it is over: copied (or
+/// moved, with Shift) there. It decides nothing about how: destinations, name clashes and the transfer itself belong
+/// to the operation queue.
 /// </summary>
-public sealed class FileSystemDropTarget : IDropTarget, IDropChoiceTarget
+public sealed class FileSystemDropTarget
 {
     private readonly FileSystemViewModel _viewModel;
 
     public FileSystemDropTarget(FileSystemViewModel viewModel)
         => _viewModel = viewModel;
 
-    public bool CanAcceptDrop(IDataObject data)
-        => data.GetDataPresent(DataFormats.FileDrop);
+    public bool CanAcceptDrop(IDragPayload payload) => payload.CarriesFiles();
 
-    /// <inheritdoc/>
-    public bool IsSelfDrop(IDataObject data, string destinationPath)
+    /// <summary>
+    /// True when <paramref name="destinationPath"/> is one of the things being dragged.
+    /// <para>
+    /// Dropping something onto itself is a gesture that means nothing, and it is almost never meant: a
+    /// click that drifted the four pixels Windows calls a drag is enough to make one. Asked during the
+    /// hover so the drop never happens, rather than being refused with a complaint afterwards.
+    /// </para>
+    /// </summary>
+    public bool IsSelfDrop(IDragPayload payload, string destinationPath)
     {
         if (string.IsNullOrEmpty(destinationPath)) return false;
-        if (data.GetData(DataFormats.FileDrop) is not string[] sources) return false;
 
         string destination = Trim(destinationPath);
-        return sources.Any(source => string.Equals(Trim(source), destination, StringComparison.OrdinalIgnoreCase));
+        return payload.Files().Any(source => string.Equals(Trim(source), destination, StringComparison.OrdinalIgnoreCase));
 
         static string Trim(string path)
             => path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
     }
 
-    public string GetDropDescription(IDataObject data, string? targetFolderName, bool isMove)
+    /// <summary>The words beside the pointer: "Copy to Temp", "Move to Temp". <paramref name="targetFolderName"/> is
+    /// the folder under it, or null over the background.</summary>
+    public string GetDropDescription(string? targetFolderName, bool isMove)
     {
         return isMove
             ? Str.Format("WindowsFileSystem.Drop.MoveToFormat", FolderLabel(targetFolderName))
@@ -49,30 +55,34 @@ public sealed class FileSystemDropTarget : IDropTarget, IDropChoiceTarget
     /// <para>
     /// Returning immediately is the whole point. This runs inside the OLE <c>IDropTarget::Drop</c>
     /// callback, so anything done here happens on the UI thread with no message pump — a 200 GB folder
-    /// froze the window for hours, and a window that is not pumping cannot be given a second drop at
-    /// all, so the next two folders someone dragged over went nowhere. Three drops now make three
-    /// queued operations.
+    /// would freeze the window for hours, and a window that is not pumping cannot be given a second drop at
+    /// all. Three drops make three queued operations.
     /// </para>
-    /// The drop list is read here and now because the data object is only valid for the length of this
-    /// call; everything after that is the queue's problem.
+    /// The drop list is read here and now because the payload is only valid for the length of this
+    /// call; everything after that is the queue's problem. Files that came as content are written out first and
+    /// then moved in, so the queue still owns name clashes and destinations that are not plain folders.
     /// </summary>
-    public void Drop(IDataObject data, string destinationPath, bool move)
+    public void Drop(IDragPayload payload, string destinationPath, bool move)
     {
-        if (data.GetData(DataFormats.FileDrop) is not string[] sources) return;
-        _viewModel.Operations.EnqueueDrop(sources, destinationPath, move);
+        var sources = payload.FilesOnDisk();
+        if (sources.Count == 0) return;
+
+        _viewModel.Operations.EnqueueDrop([.. sources], destinationPath, move || !payload.Contains(DragKinds.Files));
     }
 
-    // ── Right-drag: ask, then do (IDropChoiceTarget) ──────────────────────────
+    // ── Right-drag: ask, then do ──────────────────────────────────────────────
 
     /// <summary>
     /// Reads the dropped paths here and now, for the same reason <see cref="Drop"/> does: this runs
-    /// inside the OLE <c>IDropTarget::Drop</c> callback and the data object dies with it, while the
+    /// inside the OLE <c>IDropTarget::Drop</c> callback and the payload dies with it, while the
     /// menu the plan feeds is not answered until well after it has returned.
     /// </summary>
-    public DropPlan? Capture(IDataObject data, string destinationPath)
+    public DropPlan? Capture(IDragPayload payload, string destinationPath)
     {
         if (string.IsNullOrEmpty(destinationPath)) return null;
-        if (data.GetData(DataFormats.FileDrop) is not string[] sources || sources.Length == 0) return null;
+
+        var sources = payload.FilesOnDisk();
+        if (sources.Count == 0) return null;
 
         return new DropPlan(sources, destinationPath, FolderLabel(Path.GetFileName(destinationPath)));
     }

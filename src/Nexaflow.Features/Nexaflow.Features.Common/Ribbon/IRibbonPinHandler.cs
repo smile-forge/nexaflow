@@ -1,10 +1,11 @@
 using Nexaflow.Features.Common.Ribbon;
+using Nexaflow.Interaction;
 using System.Collections.Generic;
 
 namespace Nexaflow.Features.Common;
 
 /// <summary>
-/// Turns a foreign drag payload (a file action, a URL dropped from a browser, …) into a ribbon button.
+/// Turns what is dropped on the ribbon (a file, a link from a browser, a file action, …) into buttons.
 /// Implementations are auto-discovered from feature assemblies by <c>FeatureManager</c>.
 /// Tab drag-pinning is a separate concern — see <see cref="ITabPinHandler"/>; click-time behaviour that
 /// isn't simply "open a tab" is another — see <see cref="IRibbonItemExecutor"/>.
@@ -12,15 +13,15 @@ namespace Nexaflow.Features.Common;
 public interface IRibbonPinHandler
 {
     /// <summary>
-    /// WPF drag-data format keys this handler consumes — an internal kind (e.g. "FileAction") or native
-    /// OS formats (e.g. "UniformResourceLocator"). A drag matches when it carries any of these formats.
-    /// The resulting button's identity comes from <see cref="RibbonPinResult.PageKind"/>, not from here,
-    /// so a handler can accept a foreign format yet produce a clean internal page kind.
+    /// The kinds this handler consumes (<see cref="DragKinds"/>, or the app's own, e.g. "FileAction"). A button's
+    /// identity comes from <see cref="RibbonPinResult.PageKind"/>, not from here, so a handler can accept a shared
+    /// kind yet produce a page kind of its feature's.
     /// </summary>
-    IReadOnlyList<string> AcceptedFormats { get; }
+    IReadOnlyList<string> AcceptedKinds { get; }
 
     /// <summary>
-    /// Creates ribbon item metadata from a dropped payload, or returns <c>null</c> to reject.
+    /// The buttons <paramref name="payload"/> comes to — one for each thing dropped — or none to leave it to the next
+    /// handler. Read the payload before returning.
     /// </summary>
-    RibbonPinResult? Pin(object payload, int insertIndex = -1);
+    IReadOnlyList<RibbonPinResult> Pin(IDragPayload payload);
 }

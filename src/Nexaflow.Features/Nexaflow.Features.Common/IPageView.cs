@@ -1,7 +1,7 @@
 namespace Nexaflow.Features.Common;
 
 /// <summary>
-/// Implemented by tab <see cref="System.Windows.Controls.UserControl"/> views to expose
+/// Implemented by tab views to expose
 /// their ViewModel to the shell and handle lifecycle events.
 /// </summary>
 public interface IPageView

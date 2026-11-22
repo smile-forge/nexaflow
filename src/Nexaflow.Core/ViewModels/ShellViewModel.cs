@@ -16,6 +16,7 @@ using System.Windows.Threading;
 using Nexaflow.Core.Localization;
 using Nexaflow.Core.Help;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Core.ViewModels;
 
@@ -1351,9 +1352,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     /// <summary>Consulted by the AI input control before its own key handling. Returns the first handled
     /// result (optionally rewriting the bar text), or <see cref="ChatKeyResult.NotHandled"/>.</summary>
-    public ChatKeyResult HandleChatKey(System.Windows.Input.Key key,
-                                       System.Windows.Input.ModifierKeys modifiers,
-                                       string text, int caretIndex)
+    public ChatKeyResult HandleChatKey(ConsoleKey key, KeyModifiers modifiers, string text, int caretIndex)
     {
         var pageVm = (CurrentPage as IPageView)?.ViewModel;
         foreach (var h in FeatureManager.Instance.GetChatKeyHandlers(CurrentRuntime))
@@ -1365,25 +1364,26 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         return ChatKeyResult.NotHandled;
     }
 
-    /// <summary>True if any feature can turn this drag payload into bar text (cheap format check).</summary>
-    public bool CanHandleChatDrop(IDataObject data)
-    {
-        var pageVm = (CurrentPage as IPageView)?.ViewModel;
-        return FeatureManager.Instance.GetChatDropHandlers(CurrentRuntime)
-            .Any(h => h.CanHandle(pageVm) && h.AcceptedFormats.Any(data.GetDataPresent));
-    }
+    /// <summary>The handlers the AI bar's drops are put to, for this window's runtime.</summary>
+    internal IReadOnlyList<IChatDropHandler> ChatDropHandlers => FeatureManager.Instance.GetChatDropHandlers(CurrentRuntime);
 
-    /// <summary>The text the first matching feature wants to insert for this drop, or null.</summary>
-    public string? BuildChatDropText(IDataObject data)
+    /// <summary>The view-model of the page shown, which handlers gate on.</summary>
+    internal IPageViewModel? ActivePageViewModel => (CurrentPage as IPageView)?.ViewModel;
+
+    /// <summary>
+    /// What was dropped on a pane's tabs — files, or a link — each opened in a tab of its own. This window is made the
+    /// focused one first: a drag from another application lands on a window that has not got the focus, and tabs open in
+    /// the one that has.
+    /// </summary>
+    [RelayCommand]
+    private void OpenDropped(IReadOnlyList<object> dropped)
     {
-        var pageVm = (CurrentPage as IPageView)?.ViewModel;
-        foreach (var h in FeatureManager.Instance.GetChatDropHandlers(CurrentRuntime))
-        {
-            if (!h.CanHandle(pageVm) || !h.AcceptedFormats.Any(data.GetDataPresent)) continue;
-            var text = h.BuildInsertText(data, pageVm);
-            if (!string.IsNullOrEmpty(text)) return text;
-        }
-        return null;
+        _shellServices.SetFocused(this);
+        try { Window.Activate(); } catch (InvalidOperationException) { /* closing */ }
+
+        foreach (var one in dropped)
+            if (!_shellServices.HandleObject(one))
+                _shellServices.ShowError(Str.Format("Shell.OpenFromOutside.CannotOpenFormat", one is FileViewRequest file ? file.Path : one));
     }
 
     private void PushInputPreview(string text)

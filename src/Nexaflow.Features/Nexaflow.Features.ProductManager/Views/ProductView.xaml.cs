@@ -43,22 +43,6 @@ public partial class ProductView : UserControl, IPageView
     private void PickerTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
         => ViewModel.Picker?.SelectFile(e.NewValue as FileNode);
 
-    // "Drop URL here" target in the Link URL tab.
-    private void UrlDrop_DragOver(object sender, DragEventArgs e)
-    {
-        e.Effects = e.Data.GetDataPresent(DataFormats.UnicodeText) || e.Data.GetDataPresent(DataFormats.Text)
-            ? DragDropEffects.Copy : DragDropEffects.None;
-        e.Handled = true;
-    }
-
-    private void UrlDrop_Drop(object sender, DragEventArgs e)
-    {
-        var url = e.Data.GetData(DataFormats.UnicodeText) as string
-                  ?? e.Data.GetData(DataFormats.Text) as string;
-        if (url is not null) ViewModel.SetDroppedUrl(url);
-        e.Handled = true;
-    }
-
     // Version actions (⋮). Flat menu, per the global MenuItem-style submenu caveat.
     private void VersionMenu_Click(object sender, RoutedEventArgs e)
     {

@@ -21,6 +21,7 @@ using System.Windows.Threading;
 using Nexaflow.Core.Localization;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.IO.Common.Locations;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Core.Services;
 
@@ -1118,9 +1119,9 @@ public sealed class ShellServices : IShellServices
                 vm.CloseOverlay();
         });
 
-    void IShellServices.PinToRibbon(string format, object payload)
+    void IShellServices.PinToRibbon(string kind, object payload)
         => (_focused ?? _windows.FirstOrDefault())
-            ?.AddRibbonPin(new RibbonPinRequest(format, payload));
+            ?.AddRibbonPin(new RibbonPinRequest(new DragPayload((kind, payload))));
 
     public bool HandleObject(object obj)
     {

@@ -11,6 +11,8 @@ A board of post-it notes you can drop files, links, pictures and text onto.
 - Drag a picture out of a browser with no file behind it and it is saved as a PNG and embedded.
 - Drop an http or https address and it shows as a link straight away, then fills in with the page's title, description and preview image, downloaded locally so the note still works offline.
 - Drop text or markdown and it becomes the body of the note.
+- Drop onto a note that is already there and it goes into that note: a file is attached, text is inserted where you let go.
+- Drop a file that has no place on disk, like an attachment out of a mail or a file out of a zip, and the note keeps its own copy.
 - Drop several files at once and they land in a cascade. Ctrl+V pastes the same way, and right-clicking empty board offers "New post-it here" and "Paste as post-it" at the cursor.
 - Add a blank note in the middle of the view, already in edit mode. [Show me](locate:Scratchpad_AddNote)
 

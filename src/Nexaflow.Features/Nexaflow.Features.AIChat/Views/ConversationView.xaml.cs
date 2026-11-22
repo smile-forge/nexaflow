@@ -24,9 +24,6 @@ public partial class ConversationView : UserControl, IPageView
         ViewModel.Timeline.CollectionChanged += OnTimelineChanged;
         ViewModel.PropertyChanged            += OnVmPropertyChanged;
 
-        ContextBanner.Drop     += OnContextBannerDrop;
-        ContextBanner.DragOver += OnContextBannerDragOver;
-
         // One menu per anchor: a ContextMenu becomes the logical child of whatever it's attached to,
         // so the banner and the add button can't share an instance.
         ContextBanner.ContextMenu    = NewContextSourceMenu();
@@ -169,39 +166,5 @@ public partial class ConversationView : UserControl, IPageView
         TokenFooter.Text = win is null
             ? Str.Format("AIChat.Conversation.Footer.TokensUnknownFormat", used)
             : Str.Format("AIChat.Conversation.Footer.TokensFormat", used, win.Value);
-    }
-
-    // ── Drop target ───────────────────────────────────────────────────────
-
-    private void OnContextBannerDragOver(object sender, DragEventArgs e)
-    {
-        // TabStrip starts its drag with DragDropEffects.Move only — responding
-        // with Copy would intersect to None and show the no-drop cursor. We
-        // don't actually move the tab on drop, but the Effects flag has to
-        // overlap with what the source permits.
-        if (e.Data.GetDataPresent(typeof(Page)))
-            e.Effects = DragDropEffects.Move;
-        else if (e.Data.GetDataPresent(DataFormats.FileDrop))
-            e.Effects = DragDropEffects.Copy;
-        else
-            e.Effects = DragDropEffects.None;
-        e.Handled = true;
-    }
-
-    private void OnContextBannerDrop(object sender, DragEventArgs e)
-    {
-        if (e.Data.GetDataPresent(typeof(Page)))
-        {
-            if (e.Data.GetData(typeof(Page)) is Page page)
-                ViewModel.AddContextItem(page);
-            e.Handled = true;
-            return;
-        }
-        if (e.Data.GetDataPresent(DataFormats.FileDrop) &&
-            e.Data.GetData(DataFormats.FileDrop) is string[] files)
-        {
-            foreach (var f in files) ViewModel.AddAttachment(f);
-            e.Handled = true;
-        }
     }
 }

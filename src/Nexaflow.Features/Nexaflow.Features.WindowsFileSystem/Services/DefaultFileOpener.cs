@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Features.WindowsFileSystem.Services;
 
@@ -79,23 +80,7 @@ public sealed class DefaultFileOpener
             await TryPerformOverrideAsync(overrideEntry, filePath, internalActions) is { Handled: true } overridden)
             return overridden.RequiresRefresh;
 
-        // Pick the highest match-specificity; break ties by the deeper experience so the specific viewer
-        // wins over a broader ancestor (e.g. "As Code"/"As Markdown" at "/text/…" beat "As Text" at "/text",
-        // which the file also matches at extension level via ancestor propagation).
-        IFileAction? bestInternal      = null;
-        int          bestInternalSpec  = -1;
-        int          bestInternalDepth = -1;
-        foreach (var action in internalActions)
-        {
-            int spec  = FileMapManager.Instance.GetMatchSpecificity(file, action.ExperienceId);
-            int depth = ExperienceDepth(action.ExperienceId);
-            if (spec > bestInternalSpec || (spec == bestInternalSpec && depth > bestInternalDepth))
-            {
-                bestInternal      = action;
-                bestInternalSpec  = spec;
-                bestInternalDepth = depth;
-            }
-        }
+        var (bestInternal, bestInternalSpec) = MostSpecific(file, internalActions);
 
         // Shell "open" verb is Extension-level (4); encode priority as spec*2 + (internal?1:0)
         // so that internal wins over shell at the same specificity level.
@@ -124,6 +109,66 @@ public sealed class DefaultFileOpener
             catch { }
         }
         return false;
+    }
+
+    /// <summary>
+    /// Shows <paramref name="filePath"/> in the viewer for its type: the user's default where that is a viewer, else
+    /// the most specific viewer that takes it. Never the shell's verb nor an external app — this is looking, and what is
+    /// looked at may be a script out of a web page (<see cref="FileViewRequest"/>). A type nothing is mapped to — a
+    /// script, whose only action is to run it — is shown as text or as bytes, whichever it is. False where no viewer
+    /// takes it.
+    /// </summary>
+    public async Task<bool> OpenInViewerAsync(string filePath)
+    {
+        var entry      = new FileSystemEntry { Name = Path.GetFileName(filePath), FullPath = filePath, IsDirectory = false };
+        var file       = FileSubject.Of(_actions.Vfs, filePath);
+        var canPerform = _actions.SnapshotCanPerform();
+
+        var viewers = await Task.Run(() =>
+            _actions.FilterActions([entry], canPerform.File).Where(action => action.OpensViewer).ToList());
+
+        var chosen = DefaultActionRegistry.Instance.Resolve(filePath) is { Kind: DefaultActionKind.InternalViewer } preferred
+            ? viewers.FirstOrDefault(v => string.Equals(v.ExperienceId, preferred.TargetId, System.StringComparison.OrdinalIgnoreCase))
+            : null;
+        chosen ??= MostSpecific(file, viewers).Action ?? await ViewerForContentAsync(filePath);
+        if (chosen is null) return false;
+
+        await chosen.PerformActionAsync(filePath);
+        return true;
+    }
+
+    /// <summary>The file map's two roots every file is one of, for a file whose type is mapped to nothing.</summary>
+    private const string TextExperience = "/text", BytesExperience = "/binary";
+
+    /// <summary>The viewer of text or of bytes, by what the file's start holds.</summary>
+    private async Task<IFileAction?> ViewerForContentAsync(string filePath)
+    {
+        var head = new byte[EncodingDetector.TextSniffBytes];
+        int read;
+        await using (var stream = await _actions.Vfs.OpenReadAsync(filePath, ReadIntent.Sequential))
+            read = await stream.ReadAtLeastAsync(head, head.Length, throwOnEndOfStream: false);
+
+        var experience = EncodingDetector.HoldsText(head[..read]) ? TextExperience : BytesExperience;
+        return _actions.ViewerOf(experience);
+    }
+
+    /// <summary>
+    /// The highest match-specificity, ties broken by the deeper experience so the specific viewer wins over a broader
+    /// ancestor (e.g. "As Code"/"As Markdown" at "/text/…" beat "As Text" at "/text", which the file also matches at
+    /// extension level via ancestor propagation).
+    /// </summary>
+    private static (IFileAction? Action, int Specificity) MostSpecific(FileSubject file, IEnumerable<IFileAction> actions)
+    {
+        IFileAction? best = null;
+        int bestSpec = -1, bestDepth = -1;
+        foreach (var action in actions)
+        {
+            int spec  = FileMapManager.Instance.GetMatchSpecificity(file, action.ExperienceId);
+            int depth = ExperienceDepth(action.ExperienceId);
+            if (spec > bestSpec || (spec == bestSpec && depth > bestDepth))
+                (best, bestSpec, bestDepth) = (action, spec, depth);
+        }
+        return (best, bestSpec);
     }
 
     /// <summary>A real, launchable path for the shell. A virtual (in-archive) path — e.g. a PDF opened from

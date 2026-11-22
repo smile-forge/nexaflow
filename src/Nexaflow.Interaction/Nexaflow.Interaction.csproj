@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    What a person does to a surface, said without a UI framework: the modifiers held with a key, what a drag carries, and
+    what something that can be dropped on answers. A leaf under both Features.Common and Visuals.Common, so a shared
+    control can take a drop without seeing the shell's contracts — the UsbProbe plugins are handed those controls and are
+    never handed IShellServices. Plain net10.0: WPF cannot get in. What turns Windows' drag into these is
+    Nexaflow.Visuals.Common's (Dropping/).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Components" />
+  </ItemGroup>
+
+</Project>

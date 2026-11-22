@@ -38,6 +38,7 @@
   "WindowsFileSystem.Menu.OpenInRightPane": "Open in right pane",
   "WindowsFileSystem.Open.FailedFormat": "Couldn't open {0}: {1}",
 
+  "WindowsFileSystem.Open.NoViewerFormat": "No viewer here can show {0}.",
   "WindowsFileSystem.Drop.CopyToFormat": "Copy to {0}",
   "WindowsFileSystem.Drop.MoveToFormat": "Move to {0}",
   "WindowsFileSystem.Drop.ChoicePromptFormat": "Drop on {0} to choose",

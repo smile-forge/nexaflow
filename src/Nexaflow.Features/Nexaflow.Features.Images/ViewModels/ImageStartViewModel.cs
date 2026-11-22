@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.Editing.Layers;
+using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Services;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.OpenRaster;
@@ -202,6 +203,44 @@ public sealed partial class ImageStartViewModel : ObservableObject, IDisposable
     {
         if (_shell is null) return;
         if (await _shell.PickOpenFileAsync([.. ImageFileTypes.Extensions]) is { } path) _viewer.Open(path);
+    }
+
+    /// <summary>A new canvas the size of the first of <paramref name="paths"/>, with each a layer, the first at the bottom.</summary>
+    internal async Task OpenAsLayersAsync(IReadOnlyList<string> paths)
+    {
+        LayeredPicture? canvas = null;
+        Guid? below = null;
+
+        foreach (var path in paths)
+        {
+            var name = Path.GetFileNameWithoutExtension(path);
+            try
+            {
+                using var decoded = await _editing.DecodeAsync(path, maxLongEdge: 64);
+                var size = decoded.SourceSize;
+                var source = new PictureSource(path, null);
+
+                if (canvas is null)
+                {
+                    var scale = Math.Min(1.0, LayeredPicture.MaxSide / (double)Math.Max(size.Width, size.Height));
+                    canvas = LayeredPicture.OfPhoto(source, ImageRecipe.Identity,
+                        Math.Max(1, (int)(size.Width * scale)), Math.Max(1, (int)(size.Height * scale)), name);
+                    below = canvas.ActiveId;
+                }
+                else
+                {
+                    var layer = LayerEdits.Fitted(source, size, canvas.Width, canvas.Height, name);
+                    canvas = canvas.Inserted(layer, below);
+                    below = layer.Id;
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or NotSupportedException)
+            {
+                _shell?.ShowError(Str.Format("Images.Layers.AddFailedFormat", Path.GetFileName(path), ex.Message));
+            }
+        }
+
+        if (canvas is not null) await OpenAsync(canvas);
     }
 
     /// <summary>A canvas opened here lately, opened for editing again — a draft as the draft it is.</summary>

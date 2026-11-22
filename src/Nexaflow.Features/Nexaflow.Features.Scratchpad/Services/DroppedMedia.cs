@@ -1,9 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Windows;
-using System.Windows.Media.Imaging;
+using System.Text.RegularExpressions;
+using Nexaflow.Interaction;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Previews;
 
@@ -15,27 +14,46 @@ namespace Nexaflow.Features.Scratchpad.Services;
 /// attachment-copying and file-link formatting live in one place.
 /// </summary>
 [LocalDiskOnly("a picture or file dropped from Windows, which is on this disk, kept in the note's attachments in the app's config folder")]
-public static class DroppedMedia
+public static partial class DroppedMedia
 {
     private static readonly HashSet<string> ImageExtensions = new(DecodablePictures.Extensions, StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>What a board and a note on it take.</summary>
+    public static IReadOnlyList<string> Kinds { get; } = DragKinds.Shared;
+
     /// <summary>True when the dropped/pasted data is a single bare http(s) URL (e.g. dragged or copied
     /// from a browser address bar), returning it in <paramref name="url"/>.</summary>
-    public static bool TryGetSingleUrl(IDataObject data, out string url)
+    public static bool TryGetSingleUrl(IDragPayload data, out string url)
     {
-        url = string.Empty;
-        var text = (data.GetDataPresent(DataFormats.UnicodeText) ? data.GetData(DataFormats.UnicodeText)
-                  : data.GetDataPresent(DataFormats.Text)        ? data.GetData(DataFormats.Text)
-                  : null) as string;
-        if (string.IsNullOrWhiteSpace(text)) return false;
+        url = data.Link() ?? WebLinks.SingleAddress(data.Text()) ?? string.Empty;
+        return url.Length > 0;
+    }
 
-        text = text.Trim();
-        if (text.Any(char.IsWhiteSpace)) return false;   // multiple tokens → not a bare URL
-        if (!Uri.TryCreate(text, UriKind.Absolute, out var u)) return false;
-        if (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps) return false;
+    /// <summary>
+    /// Copies a file or folder that arrived as content into <paramref name="dir"/> — it has no place of its own to be
+    /// linked to — and returns where it is kept, or null on failure.
+    /// </summary>
+    public static string? KeepIn(string path, string dir)
+    {
+        try
+        {
+            var folder = Path.Combine(dir, UniqueSuffix());
+            Directory.CreateDirectory(folder);
+            var kept = Path.Combine(folder, Path.GetFileName(path));
+            if (File.Exists(path))
+            {
+                File.Copy(path, kept);
+                return kept;
+            }
 
-        url = text;
-        return true;
+            Directory.CreateDirectory(kept);
+            foreach (var sub in Directory.EnumerateDirectories(path, "*", SearchOption.AllDirectories))
+                Directory.CreateDirectory(Path.Combine(kept, Path.GetRelativePath(path, sub)));
+            foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+                File.Copy(file, Path.Combine(kept, Path.GetRelativePath(path, file)));
+            return kept;
+        }
+        catch (Exception failure) when (failure is IOException or UnauthorizedAccessException) { return null; }
     }
 
     /// <summary>True when <paramref name="path"/> has an image extension we embed rather than link.</summary>
@@ -58,21 +76,18 @@ public static class DroppedMedia
         catch { return null; }
     }
 
-    /// <summary>Encodes a bitmap (e.g. a browser image drag) as PNG into <paramref name="dir"/>;
+    /// <summary>Writes a picture's PNG bytes (e.g. a browser image drag) into <paramref name="dir"/>;
     /// returns the file name or null on failure.</summary>
-    public static string? SaveBitmapInto(BitmapSource bitmap, string dir)
+    public static string? SaveImageInto(byte[] png, string dir)
     {
         try
         {
             Directory.CreateDirectory(dir);
             var name = "image_" + UniqueSuffix() + ".png";
-            var encoder = new PngBitmapEncoder();
-            encoder.Frames.Add(BitmapFrame.Create(bitmap));
-            using var fs = File.Create(Path.Combine(dir, name));
-            encoder.Save(fs);
+            File.WriteAllBytes(Path.Combine(dir, name), png);
             return name;
         }
-        catch { return null; }
+        catch (Exception failure) when (failure is IOException or UnauthorizedAccessException) { return null; }
     }
 
     /// <summary>A clickable markdown link to a file or folder: 📄/📁 + name → its <c>file:</c> URI.</summary>
@@ -81,8 +96,17 @@ public static class DroppedMedia
         var icon = Directory.Exists(path) ? "📁" : "📄";
         var name = Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         if (string.IsNullOrEmpty(name)) name = path;
-        return $"[{icon} {name}]({new Uri(path).AbsoluteUri})";
+        // A name is the dragging application's choice, so it may neither end the label nor the address.
+        var label = LabelBreakers().Replace(name, @"\$0");
+        var address = new Uri(path).AbsoluteUri.Replace("(", "%28").Replace(")", "%29");
+        return $"[{icon} {label}]({address})";
     }
+
+    /// <summary>A picture kept in the note's folder, embedded by its name: escaped, as the reader of it unescapes.</summary>
+    public static string EmbedMarkdown(string fileName) => $"![]({Uri.EscapeDataString(fileName)})";
+
+    [GeneratedRegex(@"[\\\[\]`<>]")]
+    private static partial Regex LabelBreakers();
 
     private static string UniqueSuffix() => Guid.NewGuid().ToString("N")[..6];
 }

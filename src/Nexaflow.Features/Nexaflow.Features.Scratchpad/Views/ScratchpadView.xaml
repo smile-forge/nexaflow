@@ -358,13 +358,10 @@
                  panel slides in over the right-hand edge. -->
             <vcl:PanZoomSurface x:Name="Surface"
                                 AutomationProperties.AutomationId="Scratchpad_Canvas"
-                                AllowDrop="True"
                                 ZoomOnPlainWheel="True"
                                 ShowZoomChrome="False"
                                 MiniMapCorner="TopLeft"
                                 MinScale="0.08" MaxScale="4"
-                                DragOver="Surface_DragOver"
-                                Drop="Surface_Drop"
                                 ContextMenuOpening="Surface_ContextMenuOpening">
 
                 <vcl:PanZoomSurface.ContextMenu>

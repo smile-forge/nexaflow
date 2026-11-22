@@ -5,7 +5,6 @@
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="CompressedView"
-             AllowDrop="True"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>

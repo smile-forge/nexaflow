@@ -384,7 +384,10 @@
   <Project Path="src/Nexaflow.Icons/Nexaflow.Icons.csproj">
     <Platform Project="x64" />
   </Project>
-  <Project Path="src/Nexaflow.Visuals.Icons/Nexaflow.Visuals.Icons.csproj">
+  <Project Path="src/Nexaflow.Interaction/Nexaflow.Interaction.csproj">
+          <Platform Project="x64" />
+        </Project>
+        <Project Path="src/Nexaflow.Visuals.Icons/Nexaflow.Visuals.Icons.csproj">
     <Platform Project="x64" />
   </Project>
   <Project Path="src/Nexaflow.Visuals.Stores/Nexaflow.Visuals.Stores.csproj">

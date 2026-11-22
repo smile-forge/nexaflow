@@ -10,6 +10,7 @@ using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common.Ribbon;
 using Nexaflow.Icons;
+using Nexaflow.Interaction;
 using Nexaflow.Visuals.Common.Theming;
 using Nexaflow.Visuals.Icons;
 
@@ -314,20 +315,26 @@ public partial class RibbonViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Handle a handler-based pin: looks up the <see cref="IRibbonPinHandler"/> that accepts the
-    /// request's <see cref="RibbonPinRequest.Format"/>, builds the button, deduplicates, and inserts.
+    /// Handle a handler-based pin: the first <see cref="IRibbonPinHandler"/> that takes a kind the payload carries and
+    /// makes buttons of it has them inserted where they were dropped, in order, less any already there.
     /// </summary>
     [RelayCommand]
     public void PinFromHandler(RibbonPinRequest request)
     {
         if (_runtime is null) return;
-        var handler = FeatureManager.Instance.GetRibbonPinHandlerForFormat(request.Format, _runtime);
-        if (handler is null) return;
 
-        var result = handler.Pin(request.Payload, request.InsertIndex);
-        if (result is null) return;
+        foreach (var handler in FeatureManager.Instance.GetRibbonPinHandlers(_runtime))
+        {
+            if (!request.Payload.ContainsAny(handler.AcceptedKinds)) continue;
 
-        InsertPin(result, request.InsertIndex);
+            var pins = handler.Pin(request.Payload);
+            if (pins.Count == 0) continue;
+
+            var at = request.InsertIndex;
+            foreach (var pin in pins)
+                if (InsertPin(pin, at) && at >= 0) at++;
+            return;
+        }
     }
 
     private static RibbonPinResult TabMetadataResult(Page tab) => new()
@@ -338,7 +345,7 @@ public partial class RibbonViewModel : ObservableObject
         PageParams = tab.PageParams is not null ? new(tab.PageParams) : null
     };
 
-    private void InsertPin(RibbonPinResult result, int insertIndex)
+    private bool InsertPin(RibbonPinResult result, int insertIndex)
     {
         var duplicate = Items.FirstOrDefault(r =>
             r.Kind == RibbonItemKind.Button &&
@@ -347,7 +354,7 @@ public partial class RibbonViewModel : ObservableObject
         if (duplicate is not null)
         {
             FlashItem?.Invoke(duplicate);
-            return;
+            return false;
         }
 
         AddItem(new RibbonItem
@@ -360,6 +367,7 @@ public partial class RibbonViewModel : ObservableObject
             PageKind     = result.PageKind,
             PageParams   = result.PageParams
         }, insertIndex);
+        return true;
     }
 
     private static bool ParamsEqual(Dictionary<string, string>? a, Dictionary<string, string>? b)

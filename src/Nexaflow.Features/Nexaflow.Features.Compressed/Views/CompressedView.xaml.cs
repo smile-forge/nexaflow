@@ -17,8 +17,6 @@ public partial class CompressedView : UserControl, IPageView
         InitializeComponent();
         _vm = vm;
         DataContext = vm;
-        Drop += OnDrop;
-        DragOver += OnDragOver;
     }
 
     public IPageViewModel? ViewModel => _vm;
@@ -47,20 +45,5 @@ public partial class CompressedView : UserControl, IPageView
     {
         if (e.Key == Key.Enter) PasswordOk_Click(sender, e);
         else if (e.Key == Key.Escape) _vm.CancelPasswordCommand.Execute(null);
-    }
-
-    private static bool HasFiles(DragEventArgs e) => e.Data.GetDataPresent(DataFormats.FileDrop);
-
-    private void OnDragOver(object sender, DragEventArgs e)
-    {
-        e.Effects = HasFiles(e) && _vm.CanModify ? DragDropEffects.Copy : DragDropEffects.None;
-        e.Handled = true;
-    }
-
-    private async void OnDrop(object sender, DragEventArgs e)
-    {
-        if (!HasFiles(e)) return;
-        if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths) return;
-        await _vm.AddSourcesAsync(paths.ToList());
     }
 }

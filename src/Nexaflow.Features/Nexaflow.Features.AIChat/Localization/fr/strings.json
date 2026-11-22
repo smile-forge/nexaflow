@@ -50,6 +50,7 @@
   "AIChat.Conversation.Context.Header": "Éléments de contexte",
   "AIChat.Conversation.Context.None": "aucun élément de contexte",
   "AIChat.Conversation.Context.OverflowFormat": "et {0} de plus",
+  "AIChat.Conversation.Context.DropAdds": "Ajouter à cette conversation",
   "AIChat.Conversation.Context.DropHint": "Faites glisser des onglets ou des fichiers ici",
   "AIChat.Conversation.Context.MediumRiskTip": "Risque accru : l'IA peut apporter des modifications étendues dans le périmètre de cet onglet.",
   "AIChat.Conversation.Context.HighRiskTip": "Risque élevé : le périmètre de cet onglet est large et sensible — l'IA pourrait lire ou modifier des parties critiques de votre système.",

@@ -155,7 +155,6 @@ Projects_DisabledPlaceholder
 Projects_Refresh
 
 # src/Nexaflow.Features/Nexaflow.Features.Scratchpad/Views/ScratchpadView.xaml
-Scratchpad_Canvas
 
 
 

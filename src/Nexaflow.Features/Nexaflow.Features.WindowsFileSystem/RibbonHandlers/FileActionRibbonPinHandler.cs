@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Ribbon;
 using Nexaflow.Features.WindowsFileSystem.Services;
+using Nexaflow.Interaction;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -24,7 +25,7 @@ public sealed class FileActionRibbonPinHandler : IRibbonPinHandler, IRibbonItemE
                                       IVirtualFileSystem vfs)
         => _registry = FileSystemFeatureRegistry.For(shell, ai, configs, vfs);
 
-    public IReadOnlyList<string> AcceptedFormats { get; } = [FileSystemPageRegistration.FileActionKind];
+    public IReadOnlyList<string> AcceptedKinds { get; } = [FileSystemPageRegistration.FileActionKind];
 
     public string PageKind => FileSystemPageRegistration.FileActionKind;
 
@@ -34,11 +35,11 @@ public sealed class FileActionRibbonPinHandler : IRibbonPinHandler, IRibbonItemE
     private const string KeyFiles      = "files";
     private const string ReinitPrefix  = "r.";
 
-    public RibbonPinResult? Pin(object payload, int insertIndex = -1)
+    public IReadOnlyList<RibbonPinResult> Pin(IDragPayload payload)
     {
-        if (payload is not FileActionPinPayload pinPayload) return null;
+        if (payload.Read(FileSystemPageRegistration.FileActionKind) is not FileActionPinPayload pinPayload) return [];
         var action = pinPayload.Action;
-        if (action.IsDestructive) return null;
+        if (action.IsDestructive) return [];
 
         var paths     = pinPayload.SelectedPaths;
         var firstName = paths.Count > 0 ? Path.GetFileName(paths[0]) : null;
@@ -55,14 +56,17 @@ public sealed class FileActionRibbonPinHandler : IRibbonPinHandler, IRibbonItemE
             foreach (var kv in reinit)
                 pageParams[ReinitPrefix + kv.Key] = kv.Value;
 
-        return new RibbonPinResult
-        {
-            PageKind     = PageKind,
-            Label        = label,
-            Icon         = action.Icon,
-            IconResource = action.IconResource,
-            PageParams   = pageParams,
-        };
+        return
+        [
+            new RibbonPinResult
+            {
+                PageKind     = PageKind,
+                Label        = label,
+                Icon         = action.Icon,
+                IconResource = action.IconResource,
+                PageParams   = pageParams,
+            },
+        ];
     }
 
     /// <summary>

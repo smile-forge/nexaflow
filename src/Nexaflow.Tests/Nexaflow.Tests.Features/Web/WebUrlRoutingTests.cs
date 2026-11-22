@@ -7,6 +7,11 @@ using Nexaflow.Features.Web;
 using Nexaflow.Features.Web.RibbonHandlers;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Icons;
+using System.Linq;
+using System.Windows;
+using Nexaflow.Features.Common.Ribbon;
+using Nexaflow.Interaction;
+using Nexaflow.Visuals.Common.Dropping;
 
 namespace Nexaflow.Tests.Features.Web;
 
@@ -31,17 +36,22 @@ public class WebUrlRoutingTests
     private static MemoryStream Payload(string text, Encoding encoding, bool nulTerminated = false)
         => new(encoding.GetBytes(nulTerminated ? text + "\0" : text));
 
+    /// <summary>What the pinner makes of <paramref name="carried"/> as a browser drags it, in <paramref name="format"/>.</summary>
+    private static RibbonPinResult? Pinned(object carried, string format = "UniformResourceLocatorW")
+        => Pinner.Pin(new WindowsDragPayload(new DataObject(format, carried))).SingleOrDefault();
+
     // ── Ribbon pin: accepted formats ──────────────────────────────────────
 
     [TestMethod]
     [TestCategory("Unit")]
-    public void AcceptedFormats_CoverTheLinkDragFormatsBrowsersAdvertise()
+    public void ALink_IsTakenInEveryFormatBrowsersAdvertise_AndWordsAreNot()
     {
-        // Chromium/Edge/IE advertise UniformResourceLocator(W); Firefox uses text/x-moz-url. Matching only
-        // these is what stops the ribbon lighting up for arbitrary dragged text.
-        CollectionAssert.AreEquivalent(
-            new[] { "UniformResourceLocatorW", "UniformResourceLocator", "text/x-moz-url" },
-            (System.Collections.ICollection)Pinner.AcceptedFormats);
+        // Chromium/Edge/IE advertise UniformResourceLocator(W); Firefox uses text/x-moz-url. Taking only a link
+        // is what stops the ribbon lighting up for arbitrary dragged text.
+        foreach (var format in new[] { "UniformResourceLocatorW", "UniformResourceLocator", "text/x-moz-url" })
+            Assert.IsTrue(new WindowsDragPayload(new DataObject(format, "https://example.com")).ContainsAny(Pinner.AcceptedKinds), format);
+
+        Assert.IsFalse(new WindowsDragPayload(new DataObject(DataFormats.UnicodeText, "some words")).ContainsAny(Pinner.AcceptedKinds));
     }
 
     // ── Ribbon pin: payload decoding ──────────────────────────────────────
@@ -50,7 +60,7 @@ public class WebUrlRoutingTests
     [TestCategory("Unit")]
     public void Pin_APlainStringUrl_ProducesAnHtmlButtonLabelledWithTheHost()
     {
-        var result = Pinner.Pin("https://example.com/docs/page?q=1");
+        var result = Pinned("https://example.com/docs/page?q=1");
 
         Assert.IsNotNull(result);
         Assert.AreEqual("Html", result!.PageKind);
@@ -64,7 +74,7 @@ public class WebUrlRoutingTests
     public void Pin_AUtf16NulTerminatedPayload_IsDecoded()
     {
         // The shape Chromium/Edge actually drop: UTF-16 bytes with a trailing NUL.
-        var result = Pinner.Pin(Payload("https://example.com/page", Encoding.Unicode, nulTerminated: true));
+        var result = Pinned(Payload("https://example.com/page", Encoding.Unicode, nulTerminated: true));
 
         Assert.IsNotNull(result);
         Assert.AreEqual("https://example.com/page", result!.PageParams!["path"]);
@@ -75,7 +85,7 @@ public class WebUrlRoutingTests
     public void Pin_AMozUrlPayload_TakesTheUrlLineAndDropsTheTitle()
     {
         // Firefox's text/x-moz-url is "url\ntitle".
-        var result = Pinner.Pin(Payload("https://example.com/a\nExample Page Title", Encoding.Unicode));
+        var result = Pinned(Payload("https://example.com/a\nExample Page Title", Encoding.Unicode));
 
         Assert.IsNotNull(result);
         Assert.AreEqual("https://example.com/a", result!.PageParams!["path"]);
@@ -86,7 +96,7 @@ public class WebUrlRoutingTests
     [TestCategory("Unit")]
     public void Pin_AnAsciiPayload_IsDecodedAsUtf8()
     {
-        var result = Pinner.Pin(Payload("http://example.org/x", Encoding.UTF8));
+        var result = Pinned(Payload("http://example.org/x", Encoding.UTF8));
 
         Assert.IsNotNull(result);
         Assert.AreEqual("http://example.org/x", result!.PageParams!["path"]);
@@ -99,11 +109,11 @@ public class WebUrlRoutingTests
     public void Pin_RejectsAnythingThatIsNotAnHttpUrl()
     {
         // A non-http(s) scheme could otherwise pin a button that launches something unexpected.
-        Assert.IsNull(Pinner.Pin("file:///C:/secret.txt"));
-        Assert.IsNull(Pinner.Pin("javascript:alert(1)"));
-        Assert.IsNull(Pinner.Pin("not a url at all"));
-        Assert.IsNull(Pinner.Pin(string.Empty));
-        Assert.IsNull(Pinner.Pin(42), "an unrecognised payload type pins nothing");
+        Assert.IsNull(Pinned("file:///C:/secret.txt"));
+        Assert.IsNull(Pinned("javascript:alert(1)"));
+        Assert.IsNull(Pinned("not a url at all"));
+        Assert.IsNull(Pinned(string.Empty));
+        Assert.IsNull(Pinned(42), "an unrecognised payload type pins nothing");
     }
 
     [TestMethod]
@@ -111,7 +121,7 @@ public class WebUrlRoutingTests
     public void Pin_AUrlWithNoHost_FallsBackToTheUrlAsItsLabel()
     {
         // Uri.Host is empty for some absolute forms; the button still needs a caption.
-        var result = Pinner.Pin("http://localhost:5000/app");
+        var result = Pinned("http://localhost:5000/app");
 
         Assert.IsNotNull(result);
         Assert.AreEqual("localhost", result!.Label);
