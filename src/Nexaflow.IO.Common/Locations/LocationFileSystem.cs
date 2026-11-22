@@ -519,7 +519,9 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
         => TryRoute(path, out var location, out _) ? location.Capabilities : _shared.GetCapabilities(path);
 
     public StringComparison GetNameComparison(string path)
-        => TryRoute(path, out var location, out _) ? LocationPath.Comparison(location.Capabilities) : _shared.GetNameComparison(path);
+        => TryRoute(path, out var location, out _) || (FromNative(path) is { } named && TryRoute(named, out location, out _))
+            ? LocationPath.Comparison(location.Capabilities)
+            : _shared.GetNameComparison(path);
 
     public bool IsOnLocation(string path) => TryRoute(path, out _, out _) || FromNative(path) is not null;
 

@@ -10,9 +10,10 @@ namespace Nexaflow.Core.Services.Agent;
 /// </summary>
 internal static class RunScope
 {
-    /// <summary>The scope <paramref name="page"/> gives a run: its files and folders, or nothing without a page.</summary>
-    public static PathScope Of(IPageViewModel? page)
-        => page?.GetContextGrant() is { } grant ? new PathScope(grant.Files, grant.Folders) : PathScope.None;
+    /// <summary>The scope <paramref name="page"/> gives a run: its files and folders, or nothing without a page — names compared
+    /// as <paramref name="files"/>, the workspace's file system, says they compare where each one is.</summary>
+    public static PathScope Of(IPageViewModel? page, IVirtualFileSystem files)
+        => page?.GetContextGrant() is { } grant ? new PathScope(grant.Files, grant.Folders, files.GetNameComparison) : PathScope.None;
 
     /// <summary>Why <paramref name="path"/> cannot be read or opened.</summary>
     public static string Outside(string path)

@@ -536,11 +536,44 @@
           }
         ]
       }
+    },
+    "ai-context-paths": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/PathScopeTests.cs",
+            "class": "PathScopeTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ClientTools/OpenPageToolTests.cs",
+            "class": "OpenPageToolTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Architecture/Architecture/AiSurfaceRulesTests.cs",
+            "class": "AiSurfaceRulesTests",
+            "method": "Pages_with_a_scope_say_what_of_the_disk_they_show"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/RunScopeTests.cs",
+            "class": "RunScopeTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/Wsl/WslGrantTests.cs",
+            "class": "WslGrantTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 29,
+  "changed_sets": 30,
   "touched_nodes": [
+    "ai-context-paths",
     "console-enter-classify",
     "console-gt-prefix",
     "console-location-shell",

@@ -279,8 +279,9 @@ public interface IVirtualFileSystem
     LocationCapabilities GetCapabilities(string path);
 
     /// <summary>How names are compared under the path: ordinally on a location whose names differ by case
-    /// (<see cref="LocationCapabilities.CaseSensitive"/>), ignoring case on this disk and everywhere else. What a selection, a
-    /// reload's match of old rows to new, a check for an open tab and the assistant's reach compare paths by.</summary>
+    /// (<see cref="LocationCapabilities.CaseSensitive"/>) — named by its own path or by a Windows folder it is reachable as,
+    /// which Windows would otherwise read ignoring case — and ignoring case on this disk and everywhere else. What a
+    /// selection, a reload's match of old rows to new, a check for an open tab and the assistant's reach compare paths by.</summary>
     StringComparison GetNameComparison(string path);
 
     /// <summary>True when the path is on a location, named by the location's path or by a Windows folder the location is

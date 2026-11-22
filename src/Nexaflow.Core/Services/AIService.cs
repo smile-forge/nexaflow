@@ -84,7 +84,7 @@ public sealed class AIService : IAIService
         // The call generate_video would be given, run as the assistant's slow calls run — but the user's, so nothing is asked.
         // It reads only its picture, and the clip opens as a draft for the user to save where they choose.
         var tool = new Generation.GenerateVideoTool(VideoGenerator, HighQualityVideoGenerator,
-                                                    Generation.GeneratedFiles.For(shell, new PathScope([picture], [])));
+                                                    Generation.GeneratedFiles.For(shell, new PathScope([picture], [], _workspace.Vfs.GetNameComparison)));
         var arguments = new JsonObject
         {
             ["prompt"]      = clip.Description,
@@ -139,7 +139,7 @@ public sealed class AIService : IAIService
         // The call generate_image would be given, run as the assistant's slow calls run — but the user's, so nothing is asked.
         // It saves only where the user named, and opens the picture once it is there unless whoever asked takes it in.
         var tool = new Generation.GenerateImageTool(ImageGenerator, HighQualityImageGenerator,
-                                                    Generation.GeneratedFiles.For(shell, new PathScope([], [Path.GetDirectoryName(target)!]), picture.OpensWhenMade),
+                                                    Generation.GeneratedFiles.For(shell, new PathScope([], [Path.GetDirectoryName(target)!], _workspace.Vfs.GetNameComparison), picture.OpensWhenMade),
                                                     AllowsAdultContent, PictureCheck);
         var arguments = new JsonObject
         {
@@ -165,7 +165,7 @@ public sealed class AIService : IAIService
 
         // The call edit_image would be given, the user's: it reads only the pictures the user gave it and saves only where they named.
         string[] given = [.. edit.Sources, .. edit.Mask is { } stencil ? [stencil] : Array.Empty<string>()];
-        var tool = new Generation.EditImageTool(editor, Generation.GeneratedFiles.For(shell, new PathScope(given, [Path.GetDirectoryName(target)!]), edit.OpensWhenMade),
+        var tool = new Generation.EditImageTool(editor, Generation.GeneratedFiles.For(shell, new PathScope(given, [Path.GetDirectoryName(target)!], _workspace.Vfs.GetNameComparison), edit.OpensWhenMade),
                                                 PictureCheck);
         var arguments = new JsonObject
         {
@@ -214,7 +214,7 @@ public sealed class AIService : IAIService
 
         // The call generate_video would be given for a clip from a description, run as the user's: nothing is asked.
         var tool = new Generation.GenerateVideoTool(VideoGenerator, HighQualityVideoGenerator,
-                                                    Generation.GeneratedFiles.For(shell, new PathScope([], [Path.GetDirectoryName(target)!])));
+                                                    Generation.GeneratedFiles.For(shell, new PathScope([], [Path.GetDirectoryName(target)!], _workspace.Vfs.GetNameComparison)));
         var arguments = new JsonObject
         {
             ["prompt"]  = clip.Prompt,
@@ -256,7 +256,7 @@ public sealed class AIService : IAIService
         if (_jobs is not { } jobs) throw new InvalidOperationException("This workspace runs no background jobs.");
 
         var path = Path.GetFullPath(document.Path);
-        if (DocumentToolsFor(new PathScope([path], []), asked => string.Equals(asked, path, StringComparison.OrdinalIgnoreCase) ? document with { Path = path } : null) is not { } tools)
+        if (DocumentToolsFor(new PathScope([path], [], _workspace.Vfs.GetNameComparison), asked => string.Equals(asked, path, StringComparison.OrdinalIgnoreCase) ? document with { Path = path } : null) is not { } tools)
             throw new InvalidOperationException("This workspace has no model in its Documents row.");
 
         arguments[Documents.DocumentJob.DocumentParameter] = path;
@@ -400,7 +400,7 @@ public sealed class AIService : IAIService
 
         var pageContext = page?.GetContext() ?? "No specific context.";
         // Every tool that takes a path is held to what the user has shown the assistant: the page's files and folders.
-        var scope       = Agent.RunScope.Of(page);
+        var scope       = Agent.RunScope.Of(page, _workspace.Vfs);
         var tools       = new List<IClientTool>(page?.GetClientTools() ?? []);
 
         // A searchable page gets its search tools automatically — declaring ISearchable is the whole
