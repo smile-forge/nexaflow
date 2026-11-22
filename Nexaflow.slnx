@@ -355,6 +355,12 @@
   <Project Path="src/Nexaflow.IO.Terminal/Nexaflow.IO.Terminal.csproj">
     <Platform Project="x64" />
   </Project>
+  <Project Path="src/Nexaflow.IO.Location.Wsl/Nexaflow.IO.Location.Wsl.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="src/Nexaflow.WslHelper/Nexaflow.WslHelper.csproj">
+    <Platform Project="x64" />
+  </Project>
   <!-- Subfeature metadata ([Subfeature] + ISubfeatureHandle<T>). Dependency-free by design so a plugin
        assembly can declare itself without dragging in WPF via Features.Common. -->
   <Project Path="src/Nexaflow.Plugins.Contracts/Nexaflow.Plugins.Contracts.csproj">

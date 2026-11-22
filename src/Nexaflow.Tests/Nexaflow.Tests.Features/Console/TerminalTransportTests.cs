@@ -18,17 +18,16 @@ namespace Nexaflow.Tests.Features.Console;
 [CoversNode("ioterm-transport")]
 public sealed class TerminalTransportTests
 {
-    private sealed class TestTerminal(FakeTerminal transport, IShellServices shell) : TerminalViewModel(transport, shell, Substitute.For<IAIService>())
+    private sealed class TestTerminal(FakeTerminal transport, IShellServices shell, string folder)
+        : TerminalViewModel(transport.AsCmd(folder), shell, Substitute.For<IAIService>())
     {
         protected override IReadOnlyList<TerminalEnvironment> Environments => [];
         protected override string? FindBoundEnvName(string folderPath) => null;
         protected override void PersistFolderBinding(string folderPath, string envName) { }
 
-        public Task Start(TerminalEnvironment? env = null) => Start(env, TestTemp.Root);
-
-        public Task Start(TerminalEnvironment? env, string path)
+        public Task Start(TerminalEnvironment? env = null)
         {
-            SetupInitialState(env, path);
+            SetupInitialState(env);
             return ShellStarted;
         }
     }
@@ -43,7 +42,7 @@ public sealed class TerminalTransportTests
 
     private readonly FakeTerminal _transport = new();
 
-    private TestTerminal Terminal() => new(_transport, RunningShell());
+    private TestTerminal Terminal(string? folder = null) => new(_transport, RunningShell(), folder ?? TestTemp.Root);
 
     [TestMethod]
     public async Task TheShellStartsWhereTheTabOpened_WithTheEnvironmentsVariables()
@@ -51,7 +50,7 @@ public sealed class TerminalTransportTests
         var env = new TerminalEnvironment { Name = "Build", EnvOverrides = new() { ["NEXA_MODE"] = "build" } };
         var folder = TestTemp.CreateSubdirectory("nexa-term-").FullName;
 
-        await Terminal().Start(env, folder);
+        await Terminal(folder).Start(env);
 
         Assert.AreEqual(folder, _transport.Launched!.WorkingDirectory);
         Assert.AreEqual("build", _transport.Launched.Environment!["NEXA_MODE"]);

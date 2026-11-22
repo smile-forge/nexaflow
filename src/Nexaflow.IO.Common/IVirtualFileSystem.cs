@@ -5,6 +5,7 @@ using System;
 using System.Threading;
 using Nexaflow.IO.Common.Locations;
 using System.Threading.Tasks;
+using Nexaflow.IO.Common.Terminal;
 
 namespace Nexaflow.IO.Common;
 
@@ -277,12 +278,25 @@ public interface IVirtualFileSystem
     /// offers an action.</summary>
     LocationCapabilities GetCapabilities(string path);
 
+    /// <summary>How names are compared under the path: ordinally on a location whose names differ by case
+    /// (<see cref="LocationCapabilities.CaseSensitive"/>), ignoring case on this disk and everywhere else. What a selection, a
+    /// reload's match of old rows to new, a check for an open tab and the assistant's reach compare paths by.</summary>
+    StringComparison GetNameComparison(string path);
+
+    /// <summary>A launcher for a shell on the host holding the folder, starting in the folder given as
+    /// <see cref="TerminalLaunch.WorkingDirectory"/> — a path of this file system — or null when the folder is not on a
+    /// location, and the caller starts its own shell on this computer. Fails with <see cref="LocationException"/> when the
+    /// location cannot be reached, and with <see cref="NotSupportedException"/> when it has no shell
+    /// (<see cref="LocationCapabilities.Shell"/>).</summary>
+    ValueTask<ITerminalLauncher?> GetTerminalLauncherAsync(string path, CancellationToken ct = default);
+
     /// <summary>As <see cref="DescribeArchive"/>.</summary>
     ValueTask<ArchiveSummary?> DescribeArchiveAsync(string containerPath, CancellationToken ct = default);
 
     /// <summary>A path on this disk holding the file's bytes, for a reader that can only open a file by a path of its own:
-    /// a real or mounted path as it is, an archive entry extracted to a cached temp copy. A file on a remote location keeps
-    /// no copy on this disk, and is refused with <see cref="NotSupportedException"/>.</summary>
+    /// a real or mounted path as it is, an archive entry extracted to a cached temp copy, a file on a location this machine
+    /// reaches as a Windows folder (<see cref="ILocationNativePaths"/>) by that folder's path. A file on any other location
+    /// keeps no copy on this disk, and is refused with <see cref="NotSupportedException"/>.</summary>
     ValueTask<string> MaterializeFileAsync(string path, CancellationToken ct = default);
 
     /// <summary>As <see cref="ExtractAll"/>.</summary>

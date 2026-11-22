@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text;
+using Nexaflow.IO.Common.Terminal;
 
 namespace Nexaflow.IO.Common.Locations;
 
@@ -16,12 +17,13 @@ namespace Nexaflow.IO.Common.Locations;
 /// <see cref="IsContainerAsync"/> answers false for one. Thread-safe.
 /// </para>
 /// </summary>
-public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher
+public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher, ILocationDirectory
 {
     private readonly IVirtualFileSystem _shared;
 
     // Swapped wholesale, as the shared mount table is: every call reads it and connections change rarely.
     private LocationMount[] _locations = [];
+    private IReadOnlyList<UnreachableLocation> _unreachable = [];
 
     public LocationFileSystem(IVirtualFileSystem shared) => _shared = shared;
 
@@ -32,6 +34,25 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher
 
     /// <summary>Raised when a location is connected or let go. May fire on any thread.</summary>
     public event Action? LocationsChanged;
+
+    public IReadOnlyList<MountedLocation> Mounted
+        => [.. Volatile.Read(ref _locations).Select(l => new MountedLocation(
+                l.Id, l.Label, l.Connection.Kind, l.Root, l.Capabilities, GetDisplayPath(l.Root)))];
+
+    public IReadOnlyList<UnreachableLocation> Unreachable => Volatile.Read(ref _unreachable);
+
+    event Action? ILocationDirectory.Changed
+    {
+        add    => LocationsChanged += value;
+        remove => LocationsChanged -= value;
+    }
+
+    /// <summary>Sets the connections the runtime could not mount, with why, for <see cref="Unreachable"/>.</summary>
+    public void ReportUnreachable(IReadOnlyList<UnreachableLocation> unreachable)
+    {
+        var previous = Interlocked.Exchange(ref _unreachable, unreachable);
+        if (!previous.SequenceEqual(unreachable)) LocationsChanged?.Invoke();
+    }
 
     /// <summary>Routes <c>::{id}</c> to the location, replacing one with the same id. Idempotent. Throws
     /// <see cref="ArgumentException"/> if the id is not path-segment-safe or already names a shared mount.</summary>
@@ -161,6 +182,37 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher
         return ReferenceEquals(segment, entry.Name) ? entry : entry with { Name = segment };
     }
 
+    /// <summary>Where the path is on this disk, when its location is reachable as a Windows folder; null otherwise.</summary>
+    private static string? NativePathOf(LocationMount location, string remainder)
+    {
+        if (location is not { NativePaths: { } native, NativeRoots: [var root, ..] }) return null;
+        root = root.TrimEnd('\\', '/');
+        var segments = remainder.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
+        return segments.Length == 0
+            ? root
+            : root + "\\" + string.Join('\\', segments.Select(s => native.ToNativeName(LocationPath.DecodeSegment(s))));
+    }
+
+    /// <summary>The location path for a Windows path under one of a location's native roots, or null when it is under none.</summary>
+    private string? FromNative(string realPath)
+    {
+        foreach (var location in Volatile.Read(ref _locations))
+        {
+            if (location.NativePaths is not { } native) continue;
+            foreach (var root in location.NativeRoots)
+            {
+                var trimmed = root.TrimEnd('\\', '/');
+                if (!realPath.StartsWith(trimmed, StringComparison.OrdinalIgnoreCase)) continue;
+                if (realPath.Length > trimmed.Length && realPath[trimmed.Length] is not ('\\' or '/')) continue;
+
+                var names = realPath[trimmed.Length..].Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
+                var providerPath = names.Length == 0 ? "/" : "/" + string.Join('/', names.Select(native.FromNativeName));
+                return VirtualPathOf(location, providerPath);
+            }
+        }
+        return null;
+    }
+
     // ── Sync: local paths only ──────────────────────────────────────────────
 
     public bool Exists(string path) => _shared.Exists(Local(path));
@@ -255,11 +307,14 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher
     // ── Paths ───────────────────────────────────────────────────────────────
 
     public VirtualBacking GetBacking(string path)
-        => TryRoute(path, out _, out _) ? VirtualBacking.Remote : _shared.GetBacking(path);
+        => TryRoute(path, out var location, out _)
+            ? location.NativeRoots.Count > 0 ? VirtualBacking.PassThrough : VirtualBacking.Remote
+            : _shared.GetBacking(path);
 
-    public string? TryResolveReal(string path) => TryRoute(path, out _, out _) ? null : _shared.TryResolveReal(path);
+    public string? TryResolveReal(string path)
+        => TryRoute(path, out var location, out var remainder) ? NativePathOf(location, remainder) : _shared.TryResolveReal(path);
 
-    public string? TryToVirtual(string realPath) => _shared.TryToVirtual(realPath);
+    public string? TryToVirtual(string realPath) => FromNative(realPath) ?? _shared.TryToVirtual(realPath);
 
     // A ::{id}\… parent is found by its string alone, which the shared rule already does for any id.
     public string? GetParentPath(string path) => _shared.GetParentPath(path);
@@ -460,15 +515,46 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher
     public LocationCapabilities GetCapabilities(string path)
         => TryRoute(path, out var location, out _) ? location.Capabilities : _shared.GetCapabilities(path);
 
+    public StringComparison GetNameComparison(string path)
+        => TryRoute(path, out var location, out _) ? LocationPath.Comparison(location.Capabilities) : _shared.GetNameComparison(path);
+
+    public async ValueTask<ITerminalLauncher?> GetTerminalLauncherAsync(string path, CancellationToken ct = default)
+    {
+        if (!TryRoute(path, out var location, out _))
+            return await _shared.GetTerminalLauncherAsync(path, ct).ConfigureAwait(false);
+        if ((location.Capabilities & LocationCapabilities.Shell) == 0)
+            throw new NotSupportedException($"'{location.Label}' has no shell.");
+
+        var session = await location.Sessions.GetSessionAsync(ct).ConfigureAwait(false);
+        var shell   = session.Shell ?? throw new NotSupportedException($"'{location.Label}' offers no shell now.");
+        return new RoutedShell(this, location, shell);
+    }
+
+    /// <summary>A location's shell taking this file system's paths: a working folder on the same location is handed to the
+    /// shell as its provider path, and anything else starts the shell in its own home.</summary>
+    private sealed class RoutedShell(LocationFileSystem files, LocationMount location, ILocationShell shell) : ITerminalLauncher
+    {
+        public ValueTask<ITerminalTransport> LaunchAsync(TerminalLaunch launch, CancellationToken ct)
+        {
+            string? folder = launch.WorkingDirectory is { } path
+                             && files.TryRoute(path, out var on, out var remainder) && IdEquals(on.Id, location.Id)
+                ? LocationPath.ToProviderPath(remainder)
+                : null;
+            return shell.LaunchAsync(launch with { WorkingDirectory = folder }, ct);
+        }
+    }
+
     public ValueTask<ArchiveSummary?> DescribeArchiveAsync(string containerPath, CancellationToken ct = default)
         => TryRoute(containerPath, out _, out _)
             ? ValueTask.FromResult<ArchiveSummary?>(null)   // a remote file is never a container
             : _shared.DescribeArchiveAsync(containerPath, ct);
 
     public ValueTask<string> MaterializeFileAsync(string path, CancellationToken ct = default)
-        => TryRoute(path, out _, out _)
-            ? ValueTask.FromException<string>(new NotSupportedException($"'{path}' is on a remote location, which keeps no copy of it on this disk."))
-            : _shared.MaterializeFileAsync(path, ct);
+        => !TryRoute(path, out var location, out var remainder)
+            ? _shared.MaterializeFileAsync(path, ct)
+            : NativePathOf(location, remainder) is { } native
+                ? ValueTask.FromResult(native)
+                : ValueTask.FromException<string>(new NotSupportedException($"'{path}' is on a remote location, which keeps no copy of it on this disk."));
 
     public ValueTask ExtractAllAsync(string containerPath, string destinationDir,
                                      IProgress<TransferProgress>? progress = null, CancellationToken ct = default)

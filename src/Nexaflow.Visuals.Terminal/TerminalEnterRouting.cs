@@ -15,8 +15,9 @@ public enum TerminalEnterAction
 
 /// <summary>
 /// The decision Enter makes, and what it implies. <see cref="Text"/> is the trimmed line the action
-/// applies to; <see cref="ClearShellLine"/> asks the caller to send an Esc first, so the words the user
-/// typed at the assistant don't stay sitting on the shell's input line.
+/// applies to; <see cref="ClearShellLine"/> asks the caller to clear the shell's input line first (the dialect's
+/// <see cref="Shells.TerminalShellDialect.ClearInputLine"/>), so the words the user typed at the assistant don't stay
+/// sitting on it.
 /// </summary>
 public readonly record struct TerminalEnterDecision(TerminalEnterAction Action, string Text, bool ClearShellLine);
 

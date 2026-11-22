@@ -122,6 +122,9 @@
     <ProjectReference Include="..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
     <ProjectReference Include="..\Nexaflow.Visuals.Web\Nexaflow.Visuals.Web.csproj" />
     <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <!-- Location backends: found by the catalog's sweep of Nexaflow.IO.Location.*.dll beside the features, so referenced
+         only to land there. The WSL one brings its in-distro helpers with it, under wsl-helper\. -->
+    <ProjectReference Include="..\Nexaflow.IO.Location.Wsl\Nexaflow.IO.Location.Wsl.csproj" />
 
     <!-- Subfeature metadata. Core reads [Subfeature] during the catalog scan and hands host features their
          plugin sets; the attribute lives in a dependency-free leaf so a plugin assembly stays WPF-free. -->

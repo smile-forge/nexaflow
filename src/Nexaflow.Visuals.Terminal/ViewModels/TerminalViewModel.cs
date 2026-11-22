@@ -7,12 +7,12 @@ using Nexaflow.IO.Common.Terminal;
 using Nexaflow.IO.Terminal;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Terminal.Models;
+using Nexaflow.Visuals.Terminal.Shells;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Text;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows;
 using System.Windows.Data;
@@ -22,16 +22,17 @@ namespace Nexaflow.Visuals.Terminal.ViewModels;
 
 /// <summary>
 /// Reusable terminal page view-model: owns one terminal transport (<see cref="ITerminalTransport"/>), started by the
-/// <see cref="ITerminalLauncher"/> it is given — ConPTY on this computer, a location's shell elsewhere — whose shell
-/// stays alive for the tab's lifetime, renders its output at the size the view has room for, and tracks the working
-/// directory, environment snapshot and command history. Shell-specific bits (which executable, how to phrase <c>cd</c>/<c>set</c>)
-/// and the environment source/persistence are supplied by a feature-specific subclass — so cmd and a
-/// future PowerShell feature share everything here without referencing each other.
+/// <see cref="TerminalShellRoute"/> it is given — cmd in ConPTY on this computer, a location's shell elsewhere — whose
+/// shell stays alive for the tab's lifetime, renders its output at the size the view has room for, and tracks the working
+/// directory, environment snapshot and command history. How to speak to the shell — phrasing <c>cd</c>/<c>set</c>, reading
+/// its prompt or following the folder it reports and the prompts it marks — is the route's
+/// <see cref="TerminalShellDialect"/>; the environment source/persistence are supplied by a feature-specific subclass — so
+/// cmd and a future PowerShell feature share everything here without referencing each other.
 /// </summary>
 public abstract partial class TerminalViewModel : ObservableObject, IDisposable, IPageViewModel, IChatEngagement
 {
     // ── Terminal back-end ─────────────────────────────────────────────────
-    private readonly ITerminalLauncher _launcher;
+    private readonly TerminalShellRoute _route;
     private readonly Lock _transportGate = new();
     private ITerminalTransport? _transport;            // null until the launcher hands it over
     private readonly List<string> _pendingInput = [];   // typed before the shell was there
@@ -53,6 +54,13 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     // the init sequence (fire once per prompt) and gates the Enter command/query routing.
     private bool _atPrompt;
 
+    // Set once the shell marks its prompt cycle (OSC 133): from then on its marks, not how a prompt looks, say where it is.
+    private bool _marksPrompts;
+
+    // Where the latest prompt started (A) and where typing starts after it (B), on the screen's line numbering.
+    private ShellMark? _promptStart;
+    private ShellMark? _inputStart;
+
     // ── Environment / tab ─────────────────────────────────────────────────
     protected readonly IShellServices _shell;
     protected readonly IAIService     _ai;
@@ -61,10 +69,9 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     /// <summary>Set by the page registration so the VM can update its own page title/breadcrumbs.</summary>
     public Page? Tab { get; set; }
 
-    // First-prompt init state machine: 0 = waiting for first prompt,
-    // 1 = cd sent, waiting for next prompt, 2 = normal operation.
+    // Init state machine: 0 = waiting for the first prompt, 1 = cd sent, waiting for the next prompt,
+    // 2 = normal operation.
     private int     _initPhase;
-    private string? _pendingInitPath;
     private string? _pendingInitCmd;
 
     // ── Observable state ──────────────────────────────────────────────────
@@ -76,7 +83,8 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     /// on each chunk. Together with <see cref="Scrollback"/> this is the full terminal display.</summary>
     [ObservableProperty] private string _screenText = string.Empty;
 
-    /// <summary>Current path shown in the top bar — updated by parsing shell prompts.</summary>
+    /// <summary>The shell's folder, shown in the top bar, as its dialect names folders — read off its prompt, or followed
+    /// as the shell reports it.</summary>
     [ObservableProperty] private string _currentPath =
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
@@ -125,15 +133,8 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     /// <summary>Persists "always use this environment for this folder".</summary>
     protected abstract void PersistFolderBinding(string folderPath, string envName);
 
-    /// <summary>How this shell changes directory (cmd: <c>cd /d "…"</c>).</summary>
-    protected virtual string FormatCdCommand(string path) => $"cd /d \"{path}\"";
-
-    /// <summary>How this shell sets a variable for the live session (cmd: <c>set "NAME=value"</c>).</summary>
-    protected virtual string FormatSetCommand(string name, string value) => $"set \"{name}={value}\"";
-
-    /// <summary>Human description of the shell, so the AI's run_command tool uses the right syntax.</summary>
-    protected virtual string ShellDescription =>
-        "the Windows cmd.exe command prompt (use cmd / batch syntax such as `dir`, not PowerShell cmdlets)";
+    /// <summary>How to speak to the shell this terminal runs.</summary>
+    protected TerminalShellDialect Dialect => _route.Dialect;
 
     /// <summary>The feature's workspace-config section name, for the top-bar Configure deep link. Null
     /// when the shell exposes no configurable environments (the button is then hidden).</summary>
@@ -151,18 +152,21 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
     // ── Construction / startup ────────────────────────────────────────────
 
-    /// <param name="launcher">What starts the shell — ConPTY on this computer, a location's shell elsewhere.</param>
+    /// <param name="route">The shell this terminal runs — what starts it, how to speak to it, and where it starts.</param>
     /// <param name="cols">The width the shell starts at, until the view says how much room it has.</param>
     /// <param name="rows">The height the shell starts at, likewise.</param>
-    protected TerminalViewModel(ITerminalLauncher launcher, IShellServices shell, IAIService ai,
+    protected TerminalViewModel(TerminalShellRoute route, IShellServices shell, IAIService ai,
                                 int cols = 220, int rows = 50)
     {
         _shell    = shell;
         _ai       = ai;
         _cols     = cols;
         _rows     = rows;
+        _route    = route;
         _screen   = new TerminalScreen(cols, rows);
-        _launcher = launcher;
+        _screen.WorkingFolderReported += OnWorkingFolderReported;
+        _screen.ShellMarked           += OnShellMarked;
+        if (route.StartFolder is { } start) CurrentPath = start;
 
         _envView = CollectionViewSource.GetDefaultView(EnvVars);
         _envView.Filter = o => MatchesEnvFilter(o as EnvVar);
@@ -172,10 +176,10 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     }
 
     /// <summary>
-    /// Resolves the active environment, applies its variable overrides to the PTY, and starts the shell
-    /// in the launch path. Call once from the subclass constructor after its environment source is set.
+    /// Resolves the active environment, applies its variable overrides to the shell, and starts it in the route's start
+    /// folder. Call once from the subclass constructor after its environment source is set.
     /// </summary>
-    protected void SetupInitialState(TerminalEnvironment? env, string? initialPath, bool pickerPending = false)
+    protected void SetupInitialState(TerminalEnvironment? env, bool pickerPending = false)
     {
         // When a launch picker is pending, start with no active environment (and no initial command) —
         // the chosen environment is applied to the running shell once the user picks.
@@ -185,12 +189,11 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         // environment's variable overrides at process creation — no visible `cd` entry on open.
         var overrides = _activeEnv?.EnvOverrides is { Count: > 0 } envOverrides ? envOverrides : null;
 
-        // Only the initial command is deferred to the first prompt; the launch path is already applied.
-        _pendingInitPath = null;
+        // Only the initial command is deferred to the first prompt; the launch folder is already applied.
         _pendingInitCmd  = _activeEnv?.InitialCommand;
         _initPhase       = _pendingInitCmd is not null ? 0 : 2;
 
-        ShellStarted = StartAsync(new TerminalLaunch(initialPath, overrides, _cols, _rows));
+        ShellStarted = StartAsync(new TerminalLaunch(_route.StartFolder, overrides, _cols, _rows));
         RefreshEnvVars();
         RefreshFiles();
     }
@@ -206,7 +209,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     private async Task StartAsync(TerminalLaunch launch)
     {
         ITerminalTransport transport;
-        try { transport = await _launcher.LaunchAsync(launch, _disposeCts.Token); }
+        try { transport = await _route.Launcher.LaunchAsync(launch, _disposeCts.Token); }
         catch (OperationCanceledException) { return; }
         catch (Exception e)
         {
@@ -370,7 +373,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         // a background-command watch; the watcher only yields to real typing or Ctrl-C.)
         EngagementInvalidated?.Invoke();
 
-        var decision = TerminalEnterRouting.Decide(_atPrompt ? CurrentInputLine() : null, ShellBuiltins);
+        var decision = TerminalEnterRouting.Decide(_atPrompt ? CurrentInputLine() : null, Dialect.Builtins);
         switch (decision.Action)
         {
             case TerminalEnterAction.ForwardToProgram:
@@ -385,32 +388,46 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
                 break;
 
             case TerminalEnterAction.AskTheAssistant:
-                if (decision.ClearShellLine) Send("\x1b");   // Esc clears cmd's current input line
+                if (decision.ClearShellLine) Send(Dialect.ClearInputLine);
                 _shell.SubmitAiQuery(decision.Text);
                 break;
         }
     }
 
-    /// <summary>The text typed after the prompt on the cursor row, or null if that row isn't a prompt.</summary>
+    /// <summary>The text typed after the prompt: from where a marking shell said typing starts, or past the prompt the cursor
+    /// row starts with.</summary>
     private string? CurrentInputLine()
     {
-        var snap = _screen.Snapshot();
-        var row  = (snap.ElementAtOrDefault(_screen.CursorRow) ?? string.Empty).TrimEnd();
-        var m    = PromptPathRegex.Match(row);
-        return m.Success && m.Index == 0 ? row[m.Length..] : row;
-    }
+        var snap      = _screen.Snapshot();
+        int cursorRow = _screen.CursorRow;
+        if (_marksPrompts && _inputStart is { } start)
+        {
+            int row = (int)(start.Line - _screen.TopLine);
+            if (row >= 0 && row <= cursorRow)
+            {
+                // A line longer than the screen wraps: what is typed runs on over the rows below.
+                var typed = new StringBuilder();
+                for (int r = row; r <= cursorRow; r++)
+                {
+                    var text = snap.ElementAtOrDefault(r) ?? string.Empty;
+                    typed.Append(r != row ? text : start.Column < text.Length ? text[start.Column..] : string.Empty);
+                }
+                return typed.ToString().TrimEnd();
+            }
+        }
 
-    /// <summary>The shell's built-in command names, used to classify Enter'd lines (cmd by default).</summary>
-    protected virtual IReadOnlySet<string> ShellBuiltins => CommandClassifier.CmdBuiltins;
+        var line = (snap.ElementAtOrDefault(cursorRow) ?? string.Empty).TrimEnd();
+        return line[(Dialect.ReadPrompt(line)?.InputColumn ?? 0)..];
+    }
 
     /// <summary>
     /// True if <paramref name="input"/> is a recognised shell command (vs. natural language) for this
     /// terminal. The chat-bar query handler uses it to route a typed line to the shell while letting
     /// natural language reach the AI; it wraps the same <see cref="CommandClassifier"/> heuristic Enter
-    /// uses, keeping <see cref="ShellBuiltins"/> encapsulated. Blank input is not a command here.
+    /// uses, with the dialect's built-ins. Blank input is not a command here.
     /// </summary>
     public bool IsConsoleCommand(string input)
-        => !string.IsNullOrWhiteSpace(input) && CommandClassifier.IsCommand(input, ShellBuiltins);
+        => !string.IsNullOrWhiteSpace(input) && CommandClassifier.IsCommand(input, Dialect.Builtins);
 
     // ── Chat-bar participation (the bar can still drive the terminal) ──────
 
@@ -478,27 +495,14 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
             ResetQuietTimer();
         }
 
-        // A bare shell prompt on the cursor row means the previous command finished. Handle it once per
-        // prompt (not on every chunk, and not while the user is mid-typing — the row then ends with the
-        // typed text, so PeekPromptLine returns null and _atPrompt simply stays set).
-        if (_screen.PeekPromptLine() is { } prompt)
+        // A shell that marks its prompts says itself when one returns (OnShellMarked). For one that does not, a bare
+        // prompt on the cursor row means the previous command finished. Handle it once per prompt (not on every chunk,
+        // and not while the user is mid-typing — the row then ends with the typed text, so it is no bare prompt and
+        // _atPrompt simply stays set).
+        if (!_marksPrompts && !_atPrompt && Dialect.ReadPrompt(_screen.CursorRowText) is { IsBare: true } prompt)
         {
-            if (!_atPrompt)
-            {
-                _atPrompt = true;
-                IsBusy    = false;
-                _captureTcs?.TrySetResult(true);   // a capture in flight: the command finished (clean prompt)
-
-                if (ExtractPathFromPrompt(prompt) is { } path)
-                {
-                    bool pathChanged = !string.Equals(path, CurrentPath, StringComparison.OrdinalIgnoreCase);
-                    CurrentPath = path;
-                    RefreshEnvVars();
-                    if (pathChanged) RefreshFiles();   // re-enumerate only when the directory changes
-                    HandlePromptDetected();
-                    SyncTabMeta();
-                }
-            }
+            if (prompt.Folder is { } folder) MoveTo(folder);
+            OnPromptReturned(knowsFolder: prompt.Folder is not null);
         }
 
         ScrollRequested?.Invoke(this, EventArgs.Empty);
@@ -516,20 +520,58 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     // applied, so prompt detection is straightforward: does the row end in '>'
     // and contain a drive-letter path?
 
-    private static readonly Regex PromptPathRegex = new(
-        @"(?:PS )?[A-Za-z]:\\[^>]*>",
-        RegexOptions.Compiled);
+    // ── Prompts and folders ───────────────────────────────────────────────
+    //
+    // The screen buffer gives clean text with cursor-move effects already applied, so a prompt the dialect reads off the
+    // cursor row is reliable; a shell that marks its prompts (OSC 133) and reports its folder (OSC 7) needs no reading.
 
-    private static string? ExtractPathFromPrompt(string line)
+    /// <summary>The shell is back at a prompt: the command that ran has finished. With its folder known, the panels catch up,
+    /// the start-up sequence moves on and the tab follows.</summary>
+    private void OnPromptReturned(bool knowsFolder)
     {
-        var t = line.TrimEnd();
-        if (t.Length < 3 || !t.EndsWith('>')) return null;
-        var m = PromptPathRegex.Match(t);
-        if (!m.Success) return null;
-        var path = m.Value[..^1];   // strip trailing '>'
-        if (path.StartsWith("PS ", StringComparison.OrdinalIgnoreCase))
-            path = path[3..];
-        return path.Trim();
+        _atPrompt = true;
+        IsBusy    = false;
+        _captureTcs?.TrySetResult(true);   // a capture in flight: the command finished (clean prompt)
+        if (!knowsFolder) return;
+
+        RefreshEnvVars();
+        HandlePromptDetected();
+        SyncTabMeta();
+    }
+
+    /// <summary>The shell is in <paramref name="folder"/>; the Files panel is listed again only when that is a move.</summary>
+    private void MoveTo(string folder)
+    {
+        bool moved  = !string.Equals(folder, CurrentPath, Dialect.PathComparison);
+        CurrentPath = folder;
+        if (moved) RefreshFiles();
+    }
+
+    /// <summary>Follows the folder the shell reports (OSC 7), where it names one this terminal reaches.</summary>
+    private void OnWorkingFolderReported(TerminalWorkingFolder reported)
+    {
+        if (Dialect.ToFolder(reported) is { } folder) MoveTo(folder);
+    }
+
+    /// <summary>Follows a shell that marks its prompt cycle (OSC 133): a prompt has returned once typing starts after it
+    /// (B), and a command runs once its output starts (C).</summary>
+    private void OnShellMarked(ShellMark mark)
+    {
+        _marksPrompts = true;
+        switch (mark.Kind)
+        {
+            case ShellMarkKind.PromptStart:
+                _promptStart = mark;
+                break;
+            case ShellMarkKind.InputStart:
+                _inputStart = mark;
+                if (!_atPrompt) OnPromptReturned(knowsFolder: true);
+                break;
+            case ShellMarkKind.OutputStart:
+                _atPrompt = false;
+                IsBusy    = true;
+                break;
+        }
     }
 
     // ── Init state machine ────────────────────────────────────────────────
@@ -539,39 +581,23 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     //   1 — awaiting the post-cd prompt; send InitialCommand if defined
     //   2 — normal operation; nothing to do
 
+    // ── Init state machine ────────────────────────────────────────────────
+    //
+    // Called each time a prompt returns with its folder known. The shell starts in its folder, so only the environment's
+    // initial command waits for a prompt:
+    //   0 — awaiting the very first prompt
+    //   1 — awaiting the prompt after a cd (ApplyParams)
+    //   2 — normal operation; nothing to do
+
     private void HandlePromptDetected()
     {
-        if (_initPhase == 0)
+        if (_initPhase == 2) return;
+        _initPhase = 2;
+        if (_pendingInitCmd is not null)
         {
-            if (_pendingInitPath is not null)
-            {
-                var path = _pendingInitPath;
-                _pendingInitPath = null;
-                _initPhase = 1;
-                SendCommand(FormatCdCommand(path));
-            }
-            else
-            {
-                if (_pendingInitCmd is not null)
-                {
-                    var cmd = _pendingInitCmd;
-                    _pendingInitCmd = null;
-                    _initPhase = 2;
-                    SendCommand(cmd);
-                }
-                else _initPhase = 2;
-            }
-        }
-        else if (_initPhase == 1)
-        {
-            if (_pendingInitCmd is not null)
-            {
-                var cmd = _pendingInitCmd;
-                _pendingInitCmd = null;
-                _initPhase = 2;
-                SendCommand(cmd);
-            }
-            else _initPhase = 2;
+            var cmd = _pendingInitCmd;
+            _pendingInitCmd = null;
+            SendCommand(cmd);
         }
     }
 
@@ -612,12 +638,16 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         // Only navigate when the shell is not already at the requested path.
         // This prevents spurious cd commands when the tab is merely refocused.
         bool pathChanged = newPath is not null
-            && !string.Equals(newPath, CurrentPath, StringComparison.OrdinalIgnoreCase);
+            && !string.Equals(newPath, CurrentPath, Dialect.PathComparison);
 
         if (pathChanged)
         {
-            _initPhase = _pendingInitCmd is not null ? 1 : 2;
-            SendCommand(FormatCdCommand(newPath!));
+            if (Dialect.FormatCdCommand(newPath!) is { } cd)
+            {
+                _initPhase = _pendingInitCmd is not null ? 1 : 2;
+                SendCommand(cd);
+            }
+            else Scrollback.Add(Str.Format("Terminal.Console.Unreachable", newPath!));
         }
         else if (_pendingInitCmd is not null && !IsBusy)
         {
@@ -748,7 +778,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
         // The shell is already running, so overrides go in via live `set` rather than the process block.
         foreach (var kv in env.EnvOverrides)
-            SendCommand(FormatSetCommand(kv.Key, kv.Value));
+            SendCommand(Dialect.FormatSetCommand(kv.Key, kv.Value));
 
         if (!string.IsNullOrEmpty(env.InitialCommand))
         {
@@ -774,7 +804,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         switch (scope)
         {
             case EnvScope.Session:
-                SendCommand(FormatSetCommand(name, value));
+                SendCommand(Dialect.FormatSetCommand(name, value));
                 return true;
 
             case EnvScope.User:
@@ -832,7 +862,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     /// <summary>Navigates the shell into a folder from the Files panel (double-click).</summary>
     public void NavigateInto(TerminalFsEntry entry)
     {
-        if (entry.IsDirectory) SendCommand(FormatCdCommand(entry.FullPath));
+        if (entry.IsDirectory && Dialect.FormatCdCommand(entry.FullPath) is { } cd) SendCommand(cd);
     }
 
     // ── IPageViewModel ────────────────────────────────────────────────────
@@ -863,7 +893,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     public ContextGrant GetContextGrant() => ContextGrant.OfFolder(CurrentPath);
 
     public string? GetAiSystemPromptGuidance() =>
-        $"You are attached to a live terminal at '{CurrentPath}' running {ShellDescription}. You can run " +
+        $"You are attached to a live terminal at '{Dialect.DescribeFolder(CurrentPath)}' running {Dialect.Description}. You can run " +
         "commands directly with the approval-gated `run_command` tool and you receive the actual output " +
         "back, so inspect results and keep going. To suggest a command for the user to run themselves " +
         "instead of running it, emit a `client_prefill` block whose text is the command prefixed with `>` " +
@@ -878,8 +908,8 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
             // isn't a recognised command) by running real commands in the live shell. Approval-gated.
             new DelegateClientTool(
                 "run_command",
-                $"Runs a command line in this terminal's running shell: {ShellDescription}. It is the user's " +
-                $"live session, currently at '{CurrentPath}'. The command runs there and you receive its " +
+                $"Runs a command line in this terminal's running shell: {Dialect.Description}. It is the user's " +
+                $"live session, currently at '{Dialect.DescribeFolder(CurrentPath)}'. The command runs there and you receive its " +
                 "output back. A command that doesn't finish quickly is left running in the background and " +
                 "you are told nothing further until it completes — don't wait on it.",
                 [new ClientToolParameter("command", "The exact command line to run.")],
@@ -1038,16 +1068,31 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
             var plainLines = new List<string>();
             for (int i = _captureMark; i < Scrollback.Count; i++) plainLines.Add(Scrollback[i]);
-            plainLines.AddRange(screenLines);
+            plainLines.AddRange(AbovePrompt(screenLines));
             // Drop the trailing fresh prompt / blank lines so plain output is just the command's output.
             while (plainLines.Count > 0 &&
-                   (plainLines[^1].Trim().Length == 0 || plainLines[^1].TrimEnd().EndsWith('>')))
+                   (plainLines[^1].Trim().Length == 0
+                    || (!_marksPrompts && Dialect.ReadPrompt(plainLines[^1]) is { IsBare: true })))
                 plainLines.RemoveAt(plainLines.Count - 1);
 
             return Task.FromResult(new CaptureSnapshot(
                 Cap(string.Join("\n", plainLines).TrimEnd()), screen,
                 _captureSawAnsi, _screen.IsAltScreen, _atPrompt));
         });
+
+    /// <summary>The screen's rows above the prompt a marking shell is at — the row the prompt starts on cut where it starts;
+    /// for any other shell the whole screen, its trailing prompt left to the caller.</summary>
+    private IReadOnlyList<string> AbovePrompt(IReadOnlyList<string> rows)
+    {
+        if (!(_marksPrompts && _atPrompt && _promptStart is { } start)) return rows;
+        int row = (int)(start.Line - _screen.TopLine);
+        if (row < 0) return [];
+        if (row >= rows.Count) return rows;
+
+        var above = rows.Take(row).ToList();
+        if (start.Column > 0) above.Add(rows[row][..Math.Min(start.Column, rows[row].Length)]);
+        return above;
+    }
 
     private async Task<CommandKind> ClassifyAsync(string command, string output, CancellationToken ct)
     {

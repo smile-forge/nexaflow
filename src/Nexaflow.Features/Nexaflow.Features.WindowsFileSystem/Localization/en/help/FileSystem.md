@@ -11,6 +11,15 @@ Browses the drives and folders on this PC and acts on the files in them.
 - Right-click a folder in the tree for Open in right pane, which puts a second folder beside this one.
 - F5 re-reads the folder. Clicking the folder or file tally under the list shows only that kind; clicking it again shows both.
 
+## Linux (WSL)
+
+- Each WSL distro installed on this PC is a row of This PC, under Linux (WSL), as soon as it is installed — nothing to set up. Opening it starts the distro if it is not running, and the address bar shows where you are as `wsl://Ubuntu/home/you`.
+- Typing or pasting `\\wsl.localhost\Ubuntu\…` or `wsl://Ubuntu/…` opens the same folder.
+- A distro's folders list their Permissions, Owner and Group as `ls -l` does, a link shows where it points, and names that differ only by case are different files, as they are in Linux.
+- Saving a file there keeps its permissions, so a script stays runnable, and a change made from inside Linux shows in the open folder at once.
+- Open terminal here opens the distro's own shell at the folder, and the terminal follows `cd`.
+- A folder that cannot be read — the distro was shut down, you may not read it — says why, with Try again. [Show me](locate:FileListRetryButton)
+
 ## Opening a file
 
 - Double-click a file, or press Shift+Enter with one row selected. It opens in whichever built-in viewer claims its type, and in the Windows default program when none does.

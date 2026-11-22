@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Core.Services;
 using Nexaflow.IO.Common;
@@ -10,8 +12,9 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Core.Unit;
 
 /// <summary>
-/// A runtime's mounts: its workspace's connections on its file system, each with its pooled session, following the
-/// connections as they change and keeping a session across a switch to a workspace that has the same connection.
+/// A runtime's mounts: its workspace's connections and the ones found on this machine on its file system, each with its
+/// pooled session, following both as they change and keeping a session across a switch to a workspace that has the same
+/// connection.
 /// </summary>
 [TestClass]
 [CoversNode("io-locations-pool")]
@@ -22,6 +25,8 @@ public sealed class RuntimeLocationsTests
     private RuntimeLocations _locations = null!;
     private WorkspaceConnections _connections = null!;
     private ConnectionProfile _nas = null!;
+    private FindsHosts _finder = null!;
+    private DiscoveredLocations _discovered = null!;
 
     [TestInitialize]
     public void Setup()
@@ -32,11 +37,13 @@ public sealed class RuntimeLocationsTests
         _nas = new ConnectionProfile("memory-" + _host.Name, "memory", "NAS", _host.Name);
 
         var registry = new LocationProviderRegistry();
-        registry.Register(new MemoryLocationProvider());
+        _finder = new FindsHosts();
+        registry.Register(_finder);
         var secrets = new StoredCredentialSource(new NoSecrets());
 
         _vfs         = new LocationFileSystem(VirtualFileSystem.Instance);
-        _locations   = new RuntimeLocations(_vfs, new LocationSessionPool(registry, secrets));
+        _discovered  = new DiscoveredLocations(registry);
+        _locations   = new RuntimeLocations(_vfs, new LocationSessionPool(registry, secrets), _discovered);
         _connections = new WorkspaceConnections(TestTemp.CreateSubdirectory("nexa-runtime-").FullName, new NoSecrets());
     }
 
@@ -52,6 +59,31 @@ public sealed class RuntimeLocationsTests
         public string? Read(string target) => null;
         public void Write(string target, string? userName, string secret) { }
         public bool Delete(string target) => false;
+    }
+
+    /// <summary>The in-memory backend, finding on this machine whatever the test says it finds.</summary>
+    private sealed class FindsHosts : ILocationProvider, ILocationDiscovery
+    {
+        private readonly MemoryLocationProvider _memory = new();
+        private ConnectionProfile[] _found = [];
+
+        public string Kind => _memory.Kind;
+
+        public LocationCapabilities Capabilities => _memory.Capabilities;
+
+        public ValueTask<ILocationSession> ConnectAsync(ConnectionProfile profile, ICredentialSource credentials, CancellationToken ct)
+            => _memory.ConnectAsync(profile, credentials, ct);
+
+        public ValueTask<IReadOnlyList<ConnectionProfile>> DiscoverAsync(CancellationToken ct)
+            => ValueTask.FromResult<IReadOnlyList<ConnectionProfile>>(Volatile.Read(ref _found));
+
+        public event Action? Changed;
+
+        public void Find(params ConnectionProfile[] found)
+        {
+            Volatile.Write(ref _found, found);
+            Changed?.Invoke();
+        }
     }
 
     private string Root => VirtualMount.RootFor(_nas.Id);
@@ -137,5 +169,58 @@ public sealed class RuntimeLocationsTests
 
         Assert.AreEqual(0, _vfs.Locations.Count);
         Assert.AreEqual(1, _host.Disconnects);
+    }
+
+    [TestMethod]
+    [CoversNode("io-locations-discovery")]
+    public async Task AConnectionFoundOnThisMachineIsMounted_AndNeverSaved()
+    {
+        _locations.Follow(_connections);
+        _finder.Find(_nas);
+        await _discovered.StartAsync();
+
+        Assert.IsTrue(_vfs.Locations.Any(l => l.Id == _nas.Id), "what is found is mounted");
+        Assert.AreEqual(0, _connections.All.Count, "nothing found is written to the workspace");
+        Assert.IsTrue(await _vfs.ExistsAsync(Root), "and it is reached through the runtime's file system");
+    }
+
+    [TestMethod]
+    [CoversNode("io-locations-discovery")]
+    public async Task ASavedConnectionKeepsItsIdOverAFoundOne()
+    {
+        _connections.Save(_nas with { Label = "Saved" });
+        _locations.Follow(_connections);
+        _finder.Find(_nas with { Label = "Found" });
+        await _discovered.StartAsync();
+
+        var mounted = _vfs.Locations.Single(l => l.Id == _nas.Id);
+        Assert.AreEqual("Saved", mounted.Label);
+    }
+
+    [TestMethod]
+    [CoversNode("io-locations-discovery")]
+    public async Task AFoundConnectionThatGoesIsUnmounted()
+    {
+        _locations.Follow(_connections);
+        _finder.Find(_nas);
+        await _discovered.StartAsync();
+        Assert.IsTrue(_vfs.Locations.Any(l => l.Id == _nas.Id));
+
+        _finder.Find();
+        await _discovered.RefreshAsync();
+
+        Assert.IsFalse(_vfs.Locations.Any(l => l.Id == _nas.Id), "a distro uninstalled leaves no location behind");
+    }
+
+    [TestMethod]
+    [CoversNode("io-locations-discovery")]
+    public void WhatCannotBeMountedIsListedOnTheFileSystemWithWhy()
+    {
+        _connections.Save(new ConnectionProfile("nowhere-1", "nowhere", "Nowhere", "host"));
+        _locations.Follow(_connections);
+
+        var listed = ((ILocationDirectory)_vfs).Unreachable.Single();
+        Assert.AreEqual("nowhere-1", listed.Connection.Id);
+        StringAssert.Contains(listed.Reason, "nowhere");
     }
 }

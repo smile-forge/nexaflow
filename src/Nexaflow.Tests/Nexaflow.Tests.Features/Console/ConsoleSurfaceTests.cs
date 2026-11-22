@@ -24,7 +24,7 @@ public class ConsoleSurfaceTests
     private sealed class TestTerminal : TerminalViewModel
     {
         public TestTerminal(IShellServices shell)
-            : base(new FakeTerminal(), shell, Substitute.For<IAIService>()) { }
+            : base(new FakeTerminal().AsCmd(), shell, Substitute.For<IAIService>()) { }
 
         protected override IReadOnlyList<TerminalEnvironment> Environments => [];
         protected override string? FindBoundEnvName(string folderPath) => null;

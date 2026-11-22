@@ -32,12 +32,12 @@ The groundwork is real but synchronous and Windows-path shaped, so the first job
 | Piece | Where | What it gives | What stops it carrying remote |
 | --- | --- | --- | --- |
 | `IVirtualFileSystem` | `IO.Common/IVirtualFileSystem.cs` | Transparent over archives, `::{id}` mounts and connected locations; async, cancellable members beside the sync ones; breadcrumbs, parent paths, display names and display forms | Features and the shared visuals open, save, list and probe through the async members, and what reads this disk directly is marked `[LocalDiskOnly]`; This PC's own probe of its rows is the one place still reported (`NXIO002`) |
-| `VirtualBacking` | `IO.Common/VirtualMount.cs` | Actions ask how a path's bytes are obtained before handing it to a process; `Remote` marks a path on a location | A remote path has no materialised copy until the content cache lands, so an action needing a native path is suppressed |
+| `VirtualBacking` | `IO.Common/VirtualMount.cs` | Actions ask how a path's bytes are obtained before handing it to a process; `Remote` marks a path on a location, and a location this machine also reaches as Windows folders (WSL) is `PassThrough` | A path on any other location has no materialised copy until the content cache lands, so an action needing a native path is suppressed there |
 | `LocationEntry` | `IO.Common/Locations/LocationEntry.cs` | Name, size, modified, hidden and read-only, symlink target, POSIX mode, owner, group, content hash, archive extras | — |
 | WindowsFileSystem feature | `Features.WindowsFileSystem` | The browser, This PC, file actions, transfers. Browsing, the tree, the address bar, create, rename and the assistant's file tools go through the runtime's async VFS; file actions are awaitable; copy, move and delete go through the engine, and what the Recycle Bin cannot hold is offered as a permanent delete | Dragging out of a location hands Windows a path it cannot open until the content cache lands |
 | `FileTransferEngine` | `IO.Common` | Progress, throughput, ETA, cancel. An item whose ends are both real paths on this disk takes the disk's own path; one with an end only the file system reaches (an archive, a location) goes through `FileTransferRequest.FileSystem` with the same promises | Free-space parking only where the destination is on this disk. Within one location that declares `ServerSideCopy` an unverified copy asks the server (`CopyWithinAsync`) and moves no bytes |
 | `IThisPcItemProvider` | `Features.Common/ThisPc` | Every row of This PC is a provider's: the volumes (the file browser's own provider), OneDrive's sync folders; each provider describes its own rows, and connections use the same seam | — |
-| `PathScope` | `IO.Common/PathScope.cs` | Assistant reach equals what the user has open | Normalises Windows paths only |
+| `PathScope` | `IO.Common/PathScope.cs` | Assistant reach equals what the user has open; a location's path (`::{id}\…`) is made full within its root and compared as the file system holding it says | Pages grant a folder by its Windows path, so a location is reachable only where it has one (WSL) |
 | `PseudoConsoleHostService` + `TerminalScreen` | `IO.Terminal` | The ConPTY transport for cmd/pwsh, started by `PseudoConsoleLauncher`, and a VT100 screen buffer sized to the console the shell is shown in | The view is a scrolling list of finished lines, so full-screen programs (vim, htop, tmux) are not drawn |
 | `ProtectedData` | `Core/ConfigManager.cs` | DPAPI protects stored secrets | Per-file, not a credential store with per-host entries |
 
@@ -60,8 +60,12 @@ carry it unchanged; what changes is that a mount can be backed by a provider rat
 - **Display form.** People and the assistant see a URI: `sftp://adam@nas/home/adam/notes.md`, `wsl://Ubuntu/home/adam`,
   `smb://nas/share/docs`. `IVirtualFileSystem.GetDisplayPath` produces it, `TryParseDisplayPath` reads it back for the
   address bar, so typing or pasting one opens it, and `GetDisplayName` / `GetBreadcrumbs` label each segment by its name.
-- **WSL and SMB need no escaping when Windows can already reach them.** `\\wsl.localhost\Ubuntu\…` and `\\nas\share\…`
-  are real paths; their providers add what Windows lacks (POSIX metadata, a native shell, faster listing), not a new name.
+- **A location Windows can already reach keeps its Windows path too.** A provider that implements
+  `ILocationNativePaths` names the folders its root is reachable as — `\\wsl.localhost\Ubuntu` and `\\wsl$\Ubuntu` for
+  `::wsl-ubuntu`. Typed or pasted, such a path opens the location (`TryToVirtual`); a file there is fully on disk
+  (`PassThrough`), so a reader that needs a path of its own is handed the Windows one with no copy; and a name Windows
+  cannot hold maps to the one the share shows. The provider adds what Windows lacks — POSIX metadata, a native shell,
+  faster listing — not a second name.
 
 ## The provider contract
 
@@ -109,6 +113,14 @@ public interface ILocationSessionSource                          // the pool, pe
     and each backend registers in `LocationProviderRegistry` as its assembly activates, or when a runtime asks for them
     before it mounts its connections. A connection no backend reaches is mounted nowhere, and says why.
 
+- **Some locations are found, not saved.** A backend that implements `ILocationDiscovery` lists the locations on this
+  machine — WSL lists each installed distro from the `Lxss` registry key and watches it. `DiscoveredLocations` keeps
+  what every such backend finds, and each runtime mounts it beside its workspace's saved connections; a saved one keeps
+  its id, and nothing found is written to a workspace.
+- **Pages see locations through `ILocationDirectory`**: the mounted locations — id, label, kind, root, capabilities,
+  display form — and the connections that could not be mounted, with why, read without touching the network. This PC
+  lists them through `LocationThisPcProvider`.
+
 - **Async first, all the way down.** Every member takes a `CancellationToken`. Listing is an `IAsyncEnumerable` so a
   50,000-entry folder paints its first rows at once, as Windows Search hits stream.
 - **Sync members refuse a remote path.** `IVirtualFileSystem`'s sync IO members keep serving real, mounted and archive
@@ -122,8 +134,9 @@ public interface ILocationSessionSource                          // the pool, pe
     has the detail.
   - **A reader that needs a path of its own asks for one.** `MaterializeFileAsync` hands a reader that can only open a file
     by path — video and audio playback, 3D models, fonts, the Executable inspector, Open with — a path on this disk holding
-    the file's bytes: a real or mounted path as it is, an archive entry extracted to a temp copy. A file on a location has
-    no copy on this disk until the content cache lands, and is refused with `NotSupportedException`. `ResolveOnDisk`
+  the file's bytes: a real or mounted path as it is, an archive entry extracted to a temp copy, a file on a location
+    this machine reaches as Windows folders by that path. A file on any other location has no copy on this disk until the
+    content cache lands, and is refused with `NotSupportedException`. `ResolveOnDisk`
     answers without IO where on this disk a file wholly is, or null — what a sidecar, a content probe or a Windows API is
     given.
 - **What is offered on a location is decided by name.** The action strip, a context menu and the folder viewlets are
@@ -185,12 +198,12 @@ Manager; none of this needs admin rights.
 
 ## Backends
 
-Each backend is its own assembly, `Nexaflow.IO.Location.<Kind>`, referencing `IO.Common` only, as the Compressed codec
-backends do. Package choices are to be confirmed against NuGet in phase 0.
+Each backend is its own assembly, `Nexaflow.IO.Location.<Kind>`, referencing `IO.Common` — and `IO.Terminal` where its
+shell runs in this computer's ConPTY, as WSL's does — and its own packages, as the Compressed codec backends do.
 
 | Backend | Phase | Built on | Ranged read | Watch | Shell | Main risk |
 | --- | --- | --- | --- | --- | --- | --- |
-| WSL | 1 | `\\wsl.localhost` for bytes; a small helper run with `wsl.exe -d <distro>` for POSIX metadata and inotify | yes | inotify via the helper | `wsl.exe` in ConPTY | 9P listing is slow on big folders, so the helper also lists |
+| WSL | 1 | `\\wsl.localhost` for bytes; `Nexaflow.WslHelper`, run with `wsl.exe -d <distro> --exec`, for listings, POSIX metadata, renames and inotify | yes | inotify via the helper | `wsl.exe` in ConPTY, bash and zsh through a shim that reports OSC 7 and OSC 133 | 9P listing is slow on big folders, so the helper lists |
 | SMB | 1 | Windows' SMB client through UNC paths | yes | `ReadDirectoryChangesW` over SMB | none | Credentials, This PC rows and the async path |
 | SFTP | 2 | SSH.NET (MIT) | yes | polling, adaptive | SSH shell on the same session | Polling cost on busy folders |
 | FTP / FTPS | 3 | FluentFTP (MIT) | yes, `REST` | polling | none | Servers that lie about listings; `MLSD` first, `LIST` parsing as fallback |
@@ -287,8 +300,8 @@ Each phase is usable on its own, so the 2.0 date can slip phase 2 without strand
   delete, conflict, cancel, reconnect), run against each backend, so a new protocol is proven by the same bar.
 - **Real servers in containers** — OpenSSH, vsftpd, Samba and an NFS server, with latency injected — in a
   `Tests.IO.Locations` suite. They are the fixtures; WSL is the dogfood location. WSL tests run on Windows runners only.
-- **`ArchitectureRulesTests.Location_backends_reference_only_IO_Common`** holds every `Nexaflow.IO.Location.*`
-  assembly to `IO.Common` and its own packages. A backend in the tree that the architecture suite does not reference
+- **`ArchitectureRulesTests.Location_backends_reference_only_IO_Common_and_IO_Terminal`** holds every
+  `Nexaflow.IO.Location.*` assembly to `IO.Common`, `IO.Terminal` and its own packages. A backend in the tree that the architecture suite does not reference
   fails the rule, and with no backend at all it reports that nothing was checked.
 - **Journeys** for connect, browse, open, edit and save, open terminal here, and a dropped connection, so every new
   AutomationId is named by one.

@@ -1,6 +1,6 @@
 # Console
 
-Runs a Windows command prompt in a tab, and sends anything that isn't a command to the assistant.
+Runs a Windows command prompt in a tab — or the shell of a location, such as a WSL distro — and sends anything that isn't a command to the assistant.
 
 ---
 
@@ -11,11 +11,12 @@ Runs a Windows command prompt in a tab, and sends anything that isn't a command 
 - Ctrl+V pastes into the shell. Right-click Paste puts the clipboard in the AI bar instead, to read over before you run it.
 - Ctrl+Shift+C, or right-click and Copy, copies the whole session including the scrollback.
 - Open a console on a folder or a whole drive with Cmd Here, in the folder's actions on the [File System](help:FileSystem) page. It starts in that folder.
+- On a folder of a location with a shell of its own — a WSL distro — Cmd Here opens that shell instead: bash or zsh, starting in the folder. The path bar follows it as it moves. A location with no shell offers no Cmd Here.
 
 ## With the assistant
 - At a prompt, Enter runs your line if it starts with a cmd built-in, a program on your PATH or the path of a file that exists. Anything else is taken off the line and sent to the assistant. Answers appear in a banner under the console, which clears when you start typing.
 - While a program is running, Enter goes to that program, so a `y` or a password is never treated as a question.
-- The assistant knows the console's folder and that it is cmd.exe, so it uses cmd syntax rather than PowerShell.
+- The assistant knows the console's folder and which shell runs there — cmd.exe, or a location's own — so it uses that shell's syntax.
 - With your approval it can run commands in this console, read the output and carry on. Plain output reaches it as text; a full-screen program reaches it as its screen.
 - A command that keeps going is watched in the background, and you are told the result when it finishes. If you have moved to another tab, a notification with an Open button brings you back.
 - Ask a follow-up while a command it started is still going and it knows what that command has printed so far.

@@ -42,6 +42,7 @@
 
     <ProjectReference Include="..\..\Nexaflow.Elevation\Nexaflow.Elevation.Contracts\Nexaflow.Elevation.Contracts.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <ProjectReference Include="..\Nexaflow.IO.Location.Memory\Nexaflow.IO.Location.Memory.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Search\Nexaflow.Search.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
 

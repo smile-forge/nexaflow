@@ -21,7 +21,7 @@ public class ConsoleQueryHandlerTests
 {
     private sealed class TestTerminal : TerminalViewModel
     {
-        public TestTerminal() : base(new FakeTerminal(), Substitute.For<IShellServices>(), Substitute.For<IAIService>()) { }
+        public TestTerminal() : base(new FakeTerminal().AsCmd(), Substitute.For<IShellServices>(), Substitute.For<IAIService>()) { }
         protected override IReadOnlyList<TerminalEnvironment> Environments => [];
         protected override string? FindBoundEnvName(string folderPath) => null;
         protected override void PersistFolderBinding(string folderPath, string envName) { }

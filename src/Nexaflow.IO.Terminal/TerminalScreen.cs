@@ -17,6 +17,10 @@ namespace Nexaflow.IO.Terminal;
 ///   emitted as "C:\path&gt;" with a CR on the preceding line, so the drive
 ///   letter ends up in column 0 of the same row as previous content.
 ///   You cannot reconstruct the correct text without tracking the cursor.
+///
+/// What a shell reports rather than draws reaches the caller as it is read: the folder it works in (OSC 7) through
+/// <see cref="WorkingFolderReported"/>, and its prompt marks (OSC 133) through <see cref="ShellMarked"/>. Every other OSC
+/// — a window title, a hyperlink — is read past and dropped.
 /// </summary>
 public sealed class TerminalScreen
 {
@@ -64,6 +68,14 @@ public sealed class TerminalScreen
     private bool                   _inEsc;             // inside ESC sequence
     private bool                   _inOsc;             // inside OSC (ESC ] ... BEL/ST)
     private bool                   _sawEsc;            // saw bare ESC, waiting for next byte
+    private bool                   _oscEsc;            // inside OSC, saw ESC: a '\' ends it (ST)
+    private bool                   _oscOverflow;       // the OSC outgrew MaxOscLength and is dropped at its end
+
+    // An OSC longer than any report this screen reads is read past, not held.
+    private const int MaxOscLength = 4096;
+
+    // Lines that have left the top of the main screen, ever — the number of the line on screen row 0.
+    private long _linesScrolledOff;
 
     // ── Construction ─────────────────────────────────────────────────────
 
@@ -128,17 +140,21 @@ public sealed class TerminalScreen
     /// <summary>Cursor column within the visible screen (0-based).</summary>
     public int CursorCol => _curCol;
 
-    /// <summary>
-    /// The current cursor row's text if it looks like a shell prompt (ends with '&gt;'), else null.
-    /// Used to track the working directory; the row is not modified.
-    /// </summary>
-    public string? PeekPromptLine()
-    {
-        var row = ReadRow(_curRow).TrimEnd();
-        if (row.Length > 0 && row[^1] == '>')
-            return row;
-        return null;
-    }
+    /// <summary>The text of the cursor's row, trailing blanks trimmed — where a shell's prompt and what is typed after it
+    /// stand. The row is not modified.</summary>
+    public string CursorRowText => ReadRow(_curRow);
+
+    /// <summary>The number of the line on screen row 0, counting every line the screen has shown from 0: it grows as lines
+    /// scroll off the top, so the line a <see cref="ShellMark"/> carries is on row <c>Line - TopLine</c> while it is still
+    /// on the screen.</summary>
+    public long TopLine => _linesScrolledOff;
+
+    /// <summary>The shell reported the folder it works in (OSC 7). Raised from <see cref="Feed"/>, as the report is read.</summary>
+    public event Action<TerminalWorkingFolder>? WorkingFolderReported;
+
+    /// <summary>The shell marked its prompt cycle (OSC 133). Raised from <see cref="Feed"/>, with the cursor where the mark
+    /// came.</summary>
+    public event Action<ShellMark>? ShellMarked;
 
     /// <summary>
     /// Takes a new size in cells — what the shell is told it now has. Rows that no longer fit leave from the top into the
@@ -155,7 +171,10 @@ public sealed class TerminalScreen
 
         int drop = Math.Max(0, _curRow + 1 - rows);
         if (!_inAltBuffer)
-            for (int r = 0; r < drop; r++) _scrollback.Enqueue(ReadRow(r));
+            {
+                for (int r = 0; r < drop; r++) _scrollback.Enqueue(ReadRow(r));
+                _linesScrolledOff += drop;
+            }
         _cells = Fit(_cells, _rows, _cols, rows, cols, drop);
         _curRow   = Math.Clamp(_curRow - drop, 0, rows - 1);
         _savedRow = Math.Clamp(_savedRow - drop, 0, rows - 1);
@@ -207,11 +226,20 @@ public sealed class TerminalScreen
         // ── OSC accumulation ─────────────────────────────────────────────
         if (_inOsc)
         {
-            if (ch == '\x07' || ch == '\x9c') { _inOsc = false; _escBuf.Clear(); }
-            else if (ch == '\x1b') { /* ST = ESC \ coming */ }
-            else if (ch == '\\' && _escBuf.Length > 0 && _escBuf[^1] == '\x1b')
-                                   { _inOsc = false; _escBuf.Clear(); }
-            else _escBuf.Append(ch);
+            if (_oscEsc)
+            {
+                _oscEsc = false;
+                if (ch == '\\') { EndOsc(); return; }   // ST = ESC \
+                // Any other byte after ESC abandons the OSC and starts the next escape sequence.
+                AbandonOsc();
+                _sawEsc = true;
+                ProcessChar(ch);
+                return;
+            }
+            if (ch == '\x07' || ch == '\x9c') EndOsc();
+            else if (ch == '\x1b') _oscEsc = true;
+            else if (_escBuf.Length < MaxOscLength) _escBuf.Append(ch);
+            else _oscOverflow = true;
             return;
         }
 
@@ -300,6 +328,71 @@ public sealed class TerminalScreen
     }
 
     // ── Escape handlers ───────────────────────────────────────────────────
+
+    // ── OSC reports ───────────────────────────────────────────────────────
+
+    /// <summary>The OSC read to its terminator: its report is passed on unless it outgrew what is held.</summary>
+    private void EndOsc()
+    {
+        var body = _oscOverflow ? null : _escBuf.ToString();
+        AbandonOsc();
+        if (body is not null) DispatchOsc(body);
+    }
+
+    private void AbandonOsc()
+    {
+        _inOsc       = false;
+        _oscEsc      = false;
+        _oscOverflow = false;
+        _escBuf.Clear();
+    }
+
+    /// <summary>Passes on a working folder (OSC 7) or a prompt mark (OSC 133); any other OSC, or one that cannot be read, is
+    /// dropped.</summary>
+    private void DispatchOsc(string body)
+    {
+        int sep   = body.IndexOf(';');
+        var code  = sep < 0 ? body : body[..sep];
+        var value = sep < 0 ? string.Empty : body[(sep + 1)..];
+        switch (code)
+        {
+            case "7":
+                if (WorkingFolderReported is { } reported && TerminalWorkingFolder.TryParse(value, out var folder))
+                    reported(folder);
+                break;
+            case "133":
+                if (ShellMarked is { } marked && ReadShellMark(value) is { } mark)
+                    marked(mark);
+                break;
+        }
+    }
+
+    /// <summary>An OSC 133 body — <c>A</c>, <c>B</c>, <c>C</c>, or <c>D</c> with the exit code after a <c>;</c> — as a mark at
+    /// the cursor; null for any other. Options after the kind are read past.</summary>
+    private ShellMark? ReadShellMark(string value)
+    {
+        if (value.Length == 0 || (value.Length > 1 && value[1] != ';')) return null;
+        ShellMarkKind? kind = value[0] switch
+        {
+            'A' => ShellMarkKind.PromptStart,
+            'B' => ShellMarkKind.InputStart,
+            'C' => ShellMarkKind.OutputStart,
+            'D' => ShellMarkKind.CommandEnd,
+            _   => null,
+        };
+        if (kind is not { } known) return null;
+
+        int? exitCode = null;
+        if (known == ShellMarkKind.CommandEnd && value.Length > 2)
+        {
+            var field = value.AsSpan(2);
+            int end   = field.IndexOf(';');
+            if (int.TryParse(end < 0 ? field : field[..end], System.Globalization.NumberStyles.AllowLeadingSign,
+                             System.Globalization.CultureInfo.InvariantCulture, out var code))
+                exitCode = code;
+        }
+        return new ShellMark(known, exitCode, _linesScrolledOff + _curRow, _curCol);
+    }
 
     private static readonly Regex CsiNumsRe = new(@"\d+", RegexOptions.Compiled);
 
@@ -423,7 +516,11 @@ public sealed class TerminalScreen
         else
         {
             // At the bottom margin: scroll the region up one, evicting the top line to scrollback.
-            if (!_inAltBuffer) _scrollback.Enqueue(ReadRow(_scrollTop));
+            if (!_inAltBuffer)
+            {
+                _scrollback.Enqueue(ReadRow(_scrollTop));
+                _linesScrolledOff++;
+            }
             for (int r = _scrollTop; r < _scrollBottom; r++)
                 for (int c = 0; c < _cols; c++)
                     _cells[r, c] = _cells[r + 1, c];
@@ -451,7 +548,11 @@ public sealed class TerminalScreen
         n = Math.Min(n, bottom - top + 1);
         for (int i = 0; i < n; i++)
         {
-            if (commit && !_inAltBuffer) _scrollback.Enqueue(ReadRow(top));
+            if (commit && !_inAltBuffer)
+            {
+                _scrollback.Enqueue(ReadRow(top));
+                _linesScrolledOff++;
+            }
             for (int r = top; r < bottom; r++)
                 for (int c = 0; c < _cols; c++)
                     _cells[r, c] = _cells[r + 1, c];

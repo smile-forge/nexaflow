@@ -110,6 +110,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         Loaded   += (_, _) => ViewModel.AttachFolderWatching();
         Unloaded += (_, _) => ViewModel.DetachFolderWatching();
         PlaceStatusColumn();
+        PlacePosixColumns();
 
         // Column-header sorting. GridViewColumnHeader is a ButtonBase that captures the
         // mouse on press, so a Button inside the header template never sees the click —
@@ -267,6 +268,10 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         {
             PlaceStatusColumn();
         }
+        else if (e.PropertyName == nameof(FileSystemViewModel.ShowsPosixColumns))
+        {
+            PlacePosixColumns();
+        }
     }
 
     /// <summary>
@@ -281,6 +286,20 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
 
         if (ViewModel.ShowsCloudStatus && !placed) columns.Insert(0, status);
         else if (!ViewModel.ShowsCloudStatus && placed) columns.Remove(status);
+    }
+
+    /// <summary>Shows the permissions, owner and group columns after the others on a location that reports them, and
+    /// takes them away anywhere else.</summary>
+    private void PlacePosixColumns()
+    {
+        var columns = ((GridView)FileListView.View).Columns;
+        foreach (var key in (string[])["PermissionsColumn", "OwnerColumn", "GroupColumn"])
+        {
+            var column = (GridViewColumn)FindResource(key);
+            bool placed = columns.Contains(column);
+            if (ViewModel.ShowsPosixColumns && !placed) columns.Add(column);
+            else if (!ViewModel.ShowsPosixColumns && placed) columns.Remove(column);
+        }
     }
 
     /// <summary>Selects the name without its extension (Explorer-style), so the user types over it.</summary>

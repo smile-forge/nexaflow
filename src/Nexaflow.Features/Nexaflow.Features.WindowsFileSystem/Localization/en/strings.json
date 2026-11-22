@@ -18,8 +18,17 @@
   "WindowsFileSystem.Columns.Size": "Size",
   "WindowsFileSystem.Columns.Modified": "Modified",
   "WindowsFileSystem.Columns.Status": "Status",
+  "WindowsFileSystem.Columns.Permissions": "Permissions",
+  "WindowsFileSystem.Columns.Owner": "Owner",
+  "WindowsFileSystem.Columns.Group": "Group",
+
+  "WindowsFileSystem.Locations.Wsl": "Linux (WSL)",
+  "WindowsFileSystem.Locations.KindFormat": "{0} location",
+  "WindowsFileSystem.Locations.UnreachableFormat": "{0} — unavailable: {1}",
 
   "WindowsFileSystem.List.Loading": "Loading…",
+  "WindowsFileSystem.List.FailedFormat": "This folder could not be read: {0}",
+  "WindowsFileSystem.List.Retry": "Try again",
   "WindowsFileSystem.List.Busy": "You can keep working — this view updates when it finishes.",
   "WindowsFileSystem.Entry.DriveUsedFormat": "{0} used ({1:F0}%)",
 

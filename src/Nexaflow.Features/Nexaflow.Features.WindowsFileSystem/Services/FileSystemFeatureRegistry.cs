@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Nexaflow.Features.WindowsFileSystem.Operations;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Features.WindowsFileSystem.Services;
 
@@ -212,6 +213,8 @@ public sealed class FileSystemFeatureRegistry
                 args[i] = _ai;
             else if (pt == typeof(IVirtualFileSystem))
                 args[i] = Vfs;
+            else if (pt == typeof(ILocationDirectory) && Vfs is ILocationDirectory locations)
+                args[i] = locations;   // the runtime's file system lists its locations; a bare one has none to list
             else if (typeof(IFileOperationHost).IsAssignableFrom(pt))
                 // The file browser is what shows a progress row, so it is what supplies one to the actions it
                 // builds. An action that asks for this outside a browser simply does not get one.

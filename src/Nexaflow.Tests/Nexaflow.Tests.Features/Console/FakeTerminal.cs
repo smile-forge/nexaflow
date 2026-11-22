@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.IO.Common.Terminal;
+using Nexaflow.Visuals.Terminal.Shells;
 
 namespace Nexaflow.Tests.Features.Console;
 
@@ -57,4 +58,7 @@ internal sealed class FakeTerminal : ITerminalLauncher, ITerminalTransport
     public void Emit(params byte[] bytes) => _output.Raise(bytes);
 
     public void Dispose() => Disposed = true;
+
+    /// <summary>This shell as cmd, started in <paramref name="folder"/>.</summary>
+    public TerminalShellRoute AsCmd(string? folder = null) => new(this, new CmdShellDialect(), folder);
 }

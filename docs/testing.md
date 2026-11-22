@@ -489,7 +489,13 @@ folder is held only by a live host. `TempHygieneRulesTests` (Architecture) fails
   COM interop: the interop declarations are a hand-transcribed vtable, and only a real call can prove
   the layout is right — a wrong slot is an access violation, not a failed assertion. Such a test
   asserts on the *contract* (a clause came back naming the property asked for), never on what happens
-  to be indexed, and calls `Assert.Inconclusive` when the service isn't running.
+    to be indexed, and calls `Assert.Inconclusive` when the service isn't running.
+  - **`TestCategory("Wsl")`**, always beside `Interactive` — the WSL backend against this machine's default
+    distro: the location contract (`WslLocationContractTests`, working under `/tmp/nexaflow-contract`, since the
+    contract works at the root), owners read by name, a change made inside Linux reaching a watch, a save keeping a
+    script runnable, and the shell reporting its folder (`WslDistroTests`). Starting the distro is what they cost; they
+    are `Assert.Inconclusive` where WSL has no distro. Run them alone with `--filter "TestCategory=Wsl"`. Journeys
+    cannot reach WSL — Windows Sandbox has none — so this is where a real distro is proven.
 
 ### Reference corpora and snapshots (opt-in, never in CI)
 

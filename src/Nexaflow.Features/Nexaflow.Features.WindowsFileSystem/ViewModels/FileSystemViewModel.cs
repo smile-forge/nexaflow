@@ -492,7 +492,7 @@ else if (entry is IFileCreateAction action) await action.CreateItemAsync(RealFol
     /// <summary>Where a This PC row is browsed: a volume at its own root, a contributed location under its own virtual root
     /// (<c>::{id}</c>), never the folder behind it.</summary>
     private static string BrowsePathOf(ThisPcItem item)
-        => item.Backing == ThisPcItemBacking.OwnPath ? item.TargetPath : VirtualMount.RootFor(item.Id);
+        => item.Backing == ThisPcItemBacking.LocalPath ? VirtualMount.RootFor(item.Id) : item.TargetPath;
 
     /// <summary>
     /// Whether the rows on screen are still the ones <paramref name="paths"/> describes — same places, same
@@ -878,6 +878,22 @@ else if (entry is IFileCreateAction action) await action.CreateItemAsync(RealFol
     /// </summary>
     [ObservableProperty] private bool _showsCloudStatus;
 
+    /// <summary>The folder is on a location that reports POSIX permissions, owner and group, so the list shows them.</summary>
+    [ObservableProperty] private bool _showsPosixColumns;
+
+    /// <summary>Why the folder could not be read through — gone, access denied, a dropped connection — or null when it was.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasListingFailure), nameof(ListingFailureText))]
+    private string? _listingFailure;
+
+    public bool HasListingFailure => ListingFailure is not null;
+
+    public string ListingFailureText => ListingFailure is null ? string.Empty : Str.Format("WindowsFileSystem.List.FailedFormat", ListingFailure);
+
+    /// <summary>Reads the folder again after a listing failed.</summary>
+    [RelayCommand]
+    private void RetryListing() => Refresh();
+
     /// <summary>The open folder's watch, held while the view is loaded; null in This PC and inside an archive.</summary>
     private IDisposable? _folderWatch;
 
@@ -1261,7 +1277,9 @@ else if (entry is IFileCreateAction action) await action.CreateItemAsync(RealFol
             _isThisPcMode    = true;
             _inContainer     = false;
             CurrentPath      = string.Empty;
-            ShowsCloudStatus = false;
+            ShowsCloudStatus  = false;
+            ShowsPosixColumns = false;
+            ListingFailure    = null;
             ResetSortAndFilter();
 
             _actionDebounceTimer.Stop();
@@ -1512,6 +1530,12 @@ else if (entry is IFileCreateAction action) await action.CreateItemAsync(RealFol
     {
         if (IsThisPcMode) return ContextSecurityRisk.High;             // unconfined — AI can go anywhere
         if (string.IsNullOrEmpty(CurrentPath)) return ContextSecurityRisk.High;
+
+        // A location reached only through its session is another machine: what is read there leaves the host it lives on. One
+        // whose host is this PC (a WSL distro) is judged as the folder this disk reaches it as, below.
+        if (Vfs.GetBacking(CurrentPath) == VirtualBacking.Remote
+            && (Vfs.GetCapabilities(CurrentPath) & LocationCapabilities.SameMachine) == 0)
+            return ContextSecurityRisk.High;
 
         // Classify where the bytes REALLY are. A mounted path is "::id\…", which Path.GetFullPath cannot
         // parse: the throw would land in the catch below and report Low — so a mount pointed at
@@ -1861,8 +1885,9 @@ else if (entry is IFileCreateAction action) await action.CreateItemAsync(RealFol
     /// <paramref name="Replace"/> = the batch replaces whatever the list holds — the whole sorted set of a
     /// small folder, or the first chunk of a streamed one; otherwise its items are appended after the
     /// chunks already shown. Either way the list hears of it as one Reset.</summary>
+    /// <param name="Failure">Why the listing stopped before the folder was read through, on the batch that ends it; null when it did not.</param>
     private readonly record struct LoadBatch(
-        IReadOnlyList<FileSystemEntry> Items, bool Replace, int Folders, int Files, bool InSyncRoot);
+        IReadOnlyList<FileSystemEntry> Items, bool Replace, int Folders, int Files, bool InSyncRoot, string? Failure = null);
 
     /// <summary>
     /// Loads the current directory's contents, cancelling any load already in flight.
@@ -1908,9 +1933,12 @@ else if (entry is IFileCreateAction action) await action.CreateItemAsync(RealFol
         {
             Entries.Clear();
             UpdateEntryCountLabel(0, 0, 0);
+            ListingFailure = null;
         }
         _resortPending = false;
         IsLoadingEntries = true;
+        ShowsPosixColumns = (Vfs.GetCapabilities(path) & LocationCapabilities.Permissions) != 0;
+        var names = StringComparer.FromComparison(Vfs.GetNameComparison(path));
 
         var channel = Channel.CreateBounded<LoadBatch>(new BoundedChannelOptions(1)
         {
@@ -1937,19 +1965,20 @@ else if (entry is IFileCreateAction action) await action.CreateItemAsync(RealFol
                 using (Timing.Measure($"Folder.applyBatch#{batches} n={batch.Items.Count} replace={batch.Replace}"))
                 {
                     if (batch.Replace && inPlace)
-                        Entries.MatchTo(batch.Items, entry => entry.FullPath, StringComparer.OrdinalIgnoreCase, (kept, fresh) => kept.TakeOn(fresh));
+                        Entries.MatchTo(batch.Items, entry => entry.FullPath, names, (kept, fresh) => kept.TakeOn(fresh));
                     else if (batch.Replace)
                         Entries.ReplaceAll(batch.Items);
                     else
                         Entries.AddRange(batch.Items);
                     UpdateEntryCountLabel(batch.Folders, batch.Files, 0);
                     ShowsCloudStatus = batch.InSyncRoot;
+                    ListingFailure   = batch.Failure;
                 }
             }
             Timing.Note("Folder.batches", batches.ToString());
         }
         catch (OperationCanceledException) { /* superseded by a newer navigation */ }
-        catch (Exception ex) { Debug.WriteLine($"Folder load failed: {ex.Message}"); }
+        catch (Exception ex) { ListingFailure = ex.Message; }
         finally
         {
             scope.Cancel();                       // unblock the producer if still writing
@@ -1998,6 +2027,7 @@ else if (entry is IFileCreateAction action) await action.CreateItemAsync(RealFol
         {
             var buffer    = new List<FileSystemEntry>(StreamThreshold + 1);
             bool streaming = false;
+            string? failure = null;
             int folders = 0, files = 0;
             var companions = Companions.Listing();
 
@@ -2040,8 +2070,8 @@ else if (entry is IFileCreateAction action) await action.CreateItemAsync(RealFol
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 // Gone, access denied, a dropped connection — part way through, or before the first entry. What was read
-                // is listed; nothing read leaves the list empty.
-                Debug.WriteLine($"Folder listing stopped early: {ex.Message}");
+                // is listed, and the view says why the rest is not.
+                failure = ex.Message;
             }
 
             // A companion can be read before its file, so they were held back until now: those whose file is here
@@ -2066,11 +2096,11 @@ else if (entry is IFileCreateAction action) await action.CreateItemAsync(RealFol
                 List<FileSystemEntry> sorted;
                 using (Timing.Measure($"Folder.sort n={buffer.Count}"))
                     sorted = ApplySort(buffer).ToList();
-                await writer.WriteAsync(new(sorted, true, folders, files, inSyncRoot), ct);
+            await writer.WriteAsync(new(sorted, true, folders, files, inSyncRoot, failure), ct);
             }
-            else if (buffer.Count > 0)
+            else if (buffer.Count > 0 || failure is not null)
             {
-                await writer.WriteAsync(new(buffer, false, folders, files, inSyncRoot), ct);
+                await writer.WriteAsync(new(buffer, false, folders, files, inSyncRoot, failure), ct);
             }
         }
         catch (Exception ex) { error = ex; }
@@ -2100,6 +2130,10 @@ else if (entry is IFileCreateAction action) await action.CreateItemAsync(RealFol
             InContainer = inArchive,
             TypeName    = ShellFileTypes.NameFor(listed.IsDirectory ? string.Empty : Path.GetExtension(listed.Name), listed.IsDirectory),
             CloudState  = listed.CloudState,
+            PosixMode   = listed.Mode,
+            Owner       = listed.Owner,
+            Group       = listed.Group,
+            SymlinkTarget = listed.SymlinkTarget,
         };
     }
 

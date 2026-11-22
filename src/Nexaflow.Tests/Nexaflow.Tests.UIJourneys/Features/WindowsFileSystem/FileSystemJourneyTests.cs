@@ -419,6 +419,22 @@ public partial class FileSystemJourneyTests : UiJourneyTestBase
         File.Delete(outside);
         Check("and is gone from the list once deleted",
               () => WaitForFs(() => list.FindFirstDescendant(cf => cf.ByName("made-elsewhere.txt")) is null, Affordable(10)));
+
+        // A folder taken away while it is open cannot be read again: the list says why, and Try again reads it once it is back.
+        var vanishing = Path.Combine(_folder, "vanishing");
+        Directory.CreateDirectory(vanishing);
+        NavigateFileBrowserTo(vanishing);
+        Directory.Delete(vanishing);
+        var retry = WaitForId("FileListRetryButton", Affordable(10));
+        Check("a folder that cannot be read says why, with Try again", () => retry is not null);
+        if (retry is not null)
+        {
+            Directory.CreateDirectory(vanishing);
+            File.WriteAllText(Path.Combine(vanishing, "back.txt"), "x");
+            retry.AsButton().Invoke();
+            Check("Try again reads the folder once it is back",
+                  () => FindInFileList("back.txt", Affordable(10)) is not null);
+        }
     }
 
     /// <summary>The Type cell of <paramref name="name"/>'s row: each row's cells read Name, Type, Size, Modified.</summary>

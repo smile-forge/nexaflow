@@ -7,7 +7,7 @@ namespace Nexaflow.Visuals.Terminal;
 /// Decides whether a typed line is a shell command (run it) or natural language (hand it to the LLM).
 /// Heuristic and instant: the first token is a shell built-in, an executable resolvable on PATH, or an
 /// explicit path to an existing file → command; otherwise → a request for the model. Builtins are passed
-/// in so each shell (cmd today, PowerShell later) supplies its own.
+/// in so each shell — cmd, a location's POSIX shell — supplies its own.
 /// </summary>
 public static class CommandClassifier
 {
@@ -19,6 +19,17 @@ public static class CommandClassifier
         "pause", "popd", "prompt", "pushd", "rd", "rem", "ren", "rename", "rmdir", "set", "setlocal",
         "shift", "start", "time", "title", "type", "ver", "verify", "vol", "where", "help", "more", "tree",
         "find", "findstr", "cmd", "powershell", "pwsh", "cls",
+    };
+
+    /// <summary>POSIX shell built-ins and the everyday tools every Unix-like system has, for a location's shell. Names there
+    /// differ by case, so they match exactly.</summary>
+    public static readonly IReadOnlySet<string> PosixBuiltins = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "alias", "bg", "cd", "command", "echo", "eval", "exec", "exit", "export", "fg", "hash", "history", "jobs", "kill",
+        "printf", "pwd", "read", "set", "source", "test", "type", "ulimit", "umask", "unalias", "unset", "wait", ".",
+        "cat", "chmod", "chown", "clear", "cp", "df", "du", "env", "file", "find", "grep", "head", "less", "ln", "ls",
+        "man", "mkdir", "more", "mv", "ps", "rm", "rmdir", "sed", "awk", "sort", "sudo", "tail", "tar", "top", "touch",
+        "tree", "uname", "which", "whoami", "bash", "sh", "zsh",
     };
 
     public static bool IsCommand(string line, IReadOnlySet<string> builtins)

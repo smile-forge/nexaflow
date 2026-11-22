@@ -26,6 +26,32 @@
             </GridViewColumn.CellTemplate>
         </GridViewColumn>
 
+
+        <!-- ── POSIX columns: a location's permissions, owner and group ──
+             Placed after Modified, on a location that reports them only, by the view (PlacePosixColumns). -->
+        <GridViewColumn x:Key="PermissionsColumn" Width="96" Header="{loc:Str WindowsFileSystem.Columns.Permissions}">
+            <GridViewColumn.CellTemplate>
+                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                    <TextBlock Text="{Binding PermissionsLabel}" FontFamily="Consolas"
+                               Foreground="{StaticResource TextMutedBrush}" FontSize="12" VerticalAlignment="Center"/>
+                </DataTemplate>
+            </GridViewColumn.CellTemplate>
+        </GridViewColumn>
+        <GridViewColumn x:Key="OwnerColumn" Width="90" Header="{loc:Str WindowsFileSystem.Columns.Owner}">
+            <GridViewColumn.CellTemplate>
+                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                    <TextBlock Text="{Binding Owner}" Foreground="{StaticResource TextMutedBrush}" FontSize="12" VerticalAlignment="Center"/>
+                </DataTemplate>
+            </GridViewColumn.CellTemplate>
+        </GridViewColumn>
+        <GridViewColumn x:Key="GroupColumn" Width="90" Header="{loc:Str WindowsFileSystem.Columns.Group}">
+            <GridViewColumn.CellTemplate>
+                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                    <TextBlock Text="{Binding Group}" Foreground="{StaticResource TextMutedBrush}" FontSize="12" VerticalAlignment="Center"/>
+                </DataTemplate>
+            </GridViewColumn.CellTemplate>
+        </GridViewColumn>
+
         <!-- ── Define-New wizard local styles ──────────────────────────── -->
         <Style x:Key="WzInput" TargetType="TextBox">
             <Setter Property="Background"      Value="{StaticResource Surface2Brush}"/>
@@ -835,6 +861,27 @@
                     <TextBlock Text="{loc:Str WindowsFileSystem.List.Loading}"
                                Foreground="{StaticResource TextBrush}"
                                FontSize="13" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+    <!-- ── Listing failure: why the folder could not be read through, and a way to try again ── -->
+            <Border Grid.Row="1" Grid.Column="0"
+                    Panel.ZIndex="5"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    MaxWidth="520"
+                    Background="{StaticResource Surface2Brush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8" Padding="18,12"
+                    Visibility="{Binding HasListingFailure, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <TextBlock Text="{Binding ListingFailureText}" TextWrapping="Wrap"
+                               Foreground="{StaticResource TextBrush}" FontSize="13"/>
+                    <Button Content="{loc:Str WindowsFileSystem.List.Retry}"
+                            Style="{StaticResource WzSecondaryBtn}"
+                            Command="{Binding RetryListingCommand}"
+                            HorizontalAlignment="Right" Margin="0,10,0,0"
+                            AutomationProperties.AutomationId="FileListRetryButton"/>
                 </StackPanel>
             </Border>
 

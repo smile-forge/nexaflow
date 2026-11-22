@@ -41,6 +41,10 @@ public enum LocationCapabilities
     /// images, published while it is open.
     /// </summary>
     StagedWrites = 1 << 8,
+
+    /// <summary>The location's host is this PC — a WSL distro — so what is read there never leaves it: a page holding one of
+    /// its paths is at no more risk than one holding a folder on this disk.</summary>
+    SameMachine = 1 << 9,
 }
 
 /// <summary>What a reader is about to do with a stream, so a provider can choose how to fetch the bytes.</summary>

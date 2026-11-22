@@ -66,7 +66,11 @@ public sealed class LocationSessionPool : IAsyncDisposable
                     _entries[key] = entry = new PooledConnection(connection, provider, _credentials, _idleTime, _time);
                 entry.Holders++;
                 held.Add(key);
-                mounts.Add(new LocationMount(connection, provider.Capabilities, entry));
+                mounts.Add(new LocationMount(connection, provider.Capabilities, entry)
+                {
+                    NativeRoots = entry.NativeRoots,
+                    NativePaths = entry.NativeRoots.Count > 0 ? provider as ILocationNativePaths : null,
+                });
             }
         }
         return new LocationSet(mounts, unreachable, held);
@@ -255,6 +259,10 @@ internal sealed class PooledConnection(ConnectionProfile connection, ILocationPr
 
     private LocationException Gone()
         => new(LocationError.Disconnected, null, $"The connection to '{connection.Label}' is no longer held by this window.");
+
+    /// <summary>The Windows folders the connection is reachable as, asked of its provider once.</summary>
+    public IReadOnlyList<string> NativeRoots { get; } =
+        provider is ILocationNativePaths native ? [.. native.GetNativeRoots(connection)] : [];
 }
 
 /// <summary>

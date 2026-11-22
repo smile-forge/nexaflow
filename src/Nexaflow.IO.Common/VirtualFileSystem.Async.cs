@@ -7,6 +7,7 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using Nexaflow.IO.Common.Listing;
 using Nexaflow.IO.Common.Locations;
+using Nexaflow.IO.Common.Terminal;
 
 namespace Nexaflow.IO.Common;
 
@@ -227,6 +228,13 @@ public sealed partial class VirtualFileSystem
 
     public LocationCapabilities GetCapabilities(string path)
         => GetBacking(path) == VirtualBacking.Materialized ? LocationCapabilities.RandomRead : LocalCapabilities;
+
+    // This disk, its mounts and its archives name files as Windows does.
+    public StringComparison GetNameComparison(string path) => StringComparison.OrdinalIgnoreCase;
+
+    // Nothing here is on a location: the caller's own shell runs on this computer.
+    public ValueTask<ITerminalLauncher?> GetTerminalLauncherAsync(string path, CancellationToken ct = default)
+        => ValueTask.FromResult<ITerminalLauncher?>(null);
 
     public ValueTask<ArchiveSummary?> DescribeArchiveAsync(string containerPath, CancellationToken ct = default)
         => OffThread(() => DescribeArchive(containerPath), containerPath, ct);

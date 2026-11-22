@@ -1,0 +1,310 @@
+{
+  "branch": "claude/wsl-work-planning-93dcd2",
+  "nodes": {
+    "io-locations-discovery": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/ILocationDiscovery.cs",
+          "class": "ILocationDiscovery"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/DiscoveredLocations.cs",
+          "class": "DiscoveredLocations"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/RuntimeLocations.cs",
+          "class": "RuntimeLocations",
+          "method": "Remount"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/DiscoveredLocationsTests.cs",
+            "class": "DiscoveredLocationsTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/RuntimeLocationsTests.cs",
+            "class": "RuntimeLocationsTests"
+          }
+        ]
+      }
+    },
+    "io-locations-native": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/ILocationNativePaths.cs",
+          "class": "ILocationNativePaths"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/LocationFileSystem.cs",
+          "class": "LocationFileSystem",
+          "method": "TryToVirtual"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/LocationNativePathTests.cs",
+            "class": "LocationNativePathTests"
+          }
+        ]
+      }
+    },
+    "io-locations-directory": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/ILocationDirectory.cs",
+          "class": "ILocationDirectory"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/LocationNativePathTests.cs",
+            "class": "LocationNativePathTests",
+            "method": "AMountedLocationIsListedForPages_ByItsRootAndDisplayForm"
+          }
+        ]
+      }
+    },
+    "io-locations-wsl": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Location.Wsl/WslLocationProvider.cs",
+          "class": "WslLocationProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Location.Wsl/WslSession.cs",
+          "class": "WslSession"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Location.Wsl/WslHelperLink.cs",
+          "class": "WslHelperLink"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Location.Wsl/WslHelperDeployment.cs",
+          "class": "WslHelperDeployment"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Location.Wsl/WslShell.cs",
+          "class": "WslShell"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Location.Wsl/WslRegistry.cs",
+          "class": "WslRegistry"
+        }
+      ]
+    },
+    "io-locations-wsl-helper": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Location.Wsl/Protocol/WslWire.cs",
+          "class": "WslWire"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Location.Wsl/Protocol/WslMessages.cs",
+          "class": "WslOp"
+        }
+      ]
+    },
+    "locations-this-pc": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Services/LocationThisPcProvider.cs",
+          "class": "LocationThisPcProvider"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/ThisPc/LocationThisPcProviderTests.cs",
+            "class": "LocationThisPcProviderTests"
+          }
+        ]
+      }
+    },
+    "locations-browse": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ViewModels/FileSystemEntry.cs",
+          "class": "FileSystemEntry",
+          "method": "FormatPermissions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Views/FileSystemView.xaml.cs",
+          "class": "FileSystemView",
+          "method": "PlacePosixColumns"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/LocationBrowsingTests.cs",
+            "class": "LocationBrowsingTests"
+          }
+        ]
+      }
+    },
+    "ioterm-screen": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Terminal/TerminalScreenTests.cs",
+            "class": "TerminalScreenTests",
+            "method": "OnScreenLines_StayInSnapshot_NotScrollback"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Terminal/TerminalScreenTests.cs",
+            "class": "TerminalScreenTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Terminal/TerminalScreenResizeTests.cs",
+            "class": "TerminalScreenResizeTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Terminal/TerminalScreenOscTests.cs",
+            "class": "TerminalScreenOscTests"
+          }
+        ]
+      }
+    },
+    "vterm-shell-dialects": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Terminal/Shells/TerminalShellDialect.cs",
+          "class": "TerminalShellDialect"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Terminal/Shells/CmdShellDialect.cs",
+          "class": "CmdShellDialect"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Terminal/Shells/PosixShellDialect.cs",
+          "class": "PosixShellDialect"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/ShellDialectTests.cs",
+            "class": "ShellDialectTests"
+          }
+        ]
+      }
+    },
+    "console-location-shell": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Terminal/Shells/TerminalShellRoute.cs",
+          "class": "TerminalShellRoute"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Console/ConsoleTabRegistration.cs",
+          "class": "ConsoleTabRegistration"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/TerminalShellRouteTests.cs",
+            "class": "TerminalShellRouteTests"
+          }
+        ]
+      }
+    },
+    "locations-terminal": {
+      "links": [
+        {
+          "type": "node",
+          "target": "console-location-shell"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Console/FileActions/CmdHereAction.cs",
+          "class": "CmdHereAction"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/Wsl/WslDistroTests.cs",
+            "class": "WslDistroTests",
+            "method": "TheShellReportsTheFolderItIsIn"
+          }
+        ]
+      }
+    },
+    "console-path-bar": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/ConsoleSurfaceTests.cs",
+            "class": "ConsoleSurfaceTests",
+            "method": "TheBusyIndicatorLightsWhenACommandIsSent_AndCtrlCClearsIt"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Terminal/TerminalScreenTests.cs",
+            "class": "TerminalScreenTests",
+            "method": "CursorRowText_IsTheRowTheCursorIsOn"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 20,
+  "touched_nodes": [
+    "console-location-shell",
+    "console-path-bar",
+    "io-locations-directory",
+    "io-locations-discovery",
+    "io-locations-native",
+    "io-locations-wsl",
+    "io-locations-wsl-helper",
+    "ioterm-screen",
+    "locations-browse",
+    "locations-terminal",
+    "locations-this-pc",
+    "vterm-shell-dialects"
+  ]
+}

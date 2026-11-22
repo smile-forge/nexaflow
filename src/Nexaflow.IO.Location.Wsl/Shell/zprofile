@@ -1,0 +1,3 @@
+# Nexaflow's shell integration for zsh: the user's own .zprofile, from the folder their startup files live in.
+
+[[ -f "$NEXAFLOW_ZDOTDIR/.zprofile" ]] && source "$NEXAFLOW_ZDOTDIR/.zprofile"

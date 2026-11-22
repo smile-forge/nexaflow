@@ -365,6 +365,11 @@ public sealed class FeatureManager
                 // what it publishes is reached by every page of the runtime.
                 args[i] = workspace.Vfs;
             }
+            else if (pt == typeof(ILocationDirectory))
+            {
+                // The locations this runtime has mounted, as a page lists them — the same runtime file system.
+                args[i] = workspace.Vfs;
+            }
             else if (_tools.TryGetValue(pt, out var tool))
             {
                 args[i] = tool;

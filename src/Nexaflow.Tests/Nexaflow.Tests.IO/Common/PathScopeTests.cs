@@ -140,4 +140,36 @@ public class PathScopeTests
         var buffer = new StringBuilder(1024);
         return GetShortPathNameW(path, buffer, (uint)buffer.Capacity) == 0 ? null : buffer.ToString();
     }
+
+    // ── Locations ───────────────────────────────────────────────────────────
+
+    private static readonly PathScope App = new([], [@"::nas\srv\app"]);
+
+    [TestMethod]
+    [DataRow(@"::nas\srv\app", DisplayName = "the location folder itself")]
+    [DataRow(@"::nas\srv\app\conf\site.yml", DisplayName = "under it")]
+    [DataRow(@"::nas/srv/app/conf", DisplayName = "with forward slashes")]
+    [DataRow(@"::nas\srv\app\a\..\b", DisplayName = "a '..' that stays inside")]
+    public void ALocationFolder_HoldsItselfAndWhatIsUnderIt(string path)
+        => Assert.IsNotNull(App.Resolve(path), path);
+
+    [TestMethod]
+    [DataRow(@"::nas\srv", DisplayName = "the folder above")]
+    [DataRow(@"::nas", DisplayName = "the location's root")]
+    [DataRow(@"::nas\srv\apple", DisplayName = "a sibling whose name starts the same")]
+    [DataRow(@"::nas\srv\app\..\..\etc\shadow", DisplayName = "a '..' climbing out")]
+    [DataRow(@"::nas\..\other\srv\app", DisplayName = "a '..' above the location's root")]
+    [DataRow(@"::other\srv\app", DisplayName = "the same path on another location")]
+    [DataRow(@"::nas\srv\app\*.yml", DisplayName = "a wildcard")]
+    public void ALocationFolder_HoldsNothingAboveOrBesideIt(string path)
+        => Assert.IsNull(App.Resolve(path), path);
+
+    [TestMethod]
+    public void OnALocation_CaseIsTheFileSystemsToSay()
+    {
+        Assert.IsNull(App.Resolve(@"::nas\SRV\app\x"), "where nothing says, a location's names are matched exactly");
+
+        var caseBlind = new PathScope([], [@"::nas\srv\app"], _ => StringComparison.OrdinalIgnoreCase);
+        Assert.IsNotNull(caseBlind.Resolve(@"::nas\SRV\app\x"), "a location whose names ignore case says so");
+    }
 }

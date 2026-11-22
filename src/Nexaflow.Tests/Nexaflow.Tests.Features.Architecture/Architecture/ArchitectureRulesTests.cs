@@ -87,7 +87,7 @@ public class ArchitectureRulesTests
     /// with none in the tree it says that nothing was checked rather than passing.
     /// </summary>
     [TestMethod]
-    public void Location_backends_reference_only_IO_Common()
+    public void Location_backends_reference_only_IO_Common_and_IO_Terminal()
     {
         var inTree = Directory.GetDirectories(Path.Combine(RepoRoot.Locate(), "src"), "Nexaflow.IO.Location.*")
                               .Select(Path.GetFileName)
@@ -104,14 +104,17 @@ public class ArchitectureRulesTests
         if (backends.Count == 0)
             Assert.Inconclusive("No Nexaflow.IO.Location.* backend exists yet, so nothing was checked.");
 
+        // IO.Common for the contract; IO.Terminal for a shell on this computer's own ConPTY, which a backend whose host is
+        // this PC (WSL) runs its shell in.
+        string[] allowed = ["Nexaflow.IO.Common", "Nexaflow.IO.Terminal"];
         var offenders = backends
             .SelectMany(a => a.GetReferencedAssemblies()
-                              .Where(r => r.Name!.StartsWith("Nexaflow.", StringComparison.Ordinal) && r.Name != "Nexaflow.IO.Common")
+                              .Where(r => r.Name!.StartsWith("Nexaflow.", StringComparison.Ordinal) && !allowed.Contains(r.Name))
                               .Select(r => $"{a.GetName().Name} → {r.Name}"))
             .ToList();
 
         Assert.AreEqual(0, offenders.Count,
-            "A location backend references IO.Common and its own packages, nothing else of Nexaflow's. " +
+            "A location backend references IO.Common, IO.Terminal and its own packages, nothing else of Nexaflow's. " +
             $"Offenders: {string.Join(", ", offenders)}");
     }
 }

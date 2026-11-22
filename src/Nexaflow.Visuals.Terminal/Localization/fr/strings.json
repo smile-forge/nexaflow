@@ -14,6 +14,7 @@
   "Terminal.Console.Copy": "Copier",
   "Terminal.Console.Paste": "Coller",
   "Terminal.Console.NeedsAttention": "Console : une commande en arrière-plan demande votre attention — ouvrez l’onglet pour la voir.",
+  "Terminal.Console.Unreachable": "Ce shell ne peut pas atteindre « {0} ».",
 
   "Terminal.EnvEdit.Header": "Variable d’environnement",
   "Terminal.EnvEdit.Name": "Nom",

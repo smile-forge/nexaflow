@@ -33,7 +33,7 @@ public class ConsoleViewModelCommandTests
         private readonly string? _configSection;
 
         public TestTerminal(IReadOnlyList<TerminalEnvironment>? envs = null, string? configSection = null)
-            : base(new FakeTerminal(), Substitute.For<IShellServices>(), Substitute.For<IAIService>())
+            : base(new FakeTerminal().AsCmd(), Substitute.For<IShellServices>(), Substitute.For<IAIService>())
         {
             _envs          = envs ?? [];
             _configSection = configSection;
