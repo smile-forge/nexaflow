@@ -105,4 +105,13 @@ public sealed class ShellDialectTests
         Assert.IsTrue(Posix.Builtins.Contains("export"));
         Assert.IsNull(Posix.ReadPrompt("adam@probe:~$"), "its prompts are followed by their marks, never read");
     }
+
+    [TestMethod]
+    [DataRow("x%03touch pwned", DisplayName = "Ctrl+C in a folder's name")]
+    [DataRow("x%0Dtouch pwned", DisplayName = "Enter in a folder's name")]
+    [DataRow("x%1B[A", DisplayName = "an escape in a folder's name")]
+    [DataRow("x%7Fy", DisplayName = "a rubout in a folder's name")]
+    public void Posix_NeverTypesAControlCharacterFromAName(string segment)
+        => Assert.IsNull(Posix.FormatCdCommand($@"{TerminalFiles.Distro}\srv\{segment}"),
+                         "quotes hold it from the shell, not from the tty, which acts on it as a key");
 }

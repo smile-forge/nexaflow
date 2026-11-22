@@ -182,15 +182,18 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
         return ReferenceEquals(segment, entry.Name) ? entry : entry with { Name = segment };
     }
 
-    /// <summary>Where the path is on this disk, when its location is reachable as a Windows folder; null otherwise.</summary>
+    /// <summary>Where the path is on this disk, when its location is reachable as a Windows folder; null otherwise — and
+    /// null where a name on the way ends in a dot or a space, which Windows trims and so reads as its neighbour
+    /// (<c>notes.</c> as <c>notes</c>): such a file is reached only through the location.</summary>
     private static string? NativePathOf(LocationMount location, string remainder)
     {
         if (location is not { NativePaths: { } native, NativeRoots: [var root, ..] }) return null;
         root = root.TrimEnd('\\', '/');
-        var segments = remainder.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
-        return segments.Length == 0
-            ? root
-            : root + "\\" + string.Join('\\', segments.Select(s => native.ToNativeName(LocationPath.DecodeSegment(s))));
+
+        var names = LocationPath.ToProviderPath(remainder).Split('/', StringSplitOptions.RemoveEmptyEntries)
+                                .Select(native.ToNativeName).ToList();
+        if (names.Any(name => name.EndsWith('.') || name.EndsWith(' '))) return null;
+        return names.Count == 0 ? root : root + "\\" + string.Join('\\', names);
     }
 
     /// <summary>The location path for a Windows path under one of a location's native roots, or null when it is under none.</summary>
@@ -307,8 +310,8 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
     // ── Paths ───────────────────────────────────────────────────────────────
 
     public VirtualBacking GetBacking(string path)
-        => TryRoute(path, out var location, out _)
-            ? location.NativeRoots.Count > 0 ? VirtualBacking.PassThrough : VirtualBacking.Remote
+        => TryRoute(path, out var location, out var remainder)
+            ? NativePathOf(location, remainder) is not null ? VirtualBacking.PassThrough : VirtualBacking.Remote
             : _shared.GetBacking(path);
 
     public string? TryResolveReal(string path)
@@ -517,6 +520,8 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
 
     public StringComparison GetNameComparison(string path)
         => TryRoute(path, out var location, out _) ? LocationPath.Comparison(location.Capabilities) : _shared.GetNameComparison(path);
+
+    public bool IsOnLocation(string path) => TryRoute(path, out _, out _) || FromNative(path) is not null;
 
     public async ValueTask<ITerminalLauncher?> GetTerminalLauncherAsync(string path, CancellationToken ct = default)
     {

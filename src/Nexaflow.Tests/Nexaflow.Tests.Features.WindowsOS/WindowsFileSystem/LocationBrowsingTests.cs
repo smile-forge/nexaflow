@@ -38,6 +38,22 @@ public sealed class LocationBrowsingTests
             => memory.ConnectAsync(profile, credentials, ct);
     }
 
+    private sealed class SameNames : ILocationNativePaths
+    {
+        public IReadOnlyList<string> GetNativeRoots(ConnectionProfile connection) => [];
+        public string ToNativeName(string name) => name;
+        public string FromNativeName(string nativeName) => nativeName;
+    }
+
+    /// <summary>Makes the location one Windows also shows as a folder, as a distro is.</summary>
+    private string ReachableAsAFolder()
+    {
+        var folder = TestTemp.CreateSubdirectory("nexa-share-").FullName;
+        System.IO.Directory.CreateDirectory(Path.Combine(folder, "docs"));
+        _vfs.RegisterLocation(_set.Mounts.Single() with { NativeRoots = [folder], NativePaths = new SameNames() });
+        return folder;
+    }
+
     private sealed class NoSecrets : ISecretStore
     {
         public string? Read(string target) => null;
@@ -152,4 +168,57 @@ public sealed class LocationBrowsingTests
     [TestMethod]
     public void AnEntryWithNoPermissions_ShowsNone()
         => Assert.AreEqual(string.Empty, new FileSystemEntry { Name = "x" }.PermissionsLabel);
+
+    [TestMethod]
+    public async Task AFolderWindowsCanAlsoShow_IsStillWatchedThroughTheLocation()
+    {
+        ReachableAsAFolder();
+        var vm = await AtAsync($@"{Root}\docs");
+
+        vm.AttachFolderWatching();
+
+        _shell.DidNotReceiveWithAnyArgs().WatchFolder(default!, default!);
+    }
+
+    [TestMethod]
+    public async Task TheAssistantsMove_TakesTheNameItWasGiven_NotTheOneWindowsWouldRead()
+    {
+        ReachableAsAFolder();
+        await _vfs.WriteAllTextAsync($@"{Root}\docs\notes", "plain");
+        await _vfs.WriteAllTextAsync($@"{Root}\docs\notes%2E", "dotted");
+        var vm = await AtAsync($@"{Root}\docs");
+
+        await new Nexaflow.Features.WindowsFileSystem.ClientTools.MoveTool(vm).InvokeAsync(
+            new System.Text.Json.Nodes.JsonObject { ["source"] = "notes.", ["destination"] = "moved" }, CancellationToken.None);
+
+        Assert.AreEqual("dotted", await _vfs.ReadAllTextAsync($@"{Root}\docs\moved"));
+        Assert.AreEqual("plain", await _vfs.ReadAllTextAsync($@"{Root}\docs\notes"), "its neighbour is untouched");
+    }
+
+    [TestMethod]
+    public async Task TheAssistant_ReachesNoSiblingThatDiffersOnlyByCase()
+    {
+        ReachableAsAFolder();
+        await _vfs.CreateDirectoryAsync($@"{Root}\Docs");
+        await _vfs.WriteAllTextAsync($@"{Root}\Docs\secret", "not given");
+        var vm = await AtAsync($@"{Root}\docs");
+
+        await new Nexaflow.Features.WindowsFileSystem.ClientTools.MoveTool(vm).InvokeAsync(
+            new System.Text.Json.Nodes.JsonObject { ["source"] = "/Docs/secret", ["destination"] = "taken" }, CancellationToken.None);
+
+        Assert.AreEqual("not given", await _vfs.ReadAllTextAsync($@"{Root}\Docs\secret"));
+        Assert.IsFalse(await _vfs.ExistsAsync($@"{Root}\docs\taken"));
+    }
+
+    [TestMethod]
+    public async Task TheAssistantsDelete_NeverPromisesARecycleBinTheLocationHasNot()
+    {
+        ReachableAsAFolder();
+        var vm = await AtAsync($@"{Root}\docs");
+
+        await new Nexaflow.Features.WindowsFileSystem.ClientTools.DeleteTool(vm).InvokeAsync(
+            new System.Text.Json.Nodes.JsonObject { ["name"] = "a.txt" }, CancellationToken.None);
+
+        Assert.AreEqual("lower", await _vfs.ReadAllTextAsync($@"{Root}\docs\a.txt"), "approved as recyclable, so not deleted for good");
+    }
 }

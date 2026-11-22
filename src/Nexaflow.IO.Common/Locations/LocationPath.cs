@@ -40,7 +40,9 @@ public static class LocationPath
     }
 
     /// <summary>The remote name a segment stands for — the inverse of <see cref="EncodeSegment"/>. A <c>%</c> not
-    /// followed by two hex digits is kept as it is, so a hand-typed segment decodes to what was typed.</summary>
+    /// followed by two hex digits is kept as it is, so a hand-typed segment decodes to what was typed — and so is a segment
+    /// that would decode to what no name can be (<c>.</c>, <c>..</c>, anything holding <c>/</c> or a NUL): a segment is
+    /// always one name, never a step in the path, so nothing escaped climbs out of a folder the assistant was given.</summary>
     public static string DecodeSegment(string segment)
     {
         int at = segment.IndexOf(Escape);
@@ -57,18 +59,27 @@ public static class LocationPath
             }
             else sb.Append(segment[i]);
         }
-        return sb.ToString();
+        var name = sb.ToString();
+        return name is "." or ".." || name.AsSpan().IndexOfAny('/', '\0') >= 0 ? segment : name;
     }
 
     /// <summary>The provider path for what follows <c>::{id}\</c> — <c>home\adam\a%3Ab.md</c> becomes
-    /// <c>/home/adam/a:b.md</c>; empty is the root, <c>/</c>.</summary>
+    /// <c>/home/adam/a:b.md</c>; empty is the root, <c>/</c>. A written <c>.</c> or <c>..</c> is worked out here, as Windows
+    /// works one out and never above the root, so the host never resolves one through a link.</summary>
     public static string ToProviderPath(string remainder)
     {
-        var segments = remainder.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
-        if (segments.Length == 0) return "/";
-        var sb = new StringBuilder(remainder.Length + 1);
-        foreach (var s in segments) sb.Append('/').Append(DecodeSegment(s));
-        return sb.ToString();
+        var names = new List<string>();
+        foreach (var segment in remainder.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (segment == ".") continue;
+            if (segment == "..")
+            {
+                if (names.Count > 0) names.RemoveAt(names.Count - 1);
+                continue;
+            }
+            names.Add(DecodeSegment(segment));
+        }
+        return "/" + string.Join('/', names);
     }
 
     /// <summary>The inverse of <see cref="ToProviderPath"/>: what follows <c>::{id}\</c> for a provider path, with

@@ -64,7 +64,7 @@ public static class FileTransferEngine
         {
             ct.ThrowIfCancellationRequested();
             if (fileSystem is null) onDisk.Add(source);
-            else if (fileSystem.ResolveOnDisk(source) is { } real) onDisk.Add(real);
+            else if (DiskEndOf(fileSystem, source) is { } real) onDisk.Add(real);
             else await MeasureThroughAsync(fileSystem, source, tally, ct);
         }
 
@@ -81,6 +81,14 @@ public static class FileTransferEngine
 
         return tally.ToScan();
     }
+
+    /// <summary>The path the disk's route may work on for one end of an item, or null where only the file system may. A
+    /// location's path never takes the disk's route, though Windows can show it as a folder: that folder's rules for names,
+    /// links and permissions are not the location's.</summary>
+    private static string? DiskEndOf(IVirtualFileSystem fileSystem, string path)
+        => path.StartsWith(VirtualMount.Prefix, StringComparison.Ordinal) && fileSystem.IsOnLocation(path)
+            ? null
+            : fileSystem.ResolveOnDisk(path);
 
     /// <summary><see cref="Measure"/> through the file system: a link is counted as nothing and not followed, and a
     /// folder that cannot be listed makes the totals a floor.</summary>
@@ -754,7 +762,7 @@ public static class FileTransferEngine
         private TransferItem? OnDisk(TransferItem item)
         {
             if (request.FileSystem is not { } fileSystem) return item;
-            return fileSystem.ResolveOnDisk(item.Source) is { } source && fileSystem.ResolveOnDisk(item.Destination) is { } destination
+            return DiskEndOf(fileSystem, item.Source) is { } source && DiskEndOf(fileSystem, item.Destination) is { } destination
                 ? item with { Source = source, Destination = destination }
                 : null;
         }

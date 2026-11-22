@@ -132,8 +132,9 @@ public sealed class FileOperationQueue : IFileOperationHost
         return op;
     }
 
-    /// <summary>Whether the Recycle Bin can take <paramref name="path"/>: only a real path on this disk can be recycled.</summary>
-    public bool IsRecyclable(string path) => FileSystem.GetBacking(path).IsFullyOnDisk();
+    /// <summary>Whether the Recycle Bin can take <paramref name="path"/>: only a real path on this disk can be recycled —
+    /// nothing on a location, though Windows may show the location as a folder.</summary>
+    public bool IsRecyclable(string path) => FileSystem.GetBacking(path).IsFullyOnDisk() && !FileSystem.IsOnLocation(path);
 
     private void Start(FileOperation op, IBackgroundTask task, Action? onSucceeded)
     {

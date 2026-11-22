@@ -11,7 +11,9 @@ Runs a Windows command prompt in a tab — or the shell of a location, such as a
 - Ctrl+V pastes into the shell. Right-click Paste puts the clipboard in the AI bar instead, to read over before you run it.
 - Ctrl+Shift+C, or right-click and Copy, copies the whole session including the scrollback.
 - Open a console on a folder or a whole drive with Cmd Here, in the folder's actions on the [File System](help:FileSystem) page. It starts in that folder.
-- On a folder of a location with a shell of its own — a WSL distro — Cmd Here opens that shell instead: bash or zsh, starting in the folder. The path bar follows it as it moves. A location with no shell offers no Cmd Here.
+- On a folder of a location with a shell of its own — a WSL distro — Cmd Here opens that shell instead, starting in the folder. With bash or zsh the path bar follows it as it moves. A location with no shell offers no Cmd Here.
+- In a distro's shell, Enter runs only a line starting with a common shell command (`ls`, `cd`, `grep`, `sudo`…) or with a program that is also on your Windows PATH. Any other line — `apt`, `make`, `./build.sh` — is sent to the assistant, with whatever it holds, so do not type a password or token on one.
+- In a distro's shell the Files tab is empty, and the Environment tab shows and saves Windows' variables, not the distro's.
 
 ## With the assistant
 - At a prompt, Enter runs your line if it starts with a cmd built-in, a program on your PATH or the path of a file that exists. Anything else is taken off the line and sent to the assistant. Answers appear in a banner under the console, which clears when you start typing.

@@ -33,7 +33,7 @@ internal sealed class WslShell(string distro, string shims, string loginShell) :
                 break;
         }
 
-        var launcher = new PseudoConsoleLauncher("wsl.exe", arguments.ToString());
+        var launcher = new PseudoConsoleLauncher(WslHelperDeployment.WslExecutable, arguments.ToString());
         return launcher.LaunchAsync(launch with { WorkingDirectory = null, Environment = Shared(launch.Environment) }, ct);
     }
 

@@ -207,4 +207,36 @@ public sealed class WslDistroTests
             (transport as IDisposable)?.Dispose();
         }
     }
+
+    [TestMethod]
+    public async Task ANameWindowsWouldTrim_IsReadAndSavedAsItself()
+    {
+        var folder = $"{WslUnderTest.Base}/exact-{Guid.NewGuid():N}";
+        await _session.CreateDirectoryAsync(folder, CancellationToken.None);
+        try
+        {
+            await WslUnderTest.RunInDistroAsync(_distro.Name, "sh", "-c",
+                $"printf plain > {folder}/notes && printf dotted > {folder}/notes. && printf spaced > '{folder}/notes '");
+
+            foreach (var (name, content) in new[] { ("notes.", "dotted"), ("notes ", "spaced") })
+            {
+                await using var stream = await _session.OpenReadAsync($"{folder}/{name}", ReadIntent.Whole, CancellationToken.None);
+                using var reader = new StreamReader(stream);
+                Assert.AreEqual(content, await reader.ReadToEndAsync(), $"'{name}' is not 'notes'");
+            }
+
+            await using (var write = await _session.BeginWriteAsync($"{folder}/notes.", WriteMode.Append, null, CancellationToken.None))
+            {
+                await write.Content.WriteAsync(Encoding.UTF8.GetBytes("+more"));
+                await write.CommitAsync(CancellationToken.None);
+            }
+            await using var plain = await _session.OpenReadAsync($"{folder}/notes", ReadIntent.Whole, CancellationToken.None);
+            using var unchanged = new StreamReader(plain);
+            Assert.AreEqual("plain", await unchanged.ReadToEndAsync(), "an append to 'notes.' never lands in 'notes'");
+        }
+        finally
+        {
+            await _session.DeleteAsync(folder, recursive: true, CancellationToken.None);
+        }
+    }
 }

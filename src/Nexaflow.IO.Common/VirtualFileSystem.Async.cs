@@ -232,6 +232,9 @@ public sealed partial class VirtualFileSystem
     // This disk, its mounts and its archives name files as Windows does.
     public StringComparison GetNameComparison(string path) => StringComparison.OrdinalIgnoreCase;
 
+    // Locations are a runtime's: this disk, its mounts and its archives hold none.
+    public bool IsOnLocation(string path) => false;
+
     // Nothing here is on a location: the caller's own shell runs on this computer.
     public ValueTask<ITerminalLauncher?> GetTerminalLauncherAsync(string path, CancellationToken ct = default)
         => ValueTask.FromResult<ITerminalLauncher?>(null);

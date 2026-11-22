@@ -222,7 +222,7 @@ public sealed class RenameTool(FileSystemViewModel vm) : IClientTool
 public sealed class DeleteTool(FileSystemViewModel vm) : IClientTool
 {
     public string Name => "delete_file";
-    public string Description => "Send a file or folder to the Recycle Bin.";
+    public string Description => "Send a file or folder to the Recycle Bin. Not on a location (a WSL distro, a server), which has no Recycle Bin.";
     public IReadOnlyList<ClientToolParameter> Parameters =>
     [
         new("name", "File or folder to delete (it goes to the Recycle Bin, not permanently)."),
@@ -255,8 +255,12 @@ public sealed class DeleteTool(FileSystemViewModel vm) : IClientTool
         bool ok;
         try
         {
+            // shell32 reports success for a file on a location and deletes it for good, which is not what was approved.
+            if (vm.Vfs.IsOnLocation(full))
+                return ToolResult.Error($"'{full}' is on a location, which has no Recycle Bin, so deleting it would be permanent. " +
+                                        "Nothing was deleted. The user can delete it with Delete, which asks first.");
             if (!await vm.Vfs.ExistsAsync(full, ct)) return ToolResult.Error($"Not found: {full}");
-            // The Recycle Bin is this machine's, and so is everything the tab's security context resolves to.
+            // The Recycle Bin is this machine's, and so is everything left that the tab's security context resolves to.
             ok = await Task.Run(() => NativeMethods.RecycleFiles(vm.Companions.WithCompanions([full])), ct);
         }
         catch (Exception ex)

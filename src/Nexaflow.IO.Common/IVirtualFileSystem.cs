@@ -283,6 +283,11 @@ public interface IVirtualFileSystem
     /// reload's match of old rows to new, a check for an open tab and the assistant's reach compare paths by.</summary>
     StringComparison GetNameComparison(string path);
 
+    /// <summary>True when the path is on a location, named by the location's path or by a Windows folder the location is
+    /// reachable as. What changes a file asks this rather than its backing: a native path is for readers, and the Recycle
+    /// Bin holds nothing of a location's — Windows deletes it for good and reports success.</summary>
+    bool IsOnLocation(string path);
+
     /// <summary>A launcher for a shell on the host holding the folder, starting in the folder given as
     /// <see cref="TerminalLaunch.WorkingDirectory"/> — a path of this file system — or null when the folder is not on a
     /// location, and the caller starts its own shell on this computer. Fails with <see cref="LocationException"/> when the

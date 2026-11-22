@@ -44,6 +44,11 @@ internal static class WslNames
         return names.Length == 0 ? NativeRoot(distro) : NativeRoot(distro) + "\\" + string.Join('\\', names.Select(ToNative));
     }
 
+    /// <summary><see cref="NativePath"/> in the extended-length form, which Windows neither trims nor shortens: the only
+    /// form in which <c>notes.</c> opens <c>notes.</c> rather than <c>notes</c>. For this backend's own IO; what is handed
+    /// to other programs is the plain form.</summary>
+    public static string ExactNativePath(string distro, string path) => @"\\?\UNC\" + NativePath(distro, path)[2..];
+
     // A character Windows cannot hold in a name.
     private static bool Stands(char c) => c < ' ' || Reserved.Contains(c);
 

@@ -141,4 +141,23 @@ public sealed class LocationPathTests
         Assert.IsFalse(LocationPath.Matches(otherPort, Nas));
         Assert.IsTrue(LocationPath.Matches(unstated, Nas));
     }
+
+    [TestMethod]
+    [DataRow(@"home\adam\project\%2E%2E\.ssh", DisplayName = "an escaped ..")]
+    [DataRow(@"home\adam\project\..%2F..%2F..%2Fetc", DisplayName = "an escaped separator")]
+    [DataRow(@"home\adam\project\%2F..%2Fsecret", DisplayName = "a separator opening a name")]
+    public void AnEscapeThatDecodesToNoName_NeverBecomesAStepInThePath(string remainder)
+    {
+        var names = LocationPath.ToProviderPath(remainder).Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.AreEqual(remainder.Split('\\').Length, names.Length, "a segment is one name, whatever it decodes to");
+        CollectionAssert.DoesNotContain(names, "..");
+    }
+
+    [TestMethod]
+    public void DotsAreWorkedOutByWhatIsWritten_NeverAboveTheRoot()
+    {
+        Assert.AreEqual("/home/b", LocationPath.ToProviderPath(@"home\link\..\b"), "before the host can follow the link");
+        Assert.AreEqual("/etc", LocationPath.ToProviderPath(@"..\..\.\etc"));
+    }
 }

@@ -13,11 +13,13 @@ Browses the drives and folders on this PC and acts on the files in them.
 
 ## Linux (WSL)
 
-- Each WSL distro installed on this PC is a row of This PC, under Linux (WSL), as soon as it is installed — nothing to set up. Opening it starts the distro if it is not running, and the address bar shows where you are as `wsl://Ubuntu/home/you`.
-- Typing or pasting `\\wsl.localhost\Ubuntu\…` or `wsl://Ubuntu/…` opens the same folder.
-- A distro's folders list their Permissions, Owner and Group as `ls -l` does, a link shows where it points, and names that differ only by case are different files, as they are in Linux.
-- Saving a file there keeps its permissions, so a script stays runnable, and a change made from inside Linux shows in the open folder at once.
-- Open terminal here opens the distro's own shell at the folder, and the terminal follows `cd`.
+- Each WSL distro installed on this PC is a row of This PC, of type Linux (WSL) — nothing to set up. Opening it starts the distro if it is not running, and puts a small helper in your Linux account's cache folder the first time.
+- Go to a folder in one by typing `> wsl://Ubuntu/etc` or `> \\wsl.localhost\Ubuntu\etc` into the bar at the bottom.
+- A distro's folders list their Permissions, Owner and Group as `ls -l` does — a link's permissions start with `l` — and names that differ only by case are different files, as they are in Linux.
+- A distro has no Recycle Bin: Delete there is for good, and asks first saying so. Shift+Delete does not ask. The assistant does not delete there.
+- Open With, copying to the Windows clipboard and dragging out to other programs do not work on a distro's files.
+- A file copied between a distro and Windows does not keep its Linux permissions, so a script may need `chmod +x` afterwards.
+- Cmd Here opens the distro's own shell at the folder.
 - A folder that cannot be read — the distro was shut down, you may not read it — says why, with Try again. [Show me](locate:FileListRetryButton)
 
 ## Opening a file

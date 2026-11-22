@@ -52,8 +52,8 @@ internal sealed class WslSession : ILocationSession
         }
     }
 
-    /// <summary>Where a path of this distro is on this disk.</summary>
-    internal string Native(string path) => WslNames.NativePath(Distro, path);
+    /// <summary>Where a path of this distro is on this disk, named exactly.</summary>
+    internal string Native(string path) => WslNames.ExactNativePath(Distro, path);
 
     /// <summary>A distro path's parent, or null for the root.</summary>
     internal static string? ParentOf(string path)

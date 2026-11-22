@@ -20,6 +20,10 @@ internal static class WslHelperDeployment
 {
     public const string HelperName = "nexaflow-wsl-helper";
 
+    /// <summary>Windows' own <c>wsl.exe</c>, named in full: by name alone Windows would first look in the current folder,
+    /// which may be one somebody else writes to.</summary>
+    internal static string WslExecutable { get; } = Path.Combine(Environment.SystemDirectory, "wsl.exe");
+
     // The shims embedded in this assembly, and where each goes under the helper's folder.
     private static readonly (string Resource, string Path)[] Shims =
     [
@@ -133,7 +137,7 @@ internal static class WslHelperDeployment
 
     private static WslHelperLink Launch(string distro, string helper)
     {
-        var start = new ProcessStartInfo("wsl.exe")
+        var start = new ProcessStartInfo(WslExecutable)
         {
             UseShellExecute        = false,
             CreateNoWindow         = true,
@@ -153,7 +157,7 @@ internal static class WslHelperDeployment
     /// <see cref="LocationException"/> when it fails — <see cref="LocationError.NotFound"/> when the distro is not installed.</summary>
     internal static async ValueTask<string> RunAsync(string distro, CancellationToken ct, params string[] arguments)
     {
-        var start = new ProcessStartInfo("wsl.exe")
+        var start = new ProcessStartInfo(WslExecutable)
         {
             UseShellExecute        = false,
             CreateNoWindow         = true,

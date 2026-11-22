@@ -34,10 +34,10 @@ The groundwork is real but synchronous and Windows-path shaped, so the first job
 | `IVirtualFileSystem` | `IO.Common/IVirtualFileSystem.cs` | Transparent over archives, `::{id}` mounts and connected locations; async, cancellable members beside the sync ones; breadcrumbs, parent paths, display names and display forms | Features and the shared visuals open, save, list and probe through the async members, and what reads this disk directly is marked `[LocalDiskOnly]`; This PC's own probe of its rows is the one place still reported (`NXIO002`) |
 | `VirtualBacking` | `IO.Common/VirtualMount.cs` | Actions ask how a path's bytes are obtained before handing it to a process; `Remote` marks a path on a location, and a location this machine also reaches as Windows folders (WSL) is `PassThrough` | A path on any other location has no materialised copy until the content cache lands, so an action needing a native path is suppressed there |
 | `LocationEntry` | `IO.Common/Locations/LocationEntry.cs` | Name, size, modified, hidden and read-only, symlink target, POSIX mode, owner, group, content hash, archive extras | — |
-| WindowsFileSystem feature | `Features.WindowsFileSystem` | The browser, This PC, file actions, transfers. Browsing, the tree, the address bar, create, rename and the assistant's file tools go through the runtime's async VFS; file actions are awaitable; copy, move and delete go through the engine, and what the Recycle Bin cannot hold is offered as a permanent delete | Dragging out of a location hands Windows a path it cannot open until the content cache lands |
+| WindowsFileSystem feature | `Features.WindowsFileSystem` | The browser, This PC, file actions, transfers. Browsing, the tree, the address bar, create, rename and the assistant's file tools go through the runtime's async VFS; file actions are awaitable; copy, move and delete go through the engine, and what the Recycle Bin cannot hold is offered as a permanent delete | Dragging out, the clipboard, Open With and shell verbs resolve through the process-wide file system, which knows no locations, so each hands Windows a path it cannot open |
 | `FileTransferEngine` | `IO.Common` | Progress, throughput, ETA, cancel. An item whose ends are both real paths on this disk takes the disk's own path; one with an end only the file system reaches (an archive, a location) goes through `FileTransferRequest.FileSystem` with the same promises | Free-space parking only where the destination is on this disk. Within one location that declares `ServerSideCopy` an unverified copy asks the server (`CopyWithinAsync`) and moves no bytes |
 | `IThisPcItemProvider` | `Features.Common/ThisPc` | Every row of This PC is a provider's: the volumes (the file browser's own provider), OneDrive's sync folders; each provider describes its own rows, and connections use the same seam | — |
-| `PathScope` | `IO.Common/PathScope.cs` | Assistant reach equals what the user has open; a location's path (`::{id}\…`) is made full within its root and compared as the file system holding it says | Pages grant a folder by its Windows path, so a location is reachable only where it has one (WSL) |
+| `PathScope` | `IO.Common/PathScope.cs` | Assistant reach equals what the user has open; a location's path (`::{id}\…`) is made full within its root and compared as the file system holding it says | The file browser's own tools work in location paths; every other tool gets the browser's grant as a Windows path, compared ignoring case, and a terminal's grant follows the folder its output reports |
 | `PseudoConsoleHostService` + `TerminalScreen` | `IO.Terminal` | The ConPTY transport for cmd/pwsh, started by `PseudoConsoleLauncher`, and a VT100 screen buffer sized to the console the shell is shown in | The view is a scrolling list of finished lines, so full-screen programs (vim, htop, tmux) are not drawn |
 | `ProtectedData` | `Core/ConfigManager.cs` | DPAPI protects stored secrets | Per-file, not a credential store with per-host entries |
 
@@ -312,6 +312,26 @@ beneath `iocommon-vfs`, with a node per backend and the grid view added as each 
 `ioterm-transport` under `io-terminal`. The use cases — connect, browse, open terminal here — get a
 `locations` node under `features` with the first backend a person can reach. Each is snaplinked to its code as it lands
 and committed in the branch's pending file.
+
+## What WSL needs before it ships
+
+A native path is for readers: a copy, move or delete named by a location's path goes through the location, the Recycle
+Bin is never offered for one, and a name Windows would trim has no native path. These are open.
+
+| Gap | Effect |
+| --- | --- |
+| A distro console classifies a typed line by a built-in list and the Windows PATH | An unlisted command, secrets included, goes to the assistant instead of the shell |
+| A terminal's grant follows OSC 7, which any output can print | Printing a hostile file can widen what the assistant may reach |
+| `ShellPath`, `ShellVerbAction` and `CustomAction` resolve through `VirtualFileSystem.Instance` | Open With, shell verbs, clipboard and drag-out fail on a distro's files |
+| Pages other than the browser's tools are granted Windows paths | The assistant's reach there ignores case, and trims a trailing dot or space |
+| `delete_file` refuses on a location | The person can delete there and the assistant cannot |
+| Rename takes and shows path segments | An escaped name shows escaped, and a typed `%41` becomes `A` |
+| Editors that save by native path, and copies between a distro and Windows | Linux permissions are lost |
+| Image viewer delete calls the shell's Recycle Bin itself | Given a `\\wsl.localhost` path it deletes for good and reports recycling |
+| Actions offered by `PassThrough` are not each proven on a location | An action such as Zip It may be offered and fail |
+| The console shows `::wsl-ubuntu\usr`, an empty Files tab and Windows' variables | The page describes the wrong machine |
+| The browser shows no address, no link target and a disk icon for a distro; the action reads Cmd Here | Linux folders do not read as Linux |
+| Names that are not UTF-8 cross the helper's wire as text | Those files cannot be opened, renamed or deleted |
 
 ## Decisions
 

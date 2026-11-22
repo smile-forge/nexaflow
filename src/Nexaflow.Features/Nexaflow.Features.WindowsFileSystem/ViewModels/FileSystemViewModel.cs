@@ -569,7 +569,7 @@ else if (entry is IFileCreateAction action) await action.CreateItemAsync(RealFol
         // Inside an archive there is nothing to watch: its container is a file. A folder on disk — a mounted one where it
         // really is — is watched by the shell; one on a location through the location, where it can be.
         if (_inContainer) return;
-        if (!Vfs.GetBacking(CurrentPath).IsFullyOnDisk())
+        if (!Vfs.GetBacking(CurrentPath).IsFullyOnDisk() || Vfs.IsOnLocation(CurrentPath))
         {
             _ = WatchLocationAsync(CurrentPath);
             return;

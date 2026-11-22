@@ -55,6 +55,16 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/LocationNativePathTests.cs",
             "class": "LocationNativePathTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/LocationNativeTransferTests.cs",
+            "class": "LocationNativeTransferTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/LocationDeleteTests.cs",
+            "class": "LocationDeleteTests"
           }
         ]
       }

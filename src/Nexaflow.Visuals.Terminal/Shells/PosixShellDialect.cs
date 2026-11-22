@@ -44,8 +44,10 @@ public sealed class PosixShellDialect : TerminalShellDialect
 
     public override string ClearInputLine => "\x15";   // Ctrl+U: readline's and zle's kill to the line's start
 
+    // Quotes hold a name from the shell, not from the tty: a control character typed is a key — Ctrl+C drops the line and
+    // Enter runs what follows — so a folder named with one is never typed.
     public override string? FormatCdCommand(string folder)
-        => ShellPath(folder) is { } path ? $"cd -- {Quote(path)}" : null;
+        => ShellPath(folder) is { } path && !path.Any(char.IsControl) ? $"cd -- {Quote(path)}" : null;
 
     public override string FormatSetCommand(string name, string value) => $"export {name}={Quote(value)}";
 

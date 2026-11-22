@@ -109,4 +109,14 @@ public sealed class LocationNativePathTests
         Assert.IsNull(await _vfs.GetTerminalLauncherAsync(@"C:\Users"));
         await Assert.ThrowsExactlyAsync<NotSupportedException>(async () => await _vfs.GetTerminalLauncherAsync($@"{Root}\home"));
     }
+
+    [TestMethod]
+    [DataRow(@"home\notes%2E", DisplayName = "a name ending in a dot")]
+    [DataRow(@"home\notes%20", DisplayName = "a name ending in a space")]
+    [DataRow(@"home\folder%2E\inner.txt", DisplayName = "under a folder ending in a dot")]
+    public void ANameWindowsWouldTrim_HasNoNativePath_SoNoReaderIsHandedItsNeighbour(string remainder)
+    {
+        Assert.IsNull(_vfs.TryResolveReal($@"{Root}\{remainder}"), "Windows reads 'notes.' as 'notes', another file");
+        Assert.AreEqual(VirtualBacking.Remote, _vfs.GetBacking($@"{Root}\{remainder}"));
+    }
 }
