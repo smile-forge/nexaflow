@@ -42,12 +42,13 @@ public static class TestSelection
     /// <param name="IsTestProject">Whether a project is a test project.</param>
     /// <param name="TakesOverTheMachine">Whether the tests in a file of a test project drive the real desktop, and so must
     /// not be run for anyone. Asked per file: a suite of ordinary tests can hold a few that show a window.</param>
-    /// <param name="UsesOf">The uses of a target among the candidate files that spell its name, or null when they
-    /// cannot be resolved — in which case the spelling is taken as the use.</param>
+    /// <param name="UsesOf">The uses of each target among the candidate files that spell its name — a step's targets asked
+    /// together, so they can be answered in one pass — with null for one whose uses cannot be resolved, whose spelling is
+    /// then taken as its use.</param>
     /// <param name="Coverage">What the test assemblies declare they cover, when a scan has recorded it.</param>
     public sealed record Sources(Func<string, string?> Read, IReadOnlyList<string> Files, Func<string, string?> ProjectOf,
                                  Func<string, bool> IsTestProject, Func<string, string, bool> TakesOverTheMachine,
-                                 Func<Target, IReadOnlyList<string>, IReadOnlyList<Use>?> UsesOf,
+                                 Func<IReadOnlyList<(Target Target, IReadOnlyList<string> Candidates)>, IReadOnlyList<IReadOnlyList<Use>?>> UsesOf,
                                  TestCoverageManifest? Coverage);
 
     /// <summary>How far from the node its uses are followed: the tests that use it, that use what uses it, and one step
@@ -101,12 +102,17 @@ public static class TestSelection
             var spelled = GraphMentions.Of(graph, frontier.Select(t => t.Name).ToList(), sources.Files, sources.Read);
             var next    = new List<Target>();
 
-            foreach (var target in frontier)
+            var asked = frontier.Select(target => (target, (IReadOnlyList<string>)[.. spelled.Where(m => m.Text.Contains(target.Name, StringComparison.Ordinal))
+                                                                                          .Select(m => m.RelativePath)
+                                                                                          .Distinct(StringComparer.OrdinalIgnoreCase)]))
+                                .ToList();
+            var bound = sources.UsesOf(asked);
+
+            for (var t = 0; t < frontier.Count; t++)
             {
-                var candidates = spelled.Where(m => m.Text.Contains(target.Name, StringComparison.Ordinal))
-                                        .Select(m => m.RelativePath).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-                var uses = sources.UsesOf(target, candidates)
-                        ?? [.. spelled.Where(m => m.Text.Contains(target.Name, StringComparison.Ordinal)).Select(m => new Use(m.RelativePath, m.Line))];
+                var target = frontier[t];
+                var uses   = bound[t]
+                          ?? [.. spelled.Where(m => m.Text.Contains(target.Name, StringComparison.Ordinal)).Select(m => new Use(m.RelativePath, m.Line))];
 
                 foreach (var use in uses)
                 {

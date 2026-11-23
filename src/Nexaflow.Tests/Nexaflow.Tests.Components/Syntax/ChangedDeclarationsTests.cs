@@ -42,4 +42,23 @@ public class ChangedDeclarationsTests
 
         Assert.AreEqual(Before.IndexOf("Greet(", StringComparison.Ordinal), start);
     }
+
+    [TestMethod]
+    public void SeveralNames_FoundInOneParse_AreWhereEachIsFoundAlone()
+    {
+        (string AstPath, string Name)[] asked =
+        [
+            ("T:Greeter/M:Greet", "Greet"),
+            ("T:Greeter/P:Count", "Count"),
+            ("T:Moved/M:Greet", "Greet"),       // no longer there, but one declaration has the name: found again by it
+            ("T:Greeter/M:Missing", "Missing"),
+        ];
+
+        var together = StructuralEdit.NameStartsOf("c-sharp", Before, asked);
+
+        CollectionAssert.AreEqual(asked.Select(a => StructuralEdit.NameStartOf("c-sharp", Before, a.AstPath, a.Name)).ToArray(), together.ToArray());
+        Assert.AreEqual(Before.IndexOf("Greet(", StringComparison.Ordinal), together[0]);
+        Assert.AreEqual(together[0], together[2]);
+        Assert.IsNull(together[3]);
+    }
 }

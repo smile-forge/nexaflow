@@ -10,6 +10,7 @@ using Nexaflow.Services.Initiatives.Hosting.Ipc;
 using System.Runtime.InteropServices;
 using System.Reflection;
 using System.Collections.Generic;
+using Nexaflow.Services.Initiatives.Cli.Building;
 
 namespace Nexaflow.Services.Initiatives.Cli.Daemon;
 
@@ -174,7 +175,14 @@ internal static class DaemonServer
             // Read once, up front, because that is what starts the watcher: the tree is small, and without this
             // nothing here would ever notice it change — the verbs each load their own copy and tell no one.
             _ = host.Tree;
-            Serve(pipe, host, LetGo);
+
+            // Disposed once nothing is being served, which waits for a build still running and lets the workers go. Two
+            // pools, so an edit check's design-time build never queues behind a build of its tree that takes minutes.
+            using var builds = new BuildPool(new HostedMSBuild("nfi", BuildPool.DefaultNodes, reuseNodes: true), BuildPool.Linger,
+                                             line => DaemonLog.Say("-", "build", line));
+            using var designTime = new BuildPool(new HostedMSBuild("nfi design-time", BuildPool.DesignTimeNodes, reuseNodes: true),
+                                                 BuildPool.Linger, line => DaemonLog.Say("-", "design-time", line));
+            Serve(pipe, host, LetGo, new BuildPools(builds, designTime));
             return 0;
         }
         finally { LetGo(); }
@@ -184,7 +192,7 @@ internal static class DaemonServer
     /// Takes connections until idle or told to stop, then finishes what it took. <paramref name="stoppedTaking"/> runs once
     /// nothing more is taken, before that finishing — where the process gives up its claim on the pipe.
     /// </summary>
-    internal static void Serve(string pipe, InitiativesHost host, Action? stoppedTaking = null)
+    internal static void Serve(string pipe, InitiativesHost host, Action? stoppedTaking = null, BuildPools? builds = null)
     {
         using var stopping = new CancellationTokenSource();
         using var watchdog = new Timer(_ => Watch(host), null, WatchEvery, WatchEvery);
@@ -215,7 +223,7 @@ internal static class DaemonServer
             // each of a dozen concurrent questions is a dozen the pool does not have, and it grows by about one a second —
             // which is the queue this process exists not to have, rebuilt one level down.
             Interlocked.Increment(ref _inFlight);
-            _ = Task.Factory.StartNew(() => Handle(server, host, stopping), CancellationToken.None,
+            _ = Task.Factory.StartNew(() => Handle(server, host, builds, stopping), CancellationToken.None,
                                       TaskCreationOptions.LongRunning, TaskScheduler.Default);
         }
 
@@ -255,7 +263,7 @@ internal static class DaemonServer
     /// stopped answering, without either end holding a list of which commands are allowed to be slow.
     /// </para>
     /// </summary>
-    private static void Handle(NamedPipeServerStream server, InitiativesHost host, CancellationTokenSource stopping)
+    private static void Handle(NamedPipeServerStream server, InitiativesHost host, BuildPools? builds, CancellationTokenSource stopping)
     {
         WorkItem? work = null;
         Taken? taken = null;
@@ -293,7 +301,7 @@ internal static class DaemonServer
             WatchForHangUp(server, gone, taken);
 
             // Null when the caller left before its turn came: there is no one to answer.
-            if (Execute(request, host, work, taken, gone.Token) is not { } response) return;
+            if (Execute(request, host, builds, work, taken, gone.Token) is not { } response) return;
 
             Volatile.Write(ref taken.Answering, 1);
             DaemonProtocol.Write(server, response);
@@ -365,7 +373,7 @@ internal static class DaemonServer
     /// </para>
     /// </summary>
     /// <returns>Null when the caller left while the command was waiting for its turn.</returns>
-    private static DaemonResponse? Execute(DaemonRequest request, InitiativesHost host, WorkItem work, Taken taken,
+    private static DaemonResponse? Execute(DaemonRequest request, InitiativesHost host, BuildPools? builds, WorkItem work, Taken taken,
                                            CancellationToken gone)
     {
         var stdout   = new StringWriter();
@@ -406,6 +414,7 @@ internal static class DaemonServer
                 Shell        = request.Shell,
                 Stdin        = request.Stdin,
                 Host         = host,
+                Builds       = builds,
                 Cancellation = gone,
                 Ticket       = work.Ticket,
             });

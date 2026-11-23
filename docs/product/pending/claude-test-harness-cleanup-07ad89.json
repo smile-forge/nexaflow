@@ -1,0 +1,63 @@
+{
+  "branch": "claude/test-harness-cleanup-07ad89",
+  "nodes": {
+    "nfi-build": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives.Cli/Building/BuildPool.cs",
+          "class": "BuildPool"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives.Cli/Building/MSBuildDriver.cs",
+          "class": "MSBuildDriver"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives.Cli/Building/HostedMSBuild.cs",
+          "class": "MSBuildRuntime"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives.Cli/Building/BuildCommand.cs",
+          "class": "BuildCommand"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives.Cli/Building/RestoreInputs.cs",
+          "class": "RestoreInputs"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives.Cli/Building/PooledDesignTimeBuilder.cs",
+          "class": "PooledDesignTimeBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Cli/BuildPoolTests.cs",
+            "class": "BuildPoolTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Cli/HostedBuildTests.cs",
+            "class": "HostedBuildTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Cli/RestoreInputsTests.cs",
+            "class": "RestoreInputsTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "nfi-build"
+  ]
+}

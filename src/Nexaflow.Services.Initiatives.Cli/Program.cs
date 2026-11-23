@@ -10,6 +10,7 @@ using Nexaflow.Services.Initiatives.Cli.Daemon;
 using Nexaflow.Services.Initiatives.Hosting;
 using Nexaflow.Services.Initiatives.Graph.Store;
 using Nexaflow.Syntax.Compiler;
+using Nexaflow.Services.Initiatives.Cli.Building;
 
 namespace Nexaflow.Services.Initiatives.Cli;
 
@@ -200,6 +201,7 @@ internal static class Program
         "promote"     => Promote(args[1..]),
         "ask"         => Ask(args[1..]),
         "test"        => TestVerb(args[1..]),
+        "build"       => BuildVerb(args[1..]),
         "graph"       => Graph(args[1..]),
         _ => Usage($"unknown command '{args[0]}'")
     };
@@ -239,6 +241,8 @@ internal static class Program
               nfi ask        '<stage> | <stage> ...' [<root>]   several graph questions, one answer
               nfi test       <node-id> [<root>] [--list] [--no-build]   build and run the tests that exercise a node
               nfi test       --failed [--no-build]                      run again exactly what failed last time
+              nfi build      <project-or-solution> [<root>] [--project <another>]... [--target <t>]... [--property <n=v>]...
+                                                  [--no-restore] [--all] [--json]
               nfi graph      [<root>] [--json] [--product-anchored]   (see: graph help — build + explore)
 
             validate   Checks every snaplink still points at a real target (file exists, md heading resolves,
@@ -338,9 +342,17 @@ internal static class Program
                          ask '@3 | like Tests | files'        continue answer @3 - every answer ends with its handle; @ is the last
             test       Builds and runs the tests that exercise a node: the tests that use it, the tests of what uses it
                        (three steps out, by the compiler's binding), and the tests declaring coverage of its feature.
-                       --list shows the choice and why, without building. The choosing is the resident process's; the build
-                       and run happen here, so a long run holds no lock and Ctrl+C stops it. UI journey suites are named with
+                       --list shows the choice and why, without building. The choosing is the resident process's, and so
+                       is the build (see build), which starts on the node's own project while the tests are chosen; the
+                       run happens here, so a long run holds no lock and Ctrl+C stops it. UI journey suites are named with
                        the filter to run them and never run for you - they take over the machine. exit: 1 if any failed.
+            build      Builds as `dotnet build` does, on the worker processes the resident process keeps for every caller
+                       on this machine: one set, half its cores, reused from build to build and let go after ten idle
+                       minutes - not a machine-sized set left behind by each build. --project adds entries, built side by
+                       side so what they share is built once; --target/--property are -t:/-p:. An entry is restored only
+                       when something its restore reads has changed since it last restored (--no-restore: never). Errors
+                       and warnings are listed (--all for every one); --json prints the report instead. A tree builds
+                       once at a time: a second build of it waits for the first. exit: 1 if it failed.
             graph      Builds the knowledge graph (product tree ⊕ code AST ⊕ snaplinks) → .product/graph.bin,
                        the file the Graph viewer opens. --json writes it to stdout instead of the file.
                        --product-anchored limits the code layer to snaplinked files (default: whole repo).
@@ -1158,8 +1170,22 @@ internal static class Program
         var codeRoot = CodeRootFor(root, main: false);
         var host     = EditCheck.HostFor(codeRoot);
         var files    = EditCheck.SourceFiles(codeRoot).ToList();
+        if (a.Has("--build-ahead")) BuildAhead(id, codeRoot, host);
         var kinds    = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        string? Read(string rel) => CodeFilePath(root, rel, main: false) is { } full ? File.ReadAllText(full) : null;
+        // Read once each: choosing asks after the same files over and over — what a declaration's name is, where its uses
+        // are, what a test file holds — and nothing changes them while it does.
+        var texts = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        string? Read(string rel) => texts.TryGetValue(rel, out var known) ? known
+            : texts[rel] = CodeFilePath(root, rel, main: false) is { } full ? File.ReadAllText(full) : null;
+        var lineStarts = new Dictionary<string, int[]?>(StringComparer.OrdinalIgnoreCase);
+        int LineOf(string rel, int offset)
+        {
+            if (!lineStarts.TryGetValue(rel, out var starts))
+                lineStarts[rel] = starts = Read(rel) is { } text ? [0, .. text.Select((c, i) => (c, i)).Where(x => x.c == '\n').Select(x => x.i + 1)] : null;
+            if (starts is null) return 0;
+            var at = Array.BinarySearch(starts, offset);
+            return at >= 0 ? at + 1 : ~at;
+        }
         string Kind(string csproj) => kinds.TryGetValue(csproj, out var kind) ? kind : kinds[csproj] = TestKind(EditCheck.Full(codeRoot, csproj));
         var desktop = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         bool DrivesTheDesktop(string rel) => desktop.TryGetValue(rel, out var drives) ? drives
@@ -1167,23 +1193,37 @@ internal static class Program
 
         // A use is what the compiler binds to the declaration, where it can be asked; spelling is the fallback, and chose
         // every suite in the repository the first time for a helper whose name was an ordinary word.
-        IReadOnlyList<TestSelection.Use>? UsesOf(TestSelection.Target target, IReadOnlyList<string> candidates)
+        IReadOnlyList<IReadOnlyList<TestSelection.Use>?> UsesOf(IReadOnlyList<(TestSelection.Target Target, IReadOnlyList<string> Candidates)> asked)
         {
-            if (TreeSitterLanguages.ForEdit(target.RelativePath) != "c-sharp" || Read(target.RelativePath) is not { } text
-                || StructuralEdit.NameStartOf("c-sharp", text, target.AstPath, target.Name) is not { } position)
-                return null;
+            // Each file parsed once for all of the step's declarations in it.
+            var positions = new int?[asked.Count];
+            foreach (var file in Enumerable.Range(0, asked.Count).GroupBy(i => asked[i].Target.RelativePath, StringComparer.OrdinalIgnoreCase))
+                if (TreeSitterLanguages.ForEdit(file.Key) == "c-sharp" && Read(file.Key) is { } text)
+                    foreach (var (i, start) in file.Zip(StructuralEdit.NameStartsOf("c-sharp", text, [.. file.Select(i => (asked[i].Target.AstPath, asked[i].Target.Name))])))
+                        positions[i] = start;
+            var queried = Enumerable.Range(0, asked.Count).Where(i => positions[i] is not null).ToList();
 
-            // Longer than an edit's budget: a test run takes minutes, and a suite missing because its project loaded late is a
-            // test that silently did not run.
-            var found = host.FindReferences(EditCheck.Full(codeRoot, target.RelativePath), position,
-                                            [.. candidates.Where(c => c.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
-                                                          .Select(c => EditCheck.Full(codeRoot, c))],
-                                            TimeSpan.FromMinutes(3), RequestScope.Cancellation);
+            // The whole step in one pass. Longer than an edit's budget: a test run takes minutes, and a suite missing because
+            // its project loaded late is a test that silently did not run.
+            var reports = host.FindReferences(
+                [.. queried.Select(i => new ReferenceQuery(EditCheck.Full(codeRoot, asked[i].Target.RelativePath), positions[i]!.Value,
+                                                           [.. asked[i].Candidates.Where(c => c.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+                                                                                  .Select(c => EditCheck.Full(codeRoot, c))]))],
+                TimeSpan.FromMinutes(3), RequestScope.Cancellation);
+
+            var answers = new IReadOnlyList<TestSelection.Use>?[asked.Count];
+            for (var q = 0; q < queried.Count; q++)
+                answers[queried[q]] = UsesFrom(asked[queried[q]].Target, positions[queried[q]]!.Value, reports[q]);
+            return answers;
+        }
+
+        IReadOnlyList<TestSelection.Use>? UsesFrom(TestSelection.Target target, int position, ReferenceReport found)
+        {
             if (found.Error is not null) return null;
 
             var uses = found.Locations.Select(l => (Rel: EditCheck.Relative(codeRoot, l.FullPath), l.Start))
                             .Where(l => !(string.Equals(l.Rel, target.RelativePath, StringComparison.OrdinalIgnoreCase) && l.Start == position))
-                            .Select(l => new TestSelection.Use(l.Rel, Read(l.Rel) is { } t ? t.AsSpan(0, Math.Min(l.Start, t.Length)).Count('\n') + 1 : 0))
+                            .Select(l => new TestSelection.Use(l.Rel, LineOf(l.Rel, l.Start)))
                             .ToList();
 
             // Where a project could not be searched, the spelling stands in: a test too many beats one missed.
@@ -1224,6 +1264,59 @@ internal static class Program
         foreach (var note in selection.Notes) Console.WriteLine($"note: {note}");
         if (selection.Suites.Count > 0) Console.WriteLine($"nfi test {id} builds these and runs them.");
         return Clean;
+    }
+
+    /// <summary>
+    /// Starts building the project the node is in while its tests are being chosen. Every suite chosen for it builds that
+    /// project first, so none of the work is wasted, and choosing takes seconds the build would otherwise only start after.
+    /// The suites' own build, asked for once they are chosen, waits in the pool for this one rather than doing it again. A
+    /// caller that leaves while its tests are being chosen takes this build with it.
+    /// </summary>
+    private static void BuildAhead(string id, string codeRoot, CompileHost host)
+    {
+        if (RequestScope.Builds is not { } pool) return;
+        if (!id.StartsWith("code:", StringComparison.Ordinal) && !id.StartsWith("file:", StringComparison.Ordinal)) return;
+
+        var file    = EditCheck.Full(codeRoot, id[5..].Split('#')[0]);
+        var project = BuildCommand.Resolve(file, codeRoot) ?? host.ProjectOf(file);
+        if (project is null) return;
+
+        var order  = new BuildOrder(codeRoot, [project], ["Build"], new Dictionary<string, string>(), Restore: true)
+        {
+            RestoreStamp = RestoreInputs.StampOf,
+        };
+        var gone   = RequestScope.Cancellation;
+        var ticket = RequestScope.Ticket ?? "-";
+        DaemonLog.Say(ticket, "build", $"{Path.GetFileNameWithoutExtension(project)} ahead of the tests chosen for it");
+        _ = Task.Run(() => pool.Build(order, gone));
+    }
+
+    private static int BuildVerb(string[] args)
+    {
+        if (!TryRead(Specs.Build, args, out var a, out var root, out var parseCode)) return parseCode;
+
+        var codeRoot = CodeRootFor(root, main: false);
+        var projects = new List<string>();
+        foreach (var named in (string[])[a[0], .. a.All("--project")])
+        {
+            if (BuildCommand.Resolve(named, codeRoot) is not { } project)
+                return VerbUsage($"build: '{named}' names no project or solution - give a .csproj/.slnx path, or its file: id");
+            projects.Add(project);
+        }
+
+        var properties = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var property in a.All("--property"))
+        {
+            if (property.IndexOf('=') is not (var eq and > 0)) return VerbUsage($"build: --property takes name=value, not '{property}'");
+            properties[property[..eq]] = property[(eq + 1)..];
+        }
+
+        var order  = new BuildOrder(codeRoot, projects, a.All("--target") is { Count: > 0 } targets ? targets : ["Build"], properties,
+                                    Restore: !a.Has("--no-restore")) { RestoreStamp = RestoreInputs.StampOf };
+    var report = BuildCommand.Run(order);
+        if (a.Has("--json")) Console.WriteLine(JsonSerializer.Serialize(report));
+        else BuildCommand.Print(report, projects, a.Has("--all"));
+        return report.Problem is not null ? Error : report.Succeeded ? Clean : Broken;
     }
 
     /// <summary>Suites that use it but drive the real desktop: named with the filter to run them, never run for anyone.</summary>
@@ -3206,8 +3299,13 @@ internal static class Program
             "graph edit undo [--dry-run] [--main]");
 
         // Only the choosing of tests reaches the resident process (see Main) — the run itself builds and runs in the caller's.
-        public static readonly VerbSpec Test = new("test", 1, None, ["--list", "--plan", "--failed", "--no-build"],
+        public static readonly VerbSpec Test = new("test", 1, None, ["--list", "--plan", "--build-ahead", "--failed", "--no-build"],
             "test <node-id> [<root>] [--list] [--no-build] | test --failed [--no-build]", MinPositionals: 0, Access: Reads);
+
+        // Served by the resident process, whose build pool it is, and a reader: it changes no graph, so it waits for no tree.
+        public static readonly VerbSpec Build = new("build", 1, ["--project", "--target", "--property"], ["--no-restore", "--all", "--json"],
+            "build <project-or-solution> [<root>] [--project <another>]... [--target <t>]... [--property <name=value>]... "
+          + "[--no-restore] [--all] [--json]", Access: Reads);
 
         /// <summary>Every spec, the longest verb first, so <c>graph edit script</c> is found before <c>graph edit</c> and
         /// <c>graph</c>. Last, because statics initialise in order and this reads every one above it.</summary>

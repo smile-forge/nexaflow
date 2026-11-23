@@ -239,7 +239,7 @@ the feature stays with the feature.
 
 ```powershell
 # Build + run a project's tests (MSTest runner exe):
-dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Features/Nexaflow.Tests.Features.csproj
+& $nfi build src/Nexaflow.Tests/Nexaflow.Tests.Features/Nexaflow.Tests.Features.csproj
 $exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/x64/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.Features.exe"
 
 & $exe --filter "TestCategory!=Desktop&TestCategory!=Interactive"   # what CI runs
@@ -247,6 +247,15 @@ $exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/x64/Debug/net10.0-windows
 & $exe --filter "TestCategory=Interactive"               # calls real OS services — dev machines only
 & $exe --filter "FullyQualifiedName~SampleFileDetection" # one class
 ```
+
+`nfi build` is `dotnet build` on a shared pool: every session's builds run on one set of MSBuild workers that nfi's
+resident process keeps — half the machine's cores, reused from build to build, let go after ten idle minutes — where
+each `dotnet build` starts a set the size of the machine and leaves it running for a quarter of an hour. With several
+sessions at work, that is the difference between one set of build processes and dozens. Several `--project` entries
+build side by side, so what they share is built once, and an entry is restored only when something its restore reads
+— a project file in its closure, what those import, a `Directory.*`, `NuGet.config` or `global.json` above them — has
+changed since it last restored. The compile host's design-time builds, which edit checks wait on, run on a second,
+two-worker pool, so they never queue behind a long build of the same tree.
 
 ### Fast inner loop
 
@@ -259,7 +268,7 @@ by subject, so editing a viewer test rebuilds only its own suite. `nfi test <nod
 After any change touching `Nexaflow.Core`, run its unit tests before committing:
 
 ```powershell
-dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Core/Nexaflow.Tests.Core.csproj
+& $nfi build src/Nexaflow.Tests/Nexaflow.Tests.Core/Nexaflow.Tests.Core.csproj
 src/Nexaflow.Tests/Nexaflow.Tests.Core/bin/x64/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.Core.exe --filter "FullyQualifiedName~Unit"
 ```
 

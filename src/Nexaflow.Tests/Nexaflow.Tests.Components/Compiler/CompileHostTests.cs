@@ -228,6 +228,32 @@ public class CompileHostTests
 
     [TestMethod]
     [CoversNode("syntax-compile-check")]
+    public void References_AskedTogether_AreWhatEachFindsAlone()
+    {
+        var greet   = Greeter.IndexOf("Greet(", StringComparison.Ordinal);
+        var other   = File.ReadAllText(App("Other.cs")).IndexOf("Greet()", StringComparison.Ordinal);
+        ReferenceQuery[] queries =
+        [
+            new(Lib("Greeter.cs"), greet, [App("Program.cs"), App("Other.cs")]),
+            new(App("Other.cs"), other, [App("Program.cs")]),
+            new(Lib("Greeter.cs"), 0, [App("Program.cs")]),
+        ];
+
+        var together = _host.FindReferences(queries, Budget);
+
+        Assert.AreEqual(queries.Length, together.Count, "one report for each query, in order");
+        for (var i = 0; i < queries.Length; i++)
+        {
+            var alone = _host.FindReferences(queries[i].DeclarationFile, queries[i].Position, queries[i].CandidateFiles, Budget);
+            Assert.AreEqual(alone.Error, together[i].Error, $"query {i}");
+            CollectionAssert.AreEquivalent(alone.Locations.ToArray(), together[i].Locations.ToArray(), $"query {i}");
+        }
+        Assert.IsNotNull(together[2].Error, "nothing is declared at the start of the file");
+        Assert.AreEqual(2, together[1].Locations.Count, "Other.Greet and its call beside it - not Greeter.Greet in Program.cs");
+    }
+
+    [TestMethod]
+    [CoversNode("syntax-compile-check")]
     public void AProjectNeverRestored_IsNamedAsNotChecked_RatherThanEveryPackageUseBeingAnError()
     {
         var file   = Path.Combine(_root, "Unrestored", "Thing.cs");

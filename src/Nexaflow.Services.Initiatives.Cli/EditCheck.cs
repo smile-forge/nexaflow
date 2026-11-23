@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Nexaflow.Services.Initiatives.Cli.Building;
 using Nexaflow.Services.Initiatives.Cli.Daemon;
 using Nexaflow.Services.Initiatives.Graph;
 using Nexaflow.Services.Initiatives.Graph.Model;
@@ -28,8 +29,11 @@ internal static class EditCheck
 
     private static readonly ConcurrentDictionary<string, CompileHost> Hosts = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>The tree's compile host. Made in the resident process, it runs its design-time builds on that process's
+    /// workers, which outlive the request that made it.</summary>
     internal static CompileHost HostFor(string codeRoot) =>
-        Hosts.GetOrAdd(Path.TrimEndingDirectorySeparator(Path.GetFullPath(codeRoot)), root => new CompileHost(root));
+        Hosts.GetOrAdd(Path.TrimEndingDirectorySeparator(Path.GetFullPath(codeRoot)),
+                       root => new CompileHost(root, RequestScope.DesignTimeBuilds is { } pool ? new PooledDesignTimeBuilder(pool, root) : null));
 
     /// <summary>Lets go of a tree's compiler, for a command stuck holding it: the next check on the tree loads afresh.</summary>
     internal static void Forget(string codeRoot) =>

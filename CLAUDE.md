@@ -21,9 +21,13 @@ This file is what every turn needs. Depth lives in the docs below — open one w
 ## Build
 
 ```powershell
-dotnet build Nexaflow.slnx
+& $nfi build Nexaflow.slnx
 dotnet run --project src/Nexaflow.Core/Nexaflow.Core.csproj
 ```
+
+Build with `nfi build` — a project or a solution; `--property Configuration=Release` is `-c Release` — not `dotnet build`.
+Every session's builds then share the one set of MSBuild workers nfi's resident process keeps and lets go, where each
+`dotnet build` starts a machine-sized set of its own and leaves it running.
 
 ## `site/` — generated, and not yours to regenerate
 
@@ -211,9 +215,10 @@ overload's position, so an edit that adds or removes an overload says so — lat
 ### Prove — `test`
 
 `test <id>` builds and runs the tests that use the node, the tests of what uses it (three steps out, by the
-compiler's binding) and the tests declaring `[CoversNode]` of its feature. `--list` shows the choice and why without
-building; `test --failed` reruns exactly what failed. UI journey suites are named with their filter, never run for you —
-run them in Windows Sandbox with `Nexaflow.Tests.Sandbox`, which can also screenshot and drive the app there
+compiler's binding) and the tests declaring `[CoversNode]` of its feature — every suite in one build, on the same pool.
+`--list` shows the choice and why without building; `test --failed` reruns exactly what failed. UI journey suites are
+named with their filter, never run for you — run them in Windows Sandbox with `Nexaflow.Tests.Sandbox`, which can also
+screenshot and drive the app there
 ([testing.md](docs/testing.md#running-journeys-in-windows-sandbox)).
 
 ## Hard Rules
