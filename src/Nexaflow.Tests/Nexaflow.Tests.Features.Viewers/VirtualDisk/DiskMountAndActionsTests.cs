@@ -59,6 +59,7 @@ public class DiskMountAndActionsTests
         var action = new MountDiskAction(Substitute.For<IShellServices>());
         Assert.AreEqual("/disk/mountable", action.ExperienceId);
         Assert.AreEqual("/disk/mountable", MountDiskAction.StaticExperienceId);
+        Assert.IsTrue(((IFileAction)action).RequiresLocalFolder, "Windows attaches the image itself, read-write for a VHD — not offered on a location");
         Assert.AreEqual("Mount", action.DisplayName);
     }
 

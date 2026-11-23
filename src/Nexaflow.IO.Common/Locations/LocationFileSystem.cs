@@ -12,12 +12,13 @@ namespace Nexaflow.IO.Common.Locations;
 /// <para>
 /// Sessions are per runtime, so this — not the process-wide instance — is what a feature is given. The sync IO
 /// members serve local paths only and throw <see cref="LocationRequiresAsyncException"/> on a remote one; the async
-/// members serve both. A remote file is not browsable as an archive: archive work runs over local bytes, so the
-/// archive members refuse a remote path with <see cref="NotSupportedException"/> and
+/// members serve both. Archive work runs over local bytes: on a location this machine reaches as a Windows folder an
+/// archive is read there and changed over a local copy (the archive members, in their own part of this class); on any
+/// other location the archive members refuse a remote path with <see cref="NotSupportedException"/> and
 /// <see cref="IsContainerAsync"/> answers false for one. Thread-safe.
 /// </para>
 /// </summary>
-public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher, ILocationDirectory
+public sealed partial class LocationFileSystem : IVirtualFileSystem, ILocationPublisher, ILocationDirectory
 {
     private readonly IVirtualFileSystem _shared;
 
@@ -172,11 +173,7 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
     private string Local(string path, [CallerMemberName] string member = "")
         => TryRoute(path, out _, out _) ? throw new LocationRequiresAsyncException(path, member) : path;
 
-    /// <summary>The path, for archive work — which runs over local bytes, so a remote path is refused.</summary>
-    private string ArchiveLocal(string path, [CallerMemberName] string member = "")
-        => TryRoute(path, out _, out _)
-            ? throw new NotSupportedException($"{member} works on local bytes; '{path}' is on a remote location.")
-            : path;
+
 
     private static string VirtualPathOf(LocationMount location, string providerPath)
     {
@@ -319,12 +316,14 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
     // ── Paths ───────────────────────────────────────────────────────────────
 
     public VirtualBacking GetBacking(string path)
-        => TryRoute(path, out var location, out var remainder)
+        => ArchiveOf(path) is { IsEntry: true } ? VirtualBacking.Materialized   // one entry of an archive, as anywhere
+         : TryRoute(path, out var location, out var remainder)
             ? NativePathOf(location, remainder) is not null ? VirtualBacking.PassThrough : VirtualBacking.Remote
             : _shared.GetBacking(path);
 
     public string? TryResolveReal(string path)
-        => TryRoute(path, out var location, out var remainder) ? NativePathOf(location, remainder) : _shared.TryResolveReal(path);
+        => ArchiveOf(path) is { IsEntry: true } ? null   // an entry has no file of its own
+         : TryRoute(path, out var location, out var remainder) ? NativePathOf(location, remainder) : _shared.TryResolveReal(path);
 
     public string? TryToVirtual(string realPath) => FromNative(realPath) ?? _shared.TryToVirtual(realPath);
 
@@ -369,20 +368,25 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
     // ── Async ───────────────────────────────────────────────────────────────
 
     public async ValueTask<bool> ExistsAsync(string path, CancellationToken ct = default)
-        => TryRoute(path, out var location, out var remainder)
+        => ArchiveOf(path) is { IsEntry: true } archive ? await _shared.ExistsAsync(archive.ReadPath, ct).ConfigureAwait(false)
+         : TryRoute(path, out var location, out var remainder)
             ? await RemoteEntryAsync(location, remainder, ct).ConfigureAwait(false) is not null
             : await _shared.ExistsAsync(path, ct).ConfigureAwait(false);
 
     public async ValueTask<bool> IsDirectoryAsync(string path, CancellationToken ct = default)
-        => TryRoute(path, out var location, out var remainder)
+        => ArchiveOf(path) is { IsEntry: true } archive ? await _shared.IsDirectoryAsync(archive.ReadPath, ct).ConfigureAwait(false)
+         : TryRoute(path, out var location, out var remainder)
             ? (await RemoteEntryAsync(location, remainder, ct).ConfigureAwait(false))?.IsDirectory == true
             : await _shared.IsDirectoryAsync(path, ct).ConfigureAwait(false);
 
     public ValueTask<bool> IsContainerAsync(string path, CancellationToken ct = default)
-        => TryRoute(path, out _, out _) ? ValueTask.FromResult(false) : _shared.IsContainerAsync(path, ct);
+        => ArchiveOf(path) is { } archive ? _shared.IsContainerAsync(archive.ReadPath, ct)
+         : TryRoute(path, out _, out _)   ? ValueTask.FromResult(false)   // a remote file keeps no bytes here to open
+         : _shared.IsContainerAsync(path, ct);
 
     public ValueTask<LocationEntry?> GetEntryAsync(string path, CancellationToken ct = default)
-        => TryRoute(path, out var location, out var remainder)
+        => ArchiveOf(path) is { IsEntry: true } archive ? _shared.GetEntryAsync(archive.ReadPath, ct)
+         : TryRoute(path, out var location, out var remainder)
             ? RemoteEntryAsync(location, remainder, ct)
             : _shared.GetEntryAsync(path, ct);
 
@@ -394,7 +398,8 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
     }
 
     public IAsyncEnumerable<LocationEntry> EnumerateAsync(string path, CancellationToken ct = default)
-        => TryRoute(path, out var location, out var remainder)
+        => ArchiveOf(path) is { } archive ? _shared.EnumerateAsync(archive.ReadPath, ct)   // the archive, or a folder in it
+         : TryRoute(path, out var location, out var remainder)
             ? EnumerateRemoteAsync(location, remainder, ct)
             : _shared.EnumerateAsync(path, ct);
 
@@ -408,6 +413,8 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
 
     public async ValueTask<Stream> OpenReadAsync(string path, ReadIntent intent, CancellationToken ct = default)
     {
+        if (ArchiveOf(path) is { IsEntry: true } archive)
+            return await _shared.OpenReadAsync(archive.ReadPath, intent, ct).ConfigureAwait(false);
         if (!TryRoute(path, out var location, out var remainder))
             return await _shared.OpenReadAsync(path, intent, ct).ConfigureAwait(false);
         var session = await location.Sessions.GetSessionAsync(ct).ConfigureAwait(false);
@@ -416,6 +423,8 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
 
     public async ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected = null, CancellationToken ct = default)
     {
+        if (ArchiveOf(path) is { IsEntry: true } archive)
+            return await BeginArchiveEntryWriteAsync(archive, mode, expected, ct).ConfigureAwait(false);
         if (!TryRouteChange(path, out var location, out var remainder))
             return await _shared.BeginWriteAsync(path, mode, expected, ct).ConfigureAwait(false);
         var session = await location.Sessions.GetSessionAsync(ct).ConfigureAwait(false);
@@ -461,6 +470,9 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
 
     public async ValueTask MoveAsync(string from, string to, bool replace, CancellationToken ct = default)
     {
+        if (ArchiveOf(from) is { IsEntry: true }) throw ChangedInsideArchive(from, nameof(MoveAsync));
+        if (ArchiveOf(to) is { IsEntry: true })   throw ChangedInsideArchive(to, nameof(MoveAsync));
+
         bool fromRemote = TryRouteChange(from, out var source, out var sourceRest);
         bool toRemote   = TryRouteChange(to, out var target, out var targetRest);
         if (!fromRemote && !toRemote)
@@ -479,6 +491,9 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
 
     public async ValueTask CopyWithinAsync(string from, string to, bool replace, CancellationToken ct = default)
     {
+        if (ArchiveOf(from) is { IsEntry: true } || ArchiveOf(to) is { IsEntry: true })
+            throw new NotSupportedException($"'{from}' or '{to}' is inside an archive, which a server cannot copy within.");
+
         bool fromRemote = TryRouteChange(from, out var source, out var sourceRest);
         bool toRemote   = TryRouteChange(to, out var target, out var targetRest);
         if (!fromRemote || !toRemote || !IdEquals(source!.Id, target!.Id)
@@ -492,6 +507,7 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
 
     public async ValueTask DeleteAsync(string path, bool recursive, CancellationToken ct = default)
     {
+        if (ArchiveOf(path) is { IsEntry: true }) throw ChangedInsideArchive(path, nameof(DeleteAsync));
         if (!TryRouteChange(path, out var location, out var remainder))
         {
             await _shared.DeleteAsync(path, recursive, ct).ConfigureAwait(false);
@@ -503,6 +519,7 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
 
     public async ValueTask CreateDirectoryAsync(string path, CancellationToken ct = default)
     {
+        if (ArchiveOf(path) is { IsEntry: true }) throw ChangedInsideArchive(path, nameof(CreateDirectoryAsync));
         if (!TryRouteChange(path, out var location, out var remainder))
         {
             await _shared.CreateDirectoryAsync(path, ct).ConfigureAwait(false);
@@ -576,43 +593,11 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
         public ValueTask<IReadOnlySet<string>> ListCommandsAsync(CancellationToken ct) => shell.ListCommandsAsync(ct);
     }
 
-    public ValueTask<ArchiveSummary?> DescribeArchiveAsync(string containerPath, CancellationToken ct = default)
-        => TryRoute(containerPath, out _, out _)
-            ? ValueTask.FromResult<ArchiveSummary?>(null)   // a remote file is never a container
-            : _shared.DescribeArchiveAsync(containerPath, ct);
-
     public ValueTask<string> MaterializeFileAsync(string path, CancellationToken ct = default)
-        => !TryRoute(path, out var location, out var remainder)
+        => ArchiveOf(path) is { IsEntry: true } archive ? _shared.MaterializeFileAsync(archive.ReadPath, ct)
+         : !TryRoute(path, out var location, out var remainder)
             ? _shared.MaterializeFileAsync(path, ct)
             : NativePathOf(location, remainder) is { } native
                 ? ValueTask.FromResult(native)
                 : ValueTask.FromException<string>(new NotSupportedException($"'{path}' is on a remote location, which keeps no copy of it on this disk."));
-
-    public ValueTask ExtractAllAsync(string containerPath, string destinationDir,
-                                     IProgress<TransferProgress>? progress = null, CancellationToken ct = default)
-        => _shared.ExtractAllAsync(ArchiveLocal(containerPath), ArchiveLocal(destinationDir), progress, ct);
-
-    public ValueTask CreateArchiveAsync(string archivePath, string sourceDir,
-                                        IProgress<TransferProgress>? progress = null, CancellationToken ct = default)
-        => _shared.CreateArchiveAsync(ArchiveLocal(archivePath), ArchiveLocal(sourceDir), progress, ct);
-
-    public ValueTask CreateArchiveAsync(string archivePath, IReadOnlyList<string> sourcePaths,
-                                        IProgress<TransferProgress>? progress = null, CancellationToken ct = default)
-    {
-        foreach (var source in sourcePaths) ArchiveLocal(source);
-        return _shared.CreateArchiveAsync(ArchiveLocal(archivePath), sourcePaths, progress, ct);
-    }
-
-    public ValueTask CreateArchiveAsync(string archivePath, IReadOnlyList<ArchiveWriteEntry> entries,
-                                        IProgress<TransferProgress>? progress = null, CancellationToken ct = default)
-        => _shared.CreateArchiveAsync(ArchiveLocal(archivePath), entries, progress, ct);
-
-    public ValueTask RepackageAsync(string sourcePath, string targetPath, ArchiveWriteOptions? options = null, CancellationToken ct = default)
-        => _shared.RepackageAsync(ArchiveLocal(sourcePath), ArchiveLocal(targetPath), options, ct);
-
-    public ValueTask AddFilesAsync(string containerPath, IReadOnlyList<(string SourcePath, string EntryName)> files, CancellationToken ct = default)
-    {
-        foreach (var (source, _) in files) ArchiveLocal(source);
-        return _shared.AddFilesAsync(ArchiveLocal(containerPath), files, ct);
-    }
 }

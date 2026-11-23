@@ -27,4 +27,7 @@ public sealed class GitViewlet : IFolderViewlet
 
     public FrameworkElement CreateView(string folderPath, IViewletController controller)
         => new GitViewletView(_options, _shell, folderPath, controller);
+
+    /// <summary>Pulling and switching branch rewrite the working tree with Windows' own git, which a location's folder may not be changed by.</summary>
+    public bool RequiresLocalFolder => true;
 }

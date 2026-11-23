@@ -159,8 +159,21 @@ public interface ILocationSessionSource                          // the pool, pe
   `VirtualBacking` hides actions for archive entries.
 - **`VirtualBacking.Remote`.** An action that would hand the path to an external process gets a materialised copy
   or is suppressed — the rule that protects archive entries, read through `IsFullyOnDisk`. Until the content cache
-  lands such an action is suppressed, and a remote file is not browsed as an archive: archive work runs over local
-  bytes, so the archive members refuse a remote path.
+    lands such an action is suppressed, and a remote file is not browsed as an archive: archive work runs over local
+    bytes, so the archive members refuse a remote path.
+  - **An archive on a location Windows reaches as a folder** is browsed, read and described through that folder. Every
+    change to one — an entry written, files added, the archive made or remade — is made on a local copy and put in place
+    through the location, so it keeps its permissions. What is extracted into a location is written through it entry by
+    entry (`ArchiveEntryPlacement`), each under the archive's own name, and an archive made of a location's files names each
+    as the location does, though Windows shows a name it cannot hold mapped. An entry is not removed, moved or made a folder
+    inside an archive, there as on this PC.
+  - **A change made with Windows' own tools is not offered on a location.** `PassThrough` says where a file's bytes can be
+    read, not that Windows may change them there. A file action, folder action or viewlet that changes files with Windows'
+    own calls or tools — mounting a disk image, removing an image's edits, Git, .NET, the AI summary — declares
+    `RequiresLocalFolder` and is not offered on a location, named by its path or by its Windows folder's. A page that writes
+    with a Windows library shows what it reads and offers no change there: an audio file's tags are read-only in a distro.
+    An image edited in a distro keeps its edits while it is open, with no sidecar to hold them, and Save writes them into
+    the file.
 - **Errors are one typed family** (`LocationException` with `NotFound`, `AccessDenied`, `Disconnected`, `AuthFailed`,
   `HostKeyChanged`, `Conflict`), so every page reports a dropped share the same way.
 
@@ -330,7 +343,6 @@ permissions. The Recycle Bin is never offered for one, and a name Windows would 
 | Gap | Effect |
 | --- | --- |
 | A file copied from one location to another is written there new | It takes the destination's default permissions, not its own |
-| Actions offered by `PassThrough` are not each proven on a location | An action such as Zip It may be offered and fail |
 | The console shows `::wsl-ubuntu\usr`, an empty Files tab and Windows' variables | The page describes the wrong machine |
 | The browser shows no address, no link target and a disk icon for a distro; the action reads Cmd Here | Linux folders do not read as Linux |
 | Names that are not UTF-8 cross the helper's wire as text | Those files cannot be opened, renamed or deleted |

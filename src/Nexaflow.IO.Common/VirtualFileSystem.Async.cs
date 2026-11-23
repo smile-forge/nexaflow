@@ -256,6 +256,46 @@ public sealed partial class VirtualFileSystem
                                      System.IProgress<TransferProgress>? progress = null, CancellationToken ct = default)
         => OffThread(() => ExtractAll(containerPath, destinationDir, progress, ct), containerPath, ct);
 
+    public ValueTask ExtractAllAsync(string containerPath, ArchiveEntryPlacement place,
+                                     System.IProgress<TransferProgress>? progress = null, CancellationToken ct = default)
+        => new(Task.Run(() => ExtractEachAsync(containerPath, place, progress, ct).AsTask(), ct));
+
+    /// <summary>The archive opened once and each file streamed into the write its placement begins — off the caller's thread,
+    /// as the handler reads synchronously.</summary>
+    private async ValueTask ExtractEachAsync(string containerPath, ArchiveEntryPlacement place,
+                                             System.IProgress<TransferProgress>? progress, CancellationToken ct)
+    {
+        var real     = ToReal(containerPath);
+        var reporter = new ArchiveProgressReporter(progress, ct);
+        reporter.Scanning();
+
+        var summary = DescribeArchive(real) ?? throw new System.NotSupportedException("Not a recognised archive.");
+        var handler = HandlerFor(Path.GetFileName(real))!;
+        var files   = summary.Entries.Where(e => !e.IsDirectory).ToList();
+        reporter.Measured(files.Sum(e => e.Size), files.Count);
+
+        using var session = handler.Open(new FileStream(real, FileMode.Open, FileAccess.Read, FileShare.Read), Path.GetFileName(real));
+        var buffer = new byte[81920];
+        foreach (var e in files)
+        {
+            ct.ThrowIfCancellationRequested();
+            await using var write = await place(e.Name, ct).ConfigureAwait(false);
+            if (write is null) continue;
+
+            reporter.ItemStarted(e.Name);
+            long done = 0;
+            using (var src = session.OpenEntry(e.Name))
+                for (int read; (read = await src.ReadAsync(buffer, ct).ConfigureAwait(false)) > 0;)
+                {
+                    await write.Content.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
+                    reporter.Advanced(done += read);
+                }
+            await write.CommitAsync(ct).ConfigureAwait(false);
+            reporter.ItemFinished(e.Name, e.Size, e.Size);
+        }
+        reporter.Finished();
+    }
+
     public ValueTask CreateArchiveAsync(string archivePath, string sourceDir,
                                         System.IProgress<TransferProgress>? progress = null, CancellationToken ct = default)
         => OffThread(() => CreateArchive(archivePath, sourceDir, progress, ct), archivePath, ct);

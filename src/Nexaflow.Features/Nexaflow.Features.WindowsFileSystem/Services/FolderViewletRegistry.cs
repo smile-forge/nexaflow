@@ -24,11 +24,14 @@ public static class FolderViewletRegistry
         var vfs = registry.Vfs;
         string? realFolder = vfs.ResolveOnDisk(folderPath);
         bool fullyBacked = realFolder is not null && IsFolderHere(realFolder);
+        // A viewlet that changes files with Windows' own tools is not offered on a location, which changes only through itself.
+        bool onLocation = vfs.IsOnLocation(folderPath);
 
         var result = new List<IFolderViewlet>();
         foreach (var viewlet in registry.FolderViewlets)
         {
             if (!fullyBacked && viewlet.RequiresFullyBackedPath) continue;
+            if (onLocation && viewlet.RequiresLocalFolder) continue;
             if (isDrive && !viewlet.AppliesToDrives) continue;
             if (!FolderNameMatches(viewlet, folderPath)) continue;
             if (!ContentsMatch(viewlet, realFolder)) continue;

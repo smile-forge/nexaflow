@@ -21,4 +21,7 @@ public sealed class AiSummaryViewlet : IFolderViewlet
 
     public FrameworkElement CreateView(string folderPath, IViewletController controller)
         => new AiSummaryViewletView(new ProjectOperations(_config), folderPath, controller);
+
+    /// <summary>The summary is saved beside the folder's files with Windows' own file calls, which a location's folder may not be changed by.</summary>
+    public bool RequiresLocalFolder => true;
 }

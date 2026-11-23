@@ -12,6 +12,7 @@ using Nexaflow.Features.Compressed.Handlers;
 using Nexaflow.Features.WindowsFileSystem.Services;
 using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Features.WindowsFileSystem.ViewModels;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -124,5 +125,105 @@ public class ViewletBackingTests
             CollectionAssert.Contains(names.ToArray(), "Always");
         }
         finally { VirtualFileSystem.Instance.UnregisterMount(id); }
+    }
+
+    /// <summary>Changes the folder with Windows' own tools — stands in for Git, .NET and the AI summary.</summary>
+    private sealed class ChangingViewlet : IFolderViewlet, ICacheable
+    {
+        public string DisplayName => "Changing";
+        public bool   AppliesToDrives => false;
+        public bool   RequiresLocalFolder => true;
+        public string[]? ContainsFileGlobs => ["*.csproj"];
+        public FrameworkElement CreateView(string folderPath, IViewletController controller) => new FrameworkElement();
+    }
+
+    private sealed class SameNames : Nexaflow.IO.Common.Locations.ILocationNativePaths
+    {
+        public IReadOnlyList<string> GetNativeRoots(Nexaflow.IO.Common.Locations.ConnectionProfile connection) => [];
+        public string ToNativeName(string name) => name;
+        public string FromNativeName(string nativeName) => nativeName;
+    }
+
+    [TestMethod]
+    public void OnALocation_AViewletThatChangesFilesWithWindowsToolsIsNotOffered_OneThatReadsIs()
+    {
+        // A location Windows also shows as a folder, as a WSL distro is, holding a repository like the one on this PC.
+        var distro = Path.Combine(_dir, "distro");
+        Directory.CreateDirectory(Path.Combine(distro, "repo", ".git"));
+        File.WriteAllText(Path.Combine(distro, "repo", "App.csproj"), "<Project/>");
+        var files = new Nexaflow.IO.Common.Locations.LocationFileSystem(VirtualFileSystem.Instance);
+        files.RegisterLocation(new Nexaflow.IO.Common.Locations.LocationMount(
+            new Nexaflow.IO.Common.Locations.ConnectionProfile("viewlet-probe", "wsl", "Probe", "Probe"),
+            Nexaflow.IO.Common.Locations.LocationCapabilities.SameMachine, null!)
+        { NativeRoots = [distro], NativePaths = new SameNames() });
+        var shell = Substitute.For<IShellServices>();
+        shell.DiscoverImplementations<IFolderViewlet>().Returns([typeof(ToolingViewlet), typeof(ChangingViewlet)]);
+        var registry = FileSystemFeatureRegistry.For(shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), files);
+
+        var onLocation = FolderViewletRegistry.GetMatchingViewlets(@"::viewlet-probe\repo", registry).Select(v => v.DisplayName).ToArray();
+        var byNative   = FolderViewletRegistry.GetMatchingViewlets(Path.Combine(distro, "repo"), registry).Select(v => v.DisplayName).ToArray();
+        var onThisPc   = FolderViewletRegistry.GetMatchingViewlets(Path.Combine(_dir, "repo"), registry).Select(v => v.DisplayName).ToArray();
+
+        CollectionAssert.AreEquivalent(new[] { "Tooling" }, onLocation, "one that reads is offered there; one that changes files is not");
+        CollectionAssert.AreEquivalent(new[] { "Tooling" }, byNative, "the distro's folder named as Windows shows it is the same folder");
+        CollectionAssert.AreEquivalent(new[] { "Tooling", "Changing" }, onThisPc);
+    }
+
+    /// <summary>A folder action that changes the folder with Windows' own calls.</summary>
+    public sealed class LocalOnlyFolderAction : IFolderAction, ICacheable
+    {
+        public bool    IsDestructive         => false;
+        public bool    SupportsMultipleFiles => true;
+        public Nexaflow.Icons.IconRef Icon   => Nexaflow.Icons.IconRef.Emoji("🛠");
+        public string  DisplayName           => "Local only";
+        public bool    RequiresRefresh       => false;
+        public bool    CanPerformAction      => true;
+        public bool    AppliesToRoot         => true;
+        public bool    AppliesToDrives       => false;
+        public bool    RequiresLocalFolder   => true;
+        public Task<bool> PerformActionAsync(string folderPath, CancellationToken ct = default) => Task.FromResult(true);
+        public Task<bool> PerformActionAsync(IEnumerable<string> folderPaths, CancellationToken ct = default) => Task.FromResult(true);
+    }
+
+    /// <summary>A folder action that changes the folder through the virtual file system.</summary>
+    public sealed class ThroughTheFilesFolderAction : IFolderAction, ICacheable
+    {
+        public bool    IsDestructive         => false;
+        public bool    SupportsMultipleFiles => true;
+        public Nexaflow.Icons.IconRef Icon   => Nexaflow.Icons.IconRef.Emoji("📁");
+        public string  DisplayName           => "Anywhere";
+        public bool    RequiresRefresh       => false;
+        public bool    CanPerformAction      => true;
+        public bool    AppliesToRoot         => true;
+        public bool    AppliesToDrives       => false;
+        public Task<bool> PerformActionAsync(string folderPath, CancellationToken ct = default) => Task.FromResult(true);
+        public Task<bool> PerformActionAsync(IEnumerable<string> folderPaths, CancellationToken ct = default) => Task.FromResult(true);
+    }
+
+    [TestMethod]
+    public void OnALocation_AFolderActionThatChangesFilesWithWindowsCallsIsNotOffered_SelectedOrOpen()
+    {
+        var distro = Path.Combine(_dir, "distro");
+        Directory.CreateDirectory(Path.Combine(distro, "repo"));
+        var files = new Nexaflow.IO.Common.Locations.LocationFileSystem(VirtualFileSystem.Instance);
+        files.RegisterLocation(new Nexaflow.IO.Common.Locations.LocationMount(
+            new Nexaflow.IO.Common.Locations.ConnectionProfile("action-probe", "wsl", "Probe", "Probe"),
+            Nexaflow.IO.Common.Locations.LocationCapabilities.SameMachine, null!)
+        { NativeRoots = [distro], NativePaths = new SameNames() });
+        var shell = Substitute.For<IShellServices>();
+        shell.DiscoverImplementations<IFileAction>().Returns(Array.Empty<Type>());
+        shell.DiscoverImplementations<IFolderAction>().Returns([typeof(LocalOnlyFolderAction), typeof(ThroughTheFilesFolderAction)]);
+        var actions = new FileActionManager(FileSystemFeatureRegistry.For(shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), files));
+        var canPerform = actions.SnapshotCanPerform().Folder;
+
+        string[] Selected(string path) => actions.FilterFolderActions(
+            [new FileSystemEntry { Name = "repo", FullPath = path, IsDirectory = true }], canPerform).Select(a => a.DisplayName).ToArray();
+        string[] Open(string path) => actions.FilterFolderActions([], canPerform, path).Select(a => a.DisplayName).ToArray();
+
+        CollectionAssert.AreEquivalent(new[] { "Anywhere" }, Selected(@"::action-probe\repo"));
+        CollectionAssert.AreEquivalent(new[] { "Anywhere" }, Selected(Path.Combine(distro, "repo")), "named as Windows shows it, the same folder");
+        CollectionAssert.AreEquivalent(new[] { "Anywhere" }, Open(@"::action-probe\repo"));
+        CollectionAssert.AreEquivalent(new[] { "Local only", "Anywhere" }, Selected(Path.Combine(_dir, "repo")));
+        CollectionAssert.AreEquivalent(new[] { "Local only", "Anywhere" }, Open(Path.Combine(_dir, "repo")));
     }
 }

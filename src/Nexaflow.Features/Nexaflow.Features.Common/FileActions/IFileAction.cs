@@ -99,6 +99,15 @@ namespace Nexaflow.Features.Common
         bool RequiresFullyBackedPath => false;
 
         /// <summary>
+        /// True when this action changes the file with Windows' own file calls, or hands it to a Windows tool that does — mounting
+        /// a disk image, removing an edits sidecar. Only a file in a folder of this PC may be changed so: a location's file — a WSL
+        /// distro's, though Windows shows it as a folder — changes only through the location, which keeps its exact names and its
+        /// permissions, so the action is not offered there. Defaults to <c>false</c>: an action that changes files through the
+        /// virtual file system works on a location too.
+        /// </summary>
+        bool RequiresLocalFolder => false;
+
+        /// <summary>
         /// The suffix of a companion file (<see cref="FileCompanionKind"/>) that every selected file must have beside it for
         /// the action to be offered — an action about that companion, such as reverting a photo's edits. Null, the default,
         /// offers the action whatever companions the files have.

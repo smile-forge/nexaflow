@@ -78,6 +78,14 @@ namespace Nexaflow.Features.Common
         /// on-disk folder — e.g. "Zip It", which has nothing to compress from a virtual location.</summary>
         bool AppliesInsideArchive => true;
 
+        /// <summary>
+        /// True when this action changes the folder with Windows' own file calls, or hands it to a Windows tool that does. Only a
+        /// folder of this PC may be changed so: a location's folder — a WSL distro's, though Windows shows it as a folder — changes
+        /// only through the location, which keeps its exact names and its permissions, so the action is not offered there.
+        /// Defaults to <c>false</c>: an action that changes files through the virtual file system works on a location too.
+        /// </summary>
+        bool RequiresLocalFolder => false;
+
         /// <summary>Per-path applicability, evaluated against each selected folder/drive after the structural
         /// (name / contents glob) checks pass. Defaults to <c>true</c>. Lets an action hide itself for a
         /// specific path that structural globs can't express — e.g. "Unmount" only on a drive that is backed

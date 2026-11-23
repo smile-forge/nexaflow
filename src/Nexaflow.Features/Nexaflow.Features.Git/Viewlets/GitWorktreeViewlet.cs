@@ -35,4 +35,7 @@ public sealed class GitWorktreeViewlet : IFolderViewlet
 
     public FrameworkElement CreateView(string folderPath, IViewletController controller)
         => new GitViewletView(_options, _shell, folderPath, controller);
+
+    /// <summary>Removing a worktree changes the folder with Windows' own git, which a location's folder may not be changed by.</summary>
+    public bool RequiresLocalFolder => true;
 }

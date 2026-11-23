@@ -56,6 +56,7 @@ When a tab holds more than one image, pick a view from the switch at the top lef
 - Edits never touch the file until it is saved. They are kept beside the picture in a hidden file named after it, and every view here shows the picture with them applied — the carousel, the thumbnails, full screen, and what the assistant is shown. A picture with edits is marked *edited* beside its name.
 - In the File System page a picture's edits go wherever it goes: copying, moving, renaming and deleting it take them along, a copy that is renamed to avoid a clash keeps its own, and dragging it to another program brings them too. **Revert edits** appears among the actions of an edited picture.
 - If a picture is changed by another program after it was edited, the viewer asks whether to keep the edits on the new picture or discard them.
+- A picture in a WSL distro has no hidden edits file, so its edits last while it is open, and the editor says so: Save writes them into the picture, and Revert edits is not offered there.
 
 ## Printing
 

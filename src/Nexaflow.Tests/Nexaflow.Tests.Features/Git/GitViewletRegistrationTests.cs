@@ -23,6 +23,13 @@ public class GitViewletRegistrationTests
     private static IFolderViewlet Worktree() => new GitWorktreeViewlet(new GitOptions(), Substitute.For<IShellServices>());
 
     [TestMethod]
+    public void BothGitViewletsChangeTheFolderWithWindowsGit_SoAreNotOfferedOnALocation()
+    {
+        Assert.IsTrue(MainCheckout().RequiresLocalFolder, "pull and switch rewrite the working tree");
+        Assert.IsTrue(Worktree().RequiresLocalFolder, "removing a worktree changes the folder");
+    }
+
+    [TestMethod]
     public void MainCheckout_MatchesTheGitFolder_NotTheGitFile()
     {
         var viewlet = MainCheckout();

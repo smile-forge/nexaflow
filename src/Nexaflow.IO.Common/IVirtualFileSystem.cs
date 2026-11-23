@@ -321,6 +321,11 @@ public interface IVirtualFileSystem
     ValueTask ExtractAllAsync(string containerPath, string destinationDir,
                               IProgress<TransferProgress>? progress = null, CancellationToken ct = default);
 
+    /// <summary>Extracts every file of the archive at <paramref name="containerPath"/> where <paramref name="place"/> puts it,
+    /// one at a time and in the archive's order, reporting as <see cref="ExtractAll"/> does.</summary>
+    ValueTask ExtractAllAsync(string containerPath, ArchiveEntryPlacement place,
+                              IProgress<TransferProgress>? progress = null, CancellationToken ct = default);
+
     /// <summary>As <see cref="CreateArchive(string, string, IProgress{TransferProgress}?, CancellationToken)"/>.</summary>
     ValueTask CreateArchiveAsync(string archivePath, string sourceDir,
                                  IProgress<TransferProgress>? progress = null, CancellationToken ct = default);

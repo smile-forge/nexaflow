@@ -24,4 +24,7 @@ public sealed class DotnetViewlet : IFolderViewlet
 
     public FrameworkElement CreateView(string folderPath, IViewletController controller)
         => new DotnetViewletView(_shell, folderPath);
+
+    /// <summary>Building, restoring and cleaning write the project's output with Windows' own dotnet, which a location's folder may not be changed by.</summary>
+    public bool RequiresLocalFolder => true;
 }

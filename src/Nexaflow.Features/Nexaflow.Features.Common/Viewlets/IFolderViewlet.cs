@@ -37,6 +37,14 @@ public interface IFolderViewlet
     /// </summary>
     bool RequiresFullyBackedPath => true;
 
+    /// <summary>
+    /// True when this viewlet changes the folder's files with Windows' own tools — a repository checked out, a project built,
+    /// a summary saved beside it. Only a folder of this PC may be changed so: a location's folder — a WSL distro's, though
+    /// Windows shows it as a folder — changes only through the location, which keeps its exact names and its permissions, so
+    /// the viewlet is not offered there. Defaults to <c>false</c>: a viewlet that only reads works on a location too.
+    /// </summary>
+    bool RequiresLocalFolder => false;
+
     ViewletDisplayMode DefaultDisplayMode => ViewletDisplayMode.DoubleBar;
 
     ViewletDisplayMode[] SupportedModes

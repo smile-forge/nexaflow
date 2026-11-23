@@ -366,7 +366,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         Album = tags.Album;
         Duration = tags.Duration;
         AlbumArt = ImageHelpers.ToBitmap(tags.AlbumArt);
-        TagEditor = new TagEditorViewModel(tags, _shell, _vfs, SaveTagsAsync);
+        TagEditor = new TagEditorViewModel(tags, _shell, _vfs, SaveTagsAsync, canSave: !_vfs.IsOnLocation(path));
 
         await LoadLyricsAsync(path, tags, token);
         _ = LoadWaveformAsync(local, token);
