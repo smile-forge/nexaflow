@@ -219,6 +219,7 @@ internal static class PickerRoots
         ThisPcItemIcon.Optical    => "💿 ",
         ThisPcItemIcon.Network    => "🖧 ",
         ThisPcItemIcon.Cloud      => "☁ ",
+        ThisPcItemIcon.Linux      => "🐧 ",
         _                         => "📁 ",
     };
 }

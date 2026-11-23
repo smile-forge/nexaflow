@@ -27,7 +27,7 @@ public class CopyFilesConformance : FileActionConformanceTests
 [CoversNode("winfs-act-copy-path")]
 public class CopyPathsConformance : FileActionConformanceTests
 {
-    protected override IFileAction CreateAction() => new CopyPaths();
+    protected override IFileAction CreateAction() => new CopyPaths(Nexaflow.IO.Common.VirtualFileSystem.Instance);
 }
 
 [TestClass]

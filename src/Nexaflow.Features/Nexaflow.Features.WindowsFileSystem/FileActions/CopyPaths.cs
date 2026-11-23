@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Icons;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
@@ -16,12 +17,17 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
     /// <see cref="CopyFiles"/>, which puts the file itself there for a paste.
     /// <para>
     /// Offered for files, folders and drives, so the directory tree and the file list both carry it. The
-    /// path copied is the one on screen: inside an archive that is the virtual path, which is what Nexaflow
-    /// itself can reopen — materialising to a temp copy would name a location the user never asked about.
+    /// path copied is the one Nexaflow itself reopens: inside an archive the virtual path — materialising to a temp
+    /// copy would name a location the user never asked about — and on a location its address, a WSL distro's
+    /// <c>wsl://Ubuntu/etc</c> rather than the file system's own <c>::wsl-ubuntu\etc</c> (<see cref="AsCopied"/>).
     /// </para>
     /// </summary>
-    public class CopyPaths : IFileAction, IFolderAction, ICacheable
+    public class CopyPaths(IVirtualFileSystem files) : IFileAction, IFolderAction, ICacheable
     {
+        /// <summary>What <paramref name="path"/> is copied as — by this action and by the file browser's breadcrumbs: the
+        /// file system's display form, a location's address and any other path as it is; null for no path.</summary>
+        internal static string? AsCopied(IVirtualFileSystem files, string? path)
+            => string.IsNullOrEmpty(path) ? null : files.GetDisplayPath(path);
         // ── IFileAction ───────────────────────────────────────────────────────
 
         public bool   IsDestructive          => false;
@@ -56,7 +62,8 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
             // An empty selection must not reach the clipboard: writing nothing REPLACES whatever the user
             // had copied, so "copy path" on nothing would silently throw their clipboard away — the same
             // trap CopyFiles fell into, reachable here through a pinned ribbon button.
-            if (ClipboardText(filePaths) is not { } text) return Task.FromResult(false);
+            if (ClipboardText((filePaths ?? []).Select(path => AsCopied(files, path) ?? string.Empty)) is not { } text)
+                return Task.FromResult(false);
 
             try { Clipboard.SetText(text); return Task.FromResult(true); }
             catch { return Task.FromResult(false); }   // another process holds the clipboard open

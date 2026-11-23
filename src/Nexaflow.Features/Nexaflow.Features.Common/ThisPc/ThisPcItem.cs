@@ -28,7 +28,13 @@ public enum ThisPcItemBacking
 /// answered (<see cref="ThisPcItemDetail.Icon"/>); a volume is listed as a <see cref="Disk"/> until then.
 /// </para>
 /// </summary>
-public enum ThisPcItemIcon { Disk, Removable, Optical, Network, Cloud, Folder, SolidState }
+public enum ThisPcItemIcon
+{
+    Disk, Removable, Optical, Network, Cloud, Folder, SolidState,
+
+    /// <summary>A Linux installed beside Windows on this computer — a WSL distro.</summary>
+    Linux,
+}
 
 /// <summary>
 /// One row in "This PC", offered by an <see cref="IThisPcItemProvider"/> — a volume, a cloud sync root, a network

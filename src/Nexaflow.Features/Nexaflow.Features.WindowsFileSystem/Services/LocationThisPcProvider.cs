@@ -13,6 +13,9 @@ namespace Nexaflow.Features.WindowsFileSystem.Services;
 /// </summary>
 public sealed class LocationThisPcProvider : IThisPcItemProvider
 {
+    /// <summary>The kind a WSL distro's location has (<see cref="MountedLocation.Kind"/>): a Linux beside Windows.</summary>
+    private const string WslKind = "wsl";
+
     private readonly ILocationDirectory _locations;
 
     public LocationThisPcProvider(ILocationDirectory locations)
@@ -50,13 +53,15 @@ public sealed class LocationThisPcProvider : IThisPcItemProvider
             Label      = label,
             TargetPath = root,
             TypeLabel  = KindLabel(kind),
-            Icon       = (capabilities & LocationCapabilities.SameMachine) != 0 ? ThisPcItemIcon.Disk : ThisPcItemIcon.Network,
+            Icon       = kind == WslKind ? ThisPcItemIcon.Linux
+                       : (capabilities & LocationCapabilities.SameMachine) != 0 ? ThisPcItemIcon.Disk
+                       : ThisPcItemIcon.Network,
             Backing    = ThisPcItemBacking.Virtual,
             SortOrder  = order,
         };
 
     private static string KindLabel(string kind)
-        => kind == "wsl" ? Str.Get("WindowsFileSystem.Locations.Wsl") : Str.Format("WindowsFileSystem.Locations.KindFormat", kind.ToUpperInvariant());
+        => kind == WslKind ? Str.Get("WindowsFileSystem.Locations.Wsl") : Str.Format("WindowsFileSystem.Locations.KindFormat", kind.ToUpperInvariant());
 
     /// <summary>A mounted location is there and opens as a folder; one that could not be mounted says why.</summary>
     public Task<ThisPcItemDetail> GetDetailAsync(ThisPcItem item, CancellationToken ct = default)

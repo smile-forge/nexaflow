@@ -281,4 +281,33 @@ public sealed class LocationBrowsingTests
         Assert.AreEqual(Named($@"{Root}\docs", "n:m %41."), folder);
         Assert.IsTrue(await _vfs.IsDirectoryAsync(Named($@"{Root}\docs", "n:m %41.")));
     }
+
+    [TestMethod]
+    public async Task ANameWindowsCannotHold_IsShownAsTheLocationHasIt_InTheListAndTheTree()
+    {
+        await _vfs.WriteAllTextAsync(_vfs.ChildPath($@"{Root}\docs", "at 12:30.txt"), "half past");
+        await _vfs.CreateDirectoryAsync(_vfs.ChildPath($@"{Root}\docs", "q:3"));
+
+        var vm  = await AtAsync($@"{Root}\docs");
+        var row = vm.Entries.Single(e => e.Name == "at 12%3A30.txt");
+        Assert.AreEqual("at 12:30.txt", row.ShownName, "the row shows the name, not the segment its path holds");
+
+        var node = new FileSystemTreeNode("docs", $@"{Root}\docs", _vfs);
+        await node.LoadChildrenAsync();
+        CollectionAssert.Contains(node.Children.Select(c => c.Name).ToArray(), "q:3");
+        Assert.AreEqual($@"{Root}\docs\q%3A3", node.Children.Single(c => c.Name == "q:3").FullPath);
+    }
+
+    [TestMethod]
+    public void ALink_ShowsWhereItPoints_AfterItsName()
+    {
+        var link = new FileSystemEntry { Name = "python3", SymlinkTarget = "/usr/bin/python3.12" };
+        var file = new FileSystemEntry { Name = "notes.txt" };
+
+        Assert.IsTrue(link.IsLink);
+        Assert.AreEqual("→ /usr/bin/python3.12", link.LinkTargetLabel, "as ls -l shows it");
+        Assert.IsFalse(file.IsLink);
+        Assert.AreEqual(string.Empty, file.LinkTargetLabel);
+        Assert.AreEqual("notes.txt", file.ShownName, "on this disk the name is shown as it is");
+    }
 }

@@ -158,8 +158,9 @@ public sealed class FileSystemPageRegistration(
             return new BreadcrumbSegment
             {
                 Label    = seg.Label,
-                // "This PC" is a place, not a path — it has nothing to copy, so the crumb offers no Copy path.
-                Path     = string.IsNullOrEmpty(capturedPath) ? null : capturedPath,
+                // "This PC" is a place, not a path — it has nothing to copy, so the crumb offers no Copy path. A location's
+                // folder copies as its address, as the Copy path action copies it.
+                Path     = CopyPaths.AsCopied(page.ViewModel.Vfs, capturedPath),
                 Navigate = isLast ? null : (string.IsNullOrEmpty(capturedPath)
                     ? () => page.ViewModel.GoToThisPc(rebuildTree: true)
                     : () => _ = page.ViewModel.BrowseToAsync(capturedPath))

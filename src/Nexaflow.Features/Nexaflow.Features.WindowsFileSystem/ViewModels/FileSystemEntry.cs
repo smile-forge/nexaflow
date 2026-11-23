@@ -30,6 +30,17 @@ public class FileSystemEntry : INotifyPropertyChanged
     private string?       _group;
 
     public string   Name        { get; set; } = string.Empty;
+
+    private string? _shownName;
+
+    /// <summary>The name as the row shows it: its folder's own name for it — a Linux name in a WSL distro, <c>at 12:30.txt</c> —
+    /// where <see cref="Name"/> is the segment its path holds (<c>at 12%3A30.txt</c>). The same as <see cref="Name"/> on this
+    /// disk.</summary>
+    public string ShownName
+    {
+        get => _shownName ?? Name;
+        set { _shownName = value; OnPropertyChanged(); }
+    }
     public string   FullPath    { get; init; } = string.Empty;
     public bool     IsDirectory { get; init; }
     public long     SizeBytes   { get => _sizeBytes; init => _sizeBytes = value; }
@@ -58,6 +69,13 @@ public class FileSystemEntry : INotifyPropertyChanged
 
     /// <summary>Where a symbolic link points, or null when the row is not one.</summary>
     public string? SymlinkTarget { get; init; }
+
+    /// <summary>The row is a symbolic link; its icon carries a link arrow.</summary>
+    public bool IsLink => SymlinkTarget is not null;
+
+    /// <summary>Where the link points, after the name as <c>ls -l</c> shows it (<c>→ /usr/bin/python3.12</c>); empty for any
+    /// other row.</summary>
+    public string LinkTargetLabel => SymlinkTarget is { } target ? $"→ {target}" : string.Empty;
 
     /// <summary>The permissions as <c>ls -l</c> writes them — <c>drwxr-xr-x</c> — or empty where the location reports none.</summary>
     public string PermissionsLabel => _posixMode is { } mode ? FormatPermissions(mode, SymlinkTarget is not null ? 'l' : IsDirectory ? 'd' : '-') : string.Empty;
@@ -198,7 +216,9 @@ public class FileSystemEntry : INotifyPropertyChanged
             OnPropertyChanged(nameof(Name));
             OnPropertyChanged(nameof(TypeName));
             OnPropertyChanged(nameof(TypeLabel));
+            OnPropertyChanged(nameof(ShownName));
         }
+        if (fresh._shownName != _shownName) ShownName = fresh.ShownName;
         if (fresh.SizeBytes != _sizeBytes)
         {
             _sizeBytes = fresh.SizeBytes;

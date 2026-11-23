@@ -1093,6 +1093,7 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
         ThisPcItemIcon.Optical   => DriveIconType.CDDVD,
         ThisPcItemIcon.Network   => DriveIconType.Network,
         ThisPcItemIcon.Cloud      => DriveIconType.Cloud,
+        ThisPcItemIcon.Linux      => DriveIconType.Linux,
         ThisPcItemIcon.SolidState => DriveIconType.SSD,
         _                        => DriveIconType.HDD,
     };
@@ -2128,10 +2129,13 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
     {
         bool inArchive = listed.Archive is not null;
         bool isDir     = listed.IsDirectory || (inArchive && Vfs.IsContainerName(listed.Name));
+        var  fullPath  = Path.Combine(parentPath, listed.Name);
         return new FileSystemEntry
         {
             Name        = listed.Name,
-            FullPath    = Path.Combine(parentPath, listed.Name),
+            // A location lists a name as the segment its path holds; its row shows the name its folder has.
+            ShownName   = Vfs.IsOnLocation(fullPath) ? Vfs.GetDisplayName(fullPath) : listed.Name,
+            FullPath    = fullPath,
             IsDirectory = isDir,
             SizeBytes   = isDir ? 0 : listed.Size,
             Modified    = listed.Modified,

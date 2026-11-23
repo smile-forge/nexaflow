@@ -38,7 +38,7 @@ public sealed class LocationThisPcProviderTests
         Assert.AreEqual("::wsl-ubuntu", row.TargetPath);
         Assert.AreEqual("Ubuntu", row.Label);
         Assert.AreEqual(ThisPcItemBacking.Virtual, row.Backing, "a location is served by the file system, not mounted from a folder");
-        Assert.AreEqual(ThisPcItemIcon.Disk, row.Icon, "a distro is on this PC");
+        Assert.AreEqual(ThisPcItemIcon.Linux, row.Icon, "a distro is a Linux on this PC, not a disk");
     }
 
     [TestMethod]

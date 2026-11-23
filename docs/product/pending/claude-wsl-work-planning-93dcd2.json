@@ -194,6 +194,18 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/LocationBrowsingTests.cs",
             "class": "LocationBrowsingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/LocationBrowsingTests.cs",
+            "class": "LocationBrowsingTests",
+            "method": "ANameWindowsCannotHold_IsShownAsTheLocationHasIt_InTheListAndTheTree"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/LocationBrowsingTests.cs",
+            "class": "LocationBrowsingTests",
+            "method": "ALink_ShowsWhereItPoints_AfterItsName"
           }
         ]
       }
@@ -1293,10 +1305,32 @@
           "method": "HandleKey"
         }
       ]
+    },
+    "winfs-act-copy-path": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/FileActions/CopyPathsTests.cs",
+            "class": "CopyPathsTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/FileActions/FileActionConformanceTests.cs",
+            "class": "CopyPathsConformance"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/FileActions/CopyPathsTests.cs",
+            "class": "CopyPathsTests",
+            "method": "ADistrosPath_IsCopiedAsItsAddress_AnyOtherAsItIs"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 70,
+  "changed_sets": 71,
   "touched_nodes": [
     "ai-context-paths",
     "audio-tageditor-save",
@@ -1329,6 +1363,7 @@
     "vterm-shell-dialects",
     "win-file-system-ai-act-delete-file",
     "win-file-system-ai-act-rename-file",
+    "winfs-act-copy-path",
     "winfs-act-rename",
     "winfs-action-backing",
     "winfs-drag-drop",
